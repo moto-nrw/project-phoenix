@@ -38,7 +38,7 @@ function report(overrides: Partial<CareUsageReport> = {}): CareUsageReport {
       },
     ],
     filter_options: {
-      offerings: [{ id: "7", name: "OGS" }],
+      offerings: [{ id: "7", name: "OGS", counts_as_care: true }],
       grade_levels: [1, 2],
     },
     rows: [
@@ -111,7 +111,7 @@ describe("getCareUsageReport", () => {
     const filters: CareUsageFilters = {
       phase_id: "42",
       status: "approved",
-      care_offering_id: "7",
+      care_offering_ids: ["7", "8"],
       day_count: 0,
       grade_level: 1,
       search: "  Ada  ",
@@ -121,7 +121,7 @@ describe("getCareUsageReport", () => {
     expect(actual).toStrictEqual(expected);
     expect(seenInit).toEqual({ cache: "no-store" });
     expect(seenURL).toBe(
-      "/api/enrollment/admin/reports/care-usage?phase_id=42&status=approved&care_offering_id=7&day_count=0&grade_level=1&search=Ada",
+      "/api/enrollment/admin/reports/care-usage?phase_id=42&status=approved&care_offering_ids=7&care_offering_ids=8&day_count=0&grade_level=1&search=Ada",
     );
   });
 
@@ -135,7 +135,7 @@ describe("getCareUsageReport", () => {
     await getCareUsageReport({
       phase_id: "42",
       status: undefined,
-      care_offering_id: "",
+      care_offering_ids: [],
       day_count: undefined,
       grade_level: 0,
       search: "   ",
@@ -242,7 +242,7 @@ describe("exportCareUsageReport", () => {
       {
         phase_id: "42",
         status: "approved",
-        care_offering_id: "7",
+        care_offering_ids: ["7"],
         day_count: 5,
         grade_level: 2,
         search: "Ada",
@@ -262,7 +262,7 @@ describe("exportCareUsageReport", () => {
       filters: {
         phase_id: "42",
         status: "approved",
-        care_offering_id: "7",
+        care_offering_ids: ["7"],
         day_count: 5,
         grade_level: 2,
         search: "Ada",

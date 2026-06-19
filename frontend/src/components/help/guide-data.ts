@@ -724,7 +724,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Eingegangene Anmeldungen öffnen, Angaben prüfen, nach Betreuungsangeboten filtern und die passende Entscheidung setzen.",
         steps: [
           "Bei einer Phase auf `Anmeldungen ansehen` klicken, um die eingegangenen Anmeldungen zu prüfen.",
-          "Mit `Status`, `Betreuungsangebot`, `Tagesanzahl`, `Zielklasse` oder der Suche die Tabelle auf die Kinder eingrenzen, die du brauchst.",
+          "Mit `Status`, den berücksichtigten `Betreuungsangeboten`, `Tagesanzahl`, `Zielklasse` oder der Suche die Tabelle auf die Kinder eingrenzen, die du brauchst.",
           "Die Kennzahlen über der Tabelle zeigen, wie viele Kinder an einem, zwei, drei, vier oder fünf Tagen betreut werden.",
           "Eine Anmeldung öffnen und Kind, erziehungsberechtigte Personen (Hauptkontakt und weitere erziehungsberechtigte Personen), gewähltes Betreuungsangebot und Formularangaben prüfen.",
           "Mit `Bestätigen`, `Warteliste` oder `Ablehnen` entscheiden; mit `Zur Prüfung` für später vormerken.",
@@ -732,7 +732,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "So zählt moto Betreuungstage",
-          body: "Die Tagesanzahl ist die Summe der unterschiedlichen Wochentage pro Kind. Wenn ein Kind mehrere Angebote gewählt hat und ein Tag in mehreren Angeboten vorkommt, zählt dieser Tag nur einmal.",
+          body: "Die Tagesanzahl ist die Summe der unterschiedlichen Wochentage pro Kind aus den aktuell berücksichtigten Angeboten. Standardmäßig zählt moto nur Angebote, die im Angebotseditor als Betreuung in Auswertungen markiert sind. Angebote wie eine Randstunde können sichtbar bleiben, ohne die Statistik-Tage zu erhöhen.",
           tone: "blue",
         },
         screenshot:
@@ -795,6 +795,8 @@ export const appChapters: readonly GuideChapter[] = [
           "Auf `Neues Betreuungsangebot` klicken.",
           "`Name`, `Beschreibung` und die möglichen `Wochentage` festlegen.",
           "Unter `Betreuungsplan-Vorlage` den passenden Regeltermin verknüpfen, wenn genehmigte Anmeldungen in dieser Vorlage erwartet werden sollen.",
+          "Unter `Auswertungen & Automatik` festlegen, ob das Angebot in Tagesstatistiken als Betreuung zählt und ob es automatisch ergänzt wird, wenn Eltern bestimmte andere Angebote wählen.",
+          "Bei automatischen Ergänzungen die auslösenden Angebote auswählen und optional auf Klassenstufen eingrenzen.",
           "Optional `Kapazität`, `Preis in Cent` sowie `Mittagessen` oder `Ferienbetreuung` ergänzen.",
           "`Aktiv` setzen - nur aktive Angebote sind für Eltern auswählbar.",
         ],

@@ -614,8 +614,8 @@ func TestParseCareUsageExportRequestSupportsDOCX(t *testing.T) {
 	if filters.PhaseID != 42 {
 		t.Fatalf("phase_id = %d, want 42", filters.PhaseID)
 	}
-	if filters.CareOfferingID != 9007199254740993 {
-		t.Fatalf("care_offering_id = %d, want 9007199254740993", filters.CareOfferingID)
+	if len(filters.CareOfferingIDs) != 1 || filters.CareOfferingIDs[0] != 9007199254740993 {
+		t.Fatalf("care_offering_ids = %#v, want [9007199254740993]", filters.CareOfferingIDs)
 	}
 }
 
@@ -650,9 +650,9 @@ func TestCareUsageReportResponseStringifiesIDs(t *testing.T) {
 	report := &enrollmentService.CareUsageReport{
 		Phase: enrollmentService.CareUsagePhase{ID: 9007199254740993, Name: "Demo"},
 		Filters: enrollmentService.CareUsageAppliedFilters{
-			PhaseID:        9007199254740993,
-			Status:         "all",
-			CareOfferingID: 9007199254740995,
+			PhaseID:         9007199254740993,
+			Status:          "all",
+			CareOfferingIDs: []int64{9007199254740995},
 		},
 		Totals: enrollmentService.CareUsageTotals{
 			Children:   1,
@@ -695,7 +695,7 @@ func TestCareUsageReportResponseStringifiesIDs(t *testing.T) {
 	for _, want := range []string{
 		`"id":"9007199254740993"`,
 		`"phase_id":"9007199254740993"`,
-		`"care_offering_id":"9007199254740995"`,
+		`"care_offering_ids":["9007199254740995"]`,
 		`"offering_id":"9007199254740995"`,
 		`"request_id":"9007199254740997"`,
 		`"child_id":"9007199254740999"`,

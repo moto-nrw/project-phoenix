@@ -186,7 +186,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   const [requests, setRequests] = useState<AdminRequestSummary[]>([]);
   const [statusFilter, setStatusFilter] =
     useState<EnrollmentReportStatus>(ALL_STATUS_FILTER);
-  const [offeringId, setOfferingId] = useState<string>(ALL_VALUE);
+  const [offeringIds, setOfferingIds] = useState<string[] | null>(null);
   const [dayCount, setDayCount] = useState<string>(ALL_VALUE);
   const [gradeLevel, setGradeLevel] = useState<string>(ALL_VALUE);
   const [search, setSearch] = useState("");
@@ -228,13 +228,26 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     () => ({
       phase_id: phaseId,
       status: statusFilter,
-      care_offering_id: offeringId === ALL_VALUE ? undefined : offeringId,
+      care_offering_ids: offeringIds ?? undefined,
       day_count: dayCount === ALL_VALUE ? undefined : Number(dayCount),
       grade_level: gradeLevel === ALL_VALUE ? undefined : Number(gradeLevel),
       search: search.trim() || undefined,
     }),
-    [dayCount, gradeLevel, offeringId, phaseId, search, statusFilter],
+    [dayCount, gradeLevel, offeringIds, phaseId, search, statusFilter],
   );
+
+  const toggleReportOffering = useCallback((id: string) => {
+    setOfferingIds((current) => {
+      const selected = new Set(current ?? []);
+      if (selected.has(id)) {
+        if (selected.size <= 1) return current ?? [];
+        selected.delete(id);
+      } else {
+        selected.add(id);
+      }
+      return Array.from(selected);
+    });
+  }, []);
 
   const loadReport = useCallback(
     async (filters: CareUsageFilters, isCancelled?: () => boolean) => {
@@ -245,6 +258,12 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         const data = await getCareUsageReport(filters);
         if (isCancelled?.()) return;
         setReport(data);
+        setOfferingIds((current) => {
+          if (current !== null) return current;
+          return data.filter_options.offerings
+            .filter((offering) => offering.counts_as_care)
+            .map((offering) => offering.id);
+        });
       } catch (err) {
         if (isCancelled?.()) return;
         const message =
@@ -588,23 +607,41 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
                 ]}
               />
             </SelectField>
-            <SelectField
-              label="Betreuungsangebot"
-              id="enrollment-offering-filter"
-            >
-              <CustomSelect
+            <div className="lg:col-span-2">
+              <p className="mb-1 text-xs font-medium text-gray-600">
+                Berücksichtigte Angebote
+              </p>
+              <div
                 id="enrollment-offering-filter"
-                value={offeringId}
-                onChange={setOfferingId}
-                options={[
-                  { value: ALL_VALUE, label: "Alle Angebote" },
-                  ...(report?.filter_options.offerings ?? []).map((item) => ({
-                    value: item.id,
-                    label: item.name,
-                  })),
-                ]}
-              />
-            </SelectField>
+                className="min-h-10 rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm"
+              >
+                {(report?.filter_options.offerings ?? []).length > 0 ? (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {(report?.filter_options.offerings ?? []).map((item) => (
+                      <label
+                        key={item.id}
+                        className="flex items-center gap-2 text-xs font-medium text-gray-700"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={(offeringIds ?? []).includes(item.id)}
+                          onChange={() => toggleReportOffering(item.id)}
+                          className="h-4 w-4 rounded border-gray-300 text-[#5080D8] focus:ring-[#5080D8]"
+                        />
+                        <span>{item.name}</span>
+                        {!item.counts_as_care ? (
+                          <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold text-gray-500">
+                            nicht statistisch
+                          </span>
+                        ) : null}
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500">Keine Angebote</p>
+                )}
+              </div>
+            </div>
             <SelectField label="Tagesanzahl" id="enrollment-day-count-filter">
               <CustomSelect
                 id="enrollment-day-count-filter"

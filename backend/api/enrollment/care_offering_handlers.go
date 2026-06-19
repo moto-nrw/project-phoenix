@@ -34,6 +34,9 @@ type CareOfferingResponse struct {
 	PriceCents          *int      `json:"price_cents,omitempty"`
 	IsActive            bool      `json:"is_active"`
 	IsRequired          bool      `json:"is_required"`
+	CountsAsCare        bool      `json:"counts_as_care"`
+	AutoAddGradeLevels  []int     `json:"auto_add_grade_levels"`
+	AutoAddTriggerIDs   []string  `json:"auto_add_trigger_offering_ids"`
 	SortOrder           int       `json:"sort_order"`
 	SelectionGroup      string    `json:"selection_group,omitempty"`
 	SelectionRule       string    `json:"selection_rule"`
@@ -55,6 +58,9 @@ func toCareOfferingResponse(o *enrollmentModels.CareOffering) CareOfferingRespon
 		PriceCents:          o.PriceCents,
 		IsActive:            o.IsActive,
 		IsRequired:          o.IsRequired,
+		CountsAsCare:        o.CountsAsCare,
+		AutoAddGradeLevels:  o.AutoAddGradeLevels,
+		AutoAddTriggerIDs:   make([]string, 0, len(o.AutoAddTriggerOfferingIDs)),
 		SortOrder:           o.SortOrder,
 		SelectionGroup:      o.SelectionGroup,
 		SelectionRule:       o.SelectionRule,
@@ -64,6 +70,9 @@ func toCareOfferingResponse(o *enrollmentModels.CareOffering) CareOfferingRespon
 	if o.ActivityGroupID != nil {
 		s := strconv.FormatInt(*o.ActivityGroupID, 10)
 		resp.ActivityGroupID = &s
+	}
+	for _, id := range o.AutoAddTriggerOfferingIDs {
+		resp.AutoAddTriggerIDs = append(resp.AutoAddTriggerIDs, strconv.FormatInt(id, 10))
 	}
 	return resp
 }
@@ -82,6 +91,9 @@ type CareOfferingRequest struct {
 	PriceCents          *int     `json:"price_cents,omitempty"`
 	IsActive            bool     `json:"is_active"`
 	IsRequired          bool     `json:"is_required"`
+	CountsAsCare        *bool    `json:"counts_as_care"`
+	AutoAddGradeLevels  []int    `json:"auto_add_grade_levels"`
+	AutoAddTriggerIDs   []int64  `json:"auto_add_trigger_offering_ids"`
 	SortOrder           int      `json:"sort_order"`
 	SelectionGroup      string   `json:"selection_group,omitempty"`
 	SelectionRule       string   `json:"selection_rule,omitempty"`
@@ -93,26 +105,40 @@ func (req *CareOfferingRequest) Bind(_ *http.Request) error {
 	if req.AvailableDays == nil {
 		req.AvailableDays = []string{}
 	}
+	if req.AutoAddGradeLevels == nil {
+		req.AutoAddGradeLevels = []int{}
+	}
+	if req.AutoAddTriggerIDs == nil {
+		req.AutoAddTriggerIDs = []int64{}
+	}
 	return nil
 }
 
 func (req *CareOfferingRequest) toModel(existingID int64) *enrollmentModels.CareOffering {
+	countsAsCare := true
+	if req.CountsAsCare != nil {
+		countsAsCare = *req.CountsAsCare
+	}
 	o := &enrollmentModels.CareOffering{
-		PhaseID:             req.PhaseID,
-		ActivityGroupID:     req.ActivityGroupID,
-		Name:                req.Name,
-		Description:         req.Description,
-		DaysOfWeekMode:      req.DaysOfWeekMode,
-		AvailableDays:       req.AvailableDays,
-		IncludesHolidayCare: req.IncludesHolidayCare,
-		IncludesLunch:       req.IncludesLunch,
-		Capacity:            req.Capacity,
-		PriceCents:          req.PriceCents,
-		IsActive:            req.IsActive,
-		IsRequired:          req.IsRequired,
-		SortOrder:           req.SortOrder,
-		SelectionGroup:      req.SelectionGroup,
-		SelectionRule:       req.SelectionRule,
+		PhaseID:                   req.PhaseID,
+		ActivityGroupID:           req.ActivityGroupID,
+		Name:                      req.Name,
+		Description:               req.Description,
+		DaysOfWeekMode:            req.DaysOfWeekMode,
+		AvailableDays:             req.AvailableDays,
+		IncludesHolidayCare:       req.IncludesHolidayCare,
+		IncludesLunch:             req.IncludesLunch,
+		Capacity:                  req.Capacity,
+		PriceCents:                req.PriceCents,
+		IsActive:                  req.IsActive,
+		IsRequired:                req.IsRequired,
+		CountsAsCare:              countsAsCare,
+		CountsAsCareSet:           true,
+		AutoAddGradeLevels:        req.AutoAddGradeLevels,
+		SortOrder:                 req.SortOrder,
+		SelectionGroup:            req.SelectionGroup,
+		SelectionRule:             req.SelectionRule,
+		AutoAddTriggerOfferingIDs: req.AutoAddTriggerIDs,
 	}
 	o.ID = existingID
 	return o

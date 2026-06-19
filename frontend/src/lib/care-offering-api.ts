@@ -37,6 +37,9 @@ export interface CareOffering {
   price_cents?: number | null;
   is_active: boolean;
   is_required: boolean;
+  counts_as_care?: boolean;
+  auto_add_grade_levels?: number[];
+  auto_add_trigger_offering_ids?: string[];
   sort_order: number;
   selection_group?: string | null;
   // Optional in the type (older rows + existing fixtures may omit it);
@@ -59,6 +62,9 @@ export interface CareOfferingInput {
   price_cents?: number | null;
   is_active: boolean;
   is_required: boolean;
+  counts_as_care: boolean;
+  auto_add_grade_levels: number[];
+  auto_add_trigger_offering_ids: number[];
   sort_order: number;
   selection_group?: string | null;
   // Optional in the type (older rows + existing fixtures may omit it);

@@ -24,12 +24,13 @@ type careUsageExportRequest struct {
 }
 
 type careUsageExportFiltersRequest struct {
-	PhaseID        string `json:"phase_id"`
-	Status         string `json:"status,omitempty"`
-	CareOfferingID string `json:"care_offering_id,omitempty"`
-	DayCount       *int   `json:"day_count,omitempty"`
-	GradeLevel     *int16 `json:"grade_level,omitempty"`
-	Search         string `json:"search,omitempty"`
+	PhaseID         string   `json:"phase_id"`
+	Status          string   `json:"status,omitempty"`
+	CareOfferingID  string   `json:"care_offering_id,omitempty"`
+	CareOfferingIDs []string `json:"care_offering_ids,omitempty"`
+	DayCount        *int     `json:"day_count,omitempty"`
+	GradeLevel      *int16   `json:"grade_level,omitempty"`
+	Search          string   `json:"search,omitempty"`
 }
 
 type careUsageReportResponse struct {
@@ -47,12 +48,12 @@ type careUsagePhaseResponse struct {
 }
 
 type careUsageAppliedFiltersResponse struct {
-	PhaseID        string `json:"phase_id"`
-	Status         string `json:"status"`
-	CareOfferingID string `json:"care_offering_id,omitempty"`
-	DayCount       *int   `json:"day_count,omitempty"`
-	GradeLevel     *int16 `json:"grade_level,omitempty"`
-	Search         string `json:"search,omitempty"`
+	PhaseID         string   `json:"phase_id"`
+	Status          string   `json:"status"`
+	CareOfferingIDs []string `json:"care_offering_ids,omitempty"`
+	DayCount        *int     `json:"day_count,omitempty"`
+	GradeLevel      *int16   `json:"grade_level,omitempty"`
+	Search          string   `json:"search,omitempty"`
 }
 
 type careUsageOfferingStatResponse struct {
@@ -68,8 +69,9 @@ type careUsageFilterOptionsResponse struct {
 }
 
 type careUsageOfferingOptionResponse struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	CountsAsCare bool   `json:"counts_as_care"`
 }
 
 type careUsageRowResponse struct {
@@ -203,13 +205,18 @@ func parseCareUsageFiltersFromQuery(r *http.Request) (enrollmentService.CareUsag
 	filters.PhaseID = phaseID
 	filters.Status = q.Get("status")
 	filters.Search = q.Get("search")
+	offeringIDs, err := parseCareOfferingIDsFromQuery(q["care_offering_ids"])
+	if err != nil {
+		return filters, err
+	}
 	if raw := q.Get("care_offering_id"); raw != "" {
 		id, parseErr := strconv.ParseInt(raw, 10, 64)
 		if parseErr != nil || id <= 0 {
 			return filters, errors.New("care_offering_id must be positive")
 		}
-		filters.CareOfferingID = id
+		offeringIDs = append(offeringIDs, id)
 	}
+	filters.CareOfferingIDs = offeringIDs
 	if raw := q.Get("day_count"); raw != "" {
 		count, parseErr := strconv.Atoi(raw)
 		if parseErr != nil || count < 0 || count > 7 {
@@ -226,6 +233,27 @@ func parseCareUsageFiltersFromQuery(r *http.Request) (enrollmentService.CareUsag
 		filters.GradeLevel = &g
 	}
 	return filters, nil
+}
+
+func parseCareOfferingIDsFromQuery(values []string) ([]int64, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+	ids := make([]int64, 0, len(values))
+	for _, value := range values {
+		for _, part := range strings.Split(value, ",") {
+			raw := strings.TrimSpace(part)
+			if raw == "" {
+				continue
+			}
+			id, err := strconv.ParseInt(raw, 10, 64)
+			if err != nil || id <= 0 {
+				return nil, errors.New("care_offering_ids must contain positive ids")
+			}
+			ids = append(ids, id)
+		}
+	}
+	return ids, nil
 }
 
 func parseCareUsageExportRequest(r *http.Request) (listexport.Format, enrollmentService.CareUsageFilters, error) {
@@ -274,7 +302,14 @@ func (req careUsageExportFiltersRequest) toServiceFilters() (enrollmentService.C
 		if err != nil {
 			return enrollmentService.CareUsageFilters{}, err
 		}
-		filters.CareOfferingID = careOfferingID
+		filters.CareOfferingIDs = append(filters.CareOfferingIDs, careOfferingID)
+	}
+	for _, raw := range req.CareOfferingIDs {
+		careOfferingID, err := parseRequiredPositiveInt64(raw, "filters.care_offering_ids")
+		if err != nil {
+			return enrollmentService.CareUsageFilters{}, err
+		}
+		filters.CareOfferingIDs = append(filters.CareOfferingIDs, careOfferingID)
 	}
 	return filters, nil
 }
@@ -313,8 +348,11 @@ func toCareUsageReportResponse(report *enrollmentService.CareUsageReport) *careU
 		},
 		Rows: make([]careUsageRowResponse, 0, len(report.Rows)),
 	}
-	if report.Filters.CareOfferingID > 0 {
-		out.Filters.CareOfferingID = strconv.FormatInt(report.Filters.CareOfferingID, 10)
+	if len(report.Filters.CareOfferingIDs) > 0 {
+		out.Filters.CareOfferingIDs = make([]string, 0, len(report.Filters.CareOfferingIDs))
+		for _, id := range report.Filters.CareOfferingIDs {
+			out.Filters.CareOfferingIDs = append(out.Filters.CareOfferingIDs, strconv.FormatInt(id, 10))
+		}
 	}
 	out.ByOffering = make([]careUsageOfferingStatResponse, 0, len(report.ByOffering))
 	for _, stat := range report.ByOffering {
@@ -328,8 +366,9 @@ func toCareUsageReportResponse(report *enrollmentService.CareUsageReport) *careU
 	out.FilterOptions.Offerings = make([]careUsageOfferingOptionResponse, 0, len(report.FilterOptions.Offerings))
 	for _, option := range report.FilterOptions.Offerings {
 		out.FilterOptions.Offerings = append(out.FilterOptions.Offerings, careUsageOfferingOptionResponse{
-			ID:   strconv.FormatInt(option.ID, 10),
-			Name: option.Name,
+			ID:           strconv.FormatInt(option.ID, 10),
+			Name:         option.Name,
+			CountsAsCare: option.CountsAsCare,
 		})
 	}
 	for _, row := range report.Rows {
@@ -479,8 +518,12 @@ func careUsageFilterLabels(report *enrollmentService.CareUsageReport) []string {
 		statusLabel = "Alle"
 	}
 	labels := []string{"Status: " + statusLabel}
-	if report.Filters.CareOfferingID > 0 {
-		labels = append(labels, "Betreuungsangebot: "+careUsageOfferingNameByID(report, report.Filters.CareOfferingID))
+	if len(report.Filters.CareOfferingIDs) > 0 {
+		names := make([]string, 0, len(report.Filters.CareOfferingIDs))
+		for _, id := range report.Filters.CareOfferingIDs {
+			names = append(names, careUsageOfferingNameByID(report, id))
+		}
+		labels = append(labels, "Betreuungsangebote: "+strings.Join(names, ", "))
 	}
 	if report.Filters.DayCount != nil {
 		labels = append(labels, fmt.Sprintf("Tage: %d", *report.Filters.DayCount))

@@ -10,7 +10,7 @@ export type EnrollmentReportFormat = "pdf" | "docx" | "xlsx";
 export interface CareUsageFilters {
   phase_id: string;
   status?: EnrollmentReportStatus;
-  care_offering_id?: string;
+  care_offering_ids?: string[];
   day_count?: number;
   grade_level?: number;
   search?: string;
@@ -24,7 +24,7 @@ export interface CareUsageReport {
   filters: {
     phase_id: string;
     status: EnrollmentReportStatus;
-    care_offering_id?: string;
+    care_offering_ids?: string[];
     day_count?: number;
     grade_level?: number;
     search?: string;
@@ -44,6 +44,7 @@ export interface CareUsageReport {
 interface CareUsageOfferingOption {
   id: string;
   name: string;
+  counts_as_care: boolean;
 }
 
 interface CareUsageOfferingStat {
@@ -158,8 +159,8 @@ export async function exportCareUsageReport(
 function appendCareUsageParams(url: URL, filters: CareUsageFilters) {
   url.searchParams.set("phase_id", String(filters.phase_id));
   if (filters.status) url.searchParams.set("status", filters.status);
-  if (filters.care_offering_id) {
-    url.searchParams.set("care_offering_id", String(filters.care_offering_id));
+  for (const id of filters.care_offering_ids ?? []) {
+    url.searchParams.append("care_offering_ids", String(id));
   }
   if (filters.day_count !== undefined) {
     url.searchParams.set("day_count", String(filters.day_count));

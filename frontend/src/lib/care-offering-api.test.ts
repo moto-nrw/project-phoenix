@@ -60,6 +60,9 @@ const validInput: CareOfferingInput = {
   includes_lunch: false,
   is_active: true,
   is_required: false,
+  counts_as_care: true,
+  auto_add_grade_levels: [],
+  auto_add_trigger_offering_ids: [],
   sort_order: 0,
 };
 

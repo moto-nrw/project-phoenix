@@ -159,6 +159,13 @@ type SubmitResult struct {
 	StatusURL string
 }
 
+type materializedOfferingSelection struct {
+	OfferingID            int64
+	SelectedDays          []string
+	ManualSelectedDays    []string
+	AutomaticSelectedDays []string
+}
+
 // EditDraft is the complete persisted request shape needed to reopen the
 // public enrollment form for a submitted request.
 type EditDraft struct {
@@ -419,6 +426,10 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	if err := validateCareOfferingSelectionMode(req.Children, openByID, phase.CareOfferingSelectionMode); err != nil {
 		return nil, err
 	}
+	materializedSelections, err := materializeChildrenOfferingSelections(req.Children, openByID)
+	if err != nil {
+		return nil, err
+	}
 
 	// Decide per-child overflow status before opening the write tx.
 	// childStatusOverrides[i] is set when capacity logic forces a
@@ -601,26 +612,13 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 				return fmt.Errorf("submit: create request child %d: %w", i, err)
 			}
 
-			// Index the parent's per-offering day picks (if any) by
-			// offering id so we can resolve each offering link in O(1).
-			daysByOffering := make(map[int64][]string, len(child.OfferingDays))
-			for _, row := range child.OfferingDays {
-				daysByOffering[row.OfferingID] = row.SelectedDays
-			}
-
-			for _, offeringID := range child.OfferingIDs {
-				offering, ok := openByID[offeringID]
-				if !ok {
-					return fmt.Errorf("submit: offering %d disappeared mid-submit", offeringID)
-				}
-				selected, err := resolveSelectedDays(offering, daysByOffering[offeringID])
-				if err != nil {
-					return fmt.Errorf("submit: offering %d: %w", offeringID, err)
-				}
+			for _, selection := range materializedSelections[i] {
 				link := &enrollmentModels.RequestChildOffering{
-					RequestChildID: row.ID,
-					CareOfferingID: offeringID,
-					SelectedDays:   selected,
+					RequestChildID:        row.ID,
+					CareOfferingID:        selection.OfferingID,
+					SelectedDays:          selection.SelectedDays,
+					ManualSelectedDays:    selection.ManualSelectedDays,
+					AutomaticSelectedDays: selection.AutomaticSelectedDays,
 				}
 				if err := s.requestChildOfferingRepo.Create(txCtx, link); err != nil {
 					return fmt.Errorf("submit: create child-offering link: %w", err)
@@ -816,6 +814,173 @@ func validateOfferingSelections(children []SubmitChild, openByID map[int64]*enro
 		}
 	}
 	return nil
+}
+
+func materializeChildrenOfferingSelections(children []SubmitChild, openByID map[int64]*enrollmentModels.CareOffering) ([][]materializedOfferingSelection, error) {
+	out := make([][]materializedOfferingSelection, len(children))
+	for i := range children {
+		selections, err := materializeOfferingSelections(children[i], openByID)
+		if err != nil {
+			return nil, fmt.Errorf("child %d: %w", i, err)
+		}
+		out[i] = selections
+		children[i].OfferingIDs, children[i].OfferingDays = selectionPayload(selections, openByID)
+	}
+	return out, nil
+}
+
+func materializeOfferingSelections(child SubmitChild, openByID map[int64]*enrollmentModels.CareOffering) ([]materializedOfferingSelection, error) {
+	daysByOffering := make(map[int64][]string, len(child.OfferingDays))
+	for _, row := range child.OfferingDays {
+		daysByOffering[row.OfferingID] = row.SelectedDays
+	}
+
+	selectionByID := make(map[int64]*materializedOfferingSelection, len(child.OfferingIDs))
+	for _, offeringID := range child.OfferingIDs {
+		offering, ok := openByID[offeringID]
+		if !ok {
+			return nil, ErrCareOfferingClosed
+		}
+		manual, err := resolveSelectedDays(offering, daysByOffering[offeringID])
+		if err != nil {
+			return nil, fmt.Errorf("offering %d: %w", offeringID, err)
+		}
+		selectionByID[offeringID] = &materializedOfferingSelection{
+			OfferingID:            offeringID,
+			SelectedDays:          copyDays(manual),
+			ManualSelectedDays:    copyDays(manual),
+			AutomaticSelectedDays: nil,
+		}
+	}
+
+	for _, target := range openByID {
+		if len(target.AutoAddTriggerOfferingIDs) == 0 || !autoAddAppliesToGrade(child.TargetGradeLevel, target.AutoAddGradeLevels) {
+			continue
+		}
+		if target.DaysOfWeekMode != enrollmentModels.DaysOfWeekModeParentChoice {
+			return nil, fmt.Errorf("offering %d cannot be automatically added because it does not allow day selection", target.ID)
+		}
+		autoDays := autoDaysForTarget(target, target.AutoAddTriggerOfferingIDs, selectionByID, openByID)
+		if len(autoDays) == 0 {
+			continue
+		}
+		selection := selectionByID[target.ID]
+		if selection == nil {
+			selection = &materializedOfferingSelection{OfferingID: target.ID}
+			selectionByID[target.ID] = selection
+		}
+		selection.AutomaticSelectedDays = autoDays
+		selection.SelectedDays = unionDaysInOfferingOrder(target.AvailableDays, selection.ManualSelectedDays, selection.AutomaticSelectedDays)
+	}
+
+	out := make([]materializedOfferingSelection, 0, len(selectionByID))
+	for _, selection := range selectionByID {
+		out = append(out, *selection)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		left := openByID[out[i].OfferingID]
+		right := openByID[out[j].OfferingID]
+		if left == nil || right == nil {
+			return out[i].OfferingID < out[j].OfferingID
+		}
+		if left.SortOrder == right.SortOrder {
+			return left.ID < right.ID
+		}
+		return left.SortOrder < right.SortOrder
+	})
+	return out, nil
+}
+
+func selectionPayload(selections []materializedOfferingSelection, openByID map[int64]*enrollmentModels.CareOffering) ([]int64, []SubmitOfferingDays) {
+	ids := make([]int64, 0, len(selections))
+	dayRows := make([]SubmitOfferingDays, 0, len(selections))
+	for _, selection := range selections {
+		ids = append(ids, selection.OfferingID)
+		if offering := openByID[selection.OfferingID]; offering != nil && offering.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeParentChoice {
+			dayRows = append(dayRows, SubmitOfferingDays{
+				OfferingID:   selection.OfferingID,
+				SelectedDays: copyDays(selection.SelectedDays),
+			})
+		}
+	}
+	return ids, dayRows
+}
+
+func autoAddAppliesToGrade(grade *int16, levels []int) bool {
+	if len(levels) == 0 {
+		return true
+	}
+	if grade == nil {
+		return false
+	}
+	for _, level := range levels {
+		if int(*grade) == level {
+			return true
+		}
+	}
+	return false
+}
+
+func autoDaysForTarget(
+	target *enrollmentModels.CareOffering,
+	triggerIDs []int64,
+	selectionByID map[int64]*materializedOfferingSelection,
+	openByID map[int64]*enrollmentModels.CareOffering,
+) []string {
+	selected := make(map[string]bool, len(target.AvailableDays))
+	targetDays := make(map[string]bool, len(target.AvailableDays))
+	for _, day := range target.AvailableDays {
+		targetDays[day] = true
+	}
+	for _, triggerID := range triggerIDs {
+		triggerSelection := selectionByID[triggerID]
+		if triggerSelection == nil {
+			continue
+		}
+		trigger := openByID[triggerID]
+		if trigger == nil {
+			continue
+		}
+		triggerDays := triggerSelection.SelectedDays
+		if trigger.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeFixed {
+			triggerDays = trigger.AvailableDays
+		}
+		for _, day := range triggerDays {
+			if targetDays[day] {
+				selected[day] = true
+			}
+		}
+	}
+	return daysFromSetInOrder(target.AvailableDays, selected)
+}
+
+func unionDaysInOfferingOrder(available []string, groups ...[]string) []string {
+	seen := make(map[string]bool, len(available))
+	for _, group := range groups {
+		for _, day := range group {
+			seen[day] = true
+		}
+	}
+	return daysFromSetInOrder(available, seen)
+}
+
+func daysFromSetInOrder(order []string, selected map[string]bool) []string {
+	out := make([]string, 0, len(selected))
+	for _, day := range order {
+		if selected[day] {
+			out = append(out, day)
+		}
+	}
+	return out
+}
+
+func copyDays(days []string) []string {
+	if len(days) == 0 {
+		return nil
+	}
+	out := make([]string, len(days))
+	copy(out, days)
+	return out
 }
 
 // validateRequiredOfferings enforces that every offering flagged
@@ -1177,6 +1342,10 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 		if err := validateCareOfferingSelectionMode(editReq.Children, openByID, phase.CareOfferingSelectionMode); err != nil {
 			return err
 		}
+		materializedSelections, err := materializeChildrenOfferingSelections(editReq.Children, openByID)
+		if err != nil {
+			return err
+		}
 
 		schema, err := s.schemaForEditableRequest(txCtx, req, phase)
 		if err != nil {
@@ -1321,23 +1490,13 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 			if err := s.requestChildRepo.Create(txCtx, row); err != nil {
 				return fmt.Errorf("edit replace: create request child %d: %w", i, err)
 			}
-			daysByOffering := make(map[int64][]string, len(child.OfferingDays))
-			for _, row := range child.OfferingDays {
-				daysByOffering[row.OfferingID] = row.SelectedDays
-			}
-			for _, offeringID := range child.OfferingIDs {
-				offering, ok := openByID[offeringID]
-				if !ok {
-					return fmt.Errorf("edit replace: offering %d disappeared mid-submit", offeringID)
-				}
-				selected, err := resolveSelectedDays(offering, daysByOffering[offeringID])
-				if err != nil {
-					return fmt.Errorf("edit replace: offering %d: %w", offeringID, err)
-				}
+			for _, selection := range materializedSelections[i] {
 				link := &enrollmentModels.RequestChildOffering{
-					RequestChildID: row.ID,
-					CareOfferingID: offeringID,
-					SelectedDays:   selected,
+					RequestChildID:        row.ID,
+					CareOfferingID:        selection.OfferingID,
+					SelectedDays:          selection.SelectedDays,
+					ManualSelectedDays:    selection.ManualSelectedDays,
+					AutomaticSelectedDays: selection.AutomaticSelectedDays,
 				}
 				if err := s.requestChildOfferingRepo.Create(txCtx, link); err != nil {
 					return fmt.Errorf("edit replace: create child-offering link: %w", err)
