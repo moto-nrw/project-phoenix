@@ -265,3 +265,37 @@ func (r *FormSchemaRepository) DeleteByName(ctx context.Context, name string) er
 	}
 	return nil
 }
+
+// HasLegalDocumentReference reports whether any saved form-schema legal block
+// still links to a stored AGB document. Callers pass both accepted URL shapes:
+// the stored upload URL and the public route URL rendered into legal_blocks.
+func (r *FormSchemaRepository) HasLegalDocumentReference(ctx context.Context, storedURL, publicURL string) (bool, error) {
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return false, errors.New("tenant context is required")
+	}
+
+	var referenced bool
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT EXISTS (
+			SELECT 1
+			FROM enrollment.form_schemas AS "form_schema"
+			CROSS JOIN LATERAL jsonb_array_elements(
+				CASE
+					WHEN jsonb_typeof("form_schema".legal_blocks) = 'array'
+					THEN "form_schema".legal_blocks
+					ELSE '[]'::jsonb
+				END
+			) AS block(elem)
+			WHERE "form_schema".tenant_id = ?
+				AND (
+					strpos(COALESCE(block.elem->>'text', ''), ?) > 0
+					OR strpos(COALESCE(block.elem->>'text', ''), ?) > 0
+				)
+		)
+	`, tenantID, storedURL, publicURL).Scan(ctx, &referenced)
+	if err != nil {
+		return false, fmt.Errorf("check legal document references: %w", err)
+	}
+	return referenced, nil
+}

@@ -22,8 +22,9 @@ import {
   DEPARTURE_WEEKDAYS,
   type AllowedDepartureModes,
   type DepartureMode,
-  formatAllowedDepartureModes,
+  formatAllowedDepartureDays,
   normalizeAllowedDepartureModes,
+  DEPARTURE_MODE_BADGE_CLASSES,
 } from "~/lib/student-helpers";
 
 interface SelectOption {
@@ -701,15 +702,6 @@ const DEPARTURE_OPTIONS: ReadonlyArray<{
   { value: "bus", short: "Bus" },
   { value: "pickup", short: "Abgeholt" },
 ];
-
-// Active styling per mode, using MOTO brand hexes: pickup = brand green,
-// bus = brand blue, alone = neutral gray.
-const DEPARTURE_ACTIVE_CLASSES: Record<DepartureMode, string> = {
-  alone: "border-[#6B7280] bg-[#F3F4F6] text-[#374151]",
-  bus: "border-[#5080D8] bg-[#DCE7FA] text-[#2f5bb0]",
-  pickup: "border-[#83CD2D] bg-[#DCF5C1] text-[#4a7a15]",
-};
-
 export function DepartureSection({
   days,
   onChange,
@@ -733,7 +725,7 @@ export function DepartureSection({
         </h3>
         {anySelected && (
           <span className="hidden shrink-0 rounded-full bg-[#DCF5C1] px-2.5 py-1 text-xs font-medium text-[#4a7a15] sm:inline">
-            {formatAllowedDepartureModes(normalized)}
+            {formatAllowedDepartureDays(normalized)}
           </span>
         )}
       </div>
@@ -756,7 +748,7 @@ export function DepartureSection({
                       key={opt.value}
                       className={`flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-lg border px-1 text-xs font-semibold transition-colors ${
                         active
-                          ? DEPARTURE_ACTIVE_CLASSES[opt.value]
+                          ? DEPARTURE_MODE_BADGE_CLASSES[opt.value]
                           : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
                       }`}
                     >

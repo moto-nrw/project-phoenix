@@ -477,6 +477,91 @@ func TestFormSchemaRepository_DeleteByName_UnknownNameErrors(t *testing.T) {
 	assert.Contains(t, err.Error(), "not found")
 }
 
+// --- Legal document references -----------------------------------------
+
+func TestFormSchemaRepository_HasLegalDocumentReference(t *testing.T) {
+	db, repo, tenantID, creator := setupSchemaRepoTest(t)
+	defer wipeSchemas(db, tenantID, creator)
+
+	otherTenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, otherTenantID)
+	defer wipeSchemas(db, otherTenantID, creator)
+
+	storedURL := "/uploads/enrollment-legal-documents/1_terms.pdf"
+	publicURL := "/api/public/enrollment-legal-documents/1_terms.pdf"
+	otherStoredURL := "/uploads/enrollment-legal-documents/2_terms.pdf"
+	otherPublicURL := "/api/public/enrollment-legal-documents/2_terms.pdf"
+
+	storedSchema := &enrollmentModels.FormSchema{
+		Name:      uniqueSchemaName("legal-stored"),
+		Version:   1,
+		Fields:    validFields(),
+		IsActive:  true,
+		CreatedBy: creator,
+		LegalBlocks: []enrollmentModels.FormLegalBlock{{
+			Key:       enrollmentModels.ConsentKeyAGB,
+			Kind:      enrollmentModels.LegalBlockKindTerms,
+			Title:     "AGB",
+			Label:     "AGB akzeptieren",
+			Text:      "Bitte lesen: " + storedURL,
+			Required:  true,
+			Enabled:   true,
+			SortOrder: 10,
+			Source:    enrollmentModels.LegalBlockSourceStandard,
+		}},
+	}
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.Create(ctx, storedSchema)
+	}))
+
+	publicSchema := &enrollmentModels.FormSchema{
+		Name:      uniqueSchemaName("legal-public"),
+		Version:   1,
+		Fields:    validFields(),
+		IsActive:  true,
+		CreatedBy: creator,
+		LegalBlocks: []enrollmentModels.FormLegalBlock{{
+			Key:       enrollmentModels.ConsentKeyAGB,
+			Kind:      enrollmentModels.LegalBlockKindTerms,
+			Title:     "AGB",
+			Label:     "AGB akzeptieren",
+			Text:      "Bitte lesen: " + otherPublicURL,
+			Required:  true,
+			Enabled:   true,
+			SortOrder: 10,
+			Source:    enrollmentModels.LegalBlockSourceStandard,
+		}},
+	}
+	require.NoError(t, runInTenantTx(t, db, otherTenantID, func(ctx context.Context) error {
+		return repo.Create(ctx, publicSchema)
+	}))
+
+	var referenced bool
+	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var refErr error
+		referenced, refErr = repo.HasLegalDocumentReference(ctx, storedURL, publicURL)
+		return refErr
+	})
+	require.NoError(t, err)
+	assert.True(t, referenced, "stored upload URL in legal_blocks must count as a reference")
+
+	err = runInTenantTx(t, db, otherTenantID, func(ctx context.Context) error {
+		var refErr error
+		referenced, refErr = repo.HasLegalDocumentReference(ctx, otherStoredURL, otherPublicURL)
+		return refErr
+	})
+	require.NoError(t, err)
+	assert.True(t, referenced, "public URL in legal_blocks must count as a reference")
+
+	err = runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var refErr error
+		referenced, refErr = repo.HasLegalDocumentReference(ctx, otherStoredURL, otherPublicURL)
+		return refErr
+	})
+	require.NoError(t, err)
+	assert.False(t, referenced, "references from another tenant must not be visible")
+}
+
 // --- RenameByName -------------------------------------------------------
 
 func TestFormSchemaRepository_RenameByName_RenamesEveryVersion(t *testing.T) {

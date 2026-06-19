@@ -539,6 +539,31 @@ func TestEnrollmentLegalTexts(t *testing.T) {
 		assert.Equal(t, "eq", def.DependsOn.Condition)
 		assert.Equal(t, true, def.DependsOn.Value)
 	}
+
+	documentDef := config.GetDefinition(config.KeyEnrollmentLegalAGBDocumentURL)
+	require.NotNil(t, documentDef, "AGB document URL setting should be registered")
+	assert.Equal(t, config.FieldText, documentDef.Type)
+	assert.Equal(t, "", documentDef.Default)
+	assert.Equal(t, "enrollment", documentDef.Tab)
+	assert.Equal(t, "rechtstexte", documentDef.Category)
+	assert.Equal(t, "config:manage", documentDef.WritePermission)
+	require.NotNil(t, documentDef.DependsOn)
+	assert.Equal(t, config.KeyEnrollmentEnabled, documentDef.DependsOn.Key)
+
+	modeDef := config.GetDefinition(config.KeyEnrollmentLegalAGBDisplayMode)
+	require.NotNil(t, modeDef, "AGB display mode setting should be registered")
+	assert.Equal(t, config.FieldSelect, modeDef.Type)
+	assert.Equal(t, config.EnrollmentLegalAGBDisplayModeText, modeDef.Default)
+	assert.Equal(t, "enrollment", modeDef.Tab)
+	assert.Equal(t, "rechtstexte", modeDef.Category)
+	assert.Equal(t, "config:manage", modeDef.WritePermission)
+	require.NotNil(t, modeDef.DependsOn)
+	assert.Equal(t, config.KeyEnrollmentEnabled, modeDef.DependsOn.Key)
+	require.NotNil(t, modeDef.Options)
+	require.Len(t, modeDef.Options.Static, 2)
+	values := []any{modeDef.Options.Static[0].Value, modeDef.Options.Static[1].Value}
+	assert.Contains(t, values, config.EnrollmentLegalAGBDisplayModeText)
+	assert.Contains(t, values, config.EnrollmentLegalAGBDisplayModePDF)
 }
 
 func TestEnrollmentLegalBlockToggles(t *testing.T) {

@@ -636,12 +636,18 @@ describe("PersonalInfoReadOnly", () => {
     expect(screen.getByText("Nicht angegeben")).toBeInTheDocument();
   });
 
-  it("renders bus days as the unified departure plan", () => {
-    // mockStudent has bus_days {mon, fri}; these fold into "Fährt Bus".
+  it("renders bus days as the weekday departure matrix", () => {
+    // mockStudent has bus_days {mon, fri}; these fold into a "Bus" badge on Mo
+    // and Fr, while the unconfigured weekdays fold to a "Zu Fuß" badge.
     render(<PersonalInfoReadOnly student={mockStudent} />);
+    expect(screen.getByText("Mo")).toBeInTheDocument();
+    expect(screen.getByText("Fr")).toBeInTheDocument();
+    expect(screen.getAllByText("Bus")).toHaveLength(2);
+    expect(screen.getAllByText("Zu Fuß")).toHaveLength(3);
+    // The verbose single-line sentence is gone.
     expect(
-      screen.getByText("Mo: Fährt Bus; Fr: Fährt Bus"),
-    ).toBeInTheDocument();
+      screen.queryByText("Mo: Fährt Bus; Fr: Fährt Bus"),
+    ).not.toBeInTheDocument();
   });
 
   it("renders 'Geht immer alleine' when no bus/pickup days are set", () => {
@@ -656,16 +662,18 @@ describe("PersonalInfoReadOnly", () => {
     expect(screen.getByText("Geht immer alleine")).toBeInTheDocument();
   });
 
-  it("renders pickup weekdays as 'Wird abgeholt' in the departure plan", () => {
+  it("renders pickup weekdays as 'Abgeholt' badges in the departure matrix", () => {
     const pickedUp = {
       ...mockStudent,
       bus_days: {},
       pickup_days: { mon: true, wed: true },
     };
     render(<PersonalInfoReadOnly student={pickedUp} />);
+    expect(screen.getAllByText("Abgeholt")).toHaveLength(2);
+    expect(screen.getAllByText("Zu Fuß")).toHaveLength(3);
     expect(
-      screen.getByText("Mo: Wird abgeholt; Mi: Wird abgeholt"),
-    ).toBeInTheDocument();
+      screen.queryByText("Mo: Wird abgeholt; Mi: Wird abgeholt"),
+    ).not.toBeInTheDocument();
   });
 
   it("renders health info when present", () => {
