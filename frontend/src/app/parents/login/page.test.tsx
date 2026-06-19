@@ -46,12 +46,19 @@ vi.mock("next-intl", async () => {
 
   const makeT = (namespace?: string) => {
     const prefix = namespace ? `${namespace}.` : "";
-    return (key: string, values?: Record<string, unknown>) => {
+    const t = (key: string, values?: Record<string, unknown>) => {
       const value = resolve(`${prefix}${key}`);
       return typeof value === "string"
         ? interpolate(value, values)
         : `${prefix}${key}`;
     };
+    // Mirror next-intl's `t.raw`: returns the message verbatim with no ICU
+    // formatting (the auth shell fills `{number}` itself via String.replace).
+    t.raw = (key: string) => {
+      const value = resolve(`${prefix}${key}`);
+      return typeof value === "string" ? value : `${prefix}${key}`;
+    };
+    return t;
   };
 
   const cache = new Map<string, ReturnType<typeof makeT>>();
