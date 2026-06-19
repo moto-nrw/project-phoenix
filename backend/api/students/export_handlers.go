@@ -309,9 +309,10 @@ func buildExportRows(students []StudentResponse, weekly map[int64]weeklySchedule
 // renders "Geht alleine" (#1610).
 func departureSummary(allowed users.AllowedDepartureModes, fallback users.DepartureDays) string {
 	modeLabels := map[users.DepartureMode]string{
-		users.DepartureAlone:  "zu Fuß",
-		users.DepartureBus:    "Bus",
-		users.DeparturePickup: "Abholung",
+		users.DepartureAlone:       "zu Fuß",
+		users.DepartureBus:         "Bus",
+		users.DeparturePickup:      "Abholung",
+		users.DepartureAccompanied: "Mit anderem Kind",
 	}
 	shortDay := map[string]string{
 		users.PickupDayMonday:    "Mo",

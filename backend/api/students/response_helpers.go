@@ -103,6 +103,9 @@ func populateSensitiveStudentFields(response *StudentResponse, student *users.St
 	if student.ExtraInfo != nil && *student.ExtraInfo != "" {
 		response.ExtraInfo = *student.ExtraInfo
 	}
+	if student.DepartureCompanionNote != nil && *student.DepartureCompanionNote != "" {
+		response.DepartureCompanionNote = *student.DepartureCompanionNote
+	}
 	if student.SupervisorNotes != nil {
 		response.SupervisorNotes = *student.SupervisorNotes
 	}
@@ -201,6 +204,9 @@ func populateEnrollmentConsents(response *StudentResponse, student *users.Studen
 func populateSnapshotSensitiveFields(response *StudentResponse, student *users.Student) {
 	if student.ExtraInfo != nil && *student.ExtraInfo != "" {
 		response.ExtraInfo = *student.ExtraInfo
+	}
+	if student.DepartureCompanionNote != nil && *student.DepartureCompanionNote != "" {
+		response.DepartureCompanionNote = *student.DepartureCompanionNote
 	}
 	if student.HealthInfo != nil {
 		response.HealthInfo = *student.HealthInfo

@@ -700,27 +700,43 @@ const DEPARTURE_OPTIONS: ReadonlyArray<{
   { value: "alone", short: "Zu Fuß" },
   { value: "bus", short: "Bus" },
   { value: "pickup", short: "Abgeholt" },
+  { value: "accompanied", short: "Anderes Kind" },
 ];
 
 // Active styling per mode, using MOTO brand hexes: pickup = brand green,
-// bus = brand blue, alone = neutral gray.
+// bus = brand blue, alone = neutral gray, accompanied = brand magenta.
 const DEPARTURE_ACTIVE_CLASSES: Record<DepartureMode, string> = {
   alone: "border-[#6B7280] bg-[#F3F4F6] text-[#374151]",
   bus: "border-[#5080D8] bg-[#DCE7FA] text-[#2f5bb0]",
   pickup: "border-[#83CD2D] bg-[#DCF5C1] text-[#4a7a15]",
+  accompanied: "border-[#D946EF] bg-[#FAE0FD] text-[#a21caf]",
 };
 
 export function DepartureSection({
   days,
   onChange,
+  companionNote,
+  onCompanionNoteChange,
+  companionNoteError,
 }: Readonly<{
   days?: AllowedDepartureModes | null;
   onChange: (value: AllowedDepartureModes) => void;
+  /** Free-text "mit wem" for the accompanied mode (#1694). Optional: when the
+   *  handler is omitted the note input is not rendered. */
+  companionNote?: string | null;
+  onCompanionNoteChange?: (value: string) => void;
+  /** Validation message shown under the companion note (required when an
+   *  accompanied day is selected). */
+  companionNoteError?: string;
 }>) {
   const normalized = normalizeAllowedDepartureModes(days);
   const anySelected = DEPARTURE_WEEKDAYS.some(
     (day) => (normalized[day.key]?.length ?? 0) > 0,
   );
+  const accompaniedSelected = DEPARTURE_WEEKDAYS.some((day) =>
+    normalized[day.key]?.includes("accompanied"),
+  );
+  const companionNoteId = useId();
   return (
     <div className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
       <div className="mb-3 flex items-start justify-between gap-3 md:mb-4">
@@ -747,14 +763,14 @@ export function DepartureSection({
               <span className="w-16 shrink-0 text-xs font-semibold text-gray-700 md:w-20">
                 {day.label}
               </span>
-              <div className="grid flex-1 grid-cols-3 gap-1">
+              <div className="grid flex-1 grid-cols-2 gap-1">
                 {DEPARTURE_OPTIONS.map((opt) => {
                   const active =
                     normalized[day.key]?.includes(opt.value) ?? false;
                   return (
                     <label
                       key={opt.value}
-                      className={`flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-lg border px-1 text-xs font-semibold transition-colors ${
+                      className={`flex h-8 cursor-pointer items-center gap-2 rounded-lg border px-2.5 text-xs font-semibold transition-colors ${
                         active
                           ? DEPARTURE_ACTIVE_CLASSES[opt.value]
                           : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
@@ -774,6 +790,19 @@ export function DepartureSection({
                           if (ordered.length === 0) delete next[day.key];
                           else next[day.key] = ordered;
                           onChange(next);
+                          // Drop the orphaned companion note when the last
+                          // accompanied day is removed, so a now-hidden stale
+                          // note is never submitted unchanged (#1694).
+                          const stillAccompanied = DEPARTURE_WEEKDAYS.some(
+                            (d) => next[d.key]?.includes("accompanied"),
+                          );
+                          if (
+                            !stillAccompanied &&
+                            onCompanionNoteChange &&
+                            (companionNote ?? "") !== ""
+                          ) {
+                            onCompanionNoteChange("");
+                          }
                         }}
                       />
                       {opt.short}
@@ -785,6 +814,38 @@ export function DepartureSection({
           );
         })}
       </div>
+      {onCompanionNoteChange && accompaniedSelected && (
+        <div className="mt-3">
+          <label
+            htmlFor={companionNoteId}
+            className="mb-1 block text-xs font-medium text-gray-700"
+          >
+            Mit welchem Kind?
+          </label>
+          <input
+            id={companionNoteId}
+            type="text"
+            value={companionNote ?? ""}
+            onChange={(e) => onCompanionNoteChange(e.target.value)}
+            placeholder="z. B. Geschwisterkind, Freund, Name"
+            maxLength={255}
+            aria-invalid={companionNoteError ? true : undefined}
+            className={`moto-content-surface block w-full rounded-lg border px-3 py-2 text-sm transition-colors focus:ring-1 ${
+              companionNoteError
+                ? "border-[#FF3130] focus:border-[#FF3130] focus:ring-[#FF3130]"
+                : "focus:border-[#5080D8] focus:ring-[#5080D8]"
+            }`}
+          />
+          {companionNoteError ? (
+            <p className="mt-1 text-xs text-[#FF3130]">{companionNoteError}</p>
+          ) : (
+            <p className="mt-1 text-xs text-gray-500">
+              Mit welchem Kind das Kind an den Tagen „Mit anderem Kind“ nach
+              Hause geht.
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

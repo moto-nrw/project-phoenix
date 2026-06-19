@@ -146,3 +146,58 @@ func TestDepartureDaysFromLegacy(t *testing.T) {
 		}
 	})
 }
+
+// TestDepartureAccompaniedMode covers the fourth departure mode (#1694): it is
+// a valid, normalizable mode that survives the DepartureDays <-> allowed-modes
+// round-trip but never leaks into the legacy bus/pickup mirrors.
+func TestDepartureAccompaniedMode(t *testing.T) {
+	t.Run("validates and normalizes", func(t *testing.T) {
+		days := DepartureDays{PickupDayMonday: DepartureAccompanied}
+		if err := days.Validate(); err != nil {
+			t.Fatalf("Validate() unexpected error = %v", err)
+		}
+		if got := days.Normalize(); got[PickupDayMonday] != DepartureAccompanied {
+			t.Fatalf("Normalize() dropped accompanied: %#v", got)
+		}
+		if got := days.ModeFor(PickupDayMonday); got != DepartureAccompanied {
+			t.Fatalf("ModeFor(mon) = %q, want accompanied", got)
+		}
+		if !days.HasAny() {
+			t.Fatal("HasAny() = false for accompanied day, want true")
+		}
+	})
+
+	t.Run("does not leak into legacy mirrors", func(t *testing.T) {
+		days := DepartureDays{PickupDayMonday: DepartureAccompanied}
+		if days.BusDays().HasAny() {
+			t.Fatal("accompanied counted as a bus day")
+		}
+		if days.PickupDays().HasAny() {
+			t.Fatal("accompanied counted as a pickup day")
+		}
+		if got := days.LegacyPickupStatus(); got != PickupStatusGoesAlone {
+			t.Fatalf("LegacyPickupStatus() = %q, want %q", got, PickupStatusGoesAlone)
+		}
+	})
+
+	t.Run("survives allowed-modes round-trip", func(t *testing.T) {
+		allowed := AllowedDepartureModes{PickupDayMonday: {DepartureAccompanied}}
+		if err := allowed.Validate(); err != nil {
+			t.Fatalf("AllowedDepartureModes.Validate() unexpected error = %v", err)
+		}
+		if got := allowed.DepartureDays().ModeFor(PickupDayMonday); got != DepartureAccompanied {
+			t.Fatalf("allowed -> DepartureDays mon = %q, want accompanied", got)
+		}
+		back := AllowedDepartureModesFromDeparture(DepartureDays{PickupDayMonday: DepartureAccompanied})
+		if len(back[PickupDayMonday]) != 1 || back[PickupDayMonday][0] != DepartureAccompanied {
+			t.Fatalf("DepartureDays -> allowed mon = %#v, want [accompanied]", back[PickupDayMonday])
+		}
+	})
+
+	t.Run("pickup outranks accompanied in exclusive derivation", func(t *testing.T) {
+		allowed := AllowedDepartureModes{PickupDayMonday: {DepartureAccompanied, DeparturePickup}}
+		if got := allowed.DepartureDays().ModeFor(PickupDayMonday); got != DeparturePickup {
+			t.Fatalf("mixed mon = %q, want pickup (higher stakes)", got)
+		}
+	})
+}

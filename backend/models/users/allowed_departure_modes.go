@@ -11,6 +11,7 @@ var departureModeOrder = []DepartureMode{
 	DepartureAlone,
 	DepartureBus,
 	DeparturePickup,
+	DepartureAccompanied,
 }
 
 func (m AllowedDepartureModes) Validate() error {
@@ -21,7 +22,7 @@ func (m AllowedDepartureModes) Validate() error {
 		seen := map[DepartureMode]bool{}
 		for _, mode := range modes {
 			if !validDepartureModes[mode] {
-				return fmt.Errorf("allowed_departure_modes mode %q must be one of alone/bus/pickup", mode)
+				return fmt.Errorf("allowed_departure_modes mode %q must be one of alone/bus/pickup/accompanied", mode)
 			}
 			if seen[mode] {
 				return fmt.Errorf("allowed_departure_modes day %q contains duplicate mode %q", day, mode)
@@ -64,6 +65,16 @@ func (m AllowedDepartureModes) HasAny() bool {
 	return false
 }
 
+// HasMode reports whether any weekday allows the given departure mode.
+func (m AllowedDepartureModes) HasMode(mode DepartureMode) bool {
+	for _, day := range PickupDayOrder {
+		if allowedModesContain(m[day], mode) {
+			return true
+		}
+	}
+	return false
+}
+
 func (m AllowedDepartureModes) BusDays() BusDays {
 	out := BusDays{}
 	for _, day := range PickupDayOrder {
@@ -84,8 +95,9 @@ func (m AllowedDepartureModes) PickupDays() PickupDays {
 	return out
 }
 
-// DepartureDays derives the legacy exclusive plan. Pickup wins over bus and
-// bus wins over alone because older consumers can only display one instruction.
+// DepartureDays derives the legacy exclusive plan. Priority pickup > bus >
+// accompanied > alone, because older consumers can only display one
+// instruction and being collected by a person is the highest-stakes one.
 func (m AllowedDepartureModes) DepartureDays() DepartureDays {
 	out := DepartureDays{}
 	for _, day := range PickupDayOrder {
@@ -94,6 +106,8 @@ func (m AllowedDepartureModes) DepartureDays() DepartureDays {
 			out[day] = DeparturePickup
 		case allowedModesContain(m[day], DepartureBus):
 			out[day] = DepartureBus
+		case allowedModesContain(m[day], DepartureAccompanied):
+			out[day] = DepartureAccompanied
 		}
 	}
 	return out
@@ -107,6 +121,8 @@ func AllowedDepartureModesFromDeparture(days DepartureDays) AllowedDepartureMode
 			out[day] = []DepartureMode{DepartureBus}
 		case DeparturePickup:
 			out[day] = []DepartureMode{DeparturePickup}
+		case DepartureAccompanied:
+			out[day] = []DepartureMode{DepartureAccompanied}
 		}
 	}
 	return out

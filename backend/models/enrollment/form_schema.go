@@ -270,9 +270,18 @@ const (
 	TargetStudentBusDays      = "student.bus_days"
 	TargetStudentBus          = "student.bus"
 	TargetStudentPickupStatus = "student.pickup_status"
-	TargetSchedulePickup      = "schedule.pickup"
-	TargetScheduleArrival     = "schedule.arrival"
-	TargetStudentContacts     = "student.contacts"
+	// TargetStudentDepartureCompanionNote captures the free-text "mit wem" for
+	// the accompanied departure mode (sibling, friend, named person). It is a
+	// coupled companion to TargetStudentAllowedDepartureModes, NOT an
+	// independently admin-pickable field: it rides on a reserved child
+	// custom-data key under this string and is applied (accompanied-gated) by
+	// the decision service. It is intentionally absent from ReservedTargets so
+	// a schema cannot declare it as a standalone field whose answer would be
+	// silently dropped on approval (#1694).
+	TargetStudentDepartureCompanionNote = "student.departure_companion_note"
+	TargetSchedulePickup                = "schedule.pickup"
+	TargetScheduleArrival               = "schedule.arrival"
+	TargetStudentContacts               = "student.contacts"
 )
 
 // ReservedTargets is the canonical list of admin-pickable targets.
@@ -491,16 +500,18 @@ type WeekdayBoolean map[string]bool
 // users.DepartureMode without importing the users package, keeping the
 // enrollment model layer self-contained.
 const (
-	WeekdayModeAlone  = "alone"
-	WeekdayModeBus    = "bus"
-	WeekdayModePickup = "pickup"
+	WeekdayModeAlone       = "alone"
+	WeekdayModeBus         = "bus"
+	WeekdayModePickup      = "pickup"
+	WeekdayModeAccompanied = "accompanied"
 )
 
 // ValidWeekdayModes is the set of accepted WeekdayMode values.
 var ValidWeekdayModes = map[string]bool{
-	WeekdayModeAlone:  true,
-	WeekdayModeBus:    true,
-	WeekdayModePickup: true,
+	WeekdayModeAlone:       true,
+	WeekdayModeBus:         true,
+	WeekdayModePickup:      true,
+	WeekdayModeAccompanied: true,
 }
 
 // WeekdayMode is the value of a FormFieldWeekdayMode field. Keys are weekday
@@ -515,7 +526,7 @@ func (w WeekdayMode) Validate() error {
 			return fmt.Errorf("weekday %q must be one of mon/tue/wed/thu/fri", day)
 		}
 		if !ValidWeekdayModes[mode] {
-			return fmt.Errorf("weekday %q mode %q must be one of alone/bus/pickup", day, mode)
+			return fmt.Errorf("weekday %q mode %q must be one of alone/bus/pickup/accompanied", day, mode)
 		}
 	}
 	return nil
@@ -536,7 +547,7 @@ func (w WeekdayMultiMode) Validate() error {
 		seen := map[string]bool{}
 		for _, mode := range modes {
 			if !ValidWeekdayModes[mode] {
-				return fmt.Errorf("weekday %q mode %q must be one of alone/bus/pickup", day, mode)
+				return fmt.Errorf("weekday %q mode %q must be one of alone/bus/pickup/accompanied", day, mode)
 			}
 			if seen[mode] {
 				return fmt.Errorf("weekday %q contains duplicate mode %q", day, mode)

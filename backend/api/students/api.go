@@ -717,9 +717,28 @@ func createStudentFromRequest(req *StudentRequest, personID int64) *users.Studen
 	if req.SupervisorNotes != nil {
 		student.SupervisorNotes = req.SupervisorNotes
 	}
+	if req.DepartureCompanionNote != nil {
+		student.DepartureCompanionNote = req.DepartureCompanionNote
+	}
 	applyDeparturePlan(req.AllowedDepartureModes, req.DepartureDays, req.PickupStatus, req.PickupDays, req.Bus, req.BusDays, student)
+	normalizeDepartureCompanionNote(student)
 
 	return student
+}
+
+// normalizeDepartureCompanionNote drops the free-text "mit wem" note once the
+// child's allowed departure modes no longer include the accompanied mode, so a
+// note never outlives the "Mit anderem Kind" plan that justifies it (#1694).
+// The UI hides the note input when no day is accompanied, so a stale value can
+// otherwise sit in form state and be submitted unchanged.
+func normalizeDepartureCompanionNote(student *users.Student) {
+	if student.DepartureCompanionNote == nil {
+		return
+	}
+	if !student.AllowedDepartureModes.HasMode(users.DepartureAccompanied) &&
+		!student.DepartureDays.HasMode(users.DepartureAccompanied) {
+		student.DepartureCompanionNote = nil
+	}
 }
 
 // applyDeparturePlan sets how a child leaves each weekday from a create/update
@@ -1135,7 +1154,16 @@ func applyOptionalStudentFields(req *UpdateStudentRequest, student *users.Studen
 	if req.SupervisorNotes != nil {
 		student.SupervisorNotes = req.SupervisorNotes
 	}
+	if req.DepartureCompanionNote != nil {
+		student.DepartureCompanionNote = req.DepartureCompanionNote
+	}
 	applyDeparturePlan(req.AllowedDepartureModes, req.DepartureDays, req.PickupStatus, req.PickupDays, req.Bus, req.BusDays, student)
+	// Only normalize when this request actually set the departure plan, so the
+	// freshly applied modes are authoritative; an update that omits modes must
+	// not clear a note against a possibly-unpopulated scanonly field.
+	if req.AllowedDepartureModes != nil || req.DepartureDays != nil {
+		normalizeDepartureCompanionNote(student)
+	}
 }
 
 // applySickStatus handles sick status updates with SickSince timestamp logic

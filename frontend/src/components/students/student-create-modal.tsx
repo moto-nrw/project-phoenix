@@ -544,6 +544,14 @@ export function StudentCreateModal({
                   : "Geht alleine nach Hause",
               }));
             }}
+            companionNote={formData.departure_companion_note}
+            onCompanionNoteChange={(value) =>
+              setFormData((prev) => ({
+                ...prev,
+                departure_companion_note: value,
+              }))
+            }
+            companionNoteError={errors.departure_companion_note}
           />
 
           {/* Action Buttons */}

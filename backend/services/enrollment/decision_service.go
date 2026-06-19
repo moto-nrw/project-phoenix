@@ -2160,6 +2160,22 @@ func (s *decisionService) applyTargetedFields(
 		student.PickupDays = explicitDeparture.PickupDays()
 	}
 
+	// Coupled "mit wem" note (#1694): the enrollment form carries it on a
+	// reserved per-child custom-data key alongside allowed_departure_modes
+	// (not a separate admin-added field). Apply it ONLY when the child's final
+	// departure plan actually allows the accompanied mode, so a note from a
+	// client that toggled accompanied off — or a crafted submit — never lands on
+	// a child with no "Mit anderem Kind" day. Capped server-side (the column is
+	// unbounded TEXT).
+	if child != nil && child.CustomData != nil &&
+		student.AllowedDepartureModes.HasMode(users.DepartureAccompanied) {
+		if note := strings.TrimSpace(stringValue(child.CustomData[enrollmentModels.TargetStudentDepartureCompanionNote])); note != "" {
+			note = truncateRunes(note, users.MaxDepartureCompanionNoteLen)
+			student.DepartureCompanionNote = &note
+			studentDirty = true
+		}
+	}
+
 	if studentDirty {
 		if err := s.studentRepo.Update(ctx, student); err != nil {
 			errs = append(errs, fmt.Sprintf("update student: %v", err))
@@ -2170,6 +2186,16 @@ func (s *decisionService) applyTargetedFields(
 		return errors.New(strings.Join(errs, "; "))
 	}
 	return nil
+}
+
+// truncateRunes caps s to at most max runes (not bytes), preserving valid
+// UTF-8. Used to bound parent free-text that bypasses the client length limit.
+func truncateRunes(s string, max int) string {
+	r := []rune(s)
+	if len(r) <= max {
+		return s
+	}
+	return string(r[:max])
 }
 
 // decodeDepartureDays decodes a FormFieldWeekdayMode submission (mon..fri →
@@ -2189,6 +2215,8 @@ func decodeDepartureDays(raw any) (users.DepartureDays, error) {
 			out[day] = users.DepartureBus
 		case enrollmentModels.WeekdayModePickup:
 			out[day] = users.DeparturePickup
+		case enrollmentModels.WeekdayModeAccompanied:
+			out[day] = users.DepartureAccompanied
 		}
 	}
 	return out.Normalize(), nil
@@ -2212,6 +2240,8 @@ func decodeAllowedDepartureModes(raw any) (users.AllowedDepartureModes, error) {
 				out[day] = append(out[day], users.DepartureBus)
 			case enrollmentModels.WeekdayModePickup:
 				out[day] = append(out[day], users.DeparturePickup)
+			case enrollmentModels.WeekdayModeAccompanied:
+				out[day] = append(out[day], users.DepartureAccompanied)
 			}
 		}
 	}

@@ -361,6 +361,23 @@ func (r *StudentRepository) persistDepartureDays(ctx context.Context, student *u
 		query = query.Set(`pickup_days = ?`, pickupDays)
 	}
 
+	// Invariant: the free-text "mit wem" note must never outlive the accompanied
+	// mode that justifies it (#1694). The resolved plan is the single source of
+	// truth, so clear the note here whenever the final modes contain no
+	// accompanied day, regardless of which fields (unified or legacy) drove the
+	// change. Handler-level normalization cannot see the resolved legacy plan and
+	// is unreliable for these paths.
+	if !allowed.HasMode(users.DepartureAccompanied) {
+		hasNote, noteErr := r.hasStudentColumn(ctx, "departure_companion_note")
+		if noteErr != nil {
+			return noteErr
+		}
+		if hasNote {
+			query = query.Set(`departure_companion_note = NULL`)
+			student.DepartureCompanionNote = nil
+		}
+	}
+
 	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
 		query = query.Where(where, val)
 	}
@@ -451,7 +468,7 @@ func mergeLegacyDepartureModes(current users.AllowedDepartureModes, bus users.Bu
 		if pickupChanged {
 			modes[users.DeparturePickup] = pickup[day]
 		}
-		for _, mode := range []users.DepartureMode{users.DepartureAlone, users.DepartureBus, users.DeparturePickup} {
+		for _, mode := range []users.DepartureMode{users.DepartureAlone, users.DepartureBus, users.DeparturePickup, users.DepartureAccompanied} {
 			if modes[mode] {
 				out[day] = append(out[day], mode)
 			}
@@ -745,6 +762,7 @@ func (r *StudentRepository) FindByTeacherID(ctx context.Context, teacherID int64
 		ColumnExpr(`"student".group_id AS "student__group_id"`).
 		ColumnExpr(`"student".extra_info AS "student__extra_info", "student".supervisor_notes AS "student__supervisor_notes"`).
 		ColumnExpr(`"student".health_info AS "student__health_info", "student".pickup_status AS "student__pickup_status"`).
+		ColumnExpr(`"student".departure_companion_note AS "student__departure_companion_note"`).
 		// Person columns with proper aliasing
 		ColumnExpr(`"person".id AS "person__id", "person".created_at AS "person__created_at", "person".updated_at AS "person__updated_at"`).
 		ColumnExpr(`"person".first_name AS "person__first_name", "person".last_name AS "person__last_name"`).
@@ -811,6 +829,7 @@ func (r *StudentRepository) newStudentWithGroupQuery(ctx context.Context, result
 		ColumnExpr(`"student".group_id AS "student__group_id"`).
 		ColumnExpr(`"student".extra_info AS "student__extra_info", "student".supervisor_notes AS "student__supervisor_notes"`).
 		ColumnExpr(`"student".health_info AS "student__health_info", "student".pickup_status AS "student__pickup_status"`).
+		ColumnExpr(`"student".departure_companion_note AS "student__departure_companion_note"`).
 		ColumnExpr(`"person".id AS "person__id", "person".created_at AS "person__created_at", "person".updated_at AS "person__updated_at"`).
 		ColumnExpr(`"person".first_name AS "person__first_name", "person".last_name AS "person__last_name"`).
 		ColumnExpr(`"person".tag_id AS "person__tag_id", "person".account_id AS "person__account_id"`).

@@ -77,6 +77,42 @@ func TestStudent_Validate(t *testing.T) {
 	}
 }
 
+func TestStudent_Validate_DepartureCompanionNote(t *testing.T) {
+	t.Run("over-long note is rejected", func(t *testing.T) {
+		long := make([]rune, MaxDepartureCompanionNoteLen+1)
+		for i := range long {
+			long[i] = 'ä' // multibyte, so byte length != rune length
+		}
+		note := string(long)
+		student := &Student{PersonID: 1, SchoolClass: "1a", DepartureCompanionNote: &note}
+		if err := student.Validate(); err == nil {
+			t.Fatal("expected error for over-long companion note, got nil")
+		}
+	})
+
+	t.Run("note at the cap is accepted and trimmed", func(t *testing.T) {
+		note := "  Geschwisterkind Lena  "
+		student := &Student{PersonID: 1, SchoolClass: "1a", DepartureCompanionNote: &note}
+		if err := student.Validate(); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if student.DepartureCompanionNote == nil || *student.DepartureCompanionNote != "Geschwisterkind Lena" {
+			t.Errorf("expected trimmed note, got %v", student.DepartureCompanionNote)
+		}
+	})
+
+	t.Run("blank note is dropped to nil", func(t *testing.T) {
+		note := "   "
+		student := &Student{PersonID: 1, SchoolClass: "1a", DepartureCompanionNote: &note}
+		if err := student.Validate(); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if student.DepartureCompanionNote != nil {
+			t.Errorf("expected nil note, got %q", *student.DepartureCompanionNote)
+		}
+	})
+}
+
 func TestStudent_Validate_TrimSchoolClass(t *testing.T) {
 	student := &Student{
 		PersonID:    1,

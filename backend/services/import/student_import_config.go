@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -628,6 +629,8 @@ func departurePlanFromImportRow(row importModels.StudentImportRow) users.Departu
 				out[key] = users.DepartureBus
 			case string(users.DeparturePickup):
 				out[key] = users.DeparturePickup
+			case string(users.DepartureAccompanied):
+				out[key] = users.DepartureAccompanied
 			}
 		}
 		return out
@@ -651,7 +654,10 @@ func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID
 		HealthInfo:      stringPtr(row.HealthInfo),
 		// DepartureDays is the unified source of truth; the repository derives
 		// bus_days, pickup_days and pickup_status from it on persist (#1610).
-		DepartureDays:            departurePlanFromImportRow(row),
+		DepartureDays: departurePlanFromImportRow(row),
+		// Free-text "mit wem" for the accompanied mode; the repository clears it
+		// on persist when no day is accompanied, so it never outlives the mode.
+		DepartureCompanionNote:   boundedNotePtr(row.DepartureCompanionNote),
 		EnrolledFrom:             enrolledFrom,
 		EnrolledUntil:            enrolledUntil,
 		AGBAcceptedAt:            parseOptionalImportDate(row.AGBAcceptedAt),
@@ -1037,6 +1043,20 @@ func stringPtr(s string) *string {
 	trimmed := strings.TrimSpace(s)
 	if trimmed == "" {
 		return nil
+	}
+	return &trimmed
+}
+
+// boundedNotePtr trims the value, truncates it to the companion-note cap by
+// rune count (multibyte-safe), and returns nil when empty. Import truncates
+// rather than rejecting the whole row, mirroring the enrollment intake (#1694).
+func boundedNotePtr(s string) *string {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" {
+		return nil
+	}
+	if utf8.RuneCountInString(trimmed) > users.MaxDepartureCompanionNoteLen {
+		trimmed = string([]rune(trimmed)[:users.MaxDepartureCompanionNoteLen])
 	}
 	return &trimmed
 }

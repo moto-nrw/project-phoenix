@@ -528,6 +528,7 @@ export default function StudentDetailPage() {
       bus_days: normalizeBusDays(editedStudent.bus_days),
       allowed_departure_modes: allowedDepartureModes,
       departure_days: allowedDepartureToDepartureDays(allowedDepartureModes),
+      departure_companion_note: editedStudent.departure_companion_note,
       health_info: editedStudent.health_info,
       supervisor_notes: editedStudent.supervisor_notes,
       extra_info: editedStudent.extra_info,

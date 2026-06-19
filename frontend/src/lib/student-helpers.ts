@@ -113,7 +113,7 @@ export function formatPickupDays(value?: PickupDays | null): string {
 // exclusive choice per weekday: the child goes home alone ("alleine"), rides
 // the bus ("bus"), or is collected by a person ("pickup"). departure_days is
 // the single source of truth on the backend; bus_days/pickup_days are derived.
-export type DepartureMode = "alone" | "bus" | "pickup";
+export type DepartureMode = "alone" | "bus" | "pickup" | "accompanied";
 export type DepartureDayKey = BusDayKey;
 export type DepartureDays = Partial<Record<DepartureDayKey, DepartureMode>>;
 export type AllowedDepartureModes = Partial<
@@ -131,11 +131,12 @@ export const DEPARTURE_WEEKDAYS: ReadonlyArray<{
   { key: "fri", label: "Freitag" },
 ] as const;
 
-/** German labels for the three departure modes (shown in forms and badges). */
+/** German labels for the departure modes (shown in forms and badges). */
 const DEPARTURE_MODE_LABELS: Record<DepartureMode, string> = {
   alone: "Geht zu Fuß",
   bus: "Fährt Bus",
   pickup: "Wird abgeholt",
+  accompanied: "Mit anderem Kind",
 };
 
 export function normalizeDepartureDays(
@@ -144,7 +145,8 @@ export function normalizeDepartureDays(
   const out: DepartureDays = {};
   for (const day of DEPARTURE_WEEKDAYS) {
     const mode = value?.[day.key];
-    if (mode === "bus" || mode === "pickup") out[day.key] = mode;
+    if (mode === "bus" || mode === "pickup" || mode === "accompanied")
+      out[day.key] = mode;
   }
   return out;
 }
@@ -156,12 +158,29 @@ export function normalizeAllowedDepartureModes(
   for (const day of DEPARTURE_WEEKDAYS) {
     const raw = value?.[day.key];
     if (!Array.isArray(raw)) continue;
-    const modes = (["alone", "bus", "pickup"] as const).filter((mode) =>
-      raw.includes(mode),
+    const modes = (["alone", "bus", "pickup", "accompanied"] as const).filter(
+      (mode) => raw.includes(mode),
     );
     if (modes.length > 0) out[day.key] = modes;
   }
   return out;
+}
+
+/** Reports whether any weekday allows the accompanied ("Mit anderem Kind")
+ *  departure mode. Reads the unified allowed_departure_modes when present and
+ *  falls back to the exclusive departure_days, so it works on every form shape
+ *  (#1694). */
+export function allowedModesIncludeAccompanied(
+  allowed?: AllowedDepartureModes | null,
+  departureDays?: DepartureDays | null,
+): boolean {
+  for (const day of DEPARTURE_WEEKDAYS) {
+    if (allowed?.[day.key]?.includes("accompanied")) return true;
+  }
+  for (const day of DEPARTURE_WEEKDAYS) {
+    if (departureDays?.[day.key] === "accompanied") return true;
+  }
+  return false;
 }
 
 /** Folds the legacy bus/pickup maps into the unified map. Pickup wins on a
@@ -184,7 +203,8 @@ export function allowedDepartureModesFromDeparture(
   const out: AllowedDepartureModes = {};
   for (const day of DEPARTURE_WEEKDAYS) {
     const mode = value?.[day.key];
-    if (mode === "bus" || mode === "pickup") out[day.key] = [mode];
+    if (mode === "bus" || mode === "pickup" || mode === "accompanied")
+      out[day.key] = [mode];
   }
   return out;
 }
@@ -231,6 +251,7 @@ export function allowedDepartureToDepartureDays(
     const modes = value?.[day.key] ?? [];
     if (modes.includes("pickup")) out[day.key] = "pickup";
     else if (modes.includes("bus")) out[day.key] = "bus";
+    else if (modes.includes("accompanied")) out[day.key] = "accompanied";
   }
   return out;
 }
@@ -302,6 +323,7 @@ export interface BackendStudent {
   group_name?: string;
   scheduled_checkout?: ScheduledCheckoutInfo;
   extra_info?: string;
+  departure_companion_note?: string;
   birthday?: string;
   health_info?: string;
   supervisor_notes?: string;
@@ -441,6 +463,8 @@ export interface Student {
   attendance_log_enabled?: boolean;
   // Extra information visible only to supervisors
   extra_info?: string;
+  // Free-text "mit wem" for the accompanied departure mode (#1694)
+  departure_companion_note?: string;
   birthday?: string;
   health_info?: string;
   supervisor_notes?: string;
@@ -532,6 +556,7 @@ export function mapStudentResponse(
     guardian_phone: backendStudent.guardian_phone,
     custom_users_id: undefined, // Not provided by backend
     extra_info: backendStudent.extra_info,
+    departure_companion_note: backendStudent.departure_companion_note,
     birthday: backendStudent.birthday,
     health_info: backendStudent.health_info,
     supervisor_notes: backendStudent.supervisor_notes,
@@ -602,6 +627,7 @@ export function prepareStudentForBackend(
     guardian_email?: string;
     guardian_phone?: string;
     extra_info?: string;
+    departure_companion_note?: string;
     birthday?: string;
     health_info?: string;
     supervisor_notes?: string;
@@ -647,6 +673,7 @@ export function prepareStudentForBackend(
     guardian_email: student.guardian_email,
     guardian_phone: student.guardian_phone,
     extra_info: student.extra_info,
+    departure_companion_note: student.departure_companion_note,
     // Convert empty string to undefined for date fields (Go backend expects null or valid date)
     birthday:
       student.birthday && student.birthday.trim() !== ""
@@ -677,6 +704,7 @@ export interface UpdateStudentRequest {
   guardian_email?: string;
   guardian_phone?: string;
   extra_info?: string;
+  departure_companion_note?: string;
   birthday?: string;
   health_info?: string;
   supervisor_notes?: string;
@@ -710,6 +738,7 @@ export interface BackendUpdateRequest {
   guardian_phone?: string;
   group_id?: number;
   extra_info?: string;
+  departure_companion_note?: string;
   birthday?: string;
   health_info?: string;
   supervisor_notes?: string;
@@ -766,6 +795,7 @@ const DIRECT_FIELD_MAPPINGS: FieldMapping[] = [
   { source: "guardian_email", target: "guardian_email" },
   { source: "guardian_phone", target: "guardian_phone" },
   { source: "extra_info", target: "extra_info" },
+  { source: "departure_companion_note", target: "departure_companion_note" },
   { source: "birthday", target: "birthday" },
   { source: "health_info", target: "health_info" },
   { source: "supervisor_notes", target: "supervisor_notes" },

@@ -16,12 +16,18 @@ const (
 	DepartureBus DepartureMode = "bus"
 	// DeparturePickup — the child is collected by a person ("wird abgeholt").
 	DeparturePickup DepartureMode = "pickup"
+	// DepartureAccompanied — the child leaves together with another child or a
+	// named person ("geht mit anderem Kind/Person"). Who they leave with is
+	// captured separately in the free-text companion note on the student, and
+	// may be formalized into a departure group (#1694).
+	DepartureAccompanied DepartureMode = "accompanied"
 )
 
 var validDepartureModes = map[DepartureMode]bool{
-	DepartureAlone:  true,
-	DepartureBus:    true,
-	DeparturePickup: true,
+	DepartureAlone:       true,
+	DepartureBus:         true,
+	DeparturePickup:      true,
+	DepartureAccompanied: true,
 }
 
 // DepartureDays stores, per weekday, how the child leaves. A weekday not
@@ -37,7 +43,7 @@ func (d DepartureDays) Validate() error {
 			return fmt.Errorf("departure_days weekday %q must be one of mon/tue/wed/thu/fri", day)
 		}
 		if !validDepartureModes[mode] {
-			return fmt.Errorf("departure_days mode %q must be one of alone/bus/pickup", mode)
+			return fmt.Errorf("departure_days mode %q must be one of alone/bus/pickup/accompanied", mode)
 		}
 	}
 	return nil
@@ -53,24 +59,38 @@ func (d DepartureDays) Normalize() DepartureDays {
 			out[day] = DepartureBus
 		case DeparturePickup:
 			out[day] = DeparturePickup
+		case DepartureAccompanied:
+			out[day] = DepartureAccompanied
 		}
 	}
 	return out
 }
 
 // ModeFor returns the mode for a weekday, defaulting to DepartureAlone for any
-// day not explicitly set to bus/pickup.
+// day not explicitly set to a non-alone mode.
 func (d DepartureDays) ModeFor(day string) DepartureMode {
-	if mode := d[day]; mode == DepartureBus || mode == DeparturePickup {
+	switch mode := d[day]; mode {
+	case DepartureBus, DeparturePickup, DepartureAccompanied:
 		return mode
+	default:
+		return DepartureAlone
 	}
-	return DepartureAlone
 }
 
 // HasAny reports whether any weekday is set to a non-alone mode.
 func (d DepartureDays) HasAny() bool {
 	for _, day := range PickupDayOrder {
 		if d.ModeFor(day) != DepartureAlone {
+			return true
+		}
+	}
+	return false
+}
+
+// HasMode reports whether any weekday is set to the given departure mode.
+func (d DepartureDays) HasMode(mode DepartureMode) bool {
+	for _, m := range d {
+		if m == mode {
 			return true
 		}
 	}

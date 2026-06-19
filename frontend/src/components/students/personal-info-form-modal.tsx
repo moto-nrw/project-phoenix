@@ -14,6 +14,7 @@ import {
   allowedDepartureToDepartureDays,
   allowedDepartureToPickupDays,
   normalizeAllowedDepartureModes,
+  allowedModesIncludeAccompanied,
 } from "~/lib/student-helpers";
 import { createLogger } from "~/lib/logger";
 
@@ -51,18 +52,26 @@ export function PersonalInfoFormModal({
   };
 
   const handleSave = async () => {
+    const allowedDepartureModes = normalizeAllowedDepartureModes(
+      editedStudent.allowed_departure_modes ??
+        allowedDepartureModesFromDeparture(
+          editedStudent.departure_days ??
+            departureDaysFromLegacy(
+              editedStudent.bus_days,
+              editedStudent.pickup_days,
+            ),
+        ),
+    );
+    // "Mit anderem Kind" needs a note saying with whom (#1694).
+    if (
+      allowedModesIncludeAccompanied(allowedDepartureModes) &&
+      !editedStudent.departure_companion_note?.trim()
+    ) {
+      toast.error("Bitte angeben, mit welchem Kind das Kind nach Hause geht");
+      return;
+    }
     setIsSaving(true);
     try {
-      const allowedDepartureModes = normalizeAllowedDepartureModes(
-        editedStudent.allowed_departure_modes ??
-          allowedDepartureModesFromDeparture(
-            editedStudent.departure_days ??
-              departureDaysFromLegacy(
-                editedStudent.bus_days,
-                editedStudent.pickup_days,
-              ),
-          ),
-      );
       const busDays = allowedDepartureToBusDays(allowedDepartureModes);
       const pickupDays = allowedDepartureToPickupDays(allowedDepartureModes);
       await onSave({
@@ -173,6 +182,10 @@ export function PersonalInfoFormModal({
                 : "Geht alleine nach Hause",
             }));
           }}
+          companionNote={editedStudent.departure_companion_note}
+          onCompanionNoteChange={(value) =>
+            updateField("departure_companion_note", value)
+          }
         />
         <TextAreaInput
           id="modal-student-health-info"

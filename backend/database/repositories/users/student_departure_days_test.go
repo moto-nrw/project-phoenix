@@ -168,6 +168,67 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		}, afterRemoval.AllowedDepartureModes)
 	})
 
+	t.Run("legacy bus change preserves existing accompanied day", func(t *testing.T) {
+		requireStudentsDepartureDaysColumn(t, db)
+		requireStudentsAllowedDepartureModesColumn(t, db)
+
+		student := testpkg.CreateTestStudent(t, db, "Departure", "Accompanied", "2c")
+		defer cleanupStudentRecords(t, db, student.ID)
+
+		student.AllowedDepartureModes = users.AllowedDepartureModes{
+			users.PickupDayMonday:  []users.DepartureMode{users.DepartureAccompanied},
+			users.PickupDayTuesday: []users.DepartureMode{users.DepartureAlone},
+		}
+		require.NoError(t, repo.Update(ctx, student))
+
+		fresh, err := repo.FindByID(ctx, student.ID)
+		require.NoError(t, err)
+		// A legacy bus_days change must NOT drop the unrelated accompanied day
+		// (the legacy merge used to rebuild only alone/bus/pickup).
+		fresh.BusDays = users.BusDays{users.PickupDayTuesday: true}
+		require.NoError(t, repo.Update(ctx, fresh))
+
+		found, err := repo.FindByID(ctx, student.ID)
+		require.NoError(t, err)
+		assert.Equal(t,
+			[]users.DepartureMode{users.DepartureAccompanied},
+			found.AllowedDepartureModes[users.PickupDayMonday],
+			"accompanied on Monday survives an unrelated bus_days change",
+		)
+		assert.Contains(t, found.AllowedDepartureModes[users.PickupDayTuesday], users.DepartureBus)
+	})
+
+	t.Run("companion note is cleared when modes drop accompanied", func(t *testing.T) {
+		requireStudentsDepartureDaysColumn(t, db)
+		requireStudentsAllowedDepartureModesColumn(t, db)
+
+		student := testpkg.CreateTestStudent(t, db, "Departure", "NoteClear", "2d")
+		defer cleanupStudentRecords(t, db, student.ID)
+
+		note := "Geschwisterkind Mia"
+		student.AllowedDepartureModes = users.AllowedDepartureModes{
+			users.PickupDayMonday: []users.DepartureMode{users.DepartureAccompanied},
+		}
+		student.DepartureCompanionNote = &note
+		require.NoError(t, repo.Update(ctx, student))
+
+		seeded, err := repo.FindByID(ctx, student.ID)
+		require.NoError(t, err)
+		require.NotNil(t, seeded.DepartureCompanionNote, "note persists while accompanied is allowed")
+		assert.Equal(t, note, *seeded.DepartureCompanionNote)
+
+		// Switch Monday to bus via the unified field: no accompanied day remains,
+		// so the "mit wem" note must not survive (#1694).
+		seeded.AllowedDepartureModes = nil
+		seeded.DepartureDays = users.DepartureDays{users.PickupDayMonday: users.DepartureBus}
+		require.NoError(t, repo.Update(ctx, seeded))
+
+		found, err := repo.FindByID(ctx, student.ID)
+		require.NoError(t, err)
+		assert.Nil(t, found.DepartureCompanionNote,
+			"the companion note must be cleared once no day allows accompanied")
+	})
+
 	t.Run("unified replacement clears prior days", func(t *testing.T) {
 		requireStudentsDepartureDaysColumn(t, db)
 

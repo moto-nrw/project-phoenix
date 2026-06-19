@@ -2,8 +2,10 @@ package users
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -24,6 +26,11 @@ const (
 	StudentStatusInactive StudentStatus = "inactive"
 	StudentStatusAlumnus  StudentStatus = "alumnus"
 )
+
+// MaxDepartureCompanionNoteLen caps the free-text "mit wem" companion note for
+// the accompanied departure mode (#1694). The column is TEXT; this bound keeps
+// staff and parent free-text from storing an unbounded payload.
+const MaxDepartureCompanionNoteLen = 255
 
 // Student represents a student in the system
 type Student struct {
@@ -53,6 +60,11 @@ type Student struct {
 	// enrollment: every allowed way a child may leave per weekday. It can carry
 	// multiple values per day (for example bus + pickup).
 	AllowedDepartureModes AllowedDepartureModes `bun:"allowed_departure_modes,type:jsonb,scanonly" json:"allowed_departure_modes,omitempty"`
+	// DepartureCompanionNote is the free-text "mit wem" detail for the
+	// DepartureAccompanied mode: who the child leaves with (sibling, friend,
+	// named person). Persisted and read directly (not derived). It may later be
+	// formalized into a departure group (#1694).
+	DepartureCompanionNote *string `bun:"departure_companion_note" json:"departure_companion_note,omitempty"`
 	// PickupDays / BusDays are derived views of DepartureDays kept for consumers
 	// (and API response fields) that have not yet migrated to departure_days.
 	PickupDays    PickupDays     `bun:"pickup_days,type:jsonb,scanonly" json:"pickup_days,omitempty"` // Weekdays on which the child is picked up ("wird abgeholt")
@@ -145,6 +157,22 @@ func (s *Student) Validate() error {
 
 	if err := s.PickupDays.Validate(); err != nil {
 		return err
+	}
+
+	// Bound the free-text "mit wem" companion note at the model boundary every
+	// write funnels through, so the cap holds even for callers that bypass the
+	// API Bind / enrollment-truncation edges (#1694). Trim and drop an empty
+	// note to nil so it never persists as "".
+	if s.DepartureCompanionNote != nil {
+		trimmed := strings.TrimSpace(*s.DepartureCompanionNote)
+		switch {
+		case trimmed == "":
+			s.DepartureCompanionNote = nil
+		case utf8.RuneCountInString(trimmed) > MaxDepartureCompanionNoteLen:
+			return fmt.Errorf("departure_companion_note must be at most %d characters", MaxDepartureCompanionNoteLen)
+		default:
+			s.DepartureCompanionNote = &trimmed
+		}
 	}
 
 	return nil

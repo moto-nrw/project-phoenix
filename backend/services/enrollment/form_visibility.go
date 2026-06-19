@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // This file holds the server-side counterpart of the frontend visibility
@@ -148,6 +149,27 @@ func sanitizeVisibleAnswers(
 		}
 		if v, ok := values[f.Key]; ok {
 			out[f.Key] = v
+		}
+	}
+	// Preserve the coupled "mit wem" note (#1694): it rides on a reserved key
+	// alongside the allowed-departure-modes field rather than being its own
+	// schema field, so the generic strip above would drop it. Keep it only when
+	// a visible allowed-departure-modes field is present AND its submitted value
+	// actually allows the accompanied mode — otherwise a stale/crafted note for
+	// a child with no "Mit anderem Kind" day would survive sanitization. The
+	// decision service is the authoritative guard, so on a decode error we keep
+	// the note and let it decide.
+	if note, ok := values[enrollmentModels.TargetStudentDepartureCompanionNote]; ok {
+		for i := range schema.Fields {
+			f := &schema.Fields[i]
+			if f.Target == enrollmentModels.TargetStudentAllowedDepartureModes &&
+				f.AppliesToCh == appliesToChild && fieldVisible(f, ctx) {
+				if modes, err := decodeAllowedDepartureModes(values[f.Key]); err != nil ||
+					modes.HasMode(users.DepartureAccompanied) {
+					out[enrollmentModels.TargetStudentDepartureCompanionNote] = note
+				}
+				break
+			}
 		}
 	}
 	return out

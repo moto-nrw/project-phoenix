@@ -586,6 +586,140 @@ func TestDecisionService_Decide_AppliesDepartureField(t *testing.T) {
 	assert.True(t, student.PickupDays[usersModels.PickupDayWednesday], "derived pickup_days mirror")
 }
 
+// TestDecisionService_Decide_AppliesCoupledCompanionNote verifies the "mit wem"
+// note (#1694) that the enrollment form couples onto the allowed-departure-modes
+// field via a reserved custom-data key (not a separate schema field) lands on
+// the approved student's departure_companion_note.
+func TestDecisionService_Decide_AppliesCoupledCompanionNote(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
+		Repo:   env.repos.FormSchema,
+		Logger: slog.Default(),
+	})
+	schema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{{
+		Key:         "allowed_modes",
+		Label:       "Erlaubte Heimwege",
+		Type:        enrollmentModels.FormFieldWeekdayMultiMode,
+		Target:      enrollmentModels.TargetStudentAllowedDepartureModes,
+		AppliesToCh: true,
+		SortOrder:   0,
+	}}, env.creatorID)
+	require.NoError(t, err)
+	env.sourcePhase.FormSchemaID = &schema.ID
+	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
+
+	grade := int16(2)
+	res, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
+		TenantID:          1,
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "Test",
+		GuardianEmail:     "companion-note@example.com",
+		ConsentFlags: map[string]any{
+			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
+		},
+		Children: []enrollmentService.SubmitChild{{
+			FirstName:        "Comp",
+			LastName:         "Child",
+			DateOfBirth:      timezone.NewDate(2018, 4, 15),
+			TargetGradeLevel: &grade,
+			CustomData: map[string]any{
+				"allowed_modes": map[string]any{"mon": []any{"accompanied"}},
+				// Reserved coupled key carrying the free-text companion note.
+				enrollmentModels.TargetStudentDepartureCompanionNote: "Geschwisterkind Mia (1b)",
+			},
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, res.Children, 1)
+
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  res.Request.ID,
+		ChildID:    res.Children[0].ID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	student, err := env.repos.Student.FindByID(ctx, *outcome.Child.CreatedStudentID)
+	require.NoError(t, err)
+	assert.Equal(t, usersModels.DepartureAccompanied,
+		student.AllowedDepartureModes.DepartureDays().ModeFor(usersModels.PickupDayMonday),
+		"accompanied mode must reach the student")
+	require.NotNil(t, student.DepartureCompanionNote, "coupled companion note must be applied")
+	assert.Equal(t, "Geschwisterkind Mia (1b)", *student.DepartureCompanionNote)
+}
+
+// TestDecisionService_Decide_SkipsCompanionNoteWithoutAccompanied verifies the
+// coupled "mit wem" note is NOT applied when the child's submitted modes contain
+// no accompanied day, so a stale/crafted note never lands on a child with no
+// "Mit anderem Kind" plan (#1694). The server guard is the authority here — the
+// client's hasAccompanied gate cannot be trusted.
+func TestDecisionService_Decide_SkipsCompanionNoteWithoutAccompanied(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
+		Repo:   env.repos.FormSchema,
+		Logger: slog.Default(),
+	})
+	schema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{{
+		Key:         "allowed_modes",
+		Label:       "Erlaubte Heimwege",
+		Type:        enrollmentModels.FormFieldWeekdayMultiMode,
+		Target:      enrollmentModels.TargetStudentAllowedDepartureModes,
+		AppliesToCh: true,
+		SortOrder:   0,
+	}}, env.creatorID)
+	require.NoError(t, err)
+	env.sourcePhase.FormSchemaID = &schema.ID
+	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
+
+	grade := int16(2)
+	res, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
+		TenantID:          1,
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "Test",
+		GuardianEmail:     "no-accompanied@example.com",
+		ConsentFlags: map[string]any{
+			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
+		},
+		Children: []enrollmentService.SubmitChild{{
+			FirstName:        "Solo",
+			LastName:         "Child",
+			DateOfBirth:      timezone.NewDate(2018, 4, 15),
+			TargetGradeLevel: &grade,
+			CustomData: map[string]any{
+				// No accompanied day, yet a companion note rides along.
+				"allowed_modes": map[string]any{"mon": []any{"bus"}},
+				enrollmentModels.TargetStudentDepartureCompanionNote: "Geschwisterkind Mia (1b)",
+			},
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, res.Children, 1)
+
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  res.Request.ID,
+		ChildID:    res.Children[0].ID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	student, err := env.repos.Student.FindByID(ctx, *outcome.Child.CreatedStudentID)
+	require.NoError(t, err)
+	assert.Nil(t, student.DepartureCompanionNote,
+		"companion note must not be applied without an accompanied day")
+}
+
 // ---- Decide: activation mode (enrollment.default_activation_mode) -------
 
 // Default / "scheduled": an approved child becomes a PENDING student
