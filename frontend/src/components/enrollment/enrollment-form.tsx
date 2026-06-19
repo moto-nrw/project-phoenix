@@ -2931,11 +2931,16 @@ function asWeekdayMultiModeObject(
   return out;
 }
 
+// Single-mode legacy departure field (target student.departure). The
+// accompanied mode is intentionally NOT offered here: it requires the coupled
+// "mit wem" companion note, which is only captured + required-validated on the
+// multi-mode student.allowed_departure_modes field. Offering it here would let
+// a parent pick an accompanied departure with no companion note, defeating the
+// data requirement of #1694.
 const DEPARTURE_MODE_OPTIONS: ReadonlyArray<DepartureModeValue> = [
   "alone",
   "bus",
   "pickup",
-  "accompanied",
 ];
 
 function selectedCareDaysForChild(
