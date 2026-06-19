@@ -179,6 +179,11 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 			users.PickupDayMonday:  []users.DepartureMode{users.DepartureAccompanied},
 			users.PickupDayTuesday: []users.DepartureMode{users.DepartureAlone},
 		}
+		// An accompanied day requires the coupled "mit wem" note (#1694); without
+		// it Validate() now rejects the write. The note is incidental to this test
+		// (it asserts the accompanied day survives a later legacy bus change).
+		companion := "Geschwisterkind"
+		student.DepartureCompanionNote = &companion
 		require.NoError(t, repo.Update(ctx, student))
 
 		fresh, err := repo.FindByID(ctx, student.ID)

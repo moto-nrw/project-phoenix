@@ -175,6 +175,25 @@ func (s *Student) Validate() error {
 		}
 	}
 
+	// A "Mit anderem Kind" departure (accompanied mode) is only complete with the
+	// free-text "mit wem" companion note — an accompanied plan with no "with whom"
+	// detail defeats the point and misleads staff. The React forms make the note
+	// required when accompanied is selected; enforce the same coupling here at the
+	// model boundary every write funnels through, so callers that bypass the forms
+	// (direct student API, imported rows, crafted enrollment payloads) cannot
+	// persist an accompanied day with a blank note (#1694). The note block above
+	// has already nilled a blank/whitespace note, so a nil pointer here means no
+	// usable companion detail. Note: accompanied can only enter via these two
+	// fields (the legacy bus/pickup maps cannot express it), so checking them
+	// covers every path that introduces it; the reverse coupling (a note with no
+	// accompanied day) is handled by note-clearing in the repository, which is the
+	// only layer that sees the resolved plan for partial/legacy updates.
+	if s.DepartureCompanionNote == nil &&
+		(s.AllowedDepartureModes.HasMode(DepartureAccompanied) ||
+			s.DepartureDays.HasMode(DepartureAccompanied)) {
+		return errors.New("departure_companion_note is required when a day allows the accompanied departure mode")
+	}
+
 	return nil
 }
 
