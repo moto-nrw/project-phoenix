@@ -18,7 +18,7 @@ function renderModal(
   const onSubmit = vi.fn().mockResolvedValue(undefined);
   const onRemove = vi.fn().mockResolvedValue(undefined);
   const onClose = vi.fn();
-  const { container } = render(
+  render(
     <PickupTimeModal
       careExceptions={[]}
       careExceptionsLoaded
@@ -29,10 +29,12 @@ function renderModal(
       {...overrides}
     />,
   );
+  // The shared Modal renders via createPortal to document.body, so the fields
+  // live outside the render container — query the document instead.
   const dateInput =
-    container.querySelector<HTMLInputElement>('input[type="date"]')!;
+    document.querySelector<HTMLInputElement>('input[type="date"]')!;
   const timeInputs = Array.from(
-    container.querySelectorAll<HTMLInputElement>('input[type="time"]'),
+    document.querySelectorAll<HTMLInputElement>('input[type="time"]'),
   );
   // Field order in the modal is arrival, then pickup.
   const [arrivalInput, pickupInput] = timeInputs;
