@@ -800,6 +800,15 @@ export function ChildOfferings({
   );
 }
 
+// Reserved child custom-data key carrying the coupled "mit wem" note for the
+// accompanied departure mode (#1694). It rides alongside
+// student.allowed_departure_modes instead of being a standalone schema field,
+// so it is NOT in schema_fields and must be rendered explicitly here — the
+// backend persists it onto the student on approval, so staff must see it before
+// deciding. Matches DEPARTURE_COMPANION_KEY in enrollment-form.tsx and
+// TargetStudentDepartureCompanionNote in the backend.
+const DEPARTURE_COMPANION_KEY = "student.departure_companion_note";
+
 export function ChildExtraFields({
   child,
   schemaFields,
@@ -814,7 +823,10 @@ export function ChildExtraFields({
       value: formatCustomValue(child.custom_data?.[f.key], f),
     }))
     .filter((row) => row.value !== null);
-  if (filled.length === 0) return null;
+  const companionNote = (
+    child.custom_data?.[DEPARTURE_COMPANION_KEY] as string | undefined
+  )?.trim();
+  if (filled.length === 0 && !companionNote) return null;
   return (
     <div className="mt-3 rounded-lg border border-gray-100 bg-gray-50/70 p-3">
       <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
@@ -827,6 +839,14 @@ export function ChildExtraFields({
             <dd className="mt-0.5 text-gray-900">{value}</dd>
           </div>
         ))}
+        {companionNote && (
+          <div key={DEPARTURE_COMPANION_KEY}>
+            <dt className="text-xs font-medium text-gray-600">
+              Mit welchem Kind?
+            </dt>
+            <dd className="mt-0.5 text-gray-900">{companionNote}</dd>
+          </div>
+        )}
       </dl>
     </div>
   );
@@ -865,6 +885,7 @@ function formatWeekdayObject(
       alone: "geht zu Fuß",
       bus: "fährt Bus",
       pickup: "wird abgeholt",
+      accompanied: "geht mit anderem Kind",
     };
     const parts = WEEKDAYS.flatMap(([key, label]) => {
       const raw = o[key];
@@ -884,16 +905,26 @@ function formatWeekdayObject(
   const isWeekdayMode =
     field?.type === "weekday_mode" ||
     WEEKDAYS.some(
-      ([key]) => o[key] === "bus" || o[key] === "pickup" || o[key] === "alone",
+      ([key]) =>
+        o[key] === "bus" ||
+        o[key] === "pickup" ||
+        o[key] === "alone" ||
+        o[key] === "accompanied",
     );
   if (isWeekdayMode) {
     const modeLabels: Record<string, string> = {
       alone: "geht zu Fuß",
       bus: "fährt Bus",
       pickup: "wird abgeholt",
+      accompanied: "geht mit anderem Kind",
     };
+    // "alone" is the implicit default rendered by the "Geht immer alleine"
+    // fallback below, so only non-alone days are listed explicitly. accompanied
+    // (#1694) MUST be listed here — dropping it would mislabel a child who
+    // never goes alone as "Geht immer alleine".
     const parts = WEEKDAYS.filter(
-      ([key]) => o[key] === "bus" || o[key] === "pickup",
+      ([key]) =>
+        o[key] === "bus" || o[key] === "pickup" || o[key] === "accompanied",
     ).map(([key, label]) => `${label}: ${modeLabels[o[key] as string]}`);
     if (parts.length > 0) return parts.join(", ");
     if (field?.type === "weekday_mode") return "Geht immer alleine";
