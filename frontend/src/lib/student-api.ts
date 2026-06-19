@@ -73,6 +73,27 @@ interface WrappedPaginatedResponse<T> {
   message?: string;
 }
 
+interface StudentEnrollmentExtraFieldOption {
+  label: string;
+  value: string;
+}
+
+interface StudentEnrollmentExtraField {
+  key: string;
+  label: string;
+  type: string;
+  target?: string;
+  options?: StudentEnrollmentExtraFieldOption[];
+  value: unknown;
+}
+
+export interface StudentEnrollmentExtraFieldGroup {
+  request_id: string;
+  phase_name: string;
+  submitted_at: string;
+  fields: StudentEnrollmentExtraField[];
+}
+
 // Error handler using shared utility
 function handleStudentApiError(error: unknown, context: string): never {
   handleDomainApiError(error, context, "STUDENT");
@@ -223,6 +244,35 @@ export async function fetchStudent(id: string): Promise<Student> {
     return mapStudentDetailResponse(response.data.data);
   } catch (error) {
     handleStudentApiError(error, "fetch student");
+  }
+}
+
+export async function fetchStudentEnrollmentExtraFields(
+  id: string,
+): Promise<StudentEnrollmentExtraFieldGroup[]> {
+  const useProxy = isBrowserContext();
+  const url = useProxy
+    ? `/api/students/${id}/enrollment-extra-fields`
+    : `${env.API_URL}/students/${id}/enrollment-extra-fields`;
+
+  try {
+    if (useProxy) {
+      const session = await getCachedSession();
+      const responseData = await authFetch<
+        | ApiResponse<StudentEnrollmentExtraFieldGroup[]>
+        | StudentEnrollmentExtraFieldGroup[]
+      >(url, {
+        token: session?.user?.token,
+      });
+      const data = extractApiData(responseData);
+      return Array.isArray(data) ? data : [];
+    }
+
+    const response =
+      await api.get<ApiResponse<StudentEnrollmentExtraFieldGroup[]>>(url);
+    return response.data?.data ?? [];
+  } catch (error) {
+    handleStudentApiError(error, "fetch student enrollment extra fields");
   }
 }
 

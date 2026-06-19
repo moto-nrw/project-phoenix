@@ -1,7 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, Save } from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+import { ClipboardList, Loader2, Save } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import {
   DepartureSection,
@@ -12,12 +18,15 @@ import { StudentCommonFormSections } from "./student-common-form-sections";
 import { StudentPhotoSection } from "./student-photo-section";
 import { validateStudentForm } from "~/lib/student-form-validation";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
+import { useStudentEnrollmentExtraFields } from "~/lib/hooks/use-student-enrollment-extra-fields";
 import {
   deleteStudentPhoto,
   fetchStudentPrivacyConsent,
+  type StudentEnrollmentExtraFieldGroup,
   uploadStudentPhoto,
 } from "~/lib/student-api";
 import { createLogger } from "~/lib/logger";
+import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import {
   busDaysHaveAny,
   normalizeBusDays,
@@ -173,6 +182,14 @@ export function StudentStammdatenTab({
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const {
+    groups: enrollmentExtraGroups,
+    loading: enrollmentExtraLoading,
+    hasError: enrollmentExtraLoadError,
+  } = useStudentEnrollmentExtraFields(
+    student.id,
+    student.has_full_access !== false,
+  );
 
   // Pending photo state — held locally until the user clicks Speichern. The
   // user's mental model: picking a file or clicking "Foto entfernen" is
@@ -556,6 +573,12 @@ export function StudentStammdatenTab({
         onChange={handleChange}
       />
 
+      <EnrollmentExtraFieldsSection
+        groups={enrollmentExtraGroups}
+        loading={enrollmentExtraLoading}
+        hasError={enrollmentExtraLoadError}
+      />
+
       <DepartureSection
         days={formData.allowed_departure_modes}
         onChange={(value) => {
@@ -605,5 +628,92 @@ export function StudentStammdatenTab({
         </Button>
       </div>
     </form>
+  );
+}
+
+function EnrollmentExtraFieldsSection({
+  groups,
+  loading,
+  hasError,
+}: Readonly<{
+  groups: StudentEnrollmentExtraFieldGroup[];
+  loading: boolean;
+  hasError: boolean;
+}>) {
+  if (loading && groups.length === 0) {
+    return (
+      <section className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
+        <EnrollmentExtraFieldsTitle />
+        <p className="text-sm text-gray-600">Zusatzangaben werden geladen...</p>
+      </section>
+    );
+  }
+
+  if (hasError) {
+    return (
+      <section className="rounded-xl border border-red-200 bg-red-50 p-3 md:p-4">
+        <EnrollmentExtraFieldsTitle />
+        <p className="text-sm text-red-700">
+          Zusatzangaben konnten nicht geladen werden.
+        </p>
+      </section>
+    );
+  }
+
+  if (groups.length === 0) return null;
+  const prefixWithPhase = groups.length > 1;
+
+  return (
+    <section className="rounded-xl border border-gray-100 bg-blue-50/30 p-3 md:p-4">
+      <EnrollmentExtraFieldsTitle />
+      <dl className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
+        {groups.flatMap((group) =>
+          group.fields.map((field) => {
+            const value = formatCustomValue(field.value, field);
+            if (value === null) return null;
+            const label =
+              prefixWithPhase && group.phase_name
+                ? `${group.phase_name} · ${field.label}`
+                : field.label;
+            return (
+              <ReadOnlyInfoField
+                key={`${group.request_id}-${field.key}`}
+                label={label}
+                value={value}
+              />
+            );
+          }),
+        )}
+      </dl>
+    </section>
+  );
+}
+
+function EnrollmentExtraFieldsTitle() {
+  return (
+    <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
+      <ClipboardList
+        className="h-3.5 w-3.5 text-blue-600 md:h-4 md:w-4"
+        aria-hidden
+      />
+      Zusatzangaben
+    </h3>
+  );
+}
+
+function ReadOnlyInfoField({
+  label,
+  value,
+}: Readonly<{
+  label: string;
+  value: ReactNode;
+}>) {
+  return (
+    <div>
+      <p className="mb-1 block text-xs font-medium text-gray-700">{label}</p>
+      <div className="min-h-9 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900">
+        {value}
+      </div>
+    </div>
   );
 }

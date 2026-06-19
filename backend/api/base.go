@@ -382,6 +382,8 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		SettingsService:         api.Services.Settings,
 		StudentStatusDayService: api.Services.StudentStatusDays,
 		StudentHistoryService:   api.Services.StudentHistory,
+		EnrollmentDecision:      api.Services.EnrollmentDecision,
+		EnrollmentFormSchema:    api.Services.EnrollmentFormSchema,
 		Broadcaster:             api.Services.RealtimeHub,
 		StudentPhotos:           api.Services.StudentPhotos,
 		ListExportService:       api.Services.ListExport,
