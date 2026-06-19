@@ -197,7 +197,7 @@ func TestWeekdaySchedule_RequiredHandling(t *testing.T) {
 	), "at least one care day with a time is accepted")
 }
 
-func TestScheduleWeekdaysForChild(t *testing.T) {
+func TestRelevantCareDaysForChild(t *testing.T) {
 	fixed := &enrollmentModels.CareOffering{
 		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
 		AvailableDays:  []string{"tue", "thu"},
@@ -207,15 +207,15 @@ func TestScheduleWeekdaysForChild(t *testing.T) {
 
 	// No offerings configured -> all weekdays (the form shows them all).
 	assert.Equal(t, enrollmentModels.ValidWeekdays,
-		scheduleWeekdaysForChild(SubmitChild{}, nil),
+		relevantCareDaysForChild(SubmitChild{}, nil),
 		"no offerings means every weekday is schedulable")
 
 	// Offerings exist, child selected the Tue/Thu block -> just those days.
 	assert.Equal(t, map[string]bool{"tue": true, "thu": true},
-		scheduleWeekdaysForChild(SubmitChild{OfferingIDs: []int64{7}}, openByID))
+		relevantCareDaysForChild(SubmitChild{OfferingIDs: []int64{7}}, openByID))
 
 	// Offerings exist, child selected none -> empty (the form hides the input).
-	assert.Empty(t, scheduleWeekdaysForChild(SubmitChild{}, openByID))
+	assert.Empty(t, relevantCareDaysForChild(SubmitChild{}, openByID))
 }
 
 func TestPruneChildScheduleAnswers(t *testing.T) {
@@ -252,6 +252,38 @@ func TestValidateRequiredCustomFields_ChildRequiredScheduleNoOfferingsEnforced(t
 
 	req2 := SubmitRequest{Children: []SubmitChild{{CustomData: map[string]any{"dismissal": map[string]any{"mon": "15:00"}}}}}
 	assert.NoError(t, s.validateRequiredCustomFields(schema, req2, nil))
+}
+
+func TestValidateRequiredCustomFields_ChildRequiredMultiModeNoOfferingsEnforced(t *testing.T) {
+	// Reviewer blocker: a phase with NO care offerings renders all weekdays for
+	// a required weekday_multi_mode field, so the server must still enforce it.
+	// selectedCareDays would be empty here and wrongly exempt the field, letting
+	// a scripted client skip a field the public form requires. openByID is empty.
+	s := &requestService{}
+	schema := &enrollmentModels.FormSchema{Fields: []enrollmentModels.FormField{
+		{Key: "allowed_departure", Label: "Abholarten", Type: enrollmentModels.FormFieldWeekdayMultiMode,
+			Target: enrollmentModels.TargetStudentAllowedDepartureModes, Required: true, AppliesToCh: true},
+	}}
+
+	// Missing answer -> must error (every weekday is relevant and required).
+	req := SubmitRequest{Children: []SubmitChild{{CustomData: map[string]any{}}}}
+	err := s.validateRequiredCustomFields(schema, req, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "allowed_departure")
+
+	// A partial answer (only some weekdays) is still rejected: with no
+	// offerings every weekday must carry at least one mode.
+	partial := map[string]any{"allowed_departure": map[string]any{"mon": []any{"bus"}}}
+	req2 := SubmitRequest{Children: []SubmitChild{{CustomData: partial}}}
+	require.Error(t, s.validateRequiredCustomFields(schema, req2, nil))
+
+	// A mode on every weekday -> satisfied.
+	full := map[string]any{"allowed_departure": map[string]any{
+		"mon": []any{"bus"}, "tue": []any{"bus"}, "wed": []any{"bus"},
+		"thu": []any{"bus"}, "fri": []any{"bus"},
+	}}
+	req3 := SubmitRequest{Children: []SubmitChild{{CustomData: full}}}
+	assert.NoError(t, s.validateRequiredCustomFields(schema, req3, nil))
 }
 
 // ---- fieldVisible --------------------------------------------------------
@@ -737,4 +769,37 @@ func TestValidateConstrainedSchedules_HiddenFieldExempt(t *testing.T) {
 		{CustomData: map[string]any{"needs_pickup": false, "pickup_times": map[string]any{"mon": "15:00"}}},
 	}}
 	assert.NoError(t, s.validateConstrainedSchedules(schema, req, nil))
+}
+
+func TestValidateConstrainedSchedules_OffListTimeOnNonCareDayIgnored(t *testing.T) {
+	// Reviewer blocker: the allowed-times gate must only inspect the child's
+	// schedulable (care) days. An off-list pickup time on a weekday the child
+	// has no care on is stripped before persistence (pruneChildScheduleAnswers),
+	// so rejecting it here would block an otherwise valid submit.
+	s := &requestService{}
+	schema := &enrollmentModels.FormSchema{Fields: []enrollmentModels.FormField{pickupSchedField()}}
+
+	fixed := &enrollmentModels.CareOffering{
+		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:  []string{"tue", "thu"},
+	}
+	fixed.ID = 7
+	openByID := map[int64]*enrollmentModels.CareOffering{7: fixed}
+
+	// tue (care day) carries an allowed time; mon (non-care day) carries an
+	// off-list one -> mon is out of scope, so the submit is accepted.
+	ok := SubmitRequest{Children: []SubmitChild{{
+		OfferingIDs: []int64{7},
+		CustomData:  map[string]any{"pickup_times": map[string]any{"tue": "14:45", "mon": "15:00"}},
+	}}}
+	assert.NoError(t, s.validateConstrainedSchedules(schema, ok, openByID))
+
+	// An off-list time on a CARE day is still rejected.
+	bad := SubmitRequest{Children: []SubmitChild{{
+		OfferingIDs: []int64{7},
+		CustomData:  map[string]any{"pickup_times": map[string]any{"tue": "15:00"}},
+	}}}
+	err := s.validateConstrainedSchedules(schema, bad, openByID)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrPickupTimeNotAllowed))
 }

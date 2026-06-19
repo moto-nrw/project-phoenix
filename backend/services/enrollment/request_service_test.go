@@ -2179,6 +2179,50 @@ func TestRequestService_Submit_RejectsOffListPickupTime(t *testing.T) {
 		"and still be part of the broad invalid-submission category")
 }
 
+// TestRequestService_Submit_OffListPickupOnNonCareDayIsPrunedNotRejected is the
+// regression for the care-day / allowed-times ordering bug: with a fixed-times
+// schedule field, a stale or scripted off-list pickup time on a weekday the
+// child has no care on must be pruned (the public form drops it), not rejected
+// by the allowed-times gate -- rejecting it would block an otherwise valid
+// submit. Only the schedulable (care) days are gated; the rest are stripped.
+func TestRequestService_Submit_OffListPickupOnNonCareDayIsPrunedNotRejected(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	publishPickupSchema(t, env, []string{"14:45", "16:00"})
+
+	// A fixed Tue/Thu offering -> the child's only care days are Tue and Thu.
+	repoFactory := repositories.NewFactory(env.db)
+	offering := &enrollmentModels.CareOffering{
+		PhaseID:        env.phaseID,
+		Name:           "Tue/Thu block",
+		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:  []string{"tue", "thu"},
+		IsActive:       true,
+	}
+	offering.SetTenantID(1)
+	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
+
+	req := validSubmission(env.phaseID)
+	req.Children[0].OfferingIDs = []int64{offering.ID}
+	// tue: an allowed time on a care day. mon: an OFF-LIST time on a non-care
+	// day -- it must be pruned, not trip the allowed-times gate.
+	req.Children[0].CustomData = map[string]any{
+		"schedule_pickup": map[string]any{"tue": "14:45", "mon": "15:00"},
+	}
+
+	result, err := env.svc.Submit(ctx, req)
+	require.NoError(t, err,
+		"an off-list time on a non-care day must be pruned, not rejected")
+	require.Len(t, result.Children, 1)
+
+	sched, ok := result.Children[0].CustomData["schedule_pickup"].(map[string]any)
+	require.True(t, ok, "schedule answer must persist as a map")
+	assert.Equal(t, "14:45", sched["tue"], "the care-day pickup is kept")
+	_, hasMon := sched["mon"]
+	assert.False(t, hasMon, "the non-care-day off-list pickup must be pruned server-side")
+}
+
 // TestRequestService_ReplaceEditable_RejectsOffListPickupTime is the
 // regression guard for the edit path: the same fixed-times enforcement runs
 // when a parent edits an already-submitted request, not only on first submit.

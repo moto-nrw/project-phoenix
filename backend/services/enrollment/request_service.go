@@ -498,7 +498,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 			// can't persist (and later dispatch) a pickup on a non-care day.
 			pruneChildScheduleAnswers(
 				schema, req.Children[i].CustomData,
-				scheduleWeekdaysForChild(req.Children[i], openByID),
+				relevantCareDaysForChild(req.Children[i], openByID),
 			)
 		}
 		req.CustomData = sanitizeVisibleAnswers(
@@ -1218,7 +1218,7 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 				editReq.Children[i].CustomData = sanitizeVisibleAnswers(schema, true, editReq.Children[i].CustomData, childCtx)
 				pruneChildScheduleAnswers(
 					schema, editReq.Children[i].CustomData,
-					scheduleWeekdaysForChild(editReq.Children[i], openByID),
+					relevantCareDaysForChild(editReq.Children[i], openByID),
 				)
 			}
 			editReq.CustomData = sanitizeVisibleAnswers(schema, false, rawGuardian, fieldVisibilityContext{

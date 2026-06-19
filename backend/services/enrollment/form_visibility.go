@@ -217,13 +217,17 @@ func (s *requestService) validateRequiredCustomFields(
 				continue
 			}
 			if f.Type == enrollmentModels.FormFieldWeekdayMultiMode {
-				if !customAnswerSatisfiesRequiredWeekdayMultiMode(*f, child.CustomData, selectedCareDays(child, openByID)) {
+				// Care-day scoped exactly like weekday_schedule: a no-offerings
+				// phase renders all weekdays, so the required answer must cover
+				// them all. selectedCareDays alone would be empty there and
+				// wrongly exempt the field, letting a scripted client skip it.
+				if !customAnswerSatisfiesRequiredWeekdayMultiMode(*f, child.CustomData, relevantCareDaysForChild(child, openByID)) {
 					return fmt.Errorf("%w: child %d field %q is required", ErrInvalidSubmission, idx, f.Key)
 				}
 				continue
 			}
 			if f.Type == enrollmentModels.FormFieldWeekdaySchedule {
-				if !customAnswerSatisfiesRequiredWeekdaySchedule(*f, child.CustomData, scheduleWeekdaysForChild(child, openByID)) {
+				if !customAnswerSatisfiesRequiredWeekdaySchedule(*f, child.CustomData, relevantCareDaysForChild(child, openByID)) {
 					return fmt.Errorf("%w: child %d field %q is required", ErrInvalidSubmission, idx, f.Key)
 				}
 				continue
@@ -243,7 +247,11 @@ func (s *requestService) validateRequiredCustomFields(
 // Empty AllowedTimes means "no restriction" (free time entry) and such fields
 // are skipped. Hidden fields are skipped to match validateRequiredCustomFields
 // — their answers are dropped before persistence anyway, so rejecting them
-// would block an otherwise valid submit.
+// would block an otherwise valid submit. For the same reason a per-child
+// schedule is only checked on the child's schedulable weekdays
+// (relevantCareDaysForChild): an off-list time on a non-care day is stripped by
+// pruneChildScheduleAnswers before persistence, so the gate must not reject it
+// and block the submit.
 func (s *requestService) validateConstrainedSchedules(
 	schema *enrollmentModels.FormSchema,
 	req SubmitRequest,
@@ -254,7 +262,11 @@ func (s *requestService) validateConstrainedSchedules(
 	}
 	byKey := buildFieldsByKey(schema)
 
-	check := func(f *enrollmentModels.FormField, answers map[string]any, childIdx int) error {
+	// scheduleDays scopes which weekdays are inspected. A nil set means "all
+	// days" (guardian-level fields, which are not care-day scoped); a per-child
+	// field passes its schedulable days so non-care-day entries (pruned before
+	// persistence) can't trip the allowed-times gate.
+	check := func(f *enrollmentModels.FormField, answers map[string]any, childIdx int, scheduleDays map[string]bool) error {
 		raw, ok := answers[f.Key]
 		if !ok || raw == nil {
 			return nil
@@ -265,6 +277,15 @@ func (s *requestService) validateConstrainedSchedules(
 				return fmt.Errorf("%w: child %d field %q: invalid schedule", ErrInvalidSubmission, childIdx, f.Key)
 			}
 			return fmt.Errorf("%w: field %q: invalid schedule", ErrInvalidSubmission, f.Key)
+		}
+		if scheduleDays != nil {
+			scoped := make(enrollmentModels.WeekdaySchedule, len(sched))
+			for day, t := range sched {
+				if scheduleDays[day] {
+					scoped[day] = t
+				}
+			}
+			sched = scoped
 		}
 		if err := sched.ValidateAllowed(f.AllowedTimes); err != nil {
 			if childIdx >= 0 {
@@ -284,7 +305,7 @@ func (s *requestService) validateConstrainedSchedules(
 		if !fieldVisible(f, guardianCtx) {
 			continue
 		}
-		if err := check(f, req.CustomData, -1); err != nil {
+		if err := check(f, req.CustomData, -1, nil); err != nil {
 			return err
 		}
 	}
@@ -298,6 +319,7 @@ func (s *requestService) validateConstrainedSchedules(
 			offeringNames:   selectedOfferingNames(child, openByID),
 			fieldsByKey:     byKey,
 		}
+		scheduleDays := relevantCareDaysForChild(child, openByID)
 		for i := range schema.Fields {
 			f := &schema.Fields[i]
 			if f.Target != enrollmentModels.TargetSchedulePickup || len(f.AllowedTimes) == 0 || !f.AppliesToCh {
@@ -306,7 +328,7 @@ func (s *requestService) validateConstrainedSchedules(
 			if !fieldVisible(f, childCtx) {
 				continue
 			}
-			if err := check(f, child.CustomData, idx); err != nil {
+			if err := check(f, child.CustomData, idx, scheduleDays); err != nil {
 				return err
 			}
 		}
@@ -365,14 +387,16 @@ func customAnswerSatisfiesRequiredWeekdayMultiMode(field enrollmentModels.FormFi
 	return true
 }
 
-// scheduleWeekdaysForChild returns the weekdays a per-child weekday_schedule
-// field offers for this child, mirroring relevantCareDaysForChild in
-// enrollment-form.tsx: with no care offerings configured the field is
-// unconstrained (all weekdays), otherwise it is limited to the child's selected
-// care days (empty when the child picked none -- the form hides the input).
-// The result is read-only; callers must not mutate it (the no-offerings case
-// returns the shared ValidWeekdays map).
-func scheduleWeekdaysForChild(child SubmitChild, openByID map[int64]*enrollmentModels.CareOffering) map[string]bool {
+// relevantCareDaysForChild returns the weekdays every per-child day-scoped
+// field (weekday_schedule AND weekday_multi_mode) offers for this child. It is
+// the single server-side mirror of relevantCareDaysForChild in
+// enrollment-form.tsx, so all care-day-scoped paths share one rule and can't
+// drift: with no care offerings configured the field is unconstrained (all
+// weekdays), otherwise it is limited to the child's selected care days (empty
+// when the child picked none -- the form hides the input). The result is
+// read-only; callers must not mutate it (the no-offerings case returns the
+// shared ValidWeekdays map).
+func relevantCareDaysForChild(child SubmitChild, openByID map[int64]*enrollmentModels.CareOffering) map[string]bool {
 	if len(openByID) == 0 {
 		return enrollmentModels.ValidWeekdays
 	}
@@ -381,7 +405,7 @@ func scheduleWeekdaysForChild(child SubmitChild, openByID map[int64]*enrollmentM
 
 // customAnswerSatisfiesRequiredWeekdaySchedule mirrors the public form's
 // care-day-scoped rendering of a per-child weekday_schedule field. scheduleDays
-// is scheduleWeekdaysForChild: all weekdays when no offerings constrain the
+// is relevantCareDaysForChild: all weekdays when no offerings constrain the
 // form (the field is shown and must be answered), the child's care days when
 // offerings exist, or empty when offerings exist but the child selected none
 // (the form hides the input, so a required schedule is vacuously satisfied).
