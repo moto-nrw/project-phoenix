@@ -126,6 +126,18 @@ describe("createCareOffering", () => {
     expect(seenBody).toContain(`"name":"OGS"`);
   });
 
+  it("keeps explicit counts_as_care=false in the POST body", async () => {
+    let seenBody = "";
+    mockFetch(async (_, init) => {
+      seenBody = (init?.body as string) ?? "";
+      return jsonResponse({ data: mkOffering("1234") }, { status: 201 });
+    });
+
+    await createCareOffering({ ...validInput, counts_as_care: false });
+
+    expect(JSON.parse(seenBody)).toMatchObject({ counts_as_care: false });
+  });
+
   it("throws on non-OK", async () => {
     mockFetch(async () =>
       jsonResponse(

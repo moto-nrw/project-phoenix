@@ -329,6 +329,8 @@ func TestCareOfferingService_Clone_RepointsToTargetPhase(t *testing.T) {
 		IncludesHolidayCare: false,
 		IncludesLunch:       true,
 		IsActive:            true,
+		CountsAsCare:        false,
+		CountsAsCareSet:     true,
 	}
 	source.SetTenantID(1)
 	created, err := svc.Create(ctx, source)
@@ -365,6 +367,11 @@ func TestCareOfferingService_Clone_RepointsToTargetPhase(t *testing.T) {
 	assert.Equal(t, target.ID, clone.PhaseID, "clone must point at the target phase")
 	assert.Equal(t, "Original", clone.Name)
 	assert.Equal(t, []string{"mon", "tue"}, clone.AvailableDays)
+	assert.False(t, clone.CountsAsCare)
+
+	refetched, err := svc.GetByID(ctx, clone.ID)
+	require.NoError(t, err)
+	assert.False(t, refetched.CountsAsCare, "clone insert must persist non-statistical offerings")
 }
 
 func TestCareOfferingService_Clone_ClearsLinkedTemplateAcrossPhases(t *testing.T) {

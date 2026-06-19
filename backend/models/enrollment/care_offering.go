@@ -66,9 +66,12 @@ type CareOffering struct {
 	PriceCents          *int     `bun:"price_cents" json:"price_cents,omitempty"`
 	IsActive            bool     `bun:"is_active,notnull" json:"is_active"`
 	IsRequired          bool     `bun:"is_required,notnull,default:false" json:"is_required"`
-	CountsAsCare        bool     `bun:"counts_as_care,notnull,default:true" json:"counts_as_care"`
-	AutoAddGradeLevels  []int    `bun:"auto_add_grade_levels,type:jsonb,notnull" json:"auto_add_grade_levels"`
-	SortOrder           int      `bun:"sort_order,notnull,default:0" json:"sort_order"`
+	// Keep the DB default, but do not tag this with bun default:true:
+	// explicit false must be inserted instead of letting Postgres default
+	// it back to true.
+	CountsAsCare       bool  `bun:"counts_as_care,notnull" json:"counts_as_care"`
+	AutoAddGradeLevels []int `bun:"auto_add_grade_levels,type:jsonb,notnull" json:"auto_add_grade_levels"`
+	SortOrder          int   `bun:"sort_order,notnull,default:0" json:"sort_order"`
 	// SelectionGroup groups offerings that share a selection rule (empty
 	// = ungrouped). SelectionRule constrains how many of the group a
 	// parent must pick. See SelectionRule* constants.
