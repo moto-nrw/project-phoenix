@@ -2113,6 +2113,50 @@ func TestRequestService_Submit_AcceptsAllowedPickupTime(t *testing.T) {
 		"the constrained schedule answer must persist on the child")
 }
 
+// TestRequestService_Submit_PrunesNonCareDayPickupTimes is the server-side
+// guard for the care-day limit: a stale/scripted client that POSTs a pickup
+// time for a weekday the child has no care on must NOT get that weekday
+// persisted (the decision service would otherwise dispatch it into a pickup
+// schedule). Mirrors the public form's client-side pruneWeekdayAnswers.
+func TestRequestService_Submit_PrunesNonCareDayPickupTimes(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	// Free-entry schedule (no fixed times) so only the care-day prune, not the
+	// allowed-times gate, is exercised.
+	publishPickupSchema(t, env, nil)
+
+	// A fixed Tue/Thu offering -> the child's only care days are Tue and Thu.
+	repoFactory := repositories.NewFactory(env.db)
+	offering := &enrollmentModels.CareOffering{
+		PhaseID:        env.phaseID,
+		Name:           "Tue/Thu block",
+		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:  []string{"tue", "thu"},
+		IsActive:       true,
+	}
+	offering.SetTenantID(1)
+	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
+
+	req := validSubmission(env.phaseID)
+	req.Children[0].OfferingIDs = []int64{offering.ID}
+	// The Friday pickup was never offered for a Tue/Thu child -> must be pruned.
+	req.Children[0].CustomData = map[string]any{
+		"schedule_pickup": map[string]any{"tue": "15:00", "fri": "15:00"},
+	}
+
+	result, err := env.svc.Submit(ctx, req)
+	require.NoError(t, err)
+	require.Len(t, result.Children, 1)
+
+	sched, ok := result.Children[0].CustomData["schedule_pickup"].(map[string]any)
+	require.True(t, ok, "schedule answer must persist as a map")
+	assert.Equal(t, "15:00", sched["tue"], "the care-day pickup is kept")
+	_, hasFri := sched["fri"]
+	assert.False(t, hasFri, "the non-care-day Friday pickup must be pruned server-side")
+}
+
 // TestRequestService_Submit_RejectsOffListPickupTime is THE gate: a scripted
 // or stale client that POSTs a pickup time outside the field's fixed list is
 // rejected at submit, carrying the specific sentinel (so the handler attaches

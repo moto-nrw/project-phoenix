@@ -223,7 +223,7 @@ func (s *requestService) validateRequiredCustomFields(
 				continue
 			}
 			if f.Type == enrollmentModels.FormFieldWeekdaySchedule {
-				if !customAnswerSatisfiesRequiredWeekdaySchedule(*f, child.CustomData, selectedCareDays(child, openByID)) {
+				if !customAnswerSatisfiesRequiredWeekdaySchedule(*f, child.CustomData, scheduleWeekdaysForChild(child, openByID)) {
 					return fmt.Errorf("%w: child %d field %q is required", ErrInvalidSubmission, idx, f.Key)
 				}
 				continue
@@ -365,16 +365,29 @@ func customAnswerSatisfiesRequiredWeekdayMultiMode(field enrollmentModels.FormFi
 	return true
 }
 
+// scheduleWeekdaysForChild returns the weekdays a per-child weekday_schedule
+// field offers for this child, mirroring relevantCareDaysForChild in
+// enrollment-form.tsx: with no care offerings configured the field is
+// unconstrained (all weekdays), otherwise it is limited to the child's selected
+// care days (empty when the child picked none -- the form hides the input).
+// The result is read-only; callers must not mutate it (the no-offerings case
+// returns the shared ValidWeekdays map).
+func scheduleWeekdaysForChild(child SubmitChild, openByID map[int64]*enrollmentModels.CareOffering) map[string]bool {
+	if len(openByID) == 0 {
+		return enrollmentModels.ValidWeekdays
+	}
+	return selectedCareDays(child, openByID)
+}
+
 // customAnswerSatisfiesRequiredWeekdaySchedule mirrors the public form's
-// care-day-scoped rendering of a per-child weekday_schedule field. The form
-// only shows the weekdays the child is in care on, so when the child has no
-// care days there is no fillable input and a required schedule is vacuously
-// satisfied (the form shows a "pick care days first" hint instead). With care
-// days present, at least one of them must carry a pickup time. Without this
-// exception the server would reject an otherwise-complete optional-care submit
-// that the form let through, with no visible field for the parent to correct.
-func customAnswerSatisfiesRequiredWeekdaySchedule(field enrollmentModels.FormField, answers map[string]any, careDays map[string]bool) bool {
-	if len(careDays) == 0 {
+// care-day-scoped rendering of a per-child weekday_schedule field. scheduleDays
+// is scheduleWeekdaysForChild: all weekdays when no offerings constrain the
+// form (the field is shown and must be answered), the child's care days when
+// offerings exist, or empty when offerings exist but the child selected none
+// (the form hides the input, so a required schedule is vacuously satisfied).
+// At least one schedulable day must carry a time otherwise.
+func customAnswerSatisfiesRequiredWeekdaySchedule(field enrollmentModels.FormField, answers map[string]any, scheduleDays map[string]bool) bool {
+	if len(scheduleDays) == 0 {
 		return true
 	}
 	value, present := answers[field.Key]
@@ -386,11 +399,45 @@ func customAnswerSatisfiesRequiredWeekdaySchedule(field enrollmentModels.FormFie
 		return false
 	}
 	for day, t := range sched {
-		if careDays[day] && strings.TrimSpace(t) != "" {
+		if scheduleDays[day] && strings.TrimSpace(t) != "" {
 			return true
 		}
 	}
 	return false
+}
+
+// pruneChildScheduleAnswers strips per-child weekday_schedule entries for
+// weekdays the child cannot schedule (non-care days, or weekend days a scripted
+// client smuggled in), keeping the schedulable days as-is. It is the
+// persistence-time counterpart of the public form's pruneWeekdayAnswers: the
+// decision service turns every persisted weekday into a pickup/arrival schedule
+// row, so an unpruned {"fri":"15:00"} for a Tue/Thu child would create a Friday
+// pickup the parent never had access to. Mutates answers in place.
+func pruneChildScheduleAnswers(schema *enrollmentModels.FormSchema, answers map[string]any, scheduleDays map[string]bool) {
+	if schema == nil || answers == nil {
+		return
+	}
+	for i := range schema.Fields {
+		f := &schema.Fields[i]
+		if !f.AppliesToCh || f.Type != enrollmentModels.FormFieldWeekdaySchedule {
+			continue
+		}
+		raw, ok := answers[f.Key]
+		if !ok || raw == nil {
+			continue
+		}
+		var sched enrollmentModels.WeekdaySchedule
+		if err := decodeStructured(raw, &sched); err != nil {
+			continue
+		}
+		pruned := make(map[string]any, len(sched))
+		for day, t := range sched {
+			if scheduleDays[day] {
+				pruned[day] = t
+			}
+		}
+		answers[f.Key] = pruned
+	}
 }
 
 // customValueSatisfiesRequired reports whether a required field's answer is

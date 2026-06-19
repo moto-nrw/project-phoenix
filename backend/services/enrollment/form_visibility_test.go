@@ -197,6 +197,63 @@ func TestWeekdaySchedule_RequiredHandling(t *testing.T) {
 	), "at least one care day with a time is accepted")
 }
 
+func TestScheduleWeekdaysForChild(t *testing.T) {
+	fixed := &enrollmentModels.CareOffering{
+		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:  []string{"tue", "thu"},
+	}
+	fixed.ID = 7
+	openByID := map[int64]*enrollmentModels.CareOffering{7: fixed}
+
+	// No offerings configured -> all weekdays (the form shows them all).
+	assert.Equal(t, enrollmentModels.ValidWeekdays,
+		scheduleWeekdaysForChild(SubmitChild{}, nil),
+		"no offerings means every weekday is schedulable")
+
+	// Offerings exist, child selected the Tue/Thu block -> just those days.
+	assert.Equal(t, map[string]bool{"tue": true, "thu": true},
+		scheduleWeekdaysForChild(SubmitChild{OfferingIDs: []int64{7}}, openByID))
+
+	// Offerings exist, child selected none -> empty (the form hides the input).
+	assert.Empty(t, scheduleWeekdaysForChild(SubmitChild{}, openByID))
+}
+
+func TestPruneChildScheduleAnswers(t *testing.T) {
+	schema := &enrollmentModels.FormSchema{Fields: []enrollmentModels.FormField{
+		{Key: "dismissal", Type: enrollmentModels.FormFieldWeekdaySchedule,
+			Target: enrollmentModels.TargetSchedulePickup, AppliesToCh: true},
+	}}
+
+	// Tue/Thu care: a smuggled Friday entry is stripped, Tue kept.
+	answers := map[string]any{"dismissal": map[string]any{"tue": "15:00", "fri": "15:00"}}
+	pruneChildScheduleAnswers(schema, answers, map[string]bool{"tue": true, "thu": true})
+	assert.Equal(t, map[string]any{"tue": "15:00"}, answers["dismissal"])
+
+	// No offerings (all weekdays schedulable): mon-fri kept, weekend dropped.
+	answers2 := map[string]any{"dismissal": map[string]any{"mon": "15:00", "sat": "09:00"}}
+	pruneChildScheduleAnswers(schema, answers2, enrollmentModels.ValidWeekdays)
+	assert.Equal(t, map[string]any{"mon": "15:00"}, answers2["dismissal"])
+}
+
+func TestValidateRequiredCustomFields_ChildRequiredScheduleNoOfferingsEnforced(t *testing.T) {
+	// P2: a phase with NO care offerings renders all weekdays for a required
+	// schedule, so the server must still enforce it (no empty-care-days
+	// exemption). openByID is empty in this configuration.
+	s := &requestService{}
+	schema := &enrollmentModels.FormSchema{Fields: []enrollmentModels.FormField{
+		{Key: "dismissal", Label: "Abholzeiten", Type: enrollmentModels.FormFieldWeekdaySchedule,
+			Target: enrollmentModels.TargetSchedulePickup, Required: true, AppliesToCh: true},
+	}}
+
+	req := SubmitRequest{Children: []SubmitChild{{CustomData: map[string]any{}}}}
+	err := s.validateRequiredCustomFields(schema, req, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "dismissal")
+
+	req2 := SubmitRequest{Children: []SubmitChild{{CustomData: map[string]any{"dismissal": map[string]any{"mon": "15:00"}}}}}
+	assert.NoError(t, s.validateRequiredCustomFields(schema, req2, nil))
+}
+
 // ---- fieldVisible --------------------------------------------------------
 
 func TestFieldVisible_NoCondition(t *testing.T) {
