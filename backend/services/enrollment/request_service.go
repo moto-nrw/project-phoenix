@@ -495,6 +495,13 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 			req.Children[i].CustomData = sanitizeVisibleAnswers(
 				schema, true, req.Children[i].CustomData, childCtx,
 			)
+			// Server-side care-day enforcement: strip schedule entries for
+			// weekdays the child can't schedule so a stale/scripted submit
+			// can't persist (and later dispatch) a pickup on a non-care day.
+			pruneChildScheduleAnswers(
+				schema, req.Children[i].CustomData,
+				relevantCareDaysForChild(req.Children[i], openByID),
+			)
 		}
 		req.CustomData = sanitizeVisibleAnswers(
 			schema, false, rawGuardian,
@@ -1211,6 +1218,10 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 					fieldsByKey:     byKey,
 				}
 				editReq.Children[i].CustomData = sanitizeVisibleAnswers(schema, true, editReq.Children[i].CustomData, childCtx)
+				pruneChildScheduleAnswers(
+					schema, editReq.Children[i].CustomData,
+					relevantCareDaysForChild(editReq.Children[i], openByID),
+				)
 			}
 			editReq.CustomData = sanitizeVisibleAnswers(schema, false, rawGuardian, fieldVisibilityContext{
 				guardianAnswers: rawGuardian,

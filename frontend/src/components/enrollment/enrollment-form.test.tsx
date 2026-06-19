@@ -758,7 +758,10 @@ describe("EnrollmentForm", () => {
 
     fireEvent.click(screen.getByRole("checkbox", { name: /Fixe Betreuung/ }));
 
-    fireEvent.change(screen.getByLabelText("Montag"), {
+    // The pickup field only renders the child's actual care days. "Fixe
+    // Betreuung" covers Tue/Thu, so Monday is not offered here -- enter the
+    // time on a care day instead.
+    fireEvent.change(screen.getByLabelText("Dienstag"), {
       target: { value: "15:00" },
     });
 
@@ -821,9 +824,99 @@ describe("EnrollmentForm", () => {
     expect(payload.children[0]?.custom_data).toMatchObject({
       allergies: "Nuesse",
       lunch: true,
-      dismissal: { mon: "15:00" },
+      dismissal: { tue: "15:00" },
     });
     expect(onSubmitted).toHaveBeenCalledWith("/status/abc");
+  });
+
+  it("limits pickup weekdays to the child's selected care days", async () => {
+    renderForm();
+    await waitForLoaded();
+
+    // Before any care offering is chosen there are no care days, so the
+    // pickup field prompts the parent to pick care days first instead of
+    // showing all weekdays.
+    expect(
+      screen.getByText("Wählen Sie zuerst die Betreuungstage aus."),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Montag")).not.toBeInTheDocument();
+
+    // "Fixe Betreuung" covers Tue/Thu only -> exactly those two weekdays
+    // appear under the pickup field; Mon/Wed/Fri stay hidden.
+    fireEvent.click(screen.getByRole("checkbox", { name: /Fixe Betreuung/ }));
+
+    expect(screen.getByLabelText("Dienstag")).toBeInTheDocument();
+    expect(screen.getByLabelText("Donnerstag")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Montag")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Mittwoch")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Freitag")).not.toBeInTheDocument();
+  });
+
+  it("drops pickup times for days the child is no longer in care", async () => {
+    // Two fixed offerings change the care-day set deterministically (no day
+    // picker needed).
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [
+        {
+          id: "31",
+          phase_id: "5",
+          name: "Block Mo Di",
+          description: null,
+          days_of_week_mode: "fixed",
+          available_days: ["mon", "tue"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          capacity: null,
+        },
+        {
+          id: "32",
+          phase_id: "5",
+          name: "Block Do",
+          description: null,
+          days_of_week_mode: "fixed",
+          available_days: ["thu"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          capacity: null,
+        },
+      ],
+      careOfferingSelectionMode: "at_least_one",
+      careRequired: true,
+    });
+    const onSubmitted = vi.fn();
+    renderForm({ onSubmitted });
+    await waitForLoaded();
+
+    await fillRequiredFields();
+
+    // Mo/Di care -> enter pickup times for both days.
+    fireEvent.click(screen.getByRole("checkbox", { name: /Block Mo Di/ }));
+    fireEvent.change(screen.getByLabelText("Montag"), {
+      target: { value: "15:00" },
+    });
+    fireEvent.change(screen.getByLabelText("Dienstag"), {
+      target: { value: "15:30" },
+    });
+
+    // Add Do, then drop Mo/Di so only Thu remains a care day. The Mon/Tue
+    // times are now stale and must not survive into the payload.
+    fireEvent.click(screen.getByRole("checkbox", { name: /Block Do/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Block Mo Di/ }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() => {
+      expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1);
+    });
+    const [, payload] = mockSubmitEnrollment.mock.calls[0] as [
+      string,
+      SubmitEnrollmentPayload,
+    ];
+    expect(payload.children[0]?.custom_data?.dismissal).toEqual({});
   });
 
   it("prefills from a parent profile and adopts an existing child", async () => {
