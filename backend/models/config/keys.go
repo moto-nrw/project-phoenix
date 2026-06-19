@@ -207,6 +207,8 @@ const (
 	// checkbox on the public enrollment form. A block is shown only when
 	// its matching enable setting is true and its text is non-empty.
 	KeyEnrollmentLegalAGBText          = "enrollment.legal_agb_text"
+	KeyEnrollmentLegalAGBDocumentURL   = "enrollment.legal_agb_document_url"
+	KeyEnrollmentLegalAGBDisplayMode   = "enrollment.legal_agb_display_mode"
 	KeyEnrollmentLegalDSGVOText        = "enrollment.legal_dsgvo_text"
 	KeyEnrollmentLegalEmailContactText = "enrollment.legal_email_contact_text"
 	KeyEnrollmentLegalPhotoText        = "enrollment.legal_photo_text"
@@ -232,6 +234,9 @@ const (
 
 	EnrollmentNotifyPerDecisionDigest    = "digest"
 	EnrollmentNotifyPerDecisionImmediate = "immediate"
+
+	EnrollmentLegalAGBDisplayModeText = "text"
+	EnrollmentLegalAGBDisplayModePDF  = "pdf"
 )
 
 // Timetable settings (WP-B7). Per-tenant configuration for the activity

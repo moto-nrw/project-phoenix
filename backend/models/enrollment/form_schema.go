@@ -909,6 +909,7 @@ type FormSchemaRepository interface {
 	// Callers must guard against colliding with an existing name first.
 	RenameByName(ctx context.Context, oldName, newName string) error
 	DeleteByName(ctx context.Context, name string) error
+	HasLegalDocumentReference(ctx context.Context, storedURL, publicURL string) (bool, error)
 	// LockLineages serializes lineage mutations (publish, rename, delete)
 	// for the tenant in context against one another, so a rename and a
 	// concurrent publish cannot split a version lineage. Transaction-scoped;
