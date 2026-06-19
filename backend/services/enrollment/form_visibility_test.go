@@ -169,6 +169,34 @@ func TestWeekdayMultiMode_RequiredHandling(t *testing.T) {
 	), "selected care days with modes are accepted")
 }
 
+func TestWeekdaySchedule_RequiredHandling(t *testing.T) {
+	pickup := enrollmentModels.FormField{
+		Key:    "dismissal",
+		Type:   enrollmentModels.FormFieldWeekdaySchedule,
+		Target: enrollmentModels.TargetSchedulePickup,
+	}
+
+	assert.True(t, customAnswerSatisfiesRequiredWeekdaySchedule(pickup, map[string]any{}, map[string]bool{}),
+		"no selected care days means there is nothing to schedule yet (mirrors the hidden form input)")
+	assert.False(t, customAnswerSatisfiesRequiredWeekdaySchedule(pickup, map[string]any{}, map[string]bool{"mon": true}),
+		"missing answer fails when a care day exists")
+	assert.False(t, customAnswerSatisfiesRequiredWeekdaySchedule(
+		pickup,
+		map[string]any{"dismissal": map[string]any{"mon": "", "tue": ""}},
+		map[string]bool{"mon": true, "tue": true},
+	), "an all-blank schedule on care days is not answered")
+	assert.False(t, customAnswerSatisfiesRequiredWeekdaySchedule(
+		pickup,
+		map[string]any{"dismissal": map[string]any{"fri": "15:00"}},
+		map[string]bool{"mon": true},
+	), "a time on a non-care day does not satisfy a care day requirement")
+	assert.True(t, customAnswerSatisfiesRequiredWeekdaySchedule(
+		pickup,
+		map[string]any{"dismissal": map[string]any{"mon": "15:00"}},
+		map[string]bool{"mon": true, "tue": true},
+	), "at least one care day with a time is accepted")
+}
+
 // ---- fieldVisible --------------------------------------------------------
 
 func TestFieldVisible_NoCondition(t *testing.T) {
@@ -405,6 +433,43 @@ func TestValidateRequiredCustomFields_ChildHiddenByCareOfferingExempt(t *testing
 	// Lunch selected → field visible + required + empty → error.
 	req2 := SubmitRequest{Children: []SubmitChild{{OfferingIDs: []int64{42}, CustomData: map[string]any{}}}}
 	require.Error(t, s.validateRequiredCustomFields(schema, req2, openByID))
+}
+
+func TestValidateRequiredCustomFields_ChildRequiredScheduleNoCareDaysExempt(t *testing.T) {
+	// The reviewer case: optional care + a required per-child weekday_schedule.
+	// The public form only renders the child's care weekdays, so a child in no
+	// care has no fillable input. The server must mirror that and not reject the
+	// otherwise-complete submit it let through.
+	s := &requestService{}
+	lunch := &enrollmentModels.CareOffering{
+		Name:           "Mittagessen",
+		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:  []string{"mon", "tue"},
+	}
+	lunch.ID = 42
+	openByID := map[int64]*enrollmentModels.CareOffering{42: lunch}
+
+	schema := &enrollmentModels.FormSchema{Fields: []enrollmentModels.FormField{
+		{Key: "dismissal", Label: "Abholzeiten", Type: enrollmentModels.FormFieldWeekdaySchedule,
+			Target: enrollmentModels.TargetSchedulePickup, Required: true, AppliesToCh: true},
+	}}
+
+	// No care offering selected → no care days → required schedule is exempt.
+	req := SubmitRequest{Children: []SubmitChild{{CustomData: map[string]any{}}}}
+	assert.NoError(t, s.validateRequiredCustomFields(schema, req, openByID))
+
+	// Care days present (mon/tue) but no schedule answer → required → error.
+	req2 := SubmitRequest{Children: []SubmitChild{{OfferingIDs: []int64{42}, CustomData: map[string]any{}}}}
+	err := s.validateRequiredCustomFields(schema, req2, openByID)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "dismissal")
+
+	// Care days present and a time on a care day → satisfied.
+	req3 := SubmitRequest{Children: []SubmitChild{{
+		OfferingIDs: []int64{42},
+		CustomData:  map[string]any{"dismissal": map[string]any{"mon": "15:00"}},
+	}}}
+	assert.NoError(t, s.validateRequiredCustomFields(schema, req3, openByID))
 }
 
 func TestValidateRequiredCustomFields_InfoFieldNeverRequired(t *testing.T) {

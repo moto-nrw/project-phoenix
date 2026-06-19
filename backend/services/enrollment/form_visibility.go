@@ -222,6 +222,12 @@ func (s *requestService) validateRequiredCustomFields(
 				}
 				continue
 			}
+			if f.Type == enrollmentModels.FormFieldWeekdaySchedule {
+				if !customAnswerSatisfiesRequiredWeekdaySchedule(*f, child.CustomData, selectedCareDays(child, openByID)) {
+					return fmt.Errorf("%w: child %d field %q is required", ErrInvalidSubmission, idx, f.Key)
+				}
+				continue
+			}
 			if !customAnswerSatisfiesRequired(*f, child.CustomData) {
 				return fmt.Errorf("%w: child %d field %q is required", ErrInvalidSubmission, idx, f.Key)
 			}
@@ -357,6 +363,34 @@ func customAnswerSatisfiesRequiredWeekdayMultiMode(field enrollmentModels.FormFi
 		}
 	}
 	return true
+}
+
+// customAnswerSatisfiesRequiredWeekdaySchedule mirrors the public form's
+// care-day-scoped rendering of a per-child weekday_schedule field. The form
+// only shows the weekdays the child is in care on, so when the child has no
+// care days there is no fillable input and a required schedule is vacuously
+// satisfied (the form shows a "pick care days first" hint instead). With care
+// days present, at least one of them must carry a pickup time. Without this
+// exception the server would reject an otherwise-complete optional-care submit
+// that the form let through, with no visible field for the parent to correct.
+func customAnswerSatisfiesRequiredWeekdaySchedule(field enrollmentModels.FormField, answers map[string]any, careDays map[string]bool) bool {
+	if len(careDays) == 0 {
+		return true
+	}
+	value, present := answers[field.Key]
+	if !present {
+		return false
+	}
+	var sched enrollmentModels.WeekdaySchedule
+	if err := decodeStructured(value, &sched); err != nil {
+		return false
+	}
+	for day, t := range sched {
+		if careDays[day] && strings.TrimSpace(t) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // customValueSatisfiesRequired reports whether a required field's answer is
