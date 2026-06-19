@@ -115,11 +115,13 @@ type AdminRequestChild struct {
 // days_of_week_mode is "parent_choice"; otherwise it's omitted and
 // the offering's AvailableDays describes the (admin-fixed) schedule.
 type AdminRequestChildOffering struct {
-	OfferingID     string   `json:"offering_id"`
-	OfferingName   string   `json:"offering_name"`
-	DaysOfWeekMode string   `json:"days_of_week_mode"`
-	SelectedDays   []string `json:"selected_days,omitempty"`
-	AvailableDays  []string `json:"available_days,omitempty"`
+	OfferingID            string   `json:"offering_id"`
+	OfferingName          string   `json:"offering_name"`
+	DaysOfWeekMode        string   `json:"days_of_week_mode"`
+	SelectedDays          []string `json:"selected_days,omitempty"`
+	ManualSelectedDays    []string `json:"manual_selected_days,omitempty"`
+	AutomaticSelectedDays []string `json:"automatic_selected_days,omitempty"`
+	AvailableDays         []string `json:"available_days,omitempty"`
 }
 
 func toAdminRequestSummary(s *enrollmentService.RequestSummary) AdminRequestSummary {
@@ -293,11 +295,13 @@ func (rs *Resource) toAdminRequestDetail(ctx context.Context, summary *enrollmen
 				out := make([]AdminRequestChildOffering, 0, len(rows))
 				for _, row := range rows {
 					out = append(out, AdminRequestChildOffering{
-						OfferingID:     strconv.FormatInt(row.OfferingID, 10),
-						OfferingName:   row.OfferingName,
-						DaysOfWeekMode: row.DaysOfWeekMode,
-						SelectedDays:   row.SelectedDays,
-						AvailableDays:  row.AvailableDays,
+						OfferingID:            strconv.FormatInt(row.OfferingID, 10),
+						OfferingName:          row.OfferingName,
+						DaysOfWeekMode:        row.DaysOfWeekMode,
+						SelectedDays:          row.SelectedDays,
+						ManualSelectedDays:    row.ManualSelectedDays,
+						AutomaticSelectedDays: row.AutomaticSelectedDays,
+						AvailableDays:         row.AvailableDays,
 					})
 				}
 				detail.Children[i].Offerings = out

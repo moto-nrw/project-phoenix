@@ -78,6 +78,8 @@ interface CareUsageRowOffering {
   days: string[];
   days_source: "selected" | "available";
   days_of_week_mode: string;
+  manual_selected_days?: string[];
+  automatic_selected_days?: string[];
 }
 
 interface BackendEnvelope<T> {

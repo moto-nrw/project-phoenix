@@ -771,9 +771,9 @@ export function ChildOfferings({
       <ul className="mt-1.5 space-y-2 text-sm">
         {offerings.map((o) => {
           const parentChoice = o.days_of_week_mode === "parent_choice";
-          const displayDays = parentChoice
-            ? (o.selected_days ?? [])
-            : (o.available_days ?? []);
+          const dayDetails = parentChoice
+            ? formatAdminOfferingDaySource(o)
+            : formatAdminDays(o.available_days ?? []);
           return (
             <li
               key={o.offering_id}
@@ -782,10 +782,9 @@ export function ChildOfferings({
               <span className="font-medium text-gray-900">
                 {o.offering_name || `Angebot #${o.offering_id}`}
               </span>
-              {displayDays.length > 0 ? (
+              {dayDetails ? (
                 <span className="text-xs text-gray-600">
-                  {parentChoice ? "Elternauswahl: " : "Tage: "}
-                  {displayDays.map((d) => DAY_LABEL_DE[d] ?? d).join(", ")}
+                  {parentChoice ? dayDetails : `Tage: ${dayDetails}`}
                 </span>
               ) : parentChoice ? (
                 <span className="text-xs text-[#CC2626] italic">
@@ -798,6 +797,24 @@ export function ChildOfferings({
       </ul>
     </div>
   );
+}
+
+function formatAdminOfferingDaySource(o: AdminRequestChildOffering): string {
+  const automatic = formatAdminDays(o.automatic_selected_days ?? []);
+  const manualDays =
+    (o.manual_selected_days?.length ?? 0) > 0 ||
+    (o.automatic_selected_days?.length ?? 0) > 0
+      ? (o.manual_selected_days ?? [])
+      : (o.selected_days ?? []);
+  const manual = formatAdminDays(manualDays);
+  if (automatic && manual) return `${automatic} automatisch; ${manual} manuell`;
+  if (automatic) return `${automatic} automatisch`;
+  if (manual) return `Elternauswahl: ${manual}`;
+  return "";
+}
+
+function formatAdminDays(days: readonly string[]): string {
+  return days.map((d) => DAY_LABEL_DE[d] ?? d).join(", ");
 }
 
 export function ChildExtraFields({

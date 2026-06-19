@@ -173,3 +173,34 @@ func TestCareUsageRowExcludesNonIncludedOfferingsFromDayCount(t *testing.T) {
 	assert.Equal(t, []string{"mon", "tue", "wed", "thu"}, row.EffectiveDays)
 	assert.Equal(t, 4, row.DayCount)
 }
+
+func TestCareUsageRowCarriesManualAndAutomaticDays(t *testing.T) {
+	req := &enrollmentModels.Request{Model: baseModels.Model{ID: 10}}
+	child := &enrollmentModels.RequestChild{
+		Model:  baseModels.Model{ID: 20},
+		Status: enrollmentModels.ChildStatusApproved,
+	}
+	offerings := map[int64]*enrollmentModels.CareOffering{
+		1: {
+			Name:           "Randstunde",
+			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+			AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
+		},
+	}
+	links := []*enrollmentModels.RequestChildOffering{
+		{
+			RequestChildID:        20,
+			CareOfferingID:        1,
+			SelectedDays:          []string{"mon", "tue", "wed", "thu", "fri"},
+			ManualSelectedDays:    []string{"fri"},
+			AutomaticSelectedDays: []string{"mon", "tue", "wed", "thu"},
+		},
+	}
+
+	row := careUsageRow(req, child, links, offerings, map[int64]bool{1: true})
+
+	require.Len(t, row.Offerings, 1)
+	assert.Equal(t, []string{"fri"}, row.Offerings[0].ManualSelectedDays)
+	assert.Equal(t, []string{"mon", "tue", "wed", "thu"}, row.Offerings[0].AutomaticSelectedDays)
+	assert.Equal(t, []string{"mon", "tue", "wed", "thu", "fri"}, row.Offerings[0].Days)
+}

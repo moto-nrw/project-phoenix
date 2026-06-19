@@ -93,11 +93,13 @@ type careUsageRowResponse struct {
 }
 
 type careUsageRowOfferingResponse struct {
-	ID             string   `json:"id"`
-	Name           string   `json:"name"`
-	Days           []string `json:"days"`
-	DaysSource     string   `json:"days_source"`
-	DaysOfWeekMode string   `json:"days_of_week_mode"`
+	ID                    string   `json:"id"`
+	Name                  string   `json:"name"`
+	Days                  []string `json:"days"`
+	DaysSource            string   `json:"days_source"`
+	DaysOfWeekMode        string   `json:"days_of_week_mode"`
+	ManualSelectedDays    []string `json:"manual_selected_days,omitempty"`
+	AutomaticSelectedDays []string `json:"automatic_selected_days,omitempty"`
 }
 
 func (rs *Resource) getCareUsageReport(w http.ResponseWriter, r *http.Request) {
@@ -391,11 +393,13 @@ func toCareUsageReportResponse(report *enrollmentService.CareUsageReport) *careU
 		}
 		for _, offering := range row.Offerings {
 			rowOut.Offerings = append(rowOut.Offerings, careUsageRowOfferingResponse{
-				ID:             strconv.FormatInt(offering.ID, 10),
-				Name:           offering.Name,
-				Days:           nonNilStringSlice(offering.Days),
-				DaysSource:     offering.DaysSource,
-				DaysOfWeekMode: offering.DaysOfWeekMode,
+				ID:                    strconv.FormatInt(offering.ID, 10),
+				Name:                  offering.Name,
+				Days:                  nonNilStringSlice(offering.Days),
+				DaysSource:            offering.DaysSource,
+				DaysOfWeekMode:        offering.DaysOfWeekMode,
+				ManualSelectedDays:    offering.ManualSelectedDays,
+				AutomaticSelectedDays: offering.AutomaticSelectedDays,
 			})
 		}
 		out.Rows = append(out.Rows, rowOut)
@@ -557,14 +561,33 @@ func careUsageOfferingNames(offerings []enrollmentService.CareUsageRowOffering) 
 func careUsageOfferingDayDetails(offerings []enrollmentService.CareUsageRowOffering) string {
 	parts := make([]string, 0, len(offerings))
 	for _, offering := range offerings {
-		days := formatDayCodes(offering.Days)
-		if days == "" {
+		details := careUsageOfferingDayDetail(offering)
+		if details == "" {
 			parts = append(parts, offering.Name)
 			continue
 		}
-		parts = append(parts, offering.Name+" ("+days+")")
+		parts = append(parts, offering.Name+" ("+details+")")
 	}
 	return strings.Join(parts, "; ")
+}
+
+func careUsageOfferingDayDetail(offering enrollmentService.CareUsageRowOffering) string {
+	automatic := formatDayCodes(offering.AutomaticSelectedDays)
+	manualDays := offering.ManualSelectedDays
+	if len(manualDays) == 0 && offering.DaysSource == "selected" && len(offering.AutomaticSelectedDays) == 0 {
+		manualDays = offering.Days
+	}
+	manual := formatDayCodes(manualDays)
+	if automatic != "" && manual != "" {
+		return automatic + " automatisch; " + manual + " manuell"
+	}
+	if automatic != "" {
+		return automatic + " automatisch"
+	}
+	if manual != "" {
+		return manual + " Elternauswahl"
+	}
+	return formatDayCodes(offering.Days)
 }
 
 func careUsageDayCountFields(report *enrollmentService.CareUsageReport) []listexport.Field {

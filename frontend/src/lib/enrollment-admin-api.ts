@@ -28,6 +28,8 @@ export interface AdminRequestChildOffering {
   days_of_week_mode: string; // "fixed" | "parent_choice"
   /** Parent's day picks. Present only for parent_choice offerings. */
   selected_days?: string[];
+  manual_selected_days?: string[];
+  automatic_selected_days?: string[];
   /**
    * Offering's full day catalogue. For fixed offerings this is the
    * authoritative schedule; for parent_choice it bounds the picker.

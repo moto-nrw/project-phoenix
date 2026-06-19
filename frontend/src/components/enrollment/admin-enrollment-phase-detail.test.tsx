@@ -144,6 +144,15 @@ function report(overrides: Record<string, unknown> = {}) {
             days_source: "selected",
             days_of_week_mode: "parent_choice",
           },
+          {
+            id: "3",
+            name: "Randstunde",
+            days: ["mon", "tue", "wed", "thu", "fri"],
+            days_source: "selected",
+            days_of_week_mode: "parent_choice",
+            manual_selected_days: ["fri"],
+            automatic_selected_days: ["mon", "tue", "wed", "thu"],
+          },
         ],
         effective_days: ["mon", "wed", "fri"],
         day_count: 3,
@@ -212,8 +221,12 @@ describe("AdminEnrollmentPhaseDetail", () => {
     expect(screen.getByRole("combobox", { name: "Status" })).toHaveTextContent(
       "Alle",
     );
-    expect(screen.getByText("OGS Ganztag")).toBeVisible();
+    expect(screen.getAllByText("OGS Ganztag").length).toBeGreaterThan(0);
     expect(screen.getByText("Mo, Mi, Fr")).toBeVisible();
+    expect(screen.getByText("Randstunde")).toBeVisible();
+    expect(
+      screen.getByText("Mo, Di, Mi, Do automatisch; Fr manuell"),
+    ).toBeVisible();
     expect(screen.getByText("3 Betreuungstage")).toBeVisible();
     expect(screen.getByText("1 Tag")).toBeVisible();
   });
@@ -221,14 +234,11 @@ describe("AdminEnrollmentPhaseDetail", () => {
   it("reloads and exports the table with the active offering filter", async () => {
     await renderPhase();
 
-    fireEvent.click(
-      screen.getByRole("combobox", { name: "Betreuungsangebot" }),
-    );
-    fireEvent.click(screen.getByRole("option", { name: "OGS Ganztag" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /OGS Ganztag/ }));
 
     await waitFor(() => {
       expect(mocks.getCareUsageReport).toHaveBeenLastCalledWith(
-        expect.objectContaining({ care_offering_id: "2" }),
+        expect.objectContaining({ care_offering_ids: ["2"] }),
       );
     });
 
@@ -245,7 +255,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
 
     await waitFor(() => {
       expect(mocks.exportCareUsageReport).toHaveBeenCalledWith(
-        expect.objectContaining({ care_offering_id: "2", status: "all" }),
+        expect.objectContaining({ care_offering_ids: ["2"], status: "all" }),
         "xlsx",
       );
     });
@@ -350,10 +360,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
       new Error("Auswertung konnte nicht geladen werden"),
     );
 
-    fireEvent.click(
-      screen.getByRole("combobox", { name: "Betreuungsangebot" }),
-    );
-    fireEvent.click(screen.getByRole("option", { name: "OGS Ganztag" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /OGS Ganztag/ }));
 
     await waitFor(() => {
       expect(

@@ -747,6 +747,68 @@ func TestCareUsageReportResponseSerializesEmptyDaySlicesAsArrays(t *testing.T) {
 	}
 }
 
+func TestCareUsageReportResponseSerializesDayProvenance(t *testing.T) {
+	report := &enrollmentService.CareUsageReport{
+		Phase:   enrollmentService.CareUsagePhase{ID: 42, Name: "Demo"},
+		Filters: enrollmentService.CareUsageAppliedFilters{PhaseID: 42, Status: "all"},
+		Totals:  enrollmentService.CareUsageTotals{ByDayCount: map[string]int{"5": 1}},
+		Rows: []enrollmentService.CareUsageRow{
+			{
+				RequestID:         10,
+				ChildID:           20,
+				ChildFirstName:    "Lina",
+				ChildLastName:     "Muster",
+				DateOfBirth:       "2019-01-01",
+				Status:            enrollmentModels.ChildStatusApproved,
+				EffectiveDays:     []string{"mon", "tue", "wed", "thu", "fri"},
+				DayCount:          5,
+				GuardianFirstName: "Eva",
+				GuardianLastName:  "Muster",
+				GuardianEmail:     "eva@example.test",
+				SubmittedAt:       time.Date(2026, 6, 18, 11, 15, 0, 0, time.UTC),
+				Offerings: []enrollmentService.CareUsageRowOffering{
+					{
+						ID:                    1,
+						Name:                  "Randstunde",
+						Days:                  []string{"mon", "tue", "wed", "thu", "fri"},
+						DaysSource:            "selected",
+						DaysOfWeekMode:        "parent_choice",
+						ManualSelectedDays:    []string{"fri"},
+						AutomaticSelectedDays: []string{"mon", "tue", "wed", "thu"},
+					},
+				},
+			},
+		},
+	}
+
+	raw, err := json.Marshal(toCareUsageReportResponse(report))
+	if err != nil {
+		t.Fatalf("marshal response: %v", err)
+	}
+	payload := string(raw)
+	for _, want := range []string{`"manual_selected_days":["fri"]`, `"automatic_selected_days":["mon","tue","wed","thu"]`} {
+		if !strings.Contains(payload, want) {
+			t.Fatalf("response JSON %s missing %s", payload, want)
+		}
+	}
+}
+
+func TestCareUsageOfferingDayDetailsIncludesDayProvenance(t *testing.T) {
+	got := careUsageOfferingDayDetails([]enrollmentService.CareUsageRowOffering{
+		{
+			Name:                  "Randstunde",
+			Days:                  []string{"mon", "tue", "wed", "thu", "fri"},
+			DaysSource:            "selected",
+			ManualSelectedDays:    []string{"fri"},
+			AutomaticSelectedDays: []string{"mon", "tue", "wed", "thu"},
+		},
+	})
+
+	if got != "Randstunde (Mo, Di, Mi, Do automatisch; Fr manuell)" {
+		t.Fatalf("day details = %q", got)
+	}
+}
+
 func TestBuildCareUsageRecordDocumentUsesDynamicDayCountBuckets(t *testing.T) {
 	report := &enrollmentService.CareUsageReport{
 		Phase:   enrollmentService.CareUsagePhase{ID: 42, Name: "Demo"},

@@ -841,7 +841,7 @@ func materializeOfferingSelections(child SubmitChild, openByID map[int64]*enroll
 		if !ok {
 			return nil, ErrCareOfferingClosed
 		}
-		manual, err := resolveSelectedDays(offering, daysByOffering[offeringID])
+		manual, err := resolveManualSelectedDays(offering, daysByOffering[offeringID])
 		if err != nil {
 			return nil, fmt.Errorf("offering %d: %w", offeringID, err)
 		}
@@ -854,13 +854,17 @@ func materializeOfferingSelections(child SubmitChild, openByID map[int64]*enroll
 	}
 
 	for _, target := range openByID {
-		if len(target.AutoAddTriggerOfferingIDs) == 0 || !autoAddAppliesToGrade(child.TargetGradeLevel, target.AutoAddGradeLevels) {
+		if !careOfferingCanAutoAddDays(target) || !autoAddAppliesToGrade(child.TargetGradeLevel, target.AutoAddGradeLevels) {
 			continue
 		}
 		if target.DaysOfWeekMode != enrollmentModels.DaysOfWeekModeParentChoice {
 			return nil, fmt.Errorf("offering %d cannot be automatically added because it does not allow day selection", target.ID)
 		}
-		autoDays := autoDaysForTarget(target, target.AutoAddTriggerOfferingIDs, selectionByID, openByID)
+		autoDays := unionDaysInOfferingOrder(
+			target.AvailableDays,
+			autoDaysForTarget(target, target.AutoAddTriggerOfferingIDs, selectionByID, openByID),
+			autoLunchDaysForTarget(target, selectionByID, openByID),
+		)
 		if len(autoDays) == 0 {
 			continue
 		}
@@ -871,6 +875,16 @@ func materializeOfferingSelections(child SubmitChild, openByID map[int64]*enroll
 		}
 		selection.AutomaticSelectedDays = autoDays
 		selection.SelectedDays = unionDaysInOfferingOrder(target.AvailableDays, selection.ManualSelectedDays, selection.AutomaticSelectedDays)
+	}
+
+	for offeringID, selection := range selectionByID {
+		offering := openByID[offeringID]
+		if offering == nil || offering.DaysOfWeekMode != enrollmentModels.DaysOfWeekModeParentChoice {
+			continue
+		}
+		if len(selection.SelectedDays) == 0 {
+			return nil, fmt.Errorf("offering %d: %w", offeringID, errParentChoiceOfferingMissingDays)
+		}
 	}
 
 	out := make([]materializedOfferingSelection, 0, len(selectionByID))
@@ -921,6 +935,20 @@ func autoAddAppliesToGrade(grade *int16, levels []int) bool {
 	return false
 }
 
+func careOfferingCanAutoAddDays(offering *enrollmentModels.CareOffering) bool {
+	if offering == nil {
+		return false
+	}
+	return len(offering.AutoAddTriggerOfferingIDs) > 0 || isRequiredLunchOffering(offering)
+}
+
+func isRequiredLunchOffering(offering *enrollmentModels.CareOffering) bool {
+	return offering != nil &&
+		offering.IsRequired &&
+		offering.IncludesLunch &&
+		offering.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeParentChoice
+}
+
 func autoDaysForTarget(
 	target *enrollmentModels.CareOffering,
 	triggerIDs []int64,
@@ -946,6 +974,40 @@ func autoDaysForTarget(
 			triggerDays = trigger.AvailableDays
 		}
 		for _, day := range triggerDays {
+			if targetDays[day] {
+				selected[day] = true
+			}
+		}
+	}
+	return daysFromSetInOrder(target.AvailableDays, selected)
+}
+
+func autoLunchDaysForTarget(
+	target *enrollmentModels.CareOffering,
+	selectionByID map[int64]*materializedOfferingSelection,
+	openByID map[int64]*enrollmentModels.CareOffering,
+) []string {
+	if !isRequiredLunchOffering(target) {
+		return nil
+	}
+	selected := make(map[string]bool, len(target.AvailableDays))
+	targetDays := make(map[string]bool, len(target.AvailableDays))
+	for _, day := range target.AvailableDays {
+		targetDays[day] = true
+	}
+	for offeringID, selection := range selectionByID {
+		if offeringID == target.ID || selection == nil {
+			continue
+		}
+		offering := openByID[offeringID]
+		if offering == nil || !offering.CountsAsCare {
+			continue
+		}
+		days := selection.SelectedDays
+		if offering.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeFixed {
+			days = offering.AvailableDays
+		}
+		for _, day := range days {
 			if targetDays[day] {
 				selected[day] = true
 			}
@@ -2466,6 +2528,19 @@ func (s *requestService) enforceRateLimitBuckets(ctx context.Context, req Submit
 //     the offering's available_days. Missing picks → 400; subset
 //     violation → 400.
 func resolveSelectedDays(offering *enrollmentModels.CareOffering, picks []string) ([]string, error) {
+	days, err := resolveManualSelectedDays(offering, picks)
+	if err != nil {
+		return nil, err
+	}
+	if offering.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeParentChoice && len(days) == 0 {
+		return nil, errParentChoiceOfferingMissingDays
+	}
+	return days, nil
+}
+
+var errParentChoiceOfferingMissingDays = fmt.Errorf("offering requires the parent to pick at least one day")
+
+func resolveManualSelectedDays(offering *enrollmentModels.CareOffering, picks []string) ([]string, error) {
 	switch offering.DaysOfWeekMode {
 	case enrollmentModels.DaysOfWeekModeFixed:
 		if len(picks) > 0 {
@@ -2473,9 +2548,6 @@ func resolveSelectedDays(offering *enrollmentModels.CareOffering, picks []string
 		}
 		return nil, nil
 	case enrollmentModels.DaysOfWeekModeParentChoice:
-		if len(picks) == 0 {
-			return nil, fmt.Errorf("offering requires the parent to pick at least one day")
-		}
 		allowed := make(map[string]bool, len(offering.AvailableDays))
 		for _, d := range offering.AvailableDays {
 			allowed[d] = true

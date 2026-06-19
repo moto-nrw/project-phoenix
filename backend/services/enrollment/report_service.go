@@ -95,11 +95,13 @@ type CareUsageRow struct {
 }
 
 type CareUsageRowOffering struct {
-	ID             int64    `json:"id"`
-	Name           string   `json:"name"`
-	Days           []string `json:"days"`
-	DaysSource     string   `json:"days_source"`
-	DaysOfWeekMode string   `json:"days_of_week_mode"`
+	ID                    int64    `json:"id"`
+	Name                  string   `json:"name"`
+	Days                  []string `json:"days"`
+	DaysSource            string   `json:"days_source"`
+	DaysOfWeekMode        string   `json:"days_of_week_mode"`
+	ManualSelectedDays    []string `json:"manual_selected_days,omitempty"`
+	AutomaticSelectedDays []string `json:"automatic_selected_days,omitempty"`
 }
 
 type ReportService interface {
@@ -360,11 +362,13 @@ func careUsageRow(req *enrollmentModels.Request, child *enrollmentModels.Request
 			}
 		}
 		rowOfferings = append(rowOfferings, CareUsageRowOffering{
-			ID:             link.CareOfferingID,
-			Name:           name,
-			Days:           days,
-			DaysSource:     source,
-			DaysOfWeekMode: daysOfWeekMode,
+			ID:                    link.CareOfferingID,
+			Name:                  name,
+			Days:                  days,
+			DaysSource:            source,
+			DaysOfWeekMode:        daysOfWeekMode,
+			ManualSelectedDays:    sortedDayCodes(link.ManualSelectedDays),
+			AutomaticSelectedDays: sortedDayCodes(link.AutomaticSelectedDays),
 		})
 	}
 	sort.SliceStable(rowOfferings, func(i, j int) bool {

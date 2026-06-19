@@ -1,8 +1,8 @@
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { type AdminRequestSchemaField } from "~/lib/enrollment-admin-api";
-import { formatCustomValue } from "./admin-enrollment-detail";
+import { ChildOfferings, formatCustomValue } from "./admin-enrollment-detail";
 
 function field(
   type: string,
@@ -111,5 +111,30 @@ describe("formatCustomValue", () => {
     expect(container.textContent).toContain("08:00");
     // Days without a time must not appear.
     expect(container.textContent).not.toContain("Di:");
+  });
+});
+
+describe("ChildOfferings", () => {
+  it("renders mixed automatic and manual day provenance", () => {
+    render(
+      <ChildOfferings
+        offerings={[
+          {
+            offering_id: "22",
+            offering_name: "Randstunde",
+            days_of_week_mode: "parent_choice",
+            selected_days: ["mon", "tue", "wed", "thu", "fri"],
+            manual_selected_days: ["fri"],
+            automatic_selected_days: ["mon", "tue", "wed", "thu"],
+            available_days: ["mon", "tue", "wed", "thu", "fri"],
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Randstunde")).toBeVisible();
+    expect(
+      screen.getByText("Mo, Di, Mi, Do automatisch; Fr manuell"),
+    ).toBeVisible();
   });
 });

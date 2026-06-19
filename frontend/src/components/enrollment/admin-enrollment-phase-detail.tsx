@@ -881,10 +881,7 @@ function OfferingList({ row }: Readonly<{ row: CareUsageRow }>) {
         <div key={offering.id} className="text-sm">
           <p className="font-medium text-gray-900">{offering.name}</p>
           <p className="text-xs text-gray-500">
-            {formatDays(offering.days) || "Keine Tage"}
-            {offering.days_source === "selected"
-              ? " · Elternauswahl"
-              : " · Angebotsumfang"}
+            {formatOfferingDaySource(offering) || "Keine Tage"}
           </p>
         </div>
       ))}
@@ -894,6 +891,26 @@ function OfferingList({ row }: Readonly<{ row: CareUsageRow }>) {
 
 function formatDays(days: string[]): string {
   return days.map((day) => DAY_LABELS[day] ?? day).join(", ");
+}
+
+function formatOfferingDaySource(
+  offering: CareUsageRow["offerings"][number],
+): string {
+  if (offering.days_source !== "selected") {
+    const days = formatDays(offering.days);
+    return days ? `${days} · Angebotsumfang` : "";
+  }
+  const hasProvenance =
+    (offering.manual_selected_days?.length ?? 0) > 0 ||
+    (offering.automatic_selected_days?.length ?? 0) > 0;
+  const automatic = formatDays(offering.automatic_selected_days ?? []);
+  const manual = formatDays(
+    hasProvenance ? (offering.manual_selected_days ?? []) : offering.days,
+  );
+  if (automatic && manual) return `${automatic} automatisch; ${manual} manuell`;
+  if (automatic) return `${automatic} automatisch`;
+  if (manual) return `${manual} · Elternauswahl`;
+  return "";
 }
 
 function formatDayCountLabel(count: number): string {

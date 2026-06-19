@@ -1932,6 +1932,19 @@ function OfferingCard({
   const effectiveChecked = required || checked;
   const inputLocked = required || toggleLocked;
   const weekdayLabels = asStringMap(tr.raw("weekdaysShort"));
+  const automaticDayList = offering.available_days.filter(
+    (day) => automaticDays?.has(day) ?? false,
+  );
+  const manualDayList = offering.available_days.filter(
+    (day) =>
+      (selectedDays?.has(day) ?? false) && !(automaticDays?.has(day) ?? false),
+  );
+  const daySourceSummary = formatOfferingDaySourceSummary(
+    automaticDayList,
+    manualDayList,
+    weekdayLabels,
+    tr,
+  );
   let stateClass = "border-gray-200 bg-white hover:border-gray-300";
   if (dayError) {
     stateClass = "border-[#FF3130] bg-[#FF3130]/5";
@@ -1940,106 +1953,144 @@ function OfferingCard({
   } else if (checked) {
     stateClass = "border-[#83CD2D]/40 bg-[#83CD2D]/10";
   }
+  const inputId = `children-${childIndex}-offering-${offering.id}`;
+
   return (
-    <label
+    <div
       aria-invalid={dayError ? true : undefined}
-      className={`flex items-start gap-3 rounded-lg border p-3 text-sm transition-colors ${
-        inputLocked ? "cursor-default" : "cursor-pointer"
-      } ${stateClass}`}
+      className={`rounded-lg border p-3 text-sm transition-colors ${stateClass}`}
     >
-      <span className="relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white">
-        <input
-          name={`children_${childIndex}_offering_${offering.id}`}
-          type="checkbox"
-          checked={effectiveChecked}
-          disabled={inputLocked}
-          onChange={onToggle}
-          className={`absolute inset-0 opacity-0 ${
-            inputLocked ? "cursor-default" : "cursor-pointer"
-          }`}
-        />
-        {inputLocked ? (
-          <span className="flex h-5 w-5 items-center justify-center rounded-md bg-gray-400 text-white">
-            <Lock className="h-3 w-3" />
-          </span>
-        ) : (
-          checked && (
-            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[#83CD2D] text-white">
-              <Check className="h-3.5 w-3.5" />
+      <label
+        htmlFor={inputId}
+        className={`flex items-start gap-3 ${
+          inputLocked ? "cursor-default" : "cursor-pointer"
+        }`}
+      >
+        <span className="relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white">
+          <input
+            id={inputId}
+            name={`children_${childIndex}_offering_${offering.id}`}
+            type="checkbox"
+            checked={effectiveChecked}
+            disabled={inputLocked}
+            onChange={onToggle}
+            className={`absolute inset-0 opacity-0 ${
+              inputLocked ? "cursor-default" : "cursor-pointer"
+            }`}
+          />
+          {inputLocked ? (
+            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-gray-400 text-white">
+              <Lock className="h-3 w-3" />
             </span>
-          )
-        )}
-      </span>
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium break-words text-gray-900">
-            {offering.name}
-          </span>
-          {required && (
-            <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600">
-              {tr("care.requiredBadge")}
-            </span>
+          ) : (
+            checked && (
+              <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[#83CD2D] text-white">
+                <Check className="h-3.5 w-3.5" />
+              </span>
+            )
           )}
-          {!required && toggleLocked && (
-            <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600">
-              automatisch
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-medium break-words text-gray-900">
+              {offering.name}
             </span>
+            {required && (
+              <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600">
+                {tr("care.requiredBadge")}
+              </span>
+            )}
+            {automaticDayList.length > 0 && (
+              <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600">
+                {tr("care.automaticBadge")}
+              </span>
+            )}
+          </div>
+          {offering.description && (
+            <div className="text-xs break-words text-gray-600">
+              {offering.description}
+            </div>
           )}
-        </div>
-        {offering.description && (
-          <div className="text-xs break-words text-gray-600">
-            {offering.description}
+          <div className="mt-1 text-xs text-gray-500">
+            {offering.days_of_week_mode === "parent_choice"
+              ? tr("care.selectableDays")
+              : tr("care.days")}
+            {offering.available_days
+              .map((d) => weekdayLabels[d] ?? d)
+              .join(", ")}
+            {offering.includes_holiday_care && ` · ${tr("care.holiday")}`}
+            {offering.includes_lunch && ` · ${tr("care.lunch")}`}
           </div>
-        )}
-        <div className="mt-1 text-xs text-gray-500">
-          {offering.days_of_week_mode === "parent_choice"
-            ? tr("care.selectableDays")
-            : tr("care.days")}
-          {offering.available_days.map((d) => weekdayLabels[d] ?? d).join(", ")}
-          {offering.includes_holiday_care && ` · ${tr("care.holiday")}`}
-          {offering.includes_lunch && ` · ${tr("care.lunch")}`}
         </div>
-        {effectiveChecked && offering.days_of_week_mode === "parent_choice" && (
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {offering.available_days.map((day) => {
-              const picked = selectedDays?.has(day) ?? false;
-              const automatic = automaticDays?.has(day) ?? false;
-              return (
-                <button
-                  key={day}
-                  type="button"
-                  onClick={(e) => {
-                    // The card's outer <label> would otherwise treat this as a
-                    // click on the offering checkbox itself.
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (automatic) return;
-                    onToggleDay(day);
-                  }}
-                  disabled={automatic}
-                  className={`rounded-md border px-2 py-0.5 text-xs font-medium transition-colors disabled:cursor-not-allowed ${
-                    automatic
-                      ? "border-gray-400 bg-gray-400 text-white"
-                      : picked
-                        ? "border-[#83CD2D] bg-[#83CD2D] text-white"
-                        : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
-                  }`}
-                  aria-pressed={picked}
-                >
-                  {weekdayLabels[day] ?? day}
-                </button>
-              );
-            })}
-          </div>
+      </label>
+      {effectiveChecked && offering.days_of_week_mode === "parent_choice" && (
+        <div className="mt-2 ml-8 flex flex-wrap gap-1.5">
+          {offering.available_days.map((day) => {
+            const picked = selectedDays?.has(day) ?? false;
+            const automatic = automaticDays?.has(day) ?? false;
+            return (
+              <button
+                key={day}
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (automatic) return;
+                  onToggleDay(day);
+                }}
+                disabled={automatic}
+                className={`rounded-md border px-2 py-0.5 text-xs font-medium transition-colors disabled:cursor-not-allowed ${
+                  automatic
+                    ? "border-gray-400 bg-gray-400 text-white"
+                    : picked
+                      ? "border-[#83CD2D] bg-[#83CD2D] text-white"
+                      : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
+                }`}
+                aria-pressed={picked}
+              >
+                {weekdayLabels[day] ?? day}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {effectiveChecked &&
+        offering.days_of_week_mode === "parent_choice" &&
+        daySourceSummary && (
+          <p className="mt-1 ml-8 text-xs text-gray-500">{daySourceSummary}</p>
         )}
-        {dayError && (
-          <p className="mt-1 text-xs text-[#FF3130]">
-            {tr("errors.dayInline")}
-          </p>
-        )}
-      </div>
-    </label>
+      {dayError && (
+        <p className="mt-1 ml-8 text-xs text-[#FF3130]">
+          {tr("errors.dayInline")}
+        </p>
+      )}
+    </div>
   );
+}
+
+function formatOfferingDaySourceSummary(
+  automaticDays: readonly string[],
+  manualDays: readonly string[],
+  weekdayLabels: Record<string, string>,
+  tr: TranslationFn,
+): string {
+  const parts: string[] = [];
+  const automatic = formatLocalizedDays(automaticDays, weekdayLabels);
+  const manual = formatLocalizedDays(manualDays, weekdayLabels);
+  if (automatic) {
+    parts.push(tr("care.automaticDays", { days: automatic }));
+  }
+  if (manual) {
+    parts.push(tr("care.manualDays", { days: manual }));
+  }
+  return parts.join("; ");
+}
+
+function formatLocalizedDays(
+  days: readonly string[],
+  weekdayLabels: Record<string, string>,
+): string {
+  return days.map((day) => weekdayLabels[day] ?? day).join(", ");
 }
 
 function Input({
@@ -2993,7 +3044,7 @@ function materializeCareOfferings(
   for (const target of offerings) {
     if (!autoAddAppliesToGrade(child.target_grade_level, target)) continue;
     const triggerIDs = target.auto_add_trigger_offering_ids ?? [];
-    if (triggerIDs.length === 0) continue;
+    if (triggerIDs.length === 0 && !isRequiredLunchOffering(target)) continue;
 
     const auto = new Set<string>();
     const targetDays = new Set(target.available_days);
@@ -3009,6 +3060,23 @@ function materializeCareOfferings(
         if (targetDays.has(day)) auto.add(day);
       }
     }
+    if (isRequiredLunchOffering(target)) {
+      for (const source of offerings) {
+        if (source.id === target.id || !(source.counts_as_care ?? true)) {
+          continue;
+        }
+        if (!child.offering_ids.has(source.id)) {
+          continue;
+        }
+        const sourceDays =
+          source.days_of_week_mode === "parent_choice"
+            ? Array.from(offeringDays[source.id] ?? new Set<string>())
+            : source.available_days;
+        for (const day of sourceDays) {
+          if (targetDays.has(day)) auto.add(day);
+        }
+      }
+    }
     if (auto.size === 0) continue;
 
     offeringIds.add(target.id);
@@ -3019,6 +3087,14 @@ function materializeCareOfferings(
   }
 
   return { offeringIds, offeringDays, automaticDays };
+}
+
+function isRequiredLunchOffering(offering: PublicCareOffering): boolean {
+  return (
+    offering.is_required &&
+    offering.includes_lunch &&
+    offering.days_of_week_mode === "parent_choice"
+  );
 }
 
 function autoAddAppliesToGrade(

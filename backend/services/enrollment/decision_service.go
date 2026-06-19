@@ -241,11 +241,13 @@ type ExportChildRow struct {
 // — nil when the offering runs in admin-fixed mode, non-nil only when
 // the parent picked specific days.
 type ChildOfferingRow struct {
-	OfferingID     int64
-	OfferingName   string
-	DaysOfWeekMode string
-	SelectedDays   []string
-	AvailableDays  []string
+	OfferingID            int64
+	OfferingName          string
+	DaysOfWeekMode        string
+	SelectedDays          []string
+	ManualSelectedDays    []string
+	AutomaticSelectedDays []string
+	AvailableDays         []string
 }
 
 // DecisionServiceConfig is the dep-injection bundle. The auth-side
@@ -483,8 +485,10 @@ func (s *decisionService) ListChildOfferings(ctx context.Context, requestID int6
 		rows := make([]ChildOfferingRow, 0, len(links))
 		for _, link := range links {
 			row := ChildOfferingRow{
-				OfferingID:   link.CareOfferingID,
-				SelectedDays: link.SelectedDays,
+				OfferingID:            link.CareOfferingID,
+				SelectedDays:          link.SelectedDays,
+				ManualSelectedDays:    link.ManualSelectedDays,
+				AutomaticSelectedDays: link.AutomaticSelectedDays,
 			}
 			if s.careOfferingRepo != nil {
 				if off, err := s.careOfferingRepo.FindByID(ctx, link.CareOfferingID); err == nil && off != nil {
@@ -595,7 +599,12 @@ func (s *decisionService) exportData(ctx context.Context, phaseID int64, childSt
 	// Group offering links per child, resolving each to its catalog name/days.
 	offeringsByChild := make(map[int64][]ChildOfferingRow, len(childIDs))
 	for _, link := range links {
-		row := ChildOfferingRow{OfferingID: link.CareOfferingID, SelectedDays: link.SelectedDays}
+		row := ChildOfferingRow{
+			OfferingID:            link.CareOfferingID,
+			SelectedDays:          link.SelectedDays,
+			ManualSelectedDays:    link.ManualSelectedDays,
+			AutomaticSelectedDays: link.AutomaticSelectedDays,
+		}
 		if off := offeringByID[link.CareOfferingID]; off != nil {
 			row.OfferingName = off.Name
 			row.DaysOfWeekMode = off.DaysOfWeekMode
@@ -741,7 +750,12 @@ func (s *decisionService) exportStudentData(ctx context.Context, studentID int64
 
 	offeringsByChild := make(map[int64][]ChildOfferingRow, len(childIDs))
 	for _, link := range links {
-		row := ChildOfferingRow{OfferingID: link.CareOfferingID, SelectedDays: link.SelectedDays}
+		row := ChildOfferingRow{
+			OfferingID:            link.CareOfferingID,
+			SelectedDays:          link.SelectedDays,
+			ManualSelectedDays:    link.ManualSelectedDays,
+			AutomaticSelectedDays: link.AutomaticSelectedDays,
+		}
 		if off := offeringByID[link.CareOfferingID]; off != nil {
 			row.OfferingName = off.Name
 			row.DaysOfWeekMode = off.DaysOfWeekMode
