@@ -360,17 +360,25 @@ func (r *StudentRepository) persistDepartureDays(ctx context.Context, student *u
 		allowed = current.AllowedDepartureModes.Normalize()
 	}
 
-	// Invariant: the free-text "mit wem" note must never outlive the accompanied
-	// mode that justifies it (#1694). Clear it whenever the resolved plan contains
-	// no accompanied day, regardless of which fields (unified or legacy) drove the
-	// change — and crucially even on a note-only update that leaves the plan
-	// untouched, so an orphan note set by the base update cannot slip past the
-	// no-op short-circuit below. Handler-level normalization cannot see the
-	// resolved legacy plan and is unreliable for these paths.
-	clearNote := student.DepartureCompanionNote != nil &&
-		!allowed.HasMode(users.DepartureAccompanied)
+	// The companion note is scanonly (see the model), so the generic create/
+	// update column set never references it and this is its single writer.
+	// Resolve the value the column must hold after this write, honoring the
+	// invariant that the free-text "mit wem" note must never outlive the
+	// accompanied mode that justifies it (#1694):
+	//   - resolved plan allows accompanied -> store the provided note (Validate
+	//     guarantees a note is present on every accompanied plan)
+	//   - resolved plan has no accompanied day -> store NULL, regardless of which
+	//     fields (unified or legacy) drove the change, even on a note-only update
+	//     that leaves the plan untouched
+	// Only touch the column when the plan was (re)written or a note value was
+	// supplied in-memory, so an unrelated update leaves it alone.
+	noteTouched := planTouched || student.DepartureCompanionNote != nil
+	var noteToStore *string
+	if allowed.HasMode(users.DepartureAccompanied) {
+		noteToStore = student.DepartureCompanionNote
+	}
 
-	if !planTouched && !clearNote {
+	if !noteTouched {
 		return nil
 	}
 
@@ -388,57 +396,43 @@ func (r *StudentRepository) persistDepartureDays(ctx context.Context, student *u
 	// set (#1694).
 	pickupStatus := allowed.LegacyPickupStatus()
 
+	// Resolve every optional departure column's existence in one query. Each
+	// landed in its own migration (departure_days 1.15.120, bus_days 1.15.112,
+	// pickup_days 1.15.116, allowed_departure_modes 1.15.130, the scanonly
+	// departure_companion_note 1.15.138 which rollback drops again), and the
+	// migration tests exercise historical schemas with the current model, so only
+	// set columns that actually exist — batched, not one round-trip per column.
+	cols, err := r.hasStudentColumns(ctx, "departure_days", "allowed_departure_modes", "bus_days", "pickup_days", "departure_companion_note")
+	if err != nil {
+		return err
+	}
+
 	if planTouched {
 		query = query.Set(`pickup_status = ?`, pickupStatus)
 
-		// departure_days (1.15.120), bus_days (1.15.112) and pickup_days (1.15.116)
-		// each landed in their own migration. Migration tests exercise historical
-		// schemas with the current model, so only set columns that actually exist.
-		hasDeparture, err := r.hasStudentColumn(ctx, "departure_days")
-		if err != nil {
-			return err
-		}
-		if hasDeparture {
+		if cols["departure_days"] {
 			query = query.Set(`departure_days = ?`, departure)
 		}
-		hasAllowed, err := r.hasStudentColumn(ctx, "allowed_departure_modes")
-		if err != nil {
-			return err
-		}
-		if hasAllowed {
+		if cols["allowed_departure_modes"] {
 			query = query.Set(`allowed_departure_modes = ?`, allowed)
 		}
-		hasBus, err := r.hasStudentColumn(ctx, "bus_days")
-		if err != nil {
-			return err
-		}
-		if hasBus {
+		if cols["bus_days"] {
 			query = query.Set(`bus_days = ?`, busDays)
 		}
-		hasPickup, err := r.hasStudentColumn(ctx, "pickup_days")
-		if err != nil {
-			return err
-		}
-		if hasPickup {
+		if cols["pickup_days"] {
 			query = query.Set(`pickup_days = ?`, pickupDays)
 		}
 	}
 
-	noteCleared := false
-	if clearNote {
-		hasNote, noteErr := r.hasStudentColumn(ctx, "departure_companion_note")
-		if noteErr != nil {
-			return noteErr
-		}
-		if hasNote {
-			query = query.Set(`departure_companion_note = NULL`)
-			noteCleared = true
-		}
+	noteWritten := false
+	if noteTouched && cols["departure_companion_note"] {
+		query = query.Set(`departure_companion_note = ?`, noteToStore)
+		noteWritten = true
 	}
 
 	// A note-only update on a schema that predates the companion-note column has
 	// nothing left to write — bail before issuing a SET-less UPDATE.
-	if !planTouched && !noteCleared {
+	if !planTouched && !noteWritten {
 		return nil
 	}
 
@@ -459,8 +453,8 @@ func (r *StudentRepository) persistDepartureDays(ctx context.Context, student *u
 		}
 	}
 
-	if noteCleared {
-		student.DepartureCompanionNote = nil
+	if noteWritten {
+		student.DepartureCompanionNote = noteToStore
 	}
 	if planTouched {
 		student.DepartureDays = departure
@@ -831,7 +825,9 @@ func (r *StudentRepository) FindByTeacherID(ctx context.Context, teacherID int64
 		ColumnExpr(`"student".group_id AS "student__group_id"`).
 		ColumnExpr(`"student".extra_info AS "student__extra_info", "student".supervisor_notes AS "student__supervisor_notes"`).
 		ColumnExpr(`"student".health_info AS "student__health_info", "student".pickup_status AS "student__pickup_status"`).
-		ColumnExpr(`"student".departure_companion_note AS "student__departure_companion_note"`).
+		// departure_companion_note is scanonly and hydrated below via
+		// hydrateBusDaysForStudents — never selected here, so the query stays
+		// valid on schemas where the column is absent (#1694).
 		// Person columns with proper aliasing
 		ColumnExpr(`"person".id AS "person__id", "person".created_at AS "person__created_at", "person".updated_at AS "person__updated_at"`).
 		ColumnExpr(`"person".first_name AS "person__first_name", "person".last_name AS "person__last_name"`).
@@ -898,7 +894,8 @@ func (r *StudentRepository) newStudentWithGroupQuery(ctx context.Context, result
 		ColumnExpr(`"student".group_id AS "student__group_id"`).
 		ColumnExpr(`"student".extra_info AS "student__extra_info", "student".supervisor_notes AS "student__supervisor_notes"`).
 		ColumnExpr(`"student".health_info AS "student__health_info", "student".pickup_status AS "student__pickup_status"`).
-		ColumnExpr(`"student".departure_companion_note AS "student__departure_companion_note"`).
+		// departure_companion_note is scanonly and hydrated via
+		// hydrateBusDaysForStudents — never selected here (#1694).
 		ColumnExpr(`"person".id AS "person__id", "person".created_at AS "person__created_at", "person".updated_at AS "person__updated_at"`).
 		ColumnExpr(`"person".first_name AS "person__first_name", "person".last_name AS "person__last_name"`).
 		ColumnExpr(`"person".tag_id AS "person__tag_id", "person".account_id AS "person__account_id"`).
@@ -960,25 +957,28 @@ func (r *StudentRepository) hydrateBusDaysForStudents(ctx context.Context, stude
 	// there are schema windows where a later column does not exist yet. Detect
 	// each independently and only select present columns — otherwise a missing
 	// column would fail the whole query and drop the bus_days hydration with it.
-	hasPickupDays, err := r.hasStudentColumn(ctx, "pickup_days")
+	// All four are optional columns that landed in their own migrations; resolve
+	// their existence in one query so hydration stays batched (see
+	// hasStudentColumns). departure_companion_note (1.15.138) is scanonly, so the
+	// generic model select never fetches it: hydrate it here, behind the same
+	// column-existence guard, so it survives the schema windows where the column
+	// is absent.
+	cols, err := r.hasStudentColumns(ctx, "pickup_days", "departure_days", "allowed_departure_modes", "departure_companion_note")
 	if err != nil {
 		return err
 	}
-	hasDepartureDays, err := r.hasStudentColumn(ctx, "departure_days")
-	if err != nil {
-		return err
-	}
-	hasAllowedDepartureModes, err := r.hasStudentColumn(ctx, "allowed_departure_modes")
-	if err != nil {
-		return err
-	}
+	hasPickupDays := cols["pickup_days"]
+	hasDepartureDays := cols["departure_days"]
+	hasAllowedDepartureModes := cols["allowed_departure_modes"]
+	hasCompanionNote := cols["departure_companion_note"]
 
 	type weekdayDaysRow struct {
-		ID                    int64                       `bun:"id"`
-		BusDays               users.BusDays               `bun:"bus_days"`
-		PickupDays            users.PickupDays            `bun:"pickup_days"`
-		DepartureDays         users.DepartureDays         `bun:"departure_days"`
-		AllowedDepartureModes users.AllowedDepartureModes `bun:"allowed_departure_modes"`
+		ID                     int64                       `bun:"id"`
+		BusDays                users.BusDays               `bun:"bus_days"`
+		PickupDays             users.PickupDays            `bun:"pickup_days"`
+		DepartureDays          users.DepartureDays         `bun:"departure_days"`
+		AllowedDepartureModes  users.AllowedDepartureModes `bun:"allowed_departure_modes"`
+		DepartureCompanionNote *string                     `bun:"departure_companion_note"`
 	}
 	var rows []weekdayDaysRow
 	pickupCol := `, NULL::jsonb AS pickup_days`
@@ -993,7 +993,11 @@ func (r *StudentRepository) hydrateBusDaysForStudents(ctx context.Context, stude
 	if hasAllowedDepartureModes {
 		allowedCol = `, "student".allowed_departure_modes`
 	}
-	sql := `SELECT "student".id, "student".bus_days` + pickupCol + departureCol + allowedCol +
+	noteCol := `, NULL::text AS departure_companion_note`
+	if hasCompanionNote {
+		noteCol = `, "student".departure_companion_note`
+	}
+	sql := `SELECT "student".id, "student".bus_days` + pickupCol + departureCol + allowedCol + noteCol +
 		` FROM users.students AS "student" WHERE "student".id IN (?)`
 	args := []any{bun.List(ids)}
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
@@ -1018,6 +1022,11 @@ func (r *StudentRepository) hydrateBusDaysForStudents(ctx context.Context, stude
 		student := byID[row.ID]
 		if student == nil {
 			continue
+		}
+		// The companion note is independent of which departure projection wins
+		// below, so set it before the branches (all of which `continue`).
+		if hasCompanionNote {
+			student.DepartureCompanionNote = row.DepartureCompanionNote
 		}
 		if allowed := row.AllowedDepartureModes.Normalize(); hasAllowedDepartureModes && allowed.HasAny() {
 			student.AllowedDepartureModes = allowed
@@ -1169,6 +1178,36 @@ func (r *StudentRepository) hydrateBusDaysIfPresent(ctx context.Context, student
 		return nil
 	}
 	return r.hydrateBusDaysForStudents(ctx, students)
+}
+
+// hasStudentColumns resolves the existence of several users.students columns in
+// a SINGLE information_schema query, instead of one round-trip per column.
+// Hydration checks four optional departure columns at once; folding them into
+// one query keeps the per-request query budget batched (api/timetable guards
+// this with a query-count ceiling) rather than N+1.
+func (r *StudentRepository) hasStudentColumns(ctx context.Context, columns ...string) (map[string]bool, error) {
+	present := make(map[string]bool, len(columns))
+	if len(columns) == 0 {
+		return present, nil
+	}
+	var existing []string
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT column_name
+		FROM information_schema.columns
+		WHERE table_schema = 'users'
+		  AND table_name = 'students'
+		  AND column_name IN (?)
+	`, bun.List(columns)).Scan(ctx, &existing)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "check students columns",
+			Err: err,
+		}
+	}
+	for _, col := range existing {
+		present[col] = true
+	}
+	return present, nil
 }
 
 func (r *StudentRepository) hasStudentColumn(ctx context.Context, column string) (bool, error) {

@@ -1,6 +1,7 @@
 package users_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -406,5 +407,108 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		assert.Equal(t, users.DeparturePickup, found.DepartureDays.ModeFor(users.PickupDayThursday))
 		assert.False(t, found.BusDays.HasAny())
 		assert.True(t, found.PickupDays[users.PickupDayThursday])
+	})
+}
+
+func companionNoteColumnExists(t *testing.T, db *bun.DB) bool {
+	t.Helper()
+	var exists bool
+	require.NoError(t, db.NewRaw(`
+		SELECT EXISTS (
+			SELECT 1
+			FROM information_schema.columns
+			WHERE table_schema = 'users'
+			  AND table_name = 'students'
+			  AND column_name = 'departure_companion_note'
+		)
+	`).Scan(testpkg.TenantContext(1), &exists))
+	return exists
+}
+
+// TestStudentRepository_CompanionNoteSchemaCompatibility verifies that the
+// scanonly departure_companion_note column (1.15.138) is read and written ONLY
+// behind a column-existence guard, so the generic create/update/select paths
+// keep working on the historical schemas (pre-1.15.138, and post-rollback,
+// which drops the column) that the migration tests exercise. Before it became
+// scanonly the field rode along in the generic INSERT/UPDATE/SELECT column set
+// and any such call against a schema without the column failed with
+// undefined_column (#1694).
+func TestStudentRepository_CompanionNoteSchemaCompatibility(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Student
+	ctx := testpkg.TenantContext(1)
+
+	if !companionNoteColumnExists(t, db) {
+		t.Skip("users.students.departure_companion_note column is not present in this test database")
+	}
+
+	t.Run("note round-trips through the explicit guarded write and hydration", func(t *testing.T) {
+		requireStudentsAllowedDepartureModesColumn(t, db)
+
+		student := testpkg.CreateTestStudent(t, db, "Companion", "Present", "1a")
+		defer cleanupStudentRecords(t, db, student.ID)
+
+		note := "Geschwisterkind Mia"
+		student.AllowedDepartureModes = users.AllowedDepartureModes{
+			users.PickupDayMonday: []users.DepartureMode{users.DepartureAccompanied},
+		}
+		student.DepartureCompanionNote = &note
+		require.NoError(t, repo.Update(ctx, student))
+
+		// FindByID hydrates the scanonly note (it is no longer in the generic
+		// model SELECT), and the bulk FindByIDs hydration path must surface it too.
+		found, err := repo.FindByID(ctx, student.ID)
+		require.NoError(t, err)
+		require.NotNil(t, found.DepartureCompanionNote)
+		assert.Equal(t, note, *found.DepartureCompanionNote)
+
+		byIDs, err := repo.FindByIDs(ctx, []int64{student.ID})
+		require.NoError(t, err)
+		require.Contains(t, byIDs, student.ID)
+		require.NotNil(t, byIDs[student.ID].DepartureCompanionNote)
+		assert.Equal(t, note, *byIDs[student.ID].DepartureCompanionNote)
+	})
+
+	t.Run("create/update/find succeed when the column is absent", func(t *testing.T) {
+		// Simulate the pre-1.15.138 / post-rollback schema by dropping just the
+		// column (the validators are irrelevant to the column guard). Restore it
+		// immediately via Cleanup so the shared DB is left intact even on failure.
+		_, err := db.NewRaw(`ALTER TABLE users.students DROP COLUMN IF EXISTS departure_companion_note`).Exec(ctx)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_, restoreErr := db.NewRaw(`ALTER TABLE users.students ADD COLUMN IF NOT EXISTS departure_companion_note TEXT`).Exec(context.Background())
+			require.NoError(t, restoreErr)
+		})
+
+		// Generic create must not reference the missing column.
+		person := testpkg.CreateTestPerson(t, db, "Companion", "Absent")
+		student := &users.Student{PersonID: person.ID, SchoolClass: "1a"}
+		require.NoError(t, repo.Create(ctx, student),
+			"repo.Create must not emit departure_companion_note when the column is absent")
+		defer cleanupStudentRecords(t, db, student.ID)
+
+		// Generic update + persistDepartureDays must skip the note column. The
+		// caller even supplies a note value: the guarded write drops it silently
+		// rather than failing.
+		note := "Geschwisterkind"
+		student.AllowedDepartureModes = users.AllowedDepartureModes{
+			users.PickupDayMonday: []users.DepartureMode{users.DepartureAccompanied},
+		}
+		student.DepartureCompanionNote = &note
+		require.NoError(t, repo.Update(ctx, student),
+			"repo.Update must not emit departure_companion_note when the column is absent")
+
+		// Read paths (generic SELECT + guarded hydration) must not select the
+		// missing column either.
+		found, err := repo.FindByID(ctx, student.ID)
+		require.NoError(t, err)
+		assert.Nil(t, found.DepartureCompanionNote, "no note exists on a schema without the column")
+
+		byIDs, err := repo.FindByIDs(ctx, []int64{student.ID})
+		require.NoError(t, err)
+		require.Contains(t, byIDs, student.ID)
+		assert.Nil(t, byIDs[student.ID].DepartureCompanionNote)
 	})
 }

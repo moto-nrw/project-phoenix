@@ -68,9 +68,15 @@ type Student struct {
 	AllowedDepartureModes AllowedDepartureModes `bun:"allowed_departure_modes,type:jsonb,scanonly" json:"allowed_departure_modes,omitempty"`
 	// DepartureCompanionNote is the free-text "mit wem" detail for the
 	// DepartureAccompanied mode: who the child leaves with (sibling, friend,
-	// named person). Persisted and read directly (not derived). It may later be
-	// formalized into a departure group (#1694).
-	DepartureCompanionNote *string `bun:"departure_companion_note" json:"departure_companion_note,omitempty"`
+	// named person). It is scanonly — like the JSON departure columns above —
+	// so the generic create/update/select column set never references it; the
+	// repository writes it explicitly in persistDepartureDays and hydrates it in
+	// hydrateBusDaysForStudents, both behind a departure_companion_note
+	// column-existence guard. That keeps create/update/select working against the
+	// historical schemas (pre-1.15.138, and post-rollback, which drops the
+	// column) that the migration tests exercise. It may later be formalized into
+	// a departure group (#1694).
+	DepartureCompanionNote *string `bun:"departure_companion_note,scanonly" json:"departure_companion_note,omitempty"`
 	// PickupDays / BusDays are derived views of DepartureDays kept for consumers
 	// (and API response fields) that have not yet migrated to departure_days.
 	PickupDays    PickupDays     `bun:"pickup_days,type:jsonb,scanonly" json:"pickup_days,omitempty"` // Weekdays on which the child is picked up ("wird abgeholt")

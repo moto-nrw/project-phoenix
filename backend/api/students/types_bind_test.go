@@ -66,4 +66,44 @@ func TestStudentRequestBind_AccompaniedRequiresCompanionNote(t *testing.T) {
 		}
 		require.NoError(t, req.Bind(nil))
 	})
+
+	// Validation must follow applyDeparturePlan's persistence precedence:
+	// allowed_departure_modes is authoritative and departure_days is ignored when
+	// both are present. A client sending a valid new-format allowed payload (no
+	// accompanied) while echoing a stale legacy departure_days that carries
+	// accompanied without a note must NOT be rejected — the persisted plan would
+	// not contain an accompanied day (#1694).
+	t.Run("authoritative allowed modes override stale legacy departure_days", func(t *testing.T) {
+		modes := users.AllowedDepartureModes{
+			users.PickupDayMonday: []users.DepartureMode{users.DepartureBus},
+		}
+		staleDays := users.DepartureDays{users.PickupDayMonday: users.DepartureAccompanied}
+		req := &StudentRequest{
+			FirstName:             "Max",
+			LastName:              "Muster",
+			SchoolClass:           "1a",
+			AllowedDepartureModes: &modes,
+			DepartureDays:         &staleDays,
+		}
+		require.NoError(t, req.Bind(nil),
+			"blank note must be accepted: the effective (allowed) plan has no accompanied day")
+	})
+
+	// The inverse safety case must still reject: allowed modes themselves carry
+	// accompanied without a note, even though a legacy departure_days is also
+	// present. Precedence does not weaken the accompanied-requires-note rule.
+	t.Run("authoritative allowed modes accompanied without note is still rejected", func(t *testing.T) {
+		modes := users.AllowedDepartureModes{
+			users.PickupDayMonday: []users.DepartureMode{users.DepartureAccompanied},
+		}
+		days := users.DepartureDays{users.PickupDayMonday: users.DepartureBus}
+		req := &StudentRequest{
+			FirstName:             "Max",
+			LastName:              "Muster",
+			SchoolClass:           "1a",
+			AllowedDepartureModes: &modes,
+			DepartureDays:         &days,
+		}
+		require.ErrorIs(t, req.Bind(nil), users.ErrDepartureCompanionNoteRequired)
+	})
 }

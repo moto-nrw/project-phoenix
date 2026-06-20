@@ -23,16 +23,23 @@ func validateDepartureCompanionNote(note *string) error {
 	return nil
 }
 
-// departureModesAllowAccompanied reports whether either the unified allowed
-// modes or the legacy-exclusive departure days allow the accompanied ("Mit
-// anderem Kind") departure mode on any weekday. Accompanied can only enter via
-// these two fields — the legacy bus/pickup maps cannot express it (#1694).
+// departureModesAllowAccompanied reports whether the EFFECTIVE departure plan
+// allows the accompanied ("Mit anderem Kind") mode on any weekday. Accompanied
+// can only enter via allowed_departure_modes or departure_days — the legacy
+// bus/pickup maps cannot express it (#1694).
+//
+// It mirrors applyDeparturePlan's persistence precedence: allowed_departure_modes
+// is authoritative when present and departure_days is ignored; departure_days
+// only applies when allowed is absent. Validating the OR of both would reject a
+// request whose persisted plan would NOT contain accompanied — e.g. a new-format
+// allowed payload (no accompanied) that also echoes a stale legacy departure_days
+// carrying accompanied without a companion note.
 func departureModesAllowAccompanied(allowed *users.AllowedDepartureModes, days *users.DepartureDays) bool {
-	if allowed != nil && allowed.HasMode(users.DepartureAccompanied) {
-		return true
+	if allowed != nil {
+		return allowed.HasMode(users.DepartureAccompanied)
 	}
-	if days != nil && days.HasMode(users.DepartureAccompanied) {
-		return true
+	if days != nil {
+		return days.HasMode(users.DepartureAccompanied)
 	}
 	return false
 }
