@@ -152,24 +152,40 @@ func sanitizeVisibleAnswers(
 		}
 	}
 	// Preserve the coupled "mit wem" note (#1694): it rides on a reserved key
-	// alongside the allowed-departure-modes field rather than being its own
-	// schema field, so the generic strip above would drop it. Keep it only when
-	// a visible allowed-departure-modes field is present AND its submitted value
-	// actually allows the accompanied mode — otherwise a stale/crafted note for
-	// a child with no "Mit anderem Kind" day would survive sanitization. The
-	// decision service is the authoritative guard, so on a decode error we keep
-	// the note and let it decide.
+	// alongside a departure field rather than being its own schema field, so the
+	// generic strip above would drop it. Keep it only when a visible per-child
+	// departure field submits a plan that allows the accompanied mode — either
+	// the unified allowed-departure-modes field OR the legacy student.departure
+	// field. Mirroring childDepartureAllowsAccompanied (the validation path) is
+	// what keeps an accepted submission approvable: validateAccompaniedCompanionNote
+	// accepts a legacy departure submission as long as the note is present, so
+	// dropping it here for that target would let approval decode an accompanied
+	// departure with no note and have studentRepo.Update reject it. A
+	// stale/crafted note for a child with no "Mit anderem Kind" day must still
+	// not survive. The decision service is the authoritative guard, so on a
+	// decode error we keep the note and let it decide.
 	if note, ok := values[enrollmentModels.TargetStudentDepartureCompanionNote]; ok {
+		keepNote := false
 		for i := range schema.Fields {
 			f := &schema.Fields[i]
-			if f.Target == enrollmentModels.TargetStudentAllowedDepartureModes &&
-				f.AppliesToCh == appliesToChild && fieldVisible(f, ctx) {
+			if f.AppliesToCh != appliesToChild || !fieldVisible(f, ctx) {
+				continue
+			}
+			switch f.Target {
+			case enrollmentModels.TargetStudentAllowedDepartureModes:
 				if modes, err := decodeAllowedDepartureModes(values[f.Key]); err != nil ||
 					modes.HasMode(users.DepartureAccompanied) {
-					out[enrollmentModels.TargetStudentDepartureCompanionNote] = note
+					keepNote = true
 				}
-				break
+			case enrollmentModels.TargetStudentDeparture:
+				if days, err := decodeDepartureDays(values[f.Key]); err != nil ||
+					days.HasMode(users.DepartureAccompanied) {
+					keepNote = true
+				}
 			}
+		}
+		if keepNote {
+			out[enrollmentModels.TargetStudentDepartureCompanionNote] = note
 		}
 	}
 	return out

@@ -308,74 +308,100 @@ func (r *StudentRepository) Update(ctx context.Context, student *users.Student) 
 // the legacy maps — leaves all columns consistent. Callers that touch unrelated
 // student fields without loading the departure plan leave all four nil and this
 // is a no-op, preserving the previous "don't clobber what wasn't provided"
-// behavior.
+// behavior — except that an orphan companion note is still cleared (see below).
 func (r *StudentRepository) persistDepartureDays(ctx context.Context, student *users.Student, current *studentDepartureState) error {
-	if student.AllowedDepartureModes == nil &&
-		student.DepartureDays == nil &&
-		student.BusDays == nil &&
-		student.PickupDays == nil &&
-		student.PickupStatus == nil {
+	planTouched := student.AllowedDepartureModes != nil ||
+		student.DepartureDays != nil ||
+		student.BusDays != nil ||
+		student.PickupDays != nil ||
+		student.PickupStatus != nil
+
+	// Resolve the plan that will be in effect after this write: from the request
+	// (merged with the stored state) when a plan field was provided, otherwise the
+	// unchanged stored plan (current) — empty on create, where current is nil.
+	var allowed users.AllowedDepartureModes
+	switch {
+	case planTouched:
+		allowed = resolveAllowedDepartureModes(student, current)
+	case current != nil:
+		allowed = current.AllowedDepartureModes.Normalize()
+	}
+
+	// Invariant: the free-text "mit wem" note must never outlive the accompanied
+	// mode that justifies it (#1694). Clear it whenever the resolved plan contains
+	// no accompanied day, regardless of which fields (unified or legacy) drove the
+	// change — and crucially even on a note-only update that leaves the plan
+	// untouched, so an orphan note set by the base update cannot slip past the
+	// no-op short-circuit below. Handler-level normalization cannot see the
+	// resolved legacy plan and is unreliable for these paths.
+	clearNote := student.DepartureCompanionNote != nil &&
+		!allowed.HasMode(users.DepartureAccompanied)
+
+	if !planTouched && !clearNote {
 		return nil
 	}
 
-	allowed := resolveAllowedDepartureModes(student, current)
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		TableExpr(`users.students AS "student"`).
+		Where(`"student".id = ?`, student.ID)
+
 	departure := allowed.DepartureDays()
 	busDays := allowed.BusDays()
 	pickupDays := allowed.PickupDays()
 	pickupStatus := departure.LegacyPickupStatus()
 
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		TableExpr(`users.students AS "student"`).
-		Set(`pickup_status = ?`, pickupStatus).
-		Where(`"student".id = ?`, student.ID)
+	if planTouched {
+		query = query.Set(`pickup_status = ?`, pickupStatus)
 
-	// departure_days (1.15.120), bus_days (1.15.112) and pickup_days (1.15.116)
-	// each landed in their own migration. Migration tests exercise historical
-	// schemas with the current model, so only set columns that actually exist.
-	hasDeparture, err := r.hasStudentColumn(ctx, "departure_days")
-	if err != nil {
-		return err
-	}
-	if hasDeparture {
-		query = query.Set(`departure_days = ?`, departure)
-	}
-	hasAllowed, err := r.hasStudentColumn(ctx, "allowed_departure_modes")
-	if err != nil {
-		return err
-	}
-	if hasAllowed {
-		query = query.Set(`allowed_departure_modes = ?`, allowed)
-	}
-	hasBus, err := r.hasStudentColumn(ctx, "bus_days")
-	if err != nil {
-		return err
-	}
-	if hasBus {
-		query = query.Set(`bus_days = ?`, busDays)
-	}
-	hasPickup, err := r.hasStudentColumn(ctx, "pickup_days")
-	if err != nil {
-		return err
-	}
-	if hasPickup {
-		query = query.Set(`pickup_days = ?`, pickupDays)
+		// departure_days (1.15.120), bus_days (1.15.112) and pickup_days (1.15.116)
+		// each landed in their own migration. Migration tests exercise historical
+		// schemas with the current model, so only set columns that actually exist.
+		hasDeparture, err := r.hasStudentColumn(ctx, "departure_days")
+		if err != nil {
+			return err
+		}
+		if hasDeparture {
+			query = query.Set(`departure_days = ?`, departure)
+		}
+		hasAllowed, err := r.hasStudentColumn(ctx, "allowed_departure_modes")
+		if err != nil {
+			return err
+		}
+		if hasAllowed {
+			query = query.Set(`allowed_departure_modes = ?`, allowed)
+		}
+		hasBus, err := r.hasStudentColumn(ctx, "bus_days")
+		if err != nil {
+			return err
+		}
+		if hasBus {
+			query = query.Set(`bus_days = ?`, busDays)
+		}
+		hasPickup, err := r.hasStudentColumn(ctx, "pickup_days")
+		if err != nil {
+			return err
+		}
+		if hasPickup {
+			query = query.Set(`pickup_days = ?`, pickupDays)
+		}
 	}
 
-	// Invariant: the free-text "mit wem" note must never outlive the accompanied
-	// mode that justifies it (#1694). The resolved plan is the single source of
-	// truth, so clear the note here whenever the final modes contain no
-	// accompanied day, regardless of which fields (unified or legacy) drove the
-	// change. Handler-level normalization cannot see the resolved legacy plan and
-	// is unreliable for these paths.
-	if !allowed.HasMode(users.DepartureAccompanied) {
+	noteCleared := false
+	if clearNote {
 		hasNote, noteErr := r.hasStudentColumn(ctx, "departure_companion_note")
 		if noteErr != nil {
 			return noteErr
 		}
 		if hasNote {
 			query = query.Set(`departure_companion_note = NULL`)
-			student.DepartureCompanionNote = nil
+			noteCleared = true
 		}
+	}
+
+	// A note-only update on a schema that predates the companion-note column has
+	// nothing left to write — bail before issuing a SET-less UPDATE.
+	if !planTouched && !noteCleared {
+		return nil
 	}
 
 	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
@@ -395,11 +421,16 @@ func (r *StudentRepository) persistDepartureDays(ctx context.Context, student *u
 		}
 	}
 
-	student.DepartureDays = departure
-	student.AllowedDepartureModes = allowed
-	student.BusDays = busDays
-	student.PickupDays = pickupDays
-	student.PickupStatus = &pickupStatus
+	if noteCleared {
+		student.DepartureCompanionNote = nil
+	}
+	if planTouched {
+		student.DepartureDays = departure
+		student.AllowedDepartureModes = allowed
+		student.BusDays = busDays
+		student.PickupDays = pickupDays
+		student.PickupStatus = &pickupStatus
+	}
 	return base.AssertRowsAffected(result, 1, "update student departure days")
 }
 

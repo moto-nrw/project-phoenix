@@ -234,6 +234,30 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 			"the companion note must be cleared once no day allows accompanied")
 	})
 
+	t.Run("note-only update does not persist an orphan note without an accompanied day", func(t *testing.T) {
+		requireStudentsAllowedDepartureModesColumn(t, db)
+
+		// CreateTestStudent leaves the departure plan empty (no accompanied day),
+		// so every plan field scans back nil. A stale or direct client that PUTs
+		// only the "mit wem" note (omitting allowed_departure_modes/departure_days)
+		// must not be able to persist it: persistDepartureDays used to short-circuit
+		// on the all-nil plan and leave the orphan note in place (#1694). Loading
+		// fresh mirrors the updateStudent handler, which patches a locked row.
+		student := testpkg.CreateTestStudent(t, db, "Departure", "OrphanNote", "2e")
+		defer cleanupStudentRecords(t, db, student.ID)
+
+		fresh, err := repo.FindByID(ctx, student.ID)
+		require.NoError(t, err)
+		note := "Geschwisterkind Mia"
+		fresh.DepartureCompanionNote = &note
+		require.NoError(t, repo.Update(ctx, fresh))
+
+		found, err := repo.FindByID(ctx, student.ID)
+		require.NoError(t, err)
+		assert.Nil(t, found.DepartureCompanionNote,
+			"a companion note must not survive on a student with no accompanied day")
+	})
+
 	t.Run("unified replacement clears prior days", func(t *testing.T) {
 		requireStudentsDepartureDaysColumn(t, db)
 

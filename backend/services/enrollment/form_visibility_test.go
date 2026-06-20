@@ -222,6 +222,69 @@ func TestWeekdayMultiMode_RequiredHandling(t *testing.T) {
 	), "selected care days with modes are accepted")
 }
 
+// TestSanitizeVisibleAnswers_CompanionNote pins the persistence-time companion
+// note coupling (#1694): sanitizeVisibleAnswers must keep the reserved "mit wem"
+// note whenever a visible per-child departure field allows the accompanied mode,
+// for BOTH the unified allowed-modes target and the legacy student.departure
+// target. Dropping it for the legacy target would let an accepted submission
+// (validateAccompaniedCompanionNote also accepts the legacy path) become
+// un-approvable, since the decision service would decode an accompanied
+// departure with no note and studentRepo.Update would reject it.
+func TestSanitizeVisibleAnswers_CompanionNote(t *testing.T) {
+	const note = "Geschwisterkind Mia (1b)"
+	noteKey := enrollmentModels.TargetStudentDepartureCompanionNote
+
+	schemaWith := func(target string) *enrollmentModels.FormSchema {
+		fieldType := enrollmentModels.FormFieldWeekdayMultiMode
+		if target == enrollmentModels.TargetStudentDeparture {
+			fieldType = enrollmentModels.FormFieldWeekdayMode
+		}
+		return &enrollmentModels.FormSchema{Fields: []enrollmentModels.FormField{{
+			Key:         "dep",
+			Type:        fieldType,
+			Target:      target,
+			AppliesToCh: true,
+		}}}
+	}
+	ctxFor := func(schema *enrollmentModels.FormSchema, values map[string]any) fieldVisibilityContext {
+		return fieldVisibilityContext{
+			childAnswers: values,
+			fieldsByKey:  buildFieldsByKey(schema),
+		}
+	}
+
+	t.Run("legacy departure target keeps note when accompanied", func(t *testing.T) {
+		schema := schemaWith(enrollmentModels.TargetStudentDeparture)
+		values := map[string]any{
+			"dep":   map[string]any{"mon": "accompanied"},
+			noteKey: note,
+		}
+		out := sanitizeVisibleAnswers(schema, true, values, ctxFor(schema, values))
+		assert.Equal(t, note, out[noteKey], "note must survive for legacy student.departure accompanied plan")
+	})
+
+	t.Run("legacy departure target drops note when not accompanied", func(t *testing.T) {
+		schema := schemaWith(enrollmentModels.TargetStudentDeparture)
+		values := map[string]any{
+			"dep":   map[string]any{"mon": "bus"},
+			noteKey: note,
+		}
+		out := sanitizeVisibleAnswers(schema, true, values, ctxFor(schema, values))
+		_, ok := out[noteKey]
+		assert.False(t, ok, "orphan note must be dropped when no accompanied day")
+	})
+
+	t.Run("unified allowed-modes target keeps note when accompanied", func(t *testing.T) {
+		schema := schemaWith(enrollmentModels.TargetStudentAllowedDepartureModes)
+		values := map[string]any{
+			"dep":   map[string]any{"mon": []any{"accompanied"}},
+			noteKey: note,
+		}
+		out := sanitizeVisibleAnswers(schema, true, values, ctxFor(schema, values))
+		assert.Equal(t, note, out[noteKey], "note must survive for unified accompanied plan")
+	})
+}
+
 // ---- fieldVisible --------------------------------------------------------
 
 func TestFieldVisible_NoCondition(t *testing.T) {
