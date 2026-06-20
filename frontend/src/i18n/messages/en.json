@@ -114,6 +114,8 @@
     "pickupEyebrow": "Pickup",
     "pickupPeopleTitle": "Pickup permissions",
     "pickupPeopleDescription": "People who are allowed to pick up this child.",
+    "pickupPeopleEmptyTitle": "No pickup permissions added",
+    "pickupPeopleEmptyDescription": "Pickup permissions will appear here.",
     "manage": "Manage",
     "add": "Add",
     "addPerson": "Add person",
@@ -161,15 +163,6 @@
       "noMessages": "No new messages",
       "noMessagesSent": "No messages sent",
       "messagesSent": "{count, plural, one {# message sent} other {# messages sent}}"
-    },
-    "demo": {
-      "momName": "Mom",
-      "dadName": "Dad",
-      "grandmaName": "Grandma",
-      "auntName": "Aunt",
-      "mother": "Mother",
-      "father": "Father",
-      "pickup": "Pickup"
     },
     "messages": {
       "eyebrow": "Parent portal",

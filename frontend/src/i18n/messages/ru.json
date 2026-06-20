@@ -114,6 +114,8 @@
     "pickupEyebrow": "Забор",
     "pickupPeopleTitle": "Разрешения на забор",
     "pickupPeopleDescription": "Люди, которым разрешено забирать этого ребенка.",
+    "pickupPeopleEmptyTitle": "Разрешения на забор не добавлены",
+    "pickupPeopleEmptyDescription": "Разрешения на забор появятся здесь.",
     "manage": "Управлять",
     "add": "Добавить",
     "addPerson": "Добавить человека",
@@ -161,15 +163,6 @@
       "noMessages": "Нет новых сообщений",
       "noMessagesSent": "Сообщения не отправлены",
       "messagesSent": "{count, plural, one {Отправлено # сообщение} few {Отправлено # сообщения} many {Отправлено # сообщений} other {Отправлено # сообщения}}"
-    },
-    "demo": {
-      "momName": "Мама",
-      "dadName": "Папа",
-      "grandmaName": "Бабушка",
-      "auntName": "Тетя",
-      "mother": "Мать",
-      "father": "Отец",
-      "pickup": "Забор"
     },
     "messages": {
       "eyebrow": "Родительский портал",

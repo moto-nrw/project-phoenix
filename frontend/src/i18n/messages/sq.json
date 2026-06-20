@@ -114,6 +114,8 @@
     "pickupEyebrow": "Marrja",
     "pickupPeopleTitle": "Të autorizuar për marrje",
     "pickupPeopleDescription": "Persona që lejohen ta marrin këtë fëmijë.",
+    "pickupPeopleEmptyTitle": "Nuk janë shtuar autorizime për marrje",
+    "pickupPeopleEmptyDescription": "Autorizimet për marrje shfaqen këtu.",
     "manage": "Menaxho",
     "add": "Shto",
     "addPerson": "Shto person",
@@ -161,15 +163,6 @@
       "noMessages": "Nuk ka mesazhe të reja",
       "noMessagesSent": "Asnjë mesazh i dërguar",
       "messagesSent": "{count, plural, one {# mesazh i dërguar} other {# mesazhe të dërguara}}"
-    },
-    "demo": {
-      "momName": "Mama",
-      "dadName": "Babi",
-      "grandmaName": "Gjyshja",
-      "auntName": "Tezja",
-      "mother": "Nëna",
-      "father": "Babai",
-      "pickup": "Marrje"
     },
     "messages": {
       "eyebrow": "Portali i prindërve",

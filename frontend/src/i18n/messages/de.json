@@ -114,6 +114,8 @@
     "pickupEyebrow": "Abholung",
     "pickupPeopleTitle": "Abholberechtigte",
     "pickupPeopleDescription": "Personen, die dieses Kind abholen dürfen.",
+    "pickupPeopleEmptyTitle": "Keine Abholberechtigten hinzugefügt",
+    "pickupPeopleEmptyDescription": "Abholberechtigte erscheinen hier.",
     "manage": "Verwalten",
     "add": "Hinzufügen",
     "addPerson": "Person hinzufügen",
@@ -161,15 +163,6 @@
       "noMessages": "Keine neuen Nachrichten",
       "noMessagesSent": "Keine Nachrichten gesendet",
       "messagesSent": "{count, plural, one {# Nachricht gesendet} other {# Nachrichten gesendet}}"
-    },
-    "demo": {
-      "momName": "Mama",
-      "dadName": "Papa",
-      "grandmaName": "Oma",
-      "auntName": "Tante",
-      "mother": "Mutter",
-      "father": "Vater",
-      "pickup": "Abholung"
     },
     "messages": {
       "eyebrow": "Elternportal",
