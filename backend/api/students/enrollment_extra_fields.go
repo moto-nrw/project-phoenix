@@ -2,6 +2,7 @@ package students
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -48,15 +49,19 @@ func (rs *Resource) getStudentEnrollmentExtraFields(w http.ResponseWriter, r *ht
 
 	summaries, err := rs.EnrollmentDecision.ListByStudent(r.Context(), student.ID)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServerWrap("failed to load enrollment extra fields", err))
 		return
 	}
 
-	out := rs.toStudentEnrollmentExtraFieldGroups(r, student.ID, summaries)
+	out, err := rs.toStudentEnrollmentExtraFieldGroups(r, student.ID, summaries)
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServerWrap("failed to load enrollment extra fields", err))
+		return
+	}
 	common.Respond(w, r, http.StatusOK, out, "Student enrollment extra fields retrieved")
 }
 
-func (rs *Resource) toStudentEnrollmentExtraFieldGroups(r *http.Request, studentID int64, summaries []*enrollmentService.RequestSummary) []StudentEnrollmentExtraFieldGroup {
+func (rs *Resource) toStudentEnrollmentExtraFieldGroups(r *http.Request, studentID int64, summaries []*enrollmentService.RequestSummary) ([]StudentEnrollmentExtraFieldGroup, error) {
 	out := make([]StudentEnrollmentExtraFieldGroup, 0, len(summaries))
 	for _, summary := range summaries {
 		if summary == nil || summary.Request == nil || summary.Request.SchemaID == nil {
@@ -66,7 +71,10 @@ func (rs *Resource) toStudentEnrollmentExtraFieldGroups(r *http.Request, student
 		if child == nil {
 			continue
 		}
-		fields := rs.studentEnrollmentExtraFieldsForChild(r, *summary.Request.SchemaID, child.CustomData)
+		fields, err := rs.studentEnrollmentExtraFieldsForChild(r, *summary.Request.SchemaID, child.CustomData)
+		if err != nil {
+			return nil, err
+		}
 		if len(fields) == 0 {
 			continue
 		}
@@ -80,7 +88,7 @@ func (rs *Resource) toStudentEnrollmentExtraFieldGroups(r *http.Request, student
 		}
 		out = append(out, group)
 	}
-	return out
+	return out, nil
 }
 
 func linkedSummaryChild(summary *enrollmentService.RequestSummary, studentID int64) *enrollmentModels.RequestChild {
@@ -95,19 +103,29 @@ func linkedSummaryChild(summary *enrollmentService.RequestSummary, studentID int
 	return nil
 }
 
-func (rs *Resource) studentEnrollmentExtraFieldsForChild(r *http.Request, schemaID int64, customData map[string]any) []StudentEnrollmentExtraField {
+func (rs *Resource) studentEnrollmentExtraFieldsForChild(r *http.Request, schemaID int64, customData map[string]any) ([]StudentEnrollmentExtraField, error) {
 	if len(customData) == 0 {
-		return nil
+		return nil, nil
 	}
 	schema, err := rs.EnrollmentFormSchema.GetByID(r.Context(), schemaID)
-	if err != nil || schema == nil {
-		if err != nil && rs.Logger != nil {
+	if err != nil {
+		if rs.Logger != nil {
 			rs.Logger.Warn("failed to load enrollment schema for student extra fields",
 				"schema_id", schemaID,
 				"error", err.Error(),
 			)
 		}
-		return nil
+		return nil, fmt.Errorf("load enrollment schema %d for student extra fields: %w", schemaID, err)
+	}
+	if schema == nil {
+		err := fmt.Errorf("enrollment schema %d not found", schemaID)
+		if rs.Logger != nil {
+			rs.Logger.Warn("failed to load enrollment schema for student extra fields",
+				"schema_id", schemaID,
+				"error", err.Error(),
+			)
+		}
+		return nil, err
 	}
 
 	out := make([]StudentEnrollmentExtraField, 0, len(schema.Fields))
@@ -135,7 +153,7 @@ func (rs *Resource) studentEnrollmentExtraFieldsForChild(r *http.Request, schema
 			Value:   value,
 		})
 	}
-	return out
+	return out, nil
 }
 
 // GetStudentEnrollmentExtraFieldsHandler returns the handler for getting

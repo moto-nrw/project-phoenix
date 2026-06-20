@@ -253,7 +253,7 @@ export async function fetchStudentEnrollmentExtraFields(
   const useProxy = isBrowserContext();
   const url = useProxy
     ? `/api/students/${id}/enrollment-extra-fields`
-    : `${env.API_URL}/students/${id}/enrollment-extra-fields`;
+    : `${env.API_URL}/api/students/${id}/enrollment-extra-fields`;
 
   try {
     if (useProxy) {

@@ -3,6 +3,7 @@ package students_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"testing"
@@ -34,9 +35,13 @@ func (f *fakeEnrollmentDecisionService) ListByStudent(_ context.Context, student
 type fakeEnrollmentFormSchemaService struct {
 	enrollmentService.FormSchemaService
 	schemas map[int64]*enrollmentModels.FormSchema
+	err     error
 }
 
 func (f *fakeEnrollmentFormSchemaService) GetByID(_ context.Context, id int64) (*enrollmentModels.FormSchema, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
 	return f.schemas[id], nil
 }
 
@@ -171,4 +176,94 @@ func TestGetStudentEnrollmentExtraFields_EmptyWhenNoLinkedAnswers(t *testing.T) 
 	}
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
 	assert.Empty(t, body.Data)
+}
+
+func TestGetStudentEnrollmentExtraFields_FailsWhenSchemaLookupFails(t *testing.T) {
+	tc := setupTestContext(t)
+	student := testpkg.CreateTestStudent(t, tc.db, "Schema", "Failure", "3a")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+	linkedStudentID := student.ID
+	schemaID := int64(42)
+	tc.resource.EnrollmentDecision = &fakeEnrollmentDecisionService{
+		summaries: []*enrollmentService.RequestSummary{
+			{
+				Request: &enrollmentModels.Request{
+					Model:    baseModel.Model{ID: 77},
+					SchemaID: &schemaID,
+				},
+				Children: []*enrollmentModels.RequestChild{
+					{
+						CreatedStudentID: &linkedStudentID,
+						CustomData: map[string]any{
+							"swimming_level": "safe",
+						},
+					},
+				},
+			},
+		},
+	}
+	tc.resource.EnrollmentFormSchema = &fakeEnrollmentFormSchemaService{
+		err: errors.New("schema repository unavailable"),
+	}
+
+	router := chi.NewRouter()
+	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router.Get("/{id}/enrollment-extra-fields", tc.resource.GetStudentEnrollmentExtraFieldsHandler())
+
+	req := testutil.NewRequest("GET", "/"+strconv.FormatInt(student.ID, 10)+"/enrollment-extra-fields", nil)
+	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+	require.Equal(t, http.StatusInternalServerError, rr.Code, "body: %s", rr.Body.String())
+	var body struct {
+		Error string `json:"error"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	assert.Equal(t, "failed to load enrollment extra fields", body.Error)
+	assert.NotContains(t, rr.Body.String(), "schema repository unavailable")
+}
+
+func TestGetStudentEnrollmentExtraFields_FailsWhenSchemaIsMissing(t *testing.T) {
+	tc := setupTestContext(t)
+	student := testpkg.CreateTestStudent(t, tc.db, "Schema", "Missing", "3a")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+	linkedStudentID := student.ID
+	schemaID := int64(42)
+	tc.resource.EnrollmentDecision = &fakeEnrollmentDecisionService{
+		summaries: []*enrollmentService.RequestSummary{
+			{
+				Request: &enrollmentModels.Request{
+					Model:    baseModel.Model{ID: 77},
+					SchemaID: &schemaID,
+				},
+				Children: []*enrollmentModels.RequestChild{
+					{
+						CreatedStudentID: &linkedStudentID,
+						CustomData: map[string]any{
+							"swimming_level": "safe",
+						},
+					},
+				},
+			},
+		},
+	}
+	tc.resource.EnrollmentFormSchema = &fakeEnrollmentFormSchemaService{
+		schemas: map[int64]*enrollmentModels.FormSchema{},
+	}
+
+	router := chi.NewRouter()
+	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router.Get("/{id}/enrollment-extra-fields", tc.resource.GetStudentEnrollmentExtraFieldsHandler())
+
+	req := testutil.NewRequest("GET", "/"+strconv.FormatInt(student.ID, 10)+"/enrollment-extra-fields", nil)
+	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+	require.Equal(t, http.StatusInternalServerError, rr.Code, "body: %s", rr.Body.String())
+	var body struct {
+		Error string `json:"error"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	assert.Equal(t, "failed to load enrollment extra fields", body.Error)
+	assert.NotContains(t, rr.Body.String(), "enrollment schema 42 not found")
 }

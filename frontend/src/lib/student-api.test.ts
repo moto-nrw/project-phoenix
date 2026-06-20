@@ -659,7 +659,7 @@ describe("student-api", () => {
       const result = await fetchStudentEnrollmentExtraFields("123");
 
       expect(mockGet).toHaveBeenCalledWith(
-        expect.stringContaining("/students/123/enrollment-extra-fields"),
+        "http://server:8080/api/students/123/enrollment-extra-fields",
       );
       expect(result).toEqual(enrollmentExtraGroups);
     });
