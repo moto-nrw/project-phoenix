@@ -353,9 +353,10 @@ export function departureMatrixRows(
 }
 
 /**
- * True when at least one weekday has a bus or pickup arrangement, i.e. the child
- * does not simply go home alone every day. Used to collapse the matrix to a
- * single "Geht immer alleine" line when there is nothing meaningful to show.
+ * True when at least one weekday has a non-alone arrangement (bus, pickup or
+ * accompanied), i.e. the child does not simply go home alone every day. Used to
+ * collapse the matrix to a single "Geht immer alleine" line when there is
+ * nothing meaningful to show.
  */
 export function hasAnyDepartureArrangement(
   value?: AllowedDepartureModes | null,
@@ -363,7 +364,7 @@ export function hasAnyDepartureArrangement(
   const normalized = normalizeAllowedDepartureModes(value);
   return DEPARTURE_WEEKDAYS.some((day) =>
     (normalized[day.key] ?? []).some(
-      (mode) => mode === "bus" || mode === "pickup",
+      (mode) => mode === "bus" || mode === "pickup" || mode === "accompanied",
     ),
   );
 }
