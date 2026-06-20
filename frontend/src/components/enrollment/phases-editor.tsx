@@ -943,8 +943,19 @@ function PhaseActions({
         className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50"
       >
         <ExternalLink className="h-4 w-4 text-gray-500" aria-hidden />
-        Phase ansehen
+        Formular ansehen
       </a>
+
+      <Link
+        href={`/admin/enrollments/phases/${encodeURIComponent(phase.id)}`}
+        role="menuitem"
+        tabIndex={0}
+        onClick={() => setOpen(false)}
+        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50"
+      >
+        <ClipboardList className="h-4 w-4 text-gray-500" aria-hidden />
+        Anmeldungen ansehen
+      </Link>
 
       <button
         type="button"
@@ -982,7 +993,7 @@ function PhaseActions({
           onClick={() => setOpen(false)}
           className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50"
         >
-          <ClipboardList className="h-4 w-4 text-gray-500" aria-hidden />
+          <Check className="h-4 w-4 text-gray-500" aria-hidden />
           Prüfliste öffnen
         </Link>
       ) : null}

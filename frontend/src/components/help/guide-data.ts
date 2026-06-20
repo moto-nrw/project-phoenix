@@ -778,7 +778,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Das Anmeldefenster steuert die öffentliche Anmeldung",
-          body: "Das `Anmeldefenster` der Phase entscheidet, wann Familien absenden können. Über das Aktionsmenü öffnest du eine Phase mit `Phase ansehen` als Elternlink oder bereitest mit `Anschlussphase erstellen` eine Folgephase vor.",
+          body: "Das `Anmeldefenster` der Phase entscheidet, wann Familien absenden können. Über das Aktionsmenü öffnest du mit `Formular ansehen` den Elternlink, wechselst mit `Anmeldungen ansehen` zu den Eingängen oder bereitest mit `Anschlussphase erstellen` eine Folgephase vor.",
           tone: "gray",
         },
         screenshot:
