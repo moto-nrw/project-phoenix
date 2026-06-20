@@ -131,6 +131,7 @@ function buildDraft(
     health_info: student.health_info ?? "",
     supervisor_notes: student.supervisor_notes ?? "",
     extra_info: student.extra_info ?? "",
+    departure_companion_note: student.departure_companion_note ?? "",
     privacy_consent_accepted:
       consent?.accepted ?? student.privacy_consent_accepted ?? false,
     data_retention_days:
@@ -602,6 +603,14 @@ export function StudentStammdatenTab({
               : "Geht alleine nach Hause",
           }));
         }}
+        companionNote={formData.departure_companion_note}
+        onCompanionNoteChange={(value) =>
+          setFormData((prev) => ({
+            ...prev,
+            departure_companion_note: value,
+          }))
+        }
+        companionNoteError={errors.departure_companion_note}
       />
 
       <EnrollmentConsentsSection

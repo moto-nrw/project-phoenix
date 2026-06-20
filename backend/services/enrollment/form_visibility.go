@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // This file holds the server-side counterpart of the frontend visibility
@@ -150,6 +151,52 @@ func sanitizeVisibleAnswers(
 			out[f.Key] = v
 		}
 	}
+	// Preserve the coupled "mit wem" note (#1694): it rides on a reserved key
+	// alongside a departure field rather than being its own schema field, so the
+	// generic strip above would drop it. Keep it only when a visible per-child
+	// departure field submits a plan that allows the accompanied mode — either
+	// the unified allowed-departure-modes field OR the legacy student.departure
+	// field. Mirroring childDepartureAllowsAccompanied (the validation path) is
+	// what keeps an accepted submission approvable: validateAccompaniedCompanionNote
+	// accepts a legacy departure submission as long as the note is present, so
+	// dropping it here for that target would let approval decode an accompanied
+	// departure with no note and have studentRepo.Update reject it. A
+	// stale/crafted note for a child with no "Mit anderem Kind" day must still
+	// not survive. The decision service is the authoritative guard, so on a
+	// decode error we keep the note and let it decide.
+	if note, ok := values[enrollmentModels.TargetStudentDepartureCompanionNote]; ok {
+		keepNote := false
+		for i := range schema.Fields {
+			f := &schema.Fields[i]
+			if f.AppliesToCh != appliesToChild || !fieldVisible(f, ctx) {
+				continue
+			}
+			switch f.Target {
+			case enrollmentModels.TargetStudentAllowedDepartureModes:
+				if modes, err := decodeAllowedDepartureModes(values[f.Key]); err != nil ||
+					modes.HasMode(users.DepartureAccompanied) {
+					keepNote = true
+				}
+			case enrollmentModels.TargetStudentDeparture:
+				if days, err := decodeDepartureDays(values[f.Key]); err != nil ||
+					days.HasMode(users.DepartureAccompanied) {
+					keepNote = true
+				}
+			}
+		}
+		if keepNote {
+			// Bound the free-text note before it is persisted and echoed in admin
+			// review/export. The custom_data value (and the student column) is
+			// unbounded TEXT, so a client that bypasses the React maxLength could
+			// otherwise store an arbitrarily large note here — a storage/echo
+			// surface that survives until approval. Cap it at the same rune limit
+			// the approval path applies (truncateRunes), so the stored request and
+			// the approved student row carry the same value. Normalizing to a
+			// string also prevents a non-string blob from riding the reserved key.
+			out[enrollmentModels.TargetStudentDepartureCompanionNote] =
+				truncateRunes(stringValue(note), users.MaxDepartureCompanionNoteLen)
+		}
+	}
 	return out
 }
 
@@ -238,6 +285,73 @@ func (s *requestService) validateRequiredCustomFields(
 		}
 	}
 	return nil
+}
+
+// validateAccompaniedCompanionNote enforces the coupled "mit wem" note at the
+// public submit boundary: a child whose visible departure field actually allows
+// the accompanied ("Mit anderem Kind") mode must carry a non-blank companion
+// note on the reserved custom-data key. Without this gate a stale or scripted
+// client could submit an accompanied plan with no note, which persists fine but
+// then permanently blocks approval — studentRepo.Update rejects the model
+// invariant. Mirrors the same defense-in-depth other submit-time field checks
+// apply so a submittable request can never get stuck at approval (#1694).
+func (s *requestService) validateAccompaniedCompanionNote(
+	schema *enrollmentModels.FormSchema,
+	req SubmitRequest,
+	openByID map[int64]*enrollmentModels.CareOffering,
+) error {
+	if schema == nil {
+		return nil
+	}
+	byKey := buildFieldsByKey(schema)
+	for idx := range req.Children {
+		child := req.Children[idx]
+		childCtx := fieldVisibilityContext{
+			guardianAnswers: req.CustomData,
+			childAnswers:    child.CustomData,
+			gradeLevel:      child.TargetGradeLevel,
+			offeringNames:   selectedOfferingNames(child, openByID),
+			fieldsByKey:     byKey,
+		}
+		if !childDepartureAllowsAccompanied(schema, child, childCtx) {
+			continue
+		}
+		if strings.TrimSpace(stringValue(child.CustomData[enrollmentModels.TargetStudentDepartureCompanionNote])) == "" {
+			return fmt.Errorf("%w: child %d accompanied departure requires a companion note", ErrInvalidSubmission, idx)
+		}
+	}
+	return nil
+}
+
+// childDepartureAllowsAccompanied reports whether any visible per-child
+// departure field (unified allowed modes or the legacy-exclusive departure
+// field) submits a plan that allows the accompanied mode. On a decode error the
+// field is treated as not-accompanied: the decision service is the authoritative
+// guard and rejects a malformed value there.
+func childDepartureAllowsAccompanied(
+	schema *enrollmentModels.FormSchema,
+	child SubmitChild,
+	ctx fieldVisibilityContext,
+) bool {
+	for i := range schema.Fields {
+		f := &schema.Fields[i]
+		if !f.AppliesToCh || !fieldVisible(f, ctx) {
+			continue
+		}
+		switch f.Target {
+		case enrollmentModels.TargetStudentAllowedDepartureModes:
+			if modes, err := decodeAllowedDepartureModes(child.CustomData[f.Key]); err == nil &&
+				modes.HasMode(users.DepartureAccompanied) {
+				return true
+			}
+		case enrollmentModels.TargetStudentDeparture:
+			if days, err := decodeDepartureDays(child.CustomData[f.Key]); err == nil &&
+				days.HasMode(users.DepartureAccompanied) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // validateConstrainedSchedules enforces a weekday_schedule field's fixed

@@ -491,10 +491,14 @@
       "weekdayMultiModeUniformConfirmBody": "Sie haben bisher unterschiedliche Heimwege je Betreuungstag gewählt. Wenn Sie eine gemeinsame Auswahl aktivieren, werden diese tageweisen Angaben gelöscht und Sie treffen die Auswahl neu.",
       "weekdayMultiModeUniformConfirmCta": "Löschen und fortfahren",
       "weekdayMultiModeUniformConfirmCancel": "Abbrechen",
+      "departureCompanionLabel": "Mit welchem Kind?",
+      "departureCompanionPlaceholder": "z. B. Geschwisterkind, Freund, Name",
+      "departureCompanionRequired": "Bitte angeben, mit welchem Kind das Kind nach Hause geht.",
       "departureModes": {
         "alone": "Geht zu Fuß",
         "bus": "Bus",
-        "pickup": "Wird abgeholt"
+        "pickup": "Wird abgeholt",
+        "accompanied": "Mit anderem Kind"
       }
     },
     "months": [

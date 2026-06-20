@@ -63,9 +63,11 @@ vi.mock("./student-form-fields", () => ({
   DepartureSection: ({
     days,
     onChange,
+    companionNote,
   }: {
     days?: Record<string, string[]>;
     onChange: (v: Record<string, string[]>) => void;
+    companionNote?: string;
   }) => (
     <div data-testid="departure-section">
       {["mon", "tue", "wed", "thu", "fri"].map((d) => (
@@ -73,6 +75,7 @@ vi.mock("./student-form-fields", () => ({
           {days?.[d] ?? "alone"}
         </span>
       ))}
+      <span data-testid="companion-note-value">{companionNote ?? ""}</span>
       <button
         type="button"
         data-testid="departure-set-mon-bus"
@@ -252,6 +255,27 @@ describe("StudentEditModal", () => {
     await waitFor(() => {
       expect(screen.getByTestId("departure-section")).toBeInTheDocument();
     });
+  });
+
+  it("seeds the companion note from existing student data (#1694)", async () => {
+    render(
+      <StudentEditModal
+        isOpen={true}
+        onClose={mockOnClose}
+        student={{
+          ...mockStudent,
+          departure_companion_note: "Geschwisterkind Mia",
+        }}
+        onSave={mockOnSave}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("departure-section")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("companion-note-value")).toHaveTextContent(
+      "Geschwisterkind Mia",
+    );
   });
 
   it("updates the departure plan on interaction", async () => {

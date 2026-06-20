@@ -201,6 +201,41 @@ func TestBuildPhaseExportTable_FullRow(t *testing.T) {
 	}
 }
 
+// #1694: the accompanied-mode "mit wem" note rides on a reserved custom-data
+// key (not a schema field), so the field-iterating export loops never emit it.
+// It must surface in a dedicated column/field, because the backend persists it
+// onto the student on approval and staff need it for offline supervision.
+func TestBuildPhaseExportTable_IncludesCompanionNote(t *testing.T) {
+	data := sampleExport()
+	data.Rows[0].Children[0].Child.CustomData[enrollmentModels.TargetStudentDepartureCompanionNote] = "Geschwisterkind Mia"
+
+	doc := buildPhaseExportTable(data, "Anmeldungen – Test", "")
+
+	if got := columnLabels(doc)["child_companion_note"]; got != "Mit welchem Kind?" {
+		t.Fatalf("child_companion_note column label = %q, want Mit welchem Kind?", got)
+	}
+	rows := tableDataRows(doc.Rows)
+	if len(rows) != 1 {
+		t.Fatalf("data rows = %d, want 1", len(rows))
+	}
+	if got := rows[0].Values["child_companion_note"]; got != "Geschwisterkind Mia" {
+		t.Errorf("child_companion_note value = %q, want Geschwisterkind Mia", got)
+	}
+}
+
+// Without a note the dedicated column still exists (stable schema) but the cell
+// stays empty — no stray reserved-key leakage.
+func TestBuildPhaseExportTable_CompanionNoteEmptyWhenAbsent(t *testing.T) {
+	doc := buildPhaseExportTable(sampleExport(), "Anmeldungen – Test", "")
+	rows := tableDataRows(doc.Rows)
+	if len(rows) != 1 {
+		t.Fatalf("data rows = %d, want 1", len(rows))
+	}
+	if got := rows[0].Values["child_companion_note"]; got != "" {
+		t.Errorf("child_companion_note value = %q, want empty", got)
+	}
+}
+
 func TestBuildStudentEnrollmentExportTable_IncludesWithdrawnAt(t *testing.T) {
 	doc := buildStudentEnrollmentExportTable(sampleStudentEnrollmentExport(), "Anmeldungen Kind")
 

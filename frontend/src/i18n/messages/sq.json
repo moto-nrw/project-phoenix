@@ -491,10 +491,14 @@
       "weekdayMultiModeUniformConfirmBody": "Keni zgjedhur mënyra të ndryshme kthimi për ditë të veçanta kujdesi. Nëse aktivizoni një zgjedhje të përbashkët, këto të dhëna sipas ditëve fshihen dhe e bëni zgjedhjen nga e para.",
       "weekdayMultiModeUniformConfirmCta": "Fshi dhe vazhdo",
       "weekdayMultiModeUniformConfirmCancel": "Anulo",
+      "departureCompanionLabel": "Me cilin fëmijë?",
+      "departureCompanionPlaceholder": "p.sh. motër/vëlla, shok, emër",
+      "departureCompanionRequired": "Ju lutemi tregoni me cilin fëmijë shkon fëmija juaj në shtëpi.",
       "departureModes": {
         "alone": "Shkon në këmbë",
         "bus": "Autobus",
-        "pickup": "Merret"
+        "pickup": "Merret",
+        "accompanied": "Me një fëmijë tjetër"
       }
     },
     "months": [

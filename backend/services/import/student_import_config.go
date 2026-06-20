@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -203,6 +204,21 @@ func (c *StudentImportConfig) Validate(ctx context.Context, row *importModels.St
 	// 5b. OPTIONAL: Arrival and pickup schedule validation
 	errors = append(errors, validateArrivalSchedules(row.ArrivalSchedules)...)
 	errors = append(errors, validatePickupSchedules(row.PickupSchedules)...)
+
+	// 5c. Coupled "mit wem" note: a row that sets any Gehweise.* cell to "Mit
+	// anderem Kind" (accompanied) needs a non-blank Begleitung. Surface it in the
+	// preview pass so the user sees the row error before importing, rather than
+	// having createStudentFromRow build an accompanied student the model rejects
+	// mid-import (#1694).
+	if departurePlanFromImportRow(*row).HasMode(users.DepartureAccompanied) &&
+		strings.TrimSpace(row.DepartureCompanionNote) == "" {
+		errors = append(errors, importModels.ValidationError{
+			Field:    "begleitung",
+			Message:  "Begleitung ist erforderlich, wenn an einem Tag 'Mit anderem Kind' als Heimweg gewählt ist.",
+			Code:     "required",
+			Severity: importModels.ErrorSeverityError,
+		})
+	}
 
 	// 6. Birthday validation (if provided)
 	if trimmedBirthday := strings.TrimSpace(row.Birthday); trimmedBirthday != "" {
@@ -629,6 +645,8 @@ func departurePlanFromImportRow(row importModels.StudentImportRow) users.Departu
 				out[key] = users.DepartureBus
 			case string(users.DeparturePickup):
 				out[key] = users.DeparturePickup
+			case string(users.DepartureAccompanied):
+				out[key] = users.DepartureAccompanied
 			}
 		}
 		return out
@@ -652,7 +670,10 @@ func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID
 		HealthInfo:      stringPtr(row.HealthInfo),
 		// DepartureDays is the unified source of truth; the repository derives
 		// bus_days, pickup_days and pickup_status from it on persist (#1610).
-		DepartureDays:            departurePlanFromImportRow(row),
+		DepartureDays: departurePlanFromImportRow(row),
+		// Free-text "mit wem" for the accompanied mode; the repository clears it
+		// on persist when no day is accompanied, so it never outlives the mode.
+		DepartureCompanionNote:   boundedNotePtr(row.DepartureCompanionNote),
 		EnrolledFrom:             enrolledFrom,
 		EnrolledUntil:            enrolledUntil,
 		AGBAcceptedAt:            parseOptionalImportDate(row.AGBAcceptedAt),
@@ -1039,6 +1060,20 @@ func stringPtr(s string) *string {
 	trimmed := strings.TrimSpace(s)
 	if trimmed == "" {
 		return nil
+	}
+	return &trimmed
+}
+
+// boundedNotePtr trims the value, truncates it to the companion-note cap by
+// rune count (multibyte-safe), and returns nil when empty. Import truncates
+// rather than rejecting the whole row, mirroring the enrollment intake (#1694).
+func boundedNotePtr(s string) *string {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" {
+		return nil
+	}
+	if utf8.RuneCountInString(trimmed) > users.MaxDepartureCompanionNoteLen {
+		trimmed = string([]rune(trimmed)[:users.MaxDepartureCompanionNoteLen])
 	}
 	return &trimmed
 }

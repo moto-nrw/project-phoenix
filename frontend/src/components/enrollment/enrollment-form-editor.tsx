@@ -159,7 +159,7 @@ const targetSuggestionDescriptions: Record<
   "student.extra_info":
     "Für wichtige Hinweise, die im Alltag der Betreuung sichtbar sein sollen.",
   "student.allowed_departure_modes":
-    "Für die Wochentage festlegen, welche Heimwege erlaubt sind: zu Fuß, Bus oder Abholung. Mehrere Optionen pro Tag sind möglich.",
+    "Für die Wochentage festlegen, welche Heimwege erlaubt sind: zu Fuß, Bus, Abholung oder mit anderem Kind. Mehrere Optionen pro Tag sind möglich.",
   "student.departure":
     "Für die Wochentage festlegen, wie das Kind nach Hause geht: geht alleine, fährt Bus oder wird abgeholt.",
   "student.bus_days":

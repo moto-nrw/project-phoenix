@@ -491,10 +491,14 @@
       "weekdayMultiModeUniformConfirmBody": "Вы выбрали разные способы возвращения домой для отдельных дней посещения. Если включить общий выбор, эти данные по дням будут удалены, и вы сделаете выбор заново.",
       "weekdayMultiModeUniformConfirmCta": "Удалить и продолжить",
       "weekdayMultiModeUniformConfirmCancel": "Отмена",
+      "departureCompanionLabel": "С каким ребёнком?",
+      "departureCompanionPlaceholder": "напр. брат/сестра, друг, имя",
+      "departureCompanionRequired": "Укажите, пожалуйста, с каким ребёнком ваш ребёнок идёт домой.",
       "departureModes": {
         "alone": "Идет пешком",
         "bus": "Автобус",
-        "pickup": "Забирают"
+        "pickup": "Забирают",
+        "accompanied": "С другим ребёнком"
       }
     },
     "months": [

@@ -1,7 +1,11 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { type AdminRequestSchemaField } from "~/lib/enrollment-admin-api";
+import {
+  type AdminRequestChild,
+  type AdminRequestSchemaField,
+} from "~/lib/enrollment-admin-api";
+import { ChildExtraFields } from "./admin-enrollment-detail";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 
 const mocks = vi.hoisted(() => ({
@@ -131,6 +135,26 @@ describe("formatCustomValue", () => {
     ).toBeNull();
   });
 
+  // #1694: the accompanied ("Mit anderem Kind") mode was added to the parent
+  // form but the admin formatter only knew alone/bus/pickup, so a multi_mode
+  // answer rendered the raw "accompanied" token to staff.
+  it("renders the accompanied mode label for a weekday_multi_mode value", () => {
+    const value = { mon: ["accompanied"], wed: ["bus", "accompanied"] };
+    expect(formatCustomValue(value, field("weekday_multi_mode"))).toBe(
+      "Mo: geht mit anderem Kind; Mi: fährt Bus, geht mit anderem Kind",
+    );
+  });
+
+  // #1694 regression: a weekday_mode answer of all-accompanied days used to be
+  // swallowed by the bus/pickup-only filter and rendered as the "Geht immer
+  // alleine" fallback — actively WRONG info (the child never goes alone).
+  it("renders accompanied days for a weekday_mode value, not 'Geht immer alleine'", () => {
+    const value = { mon: "accompanied", tue: "accompanied", wed: "bus" };
+    expect(formatCustomValue(value, field("weekday_mode"))).toBe(
+      "Mo: geht mit anderem Kind, Di: geht mit anderem Kind, Mi: fährt Bus",
+    );
+  });
+
   it("still renders weekday_schedule time values per day", () => {
     const value = { mon: "07:30", wed: "08:00" };
     const { container } = render(
@@ -214,5 +238,48 @@ describe("ChildOfferingAdjustment", () => {
     await waitFor(() => {
       expect(mocks.updateAdminChildOfferings).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("ChildExtraFields companion note (#1694)", () => {
+  function child(custom: Record<string, unknown>): AdminRequestChild {
+    return {
+      id: "1",
+      first_name: "Max",
+      last_name: "Muster",
+      date_of_birth: "2018-05-01",
+      status: "submitted",
+      activation_mode: "immediate",
+      custom_data: custom,
+    };
+  }
+
+  const departureField: AdminRequestSchemaField = {
+    key: "student.allowed_departure_modes",
+    label: "Heimweg",
+    type: "weekday_multi_mode",
+    applies_to_child: true,
+    target: "student.allowed_departure_modes",
+  };
+
+  // The companion note rides on a reserved key (not a schema field), so the
+  // schema-field loop never emits it. Staff must still see it before approving,
+  // because the backend persists it onto the student on approval.
+  it("renders the reserved companion note even without a matching schema field", () => {
+    const { container } = render(
+      <ChildExtraFields
+        child={child({ "student.departure_companion_note": "Geschwisterkind" })}
+        schemaFields={[departureField]}
+      />,
+    );
+    expect(container.textContent).toContain("Mit welchem Kind?");
+    expect(container.textContent).toContain("Geschwisterkind");
+  });
+
+  it("renders nothing when neither schema fields nor a companion note are present", () => {
+    const { container } = render(
+      <ChildExtraFields child={child({})} schemaFields={[departureField]} />,
+    );
+    expect(container.firstChild).toBeNull();
   });
 });

@@ -28,8 +28,14 @@ type StudentImportRow struct {
 	// present, in which case the legacy Bus/Abholstatus columns are folded into
 	// the departure plan instead. departure_days is the SSOT (#1610).
 	DepartureDays map[string]string `json:"departure_days,omitempty"`
-	EnrolledFrom  string            `json:"enrolled_from,omitempty"`  // YYYY-MM-DD (also accepts DD.MM.YYYY / DD.MM.YY)
-	EnrolledUntil string            `json:"enrolled_until,omitempty"` // YYYY-MM-DD (also accepts DD.MM.YYYY / DD.MM.YY)
+	// DepartureCompanionNote is the free-text "mit wem" detail for the
+	// accompanied ("mit anderem Kind") departure mode: who the child leaves
+	// with. Optional; bounded on persist. The note never outlives the
+	// accompanied mode (the repository clears it when no day is accompanied),
+	// so a value supplied without any accompanied day is dropped (#1694).
+	DepartureCompanionNote string `json:"departure_companion_note,omitempty"`
+	EnrolledFrom           string `json:"enrolled_from,omitempty"`  // YYYY-MM-DD (also accepts DD.MM.YYYY / DD.MM.YY)
+	EnrolledUntil          string `json:"enrolled_until,omitempty"` // YYYY-MM-DD (also accepts DD.MM.YYYY / DD.MM.YY)
 
 	// Consent dates — the explicit date each consent was given (e.g. from a
 	// signed paper form). Empty = no consent recorded. A set date asserts the
