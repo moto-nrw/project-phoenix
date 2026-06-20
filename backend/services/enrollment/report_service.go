@@ -22,12 +22,13 @@ var (
 const maxReportRows = 10000
 
 type CareUsageFilters struct {
-	PhaseID         int64   `json:"phase_id"`
-	Status          string  `json:"status,omitempty"`
-	CareOfferingIDs []int64 `json:"care_offering_ids,omitempty"`
-	DayCount        *int    `json:"day_count,omitempty"`
-	GradeLevel      *int16  `json:"grade_level,omitempty"`
-	Search          string  `json:"search,omitempty"`
+	PhaseID            int64   `json:"phase_id"`
+	Status             string  `json:"status,omitempty"`
+	CareOfferingIDs    []int64 `json:"care_offering_ids,omitempty"`
+	CareOfferingIDsSet bool    `json:"-"`
+	DayCount           *int    `json:"day_count,omitempty"`
+	GradeLevel         *int16  `json:"grade_level,omitempty"`
+	Search             string  `json:"search,omitempty"`
 }
 
 type CareUsageReport struct {
@@ -47,7 +48,7 @@ type CareUsagePhase struct {
 type CareUsageAppliedFilters struct {
 	PhaseID         int64   `json:"phase_id"`
 	Status          string  `json:"status"`
-	CareOfferingIDs []int64 `json:"care_offering_ids,omitempty"`
+	CareOfferingIDs []int64 `json:"care_offering_ids"`
 	DayCount        *int    `json:"day_count,omitempty"`
 	GradeLevel      *int16  `json:"grade_level,omitempty"`
 	Search          string  `json:"search,omitempty"`
@@ -190,7 +191,7 @@ func (s *reportService) CareUsage(ctx context.Context, filters CareUsageFilters)
 	for _, offering := range offerings {
 		offeringByID[offering.ID] = offering
 	}
-	filters.CareOfferingIDs = normalizedCareUsageOfferingIDs(filters.CareOfferingIDs, offerings)
+	filters.CareOfferingIDs = normalizedCareUsageOfferingIDs(filters.CareOfferingIDs, offerings, filters.CareOfferingIDsSet)
 	includedOfferingIDs := makeIDSet(filters.CareOfferingIDs)
 	linksByChild := make(map[int64][]*enrollmentModels.RequestChildOffering, len(childIDs))
 	for _, link := range links {
@@ -267,6 +268,9 @@ func normalizeCareUsageFilters(filters CareUsageFilters) CareUsageFilters {
 	}
 	filters.Search = strings.TrimSpace(filters.Search)
 	filters.CareOfferingIDs = dedupePositiveInt64(filters.CareOfferingIDs)
+	if filters.CareOfferingIDsSet && filters.CareOfferingIDs == nil {
+		filters.CareOfferingIDs = []int64{}
+	}
 	return filters
 }
 
@@ -295,12 +299,23 @@ var validChildStatusFilters = map[string]bool{
 }
 
 func careUsageAppliedFilters(filters CareUsageFilters) CareUsageAppliedFilters {
-	return CareUsageAppliedFilters(filters)
+	return CareUsageAppliedFilters{
+		PhaseID:         filters.PhaseID,
+		Status:          filters.Status,
+		CareOfferingIDs: filters.CareOfferingIDs,
+		DayCount:        filters.DayCount,
+		GradeLevel:      filters.GradeLevel,
+		Search:          filters.Search,
+	}
 }
 
-func normalizedCareUsageOfferingIDs(ids []int64, offerings []*enrollmentModels.CareOffering) []int64 {
-	if len(ids) > 0 {
-		return dedupePositiveInt64(ids)
+func normalizedCareUsageOfferingIDs(ids []int64, offerings []*enrollmentModels.CareOffering, explicit bool) []int64 {
+	if explicit {
+		normalized := dedupePositiveInt64(ids)
+		if normalized == nil {
+			return []int64{}
+		}
+		return normalized
 	}
 	out := make([]int64, 0, len(offerings))
 	for _, offering := range offerings {

@@ -631,6 +631,21 @@ func TestParseCareUsageFiltersFromQueryAllowsZeroDayCount(t *testing.T) {
 	}
 }
 
+func TestParseCareUsageFiltersFromQueryTreatsEmptyCareOfferingIDsAsExplicit(t *testing.T) {
+	req := httptest.NewRequest("GET", "/care-usage?phase_id=42&care_offering_ids=", nil)
+
+	filters, err := parseCareUsageFiltersFromQuery(req)
+	if err != nil {
+		t.Fatalf("parseCareUsageFiltersFromQuery: %v", err)
+	}
+	if !filters.CareOfferingIDsSet {
+		t.Fatal("CareOfferingIDsSet = false, want true")
+	}
+	if len(filters.CareOfferingIDs) != 0 {
+		t.Fatalf("care_offering_ids = %#v, want empty", filters.CareOfferingIDs)
+	}
+}
+
 func TestParseCareUsageExportRequestAllowsZeroDayCount(t *testing.T) {
 	req := httptest.NewRequest("POST", "/care-usage/export", strings.NewReader(`{
 		"format": "xlsx",
@@ -643,6 +658,24 @@ func TestParseCareUsageExportRequestAllowsZeroDayCount(t *testing.T) {
 	}
 	if filters.DayCount == nil || *filters.DayCount != 0 {
 		t.Fatalf("day_count = %#v, want pointer to 0", filters.DayCount)
+	}
+}
+
+func TestParseCareUsageExportRequestTreatsEmptyCareOfferingIDsAsExplicit(t *testing.T) {
+	req := httptest.NewRequest("POST", "/care-usage/export", strings.NewReader(`{
+		"format": "xlsx",
+		"filters": {"phase_id": "42", "care_offering_ids": []}
+	}`))
+
+	_, filters, err := parseCareUsageExportRequest(req)
+	if err != nil {
+		t.Fatalf("parseCareUsageExportRequest: %v", err)
+	}
+	if !filters.CareOfferingIDsSet {
+		t.Fatal("CareOfferingIDsSet = false, want true")
+	}
+	if len(filters.CareOfferingIDs) != 0 {
+		t.Fatalf("care_offering_ids = %#v, want empty", filters.CareOfferingIDs)
 	}
 }
 
@@ -703,6 +736,22 @@ func TestCareUsageReportResponseStringifiesIDs(t *testing.T) {
 		if !strings.Contains(payload, want) {
 			t.Fatalf("response JSON %s missing %s", payload, want)
 		}
+	}
+}
+
+func TestCareUsageReportResponseSerializesExplicitEmptyCareOfferingIDs(t *testing.T) {
+	report := &enrollmentService.CareUsageReport{
+		Phase:   enrollmentService.CareUsagePhase{ID: 42, Name: "Demo"},
+		Filters: enrollmentService.CareUsageAppliedFilters{PhaseID: 42, Status: "all", CareOfferingIDs: []int64{}},
+		Totals:  enrollmentService.CareUsageTotals{ByDayCount: map[string]int{"0": 1}},
+	}
+
+	raw, err := json.Marshal(toCareUsageReportResponse(report))
+	if err != nil {
+		t.Fatalf("marshal response: %v", err)
+	}
+	if !strings.Contains(string(raw), `"care_offering_ids":[]`) {
+		t.Fatalf("response JSON %s missing empty care_offering_ids", raw)
 	}
 }
 

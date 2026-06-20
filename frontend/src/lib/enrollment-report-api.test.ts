@@ -24,6 +24,7 @@ function report(overrides: Partial<CareUsageReport> = {}): CareUsageReport {
     filters: {
       phase_id: "42",
       status: "all",
+      care_offering_ids: ["7"],
     },
     totals: {
       children: 2,
@@ -125,7 +126,24 @@ describe("getCareUsageReport", () => {
     );
   });
 
-  it("omits optional filters that are unset, empty, or falsy", async () => {
+  it("sends an explicit empty care offering filter", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({ data: report() });
+    });
+
+    await getCareUsageReport({
+      phase_id: "42",
+      care_offering_ids: [],
+    });
+
+    expect(seenURL).toBe(
+      "/api/enrollment/admin/reports/care-usage?phase_id=42&care_offering_ids=",
+    );
+  });
+
+  it("omits optional filters that are unset or falsy", async () => {
     let seenURL = "";
     mockFetch(async (input) => {
       seenURL = typeof input === "string" ? input : input.toString();
@@ -135,7 +153,7 @@ describe("getCareUsageReport", () => {
     await getCareUsageReport({
       phase_id: "42",
       status: undefined,
-      care_offering_ids: [],
+      care_offering_ids: undefined,
       day_count: undefined,
       grade_level: 0,
       search: "   ",
@@ -275,6 +293,34 @@ describe("exportCareUsageReport", () => {
     expect(anchor.click).toHaveBeenCalledTimes(1);
     expect(anchor.remove).toHaveBeenCalledTimes(1);
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:care-usage-report");
+  });
+
+  it("keeps an explicit empty care offering filter in the export body", async () => {
+    const fetchFn = mockFetch(
+      async () =>
+        ({
+          ok: true,
+          headers: new Headers(),
+          blob: async () => new Blob(["XLSX"]),
+        }) as unknown as Response,
+    );
+
+    await exportCareUsageReport(
+      {
+        phase_id: "42",
+        care_offering_ids: [],
+      },
+      "xlsx",
+    );
+
+    const [, init] = fetchFn.mock.calls[0]!;
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+      format: "xlsx",
+      filters: {
+        phase_id: "42",
+        care_offering_ids: [],
+      },
+    });
   });
 
   it("uses the format-specific fallback filename when no quoted filename is present", async () => {

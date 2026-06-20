@@ -174,6 +174,44 @@ func TestCareUsageRowExcludesNonIncludedOfferingsFromDayCount(t *testing.T) {
 	assert.Equal(t, 4, row.DayCount)
 }
 
+func TestCareUsageRowKeepsOfferingsVisibleWhenNoOfferingsAreIncluded(t *testing.T) {
+	req := &enrollmentModels.Request{Model: baseModels.Model{ID: 10}}
+	child := &enrollmentModels.RequestChild{
+		Model:  baseModels.Model{ID: 20},
+		Status: enrollmentModels.ChildStatusApproved,
+	}
+	offerings := map[int64]*enrollmentModels.CareOffering{
+		1: {
+			Name:           "Ganztag",
+			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+			AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
+		},
+	}
+	links := []*enrollmentModels.RequestChildOffering{
+		{RequestChildID: 20, CareOfferingID: 1, SelectedDays: []string{"mon", "tue"}},
+	}
+
+	row := careUsageRow(req, child, links, offerings, map[int64]bool{})
+
+	require.Len(t, row.Offerings, 1)
+	assert.Equal(t, []string{"mon", "tue"}, row.Offerings[0].Days)
+	assert.Empty(t, row.EffectiveDays)
+	assert.NotNil(t, row.EffectiveDays)
+	assert.Equal(t, 0, row.DayCount)
+}
+
+func TestNormalizedCareUsageOfferingIDsDefaultsOnlyWhenSelectionIsMissing(t *testing.T) {
+	offerings := []*enrollmentModels.CareOffering{
+		{Model: baseModels.Model{ID: 1}, Name: "Ganztag", CountsAsCare: true},
+		{Model: baseModels.Model{ID: 2}, Name: "Randstunde", CountsAsCare: false},
+		{Model: baseModels.Model{ID: 3}, Name: "Kurzbetreuung", CountsAsCare: true},
+	}
+
+	assert.Equal(t, []int64{1, 3}, normalizedCareUsageOfferingIDs(nil, offerings, false))
+	assert.Equal(t, []int64{}, normalizedCareUsageOfferingIDs(nil, offerings, true))
+	assert.Equal(t, []int64{2}, normalizedCareUsageOfferingIDs([]int64{2, 2, -1}, offerings, true))
+}
+
 func TestCareUsageRowCarriesManualAndAutomaticDays(t *testing.T) {
 	req := &enrollmentModels.Request{Model: baseModels.Model{ID: 10}}
 	child := &enrollmentModels.RequestChild{

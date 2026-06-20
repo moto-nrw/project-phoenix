@@ -50,7 +50,7 @@ type careUsagePhaseResponse struct {
 type careUsageAppliedFiltersResponse struct {
 	PhaseID         string   `json:"phase_id"`
 	Status          string   `json:"status"`
-	CareOfferingIDs []string `json:"care_offering_ids,omitempty"`
+	CareOfferingIDs []string `json:"care_offering_ids"`
 	DayCount        *int     `json:"day_count,omitempty"`
 	GradeLevel      *int16   `json:"grade_level,omitempty"`
 	Search          string   `json:"search,omitempty"`
@@ -211,12 +211,16 @@ func parseCareUsageFiltersFromQuery(r *http.Request) (enrollmentService.CareUsag
 	if err != nil {
 		return filters, err
 	}
+	if _, ok := q["care_offering_ids"]; ok {
+		filters.CareOfferingIDsSet = true
+	}
 	if raw := q.Get("care_offering_id"); raw != "" {
 		id, parseErr := strconv.ParseInt(raw, 10, 64)
 		if parseErr != nil || id <= 0 {
 			return filters, errors.New("care_offering_id must be positive")
 		}
 		offeringIDs = append(offeringIDs, id)
+		filters.CareOfferingIDsSet = true
 	}
 	filters.CareOfferingIDs = offeringIDs
 	if raw := q.Get("day_count"); raw != "" {
@@ -305,6 +309,10 @@ func (req careUsageExportFiltersRequest) toServiceFilters() (enrollmentService.C
 			return enrollmentService.CareUsageFilters{}, err
 		}
 		filters.CareOfferingIDs = append(filters.CareOfferingIDs, careOfferingID)
+		filters.CareOfferingIDsSet = true
+	}
+	if req.CareOfferingIDs != nil {
+		filters.CareOfferingIDsSet = true
 	}
 	for _, raw := range req.CareOfferingIDs {
 		careOfferingID, err := parseRequiredPositiveInt64(raw, "filters.care_offering_ids")
@@ -350,11 +358,9 @@ func toCareUsageReportResponse(report *enrollmentService.CareUsageReport) *careU
 		},
 		Rows: make([]careUsageRowResponse, 0, len(report.Rows)),
 	}
-	if len(report.Filters.CareOfferingIDs) > 0 {
-		out.Filters.CareOfferingIDs = make([]string, 0, len(report.Filters.CareOfferingIDs))
-		for _, id := range report.Filters.CareOfferingIDs {
-			out.Filters.CareOfferingIDs = append(out.Filters.CareOfferingIDs, strconv.FormatInt(id, 10))
-		}
+	out.Filters.CareOfferingIDs = make([]string, 0, len(report.Filters.CareOfferingIDs))
+	for _, id := range report.Filters.CareOfferingIDs {
+		out.Filters.CareOfferingIDs = append(out.Filters.CareOfferingIDs, strconv.FormatInt(id, 10))
 	}
 	out.ByOffering = make([]careUsageOfferingStatResponse, 0, len(report.ByOffering))
 	for _, stat := range report.ByOffering {

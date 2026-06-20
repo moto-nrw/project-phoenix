@@ -24,7 +24,7 @@ export interface CareUsageReport {
   filters: {
     phase_id: string;
     status: EnrollmentReportStatus;
-    care_offering_ids?: string[];
+    care_offering_ids: string[];
     day_count?: number;
     grade_level?: number;
     search?: string;
@@ -161,8 +161,14 @@ export async function exportCareUsageReport(
 function appendCareUsageParams(url: URL, filters: CareUsageFilters) {
   url.searchParams.set("phase_id", String(filters.phase_id));
   if (filters.status) url.searchParams.set("status", filters.status);
-  for (const id of filters.care_offering_ids ?? []) {
-    url.searchParams.append("care_offering_ids", String(id));
+  if (filters.care_offering_ids !== undefined) {
+    if (filters.care_offering_ids.length === 0) {
+      url.searchParams.set("care_offering_ids", "");
+    } else {
+      for (const id of filters.care_offering_ids) {
+        url.searchParams.append("care_offering_ids", String(id));
+      }
+    }
   }
   if (filters.day_count !== undefined) {
     url.searchParams.set("day_count", String(filters.day_count));
