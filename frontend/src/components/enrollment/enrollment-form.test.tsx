@@ -1731,6 +1731,83 @@ describe("EnrollmentForm", () => {
     ).toBe("Geschwisterkind Mia");
   });
 
+  it("does not offer accompanied for untargeted weekday multi-mode fields (#1694)", async () => {
+    const customSchema = schema();
+    customSchema.fields = [
+      {
+        key: "custom_modes",
+        label: "Erlaubte Heimwege",
+        type: "weekday_multi_mode",
+        required: true,
+        applies_to_child: true,
+        sort_order: 1,
+      },
+    ];
+    mockFetchPublicActiveSchema.mockResolvedValue(customSchema);
+    mockFetchPublicCareOfferings.mockResolvedValue({
+      offerings: [
+        {
+          id: "21",
+          phase_id: "5",
+          name: "Block Mo",
+          description: null,
+          days_of_week_mode: "fixed",
+          available_days: ["mon"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          capacity: null,
+        },
+      ],
+      careOfferingSelectionMode: "at_least_one",
+      careRequired: true,
+    });
+
+    renderForm({
+      initialDraft: {
+        ...editDraft([{ id: "c-1", first_name: "Lina", last_name: "Muster" }]),
+        consent_flags: { agb: true, data_processing: true },
+        children: [
+          {
+            id: "c-1",
+            first_name: "Lina",
+            last_name: "Muster",
+            date_of_birth: "2018-04-15",
+            target_grade_level: 2,
+            offering_ids: ["21"],
+            custom_data: {
+              custom_modes: { mon: ["bus", "accompanied"] },
+              "student.departure_companion_note": "Geschwisterkind Mia",
+            },
+          },
+        ],
+      },
+    });
+    await waitForLoaded();
+
+    const group = screen.getByRole("group", { name: /Erlaubte Heimwege/ });
+    expect(
+      within(group).queryByRole("checkbox", { name: "Mit anderem Kind" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(group).queryByPlaceholderText(/Geschwisterkind, Freund, Name/),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+    await waitFor(() => expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1));
+    const [, payload] = mockSubmitEnrollment.mock.calls[0] as [
+      string,
+      SubmitEnrollmentPayload,
+    ];
+    expect(payload.children[0]?.custom_data?.custom_modes).toEqual({
+      mon: ["bus"],
+    });
+    expect(
+      payload.children[0]?.custom_data?.["student.departure_companion_note"],
+    ).toBeUndefined();
+  });
+
   // Regression (#1694): a schema may carry more than one field targeting
   // student.allowed_departure_modes (only keys are unique). The companion note
   // must couple back in and be enforced when accompanied is chosen in ANY of

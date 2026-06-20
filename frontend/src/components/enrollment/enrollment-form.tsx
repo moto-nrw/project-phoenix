@@ -2486,7 +2486,11 @@ function customValueMissing(
   if (field.type === "weekday_multi_mode") {
     const days = relevantDays ?? WEEKDAYS;
     if (days.length === 0) return false;
-    const modes = asWeekdayMultiModeObject(value, days);
+    const modes = asWeekdayMultiModeObject(
+      value,
+      days,
+      departureMultiModeOptionsForField(field),
+    );
     return days.some((day) => (modes[day]?.length ?? 0) === 0);
   }
   return typeof value !== "string" || value.trim() === "";
@@ -2942,6 +2946,17 @@ const DEPARTURE_MULTI_MODE_OPTIONS: ReadonlyArray<DepartureModeValue> = [
   "accompanied",
 ];
 
+const DEPARTURE_MULTI_MODE_OPTIONS_WITHOUT_COMPANION: ReadonlyArray<DepartureModeValue> =
+  ["alone", "bus", "pickup"];
+
+function departureMultiModeOptionsForField(
+  field: PublicFormSchema["fields"][number],
+): ReadonlyArray<DepartureModeValue> {
+  return field.target === "student.allowed_departure_modes"
+    ? DEPARTURE_MULTI_MODE_OPTIONS
+    : DEPARTURE_MULTI_MODE_OPTIONS_WITHOUT_COMPANION;
+}
+
 // Reserved child-custom key carrying the coupled "mit wem" note for the
 // accompanied mode (#1694). Matches the backend reserved target so the
 // decision service can apply it when it processes allowed_departure_modes.
@@ -2969,9 +2984,11 @@ function asWeekdayModeObject(v: unknown): Record<string, DepartureModeValue> {
 function asWeekdayMultiModeObject(
   v: unknown,
   allowedDays: readonly string[] = WEEKDAYS,
+  allowedModes: ReadonlyArray<DepartureModeValue> = DEPARTURE_MULTI_MODE_OPTIONS,
 ): Record<string, DepartureModeValue[]> {
   if (!v || typeof v !== "object" || Array.isArray(v)) return {};
   const allowed = new Set(allowedDays);
+  const allowedModeSet = new Set(allowedModes);
   const out: Record<string, DepartureModeValue[]> = {};
   for (const w of WEEKDAYS) {
     if (!allowed.has(w)) continue;
@@ -2985,10 +3002,10 @@ function asWeekdayMultiModeObject(
         item === "pickup" ||
         item === "accompanied"
       ) {
-        seen.add(item);
+        if (allowedModeSet.has(item)) seen.add(item);
       }
     }
-    const modes = DEPARTURE_MULTI_MODE_OPTIONS.filter((mode) => seen.has(mode));
+    const modes = allowedModes.filter((mode) => seen.has(mode));
     if (modes.length > 0) out[w] = modes;
   }
   return out;
@@ -3051,7 +3068,11 @@ function pruneWeekdayAnswers(
   for (const field of fields) {
     if (!(field.key in next)) continue;
     if (field.type === "weekday_multi_mode") {
-      next[field.key] = asWeekdayMultiModeObject(next[field.key], relevantDays);
+      next[field.key] = asWeekdayMultiModeObject(
+        next[field.key],
+        relevantDays,
+        departureMultiModeOptionsForField(field),
+      );
     } else if (field.type === "weekday_schedule") {
       // Drop pickup times for days the child is no longer in care (e.g. an
       // offering was deselected after a time was entered) so stale entries
@@ -3313,7 +3334,8 @@ function WeekdayMultiModeInput({
   companionNoteError,
 }: CustomFieldInputProps) {
   const daysToRender = relevantDays ?? WEEKDAYS;
-  const modes = asWeekdayMultiModeObject(value, daysToRender);
+  const modeOptions = departureMultiModeOptionsForField(field);
+  const modes = asWeekdayMultiModeObject(value, daysToRender, modeOptions);
   const [expandedDays, setExpandedDays] = useState<Set<string>>(
     () => new Set(daysToRender.filter((day) => (modes[day]?.length ?? 0) > 0)),
   );
@@ -3345,7 +3367,7 @@ function WeekdayMultiModeInput({
       nextExpanded.delete(day);
       const nextRaw = { ...modes };
       delete nextRaw[day];
-      onChange(asWeekdayMultiModeObject(nextRaw, daysToRender));
+      onChange(asWeekdayMultiModeObject(nextRaw, daysToRender, modeOptions));
     } else {
       nextExpanded.add(day);
     }
@@ -3357,9 +3379,9 @@ function WeekdayMultiModeInput({
     else current.add(mode);
     const nextRaw = {
       ...modes,
-      [day]: DEPARTURE_MULTI_MODE_OPTIONS.filter((m) => current.has(m)),
+      [day]: modeOptions.filter((m) => current.has(m)),
     };
-    onChange(asWeekdayMultiModeObject(nextRaw, daysToRender));
+    onChange(asWeekdayMultiModeObject(nextRaw, daysToRender, modeOptions));
   };
   // The payload-derived shared selection: the first *populated* day's modes.
   // Used only to decide whether enabling uniform is lossless and, if so, to
@@ -3394,7 +3416,7 @@ function WeekdayMultiModeInput({
     if (!needsSync) return;
     const nextRaw: Record<string, DepartureModeValue[]> = {};
     for (const day of daysToRender) nextRaw[day] = uniformSelection;
-    onChange(asWeekdayMultiModeObject(nextRaw, daysToRender));
+    onChange(asWeekdayMultiModeObject(nextRaw, daysToRender, modeOptions));
     // String-signature deps keep the effect from re-running every render while
     // still reacting to every meaningful change. `modes`/`daysToRender`/
     // `onChange`/`uniformSelection` are read from the current render's closure;
@@ -3430,11 +3452,11 @@ function WeekdayMultiModeInput({
     const current = new Set(uniformSelection);
     if (current.has(mode)) current.delete(mode);
     else current.add(mode);
-    const arr = DEPARTURE_MULTI_MODE_OPTIONS.filter((m) => current.has(m));
+    const arr = modeOptions.filter((m) => current.has(m));
     setUniformSelection(arr);
     const nextRaw: Record<string, DepartureModeValue[]> = {};
     for (const day of daysToRender) nextRaw[day] = arr;
-    onChange(asWeekdayMultiModeObject(nextRaw, daysToRender));
+    onChange(asWeekdayMultiModeObject(nextRaw, daysToRender, modeOptions));
   };
   // The coupled "mit wem" note (#1694) is shown the moment any care day allows
   // the accompanied mode, so parents can always say which child it is.
@@ -3480,7 +3502,7 @@ function WeekdayMultiModeInput({
                   {tr("structured.weekdayMultiModeUniformHint")}
                 </p>
                 <div className="grid gap-2 sm:grid-cols-2">
-                  {DEPARTURE_MULTI_MODE_OPTIONS.map((mode) => {
+                  {modeOptions.map((mode) => {
                     const checked = uniformSelection.includes(mode);
                     return (
                       <label
@@ -3533,7 +3555,7 @@ function WeekdayMultiModeInput({
                         {weekdayLabels[day] ?? day}
                       </div>
                       <div className="grid gap-2 sm:grid-cols-2">
-                        {DEPARTURE_MULTI_MODE_OPTIONS.map((mode) => {
+                        {modeOptions.map((mode) => {
                           const checked = modes[day]?.includes(mode) ?? false;
                           return (
                             <label
