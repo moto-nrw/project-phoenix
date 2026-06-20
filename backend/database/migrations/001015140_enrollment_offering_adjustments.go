@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	enrollmentOfferingAdjustmentsVersion     = "1.15.139"
+	enrollmentOfferingAdjustmentsVersion     = "1.15.140"
 	enrollmentOfferingAdjustmentsDescription = "Create audit trail for admin corrections to approved enrollment care offerings."
 )
 
@@ -21,7 +21,7 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.139: Creating audit.enrollment_offering_adjustments...")
+			fmt.Println("Migration 1.15.140: Creating audit.enrollment_offering_adjustments...")
 			if _, err := db.NewRaw(`
 				CREATE TABLE IF NOT EXISTS audit.enrollment_offering_adjustments (
 					id BIGSERIAL PRIMARY KEY,
@@ -73,7 +73,7 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.139: Dropping audit.enrollment_offering_adjustments...")
+			fmt.Println("Rolling back migration 1.15.140: Dropping audit.enrollment_offering_adjustments...")
 			if _, err := db.NewRaw(`
 				DROP TABLE IF EXISTS audit.enrollment_offering_adjustments CASCADE;
 			`).Exec(ctx); err != nil {
