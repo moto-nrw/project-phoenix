@@ -43,6 +43,58 @@ func createEnrollment(t *testing.T, db *bun.DB, studentID, groupID int64, enroll
 	return enrollment
 }
 
+func createEnrollmentRequestChildForStudentEnrollmentTest(t *testing.T, db *bun.DB, studentID int64) int64 {
+	t.Helper()
+	testpkg.EnsureTestTenant(t, db, 1)
+
+	ctx := context.Background()
+	token := fmt.Sprintf("student-enrollment-source-%d", time.Now().UnixNano())
+	phaseName := fmt.Sprintf("Student enrollment source %d", time.Now().UnixNano())
+	var phaseID int64
+	require.NoError(t, db.NewRaw(`
+		INSERT INTO enrollment.phases
+			(tenant_id, name, kind, service_start_date, service_end_date)
+		VALUES (1, ?, 'custom', '2026-09-01', '2027-07-31')
+		RETURNING id
+	`, phaseName).Scan(ctx, &phaseID))
+
+	var requestID int64
+	require.NoError(t, db.NewRaw(`
+		INSERT INTO enrollment.requests
+			(tenant_id, phase_id, guardian_first_name, guardian_last_name,
+			 guardian_email, consent_flags, custom_data, status_token, submitted_at)
+		VALUES (1, ?, 'Anna', 'Beispiel', ?, '{}'::jsonb, '{}'::jsonb, ?, NOW())
+		RETURNING id
+	`, phaseID, "student-enrollment-source@example.test", token).Scan(ctx, &requestID))
+
+	var childID int64
+	require.NoError(t, db.NewRaw(`
+		INSERT INTO enrollment.request_children
+			(tenant_id, request_id, first_name, last_name, date_of_birth,
+			 status, activation_mode, created_student_id, sort_order, custom_data)
+		VALUES (1, ?, 'Lina', 'Quelle', '2018-04-15',
+			'approved', 'scheduled', ?, 0, '{}'::jsonb)
+		RETURNING id
+	`, requestID, studentID).Scan(ctx, &childID))
+
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().
+			TableExpr("enrollment.request_children").
+			Where("tenant_id = 1 AND id = ?", childID).
+			Exec(context.Background())
+		_, _ = db.NewDelete().
+			TableExpr("enrollment.requests").
+			Where("tenant_id = 1 AND id = ?", requestID).
+			Exec(context.Background())
+		_, _ = db.NewDelete().
+			TableExpr("enrollment.phases").
+			Where("tenant_id = 1 AND id = ?", phaseID).
+			Exec(context.Background())
+	})
+
+	return childID
+}
+
 // ============================================================================
 // CRUD Tests
 // ============================================================================
@@ -739,6 +791,106 @@ func TestStudentEnrollmentRepository_DeleteByStudentGroupsAndWindow(t *testing.T
 	_, err = repo.DeleteByStudentGroupsAndWindow(ctx, 0, []int64{groupBounded.ID}, validFrom, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "student_id is required")
+}
+
+func TestStudentEnrollmentRepository_DeleteByEnrollmentRequestChild(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).StudentEnrollment
+	ctx := testpkg.TenantContext(1)
+
+	student := testpkg.CreateTestStudent(t, db, "DeleteSource", "Student", "1a")
+	groupFromEnrollment := testpkg.CreateTestActivityGroup(t, db, "DeleteSourceEnrollment")
+	groupManual := testpkg.CreateTestActivityGroup(t, db, "DeleteSourceManual")
+	requestChildID := createEnrollmentRequestChildForStudentEnrollmentTest(t, db, student.ID)
+	defer testpkg.CleanupActivityFixtures(t, db,
+		student.ID,
+		groupFromEnrollment.ID, groupFromEnrollment.CategoryID, *groupFromEnrollment.CreatedBy,
+		groupManual.ID, groupManual.CategoryID, *groupManual.CreatedBy,
+	)
+
+	validFrom := timezone.NewDate(2026, time.September, 1)
+	validUntil := timezone.NewDate(2027, time.July, 31)
+	sourcedEnrollment := &activities.StudentEnrollment{
+		StudentID:                student.ID,
+		ActivityGroupID:          groupFromEnrollment.ID,
+		ValidFrom:                validFrom,
+		ValidUntil:               &validUntil,
+		EnrollmentRequestChildID: &requestChildID,
+	}
+	manualEnrollment := &activities.StudentEnrollment{
+		StudentID:       student.ID,
+		ActivityGroupID: groupManual.ID,
+		ValidFrom:       validFrom,
+		ValidUntil:      &validUntil,
+	}
+	require.NoError(t, repo.Create(ctx, sourcedEnrollment))
+	require.NoError(t, repo.Create(ctx, manualEnrollment))
+	defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", sourcedEnrollment.ID, manualEnrollment.ID)
+
+	rows, err := repo.DeleteByEnrollmentRequestChild(ctx, student.ID, requestChildID)
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, rows)
+
+	_, err = repo.FindByID(ctx, sourcedEnrollment.ID)
+	assert.Error(t, err)
+	stillManual, err := repo.FindByID(ctx, manualEnrollment.ID)
+	require.NoError(t, err)
+	assert.Equal(t, groupManual.ID, stillManual.ActivityGroupID)
+
+	_, err = repo.DeleteByEnrollmentRequestChild(ctx, 0, requestChildID)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "student_id is required")
+	_, err = repo.DeleteByEnrollmentRequestChild(ctx, student.ID, 0)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "enrollment_request_child_id is required")
+}
+
+func TestStudentEnrollmentRepository_DeleteUnattributedByStudentGroupsAndWindow(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).StudentEnrollment
+	ctx := testpkg.TenantContext(1)
+
+	student := testpkg.CreateTestStudent(t, db, "DeleteLegacy", "Student", "1a")
+	group := testpkg.CreateTestActivityGroup(t, db, "DeleteLegacyGroup")
+	requestChildID := createEnrollmentRequestChildForStudentEnrollmentTest(t, db, student.ID)
+	defer testpkg.CleanupActivityFixtures(t, db,
+		student.ID,
+		group.ID, group.CategoryID, *group.CreatedBy,
+	)
+
+	validFrom := timezone.NewDate(2026, time.September, 1)
+	validUntil := timezone.NewDate(2027, time.July, 31)
+	legacyEnrollment := &activities.StudentEnrollment{
+		StudentID:       student.ID,
+		ActivityGroupID: group.ID,
+		ValidFrom:       validFrom,
+		ValidUntil:      &validUntil,
+	}
+	sourcedEnrollment := &activities.StudentEnrollment{
+		StudentID:                student.ID,
+		ActivityGroupID:          group.ID,
+		ValidFrom:                validFrom,
+		ValidUntil:               &validUntil,
+		EnrollmentRequestChildID: &requestChildID,
+	}
+	require.NoError(t, repo.Create(ctx, legacyEnrollment))
+	require.NoError(t, repo.Create(ctx, sourcedEnrollment))
+	defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", legacyEnrollment.ID, sourcedEnrollment.ID)
+
+	rows, err := repo.DeleteUnattributedByStudentGroupsAndWindow(ctx, student.ID, []int64{group.ID}, validFrom, &validUntil)
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, rows)
+
+	_, err = repo.FindByID(ctx, legacyEnrollment.ID)
+	assert.Error(t, err)
+	stillSourced, err := repo.FindByID(ctx, sourcedEnrollment.ID)
+	require.NoError(t, err)
+	require.NotNil(t, stillSourced.EnrollmentRequestChildID)
+	assert.Equal(t, requestChildID, *stillSourced.EnrollmentRequestChildID)
 }
 
 func TestStudentEnrollmentRepository_CloseOpenByGroupAndPeriod(t *testing.T) {

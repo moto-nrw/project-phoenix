@@ -188,6 +188,14 @@ type StudentEnrollmentRepository interface {
 	// a bounded set of activity groups, and an exact validity window.
 	DeleteByStudentGroupsAndWindow(ctx context.Context, studentID int64, groupIDs []int64, validFrom timezone.Date, validUntil *timezone.Date) (int64, error)
 
+	// DeleteUnattributedByStudentGroupsAndWindow removes legacy materialized
+	// rows that do not yet carry enrollment_request_child_id provenance.
+	DeleteUnattributedByStudentGroupsAndWindow(ctx context.Context, studentID int64, groupIDs []int64, validFrom timezone.Date, validUntil *timezone.Date) (int64, error)
+
+	// DeleteByEnrollmentRequestChild removes rows materialized from one
+	// approved enrollment request child for a specific student.
+	DeleteByEnrollmentRequestChild(ctx context.Context, studentID, requestChildID int64) (int64, error)
+
 	// CapActiveByGroup ends every still-active enrollment (valid_until IS
 	// NULL) of the given group at validUntil (exclusive). Returns the number
 	// of rows changed. Used by the template split (WP-B3).

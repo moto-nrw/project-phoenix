@@ -238,3 +238,70 @@ func TestMaterializeAndValidateChildrenOfferingSelectionsValidatesFinalAutoAdded
 
 	require.ErrorIs(t, err, ErrCareOfferingRule)
 }
+
+func TestMaterializeAndValidateChildrenOfferingSelectionsIgnoresAutoAddedOfferingForExactlyOne(t *testing.T) {
+	manualOfferingID := int64(1101)
+	automaticOfferingID := int64(1102)
+	openByID := map[int64]*enrollmentModels.CareOffering{
+		manualOfferingID: {
+			Model:          baseModels.Model{ID: manualOfferingID},
+			Name:           "Ganztag",
+			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+			AvailableDays:  []string{"mon", "wed"},
+			SortOrder:      1,
+		},
+		automaticOfferingID: {
+			Model:                     baseModels.Model{ID: automaticOfferingID},
+			Name:                      "Randstunde",
+			DaysOfWeekMode:            enrollmentModels.DaysOfWeekModeParentChoice,
+			AvailableDays:             []string{"mon", "wed"},
+			AutoAddTriggerOfferingIDs: []int64{manualOfferingID},
+			SortOrder:                 2,
+		},
+	}
+	children := []SubmitChild{{
+		OfferingIDs:  []int64{manualOfferingID},
+		OfferingDays: []SubmitOfferingDays{{OfferingID: manualOfferingID, SelectedDays: []string{"mon", "wed"}}},
+	}}
+
+	selections, err := materializeAndValidateChildrenOfferingSelections(children, openByID, enrollmentModels.PhaseCareOfferingSelectionExactlyOne)
+
+	require.NoError(t, err)
+	require.Len(t, selections, 1)
+	require.Len(t, selections[0], 2)
+	assert.Equal(t, []int64{manualOfferingID, automaticOfferingID}, children[0].OfferingIDs)
+	assert.Equal(t, []string{"mon", "wed"}, selections[0][1].AutomaticSelectedDays)
+}
+
+func TestMaterializeAndValidateChildrenOfferingSelectionsCountsManualAutoTargetForExactlyOne(t *testing.T) {
+	manualOfferingID := int64(1201)
+	automaticOfferingID := int64(1202)
+	openByID := map[int64]*enrollmentModels.CareOffering{
+		manualOfferingID: {
+			Model:          baseModels.Model{ID: manualOfferingID},
+			Name:           "Ganztag",
+			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+			AvailableDays:  []string{"mon"},
+			SortOrder:      1,
+		},
+		automaticOfferingID: {
+			Model:                     baseModels.Model{ID: automaticOfferingID},
+			Name:                      "Randstunde",
+			DaysOfWeekMode:            enrollmentModels.DaysOfWeekModeParentChoice,
+			AvailableDays:             []string{"mon"},
+			AutoAddTriggerOfferingIDs: []int64{manualOfferingID},
+			SortOrder:                 2,
+		},
+	}
+	children := []SubmitChild{{
+		OfferingIDs: []int64{manualOfferingID, automaticOfferingID},
+		OfferingDays: []SubmitOfferingDays{
+			{OfferingID: manualOfferingID, SelectedDays: []string{"mon"}},
+			{OfferingID: automaticOfferingID, SelectedDays: []string{"mon"}},
+		},
+	}}
+
+	_, err := materializeAndValidateChildrenOfferingSelections(children, openByID, enrollmentModels.PhaseCareOfferingSelectionExactlyOne)
+
+	require.ErrorIs(t, err, ErrCareOfferingExactlyOneRequired)
+}

@@ -239,10 +239,13 @@ func (s *decisionService) rematerializeAdjustedEnrollments(
 	if s.studentEnrollmentRepo == nil {
 		return nil
 	}
+	if _, err := s.studentEnrollmentRepo.DeleteByEnrollmentRequestChild(ctx, studentID, requestChildID); err != nil {
+		return fmt.Errorf("decision: delete sourced adjusted enrollments: %w", err)
+	}
 	groupIDs := activityGroupIDsForOfferingLinks(beforeLinks, afterLinks, offeringByID)
 	validUntil := phase.ServiceEndDate
-	if _, err := s.studentEnrollmentRepo.DeleteByStudentGroupsAndWindow(ctx, studentID, groupIDs, phase.ServiceStartDate, &validUntil); err != nil {
-		return fmt.Errorf("decision: delete previous adjusted enrollments: %w", err)
+	if _, err := s.studentEnrollmentRepo.DeleteUnattributedByStudentGroupsAndWindow(ctx, studentID, groupIDs, phase.ServiceStartDate, &validUntil); err != nil {
+		return fmt.Errorf("decision: delete legacy adjusted enrollments: %w", err)
 	}
 	return s.materializeEnrollments(ctx, requestChildID, studentID, phase)
 }

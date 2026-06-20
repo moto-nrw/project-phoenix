@@ -250,6 +250,17 @@ func (r *StudentEnrollmentRepository) UpdateAttendanceStatus(ctx context.Context
 // linked groups and phase window. It deliberately requires explicit group ids
 // and dates so callers do not wipe unrelated rosters.
 func (r *StudentEnrollmentRepository) DeleteByStudentGroupsAndWindow(ctx context.Context, studentID int64, groupIDs []int64, validFrom timezone.Date, validUntil *timezone.Date) (int64, error) {
+	return r.deleteByStudentGroupsAndWindow(ctx, studentID, groupIDs, validFrom, validUntil, false)
+}
+
+// DeleteUnattributedByStudentGroupsAndWindow removes legacy rows for one
+// student in the given linked groups and phase window, but only when the row
+// does not carry enrollment_request_child_id provenance.
+func (r *StudentEnrollmentRepository) DeleteUnattributedByStudentGroupsAndWindow(ctx context.Context, studentID int64, groupIDs []int64, validFrom timezone.Date, validUntil *timezone.Date) (int64, error) {
+	return r.deleteByStudentGroupsAndWindow(ctx, studentID, groupIDs, validFrom, validUntil, true)
+}
+
+func (r *StudentEnrollmentRepository) deleteByStudentGroupsAndWindow(ctx context.Context, studentID int64, groupIDs []int64, validFrom timezone.Date, validUntil *timezone.Date, unattributedOnly bool) (int64, error) {
 	if studentID <= 0 {
 		return 0, fmt.Errorf("student_id is required")
 	}
@@ -267,12 +278,40 @@ func (r *StudentEnrollmentRepository) DeleteByStudentGroupsAndWindow(ctx context
 	} else {
 		query = query.Where(`"student_enrollment".valid_until = ?`, *validUntil)
 	}
+	if unattributedOnly {
+		query = query.Where(`"student_enrollment".enrollment_request_child_id IS NULL`)
+	}
 	if where, val, ok := base.TenantWhere(ctx, "student_enrollment"); ok {
 		query = query.Where(where, val)
 	}
 	result, err := query.Exec(ctx)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "delete by student groups and window", Err: err}
+	}
+	rows, _ := result.RowsAffected()
+	return rows, nil
+}
+
+// DeleteByEnrollmentRequestChild removes rows materialized from one approved
+// enrollment request child for a specific student.
+func (r *StudentEnrollmentRepository) DeleteByEnrollmentRequestChild(ctx context.Context, studentID, requestChildID int64) (int64, error) {
+	if studentID <= 0 {
+		return 0, fmt.Errorf("student_id is required")
+	}
+	if requestChildID <= 0 {
+		return 0, fmt.Errorf("enrollment_request_child_id is required")
+	}
+	query := base.GetDB(ctx, r.db).NewDelete().
+		Model((*activities.StudentEnrollment)(nil)).
+		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
+		Where(`"student_enrollment".student_id = ?`, studentID).
+		Where(`"student_enrollment".enrollment_request_child_id = ?`, requestChildID)
+	if where, val, ok := base.TenantWhere(ctx, "student_enrollment"); ok {
+		query = query.Where(where, val)
+	}
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "delete by enrollment request child", Err: err}
 	}
 	rows, _ := result.RowsAffected()
 	return rows, nil

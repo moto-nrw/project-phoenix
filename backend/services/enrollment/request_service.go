@@ -832,6 +832,7 @@ func materializeAndValidateChildrenOfferingSelections(
 	if err := validateOfferingSelections(children, openByID); err != nil {
 		return nil, err
 	}
+	manualChildren := cloneSubmitChildrenOfferingSelections(children)
 	selections, err := materializeChildrenOfferingSelections(children, openByID)
 	if err != nil {
 		return nil, err
@@ -842,10 +843,28 @@ func materializeAndValidateChildrenOfferingSelections(
 	if err := validateRequiredOfferings(children, openByID); err != nil {
 		return nil, err
 	}
-	if err := validateCareOfferingSelectionMode(children, openByID, selectionMode); err != nil {
+	if err := validateCareOfferingSelectionMode(manualChildren, openByID, selectionMode); err != nil {
 		return nil, err
 	}
 	return selections, nil
+}
+
+func cloneSubmitChildrenOfferingSelections(children []SubmitChild) []SubmitChild {
+	out := make([]SubmitChild, len(children))
+	for i, child := range children {
+		out[i] = child
+		out[i].OfferingIDs = append([]int64(nil), child.OfferingIDs...)
+		if len(child.OfferingDays) > 0 {
+			out[i].OfferingDays = make([]SubmitOfferingDays, len(child.OfferingDays))
+			for j, row := range child.OfferingDays {
+				out[i].OfferingDays[j] = SubmitOfferingDays{
+					OfferingID:   row.OfferingID,
+					SelectedDays: copyDays(row.SelectedDays),
+				}
+			}
+		}
+	}
+	return out
 }
 
 func materializeOfferingSelections(child SubmitChild, openByID map[int64]*enrollmentModels.CareOffering) ([]materializedOfferingSelection, error) {

@@ -1726,11 +1726,12 @@ func (s *decisionService) materializeEnrollments(
 
 	for _, draft := range drafts {
 		row := &activities.StudentEnrollment{
-			StudentID:        studentID,
-			ActivityGroupID:  draft.activityGroupID,
-			ValidFrom:        validFrom,
-			ValidUntil:       &validUntil,
-			CalendarPeriodID: draft.calendarPeriodID,
+			StudentID:                studentID,
+			ActivityGroupID:          draft.activityGroupID,
+			ValidFrom:                validFrom,
+			ValidUntil:               &validUntil,
+			CalendarPeriodID:         draft.calendarPeriodID,
+			EnrollmentRequestChildID: &requestChildID,
 		}
 		if !draft.allWeekdays && len(draft.selectedWeekday) > 0 {
 			row.SelectedWeekdays = sortedWeekdaySet(draft.selectedWeekday)
