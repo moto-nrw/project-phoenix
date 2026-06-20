@@ -23,6 +23,26 @@ func validateDepartureCompanionNote(note *string) error {
 	return nil
 }
 
+// departureModesAllowAccompanied reports whether either the unified allowed
+// modes or the legacy-exclusive departure days allow the accompanied ("Mit
+// anderem Kind") departure mode on any weekday. Accompanied can only enter via
+// these two fields — the legacy bus/pickup maps cannot express it (#1694).
+func departureModesAllowAccompanied(allowed *users.AllowedDepartureModes, days *users.DepartureDays) bool {
+	if allowed != nil && allowed.HasMode(users.DepartureAccompanied) {
+		return true
+	}
+	if days != nil && days.HasMode(users.DepartureAccompanied) {
+		return true
+	}
+	return false
+}
+
+// isBlankCompanionNote reports whether the companion note is missing or
+// whitespace-only.
+func isBlankCompanionNote(note *string) bool {
+	return note == nil || strings.TrimSpace(*note) == ""
+}
+
 // Constants for date formats
 const (
 	dateFormatYYYYMMDD = "2006-01-02"
@@ -398,6 +418,15 @@ func (req *StudentRequest) Bind(_ *http.Request) error {
 	}
 	if err := validateDepartureCompanionNote(req.DepartureCompanionNote); err != nil {
 		return err
+	}
+	// A day that allows the accompanied ("Mit anderem Kind") departure mode is
+	// only complete with the coupled "mit wem" note. Reject it at the request
+	// boundary so a stale or direct API caller gets a 400 rather than the model's
+	// later invariant surfacing as a 500 on persist. On create there is no stored
+	// note to fall back on, so the request itself must carry it (#1694).
+	if departureModesAllowAccompanied(req.AllowedDepartureModes, req.DepartureDays) &&
+		isBlankCompanionNote(req.DepartureCompanionNote) {
+		return users.ErrDepartureCompanionNoteRequired
 	}
 
 	return nil

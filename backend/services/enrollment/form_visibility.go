@@ -252,6 +252,73 @@ func (s *requestService) validateRequiredCustomFields(
 	return nil
 }
 
+// validateAccompaniedCompanionNote enforces the coupled "mit wem" note at the
+// public submit boundary: a child whose visible departure field actually allows
+// the accompanied ("Mit anderem Kind") mode must carry a non-blank companion
+// note on the reserved custom-data key. Without this gate a stale or scripted
+// client could submit an accompanied plan with no note, which persists fine but
+// then permanently blocks approval — studentRepo.Update rejects the model
+// invariant. Mirrors the same defense-in-depth other submit-time field checks
+// apply so a submittable request can never get stuck at approval (#1694).
+func (s *requestService) validateAccompaniedCompanionNote(
+	schema *enrollmentModels.FormSchema,
+	req SubmitRequest,
+	openByID map[int64]*enrollmentModels.CareOffering,
+) error {
+	if schema == nil {
+		return nil
+	}
+	byKey := buildFieldsByKey(schema)
+	for idx := range req.Children {
+		child := req.Children[idx]
+		childCtx := fieldVisibilityContext{
+			guardianAnswers: req.CustomData,
+			childAnswers:    child.CustomData,
+			gradeLevel:      child.TargetGradeLevel,
+			offeringNames:   selectedOfferingNames(child, openByID),
+			fieldsByKey:     byKey,
+		}
+		if !childDepartureAllowsAccompanied(schema, child, childCtx) {
+			continue
+		}
+		if strings.TrimSpace(stringValue(child.CustomData[enrollmentModels.TargetStudentDepartureCompanionNote])) == "" {
+			return fmt.Errorf("%w: child %d accompanied departure requires a companion note", ErrInvalidSubmission, idx)
+		}
+	}
+	return nil
+}
+
+// childDepartureAllowsAccompanied reports whether any visible per-child
+// departure field (unified allowed modes or the legacy-exclusive departure
+// field) submits a plan that allows the accompanied mode. On a decode error the
+// field is treated as not-accompanied: the decision service is the authoritative
+// guard and rejects a malformed value there.
+func childDepartureAllowsAccompanied(
+	schema *enrollmentModels.FormSchema,
+	child SubmitChild,
+	ctx fieldVisibilityContext,
+) bool {
+	for i := range schema.Fields {
+		f := &schema.Fields[i]
+		if !f.AppliesToCh || !fieldVisible(f, ctx) {
+			continue
+		}
+		switch f.Target {
+		case enrollmentModels.TargetStudentAllowedDepartureModes:
+			if modes, err := decodeAllowedDepartureModes(child.CustomData[f.Key]); err == nil &&
+				modes.HasMode(users.DepartureAccompanied) {
+				return true
+			}
+		case enrollmentModels.TargetStudentDeparture:
+			if days, err := decodeDepartureDays(child.CustomData[f.Key]); err == nil &&
+				days.HasMode(users.DepartureAccompanied) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // customAnswerSatisfiesRequired reports whether a required field is answered,
 // pulling the value out of the answer map so it can distinguish a *missing*
 // key from a present-but-empty value. This matters only for the pickup target:

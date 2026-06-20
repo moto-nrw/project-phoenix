@@ -296,12 +296,31 @@ func buildExportRows(students []StudentResponse, weekly map[int64]weeklySchedule
 			listexport.ColumnWeeklyFriday:    weeklyCell(plan, schedule.WeekdayFriday),
 			listexport.ColumnPlannedArrival:  ptrValue(student.ArrivalTime),
 			listexport.ColumnPlannedPickup:   ptrValue(student.PickupTime),
-			listexport.ColumnDeparture:       departureSummary(student.AllowedDepartureModes, student.DepartureDays),
+			listexport.ColumnDeparture:       departureExportCell(student),
 			listexport.ColumnDailyNotes:      dailyNotes(student),
 			listexport.ColumnCurrentLocation: student.Location,
 		}})
 	}
 	return rows
+}
+
+// departureExportCell renders the per-weekday departure plan and appends the
+// coupled "mit wem" companion note whenever the plan allows the accompanied
+// ("Mit anderem Kind") mode, so offline pickup/weekly lists carry the
+// actionable "with whom" detail staff need to act on (#1694).
+func departureExportCell(student StudentResponse) string {
+	summary := departureSummary(student.AllowedDepartureModes, student.DepartureDays)
+	if student.DepartureCompanionNote == "" {
+		return summary
+	}
+	allowed := student.AllowedDepartureModes.Normalize()
+	if !allowed.HasAny() {
+		allowed = users.AllowedDepartureModesFromDeparture(student.DepartureDays)
+	}
+	if !allowed.HasMode(users.DepartureAccompanied) {
+		return summary
+	}
+	return summary + " (mit: " + student.DepartureCompanionNote + ")"
 }
 
 // departureSummary renders the per-weekday departure plan for the export, e.g.

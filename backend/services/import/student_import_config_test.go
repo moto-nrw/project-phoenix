@@ -333,6 +333,65 @@ func TestStudentImportConfig_Validate_ConsentDates(t *testing.T) {
 	})
 }
 
+// TestStudentImportConfig_Validate_AccompaniedCompanionNote pins the import
+// preview gate for the accompanied departure mode (#1694): a row that sets any
+// Gehweise cell to "Mit anderem Kind" but leaves Begleitung blank must surface
+// a row error in the preview pass, before createStudentFromRow builds a student
+// the model rejects mid-import.
+func TestStudentImportConfig_Validate_AccompaniedCompanionNote(t *testing.T) {
+	config := &StudentImportConfig{
+		resolver: &RelationshipResolver{
+			groupCache: make(map[string]*education.Group),
+		},
+	}
+
+	hasBegleitungError := func(errs []importModels.ValidationError) bool {
+		for _, e := range errs {
+			if e.Field == "begleitung" && e.Severity == importModels.ErrorSeverityError {
+				return true
+			}
+		}
+		return false
+	}
+
+	t.Run("accompanied day without Begleitung is flagged", func(t *testing.T) {
+		row := importModels.StudentImportRow{
+			FirstName:         "Max",
+			LastName:          "Mustermann",
+			SchoolClass:       "1A",
+			DataRetentionDays: 30,
+			DepartureDays:     map[string]string{"mon": "accompanied"},
+		}
+		errs := config.Validate(context.Background(), &row)
+		assert.True(t, hasBegleitungError(errs), "expected a begleitung error, got %+v", errs)
+	})
+
+	t.Run("accompanied day with Begleitung passes", func(t *testing.T) {
+		row := importModels.StudentImportRow{
+			FirstName:              "Max",
+			LastName:               "Mustermann",
+			SchoolClass:            "1A",
+			DataRetentionDays:      30,
+			DepartureDays:          map[string]string{"mon": "accompanied"},
+			DepartureCompanionNote: "Geschwisterkind Lena",
+		}
+		errs := config.Validate(context.Background(), &row)
+		assert.False(t, hasBegleitungError(errs), "unexpected begleitung error: %+v", errs)
+	})
+
+	t.Run("non-accompanied plan needs no Begleitung", func(t *testing.T) {
+		row := importModels.StudentImportRow{
+			FirstName:         "Max",
+			LastName:          "Mustermann",
+			SchoolClass:       "1A",
+			DataRetentionDays: 30,
+			DepartureDays:     map[string]string{"mon": "bus"},
+		}
+		errs := config.Validate(context.Background(), &row)
+		assert.False(t, hasBegleitungError(errs), "unexpected begleitung error: %+v", errs)
+	})
+}
+
 func TestStudentImportConfig_Validate_DataRetention(t *testing.T) {
 	config := &StudentImportConfig{
 		resolver: &RelationshipResolver{

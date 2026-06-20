@@ -32,6 +32,12 @@ const (
 // staff and parent free-text from storing an unbounded payload.
 const MaxDepartureCompanionNoteLen = 255
 
+// ErrDepartureCompanionNoteRequired is returned by Validate when a day allows
+// the accompanied ("Mit anderem Kind") departure mode but no companion note is
+// set. Exported as a sentinel so HTTP handlers can map this client-input
+// violation to a 400 instead of leaking the model error as a 500 (#1694).
+var ErrDepartureCompanionNoteRequired = errors.New("departure_companion_note is required when a day allows the accompanied departure mode")
+
 // Student represents a student in the system
 type Student struct {
 	base.Model `bun:"schema:users,table:students"`
@@ -191,7 +197,7 @@ func (s *Student) Validate() error {
 	if s.DepartureCompanionNote == nil &&
 		(s.AllowedDepartureModes.HasMode(DepartureAccompanied) ||
 			s.DepartureDays.HasMode(DepartureAccompanied)) {
-		return errors.New("departure_companion_note is required when a day allows the accompanied departure mode")
+		return ErrDepartureCompanionNoteRequired
 	}
 
 	return nil

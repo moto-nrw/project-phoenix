@@ -204,6 +204,21 @@ func (c *StudentImportConfig) Validate(ctx context.Context, row *importModels.St
 	errors = append(errors, validateArrivalSchedules(row.ArrivalSchedules)...)
 	errors = append(errors, validatePickupSchedules(row.PickupSchedules)...)
 
+	// 5c. Coupled "mit wem" note: a row that sets any Gehweise.* cell to "Mit
+	// anderem Kind" (accompanied) needs a non-blank Begleitung. Surface it in the
+	// preview pass so the user sees the row error before importing, rather than
+	// having createStudentFromRow build an accompanied student the model rejects
+	// mid-import (#1694).
+	if departurePlanFromImportRow(*row).HasMode(users.DepartureAccompanied) &&
+		strings.TrimSpace(row.DepartureCompanionNote) == "" {
+		errors = append(errors, importModels.ValidationError{
+			Field:    "begleitung",
+			Message:  "Begleitung ist erforderlich, wenn an einem Tag 'Mit anderem Kind' als Heimweg gewählt ist.",
+			Code:     "required",
+			Severity: importModels.ErrorSeverityError,
+		})
+	}
+
 	// 6. Birthday validation (if provided)
 	if trimmedBirthday := strings.TrimSpace(row.Birthday); trimmedBirthday != "" {
 		parsedBirthday, err := parseSupportedDate(trimmedBirthday)

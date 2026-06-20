@@ -17,6 +17,59 @@ import (
 
 func gradePtr(v int16) *int16 { return &v }
 
+// TestValidateAccompaniedCompanionNote pins the submit-side coupling gate
+// (#1694): a child whose visible departure field allows the accompanied ("Mit
+// anderem Kind") mode must carry a non-blank companion note, so a stale or
+// scripted submit can never be persisted into an un-approvable state.
+func TestValidateAccompaniedCompanionNote(t *testing.T) {
+	svc := &requestService{}
+	grade := gradePtr(2)
+	schema := &enrollmentModels.FormSchema{Fields: []enrollmentModels.FormField{{
+		Key:         "allowed_modes",
+		Type:        enrollmentModels.FormFieldWeekdayMultiMode,
+		Target:      enrollmentModels.TargetStudentAllowedDepartureModes,
+		AppliesToCh: true,
+	}}}
+	withChild := func(custom map[string]any) SubmitRequest {
+		return SubmitRequest{Children: []SubmitChild{{
+			FirstName:        "Comp",
+			LastName:         "Child",
+			TargetGradeLevel: grade,
+			CustomData:       custom,
+		}}}
+	}
+
+	t.Run("accompanied without note is rejected", func(t *testing.T) {
+		err := svc.validateAccompaniedCompanionNote(schema, withChild(map[string]any{
+			"allowed_modes": map[string]any{"mon": []any{"accompanied"}},
+		}), nil)
+		require.ErrorIs(t, err, ErrInvalidSubmission)
+	})
+
+	t.Run("accompanied with a blank note is rejected", func(t *testing.T) {
+		err := svc.validateAccompaniedCompanionNote(schema, withChild(map[string]any{
+			"allowed_modes": map[string]any{"mon": []any{"accompanied"}},
+			enrollmentModels.TargetStudentDepartureCompanionNote: "   ",
+		}), nil)
+		require.ErrorIs(t, err, ErrInvalidSubmission)
+	})
+
+	t.Run("accompanied with a note is accepted", func(t *testing.T) {
+		err := svc.validateAccompaniedCompanionNote(schema, withChild(map[string]any{
+			"allowed_modes": map[string]any{"mon": []any{"accompanied"}},
+			enrollmentModels.TargetStudentDepartureCompanionNote: "Geschwisterkind Mia",
+		}), nil)
+		require.NoError(t, err)
+	})
+
+	t.Run("non-accompanied plan needs no note", func(t *testing.T) {
+		err := svc.validateAccompaniedCompanionNote(schema, withChild(map[string]any{
+			"allowed_modes": map[string]any{"mon": []any{"bus"}},
+		}), nil)
+		require.NoError(t, err)
+	})
+}
+
 // ---- customValueSatisfiesRequired ---------------------------------------
 
 func TestCustomValueSatisfiesRequired(t *testing.T) {

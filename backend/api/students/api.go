@@ -1421,6 +1421,16 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 			renderError(w, r, ErrorNotFound(errors.New("student not found")))
 			return
 		}
+		// The merged plan (request modes applied onto the stored row) can violate
+		// the accompanied-requires-note invariant — e.g. a caller sets a "Mit
+		// anderem Kind" day on a child with no stored note. That is client input,
+		// so surface it as a 400 rather than the model error leaking as a 500
+		// (#1694). The binder cannot catch this on update: only here is the
+		// stored note visible to fall back on.
+		if errors.Is(err, users.ErrDepartureCompanionNoteRequired) {
+			renderError(w, r, ErrorInvalidRequest(err))
+			return
+		}
 		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
