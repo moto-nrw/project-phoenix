@@ -185,7 +185,16 @@ func sanitizeVisibleAnswers(
 			}
 		}
 		if keepNote {
-			out[enrollmentModels.TargetStudentDepartureCompanionNote] = note
+			// Bound the free-text note before it is persisted and echoed in admin
+			// review/export. The custom_data value (and the student column) is
+			// unbounded TEXT, so a client that bypasses the React maxLength could
+			// otherwise store an arbitrarily large note here — a storage/echo
+			// surface that survives until approval. Cap it at the same rune limit
+			// the approval path applies (truncateRunes), so the stored request and
+			// the approved student row carry the same value. Normalizing to a
+			// string also prevents a non-string blob from riding the reserved key.
+			out[enrollmentModels.TargetStudentDepartureCompanionNote] =
+				truncateRunes(stringValue(note), users.MaxDepartureCompanionNoteLen)
 		}
 	}
 	return out

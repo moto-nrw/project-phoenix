@@ -2,12 +2,15 @@ package enrollment
 
 import (
 	"errors"
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // Server-side visibility evaluation + required-custom-field enforcement.
@@ -282,6 +285,23 @@ func TestSanitizeVisibleAnswers_CompanionNote(t *testing.T) {
 		}
 		out := sanitizeVisibleAnswers(schema, true, values, ctxFor(schema, values))
 		assert.Equal(t, note, out[noteKey], "note must survive for unified accompanied plan")
+	})
+
+	t.Run("oversized note is bounded before storage", func(t *testing.T) {
+		schema := schemaWith(enrollmentModels.TargetStudentAllowedDepartureModes)
+		// A client that bypasses the React maxLength must not get an unbounded
+		// note persisted into custom_data (a storage/echo surface before
+		// approval). It is capped at MaxDepartureCompanionNoteLen runes (#1694).
+		oversized := strings.Repeat("ä", users.MaxDepartureCompanionNoteLen+50)
+		values := map[string]any{
+			"dep":   map[string]any{"mon": []any{"accompanied"}},
+			noteKey: oversized,
+		}
+		out := sanitizeVisibleAnswers(schema, true, values, ctxFor(schema, values))
+		stored, ok := out[noteKey].(string)
+		require.True(t, ok, "stored note must be a string")
+		assert.Equal(t, users.MaxDepartureCompanionNoteLen, utf8.RuneCountInString(stored),
+			"oversized note must be truncated to the rune cap")
 	})
 }
 
