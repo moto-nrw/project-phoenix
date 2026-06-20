@@ -2,6 +2,7 @@ package activities_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -634,6 +636,173 @@ func TestStudentEnrollmentRepository_UpdateAttendanceStatus(t *testing.T) {
 	})
 }
 
+func TestStudentEnrollmentRepository_CapActiveByGroup(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).StudentEnrollment
+	ctx := testpkg.TenantContext(1)
+
+	activeStudent := testpkg.CreateTestStudent(t, db, "CapActive", "Open", "1a")
+	closedStudent := testpkg.CreateTestStudent(t, db, "CapActive", "Closed", "1a")
+	group := testpkg.CreateTestActivityGroup(t, db, "CapActiveGroup")
+	defer testpkg.CleanupActivityFixtures(t, db,
+		activeStudent.ID, closedStudent.ID,
+		group.ID, group.CategoryID, *group.CreatedBy,
+	)
+
+	validFrom := timezone.NewDate(2026, time.September, 1)
+	existingUntil := timezone.NewDate(2026, time.December, 31)
+	capUntil := timezone.NewDate(2026, time.October, 1)
+	activeEnrollment := &activities.StudentEnrollment{
+		StudentID:       activeStudent.ID,
+		ActivityGroupID: group.ID,
+		ValidFrom:       validFrom,
+	}
+	closedEnrollment := &activities.StudentEnrollment{
+		StudentID:       closedStudent.ID,
+		ActivityGroupID: group.ID,
+		ValidFrom:       validFrom,
+		ValidUntil:      &existingUntil,
+	}
+	require.NoError(t, repo.Create(ctx, activeEnrollment))
+	require.NoError(t, repo.Create(ctx, closedEnrollment))
+	defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", activeEnrollment.ID, closedEnrollment.ID)
+
+	rows, err := repo.CapActiveByGroup(ctx, group.ID, capUntil)
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, rows)
+
+	gotActive, err := repo.FindByID(ctx, activeEnrollment.ID)
+	require.NoError(t, err)
+	require.NotNil(t, gotActive.ValidUntil)
+	assert.Equal(t, capUntil, *gotActive.ValidUntil)
+
+	gotClosed, err := repo.FindByID(ctx, closedEnrollment.ID)
+	require.NoError(t, err)
+	require.NotNil(t, gotClosed.ValidUntil)
+	assert.Equal(t, existingUntil, *gotClosed.ValidUntil)
+}
+
+func TestStudentEnrollmentRepository_DeleteByStudentGroupsAndWindow(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).StudentEnrollment
+	ctx := testpkg.TenantContext(1)
+
+	student := testpkg.CreateTestStudent(t, db, "DeleteWindow", "Student", "1a")
+	groupOpen := testpkg.CreateTestActivityGroup(t, db, "DeleteWindowOpen")
+	groupBounded := testpkg.CreateTestActivityGroup(t, db, "DeleteWindowBounded")
+	defer testpkg.CleanupActivityFixtures(t, db,
+		student.ID,
+		groupOpen.ID, groupOpen.CategoryID, *groupOpen.CreatedBy,
+		groupBounded.ID, groupBounded.CategoryID, *groupBounded.CreatedBy,
+	)
+
+	validFrom := timezone.NewDate(2026, time.September, 1)
+	validUntil := timezone.NewDate(2027, time.July, 31)
+	openEnrollment := &activities.StudentEnrollment{
+		StudentID:       student.ID,
+		ActivityGroupID: groupOpen.ID,
+		ValidFrom:       validFrom,
+	}
+	boundedEnrollment := &activities.StudentEnrollment{
+		StudentID:       student.ID,
+		ActivityGroupID: groupBounded.ID,
+		ValidFrom:       validFrom,
+		ValidUntil:      &validUntil,
+	}
+	require.NoError(t, repo.Create(ctx, openEnrollment))
+	require.NoError(t, repo.Create(ctx, boundedEnrollment))
+	defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", openEnrollment.ID, boundedEnrollment.ID)
+
+	rows, err := repo.DeleteByStudentGroupsAndWindow(ctx, student.ID, nil, validFrom, nil)
+	require.NoError(t, err)
+	assert.Zero(t, rows)
+
+	rows, err = repo.DeleteByStudentGroupsAndWindow(ctx, student.ID, []int64{groupOpen.ID, groupBounded.ID}, validFrom, nil)
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, rows)
+
+	_, err = repo.FindByID(ctx, openEnrollment.ID)
+	assert.Error(t, err)
+	stillBounded, err := repo.FindByID(ctx, boundedEnrollment.ID)
+	require.NoError(t, err)
+	require.NotNil(t, stillBounded.ValidUntil)
+	assert.Equal(t, validUntil, *stillBounded.ValidUntil)
+
+	rows, err = repo.DeleteByStudentGroupsAndWindow(ctx, student.ID, []int64{groupBounded.ID}, validFrom, &validUntil)
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, rows)
+
+	_, err = repo.DeleteByStudentGroupsAndWindow(ctx, 0, []int64{groupBounded.ID}, validFrom, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "student_id is required")
+}
+
+func TestStudentEnrollmentRepository_CloseOpenByGroupAndPeriod(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repoFactory := repositories.NewFactory(db)
+	repo := repoFactory.StudentEnrollment
+	ctx := testpkg.TenantContext(1)
+
+	studentNoPeriod := testpkg.CreateTestStudent(t, db, "CloseOpen", "NoPeriod", "1a")
+	studentWithPeriod := testpkg.CreateTestStudent(t, db, "CloseOpen", "WithPeriod", "1a")
+	group := testpkg.CreateTestActivityGroup(t, db, "CloseOpenPeriod")
+	period := &scheduleModels.CalendarPeriod{
+		Name:            fmt.Sprintf("CloseOpenPeriod-%d", time.Now().UnixNano()),
+		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
+		StartDate:       timezone.NewDate(2026, time.September, 1),
+		EndDate:         timezone.NewDate(2027, time.July, 31),
+		WeekCycleLength: 1,
+		IsActive:        true,
+	}
+	require.NoError(t, repoFactory.CalendarPeriod.Create(ctx, period))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", period.ID)
+	defer testpkg.CleanupActivityFixtures(t, db,
+		studentNoPeriod.ID, studentWithPeriod.ID,
+		group.ID, group.CategoryID, *group.CreatedBy,
+	)
+
+	validFrom := timezone.NewDate(2026, time.September, 1)
+	closeAt := timezone.NewDate(2026, time.October, 1)
+	noPeriod := &activities.StudentEnrollment{
+		StudentID:       studentNoPeriod.ID,
+		ActivityGroupID: group.ID,
+		ValidFrom:       validFrom,
+	}
+	withPeriod := &activities.StudentEnrollment{
+		StudentID:        studentWithPeriod.ID,
+		ActivityGroupID:  group.ID,
+		CalendarPeriodID: &period.ID,
+		ValidFrom:        validFrom,
+		SelectedWeekdays: []int{1, 3},
+		AttendanceStatus: nil,
+	}
+	require.NoError(t, repo.Create(ctx, noPeriod))
+	require.NoError(t, repo.Create(ctx, withPeriod))
+	defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", noPeriod.ID, withPeriod.ID)
+
+	require.NoError(t, repo.CloseOpenByGroupAndPeriod(ctx, group.ID, nil, closeAt))
+	gotNoPeriod, err := repo.FindByID(ctx, noPeriod.ID)
+	require.NoError(t, err)
+	require.NotNil(t, gotNoPeriod.ValidUntil)
+	assert.Equal(t, closeAt, *gotNoPeriod.ValidUntil)
+
+	gotWithPeriod, err := repo.FindByID(ctx, withPeriod.ID)
+	require.NoError(t, err)
+	assert.Nil(t, gotWithPeriod.ValidUntil)
+
+	require.NoError(t, repo.CloseOpenByGroupAndPeriod(ctx, group.ID, &period.ID, closeAt))
+	gotWithPeriod, err = repo.FindByID(ctx, withPeriod.ID)
+	require.NoError(t, err)
+	require.NotNil(t, gotWithPeriod.ValidUntil)
+	assert.Equal(t, closeAt, *gotWithPeriod.ValidUntil)
+}
+
 // ============================================================================
 // Edge Cases
 // ============================================================================
@@ -698,4 +867,15 @@ func TestStudentEnrollmentRepository_QueryErrorsAreWrapped(t *testing.T) {
 	_, err = repo.List(ctx, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "list")
+
+	_, err = repo.CapActiveByGroup(ctx, 900800, from)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cap active enrollments by group")
+
+	_, err = repo.DeleteByStudentGroupsAndWindow(ctx, 900900, []int64{901000}, from, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "delete by student groups and window")
+
+	err = repo.CloseOpenByGroupAndPeriod(ctx, 901100, nil, from)
+	require.Error(t, err)
 }
