@@ -854,6 +854,7 @@ func (s *FormSchema) Validate() error {
 		legalByKey[s.LegalBlocks[i].Key] = true
 	}
 	byKey := make(map[string]*FormField, len(s.Fields))
+	seenTarget := make(map[string]string, len(s.Fields))
 	for i := range s.Fields {
 		if err := s.Fields[i].Validate(); err != nil {
 			return fmt.Errorf("field %d: %w", i, err)
@@ -862,6 +863,17 @@ func (s *FormSchema) Validate() error {
 			return fmt.Errorf("duplicate form field key %q", s.Fields[i].Key)
 		}
 		byKey[s.Fields[i].Key] = &s.Fields[i]
+		// A reserved target writes one specific Stammdaten column on approval, so
+		// two fields pointing at the same target produce an undefined last-field-wins
+		// outcome — the safety-sensitive departure plan in particular can silently
+		// collapse back into self-goer semantics (#1694). Free custom fields (empty
+		// target) may repeat. Keep in sync with the editor's reserved-targets picker.
+		if t := s.Fields[i].Target; t != "" {
+			if firstKey, dup := seenTarget[t]; dup {
+				return fmt.Errorf("duplicate field target %q on fields %q and %q", t, firstKey, s.Fields[i].Key)
+			}
+			seenTarget[t] = s.Fields[i].Key
+		}
 	}
 
 	// Second pass: validate cross-field visibility references now that

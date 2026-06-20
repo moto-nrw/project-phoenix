@@ -812,6 +812,89 @@ func TestDecisionService_Decide_SkipsCompanionNoteWithoutAccompanied(t *testing.
 		"companion note must not be applied without an accompanied day")
 }
 
+// TestDecisionService_Decide_MergesDuplicateAllowedDepartureFields covers the
+// last-field-wins data loss (#1694): a legacy schema (created before
+// FormSchema.Validate rejected duplicate targets) carries TWO fields targeting
+// student.allowed_departure_modes — the first allows accompanied, the later one
+// only bus. Validation/sanitization accept the submission on any-field semantics,
+// so approval must MERGE the fields (union) rather than let the later bus-only
+// field silently drop the accompanied mode and its companion note. The schema is
+// inserted raw to reproduce the pre-validation shape that the model now forbids.
+func TestDecisionService_Decide_MergesDuplicateAllowedDepartureFields(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	// Raw insert bypasses FormSchema.Validate (which now rejects duplicate
+	// targets), reproducing a legacy schema already persisted in the DB.
+	schema := &enrollmentModels.FormSchema{
+		Name:      "legacy-dup-departure",
+		Version:   1,
+		CreatedBy: env.creatorID,
+		Fields: []enrollmentModels.FormField{
+			{Key: "modes_a", Label: "Erlaubte Heimwege", Type: enrollmentModels.FormFieldWeekdayMultiMode, Target: enrollmentModels.TargetStudentAllowedDepartureModes, AppliesToCh: true, SortOrder: 0},
+			{Key: "modes_b", Label: "Heimwege (Kopie)", Type: enrollmentModels.FormFieldWeekdayMultiMode, Target: enrollmentModels.TargetStudentAllowedDepartureModes, AppliesToCh: true, SortOrder: 1},
+		},
+	}
+	schema.SetTenantID(1)
+	_, err := env.db.NewInsert().Model(schema).
+		ModelTableExpr(`enrollment.form_schemas AS "form_schema"`).
+		Returning("*").Exec(ctx)
+	require.NoError(t, err)
+	require.Greater(t, schema.ID, int64(0))
+	// The schema row is left to the env teardown: requests created below hold an
+	// FK to it, mirroring the other schema-creating tests in this file.
+
+	env.sourcePhase.FormSchemaID = &schema.ID
+	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
+
+	grade := int16(2)
+	res, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
+		TenantID:          1,
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "Test",
+		GuardianEmail:     "dup-departure@example.com",
+		ConsentFlags: map[string]any{
+			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
+		},
+		Children: []enrollmentService.SubmitChild{{
+			FirstName:        "Merge",
+			LastName:         "Child",
+			DateOfBirth:      timezone.NewDate(2018, 4, 15),
+			TargetGradeLevel: &grade,
+			CustomData: map[string]any{
+				// Earlier field allows accompanied; later field only bus. The later
+				// field must NOT erase the accompanied mode from the earlier one.
+				"modes_a": map[string]any{"mon": []any{"accompanied"}},
+				"modes_b": map[string]any{"mon": []any{"bus"}},
+				enrollmentModels.TargetStudentDepartureCompanionNote: "Geschwisterkind Mia (1b)",
+			},
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, res.Children, 1)
+
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  res.Request.ID,
+		ChildID:    res.Children[0].ID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	student, err := env.repos.Student.FindByID(ctx, *outcome.Child.CreatedStudentID)
+	require.NoError(t, err)
+	assert.True(t, student.AllowedDepartureModes.HasMode(usersModels.DepartureAccompanied),
+		"accompanied mode from the earlier field must survive the merge")
+	require.NotNil(t, student.DepartureCompanionNote, "companion note must survive the merge")
+	assert.Equal(t, "Geschwisterkind Mia (1b)", *student.DepartureCompanionNote)
+	require.NotNil(t, student.PickupStatus)
+	assert.Equal(t, usersModels.PickupStatusAccompanied, *student.PickupStatus,
+		"legacy pickup_status must reflect accompanied, not collapse to self-goer")
+}
+
 // ---- Decide: activation mode (enrollment.default_activation_mode) -------
 
 // Default / "scheduled": an approved child becomes a PENDING student

@@ -216,3 +216,104 @@ func TestDepartureAccompaniedMode(t *testing.T) {
 		}
 	})
 }
+
+// TestAllowedDepartureModesLegacyPickupStatus locks the safety-critical
+// derivation that the exclusive DepartureDays() projection cannot express: a day
+// allowing BOTH bus and accompanied must still report the accompanied status,
+// because the projection ranks bus above accompanied and would otherwise bucket
+// the child as a self-goer (#1694).
+func TestAllowedDepartureModesLegacyPickupStatus(t *testing.T) {
+	tests := []struct {
+		name  string
+		modes AllowedDepartureModes
+		want  string
+	}{
+		{name: "empty goes alone", modes: AllowedDepartureModes{}, want: PickupStatusGoesAlone},
+		{name: "bus only goes alone", modes: AllowedDepartureModes{PickupDayMonday: {DepartureBus}}, want: PickupStatusGoesAlone},
+		{name: "accompanied only", modes: AllowedDepartureModes{PickupDayMonday: {DepartureAccompanied}}, want: PickupStatusAccompanied},
+		{
+			name:  "bus and accompanied same day keeps accompanied",
+			modes: AllowedDepartureModes{PickupDayMonday: {DepartureBus, DepartureAccompanied}},
+			want:  PickupStatusAccompanied,
+		},
+		{
+			name:  "bus one day accompanied another keeps accompanied",
+			modes: AllowedDepartureModes{PickupDayMonday: {DepartureBus}, PickupDayTuesday: {DepartureAccompanied}},
+			want:  PickupStatusAccompanied,
+		},
+		{
+			name:  "pickup outranks accompanied",
+			modes: AllowedDepartureModes{PickupDayMonday: {DepartureAccompanied, DeparturePickup}},
+			want:  PickupStatusPickedUp,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.modes.LegacyPickupStatus(); got != tt.want {
+				t.Fatalf("LegacyPickupStatus() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestAllowedDepartureModesMerge covers the union used when one submission
+// carries multiple fields targeting allowed_departure_modes: a later field never
+// drops a mode an earlier field allowed (#1694).
+func TestAllowedDepartureModesMerge(t *testing.T) {
+	t.Run("union preserves accompanied from the earlier field", func(t *testing.T) {
+		first := AllowedDepartureModes{PickupDayMonday: {DepartureAccompanied}}
+		second := AllowedDepartureModes{PickupDayMonday: {DepartureBus}}
+		got := first.Merge(second)
+		if !allowedModesContain(got[PickupDayMonday], DepartureAccompanied) {
+			t.Fatalf("merge dropped accompanied: %#v", got[PickupDayMonday])
+		}
+		if !allowedModesContain(got[PickupDayMonday], DepartureBus) {
+			t.Fatalf("merge dropped bus: %#v", got[PickupDayMonday])
+		}
+	})
+
+	t.Run("dedupes and normalizes", func(t *testing.T) {
+		first := AllowedDepartureModes{PickupDayMonday: {DepartureBus, DepartureAccompanied}}
+		second := AllowedDepartureModes{PickupDayMonday: {DepartureAccompanied}}
+		got := first.Merge(second)
+		if len(got[PickupDayMonday]) != 2 {
+			t.Fatalf("merge mon = %#v, want 2 deduped modes", got[PickupDayMonday])
+		}
+		// Normalized canonical order: bus before accompanied.
+		if got[PickupDayMonday][0] != DepartureBus || got[PickupDayMonday][1] != DepartureAccompanied {
+			t.Fatalf("merge mon order = %#v, want [bus accompanied]", got[PickupDayMonday])
+		}
+	})
+}
+
+// TestDepartureDaysMerge covers merging two exclusive plans: the higher-stakes
+// mode wins per day, and accompanied always beats bus so the merge never drops
+// the "Mit anderem Kind" signal (#1694).
+func TestDepartureDaysMerge(t *testing.T) {
+	t.Run("accompanied beats bus", func(t *testing.T) {
+		got := DepartureDays{PickupDayMonday: DepartureAccompanied}.
+			Merge(DepartureDays{PickupDayMonday: DepartureBus})
+		if got.ModeFor(PickupDayMonday) != DepartureAccompanied {
+			t.Fatalf("mon = %q, want accompanied", got.ModeFor(PickupDayMonday))
+		}
+	})
+
+	t.Run("pickup beats accompanied", func(t *testing.T) {
+		got := DepartureDays{PickupDayMonday: DepartureAccompanied}.
+			Merge(DepartureDays{PickupDayMonday: DeparturePickup})
+		if got.ModeFor(PickupDayMonday) != DeparturePickup {
+			t.Fatalf("mon = %q, want pickup", got.ModeFor(PickupDayMonday))
+		}
+	})
+
+	t.Run("disjoint days combine", func(t *testing.T) {
+		got := DepartureDays{PickupDayMonday: DepartureBus}.
+			Merge(DepartureDays{PickupDayTuesday: DepartureAccompanied})
+		if got.ModeFor(PickupDayMonday) != DepartureBus {
+			t.Fatalf("mon = %q, want bus", got.ModeFor(PickupDayMonday))
+		}
+		if got.ModeFor(PickupDayTuesday) != DepartureAccompanied {
+			t.Fatalf("tue = %q, want accompanied", got.ModeFor(PickupDayTuesday))
+		}
+	})
+}

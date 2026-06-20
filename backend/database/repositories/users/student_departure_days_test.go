@@ -285,6 +285,40 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 		assert.False(t, found.BusDays.HasAny(), "accompanied is not a bus day")
 	})
 
+	t.Run("bus and accompanied on the same weekday keeps the accompanied pickup_status", func(t *testing.T) {
+		requireStudentsDepartureDaysColumn(t, db)
+		requireStudentsAllowedDepartureModesColumn(t, db)
+
+		// A day allowing BOTH bus and accompanied must still store the accompanied
+		// pickup_status. The exclusive departure_days projection ranks bus above
+		// accompanied, so deriving pickup_status from it would drop the accompanied
+		// signal and bucket the child as a self-goer (#1694). The companion note must
+		// also survive because an accompanied day remains in the plan.
+		student := testpkg.CreateTestStudent(t, db, "Departure", "BusAndAccompanied", "5c")
+		defer cleanupStudentRecords(t, db, student.ID)
+
+		note := "Geschwisterkind Mia"
+		student.AllowedDepartureModes = users.AllowedDepartureModes{
+			users.PickupDayMonday: []users.DepartureMode{users.DepartureBus, users.DepartureAccompanied},
+		}
+		student.DepartureCompanionNote = &note
+		require.NoError(t, repo.Update(ctx, student))
+
+		found, err := repo.FindByID(ctx, student.ID)
+		require.NoError(t, err)
+		require.NotNil(t, found.PickupStatus)
+		assert.Equal(t, users.PickupStatusAccompanied, *found.PickupStatus,
+			"bus+accompanied day must not collapse pickup_status to self-goer")
+		require.NotNil(t, found.DepartureCompanionNote, "companion note survives while accompanied is allowed")
+		assert.Equal(t, note, *found.DepartureCompanionNote)
+		// The exclusive departure_days mirror still shows bus (operationally the staff
+		// must see the bus instruction); only the coarse pickup_status flag carries the
+		// accompanied signal here.
+		assert.True(t, found.BusDays[users.BusDayMonday], "bus day is still recorded")
+		assert.Equal(t, users.DepartureBus, found.DepartureDays.ModeFor(users.PickupDayMonday),
+			"exclusive departure_days keeps the bus instruction visible to staff")
+	})
+
 	t.Run("legacy departure_days update can drop accompanied and clear its note in one write", func(t *testing.T) {
 		requireStudentsDepartureDaysColumn(t, db)
 		requireStudentsAllowedDepartureModesColumn(t, db)

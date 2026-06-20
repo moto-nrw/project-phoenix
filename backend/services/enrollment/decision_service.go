@@ -2085,6 +2085,13 @@ func (s *decisionService) applyTargetedFields(
 			if days, err := decodeDepartureDays(raw); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
 			} else {
+				// Union with any earlier same-target field rather than overwriting:
+				// last-field-wins would let a later bus/pickup field silently drop an
+				// accompanied day an earlier field carried, which validation and
+				// sanitization (which use any-field semantics) already accepted (#1694).
+				if explicitDeparture != nil {
+					days = explicitDeparture.Merge(days)
+				}
 				explicitDeparture = &days
 				studentDirty = true
 			}
@@ -2092,6 +2099,9 @@ func (s *decisionService) applyTargetedFields(
 			if modes, err := decodeAllowedDepartureModes(raw); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
 			} else {
+				if explicitAllowedDeparture != nil {
+					modes = explicitAllowedDeparture.Merge(modes)
+				}
 				explicitAllowedDeparture = &modes
 				studentDirty = true
 			}

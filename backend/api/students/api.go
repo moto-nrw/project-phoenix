@@ -764,7 +764,11 @@ func applyDeparturePlan(allowed *users.AllowedDepartureModes, departure *users.D
 		student.DepartureDays = modes.DepartureDays()
 		student.BusDays = modes.BusDays()
 		student.PickupDays = modes.PickupDays()
-		s := student.DepartureDays.LegacyPickupStatus()
+		// Full set, not the exclusive DepartureDays() projection: bus outranks
+		// accompanied there, so a bus+accompanied day would bucket the child as a
+		// self-goer. The repository re-derives this on persist; keep the handler
+		// consistent so the in-memory student is never momentarily wrong (#1694).
+		s := modes.LegacyPickupStatus()
 		student.PickupStatus = &s
 		return
 	}

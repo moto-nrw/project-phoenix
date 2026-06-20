@@ -278,6 +278,44 @@ func TestFormSchema_Validate_RejectsDuplicateKey(t *testing.T) {
 	assert.Contains(t, err.Error(), "allergies")
 }
 
+func TestFormSchema_Validate_RejectsDuplicateReservedTarget(t *testing.T) {
+	// Two fields pointing at the same Stammdaten target produce an undefined
+	// last-field-wins outcome on approval — the departure plan can silently
+	// collapse back into self-goer semantics (#1694), so the schema is rejected.
+	s := validSchema()
+	s.Fields = []FormField{
+		{Key: "heimweg_a", Label: "Erlaubte Heimwege", Type: FormFieldWeekdayMultiMode, Target: TargetStudentAllowedDepartureModes, AppliesToCh: true, SortOrder: 0},
+		{Key: "heimweg_b", Label: "Heimwege (Kopie)", Type: FormFieldWeekdayMultiMode, Target: TargetStudentAllowedDepartureModes, AppliesToCh: true, SortOrder: 1},
+	}
+	err := s.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "duplicate field target")
+	assert.Contains(t, err.Error(), TargetStudentAllowedDepartureModes)
+	assert.Contains(t, err.Error(), "heimweg_a")
+	assert.Contains(t, err.Error(), "heimweg_b")
+}
+
+func TestFormSchema_Validate_AllowsRepeatedEmptyTarget(t *testing.T) {
+	// Free custom fields have no target and may repeat freely.
+	s := validSchema()
+	s.Fields = []FormField{
+		{Key: "allergies", Label: "Allergien", Type: FormFieldText, SortOrder: 0},
+		{Key: "diet", Label: "Diät", Type: FormFieldText, SortOrder: 1},
+	}
+	assert.NoError(t, s.Validate())
+}
+
+func TestFormSchema_Validate_AllowsDistinctLegacyDepartureTargets(t *testing.T) {
+	// The legacy split — Buskind and Abholregelung — are DIFFERENT targets and
+	// legitimately coexist; only the same target twice is rejected.
+	s := validSchema()
+	s.Fields = []FormField{
+		{Key: "bus", Label: "Buskind", Type: FormFieldWeekdayBoolean, Target: TargetStudentBus, AppliesToCh: true, SortOrder: 0},
+		{Key: "abhol", Label: "Abholregelung", Type: FormFieldWeekdayBoolean, Target: TargetStudentPickupStatus, AppliesToCh: true, SortOrder: 1},
+	}
+	assert.NoError(t, s.Validate())
+}
+
 func TestFormSchema_Validate_PropagatesFieldErrorWithIndex(t *testing.T) {
 	// One bad field should fail validation with the offending index in
 	// the error so the admin can find it in the editor list.

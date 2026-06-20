@@ -381,7 +381,12 @@ func (r *StudentRepository) persistDepartureDays(ctx context.Context, student *u
 	departure := allowed.DepartureDays()
 	busDays := allowed.BusDays()
 	pickupDays := allowed.PickupDays()
-	pickupStatus := departure.LegacyPickupStatus()
+	// Derive pickup_status from the FULL non-exclusive set, not from the exclusive
+	// `departure` projection above: the projection ranks bus over accompanied, so a
+	// day allowing both would drop the accompanied signal and bucket the child as a
+	// self-goer. This mirrors the clearNote check above, which already uses the full
+	// set (#1694).
+	pickupStatus := allowed.LegacyPickupStatus()
 
 	if planTouched {
 		query = query.Set(`pickup_status = ?`, pickupStatus)

@@ -113,6 +113,44 @@ func (m AllowedDepartureModes) DepartureDays() DepartureDays {
 	return out
 }
 
+// LegacyPickupStatus derives the legacy student-level pickup_status string from
+// the FULL non-exclusive set of allowed modes — never from the exclusive
+// DepartureDays() projection. Priority: any pickup day -> "Wird abgeholt";
+// otherwise any accompanied day -> "Geht mit anderem Kind"; otherwise the child
+// goes home alone. Deriving from the projection would drop the accompanied
+// signal on a day that ALSO allows bus (the projection ranks bus above
+// accompanied), silently bucketing a safety-sensitive accompanied child as a
+// self-goer for legacy search/list/admin-filter consumers (#1694). Bus days do
+// not count as pickup, matching the historical semantics of this field.
+func (m AllowedDepartureModes) LegacyPickupStatus() string {
+	if m.HasMode(DeparturePickup) {
+		return PickupStatusPickedUp
+	}
+	if m.HasMode(DepartureAccompanied) {
+		return PickupStatusAccompanied
+	}
+	return PickupStatusGoesAlone
+}
+
+// Merge returns the union of two non-exclusive plans: a weekday allows a mode if
+// EITHER input allows it. Used when a single enrollment submission carries more
+// than one field targeting student.allowed_departure_modes (#1694); union is
+// lossless here precisely because the model is non-exclusive, so a later
+// bus/pickup-only field can never silently drop an accompanied mode an earlier
+// field allowed. The result is normalized (deduped, canonical mode order).
+func (m AllowedDepartureModes) Merge(other AllowedDepartureModes) AllowedDepartureModes {
+	out := AllowedDepartureModes{}
+	for _, day := range PickupDayOrder {
+		combined := make([]DepartureMode, 0, len(m[day])+len(other[day]))
+		combined = append(combined, m[day]...)
+		combined = append(combined, other[day]...)
+		if len(combined) > 0 {
+			out[day] = combined
+		}
+	}
+	return out.Normalize()
+}
+
 func AllowedDepartureModesFromDeparture(days DepartureDays) AllowedDepartureModes {
 	out := AllowedDepartureModes{}
 	for _, day := range PickupDayOrder {

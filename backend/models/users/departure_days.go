@@ -157,3 +157,36 @@ func DepartureDaysFromLegacy(bus BusDays, pickup PickupDays) DepartureDays {
 	}
 	return out
 }
+
+// departureModeStakes ranks the exclusive modes from highest to lowest stakes,
+// used only to merge two exclusive plans for the same weekday. Pickup (collected
+// by a named person) outranks accompanied (leaves with another child/person),
+// which outranks bus, which outranks going alone. Accompanied MUST beat bus so a
+// merge never silently drops the safety-sensitive "Mit anderem Kind" signal in
+// favor of a bus instruction (#1694).
+var departureModeStakes = map[DepartureMode]int{
+	DeparturePickup:      3,
+	DepartureAccompanied: 2,
+	DepartureBus:         1,
+	DepartureAlone:       0,
+}
+
+// Merge returns the per-weekday combination of two exclusive plans, keeping the
+// higher-stakes mode on any day both set (see departureModeStakes). Used when a
+// single enrollment submission carries more than one field targeting the legacy
+// exclusive student.departure target; merging — rather than last-field-wins —
+// stops a later bus/pickup field from dropping an earlier accompanied day. The
+// result is normalized.
+func (d DepartureDays) Merge(other DepartureDays) DepartureDays {
+	out := DepartureDays{}
+	for _, day := range PickupDayOrder {
+		a, b := d.ModeFor(day), other.ModeFor(day)
+		if departureModeStakes[b] > departureModeStakes[a] {
+			a = b
+		}
+		if a != DepartureAlone {
+			out[day] = a
+		}
+	}
+	return out.Normalize()
+}

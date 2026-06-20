@@ -82,7 +82,11 @@ func populatePublicStudentFields(response *StudentResponse, student *users.Stude
 	response.BusDays = allowed.BusDays()
 	response.Bus = response.BusDays.HasAny()
 	response.PickupDays = allowed.PickupDays()
-	response.PickupStatus = responsePickupStatus(student, departure.LegacyPickupStatus())
+	// Derive pickup_status from the FULL non-exclusive set, not the exclusive
+	// `departure` projection: the projection ranks bus over accompanied, so a day
+	// allowing both would drop the accompanied signal and return this child to
+	// legacy list/search/admin consumers as a self-goer (#1694).
+	response.PickupStatus = responsePickupStatus(student, allowed.LegacyPickupStatus())
 }
 
 func responsePickupStatus(student *users.Student, derived string) string {
@@ -241,7 +245,8 @@ func populateSnapshotPublicFields(response *StudentResponse, student *users.Stud
 	response.BusDays = allowed.BusDays()
 	response.Bus = response.BusDays.HasAny()
 	response.PickupDays = allowed.PickupDays()
-	response.PickupStatus = responsePickupStatus(student, departure.LegacyPickupStatus())
+	// Full set, not the exclusive projection: see populatePublicStudentFields (#1694).
+	response.PickupStatus = responsePickupStatus(student, allowed.LegacyPickupStatus())
 }
 
 // presentOrTransit returns the appropriate location for a checked-in student
