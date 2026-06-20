@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type AdminRequestSchemaField } from "~/lib/enrollment-admin-api";
+import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 
 const mocks = vi.hoisted(() => ({
   listCareOfferings: vi.fn(),
@@ -25,7 +26,6 @@ vi.mock("~/lib/enrollment-admin-api", async (importOriginal) => {
 import {
   ChildOfferingAdjustment,
   ChildOfferings,
-  formatCustomValue,
 } from "./admin-enrollment-detail";
 
 function field(

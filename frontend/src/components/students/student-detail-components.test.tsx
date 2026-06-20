@@ -681,6 +681,74 @@ describe("PersonalInfoReadOnly", () => {
     expect(screen.getByText("Allergien: Erdnüsse")).toBeInTheDocument();
   });
 
+  it("renders enrollment extra fields as personal info rows", () => {
+    render(
+      <PersonalInfoReadOnly
+        student={mockStudent}
+        enrollmentExtraGroups={[
+          {
+            request_id: "77",
+            phase_name: "Anmeldung 2026",
+            submitted_at: "2026-06-01T12:00:00Z",
+            fields: [
+              {
+                key: "swimming_level",
+                label: "Schwimmfähigkeit",
+                type: "select",
+                options: [{ label: "Kann sicher schwimmen", value: "safe" }],
+                value: "safe",
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Schwimmfähigkeit")).toBeInTheDocument();
+    expect(screen.getByText("Kann sicher schwimmen")).toBeInTheDocument();
+  });
+
+  it("prefixes enrollment extra field labels when multiple requests are present", () => {
+    render(
+      <PersonalInfoReadOnly
+        student={mockStudent}
+        enrollmentExtraGroups={[
+          {
+            request_id: "77",
+            phase_name: "Anmeldung 2026",
+            submitted_at: "2026-06-01T12:00:00Z",
+            fields: [
+              {
+                key: "note",
+                label: "Hinweis",
+                type: "text",
+                value: "Erste Antwort",
+              },
+            ],
+          },
+          {
+            request_id: "88",
+            phase_name: "Sommerferien 2026",
+            submitted_at: "2026-07-01T12:00:00Z",
+            fields: [
+              {
+                key: "note",
+                label: "Hinweis",
+                type: "text",
+                value: "Zweite Antwort",
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Anmeldung 2026 · Hinweis")).toBeInTheDocument();
+    expect(screen.getByText("Sommerferien 2026 · Hinweis")).toBeInTheDocument();
+    expect(screen.getByText("Erste Antwort")).toBeInTheDocument();
+    expect(screen.getByText("Zweite Antwort")).toBeInTheDocument();
+  });
+
   it("does not render health info when not present", () => {
     const studentWithoutHealth = { ...mockStudent, health_info: undefined };
     render(<PersonalInfoReadOnly student={studentWithoutHealth} />);

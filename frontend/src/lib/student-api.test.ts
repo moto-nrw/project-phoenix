@@ -46,6 +46,7 @@ import {
   deleteStudent,
   fetchGroups,
   fetchStudentPrivacyConsent,
+  fetchStudentEnrollmentExtraFields,
   updateStudentPrivacyConsent,
   uploadStudentPhoto,
   deleteStudentPhoto,
@@ -488,6 +489,17 @@ describe("student-api", () => {
         "API error (500): Internal Server Error",
       );
     });
+
+    it("returns null for server-side axios 404 responses", async () => {
+      mockedIsBrowserContext.mockReturnValue(false);
+      const mockGet = vi.mocked(api.get);
+      mockGet.mockRejectedValueOnce({
+        isAxiosError: true,
+        response: { status: 404 },
+      });
+
+      await expect(fetchStudentPrivacyConsent("123")).resolves.toBeNull();
+    });
   });
 
   describe("updateStudentPrivacyConsent", () => {
@@ -528,6 +540,152 @@ describe("student-api", () => {
         );
         expect(result.accepted).toBe(true);
       });
+    });
+
+    describe("server-side (SSR)", () => {
+      beforeEach(() => {
+        mockedIsBrowserContext.mockReturnValue(false);
+      });
+
+      it("updates privacy consent with the bearer token", async () => {
+        const backendConsent = {
+          id: 1,
+          student_id: 123,
+          policy_version: "1.0",
+          accepted: true,
+          data_retention_days: 30,
+          renewal_required: false,
+          accepted_at: "2024-01-15T10:00:00Z",
+          created_at: "2024-01-15T10:00:00Z",
+          updated_at: "2024-01-15T10:00:00Z",
+        };
+        const mockPut = vi.mocked(api.put);
+        mockPut.mockResolvedValueOnce(
+          createAxiosResponse({ data: backendConsent }),
+        );
+
+        const consentData = {
+          policy_version: "1.0",
+          accepted: true,
+          data_retention_days: 30,
+        };
+
+        const result = await updateStudentPrivacyConsent("123", consentData);
+
+        expect(mockPut).toHaveBeenCalledWith(
+          expect.stringContaining("/students/123/privacy-consent"),
+          consentData,
+          { headers: { Authorization: "Bearer test-token" } },
+        );
+        expect(result.accepted).toBe(true);
+      });
+
+      it("uses the shared student error handler when server update fails", async () => {
+        const mockPut = vi.mocked(api.put);
+        mockPut.mockRejectedValueOnce(new Error("Network error"));
+
+        await expect(
+          updateStudentPrivacyConsent("123", {
+            policy_version: "1.0",
+            accepted: false,
+            data_retention_days: 30,
+          }),
+        ).rejects.toThrow("Mocked error");
+        expect(mockedHandleDomainApiError).toHaveBeenCalledWith(
+          expect.any(Error),
+          "update privacy consent",
+          "STUDENT",
+        );
+      });
+    });
+  });
+
+  describe("fetchStudentEnrollmentExtraFields", () => {
+    const enrollmentExtraGroups = [
+      {
+        request_id: "77",
+        phase_name: "Anmeldung 2026",
+        submitted_at: "2026-06-01T12:00:00Z",
+        fields: [
+          {
+            key: "swimming_level",
+            label: "Kann Schwimmen?",
+            type: "select",
+            options: [{ label: "Ja", value: "yes" }],
+            value: "yes",
+          },
+        ],
+      },
+    ];
+
+    it("fetches enrollment extra fields through the browser proxy", async () => {
+      mockedIsBrowserContext.mockReturnValue(true);
+      mockedAuthFetch.mockResolvedValueOnce({ data: enrollmentExtraGroups });
+
+      const result = await fetchStudentEnrollmentExtraFields("123");
+
+      expect(mockedAuthFetch).toHaveBeenCalledWith(
+        "/api/students/123/enrollment-extra-fields",
+        { token: "test-token" },
+      );
+      expect(result).toEqual(enrollmentExtraGroups);
+    });
+
+    it("accepts an unwrapped browser response array", async () => {
+      mockedIsBrowserContext.mockReturnValue(true);
+      mockedAuthFetch.mockResolvedValueOnce(enrollmentExtraGroups);
+
+      await expect(fetchStudentEnrollmentExtraFields("123")).resolves.toEqual(
+        enrollmentExtraGroups,
+      );
+    });
+
+    it("returns an empty array for malformed browser responses", async () => {
+      mockedIsBrowserContext.mockReturnValue(true);
+      mockedAuthFetch.mockResolvedValueOnce({ data: { unexpected: true } });
+
+      await expect(fetchStudentEnrollmentExtraFields("123")).resolves.toEqual(
+        [],
+      );
+    });
+
+    it("fetches enrollment extra fields from the backend in server context", async () => {
+      mockedIsBrowserContext.mockReturnValue(false);
+      const mockGet = vi.mocked(api.get);
+      mockGet.mockResolvedValueOnce(
+        createAxiosResponse({ data: enrollmentExtraGroups }),
+      );
+
+      const result = await fetchStudentEnrollmentExtraFields("123");
+
+      expect(mockGet).toHaveBeenCalledWith(
+        "http://server:8080/api/students/123/enrollment-extra-fields",
+      );
+      expect(result).toEqual(enrollmentExtraGroups);
+    });
+
+    it("returns an empty array when the server response has no data", async () => {
+      mockedIsBrowserContext.mockReturnValue(false);
+      const mockGet = vi.mocked(api.get);
+      mockGet.mockResolvedValueOnce(createAxiosResponse({}));
+
+      await expect(fetchStudentEnrollmentExtraFields("123")).resolves.toEqual(
+        [],
+      );
+    });
+
+    it("uses the shared student error handler on failure", async () => {
+      mockedIsBrowserContext.mockReturnValue(true);
+      mockedAuthFetch.mockRejectedValueOnce(new Error("Network error"));
+
+      await expect(fetchStudentEnrollmentExtraFields("123")).rejects.toThrow(
+        "Mocked error",
+      );
+      expect(mockedHandleDomainApiError).toHaveBeenCalledWith(
+        expect.any(Error),
+        "fetch student enrollment extra fields",
+        "STUDENT",
+      );
     });
   });
 

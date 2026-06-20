@@ -66,7 +66,10 @@ COPY --from=builder /app/public ./public
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nextjs -u 1001
+    adduser -S nextjs -u 1001 -G nodejs && \
+    mkdir -p .next/cache && \
+    chown -R nextjs:nodejs .next/cache && \
+    chmod 0750 .next/cache
 USER nextjs
 
 EXPOSE 3000

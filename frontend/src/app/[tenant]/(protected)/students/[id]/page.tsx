@@ -24,6 +24,7 @@ import {
   useStudentData,
   type ExtendedStudent,
 } from "~/lib/hooks/use-student-data";
+import { useStudentEnrollmentExtraFields } from "~/lib/hooks/use-student-enrollment-extra-fields";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { useSWRAuth } from "~/lib/swr";
 import type { SupervisorContact } from "~/lib/student-helpers";
@@ -1301,6 +1302,10 @@ function FullAccessView({
   plannedStatusLoading,
 }: Readonly<FullAccessViewProps>) {
   const historyRouter = useTenantRouter();
+  const { groups: enrollmentExtraGroups } = useStudentEnrollmentExtraFields(
+    studentId,
+    true,
+  );
   return (
     <>
       {(showCheckout || showCheckin || hasWriteAccess) && (
@@ -1348,6 +1353,7 @@ function FullAccessView({
         >
           <PersonalInfoReadOnly
             student={student}
+            enrollmentExtraGroups={enrollmentExtraGroups}
             showEditButton={hasWriteAccess}
             onEditClick={hasWriteAccess ? onOpenPersonalInfoModal : undefined}
           />
