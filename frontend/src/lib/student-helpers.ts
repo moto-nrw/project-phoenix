@@ -149,17 +149,15 @@ export const DEPARTURE_MODE_SHORT_LABELS: Record<DepartureMode, string> = {
 };
 
 /**
- * Brand-hex badge classes per departure mode — the single source of truth shared
- * by the editor pills (BusStatusSection/DepartureSection) and the read-only
- * Stammdaten matrix, so edit and view stay visually identical: pickup = brand
- * green, bus = brand blue, alone = neutral gray, accompanied = brand magenta.
+ * Quiet read-only pill for displaying a selected departure arrangement in the
+ * Stammdaten view, so the matrix sits calmly next to the plain text fields
+ * around it instead of shouting in color (the per-mode colors, incl. the
+ * accompanied magenta from #1694, were dropped — the mode is conveyed by its
+ * label, not a color). The editor keeps its checkboxes; only the active fill
+ * was neutralized there.
  */
-export const DEPARTURE_MODE_BADGE_CLASSES: Record<DepartureMode, string> = {
-  alone: "border-[#6B7280] bg-[#F3F4F6] text-[#374151]",
-  bus: "border-[#5080D8] bg-[#DCE7FA] text-[#2f5bb0]",
-  pickup: "border-[#83CD2D] bg-[#DCF5C1] text-[#4a7a15]",
-  accompanied: "border-[#D946EF] bg-[#FAE0FD] text-[#a21caf]",
-};
+export const CARE_DISPLAY_PILL =
+  "inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700";
 
 /** Canonical render order for departure modes (stable badge ordering). */
 const DEPARTURE_MODE_ORDER: readonly DepartureMode[] = [

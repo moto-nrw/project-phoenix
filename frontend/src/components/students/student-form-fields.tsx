@@ -24,7 +24,6 @@ import {
   type DepartureMode,
   formatAllowedDepartureDays,
   normalizeAllowedDepartureModes,
-  DEPARTURE_MODE_BADGE_CLASSES,
 } from "~/lib/student-helpers";
 
 interface SelectOption {
@@ -764,7 +763,7 @@ export function DepartureSection({
                       key={opt.value}
                       className={`flex h-8 cursor-pointer items-center gap-2 rounded-lg border px-2.5 text-xs font-semibold transition-colors ${
                         active
-                          ? DEPARTURE_MODE_BADGE_CLASSES[opt.value]
+                          ? "border-gray-900 bg-white text-gray-900"
                           : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
                       }`}
                     >
