@@ -487,3 +487,103 @@ func TestCareOfferingService_RejectsMixedRuleInSameGroup(t *testing.T) {
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentService.ErrCareOfferingGroupRuleConflict))
 }
+
+func TestCareOfferingService_RejectsAutoAddTriggersInExclusiveSelectionGroup(t *testing.T) {
+	for _, rule := range []string{
+		enrollmentModels.SelectionRuleExactlyOne,
+		enrollmentModels.SelectionRuleAtMostOne,
+	} {
+		t.Run(rule, func(t *testing.T) {
+			_, svc, phase, cleanup := setupCareTest(t)
+			defer cleanup()
+			ctx := testpkg.TenantContext(1)
+
+			trigger := &enrollmentModels.CareOffering{
+				PhaseID:        phase.ID,
+				Name:           "Ganztag",
+				DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+				AvailableDays:  []string{"mon"},
+				IsActive:       true,
+				SelectionGroup: "umfang",
+				SelectionRule:  rule,
+			}
+			trigger.SetTenantID(1)
+			createdTrigger, err := svc.Create(ctx, trigger)
+			require.NoError(t, err)
+
+			target := &enrollmentModels.CareOffering{
+				PhaseID:                   phase.ID,
+				Name:                      "Randstunde",
+				DaysOfWeekMode:            enrollmentModels.DaysOfWeekModeParentChoice,
+				AvailableDays:             []string{"mon"},
+				IsActive:                  true,
+				SelectionGroup:            "umfang",
+				SelectionRule:             rule,
+				AutoAddTriggerOfferingIDs: []int64{createdTrigger.ID},
+			}
+			target.SetTenantID(1)
+
+			_, err = svc.Create(ctx, target)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "exclusive selection group")
+		})
+	}
+}
+
+func TestCareOfferingService_AllowsAutoAddTriggersOutsideExclusiveSelectionGroups(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		triggerRule string
+		targetRule  string
+		targetGroup string
+	}{
+		{
+			name:        "at least one group",
+			triggerRule: enrollmentModels.SelectionRuleAtLeastOne,
+			targetRule:  enrollmentModels.SelectionRuleAtLeastOne,
+			targetGroup: "umfang",
+		},
+		{
+			name:        "different groups",
+			triggerRule: enrollmentModels.SelectionRuleAtMostOne,
+			targetRule:  enrollmentModels.SelectionRuleAtMostOne,
+			targetGroup: "zusatz",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, svc, phase, cleanup := setupCareTest(t)
+			defer cleanup()
+			ctx := testpkg.TenantContext(1)
+
+			trigger := &enrollmentModels.CareOffering{
+				PhaseID:        phase.ID,
+				Name:           "Ganztag",
+				DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+				AvailableDays:  []string{"mon"},
+				IsActive:       true,
+				SelectionGroup: "umfang",
+				SelectionRule:  tc.triggerRule,
+			}
+			trigger.SetTenantID(1)
+			createdTrigger, err := svc.Create(ctx, trigger)
+			require.NoError(t, err)
+
+			target := &enrollmentModels.CareOffering{
+				PhaseID:                   phase.ID,
+				Name:                      "Randstunde",
+				DaysOfWeekMode:            enrollmentModels.DaysOfWeekModeParentChoice,
+				AvailableDays:             []string{"mon"},
+				IsActive:                  true,
+				SelectionGroup:            tc.targetGroup,
+				SelectionRule:             tc.targetRule,
+				AutoAddTriggerOfferingIDs: []int64{createdTrigger.ID},
+			}
+			target.SetTenantID(1)
+
+			_, err = svc.Create(ctx, target)
+
+			require.NoError(t, err)
+		})
+	}
+}

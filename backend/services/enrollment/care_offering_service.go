@@ -181,19 +181,39 @@ func (s *careOfferingService) validateAutoAddConfig(ctx context.Context, offerin
 	if err != nil {
 		return fmt.Errorf("check automatic offering triggers: %w", err)
 	}
-	validTriggers := make(map[int64]bool, len(siblings))
+	triggerByID := make(map[int64]*enrollmentModels.CareOffering, len(siblings))
 	for _, sibling := range siblings {
 		if sibling.ID == offering.ID {
 			continue
 		}
-		validTriggers[sibling.ID] = true
+		triggerByID[sibling.ID] = sibling
 	}
 	for _, triggerID := range offering.AutoAddTriggerOfferingIDs {
-		if !validTriggers[triggerID] {
+		trigger := triggerByID[triggerID]
+		if trigger == nil {
 			return fmt.Errorf("automatic trigger offering %d must belong to the same phase", triggerID)
+		}
+		if autoAddViolatesExclusiveGroup(offering, trigger) {
+			return fmt.Errorf("automatic trigger offering %d cannot auto-add offering %d in exclusive selection group %q", triggerID, offering.ID, strings.TrimSpace(offering.SelectionGroup))
 		}
 	}
 	return nil
+}
+
+func autoAddViolatesExclusiveGroup(target, trigger *enrollmentModels.CareOffering) bool {
+	if target == nil || trigger == nil {
+		return false
+	}
+	group := strings.TrimSpace(target.SelectionGroup)
+	if group == "" || strings.TrimSpace(trigger.SelectionGroup) != group {
+		return false
+	}
+	switch normalizeSelectionRule(target.SelectionRule) {
+	case enrollmentModels.SelectionRuleExactlyOne, enrollmentModels.SelectionRuleAtMostOne:
+		return true
+	default:
+		return false
+	}
 }
 
 type careOfferingTemplateDeps struct {

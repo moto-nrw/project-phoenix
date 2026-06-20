@@ -145,7 +145,7 @@ func (s *decisionService) UpdateChildOfferings(ctx context.Context, input Update
 	if err := s.requestChildOfferingRepo.ReplaceForRequestChild(ctx, child.ID, replacement); err != nil {
 		return nil, fmt.Errorf("decision: replace child offerings: %w", err)
 	}
-	if err := s.rematerializeAdjustedEnrollments(ctx, child.ID, *child.CreatedStudentID, phase, beforeLinks, replacement, offeringByID); err != nil {
+	if err := s.rematerializeAdjustedEnrollments(ctx, child.ID, *child.CreatedStudentID, phase); err != nil {
 		return nil, err
 	}
 	actorName, actorEmail := s.actorSnapshot(ctx, input.ActorAccountID)
@@ -232,9 +232,6 @@ func (s *decisionService) rematerializeAdjustedEnrollments(
 	ctx context.Context,
 	requestChildID, studentID int64,
 	phase *enrollmentModels.Phase,
-	beforeLinks []*enrollmentModels.RequestChildOffering,
-	afterLinks []*enrollmentModels.RequestChildOffering,
-	offeringByID map[int64]*enrollmentModels.CareOffering,
 ) error {
 	if s.studentEnrollmentRepo == nil {
 		return nil
@@ -242,38 +239,5 @@ func (s *decisionService) rematerializeAdjustedEnrollments(
 	if _, err := s.studentEnrollmentRepo.DeleteByEnrollmentRequestChild(ctx, studentID, requestChildID); err != nil {
 		return fmt.Errorf("decision: delete sourced adjusted enrollments: %w", err)
 	}
-	groupIDs := activityGroupIDsForOfferingLinks(beforeLinks, afterLinks, offeringByID)
-	validUntil := phase.ServiceEndDate
-	if _, err := s.studentEnrollmentRepo.DeleteUnattributedByStudentGroupsAndWindow(ctx, studentID, groupIDs, phase.ServiceStartDate, &validUntil); err != nil {
-		return fmt.Errorf("decision: delete legacy adjusted enrollments: %w", err)
-	}
 	return s.materializeEnrollments(ctx, requestChildID, studentID, phase)
-}
-
-func activityGroupIDsForOfferingLinks(
-	beforeLinks []*enrollmentModels.RequestChildOffering,
-	afterLinks []*enrollmentModels.RequestChildOffering,
-	offeringByID map[int64]*enrollmentModels.CareOffering,
-) []int64 {
-	seen := make(map[int64]bool)
-	add := func(links []*enrollmentModels.RequestChildOffering) {
-		for _, link := range links {
-			if link == nil {
-				continue
-			}
-			offering := offeringByID[link.CareOfferingID]
-			if offering == nil || offering.ActivityGroupID == nil || *offering.ActivityGroupID <= 0 {
-				continue
-			}
-			seen[*offering.ActivityGroupID] = true
-		}
-	}
-	add(beforeLinks)
-	add(afterLinks)
-	out := make([]int64, 0, len(seen))
-	for id := range seen {
-		out = append(out, id)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
-	return out
 }

@@ -1470,6 +1470,15 @@ func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterOffer
 	require.NotNil(t, rows[0].EnrollmentRequestChildID)
 	assert.Equal(t, submitted.Children[0].ID, *rows[0].EnrollmentRequestChildID)
 
+	manualEnrollment := &activitiesModels.StudentEnrollment{
+		StudentID:       *outcome.Child.CreatedStudentID,
+		ActivityGroupID: oldGroup.ID,
+		ValidFrom:       env.sourcePhase.ServiceStartDate,
+		ValidUntil:      &env.sourcePhase.ServiceEndDate,
+	}
+	require.NoError(t, env.repos.StudentEnrollment.Create(ctx, manualEnrollment))
+	defer testpkg.CleanupTableRecords(t, env.db, "activities.student_enrollments", manualEnrollment.ID)
+
 	offering.ActivityGroupID = &newGroup.ID
 	require.NoError(t, env.repos.CareOffering.Update(ctx, offering))
 
@@ -1486,10 +1495,18 @@ func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterOffer
 	require.NoError(t, err)
 
 	rows = listStudentEnrollmentRowsForDecisionTest(t, env, *outcome.Child.CreatedStudentID)
-	require.Len(t, rows, 1)
-	assert.Equal(t, newGroup.ID, rows[0].ActivityGroupID)
-	require.NotNil(t, rows[0].EnrollmentRequestChildID)
-	assert.Equal(t, submitted.Children[0].ID, *rows[0].EnrollmentRequestChildID)
+	require.Len(t, rows, 2)
+	byGroupID := map[int64]activitiesModels.StudentEnrollment{}
+	for _, row := range rows {
+		byGroupID[row.ActivityGroupID] = row
+	}
+	oldRow, ok := byGroupID[oldGroup.ID]
+	require.True(t, ok, "manual old-group enrollment must survive adjustment")
+	assert.Nil(t, oldRow.EnrollmentRequestChildID)
+	newRow, ok := byGroupID[newGroup.ID]
+	require.True(t, ok, "adjustment must materialize the corrected group")
+	require.NotNil(t, newRow.EnrollmentRequestChildID)
+	assert.Equal(t, submitted.Children[0].ID, *newRow.EnrollmentRequestChildID)
 }
 
 func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterPhaseWindowChange(t *testing.T) {

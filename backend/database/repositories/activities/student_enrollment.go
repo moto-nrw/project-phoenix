@@ -250,17 +250,6 @@ func (r *StudentEnrollmentRepository) UpdateAttendanceStatus(ctx context.Context
 // linked groups and phase window. It deliberately requires explicit group ids
 // and dates so callers do not wipe unrelated rosters.
 func (r *StudentEnrollmentRepository) DeleteByStudentGroupsAndWindow(ctx context.Context, studentID int64, groupIDs []int64, validFrom timezone.Date, validUntil *timezone.Date) (int64, error) {
-	return r.deleteByStudentGroupsAndWindow(ctx, studentID, groupIDs, validFrom, validUntil, false)
-}
-
-// DeleteUnattributedByStudentGroupsAndWindow removes legacy rows for one
-// student in the given linked groups and phase window, but only when the row
-// does not carry enrollment_request_child_id provenance.
-func (r *StudentEnrollmentRepository) DeleteUnattributedByStudentGroupsAndWindow(ctx context.Context, studentID int64, groupIDs []int64, validFrom timezone.Date, validUntil *timezone.Date) (int64, error) {
-	return r.deleteByStudentGroupsAndWindow(ctx, studentID, groupIDs, validFrom, validUntil, true)
-}
-
-func (r *StudentEnrollmentRepository) deleteByStudentGroupsAndWindow(ctx context.Context, studentID int64, groupIDs []int64, validFrom timezone.Date, validUntil *timezone.Date, unattributedOnly bool) (int64, error) {
 	if studentID <= 0 {
 		return 0, fmt.Errorf("student_id is required")
 	}
@@ -277,9 +266,6 @@ func (r *StudentEnrollmentRepository) deleteByStudentGroupsAndWindow(ctx context
 		query = query.Where(`"student_enrollment".valid_until IS NULL`)
 	} else {
 		query = query.Where(`"student_enrollment".valid_until = ?`, *validUntil)
-	}
-	if unattributedOnly {
-		query = query.Where(`"student_enrollment".enrollment_request_child_id IS NULL`)
 	}
 	if where, val, ok := base.TenantWhere(ctx, "student_enrollment"); ok {
 		query = query.Where(where, val)

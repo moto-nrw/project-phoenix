@@ -122,7 +122,11 @@ func (c *CareOffering) Validate() error {
 	if !c.CountsAsCareSet {
 		c.CountsAsCare = true
 	}
-	c.AutoAddGradeLevels = normalizeGradeLevels(c.AutoAddGradeLevels)
+	levels, err := normalizeGradeLevels(c.AutoAddGradeLevels)
+	if err != nil {
+		return err
+	}
+	c.AutoAddGradeLevels = levels
 	c.SelectionGroup = strings.TrimSpace(c.SelectionGroup)
 	if c.SelectionRule == "" {
 		c.SelectionRule = SelectionRuleOptional
@@ -145,20 +149,23 @@ func (c *CareOffering) Validate() error {
 	return nil
 }
 
-func normalizeGradeLevels(levels []int) []int {
+func normalizeGradeLevels(levels []int) ([]int, error) {
 	if len(levels) == 0 {
-		return []int{}
+		return []int{}, nil
 	}
 	seen := make(map[int]bool, len(levels))
 	out := make([]int, 0, len(levels))
 	for _, level := range levels {
-		if level <= 0 || level > 13 || seen[level] {
+		if level <= 0 || level > 13 {
+			return nil, fmt.Errorf("auto_add_grade_levels contains invalid grade %d", level)
+		}
+		if seen[level] {
 			continue
 		}
 		seen[level] = true
 		out = append(out, level)
 	}
-	return out
+	return out, nil
 }
 
 // HasUnlimitedCapacity returns true when the capacity field is NULL,

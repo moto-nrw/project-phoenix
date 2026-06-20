@@ -847,52 +847,6 @@ func TestStudentEnrollmentRepository_DeleteByEnrollmentRequestChild(t *testing.T
 	assert.Contains(t, err.Error(), "enrollment_request_child_id is required")
 }
 
-func TestStudentEnrollmentRepository_DeleteUnattributedByStudentGroupsAndWindow(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).StudentEnrollment
-	ctx := testpkg.TenantContext(1)
-
-	student := testpkg.CreateTestStudent(t, db, "DeleteLegacy", "Student", "1a")
-	group := testpkg.CreateTestActivityGroup(t, db, "DeleteLegacyGroup")
-	requestChildID := createEnrollmentRequestChildForStudentEnrollmentTest(t, db, student.ID)
-	defer testpkg.CleanupActivityFixtures(t, db,
-		student.ID,
-		group.ID, group.CategoryID, *group.CreatedBy,
-	)
-
-	validFrom := timezone.NewDate(2026, time.September, 1)
-	validUntil := timezone.NewDate(2027, time.July, 31)
-	legacyEnrollment := &activities.StudentEnrollment{
-		StudentID:       student.ID,
-		ActivityGroupID: group.ID,
-		ValidFrom:       validFrom,
-		ValidUntil:      &validUntil,
-	}
-	sourcedEnrollment := &activities.StudentEnrollment{
-		StudentID:                student.ID,
-		ActivityGroupID:          group.ID,
-		ValidFrom:                validFrom,
-		ValidUntil:               &validUntil,
-		EnrollmentRequestChildID: &requestChildID,
-	}
-	require.NoError(t, repo.Create(ctx, legacyEnrollment))
-	require.NoError(t, repo.Create(ctx, sourcedEnrollment))
-	defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", legacyEnrollment.ID, sourcedEnrollment.ID)
-
-	rows, err := repo.DeleteUnattributedByStudentGroupsAndWindow(ctx, student.ID, []int64{group.ID}, validFrom, &validUntil)
-	require.NoError(t, err)
-	assert.EqualValues(t, 1, rows)
-
-	_, err = repo.FindByID(ctx, legacyEnrollment.ID)
-	assert.Error(t, err)
-	stillSourced, err := repo.FindByID(ctx, sourcedEnrollment.ID)
-	require.NoError(t, err)
-	require.NotNil(t, stillSourced.EnrollmentRequestChildID)
-	assert.Equal(t, requestChildID, *stillSourced.EnrollmentRequestChildID)
-}
-
 func TestStudentEnrollmentRepository_CloseOpenByGroupAndPeriod(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

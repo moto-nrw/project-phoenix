@@ -999,11 +999,24 @@ function CareOfferingForm({
           <CustomSelect
             id="care-offering-form-phase"
             value={draft.phase_id?.toString() ?? ""}
-            onChange={(value) =>
+            onChange={(value) => {
+              const phaseID = value ? Number(value) : 0;
+              const validTriggerIDs = new Set(
+                offerings
+                  .filter(
+                    (offering) =>
+                      offering.phase_id === String(phaseID) &&
+                      offering.id !== editingId,
+                  )
+                  .map((offering) => offering.id),
+              );
               update({
-                phase_id: value ? Number(value) : 0,
-              })
-            }
+                phase_id: phaseID,
+                auto_add_trigger_offering_ids: (
+                  draft.auto_add_trigger_offering_ids ?? []
+                ).filter((id) => validTriggerIDs.has(id)),
+              });
+            }}
             className="mt-1"
             options={[
               { value: "", label: "Bitte wählen" },

@@ -370,6 +370,52 @@ describe("CareOfferingsEditor", () => {
     });
   });
 
+  it("clears hidden auto-add trigger IDs when an edited offering changes phase", async () => {
+    mocks.listPhases.mockResolvedValue([
+      phase(),
+      phase({ id: "11", name: "Ferien" }),
+    ]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({ id: "trigger", name: "Ganztag" }),
+      offering({
+        id: "target",
+        name: "Randstunde",
+        auto_add_trigger_offering_ids: ["trigger"],
+      }),
+    ]);
+    mocks.updateCareOffering.mockResolvedValue(
+      offering({
+        id: "target",
+        name: "Randstunde",
+        phase_id: "11",
+        auto_add_trigger_offering_ids: [],
+      }),
+    );
+
+    render(<CareOfferingsEditor />);
+    expect(await screen.findByText("Randstunde")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Randstunde" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+    fireEvent.click(document.querySelector("#care-offering-form-phase")!);
+    fireEvent.click(await screen.findByRole("option", { name: "Ferien" }));
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(mocks.updateCareOffering).toHaveBeenCalledWith(
+        "target",
+        expect.objectContaining({
+          phase_id: 11,
+          auto_add_trigger_offering_ids: [],
+        }),
+      );
+    });
+  });
+
   it("locks and clears capacity when an offering is marked required", async () => {
     mocks.listPhases.mockResolvedValue([phase()]);
     mocks.listCareOfferings.mockResolvedValue([offering()]);
