@@ -2091,6 +2091,82 @@ describe("EnrollmentForm", () => {
     ).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("validates selection groups against auto-added offerings", async () => {
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [
+        {
+          id: "11",
+          phase_id: "5",
+          name: "Ganztag",
+          description: null,
+          days_of_week_mode: "parent_choice",
+          available_days: ["mon", "tue", "wed", "thu", "fri"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          counts_as_care: true,
+          capacity: null,
+        },
+        {
+          id: "22",
+          phase_id: "5",
+          name: "Frühbetreuung",
+          description: null,
+          days_of_week_mode: "parent_choice",
+          available_days: ["mon", "tue", "wed", "thu", "fri"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          counts_as_care: false,
+          selection_group: "Randzeiten",
+          selection_rule: "at_most_one",
+          auto_add_trigger_offering_ids: ["11"],
+          capacity: null,
+        },
+        {
+          id: "33",
+          phase_id: "5",
+          name: "Spätbetreuung",
+          description: null,
+          days_of_week_mode: "parent_choice",
+          available_days: ["mon", "tue", "wed", "thu", "fri"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          counts_as_care: false,
+          selection_group: "Randzeiten",
+          selection_rule: "at_most_one",
+          capacity: null,
+        },
+      ],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+    });
+    renderForm();
+    await waitForLoaded();
+    await fillRequiredFields();
+
+    const ganztagInput = document.querySelector<HTMLInputElement>(
+      'input[name="children_0_offering_11"]',
+    );
+    expect(ganztagInput).not.toBeNull();
+    fireEvent.click(ganztagInput as HTMLInputElement);
+    fireEvent.click(dayButton(offeringCard("children_0_offering_11"), "Mo"));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Spätbetreuung/ }));
+    fireEvent.click(dayButton(offeringCard("children_0_offering_33"), "Mo"));
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    expect(
+      await screen.findByText(
+        "Kind 1: Bitte bei „Randzeiten“ höchstens ein Angebot wählen.",
+      ),
+    ).toBeInTheDocument();
+    expect(mockSubmitEnrollment).not.toHaveBeenCalled();
+  });
+
   it("counts only choosable offerings for exactly_one when a required offering is present", async () => {
     mockFetchPublicCareOfferings.mockResolvedValueOnce({
       offerings: [

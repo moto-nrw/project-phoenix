@@ -31,6 +31,7 @@ import { fetchSettingsSchema } from "~/lib/settings-api";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
 import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
+import { tenantAwarePath } from "~/lib/tenant-path";
 import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
 import { createLogger } from "~/lib/logger";
 
@@ -322,7 +323,10 @@ function EnrollmentPhaseOverview({
                   <PhasePublicLinkActions
                     phase={phase}
                     tenantSlug={tenantSlug}
-                    enrollmentsHref={`/admin/enrollments/phases/${phase.id}`}
+                    enrollmentsHref={tenantAwarePath(
+                      `/admin/enrollments/phases/${encodeURIComponent(phase.id)}`,
+                      tenantSlug,
+                    )}
                   />
                 </div>
               </div>

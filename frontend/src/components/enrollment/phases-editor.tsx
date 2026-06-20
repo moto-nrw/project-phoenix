@@ -43,6 +43,7 @@ import { RolloverForm } from "./rollover-form";
 import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
 import { useToast } from "~/contexts/ToastContext";
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
+import { tenantAwarePath } from "~/lib/tenant-path";
 import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
 import {
   DataTable,
@@ -844,6 +845,10 @@ function PhaseActions({
   const menuRef = useRef<HTMLDivElement>(null);
   const hasReviewList = tenantSlug && phase.rollover_source_phase_id;
   const phaseUrl = useEnrollmentPublicUrl({ tenantSlug, phaseId: phase.id });
+  const enrollmentsHref = tenantAwarePath(
+    `/admin/enrollments/phases/${encodeURIComponent(phase.id)}`,
+    tenantSlug,
+  );
 
   useEffect(() => {
     setMounted(true);
@@ -947,7 +952,7 @@ function PhaseActions({
       </a>
 
       <Link
-        href={`/admin/enrollments/phases/${encodeURIComponent(phase.id)}`}
+        href={enrollmentsHref}
         role="menuitem"
         tabIndex={0}
         onClick={() => setOpen(false)}

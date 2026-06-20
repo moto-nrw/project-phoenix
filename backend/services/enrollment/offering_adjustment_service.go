@@ -76,6 +76,14 @@ func (s *decisionService) UpdateChildOfferings(ctx context.Context, input Update
 	for _, offering := range offerings {
 		offeringByID[offering.ID] = offering
 	}
+	activeOfferings, err := s.careOfferingRepo.ListActiveByPhase(ctx, req.PhaseID)
+	if err != nil {
+		return nil, fmt.Errorf("decision: list active phase offerings for adjustment: %w", err)
+	}
+	activeOfferingByID := make(map[int64]*enrollmentModels.CareOffering, len(activeOfferings))
+	for _, offering := range activeOfferings {
+		activeOfferingByID[offering.ID] = offering
+	}
 
 	beforeLinks, err := s.requestChildOfferingRepo.ListByRequestChildID(ctx, child.ID)
 	if err != nil {
@@ -121,7 +129,7 @@ func (s *decisionService) UpdateChildOfferings(ctx context.Context, input Update
 		return left.SortOrder < right.SortOrder
 	})
 	children := []SubmitChild{submitChild}
-	materialized, err := materializeAndValidateChildrenOfferingSelections(children, offeringByID, phase.CareOfferingSelectionMode)
+	materialized, err := materializeAndValidateChildrenOfferingSelections(children, activeOfferingByID, phase.CareOfferingSelectionMode)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrOfferingAdjustmentInvalid, err)
 	}

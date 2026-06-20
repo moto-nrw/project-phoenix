@@ -34,6 +34,10 @@ vi.mock("~/lib/settings-api", () => ({
   fetchSettingsSchema: mocks.fetchSettingsSchema,
 }));
 
+vi.mock("~/components/tenant/tenant-provider", () => ({
+  useTenantSlugSafe: () => "demo",
+}));
+
 import { AdminEnrollmentsList } from "./admin-enrollments-list";
 import type { Phase } from "~/lib/enrollment-phase-api";
 
@@ -118,5 +122,16 @@ describe("AdminEnrollmentsList setup guide", () => {
 
     expect(screen.getByText("2 von 5 Schritten erledigt")).toBeVisible();
     expect(screen.getByText("Basisformular")).toBeVisible();
+  });
+
+  it("uses tenant-aware phase detail links", async () => {
+    mocks.listPhases.mockResolvedValue([phase({ id: "12" })]);
+
+    render(<AdminEnrollmentsList />);
+
+    const link = await screen.findByRole("link", {
+      name: "Anmeldungen ansehen",
+    });
+    expect(link).toHaveAttribute("href", "/demo/admin/enrollments/phases/12");
   });
 });

@@ -133,6 +133,38 @@ func TestCareUsageRowMatchesFilters(t *testing.T) {
 	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", Search: "unbekannt"}))
 }
 
+func TestCareUsageRowMatchesExplicitOfferingFilter(t *testing.T) {
+	row := CareUsageRow{
+		Status: enrollmentModels.ChildStatusApproved,
+		Offerings: []CareUsageRowOffering{
+			{ID: 10, Name: "OGS Ganztag", Days: []string{"mon", "wed", "fri"}},
+			{ID: 11, Name: "Randstunde", Days: []string{"fri"}},
+		},
+		EffectiveDays: []string{"mon", "wed", "fri"},
+		DayCount:      3,
+	}
+
+	assert.True(t, careUsageRowMatches(row, CareUsageFilters{
+		Status:             "all",
+		CareOfferingIDsSet: true,
+		CareOfferingIDs:    []int64{11},
+	}))
+	assert.False(t, careUsageRowMatches(row, CareUsageFilters{
+		Status:             "all",
+		CareOfferingIDsSet: true,
+		CareOfferingIDs:    []int64{12},
+	}))
+	assert.False(t, careUsageRowMatches(row, CareUsageFilters{
+		Status:             "all",
+		CareOfferingIDsSet: true,
+		CareOfferingIDs:    []int64{},
+	}))
+	assert.True(t, careUsageRowMatches(row, CareUsageFilters{
+		Status:          "all",
+		CareOfferingIDs: []int64{12},
+	}))
+}
+
 func TestCareUsageRowMatchesZeroDayFilter(t *testing.T) {
 	zero := 0
 	row := CareUsageRow{

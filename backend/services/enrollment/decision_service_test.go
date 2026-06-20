@@ -1414,6 +1414,52 @@ func TestDecisionService_UpdateChildOfferings_RematerializesRequiredAutomaticLun
 	assert.Empty(t, linksByOfferingID[lunch.ID].ManualSelectedDays)
 }
 
+func TestDecisionService_UpdateChildOfferings_IgnoresInactiveOfferingsDuringValidation(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	reqID, childID := submitOneChild(t, env, "adjust-inactive@example.com", "Lina", "Inactive")
+	active := createAdjustmentCareOfferingWith(t, env, "Aktive Betreuung", func(o *enrollmentModels.CareOffering) {
+		o.SortOrder = 101
+	})
+	createAdjustmentCareOfferingWith(t, env, "Inaktive Pflichtbetreuung", func(o *enrollmentModels.CareOffering) {
+		o.IsActive = false
+		o.IsRequired = true
+		o.SortOrder = 102
+	})
+	createAdjustmentCareOfferingWith(t, env, "Inaktive Automatik", func(o *enrollmentModels.CareOffering) {
+		o.IsActive = false
+		o.AutoAddTriggerOfferingIDs = []int64{active.ID}
+		o.SortOrder = 103
+	})
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
+		RequestID:      reqID,
+		ChildID:        childID,
+		ActorAccountID: env.creatorID,
+		ActorRole:      "admin",
+		Reason:         "Aktive Betreuung korrigiert",
+		Offerings: []enrollmentService.OfferingAdjustmentSelection{
+			{OfferingID: active.ID, SelectedDays: []string{"mon"}},
+		},
+	})
+	require.NoError(t, err)
+
+	links, err := env.repos.RequestChildOffering.ListByRequestChildID(ctx, childID)
+	require.NoError(t, err)
+	require.Len(t, links, 1)
+	assert.Equal(t, active.ID, links[0].CareOfferingID)
+}
+
 func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterOfferingGroupChange(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()

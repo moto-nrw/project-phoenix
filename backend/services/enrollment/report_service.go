@@ -417,6 +417,9 @@ func careUsageRowMatches(row CareUsageRow, filters CareUsageFilters) bool {
 	if filters.Status != "all" && row.Status != filters.Status {
 		return false
 	}
+	if filters.CareOfferingIDsSet && !careUsageRowHasAnyOffering(row, filters.CareOfferingIDs) {
+		return false
+	}
 	if filters.DayCount != nil && row.DayCount != *filters.DayCount {
 		return false
 	}
@@ -438,6 +441,22 @@ func careUsageRowMatches(row CareUsageRow, filters CareUsageFilters) bool {
 		}
 	}
 	return true
+}
+
+func careUsageRowHasAnyOffering(row CareUsageRow, offeringIDs []int64) bool {
+	if len(offeringIDs) == 0 {
+		return false
+	}
+	selected := make(map[int64]bool, len(row.Offerings))
+	for _, offering := range row.Offerings {
+		selected[offering.ID] = true
+	}
+	for _, id := range offeringIDs {
+		if selected[id] {
+			return true
+		}
+	}
+	return false
 }
 
 func careUsageOfferingOptions(offerings []*enrollmentModels.CareOffering) []CareUsageOfferingOption {

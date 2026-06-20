@@ -624,6 +624,24 @@ describe("PhasesEditor", () => {
     );
     expect(mocks.createPhase).not.toHaveBeenCalled();
   });
+
+  it("uses tenant-aware phase detail links in the action menu", async () => {
+    mocks.listPhases.mockResolvedValue([phase({ id: "12" })]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+
+    render(<PhasesEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Schuljahr 2026/27",
+      }),
+    );
+
+    const link = await screen.findByRole("menuitem", {
+      name: /Anmeldungen ansehen/,
+    });
+    expect(link).toHaveAttribute("href", "/demo/admin/enrollments/phases/12");
+  });
 });
 
 // The editor always sends the template's legal blocks on save (PR #1632).

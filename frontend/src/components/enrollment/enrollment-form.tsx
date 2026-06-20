@@ -759,7 +759,11 @@ export function EnrollmentForm({
           }
         }
       }
-      const groupRuleMessage = offeringGroupRuleError(c, offerings, tr);
+      const groupRuleMessage = offeringGroupRuleError(
+        materializedCare.offeringIds,
+        offerings,
+        tr,
+      );
       if (groupRuleMessage) {
         groupRuleIndexes.push(i);
         firstGroupRuleMessage ??= `${tr("structured.child")} ${i + 1}: ${groupRuleMessage}`;
@@ -1840,7 +1844,7 @@ function groupOfferings(offerings: PublicCareOffering[]): OfferingBucket[] {
 // selection is valid. The backend re-checks the same in
 // validateOfferingGroupRules (defense-in-depth).
 function offeringGroupRuleError(
-  child: ChildDraft,
+  selectedOfferingIds: ReadonlySet<string>,
   offerings: PublicCareOffering[],
   tr: TranslationFn,
 ): string | null {
@@ -1855,7 +1859,7 @@ function offeringGroupRuleError(
     const count = offerings.filter(
       (o) =>
         (o.selection_group?.trim() ?? "") === group &&
-        child.offering_ids.has(o.id),
+        selectedOfferingIds.has(o.id),
     ).length;
     if (rule === "exactly_one" && count !== 1) {
       return tr("errors.groupExactlyOne", { group });
