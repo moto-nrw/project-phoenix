@@ -1915,7 +1915,7 @@ describe("EnrollmentForm", () => {
     await waitForLoaded();
 
     fireEvent.click(screen.getByRole("checkbox", { name: /Fixe Betreuung/ }));
-    expect(screen.getByText("Di, Do automatisch")).toBeInTheDocument();
+    expect(screen.queryByText("Di, Do automatisch")).not.toBeInTheDocument();
 
     await fillRequiredFields();
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
@@ -1933,7 +1933,7 @@ describe("EnrollmentForm", () => {
     ).toBeNull();
   });
 
-  it("keeps automatic and manual day provenance visible after adding a manual day", async () => {
+  it("shows auto-added offerings as selected without exposing day provenance", async () => {
     mockFetchPublicCareOfferings.mockResolvedValueOnce({
       offerings: [
         {
@@ -1963,6 +1963,7 @@ describe("EnrollmentForm", () => {
           is_required: false,
           counts_as_care: false,
           auto_add_trigger_offering_ids: ["11"],
+          auto_add_grade_levels: [1, 2],
           capacity: null,
         },
       ],
@@ -1971,6 +1972,7 @@ describe("EnrollmentForm", () => {
     });
     renderForm();
     await waitForLoaded();
+    await chooseOption("Klassenstufe *", "2. Klasse");
 
     const ganztagInput = document.querySelector<HTMLInputElement>(
       'input[name="children_0_offering_11"]',
@@ -1980,13 +1982,27 @@ describe("EnrollmentForm", () => {
     for (const day of ["Mo", "Di", "Mi", "Do"]) {
       fireEvent.click(dayButton(offeringCard("children_0_offering_11"), day));
     }
-    expect(screen.getByText("Mo, Di, Mi, Do automatisch")).toBeInTheDocument();
+    const randstundeInput = document.querySelector<HTMLInputElement>(
+      'input[name="children_0_offering_22"]',
+    );
+    expect(randstundeInput).not.toBeNull();
+    expect(randstundeInput).toBeChecked();
+    expect(randstundeInput).toBeDisabled();
+    expect(
+      screen.queryByText("Mo, Di, Mi, Do automatisch"),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(dayButton(offeringCard("children_0_offering_22"), "Fr"));
 
     expect(
-      screen.getByText("Mo, Di, Mi, Do automatisch; Fr manuell"),
-    ).toBeInTheDocument();
+      screen.queryByText("Mo, Di, Mi, Do automatisch; Fr manuell"),
+    ).not.toBeInTheDocument();
+    expect(
+      dayButton(offeringCard("children_0_offering_22"), "Mo"),
+    ).toBeDisabled();
+    expect(
+      dayButton(offeringCard("children_0_offering_22"), "Fr"),
+    ).toHaveAttribute("aria-pressed", "true");
   });
 
   it("counts only choosable offerings for exactly_one when a required offering is present", async () => {

@@ -134,7 +134,9 @@ describe("ChildOfferings", () => {
 
     expect(screen.getByText("Randstunde")).toBeVisible();
     expect(
-      screen.getByText("Mo, Di, Mi, Do automatisch; Fr manuell"),
+      screen.getByText(
+        "Mo, Di, Mi, Do automatisch mitgebucht; Fr von Eltern gewählt",
+      ),
     ).toBeVisible();
   });
 });

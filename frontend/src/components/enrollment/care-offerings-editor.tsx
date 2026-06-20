@@ -412,11 +412,15 @@ export function CareOfferingsEditor() {
             {offering.activity_group_id ? (
               <FeaturePill label="Betreuungsplan" />
             ) : null}
-            {!offering.is_required &&
-            !offering.includes_lunch &&
-            !offering.includes_holiday_care &&
-            !offering.activity_group_id ? (
-              <span className="text-sm text-gray-400">Keine Extras</span>
+            <FeaturePill
+              label={
+                offering.counts_as_care === false
+                  ? "Zählt nicht als Betreuungstag"
+                  : "Zählt als Betreuungstag"
+              }
+            />
+            {(offering.auto_add_trigger_offering_ids?.length ?? 0) > 0 ? (
+              <FeaturePill label="Wird mitgebucht" />
             ) : null}
           </div>
         ),
@@ -1159,19 +1163,20 @@ function CareOfferingForm({
 
       <fieldset className="rounded-xl border border-gray-200 p-4">
         <legend className="px-1 text-xs font-medium text-gray-700">
-          Auswertungen & Automatik
+          Betreuungstage & Mitbuchung
         </legend>
         <div className="space-y-4">
           <CareOfferingCheckbox
             checked={draft.counts_as_care}
             onChange={(checked) => update({ counts_as_care: checked })}
-            label="Zählt als Betreuung in Auswertungen"
-            hint="Aktivierte Angebote zählen standardmäßig in Tagesstatistiken."
+            label="Als Betreuungstage zählen"
+            hint="Gilt für Filter, Kennzahlen und Exporte."
           />
 
           <div className="rounded-lg border border-gray-100 bg-gray-50/70 p-3">
             <p className="text-xs font-medium text-gray-700">
-              Wird automatisch ergänzt, wenn gewählt:
+              Dieses Angebot mitbuchen, wenn Eltern eines dieser Angebote
+              wählen:
             </p>
             {triggerOptions.length > 0 ? (
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
@@ -1195,15 +1200,14 @@ function CareOfferingForm({
             {draft.auto_add_trigger_offering_ids.length > 0 &&
             draft.days_of_week_mode !== "parent_choice" ? (
               <p className="mt-2 rounded-lg border border-[#F3B63F]/50 bg-[#F3B63F]/10 px-3 py-2 text-xs text-[#A66F00]">
-                Automatisch ergänzte Angebote müssen einzelne Tage auswählbar
-                machen.
+                Mitgebuchte Angebote müssen einzelne Tage auswählbar machen.
               </p>
             ) : null}
           </div>
 
           <div>
             <p className="text-xs font-medium text-gray-700">
-              Automatik gilt für Klassenstufen
+              Mitbuchung gilt für Klassenstufen
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
               {[1, 2, 3, 4].map((grade) => {
@@ -1227,7 +1231,8 @@ function CareOfferingForm({
               })}
             </div>
             <p className="mt-1 text-xs text-gray-500">
-              Keine Auswahl bedeutet: Die Automatik gilt für alle Klassenstufen.
+              Keine Auswahl bedeutet: Die Mitbuchung gilt für alle
+              Klassenstufen.
             </p>
           </div>
         </div>

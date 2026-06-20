@@ -51,6 +51,7 @@ import {
   DataTableStatusBadge,
 } from "~/components/ui/data-table";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
 import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
 import { useToast } from "~/contexts/ToastContext";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -236,17 +237,8 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     [dayCount, gradeLevel, offeringIds, phaseId, search, statusFilter],
   );
 
-  const toggleReportOffering = useCallback((id: string) => {
-    setOfferingIds((current) => {
-      const selected = new Set(current ?? []);
-      if (selected.has(id)) {
-        if (selected.size <= 1) return current ?? [];
-        selected.delete(id);
-      } else {
-        selected.add(id);
-      }
-      return Array.from(selected);
-    });
+  const handleReportOfferingsChange = useCallback((ids: string[]) => {
+    setOfferingIds(ids);
   }, []);
 
   const loadReport = useCallback(
@@ -261,7 +253,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         setOfferingIds((current) => {
           if (current !== null) return current;
           return data.filter_options.offerings
-            .filter((offering) => offering.counts_as_care)
+            .filter((offering) => offering.counts_as_care !== false)
             .map((offering) => offering.id);
         });
       } catch (err) {
@@ -444,7 +436,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       },
       {
         key: "effective_days",
-        header: "Tage",
+        header: "Betreuungstage",
         render: (row) => (
           <div>
             <p className="font-medium text-gray-900">
@@ -585,8 +577,8 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
               Anmeldungen prüfen und auswerten
             </h2>
             <p className="mt-1 text-sm text-gray-600">
-              Filtere Kinder nach Status, Angebot, Zielklasse oder
-              Betreuungstagen. Der Auswertungsexport übernimmt die aktuellen
+              Filtere Kinder nach Status, Angebot, Zielklasse oder Anzahl der
+              Betreuungstage. Der Auswertungsexport übernimmt die aktuellen
               Filter.
             </p>
           </div>
@@ -607,42 +599,34 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
                 ]}
               />
             </SelectField>
-            <div className="lg:col-span-2">
-              <p className="mb-1 text-xs font-medium text-gray-600">
-                Berücksichtigte Angebote
-              </p>
-              <div
+            <SelectField
+              label="Berücksichtigte Angebote"
+              id="enrollment-offering-filter"
+            >
+              <MultiCheckboxSelect
                 id="enrollment-offering-filter"
-                className="min-h-10 rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm"
-              >
-                {(report?.filter_options.offerings ?? []).length > 0 ? (
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {(report?.filter_options.offerings ?? []).map((item) => (
-                      <label
-                        key={item.id}
-                        className="flex items-center gap-2 text-xs font-medium text-gray-700"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={(offeringIds ?? []).includes(item.id)}
-                          onChange={() => toggleReportOffering(item.id)}
-                          className="h-4 w-4 rounded border-gray-300 text-[#5080D8] focus:ring-[#5080D8]"
-                        />
-                        <span>{item.name}</span>
-                        {!item.counts_as_care ? (
-                          <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold text-gray-500">
-                            nicht statistisch
-                          </span>
-                        ) : null}
-                      </label>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-gray-500">Keine Angebote</p>
+                ariaLabel="Berücksichtigte Angebote"
+                value={offeringIds ?? []}
+                onChange={handleReportOfferingsChange}
+                options={(report?.filter_options.offerings ?? []).map(
+                  (offering) => ({
+                    value: offering.id,
+                    label: offering.name,
+                    badge:
+                      offering.counts_as_care === false
+                        ? "Zählt nicht als Betreuungstag"
+                        : undefined,
+                  }),
                 )}
-              </div>
-            </div>
-            <SelectField label="Tagesanzahl" id="enrollment-day-count-filter">
+                emptyLabel="Keine Angebote"
+                unavailableLabel="Keine Angebote verfügbar"
+                multipleLabel={(count) => `${count} Angebote`}
+              />
+            </SelectField>
+            <SelectField
+              label="Anzahl Betreuungstage"
+              id="enrollment-day-count-filter"
+            >
               <CustomSelect
                 id="enrollment-day-count-filter"
                 value={dayCount}
@@ -719,7 +703,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
             <p className="mt-1 text-sm text-gray-500">
               {requests.length === 0 && !reportLoading
                 ? "Sobald Eltern das Formular absenden, erscheinen die Eingänge hier."
-                : "Passe Status, Angebot, Tagesanzahl, Zielklasse oder Suche an."}
+                : "Passe Status, Angebot, Betreuungstage, Zielklasse oder Suche an."}
             </p>
           </div>
         }
@@ -907,9 +891,11 @@ function formatOfferingDaySource(
   const manual = formatDays(
     hasProvenance ? (offering.manual_selected_days ?? []) : offering.days,
   );
-  if (automatic && manual) return `${automatic} automatisch; ${manual} manuell`;
-  if (automatic) return `${automatic} automatisch`;
-  if (manual) return `${manual} · Elternauswahl`;
+  if (automatic && manual) {
+    return `${automatic} automatisch mitgebucht; ${manual} von Eltern gewählt`;
+  }
+  if (automatic) return `${automatic} automatisch mitgebucht`;
+  if (manual) return `${manual} · von Eltern gewählt`;
   return "";
 }
 

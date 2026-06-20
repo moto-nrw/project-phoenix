@@ -1932,26 +1932,17 @@ function OfferingCard({
   const effectiveChecked = required || checked;
   const inputLocked = required || toggleLocked;
   const weekdayLabels = asStringMap(tr.raw("weekdaysShort"));
-  const automaticDayList = offering.available_days.filter(
-    (day) => automaticDays?.has(day) ?? false,
-  );
-  const manualDayList = offering.available_days.filter(
-    (day) =>
-      (selectedDays?.has(day) ?? false) && !(automaticDays?.has(day) ?? false),
-  );
-  const daySourceSummary = formatOfferingDaySourceSummary(
-    automaticDayList,
-    manualDayList,
-    weekdayLabels,
-    tr,
-  );
+  const autoIncluded =
+    !required &&
+    toggleLocked &&
+    offering.available_days.some((day) => automaticDays?.has(day) ?? false);
   let stateClass = "border-gray-200 bg-white hover:border-gray-300";
   if (dayError) {
     stateClass = "border-[#FF3130] bg-[#FF3130]/5";
+  } else if (autoIncluded || checked) {
+    stateClass = "border-[#83CD2D]/40 bg-[#83CD2D]/10";
   } else if (required || toggleLocked) {
     stateClass = "border-gray-200 bg-gray-50";
-  } else if (checked) {
-    stateClass = "border-[#83CD2D]/40 bg-[#83CD2D]/10";
   }
   const inputId = `children-${childIndex}-offering-${offering.id}`;
 
@@ -1979,8 +1970,16 @@ function OfferingCard({
             }`}
           />
           {inputLocked ? (
-            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-gray-400 text-white">
-              <Lock className="h-3 w-3" />
+            <span
+              className={`flex h-5 w-5 items-center justify-center rounded-md text-white ${
+                autoIncluded ? "bg-[#83CD2D]" : "bg-gray-400"
+              }`}
+            >
+              {autoIncluded ? (
+                <Check className="h-3.5 w-3.5" />
+              ) : (
+                <Lock className="h-3 w-3" />
+              )}
             </span>
           ) : (
             checked && (
@@ -1998,11 +1997,6 @@ function OfferingCard({
             {required && (
               <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600">
                 {tr("care.requiredBadge")}
-              </span>
-            )}
-            {automaticDayList.length > 0 && (
-              <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600">
-                {tr("care.automaticBadge")}
               </span>
             )}
           </div>
@@ -2028,6 +2022,7 @@ function OfferingCard({
           {offering.available_days.map((day) => {
             const picked = selectedDays?.has(day) ?? false;
             const automatic = automaticDays?.has(day) ?? false;
+            const selected = picked || automatic;
             return (
               <button
                 key={day}
@@ -2040,13 +2035,11 @@ function OfferingCard({
                 }}
                 disabled={automatic}
                 className={`rounded-md border px-2 py-0.5 text-xs font-medium transition-colors disabled:cursor-not-allowed ${
-                  automatic
-                    ? "border-gray-400 bg-gray-400 text-white"
-                    : picked
-                      ? "border-[#83CD2D] bg-[#83CD2D] text-white"
-                      : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
+                  selected
+                    ? "border-[#83CD2D] bg-[#83CD2D] text-white"
+                    : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
                 }`}
-                aria-pressed={picked}
+                aria-pressed={selected}
               >
                 {weekdayLabels[day] ?? day}
               </button>
@@ -2054,11 +2047,6 @@ function OfferingCard({
           })}
         </div>
       )}
-      {effectiveChecked &&
-        offering.days_of_week_mode === "parent_choice" &&
-        daySourceSummary && (
-          <p className="mt-1 ml-8 text-xs text-gray-500">{daySourceSummary}</p>
-        )}
       {dayError && (
         <p className="mt-1 ml-8 text-xs text-[#FF3130]">
           {tr("errors.dayInline")}
@@ -2066,31 +2054,6 @@ function OfferingCard({
       )}
     </div>
   );
-}
-
-function formatOfferingDaySourceSummary(
-  automaticDays: readonly string[],
-  manualDays: readonly string[],
-  weekdayLabels: Record<string, string>,
-  tr: TranslationFn,
-): string {
-  const parts: string[] = [];
-  const automatic = formatLocalizedDays(automaticDays, weekdayLabels);
-  const manual = formatLocalizedDays(manualDays, weekdayLabels);
-  if (automatic) {
-    parts.push(tr("care.automaticDays", { days: automatic }));
-  }
-  if (manual) {
-    parts.push(tr("care.manualDays", { days: manual }));
-  }
-  return parts.join("; ");
-}
-
-function formatLocalizedDays(
-  days: readonly string[],
-  weekdayLabels: Record<string, string>,
-): string {
-  return days.map((day) => weekdayLabels[day] ?? day).join(", ");
 }
 
 function Input({

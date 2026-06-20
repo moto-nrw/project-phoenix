@@ -1063,7 +1063,8 @@ export function ChildOfferingAdjustment({
                                   ) : null}
                                   {autoDays.length > 0 ? (
                                     <span className="rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs text-[#355A9A]">
-                                      automatisch: {formatAdminDays(autoDays)}
+                                      automatisch mitgebucht:{" "}
+                                      {formatAdminDays(autoDays)}
                                     </span>
                                   ) : null}
                                 </span>
@@ -1260,9 +1261,11 @@ function formatAdminOfferingDaySource(o: AdminRequestChildOffering): string {
       ? (o.manual_selected_days ?? [])
       : (o.selected_days ?? []);
   const manual = formatAdminDays(manualDays);
-  if (automatic && manual) return `${automatic} automatisch; ${manual} manuell`;
-  if (automatic) return `${automatic} automatisch`;
-  if (manual) return `Elternauswahl: ${manual}`;
+  if (automatic && manual) {
+    return `${automatic} automatisch mitgebucht; ${manual} von Eltern gewählt`;
+  }
+  if (automatic) return `${automatic} automatisch mitgebucht`;
+  if (manual) return `Von Eltern gewählt: ${manual}`;
   return "";
 }
 

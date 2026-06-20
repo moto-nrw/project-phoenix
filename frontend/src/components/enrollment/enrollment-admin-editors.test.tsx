@@ -288,6 +288,8 @@ describe("CareOfferingsEditor", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Neues Betreuungsangebot" }),
     );
+    expect(screen.getByText("Betreuungstage & Mitbuchung")).toBeVisible();
+    expect(screen.getByText("Als Betreuungstage zählen")).toBeVisible();
     fireEvent.change(await waitForInputByName("name"), {
       target: { value: "Frühbetreuung" },
     });
@@ -315,6 +317,26 @@ describe("CareOfferingsEditor", () => {
         2,
       );
     });
+  });
+
+  it("shows care-day counting and booking behavior in the offerings list", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({ id: "offer-1", name: "OGS Ganztag" }),
+      offering({
+        id: "offer-2",
+        name: "Randstunde",
+        counts_as_care: false,
+        auto_add_trigger_offering_ids: ["offer-1"],
+      }),
+    ]);
+
+    render(<CareOfferingsEditor />);
+
+    expect(await screen.findByText("Randstunde")).toBeInTheDocument();
+    expect(screen.getByText("Zählt nicht als Betreuungstag")).toBeVisible();
+    expect(screen.getByText("Wird mitgebucht")).toBeVisible();
+    expect(screen.getByText("Zählt als Betreuungstag")).toBeVisible();
   });
 
   it("locks and clears capacity when an offering is marked required", async () => {
