@@ -14,10 +14,12 @@ import {
   getStudentPresenceBadgePlanning,
 } from "~/lib/day-planning-helper";
 import type { SupervisorContact } from "~/lib/student-helpers";
+import type { StudentEnrollmentExtraFieldGroup } from "~/lib/student-api";
 import {
   allowedDepartureModesFromDeparture,
   departureDaysFromLegacy,
 } from "~/lib/student-helpers";
+import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { AllowedDepartureModesDisplay } from "~/components/students/allowed-departure-modes-display";
 import { InfoCard, InfoItem } from "~/components/ui/info-card";
 import { Avatar } from "~/components/ui/avatar";
@@ -649,12 +651,16 @@ function SupervisorItem({
 
 interface PersonalInfoReadOnlyProps {
   student: ExtendedStudent;
+  enrollmentExtraGroups?: StudentEnrollmentExtraFieldGroup[];
   showEditButton?: boolean;
   onEditClick?: () => void;
 }
 
+const EMPTY_ENROLLMENT_EXTRA_GROUPS: StudentEnrollmentExtraFieldGroup[] = [];
+
 export function PersonalInfoReadOnly({
   student,
+  enrollmentExtraGroups = EMPTY_ENROLLMENT_EXTRA_GROUPS,
   showEditButton = false,
   onEditClick,
 }: Readonly<PersonalInfoReadOnlyProps>) {
@@ -733,8 +739,38 @@ export function PersonalInfoReadOnly({
         {student.extra_info && (
           <InfoItem label="Elternnotizen" value={student.extra_info} />
         )}
+        <EnrollmentExtraInfoItems groups={enrollmentExtraGroups} />
       </div>
     </div>
+  );
+}
+
+function EnrollmentExtraInfoItems({
+  groups,
+}: Readonly<{ groups: StudentEnrollmentExtraFieldGroup[] }>) {
+  if (groups.length === 0) return null;
+  const prefixWithPhase = groups.length > 1;
+
+  return (
+    <>
+      {groups.flatMap((group) =>
+        group.fields.map((field) => {
+          const value = formatCustomValue(field.value, field);
+          if (value === null) return null;
+          const label =
+            prefixWithPhase && group.phase_name
+              ? `${group.phase_name} · ${field.label}`
+              : field.label;
+          return (
+            <InfoItem
+              key={`${group.request_id}-${field.key}`}
+              label={label}
+              value={value}
+            />
+          );
+        }),
+      )}
+    </>
   );
 }
 

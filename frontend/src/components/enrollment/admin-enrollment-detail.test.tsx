@@ -5,7 +5,8 @@ import {
   type AdminRequestChild,
   type AdminRequestSchemaField,
 } from "~/lib/enrollment-admin-api";
-import { ChildExtraFields, formatCustomValue } from "./admin-enrollment-detail";
+import { ChildExtraFields } from "./admin-enrollment-detail";
+import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 
 function field(
   type: string,

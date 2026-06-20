@@ -25,6 +25,7 @@ import (
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
+	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
@@ -58,6 +59,8 @@ type Resource struct {
 	StudentService          userService.StudentService
 	StudentStatusDayService activeService.StudentStatusDayService
 	StudentHistoryService   activeService.StudentHistoryService
+	EnrollmentDecision      enrollmentService.DecisionService
+	EnrollmentFormSchema    enrollmentService.FormSchemaService
 	Broadcaster             realtime.Broadcaster
 	StudentPhotos           userService.StudentPhotoService
 	ListExportService       listexport.Service
@@ -83,6 +86,8 @@ type ResourceConfig struct {
 	StudentService          userService.StudentService
 	StudentStatusDayService activeService.StudentStatusDayService
 	StudentHistoryService   activeService.StudentHistoryService
+	EnrollmentDecision      enrollmentService.DecisionService
+	EnrollmentFormSchema    enrollmentService.FormSchemaService
 	Broadcaster             realtime.Broadcaster
 	StudentPhotos           userService.StudentPhotoService
 	ListExportService       listexport.Service
@@ -113,6 +118,8 @@ func NewResource(cfg ResourceConfig) *Resource {
 		StudentService:          cfg.StudentService,
 		StudentStatusDayService: cfg.StudentStatusDayService,
 		StudentHistoryService:   cfg.StudentHistoryService,
+		EnrollmentDecision:      cfg.EnrollmentDecision,
+		EnrollmentFormSchema:    cfg.EnrollmentFormSchema,
 		Broadcaster:             cfg.Broadcaster,
 		StudentPhotos:           cfg.StudentPhotos,
 		ListExportService:       cfg.ListExportService,
@@ -148,6 +155,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/attendance-history", rs.getStudentAttendanceHistory)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/status-days", rs.getStudentStatusDays)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/parent-notes", rs.getStudentParentNotes)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/enrollment-extra-fields", rs.getStudentEnrollmentExtraFields)
 
 		// Routes requiring users:create permission
 		r.With(authorize.RequiresPermission(permissions.UsersCreate), withTx).Post("/", rs.createStudent)
