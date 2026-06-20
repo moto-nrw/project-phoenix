@@ -686,30 +686,33 @@ export function EnrollmentForm({
         }
       }
       // The coupled "mit wem" note (#1694) is required whenever this child has
-      // the accompanied mode selected on any relevant care day. Mirror the
-      // exact accompaniedSelected computation the WeekdayMultiModeInput uses to
-      // decide whether to show the note input, so validation matches the UI.
-      const departureField = (schema?.fields ?? []).find(
-        (f) =>
-          f.target === "student.allowed_departure_modes" && f.applies_to_child,
-      );
-      if (departureField && isFieldVisible(departureField, childCtx)) {
-        const relevantDays = relevantCareDaysForChild(
-          c,
-          offerings,
-          previewMode,
-        );
-        const modesObj = asWeekdayMultiModeObject(
-          c.custom[departureField.key],
-          relevantDays,
-        );
-        const accompaniedSelected = relevantDays.some((day) =>
-          (modesObj[day] ?? []).includes("accompanied"),
-        );
+      // the accompanied mode selected on any relevant care day. A schema may
+      // carry more than one field targeting student.allowed_departure_modes
+      // (only keys are unique), and each WeekdayMultiModeInput shows the note
+      // input off its own value, so check every visible departure field, not
+      // just the first, to keep validation aligned with the UI.
+      const relevantDays = relevantCareDaysForChild(c, offerings, previewMode);
+      const accompaniedSelected = (schema?.fields ?? [])
+        .filter(
+          (f) =>
+            f.target === "student.allowed_departure_modes" &&
+            f.applies_to_child &&
+            isFieldVisible(f, childCtx),
+        )
+        .some((f) => {
+          const modesObj = asWeekdayMultiModeObject(
+            c.custom[f.key],
+            relevantDays,
+          );
+          return relevantDays.some((day) =>
+            (modesObj[day] ?? []).includes("accompanied"),
+          );
+        });
+      if (accompaniedSelected) {
         const note = (
           c.custom[DEPARTURE_COMPANION_KEY] as string | undefined
         )?.trim();
-        if (accompaniedSelected && !note) {
+        if (!note) {
           newFieldErrors[`children_${i}_departure_companion_note`] = tr(
             "structured.departureCompanionRequired",
           );
@@ -881,25 +884,33 @@ export function EnrollmentForm({
         relevantCareDaysForChild(c, offerings, previewMode),
       );
       // Couple the "mit wem" note (#1694) back in: it rides on a reserved key
-      // (not a schema field), so visibleAnswerData drops it. Re-attach it only
-      // when the surviving modes actually allow the accompanied mode and a note
-      // was entered, so a stale note never reaches the backend.
-      const departureField = (schema?.fields ?? []).find(
-        (f) =>
-          f.target === "student.allowed_departure_modes" && f.applies_to_child,
-      );
-      if (departureField) {
-        const modesVal = customData[departureField.key];
+      // (not a schema field), so visibleAnswerData drops it. A schema may carry
+      // more than one field targeting student.allowed_departure_modes (only keys
+      // are unique, so conditional variants are allowed), so check every visible
+      // departure field, not just the first. Re-attach the note only when some
+      // surviving modes actually allow the accompanied mode and a note was
+      // entered, so a stale note never reaches the backend.
+      const hasAccompaniedDeparture = (schema?.fields ?? [])
+        .filter(
+          (f) =>
+            f.target === "student.allowed_departure_modes" &&
+            f.applies_to_child,
+        )
+        .some((f) => {
+          const modesVal = customData[f.key];
+          return (
+            !!modesVal &&
+            typeof modesVal === "object" &&
+            Object.values(modesVal as Record<string, unknown>).some(
+              (arr) => Array.isArray(arr) && arr.includes("accompanied"),
+            )
+          );
+        });
+      if (hasAccompaniedDeparture) {
         const note = (
           c.custom[DEPARTURE_COMPANION_KEY] as string | undefined
         )?.trim();
-        const hasAccompanied =
-          !!modesVal &&
-          typeof modesVal === "object" &&
-          Object.values(modesVal as Record<string, unknown>).some(
-            (arr) => Array.isArray(arr) && arr.includes("accompanied"),
-          );
-        if (hasAccompanied && note) {
+        if (note) {
           customData[DEPARTURE_COMPANION_KEY] = note;
         }
       }

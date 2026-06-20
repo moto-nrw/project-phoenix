@@ -1731,6 +1731,124 @@ describe("EnrollmentForm", () => {
     ).toBe("Geschwisterkind Mia");
   });
 
+  // Regression (#1694): a schema may carry more than one field targeting
+  // student.allowed_departure_modes (only keys are unique). The companion note
+  // must couple back in and be enforced when accompanied is chosen in ANY of
+  // them, not only the first — a single .find() on the first field dropped the
+  // note (and skipped the required-note check) when accompanied lived in a
+  // later field, so the backend rejected an otherwise-complete submission.
+  function twoDepartureFieldsSchemaAndOfferings() {
+    const customSchema = schema();
+    customSchema.fields = [
+      {
+        key: "modes_a",
+        label: "Heimweg A",
+        type: "weekday_multi_mode",
+        target: "student.allowed_departure_modes",
+        required: true,
+        applies_to_child: true,
+        sort_order: 1,
+      },
+      {
+        key: "modes_b",
+        label: "Heimweg B",
+        type: "weekday_multi_mode",
+        target: "student.allowed_departure_modes",
+        required: true,
+        applies_to_child: true,
+        sort_order: 2,
+      },
+    ];
+    mockFetchPublicActiveSchema.mockResolvedValue(customSchema);
+    mockFetchPublicCareOfferings.mockResolvedValue({
+      offerings: [
+        {
+          id: "21",
+          phase_id: "5",
+          name: "Block Mo",
+          description: null,
+          days_of_week_mode: "fixed",
+          available_days: ["mon"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          capacity: null,
+        },
+      ],
+      careOfferingSelectionMode: "at_least_one",
+      careRequired: true,
+    });
+  }
+
+  it("couples the companion note when accompanied is selected in a later departure field (#1694)", async () => {
+    twoDepartureFieldsSchemaAndOfferings();
+    renderForm();
+    await waitForLoaded();
+    await fillRequiredFields();
+    fireEvent.click(screen.getByRole("checkbox", { name: /Block Mo/ }));
+
+    // Field A gets a non-accompanied mode so the .find()-on-first-field bug
+    // would see no accompanied and drop the note.
+    const groupA = screen.getByRole("group", { name: /Heimweg A/ });
+    fireEvent.click(within(groupA).getByRole("button", { name: "Mo" }));
+    fireEvent.click(within(groupA).getByRole("checkbox", { name: "Bus" }));
+
+    // Accompanied lives only in field B.
+    const groupB = screen.getByRole("group", { name: /Heimweg B/ });
+    fireEvent.click(within(groupB).getByRole("button", { name: "Mo" }));
+    fireEvent.click(
+      within(groupB).getByRole("checkbox", { name: "Mit anderem Kind" }),
+    );
+    fireEvent.change(
+      within(groupB).getByPlaceholderText(/Geschwisterkind, Freund, Name/),
+      { target: { value: "Geschwisterkind Mia" } },
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+    await waitFor(() => expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1));
+    const [, payload] = mockSubmitEnrollment.mock.calls[0] as [
+      string,
+      SubmitEnrollmentPayload,
+    ];
+    expect(payload.children[0]?.custom_data?.modes_b).toMatchObject({
+      mon: ["accompanied"],
+    });
+    expect(
+      payload.children[0]?.custom_data?.["student.departure_companion_note"],
+    ).toBe("Geschwisterkind Mia");
+  });
+
+  it("requires the note when accompanied is selected only in a later departure field (#1694)", async () => {
+    twoDepartureFieldsSchemaAndOfferings();
+    renderForm();
+    await waitForLoaded();
+    await fillRequiredFields();
+    fireEvent.click(screen.getByRole("checkbox", { name: /Block Mo/ }));
+
+    const groupA = screen.getByRole("group", { name: /Heimweg A/ });
+    fireEvent.click(within(groupA).getByRole("button", { name: "Mo" }));
+    fireEvent.click(within(groupA).getByRole("checkbox", { name: "Bus" }));
+
+    const groupB = screen.getByRole("group", { name: /Heimweg B/ });
+    fireEvent.click(within(groupB).getByRole("button", { name: "Mo" }));
+    fireEvent.click(
+      within(groupB).getByRole("checkbox", { name: "Mit anderem Kind" }),
+    );
+
+    // Note left empty → submit must be blocked even though accompanied lives in
+    // the second departure field.
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+    await waitFor(() =>
+      expect(
+        screen.getAllByText(
+          "Bitte angeben, mit welchem Kind das Kind nach Hause geht.",
+        ).length,
+      ).toBeGreaterThan(0),
+    );
+    expect(mockSubmitEnrollment).not.toHaveBeenCalled();
+  });
+
   it("blocks submit with a required-note error when accompanied is selected but the note is empty (#1694)", async () => {
     accompaniedModeSchemaAndOfferings();
     renderForm();
