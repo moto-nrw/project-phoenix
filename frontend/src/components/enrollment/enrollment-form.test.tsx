@@ -1581,6 +1581,92 @@ describe("EnrollmentForm", () => {
     expect((lastNames[2] as HTMLInputElement).value).toBe("Bach");
   });
 
+  it("does not turn automatic-only edit-draft offerings into manual selections", async () => {
+    const submitter = vi.fn().mockResolvedValue({ status_url: "/status/edit" });
+    const noFieldSchema = schema();
+    noFieldSchema.fields = [];
+    mockFetchPublicActiveSchema.mockResolvedValueOnce(noFieldSchema);
+    mockFetchPublicLegalTexts.mockResolvedValueOnce(legalTexts([]));
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [
+        {
+          id: "11",
+          phase_id: "5",
+          name: "Ganztag",
+          description: null,
+          days_of_week_mode: "parent_choice",
+          available_days: ["mon", "wed"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          counts_as_care: true,
+          capacity: null,
+        },
+        {
+          id: "22",
+          phase_id: "5",
+          name: "Randstunde",
+          description: null,
+          days_of_week_mode: "parent_choice",
+          available_days: ["mon", "wed"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          counts_as_care: false,
+          auto_add_trigger_offering_ids: ["11"],
+          capacity: null,
+        },
+      ],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+    });
+
+    renderForm({
+      submitter,
+      skipCaptcha: true,
+      initialDraft: {
+        ...editDraft([{ id: "c-1", first_name: "Anton", last_name: "Alster" }]),
+        consent_flags: {},
+        children: [
+          {
+            id: "c-1",
+            first_name: "Anton",
+            last_name: "Alster",
+            date_of_birth: "2018-04-15",
+            target_grade_level: 2,
+            offering_ids: ["11", "22"],
+            offering_days: [
+              {
+                offering_id: "11",
+                selected_days: ["mon"],
+                manual_selected_days: ["mon"],
+              },
+              {
+                offering_id: "22",
+                selected_days: ["mon"],
+                automatic_selected_days: ["mon"],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    await waitForLoaded();
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() => {
+      expect(submitter).toHaveBeenCalledTimes(1);
+    });
+    const payload = submitter.mock.calls[0]?.[0] as SubmitEnrollmentPayload;
+    expect(payload.children[0]?.offering_ids).toEqual([11]);
+    expect(payload.children[0]?.offering_days).toEqual([
+      { offering_id: 11, selected_days: ["mon"] },
+    ]);
+  });
+
   it("keeps each child's card state bound to that child when a sibling is removed", async () => {
     // Regression for the array-index key bug: the per-child WeekdayMultiModeInput
     // holds local-only state (the "same ways home" toggle). With index keys,

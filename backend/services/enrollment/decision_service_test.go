@@ -1322,7 +1322,104 @@ func TestDecisionService_UpdateChildOfferings_ReplacesLinksAndWritesAudit(t *tes
 	assert.Contains(t, string(adjustments[0].After), "Randstunde Approved")
 }
 
+func TestDecisionService_UpdateChildOfferings_RejectsGroupRuleViolation(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	reqID, childID := submitOneChild(t, env, "adjust-group-rule@example.com", "Lina", "GroupRule")
+	first := createAdjustmentCareOfferingWith(t, env, "Frühbetreuung", func(o *enrollmentModels.CareOffering) {
+		o.SelectionGroup = "randzeiten"
+		o.SelectionRule = enrollmentModels.SelectionRuleAtMostOne
+		o.SortOrder = 101
+	})
+	second := createAdjustmentCareOfferingWith(t, env, "Spätbetreuung", func(o *enrollmentModels.CareOffering) {
+		o.SelectionGroup = "randzeiten"
+		o.SelectionRule = enrollmentModels.SelectionRuleAtMostOne
+		o.SortOrder = 102
+	})
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
+		RequestID:      reqID,
+		ChildID:        childID,
+		ActorAccountID: env.creatorID,
+		ActorRole:      "admin",
+		Reason:         "Ungültige Randzeiten",
+		Offerings: []enrollmentService.OfferingAdjustmentSelection{
+			{OfferingID: first.ID, SelectedDays: []string{"mon"}},
+			{OfferingID: second.ID, SelectedDays: []string{"mon"}},
+		},
+	})
+
+	require.ErrorIs(t, err, enrollmentService.ErrOfferingAdjustmentInvalid)
+}
+
+func TestDecisionService_UpdateChildOfferings_RematerializesRequiredAutomaticLunch(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	reqID, childID := submitOneChild(t, env, "adjust-lunch@example.com", "Lina", "Lunch")
+	care := createAdjustmentCareOfferingWith(t, env, "Ganztag", func(o *enrollmentModels.CareOffering) {
+		o.CountsAsCare = true
+		o.CountsAsCareSet = true
+		o.SortOrder = 101
+	})
+	lunch := createAdjustmentCareOfferingWith(t, env, "Mittagessen", func(o *enrollmentModels.CareOffering) {
+		o.IsRequired = true
+		o.IncludesLunch = true
+		o.CountsAsCare = false
+		o.CountsAsCareSet = true
+		o.SortOrder = 102
+	})
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
+		RequestID:      reqID,
+		ChildID:        childID,
+		ActorAccountID: env.creatorID,
+		ActorRole:      "admin",
+		Reason:         "Ganztag nachgetragen",
+		Offerings: []enrollmentService.OfferingAdjustmentSelection{
+			{OfferingID: care.ID, SelectedDays: []string{"mon", "wed"}},
+		},
+	})
+	require.NoError(t, err)
+
+	links, err := env.repos.RequestChildOffering.ListByRequestChildID(ctx, childID)
+	require.NoError(t, err)
+	require.Len(t, links, 2)
+	linksByOfferingID := map[int64]*enrollmentModels.RequestChildOffering{}
+	for _, link := range links {
+		linksByOfferingID[link.CareOfferingID] = link
+	}
+	assert.Equal(t, []string{"mon", "wed"}, linksByOfferingID[care.ID].ManualSelectedDays)
+	require.Contains(t, linksByOfferingID, lunch.ID)
+	assert.Equal(t, []string{"mon", "wed"}, linksByOfferingID[lunch.ID].AutomaticSelectedDays)
+	assert.Empty(t, linksByOfferingID[lunch.ID].ManualSelectedDays)
+}
+
 func createAdjustmentCareOffering(t *testing.T, env *decisionTestEnv, name string) *enrollmentModels.CareOffering {
+	t.Helper()
+	return createAdjustmentCareOfferingWith(t, env, name, nil)
+}
+
+func createAdjustmentCareOfferingWith(t *testing.T, env *decisionTestEnv, name string, mutate func(*enrollmentModels.CareOffering)) *enrollmentModels.CareOffering {
 	t.Helper()
 	ctx := testpkg.TenantContext(1)
 	offering := &enrollmentModels.CareOffering{
@@ -1333,6 +1430,9 @@ func createAdjustmentCareOffering(t *testing.T, env *decisionTestEnv, name strin
 		IsActive:       true,
 		CountsAsCare:   false,
 		SortOrder:      100,
+	}
+	if mutate != nil {
+		mutate(offering)
 	}
 	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
 	return offering

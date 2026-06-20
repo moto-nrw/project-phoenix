@@ -414,19 +414,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	for _, o := range openOfferings {
 		openByID[o.ID] = o
 	}
-	if err := validateOfferingSelections(req.Children, openByID); err != nil {
-		return nil, err
-	}
-	if err := validateOfferingGroupRules(req.Children, openByID); err != nil {
-		return nil, err
-	}
-	if err := validateRequiredOfferings(req.Children, openByID); err != nil {
-		return nil, err
-	}
-	if err := validateCareOfferingSelectionMode(req.Children, openByID, phase.CareOfferingSelectionMode); err != nil {
-		return nil, err
-	}
-	materializedSelections, err := materializeChildrenOfferingSelections(req.Children, openByID)
+	materializedSelections, err := materializeAndValidateChildrenOfferingSelections(req.Children, openByID, phase.CareOfferingSelectionMode)
 	if err != nil {
 		return nil, err
 	}
@@ -836,6 +824,30 @@ func materializeChildrenOfferingSelections(children []SubmitChild, openByID map[
 	return out, nil
 }
 
+func materializeAndValidateChildrenOfferingSelections(
+	children []SubmitChild,
+	openByID map[int64]*enrollmentModels.CareOffering,
+	selectionMode string,
+) ([][]materializedOfferingSelection, error) {
+	if err := validateOfferingSelections(children, openByID); err != nil {
+		return nil, err
+	}
+	selections, err := materializeChildrenOfferingSelections(children, openByID)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateOfferingGroupRules(children, openByID); err != nil {
+		return nil, err
+	}
+	if err := validateRequiredOfferings(children, openByID); err != nil {
+		return nil, err
+	}
+	if err := validateCareOfferingSelectionMode(children, openByID, selectionMode); err != nil {
+		return nil, err
+	}
+	return selections, nil
+}
+
 func materializeOfferingSelections(child SubmitChild, openByID map[int64]*enrollmentModels.CareOffering) ([]materializedOfferingSelection, error) {
 	daysByOffering := make(map[int64][]string, len(child.OfferingDays))
 	for _, row := range child.OfferingDays {
@@ -860,28 +872,44 @@ func materializeOfferingSelections(child SubmitChild, openByID map[int64]*enroll
 		}
 	}
 
-	for _, target := range openByID {
-		if !careOfferingCanAutoAddDays(target) || !autoAddAppliesToGrade(child.TargetGradeLevel, target.AutoAddGradeLevels) {
-			continue
-		}
-		if target.DaysOfWeekMode != enrollmentModels.DaysOfWeekModeParentChoice {
+	targets := sortedCareOfferings(openByID)
+	for _, target := range targets {
+		if careOfferingCanAutoAddDays(target) && autoAddAppliesToGrade(child.TargetGradeLevel, target.AutoAddGradeLevels) && target.DaysOfWeekMode != enrollmentModels.DaysOfWeekModeParentChoice {
 			return nil, fmt.Errorf("offering %d cannot be automatically added because it does not allow day selection", target.ID)
 		}
-		autoDays := unionDaysInOfferingOrder(
-			target.AvailableDays,
-			autoDaysForTarget(target, target.AutoAddTriggerOfferingIDs, selectionByID, openByID),
-			autoLunchDaysForTarget(target, selectionByID, openByID),
-		)
-		if len(autoDays) == 0 {
-			continue
+	}
+
+	changed := true
+	for changed {
+		changed = false
+		for _, target := range targets {
+			if !careOfferingCanAutoAddDays(target) || !autoAddAppliesToGrade(child.TargetGradeLevel, target.AutoAddGradeLevels) {
+				continue
+			}
+			autoDays := unionDaysInOfferingOrder(
+				target.AvailableDays,
+				autoDaysForTarget(target, target.AutoAddTriggerOfferingIDs, selectionByID, openByID),
+				autoLunchDaysForTarget(target, selectionByID, openByID),
+			)
+			if len(autoDays) == 0 {
+				continue
+			}
+			selection := selectionByID[target.ID]
+			if selection == nil {
+				selection = &materializedOfferingSelection{OfferingID: target.ID}
+				selectionByID[target.ID] = selection
+				changed = true
+			}
+			if !sameStringSlice(selection.AutomaticSelectedDays, autoDays) {
+				selection.AutomaticSelectedDays = autoDays
+				changed = true
+			}
+			selectedDays := unionDaysInOfferingOrder(target.AvailableDays, selection.ManualSelectedDays, selection.AutomaticSelectedDays)
+			if !sameStringSlice(selection.SelectedDays, selectedDays) {
+				selection.SelectedDays = selectedDays
+				changed = true
+			}
 		}
-		selection := selectionByID[target.ID]
-		if selection == nil {
-			selection = &materializedOfferingSelection{OfferingID: target.ID}
-			selectionByID[target.ID] = selection
-		}
-		selection.AutomaticSelectedDays = autoDays
-		selection.SelectedDays = unionDaysInOfferingOrder(target.AvailableDays, selection.ManualSelectedDays, selection.AutomaticSelectedDays)
 	}
 
 	for offeringID, selection := range selectionByID {
@@ -910,6 +938,34 @@ func materializeOfferingSelections(child SubmitChild, openByID map[int64]*enroll
 		return left.SortOrder < right.SortOrder
 	})
 	return out, nil
+}
+
+func sortedCareOfferings(openByID map[int64]*enrollmentModels.CareOffering) []*enrollmentModels.CareOffering {
+	out := make([]*enrollmentModels.CareOffering, 0, len(openByID))
+	for _, offering := range openByID {
+		if offering != nil {
+			out = append(out, offering)
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].SortOrder == out[j].SortOrder {
+			return out[i].ID < out[j].ID
+		}
+		return out[i].SortOrder < out[j].SortOrder
+	})
+	return out
+}
+
+func sameStringSlice(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func selectionPayload(selections []materializedOfferingSelection, openByID map[int64]*enrollmentModels.CareOffering) ([]int64, []SubmitOfferingDays) {
@@ -1399,19 +1455,7 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 		for _, o := range openOfferings {
 			openByID[o.ID] = o
 		}
-		if err := validateOfferingSelections(editReq.Children, openByID); err != nil {
-			return err
-		}
-		if err := validateOfferingGroupRules(editReq.Children, openByID); err != nil {
-			return err
-		}
-		if err := validateRequiredOfferings(editReq.Children, openByID); err != nil {
-			return err
-		}
-		if err := validateCareOfferingSelectionMode(editReq.Children, openByID, phase.CareOfferingSelectionMode); err != nil {
-			return err
-		}
-		materializedSelections, err := materializeChildrenOfferingSelections(editReq.Children, openByID)
+		materializedSelections, err := materializeAndValidateChildrenOfferingSelections(editReq.Children, openByID, phase.CareOfferingSelectionMode)
 		if err != nil {
 			return err
 		}

@@ -118,9 +118,9 @@ function offeringToInput(offering: CareOffering): CareOfferingInput {
     is_required: offering.is_required,
     counts_as_care: offering.counts_as_care ?? true,
     auto_add_grade_levels: offering.auto_add_grade_levels ?? [],
-    auto_add_trigger_offering_ids: (
-      offering.auto_add_trigger_offering_ids ?? []
-    ).map((id) => Number(id)),
+    auto_add_trigger_offering_ids: [
+      ...(offering.auto_add_trigger_offering_ids ?? []),
+    ],
     sort_order: offering.sort_order,
     selection_group: offering.selection_group ?? "",
     selection_rule: offering.selection_rule ?? "optional",
@@ -948,13 +948,12 @@ function CareOfferingForm({
     update({ auto_add_grade_levels: [1, 2, 3, 4].filter((g) => next.has(g)) });
   };
   const toggleTriggerOffering = (offeringID: string) => {
-    const numericID = Number(offeringID);
     const next = new Set(draft.auto_add_trigger_offering_ids ?? []);
-    if (next.has(numericID)) next.delete(numericID);
-    else next.add(numericID);
+    if (next.has(offeringID)) next.delete(offeringID);
+    else next.add(offeringID);
     update({
       auto_add_trigger_offering_ids: triggerOptions
-        .map((offering) => Number(offering.id))
+        .map((offering) => offering.id)
         .filter((id) => next.has(id)),
     });
   };
@@ -1185,7 +1184,7 @@ function CareOfferingForm({
                     key={offering.id}
                     checked={(
                       draft.auto_add_trigger_offering_ids ?? []
-                    ).includes(Number(offering.id))}
+                    ).includes(offering.id)}
                     onChange={() => toggleTriggerOffering(offering.id)}
                     label={offering.name}
                     hint={formatDays(offering.available_days)}

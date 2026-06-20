@@ -38,7 +38,7 @@ export interface AdminRequestChildOffering {
 }
 
 interface AdminOfferingAdjustmentSnapshot {
-  offering_id: number;
+  offering_id: string;
   offering_name?: string;
   days_of_week_mode?: string;
   selected_days?: string[];

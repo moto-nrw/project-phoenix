@@ -93,7 +93,7 @@ type CareOfferingRequest struct {
 	IsRequired          bool     `json:"is_required"`
 	CountsAsCare        *bool    `json:"counts_as_care"`
 	AutoAddGradeLevels  []int    `json:"auto_add_grade_levels"`
-	AutoAddTriggerIDs   []int64  `json:"auto_add_trigger_offering_ids"`
+	AutoAddTriggerIDs   []string `json:"auto_add_trigger_offering_ids"`
 	SortOrder           int      `json:"sort_order"`
 	SelectionGroup      string   `json:"selection_group,omitempty"`
 	SelectionRule       string   `json:"selection_rule,omitempty"`
@@ -109,15 +109,19 @@ func (req *CareOfferingRequest) Bind(_ *http.Request) error {
 		req.AutoAddGradeLevels = []int{}
 	}
 	if req.AutoAddTriggerIDs == nil {
-		req.AutoAddTriggerIDs = []int64{}
+		req.AutoAddTriggerIDs = []string{}
 	}
 	return nil
 }
 
-func (req *CareOfferingRequest) toModel(existingID int64) *enrollmentModels.CareOffering {
+func (req *CareOfferingRequest) toModel(existingID int64) (*enrollmentModels.CareOffering, error) {
 	countsAsCare := true
 	if req.CountsAsCare != nil {
 		countsAsCare = *req.CountsAsCare
+	}
+	triggerIDs, err := parseCareOfferingIDStrings(req.AutoAddTriggerIDs, "auto_add_trigger_offering_ids")
+	if err != nil {
+		return nil, err
 	}
 	o := &enrollmentModels.CareOffering{
 		PhaseID:                   req.PhaseID,
@@ -138,10 +142,22 @@ func (req *CareOfferingRequest) toModel(existingID int64) *enrollmentModels.Care
 		SortOrder:                 req.SortOrder,
 		SelectionGroup:            req.SelectionGroup,
 		SelectionRule:             req.SelectionRule,
-		AutoAddTriggerOfferingIDs: req.AutoAddTriggerIDs,
+		AutoAddTriggerOfferingIDs: triggerIDs,
 	}
 	o.ID = existingID
-	return o
+	return o, nil
+}
+
+func parseCareOfferingIDStrings(values []string, field string) ([]int64, error) {
+	out := make([]int64, 0, len(values))
+	for _, raw := range values {
+		id, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || id <= 0 {
+			return nil, fmt.Errorf("%s contains invalid id %q", field, raw)
+		}
+		out = append(out, id)
+	}
+	return out, nil
 }
 
 // CloneCareOfferingRequest is the body POST /{id}/clone accepts.
@@ -222,8 +238,13 @@ func (rs *Resource) createCareOffering(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var offering *enrollmentModels.CareOffering
-	err := rs.runInTenantTx(r, func(ctx context.Context) error {
-		o, e := rs.CareOfferingService.Create(ctx, req.toModel(0))
+	model, err := req.toModel(0)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+		o, e := rs.CareOfferingService.Create(ctx, model)
 		offering = o
 		return e
 	})
@@ -249,9 +270,14 @@ func (rs *Resource) updateCareOffering(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
+	model, err := req.toModel(id)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
 
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {
-		return rs.CareOfferingService.Update(ctx, req.toModel(id))
+		return rs.CareOfferingService.Update(ctx, model)
 	})
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))

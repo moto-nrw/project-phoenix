@@ -339,6 +339,37 @@ describe("CareOfferingsEditor", () => {
     expect(screen.getByText("Zählt als Betreuungstag")).toBeVisible();
   });
 
+  it("keeps auto-add trigger IDs as strings when saving", async () => {
+    const unsafeID = "9007199254740993";
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({ id: unsafeID, name: "Ganztag" }),
+    ]);
+    mocks.createCareOffering.mockResolvedValue(
+      offering({ id: "new", name: "Randstunde" }),
+    );
+
+    render(<CareOfferingsEditor />);
+    expect(await screen.findByText("Ganztag")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Neues Betreuungsangebot" }),
+    );
+    fireEvent.change(await waitForInputByName("name"), {
+      target: { value: "Randstunde" },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: /Ganztag/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Erstellen" }));
+
+    await waitFor(() => {
+      expect(mocks.createCareOffering).toHaveBeenCalledWith(
+        expect.objectContaining({
+          auto_add_trigger_offering_ids: [unsafeID],
+        }),
+      );
+    });
+  });
+
   it("locks and clears capacity when an offering is marked required", async () => {
     mocks.listPhases.mockResolvedValue([phase()]);
     mocks.listCareOfferings.mockResolvedValue([offering()]);

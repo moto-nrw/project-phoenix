@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
@@ -12,7 +13,7 @@ import (
 )
 
 type offeringAdjustmentSnapshot struct {
-	OfferingID            int64    `json:"offering_id"`
+	OfferingID            string   `json:"offering_id"`
 	OfferingName          string   `json:"offering_name"`
 	DaysOfWeekMode        string   `json:"days_of_week_mode"`
 	SelectedDays          []string `json:"selected_days,omitempty"`
@@ -120,19 +121,11 @@ func (s *decisionService) UpdateChildOfferings(ctx context.Context, input Update
 		return left.SortOrder < right.SortOrder
 	})
 	children := []SubmitChild{submitChild}
-	if err := validateOfferingSelections(children, offeringByID); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrOfferingAdjustmentInvalid, err)
-	}
-	if err := validateRequiredOfferings(children, offeringByID); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrOfferingAdjustmentInvalid, err)
-	}
-	if err := validateCareOfferingSelectionMode(children, offeringByID, phase.CareOfferingSelectionMode); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrOfferingAdjustmentInvalid, err)
-	}
-	selections, err := materializeOfferingSelections(submitChild, offeringByID)
+	materialized, err := materializeAndValidateChildrenOfferingSelections(children, offeringByID, phase.CareOfferingSelectionMode)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrOfferingAdjustmentInvalid, err)
 	}
+	selections := materialized[0]
 
 	replacement := make([]*enrollmentModels.RequestChildOffering, 0, len(selections))
 	for _, selection := range selections {
@@ -204,7 +197,7 @@ func adjustmentSnapshotJSON(links []*enrollmentModels.RequestChildOffering, offe
 			continue
 		}
 		row := offeringAdjustmentSnapshot{
-			OfferingID:            link.CareOfferingID,
+			OfferingID:            strconv.FormatInt(link.CareOfferingID, 10),
 			SelectedDays:          copyDays(link.SelectedDays),
 			ManualSelectedDays:    copyDays(link.ManualSelectedDays),
 			AutomaticSelectedDays: copyDays(link.AutomaticSelectedDays),
@@ -217,13 +210,22 @@ func adjustmentSnapshotJSON(links []*enrollmentModels.RequestChildOffering, offe
 		rows = append(rows, row)
 	}
 	sort.SliceStable(rows, func(i, j int) bool {
-		return rows[i].OfferingID < rows[j].OfferingID
+		return lessNumericString(rows[i].OfferingID, rows[j].OfferingID)
 	})
 	raw, err := json.Marshal(rows)
 	if err != nil {
 		return nil, fmt.Errorf("decision: marshal offering adjustment snapshot: %w", err)
 	}
 	return raw, nil
+}
+
+func lessNumericString(left, right string) bool {
+	leftID, leftErr := strconv.ParseInt(left, 10, 64)
+	rightID, rightErr := strconv.ParseInt(right, 10, 64)
+	if leftErr == nil && rightErr == nil {
+		return leftID < rightID
+	}
+	return left < right
 }
 
 func (s *decisionService) rematerializeAdjustedEnrollments(

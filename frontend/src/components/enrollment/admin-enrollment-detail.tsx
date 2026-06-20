@@ -845,6 +845,7 @@ export function ChildOfferingAdjustment({
   );
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(false);
+  const [catalogLoaded, setCatalogLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
@@ -874,17 +875,20 @@ export function ChildOfferingAdjustment({
     setError(null);
     setSelected(initialManualOfferingIDs(child.offerings));
     setDays(initialManualOfferingDays(child.offerings));
-    if (catalog.length > 0) return;
+    if (catalogLoaded) return;
     setLoading(true);
     try {
       const offerings = await listCareOfferings(phaseId);
       setCatalog(offerings);
+      setCatalogLoaded(true);
     } catch (err) {
       const message =
         err instanceof Error
           ? err.message
           : "Betreuungsangebote konnten nicht geladen werden";
       setError(message);
+      setCatalog([]);
+      setCatalogLoaded(false);
     } finally {
       setLoading(false);
     }
@@ -930,6 +934,10 @@ export function ChildOfferingAdjustment({
     const trimmedReason = reason.trim();
     if (trimmedReason === "") {
       setError("Bitte eine Begründung eintragen.");
+      return;
+    }
+    if (!catalogLoaded) {
+      setError("Betreuungsangebote konnten nicht geladen werden.");
       return;
     }
     setSaving(true);
@@ -1129,7 +1137,7 @@ export function ChildOfferingAdjustment({
                   <button
                     type="button"
                     onClick={() => void handleSave()}
-                    disabled={saving || loading}
+                    disabled={saving || loading || !catalogLoaded}
                     className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-900 bg-gray-900 px-3 text-sm font-medium text-white hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {saving ? "Speichert…" : "Speichern"}
@@ -1191,35 +1199,69 @@ function materializeClientOfferingPreview(
     );
   }
   const automaticDays: Record<string, string[]> = {};
-  for (const target of catalog) {
-    if (
-      target.days_of_week_mode !== "parent_choice" ||
-      !autoAddAppliesToChild(target, child)
-    ) {
-      continue;
-    }
-    const daySet = new Set<string>();
-    for (const triggerID of target.auto_add_trigger_offering_ids ?? []) {
-      const trigger = byID.get(triggerID);
-      if (!trigger) continue;
-      for (const day of selectedDaysByOffering.get(triggerID) ?? []) {
-        if (target.available_days.includes(day)) daySet.add(day);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const target of catalog) {
+      if (
+        target.days_of_week_mode !== "parent_choice" ||
+        !autoAddAppliesToChild(target, child)
+      ) {
+        continue;
       }
-    }
-    if (target.is_required && target.includes_lunch) {
-      for (const offering of catalog) {
-        if (offering.id === target.id || offering.counts_as_care === false) {
-          continue;
-        }
-        for (const day of selectedDaysByOffering.get(offering.id) ?? []) {
+      const daySet = new Set<string>();
+      for (const triggerID of target.auto_add_trigger_offering_ids ?? []) {
+        const trigger = byID.get(triggerID);
+        if (!trigger || !selectedDaysByOffering.has(triggerID)) continue;
+        for (const day of selectedDaysByOffering.get(triggerID) ?? []) {
           if (target.available_days.includes(day)) daySet.add(day);
         }
       }
+      if (target.is_required && target.includes_lunch) {
+        for (const offering of catalog) {
+          if (offering.id === target.id || offering.counts_as_care === false) {
+            continue;
+          }
+          for (const day of selectedDaysByOffering.get(offering.id) ?? []) {
+            if (target.available_days.includes(day)) daySet.add(day);
+          }
+        }
+      }
+      const ordered = target.available_days.filter((day) => daySet.has(day));
+      if (ordered.length === 0) continue;
+      if (!sameStringArray(automaticDays[target.id] ?? [], ordered)) {
+        automaticDays[target.id] = ordered;
+        changed = true;
+      }
+      const merged = unionDaysInOrder(
+        target.available_days,
+        selectedDaysByOffering.get(target.id) ?? [],
+        ordered,
+      );
+      if (
+        !sameStringArray(selectedDaysByOffering.get(target.id) ?? [], merged)
+      ) {
+        selectedDaysByOffering.set(target.id, merged);
+        changed = true;
+      }
     }
-    const ordered = target.available_days.filter((day) => daySet.has(day));
-    if (ordered.length > 0) automaticDays[target.id] = ordered;
   }
   return { automaticDays };
+}
+
+function unionDaysInOrder(
+  order: readonly string[],
+  ...groups: readonly string[][]
+): string[] {
+  const selected = new Set(groups.flat());
+  return order.filter((day) => selected.has(day));
+}
+
+function sameStringArray(left: readonly string[], right: readonly string[]) {
+  return (
+    left.length === right.length &&
+    left.every((value, idx) => value === right[idx])
+  );
 }
 
 function autoAddAppliesToChild(
@@ -1246,7 +1288,7 @@ function formatAdjustmentDiff(entry: AdminOfferingAdjustment): string {
 }
 
 function formatSnapshotNames(
-  rows: readonly { offering_id: number; offering_name?: string }[],
+  rows: readonly { offering_id: string; offering_name?: string }[],
 ): string {
   return rows
     .map((row) => row.offering_name || `Angebot #${row.offering_id}`)

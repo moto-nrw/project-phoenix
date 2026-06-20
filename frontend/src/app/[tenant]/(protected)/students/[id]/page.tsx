@@ -7,7 +7,9 @@ import {
   useRouter,
   useSearchParams,
 } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { hasPermission } from "~/lib/auth-utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
@@ -99,14 +101,25 @@ const TAB_LABELS: Record<StudentTabId, string> = {
 };
 
 // Limited access has no care-schedule data access, so it skips Betreuungszeiten.
-const FULL_ACCESS_TABS: StudentTabId[] = [
+const FULL_ACCESS_BASE_TABS: StudentTabId[] = [
+  "stammdaten",
+  "erziehungsberechtigte",
+  "betreuungszeiten",
+  "historie",
+];
+const LIMITED_ACCESS_BASE_TABS: StudentTabId[] = [
+  "stammdaten",
+  "erziehungsberechtigte",
+  "historie",
+];
+const FULL_ACCESS_TABS_WITH_ENROLLMENTS: StudentTabId[] = [
   "stammdaten",
   "erziehungsberechtigte",
   "betreuungszeiten",
   "anmeldungen",
   "historie",
 ];
-const LIMITED_ACCESS_TABS: StudentTabId[] = [
+const LIMITED_ACCESS_TABS_WITH_ENROLLMENTS: StudentTabId[] = [
   "stammdaten",
   "erziehungsberechtigte",
   "anmeldungen",
@@ -120,6 +133,20 @@ function resolveActiveTab(
   allowed: StudentTabId[],
 ): StudentTabId {
   return allowed.find((tab) => tab === param) ?? DEFAULT_TAB;
+}
+
+function studentTabs(
+  hasFullAccess: boolean,
+  canViewEnrollments: boolean,
+): StudentTabId[] {
+  if (hasFullAccess) {
+    return canViewEnrollments
+      ? FULL_ACCESS_TABS_WITH_ENROLLMENTS
+      : FULL_ACCESS_BASE_TABS;
+  }
+  return canViewEnrollments
+    ? LIMITED_ACCESS_TABS_WITH_ENROLLMENTS
+    : LIMITED_ACCESS_BASE_TABS;
 }
 
 // Shared classes for every tab panel. forceMount (below) keeps inactive panels
@@ -218,6 +245,7 @@ export default function StudentDetailPage() {
   const studentId = params.id as string;
   const referrer = searchParams.get("from") ?? "/students/search";
   const toast = useToast();
+  const { data: session, status: sessionStatus } = useSession();
 
   // Switch tabs by updating the `?tab=` query param in place (preserves the
   // `from` referrer). We echo the current `usePathname` back verbatim and only
@@ -261,6 +289,19 @@ export default function StudentDetailPage() {
     mySupervisedRooms,
     refreshData,
   } = useStudentData(studentId);
+  const canViewEnrollments =
+    sessionStatus === "authenticated" &&
+    hasPermission(session, "config:manage");
+  const visibleTabs = useMemo(
+    () => studentTabs(hasFullAccess, canViewEnrollments),
+    [canViewEnrollments, hasFullAccess],
+  );
+  const tabResolutionTabs =
+    sessionStatus === "loading"
+      ? hasFullAccess
+        ? FULL_ACCESS_TABS_WITH_ENROLLMENTS
+        : LIMITED_ACCESS_TABS_WITH_ENROLLMENTS
+      : visibleTabs;
 
   // Set breadcrumb data, include group/room name for 3-level breadcrumb
   // when navigating from an accordion section (e.g. Meine Gruppe > 1a > Mia Fischer)
@@ -471,7 +512,7 @@ export default function StudentDetailPage() {
   // render (Rules of Hooks) — see the load gate inside the effect.
   const activeTab = resolveActiveTab(
     searchParams.get("tab"),
-    hasFullAccess ? FULL_ACCESS_TABS : LIMITED_ACCESS_TABS,
+    tabResolutionTabs,
   );
 
   // If the URL pins a tab we can't honour — an inaccessible deep-link or an
@@ -484,11 +525,11 @@ export default function StudentDetailPage() {
   // early would wrongly strip a valid full-access deep-link before it resolves.
   const urlTab = searchParams.get("tab");
   useEffect(() => {
-    if (loading || !student) return;
+    if (loading || !student || sessionStatus === "loading") return;
     if (urlTab !== null && urlTab !== activeTab) {
       handleTabChange(activeTab);
     }
-  }, [loading, student, urlTab, activeTab, handleTabChange]);
+  }, [loading, student, sessionStatus, urlTab, activeTab, handleTabChange]);
 
   // Show loading state
   if (loading) {
@@ -890,6 +931,8 @@ export default function StudentDetailPage() {
             showCheckout={showCheckout}
             showCheckin={showCheckin}
             activeTab={activeTab}
+            tabs={visibleTabs}
+            canViewEnrollments={canViewEnrollments}
             onTabChange={handleTabChange}
             statusDays={statusDays}
             onDeleteStatusDay={handleDeletePlannedStatus}
@@ -919,6 +962,8 @@ export default function StudentDetailPage() {
             showCheckout={showCheckout}
             showCheckin={showCheckin}
             activeTab={activeTab}
+            tabs={visibleTabs}
+            canViewEnrollments={canViewEnrollments}
             onTabChange={handleTabChange}
             onCheckoutClick={() => setShowConfirmCheckout(true)}
             onCheckinClick={() => setShowConfirmCheckin(true)}
@@ -1107,6 +1152,8 @@ interface LimitedAccessViewProps {
   showCheckout: boolean;
   showCheckin: boolean;
   activeTab: StudentTabId;
+  tabs: StudentTabId[];
+  canViewEnrollments: boolean;
   onTabChange: (tab: string) => void;
   onCheckoutClick: () => void;
   onCheckinClick: () => void;
@@ -1121,6 +1168,8 @@ function LimitedAccessView({
   showCheckout,
   showCheckin,
   activeTab,
+  tabs,
+  canViewEnrollments,
   onTabChange,
   onCheckoutClick,
   onCheckinClick,
@@ -1140,7 +1189,7 @@ function LimitedAccessView({
       )}
 
       <Tabs value={activeTab} onValueChange={onTabChange}>
-        <StudentTabsList tabs={LIMITED_ACCESS_TABS} />
+        <StudentTabsList tabs={tabs} />
 
         <TabsContent
           value="stammdaten"
@@ -1162,13 +1211,15 @@ function LimitedAccessView({
           <StudentGuardianManager studentId={student.id} readOnly={true} />
         </TabsContent>
 
-        <TabsContent
-          value="anmeldungen"
-          forceMount
-          className={TAB_CONTENT_CLASS}
-        >
-          <StudentEnrollmentsTab studentId={student.id} />
-        </TabsContent>
+        {canViewEnrollments ? (
+          <TabsContent
+            value="anmeldungen"
+            forceMount
+            className={TAB_CONTENT_CLASS}
+          >
+            <StudentEnrollmentsTab studentId={student.id} />
+          </TabsContent>
+        ) : null}
 
         <TabsContent value="historie" forceMount className={TAB_CONTENT_CLASS}>
           <StudentHistorySection
@@ -1197,6 +1248,8 @@ interface FullAccessViewProps {
   showCheckout: boolean;
   showCheckin: boolean;
   activeTab: StudentTabId;
+  tabs: StudentTabId[];
+  canViewEnrollments: boolean;
   onTabChange: (tab: string) => void;
   statusDays: StudentStatusDay[];
   onDeleteStatusDay: (statusDayId: string) => Promise<void>;
@@ -1226,6 +1279,8 @@ function FullAccessView({
   showCheckout,
   showCheckin,
   activeTab,
+  tabs,
+  canViewEnrollments,
   onTabChange,
   statusDays,
   onDeleteStatusDay,
@@ -1284,7 +1339,7 @@ function FullAccessView({
       )}
 
       <Tabs value={activeTab} onValueChange={onTabChange}>
-        <StudentTabsList tabs={FULL_ACCESS_TABS} />
+        <StudentTabsList tabs={tabs} />
 
         <TabsContent
           value="stammdaten"
@@ -1332,13 +1387,15 @@ function FullAccessView({
           />
         </TabsContent>
 
-        <TabsContent
-          value="anmeldungen"
-          forceMount
-          className={TAB_CONTENT_CLASS}
-        >
-          <StudentEnrollmentsTab studentId={studentId} />
-        </TabsContent>
+        {canViewEnrollments ? (
+          <TabsContent
+            value="anmeldungen"
+            forceMount
+            className={TAB_CONTENT_CLASS}
+          >
+            <StudentEnrollmentsTab studentId={studentId} />
+          </TabsContent>
+        ) : null}
 
         <TabsContent value="historie" forceMount className={TAB_CONTENT_CLASS}>
           <StudentHistorySection

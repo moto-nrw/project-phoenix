@@ -1,8 +1,32 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type AdminRequestSchemaField } from "~/lib/enrollment-admin-api";
-import { ChildOfferings, formatCustomValue } from "./admin-enrollment-detail";
+
+const mocks = vi.hoisted(() => ({
+  listCareOfferings: vi.fn(),
+  listAdminChildOfferingAdjustments: vi.fn(),
+  updateAdminChildOfferings: vi.fn(),
+}));
+
+vi.mock("~/lib/care-offering-api", () => ({
+  listCareOfferings: mocks.listCareOfferings,
+}));
+
+vi.mock("~/lib/enrollment-admin-api", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    listAdminChildOfferingAdjustments: mocks.listAdminChildOfferingAdjustments,
+    updateAdminChildOfferings: mocks.updateAdminChildOfferings,
+  };
+});
+
+import {
+  ChildOfferingAdjustment,
+  ChildOfferings,
+  formatCustomValue,
+} from "./admin-enrollment-detail";
 
 function field(
   type: string,
@@ -16,6 +40,13 @@ function field(
     ...overrides,
   };
 }
+
+beforeEach(() => {
+  mocks.listCareOfferings.mockReset();
+  mocks.listAdminChildOfferingAdjustments.mockReset();
+  mocks.updateAdminChildOfferings.mockReset();
+  mocks.listAdminChildOfferingAdjustments.mockResolvedValue([]);
+});
 
 describe("formatCustomValue", () => {
   // Regression: weekday_boolean values ({mon: true, tue: false}) used to be
@@ -138,5 +169,50 @@ describe("ChildOfferings", () => {
         "Mo, Di, Mi, Do automatisch mitgebucht; Fr von Eltern gewählt",
       ),
     ).toBeVisible();
+  });
+});
+
+describe("ChildOfferingAdjustment", () => {
+  it("blocks saving when the care-offering catalog failed to load", async () => {
+    mocks.listCareOfferings.mockRejectedValue(new Error("Katalog kaputt"));
+
+    render(
+      <ChildOfferingAdjustment
+        requestId="request-1"
+        phaseId="phase-1"
+        onSaved={vi.fn()}
+        child={{
+          id: "child-1",
+          first_name: "Lina",
+          last_name: "Kind",
+          date_of_birth: "2018-01-01",
+          status: "approved",
+          activation_mode: "scheduled",
+          offerings: [
+            {
+              offering_id: "offering-1",
+              offering_name: "Ganztag",
+              days_of_week_mode: "parent_choice",
+              selected_days: ["mon"],
+              manual_selected_days: ["mon"],
+              available_days: ["mon", "tue"],
+            },
+          ],
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Katalog kaputt",
+    );
+    const save = screen.getByRole("button", { name: "Speichern" });
+    expect(save).toBeDisabled();
+
+    fireEvent.click(save);
+    await waitFor(() => {
+      expect(mocks.updateAdminChildOfferings).not.toHaveBeenCalled();
+    });
   });
 });

@@ -64,7 +64,7 @@ export interface CareOfferingInput {
   is_required: boolean;
   counts_as_care: boolean;
   auto_add_grade_levels: number[];
-  auto_add_trigger_offering_ids: number[];
+  auto_add_trigger_offering_ids: string[];
   sort_order: number;
   selection_group?: string | null;
   // Optional in the type (older rows + existing fixtures may omit it);

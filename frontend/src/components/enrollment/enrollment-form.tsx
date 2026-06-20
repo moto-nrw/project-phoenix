@@ -1671,7 +1671,9 @@ function draftChildren(
     const offeringIDs = new Set<string>(requiredOfferingIDs);
     const offeringDays: Record<string, Set<string>> = {};
     for (const row of child.offering_days ?? []) {
-      const manualDays = row.manual_selected_days ?? row.selected_days;
+      const hasAutomaticDays = (row.automatic_selected_days ?? []).length > 0;
+      const manualDays =
+        row.manual_selected_days ?? (hasAutomaticDays ? [] : row.selected_days);
       if (manualDays.length > 0) {
         offeringIDs.add(row.offering_id);
         offeringDays[row.offering_id] = new Set(manualDays);
@@ -3007,52 +3009,77 @@ function materializeCareOfferings(
     offeringDays[id] = new Set(days);
   }
 
-  for (const target of offerings) {
-    if (!autoAddAppliesToGrade(child.target_grade_level, target)) continue;
-    const triggerIDs = target.auto_add_trigger_offering_ids ?? [];
-    if (triggerIDs.length === 0 && !isRequiredLunchOffering(target)) continue;
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const target of offerings) {
+      if (!autoAddAppliesToGrade(child.target_grade_level, target)) continue;
+      const triggerIDs = target.auto_add_trigger_offering_ids ?? [];
+      if (triggerIDs.length === 0 && !isRequiredLunchOffering(target)) continue;
 
-    const auto = new Set<string>();
-    const targetDays = new Set(target.available_days);
-    for (const triggerID of triggerIDs) {
-      if (!child.offering_ids.has(triggerID)) continue;
-      const trigger = offerings.find((offering) => offering.id === triggerID);
-      if (!trigger) continue;
-      const triggerDays =
-        trigger.days_of_week_mode === "parent_choice"
-          ? Array.from(child.offering_days[triggerID] ?? new Set<string>())
-          : trigger.available_days;
-      for (const day of triggerDays) {
-        if (targetDays.has(day)) auto.add(day);
-      }
-    }
-    if (isRequiredLunchOffering(target)) {
-      for (const source of offerings) {
-        if (source.id === target.id || !(source.counts_as_care ?? true)) {
-          continue;
-        }
-        if (!child.offering_ids.has(source.id)) {
-          continue;
-        }
-        const sourceDays =
-          source.days_of_week_mode === "parent_choice"
-            ? Array.from(offeringDays[source.id] ?? new Set<string>())
-            : source.available_days;
-        for (const day of sourceDays) {
+      const auto = new Set<string>();
+      const targetDays = new Set(target.available_days);
+      for (const triggerID of triggerIDs) {
+        if (!offeringIds.has(triggerID)) continue;
+        const trigger = offerings.find((offering) => offering.id === triggerID);
+        if (!trigger) continue;
+        const triggerDays =
+          trigger.days_of_week_mode === "parent_choice"
+            ? Array.from(offeringDays[triggerID] ?? new Set<string>())
+            : trigger.available_days;
+        for (const day of triggerDays) {
           if (targetDays.has(day)) auto.add(day);
         }
       }
-    }
-    if (auto.size === 0) continue;
+      if (isRequiredLunchOffering(target)) {
+        for (const source of offerings) {
+          if (source.id === target.id || !(source.counts_as_care ?? true)) {
+            continue;
+          }
+          if (!offeringIds.has(source.id)) {
+            continue;
+          }
+          const sourceDays =
+            source.days_of_week_mode === "parent_choice"
+              ? Array.from(offeringDays[source.id] ?? new Set<string>())
+              : source.available_days;
+          for (const day of sourceDays) {
+            if (targetDays.has(day)) auto.add(day);
+          }
+        }
+      }
+      if (auto.size === 0) continue;
 
-    offeringIds.add(target.id);
-    automaticDays[target.id] = auto;
-    const merged = new Set(offeringDays[target.id] ?? []);
-    for (const day of auto) merged.add(day);
-    offeringDays[target.id] = merged;
+      if (!offeringIds.has(target.id)) {
+        offeringIds.add(target.id);
+        changed = true;
+      }
+      if (!sameSet(automaticDays[target.id], auto)) {
+        automaticDays[target.id] = auto;
+        changed = true;
+      }
+      const merged = new Set(offeringDays[target.id] ?? []);
+      const beforeSize = merged.size;
+      for (const day of auto) merged.add(day);
+      if (
+        merged.size !== beforeSize ||
+        !sameSet(offeringDays[target.id], merged)
+      ) {
+        offeringDays[target.id] = merged;
+        changed = true;
+      }
+    }
   }
 
   return { offeringIds, offeringDays, automaticDays };
+}
+
+function sameSet(left: Set<string> | undefined, right: Set<string>): boolean {
+  if (!left || left.size !== right.size) return false;
+  for (const value of left) {
+    if (!right.has(value)) return false;
+  }
+  return true;
 }
 
 function isRequiredLunchOffering(offering: PublicCareOffering): boolean {

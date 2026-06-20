@@ -155,3 +155,86 @@ func TestMaterializeOfferingSelectionsRequiredLunchIgnoresNonCareOfferings(t *te
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "at least one day")
 }
+
+func TestMaterializeOfferingSelectionsResolvesChainedAutoAddDeterministically(t *testing.T) {
+	grade := int16(1)
+	primaryOfferingID := int64(901)
+	firstAutomaticID := int64(902)
+	secondAutomaticID := int64(903)
+	openByID := map[int64]*enrollmentModels.CareOffering{
+		secondAutomaticID: {
+			Model:                     baseModels.Model{ID: secondAutomaticID},
+			Name:                      "Randstunde 2",
+			DaysOfWeekMode:            enrollmentModels.DaysOfWeekModeParentChoice,
+			AvailableDays:             []string{"mon", "tue", "wed", "thu", "fri"},
+			AutoAddTriggerOfferingIDs: []int64{firstAutomaticID},
+			SortOrder:                 3,
+		},
+		primaryOfferingID: {
+			Model:          baseModels.Model{ID: primaryOfferingID},
+			Name:           "Ganztag",
+			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+			AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
+			SortOrder:      1,
+		},
+		firstAutomaticID: {
+			Model:                     baseModels.Model{ID: firstAutomaticID},
+			Name:                      "Randstunde 1",
+			DaysOfWeekMode:            enrollmentModels.DaysOfWeekModeParentChoice,
+			AvailableDays:             []string{"mon", "tue", "wed", "thu", "fri"},
+			AutoAddTriggerOfferingIDs: []int64{primaryOfferingID},
+			SortOrder:                 2,
+		},
+	}
+	child := SubmitChild{
+		TargetGradeLevel: &grade,
+		OfferingIDs:      []int64{primaryOfferingID},
+		OfferingDays:     []SubmitOfferingDays{{OfferingID: primaryOfferingID, SelectedDays: []string{"mon", "wed"}}},
+	}
+
+	for i := 0; i < 25; i++ {
+		selections, err := materializeOfferingSelections(child, openByID)
+
+		require.NoError(t, err)
+		require.Len(t, selections, 3)
+		assert.Equal(t, primaryOfferingID, selections[0].OfferingID)
+		assert.Equal(t, firstAutomaticID, selections[1].OfferingID)
+		assert.Equal(t, secondAutomaticID, selections[2].OfferingID)
+		assert.Equal(t, []string{"mon", "wed"}, selections[1].AutomaticSelectedDays)
+		assert.Equal(t, []string{"mon", "wed"}, selections[2].AutomaticSelectedDays)
+	}
+}
+
+func TestMaterializeAndValidateChildrenOfferingSelectionsValidatesFinalAutoAddedGroupRules(t *testing.T) {
+	manualOfferingID := int64(1001)
+	automaticOfferingID := int64(1002)
+	openByID := map[int64]*enrollmentModels.CareOffering{
+		manualOfferingID: {
+			Model:          baseModels.Model{ID: manualOfferingID},
+			Name:           "Frühbetreuung",
+			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+			AvailableDays:  []string{"mon"},
+			SelectionGroup: "randzeiten",
+			SelectionRule:  enrollmentModels.SelectionRuleAtMostOne,
+			SortOrder:      1,
+		},
+		automaticOfferingID: {
+			Model:                     baseModels.Model{ID: automaticOfferingID},
+			Name:                      "Spätbetreuung",
+			DaysOfWeekMode:            enrollmentModels.DaysOfWeekModeParentChoice,
+			AvailableDays:             []string{"mon"},
+			AutoAddTriggerOfferingIDs: []int64{manualOfferingID},
+			SelectionGroup:            "randzeiten",
+			SelectionRule:             enrollmentModels.SelectionRuleAtMostOne,
+			SortOrder:                 2,
+		},
+	}
+	children := []SubmitChild{{
+		OfferingIDs:  []int64{manualOfferingID},
+		OfferingDays: []SubmitOfferingDays{{OfferingID: manualOfferingID, SelectedDays: []string{"mon"}}},
+	}}
+
+	_, err := materializeAndValidateChildrenOfferingSelections(children, openByID, enrollmentModels.PhaseCareOfferingSelectionOptional)
+
+	require.ErrorIs(t, err, ErrCareOfferingRule)
+}
