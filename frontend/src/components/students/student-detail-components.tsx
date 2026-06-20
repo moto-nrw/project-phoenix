@@ -721,6 +721,12 @@ export function PersonalInfoReadOnly({
             />
           }
         />
+        {student.departure_companion_note && (
+          <InfoItem
+            label="Mit welchem Kind?"
+            value={student.departure_companion_note}
+          />
+        )}
         {student.health_info && (
           <InfoItem
             label="Gesundheitsinformationen"

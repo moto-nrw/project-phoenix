@@ -492,10 +492,14 @@
       "weekdayMultiModeUniformConfirmBody": "You have chosen different ways home for individual care days. Turning on a shared selection deletes those per-day entries and you make the selection again.",
       "weekdayMultiModeUniformConfirmCta": "Delete and continue",
       "weekdayMultiModeUniformConfirmCancel": "Cancel",
+      "departureCompanionLabel": "With which child?",
+      "departureCompanionPlaceholder": "e.g. sibling, friend, name",
+      "departureCompanionRequired": "Please state which child your child goes home with.",
       "departureModes": {
         "alone": "Walks home",
         "bus": "Bus",
-        "pickup": "Picked up"
+        "pickup": "Picked up",
+        "accompanied": "With another child"
       }
     },
     "months": [

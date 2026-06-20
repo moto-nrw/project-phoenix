@@ -801,6 +801,15 @@ export function ChildOfferings({
   );
 }
 
+// Reserved child custom-data key carrying the coupled "mit wem" note for the
+// accompanied departure mode (#1694). It rides alongside
+// student.allowed_departure_modes instead of being a standalone schema field,
+// so it is NOT in schema_fields and must be rendered explicitly here — the
+// backend persists it onto the student on approval, so staff must see it before
+// deciding. Matches DEPARTURE_COMPANION_KEY in enrollment-form.tsx and
+// TargetStudentDepartureCompanionNote in the backend.
+const DEPARTURE_COMPANION_KEY = "student.departure_companion_note";
+
 export function ChildExtraFields({
   child,
   schemaFields,
@@ -815,7 +824,10 @@ export function ChildExtraFields({
       value: formatCustomValue(child.custom_data?.[f.key], f),
     }))
     .filter((row) => row.value !== null);
-  if (filled.length === 0) return null;
+  const companionNote = (
+    child.custom_data?.[DEPARTURE_COMPANION_KEY] as string | undefined
+  )?.trim();
+  if (filled.length === 0 && !companionNote) return null;
   return (
     <div className="mt-3 rounded-lg border border-gray-100 bg-gray-50/70 p-3">
       <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
@@ -828,6 +840,14 @@ export function ChildExtraFields({
             <dd className="mt-0.5 text-gray-900">{value}</dd>
           </div>
         ))}
+        {companionNote && (
+          <div key={DEPARTURE_COMPANION_KEY}>
+            <dt className="text-xs font-medium text-gray-600">
+              Mit welchem Kind?
+            </dt>
+            <dd className="mt-0.5 text-gray-900">{companionNote}</dd>
+          </div>
+        )}
       </dl>
     </div>
   );

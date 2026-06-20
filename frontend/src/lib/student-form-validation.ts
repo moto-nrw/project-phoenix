@@ -4,6 +4,7 @@
  */
 
 import type { Student } from "~/lib/student-helpers";
+import { allowedModesIncludeAccompanied } from "~/lib/student-helpers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StudentFormValidation" });
@@ -89,6 +90,19 @@ export function validateStudentForm(
   );
   if (retentionError) {
     errors.data_retention_days = retentionError;
+  }
+
+  // When a child may leave "Mit anderem Kind", the free-text note must say with
+  // whom — an accompanied plan with an empty note defeats the point (#1694).
+  if (
+    allowedModesIncludeAccompanied(
+      formData.allowed_departure_modes,
+      formData.departure_days,
+    ) &&
+    !formData.departure_companion_note?.trim()
+  ) {
+    errors.departure_companion_note =
+      "Bitte angeben, mit welchem Kind das Kind nach Hause geht";
   }
 
   return errors;

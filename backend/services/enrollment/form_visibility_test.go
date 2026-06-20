@@ -2,12 +2,15 @@ package enrollment
 
 import (
 	"errors"
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // Server-side visibility evaluation + required-custom-field enforcement.
@@ -16,6 +19,59 @@ import (
 // scripted submit can't bypass a visible required field.
 
 func gradePtr(v int16) *int16 { return &v }
+
+// TestValidateAccompaniedCompanionNote pins the submit-side coupling gate
+// (#1694): a child whose visible departure field allows the accompanied ("Mit
+// anderem Kind") mode must carry a non-blank companion note, so a stale or
+// scripted submit can never be persisted into an un-approvable state.
+func TestValidateAccompaniedCompanionNote(t *testing.T) {
+	svc := &requestService{}
+	grade := gradePtr(2)
+	schema := &enrollmentModels.FormSchema{Fields: []enrollmentModels.FormField{{
+		Key:         "allowed_modes",
+		Type:        enrollmentModels.FormFieldWeekdayMultiMode,
+		Target:      enrollmentModels.TargetStudentAllowedDepartureModes,
+		AppliesToCh: true,
+	}}}
+	withChild := func(custom map[string]any) SubmitRequest {
+		return SubmitRequest{Children: []SubmitChild{{
+			FirstName:        "Comp",
+			LastName:         "Child",
+			TargetGradeLevel: grade,
+			CustomData:       custom,
+		}}}
+	}
+
+	t.Run("accompanied without note is rejected", func(t *testing.T) {
+		err := svc.validateAccompaniedCompanionNote(schema, withChild(map[string]any{
+			"allowed_modes": map[string]any{"mon": []any{"accompanied"}},
+		}), nil)
+		require.ErrorIs(t, err, ErrInvalidSubmission)
+	})
+
+	t.Run("accompanied with a blank note is rejected", func(t *testing.T) {
+		err := svc.validateAccompaniedCompanionNote(schema, withChild(map[string]any{
+			"allowed_modes": map[string]any{"mon": []any{"accompanied"}},
+			enrollmentModels.TargetStudentDepartureCompanionNote: "   ",
+		}), nil)
+		require.ErrorIs(t, err, ErrInvalidSubmission)
+	})
+
+	t.Run("accompanied with a note is accepted", func(t *testing.T) {
+		err := svc.validateAccompaniedCompanionNote(schema, withChild(map[string]any{
+			"allowed_modes": map[string]any{"mon": []any{"accompanied"}},
+			enrollmentModels.TargetStudentDepartureCompanionNote: "Geschwisterkind Mia",
+		}), nil)
+		require.NoError(t, err)
+	})
+
+	t.Run("non-accompanied plan needs no note", func(t *testing.T) {
+		err := svc.validateAccompaniedCompanionNote(schema, withChild(map[string]any{
+			"allowed_modes": map[string]any{"mon": []any{"bus"}},
+		}), nil)
+		require.NoError(t, err)
+	})
+}
 
 // ---- customValueSatisfiesRequired ---------------------------------------
 
@@ -167,6 +223,86 @@ func TestWeekdayMultiMode_RequiredHandling(t *testing.T) {
 		map[string]any{"allowed_departure": map[string]any{"mon": []any{"bus", "pickup"}, "tue": []any{"alone"}}},
 		map[string]bool{"mon": true, "tue": true},
 	), "selected care days with modes are accepted")
+}
+
+// TestSanitizeVisibleAnswers_CompanionNote pins the persistence-time companion
+// note coupling (#1694): sanitizeVisibleAnswers must keep the reserved "mit wem"
+// note whenever a visible per-child departure field allows the accompanied mode,
+// for BOTH the unified allowed-modes target and the legacy student.departure
+// target. Dropping it for the legacy target would let an accepted submission
+// (validateAccompaniedCompanionNote also accepts the legacy path) become
+// un-approvable, since the decision service would decode an accompanied
+// departure with no note and studentRepo.Update would reject it.
+func TestSanitizeVisibleAnswers_CompanionNote(t *testing.T) {
+	const note = "Geschwisterkind Mia (1b)"
+	noteKey := enrollmentModels.TargetStudentDepartureCompanionNote
+
+	schemaWith := func(target string) *enrollmentModels.FormSchema {
+		fieldType := enrollmentModels.FormFieldWeekdayMultiMode
+		if target == enrollmentModels.TargetStudentDeparture {
+			fieldType = enrollmentModels.FormFieldWeekdayMode
+		}
+		return &enrollmentModels.FormSchema{Fields: []enrollmentModels.FormField{{
+			Key:         "dep",
+			Type:        fieldType,
+			Target:      target,
+			AppliesToCh: true,
+		}}}
+	}
+	ctxFor := func(schema *enrollmentModels.FormSchema, values map[string]any) fieldVisibilityContext {
+		return fieldVisibilityContext{
+			childAnswers: values,
+			fieldsByKey:  buildFieldsByKey(schema),
+		}
+	}
+
+	t.Run("legacy departure target keeps note when accompanied", func(t *testing.T) {
+		schema := schemaWith(enrollmentModels.TargetStudentDeparture)
+		values := map[string]any{
+			"dep":   map[string]any{"mon": "accompanied"},
+			noteKey: note,
+		}
+		out := sanitizeVisibleAnswers(schema, true, values, ctxFor(schema, values))
+		assert.Equal(t, note, out[noteKey], "note must survive for legacy student.departure accompanied plan")
+	})
+
+	t.Run("legacy departure target drops note when not accompanied", func(t *testing.T) {
+		schema := schemaWith(enrollmentModels.TargetStudentDeparture)
+		values := map[string]any{
+			"dep":   map[string]any{"mon": "bus"},
+			noteKey: note,
+		}
+		out := sanitizeVisibleAnswers(schema, true, values, ctxFor(schema, values))
+		_, ok := out[noteKey]
+		assert.False(t, ok, "orphan note must be dropped when no accompanied day")
+	})
+
+	t.Run("unified allowed-modes target keeps note when accompanied", func(t *testing.T) {
+		schema := schemaWith(enrollmentModels.TargetStudentAllowedDepartureModes)
+		values := map[string]any{
+			"dep":   map[string]any{"mon": []any{"accompanied"}},
+			noteKey: note,
+		}
+		out := sanitizeVisibleAnswers(schema, true, values, ctxFor(schema, values))
+		assert.Equal(t, note, out[noteKey], "note must survive for unified accompanied plan")
+	})
+
+	t.Run("oversized note is bounded before storage", func(t *testing.T) {
+		schema := schemaWith(enrollmentModels.TargetStudentAllowedDepartureModes)
+		// A client that bypasses the React maxLength must not get an unbounded
+		// note persisted into custom_data (a storage/echo surface before
+		// approval). It is capped at MaxDepartureCompanionNoteLen runes (#1694).
+		oversized := strings.Repeat("ä", users.MaxDepartureCompanionNoteLen+50)
+		values := map[string]any{
+			"dep":   map[string]any{"mon": []any{"accompanied"}},
+			noteKey: oversized,
+		}
+		out := sanitizeVisibleAnswers(schema, true, values, ctxFor(schema, values))
+		stored, ok := out[noteKey].(string)
+		require.True(t, ok, "stored note must be a string")
+		assert.Equal(t, users.MaxDepartureCompanionNoteLen, utf8.RuneCountInString(stored),
+			"oversized note must be truncated to the rune cap")
+	})
 }
 
 func TestWeekdaySchedule_RequiredHandling(t *testing.T) {

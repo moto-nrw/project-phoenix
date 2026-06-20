@@ -65,6 +65,37 @@ describe("validateStudentForm", () => {
     expect(errors).toEqual({});
   });
 
+  it("requires a companion note when an accompanied day is selected", () => {
+    const errors = validateStudentForm({
+      data_retention_days: 30,
+      allowed_departure_modes: { mon: ["accompanied"] },
+      departure_companion_note: "   ",
+    });
+
+    expect(errors.departure_companion_note).toBe(
+      "Bitte angeben, mit welchem Kind das Kind nach Hause geht",
+    );
+  });
+
+  it("accepts a filled companion note for an accompanied day", () => {
+    const errors = validateStudentForm({
+      data_retention_days: 30,
+      allowed_departure_modes: { mon: ["accompanied"] },
+      departure_companion_note: "Geschwisterkind Lena",
+    });
+
+    expect(errors.departure_companion_note).toBeUndefined();
+  });
+
+  it("does not require a companion note without an accompanied day", () => {
+    const errors = validateStudentForm({
+      data_retention_days: 30,
+      allowed_departure_modes: { mon: ["bus"] },
+    });
+
+    expect(errors.departure_companion_note).toBeUndefined();
+  });
+
   it("validates first name when required", () => {
     const formData: Partial<Student> = {
       first_name: "",

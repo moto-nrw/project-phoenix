@@ -466,6 +466,11 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	if err := s.validateRequiredCustomFields(schema, req, openByID); err != nil {
 		return nil, err
 	}
+	// Reject an accompanied departure plan with no companion note before
+	// persisting, so submitted requests can always be approved (#1694).
+	if err := s.validateAccompaniedCompanionNote(schema, req, openByID); err != nil {
+		return nil, err
+	}
 	// Reject any pickup time outside a weekday_schedule field's fixed
 	// AllowedTimes list (defense-in-depth behind the dropdown the public
 	// form renders). No-op when no schedule field constrains its times.
@@ -1201,6 +1206,11 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 		}
 		editReq.ConsentFlags = filterConsentFlags(editReq.ConsentFlags, legalBlocks)
 		if err := s.validateRequiredCustomFields(schema, editReq, openByID); err != nil {
+			return err
+		}
+		// Same accompanied-requires-note gate as Submit, so an edited request
+		// can't be saved into an un-approvable state (#1694).
+		if err := s.validateAccompaniedCompanionNote(schema, editReq, openByID); err != nil {
 			return err
 		}
 		if err := s.validateConstrainedSchedules(schema, editReq, openByID); err != nil {

@@ -685,6 +685,39 @@ export function EnrollmentForm({
             requiredMessageForField(field, tr);
         }
       }
+      // The coupled "mit wem" note (#1694) is required whenever this child has
+      // the accompanied mode selected on any relevant care day. A schema may
+      // carry more than one field targeting student.allowed_departure_modes
+      // (only keys are unique), and each WeekdayMultiModeInput shows the note
+      // input off its own value, so check every visible departure field, not
+      // just the first, to keep validation aligned with the UI.
+      const relevantDays = relevantCareDaysForChild(c, offerings, previewMode);
+      const accompaniedSelected = (schema?.fields ?? [])
+        .filter(
+          (f) =>
+            f.target === "student.allowed_departure_modes" &&
+            f.applies_to_child &&
+            isFieldVisible(f, childCtx),
+        )
+        .some((f) => {
+          const modesObj = asWeekdayMultiModeObject(
+            c.custom[f.key],
+            relevantDays,
+          );
+          return relevantDays.some((day) =>
+            (modesObj[day] ?? []).includes("accompanied"),
+          );
+        });
+      if (accompaniedSelected) {
+        const note = (
+          c.custom[DEPARTURE_COMPANION_KEY] as string | undefined
+        )?.trim();
+        if (!note) {
+          newFieldErrors[`children_${i}_departure_companion_note`] = tr(
+            "structured.departureCompanionRequired",
+          );
+        }
+      }
     }
     // Required legal blocks are collected into the same pass so a missing
     // confirmation is marked together with other missing fields. The backend
@@ -838,23 +871,55 @@ export function EnrollmentForm({
           selected_days: offering.available_days.filter((d) => picked.has(d)),
         });
       }
+      // Strip answers to fields the parent couldn't see (hidden by a
+      // show-if condition) so a stale value never reaches the backend.
+      const customData = pruneWeekdayAnswers(
+        visibleAnswerData(
+          schema?.fields ?? [],
+          true,
+          c.custom,
+          childConditionCtx(c),
+        ),
+        schema?.fields ?? [],
+        relevantCareDaysForChild(c, offerings, previewMode),
+      );
+      // Couple the "mit wem" note (#1694) back in: it rides on a reserved key
+      // (not a schema field), so visibleAnswerData drops it. A schema may carry
+      // more than one field targeting student.allowed_departure_modes (only keys
+      // are unique, so conditional variants are allowed), so check every visible
+      // departure field, not just the first. Re-attach the note only when some
+      // surviving modes actually allow the accompanied mode and a note was
+      // entered, so a stale note never reaches the backend.
+      const hasAccompaniedDeparture = (schema?.fields ?? [])
+        .filter(
+          (f) =>
+            f.target === "student.allowed_departure_modes" &&
+            f.applies_to_child,
+        )
+        .some((f) => {
+          const modesVal = customData[f.key];
+          return (
+            !!modesVal &&
+            typeof modesVal === "object" &&
+            Object.values(modesVal as Record<string, unknown>).some(
+              (arr) => Array.isArray(arr) && arr.includes("accompanied"),
+            )
+          );
+        });
+      if (hasAccompaniedDeparture) {
+        const note = (
+          c.custom[DEPARTURE_COMPANION_KEY] as string | undefined
+        )?.trim();
+        if (note) {
+          customData[DEPARTURE_COMPANION_KEY] = note;
+        }
+      }
       return {
         first_name: c.first_name.trim(),
         last_name: c.last_name.trim(),
         date_of_birth: c.date_of_birth,
         target_grade_level: Number(c.target_grade_level),
-        // Strip answers to fields the parent couldn't see (hidden by a
-        // show-if condition) so a stale value never reaches the backend.
-        custom_data: pruneWeekdayAnswers(
-          visibleAnswerData(
-            schema?.fields ?? [],
-            true,
-            c.custom,
-            childConditionCtx(c),
-          ),
-          schema?.fields ?? [],
-          relevantCareDaysForChild(c, offerings, previewMode),
-        ),
+        custom_data: customData,
         offering_ids: Array.from(c.offering_ids).map((id) => Number(id)),
         offering_days:
           offeringDaysPayload.length > 0 ? offeringDaysPayload : undefined,
@@ -1457,7 +1522,30 @@ export function EnrollmentForm({
                         custom: { ...child.custom, [f.key]: v },
                       })
                     }
+                    companionNote={
+                      f.target === "student.allowed_departure_modes"
+                        ? (child.custom[DEPARTURE_COMPANION_KEY] as
+                            | string
+                            | undefined)
+                        : undefined
+                    }
+                    onCompanionNoteChange={
+                      f.target === "student.allowed_departure_modes"
+                        ? (v) =>
+                            updateChild(i, {
+                              custom: {
+                                ...child.custom,
+                                [DEPARTURE_COMPANION_KEY]: v,
+                              },
+                            })
+                        : undefined
+                    }
                     error={fieldErrors[`children_${i}_custom_${f.key}`]}
+                    companionNoteError={
+                      f.target === "student.allowed_departure_modes"
+                        ? fieldErrors[`children_${i}_departure_companion_note`]
+                        : undefined
+                    }
                     relevantDays={relevantCareDaysForChild(
                       child,
                       offerings,
@@ -2398,7 +2486,11 @@ function customValueMissing(
   if (field.type === "weekday_multi_mode") {
     const days = relevantDays ?? WEEKDAYS;
     if (days.length === 0) return false;
-    const modes = asWeekdayMultiModeObject(value, days);
+    const modes = asWeekdayMultiModeObject(
+      value,
+      days,
+      departureMultiModeOptionsForField(field),
+    );
     return days.some((day) => (modes[day]?.length ?? 0) === 0);
   }
   return typeof value !== "string" || value.trim() === "";
@@ -2475,6 +2567,16 @@ interface CustomFieldInputProps {
   readonly error?: string;
   readonly tr: EnrollmentFormTranslator;
   readonly relevantDays?: readonly string[];
+  // Free-text "mit wem" for the accompanied departure mode (#1694), coupled
+  // into the weekday_multi_mode field so it is always available to parents
+  // without the admin adding a separate field. Only wired for the
+  // allowed-departure-modes field.
+  readonly companionNote?: string;
+  readonly onCompanionNoteChange?: (v: string) => void;
+  // Per-field error for the coupled "mit wem" note (#1694), keyed separately
+  // from `error` so the modes fieldset and the note input show their own
+  // messages.
+  readonly companionNoteError?: string;
 }
 
 function CustomFieldInput({
@@ -2484,6 +2586,9 @@ function CustomFieldInput({
   error,
   tr,
   relevantDays,
+  companionNote,
+  onCompanionNoteChange,
+  companionNoteError,
 }: CustomFieldInputProps) {
   const labelEl = (
     <>
@@ -2628,6 +2733,9 @@ function CustomFieldInput({
         error={error}
         tr={tr}
         relevantDays={relevantDays}
+        companionNote={companionNote}
+        onCompanionNoteChange={onCompanionNoteChange}
+        companionNoteError={companionNoteError}
       />
     );
   }
@@ -2829,20 +2937,44 @@ function asWeekdayBooleanObject(v: unknown): Record<string, boolean> {
   return out;
 }
 
-type DepartureModeValue = "alone" | "bus" | "pickup";
+type DepartureModeValue = "alone" | "bus" | "pickup" | "accompanied";
 
 const DEPARTURE_MULTI_MODE_OPTIONS: ReadonlyArray<DepartureModeValue> = [
   "alone",
   "bus",
   "pickup",
+  "accompanied",
 ];
+
+const DEPARTURE_MULTI_MODE_OPTIONS_WITHOUT_COMPANION: ReadonlyArray<DepartureModeValue> =
+  ["alone", "bus", "pickup"];
+
+function departureMultiModeOptionsForField(
+  field: PublicFormSchema["fields"][number],
+): ReadonlyArray<DepartureModeValue> {
+  return field.target === "student.allowed_departure_modes"
+    ? DEPARTURE_MULTI_MODE_OPTIONS
+    : DEPARTURE_MULTI_MODE_OPTIONS_WITHOUT_COMPANION;
+}
+
+// Reserved child-custom key carrying the coupled "mit wem" note for the
+// accompanied mode (#1694). Matches the backend reserved target so the
+// decision service can apply it when it processes allowed_departure_modes.
+// It travels with the modes field instead of being a separate admin field, so
+// the note is always available to parents.
+const DEPARTURE_COMPANION_KEY = "student.departure_companion_note";
 
 function asWeekdayModeObject(v: unknown): Record<string, DepartureModeValue> {
   if (!v || typeof v !== "object" || Array.isArray(v)) return {};
   const out: Record<string, DepartureModeValue> = {};
   for (const w of WEEKDAYS) {
     const raw = (v as Record<string, unknown>)[w];
-    if (raw === "bus" || raw === "pickup" || raw === "alone") {
+    if (
+      raw === "bus" ||
+      raw === "pickup" ||
+      raw === "alone" ||
+      raw === "accompanied"
+    ) {
       out[w] = raw;
     }
   }
@@ -2852,9 +2984,11 @@ function asWeekdayModeObject(v: unknown): Record<string, DepartureModeValue> {
 function asWeekdayMultiModeObject(
   v: unknown,
   allowedDays: readonly string[] = WEEKDAYS,
+  allowedModes: ReadonlyArray<DepartureModeValue> = DEPARTURE_MULTI_MODE_OPTIONS,
 ): Record<string, DepartureModeValue[]> {
   if (!v || typeof v !== "object" || Array.isArray(v)) return {};
   const allowed = new Set(allowedDays);
+  const allowedModeSet = new Set(allowedModes);
   const out: Record<string, DepartureModeValue[]> = {};
   for (const w of WEEKDAYS) {
     if (!allowed.has(w)) continue;
@@ -2862,16 +2996,27 @@ function asWeekdayMultiModeObject(
     if (!Array.isArray(raw)) continue;
     const seen = new Set<DepartureModeValue>();
     for (const item of raw) {
-      if (item === "alone" || item === "bus" || item === "pickup") {
-        seen.add(item);
+      if (
+        item === "alone" ||
+        item === "bus" ||
+        item === "pickup" ||
+        item === "accompanied"
+      ) {
+        if (allowedModeSet.has(item)) seen.add(item);
       }
     }
-    const modes = DEPARTURE_MULTI_MODE_OPTIONS.filter((mode) => seen.has(mode));
+    const modes = allowedModes.filter((mode) => seen.has(mode));
     if (modes.length > 0) out[w] = modes;
   }
   return out;
 }
 
+// Single-mode legacy departure field (target student.departure). The
+// accompanied mode is intentionally NOT offered here: it requires the coupled
+// "mit wem" companion note, which is only captured + required-validated on the
+// multi-mode student.allowed_departure_modes field. Offering it here would let
+// a parent pick an accompanied departure with no companion note, defeating the
+// data requirement of #1694.
 const DEPARTURE_MODE_OPTIONS: ReadonlyArray<DepartureModeValue> = [
   "alone",
   "bus",
@@ -2923,7 +3068,11 @@ function pruneWeekdayAnswers(
   for (const field of fields) {
     if (!(field.key in next)) continue;
     if (field.type === "weekday_multi_mode") {
-      next[field.key] = asWeekdayMultiModeObject(next[field.key], relevantDays);
+      next[field.key] = asWeekdayMultiModeObject(
+        next[field.key],
+        relevantDays,
+        departureMultiModeOptionsForField(field),
+      );
     } else if (field.type === "weekday_schedule") {
       // Drop pickup times for days the child is no longer in care (e.g. an
       // offering was deselected after a time was entered) so stale entries
@@ -3112,7 +3261,7 @@ function WeekdayModeInput({
   const departureModeLabels = asStringMap(tr.raw("structured.departureModes"));
   const modeFor = (key: string): DepartureModeValue => {
     const m = modes[key];
-    return m === "bus" || m === "pickup" ? m : "alone";
+    return m === "bus" || m === "pickup" || m === "accompanied" ? m : "alone";
   };
   return (
     <fieldset
@@ -3139,7 +3288,7 @@ function WeekdayModeInput({
               <span className="w-20 shrink-0 text-xs font-medium text-gray-600">
                 {weekdayLabels[w] ?? w}
               </span>
-              <div className="grid flex-1 grid-cols-3 gap-1">
+              <div className="grid flex-1 grid-cols-2 gap-1">
                 {DEPARTURE_MODE_OPTIONS.map((mode) => {
                   const active = current === mode;
                   return (
@@ -3180,9 +3329,13 @@ function WeekdayMultiModeInput({
   error,
   tr,
   relevantDays,
+  companionNote,
+  onCompanionNoteChange,
+  companionNoteError,
 }: CustomFieldInputProps) {
   const daysToRender = relevantDays ?? WEEKDAYS;
-  const modes = asWeekdayMultiModeObject(value, daysToRender);
+  const modeOptions = departureMultiModeOptionsForField(field);
+  const modes = asWeekdayMultiModeObject(value, daysToRender, modeOptions);
   const [expandedDays, setExpandedDays] = useState<Set<string>>(
     () => new Set(daysToRender.filter((day) => (modes[day]?.length ?? 0) > 0)),
   );
@@ -3214,7 +3367,7 @@ function WeekdayMultiModeInput({
       nextExpanded.delete(day);
       const nextRaw = { ...modes };
       delete nextRaw[day];
-      onChange(asWeekdayMultiModeObject(nextRaw, daysToRender));
+      onChange(asWeekdayMultiModeObject(nextRaw, daysToRender, modeOptions));
     } else {
       nextExpanded.add(day);
     }
@@ -3226,9 +3379,9 @@ function WeekdayMultiModeInput({
     else current.add(mode);
     const nextRaw = {
       ...modes,
-      [day]: DEPARTURE_MULTI_MODE_OPTIONS.filter((m) => current.has(m)),
+      [day]: modeOptions.filter((m) => current.has(m)),
     };
-    onChange(asWeekdayMultiModeObject(nextRaw, daysToRender));
+    onChange(asWeekdayMultiModeObject(nextRaw, daysToRender, modeOptions));
   };
   // The payload-derived shared selection: the first *populated* day's modes.
   // Used only to decide whether enabling uniform is lossless and, if so, to
@@ -3263,7 +3416,7 @@ function WeekdayMultiModeInput({
     if (!needsSync) return;
     const nextRaw: Record<string, DepartureModeValue[]> = {};
     for (const day of daysToRender) nextRaw[day] = uniformSelection;
-    onChange(asWeekdayMultiModeObject(nextRaw, daysToRender));
+    onChange(asWeekdayMultiModeObject(nextRaw, daysToRender, modeOptions));
     // String-signature deps keep the effect from re-running every render while
     // still reacting to every meaningful change. `modes`/`daysToRender`/
     // `onChange`/`uniformSelection` are read from the current render's closure;
@@ -3299,12 +3452,17 @@ function WeekdayMultiModeInput({
     const current = new Set(uniformSelection);
     if (current.has(mode)) current.delete(mode);
     else current.add(mode);
-    const arr = DEPARTURE_MULTI_MODE_OPTIONS.filter((m) => current.has(m));
+    const arr = modeOptions.filter((m) => current.has(m));
     setUniformSelection(arr);
     const nextRaw: Record<string, DepartureModeValue[]> = {};
     for (const day of daysToRender) nextRaw[day] = arr;
-    onChange(asWeekdayMultiModeObject(nextRaw, daysToRender));
+    onChange(asWeekdayMultiModeObject(nextRaw, daysToRender, modeOptions));
   };
+  // The coupled "mit wem" note (#1694) is shown the moment any care day allows
+  // the accompanied mode, so parents can always say which child it is.
+  const accompaniedSelected = uniform
+    ? uniformSelection.includes("accompanied")
+    : daysToRender.some((day) => (modes[day] ?? []).includes("accompanied"));
   return (
     <fieldset
       className={`rounded-lg border p-3 ${error ? "border-[#FF3130]" : "border-gray-200"}`}
@@ -3343,8 +3501,8 @@ function WeekdayMultiModeInput({
                 <p className="mb-2 text-xs text-gray-500">
                   {tr("structured.weekdayMultiModeUniformHint")}
                 </p>
-                <div className="grid gap-2 sm:grid-cols-3">
-                  {DEPARTURE_MULTI_MODE_OPTIONS.map((mode) => {
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {modeOptions.map((mode) => {
                     const checked = uniformSelection.includes(mode);
                     return (
                       <label
@@ -3396,8 +3554,8 @@ function WeekdayMultiModeInput({
                       <div className="mb-2 text-xs font-semibold text-gray-700">
                         {weekdayLabels[day] ?? day}
                       </div>
-                      <div className="grid gap-2 sm:grid-cols-3">
-                        {DEPARTURE_MULTI_MODE_OPTIONS.map((mode) => {
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {modeOptions.map((mode) => {
                           const checked = modes[day]?.includes(mode) ?? false;
                           return (
                             <label
@@ -3427,6 +3585,29 @@ function WeekdayMultiModeInput({
           <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
             {tr("structured.weekdayMultiModeNoDays")}
           </p>
+        )}
+        {onCompanionNoteChange && accompaniedSelected && (
+          <div className="mt-3">
+            <label className="mb-1 block text-xs font-medium text-gray-700">
+              {tr("structured.departureCompanionLabel")}
+            </label>
+            <input
+              type="text"
+              value={companionNote ?? ""}
+              onChange={(e) => onCompanionNoteChange(e.target.value)}
+              placeholder={tr("structured.departureCompanionPlaceholder")}
+              maxLength={255}
+              aria-invalid={companionNoteError ? "true" : undefined}
+              className={`block w-full rounded-lg border bg-white px-3 py-2 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 ${
+                companionNoteError ? "border-[#FF3130]" : "border-gray-200"
+              }`}
+            />
+            {companionNoteError && (
+              <p className="mt-1 text-xs text-[#FF3130]">
+                {companionNoteError}
+              </p>
+            )}
+          </div>
         )}
       </div>
       {error && <p className="mt-2 text-xs text-[#FF3130]">{error}</p>}

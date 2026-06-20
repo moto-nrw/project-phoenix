@@ -24,6 +24,7 @@ interface ExtendedStudent {
   pickup_days?: PickupDays;
   departure_days?: DepartureDays;
   allowed_departure_modes?: AllowedDepartureModes;
+  departure_companion_note?: string;
   pickup_status?: string;
   health_info?: string;
   supervisor_notes?: string;
@@ -121,6 +122,12 @@ function PersonalInfoDisplay({
           />
         }
       />
+      {student.departure_companion_note && (
+        <InfoItem
+          label="Mit welchem Kind?"
+          value={student.departure_companion_note}
+        />
+      )}
 
       {/* Sickness status - only for full access */}
       {hasFullAccess && (

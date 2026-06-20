@@ -70,6 +70,7 @@ export function StudentEditModal({
               student.departure_days ??
                 departureDaysFromLegacy(student.bus_days, student.pickup_days),
             ),
+        departure_companion_note: student.departure_companion_note ?? "",
         departure_days: student.departure_days
           ? normalizeDepartureDays(student.departure_days)
           : departureDaysFromLegacy(student.bus_days, student.pickup_days),
@@ -231,6 +232,14 @@ export function StudentEditModal({
                   : "Geht alleine nach Hause",
               }));
             }}
+            companionNote={formData.departure_companion_note}
+            onCompanionNoteChange={(value) =>
+              setFormData((prev) => ({
+                ...prev,
+                departure_companion_note: value,
+              }))
+            }
+            companionNoteError={errors.departure_companion_note}
           />
 
           {/* Action Buttons */}
