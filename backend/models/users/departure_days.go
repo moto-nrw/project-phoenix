@@ -122,12 +122,20 @@ func (d DepartureDays) PickupDays() PickupDays {
 	return out
 }
 
-// LegacyPickupStatus derives the legacy pickup_status string: any pickup day
-// means "Wird abgeholt"; otherwise the child goes home alone. Bus days do not
-// count as pickup for this legacy field, matching the historical semantics.
+// LegacyPickupStatus derives the legacy pickup_status string from the unified
+// per-day plan. Priority: any pickup day -> "Wird abgeholt"; otherwise any
+// accompanied day -> "Geht mit anderem Kind"; otherwise the child goes home
+// alone. An accompanied child leaves WITH a companion and must never be bucketed
+// as a self-goer, which is safety-sensitive state (#1694); the dedicated
+// non-self value keeps legacy search/list/admin-filter consumers from
+// classifying them as "Geht alleine nach Hause". Bus days do not count as pickup
+// for this legacy field, matching the historical semantics.
 func (d DepartureDays) LegacyPickupStatus() string {
 	if d.PickupDays().HasAny() {
 		return PickupStatusPickedUp
+	}
+	if d.HasMode(DepartureAccompanied) {
+		return PickupStatusAccompanied
 	}
 	return PickupStatusGoesAlone
 }

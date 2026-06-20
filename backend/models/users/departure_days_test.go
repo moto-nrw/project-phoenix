@@ -167,7 +167,7 @@ func TestDepartureAccompaniedMode(t *testing.T) {
 		}
 	})
 
-	t.Run("does not leak into legacy mirrors", func(t *testing.T) {
+	t.Run("does not leak into legacy bus/pickup mirrors", func(t *testing.T) {
 		days := DepartureDays{PickupDayMonday: DepartureAccompanied}
 		if days.BusDays().HasAny() {
 			t.Fatal("accompanied counted as a bus day")
@@ -175,8 +175,23 @@ func TestDepartureAccompaniedMode(t *testing.T) {
 		if days.PickupDays().HasAny() {
 			t.Fatal("accompanied counted as a pickup day")
 		}
-		if got := days.LegacyPickupStatus(); got != PickupStatusGoesAlone {
-			t.Fatalf("LegacyPickupStatus() = %q, want %q", got, PickupStatusGoesAlone)
+	})
+
+	t.Run("derives a dedicated non-self legacy pickup status", func(t *testing.T) {
+		// An accompanied child leaves WITH a companion and must never collapse onto
+		// the self-goer status, which would let legacy search/list/admin-filter
+		// consumers bucket safety-sensitive accompanied children as going home alone
+		// (#1694). It is also not a pickup, so it gets its own value rather than
+		// "Wird abgeholt".
+		days := DepartureDays{PickupDayMonday: DepartureAccompanied}
+		if got := days.LegacyPickupStatus(); got != PickupStatusAccompanied {
+			t.Fatalf("LegacyPickupStatus() = %q, want %q", got, PickupStatusAccompanied)
+		}
+
+		// A pickup day still outranks accompanied for the legacy string.
+		mixed := DepartureDays{PickupDayMonday: DepartureAccompanied, PickupDayTuesday: DeparturePickup}
+		if got := mixed.LegacyPickupStatus(); got != PickupStatusPickedUp {
+			t.Fatalf("accompanied+pickup LegacyPickupStatus() = %q, want %q", got, PickupStatusPickedUp)
 		}
 	})
 

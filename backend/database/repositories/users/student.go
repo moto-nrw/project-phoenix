@@ -285,13 +285,21 @@ func (r *StudentRepository) Update(ctx context.Context, student *users.Student) 
 		return fmt.Errorf("student cannot be nil")
 	}
 
-	// Validate student
-	if err := student.Validate(); err != nil {
+	currentDeparture, err := r.findCurrentDepartureState(ctx, student.ID)
+	if err != nil {
 		return err
 	}
 
-	currentDeparture, err := r.findCurrentDepartureState(ctx, student.ID)
-	if err != nil {
+	// Align the in-memory departure plan to the plan that will actually be
+	// persisted BEFORE validating, so Validate() checks the effective plan rather
+	// than a transient mix of a stale hydrated allowed_departure_modes set and a
+	// freshly-set legacy departure_days. Without this a legacy client that removes
+	// the accompanied mode via departure_days while clearing the "mit wem" note is
+	// rejected against the stale accompanied mode it never sent (#1694).
+	r.alignDeparturePlanForValidation(student, currentDeparture)
+
+	// Validate student
+	if err := student.Validate(); err != nil {
 		return err
 	}
 
@@ -299,6 +307,31 @@ func (r *StudentRepository) Update(ctx context.Context, student *users.Student) 
 		return err
 	}
 	return r.persistDepartureDays(ctx, student, currentDeparture)
+}
+
+// alignDeparturePlanForValidation rewrites the in-memory departure plan to the
+// plan persistDepartureDays will resolve and store, so Student.Validate() sees a
+// self-consistent plan instead of a stale hydrated allowed-modes set alongside a
+// freshly-set legacy field. The rewrite is idempotent: persistDepartureDays
+// re-resolves from the same inputs and reaches the same plan (the rewritten
+// per-weekday maps shadow any stale legacy pickup_status during that re-resolve).
+// It only runs when the plan was actually touched, so an update that loads no
+// plan stays the no-op persistDepartureDays expects. All four fields are
+// scanonly, so the rewrite never leaks into the base Update's column set (#1694).
+func (r *StudentRepository) alignDeparturePlanForValidation(student *users.Student, current *studentDepartureState) {
+	planTouched := student.AllowedDepartureModes != nil ||
+		student.DepartureDays != nil ||
+		student.BusDays != nil ||
+		student.PickupDays != nil ||
+		student.PickupStatus != nil
+	if !planTouched {
+		return
+	}
+	allowed := resolveAllowedDepartureModes(student, current)
+	student.AllowedDepartureModes = allowed
+	student.DepartureDays = allowed.DepartureDays()
+	student.BusDays = allowed.BusDays()
+	student.PickupDays = allowed.PickupDays()
 }
 
 // persistDepartureDays writes the unified per-weekday departure mode AND its

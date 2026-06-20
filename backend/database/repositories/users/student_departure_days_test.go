@@ -258,6 +258,72 @@ func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
 			"a companion note must not survive on a student with no accompanied day")
 	})
 
+	t.Run("accompanied-only child persists a dedicated non-self pickup_status", func(t *testing.T) {
+		requireStudentsDepartureDaysColumn(t, db)
+		requireStudentsAllowedDepartureModesColumn(t, db)
+
+		// An accompanied-only child must never persist the self-goer pickup_status:
+		// legacy search/list/admin-filter consumers read pickup_status and would
+		// otherwise bucket a child who leaves with a companion as going home alone,
+		// which is safety-sensitive state (#1694).
+		student := testpkg.CreateTestStudent(t, db, "Departure", "AccompaniedStatus", "5a")
+		defer cleanupStudentRecords(t, db, student.ID)
+
+		note := "Geschwisterkind"
+		student.AllowedDepartureModes = users.AllowedDepartureModes{
+			users.PickupDayMonday: []users.DepartureMode{users.DepartureAccompanied},
+		}
+		student.DepartureCompanionNote = &note
+		require.NoError(t, repo.Update(ctx, student))
+
+		found, err := repo.FindByID(ctx, student.ID)
+		require.NoError(t, err)
+		require.NotNil(t, found.PickupStatus)
+		assert.Equal(t, users.PickupStatusAccompanied, *found.PickupStatus,
+			"accompanied-only child must not be stored as a self-goer")
+		assert.False(t, found.PickupDays.HasAny(), "accompanied is not a pickup day")
+		assert.False(t, found.BusDays.HasAny(), "accompanied is not a bus day")
+	})
+
+	t.Run("legacy departure_days update can drop accompanied and clear its note in one write", func(t *testing.T) {
+		requireStudentsDepartureDaysColumn(t, db)
+		requireStudentsAllowedDepartureModesColumn(t, db)
+
+		// Seed an accompanied child with a coupled note.
+		student := testpkg.CreateTestStudent(t, db, "Departure", "LegacyDropAccompanied", "5b")
+		defer cleanupStudentRecords(t, db, student.ID)
+
+		note := "Geschwisterkind"
+		student.AllowedDepartureModes = users.AllowedDepartureModes{
+			users.PickupDayMonday: []users.DepartureMode{users.DepartureAccompanied},
+		}
+		student.DepartureCompanionNote = &note
+		require.NoError(t, repo.Update(ctx, student))
+
+		// A legacy client (one that never sends allowed_departure_modes) switches
+		// Monday to a non-accompanied mode via departure_days AND clears the note in
+		// the same request. The hydrated allowed_departure_modes still carries the
+		// stale accompanied mode; validating against it used to reject the blank
+		// note before the repository could resolve precedence (#1694). Loading fresh
+		// and leaving allowed_departure_modes untouched mirrors that handler path.
+		fresh, err := repo.FindByID(ctx, student.ID)
+		require.NoError(t, err)
+		require.True(t, fresh.AllowedDepartureModes.HasMode(users.DepartureAccompanied),
+			"precondition: hydrated plan still carries the accompanied mode")
+		fresh.DepartureDays = users.DepartureDays{users.PickupDayMonday: users.DepartureBus}
+		blank := ""
+		fresh.DepartureCompanionNote = &blank
+		require.NoError(t, repo.Update(ctx, fresh),
+			"removing accompanied via departure_days while clearing the note must be accepted")
+
+		found, err := repo.FindByID(ctx, student.ID)
+		require.NoError(t, err)
+		assert.Nil(t, found.DepartureCompanionNote, "note is cleared with the accompanied mode")
+		assert.Equal(t, users.DepartureBus, found.DepartureDays.ModeFor(users.PickupDayMonday))
+		assert.False(t, found.AllowedDepartureModes.HasMode(users.DepartureAccompanied),
+			"accompanied must not survive the legacy departure_days replacement")
+	})
+
 	t.Run("unified replacement clears prior days", func(t *testing.T) {
 		requireStudentsDepartureDaysColumn(t, db)
 

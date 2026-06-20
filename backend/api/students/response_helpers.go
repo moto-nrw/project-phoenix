@@ -92,7 +92,8 @@ func responsePickupStatus(student *users.Student, derived string) string {
 	stored := strings.TrimSpace(*student.PickupStatus)
 	if stored == "" ||
 		stored == users.PickupStatusPickedUp ||
-		stored == users.PickupStatusGoesAlone {
+		stored == users.PickupStatusGoesAlone ||
+		stored == users.PickupStatusAccompanied {
 		return derived
 	}
 	return *student.PickupStatus
