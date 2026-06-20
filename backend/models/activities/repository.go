@@ -184,6 +184,10 @@ type StudentEnrollmentRepository interface {
 	// UpdateAttendanceStatus updates the attendance status for a specific enrollment
 	UpdateAttendanceStatus(ctx context.Context, id int64, status *string) error
 
+	// DeleteByStudentGroupsAndWindow removes enrollments for one student,
+	// a bounded set of activity groups, and an exact validity window.
+	DeleteByStudentGroupsAndWindow(ctx context.Context, studentID int64, groupIDs []int64, validFrom timezone.Date, validUntil *timezone.Date) (int64, error)
+
 	// CapActiveByGroup ends every still-active enrollment (valid_until IS
 	// NULL) of the given group at validUntil (exclusive). Returns the number
 	// of rows changed. Used by the template split (WP-B3).

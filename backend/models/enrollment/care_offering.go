@@ -235,6 +235,7 @@ func (c *CareOfferingAutoTrigger) TableName() string {
 // it; the implementation has no callers yet.
 type RequestChildOfferingRepository interface {
 	Create(ctx context.Context, row *RequestChildOffering) error
+	ReplaceForRequestChild(ctx context.Context, requestChildID int64, rows []*RequestChildOffering) error
 	ListByRequestChildID(ctx context.Context, requestChildID int64) ([]*RequestChildOffering, error)
 
 	// ListByRequestChildIDs is the batched form of

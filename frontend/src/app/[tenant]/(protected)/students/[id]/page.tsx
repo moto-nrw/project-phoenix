@@ -40,6 +40,7 @@ import {
 } from "~/components/students/student-detail-components";
 import { PersonalInfoFormModal } from "~/components/students/personal-info-form-modal";
 import { ParentNotesCard } from "~/components/students/parent-notes-card";
+import { StudentEnrollmentsTab } from "~/components/students/student-enrollments-tab";
 import {
   StudentCheckoutSection,
   StudentCheckinSection,
@@ -86,12 +87,14 @@ type StudentTabId =
   | "stammdaten"
   | "erziehungsberechtigte"
   | "betreuungszeiten"
+  | "anmeldungen"
   | "historie";
 
 const TAB_LABELS: Record<StudentTabId, string> = {
   stammdaten: "Stammdaten",
   erziehungsberechtigte: "Erziehungsberechtigte",
   betreuungszeiten: "Betreuungszeiten",
+  anmeldungen: "Anmeldungen",
   historie: "Historie",
 };
 
@@ -100,11 +103,13 @@ const FULL_ACCESS_TABS: StudentTabId[] = [
   "stammdaten",
   "erziehungsberechtigte",
   "betreuungszeiten",
+  "anmeldungen",
   "historie",
 ];
 const LIMITED_ACCESS_TABS: StudentTabId[] = [
   "stammdaten",
   "erziehungsberechtigte",
+  "anmeldungen",
   "historie",
 ];
 
@@ -1157,6 +1162,14 @@ function LimitedAccessView({
           <StudentGuardianManager studentId={student.id} readOnly={true} />
         </TabsContent>
 
+        <TabsContent
+          value="anmeldungen"
+          forceMount
+          className={TAB_CONTENT_CLASS}
+        >
+          <StudentEnrollmentsTab studentId={student.id} />
+        </TabsContent>
+
         <TabsContent value="historie" forceMount className={TAB_CONTENT_CLASS}>
           <StudentHistorySection
             studentId={studentId}
@@ -1317,6 +1330,14 @@ function FullAccessView({
             onDeleteStatusDay={onDeleteStatusDay}
             onVisibleDateRangeChange={onVisibleDateRangeChange}
           />
+        </TabsContent>
+
+        <TabsContent
+          value="anmeldungen"
+          forceMount
+          className={TAB_CONTENT_CLASS}
+        >
+          <StudentEnrollmentsTab studentId={studentId} />
         </TabsContent>
 
         <TabsContent value="historie" forceMount className={TAB_CONTENT_CLASS}>

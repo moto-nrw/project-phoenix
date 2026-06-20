@@ -33,11 +33,12 @@ const guardianRoleName = "guardian"
 // DecisionService sentinel errors. Mapped to HTTP status codes by the
 // admin handlers.
 var (
-	ErrDecisionRequestNotFound = errors.New("enrollment request not found")
-	ErrDecisionChildNotFound   = errors.New("request child not found")
-	ErrDecisionStudentNotFound = errors.New("student not found")
-	ErrDecisionInvalidStatus   = errors.New("invalid decision status")
-	ErrDecisionAlreadyTerminal = errors.New("child is already in a terminal status")
+	ErrDecisionRequestNotFound   = errors.New("enrollment request not found")
+	ErrDecisionChildNotFound     = errors.New("request child not found")
+	ErrDecisionStudentNotFound   = errors.New("student not found")
+	ErrDecisionInvalidStatus     = errors.New("invalid decision status")
+	ErrDecisionAlreadyTerminal   = errors.New("child is already in a terminal status")
+	ErrOfferingAdjustmentInvalid = errors.New("offering adjustment is invalid")
 	// ErrDecisionInvalidData marks an approval that failed because the
 	// parent-supplied request data (e.g. guardian phone) doesn't pass the
 	// student/person validators. Mapped to 400, not 500 — submit/edit now
@@ -89,6 +90,20 @@ type DecideInput struct {
 	Status     DecisionStatus
 	Reason     string // optional; surfaced to parent only when phase.show_status_reason_to_parent
 	ReviewedBy int64  // admin's auth account id
+}
+
+type OfferingAdjustmentSelection struct {
+	OfferingID   int64
+	SelectedDays []string
+}
+
+type UpdateChildOfferingsInput struct {
+	RequestID      int64
+	ChildID        int64
+	Offerings      []OfferingAdjustmentSelection
+	Reason         string
+	ActorAccountID int64
+	ActorRole      string
 }
 
 // DecideOutcome is what the admin handler gets back from Decide. It
@@ -145,6 +160,8 @@ type DecisionService interface {
 	ListByStudent(ctx context.Context, studentID int64) ([]*RequestSummary, error)
 	Get(ctx context.Context, requestID int64) (*RequestSummary, error)
 	Decide(ctx context.Context, input DecideInput) (*DecideOutcome, error)
+	UpdateChildOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error)
+	ListOfferingAdjustments(ctx context.Context, requestID, requestChildID int64) ([]*auditModels.EnrollmentOfferingAdjustment, error)
 
 	// ListChildOfferings returns the request_child_offerings rows for
 	// every child under requestID, joined to the offering's name +
@@ -272,6 +289,7 @@ type DecisionServiceConfig struct {
 	PhaseRepo                enrollmentModels.PhaseRepository
 	FormSchemaRepo           enrollmentModels.FormSchemaRepository // needed to look up FormField.Target for each submitted answer
 	DataAccessLogRepo        auditModels.DataAccessLogRepository   // append-only GDPR audit row written on phase export
+	OfferingAdjustmentRepo   auditModels.EnrollmentOfferingAdjustmentRepository
 	SchoolRepo               platformModels.SchoolRepository
 	PersonRepo               users.PersonRepository
 	StudentRepo              users.StudentRepository
@@ -304,6 +322,7 @@ type decisionService struct {
 	phaseRepo                enrollmentModels.PhaseRepository
 	formSchemaRepo           enrollmentModels.FormSchemaRepository
 	dataAccessLogRepo        auditModels.DataAccessLogRepository
+	offeringAdjustmentRepo   auditModels.EnrollmentOfferingAdjustmentRepository
 	schoolRepo               platformModels.SchoolRepository
 	personRepo               users.PersonRepository
 	studentRepo              users.StudentRepository
@@ -341,6 +360,7 @@ func NewDecisionService(cfg DecisionServiceConfig) DecisionService {
 		phaseRepo:                cfg.PhaseRepo,
 		formSchemaRepo:           cfg.FormSchemaRepo,
 		dataAccessLogRepo:        cfg.DataAccessLogRepo,
+		offeringAdjustmentRepo:   cfg.OfferingAdjustmentRepo,
 		schoolRepo:               cfg.SchoolRepo,
 		personRepo:               cfg.PersonRepo,
 		studentRepo:              cfg.StudentRepo,

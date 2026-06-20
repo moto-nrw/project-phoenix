@@ -37,6 +37,36 @@ export interface AdminRequestChildOffering {
   available_days?: string[];
 }
 
+interface AdminOfferingAdjustmentSnapshot {
+  offering_id: number;
+  offering_name?: string;
+  days_of_week_mode?: string;
+  selected_days?: string[];
+  manual_selected_days?: string[];
+  automatic_selected_days?: string[];
+  available_days?: string[];
+}
+
+export interface AdminOfferingAdjustment {
+  id: string;
+  request_id: string;
+  request_child_id: string;
+  student_id: string;
+  actor_account_id: string;
+  actor_role: string;
+  actor_name_snapshot?: string | null;
+  actor_email_snapshot?: string | null;
+  reason: string;
+  before: AdminOfferingAdjustmentSnapshot[];
+  after: AdminOfferingAdjustmentSnapshot[];
+  changed_at: string;
+}
+
+export interface UpdateAdminChildOfferingsInput {
+  offerings: Array<{ offering_id: string; selected_days?: string[] }>;
+  reason: string;
+}
+
 export interface AdminRequestChild {
   id: string;
   first_name: string;
@@ -251,6 +281,53 @@ export async function decideAdminChild(
     );
   }
   return readJSON<AdminRequestChild>(response);
+}
+
+export async function updateAdminChildOfferings(
+  requestId: string,
+  childId: string,
+  input: UpdateAdminChildOfferingsInput,
+): Promise<AdminRequestChild> {
+  const response = await fetch(`/api/enrollment/admin/offerings`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      request_id: requestId,
+      child_id: childId,
+      offerings: input.offerings,
+      reason: input.reason,
+    }),
+  });
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Betreuungsangebote konnten nicht gespeichert werden",
+    );
+  }
+  return readJSON<AdminRequestChild>(response);
+}
+
+export async function listAdminChildOfferingAdjustments(
+  requestId: string,
+  childId: string,
+): Promise<AdminOfferingAdjustment[]> {
+  const url = new URL(
+    "/api/enrollment/admin/offering-adjustments",
+    globalThis.window?.location.origin ?? "http://localhost",
+  );
+  url.searchParams.set("request_id", requestId);
+  url.searchParams.set("child_id", childId);
+  const response = await fetch(`${url.pathname}${url.search}`, {
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Änderungshistorie konnte nicht geladen werden",
+    );
+  }
+  const list = await readJSON<AdminOfferingAdjustment[]>(response);
+  return Array.isArray(list) ? list : [];
 }
 
 function filenameFromDisposition(response: Response): string | null {

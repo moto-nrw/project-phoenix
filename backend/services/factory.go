@@ -998,6 +998,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		PhaseRepo:                repos.Phase,
 		FormSchemaRepo:           repos.FormSchema,
 		DataAccessLogRepo:        repos.DataAccessLog,
+		OfferingAdjustmentRepo:   repos.EnrollmentOfferingAdjustment,
 		SchoolRepo:               repos.School,
 		PersonRepo:               repos.Person,
 		StudentRepo:              repos.Student,

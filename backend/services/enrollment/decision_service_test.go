@@ -74,6 +74,7 @@ func setupDecisionTestWithSettings(
 		CareOfferingRepo:         repoFactory.CareOffering,
 		PhaseRepo:                repoFactory.Phase,
 		FormSchemaRepo:           repoFactory.FormSchema,
+		OfferingAdjustmentRepo:   repoFactory.EnrollmentOfferingAdjustment,
 		PersonRepo:               repoFactory.Person,
 		StudentRepo:              repoFactory.Student,
 		StudentGuardianRepo:      repoFactory.StudentGuardian,
@@ -1249,4 +1250,90 @@ func TestDecisionService_ListChildOfferings_EmptyWhenNoOfferingsPicked(t *testin
 	require.NoError(t, err)
 	// Child exists in the map with an empty slice; no offerings selected.
 	assert.Empty(t, rows[childID])
+}
+
+// ---- Offering adjustments ----------------------------------------------
+
+func TestDecisionService_UpdateChildOfferings_RejectsNonApprovedChild(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	reqID, childID := submitOneChild(t, env, "adjust-pending@example.com", "Lina", "Pending")
+	offering := createAdjustmentCareOffering(t, env, "Randstunde Pending")
+
+	_, err := env.decision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
+		RequestID:      reqID,
+		ChildID:        childID,
+		ActorAccountID: env.creatorID,
+		ActorRole:      "admin",
+		Reason:         "Testkorrektur",
+		Offerings: []enrollmentService.OfferingAdjustmentSelection{
+			{OfferingID: offering.ID, SelectedDays: []string{"fri"}},
+		},
+	})
+	require.ErrorIs(t, err, enrollmentService.ErrOfferingAdjustmentInvalid)
+}
+
+func TestDecisionService_UpdateChildOfferings_ReplacesLinksAndWritesAudit(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	reqID, childID := submitOneChild(t, env, "adjust-approved@example.com", "Lina", "Approved")
+	offering := createAdjustmentCareOffering(t, env, "Randstunde Approved")
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	updated, err := env.decision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
+		RequestID:      reqID,
+		ChildID:        childID,
+		ActorAccountID: env.creatorID,
+		ActorRole:      "admin",
+		Reason:         "Randstunde nachgetragen",
+		Offerings: []enrollmentService.OfferingAdjustmentSelection{
+			{OfferingID: offering.ID, SelectedDays: []string{"fri"}},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, enrollmentModels.ChildStatusApproved, updated.Status)
+
+	links, err := env.repos.RequestChildOffering.ListByRequestChildID(ctx, childID)
+	require.NoError(t, err)
+	require.Len(t, links, 1)
+	assert.Equal(t, offering.ID, links[0].CareOfferingID)
+	assert.Equal(t, []string{"fri"}, links[0].SelectedDays)
+	assert.Equal(t, []string{"fri"}, links[0].ManualSelectedDays)
+
+	adjustments, err := env.decision.ListOfferingAdjustments(ctx, reqID, childID)
+	require.NoError(t, err)
+	require.Len(t, adjustments, 1)
+	assert.Equal(t, "Randstunde nachgetragen", adjustments[0].Reason)
+	assert.Equal(t, reqID, adjustments[0].RequestID)
+	assert.Equal(t, childID, adjustments[0].RequestChildID)
+	assert.Equal(t, *outcome.Child.CreatedStudentID, adjustments[0].StudentID)
+	assert.JSONEq(t, `[]`, string(adjustments[0].Before))
+	assert.Contains(t, string(adjustments[0].After), "Randstunde Approved")
+}
+
+func createAdjustmentCareOffering(t *testing.T, env *decisionTestEnv, name string) *enrollmentModels.CareOffering {
+	t.Helper()
+	ctx := testpkg.TenantContext(1)
+	offering := &enrollmentModels.CareOffering{
+		PhaseID:        env.sourcePhase.ID,
+		Name:           name,
+		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+		AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
+		IsActive:       true,
+		CountsAsCare:   false,
+		SortOrder:      100,
+	}
+	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
+	return offering
 }

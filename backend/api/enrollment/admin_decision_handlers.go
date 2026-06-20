@@ -2,10 +2,12 @@ package enrollment
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -122,6 +125,21 @@ type AdminRequestChildOffering struct {
 	ManualSelectedDays    []string `json:"manual_selected_days,omitempty"`
 	AutomaticSelectedDays []string `json:"automatic_selected_days,omitempty"`
 	AvailableDays         []string `json:"available_days,omitempty"`
+}
+
+type AdminOfferingAdjustment struct {
+	ID                 string          `json:"id"`
+	RequestID          string          `json:"request_id"`
+	RequestChildID     string          `json:"request_child_id"`
+	StudentID          string          `json:"student_id"`
+	ActorAccountID     string          `json:"actor_account_id"`
+	ActorRole          string          `json:"actor_role"`
+	ActorNameSnapshot  *string         `json:"actor_name_snapshot,omitempty"`
+	ActorEmailSnapshot *string         `json:"actor_email_snapshot,omitempty"`
+	Reason             string          `json:"reason"`
+	Before             json.RawMessage `json:"before"`
+	After              json.RawMessage `json:"after"`
+	ChangedAt          time.Time       `json:"changed_at"`
 }
 
 func toAdminRequestSummary(s *enrollmentService.RequestSummary) AdminRequestSummary {
@@ -292,19 +310,7 @@ func (rs *Resource) toAdminRequestDetail(ctx context.Context, summary *enrollmen
 				if len(rows) == 0 {
 					continue
 				}
-				out := make([]AdminRequestChildOffering, 0, len(rows))
-				for _, row := range rows {
-					out = append(out, AdminRequestChildOffering{
-						OfferingID:            strconv.FormatInt(row.OfferingID, 10),
-						OfferingName:          row.OfferingName,
-						DaysOfWeekMode:        row.DaysOfWeekMode,
-						SelectedDays:          row.SelectedDays,
-						ManualSelectedDays:    row.ManualSelectedDays,
-						AutomaticSelectedDays: row.AutomaticSelectedDays,
-						AvailableDays:         row.AvailableDays,
-					})
-				}
-				detail.Children[i].Offerings = out
+				detail.Children[i].Offerings = toAdminChildOfferings(rows)
 			}
 		}
 	}
@@ -449,6 +455,189 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 		ReviewedBy:       updated.ReviewedBy,
 		ActivationMode:   updated.ActivationMode,
 	}, "Decision applied")
+}
+
+type AdminUpdateOfferingsRequest struct {
+	Offerings []AdminUpdateOfferingSelection `json:"offerings"`
+	Reason    string                         `json:"reason"`
+}
+
+type AdminUpdateOfferingSelection struct {
+	OfferingID   string   `json:"offering_id"`
+	SelectedDays []string `json:"selected_days,omitempty"`
+}
+
+func (req *AdminUpdateOfferingsRequest) Bind(_ *http.Request) error { return nil }
+
+func (rs *Resource) updateAdminChildOfferings(w http.ResponseWriter, r *http.Request) {
+	if rs.DecisionService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("decision service not configured")))
+		return
+	}
+	requestID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil || requestID <= 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid id")))
+		return
+	}
+	childID, err := strconv.ParseInt(chi.URLParam(r, "childId"), 10, 64)
+	if err != nil || childID <= 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid childId")))
+		return
+	}
+	body := &AdminUpdateOfferingsRequest{}
+	if err := render.Bind(r, body); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	selections := make([]enrollmentService.OfferingAdjustmentSelection, 0, len(body.Offerings))
+	for _, row := range body.Offerings {
+		offeringID, parseErr := strconv.ParseInt(row.OfferingID, 10, 64)
+		if parseErr != nil || offeringID <= 0 {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid offering_id")))
+			return
+		}
+		selections = append(selections, enrollmentService.OfferingAdjustmentSelection{
+			OfferingID:   offeringID,
+			SelectedDays: row.SelectedDays,
+		})
+	}
+	claims := jwt.ClaimsFromCtx(r.Context())
+	actorRole := actorRoleFromClaims(claims.Roles)
+
+	var updated *enrollmentModels.RequestChild
+	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+		child, updateErr := rs.DecisionService.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
+			RequestID:      requestID,
+			ChildID:        childID,
+			Offerings:      selections,
+			Reason:         body.Reason,
+			ActorAccountID: int64(claims.ID),
+			ActorRole:      actorRole,
+		})
+		updated = child
+		return updateErr
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, enrollmentService.ErrDecisionChildNotFound),
+			errors.Is(err, enrollmentService.ErrDecisionRequestNotFound):
+			common.RenderError(w, r, common.ErrorNotFound(err))
+		case errors.Is(err, enrollmentService.ErrOfferingAdjustmentInvalid),
+			errors.Is(err, enrollmentService.ErrCareOfferingClosed),
+			errors.Is(err, enrollmentService.ErrRequiredCareOfferingMissing),
+			errors.Is(err, enrollmentService.ErrCareOfferingMissing),
+			errors.Is(err, enrollmentService.ErrCareOfferingExactlyOneRequired):
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		default:
+			common.RenderError(w, r, common.ErrorInternalServer(err))
+		}
+		return
+	}
+	out := AdminRequestChild{
+		ID:               strconv.FormatInt(updated.ID, 10),
+		FirstName:        updated.FirstName,
+		LastName:         updated.LastName,
+		DateOfBirth:      updated.DateOfBirth.String(),
+		TargetGradeLevel: updated.TargetGradeLevel,
+		Status:           updated.Status,
+		StatusReason:     updated.StatusReason,
+		ReviewedAt:       updated.ReviewedAt,
+		ReviewedBy:       updated.ReviewedBy,
+		ActivationMode:   updated.ActivationMode,
+		CustomData:       updated.CustomData,
+	}
+	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+		rowsByChild, listErr := rs.DecisionService.ListChildOfferings(ctx, requestID)
+		if listErr != nil {
+			return listErr
+		}
+		out.Offerings = toAdminChildOfferings(rowsByChild[childID])
+		return nil
+	})
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, out, "Child offerings updated")
+}
+
+func (rs *Resource) listAdminChildOfferingAdjustments(w http.ResponseWriter, r *http.Request) {
+	if rs.DecisionService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("decision service not configured")))
+		return
+	}
+	requestID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil || requestID <= 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid id")))
+		return
+	}
+	childID, err := strconv.ParseInt(chi.URLParam(r, "childId"), 10, 64)
+	if err != nil || childID <= 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid childId")))
+		return
+	}
+	var rows []*auditModels.EnrollmentOfferingAdjustment
+	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+		list, listErr := rs.DecisionService.ListOfferingAdjustments(ctx, requestID, childID)
+		rows = list
+		return listErr
+	})
+	if err != nil {
+		if errors.Is(err, enrollmentService.ErrDecisionChildNotFound) {
+			common.RenderError(w, r, common.ErrorNotFound(err))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	out := make([]AdminOfferingAdjustment, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, toAdminOfferingAdjustment(row))
+	}
+	common.Respond(w, r, http.StatusOK, out, "Offering adjustments retrieved")
+}
+
+func toAdminChildOfferings(rows []enrollmentService.ChildOfferingRow) []AdminRequestChildOffering {
+	out := make([]AdminRequestChildOffering, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, AdminRequestChildOffering{
+			OfferingID:            strconv.FormatInt(row.OfferingID, 10),
+			OfferingName:          row.OfferingName,
+			DaysOfWeekMode:        row.DaysOfWeekMode,
+			SelectedDays:          row.SelectedDays,
+			ManualSelectedDays:    row.ManualSelectedDays,
+			AutomaticSelectedDays: row.AutomaticSelectedDays,
+			AvailableDays:         row.AvailableDays,
+		})
+	}
+	return out
+}
+
+func toAdminOfferingAdjustment(row *auditModels.EnrollmentOfferingAdjustment) AdminOfferingAdjustment {
+	return AdminOfferingAdjustment{
+		ID:                 strconv.FormatInt(row.ID, 10),
+		RequestID:          strconv.FormatInt(row.RequestID, 10),
+		RequestChildID:     strconv.FormatInt(row.RequestChildID, 10),
+		StudentID:          strconv.FormatInt(row.StudentID, 10),
+		ActorAccountID:     strconv.FormatInt(row.ActorAccountID, 10),
+		ActorRole:          row.ActorRole,
+		ActorNameSnapshot:  row.ActorNameSnapshot,
+		ActorEmailSnapshot: row.ActorEmailSnapshot,
+		Reason:             row.Reason,
+		Before:             row.Before,
+		After:              row.After,
+		ChangedAt:          row.ChangedAt,
+	}
+}
+
+func actorRoleFromClaims(roles []string) string {
+	for _, role := range roles {
+		trimmed := strings.TrimSpace(role)
+		if trimmed != "" {
+			return trimmed
+		}
+	}
+	return "admin"
 }
 
 // dispatchPostDecisionInvite fires the guardian invitation flow after
