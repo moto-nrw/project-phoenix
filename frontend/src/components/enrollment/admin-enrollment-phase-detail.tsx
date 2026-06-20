@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -12,12 +19,12 @@ import {
   FileSpreadsheet,
   FileText,
   Inbox,
+  Search,
   type LucideIcon,
   Users,
   X,
 } from "lucide-react";
 import {
-  type AdminRequestChild,
   type AdminRequestSummary,
   type ChildStatus,
   type DecisionStatus,
@@ -29,6 +36,15 @@ import {
   type EnrollmentExportFormat,
   exportPhaseRegistrations,
 } from "~/lib/enrollment-export-api";
+import {
+  type CareUsageFilters,
+  type CareUsageReport,
+  type CareUsageRow,
+  type EnrollmentReportFormat,
+  type EnrollmentReportStatus,
+  exportCareUsageReport,
+  getCareUsageReport,
+} from "~/lib/enrollment-report-api";
 import {
   DataTable,
   type DataTableColumn,
@@ -46,6 +62,8 @@ import { createLogger } from "~/lib/logger";
 const logger = createLogger({ component: "AdminEnrollmentPhaseDetail" });
 
 const ALL_STATUS_FILTER = "all";
+const ALL_VALUE = "all";
+const DAY_COUNT_OPTIONS = [0, 1, 2, 3, 4, 5] as const;
 
 const STATUS_LABELS: Record<ChildStatus, string> = {
   submitted: "Eingegangen",
@@ -127,11 +145,6 @@ interface PhaseRequestStats {
   readonly rejected: number;
 }
 
-interface PhaseChildRow {
-  readonly request: AdminRequestSummary;
-  readonly child: AdminRequestChild;
-}
-
 const TERMINAL_STATUSES = new Set<ChildStatus>([
   "approved",
   "rejected",
@@ -144,19 +157,49 @@ const EXPORT_FORMAT_LABELS: Record<EnrollmentExportFormat, string> = {
   xlsx: "Als Excel-Datei exportieren",
 };
 
+const REPORT_EXPORT_LABELS: Record<EnrollmentReportFormat, string> = {
+  docx: "Word",
+  pdf: "PDF",
+  xlsx: "Excel",
+};
+
+const REPORT_EXPORT_MENU_LABELS: Record<EnrollmentReportFormat, string> = {
+  docx: "Als Word-Dokument exportieren",
+  pdf: "Als PDF exportieren",
+  xlsx: "Als Excel-Datei exportieren",
+};
+
+const DAY_LABELS: Record<string, string> = {
+  mon: "Mo",
+  tue: "Di",
+  wed: "Mi",
+  thu: "Do",
+  fri: "Fr",
+  sat: "Sa",
+  sun: "So",
+};
+
 export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   const tenantSlug = useTenantSlugSafe();
   const toast = useToast();
   const [phase, setPhase] = useState<Phase | null>(null);
   const [requests, setRequests] = useState<AdminRequestSummary[]>([]);
-  const [statusFilter, setStatusFilter] = useState<
-    ChildStatus | typeof ALL_STATUS_FILTER
-  >(ALL_STATUS_FILTER);
+  const [statusFilter, setStatusFilter] =
+    useState<EnrollmentReportStatus>(ALL_STATUS_FILTER);
+  const [offeringId, setOfferingId] = useState<string>(ALL_VALUE);
+  const [dayCount, setDayCount] = useState<string>(ALL_VALUE);
+  const [gradeLevel, setGradeLevel] = useState<string>(ALL_VALUE);
+  const [search, setSearch] = useState("");
+  const [report, setReport] = useState<CareUsageReport | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reportLoading, setReportLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reportError, setReportError] = useState<string | null>(null);
   const [busyChildId, setBusyChildId] = useState<string | null>(null);
   const [exportingFormat, setExportingFormat] =
     useState<EnrollmentExportFormat | null>(null);
+  const [exportingReportFormat, setExportingReportFormat] =
+    useState<EnrollmentReportFormat | null>(null);
   const phaseUrl = useEnrollmentPublicUrl({ tenantSlug, phaseId });
   useSetBreadcrumb({ pageTitle: phase?.name ?? "Anmeldephase" });
 
@@ -179,6 +222,75 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       }
     },
     [phaseId, statusFilter, toast],
+  );
+
+  const reportFilters = useMemo<CareUsageFilters>(
+    () => ({
+      phase_id: phaseId,
+      status: statusFilter,
+      care_offering_id: offeringId === ALL_VALUE ? undefined : offeringId,
+      day_count: dayCount === ALL_VALUE ? undefined : Number(dayCount),
+      grade_level: gradeLevel === ALL_VALUE ? undefined : Number(gradeLevel),
+      search: search.trim() || undefined,
+    }),
+    [dayCount, gradeLevel, offeringId, phaseId, search, statusFilter],
+  );
+
+  const loadReport = useCallback(
+    async (filters: CareUsageFilters, isCancelled?: () => boolean) => {
+      setReportLoading(true);
+      setReportError(null);
+      setReport(null);
+      try {
+        const data = await getCareUsageReport(filters);
+        if (isCancelled?.()) return;
+        setReport(data);
+      } catch (err) {
+        if (isCancelled?.()) return;
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Auswertung konnte nicht geladen werden";
+        logger.error("phase_care_usage_report_load_failed", {
+          error: message,
+          phase_id: phaseId,
+        });
+        setReportError(message);
+      } finally {
+        if (!isCancelled?.()) setReportLoading(false);
+      }
+    },
+    [phaseId],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadReport(reportFilters, () => cancelled);
+    return () => {
+      cancelled = true;
+    };
+  }, [loadReport, reportFilters]);
+
+  const handleReportExport = useCallback(
+    async (format: EnrollmentReportFormat) => {
+      setExportingReportFormat(format);
+      try {
+        await exportCareUsageReport(reportFilters, format);
+        toast.success("Auswertungsexport wurde erstellt.");
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Export fehlgeschlagen";
+        logger.error("phase_care_usage_report_export_failed", {
+          error: message,
+          format,
+          phase_id: phaseId,
+        });
+        toast.error(message);
+      } finally {
+        setExportingReportFormat(null);
+      }
+    },
+    [phaseId, reportFilters, toast],
   );
 
   const overviewHref = tenantSlug
@@ -231,36 +343,24 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
 
   const stats = useMemo(() => calculateRequestStats(requests), [requests]);
 
-  const childRows = useMemo(
-    () =>
-      requests.flatMap((request) =>
-        request.children.map((child) => ({ request, child })),
-      ),
-    [requests],
-  );
-
-  const filteredChildRows = useMemo(() => {
-    if (statusFilter === ALL_STATUS_FILTER) return childRows;
-    return childRows.filter((row) => row.child.status === statusFilter);
-  }, [childRows, statusFilter]);
-
   const handleQuickDecision = useCallback(
-    async (row: PhaseChildRow, status: DecisionStatus) => {
-      setBusyChildId(row.child.id);
+    async (row: CareUsageRow, status: DecisionStatus) => {
+      setBusyChildId(row.child_id);
       setError(null);
       try {
-        await decideAdminChild(row.request.id, row.child.id, status);
+        await decideAdminChild(row.request_id, row.child_id, status);
         toast.success(
           `Entscheidung gespeichert: ${STATUS_LABELS[status as ChildStatus]}`,
         );
         await loadData();
+        await loadReport(reportFilters);
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Unbekannter Fehler";
         logger.error("admin_enrollment_phase_quick_decision_failed", {
           error: message,
-          request_id: row.request.id,
-          child_id: row.child.id,
+          request_id: row.request_id,
+          child_id: row.child_id,
           status,
         });
         setError(message);
@@ -269,55 +369,76 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         setBusyChildId(null);
       }
     },
-    [loadData, toast],
+    [loadData, loadReport, reportFilters, toast],
   );
 
-  const columns = useMemo<DataTableColumn<PhaseChildRow>[]>(
+  const columns = useMemo<DataTableColumn<CareUsageRow>[]>(
     () => [
-      {
-        key: "guardian",
-        header: "Eltern",
-        render: (row) => (
-          <div>
-            <p className="font-semibold text-gray-900">
-              {row.request.guardian_first_name} {row.request.guardian_last_name}
-            </p>
-            <p className="text-xs text-gray-500">
-              {row.request.guardian_email}
-            </p>
-          </div>
-        ),
-        sortValue: (row) =>
-          `${row.request.guardian_last_name} ${row.request.guardian_first_name}`,
-      },
-      {
-        key: "submitted",
-        header: "Eingegangen",
-        render: (row) => formatDateTime(row.request.submitted_at),
-        sortValue: (row) => new Date(row.request.submitted_at).getTime(),
-      },
       {
         key: "child",
         header: "Kind",
         render: (row) => (
           <div>
             <p className="font-medium text-gray-900">
-              {row.child.first_name} {row.child.last_name}
+              {row.child_first_name} {row.child_last_name}
             </p>
             <p className="text-xs text-gray-500">
-              {row.child.target_grade_level
-                ? `${row.child.target_grade_level}. Klasse`
+              {row.target_grade_level
+                ? `${row.target_grade_level}. Klasse`
                 : "Keine Klassenstufe"}
             </p>
           </div>
         ),
-        sortValue: (row) => `${row.child.last_name} ${row.child.first_name}`,
+        sortValue: (row) => `${row.child_last_name} ${row.child_first_name}`,
+      },
+      {
+        key: "guardian",
+        header: "Elternkontakt",
+        render: (row) => (
+          <div>
+            <p className="font-medium text-gray-900">
+              {row.guardian_first_name} {row.guardian_last_name}
+            </p>
+            <p className="text-xs text-gray-500">{row.guardian_email}</p>
+          </div>
+        ),
+        sortValue: (row) =>
+          `${row.guardian_last_name} ${row.guardian_first_name}`,
+      },
+      {
+        key: "submitted",
+        header: "Eingegangen",
+        render: (row) => formatDateTime(row.submitted_at),
+        sortValue: (row) => new Date(row.submitted_at).getTime(),
       },
       {
         key: "status",
         header: "Status",
-        render: (row) => <StatusBadge status={row.child.status} />,
-        sortValue: (row) => STATUS_LABELS[row.child.status],
+        render: (row) => <StatusBadge status={row.status} />,
+        sortValue: (row) => STATUS_LABELS[row.status],
+      },
+      {
+        key: "offerings",
+        header: "Betreuungsangebote",
+        render: (row) => <OfferingList row={row} />,
+        sortValue: (row) => row.offerings.map((item) => item.name).join(" "),
+      },
+      {
+        key: "effective_days",
+        header: "Tage",
+        render: (row) => (
+          <div>
+            <p className="font-medium text-gray-900">
+              {formatDays(row.effective_days) || "-"}
+            </p>
+            <p className="text-xs text-gray-500">
+              {row.day_count === 1
+                ? "1 Betreuungstag"
+                : `${row.day_count} Betreuungstage`}
+            </p>
+          </div>
+        ),
+        sortValue: (row) => row.day_count,
       },
       {
         key: "actions",
@@ -326,8 +447,8 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         render: (row) => (
           <PhaseChildActions
             row={row}
-            href={requestHref(row.request.id)}
-            busy={busyChildId === row.child.id}
+            href={requestHref(row.request_id)}
+            busy={busyChildId === row.child_id}
             onDecide={(status) => void handleQuickDecision(row, status)}
           />
         ),
@@ -435,66 +556,311 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         </div>
       </section>
 
-      <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <section className="moto-content-surface relative z-20 overflow-visible rounded-2xl border p-4 shadow-sm backdrop-blur-md">
+        <div className="flex flex-col gap-4">
           <div>
             <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
               Eingänge
             </p>
             <h2 className="mt-1 text-base font-semibold text-gray-900">
-              Anmeldungen prüfen
+              Anmeldungen prüfen und auswerten
             </h2>
             <p className="mt-1 text-sm text-gray-600">
-              Öffne eine Anmeldung, um Kinder anzunehmen, abzulehnen oder zur
-              Prüfung zu markieren.
+              Filtere Kinder nach Status, Angebot, Zielklasse oder
+              Betreuungstagen. Der Auswertungsexport übernimmt die aktuellen
+              Filter.
             </p>
           </div>
+          <div className="grid gap-3 lg:grid-cols-[repeat(4,minmax(9rem,1fr))]">
+            <SelectField label="Status" id="enrollment-status-filter">
+              <CustomSelect
+                id="enrollment-status-filter"
+                value={statusFilter}
+                onChange={(value) =>
+                  setStatusFilter(value as EnrollmentReportStatus)
+                }
+                options={[
+                  { value: ALL_STATUS_FILTER, label: "Alle" },
+                  ...Object.entries(STATUS_LABELS).map(([value, label]) => ({
+                    value,
+                    label,
+                  })),
+                ]}
+              />
+            </SelectField>
+            <SelectField
+              label="Betreuungsangebot"
+              id="enrollment-offering-filter"
+            >
+              <CustomSelect
+                id="enrollment-offering-filter"
+                value={offeringId}
+                onChange={setOfferingId}
+                options={[
+                  { value: ALL_VALUE, label: "Alle Angebote" },
+                  ...(report?.filter_options.offerings ?? []).map((item) => ({
+                    value: item.id,
+                    label: item.name,
+                  })),
+                ]}
+              />
+            </SelectField>
+            <SelectField label="Tagesanzahl" id="enrollment-day-count-filter">
+              <CustomSelect
+                id="enrollment-day-count-filter"
+                value={dayCount}
+                onChange={setDayCount}
+                options={[
+                  { value: ALL_VALUE, label: "Alle" },
+                  ...DAY_COUNT_OPTIONS.map((count) => ({
+                    value: String(count),
+                    label: formatDayCountLabel(count),
+                  })),
+                ]}
+              />
+            </SelectField>
+            <SelectField label="Zielklasse" id="enrollment-grade-filter">
+              <CustomSelect
+                id="enrollment-grade-filter"
+                value={gradeLevel}
+                onChange={setGradeLevel}
+                options={[
+                  { value: ALL_VALUE, label: "Alle Klassen" },
+                  ...(report?.filter_options.grade_levels ?? []).map(
+                    (grade) => ({
+                      value: String(grade),
+                      label: `${grade}. Klasse`,
+                    }),
+                  ),
+                ]}
+              />
+            </SelectField>
+          </div>
           <label
-            className="flex flex-col gap-1 text-sm font-medium text-gray-700 sm:w-60"
-            htmlFor="enrollment-status-filter"
+            htmlFor="enrollment-search-filter"
+            className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 shadow-sm focus-within:ring-2 focus-within:ring-gray-400"
           >
-            Status
-            <CustomSelect
-              id="enrollment-status-filter"
-              value={statusFilter}
-              onChange={(value) =>
-                setStatusFilter(value as ChildStatus | typeof ALL_STATUS_FILTER)
-              }
-              options={[
-                { value: ALL_STATUS_FILTER, label: "Alle" },
-                ...Object.entries(STATUS_LABELS).map(([value, label]) => ({
-                  value,
-                  label,
-                })),
-              ]}
+            <Search className="h-4 w-4 text-gray-400" aria-hidden="true" />
+            <input
+              id="enrollment-search-filter"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Nach Kind oder Elternkontakt suchen"
+              className="h-10 min-w-0 flex-1 border-0 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400"
             />
           </label>
         </div>
       </section>
 
+      {reportError ? (
+        <div className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4 text-sm text-[#CC2626]">
+          {reportError}
+        </div>
+      ) : null}
+
+      <ReportStats
+        report={report}
+        loading={reportLoading}
+        exportingFormat={exportingReportFormat}
+        onExport={(format) => void handleReportExport(format)}
+      />
+
       <DataTable
         columns={columns}
-        rows={filteredChildRows}
-        getRowKey={(row) => row.child.id}
-        defaultSortKey="submitted"
-        defaultSortDirection="desc"
+        rows={report?.rows ?? []}
+        getRowKey={(row) => row.child_id}
+        defaultSortKey="child"
+        defaultSortDirection="asc"
+        isLoading={reportLoading}
         emptyState={
           <div className="mx-auto max-w-md py-6">
             <p className="font-medium text-gray-900">
-              {requests.length === 0
+              {requests.length === 0 && !reportLoading
                 ? "Noch keine Anmeldungen eingegangen"
-                : "Keine Anmeldungen für diesen Status"}
+                : "Keine Kinder für diese Filter gefunden"}
             </p>
             <p className="mt-1 text-sm text-gray-500">
-              {requests.length === 0
+              {requests.length === 0 && !reportLoading
                 ? "Sobald Eltern das Formular absenden, erscheinen die Eingänge hier."
-                : "Wähle einen anderen Status, um weitere Anmeldungen zu sehen."}
+                : "Passe Status, Angebot, Tagesanzahl, Zielklasse oder Suche an."}
             </p>
           </div>
         }
       />
     </div>
   );
+}
+
+function SelectField({
+  label,
+  id,
+  children,
+}: Readonly<{
+  label: string;
+  id: string;
+  children: ReactNode;
+}>) {
+  return (
+    <label
+      className="flex flex-col gap-1 text-sm font-medium text-gray-700"
+      htmlFor={id}
+    >
+      {label}
+      {children}
+    </label>
+  );
+}
+
+function ReportStats({
+  report,
+  loading,
+  exportingFormat,
+  onExport,
+}: Readonly<{
+  report: CareUsageReport | null;
+  loading: boolean;
+  exportingFormat: EnrollmentReportFormat | null;
+  onExport: (format: EnrollmentReportFormat) => void;
+}>) {
+  const totals = report?.totals;
+  return (
+    <section className="relative z-10 grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-[repeat(7,minmax(0,1fr))_minmax(15rem,1.2fr)]">
+      <ReportStatCard
+        label="Kinder"
+        value={loading ? "..." : String(totals?.children ?? 0)}
+      />
+      {DAY_COUNT_OPTIONS.map((count) => (
+        <ReportStatCard
+          key={count}
+          label={formatDayCountLabel(count)}
+          value={
+            loading ? "..." : String(totals?.by_day_count[String(count)] ?? 0)
+          }
+        />
+      ))}
+      <ReportExportCard exportingFormat={exportingFormat} onExport={onExport} />
+    </section>
+  );
+}
+
+function ReportStatCard({
+  label,
+  value,
+}: Readonly<{
+  label: string;
+  value: string;
+}>) {
+  return (
+    <div className="moto-content-surface rounded-xl border px-3 py-2 shadow-sm backdrop-blur-md">
+      <p className="truncate text-xs font-medium text-gray-500">{label}</p>
+      <p className="mt-1 text-lg leading-none font-semibold text-gray-900">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function ReportExportCard({
+  exportingFormat,
+  onExport,
+}: Readonly<{
+  exportingFormat: EnrollmentReportFormat | null;
+  onExport: (format: EnrollmentReportFormat) => void;
+}>) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  useClickOutside(containerRef, () => setOpen(false), open);
+  const disabled = exportingFormat !== null;
+  const formats: readonly EnrollmentReportFormat[] = ["xlsx", "pdf", "docx"];
+
+  return (
+    <div
+      className="moto-content-surface relative overflow-visible rounded-xl border px-3 py-2 shadow-sm backdrop-blur-md"
+      ref={containerRef}
+    >
+      <p className="truncate text-xs font-medium text-gray-500">Auswertung</p>
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        disabled={disabled}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="mt-1 inline-flex min-h-6 w-full items-center justify-between gap-2 rounded-md text-left text-sm font-semibold text-gray-900 transition-colors hover:text-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <span className="truncate">
+          {exportingFormat === null
+            ? "Auswertung exportieren"
+            : `Exportiere ${REPORT_EXPORT_LABELS[exportingFormat]}...`}
+        </span>
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${
+            open ? "rotate-180" : ""
+          }`}
+          aria-hidden="true"
+        />
+      </button>
+
+      {open ? (
+        <div
+          role="menu"
+          aria-label="Auswertung exportieren"
+          className="absolute right-0 z-40 mt-2 min-w-64 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg"
+        >
+          {formats.map((format) => {
+            const Icon = format === "xlsx" ? FileSpreadsheet : FileText;
+            return (
+              <button
+                key={format}
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false);
+                  onExport(format);
+                }}
+                className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 active:bg-gray-100"
+              >
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-gray-100 text-gray-600">
+                  <Icon className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <span className="flex-1">
+                  {REPORT_EXPORT_MENU_LABELS[format]}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function OfferingList({ row }: Readonly<{ row: CareUsageRow }>) {
+  if (row.offerings.length === 0) {
+    return <span className="text-sm text-gray-500">Kein Angebot</span>;
+  }
+  return (
+    <div className="space-y-1.5">
+      {row.offerings.map((offering) => (
+        <div key={offering.id} className="text-sm">
+          <p className="font-medium text-gray-900">{offering.name}</p>
+          <p className="text-xs text-gray-500">
+            {formatDays(offering.days) || "Keine Tage"}
+            {offering.days_source === "selected"
+              ? " · Elternauswahl"
+              : " · Angebotsumfang"}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function formatDays(days: string[]): string {
+  return days.map((day) => DAY_LABELS[day] ?? day).join(", ");
+}
+
+function formatDayCountLabel(count: number): string {
+  return count === 1 ? "1 Tag" : `${count} Tage`;
 }
 
 function ExportMenu({
@@ -512,7 +878,7 @@ function ExportMenu({
   const formats: readonly EnrollmentExportFormat[] = ["pdf", "docx", "xlsx"];
   const triggerLabel =
     exportingFormat === null
-      ? "Export"
+      ? "Anmeldungen exportieren"
       : `Exportiere ${exportingFormat.toUpperCase()}...`;
 
   return (
@@ -617,12 +983,12 @@ function PhaseChildActions({
   busy,
   onDecide,
 }: Readonly<{
-  row: PhaseChildRow;
+  row: CareUsageRow;
   href: string;
   busy: boolean;
   onDecide: (status: DecisionStatus) => void;
 }>) {
-  const terminal = TERMINAL_STATUSES.has(row.child.status);
+  const terminal = TERMINAL_STATUSES.has(row.status);
   return (
     <div className="flex flex-wrap justify-end gap-2">
       {!terminal ? (

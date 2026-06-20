@@ -225,6 +225,7 @@ describe("applyOptimisticSchemaUpdate", () => {
     overrides: Partial<{
       type: "boolean" | "number" | "time" | "text" | "password" | "select";
       value: unknown;
+      default: unknown;
       depends_on:
         | { key: string; condition: string; value: unknown }
         | null
@@ -236,7 +237,7 @@ describe("applyOptimisticSchemaUpdate", () => {
       label: key,
       description: "",
       type: overrides.type ?? "boolean",
-      default: false,
+      default: overrides.default ?? false,
       value: overrides.value ?? false,
       is_default: true,
       writable: true,
@@ -275,6 +276,36 @@ describe("applyOptimisticSchemaUpdate", () => {
     // Untouched item stays as-is.
     expect(items[1]!.value).toBe(10);
     expect(items[1]!.is_default).toBe(true);
+  });
+
+  it("keeps is_default when the new value equals the registry default", () => {
+    // Boolean toggled away from default (false) to true, then back to false.
+    // Toggling back to the default must restore the "Standard" badge without
+    // waiting for a refetch (issue #1680).
+    const schema = makeSchema([
+      makeItem("a", { type: "boolean", value: true }),
+    ]);
+
+    const next = applyOptimisticSchemaUpdate(schema, "a", false);
+
+    const item = next.tabs[0]!.categories[0]!.items[0]!;
+    expect(item.value).toBe(false);
+    expect(item.is_default).toBe(true);
+  });
+
+  it("keeps a resettable setting non-default even when saved at the default value", () => {
+    // A number set to its registry default still wrote an override row, so the
+    // reset button must stay available (is_default false). The value-based
+    // badge is boolean-only (issue #1680).
+    const schema = makeSchema([
+      makeItem("a", { type: "number", value: 99, default: 30 }),
+    ]);
+
+    const next = applyOptimisticSchemaUpdate(schema, "a", 30);
+
+    const item = next.tabs[0]!.categories[0]!.items[0]!;
+    expect(item.value).toBe(30);
+    expect(item.is_default).toBe(false);
   });
 
   it("masks password fields with bullets instead of leaking the cleartext", () => {

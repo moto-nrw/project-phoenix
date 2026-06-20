@@ -464,6 +464,8 @@
       "removeNumber": "Hiq numrin",
       "addPhone": "Shto numër telefoni",
       "emptySchedule": "Fushat bosh do të thonë: nuk ka të dhënë për këtë ditë.",
+      "selectTime": "Ju lutemi zgjidhni",
+      "timeUnavailable": "nuk është më e disponueshme",
       "noneContact": "Ende nuk është dhënë kontakt shtesë.",
       "relationship": "Marrëdhënia (p.sh. gjyshe, xhaxha, fqinje)",
       "optionalEmail": "E-mail (opsional)",

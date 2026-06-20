@@ -225,7 +225,7 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
       />
 
       <section className="hidden overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm lg:block">
-        <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_24rem] xl:grid-cols-[minmax(0,1fr)_30rem]">
+        <div className="grid gap-0 lg:grid-cols-[minmax(0,1.25fr)_minmax(20rem,0.75fr)] xl:grid-cols-[minmax(0,1.35fr)_minmax(22rem,0.8fr)]">
           <div>
             <BackBar />
             <div className="p-5 sm:p-6 lg:p-8">
@@ -248,7 +248,7 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
                   </p>
                 </div>
               </div>
-              <div className="mt-7 grid max-w-3xl gap-3 sm:grid-cols-3">
+              <div className="mt-7 grid max-w-3xl grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-3">
                 {CHILD_ACTIONS.slice(0, 3).map((action) => (
                   <DesktopQuickAction
                     key={action.key}
@@ -523,7 +523,7 @@ function DesktopQuickAction({
       >
         <Icon className="h-5 w-5" aria-hidden="true" />
       </span>
-      <span className="min-w-0">
+      <span className="min-w-0 [overflow-wrap:anywhere]">
         <span className="block text-sm font-semibold text-gray-900">
           {label}
         </span>

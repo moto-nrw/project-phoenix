@@ -18,6 +18,7 @@ import {
   allowedDepartureToDepartureDays,
   allowedDepartureToBusDays,
   allowedDepartureToPickupDays,
+  formatAllowedDepartureDays,
   normalizePickupDays,
   SCHOOL_YEAR_FILTER_OPTIONS,
   mapStudentResponse,
@@ -227,6 +228,28 @@ describe("allowed departure mode helpers", () => {
     // Accompanied must never leak into the legacy bus/pickup mirrors.
     expect(allowedDepartureToBusDays({ mon: ["accompanied"] })).toEqual({});
     expect(allowedDepartureToPickupDays({ mon: ["accompanied"] })).toEqual({});
+  });
+
+  it("summarizes only the weekdays as a compact day list", () => {
+    // The badge variant drops the per-day modes so it stays single-line even
+    // when every day carries both bus and pickup (the case that broke the modal).
+    expect(
+      formatAllowedDepartureDays({
+        mon: ["bus", "pickup"],
+        tue: ["bus", "pickup"],
+        wed: ["bus", "pickup"],
+        thu: ["bus", "pickup"],
+        fri: ["bus", "pickup"],
+      }),
+    ).toBe("Mo, Di, Mi, Do, Fr");
+    expect(formatAllowedDepartureDays({ mon: ["bus"], fri: ["pickup"] })).toBe(
+      "Mo, Fr",
+    );
+  });
+
+  it("formats an empty day summary as going alone", () => {
+    expect(formatAllowedDepartureDays({})).toBe("Geht immer alleine");
+    expect(formatAllowedDepartureDays(null)).toBe("Geht immer alleine");
   });
 });
 

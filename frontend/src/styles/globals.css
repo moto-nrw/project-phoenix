@@ -388,6 +388,11 @@
   -webkit-backdrop-filter: blur(8px);
 }
 
+.moto-content-surface:has([aria-expanded="true"]) {
+  position: relative;
+  z-index: 60;
+}
+
 /* Print rules reset unlayered page styles that Tailwind print utilities cannot
    override, then add a dedicated guide background for PDF exports. */
 @media print {

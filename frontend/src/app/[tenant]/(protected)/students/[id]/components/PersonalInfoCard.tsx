@@ -2,6 +2,7 @@
 "use client";
 
 import { InfoItem } from "~/components/ui/info-card";
+import { AllowedDepartureModesDisplay } from "~/components/students/allowed-departure-modes-display";
 import type {
   AllowedDepartureModes,
   BusDays,
@@ -11,7 +12,6 @@ import type {
 import {
   allowedDepartureModesFromDeparture,
   departureDaysFromLegacy,
-  formatAllowedDepartureModes,
 } from "~/lib/student-helpers";
 
 interface ExtendedStudent {
@@ -107,13 +107,20 @@ function PersonalInfoDisplay({
       />
       <InfoItem
         label="Erlaubte Heimwege"
-        value={formatAllowedDepartureModes(
-          student.allowed_departure_modes ??
-            allowedDepartureModesFromDeparture(
-              student.departure_days ??
-                departureDaysFromLegacy(student.bus_days, student.pickup_days),
-            ),
-        )}
+        value={
+          <AllowedDepartureModesDisplay
+            value={
+              student.allowed_departure_modes ??
+              allowedDepartureModesFromDeparture(
+                student.departure_days ??
+                  departureDaysFromLegacy(
+                    student.bus_days,
+                    student.pickup_days,
+                  ),
+              )
+            }
+          />
+        }
       />
       {student.departure_companion_note && (
         <InfoItem

@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -403,6 +404,13 @@ func TestDecisionService_Decide_ApprovedCreatesDownstreamRecords(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, student)
 	assert.NotEmpty(t, student.SchoolClass, "school class must be derived from target_grade_level")
+
+	links, err := env.repos.StudentGuardian.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	require.Len(t, links, 1)
+	assert.Equal(t, authorize.GuardianRolePrimaryGuardian, links[0].GuardianRole)
+	assert.True(t, authorize.StudentGuardianHasPermission(links[0], authorize.GuardianPermissionPortalAccess))
+	assert.True(t, authorize.StudentGuardianHasPermission(links[0], authorize.GuardianPermissionEnrollmentSubmit))
 }
 
 // TestDecisionService_Decide_ApprovedLinksAdditionalGuardians verifies the
@@ -446,9 +454,16 @@ func TestDecisionService_Decide_ApprovedLinksAdditionalGuardians(t *testing.T) {
 	for _, l := range links {
 		if l.IsPrimary {
 			primaryCount++
+			assert.Equal(t, authorize.GuardianRolePrimaryGuardian, l.GuardianRole)
+			assert.True(t, authorize.StudentGuardianHasPermission(l, authorize.GuardianPermissionPortalAccess))
+			assert.True(t, authorize.StudentGuardianHasPermission(l, authorize.GuardianPermissionEnrollmentSubmit))
+			continue
 		}
 		assert.True(t, l.IsEmergencyContact, "co-guardians mapped like primary: emergency contact")
 		assert.True(t, l.CanPickup, "co-guardians mapped like primary: can pick up")
+		assert.Equal(t, authorize.GuardianRoleEmergency, l.GuardianRole)
+		assert.False(t, authorize.StudentGuardianHasPermission(l, authorize.GuardianPermissionPortalAccess))
+		assert.False(t, authorize.StudentGuardianHasPermission(l, authorize.GuardianPermissionEnrollmentSubmit))
 	}
 	assert.Equal(t, 1, primaryCount, "exactly one primary guardian")
 
@@ -518,6 +533,83 @@ func TestDecisionService_Decide_PersistsCoGuardianPhone(t *testing.T) {
 		assert.Equal(t, wantPhone[ex.FirstName], phones[0].PhoneNumber)
 		assert.True(t, phones[0].IsPrimary, "the co-guardian's only number is their primary")
 	}
+}
+
+func TestDecisionService_Decide_ContactListSelfGuardianDoesNotAbortApproval(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
+		Repo:   env.repos.FormSchema,
+		Logger: slog.Default(),
+	})
+	schema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{{
+		Key:         "contacts",
+		Label:       "Weitere Kontakte",
+		Type:        enrollmentModels.FormFieldContactList,
+		Target:      enrollmentModels.TargetStudentContacts,
+		AppliesToCh: true,
+		SortOrder:   0,
+	}}, env.creatorID)
+	require.NoError(t, err)
+	env.sourcePhase.FormSchemaID = &schema.ID
+	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
+
+	guardianEmail := "self-contact@example.com"
+	guardianPhone := "015126829060"
+	grade := int16(2)
+	res, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
+		TenantID:          1,
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Franziska",
+		GuardianLastName:  "Bahnemann",
+		GuardianEmail:     guardianEmail,
+		GuardianPhone:     &guardianPhone,
+		ConsentFlags: map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   true,
+			"photo":           true,
+		},
+		Children: []enrollmentService.SubmitChild{{
+			FirstName:        "Self",
+			LastName:         "Contact",
+			DateOfBirth:      timezone.NewDate(2018, 4, 15),
+			TargetGradeLevel: &grade,
+			CustomData: map[string]any{
+				"contacts": []any{map[string]any{
+					"first_name":           "Franziska",
+					"last_name":            "Bahnemann",
+					"email":                guardianEmail,
+					"relationship_type":    "parent",
+					"is_emergency_contact": true,
+					"can_pickup":           true,
+				}},
+			},
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, res.Children, 1)
+
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  res.Request.ID,
+		ChildID:    res.Children[0].ID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	links, err := env.repos.StudentGuardian.FindByStudentID(ctx, *outcome.Child.CreatedStudentID)
+	require.NoError(t, err)
+	require.Len(t, links, 1, "self-contact must reuse the primary guardian link instead of aborting the tx")
+	assert.True(t, links[0].IsPrimary)
+
+	phones, err := env.repos.GuardianPhoneNumber.FindByGuardianID(ctx, links[0].GuardianProfileID)
+	require.NoError(t, err, "auto guardian_phone runs after contact dispatch; this proves the tx stayed usable")
+	require.Len(t, phones, 1)
+	assert.Equal(t, guardianPhone, phones[0].PhoneNumber)
 }
 
 // TestDecisionService_Decide_AppliesDepartureField verifies the unified
@@ -1083,6 +1175,115 @@ func TestDecisionService_Decide_ApprovedPreservesLegacyNonTemplateLinkedOffering
 	require.Len(t, rows, 1)
 	assert.Nil(t, rows[0].CalendarPeriodID)
 	assert.Empty(t, rows[0].SelectedWeekdays)
+}
+
+func TestDecisionService_Decide_RolloverApprovalMaterializesSourcePhaseOffering(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	category := testpkg.CreateTestActivityCategory(t, env.db, "Decision-Rollover-Linked")
+	group := &activitiesModels.Group{
+		Name:            "Decision Rollover Linked",
+		Type:            activitiesModels.GroupTypeCare,
+		CategoryID:      category.ID,
+		MaxParticipants: 20,
+		IsOpen:          true,
+		IsTemplate:      false,
+	}
+	group.SetTenantID(1)
+	require.NoError(t, env.repos.ActivityGroup.Create(ctx, group))
+	defer func() {
+		testpkg.CleanupTableRecords(t, env.db, "activities.groups", group.ID)
+		testpkg.CleanupTableRecords(t, env.db, "activities.categories", category.ID)
+	}()
+
+	offering := &enrollmentModels.CareOffering{
+		PhaseID:         env.sourcePhase.ID,
+		ActivityGroupID: &group.ID,
+		Name:            "Rollover Source Linked",
+		DaysOfWeekMode:  enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:   []string{"mon", "wed"},
+		IsActive:        true,
+	}
+	offering.SetTenantID(1)
+	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
+
+	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
+		TenantID:          1,
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "Rollover",
+		GuardianEmail:     "rollover-linked@example.com",
+		ConsentFlags: map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   true,
+			"photo":           true,
+		},
+		Children: []enrollmentService.SubmitChild{
+			{
+				FirstName:        "Rina",
+				LastName:         "Rollover",
+				DateOfBirth:      timezone.NewDate(2018, 4, 15),
+				TargetGradeLevel: testpkg.Int16Ptr(2),
+				OfferingIDs:      []int64{offering.ID},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, submitted.Children, 1)
+
+	sourceOutcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  submitted.Request.ID,
+		ChildID:    submitted.Children[0].ID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, sourceOutcome.Child.CreatedStudentID)
+	studentID := *sourceOutcome.Child.CreatedStudentID
+
+	result, err := env.rolloverSvc.CreatePhaseFromSource(ctx,
+		validRolloverRequest(env.rolloverTestEnv, enrollmentModels.PhaseRolloverModeOptOut, true))
+	require.NoError(t, err)
+	require.NotNil(t, result.Phase)
+
+	rolledChildren, err := env.repos.RequestChild.ListByPhaseAndStatuses(ctx, result.Phase.ID,
+		[]string{enrollmentModels.ChildStatusAutoRenewed})
+	require.NoError(t, err)
+	require.Len(t, rolledChildren, 1)
+	rolled := rolledChildren[0]
+	require.NotNil(t, rolled.RolloverSourceChildID)
+	assert.Equal(t, submitted.Children[0].ID, *rolled.RolloverSourceChildID)
+
+	rolledLinks, err := env.repos.RequestChildOffering.ListByRequestChildID(ctx, rolled.ID)
+	require.NoError(t, err)
+	require.Len(t, rolledLinks, 1)
+	assert.Equal(t, offering.ID, rolledLinks[0].CareOfferingID,
+		"rollover intentionally copies the source-phase offering id")
+
+	rolloverOutcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  rolled.RequestID,
+		ChildID:    rolled.ID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, rolloverOutcome.Child.CreatedStudentID)
+	assert.Equal(t, studentID, *rolloverOutcome.Child.CreatedStudentID)
+
+	count, err := env.db.NewSelect().
+		Model((*activitiesModels.StudentEnrollment)(nil)).
+		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
+		Where(`"student_enrollment".tenant_id = ?`, 1).
+		Where(`"student_enrollment".student_id = ?`, studentID).
+		Where(`"student_enrollment".activity_group_id = ?`, group.ID).
+		Where(`"student_enrollment".valid_from = ?`, result.Phase.ServiceStartDate).
+		Count(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count,
+		"rollover approval must materialize the copied source-phase offering for the target phase window")
 }
 
 func TestDecisionService_Decide_ApprovedRejectsEmptyDaysForTemplateOffering(t *testing.T) {

@@ -158,6 +158,10 @@ type CareOfferingRepository interface {
 	// don't need their own time filter.
 	ListActiveByPhase(ctx context.Context, phaseID int64) ([]*CareOffering, error)
 
+	// ListByIDs returns the exact care offerings referenced by ids,
+	// regardless of phase. Empty input returns an empty slice.
+	ListByIDs(ctx context.Context, ids []int64) ([]*CareOffering, error)
+
 	// CountByPhaseID returns how many care offerings belong to the phase.
 	// Powers the phase-delete confirmation modal.
 	CountByPhaseID(ctx context.Context, phaseID int64) (int, error)

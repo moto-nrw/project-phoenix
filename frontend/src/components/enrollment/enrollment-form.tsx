@@ -870,7 +870,7 @@ export function EnrollmentForm({
       }
       // Strip answers to fields the parent couldn't see (hidden by a
       // show-if condition) so a stale value never reaches the backend.
-      const customData = pruneWeekdayMultiModeAnswers(
+      const customData = pruneWeekdayAnswers(
         visibleAnswerData(
           schema?.fields ?? [],
           true,
@@ -993,6 +993,53 @@ export function EnrollmentForm({
           {},
         );
         setChildOfferingErrors(empties);
+      }
+      if (code === "enrollment.pickup_time_not_allowed") {
+        // The backend rejected a pickup time outside the field's configured
+        // fixed list. The server doesn't say which field/child, so derive it
+        // locally (same approach as the care-offering case above). Two passes:
+        //   - offList: a time the *client's* known list already rejects — a
+        //     stale saved value the form still shows flagged "nicht mehr
+        //     verfügbar".
+        //   - answered: any constrained pickup field that has a time at all.
+        //     Used as a fallback when offList is empty: that happens when the
+        //     admin removed a time *after* the form loaded, so the client list
+        //     is stale and the submitted value still looks valid here. Marking
+        //     every answered constrained field keeps the rejection from being
+        //     silently swallowed (the offending field turns red and the scroll
+        //     lands on it). The backend rejected it regardless — this is UX.
+        const offList: Record<string, string> = {};
+        const answered: Record<string, string> = {};
+        for (const f of schema?.fields ?? []) {
+          if (
+            f.target !== "schedule.pickup" ||
+            !f.allowed_times?.length ||
+            f.type !== "weekday_schedule"
+          ) {
+            continue;
+          }
+          const mark = (answer: unknown, key: string): void => {
+            const times = Object.values(asScheduleObject(answer)).filter(
+              Boolean,
+            );
+            if (times.length === 0) return;
+            answered[key] = message;
+            if (times.some((time) => !f.allowed_times!.includes(time))) {
+              offList[key] = message;
+            }
+          };
+          if (f.applies_to_child) {
+            children.forEach((c, i) =>
+              mark(c.custom[f.key], `children_${i}_custom_${f.key}`),
+            );
+          } else {
+            mark(customData[f.key], `custom_${f.key}`);
+          }
+        }
+        const offending = Object.keys(offList).length > 0 ? offList : answered;
+        if (Object.keys(offending).length > 0) {
+          setFieldErrors((prev) => ({ ...prev, ...offending }));
+        }
       }
       setError(message);
       // A server-side rejection resolves after the synchronous attempt bump
@@ -2218,6 +2265,8 @@ function previewLegalTexts(schema: PublicFormSchema | null): PublicLegalTexts {
       .sort((a, b) => a.sort_order - b.sort_order) ?? [];
   return {
     agb: blocks.find((block) => block.key === "agb")?.text ?? "",
+    agb_document_url: "",
+    agb_display_mode: "text",
     dsgvo: blocks.find((block) => block.key === "data_processing")?.text ?? "",
     email_contact:
       blocks.find((block) => block.key === "email_contact")?.text ?? "",
@@ -2401,8 +2450,10 @@ function customValueMissing(
     return contactListValueMissing(value);
   }
   if (field.type === "weekday_schedule") {
+    const days = relevantDays ?? WEEKDAYS;
+    if (days.length === 0) return false;
     const schedule = asScheduleObject(value);
-    return !Object.values(schedule).some((time) => time.trim() !== "");
+    return !days.some((day) => (schedule[day] ?? "").trim() !== "");
   }
   if (field.type === "weekday_boolean") {
     // Pickup: an explicit (touched) selection — even an empty one — is the
@@ -2632,6 +2683,7 @@ function CustomFieldInput({
         onChange={onChange}
         error={error}
         tr={tr}
+        relevantDays={relevantDays}
       />
     );
   }
@@ -2969,23 +3021,38 @@ function relevantCareDaysForChild(
   offerings: readonly PublicCareOffering[],
   previewMode: boolean,
 ): string[] {
-  if (previewMode && offerings.length === 0) {
+  // No offerings to derive care days from (care-offering feature unused, or
+  // template preview): every weekday is relevant so day-scoped fields stay
+  // usable. When offerings DO exist but the child has selected none, the
+  // result is empty on purpose -- the parent must pick care days first.
+  if (previewMode || offerings.length === 0) {
     return [...WEEKDAYS];
   }
   return selectedCareDaysForChild(child, offerings);
 }
 
-function pruneWeekdayMultiModeAnswers(
+function pruneWeekdayAnswers(
   data: Record<string, unknown>,
   fields: readonly PublicFormSchema["fields"][number][],
   relevantDays: readonly string[],
 ): Record<string, unknown> {
   const next = { ...data };
   for (const field of fields) {
-    if (field.type !== "weekday_multi_mode" || !(field.key in next)) {
-      continue;
+    if (!(field.key in next)) continue;
+    if (field.type === "weekday_multi_mode") {
+      next[field.key] = asWeekdayMultiModeObject(next[field.key], relevantDays);
+    } else if (field.type === "weekday_schedule") {
+      // Drop pickup times for days the child is no longer in care (e.g. an
+      // offering was deselected after a time was entered) so stale entries
+      // never reach the backend.
+      const schedule = asScheduleObject(next[field.key]);
+      const pruned: Record<string, string> = {};
+      for (const day of relevantDays) {
+        const time = schedule[day];
+        if (time !== undefined) pruned[day] = time;
+      }
+      next[field.key] = pruned;
     }
-    next[field.key] = asWeekdayMultiModeObject(next[field.key], relevantDays);
   }
   return next;
 }
@@ -2996,9 +3063,18 @@ function WeekdayScheduleInput({
   onChange,
   error,
   tr,
+  relevantDays,
 }: CustomFieldInputProps) {
   const sched = asScheduleObject(value);
   const weekdayLabels = asStringMap(tr.raw("weekdays"));
+  // Only offer the weekdays the child is actually in care on (derived from the
+  // selected care offerings). When no offerings constrain the form, relevantDays
+  // is undefined and all weekdays are shown (historical behaviour).
+  const daysToRender = relevantDays ?? WEEKDAYS;
+  // When the field configures fixed pickup times, parents pick from a
+  // dropdown limited to those values per weekday instead of a free time
+  // input. Empty list = free entry (the historical behaviour).
+  const allowedTimes = field.allowed_times ?? [];
   return (
     <fieldset
       className={`rounded-lg border p-3 ${error ? "border-[#FF3130]" : "border-gray-200"}`}
@@ -3013,24 +3089,73 @@ function WeekdayScheduleInput({
           {field.help_text}
         </p>
       )}
-      <p className="text-xs text-gray-500">{tr("structured.emptySchedule")}</p>
-      <div className="mt-2 grid gap-2 sm:grid-cols-5">
-        {WEEKDAYS.map((weekday) => (
-          <label key={weekday} className="block text-xs">
-            <span className="block text-gray-600">
-              {weekdayLabels[weekday] ?? weekday}
-            </span>
-            <input
-              type="time"
-              value={sched[weekday] ?? ""}
-              onChange={(e) =>
-                onChange({ ...sched, [weekday]: e.target.value })
-              }
-              className="mt-1 h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm"
-            />
-          </label>
-        ))}
-      </div>
+      {daysToRender.length === 0 ? (
+        <p className="mt-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+          {tr("structured.weekdayMultiModeNoDays")}
+        </p>
+      ) : (
+        <>
+          <p className="text-xs text-gray-500">
+            {tr("structured.emptySchedule")}
+          </p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-5">
+            {daysToRender.map((weekday) => {
+              const current = sched[weekday] ?? "";
+              // A previously saved value that is no longer in the configured
+              // list (admin changed the times after the draft was saved) must
+              // still be shown, otherwise the dropdown silently blanks it and
+              // the parent never sees that their time was dropped. It is
+              // flagged "nicht mehr verfügbar" so the parent notices it has to
+              // be re-picked before submit — the backend rejects it anyway.
+              const isStale =
+                Boolean(current) && !allowedTimes.includes(current);
+              return (
+                <label key={weekday} className="block text-xs">
+                  <span className="block text-gray-600">
+                    {weekdayLabels[weekday] ?? weekday}
+                  </span>
+                  {allowedTimes.length > 0 ? (
+                    <CustomSelect
+                      value={current}
+                      onChange={(selected) =>
+                        onChange({ ...sched, [weekday]: selected })
+                      }
+                      ariaLabel={`${weekdayLabels[weekday] ?? weekday} – ${field.label}`}
+                      placeholder={tr("structured.selectTime")}
+                      invalid={Boolean(error) || isStale}
+                      className="mt-1 border-gray-200 bg-white"
+                      options={[
+                        { value: "", label: tr("structured.selectTime") },
+                        ...allowedTimes.map((time) => ({
+                          value: time,
+                          label: time,
+                        })),
+                        ...(isStale
+                          ? [
+                              {
+                                value: current,
+                                label: `${current} (${tr("structured.timeUnavailable")})`,
+                              },
+                            ]
+                          : []),
+                      ]}
+                    />
+                  ) : (
+                    <input
+                      type="time"
+                      value={current}
+                      onChange={(e) =>
+                        onChange({ ...sched, [weekday]: e.target.value })
+                      }
+                      className="mt-1 h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm"
+                    />
+                  )}
+                </label>
+              );
+            })}
+          </div>
+        </>
+      )}
       {error && <p className="mt-2 text-xs text-[#FF3130]">{error}</p>}
     </fieldset>
   );

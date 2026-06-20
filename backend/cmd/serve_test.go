@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -115,6 +116,25 @@ func TestValidateServeConfig_SentryEnvironmentPasses(t *testing.T) {
 	viper.Set("sentry_environment", "staging")
 
 	require.NoError(t, validateServeConfig())
+}
+
+func TestScrubSentryEvent_RemovesRequestDataAndSensitiveHeaders(t *testing.T) {
+	event := &sentry.Event{
+		Request: &sentry.Request{
+			Data: `{"notes":"person names and free text"}`,
+			Headers: map[string]string{
+				"X-Staff-PIN": "1234",
+				"Accept":      "application/json",
+			},
+		},
+	}
+
+	scrubbed := scrubSentryEvent(event)
+
+	require.NotNil(t, scrubbed.Request)
+	assert.Empty(t, scrubbed.Request.Data)
+	assert.Equal(t, "[filtered]", scrubbed.Request.Headers["X-Staff-PIN"])
+	assert.Equal(t, "application/json", scrubbed.Request.Headers["Accept"])
 }
 
 func resetServeConfig(t *testing.T) {

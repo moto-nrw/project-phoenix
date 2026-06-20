@@ -3,12 +3,15 @@ package enrollment_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"sync"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -147,4 +150,299 @@ func TestFormSchemaService_ListVersions_ReturnsNewestFirst(t *testing.T) {
 	assert.True(t, list[0].IsActive)
 	assert.True(t, list[1].IsActive)
 	assert.True(t, list[2].IsActive)
+}
+
+func TestFormSchemaService_RenameSchema_RenamesWholeLineage(t *testing.T) {
+	_, svc, creatorID, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
+
+	field := []enrollmentModels.FormField{
+		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	}
+	created, err := svc.CreateSchema(ctx, "Ferienbetreuung", field, creatorID)
+	require.NoError(t, err)
+	// Add a second version so we can assert the rename hits every row.
+	v2, err := svc.UpdateSchema(ctx, created.ID, field, creatorID)
+	require.NoError(t, err)
+	require.Equal(t, 2, v2.Version)
+
+	renamed, err := svc.RenameSchema(ctx, created.ID, "  Ferienprogramm  ")
+	require.NoError(t, err)
+	assert.Equal(t, "Ferienprogramm", renamed.Name, "service must trim the name")
+
+	list, err := svc.ListVersions(ctx)
+	require.NoError(t, err)
+	require.Len(t, list, 2)
+	for _, s := range list {
+		assert.Equal(t, "Ferienprogramm", s.Name,
+			"every version of the lineage must carry the new name")
+	}
+}
+
+func TestFormSchemaService_RenameSchema_RejectsCollisionWithOtherSchema(t *testing.T) {
+	_, svc, creatorID, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
+
+	field := []enrollmentModels.FormField{
+		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	}
+	a, err := svc.CreateSchema(ctx, "Schuljahr", field, creatorID)
+	require.NoError(t, err)
+	_, err = svc.CreateSchema(ctx, "Ferien", field, creatorID)
+	require.NoError(t, err)
+
+	_, err = svc.RenameSchema(ctx, a.ID, "Ferien")
+	require.ErrorIs(t, err, enrollmentService.ErrFormSchemaNameExists,
+		"renaming onto an existing schema name must be refused, not split the lineage")
+}
+
+func TestFormSchemaService_RenameSchema_SameNameIsNoOp(t *testing.T) {
+	_, svc, creatorID, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
+
+	field := []enrollmentModels.FormField{
+		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	}
+	created, err := svc.CreateSchema(ctx, "Schuljahr", field, creatorID)
+	require.NoError(t, err)
+
+	// Renaming to the unchanged name must not trip the collision check
+	// against the schema's own rows.
+	renamed, err := svc.RenameSchema(ctx, created.ID, "Schuljahr")
+	require.NoError(t, err)
+	assert.Equal(t, "Schuljahr", renamed.Name)
+}
+
+func TestFormSchemaService_RenameSchema_RejectsEmptyName(t *testing.T) {
+	_, svc, creatorID, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
+
+	created, err := svc.CreateSchema(ctx, "Schuljahr", []enrollmentModels.FormField{
+		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	}, creatorID)
+	require.NoError(t, err)
+
+	_, err = svc.RenameSchema(ctx, created.ID, "   ")
+	require.Error(t, err, "a blank name must be rejected")
+}
+
+func TestFormSchemaService_RenameSchema_RejectsNonPositiveID(t *testing.T) {
+	_, svc, _, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
+
+	_, err := svc.RenameSchema(ctx, 0, "Egal")
+	require.ErrorIs(t, err, enrollmentService.ErrFormSchemaNotFound,
+		"a non-positive id can never identify a schema")
+}
+
+func TestFormSchemaService_RenameSchema_MissingSchemaReturnsNotFound(t *testing.T) {
+	_, svc, _, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
+
+	// No row carries this id, so FindByID returns sql.ErrNoRows wrapped in a
+	// DatabaseError; the service must map that to the typed not-found sentinel.
+	_, err := svc.RenameSchema(ctx, 999999999, "Egal")
+	require.ErrorIs(t, err, enrollmentService.ErrFormSchemaNotFound)
+}
+
+// newSchemaServiceWithRepo builds a service around an arbitrary repo so a
+// test can inject failures into a single repository method. Mirrors the
+// minimal config setupSchemaTest uses (RenameSchema only touches s.repo).
+func newSchemaServiceWithRepo(repo enrollmentModels.FormSchemaRepository) enrollmentService.FormSchemaService {
+	return enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
+		Repo:   repo,
+		Logger: slog.Default(),
+	})
+}
+
+// existsCheckFailsRepo delegates to a real repo (so FindByID returns the
+// source row) but fails the name-existence probe, exercising RenameSchema's
+// "check existing name" error branch.
+type existsCheckFailsRepo struct {
+	enrollmentModels.FormSchemaRepository
+}
+
+func (existsCheckFailsRepo) ExistsByName(context.Context, string) (bool, error) {
+	return false, errors.New("exists probe boom")
+}
+
+// renameExecFailsRepo reports no collision but fails the actual rename with a
+// plain (non-23505) error, exercising the generic rename error branch. The
+// 23505 race fallback needs a real concurrent unique-violation and is left to
+// the repository-level tests.
+type renameExecFailsRepo struct {
+	enrollmentModels.FormSchemaRepository
+}
+
+func (renameExecFailsRepo) ExistsByName(context.Context, string) (bool, error) {
+	return false, nil
+}
+
+func (renameExecFailsRepo) RenameByName(context.Context, string, string) error {
+	return errors.New("rename exec boom")
+}
+
+func TestFormSchemaService_RenameSchema_LoadErrorIsServerFault(t *testing.T) {
+	_, _, _, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
+
+	// failingSchemaRepo (decision_export_integration_test.go) makes FindByID
+	// fail with a non-ErrNoRows error — a transient read fault, not a 404.
+	svc := newSchemaServiceWithRepo(failingSchemaRepo{})
+	_, err := svc.RenameSchema(ctx, 42, "Egal")
+	require.Error(t, err)
+	require.NotErrorIs(t, err, enrollmentService.ErrFormSchemaNotFound,
+		"a read fault must not be flattened into not-found")
+	assert.Contains(t, err.Error(), "load source schema")
+}
+
+func TestFormSchemaService_RenameSchema_ExistsCheckErrorPropagates(t *testing.T) {
+	db, svc, creatorID, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
+
+	created, err := svc.CreateSchema(ctx, "Schuljahr", []enrollmentModels.FormField{
+		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	}, creatorID)
+	require.NoError(t, err)
+
+	wrapped := newSchemaServiceWithRepo(existsCheckFailsRepo{repositories.NewFactory(db).FormSchema})
+	_, err = wrapped.RenameSchema(ctx, created.ID, "Ferien")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "check existing name")
+}
+
+func TestFormSchemaService_RenameSchema_RenameExecErrorPropagates(t *testing.T) {
+	db, svc, creatorID, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
+
+	created, err := svc.CreateSchema(ctx, "Schuljahr", []enrollmentModels.FormField{
+		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	}, creatorID)
+	require.NoError(t, err)
+
+	wrapped := newSchemaServiceWithRepo(renameExecFailsRepo{repositories.NewFactory(db).FormSchema})
+	_, err = wrapped.RenameSchema(ctx, created.ID, "Ferien")
+	require.Error(t, err)
+	require.NotErrorIs(t, err, enrollmentService.ErrFormSchemaNameExists,
+		"a plain rename failure is not a name collision")
+	assert.Contains(t, err.Error(), "rename schema")
+}
+
+// TestFormSchemaService_RenameAndPublishConcurrently_NeverSplitsLineage drives
+// a rename and a version-publish at the SAME id concurrently, each in its own
+// tenant transaction, many times. The per-lineage advisory lock must serialize
+// them: whichever runs first, the other sees the result, so every version row
+// always ends up under one shared name. Without the lock the publish can read
+// the pre-rename name and insert a new version under it while the rename moves
+// the existing rows — splitting the lineage across two names.
+func TestFormSchemaService_RenameAndPublishConcurrently_NeverSplitsLineage(t *testing.T) {
+	db, svc, creatorID, tenantID := setupSchemaTest(t)
+
+	field := []enrollmentModels.FormField{
+		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	}
+
+	// Seed a single-version lineage. lineageID is any version's id — it
+	// survives every publish (versions are never deleted) and every rename
+	// (rename keeps row ids), so both operations can reference it forever.
+	var lineageID int64
+	require.NoError(t, tenant.WithTenantTx(context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		created, err := svc.CreateSchema(ctx, "Konzert", field, creatorID)
+		if err != nil {
+			return err
+		}
+		lineageID = created.ID
+		return nil
+	}))
+
+	for i := 0; i < 15; i++ {
+		target := fmt.Sprintf("Konzert-%d", i)
+		var wg sync.WaitGroup
+		wg.Add(2)
+		var renameErr, publishErr error
+		go func() {
+			defer wg.Done()
+			renameErr = tenant.WithTenantTx(context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+				_, err := svc.RenameSchema(ctx, lineageID, target)
+				return err
+			})
+		}()
+		go func() {
+			defer wg.Done()
+			publishErr = tenant.WithTenantTx(context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+				_, err := svc.UpdateSchema(ctx, lineageID, field, creatorID)
+				return err
+			})
+		}()
+		wg.Wait()
+		require.NoError(t, renameErr, "iteration %d: rename", i)
+		require.NoError(t, publishErr, "iteration %d: publish", i)
+
+		names := make(map[string]struct{})
+		require.NoError(t, tenant.WithTenantTx(context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+			versions, err := svc.ListVersions(ctx)
+			if err != nil {
+				return err
+			}
+			for _, v := range versions {
+				names[v.Name] = struct{}{}
+			}
+			return nil
+		}))
+		require.Len(t, names, 1, "iteration %d: lineage split across names %v", i, names)
+	}
+}
+
+// TestFormSchemaService_RenameThenFailedPublish_RollsBackRename proves the
+// combined "rename + edit" save is atomic at the database level: the rename
+// and the version-publish ride in ONE tenant transaction (exactly as the
+// updateSchema handler wires them), so a publish failure rolls the rename
+// back. Without the shared transaction the rename would commit on its own and
+// leave a "renamed but content unchanged" lineage — the partial-save bug this
+// guards against. The publish is made to fail deterministically with a
+// reserved core-field key (same rejection as
+// TestFormSchemaService_PublishVersion_RejectsCoreFieldKey).
+func TestFormSchemaService_RenameThenFailedPublish_RollsBackRename(t *testing.T) {
+	db, svc, creatorID, tenantID := setupSchemaTest(t)
+
+	field := []enrollmentModels.FormField{
+		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	}
+
+	var lineageID int64
+	require.NoError(t, tenant.WithTenantTx(context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		created, err := svc.CreateSchema(ctx, "Sommerfest", field, creatorID)
+		if err != nil {
+			return err
+		}
+		lineageID = created.ID
+		return nil
+	}))
+
+	// One transaction, mirroring updateSchema's runInTenantTx: rename succeeds,
+	// then the publish fails on a reserved core key. The closure returns that
+	// error, so WithTenantTx rolls the whole transaction back.
+	txErr := tenant.WithTenantTx(context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if _, err := svc.RenameSchema(ctx, lineageID, "Herbstfest"); err != nil {
+			return err
+		}
+		_, err := svc.UpdateSchema(ctx, lineageID, []enrollmentModels.FormField{
+			{Key: "guardian_email", Label: "Email", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+		}, creatorID)
+		return err
+	})
+	require.Error(t, txErr, "the reserved-key publish must fail and abort the transaction")
+
+	// Neither change committed: the name is still the original and no new
+	// version row was inserted.
+	require.NoError(t, tenant.WithTenantTx(context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		versions, err := svc.ListVersions(ctx)
+		if err != nil {
+			return err
+		}
+		require.Len(t, versions, 1, "a rolled-back publish must not leave a new version")
+		assert.Equal(t, "Sommerfest", versions[0].Name,
+			"the rename must roll back when the publish in the same transaction fails")
+		return nil
+	}))
 }

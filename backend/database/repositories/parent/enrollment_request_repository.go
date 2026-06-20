@@ -8,6 +8,7 @@ import (
 
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
@@ -88,11 +89,34 @@ func (r *EnrollmentRequestRepository) ListByAccount(ctx context.Context, account
 		    )
 		  )
 		  AND sch.deleted_at IS NULL
+		  AND NOT EXISTS (
+		    SELECT 1
+		    FROM enrollment.request_children AS rc_created
+		    WHERE rc_created.request_id = req.id
+		      AND rc_created.created_student_id IS NOT NULL
+		      AND NOT EXISTS (
+		        SELECT 1
+		        FROM users.students_guardians AS sg
+		        JOIN users.guardian_profiles AS gp
+		          ON gp.id = sg.guardian_profile_id
+		         AND gp.tenant_id = sg.tenant_id
+		        WHERE sg.student_id = rc_created.created_student_id
+		          AND sg.tenant_id = req.tenant_id
+		          AND gp.account_id = ?
+		          AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
+		      )
+		  )
 		ORDER BY req.submitted_at DESC, req.id DESC
 	`
 
 	var rows []row
-	if err := base.GetDB(ctx, r.db).NewRaw(requestQuery, accountID, accountID).Scan(ctx, &rows); err != nil {
+	if err := base.GetDB(ctx, r.db).NewRaw(
+		requestQuery,
+		accountID,
+		accountID,
+		accountID,
+		authorize.GuardianPermissionEnrollmentsView,
+	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("parent: list enrollment requests: %w", err)
 	}
 	if len(rows) == 0 {

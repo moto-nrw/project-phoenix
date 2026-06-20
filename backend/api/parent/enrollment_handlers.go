@@ -396,6 +396,11 @@ func mapParentSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "enrollment.invalid_phone"))
 	case errors.Is(err, enrollmentService.ErrInvalidGuardianEmail):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "enrollment.invalid_email"))
+	// Must precede the generic ErrInvalidSubmission branch: ErrPickupTimeNotAllowed
+	// wraps it. Code mirrors enrollment.ErrCodeEnrollmentPickupTimeNotAllowed so the
+	// shared EnrollmentForm renders the same German message as the public form.
+	case errors.Is(err, enrollmentService.ErrPickupTimeNotAllowed):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "enrollment.pickup_time_not_allowed"))
 	case errors.Is(err, enrollmentService.ErrCareOfferingClosed),
 		errors.Is(err, enrollmentService.ErrInvalidSubmission):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))

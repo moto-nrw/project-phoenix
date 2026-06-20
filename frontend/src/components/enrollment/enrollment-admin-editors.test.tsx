@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   listCareOfferings: vi.fn(),
   listPhases: vi.fn(),
   listSchemas: vi.fn(),
+  renameSchema: vi.fn(),
   updateCareOffering: vi.fn(),
   updatePhase: vi.fn(),
   updateSchema: vi.fn(),
@@ -95,6 +96,7 @@ vi.mock("~/lib/enrollment-form-schema-api", async (importOriginal) => {
     deleteSchema: mocks.deleteSchema,
     fetchPublicLegalTexts: mocks.fetchPublicLegalTexts,
     listSchemas: mocks.listSchemas,
+    renameSchema: mocks.renameSchema,
     updateSchema: mocks.updateSchema,
   };
 });
@@ -121,10 +123,13 @@ vi.mock("~/lib/timetable-api", () => ({
 }));
 
 import { CareOfferingsEditor } from "./care-offerings-editor";
-import { EnrollmentFormEditor } from "./enrollment-form-editor";
+import {
+  EnrollmentFormEditor,
+  prepareFieldsForSave,
+} from "./enrollment-form-editor";
 import { PhasesEditor } from "./phases-editor";
 import type { CareOffering } from "~/lib/care-offering-api";
-import type { FormSchema } from "~/lib/enrollment-form-schema-api";
+import type { FormField, FormSchema } from "~/lib/enrollment-form-schema-api";
 import type { Phase } from "~/lib/enrollment-phase-api";
 
 function phase(overrides: Partial<Phase> = {}): Phase {
@@ -241,6 +246,7 @@ beforeEach(() => {
   mocks.listCareOfferings.mockReset();
   mocks.listPhases.mockReset();
   mocks.listSchemas.mockReset();
+  mocks.renameSchema.mockReset();
   mocks.updateCareOffering.mockReset();
   mocks.updatePhase.mockReset();
   mocks.updateSchema.mockReset();
@@ -623,6 +629,8 @@ describe("EnrollmentFormEditor", () => {
         expect.arrayContaining([expect.objectContaining({ type: "textarea" })]),
         {},
         defaultLegalBlocksForSave,
+        // Content-only edit: no rename name rides along on the save.
+        undefined,
       );
     });
 
@@ -638,6 +646,237 @@ describe("EnrollmentFormEditor", () => {
     await waitFor(() => {
       expect(mocks.deleteSchema).toHaveBeenCalledWith("schema-1");
     });
+  });
+
+  it("renames a schema via the actions menu", async () => {
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.renameSchema.mockResolvedValue(schema({ name: "Ferienprogramm" }));
+
+    render(<EnrollmentFormEditor />);
+
+    expect(
+      await screen.findByText("Anmeldeformulare verwalten"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Regelformular" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Umbenennen" }),
+    );
+
+    const input = await screen.findByLabelText("Name");
+    fireEvent.change(input, { target: { value: "  Ferienprogramm  " } });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      // The trimmed name reaches the API; the lineage id (latest version)
+      // identifies which schema to rename.
+      expect(mocks.renameSchema).toHaveBeenCalledWith(
+        "schema-1",
+        "Ferienprogramm",
+      );
+    });
+  });
+
+  it("keeps the rename dialog open and shows the error when the name is taken", async () => {
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.renameSchema.mockRejectedValue(
+      new Error("Es gibt bereits ein Formular mit diesem Namen."),
+    );
+
+    render(<EnrollmentFormEditor />);
+
+    expect(
+      await screen.findByText("Anmeldeformulare verwalten"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Regelformular" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Umbenennen" }),
+    );
+
+    fireEvent.change(await screen.findByLabelText("Name"), {
+      target: { value: "Ferienprogramm" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText("Es gibt bereits ein Formular mit diesem Namen."),
+    ).toBeInTheDocument();
+    // Dialog stays open so the admin can correct the name.
+    expect(screen.getByLabelText("Name")).toBeInTheDocument();
+  });
+
+  it("renames via the builder name field when saving an edited template", async () => {
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.renameSchema.mockResolvedValue(schema({ name: "Ferienprogramm" }));
+    mocks.updateSchema.mockResolvedValue(schema({ name: "Ferienprogramm" }));
+
+    render(<EnrollmentFormEditor />);
+
+    expect(
+      await screen.findByText("Anmeldeformulare verwalten"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Regelformular" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+
+    // The name input is now editable in the builder header (not only on
+    // create). Changing ONLY the name and saving renames the lineage in
+    // place; it must NOT publish a redundant identical version, matching
+    // the standalone "Umbenennen" dialog's semantics.
+    fireEvent.change(
+      await screen.findByPlaceholderText("z. B. Ferienbetreuung Sommer 2026"),
+      { target: { value: "Ferienprogramm" } },
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen speichern" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.renameSchema).toHaveBeenCalledWith(
+        "schema-1",
+        "Ferienprogramm",
+      );
+    });
+    expect(mocks.updateSchema).not.toHaveBeenCalled();
+  });
+
+  it("renames AND publishes in one atomic request when name and content both change", async () => {
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.updateSchema.mockResolvedValue(schema({ name: "Ferienprogramm" }));
+
+    render(<EnrollmentFormEditor />);
+
+    expect(
+      await screen.findByText("Anmeldeformulare verwalten"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Regelformular" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+
+    // Change the name AND a base-field requirement: the new name rides along
+    // on the single updateSchema request so the backend renames + publishes in
+    // one transaction. No separate rename round-trip the publish could leave
+    // half-applied on failure.
+    fireEvent.change(
+      await screen.findByPlaceholderText("z. B. Ferienbetreuung Sommer 2026"),
+      { target: { value: "Ferienprogramm" } },
+    );
+    fireEvent.click(
+      await screen.findByRole("switch", {
+        name: "Telefonnummer verpflichtend",
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen speichern" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.updateSchema).toHaveBeenCalledWith(
+        "schema-1",
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+        "Ferienprogramm",
+      );
+    });
+    // The combined save must NOT fire a separate rename request — that is the
+    // non-atomic path the backend transaction replaced.
+    expect(mocks.renameSchema).not.toHaveBeenCalled();
+  });
+
+  it("does not rename separately when the combined save fails", async () => {
+    // Regression guard for the partial-save bug: a failed publish must not
+    // leave the lineage renamed. Because the rename now rides inside the
+    // single updateSchema transaction, the editor never calls renameSchema on
+    // its own, so a rejected updateSchema commits nothing.
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.updateSchema.mockRejectedValue(
+      new Error("Formularvorlage konnte nicht gespeichert werden"),
+    );
+
+    render(<EnrollmentFormEditor />);
+
+    expect(
+      await screen.findByText("Anmeldeformulare verwalten"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Regelformular" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+
+    fireEvent.change(
+      await screen.findByPlaceholderText("z. B. Ferienbetreuung Sommer 2026"),
+      { target: { value: "Ferienprogramm" } },
+    );
+    fireEvent.click(
+      await screen.findByRole("switch", {
+        name: "Telefonnummer verpflichtend",
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen speichern" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.updateSchema).toHaveBeenCalled();
+    });
+    expect(mocks.renameSchema).not.toHaveBeenCalled();
+  });
+
+  it("does not rename when the builder name is left unchanged", async () => {
+    mocks.listSchemas.mockResolvedValue([schema()]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.updateSchema.mockResolvedValue(schema());
+
+    render(<EnrollmentFormEditor />);
+
+    expect(
+      await screen.findByText("Anmeldeformulare verwalten"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Regelformular" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+
+    // Toggle a base-field requirement so there is something to save without
+    // touching the name.
+    fireEvent.click(
+      await screen.findByRole("switch", {
+        name: "Telefonnummer verpflichtend",
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen speichern" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.updateSchema).toHaveBeenCalled();
+    });
+    expect(mocks.renameSchema).not.toHaveBeenCalled();
   });
 
   it("activates a standard legal block when an admin enters legal text", async () => {
@@ -1076,5 +1315,72 @@ describe("EnrollmentFormEditor", () => {
     );
 
     expect(await screen.findByText("Speichern kaputt")).toBeInTheDocument();
+  });
+
+  it("keeps a half-filled pickup-time row visible while editing", async () => {
+    // The allowed-time rows are committed up to the field (deduped, non-empty)
+    // and echo back through field.allowed_times. The reset effect now also
+    // watches field.allowed_times so a schema/template switch refreshes the
+    // rows, but it must NOT reset on the row's own commit — otherwise a freshly
+    // added empty row (or a row mid-edit) would be wiped on every keystroke.
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+
+    render(<EnrollmentFormEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /^Abholzeiten\b/,
+      }),
+    );
+
+    // Adding a row leaves an empty time input on screen (it is not yet a
+    // committed allowed_time, so a naive reset would drop it).
+    fireEvent.click(screen.getByRole("button", { name: "Zeit hinzufügen" }));
+    const firstRow = await screen.findByLabelText("Auswahlzeit 1");
+    expect(firstRow).toBeInTheDocument();
+    expect((firstRow as HTMLInputElement).value).toBe("");
+
+    fireEvent.change(firstRow, { target: { value: "14:45" } });
+    expect(
+      (screen.getByLabelText("Auswahlzeit 1") as HTMLInputElement).value,
+    ).toBe("14:45");
+
+    // A second empty row coexists with the committed first one.
+    fireEvent.click(screen.getByRole("button", { name: "Zeit hinzufügen" }));
+    expect(
+      (screen.getByLabelText("Auswahlzeit 1") as HTMLInputElement).value,
+    ).toBe("14:45");
+    expect(
+      (screen.getByLabelText("Auswahlzeit 2") as HTMLInputElement).value,
+    ).toBe("");
+  });
+});
+
+describe("prepareFieldsForSave — fixed pickup times", () => {
+  const pickupField = (overrides: Partial<FormField> = {}): FormField => ({
+    key: "schedule_pickup",
+    label: "Abholzeiten",
+    type: "weekday_schedule",
+    target: "schedule.pickup",
+    applies_to_child: true,
+    sort_order: 0,
+    ...overrides,
+  });
+
+  it("keeps allowed_times on the rebuilt pickup target field", () => {
+    const [out] = prepareFieldsForSave([
+      pickupField({ allowed_times: ["14:45", "16:00"] }),
+    ]);
+    expect(out?.allowed_times).toEqual(["14:45", "16:00"]);
+    expect(out?.target).toBe("schedule.pickup");
+  });
+
+  it("leaves allowed_times undefined when none configured", () => {
+    const [out] = prepareFieldsForSave([pickupField()]);
+    expect(out?.allowed_times).toBeUndefined();
   });
 });

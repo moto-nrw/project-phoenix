@@ -60,9 +60,22 @@ func buildSchemaWithScope(
 			continue
 		}
 
-		// Determine if this is using the default (no tenant DB override exists)
+		// Determine if this is using the default. Default semantics are
+		// override-existence-based EXCEPT for boolean toggles, which have no
+		// reset button: without a value-based check their badge would stay
+		// "not default" forever once toggled, even after toggling back to the
+		// default value (issue #1680). For resettable settings we deliberately
+		// keep override-existence semantics so the reset button stays available
+		// to clear an explicit override — even one that currently equals the
+		// registry default (otherwise an env-fallback consumer would silently
+		// stay tenant-pinned with no way to clear it from the UI).
+		// jsonValuesEqual handles the JSONB roundtrip (float64 vs int) and
+		// type-correct comparison.
 		hasOverride, _ := svc.HasTenantOverride(ctx, key)
 		isDefault := !hasOverride
+		if def.Type == config.FieldBoolean {
+			isDefault = jsonValuesEqual(value, def.Default)
+		}
 
 		// Mask password values (only when actually set, not empty defaults)
 		displayValue := value

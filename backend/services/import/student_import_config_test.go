@@ -5,10 +5,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func futureBirthdayForTests() time.Time {
@@ -35,6 +39,35 @@ func TestEnrollmentStartsInFuture_UsesBusinessDate(t *testing.T) {
 	assert.False(t, enrollmentStartsInFuture(nil))
 	assert.False(t, enrollmentStartsInFuture(&today), "today must be active, not pending")
 	assert.True(t, enrollmentStartsInFuture(&tomorrow))
+}
+
+func TestStudentImportConfig_CreateSingleGuardianRelationship_AssignsRolePermissions(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	factory := repositories.NewFactory(db)
+	ctx := testpkg.TenantContext(1)
+	student := testpkg.CreateTestStudent(t, db, "Import", "Guardian", "1a")
+	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, db, student.ID) })
+
+	config := NewStudentImportConfig(StudentImportDeps{
+		GuardianRepo:      factory.GuardianProfile,
+		GuardianPhoneRepo: factory.GuardianPhoneNumber,
+		RelationRepo:      factory.StudentGuardian,
+	}, db)
+
+	err := config.createSingleGuardianRelationship(ctx, student.ID, importModels.GuardianImportData{
+		FirstName:        "Import",
+		LastName:         "Parent",
+		Email:            "import-parent@example.test",
+		RelationshipType: "Elternteil",
+	}, 1)
+	require.NoError(t, err)
+
+	relationships, err := factory.StudentGuardian.FindByStudentID(ctx, student.ID)
+	require.NoError(t, err)
+	require.Len(t, relationships, 1)
+	assert.Equal(t, authorize.GuardianRoleLegalGuardian, relationships[0].GuardianRole)
+	assert.True(t, authorize.StudentGuardianHasPermission(relationships[0], authorize.GuardianPermissionPortalAccess))
 }
 
 func TestStudentImportConfig_Validate_RequiredFields(t *testing.T) {

@@ -59,6 +59,13 @@ var (
 	// the broad category keep working, while the HTTP layer maps the specific
 	// case to a stable code (enrollment.invalid_email) for per-field marking.
 	ErrInvalidGuardianEmail = fmt.Errorf("%w: guardian email has an invalid format", ErrInvalidSubmission)
+	// ErrPickupTimeNotAllowed wraps ErrInvalidSubmission (so the HTTP layer
+	// still maps it to 400) and is returned when a submitted weekday_schedule
+	// time falls outside the field's configured fixed pickup times. The
+	// specific identity lets the handler attach a stable code
+	// (enrollment.pickup_time_not_allowed) so the parent form can localize the
+	// message and highlight the offending schedule field.
+	ErrPickupTimeNotAllowed = fmt.Errorf("%w: pickup time not allowed", ErrInvalidSubmission)
 	ErrEditNotAllowed       = errors.New("request can no longer be edited")
 	ErrWithdrawNotAllowed   = errors.New("child cannot be withdrawn in its current state")
 	ErrDuplicateEnrollment  = errors.New("an active enrollment already exists for this parent and child in this phase")
@@ -240,6 +247,8 @@ type RequestService interface {
 // and the matching text is non-empty.
 type LegalTexts struct {
 	AGB                 string
+	AGBDocumentURL      string
+	AGBDisplayMode      string
 	DSGVO               string
 	EmailContact        string
 	Photo               string
@@ -462,6 +471,12 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	if err := s.validateAccompaniedCompanionNote(schema, req, openByID); err != nil {
 		return nil, err
 	}
+	// Reject any pickup time outside a weekday_schedule field's fixed
+	// AllowedTimes list (defense-in-depth behind the dropdown the public
+	// form renders). No-op when no schedule field constrains its times.
+	if err := s.validateConstrainedSchedules(schema, req, openByID); err != nil {
+		return nil, err
+	}
 
 	// Defense-in-depth: drop answers for fields the parent couldn't see
 	// (hidden by a show-if condition) and any keys not declared in the
@@ -484,6 +499,13 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 			}
 			req.Children[i].CustomData = sanitizeVisibleAnswers(
 				schema, true, req.Children[i].CustomData, childCtx,
+			)
+			// Server-side care-day enforcement: strip schedule entries for
+			// weekdays the child can't schedule so a stale/scripted submit
+			// can't persist (and later dispatch) a pickup on a non-care day.
+			pruneChildScheduleAnswers(
+				schema, req.Children[i].CustomData,
+				relevantCareDaysForChild(req.Children[i], openByID),
 			)
 		}
 		req.CustomData = sanitizeVisibleAnswers(
@@ -1191,6 +1213,9 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 		if err := s.validateAccompaniedCompanionNote(schema, editReq, openByID); err != nil {
 			return err
 		}
+		if err := s.validateConstrainedSchedules(schema, editReq, openByID); err != nil {
+			return err
+		}
 		if schema != nil {
 			byKey := buildFieldsByKey(schema)
 			rawGuardian := editReq.CustomData
@@ -1203,6 +1228,10 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 					fieldsByKey:     byKey,
 				}
 				editReq.Children[i].CustomData = sanitizeVisibleAnswers(schema, true, editReq.Children[i].CustomData, childCtx)
+				pruneChildScheduleAnswers(
+					schema, editReq.Children[i].CustomData,
+					relevantCareDaysForChild(editReq.Children[i], openByID),
+				)
 			}
 			editReq.CustomData = sanitizeVisibleAnswers(schema, false, rawGuardian, fieldVisibilityContext{
 				guardianAnswers: rawGuardian,
@@ -1741,6 +1770,14 @@ func (s *requestService) LegalTexts(ctx context.Context) (LegalTexts, error) {
 	if err != nil {
 		return LegalTexts{}, fmt.Errorf("resolve AGB legal text: %w", err)
 	}
+	agbDocumentURL, err := s.settings.ResolveString(ctx, configModel.KeyEnrollmentLegalAGBDocumentURL)
+	if err != nil {
+		return LegalTexts{}, fmt.Errorf("resolve AGB legal document: %w", err)
+	}
+	agbDisplayMode, err := s.settings.ResolveString(ctx, configModel.KeyEnrollmentLegalAGBDisplayMode)
+	if err != nil {
+		return LegalTexts{}, fmt.Errorf("resolve AGB legal display mode: %w", err)
+	}
 	dsgvo, err := s.settings.ResolveString(ctx, configModel.KeyEnrollmentLegalDSGVOText)
 	if err != nil {
 		return LegalTexts{}, fmt.Errorf("resolve DSGVO legal text: %w", err)
@@ -1771,6 +1808,8 @@ func (s *requestService) LegalTexts(ctx context.Context) (LegalTexts, error) {
 	}
 	texts := LegalTexts{
 		AGB:                 strings.TrimSpace(agb),
+		AGBDocumentURL:      strings.TrimSpace(agbDocumentURL),
+		AGBDisplayMode:      legalAGBDisplayMode(strings.TrimSpace(agbDisplayMode)),
 		DSGVO:               strings.TrimSpace(dsgvo),
 		EmailContact:        strings.TrimSpace(emailContact),
 		Photo:               strings.TrimSpace(photo),
@@ -1831,13 +1870,14 @@ func (s *requestService) loadPhaseForEditableRequest(ctx context.Context, phaseI
 
 func buildLegalBlocks(texts LegalTexts) []LegalBlock {
 	blocks := make([]LegalBlock, 0, 4)
-	if texts.TermsEnabled && texts.AGB != "" {
+	agbText := legalAGBBlockText(texts)
+	if texts.TermsEnabled && agbText != "" {
 		blocks = append(blocks, LegalBlock{
 			Key:       enrollmentModels.ConsentKeyAGB,
 			Kind:      "terms",
 			Title:     "AGB / Teilnahmebedingungen",
 			Label:     "Ich akzeptiere die AGB / Teilnahmebedingungen / den Ganztag Info-Brief.",
-			Text:      texts.AGB,
+			Text:      agbText,
 			Required:  true,
 			SortOrder: 10,
 			Source:    enrollmentModels.LegalBlockSourceStandard,
@@ -1880,6 +1920,34 @@ func buildLegalBlocks(texts LegalTexts) []LegalBlock {
 		})
 	}
 	return blocks
+}
+
+func legalAGBDisplayMode(mode string) string {
+	if mode == configModel.EnrollmentLegalAGBDisplayModePDF {
+		return configModel.EnrollmentLegalAGBDisplayModePDF
+	}
+	return configModel.EnrollmentLegalAGBDisplayModeText
+}
+
+func legalAGBBlockText(texts LegalTexts) string {
+	switch legalAGBDisplayMode(texts.AGBDisplayMode) {
+	case configModel.EnrollmentLegalAGBDisplayModePDF:
+		if texts.AGBDocumentURL == "" {
+			return ""
+		}
+		return fmt.Sprintf("Die AGB / Teilnahmebedingungen sind als PDF-Datei hinterlegt: [AGB-Dokument öffnen](%s)", publicEnrollmentLegalDocumentURL(texts.AGBDocumentURL))
+	default:
+		return texts.AGB
+	}
+}
+
+func publicEnrollmentLegalDocumentURL(storedURL string) string {
+	const uploadPrefix = "/uploads/enrollment-legal-documents/"
+	const publicPrefix = "/api/public/enrollment-legal-documents/"
+	if strings.HasPrefix(storedURL, uploadPrefix) {
+		return publicPrefix + strings.TrimPrefix(storedURL, uploadPrefix)
+	}
+	return storedURL
 }
 
 func buildTemplateLegalBlocks(configured []enrollmentModels.FormLegalBlock) []LegalBlock {

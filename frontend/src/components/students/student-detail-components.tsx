@@ -17,8 +17,8 @@ import type { SupervisorContact } from "~/lib/student-helpers";
 import {
   allowedDepartureModesFromDeparture,
   departureDaysFromLegacy,
-  formatAllowedDepartureModes,
 } from "~/lib/student-helpers";
+import { AllowedDepartureModesDisplay } from "~/components/students/allowed-departure-modes-display";
 import { InfoCard, InfoItem } from "~/components/ui/info-card";
 import { Avatar } from "~/components/ui/avatar";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
@@ -700,16 +700,20 @@ export function PersonalInfoReadOnly({
         <InfoItem label="Geburtsdatum" value={birthdayDisplay} />
         <InfoItem
           label="Erlaubte Heimwege"
-          value={formatAllowedDepartureModes(
-            student.allowed_departure_modes ??
-              allowedDepartureModesFromDeparture(
-                student.departure_days ??
-                  departureDaysFromLegacy(
-                    student.bus_days,
-                    student.pickup_days,
-                  ),
-              ),
-          )}
+          value={
+            <AllowedDepartureModesDisplay
+              value={
+                student.allowed_departure_modes ??
+                allowedDepartureModesFromDeparture(
+                  student.departure_days ??
+                    departureDaysFromLegacy(
+                      student.bus_days,
+                      student.pickup_days,
+                    ),
+                )
+              }
+            />
+          }
         />
         {student.departure_companion_note && (
           <InfoItem

@@ -169,6 +169,9 @@ function friendlyError(err: unknown, fallback: string): string {
   ) {
     return "Für diesen Zeitraum ist bereits eine andere Abwesenheitsart eingetragen.";
   }
+  if (code.startsWith("invalid session data:")) {
+    return "Bitte prüfe Start- und Endzeit.";
+  }
 
   return fallback;
 }
@@ -1710,6 +1713,23 @@ function WeekChart({
 
 const BREAK_DURATION_OPTIONS = [0, 15, 30, 45, 60] as const;
 
+function timeInputToMinutes(value: string): number | null {
+  const [hoursRaw, minutesRaw] = value.split(":");
+  const hours = Number(hoursRaw);
+  const minutes = Number(minutesRaw);
+  if (
+    !Number.isInteger(hours) ||
+    !Number.isInteger(minutes) ||
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59
+  ) {
+    return null;
+  }
+  return hours * 60 + minutes;
+}
+
 /** Calculate compliance warnings for edited session times */
 function calcEditComplianceWarnings(
   startTime: string,
@@ -1902,6 +1922,10 @@ function EditSessionModal({
 
   // Compliance check for the edited values
   const warnings = calcEditComplianceWarnings(startTime, endTime, editedBreak);
+  const startMinutes = timeInputToMinutes(startTime);
+  const endMinutes = timeInputToMinutes(endTime);
+  const hasInvalidTimeRange =
+    startMinutes !== null && endMinutes !== null && endMinutes <= startMinutes;
 
   const handleBreakDurationChange = (breakId: string, minutes: number) => {
     setBreakDurations((prev) => {
@@ -1913,6 +1937,7 @@ function EditSessionModal({
 
   const handleSave = async () => {
     if (!session) return;
+    if (hasInvalidTimeRange) return;
     setSaving(true);
     try {
       // Use session's actual date, not the clicked day (they may differ)
@@ -2002,7 +2027,7 @@ function EditSessionModal({
       </button>
       <button
         onClick={handleSave}
-        disabled={saving || !startTime || !notes.trim()}
+        disabled={saving || !startTime || !notes.trim() || hasInvalidTimeRange}
         className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {saving ? "Speichern..." : "Speichern"}
@@ -2106,6 +2131,12 @@ function EditSessionModal({
                 />
               </div>
             </div>
+
+            {hasInvalidTimeRange && (
+              <p className="text-xs font-medium text-red-600">
+                Ende muss nach Start liegen.
+              </p>
+            )}
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {/* Break section */}

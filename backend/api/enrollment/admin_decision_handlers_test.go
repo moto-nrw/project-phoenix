@@ -3,8 +3,10 @@ package enrollment
 import (
 	"bytes"
 	"context"
+	"database/sql/driver"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -45,7 +47,9 @@ type mockDecisionService struct {
 	listChildOffErr    error
 
 	decideInput  enrollmentService.DecideInput
+	decideCalls  int
 	decideResult *enrollmentService.DecideOutcome
+	decideErrs   []error
 	decideErr    error
 
 	// ExportPhase: records the args the handler forwards (so a handler
@@ -82,6 +86,12 @@ func (m *mockDecisionService) Get(_ context.Context, id int64) (*enrollmentServi
 
 func (m *mockDecisionService) Decide(_ context.Context, input enrollmentService.DecideInput) (*enrollmentService.DecideOutcome, error) {
 	m.decideInput = input
+	m.decideCalls++
+	if len(m.decideErrs) > 0 {
+		err := m.decideErrs[0]
+		m.decideErrs = m.decideErrs[1:]
+		return m.decideResult, err
+	}
 	return m.decideResult, m.decideErr
 }
 
@@ -417,6 +427,120 @@ func TestDecideAdminChildHandler_HappyPathReturns200(t *testing.T) {
 	assert.Equal(t, enrollmentService.DecisionApproved, mock.decideInput.Status)
 	assert.Equal(t, "OK", mock.decideInput.Reason)
 	assert.Contains(t, w.Body.String(), `"status":"approved"`)
+}
+
+func TestDecideAdminChildHandler_RetriesTransientDatabaseError(t *testing.T) {
+	mock := &mockDecisionService{
+		decideResult: &enrollmentService.DecideOutcome{
+			Child: makeChildSummary(99, "Lara", "Beispiel", enrollmentModels.ChildStatusApproved),
+		},
+		decideErrs: []error{
+			fmt.Errorf("decision: list child offerings: %w", driver.ErrBadConn),
+			nil,
+		},
+	}
+	router := buildAdminDecisionRouter(mock)
+
+	w := executeAdminJSON(t, router, http.MethodPost,
+		"/enrollment/admin/requests/1234/children/99/decide",
+		map[string]any{"status": "approved"})
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, 2, mock.decideCalls)
+	assert.Contains(t, w.Body.String(), `"status":"approved"`)
+}
+
+func TestDecideAdminChildHandler_DoesNotRetryAfterDecisionBodySucceeded(t *testing.T) {
+	mock := &mockDecisionService{
+		decideResult: &enrollmentService.DecideOutcome{
+			Child: makeChildSummary(99, "Lara", "Beispiel", enrollmentModels.ChildStatusApproved),
+		},
+	}
+	rs := &Resource{
+		DecisionService: mock,
+		runInTenantTxForTest: func(r *http.Request, fn func(ctx context.Context) error) error {
+			if err := fn(r.Context()); err != nil {
+				return err
+			}
+			return fmt.Errorf("commit failed: %w", driver.ErrBadConn)
+		},
+	}
+	router := chi.NewRouter()
+	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router.Post("/enrollment/admin/requests/{id}/children/{childId}/decide", rs.decideAdminChild)
+
+	w := executeAdminJSON(t, router, http.MethodPost,
+		"/enrollment/admin/requests/1234/children/99/decide",
+		map[string]any{"status": "approved"})
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assert.Equal(t, 1, mock.decideCalls,
+		"commit-boundary errors after a successful decision body must not replay the approval")
+}
+
+func TestDecideAdminChildHandler_DoesNotRetryCanceledRequestContext(t *testing.T) {
+	tests := []struct {
+		name       string
+		setupCtx   func(context.Context) (context.Context, context.CancelFunc)
+		wantStatus int
+	}{
+		{
+			name: "canceled",
+			setupCtx: func(parent context.Context) (context.Context, context.CancelFunc) {
+				ctx, cancel := context.WithCancel(parent)
+				cancel()
+				return ctx, func() {}
+			},
+			wantStatus: 499,
+		},
+		{
+			name: "deadline exceeded",
+			setupCtx: func(parent context.Context) (context.Context, context.CancelFunc) {
+				return context.WithDeadline(parent, time.Now().Add(-time.Second))
+			},
+			wantStatus: http.StatusRequestTimeout,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := &mockDecisionService{
+				decideErrs: []error{fmt.Errorf("decision: list child offerings: %w", driver.ErrBadConn)},
+			}
+			router := buildAdminDecisionRouter(mock)
+
+			req := httptest.NewRequest(http.MethodPost,
+				"/enrollment/admin/requests/1234/children/99/decide",
+				strings.NewReader(`{"status":"approved"}`))
+			req.Header.Set("Content-Type", "application/json")
+			ctx, cancel := tt.setupCtx(req.Context())
+			defer cancel()
+			req = req.WithContext(ctx)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.wantStatus, w.Code)
+			assert.Equal(t, 1, mock.decideCalls)
+		})
+	}
+}
+
+func TestDecideAdminChildHandler_TransientDatabaseErrorMapsTo503AfterRetry(t *testing.T) {
+	mock := &mockDecisionService{
+		decideErrs: []error{
+			fmt.Errorf("decision: list child offerings: %w", driver.ErrBadConn),
+			fmt.Errorf("decision: list child offerings: %w", driver.ErrBadConn),
+		},
+	}
+	router := buildAdminDecisionRouter(mock)
+
+	w := executeAdminJSON(t, router, http.MethodPost,
+		"/enrollment/admin/requests/1234/children/99/decide",
+		map[string]any{"status": "approved"})
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assert.Equal(t, 2, mock.decideCalls)
 }
 
 func TestDecideAdminChildHandler_ChildNotFoundMapsTo404(t *testing.T) {

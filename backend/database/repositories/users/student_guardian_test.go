@@ -3,6 +3,7 @@ package users_test
 import (
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -641,6 +642,8 @@ func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
 		defer cleanupStudentGuardians(t, db, rel.ID)
 		require.NoError(t, err)
 		assert.True(t, inserted, "a brand-new link must report inserted=true")
+		assert.Equal(t, authorize.GuardianRoleLegalGuardian, rel.GuardianRole)
+		assert.True(t, authorize.StudentGuardianHasPermission(rel, authorize.GuardianPermissionPortalAccess))
 	})
 
 	t.Run("treats a duplicate link as a no-op reporting not-inserted", func(t *testing.T) {
@@ -702,6 +705,28 @@ func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, inserted)
 		assert.Equal(t, int64(1), rel.GetTenantID(), "tenant_id must be auto-set from context")
+		assert.Equal(t, authorize.GuardianRoleLegalGuardian, rel.GuardianRole)
+		assert.True(t, authorize.StudentGuardianHasPermission(rel, authorize.GuardianPermissionPortalAccess))
+	})
+
+	t.Run("defaults pickup-style links without portal access", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Pickup", "Student", "1d")
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "linkpickup")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID, guardian.ID)
+
+		rel := &users.StudentGuardian{
+			StudentID:         student.ID,
+			GuardianProfileID: guardian.ID,
+			RelationshipType:  "other",
+			CanPickup:         true,
+			EmergencyPriority: 1,
+		}
+		inserted, err := repo.LinkIfNotExists(ctx, rel)
+		defer cleanupStudentGuardians(t, db, rel.ID)
+		require.NoError(t, err)
+		require.True(t, inserted)
+		assert.Equal(t, authorize.GuardianRolePickupOnly, rel.GuardianRole)
+		assert.False(t, authorize.StudentGuardianHasPermission(rel, authorize.GuardianPermissionPortalAccess))
 	})
 }
 

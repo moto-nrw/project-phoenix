@@ -402,6 +402,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		api.Services.EnrollmentCaptcha,
 		api.Services.EnrollmentPhase,
 		api.Services.EnrollmentDecision,
+		api.Services.EnrollmentReport,
 		api.Services.EnrollmentRollover,
 		api.Services.GuardianInvitation,
 		api.Services.GuardianProfileLoader,
@@ -411,7 +412,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Enrollment.ListExportService = api.Services.ListExport
 	api.Suggestions = suggestionsAPI.NewResource(api.Services.Suggestions, db)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule, db)
-	api.Settings = configAPI.NewSettingsResource(api.Services.Settings, db, api.Services.RealtimeHub)
+	api.Settings = configAPI.NewSettingsResource(api.Services.Settings, db, api.Services.RealtimeHub, repoFactory.FormSchema)
 	api.Settings.OnValueSet(api.Services.SettingsSideEffects.Dispatch)
 	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Schulhof, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "active"))
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
@@ -545,6 +546,12 @@ func (a *API) registerRoutesWithRateLimiting() {
 	a.Router.Get("/public/login-image/{filename}", func(w http.ResponseWriter, r *http.Request) {
 		filename := chi.URLParam(r, "filename")
 		apiCommon.ServeImage(w, r, "public/uploads/login-images", filename, "public, max-age=86400")
+	})
+
+	// Public enrollment legal document serving (no auth - parents read it before submitting).
+	a.Router.Get("/public/enrollment-legal-documents/{filename}", func(w http.ResponseWriter, r *http.Request) {
+		filename := chi.URLParam(r, "filename")
+		apiCommon.ServeFile(w, r, "public/uploads/enrollment-legal-documents", filename, "public, max-age=86400")
 	})
 
 	a.Router.With(observability.MetricsAuthMiddleware(a.metricsBearerToken)).Handle("/internal/metrics", observability.MetricsHandler())

@@ -758,7 +758,10 @@ describe("EnrollmentForm", () => {
 
     fireEvent.click(screen.getByRole("checkbox", { name: /Fixe Betreuung/ }));
 
-    fireEvent.change(screen.getByLabelText("Montag"), {
+    // The pickup field only renders the child's actual care days. "Fixe
+    // Betreuung" covers Tue/Thu, so Monday is not offered here -- enter the
+    // time on a care day instead.
+    fireEvent.change(screen.getByLabelText("Dienstag"), {
       target: { value: "15:00" },
     });
 
@@ -821,9 +824,99 @@ describe("EnrollmentForm", () => {
     expect(payload.children[0]?.custom_data).toMatchObject({
       allergies: "Nuesse",
       lunch: true,
-      dismissal: { mon: "15:00" },
+      dismissal: { tue: "15:00" },
     });
     expect(onSubmitted).toHaveBeenCalledWith("/status/abc");
+  });
+
+  it("limits pickup weekdays to the child's selected care days", async () => {
+    renderForm();
+    await waitForLoaded();
+
+    // Before any care offering is chosen there are no care days, so the
+    // pickup field prompts the parent to pick care days first instead of
+    // showing all weekdays.
+    expect(
+      screen.getByText("Wählen Sie zuerst die Betreuungstage aus."),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Montag")).not.toBeInTheDocument();
+
+    // "Fixe Betreuung" covers Tue/Thu only -> exactly those two weekdays
+    // appear under the pickup field; Mon/Wed/Fri stay hidden.
+    fireEvent.click(screen.getByRole("checkbox", { name: /Fixe Betreuung/ }));
+
+    expect(screen.getByLabelText("Dienstag")).toBeInTheDocument();
+    expect(screen.getByLabelText("Donnerstag")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Montag")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Mittwoch")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Freitag")).not.toBeInTheDocument();
+  });
+
+  it("drops pickup times for days the child is no longer in care", async () => {
+    // Two fixed offerings change the care-day set deterministically (no day
+    // picker needed).
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [
+        {
+          id: "31",
+          phase_id: "5",
+          name: "Block Mo Di",
+          description: null,
+          days_of_week_mode: "fixed",
+          available_days: ["mon", "tue"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          capacity: null,
+        },
+        {
+          id: "32",
+          phase_id: "5",
+          name: "Block Do",
+          description: null,
+          days_of_week_mode: "fixed",
+          available_days: ["thu"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          capacity: null,
+        },
+      ],
+      careOfferingSelectionMode: "at_least_one",
+      careRequired: true,
+    });
+    const onSubmitted = vi.fn();
+    renderForm({ onSubmitted });
+    await waitForLoaded();
+
+    await fillRequiredFields();
+
+    // Mo/Di care -> enter pickup times for both days.
+    fireEvent.click(screen.getByRole("checkbox", { name: /Block Mo Di/ }));
+    fireEvent.change(screen.getByLabelText("Montag"), {
+      target: { value: "15:00" },
+    });
+    fireEvent.change(screen.getByLabelText("Dienstag"), {
+      target: { value: "15:30" },
+    });
+
+    // Add Do, then drop Mo/Di so only Thu remains a care day. The Mon/Tue
+    // times are now stale and must not survive into the payload.
+    fireEvent.click(screen.getByRole("checkbox", { name: /Block Do/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Block Mo Di/ }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() => {
+      expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1);
+    });
+    const [, payload] = mockSubmitEnrollment.mock.calls[0] as [
+      string,
+      SubmitEnrollmentPayload,
+    ];
+    expect(payload.children[0]?.custom_data?.dismissal).toEqual({});
   });
 
   it("prefills from a parent profile and adopts an existing child", async () => {
@@ -1976,6 +2069,177 @@ describe("EnrollmentForm", () => {
     expect(payload.children[0]?.offering_ids).toHaveLength(2);
     expect(payload.children[0]?.offering_ids).toEqual(
       expect.arrayContaining([20, 12]),
+    );
+  });
+});
+
+describe("EnrollmentForm — fixed pickup times", () => {
+  // A schema variant whose per-child weekday_schedule field is the
+  // pickup-times target constrained to a fixed list. Reuses the shared
+  // schema() and only rewrites the weekday_schedule field (index 3).
+  function pickupSchema(
+    allowedTimes: string[] = ["14:45", "16:00"],
+  ): PublicFormSchema {
+    const s = schema();
+    s.fields[3] = {
+      ...s.fields[3]!,
+      key: "schedule_pickup",
+      label: "Abholzeit",
+      type: "weekday_schedule",
+      target: "schedule.pickup",
+      applies_to_child: true,
+      allowed_times: allowedTimes,
+    };
+    return s;
+  }
+
+  // A minimal valid draft that seeds one child whose pickup answer is
+  // pre-filled — used to exercise the stale-value and off-list-rejection
+  // paths, which a fresh form can't reach through the dropdown.
+  function draftWithPickup(
+    schedule: Record<string, string>,
+  ): EnrollmentEditDraft {
+    return {
+      request_id: "1",
+      status_token: "tok",
+      tenant_id: "1",
+      tenant_slug: "test-tenant",
+      phase_id: "5",
+      guardian_first_name: "Mara",
+      guardian_last_name: "Muster",
+      guardian_email: "mara@example.test",
+      guardian_phone: "+49 221 1234567",
+      consent_flags: { agb: true, data_processing: true },
+      custom_data: {},
+      children: [
+        {
+          id: "stu-1",
+          first_name: "Lina",
+          last_name: "Muster",
+          date_of_birth: "2018-04-15",
+          target_grade_level: 2,
+          offering_ids: [],
+          custom_data: { schedule_pickup: schedule },
+        },
+      ],
+    };
+  }
+
+  beforeEach(() => {
+    mockIntlLocale.value = "de";
+    mockFetchPublicActiveSchema.mockReset();
+    mockFetchPublicCaptchaConfig.mockReset();
+    mockFetchPublicLegalTexts.mockReset();
+    mockFetchPublicCareOfferings.mockReset();
+    mockFetchMyEnrollmentProfile.mockReset();
+    mockSubmitEnrollment.mockReset();
+    mockFetchPublicActiveSchema.mockResolvedValue(pickupSchema());
+    mockFetchPublicCaptchaConfig.mockResolvedValue({
+      enabled: false,
+      site_key: "",
+    });
+    mockFetchPublicLegalTexts.mockResolvedValue(legalTexts([]));
+    mockFetchPublicCareOfferings.mockResolvedValue({
+      offerings: [],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+    });
+    mockFetchMyEnrollmentProfile.mockResolvedValue(null);
+    mockSubmitEnrollment.mockResolvedValue({ status_url: "/status/abc" });
+  });
+
+  it("renders a dropdown limited to the configured pickup times", async () => {
+    renderForm();
+    await waitForLoaded();
+
+    // The constrained field must NOT render the free-entry time input.
+    expect(document.querySelectorAll('input[type="time"]')).toHaveLength(0);
+
+    // The Monday dropdown offers exactly the configured times — nothing else.
+    fireEvent.click(screen.getByLabelText("Montag – Abholzeit"));
+    expect(
+      await screen.findByRole("option", { name: "14:45" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "16:00" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "15:00" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("falls back to a free time input when no fixed times are configured", async () => {
+    // allowed_times empty → historical free-entry behaviour.
+    mockFetchPublicActiveSchema.mockResolvedValue(pickupSchema([]));
+    renderForm();
+    await waitForLoaded();
+
+    expect(
+      document.querySelectorAll('input[type="time"]').length,
+    ).toBeGreaterThan(0);
+    // No constrained dropdown is rendered for the field.
+    expect(
+      screen.queryByLabelText("Montag – Abholzeit"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps a saved off-list time visible and flags it as unavailable", async () => {
+    // The admin shortened the list after this draft was saved: 12:00 is no
+    // longer offered. It must stay visible (not silently blanked) and be
+    // tagged so the parent re-picks it before submit.
+    renderForm({ initialDraft: draftWithPickup({ mon: "12:00" }) });
+    await waitForLoaded();
+
+    expect(screen.getByText(/12:00.*nicht mehr verfügbar/)).toBeInTheDocument();
+  });
+
+  it("marks the offending pickup field when the backend rejects an off-list time", async () => {
+    // Server-side defense-in-depth: a stale 12:00 reaches the backend, which
+    // rejects it with the stable code. The form must mark the offending
+    // schedule field (red), not only show the banner.
+    const message =
+      "Bitte wähle bei den Abholzeiten nur Uhrzeiten aus der vorgegebenen Liste.";
+    mockSubmitEnrollment.mockRejectedValueOnce(
+      Object.assign(new Error(message), {
+        code: "enrollment.pickup_time_not_allowed",
+      }),
+    );
+
+    renderForm({ initialDraft: draftWithPickup({ mon: "12:00" }) });
+    await waitForLoaded();
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() => expect(mockSubmitEnrollment).toHaveBeenCalled());
+    // The message appears in the error banner AND on the marked field, so a
+    // banner-only fallback (length 1) fails this assertion.
+    await waitFor(() =>
+      expect(screen.getAllByText(message).length).toBeGreaterThanOrEqual(2),
+    );
+  });
+
+  it("marks a constrained pickup field even when the rejected time still looks valid client-side", async () => {
+    // Stale client schema: the admin removed 14:45 from the allowed list AFTER
+    // this form loaded, so the client still considers 14:45 valid (it is in
+    // allowed_times and the dropdown offers it). The backend validates against
+    // the latest phase and rejects it. The precise off-list pass finds nothing,
+    // so without the conservative fallback the rejection would be swallowed to
+    // a banner-only message and no field would turn red.
+    const message =
+      "Bitte wähle bei den Abholzeiten nur Uhrzeiten aus der vorgegebenen Liste.";
+    mockSubmitEnrollment.mockRejectedValueOnce(
+      Object.assign(new Error(message), {
+        code: "enrollment.pickup_time_not_allowed",
+      }),
+    );
+
+    // 14:45 is in the client's allowed list — the precise pass cannot flag it.
+    renderForm({ initialDraft: draftWithPickup({ mon: "14:45" }) });
+    await waitForLoaded();
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() => expect(mockSubmitEnrollment).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(screen.getAllByText(message).length).toBeGreaterThanOrEqual(2),
     );
   });
 });

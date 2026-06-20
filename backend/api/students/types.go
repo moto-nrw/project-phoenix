@@ -261,6 +261,7 @@ type GuardianInput struct {
 
 	// Relationship to the student
 	RelationshipType   string `json:"relationship_type"` // parent, guardian, relative, other
+	GuardianRole       string `json:"guardian_role,omitempty"`
 	IsPrimary          bool   `json:"is_primary,omitempty"`
 	IsEmergencyContact bool   `json:"is_emergency_contact,omitempty"`
 	CanPickup          bool   `json:"can_pickup,omitempty"`

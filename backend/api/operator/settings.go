@@ -26,6 +26,8 @@ import (
 // AccessAdminOnly setting (e.g. the OGS device PIN). Surfaced as HTTP 403.
 const errAdminOnlyForOperator = "this setting is admin-only and cannot be modified by operators"
 
+const errLegalAGBDocumentManagedByUpload = "AGB document URL is managed by the file upload endpoint"
+
 // errPresenceModeSwitchBlockedMsg is the German user-facing copy returned
 // when an operator tries to flip operations.presence_mode while students are
 // still checked in for the day. staticcheck ST1005 (capitalization / trailing
@@ -90,6 +92,14 @@ func guardOperatorWrite(w http.ResponseWriter, r *http.Request, key string) bool
 		return true
 	}
 	return false
+}
+
+func guardOperatorDirectManagedSettingWrite(w http.ResponseWriter, r *http.Request, key string) bool {
+	if key != configModel.KeyEnrollmentLegalAGBDocumentURL {
+		return false
+	}
+	render.Render(w, r, ErrForbidden(errLegalAGBDocumentManagedByUpload)) //nolint:errcheck
+	return true
 }
 
 // SettingsResource handles operator-level settings management for schools.
@@ -223,6 +233,9 @@ func (rs *SettingsResource) SetSchoolSettingValue(w http.ResponseWriter, r *http
 	if guardOperatorWrite(w, r, key) {
 		return
 	}
+	if guardOperatorDirectManagedSettingWrite(w, r, key) {
+		return
+	}
 
 	var req setSchoolSettingRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -294,6 +307,9 @@ func (rs *SettingsResource) ResetSchoolSettingValue(w http.ResponseWriter, r *ht
 	}
 	key := chi.URLParam(r, "key")
 	if guardOperatorWrite(w, r, key) {
+		return
+	}
+	if guardOperatorDirectManagedSettingWrite(w, r, key) {
 		return
 	}
 

@@ -2068,3 +2068,185 @@ func TestRequestService_Submit_RequiredStructuredFieldValidatesEntries(t *testin
 	require.NoError(t, err, "a valid required contact_list must be accepted")
 	require.Len(t, res.Children, 1)
 }
+
+// publishPickupSchema points the test phase at a fresh schema whose single
+// per-child weekday_schedule field constrains pickup to `allowed` (the fixed
+// pickup-times feature). The schema is created by env.creatorID so the
+// standard cleanup removes it.
+func publishPickupSchema(t *testing.T, env *requestTestEnv, allowed []string) {
+	t.Helper()
+	ctx := testpkg.TenantContext(1)
+	repoFactory := repositories.NewFactory(env.db)
+	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
+		Repo:   repoFactory.FormSchema,
+		Logger: slog.Default(),
+	})
+	schema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{
+		{
+			Key: "schedule_pickup", Label: "Abholzeiten",
+			Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: true,
+			Target: enrollmentModels.TargetSchedulePickup, AllowedTimes: allowed, SortOrder: 0,
+		},
+	}, env.creatorID)
+	require.NoError(t, err)
+	env.phase.FormSchemaID = &schema.ID
+	require.NoError(t, repoFactory.Phase.Update(ctx, env.phase))
+}
+
+// TestRequestService_Submit_AcceptsAllowedPickupTime is the happy-path
+// counterpart to the gate test below: per-weekday times drawn from the
+// configured fixed list must pass the server-side enforcement and persist.
+func TestRequestService_Submit_AcceptsAllowedPickupTime(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	publishPickupSchema(t, env, []string{"14:45", "16:00"})
+
+	req := validSubmission(env.phaseID)
+	req.Children[0].CustomData = map[string]any{
+		"schedule_pickup": map[string]any{"mon": "14:45", "wed": "16:00"},
+	}
+	result, err := env.svc.Submit(ctx, req)
+	require.NoError(t, err, "times from the configured list must be accepted")
+	require.Len(t, result.Children, 1)
+	assert.NotNil(t, result.Children[0].CustomData["schedule_pickup"],
+		"the constrained schedule answer must persist on the child")
+}
+
+// TestRequestService_Submit_PrunesNonCareDayPickupTimes is the server-side
+// guard for the care-day limit: a stale/scripted client that POSTs a pickup
+// time for a weekday the child has no care on must NOT get that weekday
+// persisted (the decision service would otherwise dispatch it into a pickup
+// schedule). Mirrors the public form's client-side pruneWeekdayAnswers.
+func TestRequestService_Submit_PrunesNonCareDayPickupTimes(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	// Free-entry schedule (no fixed times) so only the care-day prune, not the
+	// allowed-times gate, is exercised.
+	publishPickupSchema(t, env, nil)
+
+	// A fixed Tue/Thu offering -> the child's only care days are Tue and Thu.
+	repoFactory := repositories.NewFactory(env.db)
+	offering := &enrollmentModels.CareOffering{
+		PhaseID:        env.phaseID,
+		Name:           "Tue/Thu block",
+		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:  []string{"tue", "thu"},
+		IsActive:       true,
+	}
+	offering.SetTenantID(1)
+	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
+
+	req := validSubmission(env.phaseID)
+	req.Children[0].OfferingIDs = []int64{offering.ID}
+	// The Friday pickup was never offered for a Tue/Thu child -> must be pruned.
+	req.Children[0].CustomData = map[string]any{
+		"schedule_pickup": map[string]any{"tue": "15:00", "fri": "15:00"},
+	}
+
+	result, err := env.svc.Submit(ctx, req)
+	require.NoError(t, err)
+	require.Len(t, result.Children, 1)
+
+	sched, ok := result.Children[0].CustomData["schedule_pickup"].(map[string]any)
+	require.True(t, ok, "schedule answer must persist as a map")
+	assert.Equal(t, "15:00", sched["tue"], "the care-day pickup is kept")
+	_, hasFri := sched["fri"]
+	assert.False(t, hasFri, "the non-care-day Friday pickup must be pruned server-side")
+}
+
+// TestRequestService_Submit_RejectsOffListPickupTime is THE gate: a scripted
+// or stale client that POSTs a pickup time outside the field's fixed list is
+// rejected at submit, carrying the specific sentinel (so the handler attaches
+// a stable code) while remaining part of the broad invalid-submission category.
+func TestRequestService_Submit_RejectsOffListPickupTime(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	publishPickupSchema(t, env, []string{"14:45", "16:00"})
+
+	req := validSubmission(env.phaseID)
+	req.Children[0].CustomData = map[string]any{
+		"schedule_pickup": map[string]any{"mon": "15:00"},
+	}
+	_, err := env.svc.Submit(ctx, req)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrPickupTimeNotAllowed),
+		"off-list pickup time must carry the specific sentinel for the handler code")
+	assert.True(t, errors.Is(err, enrollmentService.ErrInvalidSubmission),
+		"and still be part of the broad invalid-submission category")
+}
+
+// TestRequestService_Submit_OffListPickupOnNonCareDayIsPrunedNotRejected is the
+// regression for the care-day / allowed-times ordering bug: with a fixed-times
+// schedule field, a stale or scripted off-list pickup time on a weekday the
+// child has no care on must be pruned (the public form drops it), not rejected
+// by the allowed-times gate -- rejecting it would block an otherwise valid
+// submit. Only the schedulable (care) days are gated; the rest are stripped.
+func TestRequestService_Submit_OffListPickupOnNonCareDayIsPrunedNotRejected(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	publishPickupSchema(t, env, []string{"14:45", "16:00"})
+
+	// A fixed Tue/Thu offering -> the child's only care days are Tue and Thu.
+	repoFactory := repositories.NewFactory(env.db)
+	offering := &enrollmentModels.CareOffering{
+		PhaseID:        env.phaseID,
+		Name:           "Tue/Thu block",
+		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:  []string{"tue", "thu"},
+		IsActive:       true,
+	}
+	offering.SetTenantID(1)
+	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
+
+	req := validSubmission(env.phaseID)
+	req.Children[0].OfferingIDs = []int64{offering.ID}
+	// tue: an allowed time on a care day. mon: an OFF-LIST time on a non-care
+	// day -- it must be pruned, not trip the allowed-times gate.
+	req.Children[0].CustomData = map[string]any{
+		"schedule_pickup": map[string]any{"tue": "14:45", "mon": "15:00"},
+	}
+
+	result, err := env.svc.Submit(ctx, req)
+	require.NoError(t, err,
+		"an off-list time on a non-care day must be pruned, not rejected")
+	require.Len(t, result.Children, 1)
+
+	sched, ok := result.Children[0].CustomData["schedule_pickup"].(map[string]any)
+	require.True(t, ok, "schedule answer must persist as a map")
+	assert.Equal(t, "14:45", sched["tue"], "the care-day pickup is kept")
+	_, hasMon := sched["mon"]
+	assert.False(t, hasMon, "the non-care-day off-list pickup must be pruned server-side")
+}
+
+// TestRequestService_ReplaceEditable_RejectsOffListPickupTime is the
+// regression guard for the edit path: the same fixed-times enforcement runs
+// when a parent edits an already-submitted request, not only on first submit.
+func TestRequestService_ReplaceEditable_RejectsOffListPickupTime(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	publishPickupSchema(t, env, []string{"14:45", "16:00"})
+
+	// Submit a valid request first so there is something to edit.
+	first := validSubmission(env.phaseID)
+	first.Children[0].CustomData = map[string]any{
+		"schedule_pickup": map[string]any{"mon": "14:45"},
+	}
+	submitted, err := env.svc.Submit(ctx, first)
+	require.NoError(t, err)
+
+	// Editing it to an off-list time must hit the same enforcement.
+	edit := validSubmission(env.phaseID)
+	edit.Children[0].CustomData = map[string]any{
+		"schedule_pickup": map[string]any{"mon": "15:00"},
+	}
+	_, err = env.svc.ReplaceEditable(ctx, submitted.Request.StatusToken, edit)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrPickupTimeNotAllowed),
+		"the edit path must reject off-list pickup times too")
+}

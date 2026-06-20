@@ -2,15 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import {
-  CalendarClock,
-  HeartPulse,
-  Loader2,
-  MessageCircle,
-  Send,
-  Trash2,
-  X,
-} from "lucide-react";
+import { Loader2, Send, Trash2 } from "lucide-react";
+import { Modal } from "~/components/ui/modal";
 import {
   type CareException,
   type ChildFeatures,
@@ -229,54 +222,6 @@ export function useChildCare(studentId: string): ChildCare {
   };
 }
 
-// --- modal shell ---
-
-function ModalShell({
-  title,
-  accent,
-  icon,
-  onClose,
-  children,
-}: Readonly<{
-  title: string;
-  accent: string;
-  icon: React.ReactNode;
-  onClose: () => void;
-  children: React.ReactNode;
-}>) {
-  const t = useTranslations("parentChildCare");
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
-    >
-      <div className="w-full max-w-lg overflow-hidden rounded-t-3xl bg-white shadow-xl sm:rounded-2xl">
-        <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-5 py-4">
-          <div className="flex items-center gap-3">
-            <span
-              className={`flex h-10 w-10 items-center justify-center rounded-xl ${accent}`}
-            >
-              {icon}
-            </span>
-            <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-            aria-label={t("close")}
-          >
-            <X className="h-5 w-5" aria-hidden="true" />
-          </button>
-        </div>
-        <div className="px-5 py-5">{children}</div>
-      </div>
-    </div>
-  );
-}
-
 // --- sick-note modal ---
 
 export function SickNoteModal({
@@ -314,11 +259,11 @@ export function SickNoteModal({
   };
 
   return (
-    <ModalShell
-      title={t("sick.title")}
-      accent="bg-[#D6373E]/10 text-[#D6373E]"
-      icon={<HeartPulse className="h-5 w-5" aria-hidden="true" />}
+    <Modal
+      isOpen
       onClose={onClose}
+      title={t("sick.title")}
+      closeLabel={t("close")}
     >
       <div className="space-y-4">
         <p className="text-sm leading-6 text-gray-600">{t("sick.intro")}</p>
@@ -393,7 +338,7 @@ export function SickNoteModal({
           </button>
         </div>
       </div>
-    </ModalShell>
+    </Modal>
   );
 }
 
@@ -435,11 +380,11 @@ export function NotesModal({
   };
 
   return (
-    <ModalShell
-      title={t("notes.title")}
-      accent="bg-[#F78C10]/10 text-[#F78C10]"
-      icon={<MessageCircle className="h-5 w-5" aria-hidden="true" />}
+    <Modal
+      isOpen
       onClose={onClose}
+      title={t("notes.title")}
+      closeLabel={t("close")}
     >
       <div className="space-y-4">
         <label className="block">
@@ -501,7 +446,7 @@ export function NotesModal({
           </div>
         )}
       </div>
-    </ModalShell>
+    </Modal>
   );
 }
 
@@ -628,11 +573,11 @@ export function PickupTimeModal({
   };
 
   return (
-    <ModalShell
-      title={t("pickup.title")}
-      accent="bg-[#5080D8]/10 text-[#5080D8]"
-      icon={<CalendarClock className="h-5 w-5" aria-hidden="true" />}
+    <Modal
+      isOpen
       onClose={onClose}
+      title={t("pickup.title")}
+      closeLabel={t("close")}
     >
       <div className="space-y-4">
         <p className="text-sm leading-6 text-gray-600">{t("pickup.intro")}</p>
@@ -744,7 +689,7 @@ export function PickupTimeModal({
           </div>
         </div>
       </div>
-    </ModalShell>
+    </Modal>
   );
 }
 

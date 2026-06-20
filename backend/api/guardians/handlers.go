@@ -13,11 +13,13 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/seedtoken"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	guardianSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 )
 
@@ -107,6 +109,7 @@ type GuardianUpdateRequest struct {
 type StudentGuardianLinkRequest struct {
 	GuardianProfileID  int64   `json:"guardian_profile_id"`
 	RelationshipType   string  `json:"relationship_type"`
+	GuardianRole       string  `json:"guardian_role,omitempty"`
 	IsPrimary          bool    `json:"is_primary"`
 	IsEmergencyContact bool    `json:"is_emergency_contact"`
 	CanPickup          bool    `json:"can_pickup"`
@@ -117,6 +120,7 @@ type StudentGuardianLinkRequest struct {
 // StudentGuardianUpdateRequest represents a request to update a student-guardian relationship
 type StudentGuardianUpdateRequest struct {
 	RelationshipType   *string `json:"relationship_type,omitempty"`
+	GuardianRole       *string `json:"guardian_role,omitempty"`
 	IsPrimary          *bool   `json:"is_primary,omitempty"`
 	IsEmergencyContact *bool   `json:"is_emergency_contact,omitempty"`
 	CanPickup          *bool   `json:"can_pickup,omitempty"`
@@ -191,6 +195,7 @@ type StudentWithRelationship struct {
 	SchoolClass        string  `json:"school_class"`
 	RelationshipID     int64   `json:"relationship_id"`
 	RelationshipType   string  `json:"relationship_type"`
+	GuardianRole       string  `json:"guardian_role"`
 	IsPrimary          bool    `json:"is_primary"`
 	IsEmergencyContact bool    `json:"is_emergency_contact"`
 	CanPickup          bool    `json:"can_pickup"`
@@ -203,6 +208,7 @@ type GuardianWithRelationship struct {
 	Guardian           *GuardianResponse `json:"guardian"`
 	RelationshipID     int64             `json:"relationship_id"`
 	RelationshipType   string            `json:"relationship_type"`
+	GuardianRole       string            `json:"guardian_role"`
 	IsPrimary          bool              `json:"is_primary"`
 	IsEmergencyContact bool              `json:"is_emergency_contact"`
 	CanPickup          bool              `json:"can_pickup"`
@@ -289,6 +295,7 @@ type GuardianWithRelationshipInput struct {
 
 	// Relationship to the student
 	RelationshipType   string `json:"relationship_type"`
+	GuardianRole       string `json:"guardian_role,omitempty"`
 	IsPrimary          bool   `json:"is_primary,omitempty"`
 	IsEmergencyContact bool   `json:"is_emergency_contact,omitempty"`
 	CanPickup          bool   `json:"can_pickup,omitempty"`
@@ -998,8 +1005,15 @@ func (rs *Resource) sendInvitation(w http.ResponseWriter, r *http.Request) {
 		"expires_at":          invitation.ExpiresAt,
 		"email_sent":          invitation.EmailSentAt != nil,
 	}
+	if shouldExposeSeedInvitationToken(r) {
+		response["token"] = invitation.Token
+	}
 
 	common.Respond(w, r, http.StatusCreated, response, "Invitation sent successfully")
+}
+
+func shouldExposeSeedInvitationToken(r *http.Request) bool {
+	return seedtoken.ShouldExposeInvitationToken(r, viper.GetString("app_env"))
 }
 
 // listPendingInvitations handles listing all pending guardian invitations
@@ -1050,6 +1064,7 @@ func (rs *Resource) getStudentGuardians(w http.ResponseWriter, r *http.Request) 
 			Guardian:           newGuardianResponse(gwr.Profile),
 			RelationshipID:     gwr.Relationship.ID,
 			RelationshipType:   gwr.Relationship.RelationshipType,
+			GuardianRole:       gwr.Relationship.GuardianRole,
 			IsPrimary:          gwr.Relationship.IsPrimary,
 			IsEmergencyContact: gwr.Relationship.IsEmergencyContact,
 			CanPickup:          gwr.Relationship.CanPickup,
@@ -1097,6 +1112,7 @@ func (rs *Resource) getGuardianStudents(w http.ResponseWriter, r *http.Request) 
 			SchoolClass:        swr.Student.SchoolClass,
 			RelationshipID:     swr.Relationship.ID,
 			RelationshipType:   swr.Relationship.RelationshipType,
+			GuardianRole:       swr.Relationship.GuardianRole,
 			IsPrimary:          swr.Relationship.IsPrimary,
 			IsEmergencyContact: swr.Relationship.IsEmergencyContact,
 			CanPickup:          swr.Relationship.CanPickup,
@@ -1136,6 +1152,7 @@ func (rs *Resource) linkGuardianToStudent(w http.ResponseWriter, r *http.Request
 		StudentID:          studentID,
 		GuardianProfileID:  req.GuardianProfileID,
 		RelationshipType:   req.RelationshipType,
+		GuardianRole:       req.GuardianRole,
 		IsPrimary:          req.IsPrimary,
 		IsEmergencyContact: req.IsEmergencyContact,
 		CanPickup:          req.CanPickup,
@@ -1188,6 +1205,7 @@ func toNewStudentGuardians(inputs []GuardianWithRelationshipInput) []guardianSvc
 			},
 			Relationship: guardianSvc.StudentGuardianRelationship{
 				RelationshipType:   in.RelationshipType,
+				GuardianRole:       in.GuardianRole,
 				IsPrimary:          in.IsPrimary,
 				IsEmergencyContact: in.IsEmergencyContact,
 				CanPickup:          in.CanPickup,
@@ -1306,6 +1324,7 @@ func (rs *Resource) updateStudentGuardianRelationship(w http.ResponseWriter, r *
 	// Convert to service request
 	updateReq := guardianSvc.StudentGuardianUpdateRequest{
 		RelationshipType:   req.RelationshipType,
+		GuardianRole:       req.GuardianRole,
 		IsPrimary:          req.IsPrimary,
 		IsEmergencyContact: req.IsEmergencyContact,
 		CanPickup:          req.CanPickup,

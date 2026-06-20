@@ -155,6 +155,7 @@ export default function StudentGuardianManager({
         languagePreference: guardianData.languagePreference,
         notes: guardianData.notes,
         relationshipType: relationshipData.relationshipType,
+        guardianRole: relationshipData.guardianRole,
         isPrimary: relationshipData.isPrimary,
         isEmergencyContact: relationshipData.isEmergencyContact,
         canPickup: relationshipData.canPickup,
