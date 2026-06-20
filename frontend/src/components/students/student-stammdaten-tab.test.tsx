@@ -9,12 +9,16 @@ const {
   uploadStudentPhotoMock,
   deleteStudentPhotoMock,
   fetchStudentPrivacyConsentMock,
+  fetchStudentEnrollmentExtraFieldsMock,
 } = vi.hoisted(() => ({
   handleStudentFormSubmitMock: vi.fn(),
   validateStudentFormMock: vi.fn(),
   uploadStudentPhotoMock: vi.fn(),
   deleteStudentPhotoMock: vi.fn(),
   fetchStudentPrivacyConsentMock: vi.fn(() => Promise.resolve(null)),
+  fetchStudentEnrollmentExtraFieldsMock: vi.fn<
+    (studentId: string) => Promise<unknown[]>
+  >(() => Promise.resolve([])),
 }));
 
 vi.mock("~/lib/student-form-validation", () => ({
@@ -26,6 +30,7 @@ vi.mock("~/lib/student-api", () => ({
   uploadStudentPhoto: uploadStudentPhotoMock,
   deleteStudentPhoto: deleteStudentPhotoMock,
   fetchStudentPrivacyConsent: fetchStudentPrivacyConsentMock,
+  fetchStudentEnrollmentExtraFields: fetchStudentEnrollmentExtraFieldsMock,
 }));
 
 // Mock StudentPhotoSection with controllable test buttons. The real component
@@ -168,6 +173,7 @@ describe("StudentStammdatenTab", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fetchStudentPrivacyConsentMock.mockResolvedValue(null);
+    fetchStudentEnrollmentExtraFieldsMock.mockResolvedValue([]);
     validateStudentFormMock.mockReturnValue({});
     handleStudentFormSubmitMock.mockImplementation(
       async (
@@ -218,6 +224,90 @@ describe("StudentStammdatenTab", () => {
     });
 
     expect(screen.getByRole("button", { name: /Speichern/ })).toBeEnabled();
+  });
+
+  it("renders linked per-child enrollment extra fields read-only", async () => {
+    fetchStudentEnrollmentExtraFieldsMock.mockResolvedValue([
+      {
+        request_id: "77",
+        phase_name: "Anmeldung 2026",
+        submitted_at: "2026-06-01T12:00:00Z",
+        fields: [
+          {
+            key: "swimming_level",
+            label: "Schwimmfähigkeit",
+            type: "select",
+            options: [{ label: "Kann sicher schwimmen", value: "safe" }],
+            value: "safe",
+          },
+        ],
+      },
+    ]);
+
+    render(
+      <StudentStammdatenTab
+        student={makeStudent()}
+        groups={[]}
+        onSave={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByText("Zusatzangaben")).toBeInTheDocument();
+    expect(screen.getByText("Schwimmfähigkeit")).toBeInTheDocument();
+    expect(screen.getByText("Kann sicher schwimmen")).toBeInTheDocument();
+  });
+
+  it("clears previous enrollment extra fields while loading a different student", async () => {
+    fetchStudentEnrollmentExtraFieldsMock.mockImplementation(
+      (studentId: string) => {
+        if (studentId === "1") {
+          return Promise.resolve([
+            {
+              request_id: "77",
+              phase_name: "Anmeldung 2026",
+              submitted_at: "2026-06-01T12:00:00Z",
+              fields: [
+                {
+                  key: "swimming_level",
+                  label: "Schwimmfähigkeit",
+                  type: "select",
+                  options: [{ label: "Kann sicher schwimmen", value: "safe" }],
+                  value: "safe",
+                },
+              ],
+            },
+          ]);
+        }
+        return new Promise(() => {
+          // Keep the second request in flight so stale data would remain visible.
+        });
+      },
+    );
+
+    const { rerender } = render(
+      <StudentStammdatenTab
+        student={makeStudent({ id: "1", first_name: "Max" })}
+        groups={[]}
+        onSave={vi.fn()}
+      />,
+    );
+
+    expect(
+      await screen.findByText("Kann sicher schwimmen"),
+    ).toBeInTheDocument();
+
+    rerender(
+      <StudentStammdatenTab
+        student={makeStudent({ id: "2", first_name: "Mia" })}
+        groups={[]}
+        onSave={vi.fn()}
+      />,
+    );
+
+    expect(
+      await screen.findByText("Zusatzangaben werden geladen..."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Kann sicher schwimmen")).not.toBeInTheDocument();
   });
 
   it("calls onSave with submitted form data", async () => {

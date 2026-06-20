@@ -2,7 +2,7 @@ import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { type AdminRequestSchemaField } from "~/lib/enrollment-admin-api";
-import { formatCustomValue } from "./admin-enrollment-detail";
+import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 
 function field(
   type: string,

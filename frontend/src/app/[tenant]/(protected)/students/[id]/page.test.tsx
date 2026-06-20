@@ -129,10 +129,14 @@ vi.mock("~/components/students/student-detail-components", () => ({
   ),
   PersonalInfoReadOnly: ({
     student,
+    enrollmentExtraGroups,
     showEditButton,
     onEditClick,
   }: {
     student: { name: string; school_class: string };
+    enrollmentExtraGroups?: Array<{
+      fields: Array<{ label: string; value: unknown }>;
+    }>;
     showEditButton?: boolean;
     onEditClick?: () => void;
   }) => (
@@ -145,6 +149,9 @@ vi.mock("~/components/students/student-detail-components", () => ({
         {student.name}
       </span>
       <span data-testid="readonly-class">{student.school_class}</span>
+      <span data-testid="enrollment-extra-count">
+        {enrollmentExtraGroups?.flatMap((group) => group.fields).length ?? 0}
+      </span>
       {showEditButton && onEditClick && (
         <button data-testid="edit-personal-info" onClick={onEditClick}>
           Bearbeiten
@@ -404,6 +411,14 @@ vi.mock("~/lib/hooks/use-student-data", () => ({
     mockUseStudentData(studentId) as MockStudentDataResult,
 }));
 
+const mockUseStudentEnrollmentExtraFields = vi.fn();
+vi.mock("~/lib/hooks/use-student-enrollment-extra-fields", () => ({
+  useStudentEnrollmentExtraFields: (
+    studentId: string,
+    hasFullAccess: boolean,
+  ) => mockUseStudentEnrollmentExtraFields(studentId, hasFullAccess),
+}));
+
 // Mock active service
 const mockCheckoutStudent = vi.fn();
 interface MockActiveGroup {
@@ -504,6 +519,11 @@ describe("StudentDetailPage", () => {
       myGroupRooms: ["Raum 101"],
       mySupervisedRooms: ["Raum 101"],
       refreshData: mockRefreshData,
+    });
+    mockUseStudentEnrollmentExtraFields.mockReturnValue({
+      groups: [],
+      loading: false,
+      hasError: false,
     });
 
     mockGetActiveGroups.mockResolvedValue([
@@ -624,6 +644,38 @@ describe("StudentDetailPage", () => {
       ).toBeInTheDocument();
     });
 
+    it("passes enrollment extra fields into full access personal info", () => {
+      mockUseStudentEnrollmentExtraFields.mockReturnValue({
+        groups: [
+          {
+            request_id: "77",
+            phase_name: "Anmeldung 2026",
+            submitted_at: "2026-06-01T12:00:00Z",
+            fields: [
+              {
+                key: "swimming_level",
+                label: "Schwimmfähigkeit",
+                type: "text",
+                value: "Kann sicher schwimmen",
+              },
+            ],
+          },
+        ],
+        loading: false,
+        hasError: false,
+      });
+
+      render(<StudentDetailPage />);
+
+      expect(mockUseStudentEnrollmentExtraFields).toHaveBeenCalledWith(
+        "1",
+        true,
+      );
+      expect(screen.getByTestId("enrollment-extra-count")).toHaveTextContent(
+        "1",
+      );
+    });
+
     it("renders student history section", () => {
       render(<StudentDetailPage />);
 
@@ -667,6 +719,10 @@ describe("StudentDetailPage", () => {
       render(<StudentDetailPage />);
 
       expect(screen.getByTestId("personal-info-readonly")).toBeInTheDocument();
+      expect(mockUseStudentEnrollmentExtraFields).not.toHaveBeenCalled();
+      expect(screen.getByTestId("enrollment-extra-count")).toHaveTextContent(
+        "0",
+      );
     });
 
     it("renders guardian manager in read-only mode in limited view", () => {
