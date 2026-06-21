@@ -225,6 +225,9 @@ describe("AdminEnrollmentPhaseDetail", () => {
     expect(mocks.getCareUsageReport).toHaveBeenCalledWith(
       expect.objectContaining({ phase_id: "1", status: "all" }),
     );
+    expect(mocks.getCareUsageReport.mock.calls[0]?.[0]).not.toHaveProperty(
+      "care_offering_ids",
+    );
     expect(screen.getByRole("combobox", { name: "Status" })).toHaveTextContent(
       "Alle",
     );

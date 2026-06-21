@@ -187,7 +187,10 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   const [requests, setRequests] = useState<AdminRequestSummary[]>([]);
   const [statusFilter, setStatusFilter] =
     useState<EnrollmentReportStatus>(ALL_STATUS_FILTER);
-  const [offeringIds, setOfferingIds] = useState<string[] | null>(null);
+  const [defaultOfferingIds, setDefaultOfferingIds] = useState<string[]>([]);
+  const [explicitOfferingIds, setExplicitOfferingIds] = useState<
+    string[] | null
+  >(null);
   const [dayCount, setDayCount] = useState<string>(ALL_VALUE);
   const [gradeLevel, setGradeLevel] = useState<string>(ALL_VALUE);
   const [search, setSearch] = useState("");
@@ -225,20 +228,36 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     [phaseId, statusFilter, toast],
   );
 
-  const reportFilters = useMemo<CareUsageFilters>(
-    () => ({
+  const reportFilters = useMemo<CareUsageFilters>(() => {
+    const filters: CareUsageFilters = {
       phase_id: phaseId,
       status: statusFilter,
-      care_offering_ids: offeringIds ?? undefined,
-      day_count: dayCount === ALL_VALUE ? undefined : Number(dayCount),
-      grade_level: gradeLevel === ALL_VALUE ? undefined : Number(gradeLevel),
-      search: search.trim() || undefined,
-    }),
-    [dayCount, gradeLevel, offeringIds, phaseId, search, statusFilter],
-  );
+    };
+    if (explicitOfferingIds !== null) {
+      filters.care_offering_ids = explicitOfferingIds;
+    }
+    if (dayCount !== ALL_VALUE) {
+      filters.day_count = Number(dayCount);
+    }
+    if (gradeLevel !== ALL_VALUE) {
+      filters.grade_level = Number(gradeLevel);
+    }
+    const trimmedSearch = search.trim();
+    if (trimmedSearch !== "") {
+      filters.search = trimmedSearch;
+    }
+    return filters;
+  }, [
+    dayCount,
+    explicitOfferingIds,
+    gradeLevel,
+    phaseId,
+    search,
+    statusFilter,
+  ]);
 
   const handleReportOfferingsChange = useCallback((ids: string[]) => {
-    setOfferingIds(ids);
+    setExplicitOfferingIds(ids);
   }, []);
 
   const loadReport = useCallback(
@@ -250,12 +269,11 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         const data = await getCareUsageReport(filters);
         if (isCancelled?.()) return;
         setReport(data);
-        setOfferingIds((current) => {
-          if (current !== null) return current;
-          return data.filter_options.offerings
+        setDefaultOfferingIds(
+          data.filter_options.offerings
             .filter((offering) => offering.counts_as_care !== false)
-            .map((offering) => offering.id);
-        });
+            .map((offering) => offering.id),
+        );
       } catch (err) {
         if (isCancelled?.()) return;
         const message =
@@ -273,6 +291,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     },
     [phaseId],
   );
+  const displayedOfferingIds = explicitOfferingIds ?? defaultOfferingIds;
 
   useEffect(() => {
     let cancelled = false;
@@ -606,7 +625,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
               <MultiCheckboxSelect
                 id="enrollment-offering-filter"
                 ariaLabel="Berücksichtigte Angebote"
-                value={offeringIds ?? []}
+                value={displayedOfferingIds}
                 onChange={handleReportOfferingsChange}
                 options={(report?.filter_options.offerings ?? []).map(
                   (offering) => ({

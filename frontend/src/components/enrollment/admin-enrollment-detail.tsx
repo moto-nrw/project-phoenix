@@ -34,7 +34,7 @@ import {
 } from "~/lib/enrollment-admin-api";
 import { type CareOffering, listCareOfferings } from "~/lib/care-offering-api";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
-import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "AdminEnrollmentDetail" });
@@ -94,7 +94,7 @@ interface Props {
 }
 
 export function AdminEnrollmentDetail({ requestId }: Props) {
-  const tenantSlug = useTenantSlugSafe();
+  const tenantPath = useTenantAwarePath();
   const [data, setData] = useState<AdminRequestSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -166,12 +166,8 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     minute: "2-digit",
   });
   const childStats = summarizeChildren(data.children);
-  const phaseHref = tenantSlug
-    ? `/${tenantSlug}/admin/enrollments/phases/${data.phase_id}`
-    : `/admin/enrollments/phases/${data.phase_id}`;
-  const statusHref = tenantSlug
-    ? `/${tenantSlug}/enroll/status/${data.status_token}`
-    : `/enroll/status/${data.status_token}`;
+  const phaseHref = tenantPath(`/admin/enrollments/phases/${data.phase_id}`);
+  const statusHref = tenantPath(`/enroll/status/${data.status_token}`);
 
   return (
     <div className="space-y-5">
@@ -946,15 +942,12 @@ export function ChildOfferingAdjustment({
     try {
       await updateAdminChildOfferings(requestId, child.id, {
         reason: trimmedReason,
-        offerings: catalog
-          .filter((offering) => selected.has(offering.id))
-          .map((offering) => ({
-            offering_id: offering.id,
-            selected_days:
-              offering.days_of_week_mode === "parent_choice"
-                ? (days[offering.id] ?? [])
-                : undefined,
-          })),
+        offerings: adjustmentPayloadOfferings(
+          catalog,
+          selected,
+          days,
+          child.offerings,
+        ),
       });
       setOpen(false);
       setReason("");
@@ -1180,6 +1173,40 @@ function initialManualOfferingDays(
     if (manual && manual.length > 0) out[offering.offering_id] = [...manual];
   }
   return out;
+}
+
+function adjustmentPayloadOfferings(
+  catalog: CareOffering[],
+  selected: Set<string>,
+  days: Record<string, string[]>,
+  existingOfferings?: AdminRequestChildOffering[],
+): Array<{ offering_id: string; selected_days?: string[] }> {
+  const payload = catalog
+    .filter((offering) => selected.has(offering.id))
+    .map((offering) => ({
+      offering_id: offering.id,
+      selected_days:
+        offering.days_of_week_mode === "parent_choice"
+          ? (days[offering.id] ?? [])
+          : undefined,
+    }));
+  const catalogIDs = new Set(catalog.map((offering) => offering.id));
+  for (const offering of existingOfferings ?? []) {
+    if (
+      catalogIDs.has(offering.offering_id) ||
+      !selected.has(offering.offering_id)
+    ) {
+      continue;
+    }
+    payload.push({
+      offering_id: offering.offering_id,
+      selected_days:
+        offering.days_of_week_mode === "parent_choice"
+          ? (days[offering.offering_id] ?? offering.selected_days ?? [])
+          : undefined,
+    });
+  }
+  return payload;
 }
 
 function materializeClientOfferingPreview(

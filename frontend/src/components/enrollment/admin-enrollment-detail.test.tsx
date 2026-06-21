@@ -197,6 +197,69 @@ describe("ChildOfferings", () => {
 });
 
 describe("ChildOfferingAdjustment", () => {
+  it("preserves selected source-phase offerings that are absent from the current catalog", async () => {
+    mocks.listCareOfferings.mockResolvedValue([
+      {
+        id: "current-1",
+        phase_id: "phase-1",
+        name: "Aktuelles Angebot",
+        days_of_week_mode: "parent_choice",
+        available_days: ["mon", "tue"],
+        includes_holiday_care: false,
+        includes_lunch: false,
+        is_active: true,
+        is_required: false,
+        sort_order: 1,
+        created_at: "2026-06-18T11:15:00Z",
+        updated_at: "2026-06-18T11:15:00Z",
+      },
+    ]);
+    mocks.updateAdminChildOfferings.mockResolvedValue({});
+
+    render(
+      <ChildOfferingAdjustment
+        requestId="request-1"
+        phaseId="phase-1"
+        onSaved={vi.fn()}
+        child={{
+          id: "child-1",
+          first_name: "Lina",
+          last_name: "Kind",
+          date_of_birth: "2018-01-01",
+          status: "approved",
+          activation_mode: "scheduled",
+          offerings: [
+            {
+              offering_id: "source-1",
+              offering_name: "Quellphase",
+              days_of_week_mode: "parent_choice",
+              selected_days: ["mon"],
+              manual_selected_days: ["mon"],
+              available_days: ["mon", "tue"],
+            },
+          ],
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    await screen.findByText("Aktuelles Angebot");
+    fireEvent.change(screen.getByLabelText("Begründung"), {
+      target: { value: "Rollover unverändert gespeichert" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(mocks.updateAdminChildOfferings).toHaveBeenCalledWith(
+        "request-1",
+        "child-1",
+        expect.objectContaining({
+          offerings: [{ offering_id: "source-1", selected_days: ["mon"] }],
+        }),
+      );
+    });
+  });
+
   it("blocks saving when the care-offering catalog failed to load", async () => {
     mocks.listCareOfferings.mockRejectedValue(new Error("Katalog kaputt"));
 

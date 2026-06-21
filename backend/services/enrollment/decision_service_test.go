@@ -1368,6 +1368,23 @@ func TestDecisionService_Decide_RolloverApprovalMaterializesSourcePhaseOffering(
 	require.NoError(t, err)
 	assert.Equal(t, 1, count,
 		"rollover approval must materialize the copied source-phase offering for the target phase window")
+
+	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
+		RequestID:      rolled.RequestID,
+		ChildID:        rolled.ID,
+		ActorAccountID: env.creatorID,
+		ActorRole:      "admin",
+		Reason:         "Rollover-Angebot unverändert gespeichert",
+		Offerings: []enrollmentService.OfferingAdjustmentSelection{
+			{OfferingID: offering.ID},
+		},
+	})
+	require.NoError(t, err)
+	rolledLinks, err = env.repos.RequestChildOffering.ListByRequestChildID(ctx, rolled.ID)
+	require.NoError(t, err)
+	require.Len(t, rolledLinks, 1)
+	assert.Equal(t, offering.ID, rolledLinks[0].CareOfferingID,
+		"adjustment save must preserve existing source-phase offering ids")
 }
 
 func TestDecisionService_Decide_ApprovedRejectsEmptyDaysForTemplateOffering(t *testing.T) {
@@ -1741,7 +1758,13 @@ func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterOffer
 	}
 	require.NoError(t, env.repos.StudentEnrollment.Create(ctx, manualEnrollment))
 	defer testpkg.CleanupTableRecords(t, env.db, "activities.student_enrollments", manualEnrollment.ID)
-
+	_, err = env.db.NewRaw(`
+		UPDATE activities.student_enrollments
+		SET created_at = NOW() + INTERVAL '10 minutes',
+			updated_at = NOW() + INTERVAL '10 minutes'
+		WHERE id = ?
+	`, manualEnrollment.ID).Exec(ctx)
+	require.NoError(t, err)
 	offering.ActivityGroupID = &newGroup.ID
 	require.NoError(t, env.repos.CareOffering.Update(ctx, offering))
 
@@ -1770,6 +1793,116 @@ func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterOffer
 	require.True(t, ok, "adjustment must materialize the corrected group")
 	require.NotNil(t, newRow.EnrollmentRequestChildID)
 	assert.Equal(t, submitted.Children[0].ID, *newRow.EnrollmentRequestChildID)
+}
+
+func TestDecisionService_UpdateChildOfferings_RemovesLegacyUnsourcedEnrollmentAfterOfferingGroupChange(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	oldGroup := testpkg.CreateTestActivityGroup(t, env.db, "AdjustLegacyOldGroup")
+	newGroup := testpkg.CreateTestActivityGroup(t, env.db, "AdjustLegacyNewGroup")
+	defer testpkg.CleanupActivityFixtures(t, env.db,
+		oldGroup.ID, oldGroup.CategoryID, *oldGroup.CreatedBy,
+		newGroup.ID, newGroup.CategoryID, *newGroup.CreatedBy,
+	)
+	offering := createAdjustmentCareOfferingWith(t, env, "Ganztag Legacy Gruppe", func(o *enrollmentModels.CareOffering) {
+		o.ActivityGroupID = &oldGroup.ID
+		o.SortOrder = 101
+	})
+
+	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
+		TenantID:          1,
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "LegacyGroupChange",
+		GuardianEmail:     "adjust-legacy-group-change@example.com",
+		ConsentFlags: map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   true,
+			"photo":           true,
+		},
+		Children: []enrollmentService.SubmitChild{
+			{
+				FirstName:        "Lina",
+				LastName:         "LegacyGroupChange",
+				DateOfBirth:      timezone.NewDate(2018, 4, 15),
+				TargetGradeLevel: testpkg.Int16Ptr(2),
+				OfferingIDs:      []int64{offering.ID},
+				OfferingDays:     []enrollmentService.SubmitOfferingDays{{OfferingID: offering.ID, SelectedDays: []string{"mon"}}},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, submitted.Children, 1)
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  submitted.Request.ID,
+		ChildID:    submitted.Children[0].ID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	initialRows := listStudentEnrollmentRowsForDecisionTest(t, env, *outcome.Child.CreatedStudentID)
+	require.Len(t, initialRows, 1)
+	require.NotNil(t, initialRows[0].EnrollmentRequestChildID)
+	_, err = env.db.NewUpdate().
+		TableExpr("activities.student_enrollments").
+		Set("enrollment_request_child_id = NULL").
+		Where("id = ?", initialRows[0].ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	manualEnrollment := &activitiesModels.StudentEnrollment{
+		StudentID:       *outcome.Child.CreatedStudentID,
+		ActivityGroupID: oldGroup.ID,
+		ValidFrom:       env.sourcePhase.ServiceStartDate,
+		ValidUntil:      &env.sourcePhase.ServiceEndDate,
+	}
+	require.NoError(t, env.repos.StudentEnrollment.Create(ctx, manualEnrollment))
+	defer testpkg.CleanupTableRecords(t, env.db, "activities.student_enrollments", manualEnrollment.ID)
+	_, err = env.db.NewRaw(`
+		UPDATE activities.student_enrollments
+		SET created_at = NOW() + INTERVAL '10 minutes',
+			updated_at = NOW() + INTERVAL '10 minutes'
+		WHERE id = ?
+	`, manualEnrollment.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	offering.ActivityGroupID = &newGroup.ID
+	require.NoError(t, env.repos.CareOffering.Update(ctx, offering))
+
+	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
+		RequestID:      submitted.Request.ID,
+		ChildID:        submitted.Children[0].ID,
+		ActorAccountID: env.creatorID,
+		ActorRole:      "admin",
+		Reason:         "Legacy-Gruppe korrigiert",
+		Offerings: []enrollmentService.OfferingAdjustmentSelection{
+			{OfferingID: offering.ID, SelectedDays: []string{"mon"}},
+		},
+	})
+	require.NoError(t, err)
+
+	rows := listStudentEnrollmentRowsForDecisionTest(t, env, *outcome.Child.CreatedStudentID)
+	require.Len(t, rows, 2)
+	for _, row := range rows {
+		assert.NotEqual(t, initialRows[0].ID, row.ID, "legacy materialized row must be removed")
+	}
+	manual, err := env.repos.StudentEnrollment.FindByID(ctx, manualEnrollment.ID)
+	require.NoError(t, err)
+	assert.Nil(t, manual.EnrollmentRequestChildID)
+	newRows := 0
+	for _, row := range rows {
+		if row.ActivityGroupID == newGroup.ID {
+			newRows++
+			require.NotNil(t, row.EnrollmentRequestChildID)
+			assert.Equal(t, submitted.Children[0].ID, *row.EnrollmentRequestChildID)
+		}
+	}
+	assert.Equal(t, 1, newRows)
 }
 
 func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterPhaseWindowChange(t *testing.T) {

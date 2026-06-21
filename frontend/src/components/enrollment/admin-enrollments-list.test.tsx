@@ -36,6 +36,7 @@ vi.mock("~/lib/settings-api", () => ({
 
 vi.mock("~/components/tenant/tenant-provider", () => ({
   useTenantSlugSafe: () => "demo",
+  useTenantRoutingModeSafe: () => "path",
 }));
 
 import { AdminEnrollmentsList } from "./admin-enrollments-list";

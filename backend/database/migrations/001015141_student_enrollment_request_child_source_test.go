@@ -2,6 +2,7 @@ package migrations
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -40,6 +41,43 @@ func TestStudentEnrollmentRequestChildSourceDoesNotBackfillAmbiguousManualRows(t
 	require.Nil(t, sourceID)
 }
 
+func TestStudentEnrollmentRequestChildSourceBackfillsUnambiguousApprovalRows(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := context.Background()
+	tenantID := time.Now().UnixNano()
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	t.Cleanup(func() {
+		testpkg.CleanupTenantTestData(t, db, tenantID)
+	})
+
+	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Legacy", "Roster", "2a")
+	group := testpkg.CreateTestActivityGroupForTenant(t, db, tenantID, "LegacyRoster")
+	phaseID := insertRequestChildSourcePhase(t, db, tenantID)
+	requestID := insertRequestChildSourceRequest(t, db, tenantID, phaseID)
+	childID := insertRequestChildSourceChild(t, db, tenantID, requestID, student.ID)
+	offeringID := insertRequestChildSourceOffering(t, db, tenantID, phaseID, group.ID)
+	insertRequestChildSourceOfferingLink(t, db, tenantID, childID, offeringID)
+	enrollmentID := insertRequestChildSourceManualEnrollment(t, db, tenantID, student.ID, group.ID)
+	_, err := db.NewRaw(`
+		UPDATE enrollment.request_children
+		SET reviewed_at = NOW() + INTERVAL '1 minute'
+		WHERE id = ?
+	`, childID).Exec(ctx)
+	require.NoError(t, err)
+
+	require.NoError(t, studentEnrollmentRequestChildSourceUp(ctx, db))
+
+	var sourceID *int64
+	require.NoError(t, db.NewRaw(`
+		SELECT enrollment_request_child_id
+		FROM activities.student_enrollments
+		WHERE id = ?
+	`, enrollmentID).Scan(ctx, &sourceID))
+	require.NotNil(t, sourceID)
+	require.Equal(t, childID, *sourceID)
+}
+
 func insertRequestChildSourcePhase(t *testing.T, db *bun.DB, tenantID int64) int64 {
 	t.Helper()
 	var id int64
@@ -64,7 +102,7 @@ func insertRequestChildSourceRequest(t *testing.T, db *bun.DB, tenantID, phaseID
 		)
 		VALUES (?, ?, 'Eva', 'Roster', ?, '{}'::jsonb, '{}'::jsonb, ?)
 		RETURNING id
-	`, tenantID, phaseID, "manual-roster@example.test", "manual-roster-token").Scan(context.Background(), &id))
+	`, tenantID, phaseID, "manual-roster@example.test", fmt.Sprintf("manual-roster-token-%d", tenantID)).Scan(context.Background(), &id))
 	return id
 }
 

@@ -83,11 +83,24 @@ func (s *decisionService) UpdateChildOfferings(ctx context.Context, input Update
 	activeOfferingByID := make(map[int64]*enrollmentModels.CareOffering, len(activeOfferings))
 	for _, offering := range activeOfferings {
 		activeOfferingByID[offering.ID] = offering
+		offeringByID[offering.ID] = offering
 	}
 
 	beforeLinks, err := s.requestChildOfferingRepo.ListByRequestChildID(ctx, child.ID)
 	if err != nil {
 		return nil, fmt.Errorf("decision: list current child offerings: %w", err)
+	}
+	beforeOfferingIDs := offeringIDsFromLinks(beforeLinks)
+	beforeOfferingByID := map[int64]*enrollmentModels.CareOffering{}
+	if len(beforeOfferingIDs) > 0 {
+		beforeOfferings, listErr := s.careOfferingRepo.ListByIDs(ctx, beforeOfferingIDs)
+		if listErr != nil {
+			return nil, fmt.Errorf("decision: list existing child offerings for adjustment: %w", listErr)
+		}
+		for _, offering := range beforeOfferings {
+			beforeOfferingByID[offering.ID] = offering
+			offeringByID[offering.ID] = offering
+		}
 	}
 	beforeJSON, beforeSnapshotErr := adjustmentSnapshotJSON(beforeLinks, offeringByID)
 	if beforeSnapshotErr != nil {
@@ -107,6 +120,9 @@ func (s *decisionService) UpdateChildOfferings(ctx context.Context, input Update
 	for _, row := range input.Offerings {
 		if row.OfferingID <= 0 {
 			return nil, fmt.Errorf("%w: offering_id is required", ErrOfferingAdjustmentInvalid)
+		}
+		if activeOfferingByID[row.OfferingID] == nil && beforeOfferingByID[row.OfferingID] == nil {
+			return nil, fmt.Errorf("%w: care offering %d is not available for this child adjustment", ErrCareOfferingMissing, row.OfferingID)
 		}
 		if seen[row.OfferingID] {
 			continue
@@ -128,8 +144,15 @@ func (s *decisionService) UpdateChildOfferings(ctx context.Context, input Update
 		}
 		return left.SortOrder < right.SortOrder
 	})
+	allowedOfferingByID := make(map[int64]*enrollmentModels.CareOffering, len(activeOfferingByID)+len(beforeOfferingByID))
+	for id, offering := range activeOfferingByID {
+		allowedOfferingByID[id] = offering
+	}
+	for id, offering := range beforeOfferingByID {
+		allowedOfferingByID[id] = offering
+	}
 	children := []SubmitChild{submitChild}
-	materialized, err := materializeAndValidateChildrenOfferingSelections(children, activeOfferingByID, phase.CareOfferingSelectionMode)
+	materialized, err := materializeAndValidateChildrenOfferingSelections(children, allowedOfferingByID, phase.CareOfferingSelectionMode)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrOfferingAdjustmentInvalid, err)
 	}
@@ -153,7 +176,7 @@ func (s *decisionService) UpdateChildOfferings(ctx context.Context, input Update
 	if err := s.requestChildOfferingRepo.ReplaceForRequestChild(ctx, child.ID, replacement); err != nil {
 		return nil, fmt.Errorf("decision: replace child offerings: %w", err)
 	}
-	if err := s.rematerializeAdjustedEnrollments(ctx, child.ID, *child.CreatedStudentID, phase); err != nil {
+	if err := s.rematerializeAdjustedEnrollments(ctx, child.ID, *child.CreatedStudentID, beforeLinks, phase); err != nil {
 		return nil, err
 	}
 	actorName, actorEmail := s.actorSnapshot(ctx, input.ActorAccountID)
@@ -236,16 +259,65 @@ func lessNumericString(left, right string) bool {
 	return left < right
 }
 
+func offeringIDsFromLinks(links []*enrollmentModels.RequestChildOffering) []int64 {
+	ids := make([]int64, 0, len(links))
+	seen := make(map[int64]bool, len(links))
+	for _, link := range links {
+		if link == nil || link.CareOfferingID <= 0 || seen[link.CareOfferingID] {
+			continue
+		}
+		seen[link.CareOfferingID] = true
+		ids = append(ids, link.CareOfferingID)
+	}
+	return ids
+}
+
 func (s *decisionService) rematerializeAdjustedEnrollments(
 	ctx context.Context,
 	requestChildID, studentID int64,
+	beforeLinks []*enrollmentModels.RequestChildOffering,
 	phase *enrollmentModels.Phase,
 ) error {
 	if s.studentEnrollmentRepo == nil {
 		return nil
 	}
+	if len(beforeLinks) > 0 {
+		if err := s.backfillLegacyAdjustedEnrollments(ctx, requestChildID, studentID, beforeLinks); err != nil {
+			return err
+		}
+	}
 	if _, err := s.studentEnrollmentRepo.DeleteByEnrollmentRequestChild(ctx, studentID, requestChildID); err != nil {
 		return fmt.Errorf("decision: delete sourced adjusted enrollments: %w", err)
 	}
 	return s.materializeEnrollments(ctx, requestChildID, studentID, phase)
+}
+
+func (s *decisionService) backfillLegacyAdjustedEnrollments(
+	ctx context.Context,
+	requestChildID, studentID int64,
+	beforeLinks []*enrollmentModels.RequestChildOffering,
+) error {
+	if s.careOfferingRepo == nil {
+		return nil
+	}
+	offerings, err := s.careOfferingRepo.ListByIDs(ctx, offeringIDsFromLinks(beforeLinks))
+	if err != nil {
+		return fmt.Errorf("decision: list existing child offerings for legacy enrollment cleanup: %w", err)
+	}
+	groupIDs := make([]int64, 0, len(offerings))
+	seen := make(map[int64]bool, len(offerings))
+	for _, offering := range offerings {
+		if offering == nil || offering.ActivityGroupID == nil || *offering.ActivityGroupID <= 0 || seen[*offering.ActivityGroupID] {
+			continue
+		}
+		seen[*offering.ActivityGroupID] = true
+		groupIDs = append(groupIDs, *offering.ActivityGroupID)
+	}
+	if len(groupIDs) == 0 {
+		return nil
+	}
+	if _, err := s.studentEnrollmentRepo.BackfillEnrollmentRequestChildSource(ctx, studentID, requestChildID, groupIDs); err != nil {
+		return fmt.Errorf("decision: backfill legacy adjusted enrollments: %w", err)
+	}
+	return nil
 }

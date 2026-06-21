@@ -188,6 +188,12 @@ type StudentEnrollmentRepository interface {
 	// a bounded set of activity groups, and an exact validity window.
 	DeleteByStudentGroupsAndWindow(ctx context.Context, studentID int64, groupIDs []int64, validFrom timezone.Date, validUntil *timezone.Date) (int64, error)
 
+	// BackfillEnrollmentRequestChildSource stamps legacy rows that were
+	// materialized during the same approval as requestChildID but predate the
+	// explicit provenance column. The group list keeps the operation bounded to
+	// offerings that were linked before an adjustment.
+	BackfillEnrollmentRequestChildSource(ctx context.Context, studentID, requestChildID int64, groupIDs []int64) (int64, error)
+
 	// DeleteByEnrollmentRequestChild removes rows materialized from one
 	// approved enrollment request child for a specific student.
 	DeleteByEnrollmentRequestChild(ctx context.Context, studentID, requestChildID int64) (int64, error)

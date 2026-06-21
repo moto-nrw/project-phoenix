@@ -152,6 +152,7 @@ vi.mock("~/components/tenant/tenant-provider", () => ({
     tenant: null,
   })),
   useTenantSlugSafe: vi.fn(() => "test-tenant"),
+  useTenantRoutingModeSafe: vi.fn(() => "path"),
   // Safe context accessor — never throws. Tests that need a populated
   // tenant override this mock locally; the default returns a slug-only
   // context so feature-flag hooks (useStudentPhotosEnabled) read `false`

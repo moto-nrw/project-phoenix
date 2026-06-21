@@ -43,7 +43,7 @@ import { RolloverForm } from "./rollover-form";
 import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
 import { useToast } from "~/contexts/ToastContext";
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
-import { tenantAwarePath } from "~/lib/tenant-path";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
 import {
   DataTable,
@@ -181,6 +181,7 @@ export function PhasesEditor() {
   const [highlightFormSection, setHighlightFormSection] = useState(false);
   const [highlightActions, setHighlightActions] = useState(false);
   const tenantSlug = useTenantSlugSafe();
+  const tenantPath = useTenantAwarePath();
   const toast = useToast();
   const assignFormId = searchParams.get("assignForm");
   const latestSchemas = useMemo(() => latestSchemasByName(schemas), [schemas]);
@@ -515,6 +516,7 @@ export function PhasesEditor() {
           <PhaseActions
             phase={phase}
             tenantSlug={tenantSlug}
+            tenantPath={tenantPath}
             saving={saving}
             deleting={deletingId === phase.id}
             rolloverActive={!!rolloverSource}
@@ -538,6 +540,7 @@ export function PhasesEditor() {
       schemaNameById,
       startEdit,
       tenantSlug,
+      tenantPath,
     ],
   );
 
@@ -802,6 +805,7 @@ function FormSchemaCell({
 interface PhaseActionsProps {
   readonly phase: Phase;
   readonly tenantSlug?: string | null;
+  readonly tenantPath: (path: string) => string;
   readonly saving: boolean;
   readonly deleting: boolean;
   readonly rolloverActive: boolean;
@@ -824,6 +828,7 @@ const PHASE_ACTIONS_MENU_HEIGHT = 220;
 function PhaseActions({
   phase,
   tenantSlug,
+  tenantPath,
   saving,
   deleting,
   rolloverActive,
@@ -845,9 +850,8 @@ function PhaseActions({
   const menuRef = useRef<HTMLDivElement>(null);
   const hasReviewList = tenantSlug && phase.rollover_source_phase_id;
   const phaseUrl = useEnrollmentPublicUrl({ tenantSlug, phaseId: phase.id });
-  const enrollmentsHref = tenantAwarePath(
+  const enrollmentsHref = tenantPath(
     `/admin/enrollments/phases/${encodeURIComponent(phase.id)}`,
-    tenantSlug,
   );
 
   useEffect(() => {

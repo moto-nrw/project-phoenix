@@ -20,7 +20,11 @@ interface TenantContextValue {
   tenantSlug: string;
   /** Resolved tenant metadata (null if not yet validated) */
   tenant: TenantInfo | null;
+  /** Whether visible tenant URLs carry the slug in the host or path. */
+  routingMode: TenantRoutingMode;
 }
+
+export type TenantRoutingMode = "path" | "subdomain";
 
 // Unexported — knip flags exports it can't trace through the `~/` alias and
 // the test mock in setup.ts can't replicate createContext output.
@@ -39,10 +43,12 @@ const TenantContext = createContext<TenantContextValue | null>(null);
 export function TenantProvider({
   tenantSlug,
   tenant: serverTenant,
+  routingMode = "path",
   children,
 }: {
   tenantSlug: string;
   tenant: TenantInfo | null;
+  routingMode?: TenantRoutingMode;
   children: React.ReactNode;
 }) {
   // Mirror the server prop so broadcasts can replace it without re-routing
@@ -127,7 +133,10 @@ export function TenantProvider({
     };
   }, [tenantSlug]);
 
-  const value = useMemo(() => ({ tenantSlug, tenant }), [tenantSlug, tenant]);
+  const value = useMemo(
+    () => ({ tenantSlug, tenant, routingMode }),
+    [tenantSlug, tenant, routingMode],
+  );
 
   return (
     <TenantContext.Provider value={value}>{children}</TenantContext.Provider>
@@ -157,6 +166,11 @@ export function useTenant(): TenantContextValue {
 export function useTenantSlugSafe(): string | null {
   const ctx = useContext(TenantContext);
   return ctx?.tenantSlug ?? null;
+}
+
+export function useTenantRoutingModeSafe(): TenantRoutingMode {
+  const ctx = useContext(TenantContext);
+  return ctx?.routingMode ?? "path";
 }
 
 /**

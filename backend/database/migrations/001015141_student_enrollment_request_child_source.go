@@ -65,5 +65,56 @@ func studentEnrollmentRequestChildSourceUp(ctx context.Context, db *bun.DB) erro
 	`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed adding enrollment request child source to student enrollments: %w", err)
 	}
+	if err := backfillStudentEnrollmentRequestChildSource(ctx, db); err != nil {
+		return err
+	}
+	return nil
+}
+
+func backfillStudentEnrollmentRequestChildSource(ctx context.Context, db *bun.DB) error {
+	if _, err := db.NewRaw(`
+		WITH candidates AS (
+			SELECT
+				"student_enrollment".id AS enrollment_id,
+				"request_child".id AS request_child_id
+			FROM activities.student_enrollments AS "student_enrollment"
+			INNER JOIN enrollment.request_children AS "request_child"
+				ON "request_child".tenant_id = "student_enrollment".tenant_id
+				AND "request_child".created_student_id = "student_enrollment".student_id
+				AND "request_child".status = 'approved'
+				AND "request_child".reviewed_at IS NOT NULL
+				AND "student_enrollment".created_at BETWEEN "request_child".reviewed_at - INTERVAL '5 minutes'
+					AND "request_child".reviewed_at + INTERVAL '5 minutes'
+			INNER JOIN enrollment.requests AS "request"
+				ON "request".tenant_id = "student_enrollment".tenant_id
+				AND "request".id = "request_child".request_id
+			INNER JOIN enrollment.phases AS "phase"
+				ON "phase".tenant_id = "student_enrollment".tenant_id
+				AND "phase".id = "request".phase_id
+				AND "student_enrollment".valid_from = "phase".service_start_date
+				AND "student_enrollment".valid_until IS NOT DISTINCT FROM "phase".service_end_date
+			INNER JOIN enrollment.request_child_offerings AS "request_child_offering"
+				ON "request_child_offering".tenant_id = "student_enrollment".tenant_id
+				AND "request_child_offering".request_child_id = "request_child".id
+			INNER JOIN enrollment.care_offerings AS "care_offering"
+				ON "care_offering".tenant_id = "student_enrollment".tenant_id
+				AND "care_offering".id = "request_child_offering".care_offering_id
+				AND "care_offering".activity_group_id = "student_enrollment".activity_group_id
+			WHERE "student_enrollment".enrollment_request_child_id IS NULL
+		),
+		unambiguous AS (
+			SELECT enrollment_id, MIN(request_child_id) AS request_child_id
+			FROM candidates
+			GROUP BY enrollment_id
+			HAVING COUNT(DISTINCT request_child_id) = 1
+		)
+		UPDATE activities.student_enrollments AS "student_enrollment"
+		SET enrollment_request_child_id = "unambiguous".request_child_id
+		FROM unambiguous AS "unambiguous"
+		WHERE "student_enrollment".id = "unambiguous".enrollment_id
+			AND "student_enrollment".enrollment_request_child_id IS NULL;
+	`).Exec(ctx); err != nil {
+		return fmt.Errorf("failed backfilling enrollment request child source on student enrollments: %w", err)
+	}
 	return nil
 }
