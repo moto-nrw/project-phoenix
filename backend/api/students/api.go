@@ -25,6 +25,7 @@ import (
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
+	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
@@ -58,6 +59,8 @@ type Resource struct {
 	StudentService          userService.StudentService
 	StudentStatusDayService activeService.StudentStatusDayService
 	StudentHistoryService   activeService.StudentHistoryService
+	EnrollmentDecision      enrollmentService.DecisionService
+	EnrollmentFormSchema    enrollmentService.FormSchemaService
 	Broadcaster             realtime.Broadcaster
 	StudentPhotos           userService.StudentPhotoService
 	ListExportService       listexport.Service
@@ -83,6 +86,8 @@ type ResourceConfig struct {
 	StudentService          userService.StudentService
 	StudentStatusDayService activeService.StudentStatusDayService
 	StudentHistoryService   activeService.StudentHistoryService
+	EnrollmentDecision      enrollmentService.DecisionService
+	EnrollmentFormSchema    enrollmentService.FormSchemaService
 	Broadcaster             realtime.Broadcaster
 	StudentPhotos           userService.StudentPhotoService
 	ListExportService       listexport.Service
@@ -113,6 +118,8 @@ func NewResource(cfg ResourceConfig) *Resource {
 		StudentService:          cfg.StudentService,
 		StudentStatusDayService: cfg.StudentStatusDayService,
 		StudentHistoryService:   cfg.StudentHistoryService,
+		EnrollmentDecision:      cfg.EnrollmentDecision,
+		EnrollmentFormSchema:    cfg.EnrollmentFormSchema,
 		Broadcaster:             cfg.Broadcaster,
 		StudentPhotos:           cfg.StudentPhotos,
 		ListExportService:       cfg.ListExportService,
@@ -148,6 +155,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/attendance-history", rs.getStudentAttendanceHistory)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/status-days", rs.getStudentStatusDays)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/parent-notes", rs.getStudentParentNotes)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/enrollment-extra-fields", rs.getStudentEnrollmentExtraFields)
 
 		// Routes requiring users:create permission
 		r.With(authorize.RequiresPermission(permissions.UsersCreate), withTx).Post("/", rs.createStudent)
@@ -717,9 +725,28 @@ func createStudentFromRequest(req *StudentRequest, personID int64) *users.Studen
 	if req.SupervisorNotes != nil {
 		student.SupervisorNotes = req.SupervisorNotes
 	}
+	if req.DepartureCompanionNote != nil {
+		student.DepartureCompanionNote = req.DepartureCompanionNote
+	}
 	applyDeparturePlan(req.AllowedDepartureModes, req.DepartureDays, req.PickupStatus, req.PickupDays, req.Bus, req.BusDays, student)
+	normalizeDepartureCompanionNote(student)
 
 	return student
+}
+
+// normalizeDepartureCompanionNote drops the free-text "mit wem" note once the
+// child's allowed departure modes no longer include the accompanied mode, so a
+// note never outlives the "Mit anderem Kind" plan that justifies it (#1694).
+// The UI hides the note input when no day is accompanied, so a stale value can
+// otherwise sit in form state and be submitted unchanged.
+func normalizeDepartureCompanionNote(student *users.Student) {
+	if student.DepartureCompanionNote == nil {
+		return
+	}
+	if !student.AllowedDepartureModes.HasMode(users.DepartureAccompanied) &&
+		!student.DepartureDays.HasMode(users.DepartureAccompanied) {
+		student.DepartureCompanionNote = nil
+	}
 }
 
 // applyDeparturePlan sets how a child leaves each weekday from a create/update
@@ -737,7 +764,11 @@ func applyDeparturePlan(allowed *users.AllowedDepartureModes, departure *users.D
 		student.DepartureDays = modes.DepartureDays()
 		student.BusDays = modes.BusDays()
 		student.PickupDays = modes.PickupDays()
-		s := student.DepartureDays.LegacyPickupStatus()
+		// Full set, not the exclusive DepartureDays() projection: bus outranks
+		// accompanied there, so a bus+accompanied day would bucket the child as a
+		// self-goer. The repository re-derives this on persist; keep the handler
+		// consistent so the in-memory student is never momentarily wrong (#1694).
+		s := modes.LegacyPickupStatus()
 		student.PickupStatus = &s
 		return
 	}
@@ -1136,7 +1167,16 @@ func applyOptionalStudentFields(req *UpdateStudentRequest, student *users.Studen
 	if req.SupervisorNotes != nil {
 		student.SupervisorNotes = req.SupervisorNotes
 	}
+	if req.DepartureCompanionNote != nil {
+		student.DepartureCompanionNote = req.DepartureCompanionNote
+	}
 	applyDeparturePlan(req.AllowedDepartureModes, req.DepartureDays, req.PickupStatus, req.PickupDays, req.Bus, req.BusDays, student)
+	// Only normalize when this request actually set the departure plan, so the
+	// freshly applied modes are authoritative; an update that omits modes must
+	// not clear a note against a possibly-unpopulated scanonly field.
+	if req.AllowedDepartureModes != nil || req.DepartureDays != nil {
+		normalizeDepartureCompanionNote(student)
+	}
 }
 
 // applySickStatus handles sick status updates with SickSince timestamp logic
@@ -1392,6 +1432,16 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		}
 		if errors.Is(err, errStudentNotFoundUnderLock) {
 			renderError(w, r, ErrorNotFound(errors.New("student not found")))
+			return
+		}
+		// The merged plan (request modes applied onto the stored row) can violate
+		// the accompanied-requires-note invariant — e.g. a caller sets a "Mit
+		// anderem Kind" day on a child with no stored note. That is client input,
+		// so surface it as a 400 rather than the model error leaking as a 500
+		// (#1694). The binder cannot catch this on update: only here is the
+		// stored note visible to fall back on.
+		if errors.Is(err, users.ErrDepartureCompanionNoteRequired) {
+			renderError(w, r, ErrorInvalidRequest(err))
 			return
 		}
 		renderError(w, r, ErrorInternalServer(err))

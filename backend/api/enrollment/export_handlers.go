@@ -349,6 +349,9 @@ func buildStudentEnrollmentExportTable(data *enrollmentService.StudentEnrollment
 	for _, cf := range childCustoms {
 		cols = append(cols, listexport.Column{ID: listexport.ColumnID("custom_c_" + cf.Key), Label: cf.Label})
 	}
+	// Coupled accompanied-mode note (#1694): a reserved key, not a schema field,
+	// so it needs its own dedicated column rather than a custom_c_ one.
+	cols = append(cols, listexport.Column{ID: "child_companion_note", Label: departureCompanionLabelDE})
 	for _, cf := range guardianCustoms {
 		cols = append(cols, listexport.Column{ID: listexport.ColumnID("custom_g_" + cf.Key), Label: cf.Label})
 	}
@@ -725,7 +728,27 @@ func childFields(ch enrollmentService.ExportChildRow, childCustoms []enrollmentM
 			fields = append(fields, listexport.Field{Label: cf.Label, Value: formatCustomValue(cf, v)})
 		}
 	}
+	if note := childCompanionNote(c); note != "" {
+		fields = append(fields, listexport.Field{Label: departureCompanionLabelDE, Value: note})
+	}
 	return fields
+}
+
+// departureCompanionLabelDE labels the coupled "mit wem" note (#1694) in staff
+// exports. Matches the "Mit welchem Kind?" wording shown in the student detail
+// and admin review UIs.
+const departureCompanionLabelDE = "Mit welchem Kind?"
+
+// childCompanionNote extracts the coupled accompanied-mode "mit wem" note from a
+// child's custom_data. It lives on a reserved key alongside
+// allowed_departure_modes (not a schema field), so the field-iterating export
+// loops never emit it — it must be pulled out explicitly. Returns "" when
+// absent or blank.
+func childCompanionNote(c *enrollmentModels.RequestChild) string {
+	if c == nil || c.CustomData == nil {
+		return ""
+	}
+	return strings.TrimSpace(stringifyValue(c.CustomData[enrollmentModels.TargetStudentDepartureCompanionNote]))
 }
 
 // childFullName is the child's display heading for its block.
@@ -761,6 +784,9 @@ func buildPhaseExportTable(data *enrollmentService.PhaseExport, title, childStat
 	for _, cf := range childCustoms {
 		cols = append(cols, listexport.Column{ID: listexport.ColumnID("custom_c_" + cf.Key), Label: cf.Label})
 	}
+	// Coupled accompanied-mode note (#1694): a reserved key, not a schema field,
+	// so it needs its own dedicated column rather than a custom_c_ one.
+	cols = append(cols, listexport.Column{ID: "child_companion_note", Label: departureCompanionLabelDE})
 	// Eltern / contact block, after the child — same field order as the
 	// PDF guardian block (name, contact, dates, custom answers, consents).
 	cols = append(cols,
@@ -846,6 +872,9 @@ func childRowValues(guardianValues map[listexport.ColumnID]string, ch enrollment
 		if v, ok := c.CustomData[cf.Key]; ok {
 			values[listexport.ColumnID("custom_c_"+cf.Key)] = formatCustomValue(cf, v)
 		}
+	}
+	if note := childCompanionNote(c); note != "" {
+		values["child_companion_note"] = note
 	}
 	return values
 }

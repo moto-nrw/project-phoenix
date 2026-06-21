@@ -113,7 +113,7 @@ export function formatPickupDays(value?: PickupDays | null): string {
 // exclusive choice per weekday: the child goes home alone ("alleine"), rides
 // the bus ("bus"), or is collected by a person ("pickup"). departure_days is
 // the single source of truth on the backend; bus_days/pickup_days are derived.
-export type DepartureMode = "alone" | "bus" | "pickup";
+export type DepartureMode = "alone" | "bus" | "pickup" | "accompanied";
 export type DepartureDayKey = BusDayKey;
 export type DepartureDays = Partial<Record<DepartureDayKey, DepartureMode>>;
 export type AllowedDepartureModes = Partial<
@@ -131,12 +131,41 @@ export const DEPARTURE_WEEKDAYS: ReadonlyArray<{
   { key: "fri", label: "Freitag" },
 ] as const;
 
-/** German labels for the three departure modes (shown in forms and badges). */
+/** German labels for the departure modes (shown in forms and badges). */
 const DEPARTURE_MODE_LABELS: Record<DepartureMode, string> = {
   alone: "Geht zu Fuß",
   bus: "Fährt Bus",
   pickup: "Wird abgeholt",
+  accompanied: "Mit anderem Kind",
 };
+
+/** Short labels for the departure modes, used in compact badges (editor pills
+ *  and the read-only Stammdaten matrix). */
+export const DEPARTURE_MODE_SHORT_LABELS: Record<DepartureMode, string> = {
+  alone: "Zu Fuß",
+  bus: "Bus",
+  pickup: "Abgeholt",
+  accompanied: "Anderes Kind",
+};
+
+/**
+ * Quiet read-only pill for displaying a selected departure arrangement in the
+ * Stammdaten view, so the matrix sits calmly next to the plain text fields
+ * around it instead of shouting in color (the per-mode colors, incl. the
+ * accompanied magenta from #1694, were dropped — the mode is conveyed by its
+ * label, not a color). The editor keeps its checkboxes; only the active fill
+ * was neutralized there.
+ */
+export const CARE_DISPLAY_PILL =
+  "inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700";
+
+/** Canonical render order for departure modes (stable badge ordering). */
+const DEPARTURE_MODE_ORDER: readonly DepartureMode[] = [
+  "alone",
+  "bus",
+  "pickup",
+  "accompanied",
+];
 
 export function normalizeDepartureDays(
   value?: DepartureDays | null,
@@ -144,7 +173,8 @@ export function normalizeDepartureDays(
   const out: DepartureDays = {};
   for (const day of DEPARTURE_WEEKDAYS) {
     const mode = value?.[day.key];
-    if (mode === "bus" || mode === "pickup") out[day.key] = mode;
+    if (mode === "bus" || mode === "pickup" || mode === "accompanied")
+      out[day.key] = mode;
   }
   return out;
 }
@@ -156,12 +186,29 @@ export function normalizeAllowedDepartureModes(
   for (const day of DEPARTURE_WEEKDAYS) {
     const raw = value?.[day.key];
     if (!Array.isArray(raw)) continue;
-    const modes = (["alone", "bus", "pickup"] as const).filter((mode) =>
-      raw.includes(mode),
+    const modes = (["alone", "bus", "pickup", "accompanied"] as const).filter(
+      (mode) => raw.includes(mode),
     );
     if (modes.length > 0) out[day.key] = modes;
   }
   return out;
+}
+
+/** Reports whether any weekday allows the accompanied ("Mit anderem Kind")
+ *  departure mode. Reads the unified allowed_departure_modes when present and
+ *  falls back to the exclusive departure_days, so it works on every form shape
+ *  (#1694). */
+export function allowedModesIncludeAccompanied(
+  allowed?: AllowedDepartureModes | null,
+  departureDays?: DepartureDays | null,
+): boolean {
+  for (const day of DEPARTURE_WEEKDAYS) {
+    if (allowed?.[day.key]?.includes("accompanied")) return true;
+  }
+  for (const day of DEPARTURE_WEEKDAYS) {
+    if (departureDays?.[day.key] === "accompanied") return true;
+  }
+  return false;
 }
 
 /** Folds the legacy bus/pickup maps into the unified map. Pickup wins on a
@@ -184,7 +231,8 @@ export function allowedDepartureModesFromDeparture(
   const out: AllowedDepartureModes = {};
   for (const day of DEPARTURE_WEEKDAYS) {
     const mode = value?.[day.key];
-    if (mode === "bus" || mode === "pickup") out[day.key] = [mode];
+    if (mode === "bus" || mode === "pickup" || mode === "accompanied")
+      out[day.key] = [mode];
   }
   return out;
 }
@@ -231,6 +279,7 @@ export function allowedDepartureToDepartureDays(
     const modes = value?.[day.key] ?? [];
     if (modes.includes("pickup")) out[day.key] = "pickup";
     else if (modes.includes("bus")) out[day.key] = "bus";
+    else if (modes.includes("accompanied")) out[day.key] = "accompanied";
   }
   return out;
 }
@@ -249,6 +298,73 @@ export function formatAllowedDepartureModes(
     ];
   });
   return parts.length > 0 ? parts.join("; ") : "Geht immer alleine";
+}
+
+/**
+ * Compact day-only summary for the "Erlaubte Heimwege" badge. Lists just the
+ * weekdays that have any departure mode configured (e.g. "Mo, Di, Fr"), mirroring
+ * formatBusDays/formatPickupDays. Unlike formatAllowedDepartureModes it omits the
+ * per-day modes, so the badge stays single-line even when every weekday has bus
+ * and pickup — the full breakdown lives in the editor rows right below it.
+ */
+export function formatAllowedDepartureDays(
+  value?: AllowedDepartureModes | null,
+): string {
+  const normalized = normalizeAllowedDepartureModes(value);
+  const labels = DEPARTURE_WEEKDAYS.filter(
+    (day) => (normalized[day.key]?.length ?? 0) > 0,
+  ).map((day) => day.label.slice(0, 2));
+  return labels.length > 0 ? labels.join(", ") : "Geht immer alleine";
+}
+
+export interface DepartureMatrixRow {
+  readonly key: DepartureDayKey;
+  /** Full weekday label, e.g. "Montag". */
+  readonly label: string;
+  /** Two-letter weekday label, e.g. "Mo". */
+  readonly short: string;
+  /** Allowed modes for the day in canonical order; never empty — a day with no
+   *  configured arrangement folds to ["alone"] (the child leaves on its own). */
+  readonly modes: DepartureMode[];
+}
+
+/**
+ * Builds the per-weekday rows for the read-only "Erlaubte Heimwege" matrix
+ * (Mo–Fr). A weekday with no configured mode folds to ["alone"], mirroring
+ * formatAllowedDepartureModes' "goes alone" semantics. Modes are returned in the
+ * canonical DEPARTURE_MODE_ORDER so badges render in a stable order.
+ */
+export function departureMatrixRows(
+  value?: AllowedDepartureModes | null,
+): DepartureMatrixRow[] {
+  const normalized = normalizeAllowedDepartureModes(value);
+  return DEPARTURE_WEEKDAYS.map((day) => {
+    const modes = normalized[day.key] ?? [];
+    const ordered = DEPARTURE_MODE_ORDER.filter((mode) => modes.includes(mode));
+    return {
+      key: day.key,
+      label: day.label,
+      short: day.label.slice(0, 2),
+      modes: ordered.length > 0 ? ordered : ["alone"],
+    };
+  });
+}
+
+/**
+ * True when at least one weekday has a non-alone arrangement (bus, pickup or
+ * accompanied), i.e. the child does not simply go home alone every day. Used to
+ * collapse the matrix to a single "Geht immer alleine" line when there is
+ * nothing meaningful to show.
+ */
+export function hasAnyDepartureArrangement(
+  value?: AllowedDepartureModes | null,
+): boolean {
+  const normalized = normalizeAllowedDepartureModes(value);
+  return DEPARTURE_WEEKDAYS.some((day) =>
+    (normalized[day.key] ?? []).some(
+      (mode) => mode === "bus" || mode === "pickup" || mode === "accompanied",
+    ),
+  );
 }
 
 /**
@@ -302,6 +418,7 @@ export interface BackendStudent {
   group_name?: string;
   scheduled_checkout?: ScheduledCheckoutInfo;
   extra_info?: string;
+  departure_companion_note?: string;
   birthday?: string;
   health_info?: string;
   supervisor_notes?: string;
@@ -441,6 +558,8 @@ export interface Student {
   attendance_log_enabled?: boolean;
   // Extra information visible only to supervisors
   extra_info?: string;
+  // Free-text "mit wem" for the accompanied departure mode (#1694)
+  departure_companion_note?: string;
   birthday?: string;
   health_info?: string;
   supervisor_notes?: string;
@@ -532,6 +651,7 @@ export function mapStudentResponse(
     guardian_phone: backendStudent.guardian_phone,
     custom_users_id: undefined, // Not provided by backend
     extra_info: backendStudent.extra_info,
+    departure_companion_note: backendStudent.departure_companion_note,
     birthday: backendStudent.birthday,
     health_info: backendStudent.health_info,
     supervisor_notes: backendStudent.supervisor_notes,
@@ -602,6 +722,7 @@ export function prepareStudentForBackend(
     guardian_email?: string;
     guardian_phone?: string;
     extra_info?: string;
+    departure_companion_note?: string;
     birthday?: string;
     health_info?: string;
     supervisor_notes?: string;
@@ -647,6 +768,7 @@ export function prepareStudentForBackend(
     guardian_email: student.guardian_email,
     guardian_phone: student.guardian_phone,
     extra_info: student.extra_info,
+    departure_companion_note: student.departure_companion_note,
     // Convert empty string to undefined for date fields (Go backend expects null or valid date)
     birthday:
       student.birthday && student.birthday.trim() !== ""
@@ -677,6 +799,7 @@ export interface UpdateStudentRequest {
   guardian_email?: string;
   guardian_phone?: string;
   extra_info?: string;
+  departure_companion_note?: string;
   birthday?: string;
   health_info?: string;
   supervisor_notes?: string;
@@ -710,6 +833,7 @@ export interface BackendUpdateRequest {
   guardian_phone?: string;
   group_id?: number;
   extra_info?: string;
+  departure_companion_note?: string;
   birthday?: string;
   health_info?: string;
   supervisor_notes?: string;
@@ -766,6 +890,7 @@ const DIRECT_FIELD_MAPPINGS: FieldMapping[] = [
   { source: "guardian_email", target: "guardian_email" },
   { source: "guardian_phone", target: "guardian_phone" },
   { source: "extra_info", target: "extra_info" },
+  { source: "departure_companion_note", target: "departure_companion_note" },
   { source: "birthday", target: "birthday" },
   { source: "health_info", target: "health_info" },
   { source: "supervisor_notes", target: "supervisor_notes" },

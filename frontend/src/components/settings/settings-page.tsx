@@ -36,6 +36,7 @@ interface SettingsTabContentProps {
   readonly highlightKey?: string | null;
   readonly onSave: (key: string, value: unknown) => Promise<string | null>;
   readonly onReset: (key: string) => Promise<string | null>;
+  readonly onSchemaRefresh: () => void;
 }
 
 function SettingsTabContent({
@@ -43,6 +44,7 @@ function SettingsTabContent({
   highlightKey,
   onSave,
   onReset,
+  onSchemaRefresh,
 }: SettingsTabContentProps) {
   return (
     <div className="space-y-6">
@@ -54,6 +56,7 @@ function SettingsTabContent({
           highlightKey={highlightKey}
           onSave={onSave}
           onReset={onReset}
+          onSchemaRefresh={onSchemaRefresh}
         />
       ))}
     </div>
@@ -181,6 +184,11 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
     [refreshSupervision, router],
   );
 
+  const handleSchemaRefresh = useCallback(() => {
+    notifySettingsChanged();
+    void mutate(SETTINGS_SCHEMA_SWR_KEY);
+  }, []);
+
   if (isLoading && !schema) {
     return <SettingsSkeleton />;
   }
@@ -251,6 +259,7 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
         highlightKey={highlightKey}
         onSave={handleSave}
         onReset={handleReset}
+        onSchemaRefresh={handleSchemaRefresh}
       />
     </>
   );

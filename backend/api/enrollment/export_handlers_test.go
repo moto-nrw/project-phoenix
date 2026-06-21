@@ -201,6 +201,41 @@ func TestBuildPhaseExportTable_FullRow(t *testing.T) {
 	}
 }
 
+// #1694: the accompanied-mode "mit wem" note rides on a reserved custom-data
+// key (not a schema field), so the field-iterating export loops never emit it.
+// It must surface in a dedicated column/field, because the backend persists it
+// onto the student on approval and staff need it for offline supervision.
+func TestBuildPhaseExportTable_IncludesCompanionNote(t *testing.T) {
+	data := sampleExport()
+	data.Rows[0].Children[0].Child.CustomData[enrollmentModels.TargetStudentDepartureCompanionNote] = "Geschwisterkind Mia"
+
+	doc := buildPhaseExportTable(data, "Anmeldungen – Test", "")
+
+	if got := columnLabels(doc)["child_companion_note"]; got != "Mit welchem Kind?" {
+		t.Fatalf("child_companion_note column label = %q, want Mit welchem Kind?", got)
+	}
+	rows := tableDataRows(doc.Rows)
+	if len(rows) != 1 {
+		t.Fatalf("data rows = %d, want 1", len(rows))
+	}
+	if got := rows[0].Values["child_companion_note"]; got != "Geschwisterkind Mia" {
+		t.Errorf("child_companion_note value = %q, want Geschwisterkind Mia", got)
+	}
+}
+
+// Without a note the dedicated column still exists (stable schema) but the cell
+// stays empty — no stray reserved-key leakage.
+func TestBuildPhaseExportTable_CompanionNoteEmptyWhenAbsent(t *testing.T) {
+	doc := buildPhaseExportTable(sampleExport(), "Anmeldungen – Test", "")
+	rows := tableDataRows(doc.Rows)
+	if len(rows) != 1 {
+		t.Fatalf("data rows = %d, want 1", len(rows))
+	}
+	if got := rows[0].Values["child_companion_note"]; got != "" {
+		t.Errorf("child_companion_note value = %q, want empty", got)
+	}
+}
+
 func TestBuildStudentEnrollmentExportTable_IncludesWithdrawnAt(t *testing.T) {
 	doc := buildStudentEnrollmentExportTable(sampleStudentEnrollmentExport(), "Anmeldungen Kind")
 
@@ -614,8 +649,8 @@ func TestParseCareUsageExportRequestSupportsDOCX(t *testing.T) {
 	if filters.PhaseID != 42 {
 		t.Fatalf("phase_id = %d, want 42", filters.PhaseID)
 	}
-	if filters.CareOfferingID != 9007199254740993 {
-		t.Fatalf("care_offering_id = %d, want 9007199254740993", filters.CareOfferingID)
+	if len(filters.CareOfferingIDs) != 1 || filters.CareOfferingIDs[0] != 9007199254740993 {
+		t.Fatalf("care_offering_ids = %#v, want [9007199254740993]", filters.CareOfferingIDs)
 	}
 }
 
@@ -628,6 +663,21 @@ func TestParseCareUsageFiltersFromQueryAllowsZeroDayCount(t *testing.T) {
 	}
 	if filters.DayCount == nil || *filters.DayCount != 0 {
 		t.Fatalf("day_count = %#v, want pointer to 0", filters.DayCount)
+	}
+}
+
+func TestParseCareUsageFiltersFromQueryTreatsEmptyCareOfferingIDsAsExplicit(t *testing.T) {
+	req := httptest.NewRequest("GET", "/care-usage?phase_id=42&care_offering_ids=", nil)
+
+	filters, err := parseCareUsageFiltersFromQuery(req)
+	if err != nil {
+		t.Fatalf("parseCareUsageFiltersFromQuery: %v", err)
+	}
+	if !filters.CareOfferingIDsSet {
+		t.Fatal("CareOfferingIDsSet = false, want true")
+	}
+	if len(filters.CareOfferingIDs) != 0 {
+		t.Fatalf("care_offering_ids = %#v, want empty", filters.CareOfferingIDs)
 	}
 }
 
@@ -646,13 +696,31 @@ func TestParseCareUsageExportRequestAllowsZeroDayCount(t *testing.T) {
 	}
 }
 
+func TestParseCareUsageExportRequestTreatsEmptyCareOfferingIDsAsExplicit(t *testing.T) {
+	req := httptest.NewRequest("POST", "/care-usage/export", strings.NewReader(`{
+		"format": "xlsx",
+		"filters": {"phase_id": "42", "care_offering_ids": []}
+	}`))
+
+	_, filters, err := parseCareUsageExportRequest(req)
+	if err != nil {
+		t.Fatalf("parseCareUsageExportRequest: %v", err)
+	}
+	if !filters.CareOfferingIDsSet {
+		t.Fatal("CareOfferingIDsSet = false, want true")
+	}
+	if len(filters.CareOfferingIDs) != 0 {
+		t.Fatalf("care_offering_ids = %#v, want empty", filters.CareOfferingIDs)
+	}
+}
+
 func TestCareUsageReportResponseStringifiesIDs(t *testing.T) {
 	report := &enrollmentService.CareUsageReport{
 		Phase: enrollmentService.CareUsagePhase{ID: 9007199254740993, Name: "Demo"},
 		Filters: enrollmentService.CareUsageAppliedFilters{
-			PhaseID:        9007199254740993,
-			Status:         "all",
-			CareOfferingID: 9007199254740995,
+			PhaseID:         9007199254740993,
+			Status:          "all",
+			CareOfferingIDs: []int64{9007199254740995},
 		},
 		Totals: enrollmentService.CareUsageTotals{
 			Children:   1,
@@ -695,7 +763,7 @@ func TestCareUsageReportResponseStringifiesIDs(t *testing.T) {
 	for _, want := range []string{
 		`"id":"9007199254740993"`,
 		`"phase_id":"9007199254740993"`,
-		`"care_offering_id":"9007199254740995"`,
+		`"care_offering_ids":["9007199254740995"]`,
 		`"offering_id":"9007199254740995"`,
 		`"request_id":"9007199254740997"`,
 		`"child_id":"9007199254740999"`,
@@ -703,6 +771,22 @@ func TestCareUsageReportResponseStringifiesIDs(t *testing.T) {
 		if !strings.Contains(payload, want) {
 			t.Fatalf("response JSON %s missing %s", payload, want)
 		}
+	}
+}
+
+func TestCareUsageReportResponseSerializesExplicitEmptyCareOfferingIDs(t *testing.T) {
+	report := &enrollmentService.CareUsageReport{
+		Phase:   enrollmentService.CareUsagePhase{ID: 42, Name: "Demo"},
+		Filters: enrollmentService.CareUsageAppliedFilters{PhaseID: 42, Status: "all", CareOfferingIDs: []int64{}},
+		Totals:  enrollmentService.CareUsageTotals{ByDayCount: map[string]int{"0": 1}},
+	}
+
+	raw, err := json.Marshal(toCareUsageReportResponse(report))
+	if err != nil {
+		t.Fatalf("marshal response: %v", err)
+	}
+	if !strings.Contains(string(raw), `"care_offering_ids":[]`) {
+		t.Fatalf("response JSON %s missing empty care_offering_ids", raw)
 	}
 }
 
@@ -744,6 +828,68 @@ func TestCareUsageReportResponseSerializesEmptyDaySlicesAsArrays(t *testing.T) {
 		if !strings.Contains(payload, want) {
 			t.Fatalf("response JSON %s missing %s", payload, want)
 		}
+	}
+}
+
+func TestCareUsageReportResponseSerializesDayProvenance(t *testing.T) {
+	report := &enrollmentService.CareUsageReport{
+		Phase:   enrollmentService.CareUsagePhase{ID: 42, Name: "Demo"},
+		Filters: enrollmentService.CareUsageAppliedFilters{PhaseID: 42, Status: "all"},
+		Totals:  enrollmentService.CareUsageTotals{ByDayCount: map[string]int{"5": 1}},
+		Rows: []enrollmentService.CareUsageRow{
+			{
+				RequestID:         10,
+				ChildID:           20,
+				ChildFirstName:    "Lina",
+				ChildLastName:     "Muster",
+				DateOfBirth:       "2019-01-01",
+				Status:            enrollmentModels.ChildStatusApproved,
+				EffectiveDays:     []string{"mon", "tue", "wed", "thu", "fri"},
+				DayCount:          5,
+				GuardianFirstName: "Eva",
+				GuardianLastName:  "Muster",
+				GuardianEmail:     "eva@example.test",
+				SubmittedAt:       time.Date(2026, 6, 18, 11, 15, 0, 0, time.UTC),
+				Offerings: []enrollmentService.CareUsageRowOffering{
+					{
+						ID:                    1,
+						Name:                  "Randstunde",
+						Days:                  []string{"mon", "tue", "wed", "thu", "fri"},
+						DaysSource:            "selected",
+						DaysOfWeekMode:        "parent_choice",
+						ManualSelectedDays:    []string{"fri"},
+						AutomaticSelectedDays: []string{"mon", "tue", "wed", "thu"},
+					},
+				},
+			},
+		},
+	}
+
+	raw, err := json.Marshal(toCareUsageReportResponse(report))
+	if err != nil {
+		t.Fatalf("marshal response: %v", err)
+	}
+	payload := string(raw)
+	for _, want := range []string{`"manual_selected_days":["fri"]`, `"automatic_selected_days":["mon","tue","wed","thu"]`} {
+		if !strings.Contains(payload, want) {
+			t.Fatalf("response JSON %s missing %s", payload, want)
+		}
+	}
+}
+
+func TestCareUsageOfferingDayDetailsIncludesDayProvenance(t *testing.T) {
+	got := careUsageOfferingDayDetails([]enrollmentService.CareUsageRowOffering{
+		{
+			Name:                  "Randstunde",
+			Days:                  []string{"mon", "tue", "wed", "thu", "fri"},
+			DaysSource:            "selected",
+			ManualSelectedDays:    []string{"fri"},
+			AutomaticSelectedDays: []string{"mon", "tue", "wed", "thu"},
+		},
+	})
+
+	if got != "Randstunde (Mo, Di, Mi, Do automatisch; Fr manuell)" {
+		t.Fatalf("day details = %q", got)
 	}
 }
 

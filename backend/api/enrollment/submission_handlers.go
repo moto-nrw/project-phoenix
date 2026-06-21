@@ -402,8 +402,10 @@ type EditDraftChildResponse struct {
 }
 
 type EditDraftOfferingDayResponse struct {
-	OfferingID   string   `json:"offering_id"`
-	SelectedDays []string `json:"selected_days"`
+	OfferingID            string   `json:"offering_id"`
+	SelectedDays          []string `json:"selected_days"`
+	ManualSelectedDays    []string `json:"manual_selected_days,omitempty"`
+	AutomaticSelectedDays []string `json:"automatic_selected_days,omitempty"`
 }
 
 // getStatus returns the per-child status for a token-bearing parent.
@@ -556,9 +558,15 @@ func toEditDraftResponse(draft *enrollmentService.EditDraft) EditDraftResponse {
 		for _, link := range draft.OfferingsByChild[c.ID] {
 			child.OfferingIDs = append(child.OfferingIDs, strconv.FormatInt(link.CareOfferingID, 10))
 			if len(link.SelectedDays) > 0 {
+				manualDays := link.ManualSelectedDays
+				if len(manualDays) == 0 && len(link.AutomaticSelectedDays) == 0 {
+					manualDays = link.SelectedDays
+				}
 				child.OfferingDays = append(child.OfferingDays, EditDraftOfferingDayResponse{
-					OfferingID:   strconv.FormatInt(link.CareOfferingID, 10),
-					SelectedDays: link.SelectedDays,
+					OfferingID:            strconv.FormatInt(link.CareOfferingID, 10),
+					SelectedDays:          link.SelectedDays,
+					ManualSelectedDays:    manualDays,
+					AutomaticSelectedDays: link.AutomaticSelectedDays,
 				})
 			}
 		}

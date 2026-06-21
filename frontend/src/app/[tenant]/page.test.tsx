@@ -190,6 +190,7 @@ describe("HomePage (Login)", () => {
   it("displays tenant login logo when configured", async () => {
     vi.mocked(useTenant).mockReturnValue({
       tenantSlug: "test-tenant",
+      routingMode: "path",
       tenant: {
         name: "Grundschule Musterstadt",
         settings: {
@@ -492,6 +493,7 @@ describe("Tenant name display", () => {
   it("displays tenant name when available", async () => {
     vi.mocked(useTenant).mockReturnValue({
       tenantSlug: "test-tenant",
+      routingMode: "path",
       tenant: { name: "Grundschule Musterstadt" } as ReturnType<
         typeof useTenant
       >["tenant"],
@@ -507,6 +509,7 @@ describe("Tenant name display", () => {
   it("does not display tenant name when tenant has no name", async () => {
     vi.mocked(useTenant).mockReturnValue({
       tenantSlug: "test-tenant",
+      routingMode: "path",
       tenant: null,
     });
 
@@ -522,6 +525,7 @@ describe("Tenant name display", () => {
   it("does not display tenant name when tenant.name is empty", async () => {
     vi.mocked(useTenant).mockReturnValue({
       tenantSlug: "test-tenant",
+      routingMode: "path",
       tenant: { name: "" } as ReturnType<typeof useTenant>["tenant"],
     });
 

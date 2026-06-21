@@ -203,9 +203,10 @@ func formatWeekdayMultiMode(raw any) string {
 
 // departureModeLabelsDE renders a per-day departure mode for staff exports.
 var departureModeLabelsDE = map[string]string{
-	enrollmentModels.WeekdayModeAlone:  "geht zu Fuß",
-	enrollmentModels.WeekdayModeBus:    "fährt Bus",
-	enrollmentModels.WeekdayModePickup: "wird abgeholt",
+	enrollmentModels.WeekdayModeAlone:       "geht zu Fuß",
+	enrollmentModels.WeekdayModeBus:         "fährt Bus",
+	enrollmentModels.WeekdayModePickup:      "wird abgeholt",
+	enrollmentModels.WeekdayModeAccompanied: "geht mit anderem Kind",
 }
 
 // formatWeekdayMode renders mon..fri → alone/bus/pickup as

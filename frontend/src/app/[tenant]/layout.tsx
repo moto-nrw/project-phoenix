@@ -74,10 +74,18 @@ export function bareTenantHost(currentHost: string): string {
   return env.TENANT_DOMAIN;
 }
 
+function isTenantSubdomainHost(currentHost: string | null, subdomain: string) {
+  if (!currentHost) return false;
+  const hostname = currentHost.split(":")[0] ?? "";
+  return hostname === `${subdomain}.${env.TENANT_DOMAIN}`;
+}
+
 async function redirectToTenantSelection(): Promise<never> {
   const requestHeaders = await headers();
   const currentHost =
-    requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
+    requestHeaders.get("x-moto-original-host") ??
+    requestHeaders.get("x-forwarded-host") ??
+    requestHeaders.get("host");
 
   if (!currentHost) {
     throw new Error("Cannot redirect invalid tenant without a Host header");
@@ -115,11 +123,24 @@ export default async function TenantLayout({
 
   if (!tenant) {
     await redirectToTenantSelection();
+    throw new Error("Tenant redirect did not complete");
   }
+  const requestHeaders = await headers();
+  const currentHost =
+    requestHeaders.get("x-moto-original-host") ??
+    requestHeaders.get("x-forwarded-host") ??
+    requestHeaders.get("host");
+  const routingMode = isTenantSubdomainHost(currentHost, tenant.subdomain)
+    ? "subdomain"
+    : "path";
 
   return (
     <TenantProviders>
-      <TenantProvider tenantSlug={tenantSlug} tenant={tenant}>
+      <TenantProvider
+        tenantSlug={tenantSlug}
+        tenant={tenant}
+        routingMode={routingMode}
+      >
         <TenantGuard>{children}</TenantGuard>
       </TenantProvider>
     </TenantProviders>

@@ -408,12 +408,12 @@ export const appChapters: readonly GuideChapter[] = [
           "In der `Kindersuche` auf die Karte des Kindes klicken.",
           "Im Kopfbereich den aktuellen Aufenthalt (z. B. `OGS-Raum 1 seit 12:00 Uhr`) sowie `Heutige Ankunft` und `Heutige Abholung` ablesen.",
           "Über `Krank melden` das Kind als krank und über `Entschuldigen` als entschuldigt markieren. Die seltene Aktion `Klassenfahrt` liegt im Drei-Punkte-Menü der Aktionsleiste; dort einen Zeitraum und optional einen Hinweis erfassen.",
-          "Tab `Stammdaten`: Name, Klasse, Gruppe, Geburtstag, Gesundheitsinformationen, Notizen, Foto und Datenschutz ansehen und über `Bearbeiten` ändern.",
+          "Tab `Stammdaten`: Name, Klasse, Gruppe, Geburtstag, Gesundheitsinformationen, Notizen, Foto und Datenschutz ansehen und über `Bearbeiten` ändern. Wenn das Kind über eine Online-Anmeldung übernommen wurde, stehen dort auch kindbezogene Zusatzantworten aus dem Anmeldeformular zur Ansicht.",
           "Im Tab `Stammdaten` erscheinen unter `Elternnachrichten` die neuesten Mitteilungen, die Eltern über das Elternportal hinterlassen haben (nur Ansicht).",
           "Tab `Erziehungsberechtigte`: Bezugspersonen mit Kontaktdaten, Abholberechtigung und Notfallkontakten pflegen. Pro Person zeigt ein Status, ob sie ein Konto für das Elternportal hat (`Konto aktiv`, `Einladung offen` oder `Kein Konto`); mit `Einladen` laden Sie eine bereits hinterlegte Bezugsperson zum Elternportal ein, ohne die Daten erneut einzugeben.",
           "Tab `Betreuungszeiten`: die wöchentlichen Ankunfts- und Abholzeiten je Wochentag verwalten und einzelne Tage anpassen. Hat ein Elternteil über das Elternportal eine Ankunfts- oder Abholzeit für einen Tag geändert, ist dieser Tag mit `Von Eltern` markiert; beim Ändern oder Entfernen dieser Zeit fragt die App zur Sicherheit nach, damit die Angabe der Eltern nicht versehentlich überschrieben wird.",
           "Tab `Historie`: die Anwesenheits-Historie der letzten Tage mit Raum-Details nachvollziehen.",
-          "Tab `Anmeldungen` (nur Admins): Online-Anmeldungen anzeigen, die dieses Kind ins System gebracht haben. Dort sehen Sie Betreuungsangebote, Gesundheitsangaben, Notfallkontakte, Zustimmungen und Zusatzantworten; Erziehungsberechtigte stehen weiterhin im eigenen Tab. Die Angaben können dort auch exportiert werden.",
+          "Tab `Anmeldungen` (nur Admins): Online-Anmeldungen anzeigen, die dieses Kind ins System gebracht haben. Dort sehen Sie Betreuungsangebote, Gesundheitsangaben, Notfallkontakte, Zustimmungen und Zusatzantworten; Erziehungsberechtigte stehen weiterhin im eigenen Tab. Bei bestätigten Kindern können Betreuungsangebote dort nachträglich mit Begründung korrigiert werden. Die Angaben können außerdem exportiert werden.",
         ],
         callout: {
           title: "Krankmeldungen von Eltern",
@@ -706,7 +706,7 @@ export const appChapters: readonly GuideChapter[] = [
         steps: [
           "`Anmeldungen` öffnen. Du landest im `Überblick` mit allen Anmeldephasen und der Zahl der Eingänge (`Gesamt`, `Offen`, `Bestätigt`, `Abgelehnt`).",
           "Beim ersten Einrichten führt dich der Bereich `Einrichtung` (`Online-Anmeldung vorbereiten`) Schritt für Schritt durch alles Nötige. Zuerst `Online-Anmeldung aktivieren`: schaltet den Elternlink frei (in den `Einstellungen` unter `Anmeldung`).",
-          "Unter `Einstellungen` -> `Anmeldung` -> `Rechtstexte` aktivierst du nur die Blöcke, die eure Einrichtung tatsächlich nutzt. Jeder Block hat denselben Ablauf: `Im Anmeldeformular anzeigen` einschalten, den Pflichttext im Dialog eintragen und speichern. Ausgeschaltete Blöcke bleiben im Hintergrund gespeichert, erscheinen aber nicht im Elternformular. Eigene Formularvorlagen können diese Standardblöcke unter `Rechtstexte und Einwilligungen` je Vorlage ein- oder ausblenden, abweichend bearbeiten oder um eigene Einwilligungen ergänzen.",
+          "Unter `Einstellungen` -> `Anmeldung` -> `Rechtstexte` aktivierst du nur die Blöcke, die eure Einrichtung tatsächlich nutzt. Jeder Block hat denselben Ablauf: `Im Anmeldeformular anzeigen` einschalten, den Pflichttext im Dialog eintragen und speichern. Bei `AGB / Teilnahmebedingungen` wählst du zuerst die Quelle: `Text eingeben` oder `PDF-Datei hochladen`. Nur die gewählte Quelle erscheint im Elternformular; die andere Quelle kann gespeichert bleiben, wird aber nicht angezeigt. Ausgeschaltete Blöcke bleiben im Hintergrund gespeichert, erscheinen aber nicht im Elternformular. Eigene Formularvorlagen können diese Standardblöcke unter `Rechtstexte und Einwilligungen` je Vorlage ein- oder ausblenden, abweichend bearbeiten oder um eigene Einwilligungen ergänzen.",
         ],
         callout: {
           title: "So hängt alles zusammen",
@@ -724,19 +724,20 @@ export const appChapters: readonly GuideChapter[] = [
           "Eingegangene Anmeldungen öffnen, Angaben prüfen, nach Betreuungsangeboten filtern und die passende Entscheidung setzen.",
         steps: [
           "Bei einer Phase auf `Anmeldungen ansehen` klicken, um die eingegangenen Anmeldungen zu prüfen.",
-          "Mit `Status`, `Betreuungsangebot`, `Tagesanzahl`, `Zielklasse` oder der Suche die Tabelle auf die Kinder eingrenzen, die du brauchst.",
+          "Mit `Status`, den `Angeboten für die Auswertung`, der `Anzahl Betreuungstage`, `Zielklasse` oder der Suche die Tabelle auf die Kinder eingrenzen, die du brauchst.",
           "Die Kennzahlen über der Tabelle zeigen, wie viele Kinder an einem, zwei, drei, vier oder fünf Tagen betreut werden.",
           "Eine Anmeldung öffnen und Kind, erziehungsberechtigte Personen (Hauptkontakt und weitere erziehungsberechtigte Personen), gewähltes Betreuungsangebot und Formularangaben prüfen.",
           "Mit `Bestätigen`, `Warteliste` oder `Ablehnen` entscheiden; mit `Zur Prüfung` für später vormerken.",
+          "Bei bestätigten Kindern können Betreuungsangebote über `Betreuungsangebote bearbeiten` nachträglich korrigiert werden. Eine Begründung ist Pflicht; die Änderungshistorie zeigt danach, wer was wann angepasst hat.",
           "Über `Elternansicht öffnen` jederzeit prüfen, was Familien gerade sehen.",
         ],
         callout: {
           title: "So zählt moto Betreuungstage",
-          body: "Die Tagesanzahl ist die Summe der unterschiedlichen Wochentage pro Kind. Wenn ein Kind mehrere Angebote gewählt hat und ein Tag in mehreren Angeboten vorkommt, zählt dieser Tag nur einmal.",
+          body: "Die Anzahl Betreuungstage ist die Summe der unterschiedlichen Wochentage pro Kind aus den aktuell berücksichtigten Angeboten. Standardmäßig zählt moto nur Angebote, bei denen `Als Betreuungstage zählen` aktiv ist. Angebote wie eine Randstunde können sichtbar bleiben und automatisch mitgebucht werden, ohne die Betreuungstage zu erhöhen.",
           tone: "blue",
         },
         screenshot:
-          "Anmeldephase mit Eingangsliste, Filtern, Kennzahlen nach Tagesanzahl und Entscheidungsoptionen.",
+          "Anmeldephase mit Eingangsliste, Filtern, Kennzahlen nach Betreuungstagen und Entscheidungsoptionen.",
         image: "/help/screens/anmeldungen.webp",
       },
       {
@@ -751,7 +752,7 @@ export const appChapters: readonly GuideChapter[] = [
           "`PDF` und `Word-Dokument` erzeugen eine gut lesbare Datei mit einem Block pro Kind, gruppiert nach Status und innerhalb jeder Gruppe alphabetisch nach Nachname, inklusive Kontaktdaten, gewählten Angeboten, Zustimmungen und allen Formularangaben.",
           "`Excel-Datei` erzeugt eine Tabelle mit Gruppenzeilen pro Status, einer Datenzeile pro Kind und jedem Feld in einer eigenen Spalte - für Weiterverarbeitung oder Archiv.",
           "Über das `Status`-Auswahlfeld nur einen Teil exportieren (zum Beispiel nur `Bestätigt`); der Export übernimmt den gerade gewählten Status. `Alle` exportiert alles.",
-          "Für eine Statistik nach Betreuungsangeboten oder Tagesanzahl nutzt du die Filter und die Karte `Auswertung exportieren`; dort wählst du `Excel`, `PDF` oder `Word-Dokument` für genau diese gefilterte Ansicht.",
+          "Für eine Auswertung nach Betreuungsangeboten oder Anzahl Betreuungstage nutzt du die Filter und die Karte `Auswertung exportieren`; dort wählst du `Excel`, `PDF` oder `Word-Dokument` für genau diese gefilterte Ansicht.",
         ],
         callout: {
           title: "Vertrauliche Daten - sorgsam aufbewahren",
@@ -777,7 +778,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Das Anmeldefenster steuert die öffentliche Anmeldung",
-          body: "Das `Anmeldefenster` der Phase entscheidet, wann Familien absenden können. Über das Aktionsmenü öffnest du eine Phase mit `Phase ansehen` als Elternlink oder bereitest mit `Anschlussphase erstellen` eine Folgephase vor.",
+          body: "Das `Anmeldefenster` der Phase entscheidet, wann Familien absenden können. Über das Aktionsmenü öffnest du mit `Formular ansehen` den Elternlink, wechselst mit `Anmeldungen ansehen` zu den Eingängen oder bereitest mit `Anschlussphase erstellen` eine Folgephase vor.",
           tone: "gray",
         },
         screenshot:
@@ -795,6 +796,8 @@ export const appChapters: readonly GuideChapter[] = [
           "Auf `Neues Betreuungsangebot` klicken.",
           "`Name`, `Beschreibung` und die möglichen `Wochentage` festlegen.",
           "Unter `Betreuungsplan-Vorlage` den passenden Regeltermin verknüpfen, wenn genehmigte Anmeldungen in dieser Vorlage erwartet werden sollen.",
+          "Unter `Betreuungstage & Mitbuchung` festlegen, ob das Angebot als Betreuungstage zählt und ob es mitgebucht wird, wenn Eltern bestimmte andere Angebote wählen.",
+          "Bei der Mitbuchung die auslösenden Angebote auswählen und optional auf Klassenstufen eingrenzen.",
           "Optional `Kapazität`, `Preis in Cent` sowie `Mittagessen` oder `Ferienbetreuung` ergänzen.",
           "`Aktiv` setzen - nur aktive Angebote sind für Eltern auswählbar.",
         ],
@@ -815,7 +818,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Das Anmeldeformular bestimmt, welche Angaben Eltern machen. Das `Basisformular` ist immer vorhanden; eigene Vorlagen ergänzen nur zusätzliche Fragen.",
         steps: [
           "`Anmeldeformulare` öffnen. Das `Basisformular` fragt Elternteil, Kind, Klassenstufe und das gewünschte Betreuungsangebot ab.",
-          "Nur bei zusätzlichem Bedarf über `Neue Vorlage` eine eigene Formularvorlage mit Zusatzfragen anlegen. Bei `Erlaubte Heimwege` wählen Eltern pro Betreuungstag alle zulässigen Wege aus, zum Beispiel zu Fuß, Bus oder Abholung; mehrere Optionen pro Tag sind möglich.",
+          "Nur bei zusätzlichem Bedarf über `Neue Vorlage` eine eigene Formularvorlage mit Zusatzfragen anlegen. Bei `Erlaubte Heimwege` wählen Eltern pro Betreuungstag alle zulässigen Wege aus, zum Beispiel zu Fuß, Bus, Abholung oder mit anderem Kind; mehrere Optionen pro Tag sind möglich. Bei `mit anderem Kind` ergänzen Eltern im Pflichtfeld, mit wem das Kind nach Hause geht.",
           "Bei `Abholzeiten` kannst du optional `Feste Auswahlzeiten` hinterlegen. Ohne Zeiten geben Eltern die Uhrzeit frei ein; sobald Zeiten hinterlegt sind, wählen Eltern pro Wochentag nur noch aus dieser Liste.",
           "Den Namen einer Vorlage änderst du entweder beim `Bearbeiten` direkt oben im Editor oder über das Aktionsmenü (`⋮`) -> `Umbenennen`; dort kannst du eine Vorlage auch `Löschen`. Der Name gilt für alle Versionen der Vorlage; bereits abgeschickte Anmeldungen bleiben unverändert.",
           "Im Abschnitt `Rechtstexte und Einwilligungen` legst du je Vorlage fest, welche Zustimmungen und Hinweise Eltern sehen: Die Standardblöcke kommen aus den Einstellungen, können je Vorlage per Schalter ein- oder ausgeblendet und über das Stift-Symbol abweichend bearbeitet werden. Über `Eigene Zustimmung hinzufügen` ergänzt du zusätzliche Einwilligungen, etwa für Ausflüge oder Schwimmbadbesuche.",

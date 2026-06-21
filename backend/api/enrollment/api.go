@@ -185,6 +185,8 @@ func (rs *Resource) Router() chi.Router {
 			r.Route("/{id}", func(r chi.Router) {
 				r.With(authorize.RequiresPermission("config:manage")).Get("/", rs.getAdminRequest)
 				r.With(authorize.RequiresPermission("config:manage")).Post("/children/{childId}/decide", rs.decideAdminChild)
+				r.With(authorize.RequiresPermission("config:manage")).Put("/children/{childId}/offerings", rs.updateAdminChildOfferings)
+				r.With(authorize.RequiresPermission("config:manage")).Get("/children/{childId}/offering-adjustments", rs.listAdminChildOfferingAdjustments)
 			})
 		})
 		r.Route("/admin/reports", func(r chi.Router) {

@@ -505,12 +505,21 @@ export function EnrollmentForm({
     setChildren((prev) =>
       prev.map((c, i) => {
         if (i !== childIndex) return c;
+        const materialized = materializeCareOfferings(c, offerings);
+        if (materialized.automaticDays[offeringID]?.has(day)) return c;
         const current = c.offering_days[offeringID] ?? new Set<string>();
         const next = new Set(current);
         if (next.has(day)) next.delete(day);
         else next.add(day);
+        const nextIDs = new Set(c.offering_ids);
+        if (next.size > 0) {
+          nextIDs.add(offeringID);
+        } else if (!requiredOfferingIDs.includes(offeringID)) {
+          nextIDs.delete(offeringID);
+        }
         return {
           ...c,
+          offering_ids: nextIDs,
           offering_days: { ...c.offering_days, [offeringID]: next },
         };
       }),
@@ -563,7 +572,7 @@ export function EnrollmentForm({
     // Care-offering conditions match by name (templates aren't phase-bound),
     // so resolve the child's selected offering ids to names.
     offeringNames: new Set(
-      Array.from(child.offering_ids)
+      Array.from(materializeCareOfferings(child, offerings).offeringIds)
         .map((id) => offerings.find((o) => o.id === id)?.name)
         .filter((name): name is string => Boolean(name))
         .map((name) => name.toLowerCase()),
@@ -685,6 +694,39 @@ export function EnrollmentForm({
             requiredMessageForField(field, tr);
         }
       }
+      // The coupled "mit wem" note (#1694) is required whenever this child has
+      // the accompanied mode selected on any relevant care day. A schema may
+      // carry more than one field targeting student.allowed_departure_modes
+      // (only keys are unique), and each WeekdayMultiModeInput shows the note
+      // input off its own value, so check every visible departure field, not
+      // just the first, to keep validation aligned with the UI.
+      const relevantDays = relevantCareDaysForChild(c, offerings, previewMode);
+      const accompaniedSelected = (schema?.fields ?? [])
+        .filter(
+          (f) =>
+            f.target === "student.allowed_departure_modes" &&
+            f.applies_to_child &&
+            isFieldVisible(f, childCtx),
+        )
+        .some((f) => {
+          const modesObj = asWeekdayMultiModeObject(
+            c.custom[f.key],
+            relevantDays,
+          );
+          return relevantDays.some((day) =>
+            (modesObj[day] ?? []).includes("accompanied"),
+          );
+        });
+      if (accompaniedSelected) {
+        const note = (
+          c.custom[DEPARTURE_COMPANION_KEY] as string | undefined
+        )?.trim();
+        if (!note) {
+          newFieldErrors[`children_${i}_departure_companion_note`] = tr(
+            "structured.departureCompanionRequired",
+          );
+        }
+      }
     }
     // Required legal blocks are collected into the same pass so a missing
     // confirmation is marked together with other missing fields. The backend
@@ -718,6 +760,7 @@ export function EnrollmentForm({
     // "at least one" / "exactly one"; otherwise a required base offering
     // would make exactly_one unsatisfiable.
     for (const [i, c] of children.entries()) {
+      const materializedCare = materializeCareOfferings(c, offerings);
       const choosableSelectedCount = [...c.offering_ids].filter(
         (id) => !requiredOfferingIDs.includes(id),
       ).length;
@@ -733,12 +776,12 @@ export function EnrollmentForm({
       ) {
         exactOneCareIndexes.push(i);
       }
-      for (const id of c.offering_ids) {
+      for (const id of materializedCare.offeringIds) {
         const offering = offerings.find((o) => o.id === id);
         if (offering?.days_of_week_mode !== "parent_choice") {
           continue;
         }
-        const picked = c.offering_days[id];
+        const picked = materializedCare.offeringDays[id];
         if (!picked || picked.size === 0) {
           dayErrors[`${i}_${id}`] = true;
           if (!firstDayErrorMessage) {
@@ -749,7 +792,11 @@ export function EnrollmentForm({
           }
         }
       }
-      const groupRuleMessage = offeringGroupRuleError(c, offerings, tr);
+      const groupRuleMessage = offeringGroupRuleError(
+        materializedCare.offeringIds,
+        offerings,
+        tr,
+      );
       if (groupRuleMessage) {
         groupRuleIndexes.push(i);
         firstGroupRuleMessage ??= `${tr("structured.child")} ${i + 1}: ${groupRuleMessage}`;
@@ -838,23 +885,55 @@ export function EnrollmentForm({
           selected_days: offering.available_days.filter((d) => picked.has(d)),
         });
       }
+      // Strip answers to fields the parent couldn't see (hidden by a
+      // show-if condition) so a stale value never reaches the backend.
+      const customData = pruneWeekdayAnswers(
+        visibleAnswerData(
+          schema?.fields ?? [],
+          true,
+          c.custom,
+          childConditionCtx(c),
+        ),
+        schema?.fields ?? [],
+        relevantCareDaysForChild(c, offerings, previewMode),
+      );
+      // Couple the "mit wem" note (#1694) back in: it rides on a reserved key
+      // (not a schema field), so visibleAnswerData drops it. A schema may carry
+      // more than one field targeting student.allowed_departure_modes (only keys
+      // are unique, so conditional variants are allowed), so check every visible
+      // departure field, not just the first. Re-attach the note only when some
+      // surviving modes actually allow the accompanied mode and a note was
+      // entered, so a stale note never reaches the backend.
+      const hasAccompaniedDeparture = (schema?.fields ?? [])
+        .filter(
+          (f) =>
+            f.target === "student.allowed_departure_modes" &&
+            f.applies_to_child,
+        )
+        .some((f) => {
+          const modesVal = customData[f.key];
+          return (
+            !!modesVal &&
+            typeof modesVal === "object" &&
+            Object.values(modesVal as Record<string, unknown>).some(
+              (arr) => Array.isArray(arr) && arr.includes("accompanied"),
+            )
+          );
+        });
+      if (hasAccompaniedDeparture) {
+        const note = (
+          c.custom[DEPARTURE_COMPANION_KEY] as string | undefined
+        )?.trim();
+        if (note) {
+          customData[DEPARTURE_COMPANION_KEY] = note;
+        }
+      }
       return {
         first_name: c.first_name.trim(),
         last_name: c.last_name.trim(),
         date_of_birth: c.date_of_birth,
         target_grade_level: Number(c.target_grade_level),
-        // Strip answers to fields the parent couldn't see (hidden by a
-        // show-if condition) so a stale value never reaches the backend.
-        custom_data: pruneWeekdayMultiModeAnswers(
-          visibleAnswerData(
-            schema?.fields ?? [],
-            true,
-            c.custom,
-            childConditionCtx(c),
-          ),
-          schema?.fields ?? [],
-          relevantCareDaysForChild(c, offerings, previewMode),
-        ),
+        custom_data: customData,
         offering_ids: Array.from(c.offering_ids).map((id) => Number(id)),
         offering_days:
           offeringDaysPayload.length > 0 ? offeringDaysPayload : undefined,
@@ -1224,251 +1303,312 @@ export function EnrollmentForm({
           />
         )}
 
-        {children.map((child, i) => (
-          <div
-            key={child.clientId}
-            className="space-y-5 rounded-xl border border-gray-200 bg-white p-3 sm:p-4"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
-                {tr("structured.child")} {i + 1}
-              </h3>
-              {children.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => removeChild(i)}
-                  className="rounded-lg px-2 py-1 text-xs font-medium text-[#CC2626] transition-colors hover:bg-[#FF3130]/10 focus-visible:ring-2 focus-visible:ring-[#FF3130]/30 focus-visible:outline-none"
-                >
-                  {tr("actions.remove")}
-                </button>
-              )}
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Input
-                label={tr("fields.firstName")}
-                name={`children_${i}_first_name`}
-                autoComplete="given-name"
-                value={child.first_name}
-                onChange={(v) => updateChild(i, { first_name: v })}
-                required
-                error={fieldErrors[`children_${i}_first_name`]}
-              />
-              <Input
-                label={tr("fields.lastName")}
-                name={`children_${i}_last_name`}
-                autoComplete="family-name"
-                value={child.last_name}
-                onChange={(v) => updateChild(i, { last_name: v })}
-                required
-                error={fieldErrors[`children_${i}_last_name`]}
-              />
-              <div>
-                <span className="block text-sm font-semibold text-gray-700">
-                  {tr("fields.dateOfBirth")}
-                </span>
-                <DateOfBirthPicker
-                  value={child.date_of_birth}
-                  onChange={(v) => updateChild(i, { date_of_birth: v })}
-                  error={fieldErrors[`children_${i}_date_of_birth`]}
+        {children.map((child, i) => {
+          const materializedCare = materializeCareOfferings(child, offerings);
+          return (
+            <div
+              key={child.clientId}
+              className="space-y-5 rounded-xl border border-gray-200 bg-white p-3 sm:p-4"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
+                  {tr("structured.child")} {i + 1}
+                </h3>
+                {children.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeChild(i)}
+                    className="rounded-lg px-2 py-1 text-xs font-medium text-[#CC2626] transition-colors hover:bg-[#FF3130]/10 focus-visible:ring-2 focus-visible:ring-[#FF3130]/30 focus-visible:outline-none"
+                  >
+                    {tr("actions.remove")}
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Input
+                  label={tr("fields.firstName")}
+                  name={`children_${i}_first_name`}
+                  autoComplete="given-name"
+                  value={child.first_name}
+                  onChange={(v) => updateChild(i, { first_name: v })}
+                  required
+                  error={fieldErrors[`children_${i}_first_name`]}
+                />
+                <Input
+                  label={tr("fields.lastName")}
+                  name={`children_${i}_last_name`}
+                  autoComplete="family-name"
+                  value={child.last_name}
+                  onChange={(v) => updateChild(i, { last_name: v })}
+                  required
+                  error={fieldErrors[`children_${i}_last_name`]}
+                />
+                <div>
+                  <span className="block text-sm font-semibold text-gray-700">
+                    {tr("fields.dateOfBirth")}
+                  </span>
+                  <DateOfBirthPicker
+                    value={child.date_of_birth}
+                    onChange={(v) => updateChild(i, { date_of_birth: v })}
+                    error={fieldErrors[`children_${i}_date_of_birth`]}
+                    tr={tr}
+                  />
+                </div>
+                <GradeLevelSelect
+                  id={`children-${i}-target-grade-level`}
+                  value={child.target_grade_level}
+                  onChange={(v) => updateChild(i, { target_grade_level: v })}
+                  max={gradeLevelMax}
+                  error={fieldErrors[`children_${i}_target_grade_level`]}
                   tr={tr}
                 />
               </div>
-              <GradeLevelSelect
-                id={`children-${i}-target-grade-level`}
-                value={child.target_grade_level}
-                onChange={(v) => updateChild(i, { target_grade_level: v })}
-                max={gradeLevelMax}
-                error={fieldErrors[`children_${i}_target_grade_level`]}
-                tr={tr}
-              />
-            </div>
 
-            {offerings.length > 0 && (
-              <div className="space-y-4">
-                {/* Required offerings are part of the enrollment regardless of
+              {offerings.length > 0 && (
+                <div className="space-y-4">
+                  {/* Required offerings are part of the enrollment regardless of
                     the parent's choice. They are presented as an "always
                     included" block - locked, no checkbox-style selection - so
                     they never read as "something I picked". The selection mode
                     and its "choose at least one" requirement live entirely in
                     the choosable block below. */}
-                {offerings.some((o) => o.is_required) && (
-                  <div>
-                    <p className="text-sm font-semibold text-gray-700">
-                      {tr("care.requiredTitle")}
-                    </p>
-                    <p className="mt-1 text-xs leading-5 text-gray-500">
-                      {tr("care.requiredDescription")}
-                    </p>
-                    <div className="mt-2 space-y-2">
-                      {offerings
-                        .filter((o) => o.is_required)
-                        .map((o) => (
-                          <OfferingCard
-                            key={o.id}
-                            offering={o}
-                            childIndex={i}
-                            checked
-                            selectedDays={child.offering_days[o.id]}
-                            dayError={
-                              offeringDayErrors[`${i}_${o.id}`] ?? false
-                            }
-                            onToggle={() => toggleOffering(i, o.id)}
-                            onToggleDay={(day) =>
-                              toggleOfferingDay(i, o.id, day)
-                            }
-                            tr={tr}
-                          />
-                        ))}
-                    </div>
-                  </div>
-                )}
-                {offerings.some((o) => !o.is_required) && (
-                  <div>
-                    <p className="text-sm font-semibold text-gray-700">
-                      {offerings.some((o) => o.is_required)
-                        ? tr("care.additional")
-                        : tr("care.offers")}
-                      {careOfferingSelectionMode !== "optional" && (
-                        <span className="ml-1 text-[#FF3130]">*</span>
-                      )}
-                    </p>
-                    <p className="mt-1 text-xs leading-5 text-gray-500">
-                      {careOfferingSelectionMode === "exactly_one"
-                        ? tr("care.exactlyOneHint")
-                        : careOfferingSelectionMode === "at_least_one"
-                          ? tr("care.atLeastOneHint")
-                          : tr("care.optionalHint")}{" "}
-                      {tr("care.reviewHint")}
-                    </p>
-                    <div
-                      aria-invalid={childOfferingErrors[i] ? true : undefined}
-                      className={`mt-2 space-y-2 ${
-                        childOfferingErrors[i]
-                          ? "rounded-md border border-[#FF3130] bg-[#FF3130]/5 p-2"
-                          : ""
-                      }`}
-                    >
-                      {groupOfferings(
-                        offerings.filter((o) => !o.is_required),
-                      ).map((bucket) =>
-                        bucket.kind === "single" ? (
-                          <OfferingCard
-                            key={bucket.offering.id}
-                            offering={bucket.offering}
-                            childIndex={i}
-                            checked={child.offering_ids.has(bucket.offering.id)}
-                            selectedDays={
-                              child.offering_days[bucket.offering.id]
-                            }
-                            dayError={
-                              offeringDayErrors[`${i}_${bucket.offering.id}`] ??
-                              false
-                            }
-                            onToggle={() => {
-                              toggleOffering(i, bucket.offering.id);
-                              if (childOfferingErrors[i]) {
-                                setChildOfferingErrors((prev) => {
-                                  const next = { ...prev };
-                                  delete next[i];
-                                  return next;
-                                });
-                              }
-                            }}
-                            onToggleDay={(day) =>
-                              toggleOfferingDay(i, bucket.offering.id, day)
-                            }
-                            tr={tr}
-                          />
-                        ) : (
-                          <div
-                            key={`group-${bucket.group}`}
-                            className="rounded-lg border border-gray-200 bg-gray-50/60 p-2"
-                          >
-                            <div className="mb-2 flex flex-wrap items-center gap-2 px-1">
-                              <span className="text-xs font-semibold text-gray-800">
-                                {bucket.group}
-                              </span>
-                              {offeringRuleHint(bucket.rule, tr) && (
-                                <span className="rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-[11px] font-medium text-[#3D63B0]">
-                                  {offeringRuleHint(bucket.rule, tr)}
-                                </span>
-                              )}
-                            </div>
-                            <div className="space-y-2">
-                              {bucket.offerings.map((o) => (
-                                <OfferingCard
-                                  key={o.id}
-                                  offering={o}
-                                  childIndex={i}
-                                  checked={child.offering_ids.has(o.id)}
-                                  selectedDays={child.offering_days[o.id]}
-                                  dayError={
-                                    offeringDayErrors[`${i}_${o.id}`] ?? false
-                                  }
-                                  onToggle={() => {
-                                    toggleOffering(i, o.id);
-                                    if (childOfferingErrors[i]) {
-                                      setChildOfferingErrors((prev) => {
-                                        const next = { ...prev };
-                                        delete next[i];
-                                        return next;
-                                      });
-                                    }
-                                  }}
-                                  onToggleDay={(day) =>
-                                    toggleOfferingDay(i, o.id, day)
-                                  }
-                                  tr={tr}
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        ),
-                      )}
-                    </div>
-                    {childOfferingErrors[i] && (
-                      <p className="mt-1 text-xs text-[#FF3130]">
-                        {careOfferingSelectionMode === "exactly_one"
-                          ? tr("care.chooseExactlyOne")
-                          : tr("care.chooseAtLeastOne")}
+                  {offerings.some((o) => o.is_required) && (
+                    <div>
+                      <p className="text-sm font-semibold text-gray-700">
+                        {tr("care.requiredTitle")}
                       </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {(schema?.fields ?? [])
-              .filter(
-                (f) =>
-                  f.applies_to_child &&
-                  isFieldVisible(f, childConditionCtx(child)),
-              )
-              .map((f) =>
-                f.type === "information" ? (
-                  <InfoBlock key={f.key} field={f} />
-                ) : (
-                  <CustomFieldInput
-                    key={f.key}
-                    field={f}
-                    value={child.custom[f.key]}
-                    onChange={(v) =>
-                      updateChild(i, {
-                        custom: { ...child.custom, [f.key]: v },
-                      })
-                    }
-                    error={fieldErrors[`children_${i}_custom_${f.key}`]}
-                    relevantDays={relevantCareDaysForChild(
-                      child,
-                      offerings,
-                      previewMode,
-                    )}
-                    tr={tr}
-                  />
-                ),
+                      <p className="mt-1 text-xs leading-5 text-gray-500">
+                        {tr("care.requiredDescription")}
+                      </p>
+                      <div className="mt-2 space-y-2">
+                        {offerings
+                          .filter((o) => o.is_required)
+                          .map((o) => (
+                            <OfferingCard
+                              key={o.id}
+                              offering={o}
+                              childIndex={i}
+                              checked
+                              selectedDays={materializedCare.offeringDays[o.id]}
+                              automaticDays={
+                                materializedCare.automaticDays[o.id]
+                              }
+                              toggleLocked
+                              dayError={
+                                offeringDayErrors[`${i}_${o.id}`] ?? false
+                              }
+                              onToggle={() => toggleOffering(i, o.id)}
+                              onToggleDay={(day) =>
+                                toggleOfferingDay(i, o.id, day)
+                              }
+                              tr={tr}
+                            />
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                  {offerings.some((o) => !o.is_required) && (
+                    <div>
+                      <p className="text-sm font-semibold text-gray-700">
+                        {offerings.some((o) => o.is_required)
+                          ? tr("care.additional")
+                          : tr("care.offers")}
+                        {careOfferingSelectionMode !== "optional" && (
+                          <span className="ml-1 text-[#FF3130]">*</span>
+                        )}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-gray-500">
+                        {careOfferingSelectionMode === "exactly_one"
+                          ? tr("care.exactlyOneHint")
+                          : careOfferingSelectionMode === "at_least_one"
+                            ? tr("care.atLeastOneHint")
+                            : tr("care.optionalHint")}{" "}
+                        {tr("care.reviewHint")}
+                      </p>
+                      <div
+                        aria-invalid={childOfferingErrors[i] ? true : undefined}
+                        className={`mt-2 space-y-2 ${
+                          childOfferingErrors[i]
+                            ? "rounded-md border border-[#FF3130] bg-[#FF3130]/5 p-2"
+                            : ""
+                        }`}
+                      >
+                        {groupOfferings(
+                          offerings.filter((o) => !o.is_required),
+                        ).map((bucket) =>
+                          bucket.kind === "single" ? (
+                            <OfferingCard
+                              key={bucket.offering.id}
+                              offering={bucket.offering}
+                              childIndex={i}
+                              checked={materializedCare.offeringIds.has(
+                                bucket.offering.id,
+                              )}
+                              selectedDays={
+                                materializedCare.offeringDays[
+                                  bucket.offering.id
+                                ]
+                              }
+                              automaticDays={
+                                materializedCare.automaticDays[
+                                  bucket.offering.id
+                                ]
+                              }
+                              toggleLocked={
+                                Boolean(
+                                  materializedCare.automaticDays[
+                                    bucket.offering.id
+                                  ],
+                                ) && !child.offering_ids.has(bucket.offering.id)
+                              }
+                              dayError={
+                                offeringDayErrors[
+                                  `${i}_${bucket.offering.id}`
+                                ] ?? false
+                              }
+                              onToggle={() => {
+                                toggleOffering(i, bucket.offering.id);
+                                if (childOfferingErrors[i]) {
+                                  setChildOfferingErrors((prev) => {
+                                    const next = { ...prev };
+                                    delete next[i];
+                                    return next;
+                                  });
+                                }
+                              }}
+                              onToggleDay={(day) =>
+                                toggleOfferingDay(i, bucket.offering.id, day)
+                              }
+                              tr={tr}
+                            />
+                          ) : (
+                            <div
+                              key={`group-${bucket.group}`}
+                              className="rounded-lg border border-gray-200 bg-gray-50/60 p-2"
+                            >
+                              <div className="mb-2 flex flex-wrap items-center gap-2 px-1">
+                                <span className="text-xs font-semibold text-gray-800">
+                                  {bucket.group}
+                                </span>
+                                {offeringRuleHint(bucket.rule, tr) && (
+                                  <span className="rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-[11px] font-medium text-[#3D63B0]">
+                                    {offeringRuleHint(bucket.rule, tr)}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="space-y-2">
+                                {bucket.offerings.map((o) => (
+                                  <OfferingCard
+                                    key={o.id}
+                                    offering={o}
+                                    childIndex={i}
+                                    checked={materializedCare.offeringIds.has(
+                                      o.id,
+                                    )}
+                                    selectedDays={
+                                      materializedCare.offeringDays[o.id]
+                                    }
+                                    automaticDays={
+                                      materializedCare.automaticDays[o.id]
+                                    }
+                                    toggleLocked={
+                                      Boolean(
+                                        materializedCare.automaticDays[o.id],
+                                      ) && !child.offering_ids.has(o.id)
+                                    }
+                                    dayError={
+                                      offeringDayErrors[`${i}_${o.id}`] ?? false
+                                    }
+                                    onToggle={() => {
+                                      toggleOffering(i, o.id);
+                                      if (childOfferingErrors[i]) {
+                                        setChildOfferingErrors((prev) => {
+                                          const next = { ...prev };
+                                          delete next[i];
+                                          return next;
+                                        });
+                                      }
+                                    }}
+                                    onToggleDay={(day) =>
+                                      toggleOfferingDay(i, o.id, day)
+                                    }
+                                    tr={tr}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          ),
+                        )}
+                      </div>
+                      {childOfferingErrors[i] && (
+                        <p className="mt-1 text-xs text-[#FF3130]">
+                          {careOfferingSelectionMode === "exactly_one"
+                            ? tr("care.chooseExactlyOne")
+                            : tr("care.chooseAtLeastOne")}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
               )}
-          </div>
-        ))}
+
+              {(schema?.fields ?? [])
+                .filter(
+                  (f) =>
+                    f.applies_to_child &&
+                    isFieldVisible(f, childConditionCtx(child)),
+                )
+                .map((f) =>
+                  f.type === "information" ? (
+                    <InfoBlock key={f.key} field={f} />
+                  ) : (
+                    <CustomFieldInput
+                      key={f.key}
+                      field={f}
+                      value={child.custom[f.key]}
+                      onChange={(v) =>
+                        updateChild(i, {
+                          custom: { ...child.custom, [f.key]: v },
+                        })
+                      }
+                      companionNote={
+                        f.target === "student.allowed_departure_modes"
+                          ? (child.custom[DEPARTURE_COMPANION_KEY] as
+                              | string
+                              | undefined)
+                          : undefined
+                      }
+                      onCompanionNoteChange={
+                        f.target === "student.allowed_departure_modes"
+                          ? (v) =>
+                              updateChild(i, {
+                                custom: {
+                                  ...child.custom,
+                                  [DEPARTURE_COMPANION_KEY]: v,
+                                },
+                              })
+                          : undefined
+                      }
+                      error={fieldErrors[`children_${i}_custom_${f.key}`]}
+                      companionNoteError={
+                        f.target === "student.allowed_departure_modes"
+                          ? fieldErrors[
+                              `children_${i}_departure_companion_note`
+                            ]
+                          : undefined
+                      }
+                      relevantDays={relevantCareDaysForChild(
+                        child,
+                        offerings,
+                        previewMode,
+                      )}
+                      tr={tr}
+                    />
+                  ),
+                )}
+            </div>
+          );
+        })}
       </section>
 
       {legalBlocks.length > 0 && (
@@ -1619,13 +1759,30 @@ function draftChildren(
 ): ChildDraft[] {
   if (draft.children.length === 0) return [blankChild(requiredOfferingIDs)];
   return draft.children.map((child) => {
-    const offeringIDs = new Set<string>([
-      ...requiredOfferingIDs,
-      ...(child.offering_ids ?? []),
-    ]);
+    const dayRows = new Map(
+      (child.offering_days ?? []).map((row) => [row.offering_id, row]),
+    );
+    const offeringIDs = new Set<string>(requiredOfferingIDs);
     const offeringDays: Record<string, Set<string>> = {};
     for (const row of child.offering_days ?? []) {
-      offeringDays[row.offering_id] = new Set(row.selected_days);
+      const hasAutomaticDays = (row.automatic_selected_days ?? []).length > 0;
+      const manualDays =
+        row.manual_selected_days ?? (hasAutomaticDays ? [] : row.selected_days);
+      if (manualDays.length > 0) {
+        offeringIDs.add(row.offering_id);
+        offeringDays[row.offering_id] = new Set(manualDays);
+      }
+    }
+    for (const id of child.offering_ids ?? []) {
+      const row = dayRows.get(id);
+      if (
+        row &&
+        (row.manual_selected_days ?? []).length === 0 &&
+        (row.automatic_selected_days ?? []).length > 0
+      ) {
+        continue;
+      }
+      offeringIDs.add(id);
     }
     return {
       clientId: savedChildClientId(child.id),
@@ -1777,7 +1934,7 @@ function groupOfferings(offerings: PublicCareOffering[]): OfferingBucket[] {
 // selection is valid. The backend re-checks the same in
 // validateOfferingGroupRules (defense-in-depth).
 function offeringGroupRuleError(
-  child: ChildDraft,
+  selectedOfferingIds: ReadonlySet<string>,
   offerings: PublicCareOffering[],
   tr: TranslationFn,
 ): string | null {
@@ -1792,7 +1949,7 @@ function offeringGroupRuleError(
     const count = offerings.filter(
       (o) =>
         (o.selection_group?.trim() ?? "") === group &&
-        child.offering_ids.has(o.id),
+        selectedOfferingIds.has(o.id),
     ).length;
     if (rule === "exactly_one" && count !== 1) {
       return tr("errors.groupExactlyOne", { group });
@@ -1849,6 +2006,8 @@ function OfferingCard({
   childIndex,
   checked,
   selectedDays,
+  automaticDays,
+  toggleLocked = false,
   dayError,
   onToggle,
   onToggleDay,
@@ -1858,6 +2017,8 @@ function OfferingCard({
   readonly childIndex: number;
   readonly checked: boolean;
   readonly selectedDays: Set<string> | undefined;
+  readonly automaticDays?: Set<string>;
+  readonly toggleLocked?: boolean;
   readonly dayError: boolean;
   readonly onToggle: () => void;
   readonly onToggleDay: (day: string) => void;
@@ -1865,104 +2026,129 @@ function OfferingCard({
 }) {
   const required = offering.is_required;
   const effectiveChecked = required || checked;
+  const inputLocked = required || toggleLocked;
   const weekdayLabels = asStringMap(tr.raw("weekdaysShort"));
+  const autoIncluded =
+    !required &&
+    toggleLocked &&
+    offering.available_days.some((day) => automaticDays?.has(day) ?? false);
   let stateClass = "border-gray-200 bg-white hover:border-gray-300";
   if (dayError) {
     stateClass = "border-[#FF3130] bg-[#FF3130]/5";
-  } else if (required) {
-    stateClass = "border-gray-200 bg-gray-50";
-  } else if (checked) {
+  } else if (autoIncluded || checked) {
     stateClass = "border-[#83CD2D]/40 bg-[#83CD2D]/10";
+  } else if (required || toggleLocked) {
+    stateClass = "border-gray-200 bg-gray-50";
   }
+  const inputId = `children-${childIndex}-offering-${offering.id}`;
+
   return (
-    <label
+    <div
       aria-invalid={dayError ? true : undefined}
-      className={`flex items-start gap-3 rounded-lg border p-3 text-sm transition-colors ${
-        required ? "cursor-default" : "cursor-pointer"
-      } ${stateClass}`}
+      className={`rounded-lg border p-3 text-sm transition-colors ${stateClass}`}
     >
-      <span className="relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white">
-        <input
-          name={`children_${childIndex}_offering_${offering.id}`}
-          type="checkbox"
-          checked={effectiveChecked}
-          disabled={required}
-          onChange={onToggle}
-          className={`absolute inset-0 opacity-0 ${
-            required ? "cursor-default" : "cursor-pointer"
-          }`}
-        />
-        {required ? (
-          <span className="flex h-5 w-5 items-center justify-center rounded-md bg-gray-400 text-white">
-            <Lock className="h-3 w-3" />
-          </span>
-        ) : (
-          checked && (
-            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[#83CD2D] text-white">
-              <Check className="h-3.5 w-3.5" />
+      <label
+        htmlFor={inputId}
+        className={`flex items-start gap-3 ${
+          inputLocked ? "cursor-default" : "cursor-pointer"
+        }`}
+      >
+        <span className="relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white">
+          <input
+            id={inputId}
+            name={`children_${childIndex}_offering_${offering.id}`}
+            type="checkbox"
+            checked={effectiveChecked}
+            disabled={inputLocked}
+            onChange={onToggle}
+            className={`absolute inset-0 opacity-0 ${
+              inputLocked ? "cursor-default" : "cursor-pointer"
+            }`}
+          />
+          {inputLocked ? (
+            <span
+              className={`flex h-5 w-5 items-center justify-center rounded-md text-white ${
+                autoIncluded ? "bg-[#83CD2D]" : "bg-gray-400"
+              }`}
+            >
+              {autoIncluded ? (
+                <Check className="h-3.5 w-3.5" />
+              ) : (
+                <Lock className="h-3 w-3" />
+              )}
             </span>
-          )
-        )}
-      </span>
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium break-words text-gray-900">
-            {offering.name}
-          </span>
-          {required && (
-            <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600">
-              {tr("care.requiredBadge")}
-            </span>
+          ) : (
+            checked && (
+              <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[#83CD2D] text-white">
+                <Check className="h-3.5 w-3.5" />
+              </span>
+            )
           )}
-        </div>
-        {offering.description && (
-          <div className="text-xs break-words text-gray-600">
-            {offering.description}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-medium break-words text-gray-900">
+              {offering.name}
+            </span>
+            {required && (
+              <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600">
+                {tr("care.requiredBadge")}
+              </span>
+            )}
           </div>
-        )}
-        <div className="mt-1 text-xs text-gray-500">
-          {offering.days_of_week_mode === "parent_choice"
-            ? tr("care.selectableDays")
-            : tr("care.days")}
-          {offering.available_days.map((d) => weekdayLabels[d] ?? d).join(", ")}
-          {offering.includes_holiday_care && ` · ${tr("care.holiday")}`}
-          {offering.includes_lunch && ` · ${tr("care.lunch")}`}
-        </div>
-        {effectiveChecked && offering.days_of_week_mode === "parent_choice" && (
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {offering.available_days.map((day) => {
-              const picked = selectedDays?.has(day) ?? false;
-              return (
-                <button
-                  key={day}
-                  type="button"
-                  onClick={(e) => {
-                    // The card's outer <label> would otherwise treat this as a
-                    // click on the offering checkbox itself.
-                    e.preventDefault();
-                    e.stopPropagation();
-                    onToggleDay(day);
-                  }}
-                  className={`rounded-md border px-2 py-0.5 text-xs font-medium transition-colors ${
-                    picked
-                      ? "border-[#83CD2D] bg-[#83CD2D] text-white"
-                      : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
-                  }`}
-                  aria-pressed={picked}
-                >
-                  {weekdayLabels[day] ?? day}
-                </button>
-              );
-            })}
+          {offering.description && (
+            <div className="text-xs break-words text-gray-600">
+              {offering.description}
+            </div>
+          )}
+          <div className="mt-1 text-xs text-gray-500">
+            {offering.days_of_week_mode === "parent_choice"
+              ? tr("care.selectableDays")
+              : tr("care.days")}
+            {offering.available_days
+              .map((d) => weekdayLabels[d] ?? d)
+              .join(", ")}
+            {offering.includes_holiday_care && ` · ${tr("care.holiday")}`}
+            {offering.includes_lunch && ` · ${tr("care.lunch")}`}
           </div>
-        )}
-        {dayError && (
-          <p className="mt-1 text-xs text-[#FF3130]">
-            {tr("errors.dayInline")}
-          </p>
-        )}
-      </div>
-    </label>
+        </div>
+      </label>
+      {effectiveChecked && offering.days_of_week_mode === "parent_choice" && (
+        <div className="mt-2 ml-8 flex flex-wrap gap-1.5">
+          {offering.available_days.map((day) => {
+            const picked = selectedDays?.has(day) ?? false;
+            const automatic = automaticDays?.has(day) ?? false;
+            const selected = picked || automatic;
+            return (
+              <button
+                key={day}
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (automatic) return;
+                  onToggleDay(day);
+                }}
+                disabled={automatic}
+                className={`rounded-md border px-2 py-0.5 text-xs font-medium transition-colors disabled:cursor-not-allowed ${
+                  selected
+                    ? "border-[#83CD2D] bg-[#83CD2D] text-white"
+                    : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
+                }`}
+                aria-pressed={selected}
+              >
+                {weekdayLabels[day] ?? day}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {dayError && (
+        <p className="mt-1 ml-8 text-xs text-[#FF3130]">
+          {tr("errors.dayInline")}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -2188,6 +2374,8 @@ function previewLegalTexts(schema: PublicFormSchema | null): PublicLegalTexts {
       .sort((a, b) => a.sort_order - b.sort_order) ?? [];
   return {
     agb: blocks.find((block) => block.key === "agb")?.text ?? "",
+    agb_document_url: "",
+    agb_display_mode: "text",
     dsgvo: blocks.find((block) => block.key === "data_processing")?.text ?? "",
     email_contact:
       blocks.find((block) => block.key === "email_contact")?.text ?? "",
@@ -2371,8 +2559,10 @@ function customValueMissing(
     return contactListValueMissing(value);
   }
   if (field.type === "weekday_schedule") {
+    const days = relevantDays ?? WEEKDAYS;
+    if (days.length === 0) return false;
     const schedule = asScheduleObject(value);
-    return !Object.values(schedule).some((time) => time.trim() !== "");
+    return !days.some((day) => (schedule[day] ?? "").trim() !== "");
   }
   if (field.type === "weekday_boolean") {
     // Pickup: an explicit (touched) selection — even an empty one — is the
@@ -2394,7 +2584,11 @@ function customValueMissing(
   if (field.type === "weekday_multi_mode") {
     const days = relevantDays ?? WEEKDAYS;
     if (days.length === 0) return false;
-    const modes = asWeekdayMultiModeObject(value, days);
+    const modes = asWeekdayMultiModeObject(
+      value,
+      days,
+      departureMultiModeOptionsForField(field),
+    );
     return days.some((day) => (modes[day]?.length ?? 0) === 0);
   }
   return typeof value !== "string" || value.trim() === "";
@@ -2471,6 +2665,16 @@ interface CustomFieldInputProps {
   readonly error?: string;
   readonly tr: EnrollmentFormTranslator;
   readonly relevantDays?: readonly string[];
+  // Free-text "mit wem" for the accompanied departure mode (#1694), coupled
+  // into the weekday_multi_mode field so it is always available to parents
+  // without the admin adding a separate field. Only wired for the
+  // allowed-departure-modes field.
+  readonly companionNote?: string;
+  readonly onCompanionNoteChange?: (v: string) => void;
+  // Per-field error for the coupled "mit wem" note (#1694), keyed separately
+  // from `error` so the modes fieldset and the note input show their own
+  // messages.
+  readonly companionNoteError?: string;
 }
 
 function CustomFieldInput({
@@ -2480,6 +2684,9 @@ function CustomFieldInput({
   error,
   tr,
   relevantDays,
+  companionNote,
+  onCompanionNoteChange,
+  companionNoteError,
 }: CustomFieldInputProps) {
   const labelEl = (
     <>
@@ -2589,6 +2796,7 @@ function CustomFieldInput({
         onChange={onChange}
         error={error}
         tr={tr}
+        relevantDays={relevantDays}
       />
     );
   }
@@ -2623,6 +2831,9 @@ function CustomFieldInput({
         error={error}
         tr={tr}
         relevantDays={relevantDays}
+        companionNote={companionNote}
+        onCompanionNoteChange={onCompanionNoteChange}
+        companionNoteError={companionNoteError}
       />
     );
   }
@@ -2824,20 +3035,44 @@ function asWeekdayBooleanObject(v: unknown): Record<string, boolean> {
   return out;
 }
 
-type DepartureModeValue = "alone" | "bus" | "pickup";
+type DepartureModeValue = "alone" | "bus" | "pickup" | "accompanied";
 
 const DEPARTURE_MULTI_MODE_OPTIONS: ReadonlyArray<DepartureModeValue> = [
   "alone",
   "bus",
   "pickup",
+  "accompanied",
 ];
+
+const DEPARTURE_MULTI_MODE_OPTIONS_WITHOUT_COMPANION: ReadonlyArray<DepartureModeValue> =
+  ["alone", "bus", "pickup"];
+
+function departureMultiModeOptionsForField(
+  field: PublicFormSchema["fields"][number],
+): ReadonlyArray<DepartureModeValue> {
+  return field.target === "student.allowed_departure_modes"
+    ? DEPARTURE_MULTI_MODE_OPTIONS
+    : DEPARTURE_MULTI_MODE_OPTIONS_WITHOUT_COMPANION;
+}
+
+// Reserved child-custom key carrying the coupled "mit wem" note for the
+// accompanied mode (#1694). Matches the backend reserved target so the
+// decision service can apply it when it processes allowed_departure_modes.
+// It travels with the modes field instead of being a separate admin field, so
+// the note is always available to parents.
+const DEPARTURE_COMPANION_KEY = "student.departure_companion_note";
 
 function asWeekdayModeObject(v: unknown): Record<string, DepartureModeValue> {
   if (!v || typeof v !== "object" || Array.isArray(v)) return {};
   const out: Record<string, DepartureModeValue> = {};
   for (const w of WEEKDAYS) {
     const raw = (v as Record<string, unknown>)[w];
-    if (raw === "bus" || raw === "pickup" || raw === "alone") {
+    if (
+      raw === "bus" ||
+      raw === "pickup" ||
+      raw === "alone" ||
+      raw === "accompanied"
+    ) {
       out[w] = raw;
     }
   }
@@ -2847,9 +3082,11 @@ function asWeekdayModeObject(v: unknown): Record<string, DepartureModeValue> {
 function asWeekdayMultiModeObject(
   v: unknown,
   allowedDays: readonly string[] = WEEKDAYS,
+  allowedModes: ReadonlyArray<DepartureModeValue> = DEPARTURE_MULTI_MODE_OPTIONS,
 ): Record<string, DepartureModeValue[]> {
   if (!v || typeof v !== "object" || Array.isArray(v)) return {};
   const allowed = new Set(allowedDays);
+  const allowedModeSet = new Set(allowedModes);
   const out: Record<string, DepartureModeValue[]> = {};
   for (const w of WEEKDAYS) {
     if (!allowed.has(w)) continue;
@@ -2857,16 +3094,27 @@ function asWeekdayMultiModeObject(
     if (!Array.isArray(raw)) continue;
     const seen = new Set<DepartureModeValue>();
     for (const item of raw) {
-      if (item === "alone" || item === "bus" || item === "pickup") {
-        seen.add(item);
+      if (
+        item === "alone" ||
+        item === "bus" ||
+        item === "pickup" ||
+        item === "accompanied"
+      ) {
+        if (allowedModeSet.has(item)) seen.add(item);
       }
     }
-    const modes = DEPARTURE_MULTI_MODE_OPTIONS.filter((mode) => seen.has(mode));
+    const modes = allowedModes.filter((mode) => seen.has(mode));
     if (modes.length > 0) out[w] = modes;
   }
   return out;
 }
 
+// Single-mode legacy departure field (target student.departure). The
+// accompanied mode is intentionally NOT offered here: it requires the coupled
+// "mit wem" companion note, which is only captured + required-validated on the
+// multi-mode student.allowed_departure_modes field. Offering it here would let
+// a parent pick an accompanied departure with no companion note, defeating the
+// data requirement of #1694.
 const DEPARTURE_MODE_OPTIONS: ReadonlyArray<DepartureModeValue> = [
   "alone",
   "bus",
@@ -2877,13 +3125,14 @@ function selectedCareDaysForChild(
   child: ChildDraft,
   offerings: readonly PublicCareOffering[],
 ): string[] {
+  const materialized = materializeCareOfferings(child, offerings);
   const days = new Set<string>();
-  for (const id of child.offering_ids) {
+  for (const id of materialized.offeringIds) {
     const offering = offerings.find((o) => o.id === id);
     if (!offering) continue;
     const selected =
       offering.days_of_week_mode === "parent_choice"
-        ? Array.from(child.offering_days[id] ?? new Set<string>())
+        ? Array.from(materialized.offeringDays[id] ?? new Set<string>())
         : offering.available_days;
     for (const day of selected) {
       if ((WEEKDAYS as readonly string[]).includes(day)) {
@@ -2894,28 +3143,156 @@ function selectedCareDaysForChild(
   return WEEKDAYS.filter((day) => days.has(day));
 }
 
+interface MaterializedCareSelection {
+  offeringIds: Set<string>;
+  offeringDays: Record<string, Set<string>>;
+  automaticDays: Record<string, Set<string>>;
+}
+
+function materializeCareOfferings(
+  child: ChildDraft,
+  offerings: readonly PublicCareOffering[],
+): MaterializedCareSelection {
+  const offeringIds = new Set(child.offering_ids);
+  const offeringDays: Record<string, Set<string>> = {};
+  const automaticDays: Record<string, Set<string>> = {};
+  for (const [id, days] of Object.entries(child.offering_days)) {
+    offeringDays[id] = new Set(days);
+  }
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const target of offerings) {
+      if (!autoAddAppliesToGrade(child.target_grade_level, target)) continue;
+      const triggerIDs = target.auto_add_trigger_offering_ids ?? [];
+      if (triggerIDs.length === 0 && !isRequiredLunchOffering(target)) continue;
+
+      const auto = new Set<string>();
+      const targetDays = new Set(target.available_days);
+      for (const triggerID of triggerIDs) {
+        if (!offeringIds.has(triggerID)) continue;
+        const trigger = offerings.find((offering) => offering.id === triggerID);
+        if (!trigger) continue;
+        const triggerDays =
+          trigger.days_of_week_mode === "parent_choice"
+            ? Array.from(offeringDays[triggerID] ?? new Set<string>())
+            : trigger.available_days;
+        for (const day of triggerDays) {
+          if (targetDays.has(day)) auto.add(day);
+        }
+      }
+      if (isRequiredLunchOffering(target)) {
+        for (const source of offerings) {
+          if (source.id === target.id || !(source.counts_as_care ?? true)) {
+            continue;
+          }
+          if (!offeringIds.has(source.id)) {
+            continue;
+          }
+          const sourceDays =
+            source.days_of_week_mode === "parent_choice"
+              ? Array.from(offeringDays[source.id] ?? new Set<string>())
+              : source.available_days;
+          for (const day of sourceDays) {
+            if (targetDays.has(day)) auto.add(day);
+          }
+        }
+      }
+      if (auto.size === 0) continue;
+
+      if (!offeringIds.has(target.id)) {
+        offeringIds.add(target.id);
+        changed = true;
+      }
+      if (!sameSet(automaticDays[target.id], auto)) {
+        automaticDays[target.id] = auto;
+        changed = true;
+      }
+      const merged = new Set(offeringDays[target.id] ?? []);
+      const beforeSize = merged.size;
+      for (const day of auto) merged.add(day);
+      if (
+        merged.size !== beforeSize ||
+        !sameSet(offeringDays[target.id], merged)
+      ) {
+        offeringDays[target.id] = merged;
+        changed = true;
+      }
+    }
+  }
+
+  return { offeringIds, offeringDays, automaticDays };
+}
+
+function sameSet(left: Set<string> | undefined, right: Set<string>): boolean {
+  if (!left || left.size !== right.size) return false;
+  for (const value of left) {
+    if (!right.has(value)) return false;
+  }
+  return true;
+}
+
+function isRequiredLunchOffering(offering: PublicCareOffering): boolean {
+  return (
+    offering.is_required &&
+    offering.includes_lunch &&
+    offering.days_of_week_mode === "parent_choice"
+  );
+}
+
+function autoAddAppliesToGrade(
+  gradeValue: string,
+  offering: PublicCareOffering,
+): boolean {
+  const gradeLevels = offering.auto_add_grade_levels ?? [];
+  if (gradeLevels.length === 0) return true;
+  const grade = Number(gradeValue);
+  if (!Number.isFinite(grade) || grade <= 0) return false;
+  return gradeLevels.includes(grade);
+}
+
 function relevantCareDaysForChild(
   child: ChildDraft,
   offerings: readonly PublicCareOffering[],
   previewMode: boolean,
 ): string[] {
-  if (previewMode && offerings.length === 0) {
+  // No offerings to derive care days from (care-offering feature unused, or
+  // template preview): every weekday is relevant so day-scoped fields stay
+  // usable. When offerings DO exist but the child has selected none, the
+  // result is empty on purpose -- the parent must pick care days first.
+  if (previewMode || offerings.length === 0) {
     return [...WEEKDAYS];
   }
   return selectedCareDaysForChild(child, offerings);
 }
 
-function pruneWeekdayMultiModeAnswers(
+function pruneWeekdayAnswers(
   data: Record<string, unknown>,
   fields: readonly PublicFormSchema["fields"][number][],
   relevantDays: readonly string[],
 ): Record<string, unknown> {
   const next = { ...data };
   for (const field of fields) {
-    if (field.type !== "weekday_multi_mode" || !(field.key in next)) {
-      continue;
+    if (!(field.key in next)) continue;
+    if (field.type === "weekday_multi_mode") {
+      next[field.key] = asWeekdayMultiModeObject(
+        next[field.key],
+        relevantDays,
+        departureMultiModeOptionsForField(field),
+      );
+    } else if (field.type === "weekday_schedule") {
+      // Drop pickup times for days the child is no longer in care (e.g. an
+      // offering was deselected after a time was entered) so stale entries
+      // never reach the backend.
+      const schedule = asScheduleObject(next[field.key]);
+      const pruned: Record<string, string> = {};
+      for (const day of relevantDays) {
+        const time = schedule[day];
+        if (time !== undefined) pruned[day] = time;
+      }
+      next[field.key] = pruned;
     }
-    next[field.key] = asWeekdayMultiModeObject(next[field.key], relevantDays);
   }
   return next;
 }
@@ -2926,9 +3303,14 @@ function WeekdayScheduleInput({
   onChange,
   error,
   tr,
+  relevantDays,
 }: CustomFieldInputProps) {
   const sched = asScheduleObject(value);
   const weekdayLabels = asStringMap(tr.raw("weekdays"));
+  // Only offer the weekdays the child is actually in care on (derived from the
+  // selected care offerings). When no offerings constrain the form, relevantDays
+  // is undefined and all weekdays are shown (historical behaviour).
+  const daysToRender = relevantDays ?? WEEKDAYS;
   // When the field configures fixed pickup times, parents pick from a
   // dropdown limited to those values per weekday instead of a free time
   // input. Empty list = free entry (the historical behaviour).
@@ -2947,62 +3329,73 @@ function WeekdayScheduleInput({
           {field.help_text}
         </p>
       )}
-      <p className="text-xs text-gray-500">{tr("structured.emptySchedule")}</p>
-      <div className="mt-2 grid gap-2 sm:grid-cols-5">
-        {WEEKDAYS.map((weekday) => {
-          const current = sched[weekday] ?? "";
-          // A previously saved value that is no longer in the configured
-          // list (admin changed the times after the draft was saved) must
-          // still be shown, otherwise the dropdown silently blanks it and
-          // the parent never sees that their time was dropped. It is
-          // flagged "nicht mehr verfügbar" so the parent notices it has to
-          // be re-picked before submit — the backend rejects it anyway.
-          const isStale = Boolean(current) && !allowedTimes.includes(current);
-          return (
-            <label key={weekday} className="block text-xs">
-              <span className="block text-gray-600">
-                {weekdayLabels[weekday] ?? weekday}
-              </span>
-              {allowedTimes.length > 0 ? (
-                <CustomSelect
-                  value={current}
-                  onChange={(selected) =>
-                    onChange({ ...sched, [weekday]: selected })
-                  }
-                  ariaLabel={`${weekdayLabels[weekday] ?? weekday} – ${field.label}`}
-                  placeholder={tr("structured.selectTime")}
-                  invalid={Boolean(error) || isStale}
-                  className="mt-1 border-gray-200 bg-white"
-                  options={[
-                    { value: "", label: tr("structured.selectTime") },
-                    ...allowedTimes.map((time) => ({
-                      value: time,
-                      label: time,
-                    })),
-                    ...(isStale
-                      ? [
-                          {
-                            value: current,
-                            label: `${current} (${tr("structured.timeUnavailable")})`,
-                          },
-                        ]
-                      : []),
-                  ]}
-                />
-              ) : (
-                <input
-                  type="time"
-                  value={current}
-                  onChange={(e) =>
-                    onChange({ ...sched, [weekday]: e.target.value })
-                  }
-                  className="mt-1 h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm"
-                />
-              )}
-            </label>
-          );
-        })}
-      </div>
+      {daysToRender.length === 0 ? (
+        <p className="mt-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+          {tr("structured.weekdayMultiModeNoDays")}
+        </p>
+      ) : (
+        <>
+          <p className="text-xs text-gray-500">
+            {tr("structured.emptySchedule")}
+          </p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-5">
+            {daysToRender.map((weekday) => {
+              const current = sched[weekday] ?? "";
+              // A previously saved value that is no longer in the configured
+              // list (admin changed the times after the draft was saved) must
+              // still be shown, otherwise the dropdown silently blanks it and
+              // the parent never sees that their time was dropped. It is
+              // flagged "nicht mehr verfügbar" so the parent notices it has to
+              // be re-picked before submit — the backend rejects it anyway.
+              const isStale =
+                Boolean(current) && !allowedTimes.includes(current);
+              return (
+                <label key={weekday} className="block text-xs">
+                  <span className="block text-gray-600">
+                    {weekdayLabels[weekday] ?? weekday}
+                  </span>
+                  {allowedTimes.length > 0 ? (
+                    <CustomSelect
+                      value={current}
+                      onChange={(selected) =>
+                        onChange({ ...sched, [weekday]: selected })
+                      }
+                      ariaLabel={`${weekdayLabels[weekday] ?? weekday} – ${field.label}`}
+                      placeholder={tr("structured.selectTime")}
+                      invalid={Boolean(error) || isStale}
+                      className="mt-1 border-gray-200 bg-white"
+                      options={[
+                        { value: "", label: tr("structured.selectTime") },
+                        ...allowedTimes.map((time) => ({
+                          value: time,
+                          label: time,
+                        })),
+                        ...(isStale
+                          ? [
+                              {
+                                value: current,
+                                label: `${current} (${tr("structured.timeUnavailable")})`,
+                              },
+                            ]
+                          : []),
+                      ]}
+                    />
+                  ) : (
+                    <input
+                      type="time"
+                      value={current}
+                      onChange={(e) =>
+                        onChange({ ...sched, [weekday]: e.target.value })
+                      }
+                      className="mt-1 h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm"
+                    />
+                  )}
+                </label>
+              );
+            })}
+          </div>
+        </>
+      )}
       {error && <p className="mt-2 text-xs text-[#FF3130]">{error}</p>}
     </fieldset>
   );
@@ -3076,7 +3469,7 @@ function WeekdayModeInput({
   const departureModeLabels = asStringMap(tr.raw("structured.departureModes"));
   const modeFor = (key: string): DepartureModeValue => {
     const m = modes[key];
-    return m === "bus" || m === "pickup" ? m : "alone";
+    return m === "bus" || m === "pickup" || m === "accompanied" ? m : "alone";
   };
   return (
     <fieldset
@@ -3103,7 +3496,7 @@ function WeekdayModeInput({
               <span className="w-20 shrink-0 text-xs font-medium text-gray-600">
                 {weekdayLabels[w] ?? w}
               </span>
-              <div className="grid flex-1 grid-cols-3 gap-1">
+              <div className="grid flex-1 grid-cols-2 gap-1">
                 {DEPARTURE_MODE_OPTIONS.map((mode) => {
                   const active = current === mode;
                   return (
@@ -3144,9 +3537,13 @@ function WeekdayMultiModeInput({
   error,
   tr,
   relevantDays,
+  companionNote,
+  onCompanionNoteChange,
+  companionNoteError,
 }: CustomFieldInputProps) {
   const daysToRender = relevantDays ?? WEEKDAYS;
-  const modes = asWeekdayMultiModeObject(value, daysToRender);
+  const modeOptions = departureMultiModeOptionsForField(field);
+  const modes = asWeekdayMultiModeObject(value, daysToRender, modeOptions);
   const [expandedDays, setExpandedDays] = useState<Set<string>>(
     () => new Set(daysToRender.filter((day) => (modes[day]?.length ?? 0) > 0)),
   );
@@ -3178,7 +3575,7 @@ function WeekdayMultiModeInput({
       nextExpanded.delete(day);
       const nextRaw = { ...modes };
       delete nextRaw[day];
-      onChange(asWeekdayMultiModeObject(nextRaw, daysToRender));
+      onChange(asWeekdayMultiModeObject(nextRaw, daysToRender, modeOptions));
     } else {
       nextExpanded.add(day);
     }
@@ -3190,9 +3587,9 @@ function WeekdayMultiModeInput({
     else current.add(mode);
     const nextRaw = {
       ...modes,
-      [day]: DEPARTURE_MULTI_MODE_OPTIONS.filter((m) => current.has(m)),
+      [day]: modeOptions.filter((m) => current.has(m)),
     };
-    onChange(asWeekdayMultiModeObject(nextRaw, daysToRender));
+    onChange(asWeekdayMultiModeObject(nextRaw, daysToRender, modeOptions));
   };
   // The payload-derived shared selection: the first *populated* day's modes.
   // Used only to decide whether enabling uniform is lossless and, if so, to
@@ -3227,7 +3624,7 @@ function WeekdayMultiModeInput({
     if (!needsSync) return;
     const nextRaw: Record<string, DepartureModeValue[]> = {};
     for (const day of daysToRender) nextRaw[day] = uniformSelection;
-    onChange(asWeekdayMultiModeObject(nextRaw, daysToRender));
+    onChange(asWeekdayMultiModeObject(nextRaw, daysToRender, modeOptions));
     // String-signature deps keep the effect from re-running every render while
     // still reacting to every meaningful change. `modes`/`daysToRender`/
     // `onChange`/`uniformSelection` are read from the current render's closure;
@@ -3263,12 +3660,17 @@ function WeekdayMultiModeInput({
     const current = new Set(uniformSelection);
     if (current.has(mode)) current.delete(mode);
     else current.add(mode);
-    const arr = DEPARTURE_MULTI_MODE_OPTIONS.filter((m) => current.has(m));
+    const arr = modeOptions.filter((m) => current.has(m));
     setUniformSelection(arr);
     const nextRaw: Record<string, DepartureModeValue[]> = {};
     for (const day of daysToRender) nextRaw[day] = arr;
-    onChange(asWeekdayMultiModeObject(nextRaw, daysToRender));
+    onChange(asWeekdayMultiModeObject(nextRaw, daysToRender, modeOptions));
   };
+  // The coupled "mit wem" note (#1694) is shown the moment any care day allows
+  // the accompanied mode, so parents can always say which child it is.
+  const accompaniedSelected = uniform
+    ? uniformSelection.includes("accompanied")
+    : daysToRender.some((day) => (modes[day] ?? []).includes("accompanied"));
   return (
     <fieldset
       className={`rounded-lg border p-3 ${error ? "border-[#FF3130]" : "border-gray-200"}`}
@@ -3307,8 +3709,8 @@ function WeekdayMultiModeInput({
                 <p className="mb-2 text-xs text-gray-500">
                   {tr("structured.weekdayMultiModeUniformHint")}
                 </p>
-                <div className="grid gap-2 sm:grid-cols-3">
-                  {DEPARTURE_MULTI_MODE_OPTIONS.map((mode) => {
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {modeOptions.map((mode) => {
                     const checked = uniformSelection.includes(mode);
                     return (
                       <label
@@ -3360,8 +3762,8 @@ function WeekdayMultiModeInput({
                       <div className="mb-2 text-xs font-semibold text-gray-700">
                         {weekdayLabels[day] ?? day}
                       </div>
-                      <div className="grid gap-2 sm:grid-cols-3">
-                        {DEPARTURE_MULTI_MODE_OPTIONS.map((mode) => {
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {modeOptions.map((mode) => {
                           const checked = modes[day]?.includes(mode) ?? false;
                           return (
                             <label
@@ -3391,6 +3793,29 @@ function WeekdayMultiModeInput({
           <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
             {tr("structured.weekdayMultiModeNoDays")}
           </p>
+        )}
+        {onCompanionNoteChange && accompaniedSelected && (
+          <div className="mt-3">
+            <label className="mb-1 block text-xs font-medium text-gray-700">
+              {tr("structured.departureCompanionLabel")}
+            </label>
+            <input
+              type="text"
+              value={companionNote ?? ""}
+              onChange={(e) => onCompanionNoteChange(e.target.value)}
+              placeholder={tr("structured.departureCompanionPlaceholder")}
+              maxLength={255}
+              aria-invalid={companionNoteError ? "true" : undefined}
+              className={`block w-full rounded-lg border bg-white px-3 py-2 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 ${
+                companionNoteError ? "border-[#FF3130]" : "border-gray-200"
+              }`}
+            />
+            {companionNoteError && (
+              <p className="mt-1 text-xs text-[#FF3130]">
+                {companionNoteError}
+              </p>
+            )}
+          </div>
         )}
       </div>
       {error && <p className="mt-2 text-xs text-[#FF3130]">{error}</p>}

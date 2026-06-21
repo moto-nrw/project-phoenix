@@ -114,6 +114,8 @@
     "pickupEyebrow": "Abholung",
     "pickupPeopleTitle": "Abholberechtigte",
     "pickupPeopleDescription": "Personen, die dieses Kind abholen dürfen.",
+    "pickupPeopleEmptyTitle": "Keine Abholberechtigten hinzugefügt",
+    "pickupPeopleEmptyDescription": "Abholberechtigte erscheinen hier.",
     "manage": "Verwalten",
     "add": "Hinzufügen",
     "addPerson": "Person hinzufügen",
@@ -161,15 +163,6 @@
       "noMessages": "Keine neuen Nachrichten",
       "noMessagesSent": "Keine Nachrichten gesendet",
       "messagesSent": "{count, plural, one {# Nachricht gesendet} other {# Nachrichten gesendet}}"
-    },
-    "demo": {
-      "momName": "Mama",
-      "dadName": "Papa",
-      "grandmaName": "Oma",
-      "auntName": "Tante",
-      "mother": "Mutter",
-      "father": "Vater",
-      "pickup": "Abholung"
     },
     "messages": {
       "eyebrow": "Elternportal",
@@ -433,10 +426,13 @@
       "optionalHint": "Wählen Sie die Angebote aus, die für dieses Kind gewünscht sind.",
       "reviewHint": "Die OGS prüft freie Plätze nach dem Absenden. Bitte beachten Sie: Mit der Anmeldung zum Ganztagsangebot ist Ihr Kind laut Ganztagsschulerlass zu den angemeldeten Zeiten schulpflichtig.",
       "requiredBadge": "Pflicht",
+      "automaticBadge": "automatisch",
       "chooseExactlyOne": "Bitte wählen Sie genau ein Angebot aus.",
       "chooseAtLeastOne": "Bitte wählen Sie mindestens ein Angebot aus.",
       "selectableDays": "Wählbare Tage: ",
       "days": "Tage: ",
+      "automaticDays": "{days} automatisch",
+      "manualDays": "{days} manuell",
       "holiday": "inkl. Ferienbetreuung",
       "lunch": "inkl. Mittagessen",
       "ruleExactlyOne": "Bitte genau eines wählen",
@@ -495,10 +491,14 @@
       "weekdayMultiModeUniformConfirmBody": "Sie haben bisher unterschiedliche Heimwege je Betreuungstag gewählt. Wenn Sie eine gemeinsame Auswahl aktivieren, werden diese tageweisen Angaben gelöscht und Sie treffen die Auswahl neu.",
       "weekdayMultiModeUniformConfirmCta": "Löschen und fortfahren",
       "weekdayMultiModeUniformConfirmCancel": "Abbrechen",
+      "departureCompanionLabel": "Mit welchem Kind?",
+      "departureCompanionPlaceholder": "z. B. Geschwisterkind, Freund, Name",
+      "departureCompanionRequired": "Bitte angeben, mit welchem Kind das Kind nach Hause geht.",
       "departureModes": {
         "alone": "Geht zu Fuß",
         "bus": "Bus",
-        "pickup": "Wird abgeholt"
+        "pickup": "Wird abgeholt",
+        "accompanied": "Mit anderem Kind"
       }
     },
     "months": [

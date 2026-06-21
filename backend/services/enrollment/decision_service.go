@@ -33,11 +33,12 @@ const guardianRoleName = "guardian"
 // DecisionService sentinel errors. Mapped to HTTP status codes by the
 // admin handlers.
 var (
-	ErrDecisionRequestNotFound = errors.New("enrollment request not found")
-	ErrDecisionChildNotFound   = errors.New("request child not found")
-	ErrDecisionStudentNotFound = errors.New("student not found")
-	ErrDecisionInvalidStatus   = errors.New("invalid decision status")
-	ErrDecisionAlreadyTerminal = errors.New("child is already in a terminal status")
+	ErrDecisionRequestNotFound   = errors.New("enrollment request not found")
+	ErrDecisionChildNotFound     = errors.New("request child not found")
+	ErrDecisionStudentNotFound   = errors.New("student not found")
+	ErrDecisionInvalidStatus     = errors.New("invalid decision status")
+	ErrDecisionAlreadyTerminal   = errors.New("child is already in a terminal status")
+	ErrOfferingAdjustmentInvalid = errors.New("offering adjustment is invalid")
 	// ErrDecisionInvalidData marks an approval that failed because the
 	// parent-supplied request data (e.g. guardian phone) doesn't pass the
 	// student/person validators. Mapped to 400, not 500 — submit/edit now
@@ -89,6 +90,20 @@ type DecideInput struct {
 	Status     DecisionStatus
 	Reason     string // optional; surfaced to parent only when phase.show_status_reason_to_parent
 	ReviewedBy int64  // admin's auth account id
+}
+
+type OfferingAdjustmentSelection struct {
+	OfferingID   int64
+	SelectedDays []string
+}
+
+type UpdateChildOfferingsInput struct {
+	RequestID      int64
+	ChildID        int64
+	Offerings      []OfferingAdjustmentSelection
+	Reason         string
+	ActorAccountID int64
+	ActorRole      string
 }
 
 // DecideOutcome is what the admin handler gets back from Decide. It
@@ -145,6 +160,8 @@ type DecisionService interface {
 	ListByStudent(ctx context.Context, studentID int64) ([]*RequestSummary, error)
 	Get(ctx context.Context, requestID int64) (*RequestSummary, error)
 	Decide(ctx context.Context, input DecideInput) (*DecideOutcome, error)
+	UpdateChildOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error)
+	ListOfferingAdjustments(ctx context.Context, requestID, requestChildID int64) ([]*auditModels.EnrollmentOfferingAdjustment, error)
 
 	// ListChildOfferings returns the request_child_offerings rows for
 	// every child under requestID, joined to the offering's name +
@@ -241,11 +258,13 @@ type ExportChildRow struct {
 // — nil when the offering runs in admin-fixed mode, non-nil only when
 // the parent picked specific days.
 type ChildOfferingRow struct {
-	OfferingID     int64
-	OfferingName   string
-	DaysOfWeekMode string
-	SelectedDays   []string
-	AvailableDays  []string
+	OfferingID            int64
+	OfferingName          string
+	DaysOfWeekMode        string
+	SelectedDays          []string
+	ManualSelectedDays    []string
+	AutomaticSelectedDays []string
+	AvailableDays         []string
 }
 
 // DecisionServiceConfig is the dep-injection bundle. The auth-side
@@ -270,6 +289,7 @@ type DecisionServiceConfig struct {
 	PhaseRepo                enrollmentModels.PhaseRepository
 	FormSchemaRepo           enrollmentModels.FormSchemaRepository // needed to look up FormField.Target for each submitted answer
 	DataAccessLogRepo        auditModels.DataAccessLogRepository   // append-only GDPR audit row written on phase export
+	OfferingAdjustmentRepo   auditModels.EnrollmentOfferingAdjustmentRepository
 	SchoolRepo               platformModels.SchoolRepository
 	PersonRepo               users.PersonRepository
 	StudentRepo              users.StudentRepository
@@ -302,6 +322,7 @@ type decisionService struct {
 	phaseRepo                enrollmentModels.PhaseRepository
 	formSchemaRepo           enrollmentModels.FormSchemaRepository
 	dataAccessLogRepo        auditModels.DataAccessLogRepository
+	offeringAdjustmentRepo   auditModels.EnrollmentOfferingAdjustmentRepository
 	schoolRepo               platformModels.SchoolRepository
 	personRepo               users.PersonRepository
 	studentRepo              users.StudentRepository
@@ -339,6 +360,7 @@ func NewDecisionService(cfg DecisionServiceConfig) DecisionService {
 		phaseRepo:                cfg.PhaseRepo,
 		formSchemaRepo:           cfg.FormSchemaRepo,
 		dataAccessLogRepo:        cfg.DataAccessLogRepo,
+		offeringAdjustmentRepo:   cfg.OfferingAdjustmentRepo,
 		schoolRepo:               cfg.SchoolRepo,
 		personRepo:               cfg.PersonRepo,
 		studentRepo:              cfg.StudentRepo,
@@ -483,8 +505,10 @@ func (s *decisionService) ListChildOfferings(ctx context.Context, requestID int6
 		rows := make([]ChildOfferingRow, 0, len(links))
 		for _, link := range links {
 			row := ChildOfferingRow{
-				OfferingID:   link.CareOfferingID,
-				SelectedDays: link.SelectedDays,
+				OfferingID:            link.CareOfferingID,
+				SelectedDays:          link.SelectedDays,
+				ManualSelectedDays:    link.ManualSelectedDays,
+				AutomaticSelectedDays: link.AutomaticSelectedDays,
 			}
 			if s.careOfferingRepo != nil {
 				if off, err := s.careOfferingRepo.FindByID(ctx, link.CareOfferingID); err == nil && off != nil {
@@ -595,7 +619,12 @@ func (s *decisionService) exportData(ctx context.Context, phaseID int64, childSt
 	// Group offering links per child, resolving each to its catalog name/days.
 	offeringsByChild := make(map[int64][]ChildOfferingRow, len(childIDs))
 	for _, link := range links {
-		row := ChildOfferingRow{OfferingID: link.CareOfferingID, SelectedDays: link.SelectedDays}
+		row := ChildOfferingRow{
+			OfferingID:            link.CareOfferingID,
+			SelectedDays:          link.SelectedDays,
+			ManualSelectedDays:    link.ManualSelectedDays,
+			AutomaticSelectedDays: link.AutomaticSelectedDays,
+		}
 		if off := offeringByID[link.CareOfferingID]; off != nil {
 			row.OfferingName = off.Name
 			row.DaysOfWeekMode = off.DaysOfWeekMode
@@ -741,7 +770,12 @@ func (s *decisionService) exportStudentData(ctx context.Context, studentID int64
 
 	offeringsByChild := make(map[int64][]ChildOfferingRow, len(childIDs))
 	for _, link := range links {
-		row := ChildOfferingRow{OfferingID: link.CareOfferingID, SelectedDays: link.SelectedDays}
+		row := ChildOfferingRow{
+			OfferingID:            link.CareOfferingID,
+			SelectedDays:          link.SelectedDays,
+			ManualSelectedDays:    link.ManualSelectedDays,
+			AutomaticSelectedDays: link.AutomaticSelectedDays,
+		}
 		if off := offeringByID[link.CareOfferingID]; off != nil {
 			row.OfferingName = off.Name
 			row.DaysOfWeekMode = off.DaysOfWeekMode
@@ -1692,11 +1726,12 @@ func (s *decisionService) materializeEnrollments(
 
 	for _, draft := range drafts {
 		row := &activities.StudentEnrollment{
-			StudentID:        studentID,
-			ActivityGroupID:  draft.activityGroupID,
-			ValidFrom:        validFrom,
-			ValidUntil:       &validUntil,
-			CalendarPeriodID: draft.calendarPeriodID,
+			StudentID:                studentID,
+			ActivityGroupID:          draft.activityGroupID,
+			ValidFrom:                validFrom,
+			ValidUntil:               &validUntil,
+			CalendarPeriodID:         draft.calendarPeriodID,
+			EnrollmentRequestChildID: &requestChildID,
 		}
 		if !draft.allWeekdays && len(draft.selectedWeekday) > 0 {
 			row.SelectedWeekdays = sortedWeekdaySet(draft.selectedWeekday)
@@ -2085,6 +2120,13 @@ func (s *decisionService) applyTargetedFields(
 			if days, err := decodeDepartureDays(raw); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
 			} else {
+				// Union with any earlier same-target field rather than overwriting:
+				// last-field-wins would let a later bus/pickup field silently drop an
+				// accompanied day an earlier field carried, which validation and
+				// sanitization (which use any-field semantics) already accepted (#1694).
+				if explicitDeparture != nil {
+					days = explicitDeparture.Merge(days)
+				}
 				explicitDeparture = &days
 				studentDirty = true
 			}
@@ -2092,6 +2134,9 @@ func (s *decisionService) applyTargetedFields(
 			if modes, err := decodeAllowedDepartureModes(raw); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
 			} else {
+				if explicitAllowedDeparture != nil {
+					modes = explicitAllowedDeparture.Merge(modes)
+				}
 				explicitAllowedDeparture = &modes
 				studentDirty = true
 			}
@@ -2183,6 +2228,22 @@ func (s *decisionService) applyTargetedFields(
 		student.PickupDays = explicitDeparture.PickupDays()
 	}
 
+	// Coupled "mit wem" note (#1694): the enrollment form carries it on a
+	// reserved per-child custom-data key alongside allowed_departure_modes
+	// (not a separate admin-added field). Apply it ONLY when the child's final
+	// departure plan actually allows the accompanied mode, so a note from a
+	// client that toggled accompanied off — or a crafted submit — never lands on
+	// a child with no "Mit anderem Kind" day. Capped server-side (the column is
+	// unbounded TEXT).
+	if child != nil && child.CustomData != nil &&
+		student.AllowedDepartureModes.HasMode(users.DepartureAccompanied) {
+		if note := strings.TrimSpace(stringValue(child.CustomData[enrollmentModels.TargetStudentDepartureCompanionNote])); note != "" {
+			note = truncateRunes(note, users.MaxDepartureCompanionNoteLen)
+			student.DepartureCompanionNote = &note
+			studentDirty = true
+		}
+	}
+
 	if studentDirty {
 		if err := s.studentRepo.Update(ctx, student); err != nil {
 			errs = append(errs, fmt.Sprintf("update student: %v", err))
@@ -2193,6 +2254,16 @@ func (s *decisionService) applyTargetedFields(
 		return errors.New(strings.Join(errs, "; "))
 	}
 	return nil
+}
+
+// truncateRunes caps s to at most max runes (not bytes), preserving valid
+// UTF-8. Used to bound parent free-text that bypasses the client length limit.
+func truncateRunes(s string, max int) string {
+	r := []rune(s)
+	if len(r) <= max {
+		return s
+	}
+	return string(r[:max])
 }
 
 // decodeDepartureDays decodes a FormFieldWeekdayMode submission (mon..fri →
@@ -2212,6 +2283,8 @@ func decodeDepartureDays(raw any) (users.DepartureDays, error) {
 			out[day] = users.DepartureBus
 		case enrollmentModels.WeekdayModePickup:
 			out[day] = users.DeparturePickup
+		case enrollmentModels.WeekdayModeAccompanied:
+			out[day] = users.DepartureAccompanied
 		}
 	}
 	return out.Normalize(), nil
@@ -2235,6 +2308,8 @@ func decodeAllowedDepartureModes(raw any) (users.AllowedDepartureModes, error) {
 				out[day] = append(out[day], users.DepartureBus)
 			case enrollmentModels.WeekdayModePickup:
 				out[day] = append(out[day], users.DeparturePickup)
+			case enrollmentModels.WeekdayModeAccompanied:
+				out[day] = append(out[day], users.DepartureAccompanied)
 			}
 		}
 	}

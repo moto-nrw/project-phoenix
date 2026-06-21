@@ -18,10 +18,12 @@ import (
 // PublicLegalTextsResponse carries the tenant-scoped legal documents
 // (Markdown) and the derived legal blocks the public enrollment form renders.
 type PublicLegalTextsResponse struct {
-	AGB          string `json:"agb"`
-	DSGVO        string `json:"dsgvo"`
-	EmailContact string `json:"email_contact"`
-	Photo        string `json:"photo"`
+	AGB            string `json:"agb"`
+	AGBDocumentURL string `json:"agb_document_url"`
+	AGBDisplayMode string `json:"agb_display_mode"`
+	DSGVO          string `json:"dsgvo"`
+	EmailContact   string `json:"email_contact"`
+	Photo          string `json:"photo"`
 	// Standard blocks render only when their toggle is enabled and their
 	// matching text is non-empty.
 	TermsEnabled        bool                           `json:"terms_enabled"`
@@ -88,6 +90,8 @@ func (rs *Resource) publicLegalTexts(w http.ResponseWriter, r *http.Request) {
 				return err
 			}
 			out.AGB = texts.AGB
+			out.AGBDocumentURL = texts.AGBDocumentURL
+			out.AGBDisplayMode = texts.AGBDisplayMode
 			out.DSGVO = texts.DSGVO
 			out.EmailContact = texts.EmailContact
 			out.Photo = texts.Photo

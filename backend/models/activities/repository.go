@@ -184,6 +184,20 @@ type StudentEnrollmentRepository interface {
 	// UpdateAttendanceStatus updates the attendance status for a specific enrollment
 	UpdateAttendanceStatus(ctx context.Context, id int64, status *string) error
 
+	// DeleteByStudentGroupsAndWindow removes enrollments for one student,
+	// a bounded set of activity groups, and an exact validity window.
+	DeleteByStudentGroupsAndWindow(ctx context.Context, studentID int64, groupIDs []int64, validFrom timezone.Date, validUntil *timezone.Date) (int64, error)
+
+	// BackfillEnrollmentRequestChildSource stamps legacy rows that were
+	// materialized during the same approval as requestChildID but predate the
+	// explicit provenance column. The group list keeps the operation bounded to
+	// offerings that were linked before an adjustment.
+	BackfillEnrollmentRequestChildSource(ctx context.Context, studentID, requestChildID int64, groupIDs []int64) (int64, error)
+
+	// DeleteByEnrollmentRequestChild removes rows materialized from one
+	// approved enrollment request child for a specific student.
+	DeleteByEnrollmentRequestChild(ctx context.Context, studentID, requestChildID int64) (int64, error)
+
 	// CapActiveByGroup ends every still-active enrollment (valid_until IS
 	// NULL) of the given group at validUntil (exclusive). Returns the number
 	// of rows changed. Used by the template split (WP-B3).

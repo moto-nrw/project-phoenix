@@ -62,6 +62,13 @@ COPY --from=builder --chown=root:nodejs --chmod=0555 /app/.next/standalone ./
 COPY --from=builder --chown=root:nodejs --chmod=0555 /app/.next/static ./.next/static
 COPY --from=builder --chown=root:nodejs --chmod=0555 /app/public ./public
 
+# Next.js writes optimized images and incremental cache entries at runtime.
+# Keep application files read-only while allowing the non-root runtime user to
+# create cache entries under .next/cache.
+RUN mkdir -p .next/cache && \
+    chown -R nextjs:nodejs .next/cache && \
+    chmod 0750 .next/cache
+
 USER nextjs
 
 EXPOSE 3000

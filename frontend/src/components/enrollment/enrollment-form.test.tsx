@@ -384,6 +384,27 @@ async function fillRequiredFields() {
   }
 }
 
+function dayButton(container: HTMLElement, label: string): HTMLButtonElement {
+  const button = Array.from(container.querySelectorAll("button")).find(
+    (item) => item.textContent === label,
+  );
+  if (!(button instanceof HTMLButtonElement)) {
+    throw new Error(`Day button ${label} not found`);
+  }
+  return button;
+}
+
+function offeringCard(inputName: string): HTMLElement {
+  const input = document.querySelector<HTMLInputElement>(
+    `input[name="${inputName}"]`,
+  );
+  const card = input?.closest("label")?.parentElement ?? null;
+  if (!(card instanceof HTMLElement)) {
+    throw new Error(`Offering card ${inputName} not found`);
+  }
+  return card;
+}
+
 describe("EnrollmentForm", () => {
   beforeEach(() => {
     mockIntlLocale.value = "de";
@@ -758,7 +779,10 @@ describe("EnrollmentForm", () => {
 
     fireEvent.click(screen.getByRole("checkbox", { name: /Fixe Betreuung/ }));
 
-    fireEvent.change(screen.getByLabelText("Montag"), {
+    // The pickup field only renders the child's actual care days. "Fixe
+    // Betreuung" covers Tue/Thu, so Monday is not offered here -- enter the
+    // time on a care day instead.
+    fireEvent.change(screen.getByLabelText("Dienstag"), {
       target: { value: "15:00" },
     });
 
@@ -821,9 +845,99 @@ describe("EnrollmentForm", () => {
     expect(payload.children[0]?.custom_data).toMatchObject({
       allergies: "Nuesse",
       lunch: true,
-      dismissal: { mon: "15:00" },
+      dismissal: { tue: "15:00" },
     });
     expect(onSubmitted).toHaveBeenCalledWith("/status/abc");
+  });
+
+  it("limits pickup weekdays to the child's selected care days", async () => {
+    renderForm();
+    await waitForLoaded();
+
+    // Before any care offering is chosen there are no care days, so the
+    // pickup field prompts the parent to pick care days first instead of
+    // showing all weekdays.
+    expect(
+      screen.getByText("Wählen Sie zuerst die Betreuungstage aus."),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Montag")).not.toBeInTheDocument();
+
+    // "Fixe Betreuung" covers Tue/Thu only -> exactly those two weekdays
+    // appear under the pickup field; Mon/Wed/Fri stay hidden.
+    fireEvent.click(screen.getByRole("checkbox", { name: /Fixe Betreuung/ }));
+
+    expect(screen.getByLabelText("Dienstag")).toBeInTheDocument();
+    expect(screen.getByLabelText("Donnerstag")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Montag")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Mittwoch")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Freitag")).not.toBeInTheDocument();
+  });
+
+  it("drops pickup times for days the child is no longer in care", async () => {
+    // Two fixed offerings change the care-day set deterministically (no day
+    // picker needed).
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [
+        {
+          id: "31",
+          phase_id: "5",
+          name: "Block Mo Di",
+          description: null,
+          days_of_week_mode: "fixed",
+          available_days: ["mon", "tue"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          capacity: null,
+        },
+        {
+          id: "32",
+          phase_id: "5",
+          name: "Block Do",
+          description: null,
+          days_of_week_mode: "fixed",
+          available_days: ["thu"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          capacity: null,
+        },
+      ],
+      careOfferingSelectionMode: "at_least_one",
+      careRequired: true,
+    });
+    const onSubmitted = vi.fn();
+    renderForm({ onSubmitted });
+    await waitForLoaded();
+
+    await fillRequiredFields();
+
+    // Mo/Di care -> enter pickup times for both days.
+    fireEvent.click(screen.getByRole("checkbox", { name: /Block Mo Di/ }));
+    fireEvent.change(screen.getByLabelText("Montag"), {
+      target: { value: "15:00" },
+    });
+    fireEvent.change(screen.getByLabelText("Dienstag"), {
+      target: { value: "15:30" },
+    });
+
+    // Add Do, then drop Mo/Di so only Thu remains a care day. The Mon/Tue
+    // times are now stale and must not survive into the payload.
+    fireEvent.click(screen.getByRole("checkbox", { name: /Block Do/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Block Mo Di/ }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() => {
+      expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1);
+    });
+    const [, payload] = mockSubmitEnrollment.mock.calls[0] as [
+      string,
+      SubmitEnrollmentPayload,
+    ];
+    expect(payload.children[0]?.custom_data?.dismissal).toEqual({});
   });
 
   it("prefills from a parent profile and adopts an existing child", async () => {
@@ -1467,6 +1581,92 @@ describe("EnrollmentForm", () => {
     expect((lastNames[2] as HTMLInputElement).value).toBe("Bach");
   });
 
+  it("does not turn automatic-only edit-draft offerings into manual selections", async () => {
+    const submitter = vi.fn().mockResolvedValue({ status_url: "/status/edit" });
+    const noFieldSchema = schema();
+    noFieldSchema.fields = [];
+    mockFetchPublicActiveSchema.mockResolvedValueOnce(noFieldSchema);
+    mockFetchPublicLegalTexts.mockResolvedValueOnce(legalTexts([]));
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [
+        {
+          id: "11",
+          phase_id: "5",
+          name: "Ganztag",
+          description: null,
+          days_of_week_mode: "parent_choice",
+          available_days: ["mon", "wed"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          counts_as_care: true,
+          capacity: null,
+        },
+        {
+          id: "22",
+          phase_id: "5",
+          name: "Randstunde",
+          description: null,
+          days_of_week_mode: "parent_choice",
+          available_days: ["mon", "wed"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          counts_as_care: false,
+          auto_add_trigger_offering_ids: ["11"],
+          capacity: null,
+        },
+      ],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+    });
+
+    renderForm({
+      submitter,
+      skipCaptcha: true,
+      initialDraft: {
+        ...editDraft([{ id: "c-1", first_name: "Anton", last_name: "Alster" }]),
+        consent_flags: {},
+        children: [
+          {
+            id: "c-1",
+            first_name: "Anton",
+            last_name: "Alster",
+            date_of_birth: "2018-04-15",
+            target_grade_level: 2,
+            offering_ids: ["11", "22"],
+            offering_days: [
+              {
+                offering_id: "11",
+                selected_days: ["mon"],
+                manual_selected_days: ["mon"],
+              },
+              {
+                offering_id: "22",
+                selected_days: ["mon"],
+                automatic_selected_days: ["mon"],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    await waitForLoaded();
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() => {
+      expect(submitter).toHaveBeenCalledTimes(1);
+    });
+    const payload = submitter.mock.calls[0]?.[0] as SubmitEnrollmentPayload;
+    expect(payload.children[0]?.offering_ids).toEqual([11]);
+    expect(payload.children[0]?.offering_days).toEqual([
+      { offering_id: 11, selected_days: ["mon"] },
+    ]);
+  });
+
   it("keeps each child's card state bound to that child when a sibling is removed", async () => {
     // Regression for the array-index key bug: the per-child WeekdayMultiModeInput
     // holds local-only state (the "same ways home" toggle). With index keys,
@@ -1563,6 +1763,343 @@ describe("EnrollmentForm", () => {
       mon: true,
       fri: true,
     });
+  });
+
+  // The accompanied mode + coupled "mit wem" note is the headline of #1694.
+  // A single fixed Monday offering keeps the home-route field to one care day.
+  function accompaniedModeSchemaAndOfferings() {
+    const customSchema = schema();
+    customSchema.fields = [
+      {
+        key: "allowed_modes",
+        label: "Erlaubte Heimwege",
+        type: "weekday_multi_mode",
+        target: "student.allowed_departure_modes",
+        required: true,
+        applies_to_child: true,
+        sort_order: 1,
+      },
+    ];
+    mockFetchPublicActiveSchema.mockResolvedValue(customSchema);
+    mockFetchPublicCareOfferings.mockResolvedValue({
+      offerings: [
+        {
+          id: "21",
+          phase_id: "5",
+          name: "Block Mo",
+          description: null,
+          days_of_week_mode: "fixed",
+          available_days: ["mon"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          capacity: null,
+        },
+      ],
+      careOfferingSelectionMode: "at_least_one",
+      careRequired: true,
+    });
+  }
+
+  it("submits the coupled companion note when an accompanied day is selected (#1694)", async () => {
+    accompaniedModeSchemaAndOfferings();
+    renderForm();
+    await waitForLoaded();
+    await fillRequiredFields();
+    fireEvent.click(screen.getByRole("checkbox", { name: /Block Mo/ }));
+
+    const group = screen.getByRole("group", { name: /Erlaubte Heimwege/ });
+    // No accompanied day yet → the "mit wem" input is not shown.
+    expect(
+      within(group).queryByPlaceholderText(/Geschwisterkind, Freund, Name/),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(within(group).getByRole("button", { name: "Mo" }));
+    fireEvent.click(
+      within(group).getByRole("checkbox", { name: "Mit anderem Kind" }),
+    );
+    const noteInput = within(group).getByPlaceholderText(
+      /Geschwisterkind, Freund, Name/,
+    );
+    fireEvent.change(noteInput, { target: { value: "Geschwisterkind Mia" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+    await waitFor(() => expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1));
+    const [, payload] = mockSubmitEnrollment.mock.calls[0] as [
+      string,
+      SubmitEnrollmentPayload,
+    ];
+    expect(payload.children[0]?.custom_data?.allowed_modes).toMatchObject({
+      mon: ["accompanied"],
+    });
+    expect(
+      payload.children[0]?.custom_data?.["student.departure_companion_note"],
+    ).toBe("Geschwisterkind Mia");
+  });
+
+  it("does not offer accompanied for untargeted weekday multi-mode fields (#1694)", async () => {
+    const customSchema = schema();
+    customSchema.fields = [
+      {
+        key: "custom_modes",
+        label: "Erlaubte Heimwege",
+        type: "weekday_multi_mode",
+        required: true,
+        applies_to_child: true,
+        sort_order: 1,
+      },
+    ];
+    mockFetchPublicActiveSchema.mockResolvedValue(customSchema);
+    mockFetchPublicCareOfferings.mockResolvedValue({
+      offerings: [
+        {
+          id: "21",
+          phase_id: "5",
+          name: "Block Mo",
+          description: null,
+          days_of_week_mode: "fixed",
+          available_days: ["mon"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          capacity: null,
+        },
+      ],
+      careOfferingSelectionMode: "at_least_one",
+      careRequired: true,
+    });
+
+    renderForm({
+      initialDraft: {
+        ...editDraft([{ id: "c-1", first_name: "Lina", last_name: "Muster" }]),
+        consent_flags: { agb: true, data_processing: true },
+        children: [
+          {
+            id: "c-1",
+            first_name: "Lina",
+            last_name: "Muster",
+            date_of_birth: "2018-04-15",
+            target_grade_level: 2,
+            offering_ids: ["21"],
+            custom_data: {
+              custom_modes: { mon: ["bus", "accompanied"] },
+              "student.departure_companion_note": "Geschwisterkind Mia",
+            },
+          },
+        ],
+      },
+    });
+    await waitForLoaded();
+
+    const group = screen.getByRole("group", { name: /Erlaubte Heimwege/ });
+    expect(
+      within(group).queryByRole("checkbox", { name: "Mit anderem Kind" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(group).queryByPlaceholderText(/Geschwisterkind, Freund, Name/),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+    await waitFor(() => expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1));
+    const [, payload] = mockSubmitEnrollment.mock.calls[0] as [
+      string,
+      SubmitEnrollmentPayload,
+    ];
+    expect(payload.children[0]?.custom_data?.custom_modes).toEqual({
+      mon: ["bus"],
+    });
+    expect(
+      payload.children[0]?.custom_data?.["student.departure_companion_note"],
+    ).toBeUndefined();
+  });
+
+  // Regression (#1694): a schema may carry more than one field targeting
+  // student.allowed_departure_modes (only keys are unique). The companion note
+  // must couple back in and be enforced when accompanied is chosen in ANY of
+  // them, not only the first — a single .find() on the first field dropped the
+  // note (and skipped the required-note check) when accompanied lived in a
+  // later field, so the backend rejected an otherwise-complete submission.
+  function twoDepartureFieldsSchemaAndOfferings() {
+    const customSchema = schema();
+    customSchema.fields = [
+      {
+        key: "modes_a",
+        label: "Heimweg A",
+        type: "weekday_multi_mode",
+        target: "student.allowed_departure_modes",
+        required: true,
+        applies_to_child: true,
+        sort_order: 1,
+      },
+      {
+        key: "modes_b",
+        label: "Heimweg B",
+        type: "weekday_multi_mode",
+        target: "student.allowed_departure_modes",
+        required: true,
+        applies_to_child: true,
+        sort_order: 2,
+      },
+    ];
+    mockFetchPublicActiveSchema.mockResolvedValue(customSchema);
+    mockFetchPublicCareOfferings.mockResolvedValue({
+      offerings: [
+        {
+          id: "21",
+          phase_id: "5",
+          name: "Block Mo",
+          description: null,
+          days_of_week_mode: "fixed",
+          available_days: ["mon"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          capacity: null,
+        },
+      ],
+      careOfferingSelectionMode: "at_least_one",
+      careRequired: true,
+    });
+  }
+
+  it("couples the companion note when accompanied is selected in a later departure field (#1694)", async () => {
+    twoDepartureFieldsSchemaAndOfferings();
+    renderForm();
+    await waitForLoaded();
+    await fillRequiredFields();
+    fireEvent.click(screen.getByRole("checkbox", { name: /Block Mo/ }));
+
+    // Field A gets a non-accompanied mode so the .find()-on-first-field bug
+    // would see no accompanied and drop the note.
+    const groupA = screen.getByRole("group", { name: /Heimweg A/ });
+    fireEvent.click(within(groupA).getByRole("button", { name: "Mo" }));
+    fireEvent.click(within(groupA).getByRole("checkbox", { name: "Bus" }));
+
+    // Accompanied lives only in field B.
+    const groupB = screen.getByRole("group", { name: /Heimweg B/ });
+    fireEvent.click(within(groupB).getByRole("button", { name: "Mo" }));
+    fireEvent.click(
+      within(groupB).getByRole("checkbox", { name: "Mit anderem Kind" }),
+    );
+    fireEvent.change(
+      within(groupB).getByPlaceholderText(/Geschwisterkind, Freund, Name/),
+      { target: { value: "Geschwisterkind Mia" } },
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+    await waitFor(() => expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1));
+    const [, payload] = mockSubmitEnrollment.mock.calls[0] as [
+      string,
+      SubmitEnrollmentPayload,
+    ];
+    expect(payload.children[0]?.custom_data?.modes_b).toMatchObject({
+      mon: ["accompanied"],
+    });
+    expect(
+      payload.children[0]?.custom_data?.["student.departure_companion_note"],
+    ).toBe("Geschwisterkind Mia");
+  });
+
+  it("requires the note when accompanied is selected only in a later departure field (#1694)", async () => {
+    twoDepartureFieldsSchemaAndOfferings();
+    renderForm();
+    await waitForLoaded();
+    await fillRequiredFields();
+    fireEvent.click(screen.getByRole("checkbox", { name: /Block Mo/ }));
+
+    const groupA = screen.getByRole("group", { name: /Heimweg A/ });
+    fireEvent.click(within(groupA).getByRole("button", { name: "Mo" }));
+    fireEvent.click(within(groupA).getByRole("checkbox", { name: "Bus" }));
+
+    const groupB = screen.getByRole("group", { name: /Heimweg B/ });
+    fireEvent.click(within(groupB).getByRole("button", { name: "Mo" }));
+    fireEvent.click(
+      within(groupB).getByRole("checkbox", { name: "Mit anderem Kind" }),
+    );
+
+    // Note left empty → submit must be blocked even though accompanied lives in
+    // the second departure field.
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+    await waitFor(() =>
+      expect(
+        screen.getAllByText(
+          "Bitte angeben, mit welchem Kind das Kind nach Hause geht.",
+        ).length,
+      ).toBeGreaterThan(0),
+    );
+    expect(mockSubmitEnrollment).not.toHaveBeenCalled();
+  });
+
+  it("blocks submit with a required-note error when accompanied is selected but the note is empty (#1694)", async () => {
+    accompaniedModeSchemaAndOfferings();
+    renderForm();
+    await waitForLoaded();
+    await fillRequiredFields();
+    fireEvent.click(screen.getByRole("checkbox", { name: /Block Mo/ }));
+
+    const group = screen.getByRole("group", { name: /Erlaubte Heimwege/ });
+    fireEvent.click(within(group).getByRole("button", { name: "Mo" }));
+    fireEvent.click(
+      within(group).getByRole("checkbox", { name: "Mit anderem Kind" }),
+    );
+    // Note left empty → submit must be blocked with the per-field error.
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+    await waitFor(() =>
+      expect(
+        screen.getAllByText(
+          "Bitte angeben, mit welchem Kind das Kind nach Hause geht.",
+        ).length,
+      ).toBeGreaterThan(0),
+    );
+    expect(mockSubmitEnrollment).not.toHaveBeenCalled();
+
+    // Filling the note clears the block and submit goes through.
+    fireEvent.change(
+      within(group).getByPlaceholderText(/Geschwisterkind, Freund, Name/),
+      { target: { value: "Geschwisterkind Mia" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+    await waitFor(() => expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1));
+  });
+
+  it("drops the companion note from the payload once accompanied is deselected (#1694)", async () => {
+    accompaniedModeSchemaAndOfferings();
+    renderForm();
+    await waitForLoaded();
+    await fillRequiredFields();
+    fireEvent.click(screen.getByRole("checkbox", { name: /Block Mo/ }));
+
+    const group = screen.getByRole("group", { name: /Erlaubte Heimwege/ });
+    fireEvent.click(within(group).getByRole("button", { name: "Mo" }));
+    fireEvent.click(
+      within(group).getByRole("checkbox", { name: "Mit anderem Kind" }),
+    );
+    fireEvent.change(
+      within(group).getByPlaceholderText(/Geschwisterkind, Freund, Name/),
+      { target: { value: "Geschwisterkind Mia" } },
+    );
+    // Change of mind: switch the day to a non-accompanied mode. The note input
+    // disappears and its value must NOT ride along on submit.
+    fireEvent.click(
+      within(group).getByRole("checkbox", { name: "Mit anderem Kind" }),
+    );
+    fireEvent.click(within(group).getByRole("checkbox", { name: "Bus" }));
+    expect(
+      within(group).queryByPlaceholderText(/Geschwisterkind, Freund, Name/),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+    await waitFor(() => expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1));
+    const [, payload] = mockSubmitEnrollment.mock.calls[0] as [
+      string,
+      SubmitEnrollmentPayload,
+    ];
+    expect(
+      payload.children[0]?.custom_data?.["student.departure_companion_note"],
+    ).toBeUndefined();
   });
 
   it("shows pickup-specific helper text for the Abholregelung weekday field", async () => {
@@ -1759,6 +2296,212 @@ describe("EnrollmentForm", () => {
     });
     const payload = submitter.mock.calls[0]?.[0] as SubmitEnrollmentPayload;
     expect(payload.children[0]?.offering_ids).toEqual([20]);
+  });
+
+  it("auto-fills required lunch days from selected care days without submitting them as manual picks", async () => {
+    const submitter = vi.fn().mockResolvedValue({ status_url: "/status/req" });
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [
+        {
+          id: "12",
+          phase_id: "5",
+          name: "Fixe Betreuung",
+          description: null,
+          days_of_week_mode: "fixed",
+          available_days: ["tue", "thu"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          counts_as_care: true,
+          capacity: 20,
+        },
+        {
+          id: "20",
+          phase_id: "5",
+          name: "Mittagessen",
+          description: null,
+          days_of_week_mode: "parent_choice",
+          available_days: ["mon", "tue", "wed", "thu", "fri"],
+          includes_holiday_care: false,
+          includes_lunch: true,
+          is_active: true,
+          is_required: true,
+          counts_as_care: false,
+          capacity: null,
+        },
+      ],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+    });
+    renderForm({ submitter, skipCaptcha: true });
+    await waitForLoaded();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /Fixe Betreuung/ }));
+    expect(screen.queryByText("Di, Do automatisch")).not.toBeInTheDocument();
+
+    await fillRequiredFields();
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() => {
+      expect(submitter).toHaveBeenCalledTimes(1);
+    });
+    const payload = submitter.mock.calls[0]?.[0] as SubmitEnrollmentPayload;
+    expect(payload.children[0]?.offering_ids).toEqual(
+      expect.arrayContaining([12, 20]),
+    );
+    expect(payload.children[0]?.offering_days).toBeUndefined();
+    expect(
+      screen.queryByText("Bitte mindestens einen Tag auswählen."),
+    ).toBeNull();
+  });
+
+  it("shows auto-added offerings as selected without exposing day provenance", async () => {
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [
+        {
+          id: "11",
+          phase_id: "5",
+          name: "Ganztag",
+          description: null,
+          days_of_week_mode: "parent_choice",
+          available_days: ["mon", "tue", "wed", "thu", "fri"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          counts_as_care: true,
+          capacity: null,
+        },
+        {
+          id: "22",
+          phase_id: "5",
+          name: "Randstunde",
+          description: null,
+          days_of_week_mode: "parent_choice",
+          available_days: ["mon", "tue", "wed", "thu", "fri"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          counts_as_care: false,
+          auto_add_trigger_offering_ids: ["11"],
+          auto_add_grade_levels: [1, 2],
+          capacity: null,
+        },
+      ],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+    });
+    renderForm();
+    await waitForLoaded();
+    await chooseOption("Klassenstufe *", "2. Klasse");
+
+    const ganztagInput = document.querySelector<HTMLInputElement>(
+      'input[name="children_0_offering_11"]',
+    );
+    expect(ganztagInput).not.toBeNull();
+    fireEvent.click(ganztagInput as HTMLInputElement);
+    for (const day of ["Mo", "Di", "Mi", "Do"]) {
+      fireEvent.click(dayButton(offeringCard("children_0_offering_11"), day));
+    }
+    const randstundeInput = document.querySelector<HTMLInputElement>(
+      'input[name="children_0_offering_22"]',
+    );
+    expect(randstundeInput).not.toBeNull();
+    expect(randstundeInput).toBeChecked();
+    expect(randstundeInput).toBeDisabled();
+    expect(
+      screen.queryByText("Mo, Di, Mi, Do automatisch"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(dayButton(offeringCard("children_0_offering_22"), "Fr"));
+
+    expect(
+      screen.queryByText("Mo, Di, Mi, Do automatisch; Fr manuell"),
+    ).not.toBeInTheDocument();
+    expect(
+      dayButton(offeringCard("children_0_offering_22"), "Mo"),
+    ).toBeDisabled();
+    expect(
+      dayButton(offeringCard("children_0_offering_22"), "Fr"),
+    ).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("validates selection groups against auto-added offerings", async () => {
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [
+        {
+          id: "11",
+          phase_id: "5",
+          name: "Ganztag",
+          description: null,
+          days_of_week_mode: "parent_choice",
+          available_days: ["mon", "tue", "wed", "thu", "fri"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          counts_as_care: true,
+          capacity: null,
+        },
+        {
+          id: "22",
+          phase_id: "5",
+          name: "Frühbetreuung",
+          description: null,
+          days_of_week_mode: "parent_choice",
+          available_days: ["mon", "tue", "wed", "thu", "fri"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          counts_as_care: false,
+          selection_group: "Randzeiten",
+          selection_rule: "at_most_one",
+          auto_add_trigger_offering_ids: ["11"],
+          capacity: null,
+        },
+        {
+          id: "33",
+          phase_id: "5",
+          name: "Spätbetreuung",
+          description: null,
+          days_of_week_mode: "parent_choice",
+          available_days: ["mon", "tue", "wed", "thu", "fri"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          counts_as_care: false,
+          selection_group: "Randzeiten",
+          selection_rule: "at_most_one",
+          capacity: null,
+        },
+      ],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+    });
+    renderForm();
+    await waitForLoaded();
+    await fillRequiredFields();
+
+    const ganztagInput = document.querySelector<HTMLInputElement>(
+      'input[name="children_0_offering_11"]',
+    );
+    expect(ganztagInput).not.toBeNull();
+    fireEvent.click(ganztagInput as HTMLInputElement);
+    fireEvent.click(dayButton(offeringCard("children_0_offering_11"), "Mo"));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Spätbetreuung/ }));
+    fireEvent.click(dayButton(offeringCard("children_0_offering_33"), "Mo"));
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    expect(
+      await screen.findByText(
+        "Kind 1: Bitte bei „Randzeiten“ höchstens ein Angebot wählen.",
+      ),
+    ).toBeInTheDocument();
+    expect(mockSubmitEnrollment).not.toHaveBeenCalled();
   });
 
   it("counts only choosable offerings for exactly_one when a required offering is present", async () => {

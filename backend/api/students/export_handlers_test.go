@@ -304,6 +304,50 @@ func TestWeeklyCellUsesExplicitLabels(t *testing.T) {
 	}
 }
 
+// TestDepartureExportCell pins the accompanied companion-note rendering in the
+// student export (#1694): the "mit wem" note is appended only when the resolved
+// plan actually allows the accompanied ("Mit anderem Kind") mode.
+func TestDepartureExportCell(t *testing.T) {
+	t.Run("appends companion note for an accompanied day", func(t *testing.T) {
+		got := departureExportCell(StudentResponse{
+			AllowedDepartureModes: users.AllowedDepartureModes{
+				users.PickupDayMonday: []users.DepartureMode{users.DepartureAccompanied},
+			},
+			DepartureCompanionNote: "Geschwisterkind Lena",
+		})
+		require.Equal(t, "Mo: Mit anderem Kind (mit: Geschwisterkind Lena)", got)
+	})
+
+	t.Run("ignores a stray note when no day is accompanied", func(t *testing.T) {
+		got := departureExportCell(StudentResponse{
+			AllowedDepartureModes: users.AllowedDepartureModes{
+				users.PickupDayMonday: []users.DepartureMode{users.DepartureBus},
+			},
+			DepartureCompanionNote: "Geschwisterkind Lena",
+		})
+		require.Equal(t, "Mo: Bus", got)
+	})
+
+	t.Run("falls back to the legacy departure days for the accompanied check", func(t *testing.T) {
+		got := departureExportCell(StudentResponse{
+			DepartureDays: users.DepartureDays{
+				users.PickupDayTuesday: users.DepartureAccompanied,
+			},
+			DepartureCompanionNote: "Nachbarskind Tom",
+		})
+		require.Equal(t, "Di: Mit anderem Kind (mit: Nachbarskind Tom)", got)
+	})
+
+	t.Run("no note renders the plain summary", func(t *testing.T) {
+		got := departureExportCell(StudentResponse{
+			AllowedDepartureModes: users.AllowedDepartureModes{
+				users.PickupDayMonday: []users.DepartureMode{users.DepartureAccompanied},
+			},
+		})
+		require.Equal(t, "Mo: Mit anderem Kind", got)
+	})
+}
+
 func TestDepartureSummary(t *testing.T) {
 	tests := []struct {
 		name    string

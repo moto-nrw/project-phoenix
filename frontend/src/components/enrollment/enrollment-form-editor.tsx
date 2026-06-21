@@ -159,7 +159,7 @@ const targetSuggestionDescriptions: Record<
   "student.extra_info":
     "Für wichtige Hinweise, die im Alltag der Betreuung sichtbar sein sollen.",
   "student.allowed_departure_modes":
-    "Für die Wochentage festlegen, welche Heimwege erlaubt sind: zu Fuß, Bus oder Abholung. Mehrere Optionen pro Tag sind möglich.",
+    "Für die Wochentage festlegen, welche Heimwege erlaubt sind: zu Fuß, Bus, Abholung oder mit anderem Kind. Mehrere Optionen pro Tag sind möglich.",
   "student.departure":
     "Für die Wochentage festlegen, wie das Kind nach Hause geht: geht alleine, fährt Bus oder wird abgeholt.",
   "student.bus_days":
@@ -4075,7 +4075,7 @@ function standardLegalBlockText(
   if (!legalTexts) return "";
   switch (key) {
     case "agb":
-      return legalTexts.agb;
+      return standardAGBText(legalTexts);
     case "data_processing":
       return legalTexts.dsgvo;
     case "photo":
@@ -4087,6 +4087,23 @@ function standardLegalBlockText(
   }
 }
 
+function standardAGBText(legalTexts: PublicLegalTexts): string {
+  if (legalTexts.agb_display_mode === "pdf") {
+    const documentURL = (legalTexts.agb_document_url ?? "").trim();
+    if (documentURL === "") return "";
+    return `Die AGB / Teilnahmebedingungen sind als PDF-Datei hinterlegt: [AGB-Dokument öffnen](${publicAGBDocumentURL(documentURL)})`;
+  }
+  return legalTexts.agb;
+}
+
+function publicAGBDocumentURL(storedURL: string): string {
+  const prefix = "/uploads/enrollment-legal-documents/";
+  if (storedURL.startsWith(prefix)) {
+    return `/api/public/enrollment-legal-documents/${storedURL.slice(prefix.length)}`;
+  }
+  return storedURL;
+}
+
 function standardLegalBlockEnabled(
   key: string,
   legalTexts: PublicLegalTexts | null,
@@ -4094,7 +4111,7 @@ function standardLegalBlockEnabled(
   if (!legalTexts) return false;
   switch (key) {
     case "agb":
-      return legalTexts.terms_enabled && legalTexts.agb.trim() !== "";
+      return legalTexts.terms_enabled && standardAGBText(legalTexts) !== "";
     case "data_processing":
       return legalTexts.dsgvo_enabled && legalTexts.dsgvo.trim() !== "";
     case "photo":

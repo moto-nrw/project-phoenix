@@ -246,6 +246,118 @@ func (r *StudentEnrollmentRepository) UpdateAttendanceStatus(ctx context.Context
 	return base.AssertRowsAffected(result, 1, "update attendance status")
 }
 
+// DeleteByStudentGroupsAndWindow removes rows for one student in the given
+// linked groups and phase window. It deliberately requires explicit group ids
+// and dates so callers do not wipe unrelated rosters.
+func (r *StudentEnrollmentRepository) DeleteByStudentGroupsAndWindow(ctx context.Context, studentID int64, groupIDs []int64, validFrom timezone.Date, validUntil *timezone.Date) (int64, error) {
+	if studentID <= 0 {
+		return 0, fmt.Errorf("student_id is required")
+	}
+	if len(groupIDs) == 0 {
+		return 0, nil
+	}
+	query := base.GetDB(ctx, r.db).NewDelete().
+		Model((*activities.StudentEnrollment)(nil)).
+		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
+		Where(`"student_enrollment".student_id = ?`, studentID).
+		Where(`"student_enrollment".activity_group_id IN (?)`, bun.List(groupIDs)).
+		Where(`"student_enrollment".valid_from = ?`, validFrom)
+	if validUntil == nil {
+		query = query.Where(`"student_enrollment".valid_until IS NULL`)
+	} else {
+		query = query.Where(`"student_enrollment".valid_until = ?`, *validUntil)
+	}
+	if where, val, ok := base.TenantWhere(ctx, "student_enrollment"); ok {
+		query = query.Where(where, val)
+	}
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "delete by student groups and window", Err: err}
+	}
+	rows, _ := result.RowsAffected()
+	return rows, nil
+}
+
+// BackfillEnrollmentRequestChildSource stamps legacy rows materialized by a
+// request child approval before enrollment_request_child_id existed. The
+// tight approval-time guard keeps later manual rosters for the same
+// student/window from being claimed.
+func (r *StudentEnrollmentRepository) BackfillEnrollmentRequestChildSource(ctx context.Context, studentID, requestChildID int64, groupIDs []int64) (int64, error) {
+	if studentID <= 0 {
+		return 0, fmt.Errorf("student_id is required")
+	}
+	if requestChildID <= 0 {
+		return 0, fmt.Errorf("enrollment_request_child_id is required")
+	}
+	if len(groupIDs) == 0 {
+		return 0, nil
+	}
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*activities.StudentEnrollment)(nil)).
+		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
+		Set("enrollment_request_child_id = ?", requestChildID).
+		Where(`"student_enrollment".student_id = ?`, studentID).
+		Where(`"student_enrollment".enrollment_request_child_id IS NULL`).
+		Where(`EXISTS (
+			SELECT 1
+			FROM enrollment.request_children AS "request_child"
+			INNER JOIN enrollment.requests AS "request"
+				ON "request".tenant_id = "request_child".tenant_id
+				AND "request".id = "request_child".request_id
+			INNER JOIN enrollment.phases AS "phase"
+				ON "phase".tenant_id = "request_child".tenant_id
+				AND "phase".id = "request".phase_id
+			WHERE "request_child".id = ?
+				AND "request_child".tenant_id = "student_enrollment".tenant_id
+				AND "request_child".created_student_id = "student_enrollment".student_id
+				AND "request_child".status = 'approved'
+				AND "request_child".reviewed_at IS NOT NULL
+				AND "student_enrollment".created_at BETWEEN "request_child".reviewed_at - INTERVAL '5 minutes'
+					AND "request_child".reviewed_at + INTERVAL '5 minutes'
+				AND (
+					"student_enrollment".activity_group_id IN (?)
+					OR (
+						"student_enrollment".valid_from = "phase".service_start_date
+						AND "student_enrollment".valid_until IS NOT DISTINCT FROM "phase".service_end_date
+					)
+				)
+		)`, requestChildID, bun.List(groupIDs))
+	if where, val, ok := base.TenantWhere(ctx, "student_enrollment"); ok {
+		query = query.Where(where, val)
+	}
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "backfill enrollment request child source", Err: err}
+	}
+	rows, _ := result.RowsAffected()
+	return rows, nil
+}
+
+// DeleteByEnrollmentRequestChild removes rows materialized from one approved
+// enrollment request child for a specific student.
+func (r *StudentEnrollmentRepository) DeleteByEnrollmentRequestChild(ctx context.Context, studentID, requestChildID int64) (int64, error) {
+	if studentID <= 0 {
+		return 0, fmt.Errorf("student_id is required")
+	}
+	if requestChildID <= 0 {
+		return 0, fmt.Errorf("enrollment_request_child_id is required")
+	}
+	query := base.GetDB(ctx, r.db).NewDelete().
+		Model((*activities.StudentEnrollment)(nil)).
+		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
+		Where(`"student_enrollment".student_id = ?`, studentID).
+		Where(`"student_enrollment".enrollment_request_child_id = ?`, requestChildID)
+	if where, val, ok := base.TenantWhere(ctx, "student_enrollment"); ok {
+		query = query.Where(where, val)
+	}
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "delete by enrollment request child", Err: err}
+	}
+	rows, _ := result.RowsAffected()
+	return rows, nil
+}
+
 // Create overrides the base Create method to handle validation. Template
 // rosters usually apply on every template weekday, so they leave
 // selected_weekdays empty; omit the column in that case.

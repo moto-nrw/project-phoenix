@@ -21,6 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	baseModel "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -95,8 +96,16 @@ func (m *mockDecisionService) Decide(_ context.Context, input enrollmentService.
 	return m.decideResult, m.decideErr
 }
 
+func (m *mockDecisionService) UpdateChildOfferings(_ context.Context, _ enrollmentService.UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error) {
+	return nil, nil
+}
+
 func (m *mockDecisionService) ListChildOfferings(_ context.Context, _ int64) (map[int64][]enrollmentService.ChildOfferingRow, error) {
 	return m.listChildOffResult, m.listChildOffErr
+}
+
+func (m *mockDecisionService) ListOfferingAdjustments(_ context.Context, _, _ int64) ([]*auditModels.EnrollmentOfferingAdjustment, error) {
+	return nil, nil
 }
 
 func (m *mockDecisionService) ExportPhase(_ context.Context, phaseID, actorAccountID int64, actorRole, format, childStatusFilter string) (*enrollmentService.PhaseExport, error) {

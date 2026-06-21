@@ -114,6 +114,8 @@
     "pickupEyebrow": "Забор",
     "pickupPeopleTitle": "Разрешения на забор",
     "pickupPeopleDescription": "Люди, которым разрешено забирать этого ребенка.",
+    "pickupPeopleEmptyTitle": "Разрешения на забор не добавлены",
+    "pickupPeopleEmptyDescription": "Разрешения на забор появятся здесь.",
     "manage": "Управлять",
     "add": "Добавить",
     "addPerson": "Добавить человека",
@@ -161,15 +163,6 @@
       "noMessages": "Нет новых сообщений",
       "noMessagesSent": "Сообщения не отправлены",
       "messagesSent": "{count, plural, one {Отправлено # сообщение} few {Отправлено # сообщения} many {Отправлено # сообщений} other {Отправлено # сообщения}}"
-    },
-    "demo": {
-      "momName": "Мама",
-      "dadName": "Папа",
-      "grandmaName": "Бабушка",
-      "auntName": "Тетя",
-      "mother": "Мать",
-      "father": "Отец",
-      "pickup": "Забор"
     },
     "messages": {
       "eyebrow": "Родительский портал",
@@ -443,10 +436,13 @@
       "optionalHint": "Выберите предложения, которые вы хотите для этого ребенка.",
       "reviewHint": "OGS проверяет свободные места после отправки. Обратите внимание: регистрируя ребенка в программе продленного дня, вы обязуете его посещать ее в заявленное время согласно постановлению о школах продленного дня.",
       "requiredBadge": "Обязательно",
+      "automaticBadge": "автоматически",
       "chooseExactlyOne": "Пожалуйста, выберите ровно одно предложение.",
       "chooseAtLeastOne": "Пожалуйста, выберите хотя бы одно предложение.",
       "selectableDays": "Доступные дни: ",
       "days": "Дни: ",
+      "automaticDays": "{days} автоматически",
+      "manualDays": "{days} вручную",
       "holiday": "вкл. уход на каникулах",
       "lunch": "вкл. обед",
       "ruleExactlyOne": "Пожалуйста, выберите ровно одно",
@@ -495,10 +491,14 @@
       "weekdayMultiModeUniformConfirmBody": "Вы выбрали разные способы возвращения домой для отдельных дней посещения. Если включить общий выбор, эти данные по дням будут удалены, и вы сделаете выбор заново.",
       "weekdayMultiModeUniformConfirmCta": "Удалить и продолжить",
       "weekdayMultiModeUniformConfirmCancel": "Отмена",
+      "departureCompanionLabel": "С каким ребёнком?",
+      "departureCompanionPlaceholder": "напр. брат/сестра, друг, имя",
+      "departureCompanionRequired": "Укажите, пожалуйста, с каким ребёнком ваш ребёнок идёт домой.",
       "departureModes": {
         "alone": "Идет пешком",
         "bus": "Автобус",
-        "pickup": "Забирают"
+        "pickup": "Забирают",
+        "accompanied": "С другим ребёнком"
       }
     },
     "months": [

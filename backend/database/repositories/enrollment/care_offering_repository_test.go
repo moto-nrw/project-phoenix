@@ -75,6 +75,28 @@ func TestCareOfferingRepository_Create_PersistsAndReturnsID(t *testing.T) {
 	assert.Equal(t, tenantID, offering.TenantID)
 }
 
+func TestCareOfferingRepository_Create_PreservesExplicitCountsAsCareFalse(t *testing.T) {
+	db, repo, tenantID, phaseID := setupCareOfferingRepoTest(t)
+	defer wipeOfferings(db, tenantID, phaseID)
+
+	offering := makeOffering(phaseID, uniqueOfferingName("nonstat"))
+	offering.CountsAsCare = false
+	offering.CountsAsCareSet = true
+
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.Create(ctx, offering)
+	}))
+
+	var got *enrollmentModels.CareOffering
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var findErr error
+		got, findErr = repo.FindByID(ctx, offering.ID)
+		return findErr
+	}))
+	require.NotNil(t, got)
+	assert.False(t, got.CountsAsCare, "explicit counts_as_care=false must survive create")
+}
+
 func TestCareOfferingRepository_Create_RejectsInvalidOffering(t *testing.T) {
 	db, repo, tenantID, phaseID := setupCareOfferingRepoTest(t)
 	offering := makeOffering(phaseID, "") // blank name → Validate fails

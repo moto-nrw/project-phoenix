@@ -21,6 +21,11 @@ var AllowedImageTypes = map[string]bool{
 	"image/webp": true,
 }
 
+// AllowedPDFTypes maps MIME types detected by http.DetectContentType to allowed PDF documents.
+var AllowedPDFTypes = map[string]bool{
+	"application/pdf": true,
+}
+
 // UploadedFile holds the result of parsing and validating an image upload.
 type UploadedFile struct {
 	File        io.ReadSeekCloser
@@ -37,6 +42,29 @@ func ParseImage(w http.ResponseWriter, r *http.Request, fieldName string, maxSiz
 // ParseImageWithLimits enforces an advertised file-size cap separately from
 // the multipart body cap. Body cap needs headroom for boundaries and headers.
 func ParseImageWithLimits(w http.ResponseWriter, r *http.Request, fieldName string, maxFileSize, maxBodySize int64) (*UploadedFile, error) {
+	return parseUploadWithLimits(w, r, fieldName, maxFileSize, maxBodySize, detectImageContentType)
+}
+
+// ParsePDF parses a multipart form upload, validates the content type via magic bytes,
+// and returns the file ready for saving. The caller must close UploadedFile.File.
+func ParsePDF(w http.ResponseWriter, r *http.Request, fieldName string, maxSize int64) (*UploadedFile, error) {
+	return ParsePDFWithLimits(w, r, fieldName, maxSize, maxSize)
+}
+
+// ParsePDFWithLimits enforces an advertised file-size cap separately from
+// the multipart body cap. Body cap needs headroom for boundaries and headers.
+func ParsePDFWithLimits(w http.ResponseWriter, r *http.Request, fieldName string, maxFileSize, maxBodySize int64) (*UploadedFile, error) {
+	return parseUploadWithLimits(w, r, fieldName, maxFileSize, maxBodySize, detectPDFContentType)
+}
+
+func parseUploadWithLimits(
+	w http.ResponseWriter,
+	r *http.Request,
+	fieldName string,
+	maxFileSize int64,
+	maxBodySize int64,
+	detect func(io.ReadSeeker) (string, error),
+) (*UploadedFile, error) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxBodySize)
 
 	if err := r.ParseMultipartForm(maxBodySize); err != nil {
@@ -52,7 +80,7 @@ func ParseImageWithLimits(w http.ResponseWriter, r *http.Request, fieldName stri
 		return nil, errors.New("file too large")
 	}
 
-	contentType, err := detectContentType(file)
+	contentType, err := detect(file)
 	if err != nil {
 		_ = file.Close()
 		return nil, err
@@ -65,9 +93,22 @@ func ParseImageWithLimits(w http.ResponseWriter, r *http.Request, fieldName stri
 	}, nil
 }
 
-// detectContentType reads the first 512 bytes to detect the MIME type via magic bytes
+// detectImageContentType reads the first 512 bytes to detect the MIME type via magic bytes
 // and validates it against AllowedImageTypes.
+func detectImageContentType(file io.ReadSeeker) (string, error) {
+	return detectAllowedContentType(file, AllowedImageTypes, "invalid file type. Only JPEG, PNG, and WebP images are allowed")
+}
+
 func detectContentType(file io.ReadSeeker) (string, error) {
+	return detectImageContentType(file)
+}
+
+// detectPDFContentType reads the first 512 bytes to detect a PDF via magic bytes.
+func detectPDFContentType(file io.ReadSeeker) (string, error) {
+	return detectAllowedContentType(file, AllowedPDFTypes, "invalid file type. Only PDF documents are allowed")
+}
+
+func detectAllowedContentType(file io.ReadSeeker, allowed map[string]bool, invalidMessage string) (string, error) {
 	buf := make([]byte, 512)
 	n, err := file.Read(buf)
 	if n == 0 {
@@ -78,8 +119,8 @@ func detectContentType(file io.ReadSeeker) (string, error) {
 	}
 
 	contentType := http.DetectContentType(buf[:n])
-	if !AllowedImageTypes[contentType] {
-		return "", errors.New("invalid file type. Only JPEG, PNG, and WebP images are allowed")
+	if !allowed[contentType] {
+		return "", errors.New(invalidMessage)
 	}
 
 	if _, err := file.Seek(0, 0); err != nil {
@@ -94,7 +135,17 @@ func detectContentType(file io.ReadSeeker) (string, error) {
 // Returns the full file path on disk.
 func SaveImage(file io.Reader, targetDir, prefix, contentType string) (string, error) {
 	ext := fileExtension(contentType)
+	return saveUploadedFile(file, targetDir, prefix, ext)
+}
 
+// SavePDF writes the uploaded PDF to targetDir with a generated filename of the form
+// {prefix}_{random}.pdf. It creates targetDir if it doesn't exist.
+// Returns the full file path on disk.
+func SavePDF(file io.Reader, targetDir, prefix string) (string, error) {
+	return saveUploadedFile(file, targetDir, prefix, ".pdf")
+}
+
+func saveUploadedFile(file io.Reader, targetDir, prefix, ext string) (string, error) {
 	randomStr, err := generateRandomString(8)
 	if err != nil {
 		return "", errors.New("failed to generate filename")
@@ -125,10 +176,21 @@ func SaveImage(file io.Reader, targetDir, prefix, contentType string) (string, e
 	return filePath, nil
 }
 
+// ServeFile serves a file from baseDir, validating the path stays within baseDir.
+// If baseDir is relative (e.g. "public/uploads/..."), it is resolved via ResolvePublicDir.
+// cacheControl sets the Cache-Control header (e.g. "private, max-age=86400" or "public, max-age=86400").
+func ServeFile(w http.ResponseWriter, r *http.Request, baseDir, filename, cacheControl string) {
+	servePublicFile(w, r, baseDir, filename, cacheControl)
+}
+
 // ServeImage serves an image file from baseDir, validating the path stays within baseDir.
 // If baseDir is relative (e.g. "public/uploads/..."), it is resolved via ResolvePublicDir.
 // cacheControl sets the Cache-Control header (e.g. "private, max-age=86400" or "public, max-age=86400").
 func ServeImage(w http.ResponseWriter, r *http.Request, baseDir, filename, cacheControl string) {
+	servePublicFile(w, r, baseDir, filename, cacheControl)
+}
+
+func servePublicFile(w http.ResponseWriter, r *http.Request, baseDir, filename, cacheControl string) {
 	if err := ValidateFilename(filename); err != nil {
 		http.NotFound(w, r)
 		return

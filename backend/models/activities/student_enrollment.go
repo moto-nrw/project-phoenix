@@ -32,8 +32,12 @@ type StudentEnrollment struct {
 	ValidFrom        timezone.Date  `bun:"valid_from,notnull" json:"valid_from"`
 	ValidUntil       *timezone.Date `bun:"valid_until" json:"valid_until,omitempty"`
 	CalendarPeriodID *int64         `bun:"calendar_period_id" json:"calendar_period_id,omitempty"`
-	SelectedWeekdays []int          `bun:"selected_weekdays,type:jsonb,nullzero" json:"selected_weekdays,omitempty"`
-	AttendanceStatus *string        `bun:"attendance_status" json:"attendance_status,omitempty"`
+	// EnrollmentRequestChildID marks activity rows materialized from an
+	// approved enrollment request child so later offering adjustments can
+	// replace exactly those rows, even if offering groups or phase dates changed.
+	EnrollmentRequestChildID *int64  `bun:"enrollment_request_child_id" json:"enrollment_request_child_id,omitempty"`
+	SelectedWeekdays         []int   `bun:"selected_weekdays,type:jsonb,nullzero" json:"selected_weekdays,omitempty"`
+	AttendanceStatus         *string `bun:"attendance_status" json:"attendance_status,omitempty"`
 
 	// Relations - populated when using the ORM's relations
 	Student       *users.Student `bun:"rel:belongs-to,join:student_id=id" json:"student,omitempty"`

@@ -33,6 +33,7 @@ import {
   useNFCEnabled,
   usePresenceMode,
   useTenant,
+  useTenantRoutingModeSafe,
   useTenantSafe,
   useTenantSlugSafe,
 } from "./tenant-provider";
@@ -120,6 +121,34 @@ describe("useTenantSlugSafe", () => {
     const { result } = renderHook(() => useTenantSlugSafe());
 
     expect(result.current).toBeNull();
+  });
+});
+
+describe("useTenantRoutingModeSafe", () => {
+  it("returns routing mode from provider", () => {
+    function Wrapper({ children }: { children: React.ReactNode }) {
+      return (
+        <TenantProvider
+          tenantSlug="demo-school"
+          tenant={mockTenant}
+          routingMode="subdomain"
+        >
+          {children}
+        </TenantProvider>
+      );
+    }
+
+    const { result } = renderHook(() => useTenantRoutingModeSafe(), {
+      wrapper: Wrapper,
+    });
+
+    expect(result.current).toBe("subdomain");
+  });
+
+  it("defaults to path mode outside provider", () => {
+    const { result } = renderHook(() => useTenantRoutingModeSafe());
+
+    expect(result.current).toBe("path");
   });
 });
 
