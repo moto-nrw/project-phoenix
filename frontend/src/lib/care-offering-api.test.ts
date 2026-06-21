@@ -60,6 +60,9 @@ const validInput: CareOfferingInput = {
   includes_lunch: false,
   is_active: true,
   is_required: false,
+  counts_as_care: true,
+  auto_add_grade_levels: [],
+  auto_add_trigger_offering_ids: [],
   sort_order: 0,
 };
 
@@ -121,6 +124,18 @@ describe("createCareOffering", () => {
     expect(out.id).toBe("1234");
     expect(seenBody).toContain(`"phase_id":5678`);
     expect(seenBody).toContain(`"name":"OGS"`);
+  });
+
+  it("keeps explicit counts_as_care=false in the POST body", async () => {
+    let seenBody = "";
+    mockFetch(async (_, init) => {
+      seenBody = (init?.body as string) ?? "";
+      return jsonResponse({ data: mkOffering("1234") }, { status: 201 });
+    });
+
+    await createCareOffering({ ...validInput, counts_as_care: false });
+
+    expect(JSON.parse(seenBody)).toMatchObject({ counts_as_care: false });
   });
 
   it("throws on non-OK", async () => {

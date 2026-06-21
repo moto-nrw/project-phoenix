@@ -51,6 +51,7 @@ import {
   DataTableStatusBadge,
 } from "~/components/ui/data-table";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
 import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
 import { useToast } from "~/contexts/ToastContext";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -186,7 +187,10 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   const [requests, setRequests] = useState<AdminRequestSummary[]>([]);
   const [statusFilter, setStatusFilter] =
     useState<EnrollmentReportStatus>(ALL_STATUS_FILTER);
-  const [offeringId, setOfferingId] = useState<string>(ALL_VALUE);
+  const [defaultOfferingIds, setDefaultOfferingIds] = useState<string[]>([]);
+  const [explicitOfferingIds, setExplicitOfferingIds] = useState<
+    string[] | null
+  >(null);
   const [dayCount, setDayCount] = useState<string>(ALL_VALUE);
   const [gradeLevel, setGradeLevel] = useState<string>(ALL_VALUE);
   const [search, setSearch] = useState("");
@@ -224,17 +228,37 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     [phaseId, statusFilter, toast],
   );
 
-  const reportFilters = useMemo<CareUsageFilters>(
-    () => ({
+  const reportFilters = useMemo<CareUsageFilters>(() => {
+    const filters: CareUsageFilters = {
       phase_id: phaseId,
       status: statusFilter,
-      care_offering_id: offeringId === ALL_VALUE ? undefined : offeringId,
-      day_count: dayCount === ALL_VALUE ? undefined : Number(dayCount),
-      grade_level: gradeLevel === ALL_VALUE ? undefined : Number(gradeLevel),
-      search: search.trim() || undefined,
-    }),
-    [dayCount, gradeLevel, offeringId, phaseId, search, statusFilter],
-  );
+    };
+    if (explicitOfferingIds !== null) {
+      filters.care_offering_ids = explicitOfferingIds;
+    }
+    if (dayCount !== ALL_VALUE) {
+      filters.day_count = Number(dayCount);
+    }
+    if (gradeLevel !== ALL_VALUE) {
+      filters.grade_level = Number(gradeLevel);
+    }
+    const trimmedSearch = search.trim();
+    if (trimmedSearch !== "") {
+      filters.search = trimmedSearch;
+    }
+    return filters;
+  }, [
+    dayCount,
+    explicitOfferingIds,
+    gradeLevel,
+    phaseId,
+    search,
+    statusFilter,
+  ]);
+
+  const handleReportOfferingsChange = useCallback((ids: string[]) => {
+    setExplicitOfferingIds(ids);
+  }, []);
 
   const loadReport = useCallback(
     async (filters: CareUsageFilters, isCancelled?: () => boolean) => {
@@ -245,6 +269,11 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         const data = await getCareUsageReport(filters);
         if (isCancelled?.()) return;
         setReport(data);
+        setDefaultOfferingIds(
+          data.filter_options.offerings
+            .filter((offering) => offering.counts_as_care !== false)
+            .map((offering) => offering.id),
+        );
       } catch (err) {
         if (isCancelled?.()) return;
         const message =
@@ -262,6 +291,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     },
     [phaseId],
   );
+  const displayedOfferingIds = explicitOfferingIds ?? defaultOfferingIds;
 
   useEffect(() => {
     let cancelled = false;
@@ -425,7 +455,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       },
       {
         key: "effective_days",
-        header: "Tage",
+        header: "Betreuungstage",
         render: (row) => (
           <div>
             <p className="font-medium text-gray-900">
@@ -566,8 +596,8 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
               Anmeldungen prüfen und auswerten
             </h2>
             <p className="mt-1 text-sm text-gray-600">
-              Filtere Kinder nach Status, Angebot, Zielklasse oder
-              Betreuungstagen. Der Auswertungsexport übernimmt die aktuellen
+              Filtere Kinder nach Status, Angebot, Zielklasse oder Anzahl der
+              Betreuungstage. Der Auswertungsexport übernimmt die aktuellen
               Filter.
             </p>
           </div>
@@ -589,23 +619,33 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
               />
             </SelectField>
             <SelectField
-              label="Betreuungsangebot"
+              label="Berücksichtigte Angebote"
               id="enrollment-offering-filter"
             >
-              <CustomSelect
+              <MultiCheckboxSelect
                 id="enrollment-offering-filter"
-                value={offeringId}
-                onChange={setOfferingId}
-                options={[
-                  { value: ALL_VALUE, label: "Alle Angebote" },
-                  ...(report?.filter_options.offerings ?? []).map((item) => ({
-                    value: item.id,
-                    label: item.name,
-                  })),
-                ]}
+                ariaLabel="Berücksichtigte Angebote"
+                value={displayedOfferingIds}
+                onChange={handleReportOfferingsChange}
+                options={(report?.filter_options.offerings ?? []).map(
+                  (offering) => ({
+                    value: offering.id,
+                    label: offering.name,
+                    badge:
+                      offering.counts_as_care === false
+                        ? "Zählt nicht als Betreuungstag"
+                        : undefined,
+                  }),
+                )}
+                emptyLabel="Keine Angebote"
+                unavailableLabel="Keine Angebote verfügbar"
+                multipleLabel={(count) => `${count} Angebote`}
               />
             </SelectField>
-            <SelectField label="Tagesanzahl" id="enrollment-day-count-filter">
+            <SelectField
+              label="Anzahl Betreuungstage"
+              id="enrollment-day-count-filter"
+            >
               <CustomSelect
                 id="enrollment-day-count-filter"
                 value={dayCount}
@@ -682,7 +722,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
             <p className="mt-1 text-sm text-gray-500">
               {requests.length === 0 && !reportLoading
                 ? "Sobald Eltern das Formular absenden, erscheinen die Eingänge hier."
-                : "Passe Status, Angebot, Tagesanzahl, Zielklasse oder Suche an."}
+                : "Passe Status, Angebot, Betreuungstage, Zielklasse oder Suche an."}
             </p>
           </div>
         }
@@ -844,10 +884,7 @@ function OfferingList({ row }: Readonly<{ row: CareUsageRow }>) {
         <div key={offering.id} className="text-sm">
           <p className="font-medium text-gray-900">{offering.name}</p>
           <p className="text-xs text-gray-500">
-            {formatDays(offering.days) || "Keine Tage"}
-            {offering.days_source === "selected"
-              ? " · Elternauswahl"
-              : " · Angebotsumfang"}
+            {formatOfferingDaySource(offering) || "Keine Tage"}
           </p>
         </div>
       ))}
@@ -857,6 +894,28 @@ function OfferingList({ row }: Readonly<{ row: CareUsageRow }>) {
 
 function formatDays(days: string[]): string {
   return days.map((day) => DAY_LABELS[day] ?? day).join(", ");
+}
+
+function formatOfferingDaySource(
+  offering: CareUsageRow["offerings"][number],
+): string {
+  if (offering.days_source !== "selected") {
+    const days = formatDays(offering.days);
+    return days ? `${days} · Angebotsumfang` : "";
+  }
+  const hasProvenance =
+    (offering.manual_selected_days?.length ?? 0) > 0 ||
+    (offering.automatic_selected_days?.length ?? 0) > 0;
+  const automatic = formatDays(offering.automatic_selected_days ?? []);
+  const manual = formatDays(
+    hasProvenance ? (offering.manual_selected_days ?? []) : offering.days,
+  );
+  if (automatic && manual) {
+    return `${automatic} automatisch mitgebucht; ${manual} von Eltern gewählt`;
+  }
+  if (automatic) return `${automatic} automatisch mitgebucht`;
+  if (manual) return `${manual} · von Eltern gewählt`;
+  return "";
 }
 
 function formatDayCountLabel(count: number): string {
@@ -1024,7 +1083,7 @@ function PhaseChildActions({
         className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
         onClick={(event) => event.stopPropagation()}
       >
-        Öffnen
+        Anmeldung ansehen
         <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
       </Link>
     </div>

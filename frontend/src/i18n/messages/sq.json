@@ -114,6 +114,8 @@
     "pickupEyebrow": "Marrja",
     "pickupPeopleTitle": "Të autorizuar për marrje",
     "pickupPeopleDescription": "Persona që lejohen ta marrin këtë fëmijë.",
+    "pickupPeopleEmptyTitle": "Nuk janë shtuar autorizime për marrje",
+    "pickupPeopleEmptyDescription": "Autorizimet për marrje shfaqen këtu.",
     "manage": "Menaxho",
     "add": "Shto",
     "addPerson": "Shto person",
@@ -161,15 +163,6 @@
       "noMessages": "Nuk ka mesazhe të reja",
       "noMessagesSent": "Asnjë mesazh i dërguar",
       "messagesSent": "{count, plural, one {# mesazh i dërguar} other {# mesazhe të dërguara}}"
-    },
-    "demo": {
-      "momName": "Mama",
-      "dadName": "Babi",
-      "grandmaName": "Gjyshja",
-      "auntName": "Tezja",
-      "mother": "Nëna",
-      "father": "Babai",
-      "pickup": "Marrje"
     },
     "messages": {
       "eyebrow": "Portali i prindërve",
@@ -443,10 +436,13 @@
       "optionalHint": "Zgjidhni ofertat që dëshironi për këtë fëmijë.",
       "reviewHint": "OGS-ja kontrollon vendet e lira pas dërgimit. Ju lutemi vini re: Me regjistrimin në ofertën e shkollës gjithëditore, fëmija juaj është i detyruar të marrë pjesë në oraret e regjistruara sipas rregullores për shkollën gjithëditore.",
       "requiredBadge": "E detyrueshme",
+      "automaticBadge": "automatike",
       "chooseExactlyOne": "Ju lutemi zgjidhni saktësisht një ofertë.",
       "chooseAtLeastOne": "Ju lutemi zgjidhni të paktën një ofertë.",
       "selectableDays": "Ditë të zgjedhshme: ",
       "days": "Ditë: ",
+      "automaticDays": "{days} automatike",
+      "manualDays": "{days} manuale",
       "holiday": "përfshin përkujdesje gjatë pushimeve",
       "lunch": "përfshin drekën",
       "ruleExactlyOne": "Ju lutemi zgjidhni saktësisht një",

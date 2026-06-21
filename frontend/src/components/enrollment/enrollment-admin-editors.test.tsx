@@ -32,6 +32,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("~/components/tenant/tenant-provider", () => ({
   useTenantSlugSafe: () => "demo",
+  useTenantRoutingModeSafe: () => "path",
   useNFCEnabled: vi.fn(() => true),
 }));
 
@@ -288,6 +289,8 @@ describe("CareOfferingsEditor", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Neues Betreuungsangebot" }),
     );
+    expect(screen.getByText("Betreuungstage & Mitbuchung")).toBeVisible();
+    expect(screen.getByText("Als Betreuungstage zählen")).toBeVisible();
     fireEvent.change(await waitForInputByName("name"), {
       target: { value: "Frühbetreuung" },
     });
@@ -313,6 +316,103 @@ describe("CareOfferingsEditor", () => {
     await waitFor(() => {
       expect(mocks.listCareOfferings.mock.calls.length).toBeGreaterThanOrEqual(
         2,
+      );
+    });
+  });
+
+  it("shows care-day counting and booking behavior in the offerings list", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({ id: "offer-1", name: "OGS Ganztag" }),
+      offering({
+        id: "offer-2",
+        name: "Randstunde",
+        counts_as_care: false,
+        auto_add_trigger_offering_ids: ["offer-1"],
+      }),
+    ]);
+
+    render(<CareOfferingsEditor />);
+
+    expect(await screen.findByText("Randstunde")).toBeInTheDocument();
+    expect(screen.getByText("Zählt nicht als Betreuungstag")).toBeVisible();
+    expect(screen.getByText("Wird mitgebucht")).toBeVisible();
+    expect(screen.getByText("Zählt als Betreuungstag")).toBeVisible();
+  });
+
+  it("keeps auto-add trigger IDs as strings when saving", async () => {
+    const unsafeID = "9007199254740993";
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({ id: unsafeID, name: "Ganztag" }),
+    ]);
+    mocks.createCareOffering.mockResolvedValue(
+      offering({ id: "new", name: "Randstunde" }),
+    );
+
+    render(<CareOfferingsEditor />);
+    expect(await screen.findByText("Ganztag")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Neues Betreuungsangebot" }),
+    );
+    fireEvent.change(await waitForInputByName("name"), {
+      target: { value: "Randstunde" },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: /Ganztag/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Erstellen" }));
+
+    await waitFor(() => {
+      expect(mocks.createCareOffering).toHaveBeenCalledWith(
+        expect.objectContaining({
+          auto_add_trigger_offering_ids: [unsafeID],
+        }),
+      );
+    });
+  });
+
+  it("clears hidden auto-add trigger IDs when an edited offering changes phase", async () => {
+    mocks.listPhases.mockResolvedValue([
+      phase(),
+      phase({ id: "11", name: "Ferien" }),
+    ]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({ id: "trigger", name: "Ganztag" }),
+      offering({
+        id: "target",
+        name: "Randstunde",
+        auto_add_trigger_offering_ids: ["trigger"],
+      }),
+    ]);
+    mocks.updateCareOffering.mockResolvedValue(
+      offering({
+        id: "target",
+        name: "Randstunde",
+        phase_id: "11",
+        auto_add_trigger_offering_ids: [],
+      }),
+    );
+
+    render(<CareOfferingsEditor />);
+    expect(await screen.findByText("Randstunde")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Randstunde" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+    fireEvent.click(document.querySelector("#care-offering-form-phase")!);
+    fireEvent.click(await screen.findByRole("option", { name: "Ferien" }));
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(mocks.updateCareOffering).toHaveBeenCalledWith(
+        "target",
+        expect.objectContaining({
+          phase_id: 11,
+          auto_add_trigger_offering_ids: [],
+        }),
       );
     });
   });
@@ -524,6 +624,24 @@ describe("PhasesEditor", () => {
       "Bitte gib einen Namen für die Anmeldephase ein.",
     );
     expect(mocks.createPhase).not.toHaveBeenCalled();
+  });
+
+  it("uses tenant-aware phase detail links in the action menu", async () => {
+    mocks.listPhases.mockResolvedValue([phase({ id: "12" })]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+
+    render(<PhasesEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Schuljahr 2026/27",
+      }),
+    );
+
+    const link = await screen.findByRole("menuitem", {
+      name: /Anmeldungen ansehen/,
+    });
+    expect(link).toHaveAttribute("href", "/demo/admin/enrollments/phases/12");
   });
 });
 

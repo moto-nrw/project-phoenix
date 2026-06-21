@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
@@ -114,7 +120,7 @@ const requests = [
 function report(overrides: Record<string, unknown> = {}) {
   return {
     phase: { id: "1", name: phase.name },
-    filters: { phase_id: "1", status: "all" },
+    filters: { phase_id: "1", status: "all", care_offering_ids: ["1", "2"] },
     totals: {
       children: 2,
       by_day_count: { "1": 1, "2": 0, "3": 1, "4": 0, "5": 0 },
@@ -122,8 +128,9 @@ function report(overrides: Record<string, unknown> = {}) {
     by_offering: [],
     filter_options: {
       offerings: [
-        { id: "1", name: "Kurzbetreuung" },
-        { id: "2", name: "OGS Ganztag" },
+        { id: "1", name: "Kurzbetreuung", counts_as_care: true },
+        { id: "2", name: "OGS Ganztag", counts_as_care: true },
+        { id: "3", name: "Randstunde", counts_as_care: false },
       ],
       grade_levels: [1, 2],
     },
@@ -143,6 +150,15 @@ function report(overrides: Record<string, unknown> = {}) {
             days: ["mon", "wed", "fri"],
             days_source: "selected",
             days_of_week_mode: "parent_choice",
+          },
+          {
+            id: "3",
+            name: "Randstunde",
+            days: ["mon", "tue", "wed", "thu", "fri"],
+            days_source: "selected",
+            days_of_week_mode: "parent_choice",
+            manual_selected_days: ["fri"],
+            automatic_selected_days: ["mon", "tue", "wed", "thu"],
           },
         ],
         effective_days: ["mon", "wed", "fri"],
@@ -209,11 +225,41 @@ describe("AdminEnrollmentPhaseDetail", () => {
     expect(mocks.getCareUsageReport).toHaveBeenCalledWith(
       expect.objectContaining({ phase_id: "1", status: "all" }),
     );
+    expect(mocks.getCareUsageReport.mock.calls[0]?.[0]).not.toHaveProperty(
+      "care_offering_ids",
+    );
     expect(screen.getByRole("combobox", { name: "Status" })).toHaveTextContent(
       "Alle",
     );
-    expect(screen.getByText("OGS Ganztag")).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+    ).toHaveTextContent("2 Angebote");
+    expect(screen.getAllByText("OGS Ganztag").length).toBeGreaterThan(0);
     expect(screen.getByText("Mo, Mi, Fr")).toBeVisible();
+    expect(screen.getAllByText("Randstunde").length).toBeGreaterThan(0);
+    expect(
+      screen.getByText(
+        "Mo, Di, Mi, Do automatisch mitgebucht; Fr von Eltern gewählt",
+      ),
+    ).toBeVisible();
+    fireEvent.click(
+      screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+    );
+    const offeringMenu = screen.getByRole("menu", {
+      name: /Berücksichtigte Angebote/,
+    });
+    expect(
+      within(offeringMenu).getByRole("checkbox", { name: /Kurzbetreuung/ }),
+    ).toBeChecked();
+    expect(
+      within(offeringMenu).getByRole("checkbox", { name: /OGS Ganztag/ }),
+    ).toBeChecked();
+    expect(
+      within(offeringMenu).getByRole("checkbox", { name: /Randstunde/ }),
+    ).not.toBeChecked();
+    expect(
+      within(offeringMenu).getByText("Zählt nicht als Betreuungstag"),
+    ).toBeVisible();
     expect(screen.getByText("3 Betreuungstage")).toBeVisible();
     expect(screen.getByText("1 Tag")).toBeVisible();
   });
@@ -222,13 +268,13 @@ describe("AdminEnrollmentPhaseDetail", () => {
     await renderPhase();
 
     fireEvent.click(
-      screen.getByRole("combobox", { name: "Betreuungsangebot" }),
+      screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
     );
-    fireEvent.click(screen.getByRole("option", { name: "OGS Ganztag" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /OGS Ganztag/ }));
 
     await waitFor(() => {
       expect(mocks.getCareUsageReport).toHaveBeenLastCalledWith(
-        expect.objectContaining({ care_offering_id: "2" }),
+        expect.objectContaining({ care_offering_ids: ["1"] }),
       );
     });
 
@@ -245,7 +291,50 @@ describe("AdminEnrollmentPhaseDetail", () => {
 
     await waitFor(() => {
       expect(mocks.exportCareUsageReport).toHaveBeenCalledWith(
-        expect.objectContaining({ care_offering_id: "2", status: "all" }),
+        expect.objectContaining({ care_offering_ids: ["1"], status: "all" }),
+        "xlsx",
+      );
+    });
+  });
+
+  it("allows clearing the final care offering and exports the empty selection", async () => {
+    await renderPhase();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+    );
+    fireEvent.click(screen.getByRole("checkbox", { name: /OGS Ganztag/ }));
+
+    await waitFor(() => {
+      expect(mocks.getCareUsageReport).toHaveBeenLastCalledWith(
+        expect.objectContaining({ care_offering_ids: ["1"] }),
+      );
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+    );
+    fireEvent.click(screen.getByRole("checkbox", { name: /Kurzbetreuung/ }));
+
+    await waitFor(() => {
+      expect(mocks.getCareUsageReport).toHaveBeenLastCalledWith(
+        expect.objectContaining({ care_offering_ids: [] }),
+      );
+    });
+    expect(
+      screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+    ).toHaveTextContent("Keine Angebote");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Auswertung exportieren" }),
+    );
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Als Excel-Datei exportieren" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.exportCareUsageReport).toHaveBeenCalledWith(
+        expect.objectContaining({ care_offering_ids: [] }),
         "xlsx",
       );
     });
@@ -312,7 +401,9 @@ describe("AdminEnrollmentPhaseDetail", () => {
     expect(screen.queryByText("6 Tage")).not.toBeInTheDocument();
     expect(screen.queryByText("7 Tage")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("combobox", { name: "Tagesanzahl" }));
+    fireEvent.click(
+      screen.getByRole("combobox", { name: "Anzahl Betreuungstage" }),
+    );
     expect(
       screen.queryByRole("option", { name: "6 Tage" }),
     ).not.toBeInTheDocument();
@@ -351,9 +442,9 @@ describe("AdminEnrollmentPhaseDetail", () => {
     );
 
     fireEvent.click(
-      screen.getByRole("combobox", { name: "Betreuungsangebot" }),
+      screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
     );
-    fireEvent.click(screen.getByRole("option", { name: "OGS Ganztag" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /OGS Ganztag/ }));
 
     await waitFor(() => {
       expect(

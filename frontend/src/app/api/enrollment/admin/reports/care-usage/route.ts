@@ -26,12 +26,17 @@ export async function GET(request: NextRequest) {
       "phase_id",
       "status",
       "care_offering_id",
-      "day_count",
       "grade_level",
+      "day_count",
       "search",
     ]) {
       const value = request.nextUrl.searchParams.get(key);
       if (value) url.searchParams.set(key, value);
+    }
+    for (const value of request.nextUrl.searchParams.getAll(
+      "care_offering_ids",
+    )) {
+      url.searchParams.append("care_offering_ids", value);
     }
     const response = await fetch(url, {
       headers: { Authorization: authHeader },

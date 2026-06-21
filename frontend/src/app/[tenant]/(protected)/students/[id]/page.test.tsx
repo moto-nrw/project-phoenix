@@ -8,12 +8,13 @@ import {
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import StudentDetailPage from "./page";
+import { useSession } from "next-auth/react";
 
 // Mock next-auth/react
 vi.mock("next-auth/react", () => ({
   getSession: vi.fn(() => Promise.resolve({ user: { token: "test-token" } })),
   useSession: vi.fn(() => ({
-    data: { user: { token: "test-token" } },
+    data: { user: { token: "test-token", permissions: ["config:manage"] } },
     status: "authenticated",
   })),
 }));
@@ -506,6 +507,10 @@ describe("StudentDetailPage", () => {
     mockSearchParams.delete("from");
     mockSearchParams.delete("tab");
     mockActionType = "none";
+    vi.mocked(useSession).mockReturnValue({
+      data: { user: { token: "test-token", permissions: ["config:manage"] } },
+      status: "authenticated",
+    } as ReturnType<typeof useSession>);
 
     // Default mock implementations
     mockUseStudentData.mockReturnValue({
@@ -1645,7 +1650,23 @@ describe("StudentDetailPage", () => {
       expect(
         screen.getByRole("tab", { name: "Betreuungszeiten" }),
       ).toBeInTheDocument();
+      expect(
+        screen.getByRole("tab", { name: "Anmeldungen" }),
+      ).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "Historie" })).toBeInTheDocument();
+    });
+
+    it("hides the enrollment tab without config:manage", () => {
+      vi.mocked(useSession).mockReturnValue({
+        data: { user: { token: "test-token", permissions: ["config:read"] } },
+        status: "authenticated",
+      } as ReturnType<typeof useSession>);
+
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.queryByRole("tab", { name: "Anmeldungen" }),
+      ).not.toBeInTheDocument();
     });
 
     it("defaults to the Stammdaten tab when no tab param is set", () => {
