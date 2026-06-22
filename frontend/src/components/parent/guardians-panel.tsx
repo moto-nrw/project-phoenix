@@ -257,7 +257,7 @@ function GuardianRow({
   return (
     <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4">
       <div className="flex items-start gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-sm font-semibold text-gray-700 ring-1 ring-gray-200">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#83CD2D]/15 text-sm font-semibold text-[#5A8E1F]">
           {initials(g.first_name, g.last_name)}
         </span>
         <div className="min-w-0 flex-1">
@@ -350,33 +350,37 @@ function GuardianRow({
               )}
             </div>
           )}
-          {(g.can_edit_contact || g.can_manage_pickup) && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {g.can_edit_contact && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="compact"
-                  onClick={onEditContact}
-                >
-                  <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-                  {t("guardians.editContact")}
-                </Button>
-              )}
-              {g.can_manage_pickup && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="compact"
-                  onClick={onEditPickup}
-                >
-                  <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-                  {t("guardians.managePickup")}
-                </Button>
-              )}
-            </div>
-          )}
         </div>
+        {(g.can_edit_contact || g.can_manage_pickup) && (
+          <div className="flex shrink-0 items-center gap-1">
+            {g.can_edit_contact && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={onEditContact}
+                title={t("guardians.editContact")}
+                aria-label={t("guardians.editContact")}
+                className="text-gray-400"
+              >
+                <Pencil className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            )}
+            {g.can_manage_pickup && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={onEditPickup}
+                title={t("guardians.managePickup")}
+                aria-label={t("guardians.managePickup")}
+                className="text-gray-400"
+              >
+                <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
