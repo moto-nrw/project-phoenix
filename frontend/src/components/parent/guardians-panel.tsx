@@ -86,6 +86,8 @@ function resolveGuardianError(
         return t("guardians.errors.sharedAcrossFamilies");
       case "guardian_social_worker_managed":
         return t("guardians.errors.socialWorkerManaged");
+      case "guardian_role_managed":
+        return t("guardians.errors.roleManaged");
       case "guardian_management_disabled":
         return t("guardians.errors.managementDisabled");
       case "guardian_not_linked":

@@ -65,6 +65,14 @@ var (
 	// presence of a social worker is sensitive, and their contact details are
 	// staff data the school mediates, not parent-consumable).
 	ErrGuardianSocialWorkerManaged = errors.New("parent: social-worker contact is managed by the school")
+	// ErrGuardianRoleManaged means the target relationship is a full guardian
+	// role (primary/legal/co). These are real legal guardians, not helpers: a
+	// parent may not edit their contact data or pickup/emergency authority even
+	// when the guardian has no portal account yet. Only the guardian themselves
+	// (once registered) or the school manages them. The account-level guard
+	// (ErrGuardianHasOwnAccount) covers registered guardians; this closes the gap
+	// for full guardians who simply have not registered (#1667).
+	ErrGuardianRoleManaged = errors.New("parent: full guardian is managed by the school")
 	// ErrGuardianNoChange means a relationship update carried no editable field.
 	ErrGuardianNoChange = errors.New("parent: no editable field supplied")
 	// ErrGuardianManagementDisabled means the child's school turned off the
@@ -123,6 +131,12 @@ type ChildGuardian struct {
 	// school-managed and read-only here. Like the other lock reasons it explains
 	// an absent edit affordance; unlike them the contact fields are also redacted.
 	ContactLockedSocialWorker bool
+	// ContactLockedFullGuardian is true when the caller has contact-edit
+	// permission but this guardian holds a full guardian role (primary/legal/co)
+	// without their own portal account, so they are a real legal guardian managed
+	// by themselves or the school, not another parent. Contact stays visible (not
+	// redacted) but is read-only here.
+	ContactLockedFullGuardian bool
 }
 
 // GuardianPhone is one phone number in the parent-facing projection.
@@ -296,6 +310,15 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 		if !isSelf && link.GuardianRole == authorize.GuardianRoleSocialWorker {
 			return ErrGuardianSocialWorkerManaged
 		}
+		// A full guardian (primary/legal/co) is a real legal guardian, not a
+		// helper. Even without their own portal account they are not another
+		// parent's to edit (a non-registered co-parent must not be editable just
+		// because they lack a login). Only the guardian themselves or the school
+		// manages them. Helper roles (pickup_only/emergency_contact/custom) stay
+		// editable — that is the intended account-less helper case.
+		if !isSelf && authorize.IsFullGuardianRole(link.GuardianRole) {
+			return ErrGuardianRoleManaged
+		}
 		// A contact edit propagates to every child the profile serves (intended for
 		// siblings). Reaching past the contact-only guard means !isSelf ⟺ a
 		// contact-only profile; refuse it when the profile also serves a child
@@ -443,6 +466,16 @@ func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 		// a parent (mirrors the read-side CanManagePickup gate).
 		if editsFlags && link.GuardianRole == authorize.GuardianRoleSocialWorker {
 			return ErrGuardianSocialWorkerManaged
+		}
+		// A full guardian (primary/legal/co) is a real legal guardian, not a
+		// helper: neither their pickup/emergency authority nor their per-child
+		// note is another parent's to change, even without a portal account.
+		// Mirrors the contact-edit guard and the read-side CanManagePickup gate.
+		// Self is exempt (the account guard above already blocks self flags; a
+		// parent may still annotate their own relationship).
+		isSelf := profile.AccountID != nil && *profile.AccountID == accountID
+		if !isSelf && authorize.IsFullGuardianRole(link.GuardianRole) {
+			return ErrGuardianRoleManaged
 		}
 		oldCanPickup := link.CanPickup
 		oldEmergency := link.IsEmergencyContact
@@ -843,6 +876,10 @@ func contactProtected(profile *usersModels.GuardianProfile, link *usersModels.St
 func projectChildGuardian(profile *usersModels.GuardianProfile, link *usersModels.StudentGuardian, phones []*usersModels.GuardianPhoneNumber, accountID int64, canEdit, canManage, sharedAcrossFamilies bool) *ChildGuardian {
 	isSelf := profile.AccountID != nil && *profile.AccountID == accountID
 	isSocialWorker := link.GuardianRole == authorize.GuardianRoleSocialWorker
+	// A full guardian (primary/legal/co) is a real legal guardian, not a helper.
+	// Self is exempt: the caller's own profile (always a full guardian) stays
+	// editable via the isSelf branches below.
+	isFullGuardian := !isSelf && authorize.IsFullGuardianRole(link.GuardianRole)
 	protected := contactProtected(profile, link, isSelf, sharedAcrossFamilies)
 	g := &ChildGuardian{
 		GuardianProfileID:  profile.ID,
@@ -855,21 +892,25 @@ func projectChildGuardian(profile *usersModels.GuardianProfile, link *usersModel
 		CanPickup:          link.CanPickup,
 		HasAccount:         profile.HasAccount,
 		IsSelf:             isSelf,
-		// Contact editing needs the edit permission and an unprotected target.
-		// The caller's own profile is always editable regardless of reach.
-		CanEditContact: canEdit && !protected,
+		// Contact editing needs the edit permission and an unprotected target that
+		// is not a full guardian (real legal guardians are school/self-managed).
+		// The caller's own profile is always editable regardless of reach/role.
+		CanEditContact: canEdit && !protected && !isFullGuardian,
 		// Pickup/emergency flags may be managed only for contact-only helpers
-		// (grandma): an account holder's standing is theirs and the school's, and
-		// a social worker's is the school's. Mirrors the write guard in
+		// (grandma): an account holder's standing is theirs and the school's, a
+		// social worker's is the school's, and a full guardian's is the
+		// guardian's/school's even without an account. Mirrors the write guard in
 		// UpdateGuardianRelationship so the UI never offers a control the backend
 		// rejects.
-		CanManagePickup: canManage && !profile.HasAccount && !isSocialWorker,
+		CanManagePickup: canManage && !profile.HasAccount && !isSocialWorker && !isFullGuardian,
 		// Surface exactly one "why is this read-only" explanation to a caller who
-		// could otherwise edit (own account > social worker > shared). For a
-		// caller without edit rights none is the reason the affordance is absent.
+		// could otherwise edit (own account > social worker > full guardian >
+		// shared). For a caller without edit rights none is the reason the
+		// affordance is absent.
 		ContactLockedOwnAccount:   canEdit && !isSelf && profile.HasAccount,
 		ContactLockedSocialWorker: canEdit && !isSelf && !profile.HasAccount && isSocialWorker,
-		ContactLockedShared:       canEdit && !isSelf && !profile.HasAccount && !isSocialWorker && sharedAcrossFamilies,
+		ContactLockedFullGuardian: canEdit && !isSelf && !profile.HasAccount && !isSocialWorker && isFullGuardian,
+		ContactLockedShared:       canEdit && !isSelf && !profile.HasAccount && !isSocialWorker && !isFullGuardian && sharedAcrossFamilies,
 	}
 	// PickupNotes is a per-child annotation the reading guardian authors about
 	// their own child's care; it is shown even for protected guardians.

@@ -43,6 +43,10 @@ type childGuardianResponse struct {
 	// ContactLockedSocialWorker: this relationship is a school-managed social
 	// worker, so its contact data is redacted and read-only to the caller.
 	ContactLockedSocialWorker bool `json:"contact_locked_social_worker"`
+	// ContactLockedFullGuardian: this is a full guardian (primary/legal/co)
+	// without their own account, so they are read-only to the caller (managed by
+	// themselves or the school); contact stays visible.
+	ContactLockedFullGuardian bool `json:"contact_locked_full_guardian"`
 }
 
 type guardianPhoneResponse struct {
@@ -228,5 +232,6 @@ func guardianResponse(g *parentService.ChildGuardian) childGuardianResponse {
 		ContactLockedOwnAccount:   g.ContactLockedOwnAccount,
 		ContactLockedShared:       g.ContactLockedShared,
 		ContactLockedSocialWorker: g.ContactLockedSocialWorker,
+		ContactLockedFullGuardian: g.ContactLockedFullGuardian,
 	}
 }

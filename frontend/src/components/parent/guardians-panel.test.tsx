@@ -66,6 +66,7 @@ const editableGuardian: ChildGuardian = {
   contact_locked_own_account: false,
   contact_locked_shared: false,
   contact_locked_social_worker: false,
+  contact_locked_full_guardian: false,
 };
 
 describe("GuardiansPanel", () => {

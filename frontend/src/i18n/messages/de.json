@@ -175,6 +175,7 @@
         "permissionDenied": "Sie haben keine Berechtigung für diese Änderung.",
         "noChange": "Es wurde keine Änderung übermittelt.",
         "socialWorkerManaged": "Diese Kontaktdaten werden von der Schule verwaltet.",
+        "roleManaged": "Diese Person ist erziehungsberechtigt und kann nur von ihr selbst oder der Schule bearbeitet werden.",
         "managementDisabled": "Die Verwaltung von Kontakten ist für diese Schule deaktiviert."
       }
     },

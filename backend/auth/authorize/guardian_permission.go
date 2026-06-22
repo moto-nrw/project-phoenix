@@ -70,6 +70,22 @@ func NormalizeGuardianRole(role string) string {
 	}
 }
 
+// IsFullGuardianRole reports whether the role is one of the full guardian
+// presets (primary/legal/co). These are real legal guardians, not helpers:
+// their personal contact data and pickup/emergency authority are managed by
+// themselves (once they hold a portal account) or the school — never by another
+// parent, even when they have not yet registered a portal account (#1667). It
+// is the role-level counterpart to the account-level HasAccount protection: a
+// non-registered co-parent must not be editable just because they lack a login.
+func IsFullGuardianRole(role string) bool {
+	switch NormalizeGuardianRole(role) {
+	case GuardianRolePrimaryGuardian, GuardianRoleLegalGuardian, GuardianRoleCoGuardian:
+		return true
+	default:
+		return false
+	}
+}
+
 // DefaultStudentGuardianRole returns the initial role preset for a relationship
 // when a caller did not explicitly choose one. It is deliberately conservative:
 // legal/parent relationships keep parent-portal access, while pickup and

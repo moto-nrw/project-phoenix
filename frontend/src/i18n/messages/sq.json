@@ -175,6 +175,7 @@
         "permissionDenied": "Nuk keni leje për këtë ndryshim.",
         "noChange": "Nuk u dërgua asnjë ndryshim.",
         "socialWorkerManaged": "Këto të dhëna kontakti menaxhohen nga shkolla.",
+        "roleManaged": "Ky person është kujdestar ligjor dhe mund të ndryshohet vetëm nga vetë ai ose nga shkolla.",
         "managementDisabled": "Menaxhimi i kontakteve është çaktivizuar për këtë shkollë."
       }
     },

@@ -813,3 +813,91 @@ func TestUpdateGuardianRelationship_RejectsFlagsOnSocialWorker(t *testing.T) {
 	})
 	require.ErrorIs(t, err, parentService.ErrGuardianSocialWorkerManaged)
 }
+
+// TestListChildGuardians_LocksFullGuardianWithoutAccount verifies a full guardian
+// (legal/co/primary) WITHOUT their own portal account is read-only to another
+// parent: contact stays VISIBLE (not redacted, unlike a social worker) but the
+// edit/pickup affordances are gone and the lock reason is surfaced (#1667).
+func TestListChildGuardians_LocksFullGuardianWithoutAccount(t *testing.T) {
+	svc, db := buildGuardianService(t)
+	defer func() { _ = db.Close() }()
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	legalID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "co-parent", authorize.GuardianRoleLegalGuardian)
+	defer cleanup()
+
+	guardians, err := svc.ListChildGuardians(context.Background(), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	var legal *parentService.ChildGuardian
+	for _, g := range guardians {
+		if g.GuardianProfileID == legalID {
+			legal = g
+		}
+	}
+	require.NotNil(t, legal)
+	assert.NotEmpty(t, legal.Phones, "full guardian contact stays visible (not redacted)")
+	assert.False(t, legal.CanEditContact, "full guardian without account is not editable by another parent")
+	assert.False(t, legal.CanManagePickup, "full guardian pickup flags are not parent-manageable")
+	assert.True(t, legal.ContactLockedFullGuardian, "full-guardian lock reason surfaced")
+	assert.False(t, legal.ContactLockedSocialWorker, "not a social-worker lock")
+}
+
+// TestUpdateGuardianContact_RejectsFullGuardian verifies a parent cannot rewrite
+// a non-registered full guardian's (legal/co) contact data.
+func TestUpdateGuardianContact_RejectsFullGuardian(t *testing.T) {
+	svc, db := buildGuardianService(t)
+	defer func() { _ = db.Close() }()
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	legalID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "co-parent-edit", authorize.GuardianRoleCoGuardian)
+	defer cleanup()
+
+	_, err := svc.UpdateGuardianContact(context.Background(), chain.AccountID, chain.StudentID, legalID, parentService.GuardianContactInput{
+		FirstName: "Neuer",
+		LastName:  "Name",
+	})
+	require.ErrorIs(t, err, parentService.ErrGuardianRoleManaged)
+}
+
+// TestUpdateGuardianRelationship_RejectsFullGuardian verifies a parent cannot
+// toggle a non-registered full guardian's pickup/emergency flags.
+func TestUpdateGuardianRelationship_RejectsFullGuardian(t *testing.T) {
+	svc, db := buildGuardianService(t)
+	defer func() { _ = db.Close() }()
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	legalID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "co-parent-flag", authorize.GuardianRoleLegalGuardian)
+	defer cleanup()
+
+	canPickup := true
+	_, err := svc.UpdateGuardianRelationship(context.Background(), chain.AccountID, chain.StudentID, legalID, parentService.GuardianRelationshipInput{
+		CanPickup: &canPickup,
+	})
+	require.ErrorIs(t, err, parentService.ErrGuardianRoleManaged)
+}
+
+// TestUpdateGuardianContact_AllowsHelperRoleWithoutAccount is the regression
+// guard for the role tightening: a genuine helper role (pickup_only) without an
+// account stays editable — only full guardian roles are newly protected.
+func TestUpdateGuardianContact_AllowsHelperRoleWithoutAccount(t *testing.T) {
+	svc, db := buildGuardianService(t)
+	defer func() { _ = db.Close() }()
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	helperID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "helper-pickup", authorize.GuardianRolePickupOnly)
+	defer cleanup()
+
+	updated, err := svc.UpdateGuardianContact(context.Background(), chain.AccountID, chain.StudentID, helperID, parentService.GuardianContactInput{
+		FirstName: "Helfer",
+		LastName:  "Bearbeitet",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "Helfer", updated.FirstName)
+	assert.True(t, updated.CanEditContact, "helper role without account stays editable")
+	assert.True(t, updated.CanManagePickup, "helper role pickup flags stay manageable")
+	assert.False(t, updated.ContactLockedFullGuardian)
+}
