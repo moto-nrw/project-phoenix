@@ -163,7 +163,7 @@ export default function GuardiansPanel({
     >
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+          <p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">
             {t("guardians.eyebrow")}
           </p>
           <h2 className="mt-1 text-lg font-semibold text-gray-900">
@@ -179,7 +179,7 @@ export default function GuardiansPanel({
         <div
           className={`mt-4 rounded-xl border p-3 text-sm ${
             message.kind === "success"
-              ? "border-[#83CD2D]/30 bg-[#83CD2D]/10 text-[#4A7A15]"
+              ? "border-[#83CD2D]/30 bg-[#83CD2D]/10 text-[#5A8E1F]"
               : "border-[#FF3130]/20 bg-[#FF3130]/10 text-[#CC2626]"
           }`}
         >
@@ -249,7 +249,6 @@ function GuardianRow({
     ? t(`guardians.relationships.${g.relationship_type}`)
     : (RELATIONSHIP_LABELS[g.relationship_type] ??
       t("guardians.relationships.contact"));
-  const hasBadges = g.is_primary || g.can_pickup || g.is_emergency_contact;
   const hasContact =
     g.phones.length > 0 ||
     Boolean(g.email) ||
@@ -265,23 +264,31 @@ function GuardianRow({
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <p className="text-sm font-semibold text-gray-900">{name}</p>
             <span className="text-xs text-gray-500">{relationshipLabel}</span>
+            {g.is_primary && (
+              <span className="text-xs font-medium text-gray-500">
+                ({t("guardians.badges.primary")})
+              </span>
+            )}
           </div>
-          {hasBadges && (
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {g.is_primary && (
-                <Badge label={t("guardians.badges.primary")} color="#5080D8" />
-              )}
+          {(g.can_pickup || g.is_emergency_contact) && (
+            <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-600">
               {g.can_pickup && (
-                <Badge
-                  label={t("guardians.badges.canPickup")}
-                  color={LOCATION_COLORS.GROUP_ROOM}
-                />
+                <span className="flex items-center gap-1.5">
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{ backgroundColor: LOCATION_COLORS.GROUP_ROOM }}
+                  />
+                  {t("guardians.badges.canPickup")}
+                </span>
               )}
               {g.is_emergency_contact && (
-                <Badge
-                  label={t("guardians.badges.emergency")}
-                  color={LOCATION_COLORS.SICK}
-                />
+                <span className="flex items-center gap-1.5">
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{ backgroundColor: LOCATION_COLORS.SICK }}
+                  />
+                  {t("guardians.badges.emergency")}
+                </span>
               )}
             </div>
           )}
@@ -372,17 +379,6 @@ function GuardianRow({
         </div>
       </div>
     </div>
-  );
-}
-
-function Badge({ label, color }: Readonly<{ label: string; color: string }>) {
-  return (
-    <span
-      className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
-      style={{ backgroundColor: `${color}1A`, color }}
-    >
-      {label}
-    </span>
   );
 }
 
@@ -592,7 +588,7 @@ function ContactModal({
                     onClick={() =>
                       setPhones((prev) => prev.filter((_, idx) => idx !== i))
                     }
-                    className="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-[#CC2626]"
+                    className="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
                     aria-label={t("guardians.removePhone")}
                   >
                     <X className="h-4 w-4" />
