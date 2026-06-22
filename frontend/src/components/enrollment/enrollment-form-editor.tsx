@@ -429,10 +429,17 @@ export function EnrollmentFormEditor() {
     [setDraftDocumentURLs],
   );
 
-  const clearSavedDraftDocumentURLs = useCallback(() => {
-    uploadedDraftDocumentURLsRef.current = new Set();
-    setUploadedDraftDocumentURLs(new Set());
-  }, []);
+  const forgetDraftDocumentURLs = useCallback(
+    (documentURLs: Iterable<string>) => {
+      setDraftDocumentURLs((urls) => {
+        for (const documentURL of documentURLs) {
+          urls.delete(documentURL);
+        }
+        return urls;
+      });
+    },
+    [setDraftDocumentURLs],
+  );
 
   const beginLegalDocumentUpload = useCallback(() => {
     setUploadingLegalDocumentCount((count) => count + 1);
@@ -456,20 +463,22 @@ export function EnrollmentFormEditor() {
         (url) => !urlsToKeep.has(url),
       );
       if (urls.length === 0) return;
-      setDraftDocumentURLs((current) => {
-        for (const url of urls) current.delete(url);
-        return current;
-      });
       const results = await Promise.allSettled(
         urls.map((url) => deleteEnrollmentLegalDocument(url, { keepalive })),
       );
+      const deletedURLs = urls.filter(
+        (_, index) => results[index]?.status === "fulfilled",
+      );
+      if (deletedURLs.length > 0) {
+        forgetDraftDocumentURLs(deletedURLs);
+      }
       if (notify && results.some((result) => result.status === "rejected")) {
         toast.error(
           "Nicht alle ungespeicherten PDF-Dateien konnten bereinigt werden.",
         );
       }
     },
-    [setDraftDocumentURLs, toast],
+    [forgetDraftDocumentURLs, toast],
   );
 
   useEffect(() => {
@@ -759,7 +768,7 @@ export function EnrollmentFormEditor() {
       const refreshed = await loadAll();
       const stillThere = refreshed.find((s) => s.id === result.id);
       const savedSchema = stillThere ?? result;
-      clearSavedDraftDocumentURLs();
+      forgetDraftDocumentURLs(referencedDraftDocumentURLs);
       savingDraftDocumentURLsRef.current = new Set();
       selectSchema(savedSchema, nextMode);
       toast.success(

@@ -1518,6 +1518,72 @@ describe("EnrollmentFormEditor", () => {
     });
   });
 
+  it("keeps failed draft AGB PDF cleanup tracked for a later retry", async () => {
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.uploadEnrollmentLegalDocument.mockResolvedValue(
+      "/uploads/enrollment-form-legal-documents/1_retry.pdf",
+    );
+    mocks.deleteEnrollmentLegalDocument
+      .mockRejectedValueOnce(new Error("delete failed"))
+      .mockResolvedValue(undefined);
+    mocks.createSchema.mockResolvedValue(
+      schema({ id: "schema-new", name: "Retry-Rechtstextformular" }),
+    );
+
+    const view = render(<EnrollmentFormEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    fireEvent.change(
+      screen.getByPlaceholderText("z. B. Ferienbetreuung Sommer 2026"),
+      {
+        target: { value: "Retry-Rechtstextformular" },
+      },
+    );
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /PDF-Datei hochladen/ }),
+    );
+    fireEvent.change(screen.getByLabelText("PDF hochladen"), {
+      target: {
+        files: [
+          new File(["%PDF-1.4"], "terms.pdf", {
+            type: "application/pdf",
+          }),
+        ],
+      },
+    });
+    await screen.findByText("PDF gespeichert");
+
+    fireEvent.click(screen.getByRole("button", { name: /Text eingeben/ }));
+    fireEvent.change(screen.getByLabelText("Rechtstext / Erklärung"), {
+      target: { value: "AGB als Text" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Formularvorlage erstellen" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.createSchema).toHaveBeenCalled();
+    });
+    expect(mocks.toast.error).toHaveBeenCalledWith(
+      "Nicht alle ungespeicherten PDF-Dateien konnten bereinigt werden.",
+    );
+    expect(mocks.deleteEnrollmentLegalDocument).toHaveBeenCalledTimes(1);
+
+    view.unmount();
+
+    expect(mocks.deleteEnrollmentLegalDocument).toHaveBeenCalledTimes(2);
+    expect(mocks.deleteEnrollmentLegalDocument).toHaveBeenLastCalledWith(
+      "/uploads/enrollment-form-legal-documents/1_retry.pdf",
+      { keepalive: true },
+    );
+  });
+
   it("shows standard legal blocks as inherited summaries until an admin edits an override", async () => {
     mocks.listSchemas.mockResolvedValue([]);
     mocks.listPhases.mockResolvedValue([]);

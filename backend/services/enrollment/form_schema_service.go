@@ -486,7 +486,7 @@ func normalizeSchemaLegalDocumentURLs(ctx context.Context, blocks []enrollmentMo
 			block.DocumentURL = ""
 			continue
 		}
-		documentURL, ok := enrollmentModels.NormalizeEnrollmentFormLegalDocumentURL(block.DocumentURL, tenantID)
+		documentURL, ok := enrollmentModels.NormalizeTenantLegalDocumentURL(block.DocumentURL, tenantID)
 		if !ok {
 			return nil, fmt.Errorf("invalid schema: legal block %q has an invalid PDF document URL", block.Key)
 		}

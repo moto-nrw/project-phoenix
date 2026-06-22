@@ -166,6 +166,30 @@ func TestFormSchemaService_CreateSchemaWithLegal_NormalizesTenantDocumentURL(t *
 	)
 }
 
+func TestFormSchemaService_CreateSchemaWithLegal_AcceptsTenantSettingsDocumentURL(t *testing.T) {
+	_, svc, creatorID, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
+	documentURL := fmt.Sprintf("/api/public/enrollment-legal-documents/%d_terms.pdf", tenantID)
+
+	schema, err := svc.CreateSchemaWithLegal(
+		ctx,
+		"PDF aus Einstellungen",
+		[]enrollmentModels.FormField{
+			{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+		},
+		creatorID,
+		enrollmentModels.CoreRequirements{},
+		[]enrollmentModels.FormLegalBlock{agbPDFBlock(documentURL)},
+	)
+
+	require.NoError(t, err)
+	require.Len(t, schema.LegalBlocks, 1)
+	assert.Equal(t,
+		fmt.Sprintf("/uploads/enrollment-legal-documents/%d_terms.pdf", tenantID),
+		schema.LegalBlocks[0].DocumentURL,
+	)
+}
+
 func TestFormSchemaService_CreateSchemaWithLegal_RejectsForeignDocumentURL(t *testing.T) {
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
@@ -174,6 +198,26 @@ func TestFormSchemaService_CreateSchemaWithLegal_RejectsForeignDocumentURL(t *te
 	_, err := svc.CreateSchemaWithLegal(
 		ctx,
 		"Fremde PDF",
+		[]enrollmentModels.FormField{
+			{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+		},
+		creatorID,
+		enrollmentModels.CoreRequirements{},
+		[]enrollmentModels.FormLegalBlock{agbPDFBlock(documentURL)},
+	)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid PDF document URL")
+}
+
+func TestFormSchemaService_CreateSchemaWithLegal_RejectsForeignSettingsDocumentURL(t *testing.T) {
+	_, svc, creatorID, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
+	documentURL := fmt.Sprintf("/uploads/enrollment-legal-documents/%d_terms.pdf", tenantID+1)
+
+	_, err := svc.CreateSchemaWithLegal(
+		ctx,
+		"Fremde Settings-PDF",
 		[]enrollmentModels.FormField{
 			{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
 		},
