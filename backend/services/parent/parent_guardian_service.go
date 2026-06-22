@@ -28,6 +28,7 @@ const (
 	maxGuardianEmailLen  = 254
 	maxGuardianAddrLen   = 200
 	maxGuardianPhoneLen  = 40
+	maxGuardianLabelLen  = 50
 	maxGuardianPhones    = 5
 	maxGuardianNotesLen  = 500
 	maxEmergencyPriority = 99
@@ -398,6 +399,18 @@ func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 	}
 	var result *ChildGuardian
 	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		// Lock the guardian profile row for the duration of the tx. The link
+		// update below is a read-modify-write on the students_guardians row, and
+		// the same profile lock guards the contact path; taking it here serializes
+		// concurrent relationship edits (and relationship-vs-contact edits) of the
+		// same guardian so independent field writes can't clobber each other in a
+		// lost update under read-committed.
+		if err := s.guardianProfileRepo.LockByIDForUpdate(txCtx, guardianProfileID); err != nil {
+			if errors.Is(err, usersModels.ErrGuardianProfileNotFound) {
+				return ErrGuardianNotLinked
+			}
+			return err
+		}
 		callerStudents, err := s.callerFamilyStudentSet(txCtx, accountID)
 		if err != nil {
 			return err
@@ -963,6 +976,9 @@ func validateContactInput(input *GuardianContactInput) error {
 		}
 		if len(guardianPhoneDigitPattern.FindAllString(num, -1)) < minGuardianPhoneDigits {
 			return fmt.Errorf("%w: phone number too short", ErrGuardianContactInvalid)
+		}
+		if p.Label != nil && utf8.RuneCountInString(*p.Label) > maxGuardianLabelLen {
+			return fmt.Errorf("%w: phone label too long", ErrGuardianContactInvalid)
 		}
 	}
 	return nil
