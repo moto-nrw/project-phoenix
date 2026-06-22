@@ -454,6 +454,14 @@ type StudentGuardianRepository interface {
 	// Update updates an existing relationship
 	Update(ctx context.Context, relationship *StudentGuardian) error
 
+	// UpdateColumns writes only the named columns of the relationship row
+	// (matched by primary key, tenant-scoped). Use it to edit a bounded subset
+	// of fields without clobbering columns the caller does not own — e.g. a
+	// parent editing only pickup flags/notes must not overwrite guardian_role,
+	// permissions, or relationship_type a staff editor may have changed
+	// concurrently. Returns the number of rows affected.
+	UpdateColumns(ctx context.Context, relationship *StudentGuardian, columns ...string) (int64, error)
+
 	// Delete removes a relationship
 	Delete(ctx context.Context, id interface{}) error
 

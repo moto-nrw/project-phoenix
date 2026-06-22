@@ -138,6 +138,48 @@ describe("GuardiansPanel", () => {
     expect(screen.queryByText(/parent: guardian/)).not.toBeInTheDocument();
   });
 
+  it("reaches the pickup-note action without exposing pickup flags for an edit-only guardian", async () => {
+    // can_edit_contact without can_manage_pickup (e.g. the caller's own row):
+    // the backend permits a pickup_notes edit but not the safety-critical flags.
+    // The relationship action must be reachable for the note, while the
+    // can_pickup / emergency controls stay hidden.
+    const noteOnlyGuardian: ChildGuardian = {
+      ...editableGuardian,
+      // Flags off so the row renders no pickup/emergency badges — keeps the
+      // "controls hidden" assertions scoped to the modal (the badge labels are
+      // identical strings to the checkbox labels).
+      can_pickup: false,
+      is_emergency_contact: false,
+      can_edit_contact: true,
+      can_manage_pickup: false,
+    };
+    mocks.listChildGuardians.mockResolvedValue([noteOnlyGuardian]);
+
+    render(<GuardiansPanel studentId="42" />);
+
+    // The note action is reachable (labelled as the pickup note, not "manage").
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Hinweis zur Abholung" }),
+    );
+
+    // The note field is present; the flag controls are not.
+    expect(document.querySelector("#pickup-notes")).toBeTruthy();
+    expect(screen.queryByText("Darf abholen")).not.toBeInTheDocument();
+    expect(screen.queryByText("Notfallkontakt")).not.toBeInTheDocument();
+
+    const notes = document.querySelector<HTMLTextAreaElement>("#pickup-notes")!;
+    fireEvent.change(notes, { target: { value: "Kommt mit dem Bus" } });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(mocks.updateGuardianRelationship).toHaveBeenCalledTimes(1);
+    });
+    // Only the note travels — no flag fields, so the pickup.manage gate is not tripped.
+    expect(mocks.updateGuardianRelationship).toHaveBeenCalledWith("42", "7", {
+      pickup_notes: "Kommt mit dem Bus",
+    });
+  });
+
   it("offers no edit affordance for a redacted account-holder guardian", async () => {
     // A guardian with their own account is redacted (no contact data) and
     // read-only to other parents — the row lists the name but no edit button.

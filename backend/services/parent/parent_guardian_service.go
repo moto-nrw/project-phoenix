@@ -350,6 +350,23 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 		}
 		before := snapshotGuardianContact(profile, oldPhones)
 
+		// Reject an email already owned by a DIFFERENT guardian profile before we
+		// write. The UNIQUE(tenant_id, email) index is case-sensitive, but every
+		// guardian email lookup (FindByEmail, invite/account matching) compares
+		// case-insensitively via LOWER(email); a mixed-case duplicate of a legacy
+		// row would otherwise slip past the index and silently break that
+		// matching. Mirrors the staff-side guardian service precheck; the
+		// post-commit unique-violation catch below stays as the TOCTOU backstop
+		// (the other profile is not locked by this tx). FindByEmail runs in the
+		// tenant tx, so it is RLS-scoped to this school.
+		if input.Email != nil {
+			if email := strings.TrimSpace(*input.Email); email != "" {
+				if existing, ferr := s.guardianProfileRepo.FindByEmail(txCtx, email); ferr == nil && existing != nil && existing.ID != guardianProfileID {
+					return ErrGuardianEmailConflict
+				}
+			}
+		}
+
 		applyContactInput(profile, &input)
 		if err := s.guardianProfileRepo.Update(txCtx, profile); err != nil {
 			return err
@@ -507,8 +524,22 @@ func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 				link.PickupNotes = &trimmed
 			}
 		}
-		if err := s.studentGuardianRepo.Update(txCtx, link); err != nil {
+		// Write only the three columns this feature owns. A full-row Update would
+		// re-send guardian_role, permissions, relationship_type, etc. with the
+		// values loaded before any concurrent staff edit, clobbering a staff change
+		// to those columns made between our read and write (the guardian_profiles
+		// lock above serializes parent-vs-parent edits but the staff path edits the
+		// students_guardians row without taking it). Scoping the write to the
+		// pickup fields removes that clobber entirely.
+		updated, err := s.studentGuardianRepo.UpdateColumns(txCtx, link, "can_pickup", "is_emergency_contact", "pickup_notes")
+		if err != nil {
 			return err
+		}
+		if updated == 0 {
+			// The relationship row vanished between our read and write (e.g. the
+			// link was removed concurrently). Surface it as not-linked rather than
+			// silently reporting success.
+			return ErrGuardianNotLinked
 		}
 		if err := s.auditPickupFlagChanges(txCtx, child.tenantID, accountID, studentID, guardianProfileID, input, oldCanPickup, oldEmergency); err != nil {
 			return err

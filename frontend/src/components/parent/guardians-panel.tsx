@@ -8,6 +8,7 @@ import {
   Mail,
   MapPin,
   ShieldCheck,
+  StickyNote,
   Plus,
   X,
 } from "lucide-react";
@@ -368,17 +369,35 @@ function GuardianRow({
                 <Pencil className="h-4 w-4" aria-hidden="true" />
               </Button>
             )}
-            {g.can_manage_pickup && (
+            {/* The pickup/relationship modal carries two distinct capabilities:
+                the safety-critical can_pickup / emergency flags (pickup.manage)
+                and the per-child pickup note (guardian.edit). Surface the action
+                whenever the caller holds EITHER permission so a note-only editor
+                (e.g. their own row, where flags are never theirs to set) can still
+                reach the note. The label/icon reflect which capability applies. */}
+            {(g.can_edit_contact || g.can_manage_pickup) && (
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
                 onClick={onEditPickup}
-                title={t("guardians.managePickup")}
-                aria-label={t("guardians.managePickup")}
+                title={
+                  g.can_manage_pickup
+                    ? t("guardians.managePickup")
+                    : t("guardians.pickupNotes")
+                }
+                aria-label={
+                  g.can_manage_pickup
+                    ? t("guardians.managePickup")
+                    : t("guardians.pickupNotes")
+                }
                 className="text-gray-400"
               >
-                <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+                {g.can_manage_pickup ? (
+                  <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <StickyNote className="h-4 w-4" aria-hidden="true" />
+                )}
               </Button>
             )}
           </div>
@@ -697,7 +716,11 @@ function PickupModal({
     <Modal
       isOpen
       onClose={onClose}
-      title={t("guardians.pickupTitle")}
+      title={
+        g.can_manage_pickup
+          ? t("guardians.pickupTitle")
+          : t("guardians.pickupNotes")
+      }
       closeLabel={t("guardians.close")}
       footer={
         <div className="flex justify-end gap-2">
@@ -724,36 +747,50 @@ function PickupModal({
         <p className="text-sm text-gray-600">
           {`${g.first_name} ${g.last_name}`.trim()}
         </p>
-        <label htmlFor="guardian-can-pickup" className="flex items-start gap-3">
-          <Checkbox
-            id="guardian-can-pickup"
-            checked={canPickup}
-            onChange={(e) => setCanPickup(e.target.checked)}
-          />
-          <span className="text-sm">
-            <span className="font-medium text-gray-900">
-              {t("guardians.canPickupLabel")}
-            </span>
-            <span className="mt-0.5 block text-gray-500">
-              {t("guardians.canPickupDescription")}
-            </span>
-          </span>
-        </label>
-        <label htmlFor="guardian-emergency" className="flex items-start gap-3">
-          <Checkbox
-            id="guardian-emergency"
-            checked={isEmergency}
-            onChange={(e) => setIsEmergency(e.target.checked)}
-          />
-          <span className="text-sm">
-            <span className="font-medium text-gray-900">
-              {t("guardians.emergencyLabel")}
-            </span>
-            <span className="mt-0.5 block text-gray-500">
-              {t("guardians.emergencyDescription")}
-            </span>
-          </span>
-        </label>
+        {/* The can_pickup / emergency flags are safety-critical authority gated
+            by parent_portal.pickup.manage; render them only when the caller may
+            manage pickup so the modal never offers a control the backend rejects
+            (a note-only editor sees just the note field below). */}
+        {g.can_manage_pickup && (
+          <>
+            <label
+              htmlFor="guardian-can-pickup"
+              className="flex items-start gap-3"
+            >
+              <Checkbox
+                id="guardian-can-pickup"
+                checked={canPickup}
+                onChange={(e) => setCanPickup(e.target.checked)}
+              />
+              <span className="text-sm">
+                <span className="font-medium text-gray-900">
+                  {t("guardians.canPickupLabel")}
+                </span>
+                <span className="mt-0.5 block text-gray-500">
+                  {t("guardians.canPickupDescription")}
+                </span>
+              </span>
+            </label>
+            <label
+              htmlFor="guardian-emergency"
+              className="flex items-start gap-3"
+            >
+              <Checkbox
+                id="guardian-emergency"
+                checked={isEmergency}
+                onChange={(e) => setIsEmergency(e.target.checked)}
+              />
+              <span className="text-sm">
+                <span className="font-medium text-gray-900">
+                  {t("guardians.emergencyLabel")}
+                </span>
+                <span className="mt-0.5 block text-gray-500">
+                  {t("guardians.emergencyDescription")}
+                </span>
+              </span>
+            </label>
+          </>
+        )}
         {/* Notes require parent_portal.guardian.edit; hide the field for a
             pickup-manage-only caller so the modal never offers an input the
             backend would reject. */}

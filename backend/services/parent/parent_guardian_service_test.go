@@ -3,6 +3,7 @@ package parent_test
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -250,6 +251,38 @@ func TestUpdateGuardianContact_MapsDuplicateEmailToConflict(t *testing.T) {
 		FirstName: "Duplicate",
 		LastName:  "Email",
 		Email:     &email,
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, parentService.ErrGuardianEmailConflict)
+}
+
+// TestUpdateGuardianContact_RejectsCaseInsensitiveDuplicateEmail pins the
+// contract that a mixed-case variant of an email another guardian already owns
+// is rejected as a conflict (never silently accepted as a case-variant
+// duplicate). Guardian email matching is case-insensitive (LOWER(email)) across
+// invite/account flows, so two rows differing only in case would break it. The
+// service enforces this with a FindByEmail (LOWER=LOWER) precheck mirroring the
+// staff-side guardian service; under a case-sensitive collation that precheck is
+// the only guard, so it must stay.
+func TestUpdateGuardianContact_RejectsCaseInsensitiveDuplicateEmail(t *testing.T) {
+	svc, db := buildGuardianService(t)
+	defer func() { _ = db.Close() }()
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	firstID, firstCleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-case-a")
+	defer firstCleanup()
+	secondID, secondCleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-case-b")
+	defer secondCleanup()
+
+	// Submit an UPPER-CASED variant of the first guardian's (lowercase) email for
+	// the second. Byte-distinct from the stored value, so the case-sensitive index
+	// would accept it; the LOWER(email) precheck must still reject it as a conflict.
+	mixedCase := strings.ToUpper(guardianEmailForProfile(t, db, firstID))
+	_, err := svc.UpdateGuardianContact(context.Background(), chain.AccountID, chain.StudentID, secondID, parentService.GuardianContactInput{
+		FirstName: "Mixed",
+		LastName:  "Case",
+		Email:     &mixedCase,
 	})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, parentService.ErrGuardianEmailConflict)
