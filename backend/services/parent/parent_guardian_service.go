@@ -324,13 +324,21 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 		// contact-only profile; refuse it when the profile also serves a child
 		// outside the caller's family, so one parent can't rewrite a contact shared
 		// with another family.
+		// Load every child this profile is linked to: it drives both the
+		// cross-family containment guard (a contact-only profile that also serves a
+		// child outside the caller's family is the school's to edit, not this
+		// caller's) and the post-commit broadcast (a contact edit is shared across
+		// all the profile's children, so every sibling's parent view must refresh,
+		// not just the one the edit was routed through).
+		profileLinks, err := s.studentGuardianRepo.FindByGuardianProfileID(txCtx, guardianProfileID)
+		if err != nil {
+			return err
+		}
 		if !isSelf {
-			escapes, err := s.profileEscapesFamily(txCtx, guardianProfileID, callerStudents)
-			if err != nil {
-				return err
-			}
-			if escapes {
-				return ErrGuardianSharedAcrossFamilies
+			for _, pl := range profileLinks {
+				if !callerStudents[pl.StudentID] {
+					return ErrGuardianSharedAcrossFamilies
+				}
 			}
 		}
 
@@ -362,9 +370,15 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 		result = projectChildGuardian(profile, link, phones, accountID, true,
 			child.hasPermission(authorize.GuardianPermissionPickupManage), false)
 
+		affectedStudents := make([]int64, 0, len(profileLinks))
+		for _, pl := range profileLinks {
+			affectedStudents = append(affectedStudents, pl.StudentID)
+		}
 		capturedTenant := child.tenantID
 		tenant.RegisterAfterCommit(txCtx, func() {
-			s.broadcastStudentUpdated(capturedTenant, studentID)
+			for _, sid := range affectedStudents {
+				s.broadcastStudentUpdated(capturedTenant, sid)
+			}
 		})
 		return nil
 	})
