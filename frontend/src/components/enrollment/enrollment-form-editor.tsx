@@ -2579,7 +2579,9 @@ function CoreFieldRow({
         </div>
         <p className="mt-0.5 text-xs leading-5 text-gray-500">
           {field.requirementKey
-            ? (field.requirementHint ?? "Kann verpflichtend gemacht werden.")
+            ? required
+              ? (field.requirementHint ?? "Diese Angabe ist verpflichtend.")
+              : "Kann verpflichtend gemacht werden."
             : "Immer erforderlich und deshalb nicht änderbar."}
         </p>
       </div>
@@ -4189,9 +4191,16 @@ function getRequiredHint(field: FormField): string {
     return "Eltern müssen Ja oder Nein auswählen.";
   }
   if (field.type === "weekday_schedule") {
-    return "Eltern müssen mindestens eine Uhrzeit angeben.";
+    return "Eltern müssen für jeden Betreuungstag eine Uhrzeit angeben (ohne Betreuungsangebote: mindestens eine).";
   }
   if (field.type === "weekday_boolean") {
+    // Legacy pickup (student.pickup_status) accepts an empty selection ("geht
+    // alleine nach Hause") -- required only forces parents to confirm the
+    // field once, not to tick a day. Every other weekday_boolean (Buskind)
+    // genuinely needs at least one day.
+    if (field.target === "student.pickup_status") {
+      return "Eltern müssen die Abholregelung bestätigen (Tage auswählen oder leer lassen).";
+    }
     return "Eltern müssen mindestens einen Wochentag auswählen.";
   }
   if (field.type === "weekday_multi_mode") {
