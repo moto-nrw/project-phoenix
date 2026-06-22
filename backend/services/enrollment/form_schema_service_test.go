@@ -47,6 +47,21 @@ func setupSchemaTest(t *testing.T) (*bun.DB, enrollmentService.FormSchemaService
 	return db, svc, account.ID, tenantID
 }
 
+func agbPDFBlock(documentURL string) enrollmentModels.FormLegalBlock {
+	return enrollmentModels.FormLegalBlock{
+		Key:         enrollmentModels.ConsentKeyAGB,
+		Kind:        enrollmentModels.LegalBlockKindTerms,
+		Title:       "AGB / Teilnahmebedingungen",
+		Label:       "Ich akzeptiere die AGB.",
+		Required:    true,
+		Enabled:     true,
+		SortOrder:   10,
+		Source:      enrollmentModels.LegalBlockSourceStandard,
+		DisplayMode: enrollmentModels.LegalBlockDisplayModePDF,
+		DocumentURL: documentURL,
+	}
+}
+
 func TestFormSchemaService_PublishVersion_CreatesActive(t *testing.T) {
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
@@ -125,6 +140,119 @@ func TestFormSchemaService_PublishVersion_RejectsDuplicateKey(t *testing.T) {
 		{Key: "allergies", Label: "Doppelt", Type: enrollmentModels.FormFieldText, SortOrder: 1},
 	}, creatorID)
 	require.Error(t, err, "duplicate keys must be rejected")
+}
+
+func TestFormSchemaService_CreateSchemaWithLegal_NormalizesTenantDocumentURL(t *testing.T) {
+	_, svc, creatorID, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
+	documentURL := fmt.Sprintf("/api/public/enrollment-form-legal-documents/%d_terms.pdf", tenantID)
+
+	schema, err := svc.CreateSchemaWithLegal(
+		ctx,
+		"PDF-Rechtstext",
+		[]enrollmentModels.FormField{
+			{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+		},
+		creatorID,
+		enrollmentModels.CoreRequirements{},
+		[]enrollmentModels.FormLegalBlock{agbPDFBlock(documentURL)},
+	)
+
+	require.NoError(t, err)
+	require.Len(t, schema.LegalBlocks, 1)
+	assert.Equal(t,
+		fmt.Sprintf("/uploads/enrollment-form-legal-documents/%d_terms.pdf", tenantID),
+		schema.LegalBlocks[0].DocumentURL,
+	)
+}
+
+func TestFormSchemaService_CreateSchemaWithLegal_AcceptsTenantSettingsDocumentURL(t *testing.T) {
+	_, svc, creatorID, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
+	documentURL := fmt.Sprintf("/api/public/enrollment-legal-documents/%d_terms.pdf", tenantID)
+
+	schema, err := svc.CreateSchemaWithLegal(
+		ctx,
+		"PDF aus Einstellungen",
+		[]enrollmentModels.FormField{
+			{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+		},
+		creatorID,
+		enrollmentModels.CoreRequirements{},
+		[]enrollmentModels.FormLegalBlock{agbPDFBlock(documentURL)},
+	)
+
+	require.NoError(t, err)
+	require.Len(t, schema.LegalBlocks, 1)
+	assert.Equal(t,
+		fmt.Sprintf("/uploads/enrollment-legal-documents/%d_terms.pdf", tenantID),
+		schema.LegalBlocks[0].DocumentURL,
+	)
+}
+
+func TestFormSchemaService_CreateSchemaWithLegal_RejectsForeignDocumentURL(t *testing.T) {
+	_, svc, creatorID, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
+	documentURL := fmt.Sprintf("/uploads/enrollment-form-legal-documents/%d_terms.pdf", tenantID+1)
+
+	_, err := svc.CreateSchemaWithLegal(
+		ctx,
+		"Fremde PDF",
+		[]enrollmentModels.FormField{
+			{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+		},
+		creatorID,
+		enrollmentModels.CoreRequirements{},
+		[]enrollmentModels.FormLegalBlock{agbPDFBlock(documentURL)},
+	)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid PDF document URL")
+}
+
+func TestFormSchemaService_CreateSchemaWithLegal_RejectsForeignSettingsDocumentURL(t *testing.T) {
+	_, svc, creatorID, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
+	documentURL := fmt.Sprintf("/uploads/enrollment-legal-documents/%d_terms.pdf", tenantID+1)
+
+	_, err := svc.CreateSchemaWithLegal(
+		ctx,
+		"Fremde Settings-PDF",
+		[]enrollmentModels.FormField{
+			{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+		},
+		creatorID,
+		enrollmentModels.CoreRequirements{},
+		[]enrollmentModels.FormLegalBlock{agbPDFBlock(documentURL)},
+	)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid PDF document URL")
+}
+
+func TestFormSchemaService_CreateSchemaWithLegal_ClearsDocumentURLInTextMode(t *testing.T) {
+	_, svc, creatorID, tenantID := setupSchemaTest(t)
+	ctx := testpkg.TenantContext(tenantID)
+	block := agbPDFBlock(fmt.Sprintf("/uploads/enrollment-form-legal-documents/%d_terms.pdf", tenantID))
+	block.DisplayMode = enrollmentModels.LegalBlockDisplayModeText
+	block.Text = "AGB als Text"
+
+	schema, err := svc.CreateSchemaWithLegal(
+		ctx,
+		"Text-Rechtstext",
+		[]enrollmentModels.FormField{
+			{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+		},
+		creatorID,
+		enrollmentModels.CoreRequirements{},
+		[]enrollmentModels.FormLegalBlock{block},
+	)
+
+	require.NoError(t, err)
+	require.Len(t, schema.LegalBlocks, 1)
+	assert.Equal(t, enrollmentModels.LegalBlockDisplayModeText, schema.LegalBlocks[0].DisplayMode)
+	assert.Empty(t, schema.LegalBlocks[0].DocumentURL)
+	assert.Equal(t, "AGB als Text", schema.LegalBlocks[0].Text)
 }
 
 func TestFormSchemaService_ListVersions_ReturnsNewestFirst(t *testing.T) {

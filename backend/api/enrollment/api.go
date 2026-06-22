@@ -39,6 +39,7 @@ type Resource struct {
 	// construction (mirrors api/rooms), not via the constructor.
 	ListExportService    listexport.Service
 	db                   *bun.DB
+	legalDocumentRefs    legalDocumentReferenceRepository
 	runInTenantTxForTest func(r *http.Request, fn func(ctx context.Context) error) error
 }
 
@@ -61,8 +62,9 @@ func NewResource(
 	guardianProfileLoader usersService.GuardianProfileLoader,
 	schoolService platformSvc.SchoolService,
 	db *bun.DB,
+	legalDocumentRefs ...legalDocumentReferenceRepository,
 ) *Resource {
-	return &Resource{
+	rs := &Resource{
 		FormSchemaService:         formSchemaSvc,
 		CareOfferingService:       careOfferingSvc,
 		RequestService:            requestSvc,
@@ -76,6 +78,10 @@ func NewResource(
 		SchoolService:             schoolService,
 		db:                        db,
 	}
+	if len(legalDocumentRefs) > 0 {
+		rs.legalDocumentRefs = legalDocumentRefs[0]
+	}
+	return rs
 }
 
 // Router returns a chi router scoped to /enrollment. PR 5 added the
@@ -120,6 +126,8 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission("config:manage")).Patch("/{id}", rs.renameSchema)
 			r.With(authorize.RequiresPermission("config:manage")).Delete("/{id}", rs.deleteSchema)
 		})
+		r.With(authorize.RequiresPermission("config:manage")).Post("/legal-documents", rs.uploadLegalDocument)
+		r.With(authorize.RequiresPermission("config:manage")).Delete("/legal-documents/{filename}", rs.deleteLegalDocument)
 
 		r.Route("/care-offerings", func(r chi.Router) {
 			r.With(authorize.RequiresPermission("config:read")).Get("/", rs.listCareOfferings)

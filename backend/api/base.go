@@ -410,6 +410,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		api.Services.GuardianProfileLoader,
 		api.Services.Schools,
 		db,
+		repoFactory.FormSchema,
 	)
 	api.Enrollment.ListExportService = api.Services.ListExport
 	api.Suggestions = suggestionsAPI.NewResource(api.Services.Suggestions, db)
@@ -554,6 +555,10 @@ func (a *API) registerRoutesWithRateLimiting() {
 	a.Router.Get("/public/enrollment-legal-documents/{filename}", func(w http.ResponseWriter, r *http.Request) {
 		filename := chi.URLParam(r, "filename")
 		apiCommon.ServeFile(w, r, "public/uploads/enrollment-legal-documents", filename, "public, max-age=86400")
+	})
+	a.Router.Get("/public/enrollment-form-legal-documents/{filename}", func(w http.ResponseWriter, r *http.Request) {
+		filename := chi.URLParam(r, "filename")
+		apiCommon.ServeFile(w, r, "public/uploads/enrollment-form-legal-documents", filename, "public, max-age=86400")
 	})
 
 	a.Router.With(observability.MetricsAuthMiddleware(a.metricsBearerToken)).Handle("/internal/metrics", observability.MetricsHandler())

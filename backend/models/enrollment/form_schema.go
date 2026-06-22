@@ -718,6 +718,9 @@ const (
 
 	LegalBlockSourceStandard = "standard"
 	LegalBlockSourceCustom   = "custom"
+
+	LegalBlockDisplayModeText = "text"
+	LegalBlockDisplayModePDF  = "pdf"
 )
 
 var validLegalBlockKinds = map[string]bool{
@@ -738,15 +741,17 @@ var standardLegalBlockKeys = map[string]bool{
 // Standard blocks originate from tenant settings and may be overridden or
 // disabled on the template. Custom blocks are stored only on the template.
 type FormLegalBlock struct {
-	Key       string `json:"key"`
-	Kind      string `json:"kind"`
-	Title     string `json:"title"`
-	Label     string `json:"label"`
-	Text      string `json:"text"`
-	Required  bool   `json:"required"`
-	Enabled   bool   `json:"enabled"`
-	SortOrder int    `json:"sort_order"`
-	Source    string `json:"source,omitempty"`
+	Key         string `json:"key"`
+	Kind        string `json:"kind"`
+	Title       string `json:"title"`
+	Label       string `json:"label"`
+	Text        string `json:"text"`
+	Required    bool   `json:"required"`
+	Enabled     bool   `json:"enabled"`
+	SortOrder   int    `json:"sort_order"`
+	Source      string `json:"source,omitempty"`
+	DisplayMode string `json:"display_mode,omitempty"`
+	DocumentURL string `json:"document_url,omitempty"`
 }
 
 func (b *FormLegalBlock) Validate() error {
@@ -756,6 +761,8 @@ func (b *FormLegalBlock) Validate() error {
 	b.Label = strings.TrimSpace(b.Label)
 	b.Text = strings.TrimSpace(b.Text)
 	b.Source = strings.TrimSpace(b.Source)
+	b.DisplayMode = strings.TrimSpace(b.DisplayMode)
+	b.DocumentURL = strings.TrimSpace(b.DocumentURL)
 
 	if b.Key == "" {
 		return errors.New("legal block key is required")
@@ -795,6 +802,20 @@ func (b *FormLegalBlock) Validate() error {
 	}
 	if b.Kind == LegalBlockKindNotice && b.Required {
 		return fmt.Errorf("notice legal block %q cannot be required", b.Key)
+	}
+	if b.DisplayMode == "" {
+		b.DisplayMode = LegalBlockDisplayModeText
+	}
+	if b.DisplayMode != LegalBlockDisplayModeText && b.DisplayMode != LegalBlockDisplayModePDF {
+		return fmt.Errorf("legal block %q has unknown display mode %q", b.Key, b.DisplayMode)
+	}
+	if b.DisplayMode == LegalBlockDisplayModePDF {
+		if b.Key != ConsentKeyAGB || b.Source != LegalBlockSourceStandard {
+			return fmt.Errorf("legal block %q cannot use PDF display mode", b.Key)
+		}
+		if b.Enabled && b.DocumentURL == "" {
+			return fmt.Errorf("enabled legal block %q requires a PDF document", b.Key)
+		}
 	}
 	return nil
 }

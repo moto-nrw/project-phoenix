@@ -106,6 +106,26 @@ func TestFormSchema_Validate_AcceptsLegalBlocks(t *testing.T) {
 	require.NoError(t, s.Validate())
 }
 
+func TestFormSchema_Validate_AcceptsAGBPDFLegalBlock(t *testing.T) {
+	s := validSchema()
+	s.LegalBlocks = []FormLegalBlock{
+		{
+			Key:         ConsentKeyAGB,
+			Kind:        LegalBlockKindTerms,
+			Title:       "AGB / Teilnahmebedingungen",
+			Label:       "Ich akzeptiere die AGB.",
+			Required:    true,
+			Enabled:     true,
+			Source:      LegalBlockSourceStandard,
+			DisplayMode: LegalBlockDisplayModePDF,
+			DocumentURL: "/uploads/enrollment-legal-documents/1_terms.pdf",
+		},
+	}
+
+	require.NoError(t, s.Validate())
+	assert.Equal(t, LegalBlockDisplayModePDF, s.LegalBlocks[0].DisplayMode)
+}
+
 func TestFormSchema_Validate_AcceptsDisabledDataProcessingWithEnabledBlocks(t *testing.T) {
 	// Deliberately supported: pilot schools without a standalone
 	// Datenschutzinformation run their consent via the Elternbrief/AGB
@@ -205,6 +225,16 @@ func TestFormSchema_Validate_RejectsInvalidLegalBlockShape(t *testing.T) {
 			name:  "notice cannot be required",
 			block: FormLegalBlock{Key: "custom_notice", Kind: LegalBlockKindNotice, Title: "T", Label: "L", Required: true, Enabled: true},
 			want:  "cannot be required",
+		},
+		{
+			name:  "pdf mode only allowed for agb",
+			block: FormLegalBlock{Key: ConsentKeyPhoto, Kind: LegalBlockKindConsent, Title: "T", Label: "L", Enabled: true, Source: LegalBlockSourceStandard, DisplayMode: LegalBlockDisplayModePDF, DocumentURL: "/uploads/enrollment-legal-documents/1_terms.pdf"},
+			want:  "cannot use PDF display mode",
+		},
+		{
+			name:  "enabled pdf mode needs document",
+			block: FormLegalBlock{Key: ConsentKeyAGB, Kind: LegalBlockKindTerms, Title: "T", Label: "L", Enabled: true, Source: LegalBlockSourceStandard, DisplayMode: LegalBlockDisplayModePDF},
+			want:  "requires a PDF document",
 		},
 	}
 
