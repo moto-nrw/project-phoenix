@@ -1,6 +1,13 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
+import { StrictMode } from "react";
 
 const mocks = vi.hoisted(() => ({
   createCareOffering: vi.fn(),
@@ -222,6 +229,16 @@ async function chooseOption(
 ) {
   fireEvent.click(screen.getByLabelText(label));
   fireEvent.click(await screen.findByRole("option", { name: optionName }));
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
 }
 
 beforeEach(() => {
@@ -656,6 +673,49 @@ describe("EnrollmentFormEditor", () => {
     });
   });
 
+  it("resets the saving state after creating a schema under React StrictMode", async () => {
+    const create = deferred<FormSchema>();
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.createSchema.mockReturnValue(create.promise);
+
+    render(
+      <StrictMode>
+        <EnrollmentFormEditor />
+      </StrictMode>,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    fireEvent.change(
+      screen.getByPlaceholderText("z. B. Ferienbetreuung Sommer 2026"),
+      {
+        target: { value: "Kontaktformular" },
+      },
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Formularvorlage erstellen" }),
+    );
+
+    expect(
+      await screen.findByRole("button", { name: "Speichert..." }),
+    ).toBeDisabled();
+
+    await act(async () => {
+      create.resolve(schema({ id: "schema-new", name: "Kontaktformular" }));
+    });
+
+    await waitFor(() => {
+      expect(mocks.toast.success).toHaveBeenCalledWith(
+        "Formularvorlage erstellt.",
+      );
+    });
+    expect(
+      screen.queryByRole("button", { name: "Speichert..." }),
+    ).not.toBeInTheDocument();
+  });
+
   it("renames a schema via the actions menu", async () => {
     mocks.listSchemas.mockResolvedValue([schema()]);
     mocks.listPhases.mockResolvedValue([]);
@@ -1006,6 +1066,208 @@ describe("EnrollmentFormEditor", () => {
         }),
       ]),
     );
+    expect(mocks.deleteEnrollmentLegalDocument).not.toHaveBeenCalled();
+  });
+
+  it("keeps legal block edits made while an AGB PDF upload is pending", async () => {
+    const upload = deferred<string>();
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.uploadEnrollmentLegalDocument.mockReturnValue(upload.promise);
+    mocks.createSchema.mockResolvedValue(
+      schema({ id: "schema-new", name: "PDF-Rechtstextformular" }),
+    );
+
+    render(<EnrollmentFormEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    fireEvent.change(
+      screen.getByPlaceholderText("z. B. Ferienbetreuung Sommer 2026"),
+      {
+        target: { value: "PDF-Rechtstextformular" },
+      },
+    );
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /PDF-Datei hochladen/ }),
+    );
+
+    fireEvent.change(screen.getByLabelText("PDF hochladen"), {
+      target: {
+        files: [
+          new File(["%PDF-1.4"], "terms.pdf", {
+            type: "application/pdf",
+          }),
+        ],
+      },
+    });
+    fireEvent.change(screen.getByLabelText("Titel"), {
+      target: { value: "Individuelle Teilnahmebedingungen" },
+    });
+
+    await act(async () => {
+      upload.resolve("/uploads/enrollment-form-legal-documents/1_terms.pdf");
+    });
+    expect(await screen.findByText("PDF gespeichert")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Formularvorlage erstellen" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.createSchema).toHaveBeenCalled();
+    });
+    const [, , , legalBlocks] = mocks.createSchema.mock.calls[0] as [
+      string,
+      unknown,
+      unknown,
+      Array<{ key: string; title: string; document_url: string }>,
+    ];
+    expect(legalBlocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: "agb",
+          title: "Individuelle Teilnahmebedingungen",
+          document_url: "/uploads/enrollment-form-legal-documents/1_terms.pdf",
+        }),
+      ]),
+    );
+  });
+
+  it("clears stale AGB PDF URLs when saving the template in text mode", async () => {
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.uploadEnrollmentLegalDocument.mockResolvedValue(
+      "/uploads/enrollment-form-legal-documents/1_terms.pdf",
+    );
+    mocks.deleteEnrollmentLegalDocument.mockResolvedValue(undefined);
+    mocks.createSchema.mockResolvedValue(
+      schema({ id: "schema-new", name: "Text-Rechtstextformular" }),
+    );
+
+    render(<EnrollmentFormEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    fireEvent.change(
+      screen.getByPlaceholderText("z. B. Ferienbetreuung Sommer 2026"),
+      {
+        target: { value: "Text-Rechtstextformular" },
+      },
+    );
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /PDF-Datei hochladen/ }),
+    );
+    fireEvent.change(screen.getByLabelText("PDF hochladen"), {
+      target: {
+        files: [
+          new File(["%PDF-1.4"], "terms.pdf", {
+            type: "application/pdf",
+          }),
+        ],
+      },
+    });
+    await screen.findByText("PDF gespeichert");
+
+    fireEvent.click(screen.getByRole("button", { name: /Text eingeben/ }));
+    fireEvent.change(screen.getByLabelText("Rechtstext / Erklärung"), {
+      target: { value: "AGB als Text" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Formularvorlage erstellen" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.createSchema).toHaveBeenCalled();
+    });
+    const [, , , legalBlocks] = mocks.createSchema.mock.calls[0] as [
+      string,
+      unknown,
+      unknown,
+      Array<{
+        key: string;
+        display_mode: string;
+        document_url: string;
+        text: string;
+      }>,
+    ];
+    expect(legalBlocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: "agb",
+          display_mode: "text",
+          document_url: "",
+          text: "AGB als Text",
+        }),
+      ]),
+    );
+    expect(mocks.deleteEnrollmentLegalDocument).toHaveBeenCalledWith(
+      "/uploads/enrollment-form-legal-documents/1_terms.pdf",
+      expect.any(Object),
+    );
+  });
+
+  it("does not delete a draft AGB PDF while its template save is in flight", async () => {
+    const save = deferred<FormSchema>();
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.uploadEnrollmentLegalDocument.mockResolvedValue(
+      "/uploads/enrollment-form-legal-documents/1_terms.pdf",
+    );
+    mocks.deleteEnrollmentLegalDocument.mockResolvedValue(undefined);
+    mocks.createSchema.mockReturnValue(save.promise);
+
+    const view = render(<EnrollmentFormEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    fireEvent.change(
+      screen.getByPlaceholderText("z. B. Ferienbetreuung Sommer 2026"),
+      {
+        target: { value: "PDF-Rechtstextformular" },
+      },
+    );
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /PDF-Datei hochladen/ }),
+    );
+    fireEvent.change(screen.getByLabelText("PDF hochladen"), {
+      target: {
+        files: [
+          new File(["%PDF-1.4"], "terms.pdf", {
+            type: "application/pdf",
+          }),
+        ],
+      },
+    });
+    await screen.findByText("PDF gespeichert");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Formularvorlage erstellen" }),
+    );
+    await waitFor(() => {
+      expect(mocks.createSchema).toHaveBeenCalled();
+    });
+
+    view.unmount();
+    expect(mocks.deleteEnrollmentLegalDocument).not.toHaveBeenCalled();
+
+    await act(async () => {
+      save.resolve(
+        schema({ id: "schema-new", name: "PDF-Rechtstextformular" }),
+      );
+    });
     expect(mocks.deleteEnrollmentLegalDocument).not.toHaveBeenCalled();
   });
 

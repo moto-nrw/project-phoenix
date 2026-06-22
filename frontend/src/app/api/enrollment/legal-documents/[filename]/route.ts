@@ -1,10 +1,47 @@
-import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { apiDelete, handleApiError } from "~/lib/api-helpers.server";
-import { auth } from "~/server/auth";
+import { auth, uncachedAuth } from "~/server/auth";
 
 interface RouteContext {
-  params: Promise<{ filename: string }>;
+  params: Promise<{ filename?: string }>;
+}
+
+function isStaleTokenError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes("API error (401)");
+}
+
+function tokenExpiredResponse() {
+  return NextResponse.json(
+    { error: "Token expired", code: "TOKEN_EXPIRED" },
+    { status: 401 },
+  );
+}
+
+async function deleteWithRetry(endpoint: string, token: string) {
+  try {
+    await apiDelete(endpoint, token);
+    return true;
+  } catch (error) {
+    if (!isStaleTokenError(error)) {
+      throw error;
+    }
+
+    const refreshed = await uncachedAuth();
+    if (!refreshed?.user?.token || refreshed.user.token === token) {
+      return false;
+    }
+
+    try {
+      await apiDelete(endpoint, refreshed.user.token);
+      return true;
+    } catch (retryError) {
+      if (isStaleTokenError(retryError)) {
+        return false;
+      }
+      throw retryError;
+    }
+  }
 }
 
 export async function DELETE(_request: NextRequest, context: RouteContext) {
@@ -20,10 +57,13 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
   }
 
   try {
-    await apiDelete(
+    const deleted = await deleteWithRetry(
       `/api/enrollment/legal-documents/${encodeURIComponent(filename)}`,
       token,
     );
+    if (!deleted) {
+      return tokenExpiredResponse();
+    }
     return new NextResponse(null, { status: 204 });
   } catch (error) {
     return handleApiError(error);

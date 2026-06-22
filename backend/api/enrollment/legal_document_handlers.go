@@ -6,20 +6,18 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 const (
 	maxEnrollmentLegalDocumentSize = 10 * 1024 * 1024
 	maxEnrollmentLegalDocumentBody = maxEnrollmentLegalDocumentSize + 4096
-	enrollmentLegalDocumentDir     = "public/uploads/enrollment-form-legal-documents"
-	enrollmentLegalDocumentPrefix  = "/uploads/enrollment-form-legal-documents/"
 )
 
 type enrollmentLegalDocumentResponse struct {
@@ -46,14 +44,14 @@ func (rs *Resource) uploadLegalDocument(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	filePath, err := common.SavePDF(uploaded.File, enrollmentLegalDocumentDir, fmt.Sprintf("%d", tenantID))
+	filePath, err := common.SavePDF(uploaded.File, enrollmentModels.EnrollmentFormLegalDocumentDir, fmt.Sprintf("%d", tenantID))
 	if err != nil {
 		render.Status(r, http.StatusInternalServerError)
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
-	documentURL := enrollmentLegalDocumentPrefix + filepath.Base(filePath)
+	documentURL := enrollmentModels.EnrollmentFormLegalDocumentUploadPrefix + filepath.Base(filePath)
 	common.Respond(w, r, http.StatusOK, enrollmentLegalDocumentResponse{DocumentURL: documentURL}, "Legal document uploaded successfully")
 }
 
@@ -72,8 +70,8 @@ func (rs *Resource) deleteLegalDocument(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	storedURL := enrollmentLegalDocumentPrefix + filename
-	if !enrollmentLegalDocumentBelongsToTenant(storedURL, tenantID) {
+	storedURL := enrollmentModels.EnrollmentFormLegalDocumentUploadPrefix + filename
+	if !enrollmentModels.EnrollmentFormLegalDocumentBelongsToTenant(storedURL, tenantID) {
 		render.Status(r, http.StatusBadRequest)
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("document does not belong to tenant")))
 		return
@@ -85,7 +83,7 @@ func (rs *Resource) deleteLegalDocument(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	publicURL := publicEnrollmentLegalDocumentURL(storedURL)
+	publicURL := enrollmentModels.PublicEnrollmentFormLegalDocumentURL(storedURL)
 	var referenced bool
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		var refErr error
@@ -102,7 +100,7 @@ func (rs *Resource) deleteLegalDocument(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	path, err := common.ResolveStoredPath("public", storedURL, enrollmentLegalDocumentPrefix)
+	path, err := common.ResolveStoredPath("public", storedURL, enrollmentModels.EnrollmentFormLegalDocumentUploadPrefix)
 	if err != nil {
 		render.Status(r, http.StatusBadRequest)
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
@@ -111,21 +109,6 @@ func (rs *Resource) deleteLegalDocument(w http.ResponseWriter, r *http.Request) 
 
 	common.RemoveImage(path)
 	common.RespondNoContent(w, r)
-}
-
-func enrollmentLegalDocumentBelongsToTenant(storedURL string, tenantID int64) bool {
-	if tenantID <= 0 || !strings.HasPrefix(storedURL, enrollmentLegalDocumentPrefix) {
-		return false
-	}
-	filename := strings.TrimPrefix(storedURL, enrollmentLegalDocumentPrefix)
-	return strings.HasPrefix(filename, fmt.Sprintf("%d_", tenantID))
-}
-
-func publicEnrollmentLegalDocumentURL(storedURL string) string {
-	if strings.HasPrefix(storedURL, enrollmentLegalDocumentPrefix) {
-		return "/api/public/enrollment-form-legal-documents/" + strings.TrimPrefix(storedURL, enrollmentLegalDocumentPrefix)
-	}
-	return storedURL
 }
 
 // UploadLegalDocument returns the form-template legal document upload handler for tests.

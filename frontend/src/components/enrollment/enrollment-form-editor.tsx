@@ -8,7 +8,9 @@ import {
   useMemo,
   useRef,
   useState,
+  type Dispatch,
   type ReactNode,
+  type SetStateAction,
 } from "react";
 import {
   ArrowLeft,
@@ -178,6 +180,8 @@ const targetSuggestionDescriptions: Record<
 };
 
 const NEW_SCHEMA_VALUE = "__new__";
+const LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE =
+  "Bitte warte, bis der PDF-Upload abgeschlossen ist.";
 type EditorMode = "overview" | "builder" | "detail";
 type PendingNavigation = "overview" | "new" | "preview";
 
@@ -346,9 +350,14 @@ export function EnrollmentFormEditor() {
   const [deletingSchemaId, setDeletingSchemaId] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<FormSchema | null>(null);
   const uploadedDraftDocumentURLsRef = useRef<Set<string>>(new Set());
+  const savingDraftDocumentURLsRef = useRef<Set<string>>(new Set());
+  const unmountedRef = useRef(false);
   const [uploadedDraftDocumentURLs, setUploadedDraftDocumentURLs] = useState<
     Set<string>
   >(() => new Set());
+  const [uploadingLegalDocumentCount, setUploadingLegalDocumentCount] =
+    useState(0);
+  const hasPendingLegalDocumentUpload = uploadingLegalDocumentCount > 0;
 
   const latestByName = useMemo(
     () => latestSchemasByName(allSchemas),
@@ -425,15 +434,32 @@ export function EnrollmentFormEditor() {
     setUploadedDraftDocumentURLs(new Set());
   }, []);
 
+  const beginLegalDocumentUpload = useCallback(() => {
+    setUploadingLegalDocumentCount((count) => count + 1);
+  }, []);
+
+  const endLegalDocumentUpload = useCallback(() => {
+    setUploadingLegalDocumentCount((count) => Math.max(0, count - 1));
+  }, []);
+
   const cleanupDraftDocumentURLs = useCallback(
     async ({
       keepalive = false,
       notify = true,
-    }: { keepalive?: boolean; notify?: boolean } = {}) => {
-      const urls = Array.from(uploadedDraftDocumentURLsRef.current);
+      urlsToKeep = new Set<string>(),
+    }: {
+      keepalive?: boolean;
+      notify?: boolean;
+      urlsToKeep?: ReadonlySet<string>;
+    } = {}) => {
+      const urls = Array.from(uploadedDraftDocumentURLsRef.current).filter(
+        (url) => !urlsToKeep.has(url),
+      );
       if (urls.length === 0) return;
-      uploadedDraftDocumentURLsRef.current = new Set();
-      setUploadedDraftDocumentURLs(new Set());
+      setDraftDocumentURLs((current) => {
+        for (const url of urls) current.delete(url);
+        return current;
+      });
       const results = await Promise.allSettled(
         urls.map((url) => deleteEnrollmentLegalDocument(url, { keepalive })),
       );
@@ -443,13 +469,22 @@ export function EnrollmentFormEditor() {
         );
       }
     },
-    [toast],
+    [setDraftDocumentURLs, toast],
   );
 
   useEffect(() => {
+    unmountedRef.current = false;
+
     return () => {
-      const urls = Array.from(uploadedDraftDocumentURLsRef.current);
-      uploadedDraftDocumentURLsRef.current = new Set();
+      unmountedRef.current = true;
+      const urls = Array.from(uploadedDraftDocumentURLsRef.current).filter(
+        (url) => !savingDraftDocumentURLsRef.current.has(url),
+      );
+      uploadedDraftDocumentURLsRef.current = new Set(
+        Array.from(uploadedDraftDocumentURLsRef.current).filter((url) =>
+          savingDraftDocumentURLsRef.current.has(url),
+        ),
+      );
       for (const url of urls) {
         void deleteEnrollmentLegalDocument(url, { keepalive: true });
       }
@@ -646,6 +681,11 @@ export function EnrollmentFormEditor() {
     legalBlocks,
     name,
   });
+  const pendingUploadMessage = hasPendingLegalDocumentUpload
+    ? LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE
+    : null;
+  const effectiveSaveBlockedMessage =
+    saveBlockedMessage ?? pendingUploadMessage;
 
   const saveSchema = async (
     nextMode: EditorMode = "detail",
@@ -663,9 +703,22 @@ export function EnrollmentFormEditor() {
         toast.error(validationMessage);
         return null;
       }
+      if (hasPendingLegalDocumentUpload) {
+        setError(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
+        toast.error(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
+        return null;
+      }
 
       const fieldsForSave = prepareFieldsForSave(fields);
       const legalBlocksForSave = prepareLegalBlocksForSave(legalBlocks);
+      const referencedDraftDocumentURLs = draftDocumentURLsInLegalBlocks(
+        legalBlocksForSave,
+        uploadedDraftDocumentURLsRef.current,
+      );
+      savingDraftDocumentURLsRef.current = referencedDraftDocumentURLs;
+      await cleanupDraftDocumentURLs({
+        urlsToKeep: referencedDraftDocumentURLs,
+      });
       let result: FormSchema;
       if (isCreating) {
         result = await createSchema(
@@ -698,10 +751,16 @@ export function EnrollmentFormEditor() {
           renameTo,
         );
       }
+      if (unmountedRef.current) {
+        uploadedDraftDocumentURLsRef.current = new Set();
+        savingDraftDocumentURLsRef.current = new Set();
+        return result;
+      }
       const refreshed = await loadAll();
       const stillThere = refreshed.find((s) => s.id === result.id);
       const savedSchema = stillThere ?? result;
       clearSavedDraftDocumentURLs();
+      savingDraftDocumentURLsRef.current = new Set();
       selectSchema(savedSchema, nextMode);
       toast.success(
         isCreating ? "Formularvorlage erstellt." : "Änderungen gespeichert.",
@@ -710,12 +769,23 @@ export function EnrollmentFormEditor() {
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Speichern fehlgeschlagen";
-      logger.error("schema_save_failed", { error: message });
-      setError(message);
-      toast.error(message);
+      if (unmountedRef.current) {
+        const urls = Array.from(savingDraftDocumentURLsRef.current);
+        for (const url of urls) {
+          void deleteEnrollmentLegalDocument(url, { keepalive: true });
+        }
+        savingDraftDocumentURLsRef.current = new Set();
+      } else {
+        logger.error("schema_save_failed", { error: message });
+        setError(message);
+        toast.error(message);
+      }
       return null;
     } finally {
-      setSaving(false);
+      if (!unmountedRef.current) {
+        savingDraftDocumentURLsRef.current = new Set();
+        setSaving(false);
+      }
     }
   };
 
@@ -724,6 +794,10 @@ export function EnrollmentFormEditor() {
   };
 
   const requestBackToOverview = () => {
+    if (hasPendingLegalDocumentUpload) {
+      toast.error(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
+      return;
+    }
     if (hasUnsavedChanges) {
       setPendingNavigation("overview");
       return;
@@ -732,6 +806,10 @@ export function EnrollmentFormEditor() {
   };
 
   const requestStartNew = () => {
+    if (hasPendingLegalDocumentUpload) {
+      toast.error(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
+      return;
+    }
     if (hasUnsavedChanges) {
       setPendingNavigation("new");
       return;
@@ -748,6 +826,10 @@ export function EnrollmentFormEditor() {
   };
 
   const requestExternalPreview = () => {
+    if (hasPendingLegalDocumentUpload) {
+      toast.error(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
+      return;
+    }
     if (!hasUnsavedChanges && currentSchema) {
       openPreviewWindow(currentSchema.id);
       return;
@@ -855,7 +937,7 @@ export function EnrollmentFormEditor() {
           <button
             type="button"
             onClick={requestBackToOverview}
-            disabled={saving}
+            disabled={saving || hasPendingLegalDocumentUpload}
             className="inline-flex h-8 items-center gap-2 rounded-lg px-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
@@ -889,6 +971,8 @@ export function EnrollmentFormEditor() {
               draftDocumentURLs={uploadedDraftDocumentURLs}
               onDraftDocumentUploaded={rememberDraftDocumentURL}
               onDraftDocumentDeleted={forgetDraftDocumentURL}
+              onUploadStart={beginLegalDocumentUpload}
+              onUploadEnd={endLegalDocumentUpload}
             />
 
             <section className="space-y-4">
@@ -963,7 +1047,7 @@ export function EnrollmentFormEditor() {
                 <button
                   type="button"
                   onClick={requestStartNew}
-                  disabled={saving}
+                  disabled={saving || hasPendingLegalDocumentUpload}
                   className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
                 >
                   Zurücksetzen
@@ -971,7 +1055,7 @@ export function EnrollmentFormEditor() {
                 <button
                   type="button"
                   onClick={handleSave}
-                  disabled={saving}
+                  disabled={saving || hasPendingLegalDocumentUpload}
                   className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {saving
@@ -1011,8 +1095,8 @@ export function EnrollmentFormEditor() {
       </section>
       <UnsavedChangesDialog
         pendingNavigation={pendingNavigation}
-        saving={saving}
-        saveBlockedMessage={saveBlockedMessage}
+        saving={saving || hasPendingLegalDocumentUpload}
+        saveBlockedMessage={effectiveSaveBlockedMessage}
         onCancel={() => setPendingNavigation(null)}
         onDiscard={discardPendingNavigation}
         onSave={savePendingNavigation}
@@ -2138,28 +2222,36 @@ function LegalBlocksSection({
   draftDocumentURLs,
   onDraftDocumentUploaded,
   onDraftDocumentDeleted,
+  onUploadStart,
+  onUploadEnd,
 }: Readonly<{
   blocks: FormLegalBlock[];
   standardBlocks: FormLegalBlock[];
-  onChange: (blocks: FormLegalBlock[]) => void;
+  onChange: Dispatch<SetStateAction<FormLegalBlock[]>>;
   disabled: boolean;
   draftDocumentURLs: ReadonlySet<string>;
   onDraftDocumentUploaded: (documentURL: string) => void;
   onDraftDocumentDeleted: (documentURL: string) => void;
+  onUploadStart: () => void;
+  onUploadEnd: () => void;
 }>) {
   const toast = useToast();
   const [editingStandardKeys, setEditingStandardKeys] = useState<string[]>([]);
   const [uploadingDocumentKey, setUploadingDocumentKey] = useState<
     string | null
   >(null);
+  const blocksRef = useRef(blocks);
+  useEffect(() => {
+    blocksRef.current = blocks;
+  }, [blocks]);
   const standardByKey = useMemo(
     () => new Map(standardBlocks.map((block) => [block.key, block])),
     [standardBlocks],
   );
 
   const updateBlock = (index: number, patch: Partial<FormLegalBlock>) => {
-    onChange(
-      blocks.map((block, i) => {
+    onChange((currentBlocks) =>
+      currentBlocks.map((block, i) => {
         if (i !== index) return block;
         const next = { ...block, ...patch };
         if (
@@ -2176,7 +2268,9 @@ function LegalBlocksSection({
   const resetStandardBlock = (index: number, key: string) => {
     const standardBlock = standardByKey.get(key);
     if (!standardBlock) return;
-    onChange(blocks.map((block, i) => (i === index ? standardBlock : block)));
+    onChange((currentBlocks) =>
+      currentBlocks.map((block, i) => (i === index ? standardBlock : block)),
+    );
     setEditingStandardKeys((keys) => keys.filter((value) => value !== key));
   };
   const editStandardBlock = (key: string) => {
@@ -2186,14 +2280,22 @@ function LegalBlocksSection({
   };
   const uploadAGBDocument = async (index: number, file: File | null) => {
     if (!file) return;
-    const previousURL = (blocks[index]?.document_url ?? "").trim();
     setUploadingDocumentKey(blocks[index]?.key ?? null);
+    onUploadStart();
     try {
       const documentURL = await uploadEnrollmentLegalDocument(file);
-      updateBlock(index, {
-        document_url: documentURL,
-        display_mode: LEGAL_BLOCK_DISPLAY_MODE_PDF,
-        enabled: true,
+      const previousURL = (blocksRef.current[index]?.document_url ?? "").trim();
+      onChange((currentBlocks) => {
+        return currentBlocks.map((block, i) =>
+          i === index
+            ? {
+                ...block,
+                document_url: documentURL,
+                display_mode: LEGAL_BLOCK_DISPLAY_MODE_PDF,
+                enabled: true,
+              }
+            : block,
+        );
       });
       onDraftDocumentUploaded(documentURL);
       if (
@@ -2217,6 +2319,7 @@ function LegalBlocksSection({
       );
     } finally {
       setUploadingDocumentKey(null);
+      onUploadEnd();
     }
   };
   const removeAGBDocument = async (index: number) => {
@@ -2234,23 +2337,23 @@ function LegalBlocksSection({
     }
   };
   const addCustomBlock = () => {
-    onChange([
-      ...blocks,
+    onChange((currentBlocks) => [
+      ...currentBlocks,
       {
-        key: nextCustomLegalBlockKey(blocks),
+        key: nextCustomLegalBlockKey(currentBlocks),
         kind: "consent",
         title: "Weitere Einwilligung",
         label: "Ich stimme dieser Einwilligung zu.",
         text: "",
         required: false,
         enabled: true,
-        sort_order: blocks.length * 10 + 10,
+        sort_order: currentBlocks.length * 10 + 10,
         source: "custom",
       },
     ]);
   };
   const removeBlock = (index: number) => {
-    onChange(blocks.filter((_, i) => i !== index));
+    onChange((currentBlocks) => currentBlocks.filter((_, i) => i !== index));
   };
   const standardEntries = blocks
     .map((block, index) => ({ block, index }))
@@ -4522,7 +4625,10 @@ function mergeSavedLegalBlocks(
 function prepareLegalBlocksForSave(blocks: FormLegalBlock[]): FormLegalBlock[] {
   return blocks.map((block, index) => {
     const displayMode = legalBlockDisplayMode(block);
-    const documentURL = (block.document_url ?? "").trim();
+    const documentURL =
+      displayMode === LEGAL_BLOCK_DISPLAY_MODE_PDF
+        ? (block.document_url ?? "").trim()
+        : "";
     return {
       key: normalizeFieldKey(block.key) || `custom_consent_${index + 1}`,
       kind: block.kind,
@@ -4537,6 +4643,24 @@ function prepareLegalBlocksForSave(blocks: FormLegalBlock[]): FormLegalBlock[] {
       document_url: documentURL,
     };
   });
+}
+
+function draftDocumentURLsInLegalBlocks(
+  blocks: FormLegalBlock[],
+  draftURLs: ReadonlySet<string>,
+): Set<string> {
+  const urls = new Set<string>();
+  for (const block of blocks) {
+    const documentURL = (block.document_url ?? "").trim();
+    if (
+      block.display_mode === LEGAL_BLOCK_DISPLAY_MODE_PDF &&
+      documentURL &&
+      draftURLs.has(documentURL)
+    ) {
+      urls.add(documentURL);
+    }
+  }
+  return urls;
 }
 
 function nextCustomLegalBlockKey(blocks: FormLegalBlock[]): string {

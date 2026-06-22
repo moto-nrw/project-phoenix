@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // ErrNoActiveSchema is returned by GetActive when no active form schema
@@ -384,8 +385,14 @@ func (s *formSchemaService) createOrVersion(ctx context.Context, name string, fi
 		name = defaultSchemaName
 	}
 
+	normalizedLegalBlocks, err := normalizeSchemaLegalDocumentURLs(ctx, legalBlocks)
+	if err != nil {
+		return nil, err
+	}
+
 	// Validate fields up front so we don't write a half-correct row.
 	tmp := &enrollmentModels.FormSchema{Name: name, Version: 1, CreatedBy: createdBy, Fields: fields, CoreRequirements: coreRequirements, LegalBlocks: legalBlocks}
+	tmp.LegalBlocks = normalizedLegalBlocks
 	if err := tmp.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid schema: %w", err)
 	}
@@ -459,6 +466,33 @@ func (s *formSchemaService) repointPhasesToVersion(ctx context.Context, newSchem
 			slog.Int64("phases_updated", updated))
 	}
 	return nil
+}
+
+func normalizeSchemaLegalDocumentURLs(ctx context.Context, blocks []enrollmentModels.FormLegalBlock) ([]enrollmentModels.FormLegalBlock, error) {
+	if len(blocks) == 0 {
+		return blocks, nil
+	}
+
+	tenantID := tenant.FromContext(ctx)
+	normalized := make([]enrollmentModels.FormLegalBlock, len(blocks))
+	copy(normalized, blocks)
+	for i := range normalized {
+		block := &normalized[i]
+		if block.DisplayMode != enrollmentModels.LegalBlockDisplayModePDF {
+			block.DocumentURL = ""
+			continue
+		}
+		if strings.TrimSpace(block.DocumentURL) == "" {
+			block.DocumentURL = ""
+			continue
+		}
+		documentURL, ok := enrollmentModels.NormalizeEnrollmentFormLegalDocumentURL(block.DocumentURL, tenantID)
+		if !ok {
+			return nil, fmt.Errorf("invalid schema: legal block %q has an invalid PDF document URL", block.Key)
+		}
+		block.DocumentURL = documentURL
+	}
+	return normalized, nil
 }
 
 func firstCoreRequirements(values []enrollmentModels.CoreRequirements) enrollmentModels.CoreRequirements {
