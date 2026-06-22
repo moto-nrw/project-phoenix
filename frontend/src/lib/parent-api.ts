@@ -161,6 +161,7 @@ export interface ChildGuardian {
   readonly can_manage_pickup: boolean;
   readonly contact_locked_own_account: boolean;
   readonly contact_locked_shared: boolean;
+  readonly contact_locked_social_worker: boolean;
 }
 
 // Payload for a guardian contact edit. Profile fields + phone list are

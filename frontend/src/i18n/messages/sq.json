@@ -132,10 +132,8 @@
         "canPickup": "Mund ta marrë",
         "emergency": "Kontakt emergjence"
       },
-      "editContact": "Ndrysho kontaktin",
+      "editContact": "Ndrysho",
       "managePickup": "Menaxho lejen e marrjes",
-      "ownContactHint": "Ky person i menaxhon vetë të dhënat e tij të kontaktit përmes llogarisë së vet.",
-      "sharedContactHint": "Ky kontakt është i lidhur me disa familje dhe mund të ndryshohet vetëm nga shkolla.",
       "contactTitle": "Ndrysho të dhënat e kontaktit",
       "pickupTitle": "Menaxho marrjen",
       "close": "Mbyll",
@@ -175,7 +173,9 @@
         "sharedAcrossFamilies": "Ky kontakt përdoret nga disa familje dhe mund të ndryshohet vetëm nga shkolla.",
         "notLinked": "Ky kontakt nuk i përket këtij fëmije.",
         "permissionDenied": "Nuk keni leje për këtë ndryshim.",
-        "noChange": "Nuk u dërgua asnjë ndryshim."
+        "noChange": "Nuk u dërgua asnjë ndryshim.",
+        "socialWorkerManaged": "Këto të dhëna kontakti menaxhohen nga shkolla.",
+        "managementDisabled": "Menaxhimi i kontakteve është çaktivizuar për këtë shkollë."
       }
     },
     "newsEyebrow": "Aktuale",

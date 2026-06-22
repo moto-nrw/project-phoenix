@@ -84,6 +84,10 @@ function resolveGuardianError(
         return t("guardians.errors.hasOwnAccount");
       case "guardian_shared_across_families":
         return t("guardians.errors.sharedAcrossFamilies");
+      case "guardian_social_worker_managed":
+        return t("guardians.errors.socialWorkerManaged");
+      case "guardian_management_disabled":
+        return t("guardians.errors.managementDisabled");
       case "guardian_not_linked":
         return t("guardians.errors.notLinked");
       case "guardian_permission_denied":
@@ -245,6 +249,12 @@ function GuardianRow({
     ? t(`guardians.relationships.${g.relationship_type}`)
     : (RELATIONSHIP_LABELS[g.relationship_type] ??
       t("guardians.relationships.contact"));
+  const hasBadges = g.is_primary || g.can_pickup || g.is_emergency_contact;
+  const hasContact =
+    g.phones.length > 0 ||
+    Boolean(g.email) ||
+    Boolean(g.address_street ?? g.address_city ?? g.address_postal_code);
+  const hasDetails = hasContact || Boolean(g.pickup_notes);
   return (
     <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4">
       <div className="flex items-start gap-3">
@@ -256,69 +266,83 @@ function GuardianRow({
             <p className="text-sm font-semibold text-gray-900">{name}</p>
             <span className="text-xs text-gray-500">{relationshipLabel}</span>
           </div>
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
-            {g.is_primary && (
-              <Badge label={t("guardians.badges.primary")} color="#5080D8" />
-            )}
-            {g.can_pickup && (
-              <Badge
-                label={t("guardians.badges.canPickup")}
-                color={LOCATION_COLORS.GROUP_ROOM}
-              />
-            )}
-            {g.is_emergency_contact && (
-              <Badge
-                label={t("guardians.badges.emergency")}
-                color={LOCATION_COLORS.SICK}
-              />
-            )}
-          </div>
-          <div className="mt-2 space-y-1 text-sm text-gray-600">
-            {g.phones.map((p, index) => (
-              <ContactLine
-                key={`${p.phone_number}-${p.phone_type}-${index}`}
-                icon={<Phone className="h-3.5 w-3.5" aria-hidden="true" />}
-                text={[
-                  p.phone_number,
-                  p.label,
-                  p.phone_type && isPhoneType(p.phone_type)
-                    ? t(`guardians.phoneTypes.${p.phone_type}`)
-                    : p.phone_type
-                      ? (PHONE_TYPE_LABELS[p.phone_type] ?? p.phone_type)
-                      : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              />
-            ))}
-            {g.email && (
-              <ContactLine
-                icon={<Mail className="h-3.5 w-3.5" aria-hidden="true" />}
-                text={g.email}
-              />
-            )}
-            {(g.address_street ?? g.address_city ?? g.address_postal_code) && (
-              <ContactLine
-                icon={<MapPin className="h-3.5 w-3.5" aria-hidden="true" />}
-                text={[
-                  g.address_street,
-                  [g.address_postal_code, g.address_city]
-                    .filter(Boolean)
-                    .join(" "),
-                ]
-                  .filter((s) => s && s.trim())
-                  .join(", ")}
-              />
-            )}
-            {g.pickup_notes && (
-              <ContactLine
-                icon={
-                  <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-                }
-                text={g.pickup_notes}
-              />
-            )}
-          </div>
+          {hasBadges && (
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {g.is_primary && (
+                <Badge label={t("guardians.badges.primary")} color="#5080D8" />
+              )}
+              {g.can_pickup && (
+                <Badge
+                  label={t("guardians.badges.canPickup")}
+                  color={LOCATION_COLORS.GROUP_ROOM}
+                />
+              )}
+              {g.is_emergency_contact && (
+                <Badge
+                  label={t("guardians.badges.emergency")}
+                  color={LOCATION_COLORS.SICK}
+                />
+              )}
+            </div>
+          )}
+          {hasDetails && (
+            <div className="mt-2 space-y-1.5 text-sm text-gray-600">
+              {hasContact && (
+                <>
+                  {g.phones.map((p, index) => (
+                    <ContactLine
+                      key={`${p.phone_number}-${p.phone_type}-${index}`}
+                      icon={
+                        <Phone className="h-3.5 w-3.5" aria-hidden="true" />
+                      }
+                      text={[
+                        p.phone_number,
+                        p.label,
+                        p.phone_type && isPhoneType(p.phone_type)
+                          ? t(`guardians.phoneTypes.${p.phone_type}`)
+                          : p.phone_type
+                            ? (PHONE_TYPE_LABELS[p.phone_type] ?? p.phone_type)
+                            : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    />
+                  ))}
+                  {g.email && (
+                    <ContactLine
+                      icon={<Mail className="h-3.5 w-3.5" aria-hidden="true" />}
+                      text={g.email}
+                    />
+                  )}
+                  {(g.address_street ??
+                    g.address_city ??
+                    g.address_postal_code) && (
+                    <ContactLine
+                      icon={
+                        <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
+                      }
+                      text={[
+                        g.address_street,
+                        [g.address_postal_code, g.address_city]
+                          .filter(Boolean)
+                          .join(" "),
+                      ]
+                        .filter((s) => s && s.trim())
+                        .join(", ")}
+                    />
+                  )}
+                </>
+              )}
+              {g.pickup_notes && (
+                <ContactLine
+                  icon={
+                    <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                  }
+                  text={g.pickup_notes}
+                />
+              )}
+            </div>
+          )}
           {(g.can_edit_contact || g.can_manage_pickup) && (
             <div className="mt-3 flex flex-wrap gap-2">
               {g.can_edit_contact && (
@@ -344,16 +368,6 @@ function GuardianRow({
                 </Button>
               )}
             </div>
-          )}
-          {g.contact_locked_own_account && (
-            <p className="mt-2 text-xs text-gray-400">
-              {t("guardians.ownContactHint")}
-            </p>
-          )}
-          {g.contact_locked_shared && (
-            <p className="mt-2 text-xs text-gray-400">
-              {t("guardians.sharedContactHint")}
-            </p>
           )}
         </div>
       </div>
@@ -728,23 +742,28 @@ function PickupModal({
             </span>
           </span>
         </label>
-        <div>
-          <label
-            htmlFor="pickup-notes"
-            className="mb-1 block text-sm font-medium text-gray-700"
-          >
-            {t("guardians.pickupNotes")}
-          </label>
-          <textarea
-            id="pickup-notes"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={3}
-            maxLength={500}
-            placeholder={t("guardians.pickupNotesPlaceholder")}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
-          />
-        </div>
+        {/* Notes require parent_portal.guardian.edit; hide the field for a
+            pickup-manage-only caller so the modal never offers an input the
+            backend would reject. */}
+        {g.can_edit_contact && (
+          <div>
+            <label
+              htmlFor="pickup-notes"
+              className="mb-1 block text-sm font-medium text-gray-700"
+            >
+              {t("guardians.pickupNotes")}
+            </label>
+            <textarea
+              id="pickup-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              maxLength={500}
+              placeholder={t("guardians.pickupNotesPlaceholder")}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
+            />
+          </div>
+        )}
       </div>
     </Modal>
   );

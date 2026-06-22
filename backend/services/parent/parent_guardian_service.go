@@ -60,6 +60,12 @@ var (
 	// edit to the caller's own children is intended; rewriting a contact that
 	// also serves another family is not the caller's to do — the school edits it.
 	ErrGuardianSharedAcrossFamilies = errors.New("parent: guardian shared with other families cannot be edited")
+	// ErrGuardianSocialWorkerManaged means the target relationship is a
+	// social-worker role: a school-managed professional contact. A parent may
+	// neither read nor rewrite their personal contact data (GDPR: the very
+	// presence of a social worker is sensitive, and their contact details are
+	// staff data the school mediates, not parent-consumable).
+	ErrGuardianSocialWorkerManaged = errors.New("parent: social-worker contact is managed by the school")
 	// ErrGuardianNoChange means a relationship update carried no editable field.
 	ErrGuardianNoChange = errors.New("parent: no editable field supplied")
 	// ErrGuardianManagementDisabled means the child's school turned off the
@@ -114,6 +120,11 @@ type ChildGuardian struct {
 	// other family) is intentionally refused here. Like ContactLockedOwnAccount,
 	// it explains an absent edit affordance to a caller who otherwise has rights.
 	ContactLockedShared bool
+	// ContactLockedSocialWorker is true when the caller has contact-edit
+	// permission but this relationship is a social-worker role, so the contact is
+	// school-managed and read-only here. Like the other lock reasons it explains
+	// an absent edit affordance; unlike them the contact fields are also redacted.
+	ContactLockedSocialWorker bool
 }
 
 // GuardianPhone is one phone number in the parent-facing projection.
@@ -263,6 +274,11 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 		if profile.HasAccount && !isSelf {
 			return ErrGuardianHasOwnAccount
 		}
+		// A social worker is a school-managed professional contact; a parent may
+		// not rewrite their personal data (mirrors the read redaction).
+		if !isSelf && link.GuardianRole == authorize.GuardianRoleSocialWorker {
+			return ErrGuardianSocialWorkerManaged
+		}
 		// A contact edit propagates to every child the profile serves (intended for
 		// siblings). Reaching past the contact-only guard means !isSelf ⟺ a
 		// contact-only profile; refuse it when the profile also serves a child
@@ -383,6 +399,11 @@ func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 		// remain editable under guardian.edit.
 		if editsFlags && profile.HasAccount {
 			return ErrGuardianHasOwnAccount
+		}
+		// A social worker's pickup/emergency standing is set by the school, not by
+		// a parent (mirrors the read-side CanManagePickup gate).
+		if editsFlags && link.GuardianRole == authorize.GuardianRoleSocialWorker {
+			return ErrGuardianSocialWorkerManaged
 		}
 		oldCanPickup := link.CanPickup
 		oldEmergency := link.IsEmergencyContact
@@ -625,11 +646,33 @@ func (s *service) profileEscapesFamily(ctx context.Context, guardianProfileID in
 	return false, nil
 }
 
+// contactProtected reports whether the caller may neither read nor edit this
+// guardian's personal contact data (email/phone/address). Protected when the
+// guardian is not the caller AND one of: they hold their own portal account
+// (a co-parent who manages it themselves), the relationship is a social-worker
+// role (school-managed professional), or the profile also serves another family
+// (shared contact). The caller's own profile is never protected.
+//
+// GDPR Datenminimierung: a reading guardian needs only the name plus the
+// child's pickup/emergency arrangement, not a co-parent's or social worker's
+// contact details. Read and write use the same predicate so the listing never
+// shows data the caller could then blank-overwrite.
+func contactProtected(profile *usersModels.GuardianProfile, link *usersModels.StudentGuardian, isSelf, sharedAcrossFamilies bool) bool {
+	if isSelf {
+		return false
+	}
+	return profile.HasAccount ||
+		link.GuardianRole == authorize.GuardianRoleSocialWorker ||
+		sharedAcrossFamilies
+}
+
 // projectChildGuardian builds the parent-facing projection of one guardian.
 // sharedAcrossFamilies marks a contact-only profile that also serves a child
 // outside the caller's family — editable only by the school, not this caller.
 func projectChildGuardian(profile *usersModels.GuardianProfile, link *usersModels.StudentGuardian, phones []*usersModels.GuardianPhoneNumber, accountID int64, canEdit, canManage, sharedAcrossFamilies bool) *ChildGuardian {
 	isSelf := profile.AccountID != nil && *profile.AccountID == accountID
+	isSocialWorker := link.GuardianRole == authorize.GuardianRoleSocialWorker
+	protected := contactProtected(profile, link, isSelf, sharedAcrossFamilies)
 	g := &ChildGuardian{
 		GuardianProfileID:  profile.ID,
 		StudentGuardianID:  link.ID,
@@ -642,24 +685,31 @@ func projectChildGuardian(profile *usersModels.GuardianProfile, link *usersModel
 		EmergencyPriority:  link.EmergencyPriority,
 		HasAccount:         profile.HasAccount,
 		IsSelf:             isSelf,
-		// Contact editing needs the edit permission AND a contact-only target
-		// (or the caller's own profile) AND — for a shared contact — that the
-		// profile stays within the caller's family. The caller's own profile is
-		// always editable regardless of reach.
-		CanEditContact: canEdit && (!profile.HasAccount || isSelf) && (isSelf || !sharedAcrossFamilies),
-		// Pickup/emergency flags may be managed only for guardians WITHOUT their
-		// own portal account (helpers): an account holder's standing is theirs and
-		// the school's, never another parent's or self-granted. Mirrors the write
-		// guard in UpdateGuardianRelationship so the UI never offers a control the
-		// backend rejects.
-		CanManagePickup: canManage && !profile.HasAccount,
-		// Only surface the "manages their own data" explanation to a caller who
-		// could otherwise edit; for a caller without edit rights it is not the
-		// reason the edit affordance is absent.
-		ContactLockedOwnAccount: canEdit && profile.HasAccount && !isSelf,
-		// Surface the "shared with another family" explanation only for a
-		// contact-only profile a caller with edit rights would otherwise edit.
-		ContactLockedShared: canEdit && !profile.HasAccount && sharedAcrossFamilies,
+		// Contact editing needs the edit permission and an unprotected target.
+		// The caller's own profile is always editable regardless of reach.
+		CanEditContact: canEdit && !protected,
+		// Pickup/emergency flags may be managed only for contact-only helpers
+		// (grandma): an account holder's standing is theirs and the school's, and
+		// a social worker's is the school's. Mirrors the write guard in
+		// UpdateGuardianRelationship so the UI never offers a control the backend
+		// rejects.
+		CanManagePickup: canManage && !profile.HasAccount && !isSocialWorker,
+		// Surface exactly one "why is this read-only" explanation to a caller who
+		// could otherwise edit (own account > social worker > shared). For a
+		// caller without edit rights none is the reason the affordance is absent.
+		ContactLockedOwnAccount:   canEdit && !isSelf && profile.HasAccount,
+		ContactLockedSocialWorker: canEdit && !isSelf && !profile.HasAccount && isSocialWorker,
+		ContactLockedShared:       canEdit && !isSelf && !profile.HasAccount && !isSocialWorker && sharedAcrossFamilies,
+	}
+	// PickupNotes is a per-child annotation the reading guardian authors about
+	// their own child's care; it is shown even for protected guardians.
+	if link.PickupNotes != nil {
+		g.PickupNotes = *link.PickupNotes
+	}
+	g.Phones = make([]GuardianPhone, 0, len(phones))
+	if protected {
+		// Redact personal contact identifiers: name + flags only.
+		return g
 	}
 	if profile.Email != nil {
 		g.Email = *profile.Email
@@ -673,10 +723,6 @@ func projectChildGuardian(profile *usersModels.GuardianProfile, link *usersModel
 	if profile.AddressPostalCode != nil {
 		g.AddressPostalCode = *profile.AddressPostalCode
 	}
-	if link.PickupNotes != nil {
-		g.PickupNotes = *link.PickupNotes
-	}
-	g.Phones = make([]GuardianPhone, 0, len(phones))
 	for _, p := range phones {
 		label := ""
 		if p.Label != nil {

@@ -132,10 +132,8 @@
         "canPickup": "Darf abholen",
         "emergency": "Notfallkontakt"
       },
-      "editContact": "Kontakt bearbeiten",
+      "editContact": "Bearbeiten",
       "managePickup": "Abholrecht verwalten",
-      "ownContactHint": "Diese Person pflegt ihre Kontaktdaten über ihr eigenes Konto selbst.",
-      "sharedContactHint": "Dieser Kontakt ist mehreren Familien zugeordnet und kann nur über die Schule geändert werden.",
       "contactTitle": "Kontaktdaten bearbeiten",
       "pickupTitle": "Abholung verwalten",
       "close": "Schließen",
@@ -175,7 +173,9 @@
         "sharedAcrossFamilies": "Dieser Kontakt ist mehreren Familien zugeordnet und kann nur von der Schule geändert werden.",
         "notLinked": "Dieser Kontakt gehört nicht zu diesem Kind.",
         "permissionDenied": "Sie haben keine Berechtigung für diese Änderung.",
-        "noChange": "Es wurde keine Änderung übermittelt."
+        "noChange": "Es wurde keine Änderung übermittelt.",
+        "socialWorkerManaged": "Diese Kontaktdaten werden von der Schule verwaltet.",
+        "managementDisabled": "Die Verwaltung von Kontakten ist für diese Schule deaktiviert."
       }
     },
     "newsEyebrow": "Aktuelles",

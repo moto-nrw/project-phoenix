@@ -66,6 +66,7 @@ const editableGuardian: ChildGuardian = {
   can_manage_pickup: true,
   contact_locked_own_account: false,
   contact_locked_shared: false,
+  contact_locked_social_worker: false,
 };
 
 describe("GuardiansPanel", () => {
@@ -79,9 +80,7 @@ describe("GuardiansPanel", () => {
   it("preserves phone labels and the existing primary phone on contact save", async () => {
     render(<GuardiansPanel studentId="42" />);
 
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Kontakt bearbeiten" }),
-    );
+    fireEvent.click(await screen.findByRole("button", { name: "Bearbeiten" }));
     const emailInput = document.querySelector<HTMLInputElement>(
       'input[type="email"]',
     );
@@ -128,9 +127,7 @@ describe("GuardiansPanel", () => {
 
     render(<GuardiansPanel studentId="42" />);
 
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Kontakt bearbeiten" }),
-    );
+    fireEvent.click(await screen.findByRole("button", { name: "Bearbeiten" }));
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     expect(
@@ -141,13 +138,21 @@ describe("GuardiansPanel", () => {
     expect(screen.queryByText(/parent: guardian/)).not.toBeInTheDocument();
   });
 
-  it("shows the own-account hint only when contact_locked_own_account is set", async () => {
+  it("offers no edit affordance for a redacted account-holder guardian", async () => {
+    // A guardian with their own account is redacted (no contact data) and
+    // read-only to other parents — the row lists the name but no edit button.
     const lockedGuardian: ChildGuardian = {
       ...editableGuardian,
       guardian_profile_id: "8",
       student_guardian_id: "80",
       first_name: "Mehmet",
       last_name: "Yilmaz",
+      email: undefined,
+      phones: [],
+      address_street: undefined,
+      address_city: undefined,
+      address_postal_code: undefined,
+      pickup_notes: undefined,
       has_account: true,
       can_edit_contact: false,
       can_manage_pickup: false,
@@ -160,20 +165,11 @@ describe("GuardiansPanel", () => {
 
     render(<GuardiansPanel studentId="42" />);
 
-    // The locked guardian shows the explanation and no edit affordance.
-    expect(
-      await screen.findByText(
-        "Diese Person pflegt ihre Kontaktdaten über ihr eigenes Konto selbst.",
-      ),
-    ).toBeInTheDocument();
-    // The editable guardian still exposes the edit button and no hint duplicate.
-    expect(
-      screen.getByRole("button", { name: "Kontakt bearbeiten" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getAllByText(
-        "Diese Person pflegt ihre Kontaktdaten über ihr eigenes Konto selbst.",
-      ),
-    ).toHaveLength(1);
+    // The redacted guardian is still listed by name.
+    expect(await screen.findByText("Mehmet Yilmaz")).toBeInTheDocument();
+    // Only the editable guardian exposes an edit button.
+    expect(screen.getAllByRole("button", { name: "Bearbeiten" })).toHaveLength(
+      1,
+    );
   });
 });

@@ -642,3 +642,109 @@ func assertExactlyOnePrimaryPhone(t *testing.T, db *bun.DB, profileID int64) {
 }
 
 func ptr(s string) *string { return &s }
+
+// linkRoleGuardian creates a contact-only guardian (no portal account) with the
+// given guardian role, an address and one phone, linked to the student. Used to
+// exercise role-based contact redaction. Caller cleans up via the returned func.
+func linkRoleGuardian(t *testing.T, db *bun.DB, studentID int64, emailSeed, role string) (int64, func()) {
+	t.Helper()
+	repos := repositories.NewFactory(db)
+	ctx := testpkg.TenantContext(1)
+	profile := testpkg.CreateTestGuardianProfile(t, db, emailSeed)
+	profile.AddressStreet = ptr("Amtsstr. 5")
+	require.NoError(t, repos.GuardianProfile.Update(ctx, profile))
+
+	phone := &userModels.GuardianPhoneNumber{
+		GuardianProfileID: profile.ID,
+		PhoneNumber:       "0151 99999999",
+		PhoneType:         userModels.PhoneTypeMobile,
+		IsPrimary:         true,
+		Priority:          1,
+	}
+	phone.SetTenantID(1)
+	require.NoError(t, repos.GuardianPhoneNumber.Create(ctx, phone))
+
+	link := &userModels.StudentGuardian{
+		StudentID:         studentID,
+		GuardianProfileID: profile.ID,
+		RelationshipType:  "relative",
+		GuardianRole:      role,
+		EmergencyPriority: 2,
+	}
+	link.SetTenantID(1)
+	require.NoError(t, repos.StudentGuardian.Create(ctx, link))
+
+	cleanup := func() {
+		bg := context.Background()
+		_, _ = db.NewDelete().TableExpr("users.guardian_phone_numbers").Where("guardian_profile_id = ?", profile.ID).Exec(bg)
+		_, _ = db.NewDelete().TableExpr("users.students_guardians").Where("guardian_profile_id = ?", profile.ID).Exec(bg)
+		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(bg)
+	}
+	return profile.ID, cleanup
+}
+
+// TestListChildGuardians_RedactsSocialWorkerContact verifies a social worker's
+// personal contact data is hidden from a reading guardian (GDPR Datenminimierung)
+// while the name and care arrangement remain visible.
+func TestListChildGuardians_RedactsSocialWorkerContact(t *testing.T) {
+	svc, db := buildGuardianService(t)
+	defer func() { _ = db.Close() }()
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	swID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "sozialarbeiter", authorize.GuardianRoleSocialWorker)
+	defer cleanup()
+
+	guardians, err := svc.ListChildGuardians(context.Background(), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	var sw *parentService.ChildGuardian
+	for _, g := range guardians {
+		if g.GuardianProfileID == swID {
+			sw = g
+		}
+	}
+	require.NotNil(t, sw)
+	assert.Empty(t, sw.Email, "social worker email is redacted")
+	assert.Empty(t, sw.AddressStreet, "social worker address is redacted")
+	assert.Empty(t, sw.Phones, "social worker phones are redacted")
+	assert.NotEmpty(t, sw.LastName, "name remains visible")
+	assert.False(t, sw.CanEditContact, "social worker contact is not editable")
+	assert.False(t, sw.CanManagePickup, "social worker pickup flags are school-managed")
+	assert.True(t, sw.ContactLockedSocialWorker, "lock reason surfaced")
+}
+
+// TestUpdateGuardianContact_RejectsSocialWorker verifies a parent cannot rewrite
+// a school-managed social worker's contact data.
+func TestUpdateGuardianContact_RejectsSocialWorker(t *testing.T) {
+	svc, db := buildGuardianService(t)
+	defer func() { _ = db.Close() }()
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	swID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "sw-edit", authorize.GuardianRoleSocialWorker)
+	defer cleanup()
+
+	_, err := svc.UpdateGuardianContact(context.Background(), chain.AccountID, chain.StudentID, swID, parentService.GuardianContactInput{
+		FirstName: "Neuer",
+		LastName:  "Name",
+	})
+	require.ErrorIs(t, err, parentService.ErrGuardianSocialWorkerManaged)
+}
+
+// TestUpdateGuardianRelationship_RejectsFlagsOnSocialWorker verifies a parent
+// cannot toggle a social worker's pickup/emergency flags.
+func TestUpdateGuardianRelationship_RejectsFlagsOnSocialWorker(t *testing.T) {
+	svc, db := buildGuardianService(t)
+	defer func() { _ = db.Close() }()
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	swID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "sw-flag", authorize.GuardianRoleSocialWorker)
+	defer cleanup()
+
+	canPickup := true
+	_, err := svc.UpdateGuardianRelationship(context.Background(), chain.AccountID, chain.StudentID, swID, parentService.GuardianRelationshipInput{
+		CanPickup: &canPickup,
+	})
+	require.ErrorIs(t, err, parentService.ErrGuardianSocialWorkerManaged)
+}

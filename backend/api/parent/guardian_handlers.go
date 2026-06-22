@@ -41,6 +41,9 @@ type childGuardianResponse struct {
 	// ContactLockedShared: this contact-only guardian is read-only to the caller
 	// because the profile is also linked to a child outside the caller's family.
 	ContactLockedShared bool `json:"contact_locked_shared"`
+	// ContactLockedSocialWorker: this relationship is a school-managed social
+	// worker, so its contact data is redacted and read-only to the caller.
+	ContactLockedSocialWorker bool `json:"contact_locked_social_worker"`
 }
 
 type guardianPhoneResponse struct {
@@ -207,26 +210,27 @@ func guardianResponse(g *parentService.ChildGuardian) childGuardianResponse {
 		})
 	}
 	return childGuardianResponse{
-		GuardianProfileID:       strconv.FormatInt(g.GuardianProfileID, 10),
-		StudentGuardianID:       strconv.FormatInt(g.StudentGuardianID, 10),
-		FirstName:               g.FirstName,
-		LastName:                g.LastName,
-		Email:                   g.Email,
-		Phones:                  phones,
-		AddressStreet:           g.AddressStreet,
-		AddressCity:             g.AddressCity,
-		AddressPostalCode:       g.AddressPostalCode,
-		RelationshipType:        g.RelationshipType,
-		IsPrimary:               g.IsPrimary,
-		IsEmergencyContact:      g.IsEmergencyContact,
-		CanPickup:               g.CanPickup,
-		PickupNotes:             g.PickupNotes,
-		EmergencyPriority:       g.EmergencyPriority,
-		HasAccount:              g.HasAccount,
-		IsSelf:                  g.IsSelf,
-		CanEditContact:          g.CanEditContact,
-		CanManagePickup:         g.CanManagePickup,
-		ContactLockedOwnAccount: g.ContactLockedOwnAccount,
-		ContactLockedShared:     g.ContactLockedShared,
+		GuardianProfileID:         strconv.FormatInt(g.GuardianProfileID, 10),
+		StudentGuardianID:         strconv.FormatInt(g.StudentGuardianID, 10),
+		FirstName:                 g.FirstName,
+		LastName:                  g.LastName,
+		Email:                     g.Email,
+		Phones:                    phones,
+		AddressStreet:             g.AddressStreet,
+		AddressCity:               g.AddressCity,
+		AddressPostalCode:         g.AddressPostalCode,
+		RelationshipType:          g.RelationshipType,
+		IsPrimary:                 g.IsPrimary,
+		IsEmergencyContact:        g.IsEmergencyContact,
+		CanPickup:                 g.CanPickup,
+		PickupNotes:               g.PickupNotes,
+		EmergencyPriority:         g.EmergencyPriority,
+		HasAccount:                g.HasAccount,
+		IsSelf:                    g.IsSelf,
+		CanEditContact:            g.CanEditContact,
+		CanManagePickup:           g.CanManagePickup,
+		ContactLockedOwnAccount:   g.ContactLockedOwnAccount,
+		ContactLockedShared:       g.ContactLockedShared,
+		ContactLockedSocialWorker: g.ContactLockedSocialWorker,
 	}
 }

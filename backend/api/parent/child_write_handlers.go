@@ -367,6 +367,8 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "guardian_has_own_account"))
 	case errors.Is(err, parentService.ErrGuardianSharedAcrossFamilies):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "guardian_shared_across_families"))
+	case errors.Is(err, parentService.ErrGuardianSocialWorkerManaged):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "guardian_social_worker_managed"))
 	case errors.Is(err, parentService.ErrGuardianEmailConflict):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "guardian_email_conflict"))
 	case errors.Is(err, parentService.ErrGuardianNoChange):

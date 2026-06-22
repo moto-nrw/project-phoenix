@@ -132,10 +132,8 @@
         "canPickup": "May pick up",
         "emergency": "Emergency contact"
       },
-      "editContact": "Edit contact",
+      "editContact": "Edit",
       "managePickup": "Manage pickup permission",
-      "ownContactHint": "This person manages their contact details through their own account.",
-      "sharedContactHint": "This contact is linked to several families and can only be changed by the school.",
       "contactTitle": "Edit contact details",
       "pickupTitle": "Manage pickup",
       "close": "Close",
@@ -175,7 +173,9 @@
         "sharedAcrossFamilies": "This contact is shared with several families and can only be changed by the school.",
         "notLinked": "This contact does not belong to this child.",
         "permissionDenied": "You are not allowed to make this change.",
-        "noChange": "No change was submitted."
+        "noChange": "No change was submitted.",
+        "socialWorkerManaged": "These contact details are managed by the school.",
+        "managementDisabled": "Contact management is disabled for this school."
       }
     },
     "newsEyebrow": "Updates",
