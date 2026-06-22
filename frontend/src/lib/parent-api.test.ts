@@ -375,6 +375,27 @@ describe("submitSickNote", () => {
     expect(seenBody).toContain('"reason":""');
   });
 
+  it("defaults the status to a Krankmeldung (sick)", async () => {
+    let seenBody = "";
+    mockFetch(async (_input, init) => {
+      seenBody = (init?.body as string) ?? "";
+      return jsonResponse({ data: [] }, { status: 201 });
+    });
+    await submitSickNote("84", ["2026-06-02"]);
+    expect(seenBody).toContain('"status":"sick"');
+  });
+
+  it("sends the chosen status for an excused absence (issue #1735)", async () => {
+    let seenBody = "";
+    mockFetch(async (_input, init) => {
+      seenBody = (init?.body as string) ?? "";
+      return jsonResponse({ data: [] }, { status: 201 });
+    });
+    await submitSickNote("84", ["2026-06-02"], "Termin", "excused");
+    expect(seenBody).toContain('"status":"excused"');
+    expect(seenBody).toContain('"reason":"Termin"');
+  });
+
   it("URL-encodes the student id", async () => {
     let seenURL = "";
     mockFetch(async (input) => {

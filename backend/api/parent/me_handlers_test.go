@@ -53,7 +53,7 @@ func (f *fakeParentService) ListEnrollableForAccount(context.Context, int64) ([]
 func (f *fakeParentService) ListEnrollmentsForAccount(context.Context, int64) ([]*parentModels.EnrollmentRequestSummary, error) {
 	return nil, nil
 }
-func (f *fakeParentService) SubmitSickNote(context.Context, int64, int64, []timezone.Date, string) ([]*activeModels.StudentStatusDay, error) {
+func (f *fakeParentService) SubmitSickNote(context.Context, int64, int64, []timezone.Date, string, string) ([]*activeModels.StudentStatusDay, error) {
 	return nil, nil
 }
 func (f *fakeParentService) ListSickDays(context.Context, int64, int64, timezone.Date, timezone.Date) ([]*activeModels.StudentStatusDay, error) {

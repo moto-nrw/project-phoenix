@@ -59,17 +59,19 @@ type Service interface {
 
 	// SubmitSickNote reports the parent's child sick for one or more
 	// dates. Authorization: the account must be a guardian of the
-	// student. The write mirrors the staff sick-note path — it clears any
-	// opposing "excused" days, upserts a sick status-day per date with
-	// source=parent, and flips the live sick flag when today is included.
+	// student. The write mirrors the staff status-day path — it clears any
+	// opposing status days for the date, upserts a status-day per date with
+	// source=parent, and (for a sick status) flips the live sick flag when
+	// today is included. An excused status sets no live flag (issue #1735).
+	// The status must be StudentStatusDaySick or StudentStatusDayExcused.
 	// Gated by operations.parent_sick_note_enabled for the child's tenant.
-	SubmitSickNote(ctx context.Context, accountID, studentID int64, dates []timezone.Date, reason string) ([]*activeModels.StudentStatusDay, error)
+	SubmitSickNote(ctx context.Context, accountID, studentID int64, dates []timezone.Date, reason, status string) ([]*activeModels.StudentStatusDay, error)
 
-	// ListSickDays returns the child's currently-active sick days in the
-	// given date range (excused days are filtered out — parents only
-	// manage sick notes). Authorization only; not gated by the setting so
-	// previously-reported days stay visible if a school later disables the
-	// feature.
+	// ListSickDays returns the child's currently-active parent-facing
+	// absences (sick and excused) in the given date range; class-trip days
+	// stay excluded as a staff-only status. Authorization only; not gated by
+	// the setting so previously-reported days stay visible if a school later
+	// disables the feature.
 	ListSickDays(ctx context.Context, accountID, studentID int64, from, to timezone.Date) ([]*activeModels.StudentStatusDay, error)
 
 	// AddParentNote appends a free-text note the parent left for the

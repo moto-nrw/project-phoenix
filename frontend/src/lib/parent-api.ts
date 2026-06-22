@@ -72,7 +72,9 @@ export interface ParentProfile {
   readonly portal_locale: AppLocale | null;
 }
 
-type StudentStatusKind = "sick" | "excused";
+// The two absence kinds a parent can report: "sick" (Krankmeldung, flips the
+// live sick flag) or "excused" (Termin/Abwesenheit, no live flag).
+export type StudentStatusKind = "sick" | "excused";
 
 // One reported sick/excused day. Mirrors api/parent.StatusDayResponse.
 export interface StatusDay {
@@ -339,19 +341,21 @@ export async function submitParentEnrollment(
 }
 
 /**
- * Reports the child sick for one or more dates (YYYY-MM-DD). Returns the
- * active sick days in the submitted range. The backend verifies the
- * caller is a guardian of the child and that the school has the feature
- * enabled; a disabled school surfaces as a thrown error.
+ * Reports the child absent for one or more dates (YYYY-MM-DD) with the chosen
+ * status: "sick" (Krankmeldung, flips the live sick flag) or "excused"
+ * (Termin/Abwesenheit, no live flag). Returns the just-submitted days. The
+ * backend verifies the caller is a guardian of the child and that the school
+ * has the feature enabled; a disabled school surfaces as a thrown error.
  */
 export async function submitSickNote(
   studentId: string,
   dates: string[],
-  reason?: string,
+  reason = "",
+  status: StudentStatusKind = "sick",
 ): Promise<StatusDay[]> {
   return postJson<StatusDay[]>(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/sick-note`,
-    { dates, reason: reason ?? "" },
+    { dates, reason, status },
   );
 }
 

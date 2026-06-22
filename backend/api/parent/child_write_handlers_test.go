@@ -294,6 +294,71 @@ func TestSickNoteEndpoint_RejectsInvalidBody(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
 }
 
+// TestSickNoteEndpoint_SubmitExcused covers the issue #1735 path: a parent who
+// picks "Termin/Abwesenheit" sends status="excused", and the API stores and
+// returns an excused status day (not a Krankmeldung).
+func TestSickNoteEndpoint_SubmitExcused(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	router := newWriteRouter(t, db)
+	token := parentToken(t, chain.AccountID)
+	sid := strconv.FormatInt(chain.StudentID, 10)
+
+	rr := doRequest(t, router, http.MethodPost, "/me/children/"+sid+"/sick-note", token,
+		map[string]any{"dates": []string{nowISO()}, "reason": "Zahnarzttermin", "status": "excused"})
+	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+
+	var env envelope
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))
+	var days []map[string]any
+	require.NoError(t, json.Unmarshal(env.Data, &days))
+	require.Len(t, days, 1)
+	assert.Equal(t, "excused", days[0]["status"], "an excused submission must store an excused status day")
+	assert.Equal(t, "Zahnarzttermin", days[0]["note"])
+}
+
+// TestSickNoteEndpoint_DefaultsToSickWhenStatusOmitted pins the backward-compat
+// default: an older client that omits "status" still files a Krankmeldung.
+func TestSickNoteEndpoint_DefaultsToSickWhenStatusOmitted(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	router := newWriteRouter(t, db)
+	token := parentToken(t, chain.AccountID)
+	sid := strconv.FormatInt(chain.StudentID, 10)
+
+	rr := doRequest(t, router, http.MethodPost, "/me/children/"+sid+"/sick-note", token,
+		map[string]any{"dates": []string{nowISO()}})
+	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+
+	var env envelope
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))
+	var days []map[string]any
+	require.NoError(t, json.Unmarshal(env.Data, &days))
+	require.Len(t, days, 1)
+	assert.Equal(t, "sick", days[0]["status"], "an omitted status must default to a Krankmeldung")
+}
+
+// TestSickNoteEndpoint_RejectsInvalidStatus covers the ErrInvalidStatus arm of
+// renderParentWriteError: a status that is neither sick nor excused is a 400 at
+// the API boundary, never silently coerced.
+func TestSickNoteEndpoint_RejectsInvalidStatus(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	router := newWriteRouter(t, db)
+	token := parentToken(t, chain.AccountID)
+	sid := strconv.FormatInt(chain.StudentID, 10)
+
+	rr := doRequest(t, router, http.MethodPost, "/me/children/"+sid+"/sick-note", token,
+		map[string]any{"dates": []string{nowISO()}, "status": "class_trip"})
+	assert.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+}
+
 func nowISO() string         { return isoDay(0) }
 func futureISO(d int) string { return isoDay(d) }
 func isoDay(addDays int) string {

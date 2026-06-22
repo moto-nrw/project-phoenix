@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { PickupTimeModal } from "./child-care";
+import { PickupTimeModal, SickNoteModal } from "./child-care";
 import type { CareException } from "~/lib/parent-api";
 
 // Regression coverage for the failed-preload save path: when the care-exception
@@ -102,5 +102,64 @@ describe("PickupTimeModal — failed preload guard", () => {
       pickupTime: "16:00",
       arrivalTime: "08:30",
     });
+  });
+});
+
+// Issue #1735: the former "Krank melden" modal became a generic "Abmelden" modal
+// with a Krank/Entschuldigt choice. These pin that the chosen kind reaches the
+// submit handler as the status argument — the heart of the feature.
+describe("SickNoteModal — Abmeldegrund", () => {
+  it("defaults to a Krankmeldung (status sick)", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const onClose = vi.fn();
+    render(<SickNoteModal onClose={onClose} onSubmit={onSubmit} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Abmeldung senden" }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    const [dates, reason, status] = onSubmit.mock.calls[0]!;
+    expect(dates).toHaveLength(1); // from/to default to today
+    expect(reason).toBe("");
+    expect(status).toBe("sick");
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
+  it("submits an excused absence with a note when Entschuldigt is chosen", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(<SickNoteModal onClose={vi.fn()} onSubmit={onSubmit} />);
+
+    // Switch the kind to "Entschuldigt" via the CustomSelect combobox.
+    fireEvent.click(
+      screen.getByRole("combobox", { name: "Art der Abmeldung" }),
+    );
+    fireEvent.click(screen.getByRole("option", { name: "Entschuldigt" }));
+
+    const reasonField = document.querySelector("textarea")!;
+    fireEvent.change(reasonField, { target: { value: "Zahnarzttermin" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Abmeldung senden" }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.any(Array),
+      "Zahnarzttermin",
+      "excused",
+    );
+  });
+
+  it("blocks submission and surfaces an error for an invalid date range", () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(<SickNoteModal onClose={vi.fn()} onSubmit={onSubmit} />);
+
+    // Force "Bis" before "Von" so the enumerated date set is empty.
+    const dateInputs = Array.from(
+      document.querySelectorAll<HTMLInputElement>('input[type="date"]'),
+    );
+    const [, toInput] = dateInputs;
+    fireEvent.change(toInput!, { target: { value: "2000-01-01" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Abmeldung senden" }));
+
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 });

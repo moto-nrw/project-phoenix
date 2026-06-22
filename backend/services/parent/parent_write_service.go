@@ -48,6 +48,8 @@ var (
 	ErrNotesDisabled = errors.New("parent: parent notes disabled for this school")
 	// ErrNoDates means the sick-note request carried no dates.
 	ErrNoDates = errors.New("parent: at least one date is required")
+	// ErrInvalidStatus means the absence status was neither sick nor excused.
+	ErrInvalidStatus = errors.New("parent: status must be sick or excused")
 	// ErrEmptyNote means the note body was blank after trimming.
 	ErrEmptyNote = errors.New("parent: note body must not be empty")
 	// ErrNoteTooLong means the note body exceeded maxParentNoteLen.
@@ -136,10 +138,19 @@ func (c *parentChild) hasPermission(permission string) bool {
 	}, permission)
 }
 
-// SubmitSickNote reports the child sick for the given dates.
-func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64, dates []timezone.Date, reason string) ([]*activeModels.StudentStatusDay, error) {
+// SubmitSickNote reports the child absent for the given dates with the chosen
+// status. The status is either StudentStatusDaySick (a "Krankmeldung": flips the
+// live sick flag when today is included, exactly as before) or
+// StudentStatusDayExcused (a "Termin/Abwesenheit": stored as a planned status day
+// with NO live flag, per issue #1735). Krank and entschuldigt stay separate in the
+// data so staff see each correctly; only the parent's reason choice picks between
+// them. Both share the same dates, reason field and source=parent.
+func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64, dates []timezone.Date, reason, status string) ([]*activeModels.StudentStatusDay, error) {
 	if len(dates) == 0 {
 		return nil, ErrNoDates
+	}
+	if status != activeModels.StudentStatusDaySick && status != activeModels.StudentStatusDayExcused {
+		return nil, ErrInvalidStatus
 	}
 
 	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionSickNoteSubmit)
@@ -171,8 +182,8 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 
 	var result []*activeModels.StudentStatusDay
 	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		for _, status := range activeModels.StudentStatusDayStatusesExcept(activeModels.StudentStatusDaySick) {
-			if err := s.statusDayRepo.MarkClearedForDates(txCtx, studentID, status, dates, now, activeModels.StudentStatusSourceParent); err != nil {
+		for _, other := range activeModels.StudentStatusDayStatusesExcept(status) {
+			if err := s.statusDayRepo.MarkClearedForDates(txCtx, studentID, other, dates, now, activeModels.StudentStatusSourceParent); err != nil {
 				return err
 			}
 		}
@@ -180,7 +191,7 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 			if err := s.statusDayRepo.UpsertReported(txCtx, &activeModels.StudentStatusDay{
 				StudentID:  studentID,
 				Date:       d,
-				Status:     activeModels.StudentStatusDaySick,
+				Status:     status,
 				ReportedAt: now,
 				Source:     activeModels.StudentStatusSourceParent,
 				Note:       notePtr,
@@ -194,7 +205,7 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 			if err != nil {
 				return err
 			}
-			applyLiveSickToday(fresh, now)
+			applyLiveStatusForParentToday(fresh, status, now)
 			if err := s.studentRepo.Update(txCtx, fresh); err != nil {
 				return err
 			}
@@ -204,18 +215,17 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 		if err != nil {
 			return err
 		}
-		// Return only the sick days the parent actually submitted. The range
-		// query spans min..max, so for a non-contiguous submission (e.g. Mon
-		// + Wed) it can also return an unrelated active row in between (a
-		// Tuesday excused day) which must not be surfaced to the parent as a
-		// sick day.
+		// Return only the days the parent actually submitted with the chosen
+		// status. The range query spans min..max, so for a non-contiguous
+		// submission (e.g. Mon + Wed) it can also return an unrelated active row
+		// in between (a different status on Tuesday) which must not be surfaced.
 		dateSet := make(map[timezone.Date]struct{}, len(dates))
 		for _, d := range dates {
 			dateSet[d] = struct{}{}
 		}
 		filtered := make([]*activeModels.StudentStatusDay, 0, len(dates))
 		for _, r := range rows {
-			if r.Status != activeModels.StudentStatusDaySick {
+			if r.Status != status {
 				continue
 			}
 			if _, ok := dateSet[r.Date]; !ok {
@@ -235,10 +245,11 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 		return nil, fmt.Errorf("parent: submit sick note: %w", txErr)
 	}
 
-	s.logger.Info("parent submitted sick note",
+	s.logger.Info("parent submitted absence",
 		slog.Int64("account_id", accountID),
 		slog.Int64("student_id", studentID),
 		slog.Int64("tenant_id", child.tenantID),
+		slog.String("status", status),
 		slog.Int("days", len(dates)),
 		slog.Bool("has_reason", notePtr != nil),
 	)
@@ -281,7 +292,10 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 	}, nil
 }
 
-// ListSickDays returns the child's active sick days in [from, to].
+// ListSickDays returns the child's active parent-facing absences in [from, to]:
+// both sick ("Krankmeldung") and excused ("Termin/Abwesenheit") days, so a parent
+// sees every absence they reported. Class-trip days stay excluded — those are a
+// staff-only scheduled status the parent neither sets nor manages here.
 func (s *service) ListSickDays(ctx context.Context, accountID, studentID int64, from, to timezone.Date) ([]*activeModels.StudentStatusDay, error) {
 	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
 	if err != nil {
@@ -294,17 +308,17 @@ func (s *service) ListSickDays(ctx context.Context, accountID, studentID int64, 
 		if err != nil {
 			return err
 		}
-		sick := make([]*activeModels.StudentStatusDay, 0, len(rows))
+		absences := make([]*activeModels.StudentStatusDay, 0, len(rows))
 		for _, r := range rows {
-			if r.Status == activeModels.StudentStatusDaySick {
-				sick = append(sick, r)
+			if r.Status == activeModels.StudentStatusDaySick || r.Status == activeModels.StudentStatusDayExcused {
+				absences = append(absences, r)
 			}
 		}
-		out = sick
+		out = absences
 		return nil
 	})
 	if txErr != nil {
-		return nil, fmt.Errorf("parent: list sick days: %w", txErr)
+		return nil, fmt.Errorf("parent: list absences: %w", txErr)
 	}
 	return out, nil
 }
@@ -793,13 +807,25 @@ func (s *service) broadcastStudentUpdated(tenantID, studentID int64) {
 	}
 }
 
-func applyLiveSickToday(student *usersModels.Student, now time.Time) {
+// applyLiveStatusForParentToday updates the live student flags for a parent
+// submission that includes today. A "Krankmeldung" (sick) flips the live sick
+// flag on and clears any excused flag, exactly as before. A "Termin/Abwesenheit"
+// (excused) sets NO live flag per issue #1735 — it only clears a stale live sick
+// flag so the row stays consistent with the now-cleared sick status day, and
+// leaves a staff-set excused flag untouched.
+func applyLiveStatusForParentToday(student *usersModels.Student, status string, now time.Time) {
 	trueVal := true
 	falseVal := false
-	student.Sick = &trueVal
-	student.SickSince = &now
-	student.Excused = &falseVal
-	student.ExcusedSince = nil
+	switch status {
+	case activeModels.StudentStatusDaySick:
+		student.Sick = &trueVal
+		student.SickSince = &now
+		student.Excused = &falseVal
+		student.ExcusedSince = nil
+	case activeModels.StudentStatusDayExcused:
+		student.Sick = &falseVal
+		student.SickSince = nil
+	}
 }
 
 func containsDate(dates []timezone.Date, needle timezone.Date) bool {
