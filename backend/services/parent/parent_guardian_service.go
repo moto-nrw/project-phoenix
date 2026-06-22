@@ -607,11 +607,20 @@ func snapshotGuardianContact(profile *usersModels.GuardianProfile, phones []*use
 // auditContactChanges records one row per contact field that actually changed
 // between the pre-edit snapshot and the post-edit profile (incl. the phone
 // list as a single rendered field).
+//
+// The before/after VALUES are deliberately not persisted (old/new left NULL):
+// contact fields (name, email, phone, address) are third-party PII, and keeping
+// their history in an append-only log is a Datenminimierung problem — the live
+// profile always holds the current value, and the trail's purpose is "who
+// changed which field, when", not a value diff. This mirrors the pickup-notes
+// decision (notes content is never logged). Because no values are stored, the
+// rows die with the child/guardian via the table's ON DELETE CASCADE and need
+// no separate retention window.
 func (s *service) auditContactChanges(ctx context.Context, tenantID, accountID, studentID, guardianProfileID int64, before guardianContactSnapshot, profile *usersModels.GuardianProfile, newPhones []*usersModels.GuardianPhoneNumber) error {
 	var changes []guardianChangeEntry
 	add := func(field, oldVal, newVal string) {
 		if oldVal != newVal {
-			changes = append(changes, guardianChangeEntry{auditModels.GuardianChangeTypeContact, field, auditValue(oldVal), auditValue(newVal)})
+			changes = append(changes, guardianChangeEntry{auditModels.GuardianChangeTypeContact, field, nil, nil})
 		}
 	}
 	add(auditModels.GuardianFieldFirstName, before.firstName, profile.FirstName)
@@ -629,15 +638,6 @@ func derefString(s *string) string {
 		return ""
 	}
 	return *s
-}
-
-// auditValue maps an empty string to nil so a cleared field is recorded as NULL
-// rather than "".
-func auditValue(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
 }
 
 func boolAuditValue(b bool) *string {

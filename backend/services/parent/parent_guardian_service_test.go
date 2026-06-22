@@ -553,20 +553,17 @@ func TestUpdateGuardianContact_WritesContactAuditRows(t *testing.T) {
 		assert.Equal(t, contactID, r.GuardianProfileID)
 		require.NotNil(t, r.ActorAccountID)
 		assert.Equal(t, chain.AccountID, *r.ActorAccountID)
+		// Contact field values are third-party PII and are deliberately NOT
+		// persisted: the trail records which field changed, not its before/after
+		// value (mirrors the pickup-notes decision; the live profile holds the
+		// current value).
+		assert.Nil(t, r.OldValue, "contact audit rows must not store the old value (PII)")
+		assert.Nil(t, r.NewValue, "contact audit rows must not store the new value (PII)")
 		byField[r.FieldName] = r
 	}
-	// Email changed from the seeded address to a new one (both non-NULL).
+	// The changed fields are recorded by name (email + phones both changed here).
 	require.Contains(t, byField, "email")
-	require.NotNil(t, byField["email"].NewValue)
-	assert.Equal(t, email, *byField["email"].NewValue)
-	require.NotNil(t, byField["email"].OldValue, "seeded profile had an email")
-	assert.NotEqual(t, email, *byField["email"].OldValue)
-	// Phones went from none to one number -> NULL old, set new (validates the
-	// empty-string -> NULL mapping).
 	require.Contains(t, byField, "phones")
-	assert.Nil(t, byField["phones"].OldValue)
-	require.NotNil(t, byField["phones"].NewValue)
-	assert.Contains(t, *byField["phones"].NewValue, "0151 12345678")
 
 	// A no-op re-save with identical data must not append new rows.
 	before := len(rows)

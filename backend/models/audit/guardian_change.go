@@ -31,8 +31,11 @@ const (
 
 // GuardianChange records a single parent-portal change to a guardian: either a
 // per-child pickup/emergency flag (ChangeType "pickup") or a profile contact
-// field (ChangeType "contact"). Rows are append-only. OldValue/NewValue carry
-// the before/after as text — flags as "true"/"false", a cleared field as NULL.
+// field (ChangeType "contact"). Rows are append-only. For "pickup" rows
+// OldValue/NewValue carry the before/after flag as "true"/"false". For
+// "contact" rows OldValue/NewValue are always NULL: the values are third-party
+// PII (name/email/phone/address) and are deliberately not retained — the row
+// records only which field changed (the live profile holds the current value).
 // The actor name/email are snapshotted so the trail survives account deletion.
 type GuardianChange struct {
 	ID int64 `bun:"id,pk,autoincrement" json:"id"`
