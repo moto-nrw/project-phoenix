@@ -27,6 +27,7 @@ import {
   useChildCare,
 } from "~/components/parent/child-care";
 import RelatedAccountsPanel from "~/components/parent/related-accounts-panel";
+import { Button } from "~/components/ui/button";
 
 // Quick-actions that are wired to real backend flows. The rest remain
 // "coming soon" stubs until their features ship.
@@ -55,37 +56,20 @@ function isActionEnabled(actionKey: string, care: ChildCare): boolean {
 
 const logger = createLogger({ component: "ChildDetail" });
 
+// Neutral icon tile shared with the parent-facing enrollment flow
+// (PublicInfoCard in public-enrollment-shell.tsx): white surface, subtle
+// border, gray icon. Keeps the parents portal calm and consistent instead of
+// the old per-action pastel tiles. Add size + radius per call site.
+const ACTION_TILE_CLASS =
+  "moto-content-surface flex shrink-0 items-center justify-center border text-gray-600 shadow-sm";
+
 const CHILD_ACTIONS = [
-  {
-    key: "sick",
-    icon: HeartPulse,
-    tone: "text-[#D6373E] bg-[#D6373E]/10",
-  },
-  {
-    key: "pickupTime",
-    icon: CalendarClock,
-    tone: "text-[#5080D8] bg-[#5080D8]/10",
-  },
-  {
-    key: "message",
-    icon: MessageCircle,
-    tone: "text-[#F78C10] bg-[#F78C10]/10",
-  },
-  {
-    key: "pickupPermission",
-    icon: ShieldCheck,
-    tone: "text-[#83CD2D] bg-[#83CD2D]/15",
-  },
-  {
-    key: "people",
-    icon: Users,
-    tone: "text-[#8B5CF6] bg-[#8B5CF6]/10",
-  },
-  {
-    key: "news",
-    icon: Newspaper,
-    tone: "text-[#5080D8] bg-[#5080D8]/10",
-  },
+  { key: "sick", icon: HeartPulse },
+  { key: "pickupTime", icon: CalendarClock },
+  { key: "message", icon: MessageCircle },
+  { key: "pickupPermission", icon: ShieldCheck },
+  { key: "people", icon: Users },
+  { key: "news", icon: Newspaper },
 ] as const;
 
 interface Props {
@@ -229,13 +213,13 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
             <BackBar />
             <div className="p-5 sm:p-6 lg:p-8">
               <div className="flex min-w-0 items-start gap-4">
-                <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-[#83CD2D]/15 text-lg font-semibold text-[#4A7A15]">
+                <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-[#83CD2D]/15 text-lg font-semibold text-[#5A8E1F]">
                   {getInitials(child) || (
                     <UserRound className="h-7 w-7" aria-hidden="true" />
                   )}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+                  <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
                     {t("childEyebrow")}
                   </p>
                   <h1 className="mt-1 text-3xl font-semibold break-words text-gray-900 sm:text-4xl">
@@ -348,7 +332,7 @@ function MobileChildAppView({
         <BackBar />
         <div className="p-5">
           <div className="flex min-w-0 items-center gap-4">
-            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-3xl bg-[#83CD2D]/15 text-lg font-semibold text-[#4A7A15]">
+            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-3xl bg-[#83CD2D]/15 text-lg font-semibold text-[#5A8E1F]">
               {getInitials(child) || (
                 <UserRound className="h-6 w-6" aria-hidden="true" />
               )}
@@ -361,7 +345,7 @@ function MobileChildAppView({
                 {child.school_name}
                 {child.school_class ? `, ${child.school_class}` : ""}
               </p>
-              <span className="mt-3 inline-flex max-w-full rounded-full bg-[#83CD2D]/15 px-3 py-1 text-xs font-semibold text-[#4A7A15]">
+              <span className="mt-3 inline-flex max-w-full rounded-full bg-[#83CD2D]/15 px-3 py-1 text-xs font-semibold text-[#5A8E1F]">
                 {t("careRecorded")}
               </span>
             </div>
@@ -462,9 +446,7 @@ function MobileQuickAction({
           : "cursor-not-allowed border-gray-100 bg-white"
       }`}
     >
-      <span
-        className={`flex h-11 w-11 items-center justify-center rounded-2xl ${action.tone}`}
-      >
+      <span className={`${ACTION_TILE_CLASS} h-11 w-11 rounded-xl`}>
         <Icon className="h-6 w-6" aria-hidden="true" />
       </span>
       <span className="text-xs leading-4 font-semibold text-gray-900">
@@ -494,9 +476,7 @@ function DesktopQuickAction({
       }`}
       aria-label={enabled ? label : t("comingSoonAria", { label })}
     >
-      <span
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${action.tone}`}
-      >
+      <span className={`${ACTION_TILE_CLASS} h-10 w-10 rounded-lg`}>
         <Icon className="h-5 w-5" aria-hidden="true" />
       </span>
       <span className="min-w-0 [overflow-wrap:anywhere]">
@@ -526,7 +506,7 @@ function TodayPanel({ care }: Readonly<{ care: ChildCare }>) {
       </div>
       <div className="space-y-2">
         <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white/85 p-3 shadow-sm">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#D6373E]/10 text-[#D6373E]">
+          <span className={`${ACTION_TILE_CLASS} h-10 w-10 rounded-lg`}>
             <HeartPulse className="h-5 w-5" aria-hidden="true" />
           </span>
           <div className="min-w-0">
@@ -539,7 +519,7 @@ function TodayPanel({ care }: Readonly<{ care: ChildCare }>) {
           </div>
         </div>
         <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white/85 p-3 shadow-sm">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#5080D8]/10 text-[#5080D8]">
+          <span className={`${ACTION_TILE_CLASS} h-10 w-10 rounded-lg`}>
             <CalendarClock className="h-5 w-5" aria-hidden="true" />
           </span>
           <div className="min-w-0">
@@ -552,7 +532,7 @@ function TodayPanel({ care }: Readonly<{ care: ChildCare }>) {
           </div>
         </div>
         <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white/85 p-3 shadow-sm">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#F78C10]/10 text-[#F78C10]">
+          <span className={`${ACTION_TILE_CLASS} h-10 w-10 rounded-lg`}>
             <MessageCircle className="h-5 w-5" aria-hidden="true" />
           </span>
           <div className="min-w-0">
@@ -598,14 +578,15 @@ function MessagesPanel({
           description={t("messages.description")}
         />
         {!composeDisabled && (
-          <button
+          <Button
             type="button"
+            size="md"
+            className="shrink-0 gap-2"
             onClick={onCompose}
-            className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg bg-[#F78C10] px-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#dd7c0c]"
           >
             <MessageCircle className="h-4 w-4" aria-hidden="true" />
             {t("messages.compose")}
-          </button>
+          </Button>
         )}
       </div>
       <div className="mt-4">
@@ -652,14 +633,16 @@ function PickupPeoplePanel() {
           title={t("pickupPeopleTitle")}
           description={t("pickupPeopleDescription")}
         />
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="md"
+          className="shrink-0 gap-2"
           disabled
-          className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
           {t("add")}
-        </button>
+        </Button>
       </div>
       <PickupPeopleEmptyState />
     </section>
@@ -759,7 +742,7 @@ function PanelHeader({
 }>) {
   return (
     <header>
-      <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+      <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
         {eyebrow}
       </p>
       <h2 className="mt-1 text-xl font-semibold text-balance text-gray-900">
