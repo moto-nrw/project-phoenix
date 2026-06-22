@@ -976,7 +976,7 @@ describe("EnrollmentForm", () => {
 
     // The hint now asks for a time per day; the old "keine Angabe" copy is gone.
     expect(
-      screen.getByText("Bitte für jeden Tag eine Zeit angeben."),
+      screen.getByText("Bitte für jeden Betreuungstag eine Uhrzeit angeben."),
     ).toBeInTheDocument();
     expect(
       screen.queryByText("Leere Felder bedeuten: an diesem Tag keine Angabe."),
@@ -990,8 +990,11 @@ describe("EnrollmentForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
     // The per-day message shows in both the summary banner and at the field.
     expect(
-      (await screen.findAllByText("Bitte für jeden Tag eine Uhrzeit angeben."))
-        .length,
+      (
+        await screen.findAllByText(
+          "Bitte für jeden Betreuungstag eine Uhrzeit angeben.",
+        )
+      ).length,
     ).toBeGreaterThan(0);
     expect(mockSubmitEnrollment).not.toHaveBeenCalled();
 
@@ -1022,12 +1025,17 @@ describe("EnrollmentForm", () => {
     await waitForLoaded();
     await fillRequiredFields();
 
-    // Unconstrained hint copy, not the per-day one.
+    // Required + unconstrained -> the lenient "at least one time" hint, which
+    // matches the actual validation gate. Neither the optional "keine Angabe"
+    // copy nor the per-day demand may appear.
     expect(
-      screen.getByText("Leere Felder bedeuten: an diesem Tag keine Angabe."),
+      screen.getByText("Bitte mindestens eine Uhrzeit angeben."),
     ).toBeInTheDocument();
     expect(
-      screen.queryByText("Bitte für jeden Tag eine Zeit angeben."),
+      screen.queryByText("Leere Felder bedeuten: an diesem Tag keine Angabe."),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Bitte für jeden Betreuungstag eine Uhrzeit angeben."),
     ).not.toBeInTheDocument();
 
     // All days empty -> required gate fails with the lenient "at least one" copy.
@@ -1041,6 +1049,49 @@ describe("EnrollmentForm", () => {
     fireEvent.change(screen.getByLabelText("Montag"), {
       target: { value: "15:00" },
     });
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+    await waitFor(() => expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1));
+  });
+
+  it("keeps an optional pickup schedule lenient even when offerings constrain the form", async () => {
+    // Dismissal stays optional (base schema). A fixed Mo/Di offering constrains
+    // the care days, so the field shows exactly two days -- but because it is
+    // NOT required, the hint must stay on the lenient "keine Angabe" copy (not
+    // the per-day demand) and an entirely empty schedule must still submit.
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [
+        {
+          id: "31",
+          phase_id: "5",
+          name: "Block Mo Di",
+          description: null,
+          days_of_week_mode: "fixed",
+          available_days: ["mon", "tue"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          capacity: null,
+        },
+      ],
+      careOfferingSelectionMode: "at_least_one",
+      careRequired: true,
+    });
+    renderForm();
+    await waitForLoaded();
+    await fillRequiredFields();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /Block Mo Di/ }));
+
+    // Optional + constrained -> lenient hint, never the per-day demand.
+    expect(
+      screen.getByText("Leere Felder bedeuten: an diesem Tag keine Angabe."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Bitte für jeden Betreuungstag eine Uhrzeit angeben."),
+    ).not.toBeInTheDocument();
+
+    // Empty schedule submits because the field is optional.
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
     await waitFor(() => expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1));
   });
@@ -1080,7 +1131,7 @@ describe("EnrollmentForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
     expect(
       await screen.findByText(
-        'Kind 1: Beim Angebot „Flexible Betreuung" muss mindestens ein Tag ausgewählt werden.',
+        "Kind 1: Beim Angebot „Flexible Betreuung“ muss mindestens ein Tag ausgewählt werden.",
       ),
     ).toBeInTheDocument();
     expect(mockSubmitEnrollment).not.toHaveBeenCalled();

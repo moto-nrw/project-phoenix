@@ -3376,9 +3376,15 @@ function WeekdayScheduleInput({
         <>
           <p className="text-xs text-gray-500">
             {tr(
-              careConstrained
-                ? "structured.everyDayTime"
-                : "structured.emptySchedule",
+              !field.required
+                ? // Optional: blanks are accepted (validation skips the field).
+                  "structured.emptySchedule"
+                : careConstrained
+                  ? // Required + care-constrained: every shown care day needs a time.
+                    "structured.everyDayTime"
+                  : // Required + all weekdays shown: at least one time is enough
+                    // (matches the errors.schedule gate, not a per-day demand).
+                    "structured.atLeastOneTime",
             )}
           </p>
           <div className="mt-2 grid gap-2 sm:grid-cols-5">
