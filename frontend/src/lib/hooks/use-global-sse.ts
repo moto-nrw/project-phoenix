@@ -157,7 +157,10 @@ export function useGlobalSSE(): SSEHookState {
 
     if (hasPendingStudentUpdateEvent.current) {
       mutate(
-        (key) => typeof key === "string" && key.includes("student-detail-"),
+        (key) =>
+          typeof key === "string" &&
+          (key.includes("student-detail-") ||
+            key.includes("student-status-days-")),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
