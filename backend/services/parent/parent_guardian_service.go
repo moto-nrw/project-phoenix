@@ -950,9 +950,17 @@ func validateContactInput(input *GuardianContactInput) error {
 			if utf8.RuneCountInString(email) > maxGuardianEmailLen {
 				return fmt.Errorf("%w: email too long", ErrGuardianContactInvalid)
 			}
-			if _, err := mail.ParseAddress(email); err != nil {
+			addr, err := mail.ParseAddress(email)
+			if err != nil {
 				return fmt.Errorf("%w: invalid email", ErrGuardianContactInvalid)
 			}
+			// Store the bare addr-spec, never the raw input. mail.ParseAddress
+			// also accepts display-name forms ("Oma <oma@x.de>"); without this
+			// the "Oma <...>" wrapper would be persisted as the email and later
+			// break FindByEmail / parent-facing mail. Normalize to addr.Address
+			// so only the address lands in the column.
+			normalized := addr.Address
+			input.Email = &normalized
 		}
 	}
 	for _, addr := range []*string{input.AddressStreet, input.AddressCity, input.AddressPostalCode} {
