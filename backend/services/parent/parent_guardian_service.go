@@ -402,17 +402,30 @@ func (s *service) replaceGuardianPhones(ctx context.Context, profile *usersModel
 	if err := s.guardianPhoneRepo.DeleteByGuardianID(ctx, profile.ID); err != nil {
 		return err
 	}
+	submittedPrimary := hasSubmittedPrimaryPhone(phones)
+	primarySeen := false
 	for i, p := range phones {
 		phoneType := usersModels.PhoneType(strings.TrimSpace(p.PhoneType))
 		if !usersModels.ValidPhoneTypes[phoneType] {
 			phoneType = usersModels.PhoneTypeMobile
+		}
+		isPrimary := p.IsPrimary
+		if i == 0 && !submittedPrimary {
+			isPrimary = true
+		}
+		if isPrimary {
+			if primarySeen {
+				isPrimary = false
+			} else {
+				primarySeen = true
+			}
 		}
 		entity := &usersModels.GuardianPhoneNumber{
 			GuardianProfileID: profile.ID,
 			PhoneNumber:       strings.TrimSpace(p.PhoneNumber),
 			PhoneType:         phoneType,
 			Label:             p.Label,
-			IsPrimary:         p.IsPrimary,
+			IsPrimary:         isPrimary,
 			Priority:          i + 1,
 		}
 		entity.SetTenantID(profile.TenantID)
@@ -421,6 +434,15 @@ func (s *service) replaceGuardianPhones(ctx context.Context, profile *usersModel
 		}
 	}
 	return nil
+}
+
+func hasSubmittedPrimaryPhone(phones []GuardianPhoneInput) bool {
+	for _, p := range phones {
+		if p.IsPrimary {
+			return true
+		}
+	}
+	return false
 }
 
 // callerTenantStudentSet returns the set of per-tenant student IDs (within the

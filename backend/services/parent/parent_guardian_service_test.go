@@ -138,6 +138,59 @@ func TestUpdateGuardianContact_EditsContactOnlyGuardian(t *testing.T) {
 	require.Len(t, found.Phones, 1)
 }
 
+func TestUpdateGuardianContact_PromotesFirstPhoneWhenNoPrimarySubmitted(t *testing.T) {
+	svc, db := buildGuardianService(t)
+	defer func() { _ = db.Close() }()
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	contactID, cleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-no-primary")
+	defer cleanup()
+
+	updated, err := svc.UpdateGuardianContact(context.Background(), chain.AccountID, chain.StudentID, contactID, parentService.GuardianContactInput{
+		FirstName: "Helga",
+		LastName:  "Schneider",
+		Phones: []parentService.GuardianPhoneInput{
+			{PhoneNumber: "0151 12345678", PhoneType: "mobile"},
+			{PhoneNumber: "0221 555123", PhoneType: "home"},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, updated.Phones, 2)
+	assert.True(t, updated.Phones[0].IsPrimary)
+	assert.Equal(t, "0151 12345678", updated.Phones[0].PhoneNumber)
+
+	assertExactlyOnePrimaryPhone(t, db, contactID)
+}
+
+func TestUpdateGuardianContact_KeepsOnlyFirstSubmittedPrimaryPhone(t *testing.T) {
+	svc, db := buildGuardianService(t)
+	defer func() { _ = db.Close() }()
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	contactID, cleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-many-primary")
+	defer cleanup()
+
+	updated, err := svc.UpdateGuardianContact(context.Background(), chain.AccountID, chain.StudentID, contactID, parentService.GuardianContactInput{
+		FirstName: "Helga",
+		LastName:  "Schneider",
+		Phones: []parentService.GuardianPhoneInput{
+			{PhoneNumber: "0151 12345678", PhoneType: "mobile", IsPrimary: true},
+			{PhoneNumber: "0221 555123", PhoneType: "home", IsPrimary: true},
+			{PhoneNumber: "0221 555124", PhoneType: "work", IsPrimary: true},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, updated.Phones, 3)
+	assert.True(t, updated.Phones[0].IsPrimary)
+	assert.Equal(t, "0151 12345678", updated.Phones[0].PhoneNumber)
+	assert.False(t, updated.Phones[1].IsPrimary)
+	assert.False(t, updated.Phones[2].IsPrimary)
+
+	assertExactlyOnePrimaryPhone(t, db, contactID)
+}
+
 func TestUpdateGuardianContact_RejectsInvalidPhoneBeforeRepository(t *testing.T) {
 	svc, db := buildGuardianService(t)
 	defer func() { _ = db.Close() }()
@@ -371,6 +424,21 @@ func guardianEmailForProfile(t *testing.T, db *bun.DB, profileID int64) string {
 		Scan(context.Background(), &email)
 	require.NoError(t, err)
 	return email
+}
+
+func assertExactlyOnePrimaryPhone(t *testing.T, db *bun.DB, profileID int64) {
+	t.Helper()
+	repo := repositories.NewFactory(db).GuardianPhoneNumber
+	phones, err := repo.FindByGuardianID(testpkg.TenantContext(1), profileID)
+	require.NoError(t, err)
+	require.NotEmpty(t, phones)
+	primaryCount := 0
+	for _, phone := range phones {
+		if phone.IsPrimary {
+			primaryCount++
+		}
+	}
+	assert.Equal(t, 1, primaryCount)
 }
 
 func ptr(s string) *string { return &s }
