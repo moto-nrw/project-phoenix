@@ -548,10 +548,13 @@ func init() {
 	// and every change is audited (audit.guardian_changes). So the toggle
 	// only governs whether the feature is exposed at all; a school can still
 	// switch it off. config:manage because it can expose pickup-authority changes.
+	// NOTE: this toggle also gates a parent editing their OWN contact data — the
+	// only portal path for that is UpdateGuardianContact (isSelf). Switching it
+	// off therefore disables self-edit too; the Description says so explicitly.
 	config.Register(config.Definition{
 		Key:             config.KeyParentGuardianManagementEnabled,
 		Label:           "Kontaktdaten und Abholberechtigung über Elternportal verwalten",
-		Description:     "Wenn aktiviert, können berechtigte Eltern über das Elternportal die Kontaktdaten von Bezugspersonen ohne eigenen Zugang bearbeiten sowie deren Abhol- und Notfallberechtigung setzen. Bezugspersonen mit eigenem Konto bleiben geschützt: deren Berechtigungen ändert nur das Team.",
+		Description:     "Wenn aktiviert, können berechtigte Eltern über das Elternportal ihre eigenen Kontaktdaten sowie die von Bezugspersonen ohne eigenen Zugang bearbeiten und deren Abhol- und Notfallberechtigung setzen. Bezugspersonen mit eigenem Konto bleiben geschützt: deren Daten und Berechtigungen ändert nur das Team. Ist die Funktion deaktiviert, können Eltern auch ihre eigenen Kontaktdaten nicht mehr über das Portal ändern.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
