@@ -10,6 +10,7 @@ import {
 } from "~/lib/parent-api";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
+import { Button } from "~/components/ui/button";
 
 const logger = createLogger({ component: "RelatedAccountsPanel" });
 
@@ -145,17 +146,19 @@ export default function RelatedAccountsPanel({
           </p>
         </div>
         {canInvite && (
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="md"
+            className="shrink-0 gap-2"
             onClick={() => {
               setInviteOpen((v) => !v);
               setMessage(null);
             }}
-            className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50"
           >
             <UserPlus className="h-4 w-4" aria-hidden="true" />
             Einladen
-          </button>
+          </Button>
         )}
       </div>
 
@@ -163,8 +166,8 @@ export default function RelatedAccountsPanel({
         <div
           className={`mt-4 rounded-xl border p-3 text-sm ${
             message.kind === "success"
-              ? "border-green-200 bg-green-50 text-green-800"
-              : "border-red-200 bg-red-50 text-red-700"
+              ? "border-[#83CD2D]/30 bg-[#83CD2D]/10 text-[#5A8E1F]"
+              : "border-[#FF3130]/20 bg-[#FF3130]/10 text-[#CC2626]"
           }`}
         >
           {message.text}
@@ -180,16 +183,16 @@ export default function RelatedAccountsPanel({
             placeholder="E-Mail-Adresse"
             className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
           />
-          <button
+          <Button
             type="button"
+            size="md"
+            className="gap-1"
             onClick={() => void handleInvite()}
             disabled={busy || !email.trim()}
-            className="inline-flex items-center justify-center gap-1 rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-            style={{ backgroundColor: LOCATION_COLORS.GROUP_ROOM }}
           >
             <Check className="h-4 w-4" />
             Senden
-          </button>
+          </Button>
         </div>
       )}
 
@@ -239,31 +242,36 @@ export default function RelatedAccountsPanel({
                   acc.status !== "no_account" &&
                   (confirmingId === acc.guardian_profile_id ? (
                     <div className="flex shrink-0 items-center gap-1">
-                      <button
+                      <Button
                         type="button"
+                        variant="danger"
+                        size="compact"
                         onClick={() => void handleRemove(acc)}
                         disabled={busy}
-                        className="rounded-lg bg-red-600 px-2 py-1 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
                       >
                         Entfernen
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         type="button"
+                        variant="ghost"
+                        size="compact"
                         onClick={() => setConfirmingId(null)}
-                        className="rounded-lg px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100"
                       >
                         Abbrechen
-                      </button>
+                      </Button>
                     </div>
                   ) : (
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="icon"
                       onClick={() => setConfirmingId(acc.guardian_profile_id)}
                       title="Zugang entfernen"
-                      className="shrink-0 rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-red-600"
+                      aria-label="Zugang entfernen"
+                      className="shrink-0 text-gray-400"
                     >
                       <X className="h-4 w-4" />
-                    </button>
+                    </Button>
                   ))}
               </div>
             );

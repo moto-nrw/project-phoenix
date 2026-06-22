@@ -2226,10 +2226,15 @@ func legalAGBBlockText(texts LegalTexts) string {
 }
 
 func publicEnrollmentLegalDocumentURL(storedURL string) string {
-	const uploadPrefix = "/uploads/enrollment-legal-documents/"
-	const publicPrefix = "/api/public/enrollment-legal-documents/"
-	if strings.HasPrefix(storedURL, uploadPrefix) {
-		return publicPrefix + strings.TrimPrefix(storedURL, uploadPrefix)
+	const globalUploadPrefix = "/uploads/enrollment-legal-documents/"
+	const globalPublicPrefix = "/api/public/enrollment-legal-documents/"
+	if strings.HasPrefix(storedURL, globalUploadPrefix) {
+		return globalPublicPrefix + strings.TrimPrefix(storedURL, globalUploadPrefix)
+	}
+	const formUploadPrefix = "/uploads/enrollment-form-legal-documents/"
+	const formPublicPrefix = "/api/public/enrollment-form-legal-documents/"
+	if strings.HasPrefix(storedURL, formUploadPrefix) {
+		return formPublicPrefix + strings.TrimPrefix(storedURL, formUploadPrefix)
 	}
 	return storedURL
 }
@@ -2245,7 +2250,7 @@ func buildTemplateLegalBlocks(configured []enrollmentModels.FormLegalBlock) []Le
 			Kind:      block.Kind,
 			Title:     block.Title,
 			Label:     block.Label,
-			Text:      block.Text,
+			Text:      templateLegalBlockText(block),
 			Required:  block.Required,
 			SortOrder: block.SortOrder,
 			Source:    block.Source,
@@ -2257,6 +2262,15 @@ func buildTemplateLegalBlocks(configured []enrollmentModels.FormLegalBlock) []Le
 		return blocks[i].SortOrder < blocks[j].SortOrder
 	})
 	return blocks
+}
+
+func templateLegalBlockText(block enrollmentModels.FormLegalBlock) string {
+	if block.Key == enrollmentModels.ConsentKeyAGB &&
+		block.DisplayMode == enrollmentModels.LegalBlockDisplayModePDF &&
+		strings.TrimSpace(block.DocumentURL) != "" {
+		return fmt.Sprintf("Die AGB / Teilnahmebedingungen sind als PDF-Datei hinterlegt: [AGB-Dokument öffnen](%s)", publicEnrollmentLegalDocumentURL(block.DocumentURL))
+	}
+	return block.Text
 }
 
 // legalTermsEnabled reports whether the tenant has switched on the AGB /

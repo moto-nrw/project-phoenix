@@ -4,12 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Loader2, Send, Trash2 } from "lucide-react";
 import { Modal } from "~/components/ui/modal";
+import { Button } from "~/components/ui/button";
 import {
   type CareException,
   type ChildFeatures,
   type ParentNote,
   ParentApiError,
   type StatusDay,
+  type StudentStatusKind,
   addChildNote,
   deleteCareException,
   getChildFeatures,
@@ -19,6 +21,7 @@ import {
   submitCareException,
   submitSickNote,
 } from "~/lib/parent-api";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { createLogger } from "~/lib/logger";
 import { parseISODate, toISODate, todayISO } from "~/lib/date-helpers";
 
@@ -104,7 +107,11 @@ export interface ChildCare {
   readonly careExceptionsLoaded: boolean;
   readonly features: ChildFeatures;
   readonly loading: boolean;
-  reportSick(dates: string[], reason: string): Promise<void>;
+  reportSick(
+    dates: string[],
+    reason: string,
+    status: StudentStatusKind,
+  ): Promise<void>;
   postNote(body: string): Promise<ParentNote[]>;
   saveCareException(params: {
     date: string;
@@ -158,11 +165,11 @@ export function useChildCare(studentId: string): ChildCare {
   }, [load]);
 
   const reportSick = useCallback(
-    async (dates: string[], reason: string) => {
-      const updated = await submitSickNote(studentId, dates, reason);
+    async (dates: string[], reason: string, status: StudentStatusKind) => {
+      const updated = await submitSickNote(studentId, dates, reason, status);
       // The POST only returns the just-submitted dates. Merge them into the
       // already-loaded list (replacing any same-date entries) so previously
-      // reported sick days don't disappear after a non-overlapping submit.
+      // reported absences don't disappear after a non-overlapping submit.
       setSickDays((prev) => {
         const submittedDates = new Set(updated.map((d) => d.date));
         return [
@@ -229,12 +236,17 @@ export function SickNoteModal({
   onSubmit,
 }: Readonly<{
   onClose: () => void;
-  onSubmit: (dates: string[], reason: string) => Promise<void>;
+  onSubmit: (
+    dates: string[],
+    reason: string,
+    status: StudentStatusKind,
+  ) => Promise<void>;
 }>) {
   const t = useTranslations("parentChildCare");
   const initial = todayISO();
   const [from, setFrom] = useState(initial);
   const [to, setTo] = useState(initial);
+  const [status, setStatus] = useState<StudentStatusKind>("sick");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -249,7 +261,7 @@ export function SickNoteModal({
     setSubmitting(true);
     setError(null);
     try {
-      await onSubmit(dates, reason);
+      await onSubmit(dates, reason, status);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : t("sick.saveError"));
@@ -267,6 +279,20 @@ export function SickNoteModal({
     >
       <div className="space-y-4">
         <p className="text-sm leading-6 text-gray-600">{t("sick.intro")}</p>
+        <label className="block">
+          <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
+            {t("sick.kindLabel")}
+          </span>
+          <CustomSelect
+            value={status}
+            ariaLabel={t("sick.kindLabel")}
+            onChange={(value) => setStatus(value as StudentStatusKind)}
+            options={[
+              { value: "sick", label: t("sick.kindSick") },
+              { value: "excused", label: t("sick.kindExcused") },
+            ]}
+          />
+        </label>
         <div className="grid grid-cols-2 gap-3">
           <label className="block">
             <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
@@ -280,7 +306,7 @@ export function SickNoteModal({
                 setFrom(e.target.value);
                 if (e.target.value > to) setTo(e.target.value);
               }}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-[#D6373E] focus-visible:ring-2 focus-visible:ring-[#D6373E]/30 focus-visible:outline-none"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400/40 focus-visible:outline-none"
             />
           </label>
           <label className="block">
@@ -292,7 +318,7 @@ export function SickNoteModal({
               value={to}
               min={from}
               onChange={(e) => setTo(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-[#D6373E] focus-visible:ring-2 focus-visible:ring-[#D6373E]/30 focus-visible:outline-none"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400/40 focus-visible:outline-none"
             />
           </label>
         </div>
@@ -309,7 +335,7 @@ export function SickNoteModal({
             onChange={(e) => setReason(e.target.value)}
             rows={3}
             placeholder={t("sick.reasonPlaceholder")}
-            className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-[#D6373E] focus-visible:ring-2 focus-visible:ring-[#D6373E]/30 focus-visible:outline-none"
+            className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400/40 focus-visible:outline-none"
           />
         </label>
         {error && (
@@ -318,24 +344,21 @@ export function SickNoteModal({
           </p>
         )}
         <div className="flex justify-end gap-2 pt-1">
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex h-10 items-center rounded-lg border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
-          >
+          <Button type="button" variant="outline" size="md" onClick={onClose}>
             {t("cancel")}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            size="md"
+            className="gap-2"
             onClick={() => void handleSubmit()}
             disabled={submitting}
-            className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#D6373E] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#bb2f35] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {submitting && (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
             )}
             {t("sick.submit")}
-          </button>
+          </Button>
         </div>
       </div>
     </Modal>
@@ -397,7 +420,7 @@ export function NotesModal({
             onChange={(e) => setBody(e.target.value)}
             rows={3}
             placeholder={t("notes.placeholder")}
-            className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-[#F78C10] focus-visible:ring-2 focus-visible:ring-[#F78C10]/30 focus-visible:outline-none"
+            className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400/40 focus-visible:outline-none"
           />
           <span className="mt-1 block text-right text-xs text-gray-400">
             {body.length}/{MAX_NOTE_LEN}
@@ -409,11 +432,12 @@ export function NotesModal({
           </p>
         )}
         <div className="flex justify-end">
-          <button
+          <Button
             type="button"
+            size="md"
+            className="gap-2"
             onClick={() => void handleSubmit()}
             disabled={submitting}
-            className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#F78C10] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#dd7c0c] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {submitting ? (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -421,7 +445,7 @@ export function NotesModal({
               <Send className="h-4 w-4" aria-hidden="true" />
             )}
             {t("notes.send")}
-          </button>
+          </Button>
         </div>
         {list.length > 0 && (
           <div className="border-t border-gray-100 pt-4">
@@ -582,7 +606,7 @@ export function PickupTimeModal({
       <div className="space-y-4">
         <p className="text-sm leading-6 text-gray-600">{t("pickup.intro")}</p>
         {!careExceptionsLoaded && (
-          <p className="rounded-lg bg-[#F78C10]/10 px-3 py-2 text-sm text-[#9a5a08]">
+          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
             {t("pickup.loadError")}
           </p>
         )}
@@ -596,12 +620,12 @@ export function PickupTimeModal({
             min={today}
             max={maxSelectable}
             onChange={(e) => setDate(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-[#5080D8] focus-visible:ring-2 focus-visible:ring-[#5080D8]/30 focus-visible:outline-none"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400/40 focus-visible:outline-none"
           />
         </label>
 
         {staffOwned ? (
-          <p className="rounded-lg bg-[#5080D8]/10 px-3 py-2 text-sm text-[#3a63b0]">
+          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
             {t("pickup.staffSet", {
               pickup: existing?.pickup_time ?? "—",
               arrival: existing?.arrival_time ?? "—",
@@ -617,7 +641,7 @@ export function PickupTimeModal({
                 type="time"
                 value={arrivalTime}
                 onChange={(e) => setArrivalTime(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-[#5080D8] focus-visible:ring-2 focus-visible:ring-[#5080D8]/30 focus-visible:outline-none"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400/40 focus-visible:outline-none"
               />
             </label>
             <label className="block">
@@ -628,7 +652,7 @@ export function PickupTimeModal({
                 type="time"
                 value={pickupTime}
                 onChange={(e) => setPickupTime(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-[#5080D8] focus-visible:ring-2 focus-visible:ring-[#5080D8]/30 focus-visible:outline-none"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400/40 focus-visible:outline-none"
               />
             </label>
           </div>
@@ -650,28 +674,28 @@ export function PickupTimeModal({
 
         <div className="flex items-center justify-between gap-2 pt-1">
           {existing && !staffOwned ? (
-            <button
+            <Button
               type="button"
+              variant="outline_danger"
+              size="md"
+              className="gap-2"
               onClick={() => void handleRemove()}
               disabled={submitting}
-              className="inline-flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-semibold text-[#CC2626] transition-colors hover:bg-[#FF3130]/5 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Trash2 className="h-4 w-4" aria-hidden="true" />
               {t("pickup.reset")}
-            </button>
+            </Button>
           ) : (
             <span />
           )}
           <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex h-10 items-center rounded-lg border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
-            >
+            <Button type="button" variant="outline" size="md" onClick={onClose}>
               {t("cancel")}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              size="md"
+              className="gap-2"
               onClick={() => void handleSubmit()}
               disabled={
                 submitting ||
@@ -679,13 +703,12 @@ export function PickupTimeModal({
                 !pickupChangeEnabled ||
                 !careExceptionsLoaded
               }
-              className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#5080D8] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#4069b8] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {submitting && (
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
               )}
               {t("pickup.submit")}
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -713,7 +736,7 @@ export function SickStatusSummary({
           from: formatLocaleDate(first.date, locale),
           to: formatLocaleDate(last.date, locale),
         });
-  return <span className="text-sm font-semibold text-[#D6373E]">{label}</span>;
+  return <span className="text-sm font-semibold text-gray-900">{label}</span>;
 }
 
 export function ParentNotesList({ notes }: Readonly<{ notes: ParentNote[] }>) {

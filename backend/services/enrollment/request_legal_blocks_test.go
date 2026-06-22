@@ -135,6 +135,29 @@ func TestBuildLegalBlocks_PDFAGBSourceUsesDocumentLinkOnly(t *testing.T) {
 	assert.Contains(t, blocks[0].Text, "/api/public/enrollment-legal-documents/tenant-1.pdf")
 }
 
+func TestBuildTemplateLegalBlocks_PDFAGBSourceUsesDocumentURL(t *testing.T) {
+	blocks := buildTemplateLegalBlocks([]enrollmentModels.FormLegalBlock{
+		{
+			Key:         enrollmentModels.ConsentKeyAGB,
+			Kind:        enrollmentModels.LegalBlockKindTerms,
+			Title:       "AGB",
+			Label:       "AGB akzeptieren",
+			Text:        "Textquelle bleibt gespeichert",
+			Required:    true,
+			Enabled:     true,
+			SortOrder:   10,
+			Source:      enrollmentModels.LegalBlockSourceStandard,
+			DisplayMode: enrollmentModels.LegalBlockDisplayModePDF,
+			DocumentURL: "/uploads/enrollment-form-legal-documents/1_terms.pdf",
+		},
+	})
+
+	require.Len(t, blocks, 1)
+	assert.NotContains(t, blocks[0].Text, "Textquelle bleibt gespeichert")
+	assert.Contains(t, blocks[0].Text, "AGB-Dokument öffnen")
+	assert.Contains(t, blocks[0].Text, "/api/public/enrollment-form-legal-documents/1_terms.pdf")
+}
+
 func TestBuildLegalBlocks_ShowsAllEnabledContentfulStandardBlocks(t *testing.T) {
 	texts := LegalTexts{
 		AGB:                 "AGB Text",

@@ -128,8 +128,8 @@
     "comingSoonAria": "{label} së shpejti",
     "actions": {
       "sick": {
-        "label": "Raporto sëmundje",
-        "description": "Njoftim ditor për këtë fëmijë"
+        "label": "Njofto mungesë",
+        "description": "Njofto sëmundje ose justifikim"
       },
       "pickupTime": {
         "label": "Ndrysho orarin e ardhjes dhe marrjes",
@@ -156,7 +156,7 @@
       "title": "Sot",
       "description": "Njoftime aktuale për këtë fëmijë.",
       "sickLabel": "Njoftim ditor",
-      "noSick": "Nuk ka njoftim sëmundjeje",
+      "noSick": "Nuk ka njoftim mungese",
       "pickupLabel": "Marrja",
       "regularPickup": "Marrje e rregullt",
       "messagesLabel": "Mesazhe",
@@ -175,16 +175,19 @@
     "close": "Mbyll",
     "cancel": "Anulo",
     "sick": {
-      "title": "Njofto sëmundje",
-      "intro": "Njoftoni sëmundjen e fëmijës për një ose më shumë ditë. Stafi i kujdesit e sheh njoftimin menjëherë.",
+      "title": "Njofto mungesë",
+      "intro": "Njoftoni mungesën e fëmijës për një ose më shumë ditë. Zgjidhni nëse është i sëmurë apo mungon i justifikuar për një arsye tjetër. Stafi i kujdesit e sheh njoftimin menjëherë.",
+      "kindLabel": "Lloji i mungesës",
+      "kindSick": "I sëmurë",
+      "kindExcused": "I justifikuar",
       "from": "Nga",
       "to": "Deri",
       "daysCount": "{count, plural, one {# ditë do të njoftohet.} other {# ditë do të njoftohen.}}",
-      "reasonLabel": "Arsyeja (opsionale)",
-      "reasonPlaceholder": "p.sh. temperaturë, te mjeku",
+      "reasonLabel": "Shënim (opsional)",
+      "reasonPlaceholder": "p.sh. temperaturë, takim te dentisti",
       "invalidDate": "Ju lutemi zgjidhni një datë të vlefshme (data e mbarimit pas datës së fillimit).",
-      "saveError": "Njoftimi i sëmundjes nuk u ruajt dot.",
-      "submit": "Dërgo njoftimin e sëmundjes"
+      "saveError": "Mungesa nuk u ruajt dot.",
+      "submit": "Dërgo njoftimin e mungesës"
     },
     "notes": {
       "title": "Mesazh për ekipin",
@@ -197,9 +200,9 @@
       "listEmpty": "Ende asnjë mesazh i dërguar."
     },
     "summary": {
-      "none": "Asnjë njoftim sëmundjeje",
-      "oneDay": "I sëmurë më {date}",
-      "range": "I sëmurë {from} – {to}"
+      "none": "Asnjë mungesë",
+      "oneDay": "Mungon më {date}",
+      "range": "Mungon {from} – {to}"
     },
     "pickup": {
       "title": "Ndrysho orarin e ardhjes dhe marrjes",
@@ -412,6 +415,7 @@
       "phoneList": "Ju lutemi jepni të paktën një numër telefoni.",
       "contactList": "Ju lutemi jepni të paktën një kontakt të plotë me e-mail ose numër telefoni.",
       "schedule": "Ju lutemi jepni të paktën një orar.",
+      "scheduleEveryDay": "Ju lutemi caktoni një orë për çdo ditë kujdesi.",
       "select": "Ju lutemi zgjidhni një opsion.",
       "required": "Ju lutemi plotësoni këtë fushë të detyrueshme.",
       "careMissing": "Ju lutemi zgjidhni të paktën një ofertë përkujdesjeje për çdo fëmijë.",
@@ -460,6 +464,8 @@
       "removeNumber": "Hiq numrin",
       "addPhone": "Shto numër telefoni",
       "emptySchedule": "Fushat bosh do të thonë: nuk ka të dhënë për këtë ditë.",
+      "everyDayTime": "Ju lutemi caktoni një orë për çdo ditë kujdesi.",
+      "atLeastOneTime": "Ju lutemi jepni të paktën një orar.",
       "selectTime": "Ju lutemi zgjidhni",
       "timeUnavailable": "nuk është më e disponueshme",
       "noneContact": "Ende nuk është dhënë kontakt shtesë.",

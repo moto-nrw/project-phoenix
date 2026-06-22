@@ -8,7 +8,9 @@ import {
   useMemo,
   useRef,
   useState,
+  type Dispatch,
   type ReactNode,
+  type SetStateAction,
 } from "react";
 import {
   ArrowLeft,
@@ -18,6 +20,7 @@ import {
   Eye,
   ExternalLink,
   FileText,
+  FileUp,
   GripVertical,
   HelpCircle,
   Info,
@@ -41,12 +44,14 @@ import {
   blankField,
   blankInfoField,
   createSchema,
+  deleteEnrollmentLegalDocument,
   deleteSchema,
   fetchPublicLegalTexts,
   latestSchemasByName,
   listSchemas,
   renameSchema,
   updateSchema,
+  uploadEnrollmentLegalDocument,
   RESERVED_TARGETS,
   type ConditionOperator,
   type ConditionSource,
@@ -55,6 +60,7 @@ import {
   type FormFieldType,
   type FormLegalBlock,
   type FormSchema,
+  type LegalBlockDisplayMode,
   type CoreRequirementKey,
   type CoreRequirements,
   type PublicLegalTexts,
@@ -174,6 +180,8 @@ const targetSuggestionDescriptions: Record<
 };
 
 const NEW_SCHEMA_VALUE = "__new__";
+const LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE =
+  "Bitte warte, bis der PDF-Upload abgeschlossen ist.";
 type EditorMode = "overview" | "builder" | "detail";
 type PendingNavigation = "overview" | "new" | "preview";
 
@@ -227,6 +235,9 @@ const STANDARD_LEGAL_BLOCKS: FormLegalBlock[] = [
     source: "standard",
   },
 ];
+
+const LEGAL_BLOCK_DISPLAY_MODE_TEXT = "text" satisfies LegalBlockDisplayMode;
+const LEGAL_BLOCK_DISPLAY_MODE_PDF = "pdf" satisfies LegalBlockDisplayMode;
 
 interface CoreField {
   readonly key: string;
@@ -338,6 +349,15 @@ export function EnrollmentFormEditor() {
   const [deleteTarget, setDeleteTarget] = useState<FormSchema | null>(null);
   const [deletingSchemaId, setDeletingSchemaId] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<FormSchema | null>(null);
+  const uploadedDraftDocumentURLsRef = useRef<Set<string>>(new Set());
+  const savingDraftDocumentURLsRef = useRef<Set<string>>(new Set());
+  const unmountedRef = useRef(false);
+  const [uploadedDraftDocumentURLs, setUploadedDraftDocumentURLs] = useState<
+    Set<string>
+  >(() => new Set());
+  const [uploadingLegalDocumentCount, setUploadingLegalDocumentCount] =
+    useState(0);
+  const hasPendingLegalDocumentUpload = uploadingLegalDocumentCount > 0;
 
   const latestByName = useMemo(
     () => latestSchemasByName(allSchemas),
@@ -375,6 +395,110 @@ export function EnrollmentFormEditor() {
   useEffect(() => {
     void loadAll();
   }, [loadAll]);
+
+  const setDraftDocumentURLs = useCallback(
+    (updater: (urls: Set<string>) => Set<string>) => {
+      setUploadedDraftDocumentURLs((urls) => {
+        const next = updater(new Set(urls));
+        uploadedDraftDocumentURLsRef.current = next;
+        return next;
+      });
+    },
+    [],
+  );
+
+  const rememberDraftDocumentURL = useCallback(
+    (documentURL: string) => {
+      const trimmed = documentURL.trim();
+      if (!trimmed) return;
+      setDraftDocumentURLs((urls) => {
+        urls.add(trimmed);
+        return urls;
+      });
+    },
+    [setDraftDocumentURLs],
+  );
+
+  const forgetDraftDocumentURL = useCallback(
+    (documentURL: string) => {
+      setDraftDocumentURLs((urls) => {
+        urls.delete(documentURL);
+        return urls;
+      });
+    },
+    [setDraftDocumentURLs],
+  );
+
+  const forgetDraftDocumentURLs = useCallback(
+    (documentURLs: Iterable<string>) => {
+      setDraftDocumentURLs((urls) => {
+        for (const documentURL of documentURLs) {
+          urls.delete(documentURL);
+        }
+        return urls;
+      });
+    },
+    [setDraftDocumentURLs],
+  );
+
+  const beginLegalDocumentUpload = useCallback(() => {
+    setUploadingLegalDocumentCount((count) => count + 1);
+  }, []);
+
+  const endLegalDocumentUpload = useCallback(() => {
+    setUploadingLegalDocumentCount((count) => Math.max(0, count - 1));
+  }, []);
+
+  const cleanupDraftDocumentURLs = useCallback(
+    async ({
+      keepalive = false,
+      notify = true,
+      urlsToKeep = new Set<string>(),
+    }: {
+      keepalive?: boolean;
+      notify?: boolean;
+      urlsToKeep?: ReadonlySet<string>;
+    } = {}) => {
+      const urls = Array.from(uploadedDraftDocumentURLsRef.current).filter(
+        (url) => !urlsToKeep.has(url),
+      );
+      if (urls.length === 0) return;
+      const results = await Promise.allSettled(
+        urls.map((url) => deleteEnrollmentLegalDocument(url, { keepalive })),
+      );
+      const deletedURLs = urls.filter(
+        (_, index) => results[index]?.status === "fulfilled",
+      );
+      if (deletedURLs.length > 0) {
+        forgetDraftDocumentURLs(deletedURLs);
+      }
+      if (notify && results.some((result) => result.status === "rejected")) {
+        toast.error(
+          "Nicht alle ungespeicherten PDF-Dateien konnten bereinigt werden.",
+        );
+      }
+    },
+    [forgetDraftDocumentURLs, toast],
+  );
+
+  useEffect(() => {
+    unmountedRef.current = false;
+
+    return () => {
+      unmountedRef.current = true;
+      const urls = Array.from(uploadedDraftDocumentURLsRef.current).filter(
+        (url) => !savingDraftDocumentURLsRef.current.has(url),
+      );
+      uploadedDraftDocumentURLsRef.current = new Set(
+        Array.from(uploadedDraftDocumentURLsRef.current).filter((url) =>
+          savingDraftDocumentURLsRef.current.has(url),
+        ),
+      );
+      for (const url of urls) {
+        void deleteEnrollmentLegalDocument(url, { keepalive: true });
+      }
+    };
+  }, []);
 
   const selectSchema = (schema: FormSchema, nextMode: EditorMode) => {
     setSelectedKey(schema.id);
@@ -566,6 +690,11 @@ export function EnrollmentFormEditor() {
     legalBlocks,
     name,
   });
+  const pendingUploadMessage = hasPendingLegalDocumentUpload
+    ? LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE
+    : null;
+  const effectiveSaveBlockedMessage =
+    saveBlockedMessage ?? pendingUploadMessage;
 
   const saveSchema = async (
     nextMode: EditorMode = "detail",
@@ -583,9 +712,22 @@ export function EnrollmentFormEditor() {
         toast.error(validationMessage);
         return null;
       }
+      if (hasPendingLegalDocumentUpload) {
+        setError(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
+        toast.error(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
+        return null;
+      }
 
       const fieldsForSave = prepareFieldsForSave(fields);
       const legalBlocksForSave = prepareLegalBlocksForSave(legalBlocks);
+      const referencedDraftDocumentURLs = draftDocumentURLsInLegalBlocks(
+        legalBlocksForSave,
+        uploadedDraftDocumentURLsRef.current,
+      );
+      savingDraftDocumentURLsRef.current = referencedDraftDocumentURLs;
+      await cleanupDraftDocumentURLs({
+        urlsToKeep: referencedDraftDocumentURLs,
+      });
       let result: FormSchema;
       if (isCreating) {
         result = await createSchema(
@@ -618,9 +760,16 @@ export function EnrollmentFormEditor() {
           renameTo,
         );
       }
+      if (unmountedRef.current) {
+        uploadedDraftDocumentURLsRef.current = new Set();
+        savingDraftDocumentURLsRef.current = new Set();
+        return result;
+      }
       const refreshed = await loadAll();
       const stillThere = refreshed.find((s) => s.id === result.id);
       const savedSchema = stillThere ?? result;
+      forgetDraftDocumentURLs(referencedDraftDocumentURLs);
+      savingDraftDocumentURLsRef.current = new Set();
       selectSchema(savedSchema, nextMode);
       toast.success(
         isCreating ? "Formularvorlage erstellt." : "Änderungen gespeichert.",
@@ -629,12 +778,23 @@ export function EnrollmentFormEditor() {
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Speichern fehlgeschlagen";
-      logger.error("schema_save_failed", { error: message });
-      setError(message);
-      toast.error(message);
+      if (unmountedRef.current) {
+        const urls = Array.from(savingDraftDocumentURLsRef.current);
+        for (const url of urls) {
+          void deleteEnrollmentLegalDocument(url, { keepalive: true });
+        }
+        savingDraftDocumentURLsRef.current = new Set();
+      } else {
+        logger.error("schema_save_failed", { error: message });
+        setError(message);
+        toast.error(message);
+      }
       return null;
     } finally {
-      setSaving(false);
+      if (!unmountedRef.current) {
+        savingDraftDocumentURLsRef.current = new Set();
+        setSaving(false);
+      }
     }
   };
 
@@ -643,6 +803,10 @@ export function EnrollmentFormEditor() {
   };
 
   const requestBackToOverview = () => {
+    if (hasPendingLegalDocumentUpload) {
+      toast.error(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
+      return;
+    }
     if (hasUnsavedChanges) {
       setPendingNavigation("overview");
       return;
@@ -651,6 +815,10 @@ export function EnrollmentFormEditor() {
   };
 
   const requestStartNew = () => {
+    if (hasPendingLegalDocumentUpload) {
+      toast.error(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
+      return;
+    }
     if (hasUnsavedChanges) {
       setPendingNavigation("new");
       return;
@@ -667,6 +835,10 @@ export function EnrollmentFormEditor() {
   };
 
   const requestExternalPreview = () => {
+    if (hasPendingLegalDocumentUpload) {
+      toast.error(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
+      return;
+    }
     if (!hasUnsavedChanges && currentSchema) {
       openPreviewWindow(currentSchema.id);
       return;
@@ -674,9 +846,10 @@ export function EnrollmentFormEditor() {
     setPendingNavigation("preview");
   };
 
-  const discardPendingNavigation = () => {
+  const discardPendingNavigation = async () => {
     const pending = pendingNavigation;
     setPendingNavigation(null);
+    await cleanupDraftDocumentURLs();
     if (pending === "overview") {
       backToOverview();
       return;
@@ -773,7 +946,7 @@ export function EnrollmentFormEditor() {
           <button
             type="button"
             onClick={requestBackToOverview}
-            disabled={saving}
+            disabled={saving || hasPendingLegalDocumentUpload}
             className="inline-flex h-8 items-center gap-2 rounded-lg px-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
@@ -804,6 +977,11 @@ export function EnrollmentFormEditor() {
               standardBlocks={standardLegalBlocks}
               onChange={setLegalBlocks}
               disabled={saving}
+              draftDocumentURLs={uploadedDraftDocumentURLs}
+              onDraftDocumentUploaded={rememberDraftDocumentURL}
+              onDraftDocumentDeleted={forgetDraftDocumentURL}
+              onUploadStart={beginLegalDocumentUpload}
+              onUploadEnd={endLegalDocumentUpload}
             />
 
             <section className="space-y-4">
@@ -878,7 +1056,7 @@ export function EnrollmentFormEditor() {
                 <button
                   type="button"
                   onClick={requestStartNew}
-                  disabled={saving}
+                  disabled={saving || hasPendingLegalDocumentUpload}
                   className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
                 >
                   Zurücksetzen
@@ -886,7 +1064,7 @@ export function EnrollmentFormEditor() {
                 <button
                   type="button"
                   onClick={handleSave}
-                  disabled={saving}
+                  disabled={saving || hasPendingLegalDocumentUpload}
                   className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {saving
@@ -926,8 +1104,8 @@ export function EnrollmentFormEditor() {
       </section>
       <UnsavedChangesDialog
         pendingNavigation={pendingNavigation}
-        saving={saving}
-        saveBlockedMessage={saveBlockedMessage}
+        saving={saving || hasPendingLegalDocumentUpload}
+        saveBlockedMessage={effectiveSaveBlockedMessage}
         onCancel={() => setPendingNavigation(null)}
         onDiscard={discardPendingNavigation}
         onSave={savePendingNavigation}
@@ -2050,21 +2228,39 @@ function LegalBlocksSection({
   standardBlocks,
   onChange,
   disabled,
+  draftDocumentURLs,
+  onDraftDocumentUploaded,
+  onDraftDocumentDeleted,
+  onUploadStart,
+  onUploadEnd,
 }: Readonly<{
   blocks: FormLegalBlock[];
   standardBlocks: FormLegalBlock[];
-  onChange: (blocks: FormLegalBlock[]) => void;
+  onChange: Dispatch<SetStateAction<FormLegalBlock[]>>;
   disabled: boolean;
+  draftDocumentURLs: ReadonlySet<string>;
+  onDraftDocumentUploaded: (documentURL: string) => void;
+  onDraftDocumentDeleted: (documentURL: string) => void;
+  onUploadStart: () => void;
+  onUploadEnd: () => void;
 }>) {
+  const toast = useToast();
   const [editingStandardKeys, setEditingStandardKeys] = useState<string[]>([]);
+  const [uploadingDocumentKey, setUploadingDocumentKey] = useState<
+    string | null
+  >(null);
+  const blocksRef = useRef(blocks);
+  useEffect(() => {
+    blocksRef.current = blocks;
+  }, [blocks]);
   const standardByKey = useMemo(
     () => new Map(standardBlocks.map((block) => [block.key, block])),
     [standardBlocks],
   );
 
   const updateBlock = (index: number, patch: Partial<FormLegalBlock>) => {
-    onChange(
-      blocks.map((block, i) => {
+    onChange((currentBlocks) =>
+      currentBlocks.map((block, i) => {
         if (i !== index) return block;
         const next = { ...block, ...patch };
         if (
@@ -2081,7 +2277,9 @@ function LegalBlocksSection({
   const resetStandardBlock = (index: number, key: string) => {
     const standardBlock = standardByKey.get(key);
     if (!standardBlock) return;
-    onChange(blocks.map((block, i) => (i === index ? standardBlock : block)));
+    onChange((currentBlocks) =>
+      currentBlocks.map((block, i) => (i === index ? standardBlock : block)),
+    );
     setEditingStandardKeys((keys) => keys.filter((value) => value !== key));
   };
   const editStandardBlock = (key: string) => {
@@ -2089,24 +2287,82 @@ function LegalBlocksSection({
       keys.includes(key) ? keys : [...keys, key],
     );
   };
+  const uploadAGBDocument = async (index: number, file: File | null) => {
+    if (!file) return;
+    setUploadingDocumentKey(blocks[index]?.key ?? null);
+    onUploadStart();
+    try {
+      const documentURL = await uploadEnrollmentLegalDocument(file);
+      const previousURL = (blocksRef.current[index]?.document_url ?? "").trim();
+      onChange((currentBlocks) => {
+        return currentBlocks.map((block, i) =>
+          i === index
+            ? {
+                ...block,
+                document_url: documentURL,
+                display_mode: LEGAL_BLOCK_DISPLAY_MODE_PDF,
+                enabled: true,
+              }
+            : block,
+        );
+      });
+      onDraftDocumentUploaded(documentURL);
+      if (
+        previousURL &&
+        previousURL !== documentURL &&
+        draftDocumentURLs.has(previousURL)
+      ) {
+        try {
+          await deleteEnrollmentLegalDocument(previousURL);
+          onDraftDocumentDeleted(previousURL);
+        } catch {
+          toast.error("Die vorherige PDF-Datei konnte nicht bereinigt werden.");
+        }
+      }
+      toast.success("AGB-PDF hochgeladen.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "PDF-Datei konnte nicht hochgeladen werden.",
+      );
+    } finally {
+      setUploadingDocumentKey(null);
+      onUploadEnd();
+    }
+  };
+  const removeAGBDocument = async (index: number) => {
+    const documentURL = (blocks[index]?.document_url ?? "").trim();
+    updateBlock(index, {
+      document_url: "",
+      display_mode: LEGAL_BLOCK_DISPLAY_MODE_TEXT,
+    });
+    if (!documentURL || !draftDocumentURLs.has(documentURL)) return;
+    try {
+      await deleteEnrollmentLegalDocument(documentURL);
+      onDraftDocumentDeleted(documentURL);
+    } catch {
+      toast.error("PDF-Datei konnte nicht bereinigt werden.");
+    }
+  };
   const addCustomBlock = () => {
-    onChange([
-      ...blocks,
+    onChange((currentBlocks) => [
+      ...currentBlocks,
       {
-        key: nextCustomLegalBlockKey(blocks),
+        key: nextCustomLegalBlockKey(currentBlocks),
         kind: "consent",
         title: "Weitere Einwilligung",
         label: "Ich stimme dieser Einwilligung zu.",
         text: "",
         required: false,
         enabled: true,
-        sort_order: blocks.length * 10 + 10,
+        sort_order: currentBlocks.length * 10 + 10,
         source: "custom",
       },
     ]);
   };
   const removeBlock = (index: number) => {
-    onChange(blocks.filter((_, i) => i !== index));
+    onChange((currentBlocks) => currentBlocks.filter((_, i) => i !== index));
   };
   const standardEntries = blocks
     .map((block, index) => ({ block, index }))
@@ -2203,18 +2459,34 @@ function LegalBlocksSection({
         />
       </label>
 
-      <label className="mt-3 block">
-        <span className="text-xs font-medium text-gray-700">
-          Rechtstext / Erklärung
-        </span>
-        <textarea
-          value={block.text}
+      {block.key === "agb" && block.source === "standard" ? (
+        <AGBTemplateSourceEditor
+          mode={legalBlockDisplayMode(block)}
+          onModeChange={(mode) => updateBlock(index, { display_mode: mode })}
+          textValue={block.text}
+          onTextChange={(value) => updateBlock(index, { text: value })}
+          documentURL={block.document_url ?? ""}
+          documentSaving={uploadingDocumentKey === block.key}
           disabled={disabled}
-          rows={4}
-          onChange={(event) => updateBlock(index, { text: event.target.value })}
-          className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100"
+          onDocumentUpload={(file) => uploadAGBDocument(index, file)}
+          onDocumentRemove={() => void removeAGBDocument(index)}
         />
-      </label>
+      ) : (
+        <label className="mt-3 block">
+          <span className="text-xs font-medium text-gray-700">
+            Rechtstext / Erklärung
+          </span>
+          <textarea
+            value={block.text}
+            disabled={disabled}
+            rows={4}
+            onChange={(event) =>
+              updateBlock(index, { text: event.target.value })
+            }
+            className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100"
+          />
+        </label>
+      )}
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <LegalBlockModeControl
@@ -2387,7 +2659,164 @@ function hasStandardLegalBlockOverride(
     block.title !== standardBlock.title ||
     block.label !== standardBlock.label ||
     block.text !== standardBlock.text ||
-    block.required !== standardBlock.required
+    block.required !== standardBlock.required ||
+    legalBlockDisplayMode(block) !== legalBlockDisplayMode(standardBlock) ||
+    (block.document_url ?? "") !== (standardBlock.document_url ?? "")
+  );
+}
+
+function AGBTemplateSourceEditor({
+  mode,
+  onModeChange,
+  textValue,
+  onTextChange,
+  documentURL,
+  documentSaving,
+  disabled,
+  onDocumentUpload,
+  onDocumentRemove,
+}: Readonly<{
+  mode: LegalBlockDisplayMode;
+  onModeChange: (mode: LegalBlockDisplayMode) => void;
+  textValue: string;
+  onTextChange: (value: string) => void;
+  documentURL: string;
+  documentSaving: boolean;
+  disabled: boolean;
+  onDocumentUpload: (file: File | null) => void;
+  onDocumentRemove: () => void;
+}>) {
+  const hasText = textValue.trim() !== "";
+  const hasDocument = documentURL.trim() !== "";
+
+  return (
+    <div className="mt-3 space-y-3">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <button
+          type="button"
+          onClick={() => onModeChange(LEGAL_BLOCK_DISPLAY_MODE_TEXT)}
+          disabled={disabled}
+          className={`rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+            mode === LEGAL_BLOCK_DISPLAY_MODE_TEXT
+              ? "border-[#5080D8] bg-[#5080D8]/10 text-gray-950 shadow-sm"
+              : "border-gray-200 bg-white text-gray-700 hover:border-[#5080D8]/40 hover:bg-[#5080D8]/5"
+          }`}
+        >
+          <span className="flex items-center gap-2 text-sm font-semibold">
+            <FileText className="h-4 w-4" aria-hidden="true" />
+            Text eingeben
+          </span>
+          <span className="mt-1 block text-xs text-gray-500">
+            Eltern lesen den Text direkt im Formular.
+          </span>
+          {hasText ? (
+            <span className="mt-2 inline-flex rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-600 ring-1 ring-gray-200">
+              Text gespeichert
+            </span>
+          ) : null}
+        </button>
+        <button
+          type="button"
+          onClick={() => onModeChange(LEGAL_BLOCK_DISPLAY_MODE_PDF)}
+          disabled={disabled}
+          className={`rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+            mode === LEGAL_BLOCK_DISPLAY_MODE_PDF
+              ? "border-[#5080D8] bg-[#5080D8]/10 text-gray-950 shadow-sm"
+              : "border-gray-200 bg-white text-gray-700 hover:border-[#5080D8]/40 hover:bg-[#5080D8]/5"
+          }`}
+        >
+          <span className="flex items-center gap-2 text-sm font-semibold">
+            <FileUp className="h-4 w-4" aria-hidden="true" />
+            PDF-Datei hochladen
+          </span>
+          <span className="mt-1 block text-xs text-gray-500">
+            Eltern öffnen im Formular einen PDF-Link.
+          </span>
+          {hasDocument ? (
+            <span className="mt-2 inline-flex rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-600 ring-1 ring-gray-200">
+              PDF gespeichert
+            </span>
+          ) : null}
+        </button>
+      </div>
+
+      {mode === LEGAL_BLOCK_DISPLAY_MODE_TEXT ? (
+        <label className="block">
+          <span className="text-xs font-medium text-gray-700">
+            Rechtstext / Erklärung
+          </span>
+          <textarea
+            value={textValue}
+            disabled={disabled}
+            rows={4}
+            onChange={(event) => onTextChange(event.target.value)}
+            className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100"
+          />
+        </label>
+      ) : (
+        <div className="rounded-xl border border-[#5080D8]/20 bg-[#5080D8]/5 p-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-900">PDF-Datei</p>
+              <p className="mt-0.5 text-xs text-gray-600">
+                {hasDocument
+                  ? "Diese PDF wird in dieser Formularvorlage als Link angezeigt."
+                  : "Lade die AGB / Teilnahmebedingungen als PDF hoch."}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <label
+                className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[#5080D8]/25 bg-white px-2.5 py-1.5 font-medium text-[#4070C8] shadow-sm transition-colors hover:bg-[#5080D8]/10 ${
+                  disabled || documentSaving
+                    ? "pointer-events-none opacity-50"
+                    : ""
+                }`}
+              >
+                <FileUp className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>{hasDocument ? "PDF ersetzen" : "PDF hochladen"}</span>
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  className="sr-only"
+                  disabled={disabled || documentSaving}
+                  onChange={(event) => {
+                    onDocumentUpload(event.currentTarget.files?.[0] ?? null);
+                    event.currentTarget.value = "";
+                  }}
+                />
+              </label>
+              {hasDocument ? (
+                <a
+                  href={publicAGBDocumentURL(documentURL)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Öffnen</span>
+                </a>
+              ) : null}
+              {hasDocument ? (
+                <button
+                  type="button"
+                  onClick={onDocumentRemove}
+                  disabled={disabled || documentSaving}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-[#FF3130]/20 bg-white px-2.5 py-1.5 font-medium text-[#CC2626] shadow-sm transition-colors hover:bg-[#FF3130]/10 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Entfernen</span>
+                </button>
+              ) : null}
+            </div>
+          </div>
+          {documentSaving ? (
+            <p className="mt-2 text-xs text-gray-500">
+              PDF wird hochgeladen...
+            </p>
+          ) : null}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -2579,7 +3008,9 @@ function CoreFieldRow({
         </div>
         <p className="mt-0.5 text-xs leading-5 text-gray-500">
           {field.requirementKey
-            ? (field.requirementHint ?? "Kann verpflichtend gemacht werden.")
+            ? required
+              ? (field.requirementHint ?? "Diese Angabe ist verpflichtend.")
+              : "Kann verpflichtend gemacht werden."
             : "Immer erforderlich und deshalb nicht änderbar."}
         </p>
       </div>
@@ -3698,44 +4129,52 @@ function FormPreview({
                 </span>
               </div>
               <div className="space-y-2">
-                {enabledLegalBlocks.map((block) => (
-                  <div
-                    key={block.key}
-                    className="rounded-lg border border-gray-200 bg-white px-3 py-2"
-                  >
-                    <div className="flex items-start gap-2.5">
-                      <span
-                        className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                          block.kind === "notice"
-                            ? "border-[#5080D8]/30 bg-[#5080D8]/10"
-                            : "border-gray-300 bg-white"
-                        }`}
-                        aria-hidden="true"
-                      >
-                        {block.kind === "notice" ? (
-                          <Info className="h-3 w-3 text-[#5080D8]" />
-                        ) : null}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-2">
-                          <span className="text-sm font-medium text-gray-900">
-                            {block.title.trim() || block.label}
-                          </span>
-                          <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
-                            {block.kind === "notice"
-                              ? "Hinweis"
-                              : block.required
-                                ? "Pflicht"
-                                : "Optional"}
-                          </span>
+                {enabledLegalBlocks.map((block) => {
+                  const previewText = legalBlockPreviewText(block);
+                  return (
+                    <div
+                      key={block.key}
+                      className="rounded-lg border border-gray-200 bg-white px-3 py-2"
+                    >
+                      <div className="flex items-start gap-2.5">
+                        <span
+                          className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                            block.kind === "notice"
+                              ? "border-[#5080D8]/30 bg-[#5080D8]/10"
+                              : "border-gray-300 bg-white"
+                          }`}
+                          aria-hidden="true"
+                        >
+                          {block.kind === "notice" ? (
+                            <Info className="h-3 w-3 text-[#5080D8]" />
+                          ) : null}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="text-sm font-medium text-gray-900">
+                              {block.title.trim() || block.label}
+                            </span>
+                            <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
+                              {block.kind === "notice"
+                                ? "Hinweis"
+                                : block.required
+                                  ? "Pflicht"
+                                  : "Optional"}
+                            </span>
+                          </div>
+                          <p className="mt-1 line-clamp-2 text-xs leading-5 text-gray-500">
+                            {block.label}
+                          </p>
+                          {previewText.trim() !== "" ? (
+                            <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-gray-400">
+                              {previewText}
+                            </p>
+                          ) : null}
                         </div>
-                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-gray-500">
-                          {block.label}
-                        </p>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
           ) : null}
@@ -4052,6 +4491,8 @@ function mergeStandardLegalBlocks(
         ...standard,
         text: inheritedText,
         enabled: inheritedEnabled,
+        display_mode: standardLegalBlockDisplayMode(standard.key, legalTexts),
+        document_url: standardLegalBlockDocumentURL(standard.key, legalTexts),
       };
     }
     return {
@@ -4059,11 +4500,16 @@ function mergeStandardLegalBlocks(
       kind: configured.kind,
       title: configured.title,
       label: configured.label,
-      text: configured.text || inheritedText,
+      text:
+        standard.key === "agb"
+          ? inheritedText
+          : configured.text || inheritedText,
       required: configured.required,
       enabled: inheritedEnabled,
       sort_order: configured.sort_order ?? standard.sort_order,
       source: "standard",
+      display_mode: standardLegalBlockDisplayMode(standard.key, legalTexts),
+      document_url: standardLegalBlockDocumentURL(standard.key, legalTexts),
     };
   });
 }
@@ -4088,18 +4534,57 @@ function standardLegalBlockText(
 }
 
 function standardAGBText(legalTexts: PublicLegalTexts): string {
-  if (legalTexts.agb_display_mode === "pdf") {
-    const documentURL = (legalTexts.agb_document_url ?? "").trim();
-    if (documentURL === "") return "";
-    return `Die AGB / Teilnahmebedingungen sind als PDF-Datei hinterlegt: [AGB-Dokument öffnen](${publicAGBDocumentURL(documentURL)})`;
+  if (legalTexts.agb_display_mode === LEGAL_BLOCK_DISPLAY_MODE_PDF) {
+    return "";
   }
   return legalTexts.agb;
 }
 
+function standardLegalBlockDisplayMode(
+  key: string,
+  legalTexts: PublicLegalTexts | null,
+): LegalBlockDisplayMode {
+  if (key === "agb" && legalTexts?.agb_display_mode === "pdf") {
+    return LEGAL_BLOCK_DISPLAY_MODE_PDF;
+  }
+  return LEGAL_BLOCK_DISPLAY_MODE_TEXT;
+}
+
+function standardLegalBlockDocumentURL(
+  key: string,
+  legalTexts: PublicLegalTexts | null,
+): string {
+  if (key !== "agb") return "";
+  if (legalTexts?.agb_display_mode !== LEGAL_BLOCK_DISPLAY_MODE_PDF) return "";
+  return (legalTexts?.agb_document_url ?? "").trim();
+}
+
+function legalBlockDisplayMode(block: FormLegalBlock): LegalBlockDisplayMode {
+  return block.display_mode === LEGAL_BLOCK_DISPLAY_MODE_PDF
+    ? LEGAL_BLOCK_DISPLAY_MODE_PDF
+    : LEGAL_BLOCK_DISPLAY_MODE_TEXT;
+}
+
+function legalBlockPreviewText(block: FormLegalBlock): string {
+  if (
+    block.key === "agb" &&
+    legalBlockDisplayMode(block) === LEGAL_BLOCK_DISPLAY_MODE_PDF
+  ) {
+    const documentURL = (block.document_url ?? "").trim();
+    if (documentURL === "") return "";
+    return `Die AGB / Teilnahmebedingungen sind als PDF-Datei hinterlegt: [AGB-Dokument öffnen](${publicAGBDocumentURL(documentURL)})`;
+  }
+  return block.text;
+}
+
 function publicAGBDocumentURL(storedURL: string): string {
-  const prefix = "/uploads/enrollment-legal-documents/";
-  if (storedURL.startsWith(prefix)) {
-    return `/api/public/enrollment-legal-documents/${storedURL.slice(prefix.length)}`;
+  const globalPrefix = "/uploads/enrollment-legal-documents/";
+  if (storedURL.startsWith(globalPrefix)) {
+    return `/api/public/enrollment-legal-documents/${storedURL.slice(globalPrefix.length)}`;
+  }
+  const formPrefix = "/uploads/enrollment-form-legal-documents/";
+  if (storedURL.startsWith(formPrefix)) {
+    return `/api/public/enrollment-form-legal-documents/${storedURL.slice(formPrefix.length)}`;
   }
   return storedURL;
 }
@@ -4111,7 +4596,14 @@ function standardLegalBlockEnabled(
   if (!legalTexts) return false;
   switch (key) {
     case "agb":
-      return legalTexts.terms_enabled && standardAGBText(legalTexts) !== "";
+      if (!legalTexts.terms_enabled) return false;
+      if (
+        standardLegalBlockDisplayMode(key, legalTexts) ===
+        LEGAL_BLOCK_DISPLAY_MODE_PDF
+      ) {
+        return standardLegalBlockDocumentURL("agb", legalTexts) !== "";
+      }
+      return standardAGBText(legalTexts).trim() !== "";
     case "data_processing":
       return legalTexts.dsgvo_enabled && legalTexts.dsgvo.trim() !== "";
     case "photo":
@@ -4142,17 +4634,44 @@ function mergeSavedLegalBlocks(
 }
 
 function prepareLegalBlocksForSave(blocks: FormLegalBlock[]): FormLegalBlock[] {
-  return blocks.map((block, index) => ({
-    key: normalizeFieldKey(block.key) || `custom_consent_${index + 1}`,
-    kind: block.kind,
-    title: block.title.trim(),
-    label: block.label.trim(),
-    text: block.text.trim(),
-    required: block.kind === "notice" ? false : Boolean(block.required),
-    enabled: Boolean(block.enabled),
-    sort_order: index * 10 + 10,
-    source: block.source ?? "custom",
-  }));
+  return blocks.map((block, index) => {
+    const displayMode = legalBlockDisplayMode(block);
+    const documentURL =
+      displayMode === LEGAL_BLOCK_DISPLAY_MODE_PDF
+        ? (block.document_url ?? "").trim()
+        : "";
+    return {
+      key: normalizeFieldKey(block.key) || `custom_consent_${index + 1}`,
+      kind: block.kind,
+      title: block.title.trim(),
+      label: block.label.trim(),
+      text: block.text.trim(),
+      required: block.kind === "notice" ? false : Boolean(block.required),
+      enabled: Boolean(block.enabled),
+      sort_order: index * 10 + 10,
+      source: block.source ?? "custom",
+      display_mode: displayMode,
+      document_url: documentURL,
+    };
+  });
+}
+
+function draftDocumentURLsInLegalBlocks(
+  blocks: FormLegalBlock[],
+  draftURLs: ReadonlySet<string>,
+): Set<string> {
+  const urls = new Set<string>();
+  for (const block of blocks) {
+    const documentURL = (block.document_url ?? "").trim();
+    if (
+      block.display_mode === LEGAL_BLOCK_DISPLAY_MODE_PDF &&
+      documentURL &&
+      draftURLs.has(documentURL)
+    ) {
+      urls.add(documentURL);
+    }
+  }
+  return urls;
 }
 
 function nextCustomLegalBlockKey(blocks: FormLegalBlock[]): string {
@@ -4189,9 +4708,16 @@ function getRequiredHint(field: FormField): string {
     return "Eltern müssen Ja oder Nein auswählen.";
   }
   if (field.type === "weekday_schedule") {
-    return "Eltern müssen mindestens eine Uhrzeit angeben.";
+    return "Eltern müssen für jeden Betreuungstag eine Uhrzeit angeben (ohne Betreuungsangebote: mindestens eine).";
   }
   if (field.type === "weekday_boolean") {
+    // Legacy pickup (student.pickup_status) accepts an empty selection ("geht
+    // alleine nach Hause") -- required only forces parents to confirm the
+    // field once, not to tick a day. Every other weekday_boolean (Buskind)
+    // genuinely needs at least one day.
+    if (field.target === "student.pickup_status") {
+      return "Eltern müssen die Abholregelung bestätigen (Tage auswählen oder leer lassen).";
+    }
     return "Eltern müssen mindestens einen Wochentag auswählen.";
   }
   if (field.type === "weekday_multi_mode") {
@@ -4275,6 +4801,13 @@ function getSchemaDraftValidationMessage({
     }
     if (block.label === "") {
       return `Bitte gib für Zustimmung ${position} einen Text neben der Checkbox ein.`;
+    }
+    if (
+      block.key === "agb" &&
+      block.display_mode === LEGAL_BLOCK_DISPLAY_MODE_PDF &&
+      (block.document_url ?? "").trim() === ""
+    ) {
+      return "Bitte lade für die AGB eine PDF-Datei hoch oder wähle wieder Text eingeben.";
     }
   }
 

@@ -128,8 +128,8 @@
     "comingSoonAria": "{label} coming soon",
     "actions": {
       "sick": {
-        "label": "Report sick",
-        "description": "Daily note for this child"
+        "label": "Report absence",
+        "description": "Report sick or excused"
       },
       "pickupTime": {
         "label": "Change arrival & pickup time",
@@ -156,7 +156,7 @@
       "title": "Today",
       "description": "Current notes for this child.",
       "sickLabel": "Daily note",
-      "noSick": "No sick note",
+      "noSick": "No absence",
       "pickupLabel": "Pickup",
       "regularPickup": "Regular pickup",
       "messagesLabel": "Messages",
@@ -175,16 +175,19 @@
     "close": "Close",
     "cancel": "Cancel",
     "sick": {
-      "title": "Report sick",
-      "intro": "Report your child sick for one or more days. The care team sees the report immediately.",
+      "title": "Report absence",
+      "intro": "Report your child absent for one or more days. Choose whether they are sick or excused for another reason. The care team sees the report immediately.",
+      "kindLabel": "Type of absence",
+      "kindSick": "Sick",
+      "kindExcused": "Excused",
       "from": "From",
       "to": "To",
       "daysCount": "{count, plural, one {# day will be reported.} other {# days will be reported.}}",
-      "reasonLabel": "Reason (optional)",
-      "reasonPlaceholder": "e.g. fever, doctor's appointment",
+      "reasonLabel": "Note (optional)",
+      "reasonPlaceholder": "e.g. fever, dentist appointment",
       "invalidDate": "Please choose a valid date (end date after start date).",
-      "saveError": "The sick note could not be saved.",
-      "submit": "Send sick note"
+      "saveError": "The absence could not be saved.",
+      "submit": "Send absence"
     },
     "notes": {
       "title": "Message to the team",
@@ -197,9 +200,9 @@
       "listEmpty": "No messages sent yet."
     },
     "summary": {
-      "none": "No sick note",
-      "oneDay": "Sick on {date}",
-      "range": "Sick {from} – {to}"
+      "none": "No absence",
+      "oneDay": "Absent on {date}",
+      "range": "Absent {from} – {to}"
     },
     "pickup": {
       "title": "Change arrival & pickup time",
@@ -392,6 +395,7 @@
       "phoneList": "Please enter at least one phone number.",
       "contactList": "Please enter at least one complete contact with email or phone number.",
       "schedule": "Please enter at least one time.",
+      "scheduleEveryDay": "Please enter a time for each care day.",
       "select": "Please choose an option.",
       "dayMissing": "Child {child}: please select at least one day for “{offering}”.",
       "groupExactlyOne": "Please choose exactly one offer for “{group}”.",
@@ -462,6 +466,8 @@
       "removeNumber": "Remove number",
       "addPhone": "Add phone number",
       "emptySchedule": "Empty fields mean: no information for this day.",
+      "everyDayTime": "Please enter a time for each care day.",
+      "atLeastOneTime": "Please enter at least one time.",
       "selectTime": "Please select",
       "timeUnavailable": "no longer available",
       "noneContact": "No additional contact entered yet.",

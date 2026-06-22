@@ -20,14 +20,14 @@ const statusTone: Record<
   EnrollmentChildStatus | ChildStatus,
   { bg: string; text: string; dot: string }
 > = {
-  submitted: { bg: "#EEF2FF", text: "#3558A8", dot: "#5080D8" },
-  under_review: { bg: "#FFF7ED", text: "#9A5B0A", dot: "#F78C10" },
-  approved: { bg: "#83CD2D1F", text: "#4A7A15", dot: "#83CD2D" },
-  waitlisted: { bg: "#FFF7ED", text: "#9A5B0A", dot: "#F78C10" },
-  rejected: { bg: "#FEF2F2", text: "#B4232A", dot: "#D6373E" },
+  submitted: { bg: "#5080D814", text: "#3558A8", dot: "#5080D8" },
+  under_review: { bg: "#F78C1014", text: "#9A5B0A", dot: "#F78C10" },
+  approved: { bg: "#83CD2D1F", text: "#5A8E1F", dot: "#83CD2D" },
+  waitlisted: { bg: "#F78C1014", text: "#9A5B0A", dot: "#F78C10" },
+  rejected: { bg: "#FF313014", text: "#CC2626", dot: "#FF3130" },
   withdrawn: { bg: "#F3F4F6", text: "#4B5563", dot: "#6B7280" },
-  pending: { bg: "#83CD2D1F", text: "#4A7A15", dot: "#83CD2D" },
-  active: { bg: "#83CD2D1F", text: "#4A7A15", dot: "#83CD2D" },
+  pending: { bg: "#83CD2D1F", text: "#5A8E1F", dot: "#83CD2D" },
+  active: { bg: "#83CD2D1F", text: "#5A8E1F", dot: "#83CD2D" },
   inactive: { bg: "#F3F4F6", text: "#4B5563", dot: "#6B7280" },
   alumnus: { bg: "#F3F4F6", text: "#4B5563", dot: "#6B7280" },
 };
@@ -185,7 +185,7 @@ export function ParentDashboard() {
       <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1.25fr)_minmax(20rem,0.75fr)]">
           <div className="p-5 sm:p-6 lg:p-8">
-            <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+            <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
               {t("eyebrow")}
             </p>
             <div className="mt-2 max-w-3xl">
@@ -271,7 +271,7 @@ function HeroChildItem({ item }: Readonly<{ item: ChildOverviewItem }>) {
   const tone = statusTone[item.status] ?? statusTone.submitted;
   const content = (
     <div className="flex min-w-0 items-center gap-3">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#83CD2D]/15 text-[#4A7A15]">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#83CD2D]/15 text-[#5A8E1F]">
         <Users className="h-5 w-5" aria-hidden="true" />
       </span>
       <div className="min-w-0 flex-1">
@@ -357,7 +357,7 @@ function PanelHeader({
 }>) {
   return (
     <header>
-      <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+      <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
         {eyebrow}
       </p>
       <h2 className="mt-1 text-xl font-semibold text-balance text-gray-900">

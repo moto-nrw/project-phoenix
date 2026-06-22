@@ -940,6 +940,162 @@ describe("EnrollmentForm", () => {
     expect(payload.children[0]?.custom_data?.dismissal).toEqual({});
   });
 
+  it("requires a pickup time on every care day when offerings constrain the form", async () => {
+    // Make the dismissal (weekday_schedule) field required; a single fixed
+    // Mo/Di offering pins the care days so the field shows exactly two days.
+    const requiredScheduleSchema = schema();
+    requiredScheduleSchema.fields[3] = {
+      ...requiredScheduleSchema.fields[3]!,
+      required: true,
+    };
+    mockFetchPublicActiveSchema.mockResolvedValueOnce(requiredScheduleSchema);
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [
+        {
+          id: "31",
+          phase_id: "5",
+          name: "Block Mo Di",
+          description: null,
+          days_of_week_mode: "fixed",
+          available_days: ["mon", "tue"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          capacity: null,
+        },
+      ],
+      careOfferingSelectionMode: "at_least_one",
+      careRequired: true,
+    });
+    renderForm();
+    await waitForLoaded();
+    await fillRequiredFields();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /Block Mo Di/ }));
+
+    // The hint now asks for a time per day; the old "keine Angabe" copy is gone.
+    expect(
+      screen.getByText("Bitte für jeden Betreuungstag eine Uhrzeit angeben."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Leere Felder bedeuten: an diesem Tag keine Angabe."),
+    ).not.toBeInTheDocument();
+
+    // Only Monday filled -> Tuesday still empty -> submit is blocked with the
+    // per-day error (not the lenient "at least one" message).
+    fireEvent.change(screen.getByLabelText("Montag"), {
+      target: { value: "15:00" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+    // The per-day message shows in both the summary banner and at the field.
+    expect(
+      (
+        await screen.findAllByText(
+          "Bitte für jeden Betreuungstag eine Uhrzeit angeben.",
+        )
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(mockSubmitEnrollment).not.toHaveBeenCalled();
+
+    // Fill Tuesday too -> every care day has a time -> the form submits.
+    fireEvent.change(screen.getByLabelText("Dienstag"), {
+      target: { value: "15:30" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+    await waitFor(() => expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1));
+  });
+
+  it("keeps a required pickup schedule lenient when no offerings constrain the form", async () => {
+    // No care offerings -> all weekdays shown, unconstrained. A required
+    // weekday_schedule must then accept at least one filled day (a child may
+    // attend only some weekdays), and the hint/error stay on the lenient copy.
+    const requiredScheduleSchema = schema();
+    requiredScheduleSchema.fields[3] = {
+      ...requiredScheduleSchema.fields[3]!,
+      required: true,
+    };
+    mockFetchPublicActiveSchema.mockResolvedValueOnce(requiredScheduleSchema);
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+    });
+    renderForm();
+    await waitForLoaded();
+    await fillRequiredFields();
+
+    // Required + unconstrained -> the lenient "at least one time" hint, which
+    // matches the actual validation gate. Neither the optional "keine Angabe"
+    // copy nor the per-day demand may appear.
+    expect(
+      screen.getByText("Bitte mindestens eine Uhrzeit angeben."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Leere Felder bedeuten: an diesem Tag keine Angabe."),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Bitte für jeden Betreuungstag eine Uhrzeit angeben."),
+    ).not.toBeInTheDocument();
+
+    // All days empty -> required gate fails with the lenient "at least one" copy.
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+    expect(
+      await screen.findAllByText("Bitte mindestens eine Uhrzeit angeben."),
+    ).not.toHaveLength(0);
+    expect(mockSubmitEnrollment).not.toHaveBeenCalled();
+
+    // One day filled is enough when unconstrained -> the form submits.
+    fireEvent.change(screen.getByLabelText("Montag"), {
+      target: { value: "15:00" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+    await waitFor(() => expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1));
+  });
+
+  it("keeps an optional pickup schedule lenient even when offerings constrain the form", async () => {
+    // Dismissal stays optional (base schema). A fixed Mo/Di offering constrains
+    // the care days, so the field shows exactly two days -- but because it is
+    // NOT required, the hint must stay on the lenient "keine Angabe" copy (not
+    // the per-day demand) and an entirely empty schedule must still submit.
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [
+        {
+          id: "31",
+          phase_id: "5",
+          name: "Block Mo Di",
+          description: null,
+          days_of_week_mode: "fixed",
+          available_days: ["mon", "tue"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          capacity: null,
+        },
+      ],
+      careOfferingSelectionMode: "at_least_one",
+      careRequired: true,
+    });
+    renderForm();
+    await waitForLoaded();
+    await fillRequiredFields();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /Block Mo Di/ }));
+
+    // Optional + constrained -> lenient hint, never the per-day demand.
+    expect(
+      screen.getByText("Leere Felder bedeuten: an diesem Tag keine Angabe."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Bitte für jeden Betreuungstag eine Uhrzeit angeben."),
+    ).not.toBeInTheDocument();
+
+    // Empty schedule submits because the field is optional.
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+    await waitFor(() => expect(mockSubmitEnrollment).toHaveBeenCalledTimes(1));
+  });
+
   it("prefills from a parent profile and adopts an existing child", async () => {
     mockFetchMyEnrollmentProfile.mockResolvedValueOnce(profile());
     renderForm();
@@ -975,7 +1131,7 @@ describe("EnrollmentForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
     expect(
       await screen.findByText(
-        'Kind 1: Beim Angebot „Flexible Betreuung" muss mindestens ein Tag ausgewählt werden.',
+        "Kind 1: Beim Angebot „Flexible Betreuung“ muss mindestens ein Tag ausgewählt werden.",
       ),
     ).toBeInTheDocument();
     expect(mockSubmitEnrollment).not.toHaveBeenCalled();

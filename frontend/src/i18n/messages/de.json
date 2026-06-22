@@ -128,8 +128,8 @@
     "comingSoonAria": "{label} bald verfügbar",
     "actions": {
       "sick": {
-        "label": "Krank melden",
-        "description": "Tagesmeldung für dieses Kind"
+        "label": "Abmelden",
+        "description": "Krank oder entschuldigt melden"
       },
       "pickupTime": {
         "label": "Ankunfts- und Abholzeit ändern",
@@ -156,7 +156,7 @@
       "title": "Heute",
       "description": "Aktuelle Hinweise für dieses Kind.",
       "sickLabel": "Tagesmeldung",
-      "noSick": "Keine Krankmeldung",
+      "noSick": "Keine Abmeldung",
       "pickupLabel": "Abholung",
       "regularPickup": "Reguläre Abholung",
       "messagesLabel": "Nachrichten",
@@ -175,16 +175,19 @@
     "close": "Schließen",
     "cancel": "Abbrechen",
     "sick": {
-      "title": "Krank melden",
-      "intro": "Melden Sie Ihr Kind für einen oder mehrere Tage krank. Die Betreuung sieht die Meldung sofort.",
+      "title": "Abmelden",
+      "intro": "Melden Sie Ihr Kind für einen oder mehrere Tage ab. Wählen Sie, ob es krank ist oder aus einem anderen Grund entschuldigt fehlt. Die Betreuung sieht die Meldung sofort.",
+      "kindLabel": "Art der Abmeldung",
+      "kindSick": "Krank",
+      "kindExcused": "Entschuldigt",
       "from": "Von",
       "to": "Bis",
       "daysCount": "{count, plural, one {# Tag wird gemeldet.} other {# Tage werden gemeldet.}}",
-      "reasonLabel": "Grund (optional)",
-      "reasonPlaceholder": "z. B. Fieber, beim Arzt",
+      "reasonLabel": "Notiz (optional)",
+      "reasonPlaceholder": "z. B. Fieber, Zahnarzttermin",
       "invalidDate": "Bitte ein gültiges Datum wählen (Bis-Datum nach Von-Datum).",
-      "saveError": "Die Krankmeldung konnte nicht gespeichert werden.",
-      "submit": "Krankmeldung senden"
+      "saveError": "Die Abmeldung konnte nicht gespeichert werden.",
+      "submit": "Abmeldung senden"
     },
     "notes": {
       "title": "Nachricht an das Team",
@@ -197,9 +200,9 @@
       "listEmpty": "Noch keine Nachrichten gesendet."
     },
     "summary": {
-      "none": "Keine Krankmeldung",
-      "oneDay": "Krank am {date}",
-      "range": "Krank {from} – {to}"
+      "none": "Keine Abmeldung",
+      "oneDay": "Abgemeldet am {date}",
+      "range": "Abgemeldet {from} – {to}"
     },
     "pickup": {
       "title": "Ankunfts- und Abholzeit ändern",
@@ -391,11 +394,12 @@
       "phoneList": "Bitte mindestens eine Telefonnummer angeben.",
       "contactList": "Bitte mindestens einen vollständigen Kontakt mit E-Mail oder Telefonnummer angeben.",
       "schedule": "Bitte mindestens eine Uhrzeit angeben.",
+      "scheduleEveryDay": "Bitte für jeden Betreuungstag eine Uhrzeit angeben.",
       "select": "Bitte eine Option auswählen.",
       "required": "Bitte dieses Pflichtfeld ausfüllen.",
       "careMissing": "Bitte wählen Sie für jedes Kind mindestens ein Betreuungsangebot aus.",
       "careExactlyOne": "Bitte wählen Sie für jedes Kind genau ein Betreuungsangebot aus.",
-      "dayMissing": "Kind {child}: Beim Angebot „{offering}\" muss mindestens ein Tag ausgewählt werden.",
+      "dayMissing": "Kind {child}: Beim Angebot „{offering}“ muss mindestens ein Tag ausgewählt werden.",
       "dayInline": "Bitte mindestens einen Tag auswählen.",
       "groupExactlyOne": "Bitte bei „{group}“ genau ein Angebot wählen.",
       "groupAtLeastOne": "Bitte bei „{group}“ mindestens ein Angebot wählen.",
@@ -460,6 +464,8 @@
       "removeNumber": "Nummer entfernen",
       "addPhone": "Telefonnummer hinzufügen",
       "emptySchedule": "Leere Felder bedeuten: an diesem Tag keine Angabe.",
+      "everyDayTime": "Bitte für jeden Betreuungstag eine Uhrzeit angeben.",
+      "atLeastOneTime": "Bitte mindestens eine Uhrzeit angeben.",
       "selectTime": "Bitte wählen",
       "timeUnavailable": "nicht mehr verfügbar",
       "noneContact": "Noch kein zusätzlicher Kontakt eingetragen.",

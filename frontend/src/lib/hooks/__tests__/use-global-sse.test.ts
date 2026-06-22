@@ -592,7 +592,7 @@ describe("useGlobalSSE", () => {
       expect(matcher("student-detail-99")).toBe(false);
     });
 
-    it("student_updated invalidates student list, detail, and dashboard caches", () => {
+    it("student_updated invalidates student list, detail, status-day, and dashboard caches", () => {
       renderHook(() => useGlobalSSE());
 
       const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
@@ -630,6 +630,15 @@ describe("useGlobalSSE", () => {
         );
       });
       expect(studentDetailCall).toBeDefined();
+
+      const studentDetailMatcher = studentDetailCall![0] as (
+        key: string,
+      ) => boolean;
+      expect(
+        studentDetailMatcher(
+          "my-tenant:student-status-days-42-2026-06-01-2026-06-30",
+        ),
+      ).toBe(true);
 
       const dashboardCall = mutateCalls.find((call) => {
         const matcher = call[0];

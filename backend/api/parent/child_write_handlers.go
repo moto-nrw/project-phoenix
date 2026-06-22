@@ -28,10 +28,13 @@ const (
 // --- Sick note ---
 
 // SubmitSickNoteRequest is the wire shape for POST
-// /parent/me/children/{studentId}/sick-note.
+// /parent/me/children/{studentId}/sick-note. Status is the absence kind the
+// parent chose: "sick" (Krankmeldung) or "excused" (Termin/Abwesenheit). An
+// empty status defaults to "sick" so older clients keep working.
 type SubmitSickNoteRequest struct {
 	Dates  []string `json:"dates"`
 	Reason string   `json:"reason"`
+	Status string   `json:"status"`
 }
 
 // StatusDayResponse mirrors the staff status-day shape but is the
@@ -83,7 +86,14 @@ func (rs *Resource) submitSickNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rows, err := rs.ParentService.SubmitSickNote(r.Context(), accountID, studentID, dates, req.Reason)
+	// Default an empty status to "sick" so older clients (which sent no status)
+	// keep reporting Krankmeldungen unchanged. The service validates the value.
+	status := req.Status
+	if status == "" {
+		status = activeModels.StudentStatusDaySick
+	}
+
+	rows, err := rs.ParentService.SubmitSickNote(r.Context(), accountID, studentID, dates, req.Reason, status)
 	if err != nil {
 		renderParentWriteError(w, r, err)
 		return
@@ -350,6 +360,7 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, authService.ErrCannotRemoveOwnAccess):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "cannot_remove_own_access"))
 	case errors.Is(err, parentService.ErrNoDates),
+		errors.Is(err, parentService.ErrInvalidStatus),
 		errors.Is(err, parentService.ErrEmptyNote),
 		errors.Is(err, parentService.ErrNoteTooLong),
 		errors.Is(err, parentService.ErrEmailRequired),
