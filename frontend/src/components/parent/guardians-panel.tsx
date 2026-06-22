@@ -651,19 +651,29 @@ function PickupModal({
   const handleSave = async () => {
     setBusy(true);
     setError(null);
-    // pickup_notes requires parent_portal.guardian.edit on the backend, while the
-    // flags only need parent_portal.pickup.manage. Only send the note when it
-    // actually changed, so a pickup-manage-only caller can save a flag toggle
-    // without tripping the edit-permission gate.
+    // Send each field only when it actually changed. The backend gates each
+    // field group by its own permission: the can_pickup / is_emergency_contact
+    // flags require parent_portal.pickup.manage, while pickup_notes requires
+    // parent_portal.guardian.edit. Sending an unchanged flag would force the
+    // pickup.manage gate even on a notes-only edit, defeating that split.
     const normalizedNotes = notes.trim() || null;
     const originalNotes = g.pickup_notes ?? null;
     const payload: GuardianRelationshipPayload = {
-      can_pickup: canPickup,
-      is_emergency_contact: isEmergency,
+      ...(canPickup !== g.can_pickup ? { can_pickup: canPickup } : {}),
+      ...(isEmergency !== g.is_emergency_contact
+        ? { is_emergency_contact: isEmergency }
+        : {}),
       ...(normalizedNotes !== originalNotes
         ? { pickup_notes: normalizedNotes }
         : {}),
     };
+    // Nothing changed: skip the write (the backend rejects an empty payload
+    // with guardian_no_change) and just close.
+    if (Object.keys(payload).length === 0) {
+      setBusy(false);
+      onClose();
+      return;
+    }
     try {
       await updateGuardianRelationship(
         studentId,
