@@ -219,13 +219,18 @@ func (s *service) ListChildGuardians(ctx context.Context, accountID, studentID i
 		for _, link := range links {
 			profile, ok := profiles[link.GuardianProfileID]
 			if !ok {
+				// A link pointing to a missing profile is a data-integrity fault
+				// (orphaned students_guardians row), not an authorization outcome.
+				// Surface it as an internal error (→ 500, caught by 5xx alerting)
+				// instead of masking it as ErrGuardianNotLinked (403), which would
+				// hide the inconsistency from monitoring.
 				s.logger.Error("parent child guardian link points to missing profile",
 					slog.Int64("tenant_id", child.tenantID),
 					slog.Int64("student_id", studentID),
 					slog.Int64("student_guardian_id", link.ID),
 					slog.Int64("guardian_profile_id", link.GuardianProfileID),
 				)
-				return ErrGuardianNotLinked
+				return fmt.Errorf("parent: student_guardian %d references missing guardian profile %d", link.ID, link.GuardianProfileID)
 			}
 			out = append(out, projectChildGuardian(profile, link, phonesByProfile[profile.ID], accountID, canEdit, canManage, escapesByProfile[profile.ID]))
 		}
