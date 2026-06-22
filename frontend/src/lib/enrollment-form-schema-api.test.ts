@@ -11,9 +11,11 @@ import {
   fetchPublicActiveSchema,
   fetchPublicLegalTexts,
   createSchema,
+  deleteEnrollmentLegalDocument,
   updateSchema,
   renameSchema,
   deleteSchema,
+  uploadEnrollmentLegalDocument,
   type FormSchema,
   type FormField,
 } from "./enrollment-form-schema-api";
@@ -555,6 +557,108 @@ describe("updateSchema", () => {
     await expect(updateSchema("1234", [])).rejects.toThrow(
       /Formularvorlage ist ungültig/,
     );
+  });
+});
+
+// --- legal document upload/delete ------------------------------------
+
+describe("uploadEnrollmentLegalDocument", () => {
+  it("uploads the PDF as multipart form data and returns the document URL", async () => {
+    let seenURL = "";
+    let seenMethod = "";
+    let seenBody: BodyInit | null | undefined;
+    mockFetch(async (input, init) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      seenMethod = init?.method ?? "";
+      seenBody = init?.body;
+      return jsonResponse({
+        data: {
+          document_url: "/uploads/enrollment-form-legal-documents/1_terms.pdf",
+        },
+      });
+    });
+
+    const file = new File(["%PDF-1.4"], "terms.pdf", {
+      type: "application/pdf",
+    });
+    const documentURL = await uploadEnrollmentLegalDocument(file);
+
+    expect(seenURL).toBe("/api/enrollment/legal-documents");
+    expect(seenMethod).toBe("POST");
+    expect(seenBody).toBeInstanceOf(FormData);
+    expect((seenBody as FormData).get("document")).toBe(file);
+    expect(documentURL).toBe(
+      "/uploads/enrollment-form-legal-documents/1_terms.pdf",
+    );
+  });
+
+  it("maps oversized PDF responses to a German error", async () => {
+    mockFetch(async () => new Response("", { status: 413 }));
+
+    await expect(
+      uploadEnrollmentLegalDocument(
+        new File(["%PDF-1.4"], "large.pdf", { type: "application/pdf" }),
+      ),
+    ).rejects.toThrow(/maximal 10 MB/);
+  });
+
+  it("maps unsupported file responses to a German error", async () => {
+    mockFetch(async () => new Response("", { status: 415 }));
+
+    await expect(
+      uploadEnrollmentLegalDocument(
+        new File(["not pdf"], "terms.txt", { type: "text/plain" }),
+      ),
+    ).rejects.toThrow(/Bitte eine PDF-Datei hochladen/);
+  });
+
+  it("rejects successful responses without a document URL", async () => {
+    mockFetch(async () => jsonResponse({ data: {} }));
+
+    await expect(
+      uploadEnrollmentLegalDocument(
+        new File(["%PDF-1.4"], "terms.pdf", { type: "application/pdf" }),
+      ),
+    ).rejects.toThrow(/PDF-Datei konnte nicht hochgeladen werden/);
+  });
+});
+
+describe("deleteEnrollmentLegalDocument", () => {
+  it("deletes the encoded filename and passes keepalive through", async () => {
+    let seenURL = "";
+    let seenInit: RequestInit | undefined;
+    mockFetch(async (input, init) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      seenInit = init;
+      return new Response(null, { status: 204 });
+    });
+
+    await deleteEnrollmentLegalDocument(
+      "/uploads/enrollment-form-legal-documents/1 terms.pdf",
+      { keepalive: true },
+    );
+
+    expect(seenURL).toBe("/api/enrollment/legal-documents/1%20terms.pdf");
+    expect(seenInit).toMatchObject({ keepalive: true, method: "DELETE" });
+  });
+
+  it("ignores empty document URLs", async () => {
+    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
+    globalThis.fetch = fetchMock as typeof globalThis.fetch;
+
+    await deleteEnrollmentLegalDocument("");
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("throws a German error when delete fails", async () => {
+    mockFetch(async () => new Response("", { status: 500 }));
+
+    await expect(
+      deleteEnrollmentLegalDocument(
+        "/uploads/enrollment-form-legal-documents/1_terms.pdf",
+      ),
+    ).rejects.toThrow(/PDF-Datei konnte nicht entfernt werden/);
   });
 });
 
