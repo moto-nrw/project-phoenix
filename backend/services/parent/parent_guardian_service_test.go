@@ -413,6 +413,54 @@ func TestUpdateGuardianRelationship_PickupManageGate(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestUpdateGuardianRelationship_NoteOnlyEditLeavesFlagsUntouched pins the
+// write-set contract behind the concurrency fix: a relationship edit writes ONLY
+// the columns the request actually supplied. A note-only edit must therefore not
+// re-write can_pickup / is_emergency_contact, so it can never revert a flag value
+// the request did not touch (e.g. a concurrent staff toggle of those flags). The
+// true cross-actor lost-update race needs real concurrency a sequential test
+// can't stage; this guards the observable half — the flags a note-only edit
+// leaves behind are exactly the stored ones — and would fail on a regression that
+// writes the flag columns unconditionally (e.g. with a zero-value default).
+func TestUpdateGuardianRelationship_NoteOnlyEditLeavesFlagsUntouched(t *testing.T) {
+	svc, db := buildGuardianService(t)
+	defer func() { _ = db.Close() }()
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	contactID, cleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-noteonly")
+	defer cleanup()
+
+	// The chain primary (pickup.manage) raises both safety flags on the helper.
+	canPickup := true
+	emergency := true
+	_, err := svc.UpdateGuardianRelationship(context.Background(), chain.AccountID, chain.StudentID, contactID, parentService.GuardianRelationshipInput{
+		CanPickup:          &canPickup,
+		IsEmergencyContact: &emergency,
+	})
+	require.NoError(t, err)
+
+	// A guardian.edit-only caller (no pickup.manage) edits ONLY the note.
+	editorID, editorCleanup := linkAccountGuardian(t, db, chain.StudentID, "note-editor", map[string]interface{}{
+		authorize.GuardianPermissionPortalAccess: true,
+		authorize.GuardianPermissionGuardianEdit: true,
+	})
+	defer editorCleanup()
+	editorAccountID := accountIDForProfile(t, db, editorID)
+
+	updated, err := svc.UpdateGuardianRelationship(context.Background(), editorAccountID, chain.StudentID, contactID, parentService.GuardianRelationshipInput{
+		PickupNotes: ptr("Wird von der Oma abgeholt"),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, updated)
+	assert.Equal(t, "Wird von der Oma abgeholt", updated.PickupNotes)
+
+	// The note edit must not have written the safety flags back.
+	gotPickup, gotEmergency := relationshipFlags(t, db, chain.StudentID, contactID)
+	assert.True(t, gotPickup, "note-only edit must not clear can_pickup")
+	assert.True(t, gotEmergency, "note-only edit must not clear is_emergency_contact")
+}
+
 func TestUpdateGuardianRelationship_PickupManageWithoutEditFlipsFlags(t *testing.T) {
 	svc, db := buildGuardianService(t)
 	defer func() { _ = db.Close() }()
@@ -722,6 +770,20 @@ func guardianEmailForProfile(t *testing.T, db *bun.DB, profileID int64) string {
 		Scan(context.Background(), &email)
 	require.NoError(t, err)
 	return email
+}
+
+// relationshipFlags reads the stored can_pickup / is_emergency_contact of a
+// student-guardian link straight from the row, bypassing the service, so a test
+// can assert what a write actually persisted.
+func relationshipFlags(t *testing.T, db *bun.DB, studentID, profileID int64) (canPickup, emergency bool) {
+	t.Helper()
+	err := db.NewSelect().
+		TableExpr("users.students_guardians").
+		ColumnExpr("can_pickup, is_emergency_contact").
+		Where("student_id = ? AND guardian_profile_id = ?", studentID, profileID).
+		Scan(context.Background(), &canPickup, &emergency)
+	require.NoError(t, err)
+	return canPickup, emergency
 }
 
 func assertExactlyOnePrimaryPhone(t *testing.T, db *bun.DB, profileID int64) {

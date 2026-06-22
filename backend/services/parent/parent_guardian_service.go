@@ -510,11 +510,25 @@ func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 		}
 		oldCanPickup := link.CanPickup
 		oldEmergency := link.IsEmergencyContact
+		// Write ONLY the columns this request actually changed. A full-row Update
+		// would re-send guardian_role, permissions, relationship_type, etc. with the
+		// values loaded before any concurrent staff edit; scoping to the pickup
+		// fields removes that clobber. But scoping to a FIXED can_pickup/
+		// is_emergency_contact/pickup_notes triple is still too wide: a note-only
+		// edit would re-send the two flag columns with their stale read values and
+		// clobber a staff toggle of can_pickup/is_emergency_contact made between our
+		// read and write (the guardian_profiles lock above serializes parent-vs-
+		// parent edits, but the staff path edits the students_guardians row without
+		// taking it). Building the column set from exactly the supplied fields makes
+		// the write-set equal the touched-set, so an untouched flag is never written.
+		cols := make([]string, 0, 3)
 		if input.CanPickup != nil {
 			link.CanPickup = *input.CanPickup
+			cols = append(cols, "can_pickup")
 		}
 		if input.IsEmergencyContact != nil {
 			link.IsEmergencyContact = *input.IsEmergencyContact
+			cols = append(cols, "is_emergency_contact")
 		}
 		if input.PickupNotes != nil {
 			trimmed := strings.TrimSpace(*input.PickupNotes)
@@ -523,15 +537,11 @@ func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 			} else {
 				link.PickupNotes = &trimmed
 			}
+			cols = append(cols, "pickup_notes")
 		}
-		// Write only the three columns this feature owns. A full-row Update would
-		// re-send guardian_role, permissions, relationship_type, etc. with the
-		// values loaded before any concurrent staff edit, clobbering a staff change
-		// to those columns made between our read and write (the guardian_profiles
-		// lock above serializes parent-vs-parent edits but the staff path edits the
-		// students_guardians row without taking it). Scoping the write to the
-		// pickup fields removes that clobber entirely.
-		updated, err := s.studentGuardianRepo.UpdateColumns(txCtx, link, "can_pickup", "is_emergency_contact", "pickup_notes")
+		// cols is guaranteed non-empty: the all-nil input guard at the top of the
+		// function already returned ErrGuardianNoChange.
+		updated, err := s.studentGuardianRepo.UpdateColumns(txCtx, link, cols...)
 		if err != nil {
 			return err
 		}
