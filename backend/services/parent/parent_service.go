@@ -198,9 +198,9 @@ type ServiceConfig struct {
 
 	// Guardian contact + pickup editing (#1667). The phone repo backs the
 	// wholesale phone-list replace on a contact edit; the audit repo records
-	// every pickup/emergency flag change (append-only).
+	// every contact-field and pickup/emergency flag change (append-only).
 	GuardianPhoneRepo       usersModels.GuardianPhoneNumberRepository
-	GuardianPickupAuditRepo auditModels.GuardianPickupChangeRepository
+	GuardianChangeAuditRepo auditModels.GuardianChangeRepository
 
 	DB     *bun.DB
 	Logger *slog.Logger
@@ -225,7 +225,7 @@ type service struct {
 	studentGuardianRepo usersModels.StudentGuardianRepository
 
 	guardianPhoneRepo       usersModels.GuardianPhoneNumberRepository
-	guardianPickupAuditRepo auditModels.GuardianPickupChangeRepository
+	guardianChangeAuditRepo auditModels.GuardianChangeRepository
 
 	db     *bun.DB
 	logger *slog.Logger
@@ -253,7 +253,7 @@ func NewService(cfg ServiceConfig) Service {
 		guardianInviteRepo:      cfg.GuardianInviteRepo,
 		studentGuardianRepo:     cfg.StudentGuardianRepo,
 		guardianPhoneRepo:       cfg.GuardianPhoneRepo,
-		guardianPickupAuditRepo: cfg.GuardianPickupAuditRepo,
+		guardianChangeAuditRepo: cfg.GuardianChangeAuditRepo,
 		db:                      cfg.DB,
 		logger:                  logger,
 	}

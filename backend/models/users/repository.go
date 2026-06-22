@@ -566,6 +566,10 @@ type GuardianProfileRepository interface {
 	// via RLS; results are capped by limit to keep the picker payload small.
 	SearchByText(ctx context.Context, searchText string, limit int) ([]*GuardianProfile, error)
 
+	// FindByIDs retrieves guardian profiles for the given ids in a single query,
+	// keyed by id. Missing ids are simply absent from the map.
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*GuardianProfile, error)
+
 	// Count returns the total number of guardian profiles
 	Count(ctx context.Context) (int, error)
 
@@ -607,6 +611,11 @@ type GuardianPhoneNumberRepository interface {
 
 	// FindByGuardianID retrieves all phone numbers for a guardian profile
 	FindByGuardianID(ctx context.Context, guardianProfileID int64) ([]*GuardianPhoneNumber, error)
+
+	// FindByGuardianIDs retrieves all phone numbers for the given guardian
+	// profile ids in a single query, grouped by profile id. Each group is
+	// ordered primary-first, matching FindByGuardianID.
+	FindByGuardianIDs(ctx context.Context, guardianProfileIDs []int64) (map[int64][]*GuardianPhoneNumber, error)
 
 	// GetPrimary retrieves the primary phone number for a guardian
 	GetPrimary(ctx context.Context, guardianProfileID int64) (*GuardianPhoneNumber, error)

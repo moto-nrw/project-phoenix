@@ -197,30 +197,37 @@ func (s *service) ListChildGuardians(ctx context.Context, accountID, studentID i
 		if err != nil {
 			return err
 		}
+		// Batch-load profiles, phones, and cross-family reach for every guardian
+		// of the child in three queries total, rather than three per guardian.
+		profileIDs := make([]int64, 0, len(links))
+		for _, link := range links {
+			profileIDs = append(profileIDs, link.GuardianProfileID)
+		}
+		profiles, err := s.guardianProfileRepo.FindByIDs(txCtx, profileIDs)
+		if err != nil {
+			return err
+		}
+		phonesByProfile, err := s.guardianPhoneRepo.FindByGuardianIDs(txCtx, profileIDs)
+		if err != nil {
+			return err
+		}
+		escapesByProfile, err := s.profilesEscapingFamily(txCtx, profileIDs, callerStudents)
+		if err != nil {
+			return err
+		}
 		out = make([]*ChildGuardian, 0, len(links))
 		for _, link := range links {
-			profile, err := s.guardianProfileRepo.FindByID(txCtx, link.GuardianProfileID)
-			if err != nil {
-				if errors.Is(err, usersModels.ErrGuardianProfileNotFound) {
-					s.logger.Error("parent child guardian link points to missing profile",
-						slog.Int64("tenant_id", child.tenantID),
-						slog.Int64("student_id", studentID),
-						slog.Int64("student_guardian_id", link.ID),
-						slog.Int64("guardian_profile_id", link.GuardianProfileID),
-					)
-					return ErrGuardianNotLinked
-				}
-				return err
+			profile, ok := profiles[link.GuardianProfileID]
+			if !ok {
+				s.logger.Error("parent child guardian link points to missing profile",
+					slog.Int64("tenant_id", child.tenantID),
+					slog.Int64("student_id", studentID),
+					slog.Int64("student_guardian_id", link.ID),
+					slog.Int64("guardian_profile_id", link.GuardianProfileID),
+				)
+				return ErrGuardianNotLinked
 			}
-			phones, err := s.guardianPhoneRepo.FindByGuardianID(txCtx, profile.ID)
-			if err != nil {
-				return err
-			}
-			escapes, err := s.profileEscapesFamily(txCtx, profile.ID, callerStudents)
-			if err != nil {
-				return err
-			}
-			out = append(out, projectChildGuardian(profile, link, phones, accountID, canEdit, canManage, escapes))
+			out = append(out, projectChildGuardian(profile, link, phonesByProfile[profile.ID], accountID, canEdit, canManage, escapesByProfile[profile.ID]))
 		}
 		return nil
 	})
@@ -294,6 +301,14 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 			}
 		}
 
+		// Snapshot the pre-edit contact state (incl. phones) so the change can be
+		// audited field-by-field after the wholesale replace below.
+		oldPhones, err := s.guardianPhoneRepo.FindByGuardianID(txCtx, profile.ID)
+		if err != nil {
+			return err
+		}
+		before := snapshotGuardianContact(profile, oldPhones)
+
 		applyContactInput(profile, &input)
 		if err := s.guardianProfileRepo.Update(txCtx, profile); err != nil {
 			return err
@@ -304,6 +319,9 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 
 		phones, err := s.guardianPhoneRepo.FindByGuardianID(txCtx, profile.ID)
 		if err != nil {
+			return err
+		}
+		if err := s.auditContactChanges(txCtx, child.tenantID, accountID, studentID, guardianProfileID, before, profile, phones); err != nil {
 			return err
 		}
 		// Containment passed (or self), so the edited profile does not escape the
@@ -488,47 +506,145 @@ func (s *service) requireGuardianManagementEnabled(ctx context.Context, tenantID
 	return nil
 }
 
-// auditPickupFlagChanges writes one append-only audit row per safety-critical
-// flag (can_pickup / is_emergency_contact) that actually changed value. Notes
-// and priority are annotations and are not audited. Must run inside the same
-// tenant transaction as the change so the trail is atomic with it.
-func (s *service) auditPickupFlagChanges(ctx context.Context, tenantID, accountID, studentID, guardianProfileID int64, input GuardianRelationshipInput, oldCanPickup, oldEmergency bool) error {
-	if s.guardianPickupAuditRepo == nil {
-		return nil
-	}
-	type flagChange struct {
-		field    string
-		from, to bool
-	}
-	var changes []flagChange
-	if input.CanPickup != nil && *input.CanPickup != oldCanPickup {
-		changes = append(changes, flagChange{auditModels.GuardianPickupFieldCanPickup, oldCanPickup, *input.CanPickup})
-	}
-	if input.IsEmergencyContact != nil && *input.IsEmergencyContact != oldEmergency {
-		changes = append(changes, flagChange{auditModels.GuardianPickupFieldEmergencyContact, oldEmergency, *input.IsEmergencyContact})
-	}
-	if len(changes) == 0 {
+// guardianChangeEntry is one pending audit row: change type, field, and the
+// before/after values (nil = NULL, e.g. a cleared field).
+type guardianChangeEntry struct {
+	changeType string
+	field      string
+	oldValue   *string
+	newValue   *string
+}
+
+// writeGuardianChanges appends one append-only audit row per supplied change,
+// snapshotting the acting guardian once. A nil repo or empty change set is a
+// no-op. Must run inside the same tenant transaction as the change so the trail
+// is atomic with it.
+func (s *service) writeGuardianChanges(ctx context.Context, tenantID, accountID, studentID, guardianProfileID int64, changes []guardianChangeEntry) error {
+	if s.guardianChangeAuditRepo == nil || len(changes) == 0 {
 		return nil
 	}
 	actorName, actorEmail := s.actorSnapshot(ctx, accountID)
 	actorID := accountID
 	for _, c := range changes {
-		entry := &auditModels.GuardianPickupChange{
+		entry := &auditModels.GuardianChange{
 			StudentID:          studentID,
 			GuardianProfileID:  guardianProfileID,
 			ActorAccountID:     &actorID,
 			ActorNameSnapshot:  actorName,
 			ActorEmailSnapshot: actorEmail,
+			ChangeType:         c.changeType,
 			FieldName:          c.field,
-			OldValue:           c.from,
-			NewValue:           c.to,
+			OldValue:           c.oldValue,
+			NewValue:           c.newValue,
 		}
 		entry.SetTenantID(tenantID)
-		if err := s.guardianPickupAuditRepo.Create(ctx, entry); err != nil {
+		if err := s.guardianChangeAuditRepo.Create(ctx, entry); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// auditPickupFlagChanges records one row per safety-critical flag (can_pickup /
+// is_emergency_contact) that actually changed value. Notes and priority are
+// annotations and are not audited.
+func (s *service) auditPickupFlagChanges(ctx context.Context, tenantID, accountID, studentID, guardianProfileID int64, input GuardianRelationshipInput, oldCanPickup, oldEmergency bool) error {
+	var changes []guardianChangeEntry
+	if input.CanPickup != nil && *input.CanPickup != oldCanPickup {
+		changes = append(changes, guardianChangeEntry{auditModels.GuardianChangeTypePickup, auditModels.GuardianFieldCanPickup, boolAuditValue(oldCanPickup), boolAuditValue(*input.CanPickup)})
+	}
+	if input.IsEmergencyContact != nil && *input.IsEmergencyContact != oldEmergency {
+		changes = append(changes, guardianChangeEntry{auditModels.GuardianChangeTypePickup, auditModels.GuardianFieldEmergencyContact, boolAuditValue(oldEmergency), boolAuditValue(*input.IsEmergencyContact)})
+	}
+	return s.writeGuardianChanges(ctx, tenantID, accountID, studentID, guardianProfileID, changes)
+}
+
+// guardianContactSnapshot captures the auditable contact fields of a profile
+// (plus a stable rendering of its phone list) taken before an edit, so the
+// change can be diffed against the post-edit state.
+type guardianContactSnapshot struct {
+	firstName  string
+	lastName   string
+	email      string
+	street     string
+	city       string
+	postalCode string
+	phones     string
+}
+
+func snapshotGuardianContact(profile *usersModels.GuardianProfile, phones []*usersModels.GuardianPhoneNumber) guardianContactSnapshot {
+	return guardianContactSnapshot{
+		firstName:  profile.FirstName,
+		lastName:   profile.LastName,
+		email:      derefString(profile.Email),
+		street:     derefString(profile.AddressStreet),
+		city:       derefString(profile.AddressCity),
+		postalCode: derefString(profile.AddressPostalCode),
+		phones:     formatPhonesForAudit(phones),
+	}
+}
+
+// auditContactChanges records one row per contact field that actually changed
+// between the pre-edit snapshot and the post-edit profile (incl. the phone
+// list as a single rendered field).
+func (s *service) auditContactChanges(ctx context.Context, tenantID, accountID, studentID, guardianProfileID int64, before guardianContactSnapshot, profile *usersModels.GuardianProfile, newPhones []*usersModels.GuardianPhoneNumber) error {
+	var changes []guardianChangeEntry
+	add := func(field, oldVal, newVal string) {
+		if oldVal != newVal {
+			changes = append(changes, guardianChangeEntry{auditModels.GuardianChangeTypeContact, field, auditValue(oldVal), auditValue(newVal)})
+		}
+	}
+	add(auditModels.GuardianFieldFirstName, before.firstName, profile.FirstName)
+	add(auditModels.GuardianFieldLastName, before.lastName, profile.LastName)
+	add(auditModels.GuardianFieldEmail, before.email, derefString(profile.Email))
+	add(auditModels.GuardianFieldAddressStreet, before.street, derefString(profile.AddressStreet))
+	add(auditModels.GuardianFieldAddressCity, before.city, derefString(profile.AddressCity))
+	add(auditModels.GuardianFieldAddressPostalCode, before.postalCode, derefString(profile.AddressPostalCode))
+	add(auditModels.GuardianFieldPhones, before.phones, formatPhonesForAudit(newPhones))
+	return s.writeGuardianChanges(ctx, tenantID, accountID, studentID, guardianProfileID, changes)
+}
+
+func derefString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+// auditValue maps an empty string to nil so a cleared field is recorded as NULL
+// rather than "".
+func auditValue(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
+func boolAuditValue(b bool) *string {
+	v := "false"
+	if b {
+		v = "true"
+	}
+	return &v
+}
+
+// formatPhonesForAudit renders a guardian's phone list to a stable string for
+// the audit trail. Old and new lists arrive from the repo in the same order
+// (primary first), so an unchanged list formats identically and is not logged.
+func formatPhonesForAudit(phones []*usersModels.GuardianPhoneNumber) string {
+	if len(phones) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(phones))
+	for _, p := range phones {
+		entry := p.PhoneNumber + " (" + string(p.PhoneType)
+		if p.IsPrimary {
+			entry += ", primär"
+		}
+		entry += ")"
+		parts = append(parts, entry)
+	}
+	return strings.Join(parts, "; ")
 }
 
 // actorSnapshot returns the acting guardian's name/email for the audit trail so
@@ -644,6 +760,28 @@ func (s *service) profileEscapesFamily(ctx context.Context, guardianProfileID in
 		}
 	}
 	return false, nil
+}
+
+// profilesEscapingFamily is the batched counterpart of profileEscapesFamily: it
+// reports, per guardian profile id, whether that profile is linked to any
+// student outside callerStudents (i.e. it also serves another family). One
+// query for the whole set. Must run inside the tenant transaction
+// (ListLinkedChildrenForGuardians is tenant-filtered via RLS).
+func (s *service) profilesEscapingFamily(ctx context.Context, profileIDs []int64, callerStudents map[int64]bool) (map[int64]bool, error) {
+	escapes := make(map[int64]bool, len(profileIDs))
+	if len(profileIDs) == 0 {
+		return escapes, nil
+	}
+	rows, err := s.studentGuardianRepo.ListLinkedChildrenForGuardians(ctx, profileIDs)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		if !callerStudents[row.StudentID] {
+			escapes[row.GuardianProfileID] = true
+		}
+	}
+	return escapes, nil
 }
 
 // contactProtected reports whether the caller may neither read nor edit this

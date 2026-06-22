@@ -142,7 +142,7 @@ type Factory struct {
 	DataDeletion                 auditModels.DataDeletionRepository
 	DataAccessLog                auditModels.DataAccessLogRepository
 	EnrollmentOfferingAdjustment auditModels.EnrollmentOfferingAdjustmentRepository
-	GuardianPickupChange         auditModels.GuardianPickupChangeRepository
+	GuardianChange               auditModels.GuardianChangeRepository
 	AuthEvent                    auditModels.AuthEventRepository
 	DataImport                   auditModels.DataImportRepository
 	WorkSessionEdit              auditModels.WorkSessionEditRepository
@@ -293,7 +293,7 @@ func NewFactory(db *bun.DB) *Factory {
 		DataDeletion:                 audit.NewDataDeletionRepository(db),
 		DataAccessLog:                audit.NewDataAccessLogRepository(db),
 		EnrollmentOfferingAdjustment: audit.NewEnrollmentOfferingAdjustmentRepository(db),
-		GuardianPickupChange:         audit.NewGuardianPickupChangeRepository(db),
+		GuardianChange:               audit.NewGuardianChangeRepository(db),
 		AuthEvent:                    audit.NewAuthEventRepository(db),
 		DataImport:                   audit.NewDataImportRepository(db),
 		WorkSessionEdit:              audit.NewWorkSessionEditRepository(db),

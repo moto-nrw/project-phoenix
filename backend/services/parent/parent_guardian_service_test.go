@@ -12,6 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -58,7 +59,7 @@ func buildGuardianServiceFeature(t *testing.T, mgmtEnabled bool) (parentService.
 		StudentGuardianRepo:     repos.StudentGuardian,
 		GuardianProfileRepo:     repos.GuardianProfile,
 		GuardianPhoneRepo:       repos.GuardianPhoneNumber,
-		GuardianPickupAuditRepo: repos.GuardianPickupChange,
+		GuardianChangeAuditRepo: repos.GuardianChange,
 		DB:                      db,
 		Logger:                  slog.Default(),
 	})
@@ -487,7 +488,7 @@ func TestUpdateGuardianRelationship_WritesPickupAuditRow(t *testing.T) {
 	// Clean audit rows explicitly (belt-and-suspenders; the student/guardian FKs
 	// also cascade, and actor_account_id is ON DELETE SET NULL).
 	defer func() {
-		_, _ = db.NewDelete().TableExpr("audit.guardian_pickup_changes").Where("student_id = ?", chain.StudentID).Exec(context.Background())
+		_, _ = db.NewDelete().TableExpr("audit.guardian_changes").Where("student_id = ?", chain.StudentID).Exec(context.Background())
 	}()
 
 	canPickup := true
@@ -496,12 +497,15 @@ func TestUpdateGuardianRelationship_WritesPickupAuditRow(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	rows, err := repositories.NewFactory(db).GuardianPickupChange.ListByStudentID(context.Background(), chain.StudentID)
+	rows, err := repositories.NewFactory(db).GuardianChange.ListByStudentID(context.Background(), chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, rows, 1, "exactly one audit row for the single flag change")
+	assert.Equal(t, "pickup", rows[0].ChangeType)
 	assert.Equal(t, "can_pickup", rows[0].FieldName)
-	assert.False(t, rows[0].OldValue)
-	assert.True(t, rows[0].NewValue)
+	require.NotNil(t, rows[0].OldValue)
+	assert.Equal(t, "false", *rows[0].OldValue)
+	require.NotNil(t, rows[0].NewValue)
+	assert.Equal(t, "true", *rows[0].NewValue)
 	require.NotNil(t, rows[0].ActorAccountID)
 	assert.Equal(t, chain.AccountID, *rows[0].ActorAccountID)
 	assert.Equal(t, contactID, rows[0].GuardianProfileID)
@@ -511,9 +515,73 @@ func TestUpdateGuardianRelationship_WritesPickupAuditRow(t *testing.T) {
 		CanPickup: &canPickup,
 	})
 	require.NoError(t, err)
-	rows, err = repositories.NewFactory(db).GuardianPickupChange.ListByStudentID(context.Background(), chain.StudentID)
+	rows, err = repositories.NewFactory(db).GuardianChange.ListByStudentID(context.Background(), chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, rows, 1, "unchanged value must not write a new audit row")
+}
+
+func TestUpdateGuardianContact_WritesContactAuditRows(t *testing.T) {
+	svc, db := buildGuardianService(t)
+	defer func() { _ = db.Close() }()
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	contactID, cleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-contact-audit")
+	defer cleanup()
+	defer func() {
+		_, _ = db.NewDelete().TableExpr("audit.guardian_changes").Where("student_id = ?", chain.StudentID).Exec(context.Background())
+	}()
+
+	email := "neue.oma@example.com"
+	_, err := svc.UpdateGuardianContact(context.Background(), chain.AccountID, chain.StudentID, contactID, parentService.GuardianContactInput{
+		FirstName: "Helga",
+		LastName:  "Schneider",
+		Email:     &email,
+		Phones: []parentService.GuardianPhoneInput{
+			{PhoneNumber: "0151 12345678", PhoneType: "mobile", IsPrimary: true},
+		},
+	})
+	require.NoError(t, err)
+
+	rows, err := repositories.NewFactory(db).GuardianChange.ListByStudentID(context.Background(), chain.StudentID)
+	require.NoError(t, err)
+	require.NotEmpty(t, rows, "a fresh contact edit must write audit rows")
+
+	byField := make(map[string]*auditModels.GuardianChange, len(rows))
+	for _, r := range rows {
+		assert.Equal(t, "contact", r.ChangeType)
+		assert.Equal(t, contactID, r.GuardianProfileID)
+		require.NotNil(t, r.ActorAccountID)
+		assert.Equal(t, chain.AccountID, *r.ActorAccountID)
+		byField[r.FieldName] = r
+	}
+	// Email changed from the seeded address to a new one (both non-NULL).
+	require.Contains(t, byField, "email")
+	require.NotNil(t, byField["email"].NewValue)
+	assert.Equal(t, email, *byField["email"].NewValue)
+	require.NotNil(t, byField["email"].OldValue, "seeded profile had an email")
+	assert.NotEqual(t, email, *byField["email"].OldValue)
+	// Phones went from none to one number -> NULL old, set new (validates the
+	// empty-string -> NULL mapping).
+	require.Contains(t, byField, "phones")
+	assert.Nil(t, byField["phones"].OldValue)
+	require.NotNil(t, byField["phones"].NewValue)
+	assert.Contains(t, *byField["phones"].NewValue, "0151 12345678")
+
+	// A no-op re-save with identical data must not append new rows.
+	before := len(rows)
+	_, err = svc.UpdateGuardianContact(context.Background(), chain.AccountID, chain.StudentID, contactID, parentService.GuardianContactInput{
+		FirstName: "Helga",
+		LastName:  "Schneider",
+		Email:     &email,
+		Phones: []parentService.GuardianPhoneInput{
+			{PhoneNumber: "0151 12345678", PhoneType: "mobile", IsPrimary: true},
+		},
+	})
+	require.NoError(t, err)
+	rows, err = repositories.NewFactory(db).GuardianChange.ListByStudentID(context.Background(), chain.StudentID)
+	require.NoError(t, err)
+	assert.Len(t, rows, before, "an unchanged contact re-save must not write new audit rows")
 }
 
 func TestGuardianManagement_FeatureDisabled(t *testing.T) {

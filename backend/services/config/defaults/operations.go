@@ -545,7 +545,7 @@ func init() {
 	// safety-critical part (granting/revoking pickup authority) is constrained
 	// structurally, not by this toggle: the can_pickup / is_emergency_contact
 	// flags can only ever be set for guardians WITHOUT their own portal account,
-	// and every change is audited (audit.guardian_pickup_changes). So the toggle
+	// and every change is audited (audit.guardian_changes). So the toggle
 	// only governs whether the feature is exposed at all; a school can still
 	// switch it off. config:manage because it can expose pickup-authority changes.
 	config.Register(config.Definition{
