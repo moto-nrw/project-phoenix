@@ -688,10 +688,15 @@ export function EnrollmentForm({
             field,
             c.custom[field.key],
             relevantCareDaysForChild(c, offerings, previewMode),
+            careDaysAreConstrained(offerings, previewMode),
           )
         ) {
           newFieldErrors[`children_${i}_custom_${field.key}`] =
-            requiredMessageForField(field, tr);
+            requiredMessageForField(
+              field,
+              tr,
+              careDaysAreConstrained(offerings, previewMode),
+            );
         }
       }
       // The coupled "mit wem" note (#1694) is required whenever this child has
@@ -1599,6 +1604,10 @@ export function EnrollmentForm({
                       }
                       relevantDays={relevantCareDaysForChild(
                         child,
+                        offerings,
+                        previewMode,
+                      )}
+                      careConstrained={careDaysAreConstrained(
                         offerings,
                         previewMode,
                       )}
@@ -2548,6 +2557,7 @@ function customValueMissing(
   field: PublicFormSchema["fields"][number],
   value: unknown,
   relevantDays?: readonly string[],
+  careConstrained = false,
 ): boolean {
   if (field.type === "boolean") {
     return typeof value !== "boolean";
@@ -2562,6 +2572,13 @@ function customValueMissing(
     const days = relevantDays ?? WEEKDAYS;
     if (days.length === 0) return false;
     const schedule = asScheduleObject(value);
+    // Care-offering-constrained: the shown days are exactly the child's care
+    // days, so each one needs a time -- an empty day is a missing answer, not
+    // a "keine Angabe". Unconstrained (all weekdays shown): keep the historical
+    // "at least one day" rule so children attending only some days aren't blocked.
+    if (careConstrained) {
+      return days.some((day) => (schedule[day] ?? "").trim() === "");
+    }
     return !days.some((day) => (schedule[day] ?? "").trim() !== "");
   }
   if (field.type === "weekday_boolean") {
@@ -2624,6 +2641,7 @@ function contactListValueMissing(value: unknown): boolean {
 function requiredMessageForField(
   field: PublicFormSchema["fields"][number],
   tr: TranslationFn,
+  careConstrained = false,
 ): string {
   if (field.type === "boolean") {
     return tr("errors.yesNo");
@@ -2635,7 +2653,9 @@ function requiredMessageForField(
     return tr("errors.contactList");
   }
   if (field.type === "weekday_schedule") {
-    return tr("errors.schedule");
+    // Care-constrained forms require a time on every shown care day, so the
+    // generic "at least one time" prompt would mislead a parent who filled one.
+    return tr(careConstrained ? "errors.scheduleEveryDay" : "errors.schedule");
   }
   if (field.type === "weekday_boolean") {
     // Pickup accepts an empty selection ("geht alleine nach Hause"), so the
@@ -2665,6 +2685,10 @@ interface CustomFieldInputProps {
   readonly error?: string;
   readonly tr: EnrollmentFormTranslator;
   readonly relevantDays?: readonly string[];
+  // True when relevantDays come from selected care offerings (not the
+  // all-weekdays fallback). Drives the weekday_schedule "every care day needs a
+  // time" requirement and its hint copy.
+  readonly careConstrained?: boolean;
   // Free-text "mit wem" for the accompanied departure mode (#1694), coupled
   // into the weekday_multi_mode field so it is always available to parents
   // without the admin adding a separate field. Only wired for the
@@ -2684,6 +2708,7 @@ function CustomFieldInput({
   error,
   tr,
   relevantDays,
+  careConstrained,
   companionNote,
   onCompanionNoteChange,
   companionNoteError,
@@ -2797,6 +2822,7 @@ function CustomFieldInput({
         error={error}
         tr={tr}
         relevantDays={relevantDays}
+        careConstrained={careConstrained}
       />
     );
   }
@@ -3267,6 +3293,18 @@ function relevantCareDaysForChild(
   return selectedCareDaysForChild(child, offerings);
 }
 
+// Whether the visible weekdays are genuinely derived from selected care
+// offerings (and not the unconstrained "show every weekday" fallback). Only
+// then is a per-day time mandatory: the shown days ARE the child's care days,
+// so an empty one is a real omission. Without offerings all five weekdays show
+// and forcing a time for each would block children who attend only some days.
+function careDaysAreConstrained(
+  offerings: readonly PublicCareOffering[],
+  previewMode: boolean,
+): boolean {
+  return !previewMode && offerings.length > 0;
+}
+
 function pruneWeekdayAnswers(
   data: Record<string, unknown>,
   fields: readonly PublicFormSchema["fields"][number][],
@@ -3304,6 +3342,7 @@ function WeekdayScheduleInput({
   error,
   tr,
   relevantDays,
+  careConstrained,
 }: CustomFieldInputProps) {
   const sched = asScheduleObject(value);
   const weekdayLabels = asStringMap(tr.raw("weekdays"));
@@ -3336,7 +3375,11 @@ function WeekdayScheduleInput({
       ) : (
         <>
           <p className="text-xs text-gray-500">
-            {tr("structured.emptySchedule")}
+            {tr(
+              careConstrained
+                ? "structured.everyDayTime"
+                : "structured.emptySchedule",
+            )}
           </p>
           <div className="mt-2 grid gap-2 sm:grid-cols-5">
             {daysToRender.map((weekday) => {
