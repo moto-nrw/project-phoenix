@@ -637,10 +637,18 @@ function PickupModal({
   const handleSave = async () => {
     setBusy(true);
     setError(null);
+    // pickup_notes requires parent_portal.guardian.edit on the backend, while the
+    // flags only need parent_portal.pickup.manage. Only send the note when it
+    // actually changed, so a pickup-manage-only caller can save a flag toggle
+    // without tripping the edit-permission gate.
+    const normalizedNotes = notes.trim() || null;
+    const originalNotes = g.pickup_notes ?? null;
     const payload: GuardianRelationshipPayload = {
       can_pickup: canPickup,
       is_emergency_contact: isEmergency,
-      pickup_notes: notes.trim() || null,
+      ...(normalizedNotes !== originalNotes
+        ? { pickup_notes: normalizedNotes }
+        : {}),
     };
     try {
       await updateGuardianRelationship(

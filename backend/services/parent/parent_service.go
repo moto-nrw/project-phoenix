@@ -19,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/localization"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -196,8 +197,10 @@ type ServiceConfig struct {
 	StudentGuardianRepo usersModels.StudentGuardianRepository
 
 	// Guardian contact + pickup editing (#1667). The phone repo backs the
-	// wholesale phone-list replace on a contact edit.
-	GuardianPhoneRepo usersModels.GuardianPhoneNumberRepository
+	// wholesale phone-list replace on a contact edit; the audit repo records
+	// every pickup/emergency flag change (append-only).
+	GuardianPhoneRepo       usersModels.GuardianPhoneNumberRepository
+	GuardianPickupAuditRepo auditModels.GuardianPickupChangeRepository
 
 	DB     *bun.DB
 	Logger *slog.Logger
@@ -221,7 +224,8 @@ type service struct {
 	guardianInviteRepo  authModels.GuardianInvitationRepository
 	studentGuardianRepo usersModels.StudentGuardianRepository
 
-	guardianPhoneRepo usersModels.GuardianPhoneNumberRepository
+	guardianPhoneRepo       usersModels.GuardianPhoneNumberRepository
+	guardianPickupAuditRepo auditModels.GuardianPickupChangeRepository
 
 	db     *bun.DB
 	logger *slog.Logger
@@ -234,23 +238,24 @@ func NewService(cfg ServiceConfig) Service {
 		logger = slog.Default()
 	}
 	return &service{
-		childRepo:             cfg.ChildRepo,
-		enrollablePhaseRepo:   cfg.EnrollablePhaseRepo,
-		enrollmentRequestRepo: cfg.EnrollmentRequestRepo,
-		guardianProfileRepo:   cfg.GuardianProfileRepo,
-		statusDayRepo:         cfg.StatusDayRepo,
-		studentRepo:           cfg.StudentRepo,
-		noteRepo:              cfg.NoteRepo,
-		pickupExceptionRepo:   cfg.PickupExceptionRepo,
-		arrivalExceptionRepo:  cfg.ArrivalExceptionRepo,
-		settings:              cfg.Settings,
-		broadcaster:           cfg.Broadcaster,
-		guardianInvites:       cfg.GuardianInvites,
-		guardianInviteRepo:    cfg.GuardianInviteRepo,
-		studentGuardianRepo:   cfg.StudentGuardianRepo,
-		guardianPhoneRepo:     cfg.GuardianPhoneRepo,
-		db:                    cfg.DB,
-		logger:                logger,
+		childRepo:               cfg.ChildRepo,
+		enrollablePhaseRepo:     cfg.EnrollablePhaseRepo,
+		enrollmentRequestRepo:   cfg.EnrollmentRequestRepo,
+		guardianProfileRepo:     cfg.GuardianProfileRepo,
+		statusDayRepo:           cfg.StatusDayRepo,
+		studentRepo:             cfg.StudentRepo,
+		noteRepo:                cfg.NoteRepo,
+		pickupExceptionRepo:     cfg.PickupExceptionRepo,
+		arrivalExceptionRepo:    cfg.ArrivalExceptionRepo,
+		settings:                cfg.Settings,
+		broadcaster:             cfg.Broadcaster,
+		guardianInvites:         cfg.GuardianInvites,
+		guardianInviteRepo:      cfg.GuardianInviteRepo,
+		studentGuardianRepo:     cfg.StudentGuardianRepo,
+		guardianPhoneRepo:       cfg.GuardianPhoneRepo,
+		guardianPickupAuditRepo: cfg.GuardianPickupAuditRepo,
+		db:                      cfg.DB,
+		logger:                  logger,
 	}
 }
 

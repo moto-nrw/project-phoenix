@@ -13,31 +13,54 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	configService "github.com/moto-nrw/project-phoenix/services/config"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// buildGuardianService wires a parent service with the repos the guardian
-// contact/pickup methods need. Settings are unused by these methods (no feature
-// gate), so a zero stub suffices.
+// guardianStubSettings reports the guardian-management feature toggle for the
+// guardian service tests; the contact/pickup methods gate on it. All other keys
+// resolve false (unused by these methods).
+type guardianStubSettings struct {
+	configService.SettingsService
+	mgmtEnabled bool
+}
+
+func (s guardianStubSettings) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
+	if key == configModels.KeyParentGuardianManagementEnabled {
+		return s.mgmtEnabled, nil
+	}
+	return false, nil
+}
+
+// buildGuardianService wires a parent service with the guardian feature enabled
+// (the registry default). Use buildGuardianServiceFeature to exercise the gate.
 func buildGuardianService(t *testing.T) (parentService.Service, *bun.DB) {
+	return buildGuardianServiceFeature(t, true)
+}
+
+// buildGuardianServiceFeature wires a parent service with the repos the guardian
+// contact/pickup methods need, with the management feature toggle set explicitly.
+func buildGuardianServiceFeature(t *testing.T, mgmtEnabled bool) (parentService.Service, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 	svc := parentService.NewService(parentService.ServiceConfig{
-		ChildRepo:           repos.ParentChild,
-		StatusDayRepo:       repos.StudentStatusDay,
-		StudentRepo:         repos.Student,
-		NoteRepo:            repos.StudentParentNote,
-		Settings:            relAcctSettings{},
-		GuardianInvites:     &stubInvites{},
-		GuardianInviteRepo:  repos.GuardianInvitation,
-		StudentGuardianRepo: repos.StudentGuardian,
-		GuardianProfileRepo: repos.GuardianProfile,
-		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
-		DB:                  db,
-		Logger:              slog.Default(),
+		ChildRepo:               repos.ParentChild,
+		StatusDayRepo:           repos.StudentStatusDay,
+		StudentRepo:             repos.Student,
+		NoteRepo:                repos.StudentParentNote,
+		Settings:                guardianStubSettings{mgmtEnabled: mgmtEnabled},
+		GuardianInvites:         &stubInvites{},
+		GuardianInviteRepo:      repos.GuardianInvitation,
+		StudentGuardianRepo:     repos.StudentGuardian,
+		GuardianProfileRepo:     repos.GuardianProfile,
+		GuardianPhoneRepo:       repos.GuardianPhoneNumber,
+		GuardianPickupAuditRepo: repos.GuardianPickupChange,
+		DB:                      db,
+		Logger:                  slog.Default(),
 	})
 	return svc, db
 }
@@ -89,13 +112,17 @@ func TestListChildGuardians_ReturnsDetailAndCapabilities(t *testing.T) {
 	require.NotNil(t, self)
 	assert.True(t, self.IsSelf)
 	assert.True(t, self.HasAccount)
-	assert.True(t, self.CanManagePickup, "primary guardian has pickup.manage")
 	assert.True(t, self.CanEditContact, "own profile is editable")
+	// Pickup authority is never self-managed through the portal: the caller holds
+	// pickup.manage but is an account holder, so they may not toggle their OWN
+	// can_pickup / emergency flags (closes self-grant in a custody dispute).
+	assert.False(t, self.CanManagePickup, "account holder cannot manage own pickup flags")
 
 	contact := byID[contactID]
 	require.NotNil(t, contact)
 	assert.False(t, contact.HasAccount)
 	assert.True(t, contact.CanEditContact, "contact-only guardian is editable by full guardian")
+	assert.True(t, contact.CanManagePickup, "pickup flags of a non-account helper are manageable")
 }
 
 func TestUpdateGuardianContact_EditsContactOnlyGuardian(t *testing.T) {
@@ -350,6 +377,179 @@ func TestUpdateGuardianRelationship_PickupManageGate(t *testing.T) {
 		PickupNotes: ptr("Wird abgeholt"),
 	})
 	require.NoError(t, err)
+}
+
+func TestUpdateGuardianRelationship_PickupManageWithoutEditFlipsFlags(t *testing.T) {
+	svc, db := buildGuardianService(t)
+	defer func() { _ = db.Close() }()
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	contactID, cleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-manage-only")
+	defer cleanup()
+
+	// A guardian holding pickup.manage but NOT guardian.edit. ListChildGuardians
+	// advertises can_manage_pickup for them, so the write must honor it instead of
+	// 403-ing on a missing guardian.edit (the bug this fix closes).
+	managerID, managerCleanup := linkAccountGuardian(t, db, chain.StudentID, "manager-parent", map[string]interface{}{
+		authorize.GuardianPermissionPortalAccess: true,
+		authorize.GuardianPermissionPickupManage: true,
+	})
+	defer managerCleanup()
+	managerAccountID := accountIDForProfile(t, db, managerID)
+
+	// The advertised capability and the write must agree: the manager can manage
+	// pickup for the non-account helper, even without guardian.edit. (Their own
+	// flags are not self-manageable - they hold an account.)
+	guardians, err := svc.ListChildGuardians(context.Background(), managerAccountID, chain.StudentID)
+	require.NoError(t, err)
+	var helper, self *parentService.ChildGuardian
+	for _, g := range guardians {
+		switch g.GuardianProfileID {
+		case contactID:
+			helper = g
+		case managerID:
+			self = g
+		}
+	}
+	require.NotNil(t, helper)
+	require.NotNil(t, self)
+	assert.True(t, helper.CanManagePickup, "pickup.manage can manage a non-account helper")
+	assert.False(t, helper.CanEditContact, "no guardian.edit -> contact not editable")
+	assert.False(t, self.CanManagePickup, "account holder cannot manage own pickup flags")
+
+	canPickup := true
+	updated, err := svc.UpdateGuardianRelationship(context.Background(), managerAccountID, chain.StudentID, contactID, parentService.GuardianRelationshipInput{
+		CanPickup: &canPickup,
+	})
+	require.NoError(t, err)
+	assert.True(t, updated.CanPickup)
+
+	// ...but without guardian.edit the same caller may NOT touch the pickup note.
+	_, err = svc.UpdateGuardianRelationship(context.Background(), managerAccountID, chain.StudentID, contactID, parentService.GuardianRelationshipInput{
+		PickupNotes: ptr("darf ich nicht"),
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, parentService.ErrGuardianPermissionDenied)
+}
+
+func TestUpdateGuardianRelationship_RejectsFlagsOnAccountHolders(t *testing.T) {
+	svc, db := buildGuardianService(t)
+	defer func() { _ = db.Close() }()
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	// Another guardian WITH their own portal account, linked to the same child.
+	otherID, cleanup := linkAccountGuardian(t, db, chain.StudentID, "other-parent", map[string]interface{}{
+		authorize.GuardianPermissionPortalAccess: true,
+	})
+	defer cleanup()
+
+	// can_pickup / is_emergency_contact are safety-critical authority. They may
+	// only be set for guardians WITHOUT their own portal account. The chain
+	// primary holds pickup.manage but may neither change another account holder's
+	// standing nor grant it to themselves through the portal (custody-dispute
+	// griefing). Contact DATA editing is separately blocked; see
+	// TestUpdateGuardianContact_RejectsAccountHolder.
+	canPickup := true
+	emergency := true
+
+	// (a) cannot change another account holder's pickup/emergency flags.
+	_, err := svc.UpdateGuardianRelationship(context.Background(), chain.AccountID, chain.StudentID, otherID, parentService.GuardianRelationshipInput{
+		CanPickup: &canPickup,
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, parentService.ErrGuardianHasOwnAccount)
+
+	_, err = svc.UpdateGuardianRelationship(context.Background(), chain.AccountID, chain.StudentID, otherID, parentService.GuardianRelationshipInput{
+		IsEmergencyContact: &emergency,
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, parentService.ErrGuardianHasOwnAccount)
+
+	// (b) cannot grant pickup authority to themselves (caller is an account holder).
+	_, err = svc.UpdateGuardianRelationship(context.Background(), chain.AccountID, chain.StudentID, chain.GuardianProfileID, parentService.GuardianRelationshipInput{
+		CanPickup: &canPickup,
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, parentService.ErrGuardianHasOwnAccount)
+}
+
+func TestUpdateGuardianRelationship_WritesPickupAuditRow(t *testing.T) {
+	svc, db := buildGuardianService(t)
+	defer func() { _ = db.Close() }()
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	contactID, cleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-audit")
+	defer cleanup()
+	// Clean audit rows explicitly (belt-and-suspenders; the student/guardian FKs
+	// also cascade, and actor_account_id is ON DELETE SET NULL).
+	defer func() {
+		_, _ = db.NewDelete().TableExpr("audit.guardian_pickup_changes").Where("student_id = ?", chain.StudentID).Exec(context.Background())
+	}()
+
+	canPickup := true
+	_, err := svc.UpdateGuardianRelationship(context.Background(), chain.AccountID, chain.StudentID, contactID, parentService.GuardianRelationshipInput{
+		CanPickup: &canPickup,
+	})
+	require.NoError(t, err)
+
+	rows, err := repositories.NewFactory(db).GuardianPickupChange.ListByStudentID(context.Background(), chain.StudentID)
+	require.NoError(t, err)
+	require.Len(t, rows, 1, "exactly one audit row for the single flag change")
+	assert.Equal(t, "can_pickup", rows[0].FieldName)
+	assert.False(t, rows[0].OldValue)
+	assert.True(t, rows[0].NewValue)
+	require.NotNil(t, rows[0].ActorAccountID)
+	assert.Equal(t, chain.AccountID, *rows[0].ActorAccountID)
+	assert.Equal(t, contactID, rows[0].GuardianProfileID)
+
+	// A no-op write (same value) must not append a second row.
+	_, err = svc.UpdateGuardianRelationship(context.Background(), chain.AccountID, chain.StudentID, contactID, parentService.GuardianRelationshipInput{
+		CanPickup: &canPickup,
+	})
+	require.NoError(t, err)
+	rows, err = repositories.NewFactory(db).GuardianPickupChange.ListByStudentID(context.Background(), chain.StudentID)
+	require.NoError(t, err)
+	require.Len(t, rows, 1, "unchanged value must not write a new audit row")
+}
+
+func TestGuardianManagement_FeatureDisabled(t *testing.T) {
+	svc, db := buildGuardianServiceFeature(t, false)
+	defer func() { _ = db.Close() }()
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	contactID, cleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-disabled")
+	defer cleanup()
+
+	// Contact edits are refused when the school disabled guardian management.
+	_, err := svc.UpdateGuardianContact(context.Background(), chain.AccountID, chain.StudentID, contactID, parentService.GuardianContactInput{
+		FirstName: "Helga",
+		LastName:  "Schneider",
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, parentService.ErrGuardianManagementDisabled)
+
+	// Pickup edits likewise.
+	canPickup := true
+	_, err = svc.UpdateGuardianRelationship(context.Background(), chain.AccountID, chain.StudentID, contactID, parentService.GuardianRelationshipInput{
+		CanPickup: &canPickup,
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, parentService.ErrGuardianManagementDisabled)
+
+	// The listing still returns guardians but suppresses all edit affordances so
+	// the UI hides them.
+	guardians, err := svc.ListChildGuardians(context.Background(), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	require.NotEmpty(t, guardians)
+	for _, g := range guardians {
+		assert.False(t, g.CanEditContact, "contact edit suppressed when feature disabled")
+		assert.False(t, g.CanManagePickup, "pickup management suppressed when feature disabled")
+	}
 }
 
 // linkAccountGuardian creates a guardian profile WITH its own portal account and

@@ -14,7 +14,9 @@ import (
 	"github.com/uptrace/bun/driver/pgdriver"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -60,6 +62,11 @@ var (
 	ErrGuardianSharedAcrossFamilies = errors.New("parent: guardian shared with other families cannot be edited")
 	// ErrGuardianNoChange means a relationship update carried no editable field.
 	ErrGuardianNoChange = errors.New("parent: no editable field supplied")
+	// ErrGuardianManagementDisabled means the child's school turned off the
+	// guardian contact/pickup management feature
+	// (operations.parent_guardian_management_enabled). Reads still list
+	// guardians; writes are refused regardless of guardian permission.
+	ErrGuardianManagementDisabled = errors.New("parent: guardian management disabled for tenant")
 )
 
 // ChildGuardian is the parent-facing projection of one guardian linked to a
@@ -156,6 +163,18 @@ func (s *service) ListChildGuardians(ctx context.Context, accountID, studentID i
 	}
 	canEdit := child.hasPermission(authorize.GuardianPermissionGuardianEdit)
 	canManage := child.hasPermission(authorize.GuardianPermissionPickupManage)
+	// A school can disable the whole feature: when off, the list still shows
+	// guardians (read) but advertises no edit affordances, so the UI hides them.
+	if canEdit || canManage {
+		enabled, err := s.guardianManagementEnabled(ctx, child.tenantID)
+		if err != nil {
+			return nil, err
+		}
+		if !enabled {
+			canEdit = false
+			canManage = false
+		}
+	}
 	callerStudents, err := s.callerTenantStudentSet(ctx, accountID, child.tenantID)
 	if err != nil {
 		return nil, err
@@ -212,6 +231,9 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 	if err != nil {
 		return nil, err
 	}
+	if err := s.requireGuardianManagementEnabled(ctx, child.tenantID); err != nil {
+		return nil, err
+	}
 	callerStudents, err := s.callerTenantStudentSet(ctx, accountID, child.tenantID)
 	if err != nil {
 		return nil, err
@@ -230,6 +252,10 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 			}
 			return err
 		}
+		// HasAccount and AccountID are independent columns. The guard below keys
+		// off HasAccount; isSelf keys off AccountID. They are expected to stay
+		// consistent (an account holder has both set), but if they ever diverge
+		// (HasAccount=true, AccountID=nil) this fails safe: the edit is refused.
 		isSelf := profile.AccountID != nil && *profile.AccountID == accountID
 		// Only contact-only guardians (or the caller's own profile) are editable.
 		// Editing another account holder's personal data is forbidden — the UI is
@@ -292,9 +318,16 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 }
 
 // UpdateGuardianRelationship edits the per-child pickup/relationship fields of a
-// guardian. PickupNotes and EmergencyPriority require parent_portal.guardian.edit;
-// the CanPickup and IsEmergencyContact flags additionally require
-// parent_portal.pickup.manage (safety-relevant authority).
+// guardian. The CanPickup and IsEmergencyContact flags require
+// parent_portal.pickup.manage (safety-relevant authority); PickupNotes and
+// EmergencyPriority require parent_portal.guardian.edit. Each field group is
+// gated by its own permission so that a caller who holds only one of the two
+// permissions can exercise exactly the capability advertised by
+// ListChildGuardians, never receiving a 403 for an action the listing offered.
+// The flags may additionally only be set on guardians WITHOUT their own portal
+// account: an account holder's pickup/emergency standing is set by themselves
+// (out of band) or the school, never by another parent and never self-granted
+// through the portal.
 func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, studentID, guardianProfileID int64, input GuardianRelationshipInput) (*ChildGuardian, error) {
 	if input.CanPickup == nil && input.IsEmergencyContact == nil && input.PickupNotes == nil && input.EmergencyPriority == nil {
 		return nil, ErrGuardianNoChange
@@ -302,13 +335,23 @@ func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 	if err := validateRelationshipInput(&input); err != nil {
 		return nil, err
 	}
-	// Baseline edit permission covers note/priority; the flags need pickup.manage.
-	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionGuardianEdit)
+	editsFlags := input.CanPickup != nil || input.IsEmergencyContact != nil
+	editsDetails := input.PickupNotes != nil || input.EmergencyPriority != nil
+
+	// Resolve on baseline portal access, then gate each field group by its own
+	// permission. Resolving on the lower baseline (rather than guardian.edit) is
+	// what lets a pickup.manage-only caller flip the flags.
+	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
 	if err != nil {
 		return nil, err
 	}
-	if (input.CanPickup != nil || input.IsEmergencyContact != nil) &&
-		!child.hasPermission(authorize.GuardianPermissionPickupManage) {
+	if err := s.requireGuardianManagementEnabled(ctx, child.tenantID); err != nil {
+		return nil, err
+	}
+	if editsFlags && !child.hasPermission(authorize.GuardianPermissionPickupManage) {
+		return nil, ErrGuardianPermissionDenied
+	}
+	if editsDetails && !child.hasPermission(authorize.GuardianPermissionGuardianEdit) {
 		return nil, ErrGuardianPermissionDenied
 	}
 	callerStudents, err := s.callerTenantStudentSet(ctx, accountID, child.tenantID)
@@ -322,6 +365,27 @@ func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 		if err != nil {
 			return err
 		}
+		profile, err := s.guardianProfileRepo.FindByID(txCtx, guardianProfileID)
+		if err != nil {
+			if errors.Is(err, usersModels.ErrGuardianProfileNotFound) {
+				return ErrGuardianNotLinked
+			}
+			return err
+		}
+		// can_pickup / is_emergency_contact grant safety-critical pickup/emergency
+		// AUTHORITY. A parent may set them only for guardians WITHOUT their own
+		// portal account (helpers like grandma). A guardian who holds their own
+		// account owns their standing: nobody else may change it here, and a
+		// parent may not grant it to themselves either (the caller's own profile
+		// is an account holder, so this also blocks self-granting). This closes
+		// the custody-dispute griefing vector; the school sets these flags for
+		// account-holding guardians. Notes/priority (annotations, not authority)
+		// remain editable under guardian.edit.
+		if editsFlags && profile.HasAccount {
+			return ErrGuardianHasOwnAccount
+		}
+		oldCanPickup := link.CanPickup
+		oldEmergency := link.IsEmergencyContact
 		if input.CanPickup != nil {
 			link.CanPickup = *input.CanPickup
 		}
@@ -342,11 +406,10 @@ func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 		if err := s.studentGuardianRepo.Update(txCtx, link); err != nil {
 			return err
 		}
-
-		profile, err := s.guardianProfileRepo.FindByID(txCtx, guardianProfileID)
-		if err != nil {
+		if err := s.auditPickupFlagChanges(txCtx, child.tenantID, accountID, studentID, guardianProfileID, input, oldCanPickup, oldEmergency); err != nil {
 			return err
 		}
+
 		phones, err := s.guardianPhoneRepo.FindByGuardianID(txCtx, profile.ID)
 		if err != nil {
 			return err
@@ -378,6 +441,88 @@ func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 		slog.Bool("emergency_changed", input.IsEmergencyContact != nil),
 	)
 	return result, nil
+}
+
+// guardianManagementEnabled reports whether the child's school has the guardian
+// contact/pickup management feature switched on
+// (operations.parent_guardian_management_enabled).
+func (s *service) guardianManagementEnabled(ctx context.Context, tenantID int64) (bool, error) {
+	enabled, err := s.settings.ResolveBoolForTenant(ctx, tenantID, configModels.KeyParentGuardianManagementEnabled)
+	if err != nil {
+		return false, fmt.Errorf("parent: resolve guardian-management setting: %w", err)
+	}
+	return enabled, nil
+}
+
+// requireGuardianManagementEnabled returns ErrGuardianManagementDisabled when the
+// child's school has switched the feature off, so write paths refuse uniformly.
+func (s *service) requireGuardianManagementEnabled(ctx context.Context, tenantID int64) error {
+	enabled, err := s.guardianManagementEnabled(ctx, tenantID)
+	if err != nil {
+		return err
+	}
+	if !enabled {
+		return ErrGuardianManagementDisabled
+	}
+	return nil
+}
+
+// auditPickupFlagChanges writes one append-only audit row per safety-critical
+// flag (can_pickup / is_emergency_contact) that actually changed value. Notes
+// and priority are annotations and are not audited. Must run inside the same
+// tenant transaction as the change so the trail is atomic with it.
+func (s *service) auditPickupFlagChanges(ctx context.Context, tenantID, accountID, studentID, guardianProfileID int64, input GuardianRelationshipInput, oldCanPickup, oldEmergency bool) error {
+	if s.guardianPickupAuditRepo == nil {
+		return nil
+	}
+	type flagChange struct {
+		field    string
+		from, to bool
+	}
+	var changes []flagChange
+	if input.CanPickup != nil && *input.CanPickup != oldCanPickup {
+		changes = append(changes, flagChange{auditModels.GuardianPickupFieldCanPickup, oldCanPickup, *input.CanPickup})
+	}
+	if input.IsEmergencyContact != nil && *input.IsEmergencyContact != oldEmergency {
+		changes = append(changes, flagChange{auditModels.GuardianPickupFieldEmergencyContact, oldEmergency, *input.IsEmergencyContact})
+	}
+	if len(changes) == 0 {
+		return nil
+	}
+	actorName, actorEmail := s.actorSnapshot(ctx, accountID)
+	actorID := accountID
+	for _, c := range changes {
+		entry := &auditModels.GuardianPickupChange{
+			StudentID:          studentID,
+			GuardianProfileID:  guardianProfileID,
+			ActorAccountID:     &actorID,
+			ActorNameSnapshot:  actorName,
+			ActorEmailSnapshot: actorEmail,
+			FieldName:          c.field,
+			OldValue:           c.from,
+			NewValue:           c.to,
+		}
+		entry.SetTenantID(tenantID)
+		if err := s.guardianPickupAuditRepo.Create(ctx, entry); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// actorSnapshot returns the acting guardian's name/email for the audit trail so
+// it survives a later account deletion. Best-effort: a missing profile yields
+// nils rather than failing the audited operation.
+func (s *service) actorSnapshot(ctx context.Context, accountID int64) (*string, *string) {
+	actor, err := s.guardianProfileRepo.FindByAccountID(ctx, accountID)
+	if err != nil || actor == nil {
+		return nil, nil
+	}
+	var name *string
+	if full := strings.TrimSpace(actor.FirstName + " " + actor.LastName); full != "" {
+		name = &full
+	}
+	return name, actor.Email
 }
 
 // findChildGuardianLink returns the students_guardians row joining the child and
@@ -500,10 +645,14 @@ func projectChildGuardian(profile *usersModels.GuardianProfile, link *usersModel
 		// Contact editing needs the edit permission AND a contact-only target
 		// (or the caller's own profile) AND — for a shared contact — that the
 		// profile stays within the caller's family. The caller's own profile is
-		// always editable regardless of reach. pickup management is per-child and
-		// applies regardless of the target's account status.
-		CanEditContact:  canEdit && (!profile.HasAccount || isSelf) && (isSelf || !sharedAcrossFamilies),
-		CanManagePickup: canManage,
+		// always editable regardless of reach.
+		CanEditContact: canEdit && (!profile.HasAccount || isSelf) && (isSelf || !sharedAcrossFamilies),
+		// Pickup/emergency flags may be managed only for guardians WITHOUT their
+		// own portal account (helpers): an account holder's standing is theirs and
+		// the school's, never another parent's or self-granted. Mirrors the write
+		// guard in UpdateGuardianRelationship so the UI never offers a control the
+		// backend rejects.
+		CanManagePickup: canManage && !profile.HasAccount,
 		// Only surface the "manages their own data" explanation to a caller who
 		// could otherwise edit; for a caller without edit rights it is not the
 		// reason the edit affordance is absent.
