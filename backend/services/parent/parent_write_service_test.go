@@ -493,6 +493,49 @@ func TestListSickDays_ReturnsSickAndExcused(t *testing.T) {
 	assert.Equal(t, excusedDay, byStatus[activeModels.StudentStatusDayExcused])
 }
 
+// A staff-created excused day (source=planned/manual) is an internal scheduled
+// status. It must NOT leak into the parents portal listing, while the parent's
+// own excused day on a different date still shows. Guards the privacy fix for
+// the issue #1735 follow-up review.
+func TestListSickDays_ExcludesStaffCreatedExcused(t *testing.T) {
+	svc, _, db := buildWriteService(t, true, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	statusRepo := repositories.NewFactory(db).StudentStatusDay
+	tctx := testpkg.TenantContext(1)
+
+	staffExcusedDay := timezone.TodayDate().AddDays(2)
+	parentExcusedDay := timezone.TodayDate().AddDays(4)
+	staffNote := "interner Hinweis"
+
+	// Staff-created excused row (source=manual, carries a staff note).
+	require.NoError(t, statusRepo.UpsertReported(tctx, &activeModels.StudentStatusDay{
+		StudentID:  chain.StudentID,
+		Date:       staffExcusedDay,
+		Status:     activeModels.StudentStatusDayExcused,
+		ReportedAt: time.Now(),
+		Source:     activeModels.StudentStatusSourceManual,
+		Note:       &staffNote,
+	}))
+
+	// Parent's own excused report on a different date.
+	_, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+		[]timezone.Date{parentExcusedDay}, "", activeModels.StudentStatusDayExcused)
+	require.NoError(t, err)
+
+	from := timezone.TodayDate()
+	to := timezone.NewDate(from.Year, from.Month+1, from.Day)
+	absences, err := svc.ListSickDays(context.Background(), chain.AccountID, chain.StudentID, from, to)
+	require.NoError(t, err)
+	require.Len(t, absences, 1, "only the parent-reported excused day must be listed")
+	assert.Equal(t, parentExcusedDay, absences[0].Date)
+	assert.Equal(t, activeModels.StudentStatusSourceParent, absences[0].Source)
+	for _, a := range absences {
+		assert.NotEqual(t, staffExcusedDay, a.Date, "staff-created excused day must not leak to the parent")
+	}
+}
+
 // --- ChildFeatures ---
 
 func TestChildFeatures_ReflectsTenantSettings(t *testing.T) {

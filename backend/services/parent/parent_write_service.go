@@ -293,9 +293,11 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 }
 
 // ListSickDays returns the child's active parent-facing absences in [from, to]:
-// both sick ("Krankmeldung") and excused ("Termin/Abwesenheit") days, so a parent
-// sees every absence they reported. Class-trip days stay excluded — those are a
-// staff-only scheduled status the parent neither sets nor manages here.
+// sick ("Krankmeldung") days plus the parent's own excused ("Termin/Abwesenheit")
+// days, so a parent sees every absence they reported. Staff-created excused days
+// (source=planned/manual) are an internal scheduled status the parent neither set
+// nor manages here, so they are NOT surfaced. Class-trip days stay excluded for
+// the same reason.
 func (s *service) ListSickDays(ctx context.Context, accountID, studentID int64, from, to timezone.Date) ([]*activeModels.StudentStatusDay, error) {
 	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
 	if err != nil {
@@ -310,7 +312,14 @@ func (s *service) ListSickDays(ctx context.Context, accountID, studentID int64, 
 		}
 		absences := make([]*activeModels.StudentStatusDay, 0, len(rows))
 		for _, r := range rows {
-			if r.Status == activeModels.StudentStatusDaySick || r.Status == activeModels.StudentStatusDayExcused {
+			switch {
+			case r.Status == activeModels.StudentStatusDaySick:
+				absences = append(absences, r)
+			case r.Status == activeModels.StudentStatusDayExcused &&
+				r.Source == activeModels.StudentStatusSourceParent:
+				// Only parent-reported excused days belong in the parents
+				// portal; staff-created excused rows (planned/manual) stay
+				// internal so we don't leak their note/source to guardians.
 				absences = append(absences, r)
 			}
 		}
