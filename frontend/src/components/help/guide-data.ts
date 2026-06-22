@@ -416,8 +416,8 @@ export const appChapters: readonly GuideChapter[] = [
           "Tab `Anmeldungen` (nur Admins): Online-Anmeldungen anzeigen, die dieses Kind ins System gebracht haben. Dort sehen Sie Betreuungsangebote, Gesundheitsangaben, Notfallkontakte, Zustimmungen und Zusatzantworten; Erziehungsberechtigte stehen weiterhin im eigenen Tab. Bei bestätigten Kindern können Betreuungsangebote dort nachträglich mit Begründung korrigiert werden. Die Angaben können außerdem exportiert werden.",
         ],
         callout: {
-          title: "Krankmeldungen von Eltern",
-          body: "Wenn das Elternportal aktiv ist, können Eltern ihr Kind selbst krankmelden. Solche Meldungen erscheinen wie eine Krankmeldung des Teams – das Kind wird als krank angezeigt, ein eventueller Grund wird mitgespeichert.",
+          title: "Abmeldungen von Eltern",
+          body: "Wenn das Elternportal aktiv ist, können Eltern ihr Kind selbst abmelden – wahlweise als `Krank` oder als `Entschuldigt` (z. B. wegen eines Termins), auch für Tage in der Zukunft. Eine Krankmeldung erscheint wie eine des Teams (das Kind wird als krank angezeigt), eine entschuldigte Abmeldung wie eine Entschuldigung des Teams; ein eventueller Grund wird jeweils mitgespeichert.",
           tone: "blue",
         },
         screenshot:

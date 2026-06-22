@@ -128,8 +128,8 @@
     "comingSoonAria": "{label} bald verfügbar",
     "actions": {
       "sick": {
-        "label": "Krank melden",
-        "description": "Tagesmeldung für dieses Kind"
+        "label": "Abmelden",
+        "description": "Krank oder entschuldigt melden"
       },
       "pickupTime": {
         "label": "Ankunfts- und Abholzeit ändern",
@@ -156,7 +156,7 @@
       "title": "Heute",
       "description": "Aktuelle Hinweise für dieses Kind.",
       "sickLabel": "Tagesmeldung",
-      "noSick": "Keine Krankmeldung",
+      "noSick": "Keine Abmeldung",
       "pickupLabel": "Abholung",
       "regularPickup": "Reguläre Abholung",
       "messagesLabel": "Nachrichten",
@@ -175,16 +175,19 @@
     "close": "Schließen",
     "cancel": "Abbrechen",
     "sick": {
-      "title": "Krank melden",
-      "intro": "Melden Sie Ihr Kind für einen oder mehrere Tage krank. Die Betreuung sieht die Meldung sofort.",
+      "title": "Abmelden",
+      "intro": "Melden Sie Ihr Kind für einen oder mehrere Tage ab. Wählen Sie, ob es krank ist oder aus einem anderen Grund entschuldigt fehlt. Die Betreuung sieht die Meldung sofort.",
+      "kindLabel": "Art der Abmeldung",
+      "kindSick": "Krank",
+      "kindExcused": "Entschuldigt",
       "from": "Von",
       "to": "Bis",
       "daysCount": "{count, plural, one {# Tag wird gemeldet.} other {# Tage werden gemeldet.}}",
-      "reasonLabel": "Grund (optional)",
-      "reasonPlaceholder": "z. B. Fieber, beim Arzt",
+      "reasonLabel": "Notiz (optional)",
+      "reasonPlaceholder": "z. B. Fieber, Zahnarzttermin",
       "invalidDate": "Bitte ein gültiges Datum wählen (Bis-Datum nach Von-Datum).",
-      "saveError": "Die Krankmeldung konnte nicht gespeichert werden.",
-      "submit": "Krankmeldung senden"
+      "saveError": "Die Abmeldung konnte nicht gespeichert werden.",
+      "submit": "Abmeldung senden"
     },
     "notes": {
       "title": "Nachricht an das Team",
@@ -197,9 +200,9 @@
       "listEmpty": "Noch keine Nachrichten gesendet."
     },
     "summary": {
-      "none": "Keine Krankmeldung",
-      "oneDay": "Krank am {date}",
-      "range": "Krank {from} – {to}"
+      "none": "Keine Abmeldung",
+      "oneDay": "Abgemeldet am {date}",
+      "range": "Abgemeldet {from} – {to}"
     },
     "pickup": {
       "title": "Ankunfts- und Abholzeit ändern",

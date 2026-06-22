@@ -11,6 +11,7 @@ import {
   type ParentNote,
   ParentApiError,
   type StatusDay,
+  type StudentStatusKind,
   addChildNote,
   deleteCareException,
   getChildFeatures,
@@ -20,6 +21,7 @@ import {
   submitCareException,
   submitSickNote,
 } from "~/lib/parent-api";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { createLogger } from "~/lib/logger";
 import { parseISODate, toISODate, todayISO } from "~/lib/date-helpers";
 
@@ -105,7 +107,11 @@ export interface ChildCare {
   readonly careExceptionsLoaded: boolean;
   readonly features: ChildFeatures;
   readonly loading: boolean;
-  reportSick(dates: string[], reason: string): Promise<void>;
+  reportSick(
+    dates: string[],
+    reason: string,
+    status: StudentStatusKind,
+  ): Promise<void>;
   postNote(body: string): Promise<ParentNote[]>;
   saveCareException(params: {
     date: string;
@@ -159,11 +165,11 @@ export function useChildCare(studentId: string): ChildCare {
   }, [load]);
 
   const reportSick = useCallback(
-    async (dates: string[], reason: string) => {
-      const updated = await submitSickNote(studentId, dates, reason);
+    async (dates: string[], reason: string, status: StudentStatusKind) => {
+      const updated = await submitSickNote(studentId, dates, reason, status);
       // The POST only returns the just-submitted dates. Merge them into the
       // already-loaded list (replacing any same-date entries) so previously
-      // reported sick days don't disappear after a non-overlapping submit.
+      // reported absences don't disappear after a non-overlapping submit.
       setSickDays((prev) => {
         const submittedDates = new Set(updated.map((d) => d.date));
         return [
@@ -230,12 +236,17 @@ export function SickNoteModal({
   onSubmit,
 }: Readonly<{
   onClose: () => void;
-  onSubmit: (dates: string[], reason: string) => Promise<void>;
+  onSubmit: (
+    dates: string[],
+    reason: string,
+    status: StudentStatusKind,
+  ) => Promise<void>;
 }>) {
   const t = useTranslations("parentChildCare");
   const initial = todayISO();
   const [from, setFrom] = useState(initial);
   const [to, setTo] = useState(initial);
+  const [status, setStatus] = useState<StudentStatusKind>("sick");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -250,7 +261,7 @@ export function SickNoteModal({
     setSubmitting(true);
     setError(null);
     try {
-      await onSubmit(dates, reason);
+      await onSubmit(dates, reason, status);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : t("sick.saveError"));
@@ -268,6 +279,20 @@ export function SickNoteModal({
     >
       <div className="space-y-4">
         <p className="text-sm leading-6 text-gray-600">{t("sick.intro")}</p>
+        <label className="block">
+          <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
+            {t("sick.kindLabel")}
+          </span>
+          <CustomSelect
+            value={status}
+            ariaLabel={t("sick.kindLabel")}
+            onChange={(value) => setStatus(value as StudentStatusKind)}
+            options={[
+              { value: "sick", label: t("sick.kindSick") },
+              { value: "excused", label: t("sick.kindExcused") },
+            ]}
+          />
+        </label>
         <div className="grid grid-cols-2 gap-3">
           <label className="block">
             <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
