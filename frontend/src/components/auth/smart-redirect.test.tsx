@@ -44,6 +44,7 @@ vi.mock("~/lib/redirect-utils", () => ({
 vi.mock("~/components/tenant/tenant-provider", () => ({
   usePresenceMode: vi.fn(() => "detailed"),
   useTenantSlugSafe: vi.fn(() => "test-tenant"),
+  useTenantRoutingModeSafe: vi.fn(() => "path"),
   useNFCEnabled: vi.fn(() => true),
 }));
 

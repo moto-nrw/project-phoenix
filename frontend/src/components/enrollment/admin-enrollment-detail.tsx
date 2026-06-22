@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -8,8 +9,10 @@ import {
   Check,
   ClipboardList,
   ExternalLink,
+  History,
   type LucideIcon,
   Mail,
+  Pencil,
   Phone,
   ShieldCheck,
   UserRound,
@@ -17,6 +20,7 @@ import {
 } from "lucide-react";
 import {
   type AdminRequestChild,
+  type AdminOfferingAdjustment,
   type AdminRequestChildOffering,
   type AdminRequestGuardian,
   type AdminRequestSchemaField,
@@ -25,9 +29,12 @@ import {
   type DecisionStatus,
   decideAdminChild,
   getAdminRequest,
+  listAdminChildOfferingAdjustments,
+  updateAdminChildOfferings,
 } from "~/lib/enrollment-admin-api";
+import { type CareOffering, listCareOfferings } from "~/lib/care-offering-api";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
-import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "AdminEnrollmentDetail" });
@@ -87,7 +94,7 @@ interface Props {
 }
 
 export function AdminEnrollmentDetail({ requestId }: Props) {
-  const tenantSlug = useTenantSlugSafe();
+  const tenantPath = useTenantAwarePath();
   const [data, setData] = useState<AdminRequestSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -159,12 +166,8 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     minute: "2-digit",
   });
   const childStats = summarizeChildren(data.children);
-  const phaseHref = tenantSlug
-    ? `/${tenantSlug}/admin/enrollments/phases/${data.phase_id}`
-    : `/admin/enrollments/phases/${data.phase_id}`;
-  const statusHref = tenantSlug
-    ? `/${tenantSlug}/enroll/status/${data.status_token}`
-    : `/enroll/status/${data.status_token}`;
+  const phaseHref = tenantPath(`/admin/enrollments/phases/${data.phase_id}`);
+  const statusHref = tenantPath(`/enroll/status/${data.status_token}`);
 
   return (
     <div className="space-y-5">
@@ -224,6 +227,8 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
               {data.children.map((child) => (
                 <ChildInformationCard
                   key={child.id}
+                  requestId={data.id}
+                  phaseId={data.phase_id}
                   child={child}
                   busy={busyChildId === child.id}
                   reason={reasons[child.id] ?? ""}
@@ -232,6 +237,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
                     setReasons((prev) => ({ ...prev, [child.id]: value }))
                   }
                   onDecide={(status) => void handleDecide(child.id, status)}
+                  onOfferingsChanged={() => void load()}
                 />
               ))}
             </section>
@@ -369,13 +375,19 @@ function ChildInformationCard({
   busy,
   child,
   onDecide,
+  onOfferingsChanged,
   onReasonChange,
+  phaseId,
   reason,
+  requestId,
   schemaFields,
 }: Readonly<{
   busy: boolean;
   child: AdminRequestChild;
+  requestId: string;
+  phaseId: string;
   onDecide: (status: DecisionStatus) => void;
+  onOfferingsChanged: () => void;
   onReasonChange: (value: string) => void;
   reason: string;
   schemaFields?: AdminRequestSchemaField[];
@@ -416,6 +428,14 @@ function ChildInformationCard({
           </p>
         ) : null}
         <ChildOfferings offerings={child.offerings} />
+        {child.status === "approved" ? (
+          <ChildOfferingAdjustment
+            requestId={requestId}
+            phaseId={phaseId}
+            child={child}
+            onSaved={onOfferingsChanged}
+          />
+        ) : null}
         <ChildExtraFields child={child} schemaFields={schemaFields} />
         {terminal ? (
           <div className="rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2 text-sm text-gray-600">
@@ -772,9 +792,9 @@ export function ChildOfferings({
       <ul className="mt-1.5 space-y-2 text-sm">
         {offerings.map((o) => {
           const parentChoice = o.days_of_week_mode === "parent_choice";
-          const displayDays = parentChoice
-            ? (o.selected_days ?? [])
-            : (o.available_days ?? []);
+          const dayDetails = parentChoice
+            ? formatAdminOfferingDaySource(o)
+            : formatAdminDays(o.available_days ?? []);
           return (
             <li
               key={o.offering_id}
@@ -783,10 +803,9 @@ export function ChildOfferings({
               <span className="font-medium text-gray-900">
                 {o.offering_name || `Angebot #${o.offering_id}`}
               </span>
-              {displayDays.length > 0 ? (
+              {dayDetails ? (
                 <span className="text-xs text-gray-600">
-                  {parentChoice ? "Elternauswahl: " : "Tage: "}
-                  {displayDays.map((d) => DAY_LABEL_DE[d] ?? d).join(", ")}
+                  {parentChoice ? dayDetails : `Tage: ${dayDetails}`}
                 </span>
               ) : parentChoice ? (
                 <span className="text-xs text-[#CC2626] italic">
@@ -799,6 +818,529 @@ export function ChildOfferings({
       </ul>
     </div>
   );
+}
+
+export function ChildOfferingAdjustment({
+  child,
+  onSaved,
+  phaseId,
+  requestId,
+}: Readonly<{
+  child: AdminRequestChild;
+  requestId: string;
+  phaseId: string;
+  onSaved: () => void;
+}>) {
+  const [open, setOpen] = useState(false);
+  const [catalog, setCatalog] = useState<CareOffering[]>([]);
+  const [history, setHistory] = useState<AdminOfferingAdjustment[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(() =>
+    initialManualOfferingIDs(child.offerings),
+  );
+  const [days, setDays] = useState<Record<string, string[]>>(() =>
+    initialManualOfferingDays(child.offerings),
+  );
+  const [reason, setReason] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [catalogLoaded, setCatalogLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    setPortalRoot(document.body);
+  }, []);
+
+  const loadHistory = useCallback(async () => {
+    try {
+      const rows = await listAdminChildOfferingAdjustments(requestId, child.id);
+      setHistory(rows);
+    } catch (err) {
+      logger.warn("offering_adjustment_history_load_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        child_id: child.id,
+      });
+    }
+  }, [child.id, requestId]);
+
+  useEffect(() => {
+    void loadHistory();
+  }, [loadHistory]);
+
+  const openEditor = async () => {
+    setOpen(true);
+    setError(null);
+    setSelected(initialManualOfferingIDs(child.offerings));
+    setDays(initialManualOfferingDays(child.offerings));
+    if (catalogLoaded) return;
+    setLoading(true);
+    try {
+      const offerings = await listCareOfferings(phaseId);
+      setCatalog(offerings);
+      setCatalogLoaded(true);
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Betreuungsangebote konnten nicht geladen werden";
+      setError(message);
+      setCatalog([]);
+      setCatalogLoaded(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const preview = useMemo(
+    () => materializeClientOfferingPreview(catalog, selected, days, child),
+    [catalog, child, days, selected],
+  );
+
+  const handleToggle = (offering: CareOffering) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(offering.id)) {
+        next.delete(offering.id);
+      } else {
+        next.add(offering.id);
+        if (
+          offering.days_of_week_mode === "parent_choice" &&
+          (days[offering.id]?.length ?? 0) === 0
+        ) {
+          setDays((current) => ({
+            ...current,
+            [offering.id]: [...offering.available_days],
+          }));
+        }
+      }
+      return next;
+    });
+  };
+
+  const handleDayToggle = (offering: CareOffering, day: string) => {
+    setDays((prev) => {
+      const current = new Set(prev[offering.id] ?? []);
+      if (current.has(day)) current.delete(day);
+      else current.add(day);
+      const ordered = offering.available_days.filter((d) => current.has(d));
+      return { ...prev, [offering.id]: ordered };
+    });
+  };
+
+  const handleSave = async () => {
+    const trimmedReason = reason.trim();
+    if (trimmedReason === "") {
+      setError("Bitte eine Begründung eintragen.");
+      return;
+    }
+    if (!catalogLoaded) {
+      setError("Betreuungsangebote konnten nicht geladen werden.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await updateAdminChildOfferings(requestId, child.id, {
+        reason: trimmedReason,
+        offerings: adjustmentPayloadOfferings(
+          catalog,
+          selected,
+          days,
+          child.offerings,
+        ),
+      });
+      setOpen(false);
+      setReason("");
+      await loadHistory();
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-gray-100 bg-white p-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+            Nachbearbeitung
+          </h4>
+          <p className="mt-1 text-sm text-gray-600">
+            Angebote können für dieses bestätigte Kind korrigiert werden.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void openEditor()}
+          className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        >
+          <Pencil className="h-4 w-4" aria-hidden />
+          Bearbeiten
+        </button>
+      </div>
+
+      {history.length > 0 ? (
+        <div className="mt-3 border-t border-gray-100 pt-3">
+          <div className="flex items-center gap-2 text-xs font-medium tracking-wide text-gray-500 uppercase">
+            <History className="h-3.5 w-3.5" aria-hidden />
+            Änderungshistorie
+          </div>
+          <ul className="mt-2 space-y-2">
+            {history.slice(0, 5).map((entry) => (
+              <li key={entry.id} className="text-xs leading-5 text-gray-600">
+                <span className="font-medium text-gray-900">
+                  {formatDateTime(entry.changed_at)}
+                </span>{" "}
+                von{" "}
+                <span className="font-medium text-gray-900">
+                  {entry.actor_name_snapshot ??
+                    entry.actor_email_snapshot ??
+                    `Account ${entry.actor_account_id}`}
+                </span>
+                : {entry.reason}
+                <span className="block text-gray-500">
+                  {formatAdjustmentDiff(entry)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {open && portalRoot
+        ? createPortal(
+            <div className="fixed inset-0 z-[9999] overflow-y-auto overscroll-contain bg-black/40 p-4">
+              <div className="mx-auto my-8 w-full max-w-2xl rounded-xl bg-white shadow-xl">
+                <div className="border-b border-gray-100 p-4">
+                  <h3 className="text-base font-semibold text-gray-900">
+                    Betreuungsangebote bearbeiten
+                  </h3>
+                  <p className="mt-1 text-sm text-gray-600">
+                    Manuelle Auswahl ändern; automatisch verknüpfte Angebote
+                    werden beim Speichern neu berechnet.
+                  </p>
+                </div>
+                <div className="space-y-4 p-4">
+                  {error ? (
+                    <div
+                      role="alert"
+                      className="rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 p-3 text-sm text-[#CC2626]"
+                    >
+                      {error}
+                    </div>
+                  ) : null}
+                  {loading ? (
+                    <p className="text-sm text-gray-500">
+                      Angebote werden geladen…
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {catalog.map((offering) => {
+                        const checked = selected.has(offering.id);
+                        const autoDays =
+                          preview.automaticDays[offering.id] ?? [];
+                        return (
+                          <div
+                            key={offering.id}
+                            className="rounded-lg border border-gray-200 p-3"
+                          >
+                            <label className="flex items-start gap-3">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => handleToggle(offering)}
+                                className="mt-1 h-4 w-4 rounded border-gray-300 text-[#5080D8] focus:ring-[#5080D8]"
+                              />
+                              <span className="min-w-0 flex-1">
+                                <span className="flex flex-wrap items-center gap-2">
+                                  <span className="text-sm font-medium text-gray-900">
+                                    {offering.name}
+                                  </span>
+                                  {!offering.is_active ? (
+                                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                                      Inaktiv
+                                    </span>
+                                  ) : null}
+                                  {autoDays.length > 0 ? (
+                                    <span className="rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs text-[#355A9A]">
+                                      automatisch mitgebucht:{" "}
+                                      {formatAdminDays(autoDays)}
+                                    </span>
+                                  ) : null}
+                                </span>
+                                {offering.description ? (
+                                  <span className="mt-1 block text-xs text-gray-500">
+                                    {offering.description}
+                                  </span>
+                                ) : null}
+                              </span>
+                            </label>
+
+                            {checked &&
+                            offering.days_of_week_mode === "parent_choice" ? (
+                              <div className="mt-3 flex flex-wrap gap-2 pl-7">
+                                {offering.available_days.map((day) => (
+                                  <button
+                                    key={day}
+                                    type="button"
+                                    onClick={() =>
+                                      handleDayToggle(offering, day)
+                                    }
+                                    className={`h-8 rounded-lg border px-3 text-sm font-medium ${
+                                      (days[offering.id] ?? []).includes(day)
+                                        ? "border-[#5080D8] bg-[#5080D8]/10 text-[#355A9A]"
+                                        : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                                    }`}
+                                  >
+                                    {DAY_LABEL_DE[day] ?? day}
+                                  </button>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <label className="block">
+                    <span className="text-xs font-medium text-gray-700">
+                      Begründung
+                    </span>
+                    <textarea
+                      name="offering-adjustment-reason"
+                      value={reason}
+                      onChange={(event) => setReason(event.target.value)}
+                      rows={3}
+                      autoComplete="off"
+                      placeholder="z. B. Randstunde nach Rücksprache mit der Schule ergänzt"
+                      className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                    />
+                  </label>
+                </div>
+                <div className="flex justify-end gap-2 border-t border-gray-100 p-4">
+                  <button
+                    type="button"
+                    onClick={() => setOpen(false)}
+                    className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Abbrechen
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleSave()}
+                    disabled={saving || loading || !catalogLoaded}
+                    className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-900 bg-gray-900 px-3 text-sm font-medium text-white hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {saving ? "Speichert…" : "Speichern"}
+                  </button>
+                </div>
+              </div>
+            </div>,
+            portalRoot,
+          )
+        : null}
+    </div>
+  );
+}
+
+function initialManualOfferingIDs(
+  offerings?: AdminRequestChildOffering[],
+): Set<string> {
+  const ids = new Set<string>();
+  for (const offering of offerings ?? []) {
+    const automaticOnly =
+      (offering.automatic_selected_days?.length ?? 0) > 0 &&
+      (offering.manual_selected_days?.length ?? 0) === 0;
+    if (!automaticOnly) ids.add(offering.offering_id);
+  }
+  return ids;
+}
+
+function initialManualOfferingDays(
+  offerings?: AdminRequestChildOffering[],
+): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const offering of offerings ?? []) {
+    const manual =
+      (offering.manual_selected_days?.length ?? 0) > 0
+        ? offering.manual_selected_days
+        : offering.automatic_selected_days?.length
+          ? []
+          : offering.selected_days;
+    if (manual && manual.length > 0) out[offering.offering_id] = [...manual];
+  }
+  return out;
+}
+
+function adjustmentPayloadOfferings(
+  catalog: CareOffering[],
+  selected: Set<string>,
+  days: Record<string, string[]>,
+  existingOfferings?: AdminRequestChildOffering[],
+): Array<{ offering_id: string; selected_days?: string[] }> {
+  const payload = catalog
+    .filter((offering) => selected.has(offering.id))
+    .map((offering) => ({
+      offering_id: offering.id,
+      selected_days:
+        offering.days_of_week_mode === "parent_choice"
+          ? (days[offering.id] ?? [])
+          : undefined,
+    }));
+  const catalogIDs = new Set(catalog.map((offering) => offering.id));
+  for (const offering of existingOfferings ?? []) {
+    if (
+      catalogIDs.has(offering.offering_id) ||
+      !selected.has(offering.offering_id)
+    ) {
+      continue;
+    }
+    payload.push({
+      offering_id: offering.offering_id,
+      selected_days:
+        offering.days_of_week_mode === "parent_choice"
+          ? (days[offering.offering_id] ?? offering.selected_days ?? [])
+          : undefined,
+    });
+  }
+  return payload;
+}
+
+function materializeClientOfferingPreview(
+  catalog: CareOffering[],
+  selected: Set<string>,
+  days: Record<string, string[]>,
+  child: AdminRequestChild,
+): { automaticDays: Record<string, string[]> } {
+  const byID = new Map(catalog.map((offering) => [offering.id, offering]));
+  const selectedDaysByOffering = new Map<string, string[]>();
+  for (const offering of catalog) {
+    if (!selected.has(offering.id)) continue;
+    selectedDaysByOffering.set(
+      offering.id,
+      offering.days_of_week_mode === "fixed"
+        ? offering.available_days
+        : (days[offering.id] ?? []),
+    );
+  }
+  const automaticDays: Record<string, string[]> = {};
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const target of catalog) {
+      if (
+        target.days_of_week_mode !== "parent_choice" ||
+        !autoAddAppliesToChild(target, child)
+      ) {
+        continue;
+      }
+      const daySet = new Set<string>();
+      for (const triggerID of target.auto_add_trigger_offering_ids ?? []) {
+        const trigger = byID.get(triggerID);
+        if (!trigger || !selectedDaysByOffering.has(triggerID)) continue;
+        for (const day of selectedDaysByOffering.get(triggerID) ?? []) {
+          if (target.available_days.includes(day)) daySet.add(day);
+        }
+      }
+      if (target.is_required && target.includes_lunch) {
+        for (const offering of catalog) {
+          if (offering.id === target.id || offering.counts_as_care === false) {
+            continue;
+          }
+          for (const day of selectedDaysByOffering.get(offering.id) ?? []) {
+            if (target.available_days.includes(day)) daySet.add(day);
+          }
+        }
+      }
+      const ordered = target.available_days.filter((day) => daySet.has(day));
+      if (ordered.length === 0) continue;
+      if (!sameStringArray(automaticDays[target.id] ?? [], ordered)) {
+        automaticDays[target.id] = ordered;
+        changed = true;
+      }
+      const merged = unionDaysInOrder(
+        target.available_days,
+        selectedDaysByOffering.get(target.id) ?? [],
+        ordered,
+      );
+      if (
+        !sameStringArray(selectedDaysByOffering.get(target.id) ?? [], merged)
+      ) {
+        selectedDaysByOffering.set(target.id, merged);
+        changed = true;
+      }
+    }
+  }
+  return { automaticDays };
+}
+
+function unionDaysInOrder(
+  order: readonly string[],
+  ...groups: readonly string[][]
+): string[] {
+  const selected = new Set(groups.flat());
+  return order.filter((day) => selected.has(day));
+}
+
+function sameStringArray(left: readonly string[], right: readonly string[]) {
+  return (
+    left.length === right.length &&
+    left.every((value, idx) => value === right[idx])
+  );
+}
+
+function autoAddAppliesToChild(
+  offering: CareOffering,
+  child: AdminRequestChild,
+): boolean {
+  const levels = offering.auto_add_grade_levels ?? [];
+  if (
+    levels.length > 0 &&
+    (!child.target_grade_level || !levels.includes(child.target_grade_level))
+  ) {
+    return false;
+  }
+  return (
+    (offering.auto_add_trigger_offering_ids?.length ?? 0) > 0 ||
+    (offering.is_required && offering.includes_lunch)
+  );
+}
+
+function formatAdjustmentDiff(entry: AdminOfferingAdjustment): string {
+  const before = formatSnapshotNames(entry.before);
+  const after = formatSnapshotNames(entry.after);
+  return `Vorher: ${before || "keine"}; nachher: ${after || "keine"}`;
+}
+
+function formatSnapshotNames(
+  rows: readonly { offering_id: string; offering_name?: string }[],
+): string {
+  return rows
+    .map((row) => row.offering_name || `Angebot #${row.offering_id}`)
+    .join(", ");
+}
+
+function formatAdminOfferingDaySource(o: AdminRequestChildOffering): string {
+  const automatic = formatAdminDays(o.automatic_selected_days ?? []);
+  const manualDays =
+    (o.manual_selected_days?.length ?? 0) > 0 ||
+    (o.automatic_selected_days?.length ?? 0) > 0
+      ? (o.manual_selected_days ?? [])
+      : (o.selected_days ?? []);
+  const manual = formatAdminDays(manualDays);
+  if (automatic && manual) {
+    return `${automatic} automatisch mitgebucht; ${manual} von Eltern gewählt`;
+  }
+  if (automatic) return `${automatic} automatisch mitgebucht`;
+  if (manual) return `Von Eltern gewählt: ${manual}`;
+  return "";
+}
+
+function formatAdminDays(days: readonly string[]): string {
+  return days.map((d) => DAY_LABEL_DE[d] ?? d).join(", ");
 }
 
 // Reserved child custom-data key carrying the coupled "mit wem" note for the

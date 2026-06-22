@@ -153,6 +153,69 @@ func (s *careOfferingService) checkGroupRuleConsistency(ctx context.Context, off
 	return nil
 }
 
+func normalizeTriggerOfferingIDs(targetID int64, ids []int64) []int64 {
+	if len(ids) == 0 {
+		return []int64{}
+	}
+	seen := make(map[int64]bool, len(ids))
+	out := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if id <= 0 || id == targetID || seen[id] {
+			continue
+		}
+		seen[id] = true
+		out = append(out, id)
+	}
+	return out
+}
+
+func (s *careOfferingService) validateAutoAddConfig(ctx context.Context, offering *enrollmentModels.CareOffering) error {
+	offering.AutoAddTriggerOfferingIDs = normalizeTriggerOfferingIDs(offering.ID, offering.AutoAddTriggerOfferingIDs)
+	if len(offering.AutoAddTriggerOfferingIDs) == 0 {
+		return nil
+	}
+	if offering.DaysOfWeekMode != enrollmentModels.DaysOfWeekModeParentChoice {
+		return fmt.Errorf("an automatically added care offering must allow parent day selection")
+	}
+	siblings, err := s.repo.ListByPhase(ctx, offering.PhaseID)
+	if err != nil {
+		return fmt.Errorf("check automatic offering triggers: %w", err)
+	}
+	triggerByID := make(map[int64]*enrollmentModels.CareOffering, len(siblings))
+	for _, sibling := range siblings {
+		if sibling.ID == offering.ID {
+			continue
+		}
+		triggerByID[sibling.ID] = sibling
+	}
+	for _, triggerID := range offering.AutoAddTriggerOfferingIDs {
+		trigger := triggerByID[triggerID]
+		if trigger == nil {
+			return fmt.Errorf("automatic trigger offering %d must belong to the same phase", triggerID)
+		}
+		if autoAddViolatesExclusiveGroup(offering, trigger) {
+			return fmt.Errorf("automatic trigger offering %d cannot auto-add offering %d in exclusive selection group %q", triggerID, offering.ID, strings.TrimSpace(offering.SelectionGroup))
+		}
+	}
+	return nil
+}
+
+func autoAddViolatesExclusiveGroup(target, trigger *enrollmentModels.CareOffering) bool {
+	if target == nil || trigger == nil {
+		return false
+	}
+	group := strings.TrimSpace(target.SelectionGroup)
+	if group == "" || strings.TrimSpace(trigger.SelectionGroup) != group {
+		return false
+	}
+	switch normalizeSelectionRule(target.SelectionRule) {
+	case enrollmentModels.SelectionRuleExactlyOne, enrollmentModels.SelectionRuleAtMostOne:
+		return true
+	default:
+		return false
+	}
+}
+
 type careOfferingTemplateDeps struct {
 	activityGroupRepo    activitiesModels.GroupRepository
 	activityScheduleRepo activitiesModels.ScheduleRepository
@@ -295,7 +358,13 @@ func (s *careOfferingService) Create(ctx context.Context, offering *enrollmentMo
 	if err := s.checkGroupRuleConsistency(ctx, offering); err != nil {
 		return nil, err
 	}
+	if err := s.validateAutoAddConfig(ctx, offering); err != nil {
+		return nil, err
+	}
 	if err := s.repo.Create(ctx, offering); err != nil {
+		return nil, err
+	}
+	if err := s.repo.ReplaceAutoAddTriggers(ctx, offering.ID, offering.AutoAddTriggerOfferingIDs); err != nil {
 		return nil, err
 	}
 	s.logger.Info("care offering created",
@@ -314,7 +383,13 @@ func (s *careOfferingService) Update(ctx context.Context, offering *enrollmentMo
 	if err := s.checkGroupRuleConsistency(ctx, offering); err != nil {
 		return err
 	}
+	if err := s.validateAutoAddConfig(ctx, offering); err != nil {
+		return err
+	}
 	if err := s.repo.Update(ctx, offering); err != nil {
+		return err
+	}
+	if err := s.repo.ReplaceAutoAddTriggers(ctx, offering.ID, offering.AutoAddTriggerOfferingIDs); err != nil {
 		return err
 	}
 	s.logger.Info("care offering updated", slog.Int64("offering_id", offering.ID))
@@ -355,6 +430,7 @@ func (s *careOfferingService) Clone(ctx context.Context, sourceID int64, targetP
 	if source.PhaseID != targetPhaseID && clone.ActivityGroupID != nil {
 		clone.ActivityGroupID = nil
 	}
+	clone.AutoAddTriggerOfferingIDs = nil
 	if err := s.checkGroupRuleConsistency(ctx, &clone); err != nil {
 		return nil, fmt.Errorf("clone: check selection group consistency: %w", err)
 	}

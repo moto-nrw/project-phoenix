@@ -1,5 +1,5 @@
-import { render } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   type AdminRequestChild,
@@ -7,6 +7,30 @@ import {
 } from "~/lib/enrollment-admin-api";
 import { ChildExtraFields } from "./admin-enrollment-detail";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
+
+const mocks = vi.hoisted(() => ({
+  listCareOfferings: vi.fn(),
+  listAdminChildOfferingAdjustments: vi.fn(),
+  updateAdminChildOfferings: vi.fn(),
+}));
+
+vi.mock("~/lib/care-offering-api", () => ({
+  listCareOfferings: mocks.listCareOfferings,
+}));
+
+vi.mock("~/lib/enrollment-admin-api", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    listAdminChildOfferingAdjustments: mocks.listAdminChildOfferingAdjustments,
+    updateAdminChildOfferings: mocks.updateAdminChildOfferings,
+  };
+});
+
+import {
+  ChildOfferingAdjustment,
+  ChildOfferings,
+} from "./admin-enrollment-detail";
 
 function field(
   type: string,
@@ -20,6 +44,13 @@ function field(
     ...overrides,
   };
 }
+
+beforeEach(() => {
+  mocks.listCareOfferings.mockReset();
+  mocks.listAdminChildOfferingAdjustments.mockReset();
+  mocks.updateAdminChildOfferings.mockReset();
+  mocks.listAdminChildOfferingAdjustments.mockResolvedValue([]);
+});
 
 describe("formatCustomValue", () => {
   // Regression: weekday_boolean values ({mon: true, tue: false}) used to be
@@ -135,6 +166,141 @@ describe("formatCustomValue", () => {
     expect(container.textContent).toContain("08:00");
     // Days without a time must not appear.
     expect(container.textContent).not.toContain("Di:");
+  });
+});
+
+describe("ChildOfferings", () => {
+  it("renders mixed automatic and manual day provenance", () => {
+    render(
+      <ChildOfferings
+        offerings={[
+          {
+            offering_id: "22",
+            offering_name: "Randstunde",
+            days_of_week_mode: "parent_choice",
+            selected_days: ["mon", "tue", "wed", "thu", "fri"],
+            manual_selected_days: ["fri"],
+            automatic_selected_days: ["mon", "tue", "wed", "thu"],
+            available_days: ["mon", "tue", "wed", "thu", "fri"],
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Randstunde")).toBeVisible();
+    expect(
+      screen.getByText(
+        "Mo, Di, Mi, Do automatisch mitgebucht; Fr von Eltern gewählt",
+      ),
+    ).toBeVisible();
+  });
+});
+
+describe("ChildOfferingAdjustment", () => {
+  it("preserves selected source-phase offerings that are absent from the current catalog", async () => {
+    mocks.listCareOfferings.mockResolvedValue([
+      {
+        id: "current-1",
+        phase_id: "phase-1",
+        name: "Aktuelles Angebot",
+        days_of_week_mode: "parent_choice",
+        available_days: ["mon", "tue"],
+        includes_holiday_care: false,
+        includes_lunch: false,
+        is_active: true,
+        is_required: false,
+        sort_order: 1,
+        created_at: "2026-06-18T11:15:00Z",
+        updated_at: "2026-06-18T11:15:00Z",
+      },
+    ]);
+    mocks.updateAdminChildOfferings.mockResolvedValue({});
+
+    render(
+      <ChildOfferingAdjustment
+        requestId="request-1"
+        phaseId="phase-1"
+        onSaved={vi.fn()}
+        child={{
+          id: "child-1",
+          first_name: "Lina",
+          last_name: "Kind",
+          date_of_birth: "2018-01-01",
+          status: "approved",
+          activation_mode: "scheduled",
+          offerings: [
+            {
+              offering_id: "source-1",
+              offering_name: "Quellphase",
+              days_of_week_mode: "parent_choice",
+              selected_days: ["mon"],
+              manual_selected_days: ["mon"],
+              available_days: ["mon", "tue"],
+            },
+          ],
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    await screen.findByText("Aktuelles Angebot");
+    fireEvent.change(screen.getByLabelText("Begründung"), {
+      target: { value: "Rollover unverändert gespeichert" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(mocks.updateAdminChildOfferings).toHaveBeenCalledWith(
+        "request-1",
+        "child-1",
+        expect.objectContaining({
+          offerings: [{ offering_id: "source-1", selected_days: ["mon"] }],
+        }),
+      );
+    });
+  });
+
+  it("blocks saving when the care-offering catalog failed to load", async () => {
+    mocks.listCareOfferings.mockRejectedValue(new Error("Katalog kaputt"));
+
+    render(
+      <ChildOfferingAdjustment
+        requestId="request-1"
+        phaseId="phase-1"
+        onSaved={vi.fn()}
+        child={{
+          id: "child-1",
+          first_name: "Lina",
+          last_name: "Kind",
+          date_of_birth: "2018-01-01",
+          status: "approved",
+          activation_mode: "scheduled",
+          offerings: [
+            {
+              offering_id: "offering-1",
+              offering_name: "Ganztag",
+              days_of_week_mode: "parent_choice",
+              selected_days: ["mon"],
+              manual_selected_days: ["mon"],
+              available_days: ["mon", "tue"],
+            },
+          ],
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Katalog kaputt",
+    );
+    const save = screen.getByRole("button", { name: "Speichern" });
+    expect(save).toBeDisabled();
+
+    fireEvent.click(save);
+    await waitFor(() => {
+      expect(mocks.updateAdminChildOfferings).not.toHaveBeenCalled();
+    });
   });
 });
 

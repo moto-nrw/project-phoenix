@@ -22,12 +22,13 @@ var (
 const maxReportRows = 10000
 
 type CareUsageFilters struct {
-	PhaseID        int64  `json:"phase_id"`
-	Status         string `json:"status,omitempty"`
-	CareOfferingID int64  `json:"care_offering_id,omitempty"`
-	DayCount       *int   `json:"day_count,omitempty"`
-	GradeLevel     *int16 `json:"grade_level,omitempty"`
-	Search         string `json:"search,omitempty"`
+	PhaseID            int64   `json:"phase_id"`
+	Status             string  `json:"status,omitempty"`
+	CareOfferingIDs    []int64 `json:"care_offering_ids,omitempty"`
+	CareOfferingIDsSet bool    `json:"-"`
+	DayCount           *int    `json:"day_count,omitempty"`
+	GradeLevel         *int16  `json:"grade_level,omitempty"`
+	Search             string  `json:"search,omitempty"`
 }
 
 type CareUsageReport struct {
@@ -45,12 +46,12 @@ type CareUsagePhase struct {
 }
 
 type CareUsageAppliedFilters struct {
-	PhaseID        int64  `json:"phase_id"`
-	Status         string `json:"status"`
-	CareOfferingID int64  `json:"care_offering_id,omitempty"`
-	DayCount       *int   `json:"day_count,omitempty"`
-	GradeLevel     *int16 `json:"grade_level,omitempty"`
-	Search         string `json:"search,omitempty"`
+	PhaseID         int64   `json:"phase_id"`
+	Status          string  `json:"status"`
+	CareOfferingIDs []int64 `json:"care_offering_ids"`
+	DayCount        *int    `json:"day_count,omitempty"`
+	GradeLevel      *int16  `json:"grade_level,omitempty"`
+	Search          string  `json:"search,omitempty"`
 }
 
 type CareUsageTotals struct {
@@ -71,8 +72,9 @@ type CareUsageFilterOptions struct {
 }
 
 type CareUsageOfferingOption struct {
-	ID   int64  `json:"id"`
-	Name string `json:"name"`
+	ID           int64  `json:"id"`
+	Name         string `json:"name"`
+	CountsAsCare bool   `json:"counts_as_care"`
 }
 
 type CareUsageRow struct {
@@ -94,11 +96,13 @@ type CareUsageRow struct {
 }
 
 type CareUsageRowOffering struct {
-	ID             int64    `json:"id"`
-	Name           string   `json:"name"`
-	Days           []string `json:"days"`
-	DaysSource     string   `json:"days_source"`
-	DaysOfWeekMode string   `json:"days_of_week_mode"`
+	ID                    int64    `json:"id"`
+	Name                  string   `json:"name"`
+	Days                  []string `json:"days"`
+	DaysSource            string   `json:"days_source"`
+	DaysOfWeekMode        string   `json:"days_of_week_mode"`
+	ManualSelectedDays    []string `json:"manual_selected_days,omitempty"`
+	AutomaticSelectedDays []string `json:"automatic_selected_days,omitempty"`
 }
 
 type ReportService interface {
@@ -187,6 +191,8 @@ func (s *reportService) CareUsage(ctx context.Context, filters CareUsageFilters)
 	for _, offering := range offerings {
 		offeringByID[offering.ID] = offering
 	}
+	filters.CareOfferingIDs = normalizedCareUsageOfferingIDs(filters.CareOfferingIDs, offerings, filters.CareOfferingIDsSet)
+	includedOfferingIDs := makeIDSet(filters.CareOfferingIDs)
 	linksByChild := make(map[int64][]*enrollmentModels.RequestChildOffering, len(childIDs))
 	for _, link := range links {
 		linksByChild[link.RequestChildID] = append(linksByChild[link.RequestChildID], link)
@@ -208,7 +214,7 @@ func (s *reportService) CareUsage(ctx context.Context, filters CareUsageFilters)
 		if req == nil {
 			continue
 		}
-		row := careUsageRow(req, child, linksByChild[child.ID], offeringByID)
+		row := careUsageRow(req, child, linksByChild[child.ID], offeringByID, includedOfferingIDs)
 		if child.TargetGradeLevel != nil {
 			gradeSeen[*child.TargetGradeLevel] = true
 		}
@@ -261,6 +267,10 @@ func normalizeCareUsageFilters(filters CareUsageFilters) CareUsageFilters {
 		filters.Status = enrollmentModels.ChildStatusApproved
 	}
 	filters.Search = strings.TrimSpace(filters.Search)
+	filters.CareOfferingIDs = dedupePositiveInt64(filters.CareOfferingIDs)
+	if filters.CareOfferingIDsSet && filters.CareOfferingIDs == nil {
+		filters.CareOfferingIDs = []int64{}
+	}
 	return filters
 }
 
@@ -289,10 +299,61 @@ var validChildStatusFilters = map[string]bool{
 }
 
 func careUsageAppliedFilters(filters CareUsageFilters) CareUsageAppliedFilters {
-	return CareUsageAppliedFilters(filters)
+	return CareUsageAppliedFilters{
+		PhaseID:         filters.PhaseID,
+		Status:          filters.Status,
+		CareOfferingIDs: filters.CareOfferingIDs,
+		DayCount:        filters.DayCount,
+		GradeLevel:      filters.GradeLevel,
+		Search:          filters.Search,
+	}
 }
 
-func careUsageRow(req *enrollmentModels.Request, child *enrollmentModels.RequestChild, links []*enrollmentModels.RequestChildOffering, offeringByID map[int64]*enrollmentModels.CareOffering) CareUsageRow {
+func normalizedCareUsageOfferingIDs(ids []int64, offerings []*enrollmentModels.CareOffering, explicit bool) []int64 {
+	if explicit {
+		normalized := dedupePositiveInt64(ids)
+		if normalized == nil {
+			return []int64{}
+		}
+		return normalized
+	}
+	out := make([]int64, 0, len(offerings))
+	for _, offering := range offerings {
+		if offering.CountsAsCare {
+			out = append(out, offering.ID)
+		}
+	}
+	return out
+}
+
+func makeIDSet(ids []int64) map[int64]bool {
+	set := make(map[int64]bool, len(ids))
+	for _, id := range ids {
+		if id > 0 {
+			set[id] = true
+		}
+	}
+	return set
+}
+
+func dedupePositiveInt64(ids []int64) []int64 {
+	if len(ids) == 0 {
+		return nil
+	}
+	seen := make(map[int64]bool, len(ids))
+	out := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if id <= 0 || seen[id] {
+			continue
+		}
+		seen[id] = true
+		out = append(out, id)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+func careUsageRow(req *enrollmentModels.Request, child *enrollmentModels.RequestChild, links []*enrollmentModels.RequestChildOffering, offeringByID map[int64]*enrollmentModels.CareOffering, includedOfferingIDs map[int64]bool) CareUsageRow {
 	daySet := map[string]bool{}
 	rowOfferings := make([]CareUsageRowOffering, 0, len(links))
 	for _, link := range links {
@@ -310,15 +371,19 @@ func careUsageRow(req *enrollmentModels.Request, child *enrollmentModels.Request
 			}
 		}
 		days = sortedDayCodes(days)
-		for _, day := range days {
-			daySet[day] = true
+		if includedOfferingIDs[link.CareOfferingID] {
+			for _, day := range days {
+				daySet[day] = true
+			}
 		}
 		rowOfferings = append(rowOfferings, CareUsageRowOffering{
-			ID:             link.CareOfferingID,
-			Name:           name,
-			Days:           days,
-			DaysSource:     source,
-			DaysOfWeekMode: daysOfWeekMode,
+			ID:                    link.CareOfferingID,
+			Name:                  name,
+			Days:                  days,
+			DaysSource:            source,
+			DaysOfWeekMode:        daysOfWeekMode,
+			ManualSelectedDays:    sortedDayCodes(link.ManualSelectedDays),
+			AutomaticSelectedDays: sortedDayCodes(link.AutomaticSelectedDays),
 		})
 	}
 	sort.SliceStable(rowOfferings, func(i, j int) bool {
@@ -352,17 +417,8 @@ func careUsageRowMatches(row CareUsageRow, filters CareUsageFilters) bool {
 	if filters.Status != "all" && row.Status != filters.Status {
 		return false
 	}
-	if filters.CareOfferingID > 0 {
-		found := false
-		for _, offering := range row.Offerings {
-			if offering.ID == filters.CareOfferingID {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false
-		}
+	if filters.CareOfferingIDsSet && !careUsageRowHasAnyOffering(row, filters.CareOfferingIDs) {
+		return false
 	}
 	if filters.DayCount != nil && row.DayCount != *filters.DayCount {
 		return false
@@ -387,10 +443,30 @@ func careUsageRowMatches(row CareUsageRow, filters CareUsageFilters) bool {
 	return true
 }
 
+func careUsageRowHasAnyOffering(row CareUsageRow, offeringIDs []int64) bool {
+	if len(offeringIDs) == 0 {
+		return false
+	}
+	selected := make(map[int64]bool, len(row.Offerings))
+	for _, offering := range row.Offerings {
+		selected[offering.ID] = true
+	}
+	for _, id := range offeringIDs {
+		if selected[id] {
+			return true
+		}
+	}
+	return false
+}
+
 func careUsageOfferingOptions(offerings []*enrollmentModels.CareOffering) []CareUsageOfferingOption {
 	options := make([]CareUsageOfferingOption, 0, len(offerings))
 	for _, offering := range offerings {
-		options = append(options, CareUsageOfferingOption{ID: offering.ID, Name: offering.Name})
+		options = append(options, CareUsageOfferingOption{
+			ID:           offering.ID,
+			Name:         offering.Name,
+			CountsAsCare: offering.CountsAsCare,
+		})
 	}
 	sort.SliceStable(options, func(i, j int) bool {
 		return options[i].Name < options[j].Name
@@ -492,7 +568,7 @@ func (s *reportService) recordCareUsageExportAudit(ctx context.Context, report *
 	entry.SetMetadata("report", "care_usage")
 	entry.SetMetadata("format", format)
 	entry.SetMetadata("status_filter", report.Filters.Status)
-	entry.SetMetadata("care_offering_id", report.Filters.CareOfferingID)
+	entry.SetMetadata("care_offering_ids", report.Filters.CareOfferingIDs)
 	if report.Filters.DayCount != nil {
 		entry.SetMetadata("day_count", *report.Filters.DayCount)
 	} else {

@@ -384,6 +384,27 @@ async function fillRequiredFields() {
   }
 }
 
+function dayButton(container: HTMLElement, label: string): HTMLButtonElement {
+  const button = Array.from(container.querySelectorAll("button")).find(
+    (item) => item.textContent === label,
+  );
+  if (!(button instanceof HTMLButtonElement)) {
+    throw new Error(`Day button ${label} not found`);
+  }
+  return button;
+}
+
+function offeringCard(inputName: string): HTMLElement {
+  const input = document.querySelector<HTMLInputElement>(
+    `input[name="${inputName}"]`,
+  );
+  const card = input?.closest("label")?.parentElement ?? null;
+  if (!(card instanceof HTMLElement)) {
+    throw new Error(`Offering card ${inputName} not found`);
+  }
+  return card;
+}
+
 describe("EnrollmentForm", () => {
   beforeEach(() => {
     mockIntlLocale.value = "de";
@@ -1560,6 +1581,92 @@ describe("EnrollmentForm", () => {
     expect((lastNames[2] as HTMLInputElement).value).toBe("Bach");
   });
 
+  it("does not turn automatic-only edit-draft offerings into manual selections", async () => {
+    const submitter = vi.fn().mockResolvedValue({ status_url: "/status/edit" });
+    const noFieldSchema = schema();
+    noFieldSchema.fields = [];
+    mockFetchPublicActiveSchema.mockResolvedValueOnce(noFieldSchema);
+    mockFetchPublicLegalTexts.mockResolvedValueOnce(legalTexts([]));
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [
+        {
+          id: "11",
+          phase_id: "5",
+          name: "Ganztag",
+          description: null,
+          days_of_week_mode: "parent_choice",
+          available_days: ["mon", "wed"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          counts_as_care: true,
+          capacity: null,
+        },
+        {
+          id: "22",
+          phase_id: "5",
+          name: "Randstunde",
+          description: null,
+          days_of_week_mode: "parent_choice",
+          available_days: ["mon", "wed"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          counts_as_care: false,
+          auto_add_trigger_offering_ids: ["11"],
+          capacity: null,
+        },
+      ],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+    });
+
+    renderForm({
+      submitter,
+      skipCaptcha: true,
+      initialDraft: {
+        ...editDraft([{ id: "c-1", first_name: "Anton", last_name: "Alster" }]),
+        consent_flags: {},
+        children: [
+          {
+            id: "c-1",
+            first_name: "Anton",
+            last_name: "Alster",
+            date_of_birth: "2018-04-15",
+            target_grade_level: 2,
+            offering_ids: ["11", "22"],
+            offering_days: [
+              {
+                offering_id: "11",
+                selected_days: ["mon"],
+                manual_selected_days: ["mon"],
+              },
+              {
+                offering_id: "22",
+                selected_days: ["mon"],
+                automatic_selected_days: ["mon"],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    await waitForLoaded();
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() => {
+      expect(submitter).toHaveBeenCalledTimes(1);
+    });
+    const payload = submitter.mock.calls[0]?.[0] as SubmitEnrollmentPayload;
+    expect(payload.children[0]?.offering_ids).toEqual([11]);
+    expect(payload.children[0]?.offering_days).toEqual([
+      { offering_id: 11, selected_days: ["mon"] },
+    ]);
+  });
+
   it("keeps each child's card state bound to that child when a sibling is removed", async () => {
     // Regression for the array-index key bug: the per-child WeekdayMultiModeInput
     // holds local-only state (the "same ways home" toggle). With index keys,
@@ -2189,6 +2296,212 @@ describe("EnrollmentForm", () => {
     });
     const payload = submitter.mock.calls[0]?.[0] as SubmitEnrollmentPayload;
     expect(payload.children[0]?.offering_ids).toEqual([20]);
+  });
+
+  it("auto-fills required lunch days from selected care days without submitting them as manual picks", async () => {
+    const submitter = vi.fn().mockResolvedValue({ status_url: "/status/req" });
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [
+        {
+          id: "12",
+          phase_id: "5",
+          name: "Fixe Betreuung",
+          description: null,
+          days_of_week_mode: "fixed",
+          available_days: ["tue", "thu"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          counts_as_care: true,
+          capacity: 20,
+        },
+        {
+          id: "20",
+          phase_id: "5",
+          name: "Mittagessen",
+          description: null,
+          days_of_week_mode: "parent_choice",
+          available_days: ["mon", "tue", "wed", "thu", "fri"],
+          includes_holiday_care: false,
+          includes_lunch: true,
+          is_active: true,
+          is_required: true,
+          counts_as_care: false,
+          capacity: null,
+        },
+      ],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+    });
+    renderForm({ submitter, skipCaptcha: true });
+    await waitForLoaded();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /Fixe Betreuung/ }));
+    expect(screen.queryByText("Di, Do automatisch")).not.toBeInTheDocument();
+
+    await fillRequiredFields();
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() => {
+      expect(submitter).toHaveBeenCalledTimes(1);
+    });
+    const payload = submitter.mock.calls[0]?.[0] as SubmitEnrollmentPayload;
+    expect(payload.children[0]?.offering_ids).toEqual(
+      expect.arrayContaining([12, 20]),
+    );
+    expect(payload.children[0]?.offering_days).toBeUndefined();
+    expect(
+      screen.queryByText("Bitte mindestens einen Tag auswählen."),
+    ).toBeNull();
+  });
+
+  it("shows auto-added offerings as selected without exposing day provenance", async () => {
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [
+        {
+          id: "11",
+          phase_id: "5",
+          name: "Ganztag",
+          description: null,
+          days_of_week_mode: "parent_choice",
+          available_days: ["mon", "tue", "wed", "thu", "fri"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          counts_as_care: true,
+          capacity: null,
+        },
+        {
+          id: "22",
+          phase_id: "5",
+          name: "Randstunde",
+          description: null,
+          days_of_week_mode: "parent_choice",
+          available_days: ["mon", "tue", "wed", "thu", "fri"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          counts_as_care: false,
+          auto_add_trigger_offering_ids: ["11"],
+          auto_add_grade_levels: [1, 2],
+          capacity: null,
+        },
+      ],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+    });
+    renderForm();
+    await waitForLoaded();
+    await chooseOption("Klassenstufe *", "2. Klasse");
+
+    const ganztagInput = document.querySelector<HTMLInputElement>(
+      'input[name="children_0_offering_11"]',
+    );
+    expect(ganztagInput).not.toBeNull();
+    fireEvent.click(ganztagInput as HTMLInputElement);
+    for (const day of ["Mo", "Di", "Mi", "Do"]) {
+      fireEvent.click(dayButton(offeringCard("children_0_offering_11"), day));
+    }
+    const randstundeInput = document.querySelector<HTMLInputElement>(
+      'input[name="children_0_offering_22"]',
+    );
+    expect(randstundeInput).not.toBeNull();
+    expect(randstundeInput).toBeChecked();
+    expect(randstundeInput).toBeDisabled();
+    expect(
+      screen.queryByText("Mo, Di, Mi, Do automatisch"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(dayButton(offeringCard("children_0_offering_22"), "Fr"));
+
+    expect(
+      screen.queryByText("Mo, Di, Mi, Do automatisch; Fr manuell"),
+    ).not.toBeInTheDocument();
+    expect(
+      dayButton(offeringCard("children_0_offering_22"), "Mo"),
+    ).toBeDisabled();
+    expect(
+      dayButton(offeringCard("children_0_offering_22"), "Fr"),
+    ).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("validates selection groups against auto-added offerings", async () => {
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [
+        {
+          id: "11",
+          phase_id: "5",
+          name: "Ganztag",
+          description: null,
+          days_of_week_mode: "parent_choice",
+          available_days: ["mon", "tue", "wed", "thu", "fri"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          counts_as_care: true,
+          capacity: null,
+        },
+        {
+          id: "22",
+          phase_id: "5",
+          name: "Frühbetreuung",
+          description: null,
+          days_of_week_mode: "parent_choice",
+          available_days: ["mon", "tue", "wed", "thu", "fri"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          counts_as_care: false,
+          selection_group: "Randzeiten",
+          selection_rule: "at_most_one",
+          auto_add_trigger_offering_ids: ["11"],
+          capacity: null,
+        },
+        {
+          id: "33",
+          phase_id: "5",
+          name: "Spätbetreuung",
+          description: null,
+          days_of_week_mode: "parent_choice",
+          available_days: ["mon", "tue", "wed", "thu", "fri"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          counts_as_care: false,
+          selection_group: "Randzeiten",
+          selection_rule: "at_most_one",
+          capacity: null,
+        },
+      ],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+    });
+    renderForm();
+    await waitForLoaded();
+    await fillRequiredFields();
+
+    const ganztagInput = document.querySelector<HTMLInputElement>(
+      'input[name="children_0_offering_11"]',
+    );
+    expect(ganztagInput).not.toBeNull();
+    fireEvent.click(ganztagInput as HTMLInputElement);
+    fireEvent.click(dayButton(offeringCard("children_0_offering_11"), "Mo"));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Spätbetreuung/ }));
+    fireEvent.click(dayButton(offeringCard("children_0_offering_33"), "Mo"));
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    expect(
+      await screen.findByText(
+        "Kind 1: Bitte bei „Randzeiten“ höchstens ein Angebot wählen.",
+      ),
+    ).toBeInTheDocument();
+    expect(mockSubmitEnrollment).not.toHaveBeenCalled();
   });
 
   it("counts only choosable offerings for exactly_one when a required offering is present", async () => {

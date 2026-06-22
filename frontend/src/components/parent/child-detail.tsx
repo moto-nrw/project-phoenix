@@ -197,7 +197,6 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
     ],
     [child, locale, t],
   );
-  const pickupPeople = getPickupPeople(t);
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
@@ -275,7 +274,7 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
             composeDisabled={!care.features.notes_enabled}
             onCompose={() => setModal("notes")}
           />
-          <PickupPeoplePanel people={pickupPeople} />
+          <PickupPeoplePanel />
           <RelatedAccountsPanel
             studentId={child.student_id}
             canInvite={care.features.related_accounts_invite_enabled}
@@ -326,7 +325,6 @@ function MobileChildAppView({
   const t = useTranslations("parentChildDetail");
   const locale = useLocale();
   const primaryActions = CHILD_ACTIONS.slice(0, 3);
-  const pickupPeople = getPickupPeople(t);
 
   return (
     <div className="space-y-5 lg:hidden">
@@ -390,25 +388,16 @@ function MobileChildAppView({
           <h2 className="text-lg font-semibold text-gray-900">
             {t("pickupPeopleTitle")}
           </h2>
-          <Button type="button" variant="outline" size="md" disabled>
-            {t("manage")}
-          </Button>
-        </div>
-        <div className="mt-4 flex items-start gap-3 overflow-x-auto pb-1">
-          {pickupPeople.map((person) => (
-            <PersonBubble key={person.name} person={person} />
-          ))}
           <button
             type="button"
             disabled
-            className="flex min-w-14 flex-col items-center gap-2 text-xs font-medium text-gray-500 disabled:cursor-not-allowed disabled:opacity-70"
-            aria-label={t("addPerson")}
+            className="inline-flex h-9 items-center gap-2 rounded-full border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <span className="flex h-11 w-11 items-center justify-center rounded-full border border-dashed border-gray-300 bg-gray-50 text-gray-500">
-              <Plus className="h-5 w-5" aria-hidden="true" />
-            </span>
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            {t("add")}
           </button>
         </div>
+        <PickupPeopleEmptyState compact />
       </section>
 
       <RelatedAccountsPanel
@@ -437,15 +426,6 @@ function MobileChildAppView({
       </section>
     </div>
   );
-}
-
-function getPickupPeople(t: ChildDetailTranslator) {
-  return [
-    { initials: "MM", name: t("demo.momName"), relation: t("demo.mother") },
-    { initials: "PM", name: t("demo.dadName"), relation: t("demo.father") },
-    { initials: "OM", name: t("demo.grandmaName"), relation: t("demo.pickup") },
-    { initials: "TA", name: t("demo.auntName"), relation: t("demo.pickup") },
-  ];
 }
 
 function MobileQuickAction({
@@ -616,26 +596,34 @@ function MessagesPanel({
   );
 }
 
-function PersonBubble({
-  person,
-}: Readonly<{
-  person: ReturnType<typeof getPickupPeople>[number];
-}>) {
+function PickupPeopleEmptyState({
+  compact = false,
+}: Readonly<{ compact?: boolean }>) {
+  const t = useTranslations("parentChildDetail");
   return (
-    <div className="flex min-w-14 flex-col items-center gap-2">
-      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-gray-100 text-sm font-semibold text-gray-700 ring-1 ring-gray-200">
-        {person.initials}
-      </span>
-      <span className="max-w-12 truncate text-xs font-medium text-gray-700">
-        {person.name}
-      </span>
+    <div
+      className={`mt-4 rounded-xl border border-gray-200 bg-gray-50/70 text-gray-500 ${
+        compact ? "p-4" : "p-5"
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-gray-400 ring-1 ring-gray-200">
+          <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-gray-700">
+            {t("pickupPeopleEmptyTitle")}
+          </p>
+          <p className="mt-1 text-sm leading-5 text-gray-500">
+            {t("pickupPeopleEmptyDescription")}
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
 
-function PickupPeoplePanel({
-  people,
-}: Readonly<{ people: ReturnType<typeof getPickupPeople> }>) {
+function PickupPeoplePanel() {
   const t = useTranslations("parentChildDetail");
   return (
     <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
@@ -656,21 +644,7 @@ function PickupPeoplePanel({
           {t("add")}
         </Button>
       </div>
-      <div className="mt-5 divide-y divide-gray-100 rounded-xl border border-gray-200 bg-gray-50/70">
-        {people.map((person) => (
-          <div key={person.name} className="flex items-center gap-3 p-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-sm font-semibold text-gray-700 ring-1 ring-gray-200">
-              {person.initials}
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-gray-900">
-                {person.name}
-              </p>
-              <p className="text-sm text-gray-600">{person.relation}</p>
-            </div>
-          </div>
-        ))}
-      </div>
+      <PickupPeopleEmptyState />
     </section>
   );
 }

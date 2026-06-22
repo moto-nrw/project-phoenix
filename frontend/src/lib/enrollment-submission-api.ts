@@ -26,6 +26,9 @@ export interface PublicCareOffering {
   price_cents?: number | null;
   is_active: boolean;
   is_required: boolean;
+  counts_as_care?: boolean;
+  auto_add_grade_levels?: number[];
+  auto_add_trigger_offering_ids?: string[];
   /**
    * Offerings sharing a non-empty selection_group are constrained
    * together by selection_rule (exactly_one / at_least_one /
@@ -93,6 +96,8 @@ export interface SubmitEnrollmentResult {
 interface EnrollmentEditDraftOfferingDays {
   offering_id: string;
   selected_days: string[];
+  manual_selected_days?: string[];
+  automatic_selected_days?: string[];
 }
 
 interface EnrollmentEditDraftChild {

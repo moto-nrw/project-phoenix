@@ -91,6 +91,9 @@ function blankInput(phaseId: number): CareOfferingInput {
     price_cents: null,
     is_active: true,
     is_required: false,
+    counts_as_care: true,
+    auto_add_grade_levels: [],
+    auto_add_trigger_offering_ids: [],
     sort_order: 0,
     selection_group: "",
     selection_rule: "optional",
@@ -113,6 +116,11 @@ function offeringToInput(offering: CareOffering): CareOfferingInput {
     price_cents: offering.price_cents ?? null,
     is_active: offering.is_active,
     is_required: offering.is_required,
+    counts_as_care: offering.counts_as_care ?? true,
+    auto_add_grade_levels: offering.auto_add_grade_levels ?? [],
+    auto_add_trigger_offering_ids: [
+      ...(offering.auto_add_trigger_offering_ids ?? []),
+    ],
     sort_order: offering.sort_order,
     selection_group: offering.selection_group ?? "",
     selection_rule: offering.selection_rule ?? "optional",
@@ -404,11 +412,15 @@ export function CareOfferingsEditor() {
             {offering.activity_group_id ? (
               <FeaturePill label="Betreuungsplan" />
             ) : null}
-            {!offering.is_required &&
-            !offering.includes_lunch &&
-            !offering.includes_holiday_care &&
-            !offering.activity_group_id ? (
-              <span className="text-sm text-gray-400">Keine Extras</span>
+            <FeaturePill
+              label={
+                offering.counts_as_care === false
+                  ? "Zählt nicht als Betreuungstag"
+                  : "Zählt als Betreuungstag"
+              }
+            />
+            {(offering.auto_add_trigger_offering_ids?.length ?? 0) > 0 ? (
+              <FeaturePill label="Wird mitgebucht" />
             ) : null}
           </div>
         ),
@@ -518,7 +530,9 @@ export function CareOfferingsEditor() {
             <CareOfferingForm
               draft={draft}
               editing={editingId !== "new"}
+              editingId={editingId}
               phases={phases}
+              offerings={offerings}
               templates={templates}
               saving={saving}
               onChange={setDraft}
@@ -890,7 +904,9 @@ function CareOfferingActions({
 interface CareOfferingFormProps {
   readonly draft: CareOfferingInput;
   readonly editing: boolean;
+  readonly editingId: string | null;
   readonly phases: Phase[];
+  readonly offerings: CareOffering[];
   readonly templates: TimetableTemplate[];
   readonly saving: boolean;
   readonly onChange: (draft: CareOfferingInput) => void;
@@ -901,7 +917,9 @@ interface CareOfferingFormProps {
 function CareOfferingForm({
   draft,
   editing,
+  editingId,
   phases,
+  offerings,
   templates,
   saving,
   onChange,
@@ -911,12 +929,32 @@ function CareOfferingForm({
   const update = (patch: Partial<CareOfferingInput>) =>
     onChange({ ...draft, ...patch });
   const templateWarnings = linkedTemplateWarnings(draft, templates);
+  const triggerOptions = offerings.filter(
+    (offering) =>
+      offering.phase_id === String(draft.phase_id) && offering.id !== editingId,
+  );
   const toggleDay = (day: string) => {
     const nextDays = new Set(draft.available_days);
     if (nextDays.has(day)) nextDays.delete(day);
     else nextDays.add(day);
     update({
       available_days: WEEKDAY_KEYS.filter((dayKey) => nextDays.has(dayKey)),
+    });
+  };
+  const toggleAutoAddGrade = (grade: number) => {
+    const next = new Set(draft.auto_add_grade_levels ?? []);
+    if (next.has(grade)) next.delete(grade);
+    else next.add(grade);
+    update({ auto_add_grade_levels: [1, 2, 3, 4].filter((g) => next.has(g)) });
+  };
+  const toggleTriggerOffering = (offeringID: string) => {
+    const next = new Set(draft.auto_add_trigger_offering_ids ?? []);
+    if (next.has(offeringID)) next.delete(offeringID);
+    else next.add(offeringID);
+    update({
+      auto_add_trigger_offering_ids: triggerOptions
+        .map((offering) => offering.id)
+        .filter((id) => next.has(id)),
     });
   };
 
@@ -961,11 +999,24 @@ function CareOfferingForm({
           <CustomSelect
             id="care-offering-form-phase"
             value={draft.phase_id?.toString() ?? ""}
-            onChange={(value) =>
+            onChange={(value) => {
+              const phaseID = value ? Number(value) : 0;
+              const validTriggerIDs = new Set(
+                offerings
+                  .filter(
+                    (offering) =>
+                      offering.phase_id === String(phaseID) &&
+                      offering.id !== editingId,
+                  )
+                  .map((offering) => offering.id),
+              );
               update({
-                phase_id: value ? Number(value) : 0,
-              })
-            }
+                phase_id: phaseID,
+                auto_add_trigger_offering_ids: (
+                  draft.auto_add_trigger_offering_ids ?? []
+                ).filter((id) => validTriggerIDs.has(id)),
+              });
+            }}
             className="mt-1"
             options={[
               { value: "", label: "Bitte wählen" },
@@ -1119,6 +1170,83 @@ function CareOfferingForm({
             label="Eltern können einzelne Tage auswählen"
             hint="Sonst gilt das Angebot für den gesamten gewählten Rhythmus."
           />
+        </div>
+      </fieldset>
+
+      <fieldset className="rounded-xl border border-gray-200 p-4">
+        <legend className="px-1 text-xs font-medium text-gray-700">
+          Betreuungstage & Mitbuchung
+        </legend>
+        <div className="space-y-4">
+          <CareOfferingCheckbox
+            checked={draft.counts_as_care}
+            onChange={(checked) => update({ counts_as_care: checked })}
+            label="Als Betreuungstage zählen"
+            hint="Gilt für Filter, Kennzahlen und Exporte."
+          />
+
+          <div className="rounded-lg border border-gray-100 bg-gray-50/70 p-3">
+            <p className="text-xs font-medium text-gray-700">
+              Dieses Angebot mitbuchen, wenn Eltern eines dieser Angebote
+              wählen:
+            </p>
+            {triggerOptions.length > 0 ? (
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                {triggerOptions.map((offering) => (
+                  <CareOfferingCheckbox
+                    key={offering.id}
+                    checked={(
+                      draft.auto_add_trigger_offering_ids ?? []
+                    ).includes(offering.id)}
+                    onChange={() => toggleTriggerOffering(offering.id)}
+                    label={offering.name}
+                    hint={formatDays(offering.available_days)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="mt-2 text-xs text-gray-500">
+                In dieser Phase gibt es noch kein anderes Angebot als Auslöser.
+              </p>
+            )}
+            {draft.auto_add_trigger_offering_ids.length > 0 &&
+            draft.days_of_week_mode !== "parent_choice" ? (
+              <p className="mt-2 rounded-lg border border-[#F3B63F]/50 bg-[#F3B63F]/10 px-3 py-2 text-xs text-[#A66F00]">
+                Mitgebuchte Angebote müssen einzelne Tage auswählbar machen.
+              </p>
+            ) : null}
+          </div>
+
+          <div>
+            <p className="text-xs font-medium text-gray-700">
+              Mitbuchung gilt für Klassenstufen
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {[1, 2, 3, 4].map((grade) => {
+                const active = (draft.auto_add_grade_levels ?? []).includes(
+                  grade,
+                );
+                return (
+                  <button
+                    key={grade}
+                    type="button"
+                    onClick={() => toggleAutoAddGrade(grade)}
+                    className={`h-8 rounded-lg border px-3 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+                      active
+                        ? "border-gray-900 bg-gray-900 text-white"
+                        : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    Klasse {grade}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              Keine Auswahl bedeutet: Die Mitbuchung gilt für alle
+              Klassenstufen.
+            </p>
+          </div>
         </div>
       </fieldset>
 

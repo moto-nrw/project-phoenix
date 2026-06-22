@@ -41,7 +41,7 @@ func TestCareUsageRowCountsEffectiveDaysAsUnion(t *testing.T) {
 		{RequestChildID: 20, CareOfferingID: 2},
 	}
 
-	row := careUsageRow(req, child, links, offerings)
+	row := careUsageRow(req, child, links, offerings, map[int64]bool{1: true, 2: true})
 
 	require.Len(t, row.Offerings, 2)
 	assert.Equal(t, []string{"mon", "tue", "wed"}, row.EffectiveDays)
@@ -77,7 +77,7 @@ func TestCareUsageRowDoesNotInflateMissingParentChoiceDays(t *testing.T) {
 		{RequestChildID: 20, CareOfferingID: 1},
 	}
 
-	row := careUsageRow(req, child, links, offerings)
+	row := careUsageRow(req, child, links, offerings, map[int64]bool{1: true})
 
 	require.Len(t, row.Offerings, 1)
 	assert.Empty(t, row.Offerings[0].Days)
@@ -118,21 +118,51 @@ func TestCareUsageRowMatchesFilters(t *testing.T) {
 	}
 
 	assert.True(t, careUsageRowMatches(row, CareUsageFilters{
-		Status:         enrollmentModels.ChildStatusApproved,
-		CareOfferingID: 10,
-		DayCount:       &dayCount,
-		GradeLevel:     &grade,
-		Search:         "eva@example",
+		Status:     enrollmentModels.ChildStatusApproved,
+		DayCount:   &dayCount,
+		GradeLevel: &grade,
+		Search:     "eva@example",
 	}))
 	assert.True(t, careUsageRowMatches(row, CareUsageFilters{Status: "all"}))
 	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: enrollmentModels.ChildStatusRejected}))
-	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", CareOfferingID: 11}))
 	otherDayCount := 4
 	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", DayCount: &otherDayCount}))
 
 	otherGrade := int16(3)
 	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", GradeLevel: &otherGrade}))
 	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", Search: "unbekannt"}))
+}
+
+func TestCareUsageRowMatchesExplicitOfferingFilter(t *testing.T) {
+	row := CareUsageRow{
+		Status: enrollmentModels.ChildStatusApproved,
+		Offerings: []CareUsageRowOffering{
+			{ID: 10, Name: "OGS Ganztag", Days: []string{"mon", "wed", "fri"}},
+			{ID: 11, Name: "Randstunde", Days: []string{"fri"}},
+		},
+		EffectiveDays: []string{"mon", "wed", "fri"},
+		DayCount:      3,
+	}
+
+	assert.True(t, careUsageRowMatches(row, CareUsageFilters{
+		Status:             "all",
+		CareOfferingIDsSet: true,
+		CareOfferingIDs:    []int64{11},
+	}))
+	assert.False(t, careUsageRowMatches(row, CareUsageFilters{
+		Status:             "all",
+		CareOfferingIDsSet: true,
+		CareOfferingIDs:    []int64{12},
+	}))
+	assert.False(t, careUsageRowMatches(row, CareUsageFilters{
+		Status:             "all",
+		CareOfferingIDsSet: true,
+		CareOfferingIDs:    []int64{},
+	}))
+	assert.True(t, careUsageRowMatches(row, CareUsageFilters{
+		Status:          "all",
+		CareOfferingIDs: []int64{12},
+	}))
 }
 
 func TestCareUsageRowMatchesZeroDayFilter(t *testing.T) {
@@ -144,4 +174,103 @@ func TestCareUsageRowMatchesZeroDayFilter(t *testing.T) {
 	}
 
 	assert.True(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", DayCount: &zero}))
+}
+
+func TestCareUsageRowExcludesNonIncludedOfferingsFromDayCount(t *testing.T) {
+	req := &enrollmentModels.Request{Model: baseModels.Model{ID: 10}}
+	child := &enrollmentModels.RequestChild{
+		Model:  baseModels.Model{ID: 20},
+		Status: enrollmentModels.ChildStatusApproved,
+	}
+	offerings := map[int64]*enrollmentModels.CareOffering{
+		1: {
+			Name:           "Ganztag",
+			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+			AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
+		},
+		2: {
+			Name:           "Randstunde",
+			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+			AvailableDays:  []string{"fri"},
+		},
+	}
+	links := []*enrollmentModels.RequestChildOffering{
+		{RequestChildID: 20, CareOfferingID: 1, SelectedDays: []string{"mon", "tue", "wed", "thu"}},
+		{RequestChildID: 20, CareOfferingID: 2, SelectedDays: []string{"fri"}},
+	}
+
+	row := careUsageRow(req, child, links, offerings, map[int64]bool{1: true})
+
+	require.Len(t, row.Offerings, 2)
+	assert.Equal(t, []string{"mon", "tue", "wed", "thu"}, row.EffectiveDays)
+	assert.Equal(t, 4, row.DayCount)
+}
+
+func TestCareUsageRowKeepsOfferingsVisibleWhenNoOfferingsAreIncluded(t *testing.T) {
+	req := &enrollmentModels.Request{Model: baseModels.Model{ID: 10}}
+	child := &enrollmentModels.RequestChild{
+		Model:  baseModels.Model{ID: 20},
+		Status: enrollmentModels.ChildStatusApproved,
+	}
+	offerings := map[int64]*enrollmentModels.CareOffering{
+		1: {
+			Name:           "Ganztag",
+			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+			AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
+		},
+	}
+	links := []*enrollmentModels.RequestChildOffering{
+		{RequestChildID: 20, CareOfferingID: 1, SelectedDays: []string{"mon", "tue"}},
+	}
+
+	row := careUsageRow(req, child, links, offerings, map[int64]bool{})
+
+	require.Len(t, row.Offerings, 1)
+	assert.Equal(t, []string{"mon", "tue"}, row.Offerings[0].Days)
+	assert.Empty(t, row.EffectiveDays)
+	assert.NotNil(t, row.EffectiveDays)
+	assert.Equal(t, 0, row.DayCount)
+}
+
+func TestNormalizedCareUsageOfferingIDsDefaultsOnlyWhenSelectionIsMissing(t *testing.T) {
+	offerings := []*enrollmentModels.CareOffering{
+		{Model: baseModels.Model{ID: 1}, Name: "Ganztag", CountsAsCare: true},
+		{Model: baseModels.Model{ID: 2}, Name: "Randstunde", CountsAsCare: false},
+		{Model: baseModels.Model{ID: 3}, Name: "Kurzbetreuung", CountsAsCare: true},
+	}
+
+	assert.Equal(t, []int64{1, 3}, normalizedCareUsageOfferingIDs(nil, offerings, false))
+	assert.Equal(t, []int64{}, normalizedCareUsageOfferingIDs(nil, offerings, true))
+	assert.Equal(t, []int64{2}, normalizedCareUsageOfferingIDs([]int64{2, 2, -1}, offerings, true))
+}
+
+func TestCareUsageRowCarriesManualAndAutomaticDays(t *testing.T) {
+	req := &enrollmentModels.Request{Model: baseModels.Model{ID: 10}}
+	child := &enrollmentModels.RequestChild{
+		Model:  baseModels.Model{ID: 20},
+		Status: enrollmentModels.ChildStatusApproved,
+	}
+	offerings := map[int64]*enrollmentModels.CareOffering{
+		1: {
+			Name:           "Randstunde",
+			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+			AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
+		},
+	}
+	links := []*enrollmentModels.RequestChildOffering{
+		{
+			RequestChildID:        20,
+			CareOfferingID:        1,
+			SelectedDays:          []string{"mon", "tue", "wed", "thu", "fri"},
+			ManualSelectedDays:    []string{"fri"},
+			AutomaticSelectedDays: []string{"mon", "tue", "wed", "thu"},
+		},
+	}
+
+	row := careUsageRow(req, child, links, offerings, map[int64]bool{1: true})
+
+	require.Len(t, row.Offerings, 1)
+	assert.Equal(t, []string{"fri"}, row.Offerings[0].ManualSelectedDays)
+	assert.Equal(t, []string{"mon", "tue", "wed", "thu"}, row.Offerings[0].AutomaticSelectedDays)
+	assert.Equal(t, []string{"mon", "tue", "wed", "thu", "fri"}, row.Offerings[0].Days)
 }

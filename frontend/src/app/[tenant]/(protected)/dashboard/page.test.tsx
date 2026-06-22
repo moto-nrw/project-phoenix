@@ -113,6 +113,7 @@ vi.mock("~/components/tenant/tenant-provider", () => ({
   useNFCEnabled: vi.fn(() => true),
   usePresenceMode: vi.fn(() => "detailed"),
   useTenantSlugSafe: vi.fn(() => "test-tenant"),
+  useTenantRoutingModeSafe: vi.fn(() => "path"),
 }));
 
 vi.mock("~/lib/dashboard-helpers", () => ({

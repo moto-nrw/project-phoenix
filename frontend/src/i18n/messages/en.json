@@ -114,6 +114,8 @@
     "pickupEyebrow": "Pickup",
     "pickupPeopleTitle": "Pickup permissions",
     "pickupPeopleDescription": "People who are allowed to pick up this child.",
+    "pickupPeopleEmptyTitle": "No pickup permissions added",
+    "pickupPeopleEmptyDescription": "Pickup permissions will appear here.",
     "manage": "Manage",
     "add": "Add",
     "addPerson": "Add person",
@@ -161,15 +163,6 @@
       "noMessages": "No new messages",
       "noMessagesSent": "No messages sent",
       "messagesSent": "{count, plural, one {# message sent} other {# messages sent}}"
-    },
-    "demo": {
-      "momName": "Mom",
-      "dadName": "Dad",
-      "grandmaName": "Grandma",
-      "auntName": "Aunt",
-      "mother": "Mother",
-      "father": "Father",
-      "pickup": "Pickup"
     },
     "messages": {
       "eyebrow": "Parent portal",
@@ -432,8 +425,11 @@
       "optionalHint": "Choose the offers you want for this child.",
       "chooseExactlyOne": "Please choose exactly one offer.",
       "chooseAtLeastOne": "Please choose at least one offer.",
+      "automaticBadge": "automatic",
       "selectableDays": "Selectable days: ",
       "days": "Days: ",
+      "automaticDays": "{days} automatic",
+      "manualDays": "{days} manual",
       "holiday": "incl. holiday care",
       "lunch": "incl. lunch",
       "ruleExactlyOne": "Please choose exactly one",
