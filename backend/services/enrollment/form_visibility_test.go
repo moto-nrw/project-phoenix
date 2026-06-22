@@ -312,25 +312,61 @@ func TestWeekdaySchedule_RequiredHandling(t *testing.T) {
 		Target: enrollmentModels.TargetSchedulePickup,
 	}
 
-	assert.True(t, customAnswerSatisfiesRequiredWeekdaySchedule(pickup, map[string]any{}, map[string]bool{}),
+	assert.True(t, customAnswerSatisfiesRequiredWeekdaySchedule(pickup, map[string]any{}, map[string]bool{}, true),
 		"no selected care days means there is nothing to schedule yet (mirrors the hidden form input)")
-	assert.False(t, customAnswerSatisfiesRequiredWeekdaySchedule(pickup, map[string]any{}, map[string]bool{"mon": true}),
+	assert.False(t, customAnswerSatisfiesRequiredWeekdaySchedule(pickup, map[string]any{}, map[string]bool{"mon": true}, true),
 		"missing answer fails when a care day exists")
 	assert.False(t, customAnswerSatisfiesRequiredWeekdaySchedule(
 		pickup,
 		map[string]any{"dismissal": map[string]any{"mon": "", "tue": ""}},
 		map[string]bool{"mon": true, "tue": true},
+		true,
 	), "an all-blank schedule on care days is not answered")
 	assert.False(t, customAnswerSatisfiesRequiredWeekdaySchedule(
 		pickup,
 		map[string]any{"dismissal": map[string]any{"fri": "15:00"}},
 		map[string]bool{"mon": true},
+		true,
 	), "a time on a non-care day does not satisfy a care day requirement")
+
+	// Constrained (care days derived from selected offerings): every care day
+	// needs a time -- a partially filled schedule is not answered.
+	assert.False(t, customAnswerSatisfiesRequiredWeekdaySchedule(
+		pickup,
+		map[string]any{"dismissal": map[string]any{"mon": "15:00"}},
+		map[string]bool{"mon": true, "tue": true},
+		true,
+	), "constrained: an unfilled care day (tue) is not answered")
+	assert.True(t, customAnswerSatisfiesRequiredWeekdaySchedule(
+		pickup,
+		map[string]any{"dismissal": map[string]any{"mon": "15:00", "tue": "16:00"}},
+		map[string]bool{"mon": true, "tue": true},
+		true,
+	), "constrained: every care day filled is answered")
+
+	// Unconstrained (no offerings, all weekdays shown): at least one day with a
+	// time suffices, mirroring the lenient client path for offering-less phases.
 	assert.True(t, customAnswerSatisfiesRequiredWeekdaySchedule(
 		pickup,
 		map[string]any{"dismissal": map[string]any{"mon": "15:00"}},
 		map[string]bool{"mon": true, "tue": true},
-	), "at least one care day with a time is accepted")
+		false,
+	), "unconstrained: at least one day with a time is accepted")
+	assert.False(t, customAnswerSatisfiesRequiredWeekdaySchedule(
+		pickup,
+		map[string]any{"dismissal": map[string]any{"mon": "", "tue": ""}},
+		map[string]bool{"mon": true, "tue": true},
+		false,
+	), "unconstrained: an all-blank schedule is still not answered")
+
+	// A malformed answer (not a schedule object) fails to decode and counts as
+	// unanswered for a required field.
+	assert.False(t, customAnswerSatisfiesRequiredWeekdaySchedule(
+		pickup,
+		map[string]any{"dismissal": "not-a-schedule"},
+		map[string]bool{"mon": true},
+		true,
+	), "a non-decodable answer is not a valid schedule")
 }
 
 func TestRelevantCareDaysForChild(t *testing.T) {
@@ -689,12 +725,23 @@ func TestValidateRequiredCustomFields_ChildRequiredScheduleNoCareDaysExempt(t *t
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "dismissal")
 
-	// Care days present and a time on a care day → satisfied.
+	// Care days present (mon/tue) but only one day filled → still missing the
+	// other care day → error. The shown days are the child's care days, so each
+	// one needs a time.
 	req3 := SubmitRequest{Children: []SubmitChild{{
 		OfferingIDs: []int64{42},
 		CustomData:  map[string]any{"dismissal": map[string]any{"mon": "15:00"}},
 	}}}
-	assert.NoError(t, s.validateRequiredCustomFields(schema, req3, openByID))
+	err = s.validateRequiredCustomFields(schema, req3, openByID)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "dismissal")
+
+	// Every care day carries a time → satisfied.
+	req4 := SubmitRequest{Children: []SubmitChild{{
+		OfferingIDs: []int64{42},
+		CustomData:  map[string]any{"dismissal": map[string]any{"mon": "15:00", "tue": "16:00"}},
+	}}}
+	assert.NoError(t, s.validateRequiredCustomFields(schema, req4, openByID))
 }
 
 func TestValidateRequiredCustomFields_InfoFieldNeverRequired(t *testing.T) {

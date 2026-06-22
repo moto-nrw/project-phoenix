@@ -274,7 +274,7 @@ func (s *requestService) validateRequiredCustomFields(
 				continue
 			}
 			if f.Type == enrollmentModels.FormFieldWeekdaySchedule {
-				if !customAnswerSatisfiesRequiredWeekdaySchedule(*f, child.CustomData, relevantCareDaysForChild(child, openByID)) {
+				if !customAnswerSatisfiesRequiredWeekdaySchedule(*f, child.CustomData, relevantCareDaysForChild(child, openByID), len(openByID) > 0) {
 					return fmt.Errorf("%w: child %d field %q is required", ErrInvalidSubmission, idx, f.Key)
 				}
 				continue
@@ -523,8 +523,17 @@ func relevantCareDaysForChild(child SubmitChild, openByID map[int64]*enrollmentM
 // form (the field is shown and must be answered), the child's care days when
 // offerings exist, or empty when offerings exist but the child selected none
 // (the form hides the input, so a required schedule is vacuously satisfied).
-// At least one schedulable day must carry a time otherwise.
-func customAnswerSatisfiesRequiredWeekdaySchedule(field enrollmentModels.FormField, answers map[string]any, scheduleDays map[string]bool) bool {
+//
+// careConstrained reports whether scheduleDays come from selected care
+// offerings (openByID non-empty), exactly like careDaysAreConstrained on the
+// frontend. When constrained, the shown days ARE the child's care days, so each
+// one must carry a time (an empty day is a missing answer, not a "keine
+// Angabe"). When unconstrained (no offerings, all weekdays shown), at least one
+// schedulable day must carry a time -- forcing every weekday would block a
+// child who attends only some days. Both branches stay in lockstep with the
+// client's customValueMissing so a stale or scripted client cannot persist an
+// enrollment that is missing pickup times for required care days.
+func customAnswerSatisfiesRequiredWeekdaySchedule(field enrollmentModels.FormField, answers map[string]any, scheduleDays map[string]bool, careConstrained bool) bool {
 	if len(scheduleDays) == 0 {
 		return true
 	}
@@ -535,6 +544,14 @@ func customAnswerSatisfiesRequiredWeekdaySchedule(field enrollmentModels.FormFie
 	var sched enrollmentModels.WeekdaySchedule
 	if err := decodeStructured(value, &sched); err != nil {
 		return false
+	}
+	if careConstrained {
+		for day := range scheduleDays {
+			if strings.TrimSpace(sched[day]) == "" {
+				return false
+			}
+		}
+		return true
 	}
 	for day, t := range sched {
 		if scheduleDays[day] && strings.TrimSpace(t) != "" {
