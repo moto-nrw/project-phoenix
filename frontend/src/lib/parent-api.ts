@@ -130,7 +130,7 @@ export interface RelatedAccount {
 }
 
 // One phone number of a guardian. Mirrors api/parent.guardianPhoneResponse.
-export interface GuardianPhone {
+interface GuardianPhone {
   readonly phone_number: string;
   readonly phone_type: string;
   readonly label?: string;
