@@ -45,7 +45,7 @@ func TestSchool_Validate_InvalidSlugFormat(t *testing.T) {
 }
 
 func TestSchool_Validate_ReservedSlug(t *testing.T) {
-	for _, slug := range []string{"www", "api", "operator", "parents", "grafana", "pyreportal", "admin", "app", "dashboard", "analytics", "status", "mail", "staging", "demo"} {
+	for _, slug := range []string{"www", "api", "operator", "parents", "eltern", "grafana", "pyreportal", "admin", "app", "dashboard", "analytics", "status", "mail", "staging", "demo"} {
 		t.Run(slug, func(t *testing.T) {
 			s := validSchool()
 			s.Slug = slug
@@ -57,7 +57,7 @@ func TestSchool_Validate_ReservedSlug(t *testing.T) {
 }
 
 func TestSchool_Validate_ReservedSubdomain(t *testing.T) {
-	for _, sub := range []string{"www", "api", "operator", "parents", "grafana", "pyreportal", "admin", "app", "dashboard", "analytics", "status", "mail", "staging", "demo"} {
+	for _, sub := range []string{"www", "api", "operator", "parents", "eltern", "grafana", "pyreportal", "admin", "app", "dashboard", "analytics", "status", "mail", "staging", "demo"} {
 		t.Run(sub, func(t *testing.T) {
 			s := validSchool()
 			s.Subdomain = sub

@@ -32,7 +32,8 @@ var reservedSlugs = map[string]bool{
 	"www":        true, // www.moto-app.de redirect
 	"api":        true, // api.moto-app.de, api-staging, api-demo
 	"operator":   true, // operator dashboard
-	"parents":    true, // parents.moto-app.de — guardian portal (cross-tenant)
+	"parents":    true, // parents.moto-app.de — legacy guardian portal redirect
+	"eltern":     true, // eltern.moto-app.de — guardian portal (cross-tenant)
 	"grafana":    true, // grafana.moto-app.de monitoring
 	"pyreportal": true, // pyreportal.moto-app.de kiosk SPA
 	"help":       true, // public /help docs — top-level app route shadows [tenant]

@@ -235,7 +235,7 @@ function handleOperatorSubdomain(request: NextRequest): NextResponse {
  * /parents/* internally so the App Router routes them under app/parent/.
  *
  * The "/parents" prefix is the path namespace inside the App Router,
- * NOT the URL path the user sees. On parents.{TENANT_DOMAIN} the user
+ * NOT the URL path the user sees. On the configured parents host the user
  * sees /login → internally rewritten to /parents/login.
  */
 const PARENTS_PUBLIC_PATHS = [
@@ -394,7 +394,7 @@ export function proxy(request: NextRequest): NextResponse {
 
   // 3b. Parents auth guard on non-parents hosts: same pattern as
   // operator. /parents/* hit on a tenant subdomain or the bare domain
-  // gets redirected to parents.{TENANT_DOMAIN}. Defense-in-depth so
+  // gets redirected to the configured parents host. Defense-in-depth so
   // a stray link or bookmark can't accidentally serve parent UI from
   // a tenant context.
   if (pathname.startsWith("/parents")) {
