@@ -32,9 +32,13 @@ func init() {
 			// backfilled. New relationships receive the keys from the preset
 			// (authorize.fullParentPortalPermissions); this backfills existing ones.
 			// Idempotent: re-running just re-sets the same two keys to true.
+			// COALESCE the left side: in Postgres `NULL || jsonb` is NULL, so a row
+			// with a NULL permissions column would be silently skipped rather than
+			// granted. Migration 1.15.137 set these three roles non-null, but
+			// COALESCE makes the backfill robust against any stray NULL.
 			_, err := db.NewRaw(`
 				UPDATE users.students_guardians
-				SET permissions = permissions
+				SET permissions = COALESCE(permissions, '{}'::jsonb)
 					|| '{"parent_portal.guardian.edit": true, "parent_portal.pickup.manage": true}'::jsonb
 				WHERE guardian_role IN ('primary_guardian', 'legal_guardian', 'co_guardian')
 			`).Exec(ctx)

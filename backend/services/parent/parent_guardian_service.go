@@ -186,13 +186,12 @@ func (s *service) ListChildGuardians(ctx context.Context, accountID, studentID i
 			canManage = false
 		}
 	}
-	callerStudents, err := s.callerTenantStudentSet(ctx, accountID, child.tenantID)
-	if err != nil {
-		return nil, err
-	}
-
 	var out []*ChildGuardian
 	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		callerStudents, err := s.callerFamilyStudentSet(txCtx, accountID)
+		if err != nil {
+			return err
+		}
 		links, err := s.studentGuardianRepo.FindByStudentID(txCtx, studentID)
 		if err != nil {
 			return err
@@ -252,14 +251,23 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 	if err := s.requireGuardianManagementEnabled(ctx, child.tenantID); err != nil {
 		return nil, err
 	}
-	callerStudents, err := s.callerTenantStudentSet(ctx, accountID, child.tenantID)
-	if err != nil {
-		return nil, err
-	}
-
 	var result *ChildGuardian
 	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		link, err := s.findChildGuardianLink(txCtx, studentID, guardianProfileID)
+		if err != nil {
+			return err
+		}
+		// Lock the profile row so concurrent contact edits of the same guardian
+		// serialize: the read-modify-write below plus the wholesale phone-list
+		// replace (delete-all then re-insert) would otherwise race under
+		// read-committed and could lose an update or duplicate phone rows.
+		if err := s.guardianProfileRepo.LockByIDForUpdate(txCtx, guardianProfileID); err != nil {
+			if errors.Is(err, usersModels.ErrGuardianProfileNotFound) {
+				return ErrGuardianNotLinked
+			}
+			return err
+		}
+		callerStudents, err := s.callerFamilyStudentSet(txCtx, accountID)
 		if err != nil {
 			return err
 		}
@@ -388,13 +396,12 @@ func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 	if editsDetails && !child.hasPermission(authorize.GuardianPermissionGuardianEdit) {
 		return nil, ErrGuardianPermissionDenied
 	}
-	callerStudents, err := s.callerTenantStudentSet(ctx, accountID, child.tenantID)
-	if err != nil {
-		return nil, err
-	}
-
 	var result *ChildGuardian
 	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		callerStudents, err := s.callerFamilyStudentSet(txCtx, accountID)
+		if err != nil {
+			return err
+		}
 		link, err := s.findChildGuardianLink(txCtx, studentID, guardianProfileID)
 		if err != nil {
 			return err
@@ -727,20 +734,35 @@ func hasSubmittedPrimaryPhone(phones []GuardianPhoneInput) bool {
 	return false
 }
 
-// callerTenantStudentSet returns the set of per-tenant student IDs (within the
-// given tenant) the account is a linked guardian of. StudentID is unique only
-// per tenant, so the set is scoped to one tenant and compared only against
-// links read in that same tenant transaction.
-func (s *service) callerTenantStudentSet(ctx context.Context, accountID, tenantID int64) (map[int64]bool, error) {
-	children, err := s.ListChildrenForAccount(ctx, accountID)
+// callerFamilyStudentSet returns the set of student IDs (in the current tenant)
+// the account is a linked guardian of, regardless of parent-portal permission.
+// It defines "the caller's family" for the cross-family containment guard: the
+// question that guard answers is whether a contact-only profile ALSO serves a
+// child the caller does not guard, so the set must include EVERY child the
+// caller is linked to — not only the parent_portal.access ones
+// ListChildrenForAccount returns. Filtering by portal access would wrongly flag
+// a profile shared with the caller's own no-portal-access child as escaping and
+// over-redact it. There is exactly one guardian_profile per (account, tenant),
+// so the caller's family is precisely the students linked to that profile.
+// MUST run inside the tenant transaction — both reads are RLS-scoped.
+func (s *service) callerFamilyStudentSet(ctx context.Context, accountID int64) (map[int64]bool, error) {
+	profile, err := s.guardianProfileRepo.FindByAccountID(ctx, accountID)
+	if err != nil {
+		// The caller resolved a permitted child in this tenant, so their profile
+		// exists; treat a missing one defensively as an empty family (fail-safe:
+		// every shared profile then reads as escaping rather than editable).
+		if errors.Is(err, usersModels.ErrGuardianProfileNotFound) {
+			return map[int64]bool{}, nil
+		}
+		return nil, err
+	}
+	links, err := s.studentGuardianRepo.FindByGuardianProfileID(ctx, profile.ID)
 	if err != nil {
 		return nil, err
 	}
-	set := make(map[int64]bool, len(children))
-	for _, c := range children {
-		if c.TenantID == tenantID {
-			set[c.StudentID] = true
-		}
+	set := make(map[int64]bool, len(links))
+	for _, link := range links {
+		set[link.StudentID] = true
 	}
 	return set, nil
 }
