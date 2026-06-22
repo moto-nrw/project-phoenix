@@ -489,6 +489,8 @@ func TestFormSchemaRepository_HasLegalDocumentReference(t *testing.T) {
 
 	storedURL := "/uploads/enrollment-legal-documents/1_terms.pdf"
 	publicURL := "/api/public/enrollment-legal-documents/1_terms.pdf"
+	documentStoredURL := "/uploads/enrollment-legal-documents/1_document-url.pdf"
+	documentPublicURL := "/api/public/enrollment-legal-documents/1_document-url.pdf"
 	otherStoredURL := "/uploads/enrollment-legal-documents/2_terms.pdf"
 	otherPublicURL := "/api/public/enrollment-legal-documents/2_terms.pdf"
 
@@ -536,6 +538,29 @@ func TestFormSchemaRepository_HasLegalDocumentReference(t *testing.T) {
 		return repo.Create(ctx, publicSchema)
 	}))
 
+	documentURLSchema := &enrollmentModels.FormSchema{
+		Name:      uniqueSchemaName("legal-document-url"),
+		Version:   1,
+		Fields:    validFields(),
+		IsActive:  true,
+		CreatedBy: creator,
+		LegalBlocks: []enrollmentModels.FormLegalBlock{{
+			Key:         enrollmentModels.ConsentKeyAGB,
+			Kind:        enrollmentModels.LegalBlockKindTerms,
+			Title:       "AGB",
+			Label:       "AGB akzeptieren",
+			Required:    true,
+			Enabled:     true,
+			SortOrder:   10,
+			Source:      enrollmentModels.LegalBlockSourceStandard,
+			DisplayMode: enrollmentModels.LegalBlockDisplayModePDF,
+			DocumentURL: documentPublicURL,
+		}},
+	}
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.Create(ctx, documentURLSchema)
+	}))
+
 	var referenced bool
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var refErr error
@@ -544,6 +569,14 @@ func TestFormSchemaRepository_HasLegalDocumentReference(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.True(t, referenced, "stored upload URL in legal_blocks must count as a reference")
+
+	err = runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var refErr error
+		referenced, refErr = repo.HasLegalDocumentReference(ctx, documentStoredURL, documentPublicURL)
+		return refErr
+	})
+	require.NoError(t, err)
+	assert.True(t, referenced, "document_url in legal_blocks must count as a reference")
 
 	err = runInTenantTx(t, db, otherTenantID, func(ctx context.Context) error {
 		var refErr error

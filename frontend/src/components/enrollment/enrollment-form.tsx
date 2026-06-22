@@ -2268,7 +2268,7 @@ function previewLegalTexts(schema: PublicFormSchema | null): PublicLegalTexts {
         kind: block.kind,
         title: block.title,
         label: block.label,
-        text: block.text,
+        text: legalBlockText(block),
         required: block.required,
         sort_order: block.sort_order,
         source: block.source,
@@ -2290,6 +2290,32 @@ function previewLegalTexts(schema: PublicFormSchema | null): PublicLegalTexts {
     photo_enabled: blocks.some((block) => block.key === "photo"),
     blocks,
   };
+}
+
+function legalBlockText(
+  block: NonNullable<PublicFormSchema["legal_blocks"]>[number],
+) {
+  const documentURL = (block.document_url ?? "").trim();
+  if (
+    block.key === "agb" &&
+    block.display_mode === "pdf" &&
+    documentURL !== ""
+  ) {
+    return `Die AGB / Teilnahmebedingungen sind als PDF-Datei hinterlegt: [AGB-Dokument öffnen](${publicAGBDocumentURL(documentURL)})`;
+  }
+  return block.text;
+}
+
+function publicAGBDocumentURL(storedURL: string): string {
+  const globalPrefix = "/uploads/enrollment-legal-documents/";
+  if (storedURL.startsWith(globalPrefix)) {
+    return `/api/public/enrollment-legal-documents/${storedURL.slice(globalPrefix.length)}`;
+  }
+  const formPrefix = "/uploads/enrollment-form-legal-documents/";
+  if (storedURL.startsWith(formPrefix)) {
+    return `/api/public/enrollment-form-legal-documents/${storedURL.slice(formPrefix.length)}`;
+  }
+  return storedURL;
 }
 
 function Consent({

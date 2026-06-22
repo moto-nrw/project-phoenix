@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   deleteCareOffering: vi.fn(),
   deletePhase: vi.fn(),
   deleteSchema: vi.fn(),
+  deleteEnrollmentLegalDocument: vi.fn(),
   fetchPublicLegalTexts: vi.fn(),
   listCareOfferings: vi.fn(),
   listPhases: vi.fn(),
@@ -18,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   updateCareOffering: vi.fn(),
   updatePhase: vi.fn(),
   updateSchema: vi.fn(),
+  uploadEnrollmentLegalDocument: vi.fn(),
   getTemplates: vi.fn(),
   searchParams: new URLSearchParams(),
   toast: {
@@ -93,11 +95,13 @@ vi.mock("~/lib/enrollment-form-schema-api", async (importOriginal) => {
   return {
     ...actual,
     createSchema: mocks.createSchema,
+    deleteEnrollmentLegalDocument: mocks.deleteEnrollmentLegalDocument,
     deleteSchema: mocks.deleteSchema,
     fetchPublicLegalTexts: mocks.fetchPublicLegalTexts,
     listSchemas: mocks.listSchemas,
     renameSchema: mocks.renameSchema,
     updateSchema: mocks.updateSchema,
+    uploadEnrollmentLegalDocument: mocks.uploadEnrollmentLegalDocument,
   };
 });
 
@@ -234,6 +238,8 @@ beforeEach(() => {
   // configured, so the standard blocks stay disabled by default.
   mocks.fetchPublicLegalTexts.mockResolvedValue({
     agb: "",
+    agb_document_url: "",
+    agb_display_mode: "text",
     dsgvo: "",
     email_contact: "",
     photo: "",
@@ -250,6 +256,8 @@ beforeEach(() => {
   mocks.updateCareOffering.mockReset();
   mocks.updatePhase.mockReset();
   mocks.updateSchema.mockReset();
+  mocks.uploadEnrollmentLegalDocument.mockReset();
+  mocks.deleteEnrollmentLegalDocument.mockReset();
   mocks.getTemplates.mockReset();
   mocks.getTemplates.mockResolvedValue({ templates: [] });
   mocks.toast.success.mockReset();
@@ -931,6 +939,323 @@ describe("EnrollmentFormEditor", () => {
     );
   });
 
+  it("uploads and saves an AGB PDF source for a form template", async () => {
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.uploadEnrollmentLegalDocument.mockResolvedValue(
+      "/uploads/enrollment-form-legal-documents/1_terms.pdf",
+    );
+    mocks.createSchema.mockResolvedValue(
+      schema({ id: "schema-new", name: "PDF-Rechtstextformular" }),
+    );
+
+    render(<EnrollmentFormEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    fireEvent.change(
+      screen.getByPlaceholderText("z. B. Ferienbetreuung Sommer 2026"),
+      {
+        target: { value: "PDF-Rechtstextformular" },
+      },
+    );
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /PDF-Datei hochladen/ }),
+    );
+
+    const uploadInput = screen.getByLabelText("PDF hochladen");
+    const file = new File(["%PDF-1.4"], "terms.pdf", {
+      type: "application/pdf",
+    });
+    fireEvent.change(uploadInput, { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(mocks.uploadEnrollmentLegalDocument).toHaveBeenCalledWith(file);
+    });
+    expect(await screen.findByText("PDF gespeichert")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Formularvorlage erstellen" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.createSchema).toHaveBeenCalled();
+    });
+    const [, , , legalBlocks] = mocks.createSchema.mock.calls[0] as [
+      string,
+      unknown,
+      unknown,
+      Array<{
+        key: string;
+        display_mode: string;
+        document_url: string;
+        enabled: boolean;
+      }>,
+    ];
+    expect(legalBlocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: "agb",
+          display_mode: "pdf",
+          document_url: "/uploads/enrollment-form-legal-documents/1_terms.pdf",
+          enabled: true,
+        }),
+      ]),
+    );
+    expect(mocks.deleteEnrollmentLegalDocument).not.toHaveBeenCalled();
+  });
+
+  it("does not enable inherited PDF AGB when the active PDF source has no document", async () => {
+    mocks.fetchPublicLegalTexts.mockResolvedValue({
+      agb: "Legacy AGB Text",
+      agb_document_url: "",
+      agb_display_mode: "pdf",
+      dsgvo: "",
+      email_contact: "",
+      photo: "",
+      terms_enabled: true,
+      dsgvo_enabled: false,
+      email_contact_enabled: false,
+      photo_enabled: false,
+      blocks: [
+        {
+          key: "agb",
+          kind: "terms",
+          title: "AGB",
+          label: "Ich akzeptiere die AGB.",
+          text: "Die AGB / Teilnahmebedingungen sind als PDF-Datei hinterlegt: [AGB-Dokument öffnen](/api/public/enrollment-legal-documents/legacy.pdf)",
+          required: true,
+          enabled: false,
+          sort_order: 10,
+          source: "standard",
+        },
+      ],
+    });
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.createSchema.mockResolvedValue(
+      schema({ id: "schema-new", name: "PDF ohne Datei" }),
+    );
+
+    render(<EnrollmentFormEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    fireEvent.change(
+      screen.getByPlaceholderText("z. B. Ferienbetreuung Sommer 2026"),
+      { target: { value: "PDF ohne Datei" } },
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Formularvorlage erstellen" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.createSchema).toHaveBeenCalled();
+    });
+    const [, , , legalBlocks] = mocks.createSchema.mock.calls[0] as [
+      string,
+      unknown,
+      unknown,
+      Array<{
+        key: string;
+        enabled: boolean;
+        text: string;
+        display_mode: string;
+        document_url: string;
+      }>,
+    ];
+    expect(legalBlocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: "agb",
+          enabled: false,
+          text: "",
+          display_mode: "pdf",
+          document_url: "",
+        }),
+      ]),
+    );
+  });
+
+  it("does not inherit stale AGB PDF URLs while settings are in text mode", async () => {
+    mocks.fetchPublicLegalTexts.mockResolvedValue({
+      agb: "",
+      agb_document_url: "/uploads/enrollment-legal-documents/1_stale.pdf",
+      agb_display_mode: "text",
+      dsgvo: "",
+      email_contact: "",
+      photo: "",
+      terms_enabled: true,
+      dsgvo_enabled: false,
+      email_contact_enabled: false,
+      photo_enabled: false,
+      blocks: [],
+    });
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.createSchema.mockResolvedValue(
+      schema({ id: "schema-new", name: "Text ohne Inhalt" }),
+    );
+
+    render(<EnrollmentFormEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    fireEvent.change(
+      screen.getByPlaceholderText("z. B. Ferienbetreuung Sommer 2026"),
+      { target: { value: "Text ohne Inhalt" } },
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Formularvorlage erstellen" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.createSchema).toHaveBeenCalled();
+    });
+    const [, , , legalBlocks] = mocks.createSchema.mock.calls[0] as [
+      string,
+      unknown,
+      unknown,
+      Array<{ key: string; enabled: boolean; document_url: string }>,
+    ];
+    expect(legalBlocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: "agb",
+          enabled: false,
+          document_url: "",
+        }),
+      ]),
+    );
+  });
+
+  it("keeps generated PDF link text out of the editable AGB text source", async () => {
+    mocks.fetchPublicLegalTexts.mockResolvedValue({
+      agb: "Die AGB / Teilnahmebedingungen sind als PDF-Datei hinterlegt: [AGB-Dokument öffnen](/api/public/enrollment-legal-documents/generated.pdf)",
+      agb_document_url: "/uploads/enrollment-form-legal-documents/1_terms.pdf",
+      agb_display_mode: "pdf",
+      dsgvo: "",
+      email_contact: "",
+      photo: "",
+      terms_enabled: true,
+      dsgvo_enabled: false,
+      email_contact_enabled: false,
+      photo_enabled: false,
+      blocks: [
+        {
+          key: "agb",
+          kind: "terms",
+          title: "AGB",
+          label: "Ich akzeptiere die AGB.",
+          text: "Die AGB / Teilnahmebedingungen sind als PDF-Datei hinterlegt: [AGB-Dokument öffnen](/api/public/enrollment-legal-documents/generated.pdf)",
+          required: true,
+          enabled: true,
+          sort_order: 10,
+          source: "standard",
+        },
+      ],
+    });
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+
+    render(<EnrollmentFormEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Text eingeben/ }));
+
+    expect(screen.getByLabelText("Rechtstext / Erklärung")).toHaveValue("");
+  });
+
+  it("removes an uploaded AGB PDF source from a form template draft", async () => {
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.uploadEnrollmentLegalDocument.mockResolvedValue(
+      "/uploads/enrollment-form-legal-documents/1_terms.pdf",
+    );
+    mocks.deleteEnrollmentLegalDocument.mockResolvedValue(undefined);
+
+    render(<EnrollmentFormEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /PDF-Datei hochladen/ }),
+    );
+
+    const file = new File(["%PDF-1.4"], "terms.pdf", {
+      type: "application/pdf",
+    });
+    fireEvent.change(screen.getByLabelText("PDF hochladen"), {
+      target: { files: [file] },
+    });
+
+    await screen.findByText("PDF gespeichert");
+    fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
+
+    await waitFor(() => {
+      expect(mocks.deleteEnrollmentLegalDocument).toHaveBeenCalledWith(
+        "/uploads/enrollment-form-legal-documents/1_terms.pdf",
+      );
+    });
+    expect(screen.queryByText("PDF gespeichert")).not.toBeInTheDocument();
+  });
+
+  it("cleans up uploaded AGB PDFs when a form template draft is discarded", async () => {
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.uploadEnrollmentLegalDocument.mockResolvedValue(
+      "/uploads/enrollment-form-legal-documents/1_draft.pdf",
+    );
+    mocks.deleteEnrollmentLegalDocument.mockResolvedValue(undefined);
+
+    render(<EnrollmentFormEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /abweichend bearbeiten/i })[0]!,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /PDF-Datei hochladen/ }),
+    );
+
+    const file = new File(["%PDF-1.4"], "terms.pdf", {
+      type: "application/pdf",
+    });
+    fireEvent.change(screen.getByLabelText("PDF hochladen"), {
+      target: { files: [file] },
+    });
+    await screen.findByText("PDF gespeichert");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Zurück zur Übersicht" }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Verwerfen" }));
+
+    await waitFor(() => {
+      expect(mocks.deleteEnrollmentLegalDocument).toHaveBeenCalledWith(
+        "/uploads/enrollment-form-legal-documents/1_draft.pdf",
+        expect.any(Object),
+      );
+    });
+  });
+
   it("shows standard legal blocks as inherited summaries until an admin edits an override", async () => {
     mocks.listSchemas.mockResolvedValue([]);
     mocks.listPhases.mockResolvedValue([]);
@@ -963,6 +1288,8 @@ describe("EnrollmentFormEditor", () => {
     mocks.listPhases.mockResolvedValue([]);
     mocks.fetchPublicLegalTexts.mockResolvedValue({
       agb: "",
+      agb_document_url: "",
+      agb_display_mode: "text",
       dsgvo: "",
       email_contact: "",
       photo: "Foto-Rechtstext aus den Einstellungen",

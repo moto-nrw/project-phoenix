@@ -291,9 +291,11 @@ func (r *FormSchemaRepository) HasLegalDocumentReference(ctx context.Context, st
 				AND (
 					strpos(COALESCE(block.elem->>'text', ''), ?) > 0
 					OR strpos(COALESCE(block.elem->>'text', ''), ?) > 0
+					OR COALESCE(block.elem->>'document_url', '') = ?
+					OR COALESCE(block.elem->>'document_url', '') = ?
 				)
 		)
-	`, tenantID, storedURL, publicURL).Scan(ctx, &referenced)
+	`, tenantID, storedURL, publicURL, storedURL, publicURL).Scan(ctx, &referenced)
 	if err != nil {
 		return false, fmt.Errorf("check legal document references: %w", err)
 	}
