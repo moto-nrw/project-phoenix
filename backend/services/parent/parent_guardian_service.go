@@ -24,15 +24,13 @@ import (
 // Field length bounds for guardian contact edits. Generous but finite so a
 // buggy or hostile client can't push unbounded strings into the contact table.
 const (
-	maxGuardianNameLen   = 100
-	maxGuardianEmailLen  = 254
-	maxGuardianAddrLen   = 200
-	maxGuardianPhoneLen  = 40
-	maxGuardianLabelLen  = 50
-	maxGuardianPhones    = 5
-	maxGuardianNotesLen  = 500
-	maxEmergencyPriority = 99
-	minEmergencyPriority = 1
+	maxGuardianNameLen  = 100
+	maxGuardianEmailLen = 254
+	maxGuardianAddrLen  = 200
+	maxGuardianPhoneLen = 40
+	maxGuardianLabelLen = 50
+	maxGuardianPhones   = 5
+	maxGuardianNotesLen = 500
 )
 
 // Sentinel errors the HTTP layer maps to stable status codes via
@@ -95,7 +93,6 @@ type ChildGuardian struct {
 	IsEmergencyContact bool
 	CanPickup          bool
 	PickupNotes        string
-	EmergencyPriority  int
 	// HasAccount is true when the guardian holds their own portal login. Such
 	// guardians' contact data is read-only to other parents.
 	HasAccount bool
@@ -162,7 +159,6 @@ type GuardianRelationshipInput struct {
 	CanPickup          *bool
 	IsEmergencyContact *bool
 	PickupNotes        *string
-	EmergencyPriority  *int
 }
 
 // ListChildGuardians returns every guardian linked to the child with contact +
@@ -367,8 +363,8 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 
 // UpdateGuardianRelationship edits the per-child pickup/relationship fields of a
 // guardian. The CanPickup and IsEmergencyContact flags require
-// parent_portal.pickup.manage (safety-relevant authority); PickupNotes and
-// EmergencyPriority require parent_portal.guardian.edit. Each field group is
+// parent_portal.pickup.manage (safety-relevant authority); PickupNotes requires
+// parent_portal.guardian.edit. Each field group is
 // gated by its own permission so that a caller who holds only one of the two
 // permissions can exercise exactly the capability advertised by
 // ListChildGuardians, never receiving a 403 for an action the listing offered.
@@ -377,14 +373,14 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 // (out of band) or the school, never by another parent and never self-granted
 // through the portal.
 func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, studentID, guardianProfileID int64, input GuardianRelationshipInput) (*ChildGuardian, error) {
-	if input.CanPickup == nil && input.IsEmergencyContact == nil && input.PickupNotes == nil && input.EmergencyPriority == nil {
+	if input.CanPickup == nil && input.IsEmergencyContact == nil && input.PickupNotes == nil {
 		return nil, ErrGuardianNoChange
 	}
 	if err := validateRelationshipInput(&input); err != nil {
 		return nil, err
 	}
 	editsFlags := input.CanPickup != nil || input.IsEmergencyContact != nil
-	editsDetails := input.PickupNotes != nil || input.EmergencyPriority != nil
+	editsDetails := input.PickupNotes != nil
 
 	// Resolve on baseline portal access, then gate each field group by its own
 	// permission. Resolving on the lower baseline (rather than guardian.edit) is
@@ -463,9 +459,6 @@ func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 			} else {
 				link.PickupNotes = &trimmed
 			}
-		}
-		if input.EmergencyPriority != nil {
-			link.EmergencyPriority = *input.EmergencyPriority
 		}
 		if err := s.studentGuardianRepo.Update(txCtx, link); err != nil {
 			return err
@@ -860,7 +853,6 @@ func projectChildGuardian(profile *usersModels.GuardianProfile, link *usersModel
 		IsPrimary:          link.IsPrimary,
 		IsEmergencyContact: link.IsEmergencyContact,
 		CanPickup:          link.CanPickup,
-		EmergencyPriority:  link.EmergencyPriority,
 		HasAccount:         profile.HasAccount,
 		IsSelf:             isSelf,
 		// Contact editing needs the edit permission and an unprotected target.
@@ -1031,12 +1023,6 @@ func isGuardianEmailUniqueViolation(err error) bool {
 func validateRelationshipInput(input *GuardianRelationshipInput) error {
 	if input.PickupNotes != nil && utf8.RuneCountInString(*input.PickupNotes) > maxGuardianNotesLen {
 		return fmt.Errorf("%w: pickup note too long", ErrGuardianRelationshipInvalid)
-	}
-	if input.EmergencyPriority != nil {
-		p := *input.EmergencyPriority
-		if p < minEmergencyPriority || p > maxEmergencyPriority {
-			return fmt.Errorf("%w: emergency priority out of range", ErrGuardianRelationshipInvalid)
-		}
 	}
 	return nil
 }

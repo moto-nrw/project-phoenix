@@ -59,7 +59,6 @@ const editableGuardian: ChildGuardian = {
   is_emergency_contact: true,
   can_pickup: true,
   pickup_notes: "Nur freitags",
-  emergency_priority: 2,
   has_account: false,
   is_self: false,
   can_edit_contact: true,

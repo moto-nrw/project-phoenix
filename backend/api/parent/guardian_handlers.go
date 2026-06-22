@@ -30,7 +30,6 @@ type childGuardianResponse struct {
 	IsEmergencyContact bool                    `json:"is_emergency_contact"`
 	CanPickup          bool                    `json:"can_pickup"`
 	PickupNotes        string                  `json:"pickup_notes,omitempty"`
-	EmergencyPriority  int                     `json:"emergency_priority"`
 	HasAccount         bool                    `json:"has_account"`
 	IsSelf             bool                    `json:"is_self"`
 	CanEditContact     bool                    `json:"can_edit_contact"`
@@ -80,7 +79,6 @@ type updateGuardianRelationshipRequest struct {
 	CanPickup          *bool   `json:"can_pickup"`
 	IsEmergencyContact *bool   `json:"is_emergency_contact"`
 	PickupNotes        *string `json:"pickup_notes"`
-	EmergencyPriority  *int    `json:"emergency_priority"`
 }
 
 // listChildGuardians returns the guardians of the parent's child with contact +
@@ -181,7 +179,6 @@ func (rs *Resource) updateGuardianRelationship(w http.ResponseWriter, r *http.Re
 		CanPickup:          body.CanPickup,
 		IsEmergencyContact: body.IsEmergencyContact,
 		PickupNotes:        body.PickupNotes,
-		EmergencyPriority:  body.EmergencyPriority,
 	})
 	if err != nil {
 		renderParentWriteError(w, r, err)
@@ -224,7 +221,6 @@ func guardianResponse(g *parentService.ChildGuardian) childGuardianResponse {
 		IsEmergencyContact:        g.IsEmergencyContact,
 		CanPickup:                 g.CanPickup,
 		PickupNotes:               g.PickupNotes,
-		EmergencyPriority:         g.EmergencyPriority,
 		HasAccount:                g.HasAccount,
 		IsSelf:                    g.IsSelf,
 		CanEditContact:            g.CanEditContact,

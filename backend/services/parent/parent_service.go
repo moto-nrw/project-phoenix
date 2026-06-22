@@ -132,7 +132,7 @@ type Service interface {
 	UpdateGuardianContact(ctx context.Context, accountID, studentID, guardianProfileID int64, input GuardianContactInput) (*ChildGuardian, error)
 
 	// UpdateGuardianRelationship edits the per-child pickup/relationship fields.
-	// PickupNotes/EmergencyPriority require parent_portal.guardian.edit; the
+	// PickupNotes requires parent_portal.guardian.edit; the
 	// can_pickup / is_emergency_contact flags additionally require
 	// parent_portal.pickup.manage.
 	UpdateGuardianRelationship(ctx context.Context, accountID, studentID, guardianProfileID int64, input GuardianRelationshipInput) (*ChildGuardian, error)

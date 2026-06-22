@@ -154,7 +154,6 @@ export interface ChildGuardian {
   readonly is_emergency_contact: boolean;
   readonly can_pickup: boolean;
   readonly pickup_notes?: string;
-  readonly emergency_priority: number;
   readonly has_account: boolean;
   readonly is_self: boolean;
   readonly can_edit_contact: boolean;
@@ -187,7 +186,6 @@ export interface GuardianRelationshipPayload {
   readonly can_pickup?: boolean;
   readonly is_emergency_contact?: boolean;
   readonly pickup_notes?: string | null;
-  readonly emergency_priority?: number;
 }
 
 interface ApiEnvelope<T> {
