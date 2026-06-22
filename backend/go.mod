@@ -5,7 +5,7 @@ go 1.25.5
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/agnivade/levenshtein v1.2.1
-	github.com/getsentry/sentry-go v0.46.2
+	github.com/getsentry/sentry-go v0.47.0
 	github.com/go-chi/chi/v5 v5.3.0
 	github.com/go-chi/cors v1.2.2
 	github.com/go-chi/docgen v1.4.0
