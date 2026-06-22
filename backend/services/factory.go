@@ -1062,6 +1062,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		GuardianInvites:       guardianInvitationService,
 		GuardianInviteRepo:    repos.GuardianInvitation,
 		StudentGuardianRepo:   repos.StudentGuardian,
+		GuardianPhoneRepo:     repos.GuardianPhoneNumber,
 		DB:                    db,
 		Logger:                logger.With("service", "parent"),
 	})

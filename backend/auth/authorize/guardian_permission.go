@@ -13,6 +13,16 @@ const (
 	GuardianPermissionNotesWrite       = "parent_portal.notes.write"
 	GuardianPermissionEnrollmentsView  = "parent_portal.enrollments.view"
 	GuardianPermissionEnrollmentSubmit = "parent_portal.enrollment.submit"
+	// GuardianPermissionGuardianEdit allows a parent to edit the contact data
+	// (name, email, phone, address) of contact-only guardians of their child,
+	// plus the per-child pickup note and emergency priority. It never permits
+	// editing a guardian who holds their own portal account (#1667).
+	GuardianPermissionGuardianEdit = "parent_portal.guardian.edit"
+	// GuardianPermissionPickupManage allows a parent to set the per-child
+	// can_pickup and is_emergency_contact flags on any guardian of their child.
+	// Granting/revoking pickup authority is safety-relevant, so only the full
+	// guardian presets (primary/legal/co) receive it (#1667).
+	GuardianPermissionPickupManage = "parent_portal.pickup.manage"
 )
 
 const (
@@ -31,6 +41,8 @@ var fullParentPortalPermissions = []string{
 	GuardianPermissionNotesWrite,
 	GuardianPermissionEnrollmentsView,
 	GuardianPermissionEnrollmentSubmit,
+	GuardianPermissionGuardianEdit,
+	GuardianPermissionPickupManage,
 }
 
 // Guardian permission checks and grants are authorization concerns, not data

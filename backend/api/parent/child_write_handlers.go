@@ -359,6 +359,20 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "staff_managed_guardian_protected"))
 	case errors.Is(err, authService.ErrCannotRemoveOwnAccess):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "cannot_remove_own_access"))
+	case errors.Is(err, parentService.ErrGuardianNotLinked):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "guardian_not_linked"))
+	case errors.Is(err, parentService.ErrGuardianHasOwnAccount):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "guardian_has_own_account"))
+	case errors.Is(err, parentService.ErrGuardianSharedAcrossFamilies):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "guardian_shared_across_families"))
+	case errors.Is(err, parentService.ErrGuardianEmailConflict):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "guardian_email_conflict"))
+	case errors.Is(err, parentService.ErrGuardianNoChange):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "guardian_no_change"))
+	case errors.Is(err, parentService.ErrGuardianContactInvalid):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "guardian_contact_invalid"))
+	case errors.Is(err, parentService.ErrGuardianRelationshipInvalid):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "guardian_relationship_invalid"))
 	case errors.Is(err, parentService.ErrNoDates),
 		errors.Is(err, parentService.ErrInvalidStatus),
 		errors.Is(err, parentService.ErrEmptyNote),

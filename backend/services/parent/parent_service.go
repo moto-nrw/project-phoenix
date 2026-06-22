@@ -118,6 +118,23 @@ type Service interface {
 	// RemoveRelatedAccount removes another account's access to the child.
 	// Gated by guardians.parent_can_remove; the primary guardian is protected.
 	RemoveRelatedAccount(ctx context.Context, accountID, studentID, guardianProfileID int64) error
+
+	// ListChildGuardians returns every guardian linked to the child with
+	// contact + pickup detail and the caller's per-guardian edit capabilities.
+	// Authorization only (parent_portal.access).
+	ListChildGuardians(ctx context.Context, accountID, studentID int64) ([]*ChildGuardian, error)
+
+	// UpdateGuardianContact edits a contact-only guardian's contact data (or the
+	// caller's own profile): name, email, address, phone list. Requires
+	// parent_portal.guardian.edit. A guardian with their own portal account is
+	// rejected unless it is the caller.
+	UpdateGuardianContact(ctx context.Context, accountID, studentID, guardianProfileID int64, input GuardianContactInput) (*ChildGuardian, error)
+
+	// UpdateGuardianRelationship edits the per-child pickup/relationship fields.
+	// PickupNotes/EmergencyPriority require parent_portal.guardian.edit; the
+	// can_pickup / is_emergency_contact flags additionally require
+	// parent_portal.pickup.manage.
+	UpdateGuardianRelationship(ctx context.Context, accountID, studentID, guardianProfileID int64, input GuardianRelationshipInput) (*ChildGuardian, error)
 }
 
 // ChildFeatureFlags reports the resolved per-tenant parent-portal feature
@@ -178,6 +195,10 @@ type ServiceConfig struct {
 	GuardianInviteRepo  authModels.GuardianInvitationRepository
 	StudentGuardianRepo usersModels.StudentGuardianRepository
 
+	// Guardian contact + pickup editing (#1667). The phone repo backs the
+	// wholesale phone-list replace on a contact edit.
+	GuardianPhoneRepo usersModels.GuardianPhoneNumberRepository
+
 	DB     *bun.DB
 	Logger *slog.Logger
 }
@@ -199,6 +220,8 @@ type service struct {
 	guardianInvites     authService.GuardianInvitationService
 	guardianInviteRepo  authModels.GuardianInvitationRepository
 	studentGuardianRepo usersModels.StudentGuardianRepository
+
+	guardianPhoneRepo usersModels.GuardianPhoneNumberRepository
 
 	db     *bun.DB
 	logger *slog.Logger
@@ -225,6 +248,7 @@ func NewService(cfg ServiceConfig) Service {
 		guardianInvites:       cfg.GuardianInvites,
 		guardianInviteRepo:    cfg.GuardianInviteRepo,
 		studentGuardianRepo:   cfg.StudentGuardianRepo,
+		guardianPhoneRepo:     cfg.GuardianPhoneRepo,
 		db:                    cfg.DB,
 		logger:                logger,
 	}
