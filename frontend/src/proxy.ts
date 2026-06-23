@@ -250,6 +250,29 @@ function isParentsHost(hostname: string): boolean {
   return hostname === PARENTS_HOSTNAME;
 }
 
+function hostnameWithoutPort(hostname: string): string {
+  const [host = ""] = hostname.split(":");
+  return host;
+}
+
+function isLegacyParentsHost(hostname: string): boolean {
+  if (!PARENTS_HOSTNAME) return false;
+  const legacyParentsHost = `parents.${TENANT_DOMAIN}`;
+  return (
+    hostnameWithoutPort(hostname) === legacyParentsHost &&
+    hostnameWithoutPort(PARENTS_HOSTNAME) !== legacyParentsHost
+  );
+}
+
+function redirectLegacyParentsHost(request: NextRequest): NextResponse {
+  if (!PARENTS_HOSTNAME) {
+    throw new Error("NEXT_PUBLIC_PARENTS_HOSTNAME is not set.");
+  }
+  const url = request.nextUrl.clone();
+  url.host = PARENTS_HOSTNAME;
+  return withSecurityHeaders(NextResponse.redirect(url, 302));
+}
+
 function handleParentsSubdomain(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
 
@@ -364,7 +387,14 @@ export function proxy(request: NextRequest): NextResponse {
     return handleOperatorSubdomain(request);
   }
 
-  // 1b. Parents subdomain gets its own routing (mirrors operator)
+  // 1b. Legacy deployed parents host redirects to the configured canonical
+  // parents portal host. Local dev stays on parents.localhost:3000 because it
+  // is already the canonical PARENTS_HOSTNAME there.
+  if (isLegacyParentsHost(hostname)) {
+    return redirectLegacyParentsHost(request);
+  }
+
+  // 1c. Parents subdomain gets its own routing (mirrors operator)
   if (isParentsHost(hostname)) {
     return handleParentsSubdomain(request);
   }
