@@ -1262,3 +1262,137 @@ func TestUpdateGuardianContact_CaseVariantEmailRaceLeavesSingleWinner(t *testing
 		require.Equalf(t, 1, count, "round %d: exactly one profile may hold LOWER(email)=%s", i, lower)
 	}
 }
+
+// driftedGuardianInsertErr attempts to persist a guardian profile whose
+// account_id and has_account columns are out of sync and returns the resulting
+// insert error. Since migration 1.15.146 the database enforces
+// has_account = (account_id IS NOT NULL) via the
+// chk_guardian_has_account_matches_account_id CHECK constraint, so any such
+// insert must be rejected. If a regression ever lets the row persist, it is
+// deleted again so the test does not leak a drifted row into later cases.
+func driftedGuardianInsertErr(t *testing.T, db *bun.DB, accountID *int64, hasAccount bool, emailSeed string) error {
+	t.Helper()
+	ctx := context.Background()
+	email := emailSeed + "@drift.test"
+	profile := &userModels.GuardianProfile{
+		FirstName:              "Drifted",
+		LastName:               "Helper",
+		Email:                  &email,
+		AccountID:              accountID,
+		HasAccount:             hasAccount,
+		PreferredContactMethod: "email",
+		LanguagePreference:     "de",
+	}
+	profile.SetTenantID(1)
+	_, err := db.NewInsert().Model(profile).ModelTableExpr(`users.guardian_profiles`).Exec(ctx)
+	if err == nil {
+		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(ctx)
+	}
+	return err
+}
+
+// TestGuardianProfile_AccountStateCannotDrift is the regression guard for review
+// #1743 critical 2, hardened from an app-level check into a DB invariant
+// (migration 1.15.146). has_account and account_id encode the same fact; the two
+// could previously drift apart (nothing kept them in sync) and authorization code
+// reads one column or the other, so a drifted row was a real privilege-escalation
+// risk. The CHECK constraint now makes BOTH inconsistent directions impossible to
+// persist, so no authorization path can ever see a disagreeing pair. The
+// app-level HasPortalAccount() helper stays as defense-in-depth, but the database
+// is the primary guarantee — which is why this test asserts the write is rejected
+// rather than simulating a drifted row (it can no longer exist).
+func TestGuardianProfile_AccountStateCannotDrift(t *testing.T) {
+	_, db := buildGuardianService(t)
+	defer func() { _ = db.Close() }()
+
+	// Direction 1: an account is linked (account_id set) but has_account drifted
+	// to false. The FK requires a real account, so create one.
+	account := testpkg.CreateTestAccount(t, db, "drift-linked")
+	defer func() {
+		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
+	}()
+	err := driftedGuardianInsertErr(t, db, &account.ID, false, "drift-linked")
+	require.Error(t, err, "account_id set with has_account=false must be rejected")
+	assert.Contains(t, err.Error(), "SQLSTATE=23514", "expected a CHECK violation")
+	assert.Contains(t, err.Error(), "chk_guardian_has_account_matches_account_id")
+
+	// Direction 2: has_account=true with no linked account (account_id NULL).
+	err = driftedGuardianInsertErr(t, db, nil, true, "drift-unlinked")
+	require.Error(t, err, "has_account=true with NULL account_id must be rejected")
+	assert.Contains(t, err.Error(), "SQLSTATE=23514", "expected a CHECK violation")
+	assert.Contains(t, err.Error(), "chk_guardian_has_account_matches_account_id")
+}
+
+// emailLookupFailingGuardianRepo wraps the real guardian-profile repository and
+// fails FindByEmail with a fixed error, delegating everything else. It lets the
+// email-lookup-error test inject a DB/RLS-style failure on exactly that call.
+type emailLookupFailingGuardianRepo struct {
+	userModels.GuardianProfileRepository
+	err error
+}
+
+func (r emailLookupFailingGuardianRepo) FindByEmail(context.Context, string) (*userModels.GuardianProfile, error) {
+	return nil, r.err
+}
+
+// TestUpdateGuardianContact_PropagatesEmailLookupError is the regression guard
+// for review #1743 critical 3: an UNEXPECTED FindByEmail error (DB/RLS failure,
+// not the clean not-found sentinel) must abort the contact edit, not be
+// swallowed as "no conflicting profile". Swallowing it would let the write
+// commit while a genuine duplicate could exist.
+func TestUpdateGuardianContact_PropagatesEmailLookupError(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repos := repositories.NewFactory(db)
+	lookupErr := fmt.Errorf("simulated guardian email lookup failure")
+	svc := parentService.NewService(parentService.ServiceConfig{
+		ChildRepo:               repos.ParentChild,
+		StatusDayRepo:           repos.StudentStatusDay,
+		StudentRepo:             repos.Student,
+		NoteRepo:                repos.StudentParentNote,
+		Settings:                guardianStubSettings{mgmtEnabled: true},
+		GuardianInvites:         &stubInvites{},
+		GuardianInviteRepo:      repos.GuardianInvitation,
+		StudentGuardianRepo:     repos.StudentGuardian,
+		GuardianProfileRepo:     emailLookupFailingGuardianRepo{GuardianProfileRepository: repos.GuardianProfile, err: lookupErr},
+		GuardianPhoneRepo:       repos.GuardianPhoneNumber,
+		GuardianChangeAuditRepo: repos.GuardianChange,
+		DB:                      db,
+		Logger:                  slog.Default(),
+	})
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	contactID, cleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-emailerr")
+	defer cleanup()
+
+	before := guardianFirstName(t, db, contactID)
+
+	newEmail := "neue-oma@example.test"
+	_, err := svc.UpdateGuardianContact(context.Background(), chain.AccountID, chain.StudentID, contactID, parentService.GuardianContactInput{
+		FirstName: "Changed",
+		LastName:  "Name",
+		Email:     &newEmail,
+	})
+	require.Error(t, err)
+	// The raw lookup failure propagates — NOT swallowed, NOT misreported as a
+	// duplicate-email conflict.
+	assert.ErrorIs(t, err, lookupErr)
+	assert.NotErrorIs(t, err, parentService.ErrGuardianEmailConflict)
+
+	// The edit rolled back: the lookup error aborted before the write.
+	assert.Equal(t, before, guardianFirstName(t, db, contactID), "a failed email lookup must abort the contact edit, not commit it")
+}
+
+func guardianFirstName(t *testing.T, db *bun.DB, profileID int64) string {
+	t.Helper()
+	var name string
+	err := db.NewSelect().
+		TableExpr("users.guardian_profiles").
+		ColumnExpr("first_name").
+		Where("id = ?", profileID).
+		Scan(context.Background(), &name)
+	require.NoError(t, err)
+	return name
+}

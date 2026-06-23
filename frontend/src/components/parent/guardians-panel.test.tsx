@@ -244,6 +244,54 @@ describe("GuardiansPanel", () => {
     });
   });
 
+  it("toggles a pickup flag without sending a phantom note for a manage-only guardian", async () => {
+    // Finding #1 (review pass 3): a pickup-manage-only caller (no contact edit)
+    // sees the flags but not the note textarea. If legacy/staff pickup_notes has
+    // surrounding whitespace, the note must NOT travel — gating on
+    // can_edit_contact (and trimming the original) keeps a flag-only edit from
+    // tripping the guardian.edit gate and failing an otherwise valid toggle.
+    const manageOnlyGuardian: ChildGuardian = {
+      ...editableGuardian,
+      guardian_profile_id: "11",
+      student_guardian_id: "110",
+      first_name: "Opa",
+      last_name: "Klein",
+      can_pickup: false,
+      is_emergency_contact: false,
+      can_edit_contact: false,
+      can_manage_pickup: true,
+      // Surrounding whitespace: the hidden, untouched note would "differ" from
+      // its trimmed self and leak into the payload without the fix.
+      pickup_notes: "  Kommt mit dem Bus  ",
+    };
+    mocks.listChildGuardians.mockResolvedValue([manageOnlyGuardian]);
+
+    render(<GuardiansPanel studentId="42" />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Abholrecht verwalten" }),
+    );
+
+    // The flag controls are present; the note textarea is not.
+    expect(screen.getByText("Darf abholen")).toBeInTheDocument();
+    expect(document.querySelector("#pickup-notes")).toBeFalsy();
+
+    const canPickup = document.querySelector<HTMLInputElement>(
+      "#guardian-can-pickup",
+    )!;
+    fireEvent.click(canPickup);
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(mocks.updateGuardianRelationship).toHaveBeenCalledTimes(1);
+    });
+    // Only the flag travels — no pickup_notes, so the guardian.edit gate the
+    // backend applies to notes is never tripped.
+    expect(mocks.updateGuardianRelationship).toHaveBeenCalledWith("42", "11", {
+      can_pickup: true,
+    });
+  });
+
   it("offers no edit affordance for a redacted account-holder guardian", async () => {
     // A guardian with their own account is redacted (no contact data) and
     // read-only to other parents — the row lists the name but no edit button.

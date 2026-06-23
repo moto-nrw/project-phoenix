@@ -303,15 +303,15 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 			}
 			return err
 		}
-		// HasAccount and AccountID are independent columns. The guard below keys
-		// off HasAccount; isSelf keys off AccountID. They are expected to stay
-		// consistent (an account holder has both set), but if they ever diverge
-		// (HasAccount=true, AccountID=nil) this fails safe: the edit is refused.
 		isSelf := profile.AccountID != nil && *profile.AccountID == accountID
 		// Only contact-only guardians (or the caller's own profile) are editable.
 		// Editing another account holder's personal data is forbidden — the UI is
-		// not the boundary, the backend is.
-		if profile.HasAccount && !isSelf {
+		// not the boundary, the backend is. "Account holder" is derived from
+		// has_account OR account_id (HasPortalAccount): isSelf already keys off
+		// account_id, so a drifted row (account_id set, has_account=false) must be
+		// treated as account-backed here too, or another parent could edit a
+		// helper-with-account's contact data (#1667 review).
+		if profile.HasPortalAccount() && !isSelf {
 			return ErrGuardianHasOwnAccount
 		}
 		// A social worker is a school-managed professional contact; a parent may
@@ -374,7 +374,17 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 		// runs in the tenant tx, so it is RLS-scoped to this school.
 		if input.Email != nil {
 			if email := strings.TrimSpace(*input.Email); email != "" {
-				if existing, ferr := s.guardianProfileRepo.FindByEmail(txCtx, email); ferr == nil && existing != nil && existing.ID != guardianProfileID {
+				existing, ferr := s.guardianProfileRepo.FindByEmail(txCtx, email)
+				// Only the clean not-found sentinel means "no conflicting profile".
+				// Any other error (DB/RLS failure) MUST abort the edit, not be
+				// swallowed as "no conflict": treating a lookup failure as success
+				// would let the write commit while a genuine duplicate could exist,
+				// and the case-insensitive index is the only remaining guard
+				// (#1667 review).
+				if ferr != nil && !errors.Is(ferr, usersModels.ErrGuardianProfileNotFound) {
+					return ferr
+				}
+				if existing != nil && existing.ID != guardianProfileID {
 					return ErrGuardianEmailConflict
 				}
 			}
@@ -509,8 +519,10 @@ func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 		// parent may not grant it to themselves either (the caller's own profile
 		// is an account holder, so this also blocks self-granting). This closes
 		// the custody-dispute griefing vector; the school sets these flags for
-		// account-holding guardians.
-		if editsFlags && profile.HasAccount {
+		// account-holding guardians. "Account holder" derives from has_account OR
+		// account_id (HasPortalAccount) so a drifted row can't slip the safety
+		// guard (#1667 review).
+		if editsFlags && profile.HasPortalAccount() {
 			return ErrGuardianHasOwnAccount
 		}
 		// A social worker's pickup/emergency standing is set by the school, not by
@@ -528,7 +540,7 @@ func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 		// UI-vs-service split the review flagged. Flags above are governed
 		// separately by pickup.manage.
 		if editsDetails && !isSelf {
-			if profile.HasAccount {
+			if profile.HasPortalAccount() {
 				return ErrGuardianHasOwnAccount
 			}
 			if link.GuardianRole == authorize.GuardianRoleSocialWorker {
@@ -981,7 +993,7 @@ func contactProtected(profile *usersModels.GuardianProfile, link *usersModels.St
 	if isSelf {
 		return false
 	}
-	return profile.HasAccount ||
+	return profile.HasPortalAccount() ||
 		link.GuardianRole == authorize.GuardianRoleSocialWorker ||
 		sharedAcrossFamilies
 }
@@ -991,6 +1003,11 @@ func contactProtected(profile *usersModels.GuardianProfile, link *usersModels.St
 // outside the caller's family — editable only by the school, not this caller.
 func projectChildGuardian(profile *usersModels.GuardianProfile, link *usersModels.StudentGuardian, phones []*usersModels.GuardianPhoneNumber, accountID int64, canEdit, canManage, sharedAcrossFamilies bool) *ChildGuardian {
 	isSelf := profile.AccountID != nil && *profile.AccountID == accountID
+	// "Account holder" derives from has_account OR account_id (HasPortalAccount),
+	// matching every write guard, so a drifted row (account_id set,
+	// has_account=false) is read-redacted and lock-marked exactly as the write
+	// path refuses it — read and write agree (#1667 review).
+	hasAccount := profile.HasPortalAccount()
 	isSocialWorker := link.GuardianRole == authorize.GuardianRoleSocialWorker
 	// A full guardian (primary/legal/co) is a real legal guardian, not a helper.
 	// Self is exempt: the caller's own profile (always a full guardian) stays
@@ -1006,7 +1023,7 @@ func projectChildGuardian(profile *usersModels.GuardianProfile, link *usersModel
 		IsPrimary:          link.IsPrimary,
 		IsEmergencyContact: link.IsEmergencyContact,
 		CanPickup:          link.CanPickup,
-		HasAccount:         profile.HasAccount,
+		HasAccount:         hasAccount,
 		IsSelf:             isSelf,
 		// Contact editing needs the edit permission and an unprotected target that
 		// is not a full guardian (real legal guardians are school/self-managed).
@@ -1018,15 +1035,15 @@ func projectChildGuardian(profile *usersModels.GuardianProfile, link *usersModel
 		// guardian's/school's even without an account. Mirrors the write guard in
 		// UpdateGuardianRelationship so the UI never offers a control the backend
 		// rejects.
-		CanManagePickup: canManage && !profile.HasAccount && !isSocialWorker && !isFullGuardian,
+		CanManagePickup: canManage && !hasAccount && !isSocialWorker && !isFullGuardian,
 		// Surface exactly one "why is this read-only" explanation to a caller who
 		// could otherwise edit (own account > social worker > full guardian >
 		// shared). For a caller without edit rights none is the reason the
 		// affordance is absent.
-		ContactLockedOwnAccount:   canEdit && !isSelf && profile.HasAccount,
-		ContactLockedSocialWorker: canEdit && !isSelf && !profile.HasAccount && isSocialWorker,
-		ContactLockedFullGuardian: canEdit && !isSelf && !profile.HasAccount && !isSocialWorker && isFullGuardian,
-		ContactLockedShared:       canEdit && !isSelf && !profile.HasAccount && !isSocialWorker && !isFullGuardian && sharedAcrossFamilies,
+		ContactLockedOwnAccount:   canEdit && !isSelf && hasAccount,
+		ContactLockedSocialWorker: canEdit && !isSelf && !hasAccount && isSocialWorker,
+		ContactLockedFullGuardian: canEdit && !isSelf && !hasAccount && !isSocialWorker && isFullGuardian,
+		ContactLockedShared:       canEdit && !isSelf && !hasAccount && !isSocialWorker && !isFullGuardian && sharedAcrossFamilies,
 	}
 	// PickupNotes is a per-child annotation the reading guardian authors about
 	// their own child's care; it is shown even for protected guardians.

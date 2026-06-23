@@ -198,6 +198,20 @@ func (g *GuardianProfile) HasEmail() bool {
 	return g.Email != nil && *g.Email != ""
 }
 
+// HasPortalAccount reports whether the guardian is backed by a portal account.
+// It is true when EITHER has_account is set OR account_id is present. The two
+// columns are expected to stay in sync (linking an account sets both, unlinking
+// clears both — see the repository's LinkAccount/UnlinkAccount), but nothing in
+// the schema enforces that invariant, so this derives from both and fails safe.
+// Authorization guards that protect an account holder's data (their contact
+// fields and their pickup/emergency authority) MUST use this rather than the raw
+// HasAccount flag: on a drifted row (account_id set, has_account=false) the raw
+// flag would wrongly treat the guardian as account-less and let another parent
+// edit their data, while isSelf already keys off account_id (#1667 review).
+func (g *GuardianProfile) HasPortalAccount() bool {
+	return g.HasAccount || g.AccountID != nil
+}
+
 // GetID returns the entity's ID
 func (g *GuardianProfile) GetID() interface{} {
 	return g.ID

@@ -685,16 +685,24 @@ function PickupModal({
     // omitted, leave unchanged" — so a null would silently keep the old note (or
     // come back as guardian_no_change). An empty string is a present value the
     // backend trims and stores as NULL, actually clearing the note.
+    //
+    // The note may ONLY travel when the caller can edit contact: the textarea is
+    // rendered only for can_edit_contact, and the backend gates pickup_notes on
+    // parent_portal.guardian.edit. Gating the spread on can_edit_contact (and
+    // comparing against a TRIMMED original) keeps a pickup-manage-only caller's
+    // flag toggle from carrying a phantom pickup_notes — e.g. when legacy/staff
+    // data has surrounding whitespace the hidden, untouched note would otherwise
+    // "differ" from its trimmed self and trip the guardian.edit gate, failing an
+    // otherwise valid flag-only edit (#1667 review).
     const normalizedNotes = notes.trim();
-    const originalNotes = g.pickup_notes ?? "";
+    const originalNotes = (g.pickup_notes ?? "").trim();
+    const noteChanged = g.can_edit_contact && normalizedNotes !== originalNotes;
     const payload: GuardianRelationshipPayload = {
       ...(canPickup !== g.can_pickup ? { can_pickup: canPickup } : {}),
       ...(isEmergency !== g.is_emergency_contact
         ? { is_emergency_contact: isEmergency }
         : {}),
-      ...(normalizedNotes !== originalNotes
-        ? { pickup_notes: normalizedNotes }
-        : {}),
+      ...(noteChanged ? { pickup_notes: normalizedNotes } : {}),
     };
     // Nothing changed: skip the write (the backend rejects an empty payload
     // with guardian_no_change) and just close.
