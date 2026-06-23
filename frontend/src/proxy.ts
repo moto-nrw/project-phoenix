@@ -268,8 +268,9 @@ function redirectLegacyParentsHost(request: NextRequest): NextResponse {
   if (!PARENTS_HOSTNAME) {
     throw new Error("NEXT_PUBLIC_PARENTS_HOSTNAME is not set.");
   }
-  const url = request.nextUrl.clone();
-  url.host = PARENTS_HOSTNAME;
+  const url = new URL(`${originalProtocol(request)}://${PARENTS_HOSTNAME}`);
+  url.pathname = request.nextUrl.pathname;
+  url.search = request.nextUrl.search;
   return withSecurityHeaders(NextResponse.redirect(url, 302));
 }
 

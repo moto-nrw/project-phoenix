@@ -276,7 +276,7 @@ describe("proxy", () => {
 
         const res = deployedProxy(
           makeRequest(
-            "https://parents.moto-app.de/accept-guardian-invite/abc?source=email",
+            "https://parents.moto-app.de:3000/accept-guardian-invite/abc?source=email",
             "parents.moto-app.de",
           ),
         );
