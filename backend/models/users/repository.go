@@ -424,6 +424,16 @@ type StudentGuardianRepository interface {
 	// FindByGuardianProfileID retrieves relationships by guardian profile ID
 	FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*StudentGuardian, error)
 
+	// FindByStudentAndGuardianForUpdate returns the relationship row joining the
+	// student and guardian profile, locked FOR UPDATE for the current
+	// transaction, or ErrStudentGuardianNotFound when none exists. The row lock
+	// serializes against a concurrent staff edit/delete of the SAME relationship
+	// row (a plain UPDATE/DELETE takes the conflicting row lock), so a caller that
+	// reads role/account state and then writes cannot have that state changed out
+	// from under it between the authorization check and the write. Must run inside
+	// a tenant transaction (RLS-scoped via TenantWhere).
+	FindByStudentAndGuardianForUpdate(ctx context.Context, studentID, guardianProfileID int64) (*StudentGuardian, error)
+
 	// LinkIfNotExists inserts the student↔guardian relationship, treating a
 	// duplicate (same tenant_id + student_id + guardian_profile_id) as a no-op
 	// via ON CONFLICT DO NOTHING. Returns true when a new row was inserted, false

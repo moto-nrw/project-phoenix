@@ -269,10 +269,6 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 	}
 	var result *ChildGuardian
 	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		link, err := s.findChildGuardianLink(txCtx, studentID, guardianProfileID)
-		if err != nil {
-			return err
-		}
 		// Lock the profile row so concurrent contact edits of the same guardian
 		// serialize: the read-modify-write below plus the wholesale phone-list
 		// replace (delete-all then re-insert) would otherwise race under
@@ -281,6 +277,19 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 			if errors.Is(err, usersModels.ErrGuardianProfileNotFound) {
 				return ErrGuardianNotLinked
 			}
+			return err
+		}
+		// Then lock the relationship row itself FOR UPDATE. The role check below
+		// reads link.GuardianRole; without this lock a concurrent staff edit could
+		// promote/demote or remove the relationship between that check and the
+		// contact write (the staff path edits the students_guardians row without
+		// taking the profile lock above). Locking the row serializes against it —
+		// a plain staff UPDATE/DELETE blocks on this lock — so the authorization
+		// decision is made on a row that cannot change until we commit. Profile is
+		// locked before the link in BOTH write paths, so the lock order is
+		// consistent and cannot deadlock.
+		link, err := s.findChildGuardianLinkForUpdate(txCtx, studentID, guardianProfileID)
+		if err != nil {
 			return err
 		}
 		callerStudents, err := s.callerFamilyStudentSet(txCtx, accountID)
@@ -351,14 +360,18 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 		before := snapshotGuardianContact(profile, oldPhones)
 
 		// Reject an email already owned by a DIFFERENT guardian profile before we
-		// write. The UNIQUE(tenant_id, email) index is case-sensitive, but every
-		// guardian email lookup (FindByEmail, invite/account matching) compares
-		// case-insensitively via LOWER(email); a mixed-case duplicate of a legacy
-		// row would otherwise slip past the index and silently break that
-		// matching. Mirrors the staff-side guardian service precheck; the
-		// post-commit unique-violation catch below stays as the TOCTOU backstop
-		// (the other profile is not locked by this tx). FindByEmail runs in the
-		// tenant tx, so it is RLS-scoped to this school.
+		// write, returning a friendly ErrGuardianEmailConflict. The
+		// idx_guardian_profiles_tenant_email index is now UNIQUE on
+		// (tenant_id, LOWER(email)) (migration 1.15.145), matching how every
+		// guardian email lookup (FindByEmail, invite/account matching) compares —
+		// case-insensitively. That functional index is the ATOMIC guarantee: two
+		// concurrent edits setting case variants of the same address (Oma@x.de /
+		// oma@x.de) on different profiles can both pass this precheck, but only one
+		// can commit — the second hits 23505 on the LOWER(email) index and is
+		// mapped to ErrGuardianEmailConflict by the post-commit catch below. This
+		// precheck is the friendly fast path; the index is the race-closing
+		// backstop. Mirrors the staff-side guardian service precheck. FindByEmail
+		// runs in the tenant tx, so it is RLS-scoped to this school.
 		if input.Email != nil {
 			if email := strings.TrimSpace(*input.Email); email != "" {
 				if existing, ferr := s.guardianProfileRepo.FindByEmail(txCtx, email); ferr == nil && existing != nil && existing.ID != guardianProfileID {
@@ -470,7 +483,14 @@ func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 		if err != nil {
 			return err
 		}
-		link, err := s.findChildGuardianLink(txCtx, studentID, guardianProfileID)
+		// Lock the relationship row itself FOR UPDATE (profile-then-link order, as
+		// in the contact path). The role/account guards below decide on
+		// link.GuardianRole and the UpdateColumns write mutates this row; without
+		// the lock a concurrent staff edit could promote/remove the relationship
+		// after the guards pass and before the write, since the staff path edits
+		// the students_guardians row without taking the profile lock above. Locking
+		// the row makes the authorization decision and the write atomic against it.
+		link, err := s.findChildGuardianLinkForUpdate(txCtx, studentID, guardianProfileID)
 		if err != nil {
 			return err
 		}
@@ -481,6 +501,7 @@ func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 			}
 			return err
 		}
+		isSelf := profile.AccountID != nil && *profile.AccountID == accountID
 		// can_pickup / is_emergency_contact grant safety-critical pickup/emergency
 		// AUTHORITY. A parent may set them only for guardians WITHOUT their own
 		// portal account (helpers like grandma). A guardian who holds their own
@@ -488,8 +509,7 @@ func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 		// parent may not grant it to themselves either (the caller's own profile
 		// is an account holder, so this also blocks self-granting). This closes
 		// the custody-dispute griefing vector; the school sets these flags for
-		// account-holding guardians. Notes/priority (annotations, not authority)
-		// remain editable under guardian.edit.
+		// account-holding guardians.
 		if editsFlags && profile.HasAccount {
 			return ErrGuardianHasOwnAccount
 		}
@@ -498,15 +518,46 @@ func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 		if editsFlags && link.GuardianRole == authorize.GuardianRoleSocialWorker {
 			return ErrGuardianSocialWorkerManaged
 		}
+		// The per-child pickup note follows CONTACT-edit eligibility (#1667 review):
+		// a parent may edit it only for a guardian whose contact data they may also
+		// edit/see — their own profile, or an account-less helper that is not a
+		// social worker, not a full guardian, and not shared with another family.
+		// For every gated guardian the contact is read-only/redacted, so the note
+		// is read-only here too ("can't see/edit the contact ⇒ can't edit the
+		// note"). These mirror the UpdateGuardianContact guards exactly, closing the
+		// UI-vs-service split the review flagged. Flags above are governed
+		// separately by pickup.manage.
+		if editsDetails && !isSelf {
+			if profile.HasAccount {
+				return ErrGuardianHasOwnAccount
+			}
+			if link.GuardianRole == authorize.GuardianRoleSocialWorker {
+				return ErrGuardianSocialWorkerManaged
+			}
+		}
 		// A full guardian (primary/legal/co) is a real legal guardian, not a
-		// helper: neither their pickup/emergency authority nor their per-child
-		// note is another parent's to change, even without a portal account.
-		// Mirrors the contact-edit guard and the read-side CanManagePickup gate.
-		// Self is exempt (the account guard above already blocks self flags; a
-		// parent may still annotate their own relationship).
-		isSelf := profile.AccountID != nil && *profile.AccountID == accountID
+		// helper: neither their pickup/emergency authority nor their per-child note
+		// is another parent's to change, even without a portal account. Mirrors the
+		// contact-edit guard and the read-side CanManagePickup gate. Self is exempt
+		// (the account guard above already blocks self flags; a parent may still
+		// annotate their own relationship).
 		if !isSelf && authorize.IsFullGuardianRole(link.GuardianRole) {
 			return ErrGuardianRoleManaged
+		}
+		// A contact-only profile that ALSO serves a child outside the caller's
+		// family is the school's to manage (its contact is redacted on read), so a
+		// note edit is refused here too — same containment guard as the contact
+		// path. Per-child though the note is, the contact-coupled rule keeps "note
+		// editable iff contact editable" intact. Only notes need this; the flags
+		// are per-child authority already gated above.
+		if editsDetails && !isSelf {
+			escapes, err := s.profileEscapesFamily(txCtx, profile.ID, callerStudents)
+			if err != nil {
+				return err
+			}
+			if escapes {
+				return ErrGuardianSharedAcrossFamilies
+			}
 		}
 		oldCanPickup := link.CanPickup
 		oldEmergency := link.IsEmergencyContact
@@ -737,6 +788,9 @@ func boolAuditValue(b bool) *string {
 // formatPhonesForAudit renders a guardian's phone list to a stable string for
 // the audit trail. Old and new lists arrive from the repo in the same order
 // (primary first), so an unchanged list formats identically and is not logged.
+// The label is part of the rendering: a label-only edit (same number/type/
+// primary) is still an accepted change and must produce a distinct string so it
+// writes an audit row rather than diffing identically and being dropped.
 func formatPhonesForAudit(phones []*usersModels.GuardianPhoneNumber) string {
 	if len(phones) == 0 {
 		return ""
@@ -748,6 +802,11 @@ func formatPhonesForAudit(phones []*usersModels.GuardianPhoneNumber) string {
 			entry += ", primär"
 		}
 		entry += ")"
+		if p.Label != nil {
+			if label := strings.TrimSpace(*p.Label); label != "" {
+				entry += " [" + label + "]"
+			}
+		}
 		parts = append(parts, entry)
 	}
 	return strings.Join(parts, "; ")
@@ -768,19 +827,21 @@ func (s *service) actorSnapshot(ctx context.Context, accountID int64) (*string, 
 	return name, actor.Email
 }
 
-// findChildGuardianLink returns the students_guardians row joining the child and
-// the named guardian profile, or ErrGuardianNotLinked when none exists.
-func (s *service) findChildGuardianLink(ctx context.Context, studentID, guardianProfileID int64) (*usersModels.StudentGuardian, error) {
-	links, err := s.studentGuardianRepo.FindByStudentID(ctx, studentID)
+// findChildGuardianLinkForUpdate returns the students_guardians row joining the
+// child and guardian profile LOCKED FOR UPDATE for the current tx, or
+// ErrGuardianNotLinked when none exists. Write paths use it (after locking the
+// guardian profile) so a concurrent staff edit/delete of the relationship row
+// cannot change role, account, or existence between the authorization checks and
+// the write.
+func (s *service) findChildGuardianLinkForUpdate(ctx context.Context, studentID, guardianProfileID int64) (*usersModels.StudentGuardian, error) {
+	link, err := s.studentGuardianRepo.FindByStudentAndGuardianForUpdate(ctx, studentID, guardianProfileID)
 	if err != nil {
+		if errors.Is(err, usersModels.ErrStudentGuardianNotFound) {
+			return nil, ErrGuardianNotLinked
+		}
 		return nil, err
 	}
-	for _, link := range links {
-		if link.GuardianProfileID == guardianProfileID {
-			return link, nil
-		}
-	}
-	return nil, ErrGuardianNotLinked
+	return link, nil
 }
 
 // replaceGuardianPhones replaces the guardian's entire phone list with the

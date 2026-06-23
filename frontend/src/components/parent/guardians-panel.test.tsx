@@ -180,6 +180,70 @@ describe("GuardiansPanel", () => {
     });
   });
 
+  it("offers no pickup-note action for a contact-locked guardian", async () => {
+    // Option B: the pickup note follows contact editability. A guardian whose
+    // contact is locked (account holder) exposes neither the contact pencil nor
+    // the pickup-note action; the backend would reject a note edit there too.
+    const lockedGuardian: ChildGuardian = {
+      ...editableGuardian,
+      guardian_profile_id: "9",
+      student_guardian_id: "90",
+      first_name: "Onkel",
+      last_name: "Ali",
+      can_pickup: false,
+      is_emergency_contact: false,
+      can_edit_contact: false,
+      can_manage_pickup: false,
+      has_account: true,
+      contact_locked_own_account: true,
+    };
+    mocks.listChildGuardians.mockResolvedValue([lockedGuardian]);
+
+    render(<GuardiansPanel studentId="42" />);
+
+    expect(await screen.findByText("Onkel Ali")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Bearbeiten" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Hinweis zur Abholung" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Abholrecht verwalten" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("sends an empty string (not null) when an existing pickup note is cleared", async () => {
+    // Finding #1: clearing a note must send "" so the backend stores NULL. A
+    // null would unmarshal to a nil *string the backend treats as "unchanged".
+    const noteEditableGuardian: ChildGuardian = {
+      ...editableGuardian,
+      can_pickup: false,
+      is_emergency_contact: false,
+      can_manage_pickup: false,
+      pickup_notes: "Nur freitags",
+    };
+    mocks.listChildGuardians.mockResolvedValue([noteEditableGuardian]);
+
+    render(<GuardiansPanel studentId="42" />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Hinweis zur Abholung" }),
+    );
+
+    const notes = document.querySelector<HTMLTextAreaElement>("#pickup-notes")!;
+    expect(notes.value).toBe("Nur freitags");
+    fireEvent.change(notes, { target: { value: "   " } });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(mocks.updateGuardianRelationship).toHaveBeenCalledTimes(1);
+    });
+    expect(mocks.updateGuardianRelationship).toHaveBeenCalledWith("42", "7", {
+      pickup_notes: "",
+    });
+  });
+
   it("offers no edit affordance for a redacted account-holder guardian", async () => {
     // A guardian with their own account is redacted (no contact data) and
     // read-only to other parents — the row lists the name but no edit button.

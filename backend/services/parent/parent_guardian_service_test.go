@@ -2,8 +2,10 @@ package parent_test
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -995,4 +997,268 @@ func TestUpdateGuardianContact_AllowsHelperRoleWithoutAccount(t *testing.T) {
 	assert.True(t, updated.CanEditContact, "helper role without account stays editable")
 	assert.True(t, updated.CanManagePickup, "helper role pickup flags stay manageable")
 	assert.False(t, updated.ContactLockedFullGuardian)
+}
+
+// TestUpdateGuardianRelationship_ClearsPickupNote verifies an empty-string note
+// clears a previously set pickup note (review #1743 finding 1): the UI sends ""
+// for a deleted note, which the service trims to NULL. This is distinct from an
+// OMITTED (nil) note, which leaves the stored value untouched — so "clear" must
+// be expressible and must actually persist.
+func TestUpdateGuardianRelationship_ClearsPickupNote(t *testing.T) {
+	svc, db := buildGuardianService(t)
+	defer func() { _ = db.Close() }()
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	contactID, cleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-clearnote")
+	defer cleanup()
+
+	// Set a note.
+	updated, err := svc.UpdateGuardianRelationship(context.Background(), chain.AccountID, chain.StudentID, contactID, parentService.GuardianRelationshipInput{
+		PickupNotes: ptr("Kommt um 15 Uhr"),
+	})
+	require.NoError(t, err)
+	require.Equal(t, "Kommt um 15 Uhr", updated.PickupNotes)
+
+	// Clear it with an empty string — what the UI sends for a deleted note.
+	updated, err = svc.UpdateGuardianRelationship(context.Background(), chain.AccountID, chain.StudentID, contactID, parentService.GuardianRelationshipInput{
+		PickupNotes: ptr(""),
+	})
+	require.NoError(t, err)
+	assert.Empty(t, updated.PickupNotes, "empty-string note clears the stored note")
+
+	// Confirm it persisted as NULL in the row.
+	var note *string
+	err = db.NewSelect().TableExpr("users.students_guardians").ColumnExpr("pickup_notes").
+		Where("student_id = ? AND guardian_profile_id = ?", chain.StudentID, contactID).
+		Scan(context.Background(), &note)
+	require.NoError(t, err)
+	assert.Nil(t, note, "cleared note stored as NULL")
+}
+
+// TestUpdateGuardianRelationship_RejectsNoteOnContactLockedAccountHolder is the
+// regression guard for
+// the contact-coupled note rule (review #1743 finding 2, Option B): the per-child
+// pickup note follows CONTACT-edit eligibility. A guardian whose contact is
+// read-only (here an account holder) is also note-read-only — the listing shows
+// can_edit_contact=false, and BOTH a note-only write and a flag write are
+// rejected. This closes the UI-vs-service split by tightening the backend instead
+// of widening the UI.
+func TestUpdateGuardianRelationship_RejectsNoteOnContactLockedAccountHolder(t *testing.T) {
+	svc, db := buildGuardianService(t)
+	defer func() { _ = db.Close() }()
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	// Another guardian WITH their own portal account (contact read-only), linked
+	// to the same child with a non-full-guardian relationship.
+	otherID, cleanup := linkAccountGuardian(t, db, chain.StudentID, "note-acct-holder", map[string]interface{}{
+		authorize.GuardianPermissionPortalAccess: true,
+	})
+	defer cleanup()
+
+	// The chain primary holds guardian.edit + pickup.manage.
+	guardians, err := svc.ListChildGuardians(context.Background(), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	var other *parentService.ChildGuardian
+	for _, g := range guardians {
+		if g.GuardianProfileID == otherID {
+			other = g
+		}
+	}
+	require.NotNil(t, other)
+	assert.False(t, other.CanEditContact, "account holder contact is read-only")
+	assert.False(t, other.CanManagePickup, "account holder pickup flags are not parent-manageable")
+
+	// A note edit on the contact-locked account holder is rejected (note follows
+	// contact-edit eligibility), not silently accepted.
+	_, err = svc.UpdateGuardianRelationship(context.Background(), chain.AccountID, chain.StudentID, otherID, parentService.GuardianRelationshipInput{
+		PickupNotes: ptr("Bringt das Kind dienstags"),
+	})
+	require.ErrorIs(t, err, parentService.ErrGuardianHasOwnAccount)
+
+	// A flag write on the same account holder is rejected for the same reason.
+	canPickup := true
+	_, err = svc.UpdateGuardianRelationship(context.Background(), chain.AccountID, chain.StudentID, otherID, parentService.GuardianRelationshipInput{
+		CanPickup: &canPickup,
+	})
+	require.ErrorIs(t, err, parentService.ErrGuardianHasOwnAccount)
+}
+
+// TestUpdateGuardianRelationship_RejectsNoteOnFullGuardian verifies the per-child
+// note is NOT editable for a full legal guardian (school/self-managed): the
+// listing shows can_edit_contact=false and a note write is rejected.
+func TestUpdateGuardianRelationship_RejectsNoteOnFullGuardian(t *testing.T) {
+	svc, db := buildGuardianService(t)
+	defer func() { _ = db.Close() }()
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	legalID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "co-parent-note", authorize.GuardianRoleLegalGuardian)
+	defer cleanup()
+
+	guardians, err := svc.ListChildGuardians(context.Background(), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	for _, g := range guardians {
+		if g.GuardianProfileID == legalID {
+			assert.False(t, g.CanEditContact, "full guardian contact is read-only (note follows it)")
+		}
+	}
+
+	_, err = svc.UpdateGuardianRelationship(context.Background(), chain.AccountID, chain.StudentID, legalID, parentService.GuardianRelationshipInput{
+		PickupNotes: ptr("nicht erlaubt"),
+	})
+	require.ErrorIs(t, err, parentService.ErrGuardianRoleManaged)
+}
+
+// TestUpdateGuardianRelationship_RejectsNoteOnSocialWorker verifies a note edit
+// on a school-managed social worker is rejected (note follows contact, which is
+// redacted for social workers).
+func TestUpdateGuardianRelationship_RejectsNoteOnSocialWorker(t *testing.T) {
+	svc, db := buildGuardianService(t)
+	defer func() { _ = db.Close() }()
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	swID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "sw-note", authorize.GuardianRoleSocialWorker)
+	defer cleanup()
+
+	_, err := svc.UpdateGuardianRelationship(context.Background(), chain.AccountID, chain.StudentID, swID, parentService.GuardianRelationshipInput{
+		PickupNotes: ptr("nicht erlaubt"),
+	})
+	require.ErrorIs(t, err, parentService.ErrGuardianSocialWorkerManaged)
+}
+
+// TestUpdateGuardianContact_LabelOnlyPhoneEditWritesAuditRow is the regression
+// guard for review #1743 finding 5: an accepted phone edit that changes ONLY the
+// label (same number/type/primary) must still write a phones audit row. Before
+// the fix the audit rendering ignored the label, so a label-only change diffed
+// identically and produced no audit trail.
+func TestUpdateGuardianContact_LabelOnlyPhoneEditWritesAuditRow(t *testing.T) {
+	svc, db := buildGuardianService(t)
+	defer func() { _ = db.Close() }()
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	contactID, cleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-label-audit")
+	defer cleanup()
+	defer func() {
+		_, _ = db.NewDelete().TableExpr("audit.guardian_changes").Where("student_id = ?", chain.StudentID).Exec(context.Background())
+	}()
+
+	// Initial contact with one label-less phone.
+	_, err := svc.UpdateGuardianContact(context.Background(), chain.AccountID, chain.StudentID, contactID, parentService.GuardianContactInput{
+		FirstName: "Helga",
+		LastName:  "Schneider",
+		Phones: []parentService.GuardianPhoneInput{
+			{PhoneNumber: "0151 12345678", PhoneType: "mobile", IsPrimary: true},
+		},
+	})
+	require.NoError(t, err)
+
+	// Drop the audit rows from the initial create so we measure only the label edit.
+	_, err = db.NewDelete().TableExpr("audit.guardian_changes").Where("student_id = ?", chain.StudentID).Exec(context.Background())
+	require.NoError(t, err)
+
+	// Change ONLY the phone label; number, type, and primary are identical.
+	_, err = svc.UpdateGuardianContact(context.Background(), chain.AccountID, chain.StudentID, contactID, parentService.GuardianContactInput{
+		FirstName: "Helga",
+		LastName:  "Schneider",
+		Phones: []parentService.GuardianPhoneInput{
+			{PhoneNumber: "0151 12345678", PhoneType: "mobile", Label: ptr("Notfall"), IsPrimary: true},
+		},
+	})
+	require.NoError(t, err)
+
+	rows, err := repositories.NewFactory(db).GuardianChange.ListByStudentID(context.Background(), chain.StudentID)
+	require.NoError(t, err)
+	phoneRows := 0
+	for _, r := range rows {
+		if r.FieldName == "phones" {
+			phoneRows++
+		}
+	}
+	assert.Equal(t, 1, phoneRows, "a label-only phone edit must write a phones audit row")
+}
+
+// TestUpdateGuardianContact_CaseVariantEmailRaceLeavesSingleWinner is the
+// concurrency regression guard for review #1743 finding 4. Two writers
+// concurrently set DIFFERENT guardian profiles to case variants of the SAME
+// address (race-N@… and RACE-N@…). Both FindByEmail(LOWER=LOWER) prechecks can
+// pass before either commits, so the precheck alone cannot close the race. The
+// unique index on (tenant_id, LOWER(email)) (migration 1.15.145) is the atomic
+// backstop: exactly one writer commits, the other's UPDATE hits 23505 and is
+// mapped to ErrGuardianEmailConflict.
+//
+// The assertion is interleaving-independent — whoever loses (the precheck path
+// if it commits second, the index path if both prechecked first) must get the
+// conflict, and the table must never end up with two rows sharing LOWER(email).
+// Looping a handful of rounds biases the scheduler toward exercising the index
+// branch without making the assertion flaky: every round must hold the same
+// invariant regardless of which path fired. Drop the LOWER(email) index and this
+// fails — both writers commit and two rows share LOWER(email).
+func TestUpdateGuardianContact_CaseVariantEmailRaceLeavesSingleWinner(t *testing.T) {
+	svc, db := buildGuardianService(t)
+	defer func() { _ = db.Close() }()
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	firstID, firstCleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-race-a")
+	defer firstCleanup()
+	secondID, secondCleanup := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-race-b")
+	defer secondCleanup()
+
+	const rounds = 8
+	for i := 0; i < rounds; i++ {
+		lower := fmt.Sprintf("race-%d@example.com", i)
+		upper := strings.ToUpper(lower)
+
+		// Release both goroutines at the same instant so the two transactions
+		// genuinely overlap instead of running back to back.
+		var start sync.WaitGroup
+		start.Add(1)
+		var done sync.WaitGroup
+		done.Add(2)
+		errs := make([]error, 2) // distinct indices: no shared element, -race clean
+
+		run := func(idx int, profileID int64, email string) {
+			defer done.Done()
+			start.Wait()
+			_, errs[idx] = svc.UpdateGuardianContact(context.Background(), chain.AccountID, chain.StudentID, profileID, parentService.GuardianContactInput{
+				FirstName: "Race",
+				LastName:  "Winner",
+				Email:     &email,
+				Phones: []parentService.GuardianPhoneInput{
+					{PhoneNumber: fmt.Sprintf("0151 0000%04d", idx), PhoneType: "mobile", IsPrimary: true},
+				},
+			})
+		}
+		go run(0, firstID, lower)
+		go run(1, secondID, upper)
+		start.Done()
+		done.Wait()
+
+		// Exactly one writer wins; the loser gets a conflict (precheck OR index).
+		successes, conflicts := 0, 0
+		for _, err := range errs {
+			if err == nil {
+				successes++
+				continue
+			}
+			require.ErrorIsf(t, err, parentService.ErrGuardianEmailConflict, "round %d: the loser must be ErrGuardianEmailConflict, got %v", i, err)
+			conflicts++
+		}
+		require.Equalf(t, 1, successes, "round %d: exactly one writer must commit", i)
+		require.Equalf(t, 1, conflicts, "round %d: exactly one writer must lose with a conflict", i)
+
+		// The table must never hold two rows sharing LOWER(email) — the invariant
+		// the unique LOWER(email) index exists to protect.
+		count, cerr := db.NewSelect().
+			TableExpr("users.guardian_profiles").
+			Where("id IN (?, ?)", firstID, secondID).
+			Where("LOWER(email) = ?", lower).
+			Count(context.Background())
+		require.NoError(t, cerr)
+		require.Equalf(t, 1, count, "round %d: exactly one profile may hold LOWER(email)=%s", i, lower)
+	}
 }

@@ -369,12 +369,14 @@ function GuardianRow({
                 <Pencil className="h-4 w-4" aria-hidden="true" />
               </Button>
             )}
-            {/* The pickup/relationship modal carries two distinct capabilities:
-                the safety-critical can_pickup / emergency flags (pickup.manage)
-                and the per-child pickup note (guardian.edit). Surface the action
-                whenever the caller holds EITHER permission so a note-only editor
-                (e.g. their own row, where flags are never theirs to set) can still
-                reach the note. The label/icon reflect which capability applies. */}
+            {/* The pickup/relationship modal carries two capabilities: the
+                safety-critical can_pickup / emergency flags (pickup.manage) and
+                the per-child pickup note. The note follows contact editability —
+                a parent may edit it only for a guardian whose contact they may
+                also edit (can_edit_contact) — so surface the action when the
+                caller may edit the note OR manage pickup. A note-only editor
+                (e.g. their own row, where flags are never theirs to set) still
+                reaches the note. The label/icon reflect which capability applies. */}
             {(g.can_edit_contact || g.can_manage_pickup) && (
               <Button
                 type="button"
@@ -677,8 +679,14 @@ function PickupModal({
     // flags require parent_portal.pickup.manage, while pickup_notes requires
     // parent_portal.guardian.edit. Sending an unchanged flag would force the
     // pickup.manage gate even on a notes-only edit, defeating that split.
-    const normalizedNotes = notes.trim() || null;
-    const originalNotes = g.pickup_notes ?? null;
+    //
+    // For a CLEARED note send "" (empty string), never null: the backend
+    // unmarshals JSON null into a nil *string, which it treats as "field
+    // omitted, leave unchanged" — so a null would silently keep the old note (or
+    // come back as guardian_no_change). An empty string is a present value the
+    // backend trims and stores as NULL, actually clearing the note.
+    const normalizedNotes = notes.trim();
+    const originalNotes = g.pickup_notes ?? "";
     const payload: GuardianRelationshipPayload = {
       ...(canPickup !== g.can_pickup ? { can_pickup: canPickup } : {}),
       ...(isEmergency !== g.is_emergency_contact
@@ -791,9 +799,10 @@ function PickupModal({
             </label>
           </>
         )}
-        {/* Notes require parent_portal.guardian.edit; hide the field for a
-            pickup-manage-only caller so the modal never offers an input the
-            backend would reject. */}
+        {/* The note follows contact editability: a parent may edit it only for a
+            guardian whose contact they may also edit, so gate it on
+            can_edit_contact. A pickup-manage-only caller sees just the flags
+            above; the backend rejects a note edit on a contact-locked guardian. */}
         {g.can_edit_contact && (
           <div>
             <label

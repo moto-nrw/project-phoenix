@@ -9,6 +9,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// ErrStudentGuardianNotFound is returned when no students_guardians row joins a
+// given student and guardian profile. Mirrors ErrGuardianProfileNotFound so
+// callers can map a missing relationship to a stable sentinel instead of
+// matching sql.ErrNoRows.
+var ErrStudentGuardianNotFound = errors.New("student guardian relationship not found")
+
 // GuardianLinkedChild is a minimal projection of a child currently linked to a
 // guardian, used by the guardian picker search to show which children a guardian
 // belongs to (sibling case, #1513). It is NOT a persisted entity — it is scanned
