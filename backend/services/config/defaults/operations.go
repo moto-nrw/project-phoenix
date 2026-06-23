@@ -540,4 +540,27 @@ func init() {
 		Category:        "elternportal",
 		SortOrder:       64,
 	})
+
+	// Defaults ON, like the other parents-portal write features. The
+	// safety-critical part (granting/revoking pickup authority) is constrained
+	// structurally, not by this toggle: the can_pickup / is_emergency_contact
+	// flags can only ever be set for guardians WITHOUT their own portal account,
+	// and every change is audited (audit.guardian_changes). So the toggle
+	// only governs whether the feature is exposed at all; a school can still
+	// switch it off. config:manage because it can expose pickup-authority changes.
+	// NOTE: this toggle also gates a parent editing their OWN contact data — the
+	// only portal path for that is UpdateGuardianContact (isSelf). Switching it
+	// off therefore disables self-edit too; the Description says so explicitly.
+	config.Register(config.Definition{
+		Key:             config.KeyParentGuardianManagementEnabled,
+		Label:           "Kontaktdaten und Abholberechtigung über Elternportal verwalten",
+		Description:     "Wenn aktiviert, können berechtigte Eltern über das Elternportal ihre eigenen Kontaktdaten sowie die von Bezugspersonen ohne eigenen Zugang bearbeiten und deren Abhol- und Notfallberechtigung setzen. Bezugspersonen mit eigenem Konto bleiben geschützt: deren Daten und Berechtigungen ändert nur das Team. Ist die Funktion deaktiviert, können Eltern auch ihre eigenen Kontaktdaten nicht mehr über das Portal ändern.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       65,
+	})
 }

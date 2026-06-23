@@ -90,6 +90,18 @@ func (f *fakeParentService) DeleteCareException(context.Context, int64, int64, t
 	return nil
 }
 
+func (f *fakeParentService) ListChildGuardians(context.Context, int64, int64) ([]*parentService.ChildGuardian, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) UpdateGuardianContact(context.Context, int64, int64, int64, parentService.GuardianContactInput) (*parentService.ChildGuardian, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) UpdateGuardianRelationship(context.Context, int64, int64, int64, parentService.GuardianRelationshipInput) (*parentService.ChildGuardian, error) {
+	return nil, nil
+}
+
 // withClaims attaches a parent account id to the request context the way the
 // JWT middleware does in production.
 func withClaims(r *http.Request, accountID int) *http.Request {

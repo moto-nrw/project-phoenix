@@ -3,7 +3,9 @@ package users
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -178,6 +180,38 @@ func (r *StudentGuardianRepository) ListLinkedChildrenForGuardians(ctx context.C
 	}
 
 	return rows, nil
+}
+
+// FindByStudentAndGuardianForUpdate returns the relationship row joining the
+// student and guardian profile, locked FOR UPDATE for the current transaction,
+// or users.ErrStudentGuardianNotFound when none exists. The FOR UPDATE row lock
+// serializes this read against a concurrent staff edit/delete of the same
+// students_guardians row, so a parent write path can re-check role/account/
+// existence on a row that cannot change until this transaction commits.
+func (r *StudentGuardianRepository) FindByStudentAndGuardianForUpdate(ctx context.Context, studentID, guardianProfileID int64) (*users.StudentGuardian, error) {
+	relationship := new(users.StudentGuardian)
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(relationship).
+		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
+		Where(`"student_guardian".student_id = ?`, studentID).
+		Where(`"student_guardian".guardian_profile_id = ?`, guardianProfileID).
+		For("UPDATE")
+
+	if where, val, ok := base.TenantWhere(ctx, "student_guardian"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, users.ErrStudentGuardianNotFound
+		}
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by student and guardian for update",
+			Err: err,
+		}
+	}
+
+	return relationship, nil
 }
 
 // FindPrimaryByStudentID retrieves the primary guardian for a student
