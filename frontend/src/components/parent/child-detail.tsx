@@ -8,7 +8,6 @@ import {
   HeartPulse,
   MessageCircle,
   Newspaper,
-  Plus,
   ShieldCheck,
   UserRound,
   Users,
@@ -27,6 +26,7 @@ import {
   useChildCare,
 } from "~/components/parent/child-care";
 import RelatedAccountsPanel from "~/components/parent/related-accounts-panel";
+import GuardiansPanel from "~/components/parent/guardians-panel";
 import { Button } from "~/components/ui/button";
 
 // Quick-actions that are wired to real backend flows. The rest remain
@@ -274,7 +274,7 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
             composeDisabled={!care.features.notes_enabled}
             onCompose={() => setModal("notes")}
           />
-          <PickupPeoplePanel />
+          <GuardiansPanel studentId={child.student_id} />
           <RelatedAccountsPanel
             studentId={child.student_id}
             canInvite={care.features.related_accounts_invite_enabled}
@@ -383,22 +383,7 @@ function MobileChildAppView({
         mobile
       />
 
-      <section className="rounded-[1.75rem] border border-gray-200 bg-white p-5 shadow-sm">
-        <div className="flex items-center justify-between gap-4">
-          <h2 className="text-lg font-semibold text-gray-900">
-            {t("pickupPeopleTitle")}
-          </h2>
-          <button
-            type="button"
-            disabled
-            className="inline-flex h-9 items-center gap-2 rounded-full border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            {t("add")}
-          </button>
-        </div>
-        <PickupPeopleEmptyState compact />
-      </section>
+      <GuardiansPanel studentId={child.student_id} mobile />
 
       <RelatedAccountsPanel
         studentId={child.student_id}
@@ -592,59 +577,6 @@ function MessagesPanel({
       <div className="mt-4">
         <ParentNotesList notes={notes} />
       </div>
-    </section>
-  );
-}
-
-function PickupPeopleEmptyState({
-  compact = false,
-}: Readonly<{ compact?: boolean }>) {
-  const t = useTranslations("parentChildDetail");
-  return (
-    <div
-      className={`mt-4 rounded-xl border border-gray-200 bg-gray-50/70 text-gray-500 ${
-        compact ? "p-4" : "p-5"
-      }`}
-    >
-      <div className="flex items-start gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-gray-400 ring-1 ring-gray-200">
-          <ShieldCheck className="h-5 w-5" aria-hidden="true" />
-        </span>
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-gray-700">
-            {t("pickupPeopleEmptyTitle")}
-          </p>
-          <p className="mt-1 text-sm leading-5 text-gray-500">
-            {t("pickupPeopleEmptyDescription")}
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PickupPeoplePanel() {
-  const t = useTranslations("parentChildDetail");
-  return (
-    <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-      <div className="flex items-start justify-between gap-4">
-        <PanelHeader
-          eyebrow={t("pickupEyebrow")}
-          title={t("pickupPeopleTitle")}
-          description={t("pickupPeopleDescription")}
-        />
-        <Button
-          type="button"
-          variant="outline"
-          size="md"
-          className="shrink-0 gap-2"
-          disabled
-        >
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          {t("add")}
-        </Button>
-      </div>
-      <PickupPeopleEmptyState />
     </section>
   );
 }

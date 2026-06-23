@@ -1,10 +1,12 @@
 package users_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -744,4 +746,96 @@ func TestStudentGuardianRepository_ListLinkedChildrenForGuardians_EmptyInput(t *
 	rows, err := repo.ListLinkedChildrenForGuardians(ctx, []int64{})
 	require.NoError(t, err)
 	assert.Empty(t, rows, "an empty guardian-id slice must return no rows")
+}
+
+// TestStudentGuardianRepository_FindByStudentAndGuardianForUpdate covers the
+// FOR UPDATE row lock the parent guardian write paths rely on (PR #1743 review,
+// finding 3). UpdateGuardianContact and UpdateGuardianRelationship read the
+// relationship row, decide authorization from its role/account, then write — a
+// TOCTOU window a concurrent staff edit of the SAME students_guardians row could
+// otherwise slip through (promote/demote/remove the link between the check and
+// the write). FindByStudentAndGuardianForUpdate closes it: the FOR UPDATE lock
+// makes a staff UPDATE/DELETE of that row block until the parent tx commits, so
+// the authorization decision is made on a row that cannot change underneath it.
+// Drop the For("UPDATE") clause and the blocking subtest fails.
+func TestStudentGuardianRepository_FindByStudentAndGuardianForUpdate(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).StudentGuardian
+	ctx := testpkg.TenantContext(1)
+
+	student := testpkg.CreateTestStudent(t, db, "Lock", "Relationship", "1a")
+	guardian := testpkg.CreateTestGuardianProfile(t, db, "lock-relationship-guardian")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID, guardian.ID)
+	sg := createTestStudentGuardian(t, db, student.ID, guardian.ID, "relative", false)
+	defer cleanupStudentGuardians(t, db, sg.ID)
+
+	t.Run("returns the relationship row", func(t *testing.T) {
+		got, err := repo.FindByStudentAndGuardianForUpdate(ctx, student.ID, guardian.ID)
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		assert.Equal(t, sg.ID, got.ID)
+	})
+
+	t.Run("returns ErrStudentGuardianNotFound for an unlinked pair", func(t *testing.T) {
+		_, err := repo.FindByStudentAndGuardianForUpdate(ctx, student.ID, int64(999_999_999))
+		require.ErrorIs(t, err, users.ErrStudentGuardianNotFound)
+	})
+
+	t.Run("FOR UPDATE blocks a concurrent staff write of the same row", func(t *testing.T) {
+		// Parent side: hold the FOR UPDATE lock from a real tx, uncommitted, so a
+		// second tx can observe it.
+		tx, err := db.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		defer func() { _ = tx.Rollback() }()
+		holdCtx := modelBase.ContextWithTx(ctx, &tx)
+
+		locked, err := repo.FindByStudentAndGuardianForUpdate(holdCtx, student.ID, guardian.ID)
+		require.NoError(t, err)
+		require.Equal(t, sg.ID, locked.ID)
+
+		// Staff side (the path that does NOT take the guardian-profile lock): a
+		// plain UPDATE of the relationship row on a separate connection. With a
+		// short lock_timeout it must FAIL while the parent holds FOR UPDATE —
+		// deterministic proof of serialization, no goroutine timing. A try-style
+		// timeout (not an indefinite block) keeps the test from deadlocking if the
+		// lock is ever lost.
+		staffTx, err := db.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		defer func() { _ = staffTx.Rollback() }()
+		_, err = staffTx.ExecContext(ctx, "SET LOCAL lock_timeout = ?", "200ms")
+		require.NoError(t, err)
+		_, err = staffTx.NewUpdate().
+			TableExpr("users.students_guardians").
+			Set("guardian_role = ?", authorize.GuardianRoleSocialWorker).
+			Where("id = ?", sg.ID).
+			Exec(ctx)
+		require.Error(t, err, "a concurrent staff UPDATE must block on the parent FOR UPDATE lock")
+		assert.True(t, isLockTimeoutError(err), "expected lock_timeout, got: %v", err)
+		_ = staffTx.Rollback()
+
+		// Release the parent lock; the staff UPDATE must now succeed.
+		require.NoError(t, tx.Rollback())
+		_, err = db.NewUpdate().
+			TableExpr("users.students_guardians").
+			Set("guardian_role = ?", authorize.GuardianRoleSocialWorker).
+			Where("id = ?", sg.ID).
+			Exec(ctx)
+		require.NoError(t, err, "staff UPDATE must succeed once the FOR UPDATE holder releases")
+	})
+}
+
+// isLockTimeoutError reports whether PostgreSQL refused a lock request because
+// the transaction-local lock_timeout elapsed (SQLSTATE 55P03). Used by the
+// FOR UPDATE serialization test to detect a held lock deterministically instead
+// of through goroutine timing.
+func isLockTimeoutError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "lock timeout") ||
+		strings.Contains(msg, "lock_not_available") ||
+		strings.Contains(msg, "55P03")
 }

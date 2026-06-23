@@ -235,7 +235,7 @@ function handleOperatorSubdomain(request: NextRequest): NextResponse {
  * /parents/* internally so the App Router routes them under app/parent/.
  *
  * The "/parents" prefix is the path namespace inside the App Router,
- * NOT the URL path the user sees. On parents.{TENANT_DOMAIN} the user
+ * NOT the URL path the user sees. On the configured parents host the user
  * sees /login → internally rewritten to /parents/login.
  */
 const PARENTS_PUBLIC_PATHS = [
@@ -248,6 +248,30 @@ const PARENTS_PUBLIC_PATHS = [
 
 function isParentsHost(hostname: string): boolean {
   return hostname === PARENTS_HOSTNAME;
+}
+
+function hostnameWithoutPort(hostname: string): string {
+  const [host = ""] = hostname.split(":");
+  return host;
+}
+
+function isLegacyParentsHost(hostname: string): boolean {
+  if (!PARENTS_HOSTNAME) return false;
+  const legacyParentsHost = `parents.${TENANT_DOMAIN}`;
+  return (
+    hostnameWithoutPort(hostname) === legacyParentsHost &&
+    hostnameWithoutPort(PARENTS_HOSTNAME) !== legacyParentsHost
+  );
+}
+
+function redirectLegacyParentsHost(request: NextRequest): NextResponse {
+  if (!PARENTS_HOSTNAME) {
+    throw new Error("NEXT_PUBLIC_PARENTS_HOSTNAME is not set.");
+  }
+  const url = new URL(`${originalProtocol(request)}://${PARENTS_HOSTNAME}`);
+  url.pathname = request.nextUrl.pathname;
+  url.search = request.nextUrl.search;
+  return withSecurityHeaders(NextResponse.redirect(url, 302));
 }
 
 function handleParentsSubdomain(request: NextRequest): NextResponse {
@@ -364,7 +388,14 @@ export function proxy(request: NextRequest): NextResponse {
     return handleOperatorSubdomain(request);
   }
 
-  // 1b. Parents subdomain gets its own routing (mirrors operator)
+  // 1b. Legacy deployed parents host redirects to the configured canonical
+  // parents portal host. Local dev stays on parents.localhost:3000 because it
+  // is already the canonical PARENTS_HOSTNAME there.
+  if (isLegacyParentsHost(hostname)) {
+    return redirectLegacyParentsHost(request);
+  }
+
+  // 1c. Parents subdomain gets its own routing (mirrors operator)
   if (isParentsHost(hostname)) {
     return handleParentsSubdomain(request);
   }
@@ -394,7 +425,7 @@ export function proxy(request: NextRequest): NextResponse {
 
   // 3b. Parents auth guard on non-parents hosts: same pattern as
   // operator. /parents/* hit on a tenant subdomain or the bare domain
-  // gets redirected to parents.{TENANT_DOMAIN}. Defense-in-depth so
+  // gets redirected to the configured parents host. Defense-in-depth so
   // a stray link or bookmark can't accidentally serve parent UI from
   // a tenant context.
   if (pathname.startsWith("/parents")) {

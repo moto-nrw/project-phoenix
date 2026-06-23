@@ -114,6 +114,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.parent_sick_note_enabled",
 		"operations.parent_notes_enabled",
 		"operations.parent_pickup_change_enabled",
+		"operations.parent_guardian_management_enabled",
 		// Related-accounts management.
 		"guardians.parent_invite_mode",
 		"guardians.parent_can_remove",
@@ -437,6 +438,7 @@ func TestOperationsSettings_Types(t *testing.T) {
 		{"operations.parent_sick_note_enabled", config.FieldBoolean},
 		{"operations.parent_notes_enabled", config.FieldBoolean},
 		{"operations.parent_pickup_change_enabled", config.FieldBoolean},
+		{"operations.parent_guardian_management_enabled", config.FieldBoolean},
 	}
 
 	for _, tc := range tests {
@@ -472,6 +474,20 @@ func TestParentPickupChangeSetting_DefaultOn(t *testing.T) {
 	assert.Equal(t, config.FieldBoolean, def.Type, "pickup-change toggle should be boolean")
 	assert.Equal(t, true, def.Default, "pickup-change toggle should default to true")
 	assert.Equal(t, "operations", def.Tab, "pickup-change toggle should be on the operations tab")
+}
+
+// TestGuardianManagementSetting guards the guardian contact/pickup management
+// toggle. It defaults ON like the other parents-portal write features - the
+// safety-critical part (pickup authority) is constrained structurally
+// (helpers-only + audit), not by this toggle - but keeps config:manage because
+// enabling it can expose pickup-authority changes.
+func TestGuardianManagementSetting(t *testing.T) {
+	def := config.GetDefinition("operations.parent_guardian_management_enabled")
+	require.NotNil(t, def, "operations.parent_guardian_management_enabled should exist")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, true, def.Default, "defaults ON; pickup-flag safety is structural, not toggle-based")
+	assert.Equal(t, "config:manage", def.WritePermission, "can expose pickup-authority changes -> manage")
+	assert.Equal(t, "operations", def.Tab)
 }
 
 // TestEnrollmentSettings_AllRegistered_OnEnrollmentTab guards that every

@@ -262,6 +262,49 @@ describe("proxy", () => {
     });
   });
 
+  describe("parents subdomain", () => {
+    it("redirects the legacy deployed parents host to the canonical parents host", async () => {
+      vi.stubEnv("NEXT_PUBLIC_OPERATOR_HOSTNAME", "operator.moto-app.de");
+      vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", "eltern.moto-app.de");
+      vi.stubEnv("TENANT_DOMAIN", "moto-app.de");
+
+      try {
+        const { proxy: deployedProxy } = await import(
+          // @ts-expect-error query string forces fresh module evaluation
+          "./proxy?legacy-parents-host"
+        );
+
+        const res = deployedProxy(
+          makeRequest(
+            "https://parents.moto-app.de:3000/accept-guardian-invite/abc?source=email",
+            "parents.moto-app.de",
+          ),
+        );
+
+        expect(res.status).toBe(302);
+        expect(res.headers.get("location")).toBe(
+          "https://eltern.moto-app.de/accept-guardian-invite/abc?source=email",
+        );
+        expect(res.headers.get("Content-Security-Policy")).toBeTruthy();
+      } finally {
+        vi.stubEnv("NEXT_PUBLIC_OPERATOR_HOSTNAME", OPERATOR_HOSTNAME);
+        vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", PARENTS_HOSTNAME);
+        vi.stubEnv("TENANT_DOMAIN", "localhost");
+      }
+    });
+
+    it("keeps local parents.localhost on the normal parents host path", () => {
+      const res = proxy(
+        makeRequest(`http://${PARENTS_HOSTNAME}/login`, PARENTS_HOSTNAME),
+      );
+
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/parents/login",
+      );
+    });
+  });
+
   describe("tenant subdomain", () => {
     const TENANT_HOST = "localhost:3000";
 

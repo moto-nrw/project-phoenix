@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	usermodels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/users"
@@ -21,6 +23,19 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
+
+// isProfileLockTimeout reports whether err carries a PostgreSQL lock_timeout
+// (55P03), used by the guardian-profile serialization test to prove a writer
+// blocked on a held FOR UPDATE lock rather than racing through it.
+func isProfileLockTimeout(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "lock timeout") ||
+		strings.Contains(msg, "lock_not_available") ||
+		strings.Contains(msg, "55P03")
+}
 
 // Test password constants - these are intentionally simple test values
 // that meet password requirements but are clearly not production credentials.
@@ -2874,6 +2889,98 @@ func TestGetStudentGuardians_NonOpenInvitationsNotPending(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, res, 1)
 			assert.False(t, res[0].InvitationPending, c.name+" invitation must not count as pending")
+		})
+	}
+}
+
+// TestGuardianService_ContactWritersShareProfileLock is the serialization guard
+// for review #1743 critical 4: every staff-side guardian contact writer
+// (UpdateGuardian plus the phone mutators) now locks the owning
+// guardian_profiles row FOR UPDATE — the SAME row the parents-portal contact
+// path locks before its read-modify-write and wholesale phone replace. Holding
+// that lock from a separate, uncommitted transaction must BLOCK each staff
+// writer, proven deterministically with a short lock_timeout (no goroutine
+// timing — mirrors the students_guardians FOR UPDATE test). Drop any of the
+// LockByIDForUpdate calls and that writer races straight through, so a staff
+// edit could clobber or lose a concurrent parent contact save.
+func TestGuardianService_ContactWritersShareProfileLock(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupGuardianService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	email := fmt.Sprintf("lock-guardian-%d@example.com", time.Now().UnixNano())
+	profile := testpkg.CreateTestGuardianProfile(t, db, email)
+	defer func() {
+		bg := context.Background()
+		_, _ = db.NewDelete().TableExpr("users.guardian_phone_numbers").Where("guardian_profile_id = ?", profile.ID).Exec(bg)
+		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(bg)
+	}()
+
+	// Seed one phone so the update/delete writers have a live target.
+	seedPhone, err := service.AddPhoneNumber(ctx, profile.ID, users.PhoneNumberCreateRequest{
+		PhoneNumber: "0151 1234567",
+		PhoneType:   "mobile",
+	})
+	require.NoError(t, err)
+
+	// Each writer is exercised in order; UpdatePhoneNumber and SetPrimaryPhone run
+	// before DeletePhoneNumber so the seeded phone still exists for all three.
+	writers := []struct {
+		name string
+		run  func(runCtx context.Context) error
+	}{
+		{"UpdateGuardian", func(runCtx context.Context) error {
+			return service.UpdateGuardian(runCtx, profile.ID, users.GuardianCreateRequest{
+				FirstName: "Locked", LastName: "Name",
+			})
+		}},
+		{"AddPhoneNumber", func(runCtx context.Context) error {
+			_, e := service.AddPhoneNumber(runCtx, profile.ID, users.PhoneNumberCreateRequest{
+				PhoneNumber: "0151 7654321", PhoneType: "mobile",
+			})
+			return e
+		}},
+		{"UpdatePhoneNumber", func(runCtx context.Context) error {
+			label := "Aktualisiert"
+			return service.UpdatePhoneNumber(runCtx, seedPhone.ID, users.PhoneNumberUpdateRequest{Label: &label})
+		}},
+		{"SetPrimaryPhone", func(runCtx context.Context) error {
+			return service.SetPrimaryPhone(runCtx, seedPhone.ID)
+		}},
+		{"DeletePhoneNumber", func(runCtx context.Context) error {
+			return service.DeletePhoneNumber(runCtx, seedPhone.ID)
+		}},
+	}
+
+	repoFactory := repositories.NewFactory(db)
+	for _, w := range writers {
+		t.Run(w.name+" blocks on a held profile lock", func(t *testing.T) {
+			// Hold the profile FOR UPDATE lock from an uncommitted tx.
+			holdTx, err := db.BeginTx(ctx, nil)
+			require.NoError(t, err)
+			defer func() { _ = holdTx.Rollback() }()
+			holdCtx := modelBase.ContextWithTx(ctx, &holdTx)
+			require.NoError(t, repoFactory.GuardianProfile.LockByIDForUpdate(holdCtx, profile.ID))
+
+			// The staff writer, on a separate tx with a short lock_timeout, must
+			// fail to acquire the same row lock.
+			staffTx, err := db.BeginTx(ctx, nil)
+			require.NoError(t, err)
+			defer func() { _ = staffTx.Rollback() }()
+			_, err = staffTx.ExecContext(ctx, "SET LOCAL lock_timeout = ?", "250ms")
+			require.NoError(t, err)
+			staffCtx := modelBase.ContextWithTx(ctx, &staffTx)
+
+			runErr := w.run(staffCtx)
+			require.Errorf(t, runErr, "%s must block on the held profile FOR UPDATE lock", w.name)
+			assert.Truef(t, isProfileLockTimeout(runErr), "%s: expected lock_timeout, got: %v", w.name, runErr)
+			_ = staffTx.Rollback()
+
+			// Release the holder; the writer must now succeed on a fresh tx.
+			require.NoError(t, holdTx.Rollback())
+			require.NoErrorf(t, w.run(ctx), "%s must succeed once the lock holder releases", w.name)
 		})
 	}
 }

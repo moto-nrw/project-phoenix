@@ -75,6 +75,35 @@ func (r *GuardianProfileRepository) FindByID(ctx context.Context, id int64) (*us
 	return profile, nil
 }
 
+// FindByIDs retrieves guardian profiles for the given ids in a single query,
+// keyed by id for O(1) lookup. Missing ids are simply absent from the map.
+// Tenant-scoped via RLS / TenantWhere, mirroring FindByIDs on the other repos.
+func (r *GuardianProfileRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64]*users.GuardianProfile, error) {
+	if len(ids) == 0 {
+		return make(map[int64]*users.GuardianProfile), nil
+	}
+
+	var profiles []*users.GuardianProfile
+	query := repoBase.GetDB(ctx, r.db).NewSelect().
+		Model(&profiles).
+		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
+		Where(`"guardian_profile".id IN (?)`, bun.List(ids))
+
+	if where, val, ok := repoBase.TenantWhere(ctx, "guardian_profile"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, fmt.Errorf("failed to find guardian profiles by ids: %w", err)
+	}
+
+	result := make(map[int64]*users.GuardianProfile, len(profiles))
+	for _, profile := range profiles {
+		result[profile.ID] = profile
+	}
+	return result, nil
+}
+
 // LockByIDForUpdate locks a guardian profile row for the current transaction.
 func (r *GuardianProfileRepository) LockByIDForUpdate(ctx context.Context, id int64) error {
 	var profileID int64

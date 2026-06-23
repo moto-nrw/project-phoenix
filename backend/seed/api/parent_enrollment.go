@@ -69,13 +69,14 @@ func (s parentEnrollmentSeedStep) Run(ctx context.Context, rt *Runtime) error {
 
 func (s parentEnrollmentSeedStep) seedSettings(rt *Runtime, auth phoenixapi.AuthRef) (map[string]any, error) {
 	settings := map[string]any{
-		configModels.KeyEnrollmentEnabled:         true,
-		configModels.KeyParentSickNoteEnabled:     true,
-		configModels.KeyParentNotesEnabled:        true,
-		configModels.KeyParentPickupChangeEnabled: true,
-		configModels.KeyGuardianParentInviteMode:  configModels.ParentInviteModeDirect,
-		configModels.KeyGuardianParentCanRemove:   true,
-		configModels.KeyEnrollmentRequireCaptcha:  false,
+		configModels.KeyEnrollmentEnabled:               true,
+		configModels.KeyParentSickNoteEnabled:           true,
+		configModels.KeyParentNotesEnabled:              true,
+		configModels.KeyParentPickupChangeEnabled:       true,
+		configModels.KeyParentGuardianManagementEnabled: true,
+		configModels.KeyGuardianParentInviteMode:        configModels.ParentInviteModeDirect,
+		configModels.KeyGuardianParentCanRemove:         true,
+		configModels.KeyEnrollmentRequireCaptcha:        false,
 	}
 	for key, value := range settings {
 		if _, err := rt.Client.PutWithAuth(auth, "/api/settings/values/"+key, map[string]any{"value": value}); err != nil {

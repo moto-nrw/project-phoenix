@@ -2,7 +2,7 @@
  * Parent-specific NextAuth configuration.
  *
  * Cookie: "parent.session-token" with NO domain (host-only).
- * The parent cookie is only visible on parents.{TENANT_DOMAIN}, never
+ * The parent cookie is only visible on the configured parents host, never
  * leaking to tenant subdomains or the operator subdomain. Mirrors the
  * operator-config.ts pattern; see that file for the reference shape.
  *
@@ -132,7 +132,7 @@ export const parentAuthConfig = {
   },
   cookies: {
     // Host-only: no domain set, so the browser scopes the cookie to
-    // parents.{TENANT_DOMAIN} exactly. Tenant + operator subdomains
+    // the configured parents host exactly. Tenant + operator subdomains
     // never see this cookie, so a leak in either direction is
     // impossible by design.
     //

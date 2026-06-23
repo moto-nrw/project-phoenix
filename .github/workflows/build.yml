@@ -234,9 +234,9 @@ jobs:
         id: parents_hostname
         run: |
           if [[ "${{ needs.check-environment.outputs.is_staging }}" == "true" ]]; then
-            echo "hostname=parents.staging.moto-app.de" >> $GITHUB_OUTPUT
+            echo "hostname=eltern.staging.moto-app.de" >> $GITHUB_OUTPUT
           else
-            echo "hostname=parents.moto-app.de" >> $GITHUB_OUTPUT
+            echo "hostname=eltern.moto-app.de" >> $GITHUB_OUTPUT
           fi
 
       - name: Determine tenant domain

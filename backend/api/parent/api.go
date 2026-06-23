@@ -151,6 +151,17 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/me/children/{studentId}/related-accounts", rs.listRelatedAccounts)
 		r.Post("/me/children/{studentId}/related-accounts", rs.inviteRelatedAccount)
 		r.Delete("/me/children/{studentId}/related-accounts/{guardianProfileId}", rs.removeRelatedAccount)
+
+		// Guardian contact + pickup info — list every guardian of the child
+		// with contact and pickup detail, edit a contact-only guardian's
+		// contact data (parent_portal.guardian.edit), and manage the per-child
+		// pickup/emergency flags (parent_portal.pickup.manage). Both writes are
+		// authorized in the service against the calling account's guardian
+		// permissions; a guardian with their own portal account can never have
+		// their personal data edited by another parent.
+		r.Get("/me/children/{studentId}/guardians", rs.listChildGuardians)
+		r.Put("/me/children/{studentId}/guardians/{guardianProfileId}/contact", rs.updateGuardianContact)
+		r.Put("/me/children/{studentId}/guardians/{guardianProfileId}/pickup", rs.updateGuardianRelationship)
 	})
 
 	return r

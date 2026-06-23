@@ -19,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/localization"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -118,6 +119,23 @@ type Service interface {
 	// RemoveRelatedAccount removes another account's access to the child.
 	// Gated by guardians.parent_can_remove; the primary guardian is protected.
 	RemoveRelatedAccount(ctx context.Context, accountID, studentID, guardianProfileID int64) error
+
+	// ListChildGuardians returns every guardian linked to the child with
+	// contact + pickup detail and the caller's per-guardian edit capabilities.
+	// Authorization only (parent_portal.access).
+	ListChildGuardians(ctx context.Context, accountID, studentID int64) ([]*ChildGuardian, error)
+
+	// UpdateGuardianContact edits a contact-only guardian's contact data (or the
+	// caller's own profile): name, email, address, phone list. Requires
+	// parent_portal.guardian.edit. A guardian with their own portal account is
+	// rejected unless it is the caller.
+	UpdateGuardianContact(ctx context.Context, accountID, studentID, guardianProfileID int64, input GuardianContactInput) (*ChildGuardian, error)
+
+	// UpdateGuardianRelationship edits the per-child pickup/relationship fields.
+	// PickupNotes requires parent_portal.guardian.edit; the
+	// can_pickup / is_emergency_contact flags additionally require
+	// parent_portal.pickup.manage.
+	UpdateGuardianRelationship(ctx context.Context, accountID, studentID, guardianProfileID int64, input GuardianRelationshipInput) (*ChildGuardian, error)
 }
 
 // ChildFeatureFlags reports the resolved per-tenant parent-portal feature
@@ -178,6 +196,12 @@ type ServiceConfig struct {
 	GuardianInviteRepo  authModels.GuardianInvitationRepository
 	StudentGuardianRepo usersModels.StudentGuardianRepository
 
+	// Guardian contact + pickup editing (#1667). The phone repo backs the
+	// wholesale phone-list replace on a contact edit; the audit repo records
+	// every contact-field and pickup/emergency flag change (append-only).
+	GuardianPhoneRepo       usersModels.GuardianPhoneNumberRepository
+	GuardianChangeAuditRepo auditModels.GuardianChangeRepository
+
 	DB     *bun.DB
 	Logger *slog.Logger
 }
@@ -200,6 +224,9 @@ type service struct {
 	guardianInviteRepo  authModels.GuardianInvitationRepository
 	studentGuardianRepo usersModels.StudentGuardianRepository
 
+	guardianPhoneRepo       usersModels.GuardianPhoneNumberRepository
+	guardianChangeAuditRepo auditModels.GuardianChangeRepository
+
 	db     *bun.DB
 	logger *slog.Logger
 }
@@ -211,22 +238,24 @@ func NewService(cfg ServiceConfig) Service {
 		logger = slog.Default()
 	}
 	return &service{
-		childRepo:             cfg.ChildRepo,
-		enrollablePhaseRepo:   cfg.EnrollablePhaseRepo,
-		enrollmentRequestRepo: cfg.EnrollmentRequestRepo,
-		guardianProfileRepo:   cfg.GuardianProfileRepo,
-		statusDayRepo:         cfg.StatusDayRepo,
-		studentRepo:           cfg.StudentRepo,
-		noteRepo:              cfg.NoteRepo,
-		pickupExceptionRepo:   cfg.PickupExceptionRepo,
-		arrivalExceptionRepo:  cfg.ArrivalExceptionRepo,
-		settings:              cfg.Settings,
-		broadcaster:           cfg.Broadcaster,
-		guardianInvites:       cfg.GuardianInvites,
-		guardianInviteRepo:    cfg.GuardianInviteRepo,
-		studentGuardianRepo:   cfg.StudentGuardianRepo,
-		db:                    cfg.DB,
-		logger:                logger,
+		childRepo:               cfg.ChildRepo,
+		enrollablePhaseRepo:     cfg.EnrollablePhaseRepo,
+		enrollmentRequestRepo:   cfg.EnrollmentRequestRepo,
+		guardianProfileRepo:     cfg.GuardianProfileRepo,
+		statusDayRepo:           cfg.StatusDayRepo,
+		studentRepo:             cfg.StudentRepo,
+		noteRepo:                cfg.NoteRepo,
+		pickupExceptionRepo:     cfg.PickupExceptionRepo,
+		arrivalExceptionRepo:    cfg.ArrivalExceptionRepo,
+		settings:                cfg.Settings,
+		broadcaster:             cfg.Broadcaster,
+		guardianInvites:         cfg.GuardianInvites,
+		guardianInviteRepo:      cfg.GuardianInviteRepo,
+		studentGuardianRepo:     cfg.StudentGuardianRepo,
+		guardianPhoneRepo:       cfg.GuardianPhoneRepo,
+		guardianChangeAuditRepo: cfg.GuardianChangeAuditRepo,
+		db:                      cfg.DB,
+		logger:                  logger,
 	}
 }
 
