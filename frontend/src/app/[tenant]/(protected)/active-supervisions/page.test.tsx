@@ -453,6 +453,61 @@ describe("MeinRaumPage (Active Supervisions)", () => {
     ).toBeInTheDocument();
   });
 
+  it("keeps the spontaneous-activity start button clickable in the Schulhof view (regression #1746 deadlock)", async () => {
+    // Without any supervised group, the Schulhof tab is auto-selected
+    // (allRooms is empty + a Schulhof exists). The start button used to be
+    // hard-disabled whenever the Schulhof view was active, so a user with no
+    // other active group could never open the modal — a dead end. The button
+    // must stay enabled. An occupied Schulhof (activeGroupId set) is handled
+    // inside the modal's room dropdown, not by disabling the trigger.
+    vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => {
+      if (key?.startsWith("active-supervision-dashboard")) {
+        return {
+          data: {
+            supervisedGroups: [],
+            unclaimedGroups: [],
+            currentStaff: { id: "staff-1" },
+            educationalGroups: [],
+            firstRoomVisits: [],
+            firstRoomId: null,
+            capabilities: { webSpontaneousActivitiesEnabled: true },
+            schulhofStatus: {
+              exists: true,
+              roomId: "10",
+              roomName: "Schulhof",
+              activityGroupId: null,
+              activeGroupId: "55", // a group is running -> Schulhof is occupied
+              isUserSupervising: false,
+              supervisionId: null,
+              supervisorCount: 1,
+              studentCount: 3,
+              supervisors: [],
+            },
+            plannedNow: [],
+          },
+          isLoading: false,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        };
+      }
+      return {
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      };
+    }) as never);
+
+    render(<MeinRaumPage />);
+
+    const startButton = await screen.findByRole("button", {
+      name: /Spontane Aktivität starten/,
+    });
+    expect(startButton).toBeEnabled();
+  });
+
   it("shows loading state when SWR is loading", async () => {
     vi.mocked(useSWRAuth).mockReturnValue({
       data: null,
