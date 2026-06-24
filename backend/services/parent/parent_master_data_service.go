@@ -297,7 +297,7 @@ func (s *service) applyGuardianPhoneEdit(ctx context.Context, accountID, tenantI
 	}
 	existing := pickPrimaryPhone(phones)
 
-	var oldRaw json.RawMessage = json.RawMessage("null")
+	oldRaw := json.RawMessage("null")
 	if existing != nil {
 		oldRaw = jsonString(existing.PhoneNumber)
 	}

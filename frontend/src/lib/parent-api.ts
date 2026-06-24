@@ -568,15 +568,6 @@ export async function submitMasterDataRequest(
   );
 }
 
-/** Lists the child's change requests (any status), newest first. */
-export async function listMasterDataRequests(
-  studentId: string,
-): Promise<MasterDataChange[]> {
-  return getJson<MasterDataChange[]>(
-    `/api/parent/me/children/${encodeURIComponent(studentId)}/master-data/requests`,
-  );
-}
-
 /** Removes another account's access to the child (not the primary guardian). */
 export async function removeRelatedAccount(
   studentId: string,

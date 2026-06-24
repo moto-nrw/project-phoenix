@@ -38,7 +38,9 @@ func insertPendingChange(t *testing.T, db *bun.DB, repos *repositories.Factory, 
 
 func TestMasterDataReview_ApproveAppliesNameChange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() {
+		require.NoError(t, db.Close())
+	}()
 	repos := repositories.NewFactory(db)
 	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
 
@@ -64,7 +66,9 @@ func TestMasterDataReview_ApproveAppliesNameChange(t *testing.T) {
 
 func TestMasterDataReview_RejectLeavesRecordUnchanged(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() {
+		require.NoError(t, db.Close())
+	}()
 	repos := repositories.NewFactory(db)
 	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
 
@@ -86,7 +90,9 @@ func TestMasterDataReview_RejectLeavesRecordUnchanged(t *testing.T) {
 
 func TestMasterDataReview_DecideNonPendingRejected(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer db.Close()
+	defer func() {
+		require.NoError(t, db.Close())
+	}()
 	repos := repositories.NewFactory(db)
 	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
 

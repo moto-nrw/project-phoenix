@@ -8,11 +8,7 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "MasterDataReviewAPI" });
 
-export type ChangeRequestStatus =
-  | "auto_applied"
-  | "pending"
-  | "approved"
-  | "rejected";
+type ChangeRequestStatus = "auto_applied" | "pending" | "approved" | "rejected";
 
 // One pending change request in the staff queue. Mirrors
 // api/students.MasterDataChangeRequestResponse.
