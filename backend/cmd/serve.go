@@ -43,14 +43,7 @@ var serveCmd = &cobra.Command{
 				Dsn:         dsn,
 				Environment: sentryEnv,
 				BeforeSend: func(event *sentry.Event, hint *sentry.EventHint) *sentry.Event {
-					if event.Request != nil {
-						for _, key := range []string{"X-Staff-PIN", "X-Staff-Id", "X-Device-Key"} {
-							if _, ok := event.Request.Headers[key]; ok {
-								event.Request.Headers[key] = "[filtered]"
-							}
-						}
-					}
-					return event
+					return scrubSentryEvent(event)
 				},
 			})
 			if err != nil {
@@ -68,6 +61,19 @@ var serveCmd = &cobra.Command{
 		}
 		server.Start()
 	},
+}
+
+func scrubSentryEvent(event *sentry.Event) *sentry.Event {
+	if event == nil || event.Request == nil {
+		return event
+	}
+	event.Request.Data = ""
+	for _, key := range []string{"X-Staff-PIN", "X-Staff-Id", "X-Device-Key"} {
+		if _, ok := event.Request.Headers[key]; ok {
+			event.Request.Headers[key] = "[filtered]"
+		}
+	}
+	return event
 }
 
 func init() {

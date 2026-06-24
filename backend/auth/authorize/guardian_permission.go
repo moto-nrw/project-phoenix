@@ -20,6 +20,16 @@ const (
 	// high-stakes / OGS-coupled fields (child name, birthday, permanent
 	// weekday Gehzeit) that require staff approval.
 	GuardianPermissionMasterDataRequest = "parent_portal.master_data.request"
+	// GuardianPermissionGuardianEdit allows a parent to edit the contact data
+	// (name, email, phone, address) of contact-only guardians of their child,
+	// plus the per-child pickup note and emergency priority. It never permits
+	// editing a guardian who holds their own portal account (#1667).
+	GuardianPermissionGuardianEdit = "parent_portal.guardian.edit"
+	// GuardianPermissionPickupManage allows a parent to set the per-child
+	// can_pickup and is_emergency_contact flags on any guardian of their child.
+	// Granting/revoking pickup authority is safety-relevant, so only the full
+	// guardian presets (primary/legal/co) receive it (#1667).
+	GuardianPermissionPickupManage = "parent_portal.pickup.manage"
 )
 
 const (
@@ -40,6 +50,8 @@ var fullParentPortalPermissions = []string{
 	GuardianPermissionEnrollmentSubmit,
 	GuardianPermissionMasterDataEdit,
 	GuardianPermissionMasterDataRequest,
+	GuardianPermissionGuardianEdit,
+	GuardianPermissionPickupManage,
 }
 
 // Guardian permission checks and grants are authorization concerns, not data
@@ -64,6 +76,22 @@ func NormalizeGuardianRole(role string) string {
 		return GuardianRoleSocialWorker
 	default:
 		return GuardianRoleCustom
+	}
+}
+
+// IsFullGuardianRole reports whether the role is one of the full guardian
+// presets (primary/legal/co). These are real legal guardians, not helpers:
+// their personal contact data and pickup/emergency authority are managed by
+// themselves (once they hold a portal account) or the school — never by another
+// parent, even when they have not yet registered a portal account (#1667). It
+// is the role-level counterpart to the account-level HasAccount protection: a
+// non-registered co-parent must not be editable just because they lack a login.
+func IsFullGuardianRole(role string) bool {
+	switch NormalizeGuardianRole(role) {
+	case GuardianRolePrimaryGuardian, GuardianRoleLegalGuardian, GuardianRoleCoGuardian:
+		return true
+	default:
+		return false
 	}
 }
 

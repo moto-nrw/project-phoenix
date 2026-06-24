@@ -72,7 +72,9 @@ export interface ParentProfile {
   readonly portal_locale: AppLocale | null;
 }
 
-type StudentStatusKind = "sick" | "excused";
+// The two absence kinds a parent can report: "sick" (Krankmeldung, flips the
+// live sick flag) or "excused" (Termin/Abwesenheit, no live flag).
+export type StudentStatusKind = "sick" | "excused";
 
 // One reported sick/excused day. Mirrors api/parent.StatusDayResponse.
 export interface StatusDay {
@@ -127,6 +129,66 @@ export interface RelatedAccount {
   // Marks the requesting parent's own row. Self-removal is rejected by the
   // backend, so the panel hides the remove action for it.
   readonly is_self: boolean;
+}
+
+// One phone number of a guardian. Mirrors api/parent.guardianPhoneResponse.
+interface GuardianPhone {
+  readonly phone_number: string;
+  readonly phone_type: string;
+  readonly label?: string;
+  readonly is_primary: boolean;
+}
+
+// A guardian of the child with contact + pickup detail and the caller's
+// per-guardian edit capabilities. Mirrors api/parent.childGuardianResponse.
+export interface ChildGuardian {
+  readonly guardian_profile_id: string;
+  readonly student_guardian_id: string;
+  readonly first_name: string;
+  readonly last_name: string;
+  readonly email?: string;
+  readonly phones: GuardianPhone[];
+  readonly address_street?: string;
+  readonly address_city?: string;
+  readonly address_postal_code?: string;
+  readonly relationship_type: string;
+  readonly is_primary: boolean;
+  readonly is_emergency_contact: boolean;
+  readonly can_pickup: boolean;
+  readonly pickup_notes?: string;
+  readonly has_account: boolean;
+  readonly is_self: boolean;
+  readonly can_edit_contact: boolean;
+  readonly can_manage_pickup: boolean;
+  readonly contact_locked_own_account: boolean;
+  readonly contact_locked_shared: boolean;
+  readonly contact_locked_social_worker: boolean;
+  readonly contact_locked_full_guardian: boolean;
+}
+
+// Payload for a guardian contact edit. Profile fields + phone list are
+// replaced wholesale. Mirrors api/parent.updateGuardianContactRequest.
+export interface GuardianContactPayload {
+  readonly first_name: string;
+  readonly last_name: string;
+  readonly email?: string | null;
+  readonly address_street?: string | null;
+  readonly address_city?: string | null;
+  readonly address_postal_code?: string | null;
+  readonly phones: {
+    readonly phone_number: string;
+    readonly phone_type: string;
+    readonly label?: string | null;
+    readonly is_primary: boolean;
+  }[];
+}
+
+// Payload for a per-child pickup/relationship edit. Every field optional; an
+// omitted field is left unchanged. Mirrors api/parent.updateGuardianRelationshipRequest.
+export interface GuardianRelationshipPayload {
+  readonly can_pickup?: boolean;
+  readonly is_emergency_contact?: boolean;
+  readonly pickup_notes?: string | null;
 }
 
 interface ApiEnvelope<T> {
@@ -225,6 +287,16 @@ async function deleteJson<T>(url: string): Promise<T> {
 async function patchJson<T>(url: string, body: unknown): Promise<T> {
   const response = await fetch(url, {
     method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) await throwResponseError(url, response);
+  return unwrapEnvelope((await response.json()) as ApiEnvelope<T>);
+}
+
+async function putJson<T>(url: string, body: unknown): Promise<T> {
+  const response = await fetch(url, {
+    method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
@@ -351,19 +423,21 @@ export async function submitParentEnrollment(
 }
 
 /**
- * Reports the child sick for one or more dates (YYYY-MM-DD). Returns the
- * active sick days in the submitted range. The backend verifies the
- * caller is a guardian of the child and that the school has the feature
- * enabled; a disabled school surfaces as a thrown error.
+ * Reports the child absent for one or more dates (YYYY-MM-DD) with the chosen
+ * status: "sick" (Krankmeldung, flips the live sick flag) or "excused"
+ * (Termin/Abwesenheit, no live flag). Returns the just-submitted days. The
+ * backend verifies the caller is a guardian of the child and that the school
+ * has the feature enabled; a disabled school surfaces as a thrown error.
  */
 export async function submitSickNote(
   studentId: string,
   dates: string[],
-  reason?: string,
+  reason = "",
+  status: StudentStatusKind = "sick",
 ): Promise<StatusDay[]> {
   return postJson<StatusDay[]>(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/sick-note`,
-    { dates, reason: reason ?? "" },
+    { dates, reason, status },
   );
 }
 
@@ -439,6 +513,41 @@ export async function listRelatedAccounts(
 ): Promise<RelatedAccount[]> {
   return getJson<RelatedAccount[]>(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/related-accounts`,
+  );
+}
+
+// --- Guardian contact + pickup info (#1667) ---
+
+/** Lists the child's guardians with contact + pickup detail and edit caps. */
+export async function listChildGuardians(
+  studentId: string,
+): Promise<ChildGuardian[]> {
+  return getJson<ChildGuardian[]>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/guardians`,
+  );
+}
+
+/** Updates a contact-only guardian's contact data (or the caller's own). */
+export async function updateGuardianContact(
+  studentId: string,
+  guardianProfileId: string,
+  payload: GuardianContactPayload,
+): Promise<ChildGuardian> {
+  return putJson<ChildGuardian>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/guardians/${encodeURIComponent(guardianProfileId)}/contact`,
+    payload,
+  );
+}
+
+/** Updates the per-child pickup/relationship fields of a guardian. */
+export async function updateGuardianRelationship(
+  studentId: string,
+  guardianProfileId: string,
+  payload: GuardianRelationshipPayload,
+): Promise<ChildGuardian> {
+  return putJson<ChildGuardian>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/guardians/${encodeURIComponent(guardianProfileId)}/pickup`,
+    payload,
   );
 }
 

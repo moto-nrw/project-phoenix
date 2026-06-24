@@ -185,7 +185,7 @@ describe("Parent portal components", () => {
     expect(
       (await screen.findAllByRole("heading", { name: "Lina Muster" })).length,
     ).toBeGreaterThan(0);
-    expect(screen.getAllByText("Krank melden").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Abmelden").length).toBeGreaterThan(0);
     expect(
       screen.getAllByText("Ankunfts- und Abholzeit ändern").length,
     ).toBeGreaterThan(0);
@@ -201,6 +201,40 @@ describe("Parent portal components", () => {
     expect(
       await screen.findByText(/Kein Kind mit dieser Kennung/),
     ).toBeInTheDocument();
+  });
+
+  it("files an excused absence end-to-end through the Abmelden flow", async () => {
+    mocks.listMyChildren.mockResolvedValueOnce([child()]);
+    render(<ChildDetail studentId="42" />);
+
+    await screen.findAllByRole("heading", { name: "Lina Muster" });
+
+    // Open the "Abmelden" modal from its action button.
+    const abmeldenButtons = screen.getAllByRole("button", { name: "Abmelden" });
+    const enabled = abmeldenButtons.find(
+      (button) => !button.hasAttribute("disabled"),
+    );
+    expect(enabled).toBeTruthy();
+    fireEvent.click(enabled!);
+
+    await screen.findByRole("dialog", { name: "Abmelden" });
+
+    // Switch to "Entschuldigt" and submit.
+    fireEvent.click(
+      screen.getByRole("combobox", { name: "Art der Abmeldung" }),
+    );
+    fireEvent.click(screen.getByRole("option", { name: "Entschuldigt" }));
+    fireEvent.click(screen.getByRole("button", { name: "Abmeldung senden" }));
+
+    // The hook forwards the chosen status to the API for the right child.
+    await waitFor(() =>
+      expect(mocks.submitSickNote).toHaveBeenCalledWith(
+        "42",
+        expect.any(Array),
+        "",
+        "excused",
+      ),
+    );
   });
 
   it("shows child detail error state", async () => {

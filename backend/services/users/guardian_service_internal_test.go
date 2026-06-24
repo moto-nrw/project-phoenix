@@ -152,6 +152,10 @@ func TestUpdateGuardian_NonUniqueUpdateErrorIsReturned(t *testing.T) {
 	email := "edited@example.com"
 	svc := &guardianService{
 		guardianProfileRepo: &fakeProfileRepo{
+			// UpdateGuardian now locks the profile row FOR UPDATE before reading
+			// it (serializes with the parents-portal contact path — #1667 review);
+			// the fake returns a no-op lock so this branch reaches the Update.
+			lockFn: func(_ context.Context, _ int64) error { return nil },
 			findByIDFn: func(_ context.Context, _ int64) (*users.GuardianProfile, error) {
 				return &users.GuardianProfile{}, nil
 			},

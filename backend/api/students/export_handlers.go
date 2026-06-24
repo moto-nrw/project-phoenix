@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -294,9 +296,10 @@ func buildExportRows(students []StudentResponse, weekly map[int64]weeklySchedule
 			listexport.ColumnWeeklyWednesday: weeklyCell(plan, schedule.WeekdayWednesday),
 			listexport.ColumnWeeklyThursday:  weeklyCell(plan, schedule.WeekdayThursday),
 			listexport.ColumnWeeklyFriday:    weeklyCell(plan, schedule.WeekdayFriday),
+			listexport.ColumnDailyStatus:     dailyStatusExportCell(student),
 			listexport.ColumnPlannedArrival:  ptrValue(student.ArrivalTime),
 			listexport.ColumnPlannedPickup:   ptrValue(student.PickupTime),
-			listexport.ColumnDeparture:       departureSummary(student.AllowedDepartureModes, student.DepartureDays),
+			listexport.ColumnDeparture:       departureExportCell(student),
 			listexport.ColumnDailyNotes:      dailyNotes(student),
 			listexport.ColumnCurrentLocation: student.Location,
 		}})
@@ -304,14 +307,77 @@ func buildExportRows(students []StudentResponse, weekly map[int64]weeklySchedule
 	return rows
 }
 
+func dailyStatusExportCell(student StudentResponse) string {
+	switch student.DayPlanningStatus {
+	case DayPlanningStatusComesToday:
+		return "Kommt heute"
+	case DayPlanningStatusNotComingToday:
+		switch student.DayPlanningReason {
+		case dayPlanningReasonSick:
+			return "Krank"
+		case dayPlanningReasonExcused:
+			return "Entschuldigt"
+		case dayPlanningReasonClassTrip:
+			return "Klassenfahrt"
+		}
+		if student.DayPlanningLabel != "" {
+			return sentenceCase(student.DayPlanningLabel)
+		}
+		return "Kommt heute nicht"
+	}
+
+	if student.Sick {
+		return "Krank"
+	}
+	if student.ClassTrip {
+		return "Klassenfahrt"
+	}
+	if student.Excused {
+		return "Entschuldigt"
+	}
+	return ""
+}
+
+func sentenceCase(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	r, size := utf8.DecodeRuneInString(value)
+	if r == utf8.RuneError && size == 0 {
+		return ""
+	}
+	return string(unicode.ToUpper(r)) + value[size:]
+}
+
+// departureExportCell renders the per-weekday departure plan and appends the
+// coupled "mit wem" companion note whenever the plan allows the accompanied
+// ("Mit anderem Kind") mode, so offline pickup/weekly lists carry the
+// actionable "with whom" detail staff need to act on (#1694).
+func departureExportCell(student StudentResponse) string {
+	summary := departureSummary(student.AllowedDepartureModes, student.DepartureDays)
+	if student.DepartureCompanionNote == "" {
+		return summary
+	}
+	allowed := student.AllowedDepartureModes.Normalize()
+	if !allowed.HasAny() {
+		allowed = users.AllowedDepartureModesFromDeparture(student.DepartureDays)
+	}
+	if !allowed.HasMode(users.DepartureAccompanied) {
+		return summary
+	}
+	return summary + " (mit: " + student.DepartureCompanionNote + ")"
+}
+
 // departureSummary renders the per-weekday departure plan for the export, e.g.
 // "Mo: Bus, Mi: Abholung". Alone/unset days are omitted; an all-alone plan
 // renders "Geht alleine" (#1610).
 func departureSummary(allowed users.AllowedDepartureModes, fallback users.DepartureDays) string {
 	modeLabels := map[users.DepartureMode]string{
-		users.DepartureAlone:  "zu Fuß",
-		users.DepartureBus:    "Bus",
-		users.DeparturePickup: "Abholung",
+		users.DepartureAlone:       "zu Fuß",
+		users.DepartureBus:         "Bus",
+		users.DeparturePickup:      "Abholung",
+		users.DepartureAccompanied: "Mit anderem Kind",
 	}
 	shortDay := map[string]string{
 		users.PickupDayMonday:    "Mo",

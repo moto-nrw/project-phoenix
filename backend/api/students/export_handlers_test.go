@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -302,6 +303,101 @@ func TestWeeklyCellUsesExplicitLabels(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBuildExportRowsIncludesDailyStatus(t *testing.T) {
+	students := []StudentResponse{
+		{
+			ID:                101,
+			FirstName:         "Mila",
+			LastName:          "Muster",
+			DayPlanningStatus: DayPlanningStatusComesToday,
+			DayPlanningReason: dayPlanningReasonUnplanned,
+			Sick:              true,
+		},
+		{
+			ID:                102,
+			FirstName:         "Tom",
+			LastName:          "Krank",
+			DayPlanningStatus: DayPlanningStatusNotComingToday,
+			DayPlanningReason: dayPlanningReasonSick,
+		},
+		{
+			ID:                103,
+			FirstName:         "Ella",
+			LastName:          "Entschuldigt",
+			DayPlanningStatus: DayPlanningStatusNotComingToday,
+			DayPlanningReason: dayPlanningReasonExcused,
+		},
+		{
+			ID:                104,
+			FirstName:         "Klara",
+			LastName:          "Fahrt",
+			DayPlanningStatus: DayPlanningStatusNotComingToday,
+			DayPlanningReason: dayPlanningReasonClassTrip,
+		},
+		{
+			ID:                105,
+			FirstName:         "Noah",
+			LastName:          "Ausnahme",
+			DayPlanningStatus: DayPlanningStatusNotComingToday,
+			DayPlanningReason: dayPlanningReasonArrivalException,
+			DayPlanningLabel:  "arzttermin",
+		},
+	}
+
+	rows := buildExportRows(students, map[int64]weeklySchedule{})
+
+	require.Len(t, rows, len(students))
+	assert.Equal(t, "Kommt heute", rows[0].Values[listexport.ColumnDailyStatus])
+	assert.Equal(t, "Krank", rows[1].Values[listexport.ColumnDailyStatus])
+	assert.Equal(t, "Entschuldigt", rows[2].Values[listexport.ColumnDailyStatus])
+	assert.Equal(t, "Klassenfahrt", rows[3].Values[listexport.ColumnDailyStatus])
+	assert.Equal(t, "Arzttermin", rows[4].Values[listexport.ColumnDailyStatus])
+}
+
+// TestDepartureExportCell pins the accompanied companion-note rendering in the
+// student export (#1694): the "mit wem" note is appended only when the resolved
+// plan actually allows the accompanied ("Mit anderem Kind") mode.
+func TestDepartureExportCell(t *testing.T) {
+	t.Run("appends companion note for an accompanied day", func(t *testing.T) {
+		got := departureExportCell(StudentResponse{
+			AllowedDepartureModes: users.AllowedDepartureModes{
+				users.PickupDayMonday: []users.DepartureMode{users.DepartureAccompanied},
+			},
+			DepartureCompanionNote: "Geschwisterkind Lena",
+		})
+		require.Equal(t, "Mo: Mit anderem Kind (mit: Geschwisterkind Lena)", got)
+	})
+
+	t.Run("ignores a stray note when no day is accompanied", func(t *testing.T) {
+		got := departureExportCell(StudentResponse{
+			AllowedDepartureModes: users.AllowedDepartureModes{
+				users.PickupDayMonday: []users.DepartureMode{users.DepartureBus},
+			},
+			DepartureCompanionNote: "Geschwisterkind Lena",
+		})
+		require.Equal(t, "Mo: Bus", got)
+	})
+
+	t.Run("falls back to the legacy departure days for the accompanied check", func(t *testing.T) {
+		got := departureExportCell(StudentResponse{
+			DepartureDays: users.DepartureDays{
+				users.PickupDayTuesday: users.DepartureAccompanied,
+			},
+			DepartureCompanionNote: "Nachbarskind Tom",
+		})
+		require.Equal(t, "Di: Mit anderem Kind (mit: Nachbarskind Tom)", got)
+	})
+
+	t.Run("no note renders the plain summary", func(t *testing.T) {
+		got := departureExportCell(StudentResponse{
+			AllowedDepartureModes: users.AllowedDepartureModes{
+				users.PickupDayMonday: []users.DepartureMode{users.DepartureAccompanied},
+			},
+		})
+		require.Equal(t, "Mo: Mit anderem Kind", got)
+	})
 }
 
 func TestDepartureSummary(t *testing.T) {

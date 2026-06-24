@@ -605,6 +605,6 @@ func (r *fakeStatusDayRepo) ArchiveAndClearStatusFlag(context.Context, string, s
 	return 0, nil
 }
 
-func (r *fakeStatusDayRepo) CountActiveClassTripStudents(context.Context, timezone.Date) (int, error) {
-	return 0, nil
+func (r *fakeStatusDayRepo) CountEffectiveDashboardAbsences(context.Context, timezone.Date) (*active.StudentStatusCounts, error) {
+	return &active.StudentStatusCounts{}, nil
 }

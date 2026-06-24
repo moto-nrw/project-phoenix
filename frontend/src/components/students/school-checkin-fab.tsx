@@ -90,6 +90,12 @@ export function SchoolCheckinFab({
     ? { backgroundColor: "rgb(255 255 255 / 0.20)" }
     : { backgroundColor: `${GROUP_ROOM_SHADES.base}1a` };
 
+  const buttonStyle: React.CSSProperties = {
+    ...surfaceStyle,
+    // @ts-expect-error CSS custom property for focus ring colour
+    "--tw-ring-color": `${GROUP_ROOM_SHADES.base}80`,
+  };
+
   const animationProps = reduceMotion
     ? {}
     : {
@@ -109,11 +115,7 @@ export function SchoolCheckinFab({
         data-checkin-fab-variant={resolved}
         data-checkin-fab-active={isActive || undefined}
         className={`group relative inline-flex items-center gap-2.5 rounded-full font-semibold transition-[background-color,color,box-shadow] duration-150 outline-none focus-visible:ring-2 focus-visible:ring-offset-2 active:scale-[0.98] ${sizeClasses}`}
-        style={{
-          ...surfaceStyle,
-          // @ts-expect-error CSS custom property for focus ring colour
-          "--tw-ring-color": `${GROUP_ROOM_SHADES.base}80`,
-        }}
+        style={buttonStyle}
       >
         <span
           className={`flex flex-shrink-0 items-center justify-center rounded-full ${

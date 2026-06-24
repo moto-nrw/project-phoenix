@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/localization"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -60,17 +61,19 @@ type Service interface {
 
 	// SubmitSickNote reports the parent's child sick for one or more
 	// dates. Authorization: the account must be a guardian of the
-	// student. The write mirrors the staff sick-note path — it clears any
-	// opposing "excused" days, upserts a sick status-day per date with
-	// source=parent, and flips the live sick flag when today is included.
+	// student. The write mirrors the staff status-day path — it clears any
+	// opposing status days for the date, upserts a status-day per date with
+	// source=parent, and (for a sick status) flips the live sick flag when
+	// today is included. An excused status sets no live flag (issue #1735).
+	// The status must be StudentStatusDaySick or StudentStatusDayExcused.
 	// Gated by operations.parent_sick_note_enabled for the child's tenant.
-	SubmitSickNote(ctx context.Context, accountID, studentID int64, dates []timezone.Date, reason string) ([]*activeModels.StudentStatusDay, error)
+	SubmitSickNote(ctx context.Context, accountID, studentID int64, dates []timezone.Date, reason, status string) ([]*activeModels.StudentStatusDay, error)
 
-	// ListSickDays returns the child's currently-active sick days in the
-	// given date range (excused days are filtered out — parents only
-	// manage sick notes). Authorization only; not gated by the setting so
-	// previously-reported days stay visible if a school later disables the
-	// feature.
+	// ListSickDays returns the child's currently-active parent-facing
+	// absences (sick and excused) in the given date range; class-trip days
+	// stay excluded as a staff-only status. Authorization only; not gated by
+	// the setting so previously-reported days stay visible if a school later
+	// disables the feature.
 	ListSickDays(ctx context.Context, accountID, studentID int64, from, to timezone.Date) ([]*activeModels.StudentStatusDay, error)
 
 	// AddParentNote appends a free-text note the parent left for the
@@ -141,6 +144,23 @@ type Service interface {
 	// ListMyMasterDataRequests returns the child's change requests (any status),
 	// newest-first. Authorization only.
 	ListMyMasterDataRequests(ctx context.Context, accountID, studentID int64) ([]*usersModels.StudentDataChangeRequest, error)
+
+	// ListChildGuardians returns every guardian linked to the child with
+	// contact + pickup detail and the caller's per-guardian edit capabilities.
+	// Authorization only (parent_portal.access).
+	ListChildGuardians(ctx context.Context, accountID, studentID int64) ([]*ChildGuardian, error)
+
+	// UpdateGuardianContact edits a contact-only guardian's contact data (or the
+	// caller's own profile): name, email, address, phone list. Requires
+	// parent_portal.guardian.edit. A guardian with their own portal account is
+	// rejected unless it is the caller.
+	UpdateGuardianContact(ctx context.Context, accountID, studentID, guardianProfileID int64, input GuardianContactInput) (*ChildGuardian, error)
+
+	// UpdateGuardianRelationship edits the per-child pickup/relationship fields.
+	// PickupNotes requires parent_portal.guardian.edit; the
+	// can_pickup / is_emergency_contact flags additionally require
+	// parent_portal.pickup.manage.
+	UpdateGuardianRelationship(ctx context.Context, accountID, studentID, guardianProfileID int64, input GuardianRelationshipInput) (*ChildGuardian, error)
 }
 
 // ChildFeatureFlags reports the resolved per-tenant parent-portal feature
@@ -201,16 +221,22 @@ type ServiceConfig struct {
 	Settings             configService.SettingsService
 	Broadcaster          realtime.Broadcaster
 
-	// Stammdaten view + change flow (Track A direct edit, Track B requests).
-	PersonRepo        usersModels.PersonRepository
-	GuardianPhoneRepo usersModels.GuardianPhoneNumberRepository
-	ChangeRequestRepo usersModels.StudentDataChangeRequestRepository
-
 	// Related-accounts management (invite/remove further guardians from the
 	// parents portal). The invitation service runs the shared resolve logic.
 	GuardianInvites     authService.GuardianInvitationService
 	GuardianInviteRepo  authModels.GuardianInvitationRepository
 	StudentGuardianRepo usersModels.StudentGuardianRepository
+
+	// Stammdaten view + change flow (Track A direct edit, Track B requests).
+	PersonRepo        usersModels.PersonRepository
+	ChangeRequestRepo usersModels.StudentDataChangeRequestRepository
+
+	// Guardian contact + pickup editing (#1667). The phone repo backs both the
+	// caller's primary-phone master-data edit and the wholesale phone-list replace
+	// on a contact edit; the audit repo records every contact-field and
+	// pickup/emergency flag change (append-only).
+	GuardianPhoneRepo       usersModels.GuardianPhoneNumberRepository
+	GuardianChangeAuditRepo auditModels.GuardianChangeRepository
 
 	DB     *bun.DB
 	Logger *slog.Logger
@@ -230,13 +256,14 @@ type service struct {
 	settings             configService.SettingsService
 	broadcaster          realtime.Broadcaster
 
-	personRepo        usersModels.PersonRepository
-	guardianPhoneRepo usersModels.GuardianPhoneNumberRepository
-	changeRequestRepo usersModels.StudentDataChangeRequestRepository
-
 	guardianInvites     authService.GuardianInvitationService
 	guardianInviteRepo  authModels.GuardianInvitationRepository
 	studentGuardianRepo usersModels.StudentGuardianRepository
+
+	personRepo              usersModels.PersonRepository
+	changeRequestRepo       usersModels.StudentDataChangeRequestRepository
+	guardianPhoneRepo       usersModels.GuardianPhoneNumberRepository
+	guardianChangeAuditRepo auditModels.GuardianChangeRepository
 
 	db     *bun.DB
 	logger *slog.Logger
@@ -249,25 +276,26 @@ func NewService(cfg ServiceConfig) Service {
 		logger = slog.Default()
 	}
 	return &service{
-		childRepo:             cfg.ChildRepo,
-		enrollablePhaseRepo:   cfg.EnrollablePhaseRepo,
-		enrollmentRequestRepo: cfg.EnrollmentRequestRepo,
-		guardianProfileRepo:   cfg.GuardianProfileRepo,
-		statusDayRepo:         cfg.StatusDayRepo,
-		studentRepo:           cfg.StudentRepo,
-		noteRepo:              cfg.NoteRepo,
-		pickupExceptionRepo:   cfg.PickupExceptionRepo,
-		arrivalExceptionRepo:  cfg.ArrivalExceptionRepo,
-		settings:              cfg.Settings,
-		broadcaster:           cfg.Broadcaster,
-		personRepo:            cfg.PersonRepo,
-		guardianPhoneRepo:     cfg.GuardianPhoneRepo,
-		changeRequestRepo:     cfg.ChangeRequestRepo,
-		guardianInvites:       cfg.GuardianInvites,
-		guardianInviteRepo:    cfg.GuardianInviteRepo,
-		studentGuardianRepo:   cfg.StudentGuardianRepo,
-		db:                    cfg.DB,
-		logger:                logger,
+		childRepo:               cfg.ChildRepo,
+		enrollablePhaseRepo:     cfg.EnrollablePhaseRepo,
+		enrollmentRequestRepo:   cfg.EnrollmentRequestRepo,
+		guardianProfileRepo:     cfg.GuardianProfileRepo,
+		statusDayRepo:           cfg.StatusDayRepo,
+		studentRepo:             cfg.StudentRepo,
+		noteRepo:                cfg.NoteRepo,
+		pickupExceptionRepo:     cfg.PickupExceptionRepo,
+		arrivalExceptionRepo:    cfg.ArrivalExceptionRepo,
+		settings:                cfg.Settings,
+		broadcaster:             cfg.Broadcaster,
+		personRepo:              cfg.PersonRepo,
+		changeRequestRepo:       cfg.ChangeRequestRepo,
+		guardianInvites:         cfg.GuardianInvites,
+		guardianInviteRepo:      cfg.GuardianInviteRepo,
+		studentGuardianRepo:     cfg.StudentGuardianRepo,
+		guardianPhoneRepo:       cfg.GuardianPhoneRepo,
+		guardianChangeAuditRepo: cfg.GuardianChangeAuditRepo,
+		db:                      cfg.DB,
+		logger:                  logger,
 	}
 }
 

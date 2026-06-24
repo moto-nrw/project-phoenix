@@ -28,10 +28,13 @@ const (
 // --- Sick note ---
 
 // SubmitSickNoteRequest is the wire shape for POST
-// /parent/me/children/{studentId}/sick-note.
+// /parent/me/children/{studentId}/sick-note. Status is the absence kind the
+// parent chose: "sick" (Krankmeldung) or "excused" (Termin/Abwesenheit). An
+// empty status defaults to "sick" so older clients keep working.
 type SubmitSickNoteRequest struct {
 	Dates  []string `json:"dates"`
 	Reason string   `json:"reason"`
+	Status string   `json:"status"`
 }
 
 // StatusDayResponse mirrors the staff status-day shape but is the
@@ -83,7 +86,14 @@ func (rs *Resource) submitSickNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rows, err := rs.ParentService.SubmitSickNote(r.Context(), accountID, studentID, dates, req.Reason)
+	// Default an empty status to "sick" so older clients (which sent no status)
+	// keep reporting Krankmeldungen unchanged. The service validates the value.
+	status := req.Status
+	if status == "" {
+		status = activeModels.StudentStatusDaySick
+	}
+
+	rows, err := rs.ParentService.SubmitSickNote(r.Context(), accountID, studentID, dates, req.Reason, status)
 	if err != nil {
 		renderParentWriteError(w, r, err)
 		return
@@ -365,7 +375,28 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "staff_managed_guardian_protected"))
 	case errors.Is(err, authService.ErrCannotRemoveOwnAccess):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "cannot_remove_own_access"))
+	case errors.Is(err, parentService.ErrGuardianManagementDisabled):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "guardian_management_disabled"))
+	case errors.Is(err, parentService.ErrGuardianNotLinked):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "guardian_not_linked"))
+	case errors.Is(err, parentService.ErrGuardianHasOwnAccount):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "guardian_has_own_account"))
+	case errors.Is(err, parentService.ErrGuardianSharedAcrossFamilies):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "guardian_shared_across_families"))
+	case errors.Is(err, parentService.ErrGuardianSocialWorkerManaged):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "guardian_social_worker_managed"))
+	case errors.Is(err, parentService.ErrGuardianRoleManaged):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "guardian_role_managed"))
+	case errors.Is(err, parentService.ErrGuardianEmailConflict):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "guardian_email_conflict"))
+	case errors.Is(err, parentService.ErrGuardianNoChange):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "guardian_no_change"))
+	case errors.Is(err, parentService.ErrGuardianContactInvalid):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "guardian_contact_invalid"))
+	case errors.Is(err, parentService.ErrGuardianRelationshipInvalid):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "guardian_relationship_invalid"))
 	case errors.Is(err, parentService.ErrNoDates),
+		errors.Is(err, parentService.ErrInvalidStatus),
 		errors.Is(err, parentService.ErrEmptyNote),
 		errors.Is(err, parentService.ErrNoteTooLong),
 		errors.Is(err, parentService.ErrEmailRequired),

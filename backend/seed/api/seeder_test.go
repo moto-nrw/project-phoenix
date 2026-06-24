@@ -73,6 +73,32 @@ func TestParentEnrollmentParentPassword(t *testing.T) {
 	assert.Equal(t, "SharedPass1!", password)
 }
 
+func TestPublicEnrollmentSeedHeadersUseDistinctForwardedIPs(t *testing.T) {
+	first := publicEnrollmentSeedHeaders(0)
+	second := publicEnrollmentSeedHeaders(1)
+
+	assert.Equal(t, "198.51.100.10", first["X-Forwarded-For"])
+	assert.Equal(t, "198.51.100.11", second["X-Forwarded-For"])
+	assert.NotEqual(t, first["X-Forwarded-For"], second["X-Forwarded-For"])
+}
+
+func TestClientPostPublicWithHeaders(t *testing.T) {
+	var forwardedFor string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		forwardedFor = r.Header.Get("X-Forwarded-For")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
+	}))
+	defer srv.Close()
+
+	client := NewClient(srv.URL, false)
+	_, err := client.PostPublicWithHeaders("/api/enrollment/demo-school/submit", map[string]any{}, map[string]string{
+		"X-Forwarded-For": "198.51.100.42",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "198.51.100.42", forwardedFor)
+}
+
 func TestWrapConflictError(t *testing.T) {
 	t.Run("wraps 409 APIError with helpful message", func(t *testing.T) {
 		apiErr := &phoenixapi.APIError{

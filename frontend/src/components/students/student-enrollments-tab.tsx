@@ -14,6 +14,7 @@ import { useToast } from "~/contexts/ToastContext";
 import { Button } from "~/components/ui/button";
 import {
   ChildExtraFields,
+  ChildOfferingAdjustment,
   ChildOfferings,
   RequestExtraSection,
   StatusBadge,
@@ -53,6 +54,7 @@ export function StudentEnrollmentsTab({
     data: requests = [],
     error,
     isLoading,
+    mutate,
   } = useSWRAuth(`student-enrollments-${studentId}`, () =>
     listStudentEnrollmentRequests(studentId),
   );
@@ -80,9 +82,7 @@ export function StudentEnrollmentsTab({
   );
 
   if (isLoading) {
-    return (
-      <p className="text-sm text-gray-500">Anmeldungen werden geladen...</p>
-    );
+    return <p className="text-sm text-gray-500">Anmeldungen werden geladen…</p>;
   }
 
   if (error) {
@@ -135,15 +135,20 @@ export function StudentEnrollmentsTab({
       </div>
 
       {requests.map((request) => (
-        <EnrollmentRequestCard key={request.id} request={request} />
+        <EnrollmentRequestCard
+          key={request.id}
+          request={request}
+          onChanged={() => void mutate()}
+        />
       ))}
     </div>
   );
 }
 
 function EnrollmentRequestCard({
+  onChanged,
   request,
-}: Readonly<{ request: AdminRequestSummary }>) {
+}: Readonly<{ request: AdminRequestSummary; onChanged: () => void }>) {
   const submittedAt = formatDateTime(request.submitted_at, {
     day: "2-digit",
     month: "2-digit",
@@ -207,6 +212,14 @@ function EnrollmentRequestCard({
             ) : null}
 
             <ChildOfferings offerings={child.offerings} />
+            {child.status === "approved" ? (
+              <ChildOfferingAdjustment
+                requestId={request.id}
+                phaseId={request.phase_id}
+                child={child}
+                onSaved={onChanged}
+              />
+            ) : null}
             <ChildExtraFields
               child={child}
               schemaFields={request.schema_fields}

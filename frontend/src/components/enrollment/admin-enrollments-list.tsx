@@ -31,6 +31,7 @@ import { fetchSettingsSchema } from "~/lib/settings-api";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
 import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
 import { createLogger } from "~/lib/logger";
 
@@ -56,6 +57,7 @@ interface CareOfferingStats {
 
 export function AdminEnrollmentsList() {
   const tenantSlug = useTenantSlugSafe();
+  const tenantPath = useTenantAwarePath();
   const [phases, setPhases] = useState<Phase[]>([]);
   const [schemas, setSchemas] = useState<FormSchema[]>([]);
   const [careOfferingStats, setCareOfferingStats] = useState<CareOfferingStats>(
@@ -157,6 +159,7 @@ export function AdminEnrollmentsList() {
         phases={phases}
         requests={allRequests}
         tenantSlug={tenantSlug}
+        tenantPath={tenantPath}
       />
     </div>
   );
@@ -197,10 +200,12 @@ function EnrollmentPhaseOverview({
   phases,
   requests,
   tenantSlug,
+  tenantPath,
 }: Readonly<{
   phases: Phase[];
   requests: AdminRequestSummary[];
   tenantSlug: string | null;
+  tenantPath: (path: string) => string;
 }>) {
   const phaseStats = useMemo(() => {
     const stats = new Map<
@@ -322,7 +327,9 @@ function EnrollmentPhaseOverview({
                   <PhasePublicLinkActions
                     phase={phase}
                     tenantSlug={tenantSlug}
-                    enrollmentsHref={`/admin/enrollments/phases/${phase.id}`}
+                    enrollmentsHref={tenantPath(
+                      `/admin/enrollments/phases/${encodeURIComponent(phase.id)}`,
+                    )}
                   />
                 </div>
               </div>
@@ -359,7 +366,7 @@ function PhasePublicLinkActions({
         rel="noreferrer"
         className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
       >
-        Phase ansehen
+        Formular ansehen
         <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
       </a>
       <Link

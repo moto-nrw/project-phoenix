@@ -43,6 +43,24 @@ describe("CustomSelect", () => {
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
 
+  it("keeps the listbox inside the local select container", () => {
+    render(
+      <div data-testid="surface" className="moto-content-surface">
+        <CustomSelect
+          value=""
+          options={options}
+          onChange={vi.fn()}
+          ariaLabel="Auswahl"
+        />
+      </div>,
+    );
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Auswahl" }));
+
+    const listbox = screen.getByRole("listbox");
+    expect(screen.getByTestId("surface")).toContainElement(listbox);
+  });
+
   it("closes with Escape", () => {
     render(
       <CustomSelect

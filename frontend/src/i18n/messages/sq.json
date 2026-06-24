@@ -111,12 +111,74 @@
     "masterDataEyebrow": "Të dhënat e fëmijës",
     "masterDataTitle": "Të dhënat bazë",
     "masterDataDescription": "Të dhënat më të rëndësishme për fëmijën dhe përkujdesjen.",
-    "pickupEyebrow": "Marrja",
-    "pickupPeopleTitle": "Të autorizuar për marrje",
-    "pickupPeopleDescription": "Persona që lejohen ta marrin këtë fëmijë.",
-    "manage": "Menaxho",
-    "add": "Shto",
-    "addPerson": "Shto person",
+    "guardians": {
+      "eyebrow": "Marrja dhe kontakti",
+      "title": "Të autorizuar për marrje dhe kontakte",
+      "description": "Kujdestarë ligjorë dhe persona që mund ta marrin fëmijën tuaj.",
+      "loadError": "Kontaktet nuk mund të ngarkoheshin.",
+      "loading": "Duke u ngarkuar…",
+      "empty": "Ende nuk ka kontakte.",
+      "contactSaved": "Të dhënat e kontaktit u ruajtën.",
+      "pickupSaved": "Të dhënat e marrjes u ruajtën.",
+      "relationships": {
+        "parent": "Prind",
+        "guardian": "Kujdestar ligjor",
+        "relative": "I afërm",
+        "other": "Person tjetër",
+        "contact": "Kontakt"
+      },
+      "badges": {
+        "primary": "Kryesor",
+        "canPickup": "Mund ta marrë",
+        "emergency": "Kontakt emergjence"
+      },
+      "editContact": "Ndrysho",
+      "managePickup": "Menaxho lejen e marrjes",
+      "contactTitle": "Ndrysho të dhënat e kontaktit",
+      "pickupTitle": "Menaxho marrjen",
+      "close": "Mbyll",
+      "cancel": "Anulo",
+      "save": "Ruaj",
+      "firstName": "Emri",
+      "lastName": "Mbiemri",
+      "email": "E-mail",
+      "street": "Rruga dhe numri",
+      "postalCode": "Kodi postar",
+      "city": "Qyteti",
+      "phoneNumbers": "Numra telefoni",
+      "phonePlaceholder": "Numri i telefonit",
+      "phoneTypeLabel": "Lloji i numrit të telefonit",
+      "phoneTypes": {
+        "mobile": "Celular",
+        "home": "Shtëpi",
+        "work": "Punë",
+        "other": "Tjetër"
+      },
+      "removePhone": "Hiq numrin e telefonit",
+      "addPhone": "Shto numër",
+      "nameRequired": "Emri dhe mbiemri janë të detyrueshëm.",
+      "contactSaveError": "Të dhënat e kontaktit nuk mund të ruheshin.",
+      "pickupSaveError": "Të dhënat e marrjes nuk mund të ruheshin.",
+      "canPickupLabel": "Mund ta marrë",
+      "canPickupDescription": "Ky person lejohet ta marrë fëmijën.",
+      "emergencyLabel": "Kontakt emergjence",
+      "emergencyDescription": "Do të kontaktohet në rast emergjence.",
+      "pickupNotes": "Shënim për marrjen",
+      "pickupNotesPlaceholder": "p.sh. Vjen me biçikletë",
+      "errors": {
+        "contactInvalid": "Ju lutemi kontrolloni të dhënat e kontaktit.",
+        "relationshipInvalid": "Ju lutemi kontrolloni të dhënat e marrjes.",
+        "emailConflict": "Kjo adresë e-mail përdoret tashmë për një kontakt tjetër.",
+        "hasOwnAccount": "Ky person i menaxhon të dhënat e kontaktit përmes llogarisë së vet prindërore.",
+        "sharedAcrossFamilies": "Ky kontakt përdoret nga disa familje dhe mund të ndryshohet vetëm nga shkolla.",
+        "notLinked": "Ky kontakt nuk i përket këtij fëmije.",
+        "permissionDenied": "Nuk keni leje për këtë ndryshim.",
+        "noChange": "Nuk u dërgua asnjë ndryshim.",
+        "socialWorkerManaged": "Këto të dhëna kontakti menaxhohen nga shkolla.",
+        "roleManaged": "Ky person është kujdestar ligjor dhe mund të ndryshohet vetëm nga vetë ai ose nga shkolla.",
+        "managementDisabled": "Menaxhimi i kontakteve është çaktivizuar për këtë shkollë."
+      }
+    },
     "newsEyebrow": "Aktuale",
     "newsTitle": "Lajme",
     "newsDescription": "Njoftime për grupin dhe përkujdesjen.",
@@ -126,8 +188,8 @@
     "comingSoonAria": "{label} së shpejti",
     "actions": {
       "sick": {
-        "label": "Raporto sëmundje",
-        "description": "Njoftim ditor për këtë fëmijë"
+        "label": "Njofto mungesë",
+        "description": "Njofto sëmundje ose justifikim"
       },
       "pickupTime": {
         "label": "Ndrysho orarin e ardhjes dhe marrjes",
@@ -154,22 +216,13 @@
       "title": "Sot",
       "description": "Njoftime aktuale për këtë fëmijë.",
       "sickLabel": "Njoftim ditor",
-      "noSick": "Nuk ka njoftim sëmundjeje",
+      "noSick": "Nuk ka njoftim mungese",
       "pickupLabel": "Marrja",
       "regularPickup": "Marrje e rregullt",
       "messagesLabel": "Mesazhe",
       "noMessages": "Nuk ka mesazhe të reja",
       "noMessagesSent": "Asnjë mesazh i dërguar",
       "messagesSent": "{count, plural, one {# mesazh i dërguar} other {# mesazhe të dërguara}}"
-    },
-    "demo": {
-      "momName": "Mama",
-      "dadName": "Babi",
-      "grandmaName": "Gjyshja",
-      "auntName": "Tezja",
-      "mother": "Nëna",
-      "father": "Babai",
-      "pickup": "Marrje"
     },
     "messages": {
       "eyebrow": "Portali i prindërve",
@@ -182,16 +235,19 @@
     "close": "Mbyll",
     "cancel": "Anulo",
     "sick": {
-      "title": "Njofto sëmundje",
-      "intro": "Njoftoni sëmundjen e fëmijës për një ose më shumë ditë. Stafi i kujdesit e sheh njoftimin menjëherë.",
+      "title": "Njofto mungesë",
+      "intro": "Njoftoni mungesën e fëmijës për një ose më shumë ditë. Zgjidhni nëse është i sëmurë apo mungon i justifikuar për një arsye tjetër. Stafi i kujdesit e sheh njoftimin menjëherë.",
+      "kindLabel": "Lloji i mungesës",
+      "kindSick": "I sëmurë",
+      "kindExcused": "I justifikuar",
       "from": "Nga",
       "to": "Deri",
       "daysCount": "{count, plural, one {# ditë do të njoftohet.} other {# ditë do të njoftohen.}}",
-      "reasonLabel": "Arsyeja (opsionale)",
-      "reasonPlaceholder": "p.sh. temperaturë, te mjeku",
+      "reasonLabel": "Shënim (opsional)",
+      "reasonPlaceholder": "p.sh. temperaturë, takim te dentisti",
       "invalidDate": "Ju lutemi zgjidhni një datë të vlefshme (data e mbarimit pas datës së fillimit).",
-      "saveError": "Njoftimi i sëmundjes nuk u ruajt dot.",
-      "submit": "Dërgo njoftimin e sëmundjes"
+      "saveError": "Mungesa nuk u ruajt dot.",
+      "submit": "Dërgo njoftimin e mungesës"
     },
     "notes": {
       "title": "Mesazh për ekipin",
@@ -204,9 +260,9 @@
       "listEmpty": "Ende asnjë mesazh i dërguar."
     },
     "summary": {
-      "none": "Asnjë njoftim sëmundjeje",
-      "oneDay": "I sëmurë më {date}",
-      "range": "I sëmurë {from} – {to}"
+      "none": "Asnjë mungesë",
+      "oneDay": "Mungon më {date}",
+      "range": "Mungon {from} – {to}"
     },
     "pickup": {
       "title": "Ndrysho orarin e ardhjes dhe marrjes",
@@ -419,6 +475,7 @@
       "phoneList": "Ju lutemi jepni të paktën një numër telefoni.",
       "contactList": "Ju lutemi jepni të paktën një kontakt të plotë me e-mail ose numër telefoni.",
       "schedule": "Ju lutemi jepni të paktën një orar.",
+      "scheduleEveryDay": "Ju lutemi caktoni një orë për çdo ditë kujdesi.",
       "select": "Ju lutemi zgjidhni një opsion.",
       "required": "Ju lutemi plotësoni këtë fushë të detyrueshme.",
       "careMissing": "Ju lutemi zgjidhni të paktën një ofertë përkujdesjeje për çdo fëmijë.",
@@ -443,10 +500,13 @@
       "optionalHint": "Zgjidhni ofertat që dëshironi për këtë fëmijë.",
       "reviewHint": "OGS-ja kontrollon vendet e lira pas dërgimit. Ju lutemi vini re: Me regjistrimin në ofertën e shkollës gjithëditore, fëmija juaj është i detyruar të marrë pjesë në oraret e regjistruara sipas rregullores për shkollën gjithëditore.",
       "requiredBadge": "E detyrueshme",
+      "automaticBadge": "automatike",
       "chooseExactlyOne": "Ju lutemi zgjidhni saktësisht një ofertë.",
       "chooseAtLeastOne": "Ju lutemi zgjidhni të paktën një ofertë.",
       "selectableDays": "Ditë të zgjedhshme: ",
       "days": "Ditë: ",
+      "automaticDays": "{days} automatike",
+      "manualDays": "{days} manuale",
       "holiday": "përfshin përkujdesje gjatë pushimeve",
       "lunch": "përfshin drekën",
       "ruleExactlyOne": "Ju lutemi zgjidhni saktësisht një",
@@ -464,6 +524,8 @@
       "removeNumber": "Hiq numrin",
       "addPhone": "Shto numër telefoni",
       "emptySchedule": "Fushat bosh do të thonë: nuk ka të dhënë për këtë ditë.",
+      "everyDayTime": "Ju lutemi caktoni një orë për çdo ditë kujdesi.",
+      "atLeastOneTime": "Ju lutemi jepni të paktën një orar.",
       "selectTime": "Ju lutemi zgjidhni",
       "timeUnavailable": "nuk është më e disponueshme",
       "noneContact": "Ende nuk është dhënë kontakt shtesë.",
@@ -495,10 +557,14 @@
       "weekdayMultiModeUniformConfirmBody": "Keni zgjedhur mënyra të ndryshme kthimi për ditë të veçanta kujdesi. Nëse aktivizoni një zgjedhje të përbashkët, këto të dhëna sipas ditëve fshihen dhe e bëni zgjedhjen nga e para.",
       "weekdayMultiModeUniformConfirmCta": "Fshi dhe vazhdo",
       "weekdayMultiModeUniformConfirmCancel": "Anulo",
+      "departureCompanionLabel": "Me cilin fëmijë?",
+      "departureCompanionPlaceholder": "p.sh. motër/vëlla, shok, emër",
+      "departureCompanionRequired": "Ju lutemi tregoni me cilin fëmijë shkon fëmija juaj në shtëpi.",
       "departureModes": {
         "alone": "Shkon në këmbë",
         "bus": "Autobus",
-        "pickup": "Merret"
+        "pickup": "Merret",
+        "accompanied": "Me një fëmijë tjetër"
       }
     },
     "months": [

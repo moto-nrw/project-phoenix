@@ -82,7 +82,11 @@ func populatePublicStudentFields(response *StudentResponse, student *users.Stude
 	response.BusDays = allowed.BusDays()
 	response.Bus = response.BusDays.HasAny()
 	response.PickupDays = allowed.PickupDays()
-	response.PickupStatus = responsePickupStatus(student, departure.LegacyPickupStatus())
+	// Derive pickup_status from the FULL non-exclusive set, not the exclusive
+	// `departure` projection: the projection ranks bus over accompanied, so a day
+	// allowing both would drop the accompanied signal and return this child to
+	// legacy list/search/admin consumers as a self-goer (#1694).
+	response.PickupStatus = responsePickupStatus(student, allowed.LegacyPickupStatus())
 }
 
 func responsePickupStatus(student *users.Student, derived string) string {
@@ -92,7 +96,8 @@ func responsePickupStatus(student *users.Student, derived string) string {
 	stored := strings.TrimSpace(*student.PickupStatus)
 	if stored == "" ||
 		stored == users.PickupStatusPickedUp ||
-		stored == users.PickupStatusGoesAlone {
+		stored == users.PickupStatusGoesAlone ||
+		stored == users.PickupStatusAccompanied {
 		return derived
 	}
 	return *student.PickupStatus
@@ -102,6 +107,9 @@ func responsePickupStatus(student *users.Student, derived string) string {
 func populateSensitiveStudentFields(response *StudentResponse, student *users.Student) {
 	if student.ExtraInfo != nil && *student.ExtraInfo != "" {
 		response.ExtraInfo = *student.ExtraInfo
+	}
+	if student.DepartureCompanionNote != nil && *student.DepartureCompanionNote != "" {
+		response.DepartureCompanionNote = *student.DepartureCompanionNote
 	}
 	if student.SupervisorNotes != nil {
 		response.SupervisorNotes = *student.SupervisorNotes
@@ -202,6 +210,9 @@ func populateSnapshotSensitiveFields(response *StudentResponse, student *users.S
 	if student.ExtraInfo != nil && *student.ExtraInfo != "" {
 		response.ExtraInfo = *student.ExtraInfo
 	}
+	if student.DepartureCompanionNote != nil && *student.DepartureCompanionNote != "" {
+		response.DepartureCompanionNote = *student.DepartureCompanionNote
+	}
 	if student.HealthInfo != nil {
 		response.HealthInfo = *student.HealthInfo
 	}
@@ -234,7 +245,8 @@ func populateSnapshotPublicFields(response *StudentResponse, student *users.Stud
 	response.BusDays = allowed.BusDays()
 	response.Bus = response.BusDays.HasAny()
 	response.PickupDays = allowed.PickupDays()
-	response.PickupStatus = responsePickupStatus(student, departure.LegacyPickupStatus())
+	// Full set, not the exclusive projection: see populatePublicStudentFields (#1694).
+	response.PickupStatus = responsePickupStatus(student, allowed.LegacyPickupStatus())
 }
 
 // presentOrTransit returns the appropriate location for a checked-in student

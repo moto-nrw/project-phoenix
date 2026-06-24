@@ -222,6 +222,20 @@ func TestCreateCareOfferingHandler_HappyPath(t *testing.T) {
 	assert.Equal(t, "OGS", mock.createInput.Name)
 }
 
+func TestCreateCareOfferingHandler_PreservesCountsAsCareFalse(t *testing.T) {
+	mock := &mockCareOfferingService{createResult: makeOfferingModel(1234, 5678, "Randstunde")}
+	router := buildCareOfferingRouter(mock)
+	body := validOfferingBody(5678, "Randstunde")
+	body["counts_as_care"] = false
+
+	w := executeCareJSON(t, router, http.MethodPost, "/enrollment/care-offerings", body)
+
+	require.Equal(t, http.StatusCreated, w.Code)
+	require.NotNil(t, mock.createInput)
+	assert.False(t, mock.createInput.CountsAsCare)
+	assert.True(t, mock.createInput.CountsAsCareSet)
+}
+
 func TestCreateCareOfferingHandler_ServiceErrorReturns400(t *testing.T) {
 	mock := &mockCareOfferingService{createErr: errors.New("synthetic boom")}
 	router := buildCareOfferingRouter(mock)

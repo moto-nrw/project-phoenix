@@ -2,13 +2,53 @@ package students
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
+
+// validateDepartureCompanionNote bounds the free-text "mit wem" companion note
+// length server-side. The column is TEXT and both the staff and enrollment
+// inputs are user free-text, so without this an unbounded payload could be
+// stored and echoed back in the student API/exports (#1694).
+func validateDepartureCompanionNote(note *string) error {
+	if note != nil && utf8.RuneCountInString(*note) > users.MaxDepartureCompanionNoteLen {
+		return fmt.Errorf("departure_companion_note must be at most %d characters", users.MaxDepartureCompanionNoteLen)
+	}
+	return nil
+}
+
+// departureModesAllowAccompanied reports whether the EFFECTIVE departure plan
+// allows the accompanied ("Mit anderem Kind") mode on any weekday. Accompanied
+// can only enter via allowed_departure_modes or departure_days — the legacy
+// bus/pickup maps cannot express it (#1694).
+//
+// It mirrors applyDeparturePlan's persistence precedence: allowed_departure_modes
+// is authoritative when present and departure_days is ignored; departure_days
+// only applies when allowed is absent. Validating the OR of both would reject a
+// request whose persisted plan would NOT contain accompanied — e.g. a new-format
+// allowed payload (no accompanied) that also echoes a stale legacy departure_days
+// carrying accompanied without a companion note.
+func departureModesAllowAccompanied(allowed *users.AllowedDepartureModes, days *users.DepartureDays) bool {
+	if allowed != nil {
+		return allowed.HasMode(users.DepartureAccompanied)
+	}
+	if days != nil {
+		return days.HasMode(users.DepartureAccompanied)
+	}
+	return false
+}
+
+// isBlankCompanionNote reports whether the companion note is missing or
+// whitespace-only.
+func isBlankCompanionNote(note *string) bool {
+	return note == nil || strings.TrimSpace(*note) == ""
+}
 
 // Constants for date formats
 const (
@@ -51,17 +91,20 @@ type StudentResponse struct {
 	// kept for backward compatibility with clients not yet on departure_days.
 	DepartureDays         users.DepartureDays         `json:"departure_days,omitempty"`
 	AllowedDepartureModes users.AllowedDepartureModes `json:"allowed_departure_modes,omitempty"`
-	Bus                   bool                        `json:"bus"`
-	BusDays               users.BusDays               `json:"bus_days,omitempty"`
-	Sick                  bool                        `json:"sick"`
-	SickSince             *time.Time                  `json:"sick_since,omitempty"`
-	Excused               bool                        `json:"excused"`
-	ExcusedSince          *time.Time                  `json:"excused_since,omitempty"`
-	ClassTrip             bool                        `json:"class_trip"`
-	ClassTripSince        *time.Time                  `json:"class_trip_since,omitempty"`
-	DayPlanningStatus     string                      `json:"day_planning_status,omitempty"`
-	DayPlanningReason     string                      `json:"day_planning_reason,omitempty"`
-	DayPlanningLabel      string                      `json:"day_planning_label,omitempty"`
+	// DepartureCompanionNote is the free-text "mit wem" for the accompanied
+	// departure mode (#1694).
+	DepartureCompanionNote string        `json:"departure_companion_note,omitempty"`
+	Bus                    bool          `json:"bus"`
+	BusDays                users.BusDays `json:"bus_days,omitempty"`
+	Sick                   bool          `json:"sick"`
+	SickSince              *time.Time    `json:"sick_since,omitempty"`
+	Excused                bool          `json:"excused"`
+	ExcusedSince           *time.Time    `json:"excused_since,omitempty"`
+	ClassTrip              bool          `json:"class_trip"`
+	ClassTripSince         *time.Time    `json:"class_trip_since,omitempty"`
+	DayPlanningStatus      string        `json:"day_planning_status,omitempty"`
+	DayPlanningReason      string        `json:"day_planning_reason,omitempty"`
+	DayPlanningLabel       string        `json:"day_planning_label,omitempty"`
 
 	// Photo (gated by operations.student_photos_enabled). PhotoURL is empty
 	// when no photo is set OR when the feature is off — the frontend's Avatar
@@ -172,10 +215,13 @@ type StudentRequest struct {
 	// not yet migrated.
 	DepartureDays         *users.DepartureDays         `json:"departure_days,omitempty"`
 	AllowedDepartureModes *users.AllowedDepartureModes `json:"allowed_departure_modes,omitempty"`
-	PickupStatus          *string                      `json:"pickup_status,omitempty"` // How the child gets home (legacy)
-	PickupDays            *users.PickupDays            `json:"pickup_days,omitempty"`   // Weekdays on which the child is picked up (legacy)
-	Bus                   *bool                        `json:"bus,omitempty"`           // Administrative permission flag (Buskind, legacy)
-	BusDays               *users.BusDays               `json:"bus_days,omitempty"`      // Weekdays on which the child is a Buskind (legacy)
+	// DepartureCompanionNote is the free-text "mit wem" for the accompanied
+	// departure mode (#1694).
+	DepartureCompanionNote *string           `json:"departure_companion_note,omitempty"`
+	PickupStatus           *string           `json:"pickup_status,omitempty"` // How the child gets home (legacy)
+	PickupDays             *users.PickupDays `json:"pickup_days,omitempty"`   // Weekdays on which the child is picked up (legacy)
+	Bus                    *bool             `json:"bus,omitempty"`           // Administrative permission flag (Buskind, legacy)
+	BusDays                *users.BusDays    `json:"bus_days,omitempty"`      // Weekdays on which the child is a Buskind (legacy)
 
 	// Guardians created together with the student in one atomic transaction
 	// (guardian_profiles system). Optional and independent of the legacy
@@ -254,13 +300,17 @@ type UpdateStudentRequest struct {
 	// inputs below when provided.
 	AllowedDepartureModes *users.AllowedDepartureModes `json:"allowed_departure_modes,omitempty"`
 	DepartureDays         *users.DepartureDays         `json:"departure_days,omitempty"`
-	PickupStatus          *string                      `json:"pickup_status,omitempty"` // How the child gets home (legacy)
-	PickupDays            *users.PickupDays            `json:"pickup_days,omitempty"`   // Weekdays on which the child is picked up (legacy)
-	Bus                   *bool                        `json:"bus,omitempty"`           // Administrative permission flag (Buskind, legacy)
-	BusDays               *users.BusDays               `json:"bus_days,omitempty"`      // Weekdays on which the child is a Buskind (legacy)
-	Sick                  *bool                        `json:"sick,omitempty"`          // true = currently sick
-	SickReason            *string                      `json:"sick_reason,omitempty"`   // optional free-text reason stamped on today's sick day
-	Excused               *bool                        `json:"excused,omitempty"`       // true = currently excused (not attending today)
+	// DepartureCompanionNote is the free-text "mit wem" for the accompanied
+	// departure mode (#1694). A pointer so omitting it leaves the stored note
+	// untouched on update.
+	DepartureCompanionNote *string           `json:"departure_companion_note,omitempty"`
+	PickupStatus           *string           `json:"pickup_status,omitempty"` // How the child gets home (legacy)
+	PickupDays             *users.PickupDays `json:"pickup_days,omitempty"`   // Weekdays on which the child is picked up (legacy)
+	Bus                    *bool             `json:"bus,omitempty"`           // Administrative permission flag (Buskind, legacy)
+	BusDays                *users.BusDays    `json:"bus_days,omitempty"`      // Weekdays on which the child is a Buskind (legacy)
+	Sick                   *bool             `json:"sick,omitempty"`          // true = currently sick
+	SickReason             *string           `json:"sick_reason,omitempty"`   // optional free-text reason stamped on today's sick day
+	Excused                *bool             `json:"excused,omitempty"`       // true = currently excused (not attending today)
 
 	// PhotoConsentGiven: documented parental photo-consent flag. The handler
 	// records who set it and when (photo_consent_given_at/_by columns) on a
@@ -374,6 +424,18 @@ func (req *StudentRequest) Bind(_ *http.Request) error {
 		normalized := req.AllowedDepartureModes.Normalize()
 		req.AllowedDepartureModes = &normalized
 	}
+	if err := validateDepartureCompanionNote(req.DepartureCompanionNote); err != nil {
+		return err
+	}
+	// A day that allows the accompanied ("Mit anderem Kind") departure mode is
+	// only complete with the coupled "mit wem" note. Reject it at the request
+	// boundary so a stale or direct API caller gets a 400 rather than the model's
+	// later invariant surfacing as a 500 on persist. On create there is no stored
+	// note to fall back on, so the request itself must carry it (#1694).
+	if departureModesAllowAccompanied(req.AllowedDepartureModes, req.DepartureDays) &&
+		isBlankCompanionNote(req.DepartureCompanionNote) {
+		return users.ErrDepartureCompanionNoteRequired
+	}
 
 	return nil
 }
@@ -417,6 +479,9 @@ func (req *UpdateStudentRequest) Bind(_ *http.Request) error {
 		}
 		normalized := req.AllowedDepartureModes.Normalize()
 		req.AllowedDepartureModes = &normalized
+	}
+	if err := validateDepartureCompanionNote(req.DepartureCompanionNote); err != nil {
+		return err
 	}
 	// Guardian fields are deprecated - allow empty strings for clearing
 	// Empty strings will be converted to nil in the update handler

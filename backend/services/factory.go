@@ -126,6 +126,7 @@ type Factory struct {
 	EnrollmentRequest      enrollment.RequestService
 	EnrollmentPhase        enrollment.PhaseService
 	EnrollmentDecision     enrollment.DecisionService
+	EnrollmentReport       enrollment.ReportService
 	EnrollmentRollover     enrollment.RolloverService
 
 	// Parent (cross-tenant guardian portal - PR 9)
@@ -998,6 +999,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		PhaseRepo:                repos.Phase,
 		FormSchemaRepo:           repos.FormSchema,
 		DataAccessLogRepo:        repos.DataAccessLog,
+		OfferingAdjustmentRepo:   repos.EnrollmentOfferingAdjustment,
 		SchoolRepo:               repos.School,
 		PersonRepo:               repos.Person,
 		StudentRepo:              repos.Student,
@@ -1021,6 +1023,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:                   logger.With("service", "enrollment-decision"),
 	})
 
+	enrollmentReportService := enrollment.NewReportService(enrollment.ReportServiceConfig{
+		RequestRepo:              repos.Request,
+		RequestChildRepo:         repos.RequestChild,
+		RequestChildOfferingRepo: repos.RequestChildOffering,
+		CareOfferingRepo:         repos.CareOffering,
+		PhaseRepo:                repos.Phase,
+		DataAccessLogRepo:        repos.DataAccessLog,
+	})
+
 	// Rollover service depends on DecisionService for the
 	// rollover_auto_approve=true deadline path.
 	enrollmentRolloverService := enrollment.NewRolloverService(enrollment.RolloverServiceConfig{
@@ -1038,25 +1049,26 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	})
 
 	parentService := parent.NewService(parent.ServiceConfig{
-		ChildRepo:             repos.ParentChild,
-		EnrollablePhaseRepo:   repos.ParentEnrollablePhase,
-		EnrollmentRequestRepo: repos.ParentEnrollmentRequest,
-		GuardianProfileRepo:   repos.GuardianProfile,
-		StatusDayRepo:         repos.StudentStatusDay,
-		StudentRepo:           repos.Student,
-		NoteRepo:              repos.StudentParentNote,
-		PickupExceptionRepo:   repos.StudentPickupException,
-		ArrivalExceptionRepo:  repos.StudentArrivalException,
-		Settings:              settingsService,
-		Broadcaster:           realtimeHub,
-		PersonRepo:            repos.Person,
-		GuardianPhoneRepo:     repos.GuardianPhoneNumber,
-		ChangeRequestRepo:     repos.StudentDataChangeRequest,
-		GuardianInvites:       guardianInvitationService,
-		GuardianInviteRepo:    repos.GuardianInvitation,
-		StudentGuardianRepo:   repos.StudentGuardian,
-		DB:                    db,
-		Logger:                logger.With("service", "parent"),
+		ChildRepo:               repos.ParentChild,
+		EnrollablePhaseRepo:     repos.ParentEnrollablePhase,
+		EnrollmentRequestRepo:   repos.ParentEnrollmentRequest,
+		GuardianProfileRepo:     repos.GuardianProfile,
+		StatusDayRepo:           repos.StudentStatusDay,
+		StudentRepo:             repos.Student,
+		NoteRepo:                repos.StudentParentNote,
+		PickupExceptionRepo:     repos.StudentPickupException,
+		ArrivalExceptionRepo:    repos.StudentArrivalException,
+		Settings:                settingsService,
+		Broadcaster:             realtimeHub,
+		PersonRepo:              repos.Person,
+		ChangeRequestRepo:       repos.StudentDataChangeRequest,
+		GuardianInvites:         guardianInvitationService,
+		GuardianInviteRepo:      repos.GuardianInvitation,
+		StudentGuardianRepo:     repos.StudentGuardian,
+		GuardianPhoneRepo:       repos.GuardianPhoneNumber,
+		GuardianChangeAuditRepo: repos.GuardianChange,
+		DB:                      db,
+		Logger:                  logger.With("service", "parent"),
 	})
 
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
@@ -1191,6 +1203,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		EnrollmentRequest:      enrollmentRequestService,
 		EnrollmentPhase:        enrollmentPhaseService,
 		EnrollmentDecision:     enrollmentDecisionService,
+		EnrollmentReport:       enrollmentReportService,
 		EnrollmentRollover:     enrollmentRolloverService,
 
 		Parent: parentService,

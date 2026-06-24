@@ -16,7 +16,14 @@ type ParentAuthShellMessageKey =
   | "testimonialButtonLabel"
   | `testimonials.${ParentAuthTestimonialKey}.${ParentAuthTestimonialField}`;
 
-type ParentAuthShellTranslate = (key: ParentAuthShellMessageKey) => string;
+// The shell stores `testimonialButtonLabel` as a raw "...{number}..." template
+// and fills the index itself via String.replace (see auth-shell.tsx). We must
+// therefore read that message *unformatted* — calling the translator normally
+// makes next-intl try to resolve the {number} ICU argument and throw
+// FORMATTING_ERROR. `raw` returns the literal template the shell expects.
+type ParentAuthShellTranslate = ((key: ParentAuthShellMessageKey) => string) & {
+  raw: (key: ParentAuthShellMessageKey) => string;
+};
 
 export function buildParentAuthShellCopy(
   t: ParentAuthShellTranslate,
@@ -26,7 +33,7 @@ export function buildParentAuthShellCopy(
       audience: t("badges.audience"),
       hosting: t("badges.hosting"),
     },
-    testimonialButtonLabel: t("testimonialButtonLabel"),
+    testimonialButtonLabel: t.raw("testimonialButtonLabel"),
     testimonials: parentAuthTestimonialKeys.map((key) => ({
       quote: t(`testimonials.${key}.quote`),
       author: t(`testimonials.${key}.author`),

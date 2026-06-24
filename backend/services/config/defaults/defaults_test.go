@@ -114,6 +114,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.parent_sick_note_enabled",
 		"operations.parent_notes_enabled",
 		"operations.parent_pickup_change_enabled",
+		"operations.parent_guardian_management_enabled",
 		"operations.parent_master_data_edit_enabled",
 		"operations.parent_master_data_request_enabled",
 		// Related-accounts management.
@@ -439,6 +440,7 @@ func TestOperationsSettings_Types(t *testing.T) {
 		{"operations.parent_sick_note_enabled", config.FieldBoolean},
 		{"operations.parent_notes_enabled", config.FieldBoolean},
 		{"operations.parent_pickup_change_enabled", config.FieldBoolean},
+		{"operations.parent_guardian_management_enabled", config.FieldBoolean},
 	}
 
 	for _, tc := range tests {
@@ -474,6 +476,20 @@ func TestParentPickupChangeSetting_DefaultOn(t *testing.T) {
 	assert.Equal(t, config.FieldBoolean, def.Type, "pickup-change toggle should be boolean")
 	assert.Equal(t, true, def.Default, "pickup-change toggle should default to true")
 	assert.Equal(t, "operations", def.Tab, "pickup-change toggle should be on the operations tab")
+}
+
+// TestGuardianManagementSetting guards the guardian contact/pickup management
+// toggle. It defaults ON like the other parents-portal write features - the
+// safety-critical part (pickup authority) is constrained structurally
+// (helpers-only + audit), not by this toggle - but keeps config:manage because
+// enabling it can expose pickup-authority changes.
+func TestGuardianManagementSetting(t *testing.T) {
+	def := config.GetDefinition("operations.parent_guardian_management_enabled")
+	require.NotNil(t, def, "operations.parent_guardian_management_enabled should exist")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, true, def.Default, "defaults ON; pickup-flag safety is structural, not toggle-based")
+	assert.Equal(t, "config:manage", def.WritePermission, "can expose pickup-authority changes -> manage")
+	assert.Equal(t, "operations", def.Tab)
 }
 
 // TestEnrollmentSettings_AllRegistered_OnEnrollmentTab guards that every
@@ -541,6 +557,31 @@ func TestEnrollmentLegalTexts(t *testing.T) {
 		assert.Equal(t, "eq", def.DependsOn.Condition)
 		assert.Equal(t, true, def.DependsOn.Value)
 	}
+
+	documentDef := config.GetDefinition(config.KeyEnrollmentLegalAGBDocumentURL)
+	require.NotNil(t, documentDef, "AGB document URL setting should be registered")
+	assert.Equal(t, config.FieldText, documentDef.Type)
+	assert.Equal(t, "", documentDef.Default)
+	assert.Equal(t, "enrollment", documentDef.Tab)
+	assert.Equal(t, "rechtstexte", documentDef.Category)
+	assert.Equal(t, "config:manage", documentDef.WritePermission)
+	require.NotNil(t, documentDef.DependsOn)
+	assert.Equal(t, config.KeyEnrollmentEnabled, documentDef.DependsOn.Key)
+
+	modeDef := config.GetDefinition(config.KeyEnrollmentLegalAGBDisplayMode)
+	require.NotNil(t, modeDef, "AGB display mode setting should be registered")
+	assert.Equal(t, config.FieldSelect, modeDef.Type)
+	assert.Equal(t, config.EnrollmentLegalAGBDisplayModeText, modeDef.Default)
+	assert.Equal(t, "enrollment", modeDef.Tab)
+	assert.Equal(t, "rechtstexte", modeDef.Category)
+	assert.Equal(t, "config:manage", modeDef.WritePermission)
+	require.NotNil(t, modeDef.DependsOn)
+	assert.Equal(t, config.KeyEnrollmentEnabled, modeDef.DependsOn.Key)
+	require.NotNil(t, modeDef.Options)
+	require.Len(t, modeDef.Options.Static, 2)
+	values := []any{modeDef.Options.Static[0].Value, modeDef.Options.Static[1].Value}
+	assert.Contains(t, values, config.EnrollmentLegalAGBDisplayModeText)
+	assert.Contains(t, values, config.EnrollmentLegalAGBDisplayModePDF)
 }
 
 func TestEnrollmentLegalBlockToggles(t *testing.T) {

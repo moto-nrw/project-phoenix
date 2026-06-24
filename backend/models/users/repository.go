@@ -424,6 +424,16 @@ type StudentGuardianRepository interface {
 	// FindByGuardianProfileID retrieves relationships by guardian profile ID
 	FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*StudentGuardian, error)
 
+	// FindByStudentAndGuardianForUpdate returns the relationship row joining the
+	// student and guardian profile, locked FOR UPDATE for the current
+	// transaction, or ErrStudentGuardianNotFound when none exists. The row lock
+	// serializes against a concurrent staff edit/delete of the SAME relationship
+	// row (a plain UPDATE/DELETE takes the conflicting row lock), so a caller that
+	// reads role/account state and then writes cannot have that state changed out
+	// from under it between the authorization check and the write. Must run inside
+	// a tenant transaction (RLS-scoped via TenantWhere).
+	FindByStudentAndGuardianForUpdate(ctx context.Context, studentID, guardianProfileID int64) (*StudentGuardian, error)
+
 	// LinkIfNotExists inserts the student↔guardian relationship, treating a
 	// duplicate (same tenant_id + student_id + guardian_profile_id) as a no-op
 	// via ON CONFLICT DO NOTHING. Returns true when a new row was inserted, false
@@ -453,6 +463,14 @@ type StudentGuardianRepository interface {
 
 	// Update updates an existing relationship
 	Update(ctx context.Context, relationship *StudentGuardian) error
+
+	// UpdateColumns writes only the named columns of the relationship row
+	// (matched by primary key, tenant-scoped). Use it to edit a bounded subset
+	// of fields without clobbering columns the caller does not own — e.g. a
+	// parent editing only pickup flags/notes must not overwrite guardian_role,
+	// permissions, or relationship_type a staff editor may have changed
+	// concurrently. Returns the number of rows affected.
+	UpdateColumns(ctx context.Context, relationship *StudentGuardian, columns ...string) (int64, error)
 
 	// Delete removes a relationship
 	Delete(ctx context.Context, id interface{}) error
@@ -566,6 +584,10 @@ type GuardianProfileRepository interface {
 	// via RLS; results are capped by limit to keep the picker payload small.
 	SearchByText(ctx context.Context, searchText string, limit int) ([]*GuardianProfile, error)
 
+	// FindByIDs retrieves guardian profiles for the given ids in a single query,
+	// keyed by id. Missing ids are simply absent from the map.
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*GuardianProfile, error)
+
 	// Count returns the total number of guardian profiles
 	Count(ctx context.Context) (int, error)
 
@@ -607,6 +629,11 @@ type GuardianPhoneNumberRepository interface {
 
 	// FindByGuardianID retrieves all phone numbers for a guardian profile
 	FindByGuardianID(ctx context.Context, guardianProfileID int64) ([]*GuardianPhoneNumber, error)
+
+	// FindByGuardianIDs retrieves all phone numbers for the given guardian
+	// profile ids in a single query, grouped by profile id. Each group is
+	// ordered primary-first, matching FindByGuardianID.
+	FindByGuardianIDs(ctx context.Context, guardianProfileIDs []int64) (map[int64][]*GuardianPhoneNumber, error)
 
 	// GetPrimary retrieves the primary phone number for a guardian
 	GetPrimary(ctx context.Context, guardianProfileID int64) (*GuardianPhoneNumber, error)

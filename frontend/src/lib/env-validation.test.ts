@@ -11,7 +11,7 @@ const validBuildEnv = {
   NEXT_PUBLIC_API_URL: "https://api.moto-app.de",
   NEXT_PUBLIC_TENANT_DOMAIN: "moto-app.de",
   NEXT_PUBLIC_OPERATOR_HOSTNAME: "operator.moto-app.de",
-  NEXT_PUBLIC_PARENTS_HOSTNAME: "parents.moto-app.de",
+  NEXT_PUBLIC_PARENTS_HOSTNAME: "eltern.moto-app.de",
   NEXT_PUBLIC_SENTRY_DSN: "",
   NEXT_PUBLIC_SENTRY_ENVIRONMENT: "",
 };

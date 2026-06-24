@@ -191,6 +191,8 @@ type LegalBlockKind = "terms" | "privacy_notice" | "notice" | "consent";
 
 type LegalBlockSource = "standard" | "custom";
 
+export type LegalBlockDisplayMode = "text" | "pdf";
+
 export interface FormLegalBlock {
   key: string;
   kind: LegalBlockKind;
@@ -201,6 +203,8 @@ export interface FormLegalBlock {
   enabled: boolean;
   sort_order: number;
   source?: LegalBlockSource;
+  display_mode?: LegalBlockDisplayMode;
+  document_url?: string;
 }
 
 export interface FormSchema {
@@ -394,6 +398,8 @@ export interface PublicLegalBlock {
  */
 export interface PublicLegalTexts {
   agb: string;
+  agb_document_url?: string;
+  agb_display_mode?: "text" | "pdf";
   dsgvo: string;
   email_contact: string;
   photo: string;
@@ -531,6 +537,53 @@ export async function updateSchema(
     );
   }
   return readJSON<FormSchema>(response);
+}
+
+export async function uploadEnrollmentLegalDocument(
+  file: File,
+): Promise<string> {
+  const formData = new FormData();
+  formData.append("document", file);
+
+  const response = await fetch("/api/enrollment/legal-documents", {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const message =
+      response.status === 413
+        ? "Die PDF-Datei darf maximal 10 MB groß sein."
+        : response.status === 415
+          ? "Bitte eine PDF-Datei hochladen."
+          : "PDF-Datei konnte nicht hochgeladen werden";
+    throw new Error(message);
+  }
+
+  const result = (await response.json()) as {
+    data?: { document_url?: string };
+  };
+  const documentURL = result.data?.document_url;
+  if (!documentURL) {
+    throw new Error("PDF-Datei konnte nicht hochgeladen werden");
+  }
+  return documentURL;
+}
+
+export async function deleteEnrollmentLegalDocument(
+  documentURL: string,
+  options: { keepalive?: boolean } = {},
+): Promise<void> {
+  const filename = documentURL.trim().split("/").pop();
+  if (!filename) return;
+
+  const response = await fetch(
+    `/api/enrollment/legal-documents/${encodeURIComponent(filename)}`,
+    { keepalive: options.keepalive, method: "DELETE" },
+  );
+  if (!response.ok) {
+    throw new Error("PDF-Datei konnte nicht entfernt werden");
+  }
 }
 
 /**

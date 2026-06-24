@@ -103,7 +103,11 @@ describe("PersonalInfoCard", () => {
       />,
     );
 
-    expect(screen.getByText("Mi: Wird abgeholt")).toBeInTheDocument();
+    // Legacy pickup_days {wed} folds into an "Abgeholt" badge on the Mi row of
+    // the weekday matrix; the other weekdays fold to "Zu Fuß".
+    expect(screen.getByText("Mi")).toBeInTheDocument();
+    expect(screen.getAllByText("Abgeholt")).toHaveLength(1);
+    expect(screen.getAllByText("Zu Fuß")).toHaveLength(4);
   });
 
   it("shows sick badge when student is sick with full access", () => {

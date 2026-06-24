@@ -2,6 +2,7 @@
 "use client";
 
 import { InfoItem } from "~/components/ui/info-card";
+import { AllowedDepartureModesDisplay } from "~/components/students/allowed-departure-modes-display";
 import type {
   AllowedDepartureModes,
   BusDays,
@@ -11,7 +12,6 @@ import type {
 import {
   allowedDepartureModesFromDeparture,
   departureDaysFromLegacy,
-  formatAllowedDepartureModes,
 } from "~/lib/student-helpers";
 
 interface ExtendedStudent {
@@ -24,6 +24,7 @@ interface ExtendedStudent {
   pickup_days?: PickupDays;
   departure_days?: DepartureDays;
   allowed_departure_modes?: AllowedDepartureModes;
+  departure_companion_note?: string;
   pickup_status?: string;
   health_info?: string;
   supervisor_notes?: string;
@@ -106,14 +107,27 @@ function PersonalInfoDisplay({
       />
       <InfoItem
         label="Erlaubte Heimwege"
-        value={formatAllowedDepartureModes(
-          student.allowed_departure_modes ??
-            allowedDepartureModesFromDeparture(
-              student.departure_days ??
-                departureDaysFromLegacy(student.bus_days, student.pickup_days),
-            ),
-        )}
+        value={
+          <AllowedDepartureModesDisplay
+            value={
+              student.allowed_departure_modes ??
+              allowedDepartureModesFromDeparture(
+                student.departure_days ??
+                  departureDaysFromLegacy(
+                    student.bus_days,
+                    student.pickup_days,
+                  ),
+              )
+            }
+          />
+        }
       />
+      {student.departure_companion_note && (
+        <InfoItem
+          label="Mit welchem Kind?"
+          value={student.departure_companion_note}
+        />
+      )}
 
       {/* Sickness status - only for full access */}
       {hasFullAccess && (

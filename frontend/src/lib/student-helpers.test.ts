@@ -14,6 +14,11 @@ import {
   pickupDaysHaveAny,
   formatPickupDays,
   formatAllowedDepartureModes,
+  normalizeAllowedDepartureModes,
+  allowedDepartureToDepartureDays,
+  allowedDepartureToBusDays,
+  allowedDepartureToPickupDays,
+  formatAllowedDepartureDays,
   normalizePickupDays,
   SCHOOL_YEAR_FILTER_OPTIONS,
   mapStudentResponse,
@@ -199,6 +204,52 @@ describe("allowed departure mode helpers", () => {
   it("formats an empty map as going alone", () => {
     expect(formatAllowedDepartureModes({})).toBe("Geht immer alleine");
     expect(formatAllowedDepartureModes(null)).toBe("Geht immer alleine");
+  });
+
+  it("supports the accompanied mode end to end (#1694)", () => {
+    const normalized = normalizeAllowedDepartureModes({
+      mon: ["accompanied"],
+      wed: ["accompanied", "pickup"],
+    });
+    expect(normalized).toEqual({
+      mon: ["accompanied"],
+      // departureModeOrder keeps pickup before accompanied
+      wed: ["pickup", "accompanied"],
+    });
+    expect(formatAllowedDepartureModes(normalized)).toBe(
+      "Mo: Mit anderem Kind; Mi: Wird abgeholt, Mit anderem Kind",
+    );
+    // Exclusive derivation: pickup outranks accompanied; an accompanied-only
+    // day stays accompanied.
+    expect(allowedDepartureToDepartureDays(normalized)).toEqual({
+      mon: "accompanied",
+      wed: "pickup",
+    });
+    // Accompanied must never leak into the legacy bus/pickup mirrors.
+    expect(allowedDepartureToBusDays({ mon: ["accompanied"] })).toEqual({});
+    expect(allowedDepartureToPickupDays({ mon: ["accompanied"] })).toEqual({});
+  });
+
+  it("summarizes only the weekdays as a compact day list", () => {
+    // The badge variant drops the per-day modes so it stays single-line even
+    // when every day carries both bus and pickup (the case that broke the modal).
+    expect(
+      formatAllowedDepartureDays({
+        mon: ["bus", "pickup"],
+        tue: ["bus", "pickup"],
+        wed: ["bus", "pickup"],
+        thu: ["bus", "pickup"],
+        fri: ["bus", "pickup"],
+      }),
+    ).toBe("Mo, Di, Mi, Do, Fr");
+    expect(formatAllowedDepartureDays({ mon: ["bus"], fri: ["pickup"] })).toBe(
+      "Mo, Fr",
+    );
+  });
+
+  it("formats an empty day summary as going alone", () => {
+    expect(formatAllowedDepartureDays({})).toBe("Geht immer alleine");
+    expect(formatAllowedDepartureDays(null)).toBe("Geht immer alleine");
   });
 });
 

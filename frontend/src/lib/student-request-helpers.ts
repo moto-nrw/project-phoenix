@@ -40,6 +40,7 @@ interface BackendStudentRequest {
   pickup_days?: PickupDays;
   departure_days?: DepartureDays;
   allowed_departure_modes?: AllowedDepartureModes;
+  departure_companion_note?: string;
   extra_info?: string;
   birthday?: string;
   health_info?: string;
@@ -183,6 +184,7 @@ export function buildBackendStudentRequest(
     pickup_days: backendData.pickup_days,
     departure_days: backendData.departure_days,
     allowed_departure_modes: backendData.allowed_departure_modes,
+    departure_companion_note: backendData.departure_companion_note,
     extra_info: backendData.extra_info,
     birthday: backendData.birthday,
     health_info: backendData.health_info,

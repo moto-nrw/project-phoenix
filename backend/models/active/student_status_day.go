@@ -78,6 +78,11 @@ func (s *StudentStatusDay) GetCreatedAt() time.Time { return s.CreatedAt }
 func (s *StudentStatusDay) GetUpdatedAt() time.Time { return s.UpdatedAt }
 func (s *StudentStatusDay) TableName() string       { return tableActiveStudentStatusDays }
 
+type StudentStatusCounts struct {
+	Sick    int `bun:"sick_count"`
+	Excused int `bun:"excused_count"`
+}
+
 type StudentStatusDayRepository interface {
 	UpsertReported(ctx context.Context, entry *StudentStatusDay) error
 	// ArchiveAndClearStatusFlag archives a legacy boolean student flag into
@@ -85,10 +90,10 @@ type StudentStatusDayRepository interface {
 	// users.students. Returns the number of students cleared. Column names
 	// must be trusted constants, never user input.
 	ArchiveAndClearStatusFlag(ctx context.Context, flagColumn, sinceColumn, status string, date timezone.Date, reportedFallback time.Time, source string) (int64, error)
-	// CountActiveClassTripStudents counts distinct students with an
-	// uncleared class-trip entry for the date, excluding currently
-	// sick/excused students. Used by the dashboard analytics.
-	CountActiveClassTripStudents(ctx context.Context, date timezone.Date) (int, error)
+	// CountEffectiveDashboardAbsences counts today's effective dashboard
+	// absence buckets from live flags and status-day rows, applying the same
+	// precedence as student responses: sick wins, class trip counts as excused.
+	CountEffectiveDashboardAbsences(ctx context.Context, date timezone.Date) (*StudentStatusCounts, error)
 	MarkCleared(ctx context.Context, studentID int64, status string, date timezone.Date, clearedAt time.Time, source string) error
 	MarkClearedByID(ctx context.Context, id int64, clearedAt time.Time, source string) error
 	MarkClearedForDates(ctx context.Context, studentID int64, status string, dates []timezone.Date, clearedAt time.Time, source string) error

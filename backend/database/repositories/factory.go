@@ -139,12 +139,14 @@ type Factory struct {
 	SuggestionPostRead    suggestionsModels.PostReadRepository
 
 	// Audit domain
-	DataDeletion        auditModels.DataDeletionRepository
-	DataAccessLog       auditModels.DataAccessLogRepository
-	AuthEvent           auditModels.AuthEventRepository
-	DataImport          auditModels.DataImportRepository
-	WorkSessionEdit     auditModels.WorkSessionEditRepository
-	UnregisteredTagScan auditModels.UnregisteredTagScanRepository
+	DataDeletion                 auditModels.DataDeletionRepository
+	DataAccessLog                auditModels.DataAccessLogRepository
+	EnrollmentOfferingAdjustment auditModels.EnrollmentOfferingAdjustmentRepository
+	GuardianChange               auditModels.GuardianChangeRepository
+	AuthEvent                    auditModels.AuthEventRepository
+	DataImport                   auditModels.DataImportRepository
+	WorkSessionEdit              auditModels.WorkSessionEditRepository
+	UnregisteredTagScan          auditModels.UnregisteredTagScanRepository
 
 	// Platform domain (operator dashboard)
 	Organization             platformModels.OrganizationRepository
@@ -291,12 +293,14 @@ func NewFactory(db *bun.DB) *Factory {
 		SuggestionPostRead:    suggestionsRepo.NewPostReadRepository(db),
 
 		// Audit repositories
-		DataDeletion:        audit.NewDataDeletionRepository(db),
-		DataAccessLog:       audit.NewDataAccessLogRepository(db),
-		AuthEvent:           audit.NewAuthEventRepository(db),
-		DataImport:          audit.NewDataImportRepository(db),
-		WorkSessionEdit:     audit.NewWorkSessionEditRepository(db),
-		UnregisteredTagScan: audit.NewUnregisteredTagScanRepository(db),
+		DataDeletion:                 audit.NewDataDeletionRepository(db),
+		DataAccessLog:                audit.NewDataAccessLogRepository(db),
+		EnrollmentOfferingAdjustment: audit.NewEnrollmentOfferingAdjustmentRepository(db),
+		GuardianChange:               audit.NewGuardianChangeRepository(db),
+		AuthEvent:                    audit.NewAuthEventRepository(db),
+		DataImport:                   audit.NewDataImportRepository(db),
+		WorkSessionEdit:              audit.NewWorkSessionEditRepository(db),
+		UnregisteredTagScan:          audit.NewUnregisteredTagScanRepository(db),
 
 		// Platform repositories
 		Organization:             platformRepo.NewOrganizationRepository(db),

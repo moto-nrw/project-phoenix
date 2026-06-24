@@ -2,12 +2,15 @@ package enrollment
 
 import (
 	"errors"
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // Server-side visibility evaluation + required-custom-field enforcement.
@@ -16,6 +19,59 @@ import (
 // scripted submit can't bypass a visible required field.
 
 func gradePtr(v int16) *int16 { return &v }
+
+// TestValidateAccompaniedCompanionNote pins the submit-side coupling gate
+// (#1694): a child whose visible departure field allows the accompanied ("Mit
+// anderem Kind") mode must carry a non-blank companion note, so a stale or
+// scripted submit can never be persisted into an un-approvable state.
+func TestValidateAccompaniedCompanionNote(t *testing.T) {
+	svc := &requestService{}
+	grade := gradePtr(2)
+	schema := &enrollmentModels.FormSchema{Fields: []enrollmentModels.FormField{{
+		Key:         "allowed_modes",
+		Type:        enrollmentModels.FormFieldWeekdayMultiMode,
+		Target:      enrollmentModels.TargetStudentAllowedDepartureModes,
+		AppliesToCh: true,
+	}}}
+	withChild := func(custom map[string]any) SubmitRequest {
+		return SubmitRequest{Children: []SubmitChild{{
+			FirstName:        "Comp",
+			LastName:         "Child",
+			TargetGradeLevel: grade,
+			CustomData:       custom,
+		}}}
+	}
+
+	t.Run("accompanied without note is rejected", func(t *testing.T) {
+		err := svc.validateAccompaniedCompanionNote(schema, withChild(map[string]any{
+			"allowed_modes": map[string]any{"mon": []any{"accompanied"}},
+		}), nil)
+		require.ErrorIs(t, err, ErrInvalidSubmission)
+	})
+
+	t.Run("accompanied with a blank note is rejected", func(t *testing.T) {
+		err := svc.validateAccompaniedCompanionNote(schema, withChild(map[string]any{
+			"allowed_modes": map[string]any{"mon": []any{"accompanied"}},
+			enrollmentModels.TargetStudentDepartureCompanionNote: "   ",
+		}), nil)
+		require.ErrorIs(t, err, ErrInvalidSubmission)
+	})
+
+	t.Run("accompanied with a note is accepted", func(t *testing.T) {
+		err := svc.validateAccompaniedCompanionNote(schema, withChild(map[string]any{
+			"allowed_modes": map[string]any{"mon": []any{"accompanied"}},
+			enrollmentModels.TargetStudentDepartureCompanionNote: "Geschwisterkind Mia",
+		}), nil)
+		require.NoError(t, err)
+	})
+
+	t.Run("non-accompanied plan needs no note", func(t *testing.T) {
+		err := svc.validateAccompaniedCompanionNote(schema, withChild(map[string]any{
+			"allowed_modes": map[string]any{"mon": []any{"bus"}},
+		}), nil)
+		require.NoError(t, err)
+	})
+}
 
 // ---- customValueSatisfiesRequired ---------------------------------------
 
@@ -167,6 +223,239 @@ func TestWeekdayMultiMode_RequiredHandling(t *testing.T) {
 		map[string]any{"allowed_departure": map[string]any{"mon": []any{"bus", "pickup"}, "tue": []any{"alone"}}},
 		map[string]bool{"mon": true, "tue": true},
 	), "selected care days with modes are accepted")
+}
+
+// TestSanitizeVisibleAnswers_CompanionNote pins the persistence-time companion
+// note coupling (#1694): sanitizeVisibleAnswers must keep the reserved "mit wem"
+// note whenever a visible per-child departure field allows the accompanied mode,
+// for BOTH the unified allowed-modes target and the legacy student.departure
+// target. Dropping it for the legacy target would let an accepted submission
+// (validateAccompaniedCompanionNote also accepts the legacy path) become
+// un-approvable, since the decision service would decode an accompanied
+// departure with no note and studentRepo.Update would reject it.
+func TestSanitizeVisibleAnswers_CompanionNote(t *testing.T) {
+	const note = "Geschwisterkind Mia (1b)"
+	noteKey := enrollmentModels.TargetStudentDepartureCompanionNote
+
+	schemaWith := func(target string) *enrollmentModels.FormSchema {
+		fieldType := enrollmentModels.FormFieldWeekdayMultiMode
+		if target == enrollmentModels.TargetStudentDeparture {
+			fieldType = enrollmentModels.FormFieldWeekdayMode
+		}
+		return &enrollmentModels.FormSchema{Fields: []enrollmentModels.FormField{{
+			Key:         "dep",
+			Type:        fieldType,
+			Target:      target,
+			AppliesToCh: true,
+		}}}
+	}
+	ctxFor := func(schema *enrollmentModels.FormSchema, values map[string]any) fieldVisibilityContext {
+		return fieldVisibilityContext{
+			childAnswers: values,
+			fieldsByKey:  buildFieldsByKey(schema),
+		}
+	}
+
+	t.Run("legacy departure target keeps note when accompanied", func(t *testing.T) {
+		schema := schemaWith(enrollmentModels.TargetStudentDeparture)
+		values := map[string]any{
+			"dep":   map[string]any{"mon": "accompanied"},
+			noteKey: note,
+		}
+		out := sanitizeVisibleAnswers(schema, true, values, ctxFor(schema, values))
+		assert.Equal(t, note, out[noteKey], "note must survive for legacy student.departure accompanied plan")
+	})
+
+	t.Run("legacy departure target drops note when not accompanied", func(t *testing.T) {
+		schema := schemaWith(enrollmentModels.TargetStudentDeparture)
+		values := map[string]any{
+			"dep":   map[string]any{"mon": "bus"},
+			noteKey: note,
+		}
+		out := sanitizeVisibleAnswers(schema, true, values, ctxFor(schema, values))
+		_, ok := out[noteKey]
+		assert.False(t, ok, "orphan note must be dropped when no accompanied day")
+	})
+
+	t.Run("unified allowed-modes target keeps note when accompanied", func(t *testing.T) {
+		schema := schemaWith(enrollmentModels.TargetStudentAllowedDepartureModes)
+		values := map[string]any{
+			"dep":   map[string]any{"mon": []any{"accompanied"}},
+			noteKey: note,
+		}
+		out := sanitizeVisibleAnswers(schema, true, values, ctxFor(schema, values))
+		assert.Equal(t, note, out[noteKey], "note must survive for unified accompanied plan")
+	})
+
+	t.Run("oversized note is bounded before storage", func(t *testing.T) {
+		schema := schemaWith(enrollmentModels.TargetStudentAllowedDepartureModes)
+		// A client that bypasses the React maxLength must not get an unbounded
+		// note persisted into custom_data (a storage/echo surface before
+		// approval). It is capped at MaxDepartureCompanionNoteLen runes (#1694).
+		oversized := strings.Repeat("ä", users.MaxDepartureCompanionNoteLen+50)
+		values := map[string]any{
+			"dep":   map[string]any{"mon": []any{"accompanied"}},
+			noteKey: oversized,
+		}
+		out := sanitizeVisibleAnswers(schema, true, values, ctxFor(schema, values))
+		stored, ok := out[noteKey].(string)
+		require.True(t, ok, "stored note must be a string")
+		assert.Equal(t, users.MaxDepartureCompanionNoteLen, utf8.RuneCountInString(stored),
+			"oversized note must be truncated to the rune cap")
+	})
+}
+
+func TestWeekdaySchedule_RequiredHandling(t *testing.T) {
+	pickup := enrollmentModels.FormField{
+		Key:    "dismissal",
+		Type:   enrollmentModels.FormFieldWeekdaySchedule,
+		Target: enrollmentModels.TargetSchedulePickup,
+	}
+
+	assert.True(t, customAnswerSatisfiesRequiredWeekdaySchedule(pickup, map[string]any{}, map[string]bool{}, true),
+		"no selected care days means there is nothing to schedule yet (mirrors the hidden form input)")
+	assert.False(t, customAnswerSatisfiesRequiredWeekdaySchedule(pickup, map[string]any{}, map[string]bool{"mon": true}, true),
+		"missing answer fails when a care day exists")
+	assert.False(t, customAnswerSatisfiesRequiredWeekdaySchedule(
+		pickup,
+		map[string]any{"dismissal": map[string]any{"mon": "", "tue": ""}},
+		map[string]bool{"mon": true, "tue": true},
+		true,
+	), "an all-blank schedule on care days is not answered")
+	assert.False(t, customAnswerSatisfiesRequiredWeekdaySchedule(
+		pickup,
+		map[string]any{"dismissal": map[string]any{"fri": "15:00"}},
+		map[string]bool{"mon": true},
+		true,
+	), "a time on a non-care day does not satisfy a care day requirement")
+
+	// Constrained (care days derived from selected offerings): every care day
+	// needs a time -- a partially filled schedule is not answered.
+	assert.False(t, customAnswerSatisfiesRequiredWeekdaySchedule(
+		pickup,
+		map[string]any{"dismissal": map[string]any{"mon": "15:00"}},
+		map[string]bool{"mon": true, "tue": true},
+		true,
+	), "constrained: an unfilled care day (tue) is not answered")
+	assert.True(t, customAnswerSatisfiesRequiredWeekdaySchedule(
+		pickup,
+		map[string]any{"dismissal": map[string]any{"mon": "15:00", "tue": "16:00"}},
+		map[string]bool{"mon": true, "tue": true},
+		true,
+	), "constrained: every care day filled is answered")
+
+	// Unconstrained (no offerings, all weekdays shown): at least one day with a
+	// time suffices, mirroring the lenient client path for offering-less phases.
+	assert.True(t, customAnswerSatisfiesRequiredWeekdaySchedule(
+		pickup,
+		map[string]any{"dismissal": map[string]any{"mon": "15:00"}},
+		map[string]bool{"mon": true, "tue": true},
+		false,
+	), "unconstrained: at least one day with a time is accepted")
+	assert.False(t, customAnswerSatisfiesRequiredWeekdaySchedule(
+		pickup,
+		map[string]any{"dismissal": map[string]any{"mon": "", "tue": ""}},
+		map[string]bool{"mon": true, "tue": true},
+		false,
+	), "unconstrained: an all-blank schedule is still not answered")
+
+	// A malformed answer (not a schedule object) fails to decode and counts as
+	// unanswered for a required field.
+	assert.False(t, customAnswerSatisfiesRequiredWeekdaySchedule(
+		pickup,
+		map[string]any{"dismissal": "not-a-schedule"},
+		map[string]bool{"mon": true},
+		true,
+	), "a non-decodable answer is not a valid schedule")
+}
+
+func TestRelevantCareDaysForChild(t *testing.T) {
+	fixed := &enrollmentModels.CareOffering{
+		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:  []string{"tue", "thu"},
+	}
+	fixed.ID = 7
+	openByID := map[int64]*enrollmentModels.CareOffering{7: fixed}
+
+	// No offerings configured -> all weekdays (the form shows them all).
+	assert.Equal(t, enrollmentModels.ValidWeekdays,
+		relevantCareDaysForChild(SubmitChild{}, nil),
+		"no offerings means every weekday is schedulable")
+
+	// Offerings exist, child selected the Tue/Thu block -> just those days.
+	assert.Equal(t, map[string]bool{"tue": true, "thu": true},
+		relevantCareDaysForChild(SubmitChild{OfferingIDs: []int64{7}}, openByID))
+
+	// Offerings exist, child selected none -> empty (the form hides the input).
+	assert.Empty(t, relevantCareDaysForChild(SubmitChild{}, openByID))
+}
+
+func TestPruneChildScheduleAnswers(t *testing.T) {
+	schema := &enrollmentModels.FormSchema{Fields: []enrollmentModels.FormField{
+		{Key: "dismissal", Type: enrollmentModels.FormFieldWeekdaySchedule,
+			Target: enrollmentModels.TargetSchedulePickup, AppliesToCh: true},
+	}}
+
+	// Tue/Thu care: a smuggled Friday entry is stripped, Tue kept.
+	answers := map[string]any{"dismissal": map[string]any{"tue": "15:00", "fri": "15:00"}}
+	pruneChildScheduleAnswers(schema, answers, map[string]bool{"tue": true, "thu": true})
+	assert.Equal(t, map[string]any{"tue": "15:00"}, answers["dismissal"])
+
+	// No offerings (all weekdays schedulable): mon-fri kept, weekend dropped.
+	answers2 := map[string]any{"dismissal": map[string]any{"mon": "15:00", "sat": "09:00"}}
+	pruneChildScheduleAnswers(schema, answers2, enrollmentModels.ValidWeekdays)
+	assert.Equal(t, map[string]any{"mon": "15:00"}, answers2["dismissal"])
+}
+
+func TestValidateRequiredCustomFields_ChildRequiredScheduleNoOfferingsEnforced(t *testing.T) {
+	// P2: a phase with NO care offerings renders all weekdays for a required
+	// schedule, so the server must still enforce it (no empty-care-days
+	// exemption). openByID is empty in this configuration.
+	s := &requestService{}
+	schema := &enrollmentModels.FormSchema{Fields: []enrollmentModels.FormField{
+		{Key: "dismissal", Label: "Abholzeiten", Type: enrollmentModels.FormFieldWeekdaySchedule,
+			Target: enrollmentModels.TargetSchedulePickup, Required: true, AppliesToCh: true},
+	}}
+
+	req := SubmitRequest{Children: []SubmitChild{{CustomData: map[string]any{}}}}
+	err := s.validateRequiredCustomFields(schema, req, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "dismissal")
+
+	req2 := SubmitRequest{Children: []SubmitChild{{CustomData: map[string]any{"dismissal": map[string]any{"mon": "15:00"}}}}}
+	assert.NoError(t, s.validateRequiredCustomFields(schema, req2, nil))
+}
+
+func TestValidateRequiredCustomFields_ChildRequiredMultiModeNoOfferingsEnforced(t *testing.T) {
+	// Reviewer blocker: a phase with NO care offerings renders all weekdays for
+	// a required weekday_multi_mode field, so the server must still enforce it.
+	// selectedCareDays would be empty here and wrongly exempt the field, letting
+	// a scripted client skip a field the public form requires. openByID is empty.
+	s := &requestService{}
+	schema := &enrollmentModels.FormSchema{Fields: []enrollmentModels.FormField{
+		{Key: "allowed_departure", Label: "Abholarten", Type: enrollmentModels.FormFieldWeekdayMultiMode,
+			Target: enrollmentModels.TargetStudentAllowedDepartureModes, Required: true, AppliesToCh: true},
+	}}
+
+	// Missing answer -> must error (every weekday is relevant and required).
+	req := SubmitRequest{Children: []SubmitChild{{CustomData: map[string]any{}}}}
+	err := s.validateRequiredCustomFields(schema, req, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "allowed_departure")
+
+	// A partial answer (only some weekdays) is still rejected: with no
+	// offerings every weekday must carry at least one mode.
+	partial := map[string]any{"allowed_departure": map[string]any{"mon": []any{"bus"}}}
+	req2 := SubmitRequest{Children: []SubmitChild{{CustomData: partial}}}
+	require.Error(t, s.validateRequiredCustomFields(schema, req2, nil))
+
+	// A mode on every weekday -> satisfied.
+	full := map[string]any{"allowed_departure": map[string]any{
+		"mon": []any{"bus"}, "tue": []any{"bus"}, "wed": []any{"bus"},
+		"thu": []any{"bus"}, "fri": []any{"bus"},
+	}}
+	req3 := SubmitRequest{Children: []SubmitChild{{CustomData: full}}}
+	assert.NoError(t, s.validateRequiredCustomFields(schema, req3, nil))
 }
 
 // ---- fieldVisible --------------------------------------------------------
@@ -407,6 +696,54 @@ func TestValidateRequiredCustomFields_ChildHiddenByCareOfferingExempt(t *testing
 	require.Error(t, s.validateRequiredCustomFields(schema, req2, openByID))
 }
 
+func TestValidateRequiredCustomFields_ChildRequiredScheduleNoCareDaysExempt(t *testing.T) {
+	// The reviewer case: optional care + a required per-child weekday_schedule.
+	// The public form only renders the child's care weekdays, so a child in no
+	// care has no fillable input. The server must mirror that and not reject the
+	// otherwise-complete submit it let through.
+	s := &requestService{}
+	lunch := &enrollmentModels.CareOffering{
+		Name:           "Mittagessen",
+		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:  []string{"mon", "tue"},
+	}
+	lunch.ID = 42
+	openByID := map[int64]*enrollmentModels.CareOffering{42: lunch}
+
+	schema := &enrollmentModels.FormSchema{Fields: []enrollmentModels.FormField{
+		{Key: "dismissal", Label: "Abholzeiten", Type: enrollmentModels.FormFieldWeekdaySchedule,
+			Target: enrollmentModels.TargetSchedulePickup, Required: true, AppliesToCh: true},
+	}}
+
+	// No care offering selected → no care days → required schedule is exempt.
+	req := SubmitRequest{Children: []SubmitChild{{CustomData: map[string]any{}}}}
+	assert.NoError(t, s.validateRequiredCustomFields(schema, req, openByID))
+
+	// Care days present (mon/tue) but no schedule answer → required → error.
+	req2 := SubmitRequest{Children: []SubmitChild{{OfferingIDs: []int64{42}, CustomData: map[string]any{}}}}
+	err := s.validateRequiredCustomFields(schema, req2, openByID)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "dismissal")
+
+	// Care days present (mon/tue) but only one day filled → still missing the
+	// other care day → error. The shown days are the child's care days, so each
+	// one needs a time.
+	req3 := SubmitRequest{Children: []SubmitChild{{
+		OfferingIDs: []int64{42},
+		CustomData:  map[string]any{"dismissal": map[string]any{"mon": "15:00"}},
+	}}}
+	err = s.validateRequiredCustomFields(schema, req3, openByID)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "dismissal")
+
+	// Every care day carries a time → satisfied.
+	req4 := SubmitRequest{Children: []SubmitChild{{
+		OfferingIDs: []int64{42},
+		CustomData:  map[string]any{"dismissal": map[string]any{"mon": "15:00", "tue": "16:00"}},
+	}}}
+	assert.NoError(t, s.validateRequiredCustomFields(schema, req4, openByID))
+}
+
 func TestValidateRequiredCustomFields_InfoFieldNeverRequired(t *testing.T) {
 	s := &requestService{}
 	schema := &enrollmentModels.FormSchema{Fields: []enrollmentModels.FormField{
@@ -615,4 +952,37 @@ func TestValidateConstrainedSchedules_HiddenFieldExempt(t *testing.T) {
 		{CustomData: map[string]any{"needs_pickup": false, "pickup_times": map[string]any{"mon": "15:00"}}},
 	}}
 	assert.NoError(t, s.validateConstrainedSchedules(schema, req, nil))
+}
+
+func TestValidateConstrainedSchedules_OffListTimeOnNonCareDayIgnored(t *testing.T) {
+	// Reviewer blocker: the allowed-times gate must only inspect the child's
+	// schedulable (care) days. An off-list pickup time on a weekday the child
+	// has no care on is stripped before persistence (pruneChildScheduleAnswers),
+	// so rejecting it here would block an otherwise valid submit.
+	s := &requestService{}
+	schema := &enrollmentModels.FormSchema{Fields: []enrollmentModels.FormField{pickupSchedField()}}
+
+	fixed := &enrollmentModels.CareOffering{
+		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:  []string{"tue", "thu"},
+	}
+	fixed.ID = 7
+	openByID := map[int64]*enrollmentModels.CareOffering{7: fixed}
+
+	// tue (care day) carries an allowed time; mon (non-care day) carries an
+	// off-list one -> mon is out of scope, so the submit is accepted.
+	ok := SubmitRequest{Children: []SubmitChild{{
+		OfferingIDs: []int64{7},
+		CustomData:  map[string]any{"pickup_times": map[string]any{"tue": "14:45", "mon": "15:00"}},
+	}}}
+	assert.NoError(t, s.validateConstrainedSchedules(schema, ok, openByID))
+
+	// An off-list time on a CARE day is still rejected.
+	bad := SubmitRequest{Children: []SubmitChild{{
+		OfferingIDs: []int64{7},
+		CustomData:  map[string]any{"pickup_times": map[string]any{"tue": "15:00"}},
+	}}}
+	err := s.validateConstrainedSchedules(schema, bad, openByID)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrPickupTimeNotAllowed))
 }

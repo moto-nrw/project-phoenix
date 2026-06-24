@@ -34,6 +34,9 @@ type CareOfferingResponse struct {
 	PriceCents          *int      `json:"price_cents,omitempty"`
 	IsActive            bool      `json:"is_active"`
 	IsRequired          bool      `json:"is_required"`
+	CountsAsCare        bool      `json:"counts_as_care"`
+	AutoAddGradeLevels  []int     `json:"auto_add_grade_levels"`
+	AutoAddTriggerIDs   []string  `json:"auto_add_trigger_offering_ids"`
 	SortOrder           int       `json:"sort_order"`
 	SelectionGroup      string    `json:"selection_group,omitempty"`
 	SelectionRule       string    `json:"selection_rule"`
@@ -55,6 +58,9 @@ func toCareOfferingResponse(o *enrollmentModels.CareOffering) CareOfferingRespon
 		PriceCents:          o.PriceCents,
 		IsActive:            o.IsActive,
 		IsRequired:          o.IsRequired,
+		CountsAsCare:        o.CountsAsCare,
+		AutoAddGradeLevels:  o.AutoAddGradeLevels,
+		AutoAddTriggerIDs:   make([]string, 0, len(o.AutoAddTriggerOfferingIDs)),
 		SortOrder:           o.SortOrder,
 		SelectionGroup:      o.SelectionGroup,
 		SelectionRule:       o.SelectionRule,
@@ -64,6 +70,9 @@ func toCareOfferingResponse(o *enrollmentModels.CareOffering) CareOfferingRespon
 	if o.ActivityGroupID != nil {
 		s := strconv.FormatInt(*o.ActivityGroupID, 10)
 		resp.ActivityGroupID = &s
+	}
+	for _, id := range o.AutoAddTriggerOfferingIDs {
+		resp.AutoAddTriggerIDs = append(resp.AutoAddTriggerIDs, strconv.FormatInt(id, 10))
 	}
 	return resp
 }
@@ -82,6 +91,9 @@ type CareOfferingRequest struct {
 	PriceCents          *int     `json:"price_cents,omitempty"`
 	IsActive            bool     `json:"is_active"`
 	IsRequired          bool     `json:"is_required"`
+	CountsAsCare        *bool    `json:"counts_as_care"`
+	AutoAddGradeLevels  []int    `json:"auto_add_grade_levels"`
+	AutoAddTriggerIDs   []string `json:"auto_add_trigger_offering_ids"`
 	SortOrder           int      `json:"sort_order"`
 	SelectionGroup      string   `json:"selection_group,omitempty"`
 	SelectionRule       string   `json:"selection_rule,omitempty"`
@@ -93,29 +105,59 @@ func (req *CareOfferingRequest) Bind(_ *http.Request) error {
 	if req.AvailableDays == nil {
 		req.AvailableDays = []string{}
 	}
+	if req.AutoAddGradeLevels == nil {
+		req.AutoAddGradeLevels = []int{}
+	}
+	if req.AutoAddTriggerIDs == nil {
+		req.AutoAddTriggerIDs = []string{}
+	}
 	return nil
 }
 
-func (req *CareOfferingRequest) toModel(existingID int64) *enrollmentModels.CareOffering {
+func (req *CareOfferingRequest) toModel(existingID int64) (*enrollmentModels.CareOffering, error) {
+	countsAsCare := true
+	if req.CountsAsCare != nil {
+		countsAsCare = *req.CountsAsCare
+	}
+	triggerIDs, err := parseCareOfferingIDStrings(req.AutoAddTriggerIDs, "auto_add_trigger_offering_ids")
+	if err != nil {
+		return nil, err
+	}
 	o := &enrollmentModels.CareOffering{
-		PhaseID:             req.PhaseID,
-		ActivityGroupID:     req.ActivityGroupID,
-		Name:                req.Name,
-		Description:         req.Description,
-		DaysOfWeekMode:      req.DaysOfWeekMode,
-		AvailableDays:       req.AvailableDays,
-		IncludesHolidayCare: req.IncludesHolidayCare,
-		IncludesLunch:       req.IncludesLunch,
-		Capacity:            req.Capacity,
-		PriceCents:          req.PriceCents,
-		IsActive:            req.IsActive,
-		IsRequired:          req.IsRequired,
-		SortOrder:           req.SortOrder,
-		SelectionGroup:      req.SelectionGroup,
-		SelectionRule:       req.SelectionRule,
+		PhaseID:                   req.PhaseID,
+		ActivityGroupID:           req.ActivityGroupID,
+		Name:                      req.Name,
+		Description:               req.Description,
+		DaysOfWeekMode:            req.DaysOfWeekMode,
+		AvailableDays:             req.AvailableDays,
+		IncludesHolidayCare:       req.IncludesHolidayCare,
+		IncludesLunch:             req.IncludesLunch,
+		Capacity:                  req.Capacity,
+		PriceCents:                req.PriceCents,
+		IsActive:                  req.IsActive,
+		IsRequired:                req.IsRequired,
+		CountsAsCare:              countsAsCare,
+		CountsAsCareSet:           true,
+		AutoAddGradeLevels:        req.AutoAddGradeLevels,
+		SortOrder:                 req.SortOrder,
+		SelectionGroup:            req.SelectionGroup,
+		SelectionRule:             req.SelectionRule,
+		AutoAddTriggerOfferingIDs: triggerIDs,
 	}
 	o.ID = existingID
-	return o
+	return o, nil
+}
+
+func parseCareOfferingIDStrings(values []string, field string) ([]int64, error) {
+	out := make([]int64, 0, len(values))
+	for _, raw := range values {
+		id, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || id <= 0 {
+			return nil, fmt.Errorf("%s contains invalid id %q", field, raw)
+		}
+		out = append(out, id)
+	}
+	return out, nil
 }
 
 // CloneCareOfferingRequest is the body POST /{id}/clone accepts.
@@ -196,8 +238,13 @@ func (rs *Resource) createCareOffering(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var offering *enrollmentModels.CareOffering
-	err := rs.runInTenantTx(r, func(ctx context.Context) error {
-		o, e := rs.CareOfferingService.Create(ctx, req.toModel(0))
+	model, err := req.toModel(0)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+		o, e := rs.CareOfferingService.Create(ctx, model)
 		offering = o
 		return e
 	})
@@ -223,9 +270,14 @@ func (rs *Resource) updateCareOffering(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
+	model, err := req.toModel(id)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
 
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {
-		return rs.CareOfferingService.Update(ctx, req.toModel(id))
+		return rs.CareOfferingService.Update(ctx, model)
 	})
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))

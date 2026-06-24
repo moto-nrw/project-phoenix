@@ -8,7 +8,6 @@ import {
   HeartPulse,
   MessageCircle,
   Newspaper,
-  Plus,
   ShieldCheck,
   UserRound,
   Users,
@@ -27,6 +26,8 @@ import {
   useChildCare,
 } from "~/components/parent/child-care";
 import RelatedAccountsPanel from "~/components/parent/related-accounts-panel";
+import GuardiansPanel from "~/components/parent/guardians-panel";
+import { Button } from "~/components/ui/button";
 
 // Quick-actions that are wired to real backend flows. The rest remain
 // "coming soon" stubs until their features ship.
@@ -55,37 +56,20 @@ function isActionEnabled(actionKey: string, care: ChildCare): boolean {
 
 const logger = createLogger({ component: "ChildDetail" });
 
+// Neutral icon tile shared with the parent-facing enrollment flow
+// (PublicInfoCard in public-enrollment-shell.tsx): white surface, subtle
+// border, gray icon. Keeps the parents portal calm and consistent instead of
+// the old per-action pastel tiles. Add size + radius per call site.
+const ACTION_TILE_CLASS =
+  "moto-content-surface flex shrink-0 items-center justify-center border text-gray-600 shadow-sm";
+
 const CHILD_ACTIONS = [
-  {
-    key: "sick",
-    icon: HeartPulse,
-    tone: "text-[#D6373E] bg-[#D6373E]/10",
-  },
-  {
-    key: "pickupTime",
-    icon: CalendarClock,
-    tone: "text-[#5080D8] bg-[#5080D8]/10",
-  },
-  {
-    key: "message",
-    icon: MessageCircle,
-    tone: "text-[#F78C10] bg-[#F78C10]/10",
-  },
-  {
-    key: "pickupPermission",
-    icon: ShieldCheck,
-    tone: "text-[#83CD2D] bg-[#83CD2D]/15",
-  },
-  {
-    key: "people",
-    icon: Users,
-    tone: "text-[#8B5CF6] bg-[#8B5CF6]/10",
-  },
-  {
-    key: "news",
-    icon: Newspaper,
-    tone: "text-[#5080D8] bg-[#5080D8]/10",
-  },
+  { key: "sick", icon: HeartPulse },
+  { key: "pickupTime", icon: CalendarClock },
+  { key: "message", icon: MessageCircle },
+  { key: "pickupPermission", icon: ShieldCheck },
+  { key: "people", icon: Users },
+  { key: "news", icon: Newspaper },
 ] as const;
 
 interface Props {
@@ -214,7 +198,6 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
     ],
     [child, locale, t],
   );
-  const pickupPeople = getPickupPeople(t);
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
@@ -226,18 +209,18 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
       />
 
       <section className="hidden overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm lg:block">
-        <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_24rem] xl:grid-cols-[minmax(0,1fr)_30rem]">
+        <div className="grid gap-0 lg:grid-cols-[minmax(0,1.25fr)_minmax(20rem,0.75fr)] xl:grid-cols-[minmax(0,1.35fr)_minmax(22rem,0.8fr)]">
           <div>
             <BackBar />
             <div className="p-5 sm:p-6 lg:p-8">
               <div className="flex min-w-0 items-start gap-4">
-                <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-[#83CD2D]/15 text-lg font-semibold text-[#4A7A15]">
+                <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-[#83CD2D]/15 text-lg font-semibold text-[#5A8E1F]">
                   {getInitials(child) || (
                     <UserRound className="h-7 w-7" aria-hidden="true" />
                   )}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+                  <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
                     {t("childEyebrow")}
                   </p>
                   <h1 className="mt-1 text-3xl font-semibold break-words text-gray-900 sm:text-4xl">
@@ -249,7 +232,7 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
                   </p>
                 </div>
               </div>
-              <div className="mt-7 grid max-w-3xl gap-3 sm:grid-cols-3">
+              <div className="mt-7 grid max-w-3xl grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-3">
                 {CHILD_ACTIONS.slice(0, 3).map((action) => (
                   <DesktopQuickAction
                     key={action.key}
@@ -300,7 +283,7 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
             composeDisabled={!care.features.notes_enabled}
             onCompose={() => setModal("notes")}
           />
-          <PickupPeoplePanel people={pickupPeople} />
+          <GuardiansPanel studentId={child.student_id} />
           <RelatedAccountsPanel
             studentId={child.student_id}
             canInvite={care.features.related_accounts_invite_enabled}
@@ -352,7 +335,6 @@ function MobileChildAppView({
   const tMd = useTranslations("parentMasterData");
   const locale = useLocale();
   const primaryActions = CHILD_ACTIONS.slice(0, 3);
-  const pickupPeople = getPickupPeople(t);
 
   return (
     <div className="space-y-5 lg:hidden">
@@ -360,7 +342,7 @@ function MobileChildAppView({
         <BackBar />
         <div className="p-5">
           <div className="flex min-w-0 items-center gap-4">
-            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-3xl bg-[#83CD2D]/15 text-lg font-semibold text-[#4A7A15]">
+            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-3xl bg-[#83CD2D]/15 text-lg font-semibold text-[#5A8E1F]">
               {getInitials(child) || (
                 <UserRound className="h-6 w-6" aria-hidden="true" />
               )}
@@ -373,7 +355,7 @@ function MobileChildAppView({
                 {child.school_name}
                 {child.school_class ? `, ${child.school_class}` : ""}
               </p>
-              <span className="mt-3 inline-flex max-w-full rounded-full bg-[#83CD2D]/15 px-3 py-1 text-xs font-semibold text-[#4A7A15]">
+              <span className="mt-3 inline-flex max-w-full rounded-full bg-[#83CD2D]/15 px-3 py-1 text-xs font-semibold text-[#5A8E1F]">
                 {t("careRecorded")}
               </span>
             </div>
@@ -411,35 +393,7 @@ function MobileChildAppView({
         mobile
       />
 
-      <section className="rounded-[1.75rem] border border-gray-200 bg-white p-5 shadow-sm">
-        <div className="flex items-center justify-between gap-4">
-          <h2 className="text-lg font-semibold text-gray-900">
-            {t("pickupPeopleTitle")}
-          </h2>
-          <button
-            type="button"
-            disabled
-            className="inline-flex h-9 items-center rounded-full border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {t("manage")}
-          </button>
-        </div>
-        <div className="mt-4 flex items-start gap-3 overflow-x-auto pb-1">
-          {pickupPeople.map((person) => (
-            <PersonBubble key={person.name} person={person} />
-          ))}
-          <button
-            type="button"
-            disabled
-            className="flex min-w-14 flex-col items-center gap-2 text-xs font-medium text-gray-500 disabled:cursor-not-allowed disabled:opacity-70"
-            aria-label={t("addPerson")}
-          >
-            <span className="flex h-11 w-11 items-center justify-center rounded-full border border-dashed border-gray-300 bg-gray-50 text-gray-500">
-              <Plus className="h-5 w-5" aria-hidden="true" />
-            </span>
-          </button>
-        </div>
-      </section>
+      <GuardiansPanel studentId={child.student_id} mobile />
 
       <RelatedAccountsPanel
         studentId={child.student_id}
@@ -475,15 +429,6 @@ function MobileChildAppView({
   );
 }
 
-function getPickupPeople(t: ChildDetailTranslator) {
-  return [
-    { initials: "MM", name: t("demo.momName"), relation: t("demo.mother") },
-    { initials: "PM", name: t("demo.dadName"), relation: t("demo.father") },
-    { initials: "OM", name: t("demo.grandmaName"), relation: t("demo.pickup") },
-    { initials: "TA", name: t("demo.auntName"), relation: t("demo.pickup") },
-  ];
-}
-
 function MobileQuickAction({
   action,
   onClick,
@@ -502,9 +447,7 @@ function MobileQuickAction({
           : "cursor-not-allowed border-gray-100 bg-white"
       }`}
     >
-      <span
-        className={`flex h-11 w-11 items-center justify-center rounded-2xl ${action.tone}`}
-      >
+      <span className={`${ACTION_TILE_CLASS} h-11 w-11 rounded-xl`}>
         <Icon className="h-6 w-6" aria-hidden="true" />
       </span>
       <span className="text-xs leading-4 font-semibold text-gray-900">
@@ -534,12 +477,10 @@ function DesktopQuickAction({
       }`}
       aria-label={enabled ? label : t("comingSoonAria", { label })}
     >
-      <span
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${action.tone}`}
-      >
+      <span className={`${ACTION_TILE_CLASS} h-10 w-10 rounded-lg`}>
         <Icon className="h-5 w-5" aria-hidden="true" />
       </span>
-      <span className="min-w-0">
+      <span className="min-w-0 [overflow-wrap:anywhere]">
         <span className="block text-sm font-semibold text-gray-900">
           {label}
         </span>
@@ -566,7 +507,7 @@ function TodayPanel({ care }: Readonly<{ care: ChildCare }>) {
       </div>
       <div className="space-y-2">
         <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white/85 p-3 shadow-sm">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#D6373E]/10 text-[#D6373E]">
+          <span className={`${ACTION_TILE_CLASS} h-10 w-10 rounded-lg`}>
             <HeartPulse className="h-5 w-5" aria-hidden="true" />
           </span>
           <div className="min-w-0">
@@ -579,7 +520,7 @@ function TodayPanel({ care }: Readonly<{ care: ChildCare }>) {
           </div>
         </div>
         <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white/85 p-3 shadow-sm">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#5080D8]/10 text-[#5080D8]">
+          <span className={`${ACTION_TILE_CLASS} h-10 w-10 rounded-lg`}>
             <CalendarClock className="h-5 w-5" aria-hidden="true" />
           </span>
           <div className="min-w-0">
@@ -592,7 +533,7 @@ function TodayPanel({ care }: Readonly<{ care: ChildCare }>) {
           </div>
         </div>
         <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white/85 p-3 shadow-sm">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#F78C10]/10 text-[#F78C10]">
+          <span className={`${ACTION_TILE_CLASS} h-10 w-10 rounded-lg`}>
             <MessageCircle className="h-5 w-5" aria-hidden="true" />
           </span>
           <div className="min-w-0">
@@ -638,75 +579,19 @@ function MessagesPanel({
           description={t("messages.description")}
         />
         {!composeDisabled && (
-          <button
+          <Button
             type="button"
+            size="md"
+            className="shrink-0 gap-2"
             onClick={onCompose}
-            className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg bg-[#F78C10] px-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#dd7c0c]"
           >
             <MessageCircle className="h-4 w-4" aria-hidden="true" />
             {t("messages.compose")}
-          </button>
+          </Button>
         )}
       </div>
       <div className="mt-4">
         <ParentNotesList notes={notes} />
-      </div>
-    </section>
-  );
-}
-
-function PersonBubble({
-  person,
-}: Readonly<{
-  person: ReturnType<typeof getPickupPeople>[number];
-}>) {
-  return (
-    <div className="flex min-w-14 flex-col items-center gap-2">
-      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-gray-100 text-sm font-semibold text-gray-700 ring-1 ring-gray-200">
-        {person.initials}
-      </span>
-      <span className="max-w-12 truncate text-xs font-medium text-gray-700">
-        {person.name}
-      </span>
-    </div>
-  );
-}
-
-function PickupPeoplePanel({
-  people,
-}: Readonly<{ people: ReturnType<typeof getPickupPeople> }>) {
-  const t = useTranslations("parentChildDetail");
-  return (
-    <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-      <div className="flex items-start justify-between gap-4">
-        <PanelHeader
-          eyebrow={t("pickupEyebrow")}
-          title={t("pickupPeopleTitle")}
-          description={t("pickupPeopleDescription")}
-        />
-        <button
-          type="button"
-          disabled
-          className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          {t("add")}
-        </button>
-      </div>
-      <div className="mt-5 divide-y divide-gray-100 rounded-xl border border-gray-200 bg-gray-50/70">
-        {people.map((person) => (
-          <div key={person.name} className="flex items-center gap-3 p-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-sm font-semibold text-gray-700 ring-1 ring-gray-200">
-              {person.initials}
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-gray-900">
-                {person.name}
-              </p>
-              <p className="text-sm text-gray-600">{person.relation}</p>
-            </div>
-          </div>
-        ))}
       </div>
     </section>
   );
@@ -805,7 +690,7 @@ function PanelHeader({
 }>) {
   return (
     <header>
-      <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+      <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
         {eyebrow}
       </p>
       <h2 className="mt-1 text-xl font-semibold text-balance text-gray-900">

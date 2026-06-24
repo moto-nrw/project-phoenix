@@ -20,6 +20,16 @@ interface ModalProps {
    * views that need more horizontal space.
    */
   readonly widthClass?: string;
+  /**
+   * Accessible label for the close button. Defaults to German; pass a
+   * translated string on localized surfaces (e.g. the parents portal).
+   */
+  readonly closeLabel?: string;
+  /**
+   * Accessible label for the dismiss-on-tap backdrop. Defaults to German;
+   * pass a translated string on localized surfaces.
+   */
+  readonly backdropLabel?: string;
 }
 
 export function Modal({
@@ -29,7 +39,12 @@ export function Modal({
   children,
   footer,
   widthClass = "mx-4 w-[calc(100%-2rem)] max-w-lg",
+  closeLabel = "Modal schließen",
+  backdropLabel = "Hintergrund - Klicken zum Schließen",
 }: ModalProps) {
+  // Stable id so the dialog can reference its heading via aria-labelledby,
+  // giving the dialog an accessible name (role="dialog" alone has none).
+  const titleId = React.useId();
   const [isAnimating, setIsAnimating] = React.useState(false);
   const [isExiting, setIsExiting] = React.useState(false);
   const { openModal, closeModal } = useModal();
@@ -126,7 +141,7 @@ export function Modal({
           type="button"
           tabIndex={-1}
           onClick={handleClose}
-          aria-label="Hintergrund - Klicken zum Schließen"
+          aria-label={backdropLabel}
           className={`absolute inset-0 cursor-default border-none bg-transparent p-0 transition-all duration-200 ease-out ${
             isAnimating && !isExiting ? "bg-black/40" : "bg-black/0"
           }`}
@@ -141,6 +156,7 @@ export function Modal({
         <div
           className={`relative ${widthClass} transform overflow-hidden rounded-2xl border border-gray-200/50 shadow-2xl ${getModalAnimationClass(isAnimating, isExiting)}`}
           {...dialogAriaProps}
+          aria-labelledby={title ? titleId : undefined}
           style={{
             background:
               "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.98) 100%)",
@@ -153,13 +169,16 @@ export function Modal({
           {/* Header with close button - only show border if title exists */}
           {title ? (
             <div className="flex items-center justify-between border-b border-gray-100 p-4 sm:p-6">
-              <h3 className="pr-4 text-lg font-semibold text-gray-900 sm:text-xl">
+              <h3
+                id={titleId}
+                className="pr-4 text-lg font-semibold text-gray-900 sm:text-xl"
+              >
                 {title}
               </h3>
               <button
                 onClick={handleClose}
                 className="group relative flex-shrink-0 rounded-xl p-2 text-gray-400 transition-all duration-200 hover:scale-105 hover:bg-gray-100 hover:text-gray-600 active:scale-95"
-                aria-label="Modal schließen"
+                aria-label={closeLabel}
               >
                 {/* Animated X icon */}
                 <svg
@@ -190,7 +209,7 @@ export function Modal({
             <button
               onClick={handleClose}
               className="group absolute top-4 right-4 z-10 rounded-xl p-2 text-gray-400 transition-all duration-200 hover:scale-105 hover:bg-gray-100 hover:text-gray-600 active:scale-95"
-              aria-label="Modal schließen"
+              aria-label={closeLabel}
             >
               {/* Animated X icon */}
               <svg

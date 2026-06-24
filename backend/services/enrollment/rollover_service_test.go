@@ -13,6 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -650,6 +651,14 @@ func (f *fakeApproveDecisionService) Get(_ context.Context, _ int64) (*enrollmen
 }
 
 func (f *fakeApproveDecisionService) ListChildOfferings(_ context.Context, _ int64) (map[int64][]enrollmentService.ChildOfferingRow, error) {
+	return nil, nil
+}
+
+func (f *fakeApproveDecisionService) UpdateChildOfferings(_ context.Context, _ enrollmentService.UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error) {
+	return nil, nil
+}
+
+func (f *fakeApproveDecisionService) ListOfferingAdjustments(_ context.Context, _, _ int64) ([]*auditModels.EnrollmentOfferingAdjustment, error) {
 	return nil, nil
 }
 

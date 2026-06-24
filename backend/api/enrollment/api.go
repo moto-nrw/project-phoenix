@@ -4,6 +4,9 @@
 package enrollment
 
 import (
+	"context"
+	"net/http"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
@@ -26,6 +29,7 @@ type Resource struct {
 	CaptchaService            enrollmentService.CaptchaService
 	PhaseService              enrollmentService.PhaseService
 	DecisionService           enrollmentService.DecisionService
+	ReportService             enrollmentService.ReportService
 	RolloverService           enrollmentService.RolloverService
 	GuardianInvitationService authService.GuardianInvitationService
 	GuardianProfileLoader     usersService.GuardianProfileLoader
@@ -33,8 +37,10 @@ type Resource struct {
 	// ListExportService renders the compact per-phase registration
 	// export (PDF blocks + XLSX flat table). Set as a field after
 	// construction (mirrors api/rooms), not via the constructor.
-	ListExportService listexport.Service
-	db                *bun.DB
+	ListExportService    listexport.Service
+	db                   *bun.DB
+	legalDocumentRefs    legalDocumentReferenceRepository
+	runInTenantTxForTest func(r *http.Request, fn func(ctx context.Context) error) error
 }
 
 // NewResource constructs the enrollment API resource. PR 7 added the
@@ -50,25 +56,32 @@ func NewResource(
 	captchaSvc enrollmentService.CaptchaService,
 	phaseSvc enrollmentService.PhaseService,
 	decisionSvc enrollmentService.DecisionService,
+	reportSvc enrollmentService.ReportService,
 	rolloverSvc enrollmentService.RolloverService,
 	guardianInvitationSvc authService.GuardianInvitationService,
 	guardianProfileLoader usersService.GuardianProfileLoader,
 	schoolService platformSvc.SchoolService,
 	db *bun.DB,
+	legalDocumentRefs ...legalDocumentReferenceRepository,
 ) *Resource {
-	return &Resource{
+	rs := &Resource{
 		FormSchemaService:         formSchemaSvc,
 		CareOfferingService:       careOfferingSvc,
 		RequestService:            requestSvc,
 		CaptchaService:            captchaSvc,
 		PhaseService:              phaseSvc,
 		DecisionService:           decisionSvc,
+		ReportService:             reportSvc,
 		RolloverService:           rolloverSvc,
 		GuardianInvitationService: guardianInvitationSvc,
 		GuardianProfileLoader:     guardianProfileLoader,
 		SchoolService:             schoolService,
 		db:                        db,
 	}
+	if len(legalDocumentRefs) > 0 {
+		rs.legalDocumentRefs = legalDocumentRefs[0]
+	}
+	return rs
 }
 
 // Router returns a chi router scoped to /enrollment. PR 5 added the
@@ -113,6 +126,8 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission("config:manage")).Patch("/{id}", rs.renameSchema)
 			r.With(authorize.RequiresPermission("config:manage")).Delete("/{id}", rs.deleteSchema)
 		})
+		r.With(authorize.RequiresPermission("config:manage")).Post("/legal-documents", rs.uploadLegalDocument)
+		r.With(authorize.RequiresPermission("config:manage")).Delete("/legal-documents/{filename}", rs.deleteLegalDocument)
 
 		r.Route("/care-offerings", func(r chi.Router) {
 			r.With(authorize.RequiresPermission("config:read")).Get("/", rs.listCareOfferings)
@@ -178,7 +193,13 @@ func (rs *Resource) Router() chi.Router {
 			r.Route("/{id}", func(r chi.Router) {
 				r.With(authorize.RequiresPermission("config:manage")).Get("/", rs.getAdminRequest)
 				r.With(authorize.RequiresPermission("config:manage")).Post("/children/{childId}/decide", rs.decideAdminChild)
+				r.With(authorize.RequiresPermission("config:manage")).Put("/children/{childId}/offerings", rs.updateAdminChildOfferings)
+				r.With(authorize.RequiresPermission("config:manage")).Get("/children/{childId}/offering-adjustments", rs.listAdminChildOfferingAdjustments)
 			})
+		})
+		r.Route("/admin/reports", func(r chi.Router) {
+			r.With(authorize.RequiresPermission("config:read")).Get("/care-usage", rs.getCareUsageReport)
+			r.With(authorize.RequiresPermission("config:manage")).Post("/care-usage/export", rs.exportCareUsageReport)
 		})
 		r.Route("/admin/students/{studentId}/requests", func(r chi.Router) {
 			r.With(authorize.RequiresPermission("config:manage")).Get("/", rs.listAdminRequestsByStudent)

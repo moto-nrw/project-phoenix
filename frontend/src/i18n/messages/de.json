@@ -111,12 +111,74 @@
     "masterDataEyebrow": "Kinderdaten",
     "masterDataTitle": "Stammdaten",
     "masterDataDescription": "Die wichtigsten Angaben zu Kind und Betreuung.",
-    "pickupEyebrow": "Abholung",
-    "pickupPeopleTitle": "Abholberechtigte",
-    "pickupPeopleDescription": "Personen, die dieses Kind abholen dürfen.",
-    "manage": "Verwalten",
-    "add": "Hinzufügen",
-    "addPerson": "Person hinzufügen",
+    "guardians": {
+      "eyebrow": "Abholung & Kontakt",
+      "title": "Abholberechtigte & Kontakte",
+      "description": "Erziehungsberechtigte und Personen, die Ihr Kind abholen dürfen.",
+      "loadError": "Kontakte konnten nicht geladen werden.",
+      "loading": "Wird geladen…",
+      "empty": "Noch keine Kontakte hinterlegt.",
+      "contactSaved": "Kontaktdaten gespeichert.",
+      "pickupSaved": "Abholangaben gespeichert.",
+      "relationships": {
+        "parent": "Elternteil",
+        "guardian": "Erziehungsberechtigt",
+        "relative": "Verwandt",
+        "other": "Weitere Person",
+        "contact": "Kontakt"
+      },
+      "badges": {
+        "primary": "Primär",
+        "canPickup": "Darf abholen",
+        "emergency": "Notfallkontakt"
+      },
+      "editContact": "Bearbeiten",
+      "managePickup": "Abholrecht verwalten",
+      "contactTitle": "Kontaktdaten bearbeiten",
+      "pickupTitle": "Abholung verwalten",
+      "close": "Schließen",
+      "cancel": "Abbrechen",
+      "save": "Speichern",
+      "firstName": "Vorname",
+      "lastName": "Nachname",
+      "email": "E-Mail",
+      "street": "Straße und Hausnummer",
+      "postalCode": "PLZ",
+      "city": "Ort",
+      "phoneNumbers": "Telefonnummern",
+      "phonePlaceholder": "Telefonnummer",
+      "phoneTypeLabel": "Art der Telefonnummer",
+      "phoneTypes": {
+        "mobile": "Mobil",
+        "home": "Festnetz",
+        "work": "Geschäftlich",
+        "other": "Sonstige"
+      },
+      "removePhone": "Telefonnummer entfernen",
+      "addPhone": "Nummer hinzufügen",
+      "nameRequired": "Vor- und Nachname sind erforderlich.",
+      "contactSaveError": "Kontaktdaten konnten nicht gespeichert werden.",
+      "pickupSaveError": "Abholangaben konnten nicht gespeichert werden.",
+      "canPickupLabel": "Darf abholen",
+      "canPickupDescription": "Diese Person ist berechtigt, das Kind abzuholen.",
+      "emergencyLabel": "Notfallkontakt",
+      "emergencyDescription": "Wird im Notfall kontaktiert.",
+      "pickupNotes": "Hinweis zur Abholung",
+      "pickupNotesPlaceholder": "z. B. Kommt mit dem Fahrrad",
+      "errors": {
+        "contactInvalid": "Bitte prüfen Sie die Kontaktdaten.",
+        "relationshipInvalid": "Bitte prüfen Sie die Abholangaben.",
+        "emailConflict": "Diese E-Mail-Adresse wird bereits für einen anderen Kontakt verwendet.",
+        "hasOwnAccount": "Diese Person verwaltet ihre Kontaktdaten über ein eigenes Elternkonto.",
+        "sharedAcrossFamilies": "Dieser Kontakt ist mehreren Familien zugeordnet und kann nur von der Schule geändert werden.",
+        "notLinked": "Dieser Kontakt gehört nicht zu diesem Kind.",
+        "permissionDenied": "Sie haben keine Berechtigung für diese Änderung.",
+        "noChange": "Es wurde keine Änderung übermittelt.",
+        "socialWorkerManaged": "Diese Kontaktdaten werden von der Schule verwaltet.",
+        "roleManaged": "Diese Person ist erziehungsberechtigt und kann nur von ihr selbst oder der Schule bearbeitet werden.",
+        "managementDisabled": "Die Verwaltung von Kontakten ist für diese Schule deaktiviert."
+      }
+    },
     "newsEyebrow": "Aktuelles",
     "newsTitle": "Neuigkeiten",
     "newsDescription": "Meldungen zur Gruppe und zur Betreuung.",
@@ -126,8 +188,8 @@
     "comingSoonAria": "{label} bald verfügbar",
     "actions": {
       "sick": {
-        "label": "Krank melden",
-        "description": "Tagesmeldung für dieses Kind"
+        "label": "Abmelden",
+        "description": "Krank oder entschuldigt melden"
       },
       "pickupTime": {
         "label": "Ankunfts- und Abholzeit ändern",
@@ -154,22 +216,13 @@
       "title": "Heute",
       "description": "Aktuelle Hinweise für dieses Kind.",
       "sickLabel": "Tagesmeldung",
-      "noSick": "Keine Krankmeldung",
+      "noSick": "Keine Abmeldung",
       "pickupLabel": "Abholung",
       "regularPickup": "Reguläre Abholung",
       "messagesLabel": "Nachrichten",
       "noMessages": "Keine neuen Nachrichten",
       "noMessagesSent": "Keine Nachrichten gesendet",
       "messagesSent": "{count, plural, one {# Nachricht gesendet} other {# Nachrichten gesendet}}"
-    },
-    "demo": {
-      "momName": "Mama",
-      "dadName": "Papa",
-      "grandmaName": "Oma",
-      "auntName": "Tante",
-      "mother": "Mutter",
-      "father": "Vater",
-      "pickup": "Abholung"
     },
     "messages": {
       "eyebrow": "Elternportal",
@@ -182,16 +235,19 @@
     "close": "Schließen",
     "cancel": "Abbrechen",
     "sick": {
-      "title": "Krank melden",
-      "intro": "Melden Sie Ihr Kind für einen oder mehrere Tage krank. Die Betreuung sieht die Meldung sofort.",
+      "title": "Abmelden",
+      "intro": "Melden Sie Ihr Kind für einen oder mehrere Tage ab. Wählen Sie, ob es krank ist oder aus einem anderen Grund entschuldigt fehlt. Die Betreuung sieht die Meldung sofort.",
+      "kindLabel": "Art der Abmeldung",
+      "kindSick": "Krank",
+      "kindExcused": "Entschuldigt",
       "from": "Von",
       "to": "Bis",
       "daysCount": "{count, plural, one {# Tag wird gemeldet.} other {# Tage werden gemeldet.}}",
-      "reasonLabel": "Grund (optional)",
-      "reasonPlaceholder": "z. B. Fieber, beim Arzt",
+      "reasonLabel": "Notiz (optional)",
+      "reasonPlaceholder": "z. B. Fieber, Zahnarzttermin",
       "invalidDate": "Bitte ein gültiges Datum wählen (Bis-Datum nach Von-Datum).",
-      "saveError": "Die Krankmeldung konnte nicht gespeichert werden.",
-      "submit": "Krankmeldung senden"
+      "saveError": "Die Abmeldung konnte nicht gespeichert werden.",
+      "submit": "Abmeldung senden"
     },
     "notes": {
       "title": "Nachricht an das Team",
@@ -204,9 +260,9 @@
       "listEmpty": "Noch keine Nachrichten gesendet."
     },
     "summary": {
-      "none": "Keine Krankmeldung",
-      "oneDay": "Krank am {date}",
-      "range": "Krank {from} – {to}"
+      "none": "Keine Abmeldung",
+      "oneDay": "Abgemeldet am {date}",
+      "range": "Abgemeldet {from} – {to}"
     },
     "pickup": {
       "title": "Ankunfts- und Abholzeit ändern",
@@ -398,11 +454,12 @@
       "phoneList": "Bitte mindestens eine Telefonnummer angeben.",
       "contactList": "Bitte mindestens einen vollständigen Kontakt mit E-Mail oder Telefonnummer angeben.",
       "schedule": "Bitte mindestens eine Uhrzeit angeben.",
+      "scheduleEveryDay": "Bitte für jeden Betreuungstag eine Uhrzeit angeben.",
       "select": "Bitte eine Option auswählen.",
       "required": "Bitte dieses Pflichtfeld ausfüllen.",
       "careMissing": "Bitte wählen Sie für jedes Kind mindestens ein Betreuungsangebot aus.",
       "careExactlyOne": "Bitte wählen Sie für jedes Kind genau ein Betreuungsangebot aus.",
-      "dayMissing": "Kind {child}: Beim Angebot „{offering}\" muss mindestens ein Tag ausgewählt werden.",
+      "dayMissing": "Kind {child}: Beim Angebot „{offering}“ muss mindestens ein Tag ausgewählt werden.",
       "dayInline": "Bitte mindestens einen Tag auswählen.",
       "groupExactlyOne": "Bitte bei „{group}“ genau ein Angebot wählen.",
       "groupAtLeastOne": "Bitte bei „{group}“ mindestens ein Angebot wählen.",
@@ -433,10 +490,13 @@
       "optionalHint": "Wählen Sie die Angebote aus, die für dieses Kind gewünscht sind.",
       "reviewHint": "Die OGS prüft freie Plätze nach dem Absenden. Bitte beachten Sie: Mit der Anmeldung zum Ganztagsangebot ist Ihr Kind laut Ganztagsschulerlass zu den angemeldeten Zeiten schulpflichtig.",
       "requiredBadge": "Pflicht",
+      "automaticBadge": "automatisch",
       "chooseExactlyOne": "Bitte wählen Sie genau ein Angebot aus.",
       "chooseAtLeastOne": "Bitte wählen Sie mindestens ein Angebot aus.",
       "selectableDays": "Wählbare Tage: ",
       "days": "Tage: ",
+      "automaticDays": "{days} automatisch",
+      "manualDays": "{days} manuell",
       "holiday": "inkl. Ferienbetreuung",
       "lunch": "inkl. Mittagessen",
       "ruleExactlyOne": "Bitte genau eines wählen",
@@ -464,6 +524,8 @@
       "removeNumber": "Nummer entfernen",
       "addPhone": "Telefonnummer hinzufügen",
       "emptySchedule": "Leere Felder bedeuten: an diesem Tag keine Angabe.",
+      "everyDayTime": "Bitte für jeden Betreuungstag eine Uhrzeit angeben.",
+      "atLeastOneTime": "Bitte mindestens eine Uhrzeit angeben.",
       "selectTime": "Bitte wählen",
       "timeUnavailable": "nicht mehr verfügbar",
       "noneContact": "Noch kein zusätzlicher Kontakt eingetragen.",
@@ -495,10 +557,14 @@
       "weekdayMultiModeUniformConfirmBody": "Sie haben bisher unterschiedliche Heimwege je Betreuungstag gewählt. Wenn Sie eine gemeinsame Auswahl aktivieren, werden diese tageweisen Angaben gelöscht und Sie treffen die Auswahl neu.",
       "weekdayMultiModeUniformConfirmCta": "Löschen und fortfahren",
       "weekdayMultiModeUniformConfirmCancel": "Abbrechen",
+      "departureCompanionLabel": "Mit welchem Kind?",
+      "departureCompanionPlaceholder": "z. B. Geschwisterkind, Freund, Name",
+      "departureCompanionRequired": "Bitte angeben, mit welchem Kind das Kind nach Hause geht.",
       "departureModes": {
         "alone": "Geht zu Fuß",
         "bus": "Bus",
-        "pickup": "Wird abgeholt"
+        "pickup": "Wird abgeholt",
+        "accompanied": "Mit anderem Kind"
       }
     },
     "months": [

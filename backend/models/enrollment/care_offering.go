@@ -66,12 +66,23 @@ type CareOffering struct {
 	PriceCents          *int     `bun:"price_cents" json:"price_cents,omitempty"`
 	IsActive            bool     `bun:"is_active,notnull" json:"is_active"`
 	IsRequired          bool     `bun:"is_required,notnull,default:false" json:"is_required"`
-	SortOrder           int      `bun:"sort_order,notnull,default:0" json:"sort_order"`
+	// Keep the DB default, but do not tag this with bun default:true:
+	// explicit false must be inserted instead of letting Postgres default
+	// it back to true.
+	CountsAsCare       bool  `bun:"counts_as_care,notnull" json:"counts_as_care"`
+	AutoAddGradeLevels []int `bun:"auto_add_grade_levels,type:jsonb,notnull" json:"auto_add_grade_levels"`
+	SortOrder          int   `bun:"sort_order,notnull,default:0" json:"sort_order"`
 	// SelectionGroup groups offerings that share a selection rule (empty
 	// = ungrouped). SelectionRule constrains how many of the group a
 	// parent must pick. See SelectionRule* constants.
 	SelectionGroup string `bun:"selection_group" json:"selection_group,omitempty"`
 	SelectionRule  string `bun:"selection_rule,notnull,default:'optional'" json:"selection_rule"`
+
+	// AutoAddTriggerOfferingIDs is loaded from
+	// enrollment.care_offering_auto_triggers. It is not a column on
+	// care_offerings itself.
+	AutoAddTriggerOfferingIDs []int64 `bun:"-" json:"auto_add_trigger_offering_ids,omitempty"`
+	CountsAsCareSet           bool    `bun:"-" json:"-"`
 }
 
 // TableName returns the schema-qualified table name.
@@ -108,6 +119,14 @@ func (c *CareOffering) Validate() error {
 	if c.PriceCents != nil && *c.PriceCents < 0 {
 		return errors.New("price_cents must be non-negative")
 	}
+	if !c.CountsAsCareSet {
+		c.CountsAsCare = true
+	}
+	levels, err := normalizeGradeLevels(c.AutoAddGradeLevels)
+	if err != nil {
+		return err
+	}
+	c.AutoAddGradeLevels = levels
 	c.SelectionGroup = strings.TrimSpace(c.SelectionGroup)
 	if c.SelectionRule == "" {
 		c.SelectionRule = SelectionRuleOptional
@@ -130,6 +149,25 @@ func (c *CareOffering) Validate() error {
 	return nil
 }
 
+func normalizeGradeLevels(levels []int) ([]int, error) {
+	if len(levels) == 0 {
+		return []int{}, nil
+	}
+	seen := make(map[int]bool, len(levels))
+	out := make([]int, 0, len(levels))
+	for _, level := range levels {
+		if level <= 0 || level > 13 {
+			return nil, fmt.Errorf("auto_add_grade_levels contains invalid grade %d", level)
+		}
+		if seen[level] {
+			continue
+		}
+		seen[level] = true
+		out = append(out, level)
+	}
+	return out, nil
+}
+
 // HasUnlimitedCapacity returns true when the capacity field is NULL,
 // matching the "null = unlimited" semantics on the column.
 func (c *CareOffering) HasUnlimitedCapacity() bool {
@@ -142,6 +180,7 @@ type CareOfferingRepository interface {
 	FindByID(ctx context.Context, id int64) (*CareOffering, error)
 	Update(ctx context.Context, offering *CareOffering) error
 	Delete(ctx context.Context, id int64) error
+	ReplaceAutoAddTriggers(ctx context.Context, targetOfferingID int64, triggerOfferingIDs []int64) error
 
 	// ListByTenant returns every care offering for the tenant in
 	// context, sorted by sort_order. Admin endpoint uses this.
@@ -158,6 +197,10 @@ type CareOfferingRepository interface {
 	// don't need their own time filter.
 	ListActiveByPhase(ctx context.Context, phaseID int64) ([]*CareOffering, error)
 
+	// ListByIDs returns the exact care offerings referenced by ids,
+	// regardless of phase. Empty input returns an empty slice.
+	ListByIDs(ctx context.Context, ids []int64) ([]*CareOffering, error)
+
 	// CountByPhaseID returns how many care offerings belong to the phase.
 	// Powers the phase-delete confirmation modal.
 	CountByPhaseID(ctx context.Context, phaseID int64) (int, error)
@@ -169,14 +212,29 @@ type CareOfferingRepository interface {
 type RequestChildOffering struct {
 	base.Model `bun:"schema:enrollment,table:request_child_offerings"`
 	base.TenantModel
-	RequestChildID int64    `bun:"request_child_id,notnull" json:"request_child_id"`
-	CareOfferingID int64    `bun:"care_offering_id,notnull" json:"care_offering_id"`
-	SelectedDays   []string `bun:"selected_days,type:jsonb,nullzero" json:"selected_days,omitempty"`
-	Notes          *string  `bun:"notes" json:"notes,omitempty"`
+	RequestChildID        int64    `bun:"request_child_id,notnull" json:"request_child_id"`
+	CareOfferingID        int64    `bun:"care_offering_id,notnull" json:"care_offering_id"`
+	SelectedDays          []string `bun:"selected_days,type:jsonb,nullzero" json:"selected_days,omitempty"`
+	ManualSelectedDays    []string `bun:"manual_selected_days,type:jsonb,nullzero" json:"manual_selected_days,omitempty"`
+	AutomaticSelectedDays []string `bun:"automatic_selected_days,type:jsonb,nullzero" json:"automatic_selected_days,omitempty"`
+	Notes                 *string  `bun:"notes" json:"notes,omitempty"`
 }
 
 func (r *RequestChildOffering) TableName() string {
 	return "enrollment.request_child_offerings"
+}
+
+// CareOfferingAutoTrigger links a target offering to one source offering
+// that should cause it to be selected automatically.
+type CareOfferingAutoTrigger struct {
+	base.Model `bun:"schema:enrollment,table:care_offering_auto_triggers"`
+	base.TenantModel
+	TargetCareOfferingID  int64 `bun:"target_care_offering_id,notnull" json:"target_care_offering_id"`
+	TriggerCareOfferingID int64 `bun:"trigger_care_offering_id,notnull" json:"trigger_care_offering_id"`
+}
+
+func (c *CareOfferingAutoTrigger) TableName() string {
+	return "enrollment.care_offering_auto_triggers"
 }
 
 // RequestChildOfferingRepository is the contract PR 7's submission
@@ -184,6 +242,7 @@ func (r *RequestChildOffering) TableName() string {
 // it; the implementation has no callers yet.
 type RequestChildOfferingRepository interface {
 	Create(ctx context.Context, row *RequestChildOffering) error
+	ReplaceForRequestChild(ctx context.Context, requestChildID int64, rows []*RequestChildOffering) error
 	ListByRequestChildID(ctx context.Context, requestChildID int64) ([]*RequestChildOffering, error)
 
 	// ListByRequestChildIDs is the batched form of

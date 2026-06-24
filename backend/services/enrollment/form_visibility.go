@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // This file holds the server-side counterpart of the frontend visibility
@@ -150,6 +151,52 @@ func sanitizeVisibleAnswers(
 			out[f.Key] = v
 		}
 	}
+	// Preserve the coupled "mit wem" note (#1694): it rides on a reserved key
+	// alongside a departure field rather than being its own schema field, so the
+	// generic strip above would drop it. Keep it only when a visible per-child
+	// departure field submits a plan that allows the accompanied mode — either
+	// the unified allowed-departure-modes field OR the legacy student.departure
+	// field. Mirroring childDepartureAllowsAccompanied (the validation path) is
+	// what keeps an accepted submission approvable: validateAccompaniedCompanionNote
+	// accepts a legacy departure submission as long as the note is present, so
+	// dropping it here for that target would let approval decode an accompanied
+	// departure with no note and have studentRepo.Update reject it. A
+	// stale/crafted note for a child with no "Mit anderem Kind" day must still
+	// not survive. The decision service is the authoritative guard, so on a
+	// decode error we keep the note and let it decide.
+	if note, ok := values[enrollmentModels.TargetStudentDepartureCompanionNote]; ok {
+		keepNote := false
+		for i := range schema.Fields {
+			f := &schema.Fields[i]
+			if f.AppliesToCh != appliesToChild || !fieldVisible(f, ctx) {
+				continue
+			}
+			switch f.Target {
+			case enrollmentModels.TargetStudentAllowedDepartureModes:
+				if modes, err := decodeAllowedDepartureModes(values[f.Key]); err != nil ||
+					modes.HasMode(users.DepartureAccompanied) {
+					keepNote = true
+				}
+			case enrollmentModels.TargetStudentDeparture:
+				if days, err := decodeDepartureDays(values[f.Key]); err != nil ||
+					days.HasMode(users.DepartureAccompanied) {
+					keepNote = true
+				}
+			}
+		}
+		if keepNote {
+			// Bound the free-text note before it is persisted and echoed in admin
+			// review/export. The custom_data value (and the student column) is
+			// unbounded TEXT, so a client that bypasses the React maxLength could
+			// otherwise store an arbitrarily large note here — a storage/echo
+			// surface that survives until approval. Cap it at the same rune limit
+			// the approval path applies (truncateRunes), so the stored request and
+			// the approved student row carry the same value. Normalizing to a
+			// string also prevents a non-string blob from riding the reserved key.
+			out[enrollmentModels.TargetStudentDepartureCompanionNote] =
+				truncateRunes(stringValue(note), users.MaxDepartureCompanionNoteLen)
+		}
+	}
 	return out
 }
 
@@ -217,7 +264,17 @@ func (s *requestService) validateRequiredCustomFields(
 				continue
 			}
 			if f.Type == enrollmentModels.FormFieldWeekdayMultiMode {
-				if !customAnswerSatisfiesRequiredWeekdayMultiMode(*f, child.CustomData, selectedCareDays(child, openByID)) {
+				// Care-day scoped exactly like weekday_schedule: a no-offerings
+				// phase renders all weekdays, so the required answer must cover
+				// them all. selectedCareDays alone would be empty there and
+				// wrongly exempt the field, letting a scripted client skip it.
+				if !customAnswerSatisfiesRequiredWeekdayMultiMode(*f, child.CustomData, relevantCareDaysForChild(child, openByID)) {
+					return fmt.Errorf("%w: child %d field %q is required", ErrInvalidSubmission, idx, f.Key)
+				}
+				continue
+			}
+			if f.Type == enrollmentModels.FormFieldWeekdaySchedule {
+				if !customAnswerSatisfiesRequiredWeekdaySchedule(*f, child.CustomData, relevantCareDaysForChild(child, openByID), len(openByID) > 0) {
 					return fmt.Errorf("%w: child %d field %q is required", ErrInvalidSubmission, idx, f.Key)
 				}
 				continue
@@ -230,6 +287,73 @@ func (s *requestService) validateRequiredCustomFields(
 	return nil
 }
 
+// validateAccompaniedCompanionNote enforces the coupled "mit wem" note at the
+// public submit boundary: a child whose visible departure field actually allows
+// the accompanied ("Mit anderem Kind") mode must carry a non-blank companion
+// note on the reserved custom-data key. Without this gate a stale or scripted
+// client could submit an accompanied plan with no note, which persists fine but
+// then permanently blocks approval — studentRepo.Update rejects the model
+// invariant. Mirrors the same defense-in-depth other submit-time field checks
+// apply so a submittable request can never get stuck at approval (#1694).
+func (s *requestService) validateAccompaniedCompanionNote(
+	schema *enrollmentModels.FormSchema,
+	req SubmitRequest,
+	openByID map[int64]*enrollmentModels.CareOffering,
+) error {
+	if schema == nil {
+		return nil
+	}
+	byKey := buildFieldsByKey(schema)
+	for idx := range req.Children {
+		child := req.Children[idx]
+		childCtx := fieldVisibilityContext{
+			guardianAnswers: req.CustomData,
+			childAnswers:    child.CustomData,
+			gradeLevel:      child.TargetGradeLevel,
+			offeringNames:   selectedOfferingNames(child, openByID),
+			fieldsByKey:     byKey,
+		}
+		if !childDepartureAllowsAccompanied(schema, child, childCtx) {
+			continue
+		}
+		if strings.TrimSpace(stringValue(child.CustomData[enrollmentModels.TargetStudentDepartureCompanionNote])) == "" {
+			return fmt.Errorf("%w: child %d accompanied departure requires a companion note", ErrInvalidSubmission, idx)
+		}
+	}
+	return nil
+}
+
+// childDepartureAllowsAccompanied reports whether any visible per-child
+// departure field (unified allowed modes or the legacy-exclusive departure
+// field) submits a plan that allows the accompanied mode. On a decode error the
+// field is treated as not-accompanied: the decision service is the authoritative
+// guard and rejects a malformed value there.
+func childDepartureAllowsAccompanied(
+	schema *enrollmentModels.FormSchema,
+	child SubmitChild,
+	ctx fieldVisibilityContext,
+) bool {
+	for i := range schema.Fields {
+		f := &schema.Fields[i]
+		if !f.AppliesToCh || !fieldVisible(f, ctx) {
+			continue
+		}
+		switch f.Target {
+		case enrollmentModels.TargetStudentAllowedDepartureModes:
+			if modes, err := decodeAllowedDepartureModes(child.CustomData[f.Key]); err == nil &&
+				modes.HasMode(users.DepartureAccompanied) {
+				return true
+			}
+		case enrollmentModels.TargetStudentDeparture:
+			if days, err := decodeDepartureDays(child.CustomData[f.Key]); err == nil &&
+				days.HasMode(users.DepartureAccompanied) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // validateConstrainedSchedules enforces a weekday_schedule field's fixed
 // pickup times (FormField.AllowedTimes) server-side. The public form renders a
 // dropdown limited to these times, but a scripted or stale client could POST
@@ -237,7 +361,11 @@ func (s *requestService) validateRequiredCustomFields(
 // Empty AllowedTimes means "no restriction" (free time entry) and such fields
 // are skipped. Hidden fields are skipped to match validateRequiredCustomFields
 // — their answers are dropped before persistence anyway, so rejecting them
-// would block an otherwise valid submit.
+// would block an otherwise valid submit. For the same reason a per-child
+// schedule is only checked on the child's schedulable weekdays
+// (relevantCareDaysForChild): an off-list time on a non-care day is stripped by
+// pruneChildScheduleAnswers before persistence, so the gate must not reject it
+// and block the submit.
 func (s *requestService) validateConstrainedSchedules(
 	schema *enrollmentModels.FormSchema,
 	req SubmitRequest,
@@ -248,7 +376,11 @@ func (s *requestService) validateConstrainedSchedules(
 	}
 	byKey := buildFieldsByKey(schema)
 
-	check := func(f *enrollmentModels.FormField, answers map[string]any, childIdx int) error {
+	// scheduleDays scopes which weekdays are inspected. A nil set means "all
+	// days" (guardian-level fields, which are not care-day scoped); a per-child
+	// field passes its schedulable days so non-care-day entries (pruned before
+	// persistence) can't trip the allowed-times gate.
+	check := func(f *enrollmentModels.FormField, answers map[string]any, childIdx int, scheduleDays map[string]bool) error {
 		raw, ok := answers[f.Key]
 		if !ok || raw == nil {
 			return nil
@@ -259,6 +391,15 @@ func (s *requestService) validateConstrainedSchedules(
 				return fmt.Errorf("%w: child %d field %q: invalid schedule", ErrInvalidSubmission, childIdx, f.Key)
 			}
 			return fmt.Errorf("%w: field %q: invalid schedule", ErrInvalidSubmission, f.Key)
+		}
+		if scheduleDays != nil {
+			scoped := make(enrollmentModels.WeekdaySchedule, len(sched))
+			for day, t := range sched {
+				if scheduleDays[day] {
+					scoped[day] = t
+				}
+			}
+			sched = scoped
 		}
 		if err := sched.ValidateAllowed(f.AllowedTimes); err != nil {
 			if childIdx >= 0 {
@@ -278,7 +419,7 @@ func (s *requestService) validateConstrainedSchedules(
 		if !fieldVisible(f, guardianCtx) {
 			continue
 		}
-		if err := check(f, req.CustomData, -1); err != nil {
+		if err := check(f, req.CustomData, -1, nil); err != nil {
 			return err
 		}
 	}
@@ -292,6 +433,7 @@ func (s *requestService) validateConstrainedSchedules(
 			offeringNames:   selectedOfferingNames(child, openByID),
 			fieldsByKey:     byKey,
 		}
+		scheduleDays := relevantCareDaysForChild(child, openByID)
 		for i := range schema.Fields {
 			f := &schema.Fields[i]
 			if f.Target != enrollmentModels.TargetSchedulePickup || len(f.AllowedTimes) == 0 || !f.AppliesToCh {
@@ -300,7 +442,7 @@ func (s *requestService) validateConstrainedSchedules(
 			if !fieldVisible(f, childCtx) {
 				continue
 			}
-			if err := check(f, child.CustomData, idx); err != nil {
+			if err := check(f, child.CustomData, idx, scheduleDays); err != nil {
 				return err
 			}
 		}
@@ -357,6 +499,100 @@ func customAnswerSatisfiesRequiredWeekdayMultiMode(field enrollmentModels.FormFi
 		}
 	}
 	return true
+}
+
+// relevantCareDaysForChild returns the weekdays every per-child day-scoped
+// field (weekday_schedule AND weekday_multi_mode) offers for this child. It is
+// the single server-side mirror of relevantCareDaysForChild in
+// enrollment-form.tsx, so all care-day-scoped paths share one rule and can't
+// drift: with no care offerings configured the field is unconstrained (all
+// weekdays), otherwise it is limited to the child's selected care days (empty
+// when the child picked none -- the form hides the input). The result is
+// read-only; callers must not mutate it (the no-offerings case returns the
+// shared ValidWeekdays map).
+func relevantCareDaysForChild(child SubmitChild, openByID map[int64]*enrollmentModels.CareOffering) map[string]bool {
+	if len(openByID) == 0 {
+		return enrollmentModels.ValidWeekdays
+	}
+	return selectedCareDays(child, openByID)
+}
+
+// customAnswerSatisfiesRequiredWeekdaySchedule mirrors the public form's
+// care-day-scoped rendering of a per-child weekday_schedule field. scheduleDays
+// is relevantCareDaysForChild: all weekdays when no offerings constrain the
+// form (the field is shown and must be answered), the child's care days when
+// offerings exist, or empty when offerings exist but the child selected none
+// (the form hides the input, so a required schedule is vacuously satisfied).
+//
+// careConstrained reports whether scheduleDays come from selected care
+// offerings (openByID non-empty), exactly like careDaysAreConstrained on the
+// frontend. When constrained, the shown days ARE the child's care days, so each
+// one must carry a time (an empty day is a missing answer, not a "keine
+// Angabe"). When unconstrained (no offerings, all weekdays shown), at least one
+// schedulable day must carry a time -- forcing every weekday would block a
+// child who attends only some days. Both branches stay in lockstep with the
+// client's customValueMissing so a stale or scripted client cannot persist an
+// enrollment that is missing pickup times for required care days.
+func customAnswerSatisfiesRequiredWeekdaySchedule(field enrollmentModels.FormField, answers map[string]any, scheduleDays map[string]bool, careConstrained bool) bool {
+	if len(scheduleDays) == 0 {
+		return true
+	}
+	value, present := answers[field.Key]
+	if !present {
+		return false
+	}
+	var sched enrollmentModels.WeekdaySchedule
+	if err := decodeStructured(value, &sched); err != nil {
+		return false
+	}
+	if careConstrained {
+		for day := range scheduleDays {
+			if strings.TrimSpace(sched[day]) == "" {
+				return false
+			}
+		}
+		return true
+	}
+	for day, t := range sched {
+		if scheduleDays[day] && strings.TrimSpace(t) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// pruneChildScheduleAnswers strips per-child weekday_schedule entries for
+// weekdays the child cannot schedule (non-care days, or weekend days a scripted
+// client smuggled in), keeping the schedulable days as-is. It is the
+// persistence-time counterpart of the public form's pruneWeekdayAnswers: the
+// decision service turns every persisted weekday into a pickup/arrival schedule
+// row, so an unpruned {"fri":"15:00"} for a Tue/Thu child would create a Friday
+// pickup the parent never had access to. Mutates answers in place.
+func pruneChildScheduleAnswers(schema *enrollmentModels.FormSchema, answers map[string]any, scheduleDays map[string]bool) {
+	if schema == nil || answers == nil {
+		return
+	}
+	for i := range schema.Fields {
+		f := &schema.Fields[i]
+		if !f.AppliesToCh || f.Type != enrollmentModels.FormFieldWeekdaySchedule {
+			continue
+		}
+		raw, ok := answers[f.Key]
+		if !ok || raw == nil {
+			continue
+		}
+		var sched enrollmentModels.WeekdaySchedule
+		if err := decodeStructured(raw, &sched); err != nil {
+			continue
+		}
+		pruned := make(map[string]any, len(sched))
+		for day, t := range sched {
+			if scheduleDays[day] {
+				pruned[day] = t
+			}
+		}
+		answers[f.Key] = pruned
+	}
 }
 
 // customValueSatisfiesRequired reports whether a required field's answer is

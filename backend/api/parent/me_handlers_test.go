@@ -53,7 +53,7 @@ func (f *fakeParentService) ListEnrollableForAccount(context.Context, int64) ([]
 func (f *fakeParentService) ListEnrollmentsForAccount(context.Context, int64) ([]*parentModels.EnrollmentRequestSummary, error) {
 	return nil, nil
 }
-func (f *fakeParentService) SubmitSickNote(context.Context, int64, int64, []timezone.Date, string) ([]*activeModels.StudentStatusDay, error) {
+func (f *fakeParentService) SubmitSickNote(context.Context, int64, int64, []timezone.Date, string, string) ([]*activeModels.StudentStatusDay, error) {
 	return nil, nil
 }
 func (f *fakeParentService) ListSickDays(context.Context, int64, int64, timezone.Date, timezone.Date) ([]*activeModels.StudentStatusDay, error) {
@@ -103,6 +103,18 @@ func (f *fakeParentService) SubmitMasterDataChangeRequest(context.Context, int64
 }
 
 func (f *fakeParentService) ListMyMasterDataRequests(context.Context, int64, int64) ([]*userModels.StudentDataChangeRequest, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) ListChildGuardians(context.Context, int64, int64) ([]*parentService.ChildGuardian, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) UpdateGuardianContact(context.Context, int64, int64, int64, parentService.GuardianContactInput) (*parentService.ChildGuardian, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) UpdateGuardianRelationship(context.Context, int64, int64, int64, parentService.GuardianRelationshipInput) (*parentService.ChildGuardian, error) {
 	return nil, nil
 }
 
