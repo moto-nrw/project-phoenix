@@ -10,8 +10,8 @@
  * describes render cheaply and are packed together. All files share the identical mock header
  * below. When adding a heavy full-dashboard render test, keep it to its own small file.
  */
-
-import { describe, it, expect, vi } from "vitest";
+import { render, screen, waitFor, cleanup } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const navigationMockState = vi.hoisted(() => ({
   roomParam: null as string | null,
@@ -268,22 +268,192 @@ vi.mock("~/lib/swr", () => ({
   useTenantMutate: vi.fn(() => vi.fn()),
 }));
 
-import { spontaneousActivityWindow } from "./page";
+import { useSWRAuth } from "~/lib/swr";
+import MeinRaumPage from "./page";
 
-describe("spontaneousActivityWindow", () => {
-  it("builds a one-hour local window from the current clock time", () => {
-    expect(spontaneousActivityWindow(new Date(2026, 4, 12, 9, 5))).toEqual({
-      date: "2026-05-12",
-      startTime: "09:05",
-      endTime: "10:05",
+describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
+  const mockMutate = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    navigationMockState.roomParam = null;
+    global.fetch = vi.fn();
+    // Default mock: loading state
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: null,
+      isLoading: true,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("labels unplanned rows as participants for spontaneous rosters", async () => {
+    const dashboardData = {
+      supervisedGroups: [
+        { id: "1", name: "Aula", room: { id: "10", name: "Aula" } },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "1" },
+      educationalGroups: [],
+      firstRoomVisits: [],
+      firstRoomId: "10",
+    };
+
+    vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => {
+      if (key?.startsWith("active-supervision-dashboard")) {
+        return {
+          data: dashboardData,
+          isLoading: false,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        };
+      }
+
+      if (key?.startsWith("timetable-roster-active-group")) {
+        return {
+          data: {
+            instance: {
+              id: "99",
+              title: "Malen",
+              activeGroupId: "1",
+              isSpontaneous: true,
+            },
+            rows: [
+              {
+                studentId: "104",
+                studentName: "Jan Peters",
+                schoolClass: "2a",
+                groupName: "Sonnengruppe",
+                planned: false,
+                isUnplanned: true,
+                currentlyPresent: true,
+                visitId: "visit-104",
+                status: "present",
+                substatus: null,
+                note: null,
+              },
+            ],
+          },
+          isLoading: false,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        };
+      }
+
+      return {
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      };
+    }) as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Malen")).toBeInTheDocument();
+      expect(screen.getByText("Aktiv")).toBeInTheDocument();
+      expect(screen.getByText("Teilnehmende (1)")).toBeInTheDocument();
+      expect(screen.getByText("2a · Sonnengruppe")).toBeInTheDocument();
+      expect(screen.queryByText("Ungeplant (1)")).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("2a · Sonnengruppe · ungeplant"),
+      ).not.toBeInTheDocument();
     });
   });
 
-  it("caps late starts and ends inside the same day", () => {
-    expect(spontaneousActivityWindow(new Date(2026, 4, 12, 23, 45))).toEqual({
-      date: "2026-05-12",
-      startTime: "23:30",
-      endTime: "23:59",
+  it("does not flash first-room students while a direct room URL is syncing", async () => {
+    navigationMockState.roomParam = "11";
+    const { activeService } = await import("~/lib/active-api");
+    vi.mocked(activeService.getActiveGroupVisitsWithDisplay).mockReturnValue(
+      new Promise(() => undefined) as never,
+    );
+    const dashboardData = {
+      supervisedGroups: [
+        {
+          id: "1",
+          name: "Raum 101",
+          room_id: "10",
+          room: { id: "10", name: "Raum 101" },
+        },
+        {
+          id: "2",
+          name: "Raum 102",
+          room_id: "11",
+          room: { id: "11", name: "Raum 102" },
+        },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "1" },
+      educationalGroups: [],
+      firstRoomVisits: [
+        {
+          studentId: "100",
+          studentName: "Max Mustermann",
+          schoolClass: "1a",
+          groupName: "OGS Gruppe A",
+          activeGroupId: "1",
+          checkInTime: new Date().toISOString(),
+          isActive: true,
+        },
+      ],
+      firstRoomId: "10",
+    };
+
+    vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => {
+      if (key?.startsWith("active-supervision-dashboard")) {
+        return {
+          data: dashboardData,
+          isLoading: false,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        };
+      }
+
+      return {
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      };
+    }) as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(
+        activeService.getActiveGroupVisitsWithDisplay,
+      ).toHaveBeenCalledWith("2");
+      expect(screen.queryByTestId("student-card")).not.toBeInTheDocument();
+      expect(screen.queryByText("Max Mustermann")).not.toBeInTheDocument();
+    });
+  });
+
+  it("handles permission errors gracefully", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: null,
+      isLoading: false,
+      error: new Error("BFF request failed: 403"),
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Keine aktive Raum-Aufsicht"),
+      ).toBeInTheDocument();
     });
   });
 });

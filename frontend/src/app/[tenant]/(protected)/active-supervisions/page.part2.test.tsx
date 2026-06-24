@@ -10,8 +10,8 @@
  * describes render cheaply and are packed together. All files share the identical mock header
  * below. When adding a heavy full-dashboard render test, keep it to its own small file.
  */
-
-import { describe, it, expect, vi } from "vitest";
+import { render, screen, cleanup } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const navigationMockState = vi.hoisted(() => ({
   roomParam: null as string | null,
@@ -268,22 +268,45 @@ vi.mock("~/lib/swr", () => ({
   useTenantMutate: vi.fn(() => vi.fn()),
 }));
 
-import { spontaneousActivityWindow } from "./page";
+import { useSWRAuth } from "~/lib/swr";
+import MeinRaumPage from "./page";
 
-describe("spontaneousActivityWindow", () => {
-  it("builds a one-hour local window from the current clock time", () => {
-    expect(spontaneousActivityWindow(new Date(2026, 4, 12, 9, 5))).toEqual({
-      date: "2026-05-12",
-      startTime: "09:05",
-      endTime: "10:05",
-    });
+describe("MeinRaumPage (Active Supervisions) (1/5)", () => {
+  const mockMutate = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    navigationMockState.roomParam = null;
+    global.fetch = vi.fn();
+    // Default mock: loading state
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: null,
+      isLoading: true,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
   });
 
-  it("caps late starts and ends inside the same day", () => {
-    expect(spontaneousActivityWindow(new Date(2026, 4, 12, 23, 45))).toEqual({
-      date: "2026-05-12",
-      startTime: "23:30",
-      endTime: "23:59",
-    });
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("shows loading state initially", async () => {
+    render(<MeinRaumPage />);
+
+    expect(screen.getByTestId("loading")).toBeInTheDocument();
+  });
+
+  it("renders with SSE error boundary wrapper", () => {
+    render(<MeinRaumPage />);
+
+    expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
+  });
+
+  it("renders within responsive layout", async () => {
+    render(<MeinRaumPage />);
+
+    expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
   });
 });

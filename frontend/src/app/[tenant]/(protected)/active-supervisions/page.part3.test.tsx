@@ -10,8 +10,8 @@
  * describes render cheaply and are packed together. All files share the identical mock header
  * below. When adding a heavy full-dashboard render test, keep it to its own small file.
  */
-
-import { describe, it, expect, vi } from "vitest";
+import { render, screen, waitFor, cleanup } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const navigationMockState = vi.hoisted(() => ({
   roomParam: null as string | null,
@@ -268,22 +268,133 @@ vi.mock("~/lib/swr", () => ({
   useTenantMutate: vi.fn(() => vi.fn()),
 }));
 
-import { spontaneousActivityWindow } from "./page";
+import { useSWRAuth } from "~/lib/swr";
+import MeinRaumPage from "./page";
 
-describe("spontaneousActivityWindow", () => {
-  it("builds a one-hour local window from the current clock time", () => {
-    expect(spontaneousActivityWindow(new Date(2026, 4, 12, 9, 5))).toEqual({
-      date: "2026-05-12",
-      startTime: "09:05",
-      endTime: "10:05",
+describe("MeinRaumPage (Active Supervisions) (2/5)", () => {
+  const mockMutate = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    navigationMockState.roomParam = null;
+    global.fetch = vi.fn();
+    // Default mock: loading state
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: null,
+      isLoading: true,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("keeps a sick checked-in room student out of the overdue pickup row", async () => {
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: {
+          supervisedGroups: [
+            {
+              id: "g1",
+              name: "OGS",
+              room_id: "r1",
+              room: { id: "r1", name: "Raum A" },
+            },
+          ],
+          unclaimedGroups: [],
+          currentStaff: { id: "staff-1" },
+          educationalGroups: [
+            { id: "eg1", name: "OGS", room: { name: "Raum A" } },
+          ],
+          firstRoomVisits: [
+            {
+              studentId: "s1",
+              studentName: "Kerstin Krank",
+              schoolClass: "1a",
+              groupName: "OGS",
+              activeGroupId: "g1",
+              checkInTime: "2026-01-15T08:05:00.000Z",
+              actualArrivalTime: "08:05",
+              actualPickupTime: undefined,
+              isActive: true,
+              sick: true,
+            },
+          ],
+          firstRoomId: "r1",
+          schulhofStatus: null,
+          plannedNow: [],
+        },
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue({
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Kommt heute nicht (krank gemeldet)"),
+      ).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("pickup-time-row")).not.toBeInTheDocument();
+  });
+
+  it("shows no access state when user has no active supervision", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: {
+        supervisedGroups: [],
+        unclaimedGroups: [],
+        currentStaff: { id: "1" },
+        educationalGroups: [],
+        firstRoomVisits: [],
+        firstRoomId: null,
+      },
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Keine aktive Raum-Aufsicht"),
+      ).toBeInTheDocument();
     });
   });
 
-  it("caps late starts and ends inside the same day", () => {
-    expect(spontaneousActivityWindow(new Date(2026, 4, 12, 23, 45))).toEqual({
-      date: "2026-05-12",
-      startTime: "23:30",
-      endTime: "23:59",
+  it("shows unclaimed rooms component when user has groups to claim", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: {
+        supervisedGroups: [],
+        unclaimedGroups: [{ id: "1", name: "Schulhof" }],
+        currentStaff: { id: "1" },
+        educationalGroups: [],
+        firstRoomVisits: [],
+        firstRoomId: null,
+      },
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("unclaimed-rooms")).toBeInTheDocument();
     });
   });
 });

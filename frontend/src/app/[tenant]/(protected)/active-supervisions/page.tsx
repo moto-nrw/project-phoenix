@@ -351,13 +351,21 @@ function MeinRaumPageContent() {
   // or because the sidebar navigated with the room's actual ID (not "schulhof")
   const isSchulhofActive =
     isSchulhofTabSelected || currentRoom?.room_name === SCHULHOF_ROOM_NAME;
-  const occupiedRoomIds = useMemo(
-    () =>
-      allRooms
-        .map((room) => room.room_id)
-        .filter((roomId): roomId is string => Boolean(roomId)),
-    [allRooms],
-  );
+  const occupiedRoomIds = useMemo(() => {
+    const ids = allRooms
+      .map((room) => room.room_id)
+      .filter((roomId): roomId is string => Boolean(roomId));
+    // Schulhof is tracked separately from allRooms, so add its room id here —
+    // otherwise the spontaneous-activity modal treats an occupied Schulhof as
+    // free, preselects it, and the backend rejects it as already occupied.
+    // Only mark it occupied when a session is actually running (activeGroupId
+    // set); a merely configured-but-idle Schulhof is free, and the backend
+    // conflict check only rejects an active group — gating here keeps a
+    // Schulhof-only school from seeing its only room disabled.
+    if (schulhofStatus?.activeGroupId && schulhofStatus.roomId)
+      ids.push(schulhofStatus.roomId);
+    return ids;
+  }, [allRooms, schulhofStatus?.activeGroupId, schulhofStatus?.roomId]);
 
   // Set breadcrumb so header shows current room name
   useSetBreadcrumb({
@@ -1438,7 +1446,6 @@ function MeinRaumPageContent() {
     <SpontaneousActivityStart
       currentStaffId={currentStaffId}
       defaultRoomId={currentRoom?.room_id}
-      disabled={isSchulhofActive}
       isStarting={isStartingSpontaneous}
       occupiedRoomIds={occupiedRoomIds}
       onStart={(payload) => void handleStartSpontaneousActivity(payload)}
