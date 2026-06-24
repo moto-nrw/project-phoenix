@@ -326,45 +326,53 @@ describe("MeinRaumPage (Active Supervisions) (3/5)", () => {
     // other active group could never open the modal — a dead end. The button
     // must stay enabled. An occupied Schulhof (activeGroupId set) is handled
     // inside the modal's room dropdown, not by disabling the trigger.
-    vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => {
-      if (key?.startsWith("active-supervision-dashboard")) {
-        return {
-          data: {
-            supervisedGroups: [],
-            unclaimedGroups: [],
-            currentStaff: { id: "staff-1" },
-            educationalGroups: [],
-            firstRoomVisits: [],
-            firstRoomId: null,
-            capabilities: { webSpontaneousActivitiesEnabled: true },
-            schulhofStatus: {
-              exists: true,
-              roomId: "10",
-              roomName: "Schulhof",
-              activityGroupId: null,
-              activeGroupId: "55", // a group is running -> Schulhof is occupied
-              isUserSupervising: false,
-              supervisionId: null,
-              supervisorCount: 1,
-              studentCount: 3,
-              supervisors: [],
-            },
-            plannedNow: [],
-          },
-          isLoading: false,
-          error: null,
-          mutate: mockMutate,
-          isValidating: false,
-        };
-      }
-      return {
-        data: null,
-        isLoading: false,
-        error: null,
-        mutate: mockMutate,
-        isValidating: false,
-      };
-    }) as never);
+    //
+    // The two return values are hoisted to stable consts so the mock yields the
+    // SAME object reference on every call, exactly as real SWR does. Returning a
+    // fresh object literal per call (e.g. inside the arrow body) gives the
+    // dashboard data a new identity each render, which retriggers the page's
+    // data-dependent effects -> infinite render loop -> act() never settles ->
+    // unbounded allocation (OOMs the Vitest worker under coverage). Keep these
+    // references stable.
+    const dashboardResult = {
+      data: {
+        supervisedGroups: [],
+        unclaimedGroups: [],
+        currentStaff: { id: "staff-1" },
+        educationalGroups: [],
+        firstRoomVisits: [],
+        firstRoomId: null,
+        capabilities: { webSpontaneousActivitiesEnabled: true },
+        schulhofStatus: {
+          exists: true,
+          roomId: "10",
+          roomName: "Schulhof",
+          activityGroupId: null,
+          activeGroupId: "55", // a group is running -> Schulhof is occupied
+          isUserSupervising: false,
+          supervisionId: null,
+          supervisorCount: 1,
+          studentCount: 3,
+          supervisors: [],
+        },
+        plannedNow: [],
+      },
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    };
+    const emptyResult = {
+      data: null,
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    };
+    vi.mocked(useSWRAuth).mockImplementation(((key: string | null) =>
+      key?.startsWith("active-supervision-dashboard")
+        ? dashboardResult
+        : emptyResult) as never);
 
     render(<MeinRaumPage />);
 
