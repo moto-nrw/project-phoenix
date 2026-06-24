@@ -1095,6 +1095,31 @@ func TestStartBreak_Success(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
+func TestStartBreak_WithPlannedDuration(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	wsSvc := &mockWorkSessionService{
+		startBreakFn: func(_ context.Context, staffID int64, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error) {
+			assert.Equal(t, int64(100), staffID)
+			require.NotNil(t, plannedDurationMinutes)
+			assert.Equal(t, 90, *plannedDurationMinutes)
+			return &activeModels.WorkSessionBreak{}, nil
+		},
+	}
+	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
+
+	durationMinutes := 90
+	body, err := json.Marshal(StartBreakRequest{PlannedDurationMinutes: &durationMinutes})
+	require.NoError(t, err)
+	r := httptest.NewRequest(http.MethodPost, "/break/start", bytes.NewReader(body))
+	r = withClaims(r, validClaims())
+	w := httptest.NewRecorder()
+
+	rs.startBreak(w, r)
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
 func TestStartBreak_AlreadyActive(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

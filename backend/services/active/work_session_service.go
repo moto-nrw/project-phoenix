@@ -25,9 +25,10 @@ import (
 
 // Error message constants to avoid duplication
 const (
-	errNoActiveSession    = "no active session found"
-	errGetCurrentSession  = "failed to get current session: %w"
-	errInvalidSessionData = "invalid session data: %w"
+	errNoActiveSession             = "no active session found"
+	errGetCurrentSession           = "failed to get current session: %w"
+	errInvalidSessionData          = "invalid session data: %w"
+	maxPlannedBreakDurationMinutes = 240
 )
 
 // BreakDurationUpdate represents an update to a single break's duration
@@ -391,7 +392,7 @@ func (s *workSessionService) endActiveSupervisionsOnCheckout(ctx context.Context
 }
 
 // StartBreak starts a new break for the current session
-// If plannedDurationMinutes is provided (1-120), sets planned_end_time for auto-end
+// If plannedDurationMinutes is provided (1-240), sets planned_end_time for auto-end
 func (s *workSessionService) StartBreak(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error) {
 	// Get today's active session
 	session, err := s.repo.GetCurrentByStaffID(ctx, staffID)
@@ -416,8 +417,8 @@ func (s *workSessionService) StartBreak(ctx context.Context, staffID int64, plan
 
 	// Validate plannedDurationMinutes if provided
 	if plannedDurationMinutes != nil {
-		if *plannedDurationMinutes < 1 || *plannedDurationMinutes > 120 {
-			return nil, errors.New("planned_duration_minutes must be between 1 and 120")
+		if *plannedDurationMinutes < 1 || *plannedDurationMinutes > maxPlannedBreakDurationMinutes {
+			return nil, fmt.Errorf("planned_duration_minutes must be between 1 and %d", maxPlannedBreakDurationMinutes)
 		}
 	}
 

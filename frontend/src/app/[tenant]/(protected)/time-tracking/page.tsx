@@ -204,6 +204,7 @@ function formatTimeFromDate(date: Date): string {
 }
 
 const BREAK_OPTIONS = [15, 30, 45, 60] as const;
+const MAX_CUSTOM_BREAK_MINUTES = 240;
 
 // Session status type (only present or home_office - no absent for active sessions)
 type SessionStatus = "present" | "home_office";
@@ -409,6 +410,7 @@ function renderTimerContent(
   isOnBreak: boolean,
   countdownRemainingSecs: number | null,
   plannedBreakDurationMins: number | null,
+  plannedBreakEndsAt: string | null,
   activeBreakElapsedSecs: number,
   displayMinutes: number,
   breakWarning: string | null,
@@ -426,6 +428,11 @@ function renderTimerContent(
         </span>
         <span className="mt-0.5 text-xs font-medium text-amber-500">
           Pause ({plannedBreakDurationMins} Min)
+        </span>
+        <span className="mt-0.5 text-center text-xs font-medium text-amber-600">
+          {plannedBreakEndsAt
+            ? `Automatisch weiter um ${formatTime(plannedBreakEndsAt)}`
+            : "Automatisch weiter nach der Pause"}
         </span>
       </>
     );
@@ -489,6 +496,7 @@ function ClockInCard({
   const [plannedBreakMinutes, setPlannedBreakMinutes] = useState<number | null>(
     null,
   );
+  const [customBreakMinutes, setCustomBreakMinutes] = useState("");
   // Mutex to prevent race condition in auto-end break effect
   const autoEndInFlightRef = useRef(false);
 
@@ -617,12 +625,25 @@ function ClockInCard({
   const handleSelectBreakDuration = async (minutes: number) => {
     setBreakMenuOpen(false);
     setPlannedBreakMinutes(minutes);
+    setCustomBreakMinutes("");
     setActionLoading(true);
     try {
       await onStartBreak(minutes);
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const parsedCustomBreakMinutes = Number(customBreakMinutes);
+  const customBreakMinutesValid =
+    Number.isInteger(parsedCustomBreakMinutes) &&
+    parsedCustomBreakMinutes >= 1 &&
+    parsedCustomBreakMinutes <= MAX_CUSTOM_BREAK_MINUTES;
+
+  const handleCustomBreakSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!customBreakMinutesValid) return;
+    void handleSelectBreakDuration(parsedCustomBreakMinutes);
   };
 
   const handleEndBreakEarly = async () => {
@@ -782,17 +803,51 @@ function ClockInCard({
                           setBreakMenuOpen(false);
                       }}
                     />
-                    <div className="absolute top-full left-0 z-20 mt-2 flex gap-1.5 rounded-xl border border-gray-200 bg-white p-2 shadow-lg">
-                      {BREAK_OPTIONS.map((mins) => (
+                    <div className="absolute top-full left-0 z-20 mt-2 w-64 rounded-xl border border-gray-200 bg-white p-2 shadow-lg">
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {BREAK_OPTIONS.map((mins) => (
+                          <button
+                            key={mins}
+                            onClick={() => handleSelectBreakDuration(mins)}
+                            disabled={actionLoading}
+                            className="rounded-lg bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-700 transition-all hover:bg-amber-100 active:scale-95 disabled:opacity-50"
+                          >
+                            {mins}m
+                          </button>
+                        ))}
+                      </div>
+                      <form
+                        className="mt-2 flex items-center gap-2 border-t border-gray-100 pt-2"
+                        onSubmit={handleCustomBreakSubmit}
+                      >
+                        <label className="sr-only" htmlFor="custom-break-mins">
+                          Eigene Pausenlänge in Minuten
+                        </label>
+                        <input
+                          id="custom-break-mins"
+                          type="number"
+                          min={1}
+                          max={MAX_CUSTOM_BREAK_MINUTES}
+                          step={5}
+                          inputMode="numeric"
+                          value={customBreakMinutes}
+                          onChange={(event) =>
+                            setCustomBreakMinutes(event.target.value)
+                          }
+                          placeholder="90"
+                          className="h-9 min-w-0 flex-1 rounded-lg border border-gray-200 px-2 text-sm text-gray-900 tabular-nums placeholder:text-gray-400 focus:border-amber-300 focus:ring-2 focus:ring-amber-100 focus:outline-none"
+                        />
+                        <span className="text-sm font-medium text-gray-500">
+                          min
+                        </span>
                         <button
-                          key={mins}
-                          onClick={() => handleSelectBreakDuration(mins)}
-                          disabled={actionLoading}
-                          className="rounded-lg bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-700 transition-all hover:bg-amber-100 active:scale-95 disabled:opacity-50"
+                          type="submit"
+                          disabled={actionLoading || !customBreakMinutesValid}
+                          className="h-9 rounded-lg bg-amber-500 px-3 text-sm font-medium text-white transition-all hover:bg-amber-600 active:scale-95 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400"
                         >
-                          {mins}m
+                          Starten
                         </button>
-                      ))}
+                      </form>
                     </div>
                   </>
                 )}
@@ -804,6 +859,7 @@ function ClockInCard({
                   isOnBreak,
                   countdownRemainingSecs,
                   plannedBreakDurationMins,
+                  activeBreak?.plannedEndTime ?? null,
                   activeBreakElapsedSecs,
                   displayMinutes,
                   breakWarning,

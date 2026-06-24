@@ -902,6 +902,31 @@ describe("TimeTrackingPage", () => {
       });
     });
 
+    it("starts a custom 90 minute break", async () => {
+      setupDefaultMocks({ currentSession: mockActiveSession });
+      vi.mocked(timeTrackingService.startBreak).mockResolvedValue({
+        id: "50",
+        sessionId: "100",
+        startedAt: new Date().toISOString(),
+        endedAt: null,
+        durationMinutes: 0,
+        plannedEndTime: null,
+      });
+      render(<TimeTrackingPage />);
+      fireEvent.click(screen.getByLabelText("Pause starten"));
+      fireEvent.change(screen.getByLabelText("Eigene Pausenlänge in Minuten"), {
+        target: { value: "90" },
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Starten" }));
+      });
+
+      await waitFor(() => {
+        expect(timeTrackingService.startBreak).toHaveBeenCalledWith(90);
+      });
+    });
+
     it("shows Pause beenden button when on break", async () => {
       setupDefaultMocks({ currentSession: mockActiveSession });
       // Mock breaks to include an active break
@@ -919,6 +944,27 @@ describe("TimeTrackingPage", () => {
       // Need to wait for breaks to load
       await waitFor(() => {
         expect(screen.getByLabelText("Pause beenden")).toBeInTheDocument();
+      });
+    });
+
+    it("communicates automatic resume time for timed breaks", async () => {
+      const breakStart = new Date(Date.now() - 60 * 60 * 1000);
+      const plannedEnd = new Date(Date.now() + 30 * 60 * 1000);
+      setupDefaultMocks({ currentSession: mockActiveSession });
+      vi.mocked(timeTrackingService.getSessionBreaks).mockResolvedValue([
+        {
+          id: "50",
+          sessionId: "100",
+          startedAt: breakStart.toISOString(),
+          endedAt: null,
+          durationMinutes: 0,
+          plannedEndTime: plannedEnd.toISOString(),
+        },
+      ]);
+      render(<TimeTrackingPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Automatisch weiter um/)).toBeInTheDocument();
       });
     });
 

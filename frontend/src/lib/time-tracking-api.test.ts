@@ -338,6 +338,24 @@ describe("TimeTrackingService", () => {
       expect(result.sessionId).toBe("1");
       expect(result.endedAt).toBeNull();
     });
+
+    it("sends planned duration for timed breaks", async () => {
+      global.fetch = mockFetchResponse({
+        success: true,
+        message: "Break started",
+        data: { ...backendBreak, ended_at: null, duration_minutes: 0 },
+      });
+
+      await timeTrackingService.startBreak(90);
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/time-tracking/break/start",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ planned_duration_minutes: 90 }),
+        }),
+      );
+    });
   });
 
   describe("endBreak", () => {

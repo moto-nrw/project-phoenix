@@ -1081,6 +1081,60 @@ func TestWSStartBreak_Success(t *testing.T) {
 	assert.Equal(t, int64(50), brk.SessionID)
 }
 
+func TestWSStartBreak_CustomDurationSetsPlannedEnd(t *testing.T) {
+	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
+	staffID := int64(100)
+	durationMinutes := 90
+
+	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
+		return &activeModels.WorkSession{
+			Model:       base.Model{ID: 50},
+			StaffID:     staffID,
+			CheckInTime: time.Now().Add(-2 * time.Hour),
+		}, nil
+	}
+
+	breakRepo.getActiveBySessionIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSessionBreak, error) {
+		return nil, nil
+	}
+
+	breakRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSessionBreak) error {
+		require.NotNil(t, entity.PlannedEndTime)
+		plannedDuration := entity.PlannedEndTime.Sub(entity.StartedAt)
+		assert.InDelta(t, durationMinutes, plannedDuration.Minutes(), 0.1)
+		entity.ID = 10
+		return nil
+	}
+
+	brk, err := svc.StartBreak(context.Background(), staffID, &durationMinutes)
+	require.NoError(t, err)
+	require.NotNil(t, brk)
+	assert.Equal(t, int64(50), brk.SessionID)
+	assert.NotNil(t, brk.PlannedEndTime)
+}
+
+func TestWSStartBreak_RejectsCustomDurationAboveLimit(t *testing.T) {
+	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
+	durationMinutes := 241
+
+	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
+		return &activeModels.WorkSession{
+			Model:       base.Model{ID: 50},
+			StaffID:     100,
+			CheckInTime: time.Now().Add(-2 * time.Hour),
+		}, nil
+	}
+
+	breakRepo.getActiveBySessionIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSessionBreak, error) {
+		return nil, nil
+	}
+
+	brk, err := svc.StartBreak(context.Background(), 100, &durationMinutes)
+	require.Error(t, err)
+	assert.Nil(t, brk)
+	assert.Contains(t, err.Error(), "planned_duration_minutes must be between 1 and 240")
+}
+
 func TestWSStartBreak_NoActiveSession(t *testing.T) {
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 
