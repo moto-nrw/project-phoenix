@@ -287,13 +287,24 @@ func TestColumnCatalogExcludesRoomAndInternalIdentifier(t *testing.T) {
 	}
 }
 
+func TestColumnCatalogIncludesDailyStatus(t *testing.T) {
+	catalog := ColumnCatalog()
+	column, ok := catalog[ColumnDailyStatus]
+	if !ok {
+		t.Fatal("column catalog missing daily_status")
+	}
+	if column.Label != "Tagesstatus" {
+		t.Fatalf("daily_status label = %q, want Tagesstatus", column.Label)
+	}
+}
+
 func TestDefaultColumnsForPreset(t *testing.T) {
 	tests := []struct {
 		preset Preset
 		want   []ColumnID
 	}{
 		{PresetOGSCompact, []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnCareDays, ColumnDeparture, ColumnPlannedPickup}},
-		{PresetDailyPlanning, []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnPlannedArrival, ColumnPlannedPickup, ColumnDailyNotes}},
+		{PresetDailyPlanning, []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnDailyStatus, ColumnPlannedArrival, ColumnPlannedPickup, ColumnDailyNotes}},
 		{PresetAttendanceSnapshot, []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnCurrentLocation, ColumnPlannedPickup}},
 		{PresetPickupList, []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnDeparture, ColumnPlannedPickup, ColumnDailyNotes}},
 		{PresetBlankChecklist, []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup}},

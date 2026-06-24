@@ -46,7 +46,7 @@ func DefaultColumnsForPreset(preset Preset) []ColumnID {
 	case PresetOGSCompact:
 		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnCareDays, ColumnDeparture, ColumnPlannedPickup}
 	case PresetDailyPlanning:
-		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnPlannedArrival, ColumnPlannedPickup, ColumnDailyNotes}
+		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnDailyStatus, ColumnPlannedArrival, ColumnPlannedPickup, ColumnDailyNotes}
 	case PresetAttendanceSnapshot:
 		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnCurrentLocation, ColumnPlannedPickup}
 	case PresetPickupList:
@@ -71,6 +71,7 @@ func ColumnCatalog() map[ColumnID]Column {
 		ColumnWeeklyFriday:    {ID: ColumnWeeklyFriday, Label: "Freitag"},
 		ColumnPlannedArrival:  {ID: ColumnPlannedArrival, Label: "Geplante Ankunft"},
 		ColumnPlannedPickup:   {ID: ColumnPlannedPickup, Label: "Geplante Abholung"},
+		ColumnDailyStatus:     {ID: ColumnDailyStatus, Label: "Tagesstatus"},
 		ColumnDeparture:       {ID: ColumnDeparture, Label: "Geh-/Abholweise"},
 		ColumnDailyNotes:      {ID: ColumnDailyNotes, Label: "Tageshinweise"},
 		ColumnCurrentLocation: {ID: ColumnCurrentLocation, Label: "Aktueller Aufenthaltsort"},

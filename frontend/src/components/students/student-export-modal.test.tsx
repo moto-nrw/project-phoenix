@@ -89,7 +89,8 @@ describe("StudentExportModal", () => {
     await waitFor(() => {
       expect(screen.getByLabelText("Titel")).toHaveValue("Tagesliste");
     });
-    expect(screen.getByText("6 aktiv")).toBeInTheDocument();
+    expect(screen.getByText("7 aktiv")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /Tagesstatus/ })).toBeChecked();
     expect(
       screen.getByRole("checkbox", { name: /Tageshinweise/ }),
     ).toBeChecked();
