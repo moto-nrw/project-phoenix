@@ -64,6 +64,110 @@ func TestMasterDataReview_ApproveAppliesNameChange(t *testing.T) {
 	assert.Equal(t, "Maximilian", person.FirstName)
 }
 
+func TestMasterDataReview_ApproveAppliesOtherPersonFields(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() {
+		require.NoError(t, db.Close())
+	}()
+	repos := repositories.NewFactory(db)
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	lastName := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "last_name", `"Schneider"`, `"Müller"`)
+	birthday := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "birthday", `"2018-03-04"`, `"2017-12-24"`)
+
+	err := tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if _, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: lastName.ID, Approve: true}); e != nil {
+			return e
+		}
+		_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: birthday.ID, Approve: true})
+		return e
+	})
+	require.NoError(t, err)
+
+	person, err := repos.Person.FindByID(context.Background(), chain.PersonID)
+	require.NoError(t, err)
+	assert.Equal(t, "Müller", person.LastName)
+	require.NotNil(t, person.Birthday)
+	assert.Equal(t, "2017-12-24", person.Birthday.String())
+}
+
+func TestMasterDataReview_ListPendingEnrichesStudentNames(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() {
+		require.NoError(t, db.Close())
+	}()
+	repos := repositories.NewFactory(db)
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil)
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Maximilian"`)
+	insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "last_name", `"Schneider"`, `"Müller"`)
+
+	var items []*userService.MasterDataReviewItem
+	err := tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		var e error
+		items, e = svc.ListPending(txCtx)
+		return e
+	})
+	require.NoError(t, err)
+	require.Len(t, items, 2)
+	for _, item := range items {
+		assert.Equal(t, "Felix", item.FirstName)
+		assert.Equal(t, "Schneider", item.LastName)
+		assert.Equal(t, chain.StudentID, item.Request.StudentID)
+	}
+}
+
+func TestMasterDataReview_ListPendingEmptyAndInvalidRequestID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() {
+		require.NoError(t, db.Close())
+	}()
+	repos := repositories.NewFactory(db)
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	err := tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		items, e := svc.ListPending(txCtx)
+		require.NoError(t, e)
+		assert.Empty(t, items)
+
+		_, e = svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: 0, Approve: true})
+		return e
+	})
+	assert.ErrorIs(t, err, userService.ErrReviewNotFound)
+}
+
+func TestMasterDataReview_ApproveAppliesDepartureModes(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() {
+		require.NoError(t, db.Close())
+	}()
+	repos := repositories.NewFactory(db)
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetDeparture, "allowed_departure_modes", `{}`, `{"mon":["bus"],"wed":["pickup"]}`)
+
+	err := tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true, ReviewedBy: chain.AccountID})
+		return e
+	})
+	require.NoError(t, err)
+
+	student, err := repos.Student.FindByID(context.Background(), chain.StudentID)
+	require.NoError(t, err)
+	assert.Equal(t, []userModels.DepartureMode{userModels.DepartureBus}, student.AllowedDepartureModes[userModels.PickupDayMonday])
+	assert.Equal(t, []userModels.DepartureMode{userModels.DeparturePickup}, student.AllowedDepartureModes[userModels.PickupDayWednesday])
+}
+
 func TestMasterDataReview_RejectLeavesRecordUnchanged(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() {
@@ -113,4 +217,41 @@ func TestMasterDataReview_DecideNonPendingRejected(t *testing.T) {
 		return e
 	})
 	assert.ErrorIs(t, err, userService.ErrReviewNotPending)
+}
+
+func TestMasterDataReview_ApproveInvalidRowsRejected(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() {
+		require.NoError(t, db.Close())
+	}()
+	repos := repositories.NewFactory(db)
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	tests := []struct {
+		name   string
+		target string
+		field  string
+		value  string
+		want   error
+	}{
+		{name: "invalid target", target: userModels.DataChangeTargetStudent, field: "health_info", value: `"x"`, want: userService.ErrReviewInvalidTarget},
+		{name: "invalid person value", target: userModels.DataChangeTargetPerson, field: "first_name", value: `123`, want: userService.ErrReviewInvalidValue},
+		{name: "invalid birthday", target: userModels.DataChangeTargetPerson, field: "birthday", value: `"bad-date"`, want: userService.ErrReviewInvalidValue},
+		{name: "invalid departure field", target: userModels.DataChangeTargetDeparture, field: "pickup_status", value: `{}`, want: userService.ErrReviewInvalidTarget},
+		{name: "invalid departure value", target: userModels.DataChangeTargetDeparture, field: "allowed_departure_modes", value: `123`, want: userService.ErrReviewInvalidValue},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			row := insertPendingChange(t, db, repos, chain, tt.target, tt.field, `null`, tt.value)
+			err := tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+				_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true})
+				return e
+			})
+			assert.ErrorIs(t, err, tt.want)
+		})
+	}
 }

@@ -54,6 +54,30 @@ func TestSubmitMasterDataChangeRequest_CreatesPending(t *testing.T) {
 	assert.Equal(t, "Felix", person.FirstName)
 }
 
+func TestSubmitMasterDataChangeRequest_DepartureAndListRequests(t *testing.T) {
+	svc, db := buildRequestService(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	rows, err := svc.SubmitMasterDataChangeRequest(context.Background(), chain.AccountID, chain.StudentID, []parentService.MasterDataFieldChange{
+		{
+			Target:   usersModels.DataChangeTargetDeparture,
+			FieldKey: "allowed_departure_modes",
+			Value:    json.RawMessage(`{"mon":["pickup"],"wed":["bus"]}`),
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, usersModels.DataChangeTargetDeparture, rows[0].Target)
+	assert.Equal(t, "allowed_departure_modes", rows[0].FieldKey)
+	assert.JSONEq(t, `{"mon":["pickup"],"wed":["bus"]}`, string(rows[0].NewValue))
+
+	listed, err := svc.ListMyMasterDataRequests(context.Background(), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	require.Len(t, listed, 1)
+	assert.Equal(t, rows[0].ID, listed[0].ID)
+}
+
 func TestSubmitMasterDataChangeRequest_DuplicatePending(t *testing.T) {
 	svc, db := buildRequestService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -79,4 +103,28 @@ func TestSubmitMasterDataChangeRequest_NoChange(t *testing.T) {
 		{Target: usersModels.DataChangeTargetPerson, FieldKey: "first_name", Value: json.RawMessage(`"Felix"`)},
 	})
 	assert.ErrorIs(t, err, parentService.ErrMasterDataNoChanges)
+}
+
+func TestSubmitMasterDataChangeRequest_InvalidInputs(t *testing.T) {
+	svc, db := buildRequestService(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	_, err := svc.SubmitMasterDataChangeRequest(context.Background(), chain.AccountID, chain.StudentID, nil)
+	assert.ErrorIs(t, err, parentService.ErrMasterDataNoChanges)
+
+	_, err = svc.SubmitMasterDataChangeRequest(context.Background(), chain.AccountID, chain.StudentID, []parentService.MasterDataFieldChange{
+		{Target: usersModels.DataChangeTargetStudent, FieldKey: "health_info", Value: json.RawMessage(`"x"`)},
+	})
+	assert.ErrorIs(t, err, parentService.ErrMasterDataFieldNotEditable)
+
+	_, err = svc.SubmitMasterDataChangeRequest(context.Background(), chain.AccountID, chain.StudentID, []parentService.MasterDataFieldChange{
+		{Target: usersModels.DataChangeTargetPerson, FieldKey: "birthday", Value: json.RawMessage(`"not-a-date"`)},
+	})
+	assert.ErrorIs(t, err, parentService.ErrMasterDataInvalidValue)
+
+	_, err = svc.SubmitMasterDataChangeRequest(context.Background(), chain.AccountID, chain.StudentID, []parentService.MasterDataFieldChange{
+		{Target: usersModels.DataChangeTargetDeparture, FieldKey: "allowed_departure_modes", Value: json.RawMessage(`{`)},
+	})
+	assert.ErrorIs(t, err, parentService.ErrMasterDataInvalidValue)
 }
