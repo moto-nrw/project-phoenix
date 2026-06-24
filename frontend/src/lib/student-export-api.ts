@@ -20,6 +20,7 @@ export type StudentExportColumn =
   | "weekly_friday"
   | "planned_arrival"
   | "planned_pickup"
+  | "daily_status"
   | "departure"
   | "daily_notes"
   | "current_location";
@@ -109,6 +110,13 @@ export const STUDENT_EXPORT_COLUMNS: StudentExportColumnOption[] = [
       "Geplante Abholung für den heutigen Tag, inklusive Tagesausnahmen.",
   },
   {
+    id: "daily_status",
+    label: "Tagesstatus",
+    group: "daily",
+    description:
+      "Ob das Kind heute erwartet wird oder als Krank, Entschuldigt bzw. Klassenfahrt markiert ist.",
+  },
+  {
     id: "departure",
     label: "Geh-/Abholweise",
     group: "base",
@@ -173,6 +181,7 @@ export const STUDENT_EXPORT_PRESETS: Array<{
       "name",
       "school_class",
       "group",
+      "daily_status",
       "planned_arrival",
       "planned_pickup",
       "daily_notes",

@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -294,6 +296,7 @@ func buildExportRows(students []StudentResponse, weekly map[int64]weeklySchedule
 			listexport.ColumnWeeklyWednesday: weeklyCell(plan, schedule.WeekdayWednesday),
 			listexport.ColumnWeeklyThursday:  weeklyCell(plan, schedule.WeekdayThursday),
 			listexport.ColumnWeeklyFriday:    weeklyCell(plan, schedule.WeekdayFriday),
+			listexport.ColumnDailyStatus:     dailyStatusExportCell(student),
 			listexport.ColumnPlannedArrival:  ptrValue(student.ArrivalTime),
 			listexport.ColumnPlannedPickup:   ptrValue(student.PickupTime),
 			listexport.ColumnDeparture:       departureExportCell(student),
@@ -302,6 +305,49 @@ func buildExportRows(students []StudentResponse, weekly map[int64]weeklySchedule
 		}})
 	}
 	return rows
+}
+
+func dailyStatusExportCell(student StudentResponse) string {
+	switch student.DayPlanningStatus {
+	case DayPlanningStatusComesToday:
+		return "Kommt heute"
+	case DayPlanningStatusNotComingToday:
+		switch student.DayPlanningReason {
+		case dayPlanningReasonSick:
+			return "Krank"
+		case dayPlanningReasonExcused:
+			return "Entschuldigt"
+		case dayPlanningReasonClassTrip:
+			return "Klassenfahrt"
+		}
+		if student.DayPlanningLabel != "" {
+			return sentenceCase(student.DayPlanningLabel)
+		}
+		return "Kommt heute nicht"
+	}
+
+	if student.Sick {
+		return "Krank"
+	}
+	if student.ClassTrip {
+		return "Klassenfahrt"
+	}
+	if student.Excused {
+		return "Entschuldigt"
+	}
+	return ""
+}
+
+func sentenceCase(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	r, size := utf8.DecodeRuneInString(value)
+	if r == utf8.RuneError && size == 0 {
+		return ""
+	}
+	return string(unicode.ToUpper(r)) + value[size:]
 }
 
 // departureExportCell renders the per-weekday departure plan and appends the
