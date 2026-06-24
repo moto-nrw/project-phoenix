@@ -10,8 +10,8 @@
  * describes render cheaply and are packed together. All files share the identical mock header
  * below. When adding a heavy full-dashboard render test, keep it to its own small file.
  */
-
-import { describe, it, expect, vi } from "vitest";
+import { render, screen, cleanup } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const navigationMockState = vi.hoisted(() => ({
   roomParam: null as string | null,
@@ -268,22 +268,124 @@ vi.mock("~/lib/swr", () => ({
   useTenantMutate: vi.fn(() => vi.fn()),
 }));
 
-import { spontaneousActivityWindow } from "./page";
+import { useSWRAuth } from "~/lib/swr";
+import MeinRaumPage from "./page";
 
-describe("spontaneousActivityWindow", () => {
-  it("builds a one-hour local window from the current clock time", () => {
-    expect(spontaneousActivityWindow(new Date(2026, 4, 12, 9, 5))).toEqual({
-      date: "2026-05-12",
-      startTime: "09:05",
-      endTime: "10:05",
-    });
+describe("MeinRaumPage (Active Supervisions) (3/5)", () => {
+  const mockMutate = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    navigationMockState.roomParam = null;
+    global.fetch = vi.fn();
+    // Default mock: loading state
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: null,
+      isLoading: true,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
   });
 
-  it("caps late starts and ends inside the same day", () => {
-    expect(spontaneousActivityWindow(new Date(2026, 4, 12, 23, 45))).toEqual({
-      date: "2026-05-12",
-      startTime: "23:30",
-      endTime: "23:59",
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("shows the spontaneous activity start banner when the capability is enabled", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: {
+        supervisedGroups: [],
+        unclaimedGroups: [],
+        currentStaff: { id: "1" },
+        educationalGroups: [],
+        firstRoomVisits: [],
+        firstRoomId: null,
+        capabilities: { webSpontaneousActivitiesEnabled: true },
+        plannedNow: [],
+      },
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<MeinRaumPage />);
+
+    expect(
+      await screen.findByRole("button", {
+        name: /Spontane Aktivität starten/,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the spontaneous-activity start button clickable in the Schulhof view (regression #1746 deadlock)", async () => {
+    // Without any supervised group, the Schulhof tab is auto-selected
+    // (allRooms is empty + a Schulhof exists). The start button used to be
+    // hard-disabled whenever the Schulhof view was active, so a user with no
+    // other active group could never open the modal — a dead end. The button
+    // must stay enabled. An occupied Schulhof (activeGroupId set) is handled
+    // inside the modal's room dropdown, not by disabling the trigger.
+    vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => {
+      if (key?.startsWith("active-supervision-dashboard")) {
+        return {
+          data: {
+            supervisedGroups: [],
+            unclaimedGroups: [],
+            currentStaff: { id: "staff-1" },
+            educationalGroups: [],
+            firstRoomVisits: [],
+            firstRoomId: null,
+            capabilities: { webSpontaneousActivitiesEnabled: true },
+            schulhofStatus: {
+              exists: true,
+              roomId: "10",
+              roomName: "Schulhof",
+              activityGroupId: null,
+              activeGroupId: "55", // a group is running -> Schulhof is occupied
+              isUserSupervising: false,
+              supervisionId: null,
+              supervisorCount: 1,
+              studentCount: 3,
+              supervisors: [],
+            },
+            plannedNow: [],
+          },
+          isLoading: false,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        };
+      }
+      return {
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      };
+    }) as never);
+
+    render(<MeinRaumPage />);
+
+    const startButton = await screen.findByRole("button", {
+      name: /Spontane Aktivität starten/,
     });
+    expect(startButton).toBeEnabled();
+  });
+
+  it("shows loading state when SWR is loading", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: null,
+      isLoading: true,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<MeinRaumPage />);
+
+    // Should show loading state while SWR is loading
+    expect(screen.getByTestId("loading")).toBeInTheDocument();
   });
 });

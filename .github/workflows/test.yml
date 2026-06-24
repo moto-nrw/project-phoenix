@@ -189,7 +189,7 @@ jobs:
 
   test-frontend:
     if: ${{ inputs.run-frontend }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     permissions:
       contents: read
 
@@ -218,11 +218,16 @@ jobs:
         working-directory: frontend
         env:
           BASE_REF: ${{ inputs.base_ref }}
+          # v8 coverage instruments every module; raise the V8 heap so a large
+          # single test file does not OOM the Node default (~4 GB).
+          NODE_OPTIONS: --max-old-space-size=8192
         run: pnpm vitest run --changed "origin/${BASE_REF}" --coverage
 
       - name: Run full frontend tests with coverage
         if: ${{ !inputs.is-pr || inputs.base_ref == '' }}
         working-directory: frontend
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
         run: pnpm run test:run --coverage
 
       - name: Upload frontend coverage
