@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	createStudentDataChangeRequestsVersion     = "1.15.138"
+	createStudentDataChangeRequestsVersion     = "1.15.147"
 	createStudentDataChangeRequestsDescription = "Create users.student_data_change_requests - parent Stammdaten direct-edit audit + change-request review"
 )
 
@@ -17,8 +17,9 @@ func init() {
 		Version:     createStudentDataChangeRequestsVersion,
 		Description: createStudentDataChangeRequestsDescription,
 		DependsOn: []string{
-			UsersStudentsVersion, // student_id FK target
-			"1.0.1",              // auth.accounts (submitted_by + reviewed_by FKs)
+			UsersStudentsVersion,           // student_id FK target
+			"1.0.1",                        // auth.accounts (submitted_by + reviewed_by FKs)
+			guardianHasAccountCheckVersion, // latest development migration before this branch's additions
 		},
 	})
 
@@ -47,7 +48,7 @@ func init() {
 // parent account cascades their request history (GDPR erasure), while a deleted
 // reviewer only nulls the audit link.
 func createStudentDataChangeRequestsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.138: Creating users.student_data_change_requests table...")
+	fmt.Println("Migration 1.15.147: Creating users.student_data_change_requests table...")
 
 	if _, err := db.NewRaw(`
 		CREATE TABLE IF NOT EXISTS users.student_data_change_requests (
@@ -102,7 +103,7 @@ func createStudentDataChangeRequestsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func createStudentDataChangeRequestsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.138: Dropping users.student_data_change_requests...")
+	fmt.Println("Rolling back migration 1.15.147: Dropping users.student_data_change_requests...")
 	if _, err := db.NewRaw(`DROP TABLE IF EXISTS users.student_data_change_requests CASCADE;`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed dropping users.student_data_change_requests: %w", err)
 	}
