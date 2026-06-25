@@ -34,6 +34,8 @@ function FullPageLoading() {
 const PARENT_PUBLIC_PAGES = [
   "/parents/login",
   "/login",
+  "/parents/reset-password",
+  "/reset-password",
   "/parents/email-confirm",
   "/email-confirm",
   "/parents/accept-guardian-invite",

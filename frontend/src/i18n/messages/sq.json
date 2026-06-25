@@ -295,13 +295,72 @@
     "loading": "Po ngarkohet...",
     "submitting": "Duke hyrë...",
     "submit": "Hyr",
-    "forgotPassword": "Keni harruar fjalëkalimin? Ju lutemi kontaktoni OGS-në.",
+    "forgotPassword": "Keni harruar fjalëkalimin?",
     "errors": {
       "accountInactive": "Llogaria juaj është çaktivizuar. Ju lutemi kontaktoni shkollën.",
       "rateLimited": "Shumë përpjekje hyrjeje. Ju lutemi provoni më vonë.",
       "invalidCredentials": "Hyrja nuk është e mundur. Kontrolloni të dhënat ose përdorni hyrjen e shkollës nëse jeni personel.",
       "invalid": "Të dhëna hyrjeje të pavlefshme",
       "generic": "Gabim gjatë hyrjes. Ju lutemi provoni përsëri."
+    }
+  },
+  "parentPasswordResetModal": {
+    "title": "Rivendos fjalëkalimin",
+    "description": "Shkruani adresën tuaj të e-mailit dhe ne do t'ju dërgojmë një lidhje për të rivendosur fjalëkalimin.",
+    "emailLabel": "Adresa e e-mailit",
+    "cancel": "Anulo",
+    "submit": "Dërgo lidhjen",
+    "submitting": "Duke dërguar...",
+    "successTitle": "E-maili u dërgua!",
+    "successMessage": "Ju kemi dërguar një e-mail me një lidhje për të rivendosur fjalëkalimin.",
+    "successHint": "Ju lutemi kontrolloni kutinë hyrëse dhe ndiqni udhëzimet në e-mail.",
+    "close": "Mbyll",
+    "errors": {
+      "rateLimited": "Shumë përpjekje. Ju lutemi provoni përsëri pas {countdown}.",
+      "generic": "Ndodhi një gabim. Ju lutemi provoni përsëri."
+    }
+  },
+  "parentPasswordResetPage": {
+    "backToLogin": "Kthehu te hyrja",
+    "errors": {
+      "missingToken": "Tokeni i rivendosjes është i pavlefshëm ose mungon. Ju lutemi kërkoni një lidhje të re.",
+      "invalidToken": "Token i pavlefshëm për rivendosje.",
+      "generic": "Ndodhi një gabim. Ju lutemi provoni përsëri.",
+      "invalidRequest": "Kontrolloni lidhjen dhe kërkesat e fjalëkalimit, pastaj provoni përsëri.",
+      "expired": "Kjo lidhje për rivendosjen e fjalëkalimit ka skaduar. Ju lutemi kërkoni një lidhje të re.",
+      "notFound": "Nuk mundëm ta gjenim këtë lidhje për rivendosjen e fjalëkalimit. Ju lutemi kërkoni një lidhje të re."
+    },
+    "validation": {
+      "tooShort": "Fjalëkalimi duhet të ketë të paktën 8 karaktere.",
+      "missingUppercase": "Fjalëkalimi duhet të përmbajë të paktën një shkronjë të madhe.",
+      "missingLowercase": "Fjalëkalimi duhet të përmbajë të paktën një shkronjë të vogël.",
+      "missingNumber": "Fjalëkalimi duhet të përmbajë të paktën një numër.",
+      "missingSpecial": "Fjalëkalimi duhet të përmbajë të paktën një karakter special.",
+      "passwordMismatch": "Fjalëkalimet nuk përputhen."
+    },
+    "success": {
+      "eyebrow": "Fjalëkalimi u ndryshua",
+      "title": "Fjalëkalimi u ndryshua me sukses",
+      "subtitle": "Do të ridrejtoheni automatikisht te faqja e hyrjes.",
+      "body": "Mund të hyni përsëri pas pak."
+    },
+    "form": {
+      "eyebrow": "Rivendos fjalëkalimin",
+      "title": "Vendosni një fjalëkalim të ri",
+      "subtitle": "Zgjidhni një fjalëkalim të fortë për llogarinë tuaj.",
+      "passwordLabel": "Fjalëkalim i ri",
+      "confirmPasswordLabel": "Konfirmo fjalëkalimin",
+      "showPassword": "Shfaq fjalëkalimin",
+      "hidePassword": "Fshih fjalëkalimin",
+      "submitting": "Duke ruajtur...",
+      "submit": "Ndrysho fjalëkalimin"
+    },
+    "requirements": {
+      "title": "Kërkesat e fjalëkalimit:",
+      "minLength": "Të paktën 8 karaktere",
+      "mixedCase": "Shkronja të mëdha dhe të vogla",
+      "number": "Të paktën një numër",
+      "special": "Të paktën një karakter special"
     }
   },
   "guardianInvite": {

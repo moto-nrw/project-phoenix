@@ -80,11 +80,12 @@ export async function buildApiError(
  * @param email - The email address to send the reset link to
  * @returns Promise with success message or error
  */
-export async function requestPasswordReset(
+async function requestPasswordResetAt(
+  endpoint: string,
   email: string,
 ): Promise<{ message: string }> {
   try {
-    const response = await fetch("/api/auth/password-reset", {
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -104,6 +105,18 @@ export async function requestPasswordReset(
     logger.error("password reset request error", { error: String(error) });
     throw error;
   }
+}
+
+export async function requestPasswordReset(
+  email: string,
+): Promise<{ message: string }> {
+  return requestPasswordResetAt("/api/auth/password-reset", email);
+}
+
+export async function requestParentPasswordReset(
+  email: string,
+): Promise<{ message: string }> {
+  return requestPasswordResetAt("/api/parent/auth/password-reset", email);
 }
 
 /**
@@ -126,6 +139,40 @@ export async function confirmPasswordReset(
     });
   } catch (error) {
     logger.error("password reset confirmation error", { error: String(error) });
+    throw error;
+  }
+}
+
+export async function confirmParentPasswordReset(
+  token: string,
+  password: string,
+  confirmPassword: string,
+): Promise<{ message: string }> {
+  try {
+    const response = await fetch("/api/parent/auth/password-reset/confirm", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        token,
+        new_password: password,
+        confirm_password: confirmPassword,
+      }),
+    });
+
+    if (!response.ok) {
+      throw await buildApiError(
+        response,
+        "Fehler beim Zurücksetzen des Passworts",
+      );
+    }
+
+    return (await response.json()) as { message: string };
+  } catch (error) {
+    logger.error("parent password reset confirmation error", {
+      error: String(error),
+    });
     throw error;
   }
 }
