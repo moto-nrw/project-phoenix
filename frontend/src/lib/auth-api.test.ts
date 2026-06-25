@@ -3,7 +3,9 @@ import {
   refreshToken,
   handleAuthFailure,
   requestPasswordReset,
+  requestParentPasswordReset,
   confirmPasswordReset,
+  confirmParentPasswordReset,
   type ApiError,
 } from "./auth-api";
 
@@ -599,6 +601,31 @@ describe("auth-api", () => {
     });
   });
 
+  describe("requestParentPasswordReset", () => {
+    it("posts to the parent password reset endpoint", async () => {
+      const mockResponse = { message: "Password reset email sent" };
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const result = await requestParentPasswordReset("parent@example.com");
+
+      expect(result).toEqual(mockResponse);
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/parent/auth/password-reset",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email: "parent@example.com" }),
+        },
+      );
+    });
+  });
+
   describe("confirmPasswordReset", () => {
     it("calls authService.resetPassword with correct params", async () => {
       const { authService } = await import("./auth-service");
@@ -635,6 +662,39 @@ describe("auth-api", () => {
           "newPassword123",
         ),
       ).rejects.toThrow("Invalid token");
+    });
+  });
+
+  describe("confirmParentPasswordReset", () => {
+    it("posts reset confirmation to the parent endpoint", async () => {
+      const mockResponse = { message: "Password reset successful" };
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const result = await confirmParentPasswordReset(
+        "reset-token",
+        "newPassword123!",
+        "newPassword123!",
+      );
+
+      expect(result).toEqual(mockResponse);
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/parent/auth/password-reset/confirm",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            token: "reset-token",
+            new_password: "newPassword123!",
+            confirm_password: "newPassword123!",
+          }),
+        },
+      );
     });
   });
 

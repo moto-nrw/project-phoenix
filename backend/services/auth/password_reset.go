@@ -17,10 +17,43 @@ import (
 
 // Password Reset
 
+type passwordResetScope string
+
+const (
+	passwordResetScopeStaff  passwordResetScope = "staff"
+	passwordResetScopeParent passwordResetScope = "parent"
+)
+
+type passwordResetOptions struct {
+	scope   passwordResetScope
+	baseURL string
+}
+
 // InitiatePasswordReset creates a password reset token for an account
 func (s *Service) InitiatePasswordReset(ctx context.Context, emailAddress string) (*auth.PasswordResetToken, error) {
+	return s.initiatePasswordReset(ctx, emailAddress, passwordResetOptions{
+		scope:   passwordResetScopeStaff,
+		baseURL: s.frontendURL,
+	})
+}
+
+// InitiateParentPasswordReset creates a password reset token for guardian accounts only.
+func (s *Service) InitiateParentPasswordReset(ctx context.Context, emailAddress string) (*auth.PasswordResetToken, error) {
+	return s.initiatePasswordReset(ctx, emailAddress, passwordResetOptions{
+		scope:   passwordResetScopeParent,
+		baseURL: s.parentsURL,
+	})
+}
+
+func (s *Service) initiatePasswordReset(ctx context.Context, emailAddress string, opts passwordResetOptions) (*auth.PasswordResetToken, error) {
 	// Normalize email
 	emailAddress = strings.TrimSpace(strings.ToLower(emailAddress))
+
+	// Check rate limiting before account lookup so unknown emails are
+	// indistinguishable from known emails under repeated requests.
+	if err := s.checkPasswordResetRateLimit(ctx, emailAddress); err != nil {
+		return nil, err
+	}
 
 	// Get account by email
 	account, err := s.repos.Account.FindByEmail(ctx, emailAddress)
@@ -29,13 +62,18 @@ func (s *Service) InitiatePasswordReset(ctx context.Context, emailAddress string
 		return nil, nil
 	}
 
-	// Check rate limiting
-	if err := s.checkPasswordResetRateLimit(ctx, emailAddress); err != nil {
-		return nil, err
+	if opts.scope == passwordResetScopeParent {
+		hasGuardianRole, _, err := s.findGuardianTenantForAccount(ctx, account.ID)
+		if err != nil {
+			return nil, err
+		}
+		if !hasGuardianRole {
+			return nil, nil
+		}
 	}
 
 	s.getLogger().Info("password reset requested",
-		slog.String("email", emailAddress))
+		slog.String("scope", string(opts.scope)))
 
 	// Create password reset token in transaction
 	resetToken, err := s.createPasswordResetTokenInTransaction(ctx, account.ID)
@@ -47,7 +85,7 @@ func (s *Service) InitiatePasswordReset(ctx context.Context, emailAddress string
 		slog.Int64("account_id", account.ID))
 
 	// Dispatch password reset email
-	s.dispatchPasswordResetEmail(ctx, resetToken, account.Email)
+	s.dispatchPasswordResetEmail(ctx, resetToken, account.Email, opts.baseURL)
 
 	return resetToken, nil
 }
@@ -138,14 +176,14 @@ func (s *Service) createPasswordResetTokenInTransaction(ctx context.Context, acc
 }
 
 // dispatchPasswordResetEmail sends the password reset email asynchronously
-func (s *Service) dispatchPasswordResetEmail(ctx context.Context, resetToken *auth.PasswordResetToken, accountEmail string) {
+func (s *Service) dispatchPasswordResetEmail(ctx context.Context, resetToken *auth.PasswordResetToken, accountEmail, baseURL string) {
 	if s.dispatcher == nil {
 		s.getLogger().Warn("email dispatcher unavailable, skipping password reset email",
 			slog.Int64("account_id", resetToken.AccountID))
 		return
 	}
 
-	frontendURL := strings.TrimRight(s.frontendURL, "/")
+	frontendURL := strings.TrimRight(baseURL, "/")
 	resetURL := fmt.Sprintf("%s/reset-password?token=%s", frontendURL, resetToken.Token)
 	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", frontendURL)
 

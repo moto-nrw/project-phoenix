@@ -240,6 +240,7 @@ function handleOperatorSubdomain(request: NextRequest): NextResponse {
  */
 const PARENTS_PUBLIC_PATHS = [
   "/login",
+  "/reset-password",
   "/email-confirm",
   "/children",
   "/enroll",

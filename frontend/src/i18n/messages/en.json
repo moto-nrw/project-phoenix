@@ -295,13 +295,72 @@
     "loading": "Loading...",
     "submitting": "Signing in...",
     "submit": "Sign in",
-    "forgotPassword": "Forgot your password? Please contact your OGS.",
+    "forgotPassword": "Forgot your password?",
     "errors": {
       "accountInactive": "Your account is disabled. Please contact the school.",
       "rateLimited": "Too many login attempts. Please try again later.",
       "invalidCredentials": "Login is not possible. Please check your credentials or use the school login if you are staff.",
       "invalid": "Invalid login details",
       "generic": "Login error. Please try again."
+    }
+  },
+  "parentPasswordResetModal": {
+    "title": "Reset password",
+    "description": "Enter your email address and we will send you a link to reset your password.",
+    "emailLabel": "Email address",
+    "cancel": "Cancel",
+    "submit": "Send link",
+    "submitting": "Sending...",
+    "successTitle": "Email sent!",
+    "successMessage": "We have sent you an email with a link to reset your password.",
+    "successHint": "Please check your inbox and follow the instructions in the email.",
+    "close": "Close",
+    "errors": {
+      "rateLimited": "Too many attempts. Please try again in {countdown}.",
+      "generic": "An error occurred. Please try again."
+    }
+  },
+  "parentPasswordResetPage": {
+    "backToLogin": "Back to sign in",
+    "errors": {
+      "missingToken": "The reset token is invalid or missing. Please request a new link.",
+      "invalidToken": "Invalid reset token.",
+      "generic": "An error occurred. Please try again.",
+      "invalidRequest": "Please check the link and password requirements, then try again.",
+      "expired": "This password reset link has expired. Please request a new link.",
+      "notFound": "We could not find this password reset link. Please request a new link."
+    },
+    "validation": {
+      "tooShort": "The password must be at least 8 characters long.",
+      "missingUppercase": "The password must include at least one uppercase letter.",
+      "missingLowercase": "The password must include at least one lowercase letter.",
+      "missingNumber": "The password must include at least one number.",
+      "missingSpecial": "The password must include at least one special character.",
+      "passwordMismatch": "The passwords do not match."
+    },
+    "success": {
+      "eyebrow": "Password changed",
+      "title": "Password changed successfully",
+      "subtitle": "You will be redirected to the sign-in page automatically.",
+      "body": "You can sign in again in a moment."
+    },
+    "form": {
+      "eyebrow": "Reset password",
+      "title": "Set a new password",
+      "subtitle": "Choose a strong password for your account.",
+      "passwordLabel": "New password",
+      "confirmPasswordLabel": "Confirm password",
+      "showPassword": "Show password",
+      "hidePassword": "Hide password",
+      "submitting": "Saving...",
+      "submit": "Change password"
+    },
+    "requirements": {
+      "title": "Password requirements:",
+      "minLength": "At least 8 characters",
+      "mixedCase": "Uppercase and lowercase letters",
+      "number": "At least one number",
+      "special": "At least one special character"
     }
   },
   "guardianInvite": {

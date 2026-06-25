@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -22,12 +24,22 @@ import (
 type stubParentAuthService struct {
 	authService.AuthService
 	loginParent func(ctx context.Context, email, password, ip, ua string) (string, string, error)
+	resetParent func(ctx context.Context, email string) (*authModel.PasswordResetToken, error)
+	confirm     func(ctx context.Context, token, newPassword string) error
 }
 
 func (s *stubParentAuthService) LoginParentWithAudit(
 	ctx context.Context, email, password, ipAddress, userAgent string,
 ) (string, string, error) {
 	return s.loginParent(ctx, email, password, ipAddress, userAgent)
+}
+
+func (s *stubParentAuthService) InitiateParentPasswordReset(ctx context.Context, email string) (*authModel.PasswordResetToken, error) {
+	return s.resetParent(ctx, email)
+}
+
+func (s *stubParentAuthService) ResetPassword(ctx context.Context, token, newPassword string) error {
+	return s.confirm(ctx, token, newPassword)
 }
 
 // newTestResource wires a Resource with just the AuthService — the login
@@ -51,6 +63,30 @@ func postLogin(t *testing.T, rs *parent.Resource, body map[string]string) *httpt
 	// Router() returns the chi router scoped to the resource, so the
 	// /parent prefix isn't part of the request path here.
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewReader(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	rs.Router().ServeHTTP(rr, req)
+	return rr
+}
+
+func postPasswordReset(t *testing.T, rs *parent.Resource, body map[string]string) *httptest.ResponseRecorder {
+	t.Helper()
+	jsonBody, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/password-reset", bytes.NewReader(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	rs.Router().ServeHTTP(rr, req)
+	return rr
+}
+
+func postPasswordResetConfirm(t *testing.T, rs *parent.Resource, body map[string]string) *httptest.ResponseRecorder {
+	t.Helper()
+	jsonBody, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/password-reset/confirm", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	rs.Router().ServeHTTP(rr, req)
@@ -174,4 +210,67 @@ func TestParentLogin_Success_Returns200WithTokens(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
 	assert.Equal(t, "access-tok", resp.Data.AccessToken)
 	assert.Equal(t, "refresh-tok", resp.Data.RefreshToken)
+}
+
+func TestParentPasswordReset_NeutralSuccess(t *testing.T) {
+	called := false
+	svc := &stubParentAuthService{
+		resetParent: func(_ context.Context, email string) (*authModel.PasswordResetToken, error) {
+			called = true
+			assert.Equal(t, "parent@example.com", email)
+			return nil, nil
+		},
+	}
+
+	rr := postPasswordReset(t, newTestResource(svc), map[string]string{
+		"email": "PARENT@EXAMPLE.COM",
+	})
+
+	assert.True(t, called)
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Contains(t, rr.Body.String(), "If the email exists")
+}
+
+func TestParentPasswordReset_RateLimitedSetsRetryAfter(t *testing.T) {
+	retryAt := time.Now().Add(10 * time.Minute)
+	svc := &stubParentAuthService{
+		resetParent: func(_ context.Context, _ string) (*authModel.PasswordResetToken, error) {
+			return nil, &authService.AuthError{
+				Op: "initiate parent password reset",
+				Err: &authService.RateLimitError{
+					Err:      authService.ErrRateLimitExceeded,
+					Attempts: 3,
+					RetryAt:  retryAt,
+				},
+			}
+		},
+	}
+
+	rr := postPasswordReset(t, newTestResource(svc), map[string]string{
+		"email": "parent@example.com",
+	})
+
+	assert.Equal(t, http.StatusTooManyRequests, rr.Code)
+	assert.NotEmpty(t, rr.Header().Get("Retry-After"))
+}
+
+func TestParentPasswordResetConfirm_Success(t *testing.T) {
+	called := false
+	svc := &stubParentAuthService{
+		confirm: func(_ context.Context, token, newPassword string) error {
+			called = true
+			assert.Equal(t, "reset-token", token)
+			assert.Equal(t, "Str0ngP@ssword!", newPassword)
+			return nil
+		},
+	}
+
+	rr := postPasswordResetConfirm(t, newTestResource(svc), map[string]string{
+		"token":            "reset-token",
+		"new_password":     "Str0ngP@ssword!",
+		"confirm_password": "Str0ngP@ssword!",
+	})
+
+	assert.True(t, called)
+	assert.Equal(t, http.StatusOK, rr.Code)
 }
