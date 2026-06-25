@@ -17,7 +17,7 @@ interface PasswordResetModalProps {
   readonly copy?: PasswordResetModalCopy;
 }
 
-export interface PasswordResetModalCopy {
+interface PasswordResetModalCopy {
   readonly title: string;
   readonly description: string;
   readonly emailLabel: string;
