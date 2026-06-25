@@ -15,7 +15,6 @@ import (
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -504,9 +503,7 @@ func TestOperatorAuthService_ChangePassword_RepositoryError(t *testing.T) {
 
 func TestOperatorAuthService_Login_Success(t *testing.T) {
 	// Set JWT secret for token generation BEFORE creating service
-	oldSecret := viper.GetString("auth_jwt_secret")
-	viper.Set("auth_jwt_secret", testJWTSecret)
-	defer viper.Set("auth_jwt_secret", oldSecret)
+	withJWTSecret(t)
 
 	ctx := context.Background()
 
@@ -543,13 +540,15 @@ func TestOperatorAuthService_Login_Success(t *testing.T) {
 			return nil
 		},
 	}
+	refreshRepo := &mockOperatorRefreshTokenRepo{}
 
 	// Create service AFTER setting env var
 	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
-		OperatorRepo: operatorRepo,
-		AuditLogRepo: auditLogRepo,
-		DB:           &bun.DB{},
-		Logger:       slog.Default(),
+		OperatorRepo:     operatorRepo,
+		AuditLogRepo:     auditLogRepo,
+		RefreshTokenRepo: refreshRepo,
+		DB:               &bun.DB{},
+		Logger:           slog.Default(),
 	})
 	require.NoError(t, err)
 
@@ -562,13 +561,14 @@ func TestOperatorAuthService_Login_Success(t *testing.T) {
 	assert.Equal(t, "operator@example.com", operator.Email)
 	assert.True(t, updateLastLoginCalled, "UpdateLastLogin should be called")
 	assert.True(t, auditLogCalled, "Audit log should be created")
+	require.Len(t, refreshRepo.created, 1)
+	assert.NotEqual(t, "operator-refresh-42", refreshRepo.created[0].Token,
+		"operator login must persist a random refresh handle instead of a deterministic token")
 }
 
 func TestOperatorAuthService_Login_WrongPassword(t *testing.T) {
 	// Set JWT secret (even though we won't reach token generation)
-	oldSecret := viper.GetString("auth_jwt_secret")
-	viper.Set("auth_jwt_secret", testJWTSecret)
-	defer viper.Set("auth_jwt_secret", oldSecret)
+	withJWTSecret(t)
 
 	ctx := context.Background()
 
@@ -592,10 +592,11 @@ func TestOperatorAuthService_Login_WrongPassword(t *testing.T) {
 	auditLogRepo := &mockAuditLogRepoShared{}
 
 	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
-		OperatorRepo: operatorRepo,
-		AuditLogRepo: auditLogRepo,
-		DB:           &bun.DB{},
-		Logger:       slog.Default(),
+		OperatorRepo:     operatorRepo,
+		AuditLogRepo:     auditLogRepo,
+		RefreshTokenRepo: &mockOperatorRefreshTokenRepo{},
+		DB:               &bun.DB{},
+		Logger:           slog.Default(),
 	})
 	require.NoError(t, err)
 
@@ -825,9 +826,7 @@ func TestOperatorAuthService_ChangePassword_UpdateError(t *testing.T) {
 
 func TestOperatorAuthService_Login_AuditLogError(t *testing.T) {
 	// Set JWT secret for token generation
-	oldSecret := viper.GetString("auth_jwt_secret")
-	viper.Set("auth_jwt_secret", testJWTSecret)
-	defer viper.Set("auth_jwt_secret", oldSecret)
+	withJWTSecret(t)
 
 	ctx := context.Background()
 
@@ -858,10 +857,11 @@ func TestOperatorAuthService_Login_AuditLogError(t *testing.T) {
 	}
 
 	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
-		OperatorRepo: operatorRepo,
-		AuditLogRepo: auditLogRepo,
-		DB:           &bun.DB{},
-		Logger:       slog.Default(),
+		OperatorRepo:     operatorRepo,
+		AuditLogRepo:     auditLogRepo,
+		RefreshTokenRepo: &mockOperatorRefreshTokenRepo{},
+		DB:               &bun.DB{},
+		Logger:           slog.Default(),
 	})
 	require.NoError(t, err)
 
@@ -873,113 +873,228 @@ func TestOperatorAuthService_Login_AuditLogError(t *testing.T) {
 	assert.NotNil(t, operator)
 }
 
-func TestOperatorAuthService_RefreshToken_Success(t *testing.T) {
-	oldSecret := viper.GetString("auth_jwt_secret")
-	viper.Set("auth_jwt_secret", testJWTSecret)
-	defer viper.Set("auth_jwt_secret", oldSecret)
-
-	ctx := context.Background()
-	operatorRepo := &mockOperatorRepo{
-		findByIDFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
-			return &platform.Operator{
-				Model: base.Model{
-					ID: 42,
-				},
-				Email:       "operator@example.com",
-				DisplayName: "Test Operator",
-				Active:      true,
-			}, nil
-		},
-	}
-	auditLogRepo := &mockAuditLogRepoShared{}
-
-	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
-		OperatorRepo: operatorRepo,
-		AuditLogRepo: auditLogRepo,
-		DB:           &bun.DB{},
-		Logger:       slog.Default(),
-	})
+func currentOperatorRefreshToken(t *testing.T, db *bun.DB, operatorID int64) string {
+	t.Helper()
+	var token string
+	err := db.NewSelect().
+		TableExpr("platform.operator_refresh_tokens").
+		Column("token").
+		Where("operator_id = ?", operatorID).
+		Limit(1).
+		Scan(context.Background(), &token)
 	require.NoError(t, err)
+	require.NotEmpty(t, token)
+	return token
+}
 
-	accessToken, refreshToken, err := service.RefreshToken(ctx, 42)
+func countOperatorRefreshTokens(t *testing.T, db *bun.DB, operatorID int64, token string) int {
+	t.Helper()
+	query := db.NewSelect().
+		TableExpr("platform.operator_refresh_tokens").
+		Where("operator_id = ?", operatorID)
+	if token != "" {
+		query = query.Where("token = ?", token)
+	}
+	count, err := query.Count(context.Background())
+	require.NoError(t, err)
+	return count
+}
+
+func TestOperatorAuthService_RefreshToken_SuccessRotatesServerSideSession(t *testing.T) {
+	withJWTSecret(t)
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := buildAuthService(t, db)
+	ctx := context.Background()
+	email := fmt.Sprintf("refresh-ok-%d@test.local", time.Now().UnixNano())
+	operatorID, _ := createEmailChangeTestOperator(t, db, email)
+
+	_, firstRefreshJWT, _, err := service.Login(ctx, email, testPassword, net.ParseIP("127.0.0.1"))
+	require.NoError(t, err)
+	require.NotEmpty(t, firstRefreshJWT)
+	oldDBToken := currentOperatorRefreshToken(t, db, operatorID)
+
+	accessToken, secondRefreshJWT, err := service.RefreshToken(ctx, operatorID, oldDBToken)
 	require.NoError(t, err)
 	assert.NotEmpty(t, accessToken)
-	assert.NotEmpty(t, refreshToken)
+	assert.NotEmpty(t, secondRefreshJWT)
+	assert.Equal(t, 0, countOperatorRefreshTokens(t, db, operatorID, oldDBToken),
+		"the used refresh handle must be deleted so it cannot be replayed")
+
+	newDBToken := currentOperatorRefreshToken(t, db, operatorID)
+	assert.NotEqual(t, oldDBToken, newDBToken, "refresh must rotate to a new opaque server-side handle")
+}
+
+func TestOperatorAuthService_RefreshToken_ReplayOldTokenRejected(t *testing.T) {
+	withJWTSecret(t)
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := buildAuthService(t, db)
+	ctx := context.Background()
+	email := fmt.Sprintf("refresh-replay-%d@test.local", time.Now().UnixNano())
+	operatorID, _ := createEmailChangeTestOperator(t, db, email)
+
+	_, _, _, err := service.Login(ctx, email, testPassword, net.ParseIP("127.0.0.1"))
+	require.NoError(t, err)
+	oldDBToken := currentOperatorRefreshToken(t, db, operatorID)
+
+	_, _, err = service.RefreshToken(ctx, operatorID, oldDBToken)
+	require.NoError(t, err)
+
+	_, _, err = service.RefreshToken(ctx, operatorID, oldDBToken)
+	require.Error(t, err)
+	var invalidRefresh *platformSvc.OperatorRefreshTokenInvalidError
+	assert.ErrorAs(t, err, &invalidRefresh)
+}
+
+func TestOperatorAuthService_RefreshToken_PasswordChangeRevokesOldToken(t *testing.T) {
+	withJWTSecret(t)
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := buildAuthService(t, db)
+	ctx := context.Background()
+	email := fmt.Sprintf("refresh-pwchange-%d@test.local", time.Now().UnixNano())
+	operatorID, _ := createEmailChangeTestOperator(t, db, email)
+
+	_, _, _, err := service.Login(ctx, email, testPassword, net.ParseIP("127.0.0.1"))
+	require.NoError(t, err)
+	oldDBToken := currentOperatorRefreshToken(t, db, operatorID)
+
+	err = service.ChangePassword(ctx, operatorID, testPassword, "ChangedPass789!")
+	require.NoError(t, err)
+	assert.Equal(t, 0, countOperatorRefreshTokens(t, db, operatorID, ""),
+		"password change must revoke every operator refresh session")
+
+	_, _, err = service.RefreshToken(ctx, operatorID, oldDBToken)
+	require.Error(t, err)
+	var invalidRefresh *platformSvc.OperatorRefreshTokenInvalidError
+	assert.ErrorAs(t, err, &invalidRefresh)
 }
 
 func TestOperatorAuthService_RefreshToken_OperatorNotFound(t *testing.T) {
+	withJWTSecret(t)
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
 		findByIDFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
 			return nil, nil
 		},
 	}
-	auditLogRepo := &mockAuditLogRepoShared{}
+	refreshRepo := &mockOperatorRefreshTokenRepo{
+		findByTokenForUpdateFn: func(ctx context.Context, token string) (*platform.OperatorRefreshToken, error) {
+			return &platform.OperatorRefreshToken{
+				Model:      base.Model{ID: 10},
+				OperatorID: 999,
+				Token:      token,
+				Expiry:     time.Now().Add(time.Hour),
+				FamilyID:   "family",
+			}, nil
+		},
+		getLatestTokenInFamilyFn: func(ctx context.Context, familyID string) (*platform.OperatorRefreshToken, error) {
+			return &platform.OperatorRefreshToken{Generation: 0}, nil
+		},
+	}
 
 	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
-		OperatorRepo: operatorRepo,
-		AuditLogRepo: auditLogRepo,
-		DB:           &bun.DB{},
-		Logger:       slog.Default(),
+		OperatorRepo:     operatorRepo,
+		AuditLogRepo:     &mockAuditLogRepoShared{},
+		RefreshTokenRepo: refreshRepo,
+		DB:               db,
+		Logger:           slog.Default(),
 	})
 	require.NoError(t, err)
 
-	_, _, err = service.RefreshToken(ctx, 999)
+	_, _, err = service.RefreshToken(ctx, 999, "opaque-token")
 	require.Error(t, err)
 	assert.IsType(t, &platformSvc.OperatorNotFoundError{}, err)
 }
 
 func TestOperatorAuthService_RefreshToken_InactiveOperator(t *testing.T) {
-	oldSecret := viper.GetString("auth_jwt_secret")
-	viper.Set("auth_jwt_secret", testJWTSecret)
-	defer viper.Set("auth_jwt_secret", oldSecret)
+	withJWTSecret(t)
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
 
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
 		findByIDFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
 			return &platform.Operator{
-				Model: base.Model{
-					ID: 1,
-				},
+				Model:       base.Model{ID: id},
 				Email:       "operator@example.com",
 				DisplayName: "Inactive Operator",
 				Active:      false,
 			}, nil
 		},
 	}
-	auditLogRepo := &mockAuditLogRepoShared{}
+	refreshRepo := &mockOperatorRefreshTokenRepo{
+		findByTokenForUpdateFn: func(ctx context.Context, token string) (*platform.OperatorRefreshToken, error) {
+			return &platform.OperatorRefreshToken{
+				Model:      base.Model{ID: 10},
+				OperatorID: 1,
+				Token:      token,
+				Expiry:     time.Now().Add(time.Hour),
+				FamilyID:   "family",
+			}, nil
+		},
+		getLatestTokenInFamilyFn: func(ctx context.Context, familyID string) (*platform.OperatorRefreshToken, error) {
+			return &platform.OperatorRefreshToken{Generation: 0}, nil
+		},
+	}
 
 	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
-		OperatorRepo: operatorRepo,
-		AuditLogRepo: auditLogRepo,
-		DB:           &bun.DB{},
-		Logger:       slog.Default(),
+		OperatorRepo:     operatorRepo,
+		AuditLogRepo:     &mockAuditLogRepoShared{},
+		RefreshTokenRepo: refreshRepo,
+		DB:               db,
+		Logger:           slog.Default(),
 	})
 	require.NoError(t, err)
 
-	_, _, err = service.RefreshToken(ctx, 1)
+	_, _, err = service.RefreshToken(ctx, 1, "opaque-token")
 	require.Error(t, err)
 	assert.IsType(t, &platformSvc.OperatorInactiveError{}, err)
 }
 
 func TestOperatorAuthService_RefreshToken_RepositoryError(t *testing.T) {
+	withJWTSecret(t)
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
 		findByIDFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
 			return nil, fmt.Errorf("database error")
 		},
 	}
-	auditLogRepo := &mockAuditLogRepoShared{}
+	refreshRepo := &mockOperatorRefreshTokenRepo{
+		findByTokenForUpdateFn: func(ctx context.Context, token string) (*platform.OperatorRefreshToken, error) {
+			return &platform.OperatorRefreshToken{
+				Model:      base.Model{ID: 10},
+				OperatorID: 1,
+				Token:      token,
+				Expiry:     time.Now().Add(time.Hour),
+				FamilyID:   "family",
+			}, nil
+		},
+		getLatestTokenInFamilyFn: func(ctx context.Context, familyID string) (*platform.OperatorRefreshToken, error) {
+			return &platform.OperatorRefreshToken{Generation: 0}, nil
+		},
+	}
 
 	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
-		OperatorRepo: operatorRepo,
-		AuditLogRepo: auditLogRepo,
-		DB:           &bun.DB{},
-		Logger:       slog.Default(),
+		OperatorRepo:     operatorRepo,
+		AuditLogRepo:     &mockAuditLogRepoShared{},
+		RefreshTokenRepo: refreshRepo,
+		DB:               db,
+		Logger:           slog.Default(),
 	})
 	require.NoError(t, err)
 
-	_, _, err = service.RefreshToken(ctx, 1)
+	_, _, err = service.RefreshToken(ctx, 1, "opaque-token")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to find operator")
 }

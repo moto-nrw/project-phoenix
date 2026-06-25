@@ -155,6 +155,7 @@ type Factory struct {
 	AnnouncementView         platformModels.AnnouncementViewRepository
 	OperatorAuditLog         platformModels.OperatorAuditLogRepository
 	OperatorEmailChangeToken platformModels.OperatorEmailChangeTokenRepository
+	OperatorRefreshToken     platformModels.OperatorRefreshTokenRepository
 	OperatorInvitationToken  platformModels.OperatorInvitationTokenRepository
 	OperatorSummaries        platformModels.OperatorSummariesRepository
 	School                   platformModels.SchoolRepository
@@ -306,6 +307,7 @@ func NewFactory(db *bun.DB) *Factory {
 		AnnouncementView:         platformRepo.NewAnnouncementViewRepository(db),
 		OperatorAuditLog:         platformRepo.NewOperatorAuditLogRepository(db),
 		OperatorEmailChangeToken: platformRepo.NewOperatorEmailChangeTokenRepository(db),
+		OperatorRefreshToken:     platformRepo.NewOperatorRefreshTokenRepository(db),
 		OperatorInvitationToken:  platformRepo.NewOperatorInvitationTokenRepository(db),
 		OperatorSummaries:        platformRepo.NewOperatorSummariesRepository(db),
 		School:                   platformRepo.NewSchoolRepository(db),
