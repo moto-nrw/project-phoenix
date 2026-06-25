@@ -291,13 +291,19 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve master-data request setting: %w", err)
 	}
+	guardianManagement, err := s.guardianManagementEnabled(ctx, child.tenantID)
+	if err != nil {
+		return ChildFeatureFlags{}, err
+	}
+	canEditMasterData := masterEdit && child.hasPermission(authorize.GuardianPermissionMasterDataEdit)
 	return ChildFeatureFlags{
 		SickNoteEnabled:              sick && child.hasPermission(authorize.GuardianPermissionSickNoteSubmit),
 		NotesEnabled:                 notes && child.hasPermission(authorize.GuardianPermissionNotesWrite),
 		PickupChangeEnabled:          pickupChange,
 		RelatedAccountsInviteEnabled: inviteMode != configModels.ParentInviteModeDisabled,
 		RelatedAccountsRemoveEnabled: canRemove && inviteMode != configModels.ParentInviteModeDisabled,
-		MasterDataEditEnabled:        masterEdit && child.hasPermission(authorize.GuardianPermissionMasterDataEdit),
+		MasterDataEditEnabled:        canEditMasterData,
+		MasterDataContactEditEnabled: canEditMasterData && guardianManagement,
 		MasterDataRequestEnabled:     masterRequest && child.hasPermission(authorize.GuardianPermissionMasterDataRequest),
 	}, nil
 }

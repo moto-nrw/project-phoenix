@@ -103,6 +103,7 @@ export interface ChildFeatures {
   readonly related_accounts_invite_enabled: boolean;
   readonly related_accounts_remove_enabled: boolean;
   readonly master_data_edit_enabled: boolean;
+  readonly master_data_contact_edit_enabled: boolean;
   readonly master_data_request_enabled: boolean;
 }
 

@@ -617,12 +617,22 @@ describe("getChildFeatures", () => {
     mockFetch(async (input) => {
       seenURL = typeof input === "string" ? input : input.toString();
       return jsonResponse({
-        data: { sick_note_enabled: true, notes_enabled: false },
+        data: {
+          sick_note_enabled: true,
+          notes_enabled: false,
+          pickup_change_enabled: true,
+          related_accounts_invite_enabled: false,
+          related_accounts_remove_enabled: false,
+          master_data_edit_enabled: true,
+          master_data_contact_edit_enabled: false,
+          master_data_request_enabled: true,
+        },
       });
     });
     const out = await getChildFeatures("84");
     expect(out.sick_note_enabled).toBe(true);
     expect(out.notes_enabled).toBe(false);
+    expect(out.master_data_contact_edit_enabled).toBe(false);
     expect(seenURL).toContain("/api/parent/me/children/84/features");
   });
 

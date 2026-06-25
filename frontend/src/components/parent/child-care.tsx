@@ -94,6 +94,7 @@ const DEFAULT_FEATURES: ChildFeatures = {
   related_accounts_invite_enabled: false,
   related_accounts_remove_enabled: false,
   master_data_edit_enabled: false,
+  master_data_contact_edit_enabled: false,
   master_data_request_enabled: false,
 };
 

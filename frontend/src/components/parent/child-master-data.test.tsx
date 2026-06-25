@@ -61,6 +61,7 @@ function features(overrides: Partial<ChildFeatures> = {}): ChildFeatures {
     related_accounts_invite_enabled: true,
     related_accounts_remove_enabled: true,
     master_data_edit_enabled: true,
+    master_data_contact_edit_enabled: true,
     master_data_request_enabled: true,
     ...overrides,
   };
@@ -276,6 +277,7 @@ describe("ChildMasterDataView", () => {
     mockGetFeatures.mockResolvedValue(
       features({
         master_data_edit_enabled: false,
+        master_data_contact_edit_enabled: false,
         master_data_request_enabled: false,
       }),
     );
@@ -291,6 +293,24 @@ describe("ChildMasterDataView", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByDisplayValue("Allergie")).toBeDisabled();
+  });
+
+  it("keeps health editable but disables contact fields when contact edits are off", async () => {
+    mockGetFeatures.mockResolvedValue(
+      features({ master_data_contact_edit_enabled: false }),
+    );
+
+    render(<ChildMasterDataView studentId="42" />);
+
+    expect(await screen.findByDisplayValue("Allergie")).not.toBeDisabled();
+    expect(screen.getByDisplayValue("parent@example.test")).toBeDisabled();
+    expect(screen.getByDisplayValue("+491234")).toBeDisabled();
+    expect(screen.getByDisplayValue("Musterweg 1")).toBeDisabled();
+    expect(
+      screen.getByText(
+        "Das Bearbeiten der Stammdaten ist bei dieser OGS deaktiviert.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("renders a load error if either request fails", async () => {

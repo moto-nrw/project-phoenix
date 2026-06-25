@@ -176,8 +176,13 @@ type ChildFeatureFlags struct {
 	// account's access (guardians.parent_can_remove).
 	RelatedAccountsRemoveEnabled bool
 	// MasterDataEditEnabled is true when parents may directly edit the
-	// Track A Stammdaten fields (setting AND the relationship permission).
+	// non-guardian Track A Stammdaten fields (setting AND the relationship
+	// permission).
 	MasterDataEditEnabled bool
+	// MasterDataContactEditEnabled is true when parents may directly edit their
+	// guardian profile/phone contact fields. These writes require both the
+	// master-data edit setting and guardian-management setting.
+	MasterDataContactEditEnabled bool
 	// MasterDataRequestEnabled is true when parents may submit Track B
 	// change requests for approval (setting AND the relationship permission).
 	MasterDataRequestEnabled bool

@@ -175,6 +175,7 @@ type ChildFeaturesResponse struct {
 	RelatedAccountsInviteEnabled bool `json:"related_accounts_invite_enabled"`
 	RelatedAccountsRemoveEnabled bool `json:"related_accounts_remove_enabled"`
 	MasterDataEditEnabled        bool `json:"master_data_edit_enabled"`
+	MasterDataContactEditEnabled bool `json:"master_data_contact_edit_enabled"`
 	MasterDataRequestEnabled     bool `json:"master_data_request_enabled"`
 }
 
@@ -202,6 +203,7 @@ func (rs *Resource) getChildFeatures(w http.ResponseWriter, r *http.Request) {
 		RelatedAccountsInviteEnabled: flags.RelatedAccountsInviteEnabled,
 		RelatedAccountsRemoveEnabled: flags.RelatedAccountsRemoveEnabled,
 		MasterDataEditEnabled:        flags.MasterDataEditEnabled,
+		MasterDataContactEditEnabled: flags.MasterDataContactEditEnabled,
 		MasterDataRequestEnabled:     flags.MasterDataRequestEnabled,
 	}, "Child features retrieved")
 }

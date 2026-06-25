@@ -41,6 +41,13 @@ func (s masterDataStubSettings) ResolveBoolForTenant(_ context.Context, _ int64,
 	}
 }
 
+func (s masterDataStubSettings) ResolveStringForTenant(_ context.Context, _ int64, key string) (string, error) {
+	if key == configModels.KeyGuardianParentInviteMode {
+		return configModels.ParentInviteModeDisabled, nil
+	}
+	return "", nil
+}
+
 func buildMasterDataService(t *testing.T, editEnabled bool) (parentService.Service, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
@@ -95,6 +102,26 @@ func TestUpdateMasterDataField_GuardianManagementDisabledRejectsContactEdits(t *
 	require.NoError(t, err)
 	require.NotNil(t, data.HealthInfo)
 	assert.Equal(t, "allowed", *data.HealthInfo)
+}
+
+func TestChildFeatures_SplitsMasterDataContactCapability(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	repos := repositories.NewFactory(db)
+	svc := parentService.NewService(parentService.ServiceConfig{
+		ChildRepo: repos.ParentChild,
+		Settings:  masterDataStubSettings{editEnabled: true, requestEnabled: true, guardianManagementEnabled: false},
+		DB:        db,
+		Logger:    slog.Default(),
+	})
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	flags, err := svc.ChildFeatures(context.Background(), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	assert.True(t, flags.MasterDataEditEnabled, "health/direct master-data fields stay editable")
+	assert.False(t, flags.MasterDataContactEditEnabled, "guardian contact fields follow guardian-management gate")
+	assert.True(t, flags.MasterDataRequestEnabled)
 }
 
 func TestGetChildMasterData_ReturnsChainData(t *testing.T) {

@@ -117,6 +117,7 @@ function ChildMasterDataContent({
     }
     return map;
   }, [data.pending_changes]);
+  const contactEditEnabled = features.master_data_contact_edit_enabled;
 
   const saveField = useCallback(
     async (target: string, field: string, value: string) => {
@@ -163,26 +164,26 @@ function ChildMasterDataContent({
           label={t("fields.email")}
           type="email"
           value={data.email ?? ""}
-          disabled={!features.master_data_edit_enabled}
+          disabled={!contactEditEnabled}
           onSave={(v) => saveField("guardian_profile", "email", v)}
         />
         <AutoSaveField
           label={t("fields.phone")}
           value={data.primary_phone ?? ""}
-          disabled={!features.master_data_edit_enabled}
+          disabled={!contactEditEnabled}
           onSave={(v) => saveField("guardian_phone", "primary", v)}
         />
         <AutoSaveField
           label={t("fields.addressStreet")}
           value={data.address_street ?? ""}
-          disabled={!features.master_data_edit_enabled}
+          disabled={!contactEditEnabled}
           onSave={(v) => saveField("guardian_profile", "address_street", v)}
         />
         <div className="grid gap-4 sm:grid-cols-[8rem_minmax(0,1fr)]">
           <AutoSaveField
             label={t("fields.addressPostalCode")}
             value={data.address_postal_code ?? ""}
-            disabled={!features.master_data_edit_enabled}
+            disabled={!contactEditEnabled}
             onSave={(v) =>
               saveField("guardian_profile", "address_postal_code", v)
             }
@@ -190,11 +191,11 @@ function ChildMasterDataContent({
           <AutoSaveField
             label={t("fields.addressCity")}
             value={data.address_city ?? ""}
-            disabled={!features.master_data_edit_enabled}
+            disabled={!contactEditEnabled}
             onSave={(v) => saveField("guardian_profile", "address_city", v)}
           />
         </div>
-        {!features.master_data_edit_enabled && (
+        {!contactEditEnabled && (
           <p className="text-xs text-gray-500">{t("editDisabled")}</p>
         )}
       </Section>
