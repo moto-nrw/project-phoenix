@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -273,4 +274,153 @@ func TestParentPasswordResetConfirm_Success(t *testing.T) {
 
 	assert.True(t, called)
 	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+// --- Validation + error-branch coverage for the three handlers. These guard
+// the HTTP status contract the parents portal depends on: a 400 keeps the user
+// on the form with a correction hint, a 500 surfaces a generic failure. A
+// regression that collapsed these into one status would either hide a real
+// server error behind a "check your input" message or vice versa.
+
+func TestParentLogin_MalformedEmail_Returns400(t *testing.T) {
+	// Bind() rejects a non-email before the service is ever called.
+	svc := &stubParentAuthService{
+		loginParent: func(_ context.Context, _, _, _, _ string) (string, string, error) {
+			t.Fatal("service must not be called for an invalid request body")
+			return "", "", nil
+		},
+	}
+	rr := postLogin(t, newTestResource(svc), map[string]string{
+		"email":    "not-an-email",
+		"password": "whatever",
+	})
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestParentLogin_UnexpectedError_Returns500(t *testing.T) {
+	// A non-AuthError (or AuthError with an unrecognized cause) is a real
+	// server fault — it must not masquerade as a credentials problem.
+	svc := &stubParentAuthService{
+		loginParent: func(_ context.Context, _, _, _, _ string) (string, string, error) {
+			return "", "", errors.New("database exploded")
+		},
+	}
+	rr := postLogin(t, newTestResource(svc), map[string]string{
+		"email":    "parent@example.com",
+		"password": "correct",
+	})
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+func TestParentPasswordReset_MalformedEmail_Returns400(t *testing.T) {
+	svc := &stubParentAuthService{
+		resetParent: func(_ context.Context, _ string) (*authModel.PasswordResetToken, error) {
+			t.Fatal("service must not be called for an invalid request body")
+			return nil, nil
+		},
+	}
+	rr := postPasswordReset(t, newTestResource(svc), map[string]string{
+		"email": "not-an-email",
+	})
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestParentPasswordReset_UnexpectedError_Returns500(t *testing.T) {
+	svc := &stubParentAuthService{
+		resetParent: func(_ context.Context, _ string) (*authModel.PasswordResetToken, error) {
+			return nil, errors.New("smtp config missing")
+		},
+	}
+	rr := postPasswordReset(t, newTestResource(svc), map[string]string{
+		"email": "parent@example.com",
+	})
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+func TestParentPasswordResetConfirm_PasswordMismatch_Returns400(t *testing.T) {
+	// Bind() enforces new_password == confirm_password before the service runs.
+	svc := &stubParentAuthService{
+		confirm: func(_ context.Context, _, _ string) error {
+			t.Fatal("service must not be called when passwords do not match")
+			return nil
+		},
+	}
+	rr := postPasswordResetConfirm(t, newTestResource(svc), map[string]string{
+		"token":            "reset-token",
+		"new_password":     "Str0ngP@ssword!",
+		"confirm_password": "Different1!",
+	})
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestParentPasswordResetConfirm_TooShortPassword_Returns400(t *testing.T) {
+	// Length(8, 0) validation rejects short passwords at the bind layer.
+	svc := &stubParentAuthService{
+		confirm: func(_ context.Context, _, _ string) error {
+			t.Fatal("service must not be called for a too-short password")
+			return nil
+		},
+	}
+	rr := postPasswordResetConfirm(t, newTestResource(svc), map[string]string{
+		"token":            "reset-token",
+		"new_password":     "short",
+		"confirm_password": "short",
+	})
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestParentPasswordResetConfirm_InvalidToken_Returns400(t *testing.T) {
+	// An expired/unknown token comes back as ErrInvalidToken and must map to a
+	// 400 "invalid or expired reset token", which the page renders as the
+	// expired-link copy — not a 500.
+	svc := &stubParentAuthService{
+		confirm: func(_ context.Context, _, _ string) error {
+			return &authService.AuthError{Op: "reset password", Err: authService.ErrInvalidToken}
+		},
+	}
+	rr := postPasswordResetConfirm(t, newTestResource(svc), map[string]string{
+		"token":            "expired-token",
+		"new_password":     "Str0ngP@ssword!",
+		"confirm_password": "Str0ngP@ssword!",
+	})
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestParentPasswordResetConfirm_WeakPassword_Returns400(t *testing.T) {
+	// The bind layer only checks length; the service enforces full complexity
+	// and returns ErrPasswordTooWeak, which must still surface as a 400.
+	svc := &stubParentAuthService{
+		confirm: func(_ context.Context, _, _ string) error {
+			return &authService.AuthError{Op: "reset password", Err: authService.ErrPasswordTooWeak}
+		},
+	}
+	rr := postPasswordResetConfirm(t, newTestResource(svc), map[string]string{
+		"token":            "reset-token",
+		"new_password":     "alllowercase1!",
+		"confirm_password": "alllowercase1!",
+	})
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestParentPasswordResetConfirm_UnexpectedError_Returns500(t *testing.T) {
+	svc := &stubParentAuthService{
+		confirm: func(_ context.Context, _, _ string) error {
+			return errors.New("token store unavailable")
+		},
+	}
+	rr := postPasswordResetConfirm(t, newTestResource(svc), map[string]string{
+		"token":            "reset-token",
+		"new_password":     "Str0ngP@ssword!",
+		"confirm_password": "Str0ngP@ssword!",
+	})
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 }

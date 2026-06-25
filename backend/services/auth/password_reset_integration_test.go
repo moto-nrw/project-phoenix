@@ -217,6 +217,39 @@ func TestInitiateParentPasswordResetPropagatesRoleLookupError(t *testing.T) {
 	require.Empty(t, tokens.tokens)
 }
 
+func TestInitiateParentPasswordResetSkipsDanglingRoleRow(t *testing.T) {
+	// An account_role row that points at a role id with no matching auth.roles
+	// row is a data inconsistency, not a DB fault. The guardian scan must treat
+	// the dangling row as "not this role" and keep walking — here there is no
+	// other role, so the account is correctly seen as a non-guardian and the
+	// response stays neutral. A regression that propagated sql.ErrNoRows here
+	// would turn a harmless data glitch into a hard 500 on every reset attempt.
+	service, _, tokens, _, _, mailer, mock, cleanup := newPasswordResetTestEnv(t)
+	t.Cleanup(cleanup)
+
+	require.NoError(t, service.repos.AccountTenant.Create(context.Background(), &authModel.AccountTenant{
+		AccountID: 1,
+		TenantID:  123,
+		Status:    authModel.AccountTenantStatusActive,
+	}))
+	// RoleID 999 has no row in the role store (only id 10 = guardian exists).
+	require.NoError(t, service.repos.AccountRole.Create(context.Background(), &authModel.AccountRole{
+		TenantModel: modelBase.TenantModel{TenantID: 123},
+		AccountID:   1,
+		RoleID:      999,
+	}))
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	token, err := service.InitiateParentPasswordReset(context.Background(), "user@example.com")
+	require.NoError(t, err)
+	require.Nil(t, token)
+	require.Empty(t, mailer.Messages())
+	require.Empty(t, tokens.tokens)
+}
+
 func TestInitiateParentPasswordResetUnknownEmailIsNeutralAndRateLimited(t *testing.T) {
 	service, _, tokens, rateRepo, _, mailer, _, cleanup := newPasswordResetTestEnv(t)
 	t.Cleanup(cleanup)

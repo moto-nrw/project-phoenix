@@ -696,6 +696,33 @@ describe("auth-api", () => {
         },
       );
     });
+
+    it("throws a typed ApiError carrying the backend status on failure", async () => {
+      // The reset page branches on status (410 expired / 404 not found / 400
+      // invalid) to pick its German error copy. If this client swallowed the
+      // status, every failure would collapse into the generic message.
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 410,
+        headers: new Headers({ "Content-Type": "application/json" }),
+        json: () => Promise.resolve({ error: "Token expired" }),
+      });
+
+      vi.spyOn(console, "error").mockImplementation(() => {});
+
+      try {
+        await confirmParentPasswordReset(
+          "expired",
+          "Str0ngP@ss1",
+          "Str0ngP@ss1",
+        );
+        expect.fail("expected confirmParentPasswordReset to reject");
+      } catch (error) {
+        const apiError = error as ApiError;
+        expect(apiError.status).toBe(410);
+        expect(apiError.message).toBe("Token expired");
+      }
+    });
   });
 
   describe("parseRetryAfter (via buildApiError)", () => {
