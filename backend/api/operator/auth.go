@@ -4,7 +4,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"strings"
 
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
@@ -179,13 +178,15 @@ func (rs *AuthResource) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify this is an operator-scoped refresh token, not a tenant/user token
-	if !strings.HasPrefix(claims.Token, "operator-refresh-") {
+	// Verify this is an operator-scoped refresh token, not a tenant/user token.
+	// Pre-fix deterministic operator refresh tokens had no persisted session
+	// and no platform scope claim; reject them here before the service lookup.
+	if claims.Scope != "platform" || claims.Token == "" {
 		common.RenderError(w, r, ErrUnauthorized())
 		return
 	}
 
-	accessToken, refreshToken, err := rs.authService.RefreshToken(r.Context(), int64(claims.ID))
+	accessToken, refreshToken, err := rs.authService.RefreshToken(r.Context(), int64(claims.ID), claims.Token)
 	if err != nil {
 		common.RenderError(w, r, AuthErrorRenderer(err))
 		return

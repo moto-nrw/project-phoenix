@@ -347,6 +347,12 @@ vi.mock("~/components/students/care-schedule-manager", () => ({
   ),
 }));
 
+const mockFetchStudentParentNotes = vi.fn();
+vi.mock("~/lib/student-parent-notes-api", () => ({
+  fetchStudentParentNotes: (studentId: string) =>
+    mockFetchStudentParentNotes(studentId),
+}));
+
 // Mock pickup schedule API
 vi.mock("~/lib/pickup-schedule-api", () => ({
   fetchStudentPickupData: vi.fn().mockResolvedValue({
@@ -511,6 +517,7 @@ describe("StudentDetailPage", () => {
       data: { user: { token: "test-token", permissions: ["config:manage"] } },
       status: "authenticated",
     } as ReturnType<typeof useSession>);
+    mockFetchStudentParentNotes.mockResolvedValue([]);
 
     // Default mock implementations
     mockUseStudentData.mockReturnValue({
