@@ -3,6 +3,7 @@ package operator_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -208,7 +209,7 @@ func TestProtectedOperatorRoutesRejectInactiveOperator(t *testing.T) {
 		TokenAuth:           tokenAuth,
 	}).Router()
 
-	req := newCreateSchoolRequest(accessToken)
+	req := newCreateSchoolRequest(accessToken, 7)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 
@@ -219,6 +220,7 @@ func TestProtectedOperatorRoutesRejectInactiveOperator(t *testing.T) {
 func TestProtectedOperatorRoutesAllowActiveOperator(t *testing.T) {
 	tokenAuth := newOperatorRouteTokenAuth(t)
 	accessToken := operatorRouteAccessToken(t, tokenAuth, 42)
+	organizationID := 7
 	authService := &mockOperatorAuthService{
 		getOperatorFn: func(_ context.Context, id int64) (*platformModels.Operator, error) {
 			assert.Equal(t, int64(42), id)
@@ -232,7 +234,7 @@ func TestProtectedOperatorRoutesAllowActiveOperator(t *testing.T) {
 		createSchoolFn: func(_ context.Context, school *platformModels.School, operatorID int64, clientIP net.IP) (*platformModels.School, error) {
 			createSchoolCalled = true
 			assert.Equal(t, int64(42), operatorID)
-			assert.Equal(t, int64(7), school.OrganizationID)
+			assert.Equal(t, int64(organizationID), school.OrganizationID)
 			assert.Equal(t, "school@example.com", school.Email)
 			school.ID = 88
 			return school, nil
@@ -244,7 +246,7 @@ func TestProtectedOperatorRoutesAllowActiveOperator(t *testing.T) {
 		TokenAuth:           tokenAuth,
 	}).Router()
 
-	req := newCreateSchoolRequest(accessToken)
+	req := newCreateSchoolRequest(accessToken, organizationID)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 
@@ -272,8 +274,8 @@ func operatorRouteAccessToken(t *testing.T, tokenAuth *jwt.TokenAuth, operatorID
 	return token
 }
 
-func newCreateSchoolRequest(accessToken string) *http.Request {
-	body := `{"organization_id":7,"name":"Test School","slug":"test-school","subdomain":"test-sub","email":"school@example.com"}`
+func newCreateSchoolRequest(accessToken string, organizationID int) *http.Request {
+	body := fmt.Sprintf(`{"organization_id":%d,"name":"Test School","slug":"test-school","subdomain":"test-sub","email":"school@example.com"}`, organizationID)
 	req := httptest.NewRequest(http.MethodPost, "/schools", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+accessToken)

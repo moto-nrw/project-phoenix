@@ -900,6 +900,77 @@ func countOperatorRefreshTokens(t *testing.T, db *bun.DB, operatorID int64, toke
 	return count
 }
 
+func TestOperatorAuthService_RefreshToken_BlankTokenRejected(t *testing.T) {
+	withJWTSecret(t)
+
+	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+		OperatorRepo: &mockOperatorRepo{},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           &bun.DB{},
+		Logger:       slog.Default(),
+	})
+	require.NoError(t, err)
+
+	_, _, err = service.RefreshToken(context.Background(), 42, " \t ")
+	require.Error(t, err)
+	var invalidRefresh *platformSvc.OperatorRefreshTokenInvalidError
+	assert.ErrorAs(t, err, &invalidRefresh)
+	assert.Equal(t, "operator refresh token is invalid", err.Error())
+}
+
+func TestOperatorAuthService_RefreshToken_MissingRefreshTokenRepo(t *testing.T) {
+	withJWTSecret(t)
+
+	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+		OperatorRepo: &mockOperatorRepo{},
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           &bun.DB{},
+		Logger:       slog.Default(),
+	})
+	require.NoError(t, err)
+
+	_, _, err = service.RefreshToken(context.Background(), 42, "opaque-token")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "operator refresh token repository is not configured")
+}
+
+func TestOperatorAuthService_ChangePassword_MissingRefreshTokenRepo(t *testing.T) {
+	withJWTSecret(t)
+
+	passwordHash, err := authSvc.HashPassword(testPassword)
+	require.NoError(t, err)
+
+	updateCalled := false
+	operatorRepo := &mockOperatorRepo{
+		findByIDFn: func(context.Context, int64) (*platform.Operator, error) {
+			return &platform.Operator{
+				Model:        base.Model{ID: 42},
+				Email:        "operator@example.com",
+				DisplayName:  "Test Operator",
+				PasswordHash: passwordHash,
+				Active:       true,
+			}, nil
+		},
+		updateFn: func(context.Context, *platform.Operator) error {
+			updateCalled = true
+			return nil
+		},
+	}
+
+	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+		OperatorRepo: operatorRepo,
+		AuditLogRepo: &mockAuditLogRepoShared{},
+		DB:           &bun.DB{},
+		Logger:       slog.Default(),
+	})
+	require.NoError(t, err)
+
+	err = service.ChangePassword(context.Background(), 42, testPassword, "ChangedPass789!")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "operator refresh token repository is not configured")
+	assert.False(t, updateCalled, "password update must not be persisted without refresh-token revocation")
+}
+
 func TestOperatorAuthService_RefreshToken_SuccessRotatesServerSideSession(t *testing.T) {
 	withJWTSecret(t)
 	db := testpkg.SetupTestDB(t)

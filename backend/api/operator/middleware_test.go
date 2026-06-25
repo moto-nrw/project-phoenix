@@ -119,6 +119,22 @@ func TestRequiresActiveOperator_ActiveOperator(t *testing.T) {
 	assert.True(t, nextCalled, "next handler should have been called")
 }
 
+func TestRequiresActiveOperator_MissingLookupFailsClosed(t *testing.T) {
+	nextCalled := false
+	handler := operator.RequiresActiveOperator(nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nextCalled = true
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := requestWithOperatorClaims(42)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusServiceUnavailable, rr.Code)
+	assert.Contains(t, rr.Body.String(), "Operator status temporarily unavailable")
+	assert.False(t, nextCalled, "missing operator lookup must not reach protected handlers")
+}
+
 func TestRequiresActiveOperator_InactiveOperator(t *testing.T) {
 	nextCalled := false
 	handler := operator.RequiresActiveOperator(operatorLookupStub{
@@ -139,6 +155,26 @@ func TestRequiresActiveOperator_InactiveOperator(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, rr.Code)
 	assert.Contains(t, rr.Body.String(), "Operator account is inactive")
 	assert.False(t, nextCalled, "inactive operators must not reach protected handlers")
+}
+
+func TestRequiresActiveOperator_NilOperatorFailsClosed(t *testing.T) {
+	nextCalled := false
+	handler := operator.RequiresActiveOperator(operatorLookupStub{
+		getOperatorFn: func(context.Context, int64) (*platformModels.Operator, error) {
+			return nil, nil
+		},
+	})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nextCalled = true
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := requestWithOperatorClaims(42)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+	assert.Contains(t, rr.Body.String(), "Invalid email or password")
+	assert.False(t, nextCalled, "nil operator lookups must not reach protected handlers")
 }
 
 func TestRequiresActiveOperator_OperatorNotFound(t *testing.T) {

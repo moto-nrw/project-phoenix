@@ -106,7 +106,7 @@ func (rs *Resource) toggleAttendance(w http.ResponseWriter, r *http.Request) {
 
 	// Handle "confirm_daily_checkout" action - process the deferred daily checkout
 	if req.Action == "confirm_daily_checkout" {
-		rs.handleDailyCheckout(w, r, normalizedRFID, req)
+		rs.handleDailyCheckout(w, r, normalizedRFID, req, deviceCtx.ID)
 		return
 	}
 
@@ -171,7 +171,7 @@ func (rs *Resource) handleCancelAction(w http.ResponseWriter, r *http.Request) {
 // record when the student confirms "nach Hause". If a visit is still open,
 // CheckOutStudent ends it in the same request transaction (issue #895 — see
 // services/active.performCheckOut).
-func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, normalizedRFID string, req *AttendanceToggleRequest) {
+func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, normalizedRFID string, req *AttendanceToggleRequest, deviceID int64) {
 	// Find person by RFID tag
 	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedRFID)
 	if err != nil || person == nil {
@@ -224,19 +224,10 @@ func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, 
 				slog.Int64("student_id", student.ID),
 			)
 		case "checked_in":
-			deviceCtx := device.DeviceFromCtx(r.Context())
-			if deviceCtx == nil {
-				slog.WarnContext(r.Context(), "device auth missing API key", slog.String("path", r.URL.Path))
-				if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
-					http.Error(w, "Unauthorized", http.StatusUnauthorized)
-				}
-				return
-			}
-
 			// Set attendance to "checked_out" — sets check_out_time on today's record.
 			// The active service resolves the device's active supervisor as the
 			// auditable checked_out_by principal before writing attendance.
-			_, err := rs.ActiveService.CheckOutStudentFromDevice(r.Context(), student.ID, deviceCtx.ID)
+			_, err := rs.ActiveService.CheckOutStudentFromDevice(r.Context(), student.ID, deviceID)
 			if err != nil {
 				slog.Default().ErrorContext(r.Context(), "failed to update attendance for daily checkout",
 					slog.Int64("student_id", student.ID),
