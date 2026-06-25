@@ -2357,13 +2357,16 @@ func (m *mockBreakAutoEnder) AutoEndExpiredBreaks(_ context.Context) (int, error
 }
 
 func TestWaitUntilNextMinute_ShutdownDuringWait(t *testing.T) {
-	s := &Scheduler{done: make(chan struct{}), logger: slog.Default()}
-	go func() {
-		time.Sleep(50 * time.Millisecond)
-		close(s.done)
-	}()
-	result := s.waitUntilNextMinute()
-	assert.False(t, result, "should return false when shutdown signal fires during wait")
+	synctest.Test(t, func(t *testing.T) {
+		s := &Scheduler{done: make(chan struct{}), logger: slog.Default()}
+		go func() {
+			time.Sleep(50 * time.Millisecond)
+			close(s.done)
+		}()
+
+		result := s.waitUntilNextMinute()
+		assert.False(t, result, "should return false when shutdown signal fires during wait")
+	})
 }
 
 func TestScheduleCleanupTask_DisabledByEnv(t *testing.T) {
