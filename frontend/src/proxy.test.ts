@@ -146,8 +146,8 @@ describe("proxy", () => {
       expect(redirect).toBeNull();
     });
 
-    // Note: favicon.ico, favicon.png, apple-touch-icon.png, site.webmanifest,
-    // icons/, and images/ are excluded from proxy via the matcher config.
+    // Note: favicon.ico, favicon.png, apple-touch-icon.png, manifests,
+    // favicons/, icons/, and images/ are excluded from proxy via the matcher config.
     // They never reach the proxy function in production.
 
     it("uses x-forwarded-host header when present", () => {

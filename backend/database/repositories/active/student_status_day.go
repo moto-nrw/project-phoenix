@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -284,29 +285,59 @@ func (r *StudentStatusDayRepository) ArchiveAndClearStatusFlag(
 	return affected, nil
 }
 
-// CountActiveClassTripStudents counts distinct students with an uncleared
-// class-trip status entry for the date, excluding students currently flagged
-// sick or excused. Custom method (backend-conventions Rule 2): join on
-// users.students with COALESCE flag predicates for the dashboard analytics.
-func (r *StudentStatusDayRepository) CountActiveClassTripStudents(ctx context.Context, date timezone.Date) (int, error) {
-	var count int
-	query := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr(`active.student_status_days AS "student_status_day"`).
-		Join(`JOIN users.students AS "student" ON "student".id = "student_status_day".student_id AND "student".tenant_id = "student_status_day".tenant_id`).
-		Where(`"student_status_day".date = ?`, date).
-		Where(`"student_status_day".status = ?`, active.StudentStatusDayClassTrip).
-		Where(`"student_status_day".cleared_at IS NULL`).
-		Where(`COALESCE("student".sick, FALSE) = FALSE`).
-		Where(`COALESCE("student".excused, FALSE) = FALSE`).
-		ColumnExpr(`COUNT(DISTINCT "student_status_day".student_id)`)
-	if where, val, ok := base.TenantWhere(ctx, "student_status_day"); ok {
-		query = query.Where(where, val)
+// CountEffectiveDashboardAbsences counts the dashboard's effective absence
+// buckets for one date. It bridges the legacy live flags on users.students and
+// the newer date-scoped rows in active.student_status_days without double
+// counting overlaps. Sick wins over excused/class_trip, matching
+// api/students/status_days_response.go.
+func (r *StudentStatusDayRepository) CountEffectiveDashboardAbsences(ctx context.Context, date timezone.Date) (*active.StudentStatusCounts, error) {
+	counts := &active.StudentStatusCounts{}
+	db := base.GetDB(ctx, r.db)
+
+	perStudent := db.NewSelect().
+		TableExpr(`users.students AS "student"`).
+		ColumnExpr(`"student".id`).
+		ColumnExpr(`COALESCE("student".sick, FALSE) AS flag_sick`).
+		ColumnExpr(`COALESCE("student".excused, FALSE) AS flag_excused`).
+		ColumnExpr(`COALESCE(BOOL_OR("student_status_day".status = ?), FALSE) AS day_sick`, active.StudentStatusDaySick).
+		ColumnExpr(`COALESCE(BOOL_OR("student_status_day".status = ?), FALSE) AS day_excused`, active.StudentStatusDayExcused).
+		ColumnExpr(`COALESCE(BOOL_OR("student_status_day".status = ?), FALSE) AS day_class_trip`, active.StudentStatusDayClassTrip).
+		Join(`
+			LEFT JOIN active.student_status_days AS "student_status_day"
+				ON "student_status_day".tenant_id = "student".tenant_id
+				AND "student_status_day".student_id = "student".id
+				AND "student_status_day".date = ?
+				AND "student_status_day".cleared_at IS NULL
+		`, date).
+		Where(`"student".status = ?`, string(usersModels.StudentStatusActive)).
+		GroupExpr(`"student".id, "student".sick, "student".excused`)
+	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
+		perStudent = perStudent.Where(where, val)
 	}
-	if err := query.Scan(ctx, &count); err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "count active class trip students",
+
+	query := db.NewSelect().
+		TableExpr(`(?) AS "effective_student_status"`, perStudent).
+		ColumnExpr(`
+			COUNT(*) FILTER (
+				WHERE "effective_student_status".flag_sick
+					OR "effective_student_status".day_sick
+			) AS sick_count
+		`).
+		ColumnExpr(`
+			COUNT(*) FILTER (
+				WHERE NOT ("effective_student_status".flag_sick OR "effective_student_status".day_sick)
+					AND (
+						"effective_student_status".flag_excused
+						OR "effective_student_status".day_excused
+						OR "effective_student_status".day_class_trip
+					)
+			) AS excused_count
+		`)
+	if err := query.Scan(ctx, counts); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "count effective dashboard absences",
 			Err: err,
 		}
 	}
-	return count, nil
+	return counts, nil
 }
