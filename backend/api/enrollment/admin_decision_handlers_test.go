@@ -234,6 +234,23 @@ func TestListAdminRequestsHandler_HappyPathReturns200(t *testing.T) {
 	assert.Contains(t, w.Body.String(), `"phase_name":"Schuljahr 2026"`)
 }
 
+func TestListAdminRequestsHandler_ConfigReadDoesNotReturnStatusToken(t *testing.T) {
+	summary := makeReqSummary(1234, 5678,
+		makeChildSummary(99, "Lara", "Beispiel", enrollmentModels.ChildStatusSubmitted),
+	)
+	summary.Request.StatusToken = "leaked-token"
+	mock := &mockDecisionService{
+		listResult: []*enrollmentService.RequestSummary{summary},
+	}
+	router := buildProtectedAdminDecisionRouter(mock)
+	w := executeAdminJSONWithPermissions(t, router, http.MethodGet, "/enrollment/admin/requests", []string{"config:read"})
+	require.Equal(t, http.StatusOK, w.Code)
+
+	body := w.Body.String()
+	assert.NotContains(t, body, `"status_token"`)
+	assert.NotContains(t, body, "leaked-token")
+}
+
 func TestAdminRequestRoutes_DetailRequiresConfigManage(t *testing.T) {
 	mock := &mockDecisionService{
 		listResult: []*enrollmentService.RequestSummary{
@@ -338,10 +355,12 @@ func TestGetAdminRequestHandler_GenericErrorMappedAs500(t *testing.T) {
 }
 
 func TestGetAdminRequestHandler_HappyPathReturnsDetail(t *testing.T) {
+	summary := makeReqSummary(1234, 5678,
+		makeChildSummary(99, "Lara", "Beispiel", enrollmentModels.ChildStatusSubmitted),
+	)
+	summary.Request.StatusToken = "detail-token"
 	mock := &mockDecisionService{
-		getResult: makeReqSummary(1234, 5678,
-			makeChildSummary(99, "Lara", "Beispiel", enrollmentModels.ChildStatusSubmitted),
-		),
+		getResult: summary,
 	}
 	router := buildAdminDecisionRouter(mock)
 	w := executeAdminJSON(t, router, http.MethodGet, "/enrollment/admin/requests/1234", nil)
@@ -350,6 +369,7 @@ func TestGetAdminRequestHandler_HappyPathReturnsDetail(t *testing.T) {
 	assert.Contains(t, body, `"id":"1234"`)
 	assert.Contains(t, body, `"id":"99"`)
 	assert.Contains(t, body, `"date_of_birth":"2018-04-15"`)
+	assert.Contains(t, body, `"status_token":"detail-token"`)
 }
 
 func TestGetAdminRequestHandler_StitchesChildOfferings(t *testing.T) {

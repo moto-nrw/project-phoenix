@@ -93,7 +93,6 @@ const requests = [
     guardian_last_name: "Muster",
     guardian_email: "eva@example.test",
     submitted_at: "2026-06-18T11:15:00Z",
-    status_token: "token",
     children: [
       {
         id: "20",

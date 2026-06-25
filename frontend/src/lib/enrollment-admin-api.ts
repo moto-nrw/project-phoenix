@@ -108,7 +108,6 @@ export interface AdminRequestSummary {
   guardian_phone?: string | null;
   submitted_at: string;
   withdrawn_at?: string | null;
-  status_token: string;
   /**
    * Request-level custom field answers (everything where
    * applies_to_child=false). Populated only on the detail endpoint.
@@ -134,6 +133,10 @@ export interface AdminRequestSummary {
    * Empty/absent when none were added.
    */
   additional_guardians?: AdminRequestGuardian[];
+}
+
+export interface AdminRequestDetail extends AdminRequestSummary {
+  status_token: string;
 }
 
 /** One additional guardian (co-guardian) on a submission. */
@@ -200,16 +203,14 @@ export async function listAdminRequests(
   return Array.isArray(list) ? list : [];
 }
 
-export async function getAdminRequest(
-  id: string,
-): Promise<AdminRequestSummary> {
+export async function getAdminRequest(id: string): Promise<AdminRequestDetail> {
   const response = await fetch(`${BASE}/${encodeURIComponent(id)}`, {
     cache: "no-store",
   });
   if (!response.ok) {
     throw await readError(response, "Anmeldung konnte nicht geladen werden");
   }
-  return readJSON<AdminRequestSummary>(response);
+  return readJSON<AdminRequestDetail>(response);
 }
 
 export async function listStudentEnrollmentRequests(
