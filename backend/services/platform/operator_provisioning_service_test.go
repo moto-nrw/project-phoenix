@@ -525,6 +525,9 @@ func (m *mockPersonRepo) Create(ctx context.Context, person *userModels.Person) 
 func (m *mockPersonRepo) FindByID(context.Context, interface{}) (*userModels.Person, error) {
 	return nil, nil
 }
+func (m *mockPersonRepo) FindByIDForUpdate(context.Context, int64) (*userModels.Person, error) {
+	return nil, nil
+}
 func (m *mockPersonRepo) FindByIDs(context.Context, []int64) (map[int64]*userModels.Person, error) {
 	return nil, nil
 }

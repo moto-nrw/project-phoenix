@@ -323,9 +323,6 @@ func TestMasterDataReview_ApproveInvalidRowsRejected(t *testing.T) {
 	repos := repositories.NewFactory(db)
 	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
 
-	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
-
 	tests := []struct {
 		name   string
 		target string
@@ -343,6 +340,9 @@ func TestMasterDataReview_ApproveInvalidRowsRejected(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			chain := testpkg.CreateTestParentGuardianChain(t, db)
+			defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
 			row := insertPendingChange(t, db, repos, chain, tt.target, tt.field, `null`, tt.value)
 			err := tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 				_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true})
