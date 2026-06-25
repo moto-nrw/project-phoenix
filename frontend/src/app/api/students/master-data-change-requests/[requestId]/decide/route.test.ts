@@ -30,7 +30,7 @@ vi.mock("~/lib/route-wrapper.server", () => ({
 describe("staff master-data change request decision route", () => {
   it("forwards decisions to the encoded backend request endpoint", async () => {
     const body = { approve: true, reason: "passt" };
-    vi.mocked(apiPost).mockResolvedValue({ id: "id/with space" });
+    vi.mocked(apiPost).mockResolvedValue({ data: { id: "id/with space" } });
 
     const out = await POST(
       new Request("http://test.local") as never,

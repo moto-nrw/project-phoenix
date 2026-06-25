@@ -140,6 +140,11 @@ func (s *service) UpdateMasterDataField(ctx context.Context, accountID, studentI
 	if !enabled {
 		return nil, ErrMasterDataEditDisabled
 	}
+	if isTrackAGuardianTarget(target) {
+		if err := s.requireGuardianManagementEnabled(ctx, child.tenantID); err != nil {
+			return nil, err
+		}
+	}
 
 	newStr, err := decodeStringValue(value)
 	if err != nil {
@@ -196,6 +201,10 @@ func (s *service) applyTrackAEdit(ctx context.Context, accountID, studentID, ten
 	}
 }
 
+func isTrackAGuardianTarget(target string) bool {
+	return target == usersModels.DataChangeTargetGuardianProfile || target == usersModels.DataChangeTargetGuardianPhone
+}
+
 func (s *service) applyStudentEdit(ctx context.Context, studentID int64, fieldKey, newStr string) (json.RawMessage, json.RawMessage, *int64, error) {
 	student, err := s.studentRepo.FindByIDForUpdate(ctx, studentID)
 	if err != nil {
@@ -216,6 +225,13 @@ func (s *service) applyStudentEdit(ctx context.Context, studentID int64, fieldKe
 
 func (s *service) applyGuardianProfileEdit(ctx context.Context, accountID int64, fieldKey, newStr string) (json.RawMessage, json.RawMessage, *int64, error) {
 	profile, err := s.guardianProfileRepo.FindByAccountID(ctx, accountID)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if err := s.guardianProfileRepo.LockByIDForUpdate(ctx, profile.ID); err != nil {
+		return nil, nil, nil, err
+	}
+	profile, err = s.guardianProfileRepo.FindByID(ctx, profile.ID)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -292,6 +308,9 @@ func (s *service) guardianProfileFieldJSON(profile *usersModels.GuardianProfile,
 func (s *service) applyGuardianPhoneEdit(ctx context.Context, accountID, tenantID int64, newStr string) (json.RawMessage, json.RawMessage, *int64, error) {
 	profile, err := s.guardianProfileRepo.FindByAccountID(ctx, accountID)
 	if err != nil {
+		return nil, nil, nil, err
+	}
+	if err := s.guardianProfileRepo.LockByIDForUpdate(ctx, profile.ID); err != nil {
 		return nil, nil, nil, err
 	}
 	phones, err := s.guardianPhoneRepo.FindByGuardianID(ctx, profile.ID)

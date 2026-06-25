@@ -14,10 +14,28 @@ import (
 
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
+
+type reviewRecordingBroadcaster struct {
+	events []realtime.Event
+}
+
+func (b *reviewRecordingBroadcaster) BroadcastToGroup(_ int64, _ string, _ realtime.Event) error {
+	return nil
+}
+
+func (b *reviewRecordingBroadcaster) BroadcastToTenant(_ int64, event realtime.Event) error {
+	b.events = append(b.events, event)
+	return nil
+}
+
+func (b *reviewRecordingBroadcaster) BroadcastToAll(_ realtime.Event) error {
+	return nil
+}
 
 func insertPendingChange(t *testing.T, db *bun.DB, repos *repositories.Factory, c testpkg.ParentChain, target, field string, oldVal, newVal string) *userModels.StudentDataChangeRequest {
 	t.Helper()
@@ -264,6 +282,29 @@ func TestMasterDataReview_ApproveAppliesDepartureModes(t *testing.T) {
 	assert.Equal(t, []userModels.DepartureMode{userModels.DeparturePickup}, student.AllowedDepartureModes[userModels.PickupDayWednesday])
 }
 
+func TestMasterDataReview_ApprovalBroadcastsStudentUpdatedAfterCommit(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() {
+		require.NoError(t, db.Close())
+	}()
+	repos := repositories.NewFactory(db)
+	broadcaster := &reviewRecordingBroadcaster{}
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default(), broadcaster)
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
+
+	err := tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true, ReviewedBy: chain.AccountID})
+		assert.Empty(t, broadcaster.events, "broadcast must wait until the transaction commits")
+		return e
+	})
+	require.NoError(t, err)
+	require.Len(t, broadcaster.events, 1)
+	assert.Equal(t, realtime.EventStudentUpdated, broadcaster.events[0].Type)
+}
+
 func TestMasterDataReview_RejectLeavesRecordUnchanged(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() {
@@ -336,6 +377,7 @@ func TestMasterDataReview_ApproveInvalidRowsRejected(t *testing.T) {
 		{name: "invalid departure field", target: userModels.DataChangeTargetDeparture, field: "pickup_status", value: `{}`, want: userService.ErrReviewInvalidTarget},
 		{name: "invalid departure value", target: userModels.DataChangeTargetDeparture, field: "allowed_departure_modes", value: `123`, want: userService.ErrReviewInvalidValue},
 		{name: "unknown departure mode", target: userModels.DataChangeTargetDeparture, field: "allowed_departure_modes", value: `{"mon":["spaceship"]}`, want: userService.ErrReviewInvalidValue},
+		{name: "unsupported accompanied mode", target: userModels.DataChangeTargetDeparture, field: "allowed_departure_modes", value: `{"mon":["accompanied"]}`, want: userService.ErrReviewInvalidValue},
 	}
 
 	for _, tt := range tests {

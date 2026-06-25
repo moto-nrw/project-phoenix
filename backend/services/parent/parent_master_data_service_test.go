@@ -19,11 +19,13 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// masterDataStubSettings answers only the two master-data feature flags.
+// masterDataStubSettings answers the parent-write feature flags used by the
+// master-data services.
 type masterDataStubSettings struct {
 	configService.SettingsService
-	editEnabled    bool
-	requestEnabled bool
+	editEnabled               bool
+	requestEnabled            bool
+	guardianManagementEnabled bool
 }
 
 func (s masterDataStubSettings) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
@@ -32,6 +34,8 @@ func (s masterDataStubSettings) ResolveBoolForTenant(_ context.Context, _ int64,
 		return s.editEnabled, nil
 	case configModels.KeyParentMasterDataRequestEnabled:
 		return s.requestEnabled, nil
+	case configModels.KeyParentGuardianManagementEnabled:
+		return s.guardianManagementEnabled, nil
 	default:
 		return false, nil
 	}
@@ -49,12 +53,48 @@ func buildMasterDataService(t *testing.T, editEnabled bool) (parentService.Servi
 		PersonRepo:          repos.Person,
 		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
 		ChangeRequestRepo:   repos.StudentDataChangeRequest,
-		Settings:            masterDataStubSettings{editEnabled: editEnabled},
+		Settings:            masterDataStubSettings{editEnabled: editEnabled, guardianManagementEnabled: true},
 		Broadcaster:         &captureBroadcaster{},
 		DB:                  db,
 		Logger:              slog.Default(),
 	})
 	return svc, db
+}
+
+func TestUpdateMasterDataField_GuardianManagementDisabledRejectsContactEdits(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	repos := repositories.NewFactory(db)
+	svc := parentService.NewService(parentService.ServiceConfig{
+		ChildRepo:           repos.ParentChild,
+		StudentRepo:         repos.Student,
+		GuardianProfileRepo: repos.GuardianProfile,
+		PersonRepo:          repos.Person,
+		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
+		ChangeRequestRepo:   repos.StudentDataChangeRequest,
+		Settings:            masterDataStubSettings{editEnabled: true, guardianManagementEnabled: false},
+		Broadcaster:         &captureBroadcaster{},
+		DB:                  db,
+		Logger:              slog.Default(),
+	})
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	_, err := svc.UpdateMasterDataField(
+		context.Background(), chain.AccountID, chain.StudentID,
+		usersModels.DataChangeTargetGuardianProfile, "email",
+		json.RawMessage(`"new.parent@example.test"`),
+	)
+	assert.ErrorIs(t, err, parentService.ErrGuardianManagementDisabled)
+
+	data, err := svc.UpdateMasterDataField(
+		context.Background(), chain.AccountID, chain.StudentID,
+		usersModels.DataChangeTargetStudent, "health_info",
+		json.RawMessage(`"allowed"`),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, data.HealthInfo)
+	assert.Equal(t, "allowed", *data.HealthInfo)
 }
 
 func TestGetChildMasterData_ReturnsChainData(t *testing.T) {

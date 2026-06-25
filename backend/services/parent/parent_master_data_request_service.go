@@ -214,6 +214,10 @@ func trackBDepartureState(student *usersModels.Student, value json.RawMessage) (
 	if err := modes.Validate(); err != nil {
 		return nil, nil, false, ErrMasterDataInvalidValue
 	}
+	if modes.HasMode(usersModels.DepartureAccompanied) ||
+		student.AllowedDepartureModes.HasMode(usersModels.DepartureAccompanied) {
+		return nil, nil, false, ErrMasterDataInvalidValue
+	}
 	normalized := modes.Normalize()
 	current := student.AllowedDepartureModes.Normalize()
 	newRaw, _ := json.Marshal(normalized)

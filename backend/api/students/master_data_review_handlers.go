@@ -69,7 +69,7 @@ func (rs *Resource) listMasterDataChangeRequests(w http.ResponseWriter, r *http.
 // DecideMasterDataChangeRequestBody is the body of POST
 // .../master-data-change-requests/{requestId}/decide.
 type DecideMasterDataChangeRequestBody struct {
-	Approve bool   `json:"approve"`
+	Approve *bool  `json:"approve"`
 	Reason  string `json:"reason"`
 }
 
@@ -89,11 +89,15 @@ func (rs *Resource) decideMasterDataChangeRequest(w http.ResponseWriter, r *http
 		renderError(w, r, ErrorInvalidRequest(errors.New("invalid request body")))
 		return
 	}
+	if body.Approve == nil {
+		renderError(w, r, ErrorInvalidRequest(errors.New("approve is required")))
+		return
+	}
 
 	claims := jwt.ClaimsFromCtx(r.Context())
 	row, err := rs.MasterDataReviewService.Decide(r.Context(), userService.MasterDataReviewDecideInput{
 		RequestID:  requestID,
-		Approve:    body.Approve,
+		Approve:    *body.Approve,
 		Reason:     body.Reason,
 		ReviewedBy: int64(claims.ID),
 	})

@@ -124,6 +124,11 @@ func TestDecideMasterDataChangeRequest_RejectsBadRequest(t *testing.T) {
 	w = httptest.NewRecorder()
 	rs.decideMasterDataChangeRequest(w, req)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+
+	req = staffRequest(http.MethodPost, "/students/master-data-change-requests/100/decide", `{"aproove":true}`, "100")
+	w = httptest.NewRecorder()
+	rs.decideMasterDataChangeRequest(w, req)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestDecideMasterDataChangeRequest_MapsServiceErrors(t *testing.T) {

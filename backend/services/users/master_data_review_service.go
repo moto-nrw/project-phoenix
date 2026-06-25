@@ -9,6 +9,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Staff-review sentinel errors, mapped to HTTP codes by the handler.
@@ -58,6 +60,7 @@ type masterDataReviewService struct {
 	changeRequestRepo userModels.StudentDataChangeRequestRepository
 	studentRepo       userModels.StudentRepository
 	personRepo        userModels.PersonRepository
+	broadcaster       realtime.Broadcaster
 	logger            *slog.Logger
 }
 
@@ -67,14 +70,20 @@ func NewMasterDataReviewService(
 	studentRepo userModels.StudentRepository,
 	personRepo userModels.PersonRepository,
 	logger *slog.Logger,
+	broadcasters ...realtime.Broadcaster,
 ) MasterDataReviewService {
 	if logger == nil {
 		logger = slog.Default()
+	}
+	var broadcaster realtime.Broadcaster
+	if len(broadcasters) > 0 {
+		broadcaster = broadcasters[0]
 	}
 	return &masterDataReviewService{
 		changeRequestRepo: changeRequestRepo,
 		studentRepo:       studentRepo,
 		personRepo:        personRepo,
+		broadcaster:       broadcaster,
 		logger:            logger,
 	}
 }
@@ -132,7 +141,7 @@ func (s *masterDataReviewService) Decide(ctx context.Context, input MasterDataRe
 		if errors.Is(err, userModels.ErrChangeRequestNotPending) {
 			return nil, ErrReviewNotPending
 		}
-		return nil, ErrReviewNotFound
+		return nil, fmt.Errorf("review: find pending request: %w", err)
 	}
 
 	var reason *string
@@ -171,7 +180,32 @@ func (s *masterDataReviewService) Decide(ctx context.Context, input MasterDataRe
 		slog.String("field", req.FieldKey),
 		slog.Int64("reviewed_by", input.ReviewedBy),
 	)
+	s.deferStudentUpdated(ctx, req.StudentID)
 	return s.changeRequestRepo.FindByID(ctx, req.ID)
+}
+
+func (s *masterDataReviewService) deferStudentUpdated(ctx context.Context, studentID int64) {
+	if s.broadcaster == nil {
+		return
+	}
+	tenantID := tenant.FromContext(ctx)
+	tenant.RegisterAfterCommit(ctx, func() {
+		if tenantID <= 0 {
+			s.logger.Warn("review: skipping student_updated broadcast without tenant",
+				slog.Int64("student_id", studentID),
+			)
+			return
+		}
+		source := "master_data_review"
+		event := realtime.NewEvent(realtime.EventStudentUpdated, "", realtime.EventData{Source: &source})
+		if err := s.broadcaster.BroadcastToTenant(tenantID, event); err != nil {
+			s.logger.Warn("review: failed to broadcast student update",
+				slog.Int64("tenant_id", tenantID),
+				slog.Int64("student_id", studentID),
+				slog.String("error", err.Error()),
+			)
+		}
+	})
 }
 
 // applyApprovedChange writes the request's new_value to the live record.
@@ -228,6 +262,9 @@ func (s *masterDataReviewService) applyDepartureChange(ctx context.Context, req 
 		return ErrReviewInvalidValue
 	}
 	if err := modes.Validate(); err != nil {
+		return ErrReviewInvalidValue
+	}
+	if modes.HasMode(userModels.DepartureAccompanied) {
 		return ErrReviewInvalidValue
 	}
 	student, err := s.studentRepo.FindByIDForUpdate(ctx, req.StudentID)

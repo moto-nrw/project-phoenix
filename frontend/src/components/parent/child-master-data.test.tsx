@@ -183,6 +183,14 @@ describe("ChildMasterDataView", () => {
       ),
     ).toBeInTheDocument();
     expect(await screen.findByText("In Prüfung")).toBeInTheDocument();
+    expect(await screen.findByDisplayValue("Lara")).toBeDisabled();
+
+    fireEvent.click(
+      within(identitySection).getByRole("button", {
+        name: "Änderung anfragen",
+      }),
+    );
+    expect(mockSubmit).toHaveBeenCalledTimes(1);
   });
 
   it("submits departure mode changes for review", async () => {
@@ -234,6 +242,34 @@ describe("ChildMasterDataView", () => {
         },
       ]),
     );
+  });
+
+  it("does not offer accompanied departure requests without companion-note support", async () => {
+    mockGetMasterData.mockResolvedValue(
+      masterData({
+        allowed_departure_modes: {
+          mon: ["accompanied"],
+        },
+      }),
+    );
+
+    render(<ChildMasterDataView studentId="42" />);
+
+    const departureSection = await screen.findByRole("heading", {
+      name: "Dauerhafte Gehzeiten",
+    });
+    const section = departureSection.closest("section");
+    if (!section) {
+      throw new Error("departure section not found");
+    }
+
+    expect(
+      screen.queryByLabelText("Mo Mit anderem Kind"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Mo Geht allein")).toBeDisabled();
+    expect(
+      within(section).getByRole("button", { name: "Änderung anfragen" }),
+    ).toBeDisabled();
   });
 
   it("shows disabled messaging when feature flags are off", async () => {

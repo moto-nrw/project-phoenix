@@ -220,4 +220,9 @@ func TestSubmitMasterDataChangeRequest_InvalidInputs(t *testing.T) {
 		{Target: usersModels.DataChangeTargetDeparture, FieldKey: "allowed_departure_modes", Value: json.RawMessage(`{"mon":["spaceship"]}`)},
 	})
 	assert.ErrorIs(t, err, parentService.ErrMasterDataInvalidValue)
+
+	_, err = svc.SubmitMasterDataChangeRequest(context.Background(), chain.AccountID, chain.StudentID, []parentService.MasterDataFieldChange{
+		{Target: usersModels.DataChangeTargetDeparture, FieldKey: "allowed_departure_modes", Value: json.RawMessage(`{"mon":["accompanied"]}`)},
+	})
+	assert.ErrorIs(t, err, parentService.ErrMasterDataInvalidValue)
 }

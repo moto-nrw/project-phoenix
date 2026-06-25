@@ -24,7 +24,7 @@ const logger = createLogger({ component: "ChildMasterData" });
 
 const AUTO_SAVE_DELAY_MS = 1500;
 const DEPARTURE_DAYS = ["mon", "tue", "wed", "thu", "fri"] as const;
-const DEPARTURE_MODES = ["alone", "bus", "pickup", "accompanied"] as const;
+const DEPARTURE_REQUEST_MODES = ["alone", "bus", "pickup"] as const;
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -231,20 +231,43 @@ function IdentitySection({
   const [message, setMessage] = useState<string | null>(null);
 
   const requestable = features.master_data_request_enabled;
+  const firstNamePending = pendingByField.has("person/first_name");
+  const lastNamePending = pendingByField.has("person/last_name");
+  const birthdayPending = pendingByField.has("person/birthday");
+
+  useEffect(() => {
+    setFirstName(data.first_name);
+    setLastName(data.last_name);
+    setBirthday(data.birthday ?? "");
+  }, [data.first_name, data.last_name, data.birthday, data.pending_changes]);
 
   const changes = useMemo<MasterDataChangeInput[]>(() => {
     const out: MasterDataChangeInput[] = [];
-    if (firstName.trim() && firstName !== data.first_name) {
+    if (
+      !firstNamePending &&
+      firstName.trim() &&
+      firstName !== data.first_name
+    ) {
       out.push({ target: "person", field_key: "first_name", value: firstName });
     }
-    if (lastName.trim() && lastName !== data.last_name) {
+    if (!lastNamePending && lastName.trim() && lastName !== data.last_name) {
       out.push({ target: "person", field_key: "last_name", value: lastName });
     }
-    if (birthday && birthday !== (data.birthday ?? "")) {
+    if (!birthdayPending && birthday && birthday !== (data.birthday ?? "")) {
       out.push({ target: "person", field_key: "birthday", value: birthday });
     }
     return out;
-  }, [firstName, lastName, birthday, data]);
+  }, [
+    firstName,
+    firstNamePending,
+    lastName,
+    lastNamePending,
+    birthday,
+    birthdayPending,
+    data.first_name,
+    data.last_name,
+    data.birthday,
+  ]);
 
   const submit = useCallback(async () => {
     if (changes.length === 0) return;
@@ -274,14 +297,14 @@ function IdentitySection({
         label={t("fields.firstName")}
         value={firstName}
         onChange={setFirstName}
-        disabled={!requestable}
+        disabled={!requestable || firstNamePending}
         pending={pendingByField.get("person/first_name")}
       />
       <RequestField
         label={t("fields.lastName")}
         value={lastName}
         onChange={setLastName}
-        disabled={!requestable}
+        disabled={!requestable || lastNamePending}
         pending={pendingByField.get("person/last_name")}
       />
       <RequestField
@@ -289,7 +312,7 @@ function IdentitySection({
         type="date"
         value={birthday}
         onChange={setBirthday}
-        disabled={!requestable}
+        disabled={!requestable || birthdayPending}
         pending={pendingByField.get("person/birthday")}
       />
 
@@ -370,7 +393,9 @@ function DepartureSection({
     () => !departureModesEqual(modes, current),
     [modes, current],
   );
-  const requestable = features.master_data_request_enabled && !pending;
+  const hasAccompanied = hasDepartureAccompanied(data.allowed_departure_modes);
+  const requestable =
+    features.master_data_request_enabled && !pending && !hasAccompanied;
 
   useEffect(() => {
     setModes(normalizeDepartureModes(data.allowed_departure_modes));
@@ -385,7 +410,7 @@ function DepartureSection({
       } else {
         dayModes.add(mode);
       }
-      next[day] = DEPARTURE_MODES.filter((m) => dayModes.has(m));
+      next[day] = DEPARTURE_REQUEST_MODES.filter((m) => dayModes.has(m));
       if (next[day].length === 0) delete next[day];
       return next;
     });
@@ -434,7 +459,7 @@ function DepartureSection({
               <th className="w-16 py-2 pr-3 text-left text-xs font-semibold tracking-wide text-gray-500 uppercase">
                 {t("fields.day")}
               </th>
-              {DEPARTURE_MODES.map((mode) => (
+              {DEPARTURE_REQUEST_MODES.map((mode) => (
                 <th
                   key={mode}
                   className="px-2 py-2 text-left text-xs font-semibold tracking-wide text-gray-500 uppercase"
@@ -450,7 +475,7 @@ function DepartureSection({
                 <th className="py-2 pr-3 text-left font-medium text-gray-900">
                   {t(`departureDays.${day}`)}
                 </th>
-                {DEPARTURE_MODES.map((mode) => (
+                {DEPARTURE_REQUEST_MODES.map((mode) => (
                   <td key={mode} className="px-2 py-2">
                     <input
                       type="checkbox"
@@ -667,10 +692,16 @@ function normalizeDepartureModes(
   const out: Record<string, string[]> = {};
   for (const day of DEPARTURE_DAYS) {
     const allowed = new Set(modes?.[day] ?? []);
-    const ordered = DEPARTURE_MODES.filter((mode) => allowed.has(mode));
+    const ordered = DEPARTURE_REQUEST_MODES.filter((mode) => allowed.has(mode));
     if (ordered.length > 0) out[day] = ordered;
   }
   return out;
+}
+
+function hasDepartureAccompanied(modes?: Record<string, readonly string[]>) {
+  return DEPARTURE_DAYS.some((day) =>
+    (modes?.[day] ?? []).includes("accompanied"),
+  );
 }
 
 function departureModesEqual(

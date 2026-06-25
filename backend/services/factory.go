@@ -1163,7 +1163,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Schools:              platform.NewSchoolService(repos.School),
 		WorkTimeModels:       config.NewWorkTimeModelService(repos.WorkTimeModel),
 		Students:             users.NewStudentService(repos.Student, repos.PrivacyConsent, repos.StudentParentNote),
-		MasterDataReview:     users.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, logger.With("service", "master-data-review")),
+		MasterDataReview:     users.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, logger.With("service", "master-data-review"), realtimeHub),
 		StudentStatusDays:    active.NewStudentStatusDayService(repos.StudentStatusDay),
 		StudentHistory:       active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog),
 		TimetableData: schedule.NewTimetableDataService(schedule.TimetableDataDependencies{

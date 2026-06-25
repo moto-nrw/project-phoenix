@@ -16,7 +16,7 @@ vi.mock("~/lib/route-wrapper.server", () => ({
 
 describe("staff master-data change request route", () => {
   it("forwards the queue request to the backend", async () => {
-    vi.mocked(apiGet).mockResolvedValue([{ id: "100" }]);
+    vi.mocked(apiGet).mockResolvedValue({ data: [{ id: "100" }] });
 
     const out = await GET(
       new Request("http://test.local") as never,
