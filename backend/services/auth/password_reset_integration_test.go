@@ -183,7 +183,10 @@ func TestInitiateParentPasswordResetNonGuardianIsNeutral(t *testing.T) {
 	require.Nil(t, token)
 	require.Empty(t, mailer.Messages())
 	require.Empty(t, tokens.tokens)
-	require.Equal(t, 1, rateRepo.Attempts())
+	// A real-but-non-guardian account is not an actionable reset target, so the
+	// per-email limiter is never touched. Writing a row here would let callers
+	// inflate auth.password_reset_rate_limits via the parent endpoint.
+	require.Equal(t, 0, rateRepo.Attempts())
 }
 
 func TestInitiateParentPasswordResetPropagatesRoleLookupError(t *testing.T) {
@@ -250,7 +253,7 @@ func TestInitiateParentPasswordResetSkipsDanglingRoleRow(t *testing.T) {
 	require.Empty(t, tokens.tokens)
 }
 
-func TestInitiateParentPasswordResetUnknownEmailIsNeutralAndRateLimited(t *testing.T) {
+func TestInitiateParentPasswordResetUnknownEmailIsNeutral(t *testing.T) {
 	service, _, tokens, rateRepo, _, mailer, _, cleanup := newPasswordResetTestEnv(t)
 	t.Cleanup(cleanup)
 
@@ -259,7 +262,12 @@ func TestInitiateParentPasswordResetUnknownEmailIsNeutralAndRateLimited(t *testi
 	require.Nil(t, token)
 	require.Empty(t, mailer.Messages())
 	require.Empty(t, tokens.tokens)
-	require.Equal(t, 1, rateRepo.Attempts())
+	// Unknown emails never reach the per-email limiter: the account lookup
+	// fails first and we return the neutral response without writing a row.
+	// This is what keeps the rate-limit table from being bloated with junk
+	// addresses; volumetric/enumeration probing is bounded by the IP-keyed
+	// auth rate limiter that fronts the public reset route.
+	require.Equal(t, 0, rateRepo.Attempts())
 }
 
 func TestInitiatePasswordResetEmailFailureRecordsError(t *testing.T) {

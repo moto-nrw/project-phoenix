@@ -8,6 +8,7 @@ import {
   AuthShell,
   authInputClassName,
   authPrimaryButtonClassName,
+  type AuthTestimonialPanelCopy,
 } from "~/components/auth/auth-shell";
 import { Loading } from "~/components/ui/loading";
 import Link from "next/link";
@@ -32,6 +33,10 @@ interface ResetPasswordPageContentProps {
   readonly backHref?: string;
   readonly backLabel?: string;
   readonly copy?: ResetPasswordPageCopy;
+  // Localized testimonial-panel copy. The parents portal passes its
+  // translated copy here so the reset page doesn't fall back to the
+  // German staff/moto testimonials next to a localized form.
+  readonly testimonialPanelCopy?: AuthTestimonialPanelCopy;
 }
 
 export interface ResetPasswordPageCopy {
@@ -166,6 +171,7 @@ export function ResetPasswordPageContent({
   backHref = "/",
   backLabel = "Zurück zur Anmeldung",
   copy = DEFAULT_RESET_PASSWORD_PAGE_COPY,
+  testimonialPanelCopy,
 }: ResetPasswordPageContentProps = {}) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -286,6 +292,7 @@ export function ResetPasswordPageContent({
         subtitle={copy.successSubtitle}
         variant="reset"
         brand={brand}
+        testimonialPanelCopy={testimonialPanelCopy}
       >
         <div className="text-center">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#EAF6D8]">
@@ -308,6 +315,7 @@ export function ResetPasswordPageContent({
       subtitle={copy.formSubtitle}
       variant="reset"
       brand={brand}
+      testimonialPanelCopy={testimonialPanelCopy}
     >
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
         {error && (

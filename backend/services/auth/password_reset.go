@@ -49,12 +49,6 @@ func (s *Service) initiatePasswordReset(ctx context.Context, emailAddress string
 	// Normalize email
 	emailAddress = strings.TrimSpace(strings.ToLower(emailAddress))
 
-	// Check rate limiting before account lookup so unknown emails are
-	// indistinguishable from known emails under repeated requests.
-	if err := s.checkPasswordResetRateLimit(ctx, emailAddress); err != nil {
-		return nil, err
-	}
-
 	// Get account by email
 	account, err := s.repos.Account.FindByEmail(ctx, emailAddress)
 	if err != nil {
@@ -70,6 +64,18 @@ func (s *Service) initiatePasswordReset(ctx context.Context, emailAddress string
 		if !hasGuardianRole {
 			return nil, nil
 		}
+	}
+
+	// Rate-limit only after confirming a real, actionable account. The
+	// per-email limiter writes a row to auth.password_reset_rate_limits, so
+	// keying it on accounts we will actually email keeps an unauthenticated
+	// caller from inflating that table with rows for arbitrary nonexistent
+	// addresses. Volumetric abuse and account-enumeration probing on the
+	// public reset routes are bounded ahead of this path by the IP-keyed auth
+	// rate limiter (api.base wires it via SetAuthRateLimiter on both the staff
+	// and parent /auth groups).
+	if err := s.checkPasswordResetRateLimit(ctx, emailAddress); err != nil {
+		return nil, err
 	}
 
 	s.getLogger().Info("password reset requested",

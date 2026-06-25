@@ -375,10 +375,11 @@ func TestParentPasswordResetConfirm_TooShortPassword_Returns400(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
-func TestParentPasswordResetConfirm_InvalidToken_Returns400(t *testing.T) {
-	// An expired/unknown token comes back as ErrInvalidToken and must map to a
-	// 400 "invalid or expired reset token", which the page renders as the
-	// expired-link copy — not a 500.
+func TestParentPasswordResetConfirm_InvalidToken_Returns410(t *testing.T) {
+	// An expired/unknown/used token comes back as ErrInvalidToken and must map
+	// to 410 Gone, which the parents reset page renders as the "request a new
+	// link" copy — distinct from the 400 weak-password case (fix your password)
+	// and from a 500 (server fault).
 	svc := &stubParentAuthService{
 		confirm: func(_ context.Context, _, _ string) error {
 			return &authService.AuthError{Op: "reset password", Err: authService.ErrInvalidToken}
@@ -390,7 +391,7 @@ func TestParentPasswordResetConfirm_InvalidToken_Returns400(t *testing.T) {
 		"confirm_password": "Str0ngP@ssword!",
 	})
 
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	assert.Equal(t, http.StatusGone, rr.Code)
 }
 
 func TestParentPasswordResetConfirm_WeakPassword_Returns400(t *testing.T) {

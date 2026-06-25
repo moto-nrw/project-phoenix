@@ -177,7 +177,12 @@ func (rs *Resource) resetPassword(w http.ResponseWriter, r *http.Request) {
 			switch {
 			case errors.Is(authErr.Err, authService.ErrInvalidToken),
 				errors.Is(authErr.Err, sql.ErrNoRows):
-				common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid or expired reset token")))
+				// 410 Gone: the token is invalid, already used, or expired.
+				// The parents reset page maps this status to the "request a
+				// new link" copy. Distinct from the 400 weak-password case
+				// below, which tells the user to fix the password itself —
+				// collapsing both into 400 sent the wrong remedy.
+				common.RenderError(w, r, common.ErrorGone(errors.New("invalid or expired reset token")))
 				return
 			case errors.Is(authErr.Err, authService.ErrPasswordTooWeak):
 				common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrPasswordTooWeak))
