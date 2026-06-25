@@ -725,7 +725,8 @@
       "addressPostalCode": "Postal code",
       "contactMethod": "Preferred contact method",
       "language": "Language",
-      "phone": "Phone number"
+      "phone": "Phone number",
+      "day": "Day"
     },
     "contactMethods": {
       "email": "Email",
@@ -737,7 +738,15 @@
       "pickup": "Picked up",
       "bus": "Bus",
       "alone": "Goes alone",
+      "accompanied": "Goes with another child",
       "none": "Not specified"
+    },
+    "departureDays": {
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri"
     }
   },
   "staffMasterDataReview": {

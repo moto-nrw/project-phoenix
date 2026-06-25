@@ -3,7 +3,9 @@ package users_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -92,6 +94,100 @@ func TestMasterDataReview_ApproveAppliesOtherPersonFields(t *testing.T) {
 	assert.Equal(t, "Müller", person.LastName)
 	require.NotNil(t, person.Birthday)
 	assert.Equal(t, "2017-12-24", person.Birthday.String())
+}
+
+func TestMasterDataReview_ConcurrentPersonFieldApprovalsDoNotOverwrite(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() {
+		require.NoError(t, db.Close())
+	}()
+	repos := repositories.NewFactory(db)
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	firstName := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
+	lastName := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "last_name", `"Schneider"`, `"Müller"`)
+
+	var wg sync.WaitGroup
+	errs := make([]error, 2)
+	for i, row := range []*userModels.StudentDataChangeRequest{firstName, lastName} {
+		wg.Add(1)
+		go func(idx int, req *userModels.StudentDataChangeRequest) {
+			defer wg.Done()
+			errs[idx] = tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+				_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: req.ID, Approve: true})
+				return e
+			})
+		}(i, row)
+	}
+	wg.Wait()
+	require.NoError(t, errs[0])
+	require.NoError(t, errs[1])
+
+	person, err := repos.Person.FindByID(context.Background(), chain.PersonID)
+	require.NoError(t, err)
+	assert.Equal(t, "Max", person.FirstName)
+	assert.Equal(t, "Müller", person.LastName)
+}
+
+func TestMasterDataReview_ConcurrentDecisionsKeepStatusAndRecordConsistent(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() {
+		require.NoError(t, db.Close())
+	}()
+	repos := repositories.NewFactory(db)
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
+
+	var wg sync.WaitGroup
+	errs := make([]error, 2)
+	approvals := []bool{true, false}
+	for i, approve := range approvals {
+		wg.Add(1)
+		go func(idx int, approve bool) {
+			defer wg.Done()
+			errs[idx] = tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+				_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: approve})
+				return e
+			})
+		}(i, approve)
+	}
+	wg.Wait()
+
+	successes := 0
+	conflicts := 0
+	for _, err := range errs {
+		switch {
+		case err == nil:
+			successes++
+		case errors.Is(err, userService.ErrReviewNotPending):
+			conflicts++
+		default:
+			t.Fatalf("unexpected concurrent decision error: %v", err)
+		}
+	}
+	require.Equal(t, 1, successes)
+	require.Equal(t, 1, conflicts)
+
+	ctx := tenant.WithTenantID(context.Background(), chain.TenantID)
+	decided, err := repos.StudentDataChangeRequest.FindByID(ctx, row.ID)
+	require.NoError(t, err)
+	person, err := repos.Person.FindByID(context.Background(), chain.PersonID)
+	require.NoError(t, err)
+	switch decided.Status {
+	case userModels.DataChangeStatusApproved:
+		assert.Equal(t, "Max", person.FirstName)
+	case userModels.DataChangeStatusRejected:
+		assert.Equal(t, "Felix", person.FirstName)
+	default:
+		t.Fatalf("unexpected final status %q", decided.Status)
+	}
 }
 
 func TestMasterDataReview_ListPendingEnrichesStudentNames(t *testing.T) {
@@ -242,6 +338,7 @@ func TestMasterDataReview_ApproveInvalidRowsRejected(t *testing.T) {
 		{name: "invalid birthday", target: userModels.DataChangeTargetPerson, field: "birthday", value: `"bad-date"`, want: userService.ErrReviewInvalidValue},
 		{name: "invalid departure field", target: userModels.DataChangeTargetDeparture, field: "pickup_status", value: `{}`, want: userService.ErrReviewInvalidTarget},
 		{name: "invalid departure value", target: userModels.DataChangeTargetDeparture, field: "allowed_departure_modes", value: `123`, want: userService.ErrReviewInvalidValue},
+		{name: "unknown departure mode", target: userModels.DataChangeTargetDeparture, field: "allowed_departure_modes", value: `{"mon":["spaceship"]}`, want: userService.ErrReviewInvalidValue},
 	}
 
 	for _, tt := range tests {

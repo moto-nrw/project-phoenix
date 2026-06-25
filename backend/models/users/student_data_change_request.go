@@ -3,6 +3,7 @@ package users
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -10,6 +11,10 @@ import (
 )
 
 const tableUsersStudentDataChangeRequests = "users.student_data_change_requests"
+
+// ErrChangeRequestNotPending means a pending-row transition lost a race or the
+// row was already terminal under the caller's tenant.
+var ErrChangeRequestNotPending = errors.New("users: change request is not pending")
 
 // Change-request lifecycle states. Track A (direct edit) writes rows directly
 // as auto_applied — the live record was already updated, the row is the audit
@@ -98,6 +103,12 @@ type StudentDataChangeRequestRepository interface {
 	// returns all matching rows.
 	ListByStudent(ctx context.Context, studentID int64, statuses []string, limit int) ([]*StudentDataChangeRequest, error)
 
+	// ListParentVisibleByStudent returns only child-level Track B request rows
+	// that may be shown in the parent portal. It deliberately excludes Track A
+	// guardian contact audit rows because those can contain another guardian's
+	// private email, phone, or address values.
+	ListParentVisibleByStudent(ctx context.Context, studentID int64, limit int) ([]*StudentDataChangeRequest, error)
+
 	// ListPendingForTenant returns every pending Track B row for the current
 	// tenant, newest-first — the staff review queue.
 	ListPendingForTenant(ctx context.Context) ([]*StudentDataChangeRequest, error)
@@ -106,6 +117,11 @@ type StudentDataChangeRequestRepository interface {
 	// exists for the same student/target/field, so the parent flow can reject
 	// duplicate requests instead of stacking them.
 	HasPendingForField(ctx context.Context, studentID int64, target, fieldKey string) (bool, error)
+
+	// FindPendingByIDForUpdate locks a pending request row for staff decision
+	// processing. It returns ErrChangeRequestNotPending when the row is missing
+	// or already decided in the current tenant.
+	FindPendingByIDForUpdate(ctx context.Context, id int64) (*StudentDataChangeRequest, error)
 
 	// Decide moves a pending row to approved/rejected, stamping review_reason,
 	// reviewed_by, reviewed_at and (for approvals) applied_at.

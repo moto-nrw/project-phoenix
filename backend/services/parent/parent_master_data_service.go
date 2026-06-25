@@ -255,6 +255,9 @@ func (s *service) applyGuardianProfileEdit(ctx context.Context, accountID int64,
 		return nil, nil, nil, fmt.Errorf("%w: %s", ErrMasterDataInvalidValue, err.Error())
 	}
 	if err := s.guardianProfileRepo.Update(ctx, profile); err != nil {
+		if isGuardianEmailUniqueViolation(err) && profile.Email != nil {
+			return nil, nil, nil, ErrGuardianEmailConflict
+		}
 		return nil, nil, nil, err
 	}
 	ref := profile.ID

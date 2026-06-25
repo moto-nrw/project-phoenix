@@ -4,17 +4,22 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/driver/pgdriver"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
+
+const pendingChangeRequestUniqueIndex = "uniq_student_data_change_requests_pending_field"
 
 // MasterDataFieldChange is one proposed Track B change submitted by a parent.
 type MasterDataFieldChange struct {
@@ -96,6 +101,9 @@ func (s *service) SubmitMasterDataChangeRequest(ctx context.Context, accountID, 
 			}
 			row.SetTenantID(child.tenantID)
 			if createErr := s.changeRequestRepo.Create(txCtx, row); createErr != nil {
+				if isPendingChangeRequestUniqueViolation(createErr) {
+					return ErrMasterDataDuplicatePending
+				}
 				return createErr
 			}
 			created = append(created, row)
@@ -118,8 +126,10 @@ func (s *service) SubmitMasterDataChangeRequest(ctx context.Context, accountID, 
 	return created, nil
 }
 
-// ListMyMasterDataRequests returns the child's change requests (any status),
-// newest-first. Authorization only.
+// ListMyMasterDataRequests returns child-level Track B change requests,
+// newest-first. It deliberately excludes Track A guardian contact audit rows so
+// one linked parent cannot read another guardian's private email/phone/address
+// old/new values.
 func (s *service) ListMyMasterDataRequests(ctx context.Context, accountID, studentID int64) ([]*usersModels.StudentDataChangeRequest, error) {
 	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
 	if err != nil {
@@ -127,7 +137,7 @@ func (s *service) ListMyMasterDataRequests(ctx context.Context, accountID, stude
 	}
 	var out []*usersModels.StudentDataChangeRequest
 	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		rows, listErr := s.changeRequestRepo.ListByStudent(txCtx, studentID, nil, 0)
+		rows, listErr := s.changeRequestRepo.ListParentVisibleByStudent(txCtx, studentID, 0)
 		if listErr != nil {
 			return listErr
 		}
@@ -201,9 +211,27 @@ func trackBDepartureState(student *usersModels.Student, value json.RawMessage) (
 	if err := json.Unmarshal(value, &modes); err != nil {
 		return nil, nil, false, ErrMasterDataInvalidValue
 	}
+	if err := modes.Validate(); err != nil {
+		return nil, nil, false, ErrMasterDataInvalidValue
+	}
 	normalized := modes.Normalize()
 	current := student.AllowedDepartureModes.Normalize()
 	newRaw, _ := json.Marshal(normalized)
 	oldRaw, _ := json.Marshal(current)
 	return oldRaw, newRaw, !bytes.Equal(newRaw, oldRaw), nil
+}
+
+func isPendingChangeRequestUniqueViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	var dbErr *modelBase.DatabaseError
+	if errors.As(err, &dbErr) {
+		err = dbErr.Err
+	}
+	var pgErr pgdriver.Error
+	if errors.As(err, &pgErr) {
+		return pgErr.Field('C') == "23505" && pgErr.Field('n') == pendingChangeRequestUniqueIndex
+	}
+	return false
 }

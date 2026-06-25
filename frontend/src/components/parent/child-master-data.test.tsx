@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import type React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -104,7 +110,7 @@ describe("ChildMasterDataView", () => {
     ).toBeInTheDocument();
     expect(screen.getByDisplayValue("Lara")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Allergie")).toBeInTheDocument();
-    expect(screen.getByText("Wird abgeholt")).toBeInTheDocument();
+    expect(screen.getAllByText("Wird abgeholt").length).toBeGreaterThan(0);
     expect(screen.getByText("Bus, Geht allein")).toBeInTheDocument();
     expect(screen.getAllByText("Keine Angabe").length).toBeGreaterThan(0);
     expect(screen.getByRole("link", { name: /Zurück/ })).toHaveAttribute(
@@ -151,8 +157,20 @@ describe("ChildMasterDataView", () => {
     render(<ChildMasterDataView studentId="42" />);
 
     const firstName = await screen.findByDisplayValue("Lara");
+    const identityHeading = screen.getByRole("heading", {
+      name: "Angaben zum Kind",
+    });
+    const identitySection = identityHeading.closest("section");
+    if (!identitySection) {
+      throw new Error("identity section not found");
+    }
+
     fireEvent.change(firstName, { target: { value: "Lea" } });
-    fireEvent.click(screen.getByRole("button", { name: "Änderung anfragen" }));
+    fireEvent.click(
+      within(identitySection).getByRole("button", {
+        name: "Änderung anfragen",
+      }),
+    );
 
     await waitFor(() =>
       expect(mockSubmit).toHaveBeenCalledWith("42", [
@@ -167,6 +185,57 @@ describe("ChildMasterDataView", () => {
     expect(await screen.findByText("In Prüfung")).toBeInTheDocument();
   });
 
+  it("submits departure mode changes for review", async () => {
+    mockGetMasterData.mockResolvedValueOnce(masterData()).mockResolvedValueOnce(
+      masterData({
+        pending_changes: [
+          {
+            id: "901",
+            target: "departure",
+            field_key: "allowed_departure_modes",
+            old_value: { mon: ["pickup"], tue: ["bus", "alone"] },
+            new_value: {
+              mon: ["pickup"],
+              tue: ["bus", "alone"],
+              wed: ["pickup"],
+            },
+            status: "pending",
+            created_at: "2026-06-24T12:00:00Z",
+          },
+        ],
+      }),
+    );
+
+    render(<ChildMasterDataView studentId="42" />);
+
+    const departureSection = await screen.findByRole("heading", {
+      name: "Dauerhafte Gehzeiten",
+    });
+    const section = departureSection.closest("section");
+    if (!section) {
+      throw new Error("departure section not found");
+    }
+
+    fireEvent.click(screen.getByLabelText("Mi Wird abgeholt"));
+    fireEvent.click(
+      within(section).getByRole("button", { name: "Änderung anfragen" }),
+    );
+
+    await waitFor(() =>
+      expect(mockSubmit).toHaveBeenCalledWith("42", [
+        {
+          target: "departure",
+          field_key: "allowed_departure_modes",
+          value: {
+            mon: ["pickup"],
+            tue: ["alone", "bus"],
+            wed: ["pickup"],
+          },
+        },
+      ]),
+    );
+  });
+
   it("shows disabled messaging when feature flags are off", async () => {
     mockGetFeatures.mockResolvedValue(
       features({
@@ -177,11 +246,9 @@ describe("ChildMasterDataView", () => {
 
     render(<ChildMasterDataView studentId="42" />);
 
-    expect(
-      await screen.findByText(
-        "Änderungsanfragen sind bei dieser OGS deaktiviert.",
-      ),
-    ).toBeInTheDocument();
+    await screen.findAllByText(
+      "Änderungsanfragen sind bei dieser OGS deaktiviert.",
+    );
     expect(
       screen.getByText(
         "Das Bearbeiten der Stammdaten ist bei dieser OGS deaktiviert.",
@@ -218,7 +285,18 @@ describe("ChildMasterDataView", () => {
     fireEvent.change(screen.getByDisplayValue("Lara"), {
       target: { value: "Lea" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Änderung anfragen" }));
+    const identityHeading = screen.getByRole("heading", {
+      name: "Angaben zum Kind",
+    });
+    const identitySection = identityHeading.closest("section");
+    if (!identitySection) {
+      throw new Error("identity section not found");
+    }
+    fireEvent.click(
+      within(identitySection).getByRole("button", {
+        name: "Änderung anfragen",
+      }),
+    );
 
     expect(
       await screen.findByText("Die Anfrage konnte nicht gesendet werden."),

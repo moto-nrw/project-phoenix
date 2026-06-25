@@ -725,7 +725,8 @@
       "addressPostalCode": "PLZ",
       "contactMethod": "Bevorzugter Kontaktweg",
       "language": "Sprache",
-      "phone": "Telefonnummer"
+      "phone": "Telefonnummer",
+      "day": "Tag"
     },
     "contactMethods": {
       "email": "E-Mail",
@@ -737,7 +738,15 @@
       "pickup": "Wird abgeholt",
       "bus": "Bus",
       "alone": "Geht allein",
+      "accompanied": "Geht mit anderem Kind",
       "none": "Keine Angabe"
+    },
+    "departureDays": {
+      "mon": "Mo",
+      "tue": "Di",
+      "wed": "Mi",
+      "thu": "Do",
+      "fri": "Fr"
     }
   },
   "staffMasterDataReview": {

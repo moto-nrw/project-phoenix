@@ -2,6 +2,7 @@ package users
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"time"
 
@@ -16,7 +17,7 @@ const tableExprStudentDataChangeRequestsAsReq = `users.student_data_change_reque
 // ErrChangeRequestNotPending is returned by Decide when no pending row matched
 // the id under the current tenant — it was already decided (lost race) or does
 // not exist. Services map this to a 409/404.
-var ErrChangeRequestNotPending = errors.New("users: change request is not pending")
+var ErrChangeRequestNotPending = users.ErrChangeRequestNotPending
 
 // StudentDataChangeRequestRepository is the tenant-scoped data-access layer for
 // parent Stammdaten changes. It embeds the generic base.Repository for
@@ -57,6 +58,35 @@ func (r *StudentDataChangeRequestRepository) ListByStudent(ctx context.Context, 
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list student data change requests", Err: err}
+	}
+	return rows, nil
+}
+
+// ListParentVisibleByStudent returns only child-level Track B rows that are safe
+// to expose to any linked parent of the child.
+func (r *StudentDataChangeRequestRepository) ListParentVisibleByStudent(ctx context.Context, studentID int64, limit int) ([]*users.StudentDataChangeRequest, error) {
+	var rows []*users.StudentDataChangeRequest
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(&rows).
+		ModelTableExpr(tableExprStudentDataChangeRequestsAsReq).
+		Where(`"student_data_change_request".student_id = ?`, studentID).
+		Where(`"student_data_change_request".target IN (?)`, bun.List([]string{
+			users.DataChangeTargetPerson,
+			users.DataChangeTargetDeparture,
+		}))
+
+	if where, val, ok := base.TenantWhere(ctx, "student_data_change_request"); ok {
+		query = query.Where(where, val)
+	}
+	query = query.
+		OrderExpr(`"student_data_change_request".created_at DESC`).
+		OrderExpr(`"student_data_change_request".id DESC`)
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list parent-visible student data change requests", Err: err}
 	}
 	return rows, nil
 }
@@ -103,6 +133,31 @@ func (r *StudentDataChangeRequestRepository) HasPendingForField(ctx context.Cont
 		return false, &modelBase.DatabaseError{Op: "check pending student data change request", Err: err}
 	}
 	return exists, nil
+}
+
+// FindPendingByIDForUpdate locks a pending change request row for the current
+// tenant. The lock closes the staff-decision race where one reviewer could apply
+// live changes after another reviewer already decided the row.
+func (r *StudentDataChangeRequestRepository) FindPendingByIDForUpdate(ctx context.Context, id int64) (*users.StudentDataChangeRequest, error) {
+	row := new(users.StudentDataChangeRequest)
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(row).
+		ModelTableExpr(tableExprStudentDataChangeRequestsAsReq).
+		Where(`"student_data_change_request".id = ?`, id).
+		Where(`"student_data_change_request".status = ?`, users.DataChangeStatusPending).
+		For("UPDATE")
+
+	if where, val, ok := base.TenantWhere(ctx, "student_data_change_request"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrChangeRequestNotPending
+		}
+		return nil, &modelBase.DatabaseError{Op: "find pending student data change request for update", Err: err}
+	}
+	return row, nil
 }
 
 // Decide transitions a pending row to its final state. reviewed_at is stamped

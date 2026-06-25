@@ -127,12 +127,12 @@ func (s *masterDataReviewService) Decide(ctx context.Context, input MasterDataRe
 	if input.RequestID <= 0 {
 		return nil, ErrReviewNotFound
 	}
-	req, err := s.changeRequestRepo.FindByID(ctx, input.RequestID)
+	req, err := s.changeRequestRepo.FindPendingByIDForUpdate(ctx, input.RequestID)
 	if err != nil {
+		if errors.Is(err, userModels.ErrChangeRequestNotPending) {
+			return nil, ErrReviewNotPending
+		}
 		return nil, ErrReviewNotFound
-	}
-	if req.Status != userModels.DataChangeStatusPending {
-		return nil, ErrReviewNotPending
 	}
 
 	var reason *string
@@ -142,6 +142,9 @@ func (s *masterDataReviewService) Decide(ctx context.Context, input MasterDataRe
 
 	if !input.Approve {
 		if err := s.changeRequestRepo.Decide(ctx, req.ID, userModels.DataChangeStatusRejected, reason, input.ReviewedBy, false); err != nil {
+			if errors.Is(err, userModels.ErrChangeRequestNotPending) {
+				return nil, ErrReviewNotPending
+			}
 			return nil, fmt.Errorf("review: reject: %w", err)
 		}
 		s.logger.Info("staff rejected master data change",
@@ -156,6 +159,9 @@ func (s *masterDataReviewService) Decide(ctx context.Context, input MasterDataRe
 		return nil, err
 	}
 	if err := s.changeRequestRepo.Decide(ctx, req.ID, userModels.DataChangeStatusApproved, reason, input.ReviewedBy, true); err != nil {
+		if errors.Is(err, userModels.ErrChangeRequestNotPending) {
+			return nil, ErrReviewNotPending
+		}
 		return nil, fmt.Errorf("review: approve: %w", err)
 	}
 	s.logger.Info("staff approved master data change",
@@ -185,7 +191,7 @@ func (s *masterDataReviewService) applyPersonChange(ctx context.Context, req *us
 	if err != nil {
 		return fmt.Errorf("review: load student: %w", err)
 	}
-	person, err := s.personRepo.FindByID(ctx, student.PersonID)
+	person, err := s.personRepo.FindByIDForUpdate(ctx, student.PersonID)
 	if err != nil {
 		return fmt.Errorf("review: load person: %w", err)
 	}
@@ -219,6 +225,9 @@ func (s *masterDataReviewService) applyDepartureChange(ctx context.Context, req 
 	}
 	var modes userModels.AllowedDepartureModes
 	if err := json.Unmarshal(req.NewValue, &modes); err != nil {
+		return ErrReviewInvalidValue
+	}
+	if err := modes.Validate(); err != nil {
 		return ErrReviewInvalidValue
 	}
 	student, err := s.studentRepo.FindByIDForUpdate(ctx, req.StudentID)

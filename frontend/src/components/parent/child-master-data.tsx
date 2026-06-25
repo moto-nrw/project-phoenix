@@ -23,6 +23,8 @@ import {
 const logger = createLogger({ component: "ChildMasterData" });
 
 const AUTO_SAVE_DELAY_MS = 1500;
+const DEPARTURE_DAYS = ["mon", "tue", "wed", "thu", "fri"] as const;
+const DEPARTURE_MODES = ["alone", "bus", "pickup", "accompanied"] as const;
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -197,10 +199,13 @@ function ChildMasterDataContent({
         )}
       </Section>
 
-      {/* Read-only — school-controlled + permanent departure */}
-      <Section title={t("sections.departure")} hint={t("readonlyHint")}>
-        <DepartureSummary modes={data.allowed_departure_modes} />
-      </Section>
+      <DepartureSection
+        studentId={studentId}
+        data={data}
+        features={features}
+        pending={pendingByField.get("departure/allowed_departure_modes")}
+        onApplied={onApplied}
+      />
     </div>
   );
 }
@@ -335,6 +340,161 @@ function Section({
       </header>
       <div className="space-y-4">{children}</div>
     </section>
+  );
+}
+
+function DepartureSection({
+  studentId,
+  data,
+  features,
+  pending,
+  onApplied,
+}: Readonly<{
+  studentId: string;
+  data: ChildMasterData;
+  features: ChildFeatures;
+  pending?: MasterDataChange;
+  onApplied: (next: ChildMasterData) => void;
+}>) {
+  const t = useTranslations("parentMasterData");
+  const [modes, setModes] = useState(() =>
+    normalizeDepartureModes(data.allowed_departure_modes),
+  );
+  const [status, setStatus] = useState<SaveStatus>("idle");
+  const [message, setMessage] = useState<string | null>(null);
+  const current = useMemo(
+    () => normalizeDepartureModes(data.allowed_departure_modes),
+    [data.allowed_departure_modes],
+  );
+  const changed = useMemo(
+    () => !departureModesEqual(modes, current),
+    [modes, current],
+  );
+  const requestable = features.master_data_request_enabled && !pending;
+
+  useEffect(() => {
+    setModes(normalizeDepartureModes(data.allowed_departure_modes));
+  }, [data.allowed_departure_modes]);
+
+  const toggle = (day: string, mode: string) => {
+    setModes((prev) => {
+      const next = normalizeDepartureModes(prev);
+      const dayModes = new Set(next[day] ?? []);
+      if (dayModes.has(mode)) {
+        dayModes.delete(mode);
+      } else {
+        dayModes.add(mode);
+      }
+      next[day] = DEPARTURE_MODES.filter((m) => dayModes.has(m));
+      if (next[day].length === 0) delete next[day];
+      return next;
+    });
+  };
+
+  const submit = async () => {
+    if (!changed || !requestable) return;
+    setStatus("saving");
+    setMessage(null);
+    try {
+      await submitMasterDataRequest(studentId, [
+        {
+          target: "departure",
+          field_key: "allowed_departure_modes",
+          value: modes,
+        },
+      ]);
+      setStatus("saved");
+      setMessage(t("requestSubmitted"));
+      const next = await getChildMasterData(studentId);
+      onApplied(next);
+    } catch (err) {
+      const text = err instanceof Error ? err.message : String(err);
+      logger.warn("master_data_departure_request_failed", {
+        error: text,
+        student_id: studentId,
+      });
+      setStatus("error");
+      setMessage(t("requestError"));
+    }
+  };
+
+  return (
+    <Section title={t("sections.departure")} hint={t("requestHint")}>
+      <DepartureSummary modes={data.allowed_departure_modes} />
+      {pending && (
+        <p className="inline-flex items-center gap-1 rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-semibold text-[#92710b]">
+          <Clock className="h-3 w-3" aria-hidden="true" />
+          {t("pendingBadge")}
+        </p>
+      )}
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[34rem] border-separate border-spacing-0 text-sm">
+          <thead>
+            <tr>
+              <th className="w-16 py-2 pr-3 text-left text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                {t("fields.day")}
+              </th>
+              {DEPARTURE_MODES.map((mode) => (
+                <th
+                  key={mode}
+                  className="px-2 py-2 text-left text-xs font-semibold tracking-wide text-gray-500 uppercase"
+                >
+                  {t(`departureModes.${mode}`)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {DEPARTURE_DAYS.map((day) => (
+              <tr key={day}>
+                <th className="py-2 pr-3 text-left font-medium text-gray-900">
+                  {t(`departureDays.${day}`)}
+                </th>
+                {DEPARTURE_MODES.map((mode) => (
+                  <td key={mode} className="px-2 py-2">
+                    <input
+                      type="checkbox"
+                      aria-label={`${t(`departureDays.${day}`)} ${t(`departureModes.${mode}`)}`}
+                      checked={(modes[day] ?? []).includes(mode)}
+                      disabled={!requestable}
+                      onChange={() => toggle(day, mode)}
+                      className="h-4 w-4 rounded border-gray-300 text-[#4A7A15] focus:ring-[#4A7A15]"
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {features.master_data_request_enabled ? (
+        <div className="flex items-center gap-3">
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            disabled={!changed || !requestable || status === "saving"}
+            onClick={() => void submit()}
+          >
+            {t("requestButton")}
+          </Button>
+          {message && (
+            <span
+              className={
+                status === "error"
+                  ? "text-sm text-[#CC2626]"
+                  : "text-sm text-[#4A7A15]"
+              }
+            >
+              {message}
+            </span>
+          )}
+        </div>
+      ) : (
+        <p className="text-xs text-gray-500">{t("requestDisabled")}</p>
+      )}
+      {pending && <p className="text-xs text-gray-500">{t("pendingNotice")}</p>}
+    </Section>
   );
 }
 
@@ -477,17 +637,9 @@ function DepartureSummary({
   modes,
 }: Readonly<{ modes?: Record<string, string[]> }>) {
   const t = useTranslations("parentMasterData");
-  const order = ["mon", "tue", "wed", "thu", "fri"];
-  const labels: Record<string, string> = {
-    mon: "Mo",
-    tue: "Di",
-    wed: "Mi",
-    thu: "Do",
-    fri: "Fr",
-  };
   return (
     <dl className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-      {order.map((day) => {
+      {DEPARTURE_DAYS.map((day) => {
         const dayModes = modes?.[day] ?? [];
         const text =
           dayModes.length > 0
@@ -499,7 +651,7 @@ function DepartureSummary({
             className="rounded-xl border border-gray-200 bg-gray-50/70 p-3"
           >
             <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              {labels[day]}
+              {t(`departureDays.${day}`)}
             </dt>
             <dd className="mt-1 text-sm font-medium text-gray-900">{text}</dd>
           </div>
@@ -507,6 +659,33 @@ function DepartureSummary({
       })}
     </dl>
   );
+}
+
+function normalizeDepartureModes(
+  modes?: Record<string, readonly string[]>,
+): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const day of DEPARTURE_DAYS) {
+    const allowed = new Set(modes?.[day] ?? []);
+    const ordered = DEPARTURE_MODES.filter((mode) => allowed.has(mode));
+    if (ordered.length > 0) out[day] = ordered;
+  }
+  return out;
+}
+
+function departureModesEqual(
+  a: Record<string, readonly string[]>,
+  b: Record<string, readonly string[]>,
+) {
+  for (const day of DEPARTURE_DAYS) {
+    const left = a[day] ?? [];
+    const right = b[day] ?? [];
+    if (left.length !== right.length) return false;
+    for (let i = 0; i < left.length; i++) {
+      if (left[i] !== right[i]) return false;
+    }
+  }
+  return true;
 }
 
 function SaveIndicator({ status }: Readonly<{ status: SaveStatus }>) {

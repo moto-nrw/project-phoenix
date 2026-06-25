@@ -84,6 +84,10 @@ func createStudentDataChangeRequestsUp(ctx context.Context, db *bun.DB) error {
 
 		CREATE INDEX IF NOT EXISTS idx_student_data_change_requests_submitted_by
 		ON users.student_data_change_requests (submitted_by);
+
+		CREATE UNIQUE INDEX IF NOT EXISTS uniq_student_data_change_requests_pending_field
+		ON users.student_data_change_requests (tenant_id, student_id, target, field_key)
+		WHERE status = 'pending';
 	`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed creating users.student_data_change_requests indexes: %w", err)
 	}

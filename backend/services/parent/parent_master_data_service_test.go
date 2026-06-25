@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -143,6 +144,22 @@ func TestUpdateMasterDataField_GuardianProfile_AppliesAndAudits(t *testing.T) {
 	assert.Equal(t, `"new.parent@example.test"`, rows[0].NewValue)
 	require.NotNil(t, rows[0].TargetRefID)
 	assert.Equal(t, chain.GuardianProfileID, *rows[0].TargetRefID)
+}
+
+func TestUpdateMasterDataField_GuardianProfile_DuplicateEmailConflict(t *testing.T) {
+	svc, db := buildMasterDataService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	other := testpkg.CreateTestGuardianProfile(t, db, "taken-parent")
+	defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", other.ID)
+	require.NotNil(t, other.Email)
+
+	_, err := svc.UpdateMasterDataField(
+		context.Background(), chain.AccountID, chain.StudentID,
+		usersModels.DataChangeTargetGuardianProfile, "email",
+		json.RawMessage(strconv.Quote(*other.Email)),
+	)
+	assert.ErrorIs(t, err, parentService.ErrGuardianEmailConflict)
 }
 
 func TestUpdateMasterDataField_GuardianProfile_AddressAndContactFields(t *testing.T) {
