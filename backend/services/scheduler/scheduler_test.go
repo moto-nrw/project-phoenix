@@ -1188,6 +1188,9 @@ func (m *mockActiveService) CheckInStudent(_ context.Context, _, _, _ int64, _ b
 func (m *mockActiveService) CheckOutStudent(_ context.Context, _, _ int64, _ bool) (*activeService.AttendanceResult, error) {
 	return nil, nil
 }
+func (m *mockActiveService) CheckOutStudentFromDevice(_ context.Context, _, _ int64) (*activeService.AttendanceResult, error) {
+	return nil, nil
+}
 func (m *mockActiveService) CheckTeacherStudentAccess(_ context.Context, _, _ int64) (bool, error) {
 	return false, nil
 }

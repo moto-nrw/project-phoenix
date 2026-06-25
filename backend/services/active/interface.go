@@ -135,6 +135,9 @@ type Service interface {
 	// transaction, so attendance "checked_out" never coexists with an open
 	// visit (issue #895).
 	CheckOutStudent(ctx context.Context, studentID, staffID int64, skipAuthCheck bool) (*AttendanceResult, error)
+	// CheckOutStudentFromDevice applies "out" for an IoT device after
+	// resolving the active session supervisor used as the checkout principal.
+	CheckOutStudentFromDevice(ctx context.Context, studentID, deviceID int64) (*AttendanceResult, error)
 	CheckTeacherStudentAccess(ctx context.Context, teacherID, studentID int64) (bool, error)
 	BroadcastDailyCheckout(ctx context.Context, studentID int64)
 

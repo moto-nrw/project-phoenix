@@ -224,20 +224,25 @@ func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, 
 				slog.Int64("student_id", student.ID),
 			)
 		case "checked_in":
-			staffID := int64(0)
-			if staffCtx := device.StaffFromCtx(r.Context()); staffCtx != nil {
-				staffID = staffCtx.ID
+			deviceCtx := device.DeviceFromCtx(r.Context())
+			if deviceCtx == nil {
+				slog.WarnContext(r.Context(), "device auth missing API key", slog.String("path", r.URL.Path))
+				if render.Render(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey)) != nil {
+					http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				}
+				return
 			}
 
 			// Set attendance to "checked_out" — sets check_out_time on today's record.
-			// skipAuthCheck=true because the IoT device already authenticated this request.
-			_, err := rs.ActiveService.CheckOutStudent(r.Context(), student.ID, staffID, true)
+			// The active service resolves the device's active supervisor as the
+			// auditable checked_out_by principal before writing attendance.
+			_, err := rs.ActiveService.CheckOutStudentFromDevice(r.Context(), student.ID, deviceCtx.ID)
 			if err != nil {
 				slog.Default().ErrorContext(r.Context(), "failed to update attendance for daily checkout",
 					slog.Int64("student_id", student.ID),
 					slog.String("error", err.Error()),
 				)
-				iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+				iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
 				return
 			}
 

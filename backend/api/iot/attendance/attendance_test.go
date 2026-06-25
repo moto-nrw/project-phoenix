@@ -594,9 +594,9 @@ func TestRouter_ReturnsValidRouter(t *testing.T) {
 // =============================================================================
 
 // TestToggleAttendance_DailyCheckoutZuhauseCheckedIn tests the daily checkout with
-// destination "zuhause" when the student is checked in. Real IoT daily-checkout
-// requests carry device context, but no staff context, so this guards against
-// routing through an insert path that would write checked_in_by=0.
+// destination "zuhause" when the student is checked in. Daily checkout must use
+// the device's active supervisor as checked_out_by; device+PIN alone is not an
+// auditable attendance principal.
 func TestToggleAttendance_DailyCheckoutZuhauseCheckedIn(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
@@ -611,6 +611,18 @@ func TestToggleAttendance_DailyCheckoutZuhauseCheckedIn(t *testing.T) {
 	// Create attendance record: checked in, NOT checked out
 	checkInTime := time.Now().Add(-2 * time.Hour)
 	testpkg.CreateTestAttendance(t, ctx.db, student.ID, staff.ID, testDevice.ID, checkInTime, nil)
+
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "daily-zuhause-checkedin-activity")
+	room := testpkg.CreateTestRoom(t, ctx.db, "Daily Zuhause CheckedIn Room")
+	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activity.ID, room.ID)
+	_, err := ctx.db.NewUpdate().
+		Model(activeGroup).
+		ModelTableExpr(`active.groups`).
+		Set("device_id = ?", testDevice.ID).
+		Where("id = ?", activeGroup.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+	testpkg.CreateTestGroupSupervisor(t, ctx.db, staff.ID, activeGroup.ID, "supervisor")
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
@@ -641,7 +653,7 @@ func TestToggleAttendance_DailyCheckoutZuhauseCheckedIn(t *testing.T) {
 	}
 
 	var records []*activeModel.Attendance
-	err := ctx.db.NewSelect().
+	err = ctx.db.NewSelect().
 		Model(&records).
 		ModelTableExpr(`active.attendance AS "attendance"`).
 		Where(`"attendance".student_id = ?`, student.ID).
@@ -650,7 +662,54 @@ func TestToggleAttendance_DailyCheckoutZuhauseCheckedIn(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, records, 1, "daily checkout must close the existing row instead of inserting a new one")
 	require.NotNil(t, records[0].CheckOutTime)
-	assert.Nil(t, records[0].CheckedOutBy, "IoT daily checkout without staff context must not write a bogus staff FK")
+	require.NotNil(t, records[0].CheckedOutBy, "IoT daily checkout must write an auditable staff FK")
+	assert.Equal(t, staff.ID, *records[0].CheckedOutBy)
+}
+
+func TestToggleAttendance_DailyCheckoutZuhauseRequiresDeviceSupervisor(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "daily-zuhause-no-supervisor-device")
+	student := testpkg.CreateTestStudent(t, ctx.db, "Zuhause", "NoSupervisor", "5x")
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Zuhause", "CheckInOnly")
+	rfidCard := testpkg.CreateTestRFIDCard(t, ctx.db, "TESTRFID_ZUHAUSE_NOSUP")
+	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, rfidCard.ID)
+
+	checkInTime := time.Now().Add(-2 * time.Hour)
+	testpkg.CreateTestAttendance(t, ctx.db, student.ID, staff.ID, testDevice.ID, checkInTime, nil)
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
+
+	dest := "zuhause"
+	body := map[string]interface{}{
+		"rfid":        rfidCard.ID,
+		"action":      "confirm_daily_checkout",
+		"destination": dest,
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/toggle", body,
+		testutil.WithDeviceContext(testDevice),
+	)
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+	response := testutil.ParseResponse(t, rr.Body.Bytes())
+	assert.Contains(t, response.Error, "device must have an active group with supervisors")
+
+	var records []*activeModel.Attendance
+	err := ctx.db.NewSelect().
+		Model(&records).
+		ModelTableExpr(`active.attendance AS "attendance"`).
+		Where(`"attendance".student_id = ?`, student.ID).
+		Where(`"attendance".date = ?`, timezone.TodayDate()).
+		Scan(context.Background())
+	require.NoError(t, err)
+	require.Len(t, records, 1)
+	assert.Nil(t, records[0].CheckOutTime, "daily checkout without supervisor must not close attendance")
+	assert.Nil(t, records[0].CheckedOutBy, "failed daily checkout must not write checkout attribution")
 }
 
 // TestToggleAttendance_DailyCheckoutZuhauseAlreadyCheckedOut tests the daily checkout with
@@ -905,6 +964,14 @@ func TestToggleAttendance_DailyCheckoutZuhause_EndsOpenVisit(t *testing.T) {
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "daily-zuhause-visit-activity")
 	room := testpkg.CreateTestRoom(t, ctx.db, "Daily Zuhause Visit Room")
 	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activity.ID, room.ID)
+	_, err := ctx.db.NewUpdate().
+		Model(activeGroup).
+		ModelTableExpr(`active.groups`).
+		Set("device_id = ?", testDevice.ID).
+		Where("id = ?", activeGroup.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+	testpkg.CreateTestGroupSupervisor(t, ctx.db, staff.ID, activeGroup.ID, "supervisor")
 	visit := testpkg.CreateTestVisit(t, ctx.db, student.ID, activeGroup.ID, checkInTime, nil)
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -928,7 +995,7 @@ func TestToggleAttendance_DailyCheckoutZuhause_EndsOpenVisit(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
 	var records []*activeModel.Attendance
-	err := ctx.db.NewSelect().
+	err = ctx.db.NewSelect().
 		Model(&records).
 		ModelTableExpr(`active.attendance AS "attendance"`).
 		Where(`"attendance".student_id = ?`, student.ID).
@@ -937,6 +1004,8 @@ func TestToggleAttendance_DailyCheckoutZuhause_EndsOpenVisit(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, records, 1)
 	require.NotNil(t, records[0].CheckOutTime, "daily checkout must close the attendance row")
+	require.NotNil(t, records[0].CheckedOutBy, "daily checkout must write the device supervisor as checkout principal")
+	assert.Equal(t, staff.ID, *records[0].CheckedOutBy)
 
 	endedVisit := new(activeModel.Visit)
 	err = ctx.db.NewSelect().
