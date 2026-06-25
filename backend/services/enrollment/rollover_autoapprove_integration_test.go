@@ -49,6 +49,7 @@ func setupAutoApproveIntegrationEnvWithSettings(
 		CareOfferingRepo:         repoFactory.CareOffering,
 		PhaseRepo:                repoFactory.Phase,
 		PersonRepo:               repoFactory.Person,
+		StaffRepo:                repoFactory.Staff,
 		StudentRepo:              repoFactory.Student,
 		StudentGuardianRepo:      repoFactory.StudentGuardian,
 		GuardianProfileRepo:      repoFactory.GuardianProfile,

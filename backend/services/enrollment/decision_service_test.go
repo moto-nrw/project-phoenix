@@ -76,6 +76,7 @@ func setupDecisionTestWithSettings(
 		FormSchemaRepo:           repoFactory.FormSchema,
 		OfferingAdjustmentRepo:   repoFactory.EnrollmentOfferingAdjustment,
 		PersonRepo:               repoFactory.Person,
+		StaffRepo:                repoFactory.Staff,
 		StudentRepo:              repoFactory.Student,
 		StudentGuardianRepo:      repoFactory.StudentGuardian,
 		GuardianProfileRepo:      repoFactory.GuardianProfile,
@@ -104,6 +105,18 @@ func setupDecisionTestWithSettings(
 // drive Decide against a known row.
 func submitOneChild(t *testing.T, env *decisionTestEnv, guardianEmail, childFirst, childLast string) (requestID, childID int64) {
 	t.Helper()
+	return submitOneChildWithCustomData(t, env, guardianEmail, childFirst, childLast, nil)
+}
+
+func submitOneChildWithCustomData(
+	t *testing.T,
+	env *decisionTestEnv,
+	guardianEmail string,
+	childFirst string,
+	childLast string,
+	customData map[string]any,
+) (requestID, childID int64) {
+	t.Helper()
 	ctx := testpkg.TenantContext(1)
 	grade := int16(2)
 	res, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
@@ -124,12 +137,57 @@ func submitOneChild(t *testing.T, env *decisionTestEnv, guardianEmail, childFirs
 				LastName:         childLast,
 				DateOfBirth:      timezone.NewDate(2018, 4, 15),
 				TargetGradeLevel: &grade,
+				CustomData:       customData,
 			},
 		},
 	})
 	require.NoError(t, err)
 	require.Len(t, res.Children, 1)
 	return res.Request.ID, res.Children[0].ID
+}
+
+func publishDecisionScheduleSchema(t *testing.T, env *decisionTestEnv, key, target string) {
+	t.Helper()
+	ctx := testpkg.TenantContext(1)
+	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
+		Repo:   env.repos.FormSchema,
+		Logger: slog.Default(),
+	})
+	field := enrollmentModels.FormField{
+		Key:         key,
+		Label:       "Schedule",
+		Type:        enrollmentModels.FormFieldWeekdaySchedule,
+		AppliesToCh: true,
+		Target:      target,
+		SortOrder:   0,
+	}
+	if target == enrollmentModels.TargetSchedulePickup {
+		field.AllowedTimes = []string{
+			"07:45",
+			"14:45",
+			"16:00",
+		}
+	}
+	schema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{
+		field,
+	}, env.creatorID)
+	require.NoError(t, err)
+	env.sourcePhase.FormSchemaID = &schema.ID
+	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
+}
+
+func createReviewerStaffWithDistinctAccount(t *testing.T, env *decisionTestEnv) (*usersModels.Staff, int64) {
+	t.Helper()
+	for i := 0; i < 5; i++ {
+		_ = testpkg.CreateTestStaff(t, env.db, "ReviewerOffset", "Staff")
+		staff, account := testpkg.CreateTestStaffWithAccount(t, env.db, "Reviewer", "Schedule")
+		if staff.ID != account.ID {
+			return staff, account.ID
+		}
+	}
+	staff, account := testpkg.CreateTestStaffWithAccount(t, env.db, "Reviewer", "ScheduleFinal")
+	require.NotEqual(t, staff.ID, account.ID, "test setup must prove account id and staff id are not interchangeable")
+	return staff, account.ID
 }
 
 func setSourcePhaseServiceStartDate(t *testing.T, env *decisionTestEnv, serviceStartDate timezone.Date) {
@@ -1059,6 +1117,89 @@ func TestDecisionService_Decide_ApprovedStampsConsentTimestamps(t *testing.T) {
 	require.NotNil(t, student.PhotoConsentGivenBy)
 	assert.Equal(t, env.creatorID, *student.PhotoConsentGivenBy,
 		"photo_consent_given_by must reference the reviewer account")
+}
+
+func TestDecisionService_Decide_SchedulePickupUsesReviewerStaffID(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentModels.TargetSchedulePickup)
+	reviewerStaff, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "pickup-schedule-author@example.com", "Anna", "Pickup", map[string]any{
+		"pickup_times": map[string]any{"mon": "14:45", "wed": "16:00"},
+	})
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: reviewerAccountID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	rows, err := env.repos.StudentPickupSchedule.FindByStudentID(ctx, *outcome.Child.CreatedStudentID)
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+	for _, row := range rows {
+		assert.Equal(t, reviewerStaff.ID, row.CreatedBy,
+			"pickup schedule created_by must reference users.staff, not the reviewer account")
+		assert.NotEqual(t, reviewerAccountID, row.CreatedBy,
+			"the regression requires account id and staff id to stay distinct")
+	}
+}
+
+func TestDecisionService_Decide_ScheduleArrivalUsesReviewerStaffID(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	publishDecisionScheduleSchema(t, env, "arrival_times", enrollmentModels.TargetScheduleArrival)
+	reviewerStaff, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "arrival-schedule-author@example.com", "Anna", "Arrival", map[string]any{
+		"arrival_times": map[string]any{"mon": "07:45"},
+	})
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: reviewerAccountID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	rows, err := env.repos.StudentArrivalSchedule.FindByStudentID(ctx, *outcome.Child.CreatedStudentID)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, reviewerStaff.ID, rows[0].CreatedBy,
+		"arrival schedule created_by must reference users.staff, not the reviewer account")
+	assert.NotEqual(t, reviewerAccountID, rows[0].CreatedBy,
+		"the regression requires account id and staff id to stay distinct")
+}
+
+func TestDecisionService_Decide_ScheduleTargetWithoutReviewerStaffDoesNotAbortApproval(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentModels.TargetSchedulePickup)
+	reviewerAccount := testpkg.CreateTestAccount(t, env.db, "reviewer-without-staff")
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "pickup-no-staff@example.com", "Anna", "NoStaff", map[string]any{
+		"pickup_times": map[string]any{"mon": "14:45"},
+	})
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: reviewerAccount.ID,
+	})
+	require.NoError(t, err, "targeted-field schedule failures must not poison the approval transaction")
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	assert.Equal(t, enrollmentModels.ChildStatusApproved, outcome.Child.Status)
+
+	rows, err := env.repos.StudentPickupSchedule.FindByStudentID(ctx, *outcome.Child.CreatedStudentID)
+	require.NoError(t, err)
+	assert.Empty(t, rows, "without a staff author, schedule dispatch should skip before inserting")
 }
 
 func TestDecisionService_Decide_ApprovedIsIdempotent(t *testing.T) {

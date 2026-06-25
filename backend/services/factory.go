@@ -1001,6 +1001,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		OfferingAdjustmentRepo:   repos.EnrollmentOfferingAdjustment,
 		SchoolRepo:               repos.School,
 		PersonRepo:               repos.Person,
+		StaffRepo:                repos.Staff,
 		StudentRepo:              repos.Student,
 		StudentGuardianRepo:      repos.StudentGuardian,
 		GuardianProfileRepo:      repos.GuardianProfile,

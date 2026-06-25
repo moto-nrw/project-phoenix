@@ -292,6 +292,7 @@ type DecisionServiceConfig struct {
 	OfferingAdjustmentRepo   auditModels.EnrollmentOfferingAdjustmentRepository
 	SchoolRepo               platformModels.SchoolRepository
 	PersonRepo               users.PersonRepository
+	StaffRepo                users.StaffRepository
 	StudentRepo              users.StudentRepository
 	StudentGuardianRepo      users.StudentGuardianRepository
 	GuardianProfileRepo      users.GuardianProfileRepository
@@ -325,6 +326,7 @@ type decisionService struct {
 	offeringAdjustmentRepo   auditModels.EnrollmentOfferingAdjustmentRepository
 	schoolRepo               platformModels.SchoolRepository
 	personRepo               users.PersonRepository
+	staffRepo                users.StaffRepository
 	studentRepo              users.StudentRepository
 	studentGuardianRepo      users.StudentGuardianRepository
 	guardianProfileRepo      users.GuardianProfileRepository
@@ -363,6 +365,7 @@ func NewDecisionService(cfg DecisionServiceConfig) DecisionService {
 		offeringAdjustmentRepo:   cfg.OfferingAdjustmentRepo,
 		schoolRepo:               cfg.SchoolRepo,
 		personRepo:               cfg.PersonRepo,
+		staffRepo:                cfg.StaffRepo,
 		studentRepo:              cfg.StudentRepo,
 		studentGuardianRepo:      cfg.StudentGuardianRepo,
 		guardianProfileRepo:      cfg.GuardianProfileRepo,
@@ -2415,6 +2418,33 @@ func decodeStructured(raw any, out any) error {
 	return json.Unmarshal(bs, out)
 }
 
+func (s *decisionService) resolveReviewerStaffID(ctx context.Context, reviewerAccountID int64) (int64, error) {
+	if reviewerAccountID <= 0 {
+		return 0, fmt.Errorf("reviewer account id is required")
+	}
+	if s.personRepo == nil || s.staffRepo == nil {
+		return 0, fmt.Errorf("reviewer staff lookup is unavailable")
+	}
+	person, err := s.personRepo.FindByAccountID(ctx, reviewerAccountID)
+	if err != nil {
+		return 0, fmt.Errorf("find reviewer person: %w", err)
+	}
+	if person == nil {
+		return 0, fmt.Errorf("reviewer account %d has no linked person", reviewerAccountID)
+	}
+	staff, err := s.staffRepo.FindByPersonID(ctx, person.ID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, fmt.Errorf("reviewer account %d has no linked staff", reviewerAccountID)
+		}
+		return 0, fmt.Errorf("find reviewer staff: %w", err)
+	}
+	if staff == nil {
+		return 0, fmt.Errorf("reviewer account %d has no linked staff", reviewerAccountID)
+	}
+	return staff.ID, nil
+}
+
 // dispatchWeekdaySchedule inserts one pickup or arrival schedule row
 // per non-empty weekday entry. isPickup=true targets pickup_schedules,
 // false targets arrival_schedules.
@@ -2429,16 +2459,16 @@ func (s *decisionService) dispatchWeekdaySchedule(ctx context.Context, raw any, 
 	if err := sched.Validate(); err != nil {
 		return err
 	}
+	createdBy, err := s.resolveReviewerStaffID(ctx, reviewedBy)
+	if err != nil {
+		return err
+	}
 	weekdayInt := map[string]int{
 		"mon": scheduleModels.WeekdayMonday,
 		"tue": scheduleModels.WeekdayTuesday,
 		"wed": scheduleModels.WeekdayWednesday,
 		"thu": scheduleModels.WeekdayThursday,
 		"fri": scheduleModels.WeekdayFriday,
-	}
-	createdBy := reviewedBy
-	if createdBy <= 0 {
-		createdBy = 1 // fallback for legacy tests with no actor
 	}
 	for day, hhmm := range sched {
 		hhmm = strings.TrimSpace(hhmm)
