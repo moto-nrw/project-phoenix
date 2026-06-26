@@ -75,6 +75,12 @@ function nextEnabledIndex<K extends string>(
   return -1;
 }
 
+function consumeEscape(event: KeyboardEvent<HTMLButtonElement>): void {
+  event.preventDefault();
+  event.stopPropagation();
+  event.nativeEvent.stopImmediatePropagation();
+}
+
 export function ListboxDropdown<K extends string>({
   value,
   options,
@@ -148,7 +154,7 @@ export function ListboxDropdown<K extends string>({
   const handleTriggerKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (disabled) return;
     if (event.key === "Escape" && open) {
-      event.preventDefault();
+      consumeEscape(event);
       setOpen(false);
       return;
     }
@@ -209,7 +215,7 @@ export function ListboxDropdown<K extends string>({
         selectAt(focusIndex);
         break;
       case "Escape":
-        event.preventDefault();
+        consumeEscape(event);
         closeAndReturnFocus();
         break;
       case "Tab":
