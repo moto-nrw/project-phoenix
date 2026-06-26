@@ -863,6 +863,7 @@ func TestGetConfig_EmptyDefault(t *testing.T) {
 	var data ConfigResponse
 	require.NoError(t, json.Unmarshal(resp.Data, &data))
 	assert.Equal(t, "", data.AccountStartDate)
+	assert.True(t, data.BreakAutoEndEnabled)
 }
 
 func TestGetConfig_ReturnsAccountStartDate(t *testing.T) {
@@ -880,6 +881,24 @@ func TestGetConfig_ReturnsAccountStartDate(t *testing.T) {
 	var data ConfigResponse
 	require.NoError(t, json.Unmarshal(resp.Data, &data))
 	assert.Equal(t, "2026-08-01", data.AccountStartDate)
+	assert.True(t, data.BreakAutoEndEnabled)
+}
+
+func TestGetConfig_ReturnsBreakAutoEndDisabled(t *testing.T) {
+	t.Setenv("BREAK_AUTO_END_ENABLED", "false")
+	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
+
+	r := httptest.NewRequest(http.MethodGet, "/config", nil)
+	r = withClaims(r, validClaims())
+	w := httptest.NewRecorder()
+
+	rs.getConfig(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	resp := parseAPIResponse(t, w)
+	var data ConfigResponse
+	require.NoError(t, json.Unmarshal(resp.Data, &data))
+	assert.False(t, data.BreakAutoEndEnabled)
 }
 
 func TestGetConfig_SettingsError(t *testing.T) {

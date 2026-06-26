@@ -72,10 +72,12 @@ export interface UpdateAbsenceRequest {
 
 interface TimeTrackingConfig {
   accountStartDate: string;
+  breakAutoEndEnabled: boolean;
 }
 
 interface BackendTimeTrackingConfig {
   account_start_date?: string;
+  break_auto_end_enabled?: boolean;
 }
 
 /**
@@ -171,6 +173,7 @@ class TimeTrackingService {
     );
     return {
       accountStartDate: result.data?.account_start_date ?? "",
+      breakAutoEndEnabled: result.data?.break_auto_end_enabled === true,
     };
   }
 

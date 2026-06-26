@@ -370,6 +370,7 @@ import type {
 
 const today = new Date();
 const todayISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+const testTimestamp = (date: string, time: string) => `${date}T${time}:00`;
 
 // WeekTable skips weekends (day 0=Sun, 6=Sat). When today is a weekend,
 // shift test dates to the nearest weekday (previous Friday) so rows render.
@@ -383,20 +384,20 @@ const mockActiveSession: WorkSession = {
   staffId: "10",
   date: todayISO,
   status: "present",
-  checkInTime: `${todayISO}T08:00:00Z`,
+  checkInTime: testTimestamp(todayISO, "08:00"),
   checkOutTime: null,
   breakMinutes: 0,
   notes: "",
   autoCheckedOut: false,
   createdBy: "10",
   updatedBy: null,
-  createdAt: `${todayISO}T08:00:00Z`,
-  updatedAt: `${todayISO}T08:00:00Z`,
+  createdAt: testTimestamp(todayISO, "08:00"),
+  updatedAt: testTimestamp(todayISO, "08:00"),
 };
 
 const mockCheckedOutSession: WorkSession = {
   ...mockActiveSession,
-  checkOutTime: `${todayISO}T16:30:00Z`,
+  checkOutTime: testTimestamp(todayISO, "16:30"),
   breakMinutes: 30,
 };
 
@@ -413,10 +414,10 @@ const mockHistorySession: WorkSessionHistory = {
 const mockHistorySessionWithEdits: WorkSessionHistory = {
   ...mockHistorySession,
   date: weekdayISO,
-  checkInTime: `${weekdayISO}T08:00:00Z`,
-  checkOutTime: `${weekdayISO}T16:30:00Z`,
+  checkInTime: testTimestamp(weekdayISO, "08:00"),
+  checkOutTime: testTimestamp(weekdayISO, "16:30"),
   editCount: 2,
-  updatedAt: `${weekdayISO}T17:00:00Z`,
+  updatedAt: testTimestamp(weekdayISO, "17:00"),
 };
 
 const mockHistorySessionNonCompliant: WorkSessionHistory = {
@@ -445,12 +446,12 @@ const mockAbsence: StaffAbsence = {
   approvedBy: null,
   approvedAt: null,
   createdBy: "10",
-  createdAt: `${todayISO}T07:00:00Z`,
-  updatedAt: `${todayISO}T07:00:00Z`,
+  createdAt: testTimestamp(todayISO, "07:00"),
+  updatedAt: testTimestamp(todayISO, "07:00"),
   durationDays: 1,
   workingDays: 1,
   decisionNote: "",
-  requestedAt: `${todayISO}T07:00:00Z`,
+  requestedAt: testTimestamp(todayISO, "07:00"),
   substituteStaffId: null,
 };
 
@@ -494,11 +495,28 @@ function selectPresentMode() {
   fireEvent.click(screen.getByRole("button", { name: "In der OGS" }));
 }
 
+async function waitForLastSaveButtonEnabled() {
+  let saveBtn: HTMLElement | undefined;
+  await waitFor(() => {
+    const saveButtons = screen.getAllByText("Speichern");
+    saveBtn = saveButtons[saveButtons.length - 1];
+    expect(saveBtn).not.toBeDisabled();
+  });
+  return saveBtn!;
+}
+
+function clickQuickEditReason(reason: string) {
+  const buttons = screen.getAllByRole("button", { name: reason });
+  fireEvent.click(buttons[buttons.length - 1]!);
+}
+
 function setupDefaultMocks(overrides?: {
   currentSession?: WorkSession | null;
   history?: WorkSessionHistory[];
   absences?: StaffAbsence[];
   historyLoading?: boolean;
+  breakAutoEndEnabled?: boolean;
+  configLoading?: boolean;
 }) {
   vi.mocked(useSession).mockReturnValue({
     data: { user: { id: "1", token: "test-token" } },
@@ -510,6 +528,8 @@ function setupDefaultMocks(overrides?: {
   const history = overrides?.history ?? [];
   const absences = overrides?.absences ?? [];
   const historyLoading = overrides?.historyLoading ?? false;
+  const breakAutoEndEnabled = overrides?.breakAutoEndEnabled ?? true;
+  const configLoading = overrides?.configLoading ?? false;
 
   vi.mocked(useSWRAuth).mockImplementation((key: string | null) => {
     if (key === null) {
@@ -565,6 +585,16 @@ function setupDefaultMocks(overrides?: {
       return {
         data: mockOwnSchedule,
         isLoading: false,
+        mutate: mockMutate,
+        isValidating: false,
+        error: undefined,
+      } as never;
+    } else if (key === "time-tracking-config") {
+      return {
+        data: configLoading
+          ? undefined
+          : { accountStartDate: "", breakAutoEndEnabled },
+        isLoading: configLoading,
         mutate: mockMutate,
         isValidating: false,
         error: undefined,
@@ -869,18 +899,50 @@ describe("TimeTrackingPage", () => {
       });
     });
 
-    it("shows break duration options when pause button clicked", () => {
+    it("shows break duration stepper when pause button clicked", () => {
       setupDefaultMocks({ currentSession: mockActiveSession });
       render(<TimeTrackingPage />);
       fireEvent.click(screen.getByLabelText("Pause starten"));
-      // Break options should appear: 15m, 30m, 45m, 60m
-      expect(screen.getByText("15m")).toBeInTheDocument();
-      expect(screen.getByText("30m")).toBeInTheDocument();
-      expect(screen.getByText("45m")).toBeInTheDocument();
-      expect(screen.getByText("60m")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Pausendauer verringern" }),
+      ).toBeInTheDocument();
+      expect(screen.getByText("30")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Pausendauer erhöhen" }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Starten" })).toBeEnabled();
     });
 
-    it("calls startBreak when break duration selected", async () => {
+    it("uses a bottom sheet for break duration on mobile", async () => {
+      Object.defineProperty(window, "innerWidth", {
+        writable: true,
+        configurable: true,
+        value: 390,
+      });
+      setupDefaultMocks({ currentSession: mockActiveSession });
+      render(<TimeTrackingPage />);
+      fireEvent.click(screen.getByLabelText("Pause starten"));
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole("dialog", { name: "Pause stempeln" }),
+        ).toBeInTheDocument();
+      });
+      expect(screen.getByText("30")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Starten" })).toBeEnabled();
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Pausendauer schließen" }),
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.queryByRole("dialog", { name: "Pause stempeln" }),
+        ).not.toBeInTheDocument();
+      });
+    });
+
+    it("starts a default 30 minute break", async () => {
       setupDefaultMocks({ currentSession: mockActiveSession });
       vi.mocked(timeTrackingService.startBreak).mockResolvedValue({
         id: "50",
@@ -894,15 +956,15 @@ describe("TimeTrackingPage", () => {
       fireEvent.click(screen.getByLabelText("Pause starten"));
 
       await act(async () => {
-        fireEvent.click(screen.getByText("30m"));
+        fireEvent.click(screen.getByRole("button", { name: "Starten" }));
       });
 
       await waitFor(() => {
-        expect(timeTrackingService.startBreak).toHaveBeenCalled();
+        expect(timeTrackingService.startBreak).toHaveBeenCalledWith(30);
       });
     });
 
-    it("starts a custom 90 minute break", async () => {
+    it("starts an individual break with 15 minute stepper controls", async () => {
       setupDefaultMocks({ currentSession: mockActiveSession });
       vi.mocked(timeTrackingService.startBreak).mockResolvedValue({
         id: "50",
@@ -914,9 +976,18 @@ describe("TimeTrackingPage", () => {
       });
       render(<TimeTrackingPage />);
       fireEvent.click(screen.getByLabelText("Pause starten"));
-      fireEvent.change(screen.getByLabelText("Eigene Pausenlänge in Minuten"), {
-        target: { value: "90" },
-      });
+
+      expect(screen.getByText("30")).toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole("button", { name: "Pausendauer verringern" }),
+      );
+      expect(screen.getByText("15")).toBeInTheDocument();
+      for (let i = 0; i < 5; i += 1) {
+        fireEvent.click(
+          screen.getByRole("button", { name: "Pausendauer erhöhen" }),
+        );
+      }
+      expect(screen.getByText("90")).toBeInTheDocument();
 
       await act(async () => {
         fireEvent.click(screen.getByRole("button", { name: "Starten" }));
@@ -965,6 +1036,92 @@ describe("TimeTrackingPage", () => {
 
       await waitFor(() => {
         expect(screen.getByText(/Automatisch weiter um/)).toBeInTheDocument();
+      });
+    });
+
+    it("tells staff to resume manually when break auto-end is disabled", async () => {
+      const breakStart = new Date(Date.now() - 60 * 60 * 1000);
+      const plannedEnd = new Date(Date.now() + 30 * 60 * 1000);
+      setupDefaultMocks({
+        currentSession: mockActiveSession,
+        breakAutoEndEnabled: false,
+      });
+      vi.mocked(timeTrackingService.getSessionBreaks).mockResolvedValue([
+        {
+          id: "50",
+          sessionId: "100",
+          startedAt: breakStart.toISOString(),
+          endedAt: null,
+          durationMinutes: 0,
+          plannedEndTime: plannedEnd.toISOString(),
+        },
+      ]);
+      render(<TimeTrackingPage />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Automatische Fortsetzung ist deaktiviert/),
+        ).toBeInTheDocument();
+      });
+      expect(
+        screen.queryByText(/Automatisch weiter um/),
+      ).not.toBeInTheDocument();
+    });
+
+    it("does not auto-end an expired timed break before config loads", async () => {
+      const breakStart = new Date(Date.now() - 90 * 60 * 1000);
+      const plannedEnd = new Date(Date.now() - 1000);
+      setupDefaultMocks({
+        currentSession: mockActiveSession,
+        configLoading: true,
+      });
+      vi.mocked(timeTrackingService.getSessionBreaks).mockResolvedValue([
+        {
+          id: "50",
+          sessionId: "100",
+          startedAt: breakStart.toISOString(),
+          endedAt: null,
+          durationMinutes: 0,
+          plannedEndTime: plannedEnd.toISOString(),
+        },
+      ]);
+
+      render(<TimeTrackingPage />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Automatische Fortsetzung ist deaktiviert/),
+        ).toBeInTheDocument();
+      });
+      expect(timeTrackingService.endBreak).not.toHaveBeenCalled();
+    });
+
+    it("refreshes history and table data after a timed break auto-ends", async () => {
+      const breakStart = new Date(Date.now() - 90 * 60 * 1000);
+      const plannedEnd = new Date(Date.now() - 1000);
+      setupDefaultMocks({ currentSession: mockActiveSession });
+      vi.mocked(timeTrackingService.getSessionBreaks).mockResolvedValue([
+        {
+          id: "50",
+          sessionId: "100",
+          startedAt: breakStart.toISOString(),
+          endedAt: null,
+          durationMinutes: 0,
+          plannedEndTime: plannedEnd.toISOString(),
+        },
+      ]);
+      vi.mocked(timeTrackingService.endBreak).mockResolvedValue({
+        ...mockActiveSession,
+        breakMinutes: 90,
+      });
+
+      render(<TimeTrackingPage />);
+
+      await waitFor(() => {
+        expect(timeTrackingService.endBreak).toHaveBeenCalled();
+      });
+      await waitFor(() => {
+        expect(mockMutate).toHaveBeenCalledTimes(2);
       });
     });
 
@@ -1600,8 +1757,8 @@ describe("TimeTrackingPage", () => {
       const pastSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
-        checkInTime: `${yISO}T08:00:00Z`,
-        checkOutTime: `${yISO}T16:30:00Z`,
+        checkInTime: testTimestamp(yISO, "08:00"),
+        checkOutTime: testTimestamp(yISO, "16:30"),
       };
 
       setupDefaultMocks({ history: [pastSession] });
@@ -1760,7 +1917,7 @@ describe("TimeTrackingPage", () => {
       fireEvent.click(screen.getByLabelText("Pause starten"));
 
       await act(async () => {
-        fireEvent.click(screen.getByText("15m"));
+        fireEvent.click(screen.getByRole("button", { name: "Starten" }));
       });
 
       await waitFor(() => {
@@ -1869,10 +2026,10 @@ describe("TimeTrackingPage", () => {
           staffId: "10",
           editedBy: "10",
           fieldName: "check_in_time",
-          oldValue: `${todayISO}T07:30:00Z`,
-          newValue: `${todayISO}T08:00:00Z`,
+          oldValue: testTimestamp(todayISO, "07:30"),
+          newValue: testTimestamp(todayISO, "08:00"),
           notes: "Zeitkorrektur",
-          createdAt: `${todayISO}T17:00:00Z`,
+          createdAt: testTimestamp(todayISO, "17:00"),
         },
       ]);
       setupDefaultMocks({ history: [mockHistorySessionWithEdits] });
@@ -2125,8 +2282,8 @@ describe("TimeTrackingPage", () => {
       const pastSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
-        checkInTime: `${yISO}T08:00:00Z`,
-        checkOutTime: `${yISO}T16:30:00Z`,
+        checkInTime: testTimestamp(yISO, "08:00"),
+        checkOutTime: testTimestamp(yISO, "16:30"),
       };
 
       setupDefaultMocks({ history: [pastSession] });
@@ -2164,10 +2321,10 @@ describe("TimeTrackingPage", () => {
         }
 
         // Click save
-        const saveButtons = screen.queryAllByText("Speichern");
-        if (saveButtons.length > 0) {
+        if (screen.queryAllByText("Speichern").length > 0) {
+          const saveBtn = await waitForLastSaveButtonEnabled();
           await act(async () => {
-            fireEvent.click(saveButtons[saveButtons.length - 1]!);
+            fireEvent.click(saveBtn);
           });
           await waitFor(() => {
             expect(timeTrackingService.updateSession).toHaveBeenCalled();
@@ -2221,8 +2378,8 @@ describe("TimeTrackingPage", () => {
       return {
         ...mockHistorySession,
         date: weekdayISO,
-        checkInTime: `${weekdayISO}T08:00:00Z`,
-        checkOutTime: `${weekdayISO}T16:30:00Z`,
+        checkInTime: testTimestamp(weekdayISO, "08:00"),
+        checkOutTime: testTimestamp(weekdayISO, "16:30"),
         ...overrides,
       };
     }
@@ -2250,6 +2407,9 @@ describe("TimeTrackingPage", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("modal")).toBeInTheDocument();
+      });
+      await waitFor(() => {
+        expect(screen.getByLabelText("Start")).toHaveValue();
       });
     }
 
@@ -2397,17 +2557,15 @@ describe("TimeTrackingPage", () => {
 
     it("save button is enabled when notes are provided", async () => {
       await openEditModal(makePastSession());
-      fireEvent.click(screen.getByText("Zeitkorrektur"));
-      const saveButtons = screen.getAllByText("Speichern");
-      const saveBtn = saveButtons[saveButtons.length - 1]!;
-      expect(saveBtn).not.toBeDisabled();
+      clickQuickEditReason("Zeitkorrektur");
+      await waitForLastSaveButtonEnabled();
     });
 
     it("blocks saving when end time is not after start time", async () => {
       await openEditModal(makePastSession());
       vi.mocked(timeTrackingService.updateSession).mockClear();
 
-      fireEvent.click(screen.getByText("Zeitkorrektur"));
+      clickQuickEditReason("Zeitkorrektur");
       fireEvent.change(screen.getByLabelText("Start"), {
         target: { value: "12:30" },
       });
@@ -2441,11 +2599,11 @@ describe("TimeTrackingPage", () => {
       vi.mocked(useToast).mockReturnValue(mockToast);
 
       await openEditModal(makePastSession({ breaks: [] }));
-      fireEvent.click(screen.getByText("Zeitkorrektur"));
+      clickQuickEditReason("Zeitkorrektur");
 
-      const saveButtons = screen.getAllByText("Speichern");
+      const saveBtn = await waitForLastSaveButtonEnabled();
       await act(async () => {
-        fireEvent.click(saveButtons[saveButtons.length - 1]!);
+        fireEvent.click(saveBtn);
       });
 
       await waitFor(() => {
@@ -2461,16 +2619,16 @@ describe("TimeTrackingPage", () => {
           {
             id: "b1",
             sessionId: "100",
-            startedAt: `${yISO}T10:00:00Z`,
-            endedAt: `${yISO}T10:30:00Z`,
+            startedAt: testTimestamp(yISO, "10:00"),
+            endedAt: testTimestamp(yISO, "10:30"),
             durationMinutes: 30,
             plannedEndTime: null,
           },
           {
             id: "b2",
             sessionId: "100",
-            startedAt: `${yISO}T13:00:00Z`,
-            endedAt: `${yISO}T13:15:00Z`,
+            startedAt: testTimestamp(yISO, "13:00"),
+            endedAt: testTimestamp(yISO, "13:15"),
             durationMinutes: 15,
             plannedEndTime: null,
           },
@@ -2501,8 +2659,8 @@ describe("TimeTrackingPage", () => {
           {
             id: "b1",
             sessionId: "100",
-            startedAt: `${yISO}T10:00:00Z`,
-            endedAt: `${yISO}T10:30:00Z`,
+            startedAt: testTimestamp(yISO, "10:00"),
+            endedAt: testTimestamp(yISO, "10:30"),
             durationMinutes: 30,
             plannedEndTime: null,
           },
@@ -2520,11 +2678,11 @@ describe("TimeTrackingPage", () => {
         fireEvent.change(breakSelects[0], { target: { value: "45" } });
       }
 
-      fireEvent.click(screen.getByText("Zeitkorrektur"));
+      clickQuickEditReason("Zeitkorrektur");
 
-      const saveButtons = screen.getAllByText("Speichern");
+      const saveBtn = await waitForLastSaveButtonEnabled();
       await act(async () => {
-        fireEvent.click(saveButtons[saveButtons.length - 1]!);
+        fireEvent.click(saveBtn);
       });
 
       await waitFor(() => {
@@ -3003,7 +3161,7 @@ describe("TimeTrackingPage", () => {
       const activeHistory: WorkSessionHistory = {
         ...mockHistorySession,
         date: weekdayISO,
-        checkInTime: `${weekdayISO}T08:00:00Z`,
+        checkInTime: testTimestamp(weekdayISO, "08:00"),
         checkOutTime: null,
         netMinutes: 0,
       };
@@ -3023,8 +3181,8 @@ describe("TimeTrackingPage", () => {
       const hoSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
-        checkInTime: `${yISO}T08:00:00Z`,
-        checkOutTime: `${yISO}T16:00:00Z`,
+        checkInTime: testTimestamp(yISO, "08:00"),
+        checkOutTime: testTimestamp(yISO, "16:00"),
         status: "home_office",
       };
 
@@ -3040,8 +3198,8 @@ describe("TimeTrackingPage", () => {
       const presentSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
-        checkInTime: `${yISO}T08:00:00Z`,
-        checkOutTime: `${yISO}T16:00:00Z`,
+        checkInTime: testTimestamp(yISO, "08:00"),
+        checkOutTime: testTimestamp(yISO, "16:00"),
         status: "present",
       };
 
@@ -3082,7 +3240,7 @@ describe("TimeTrackingPage", () => {
           oldValue: "0",
           newValue: "30",
           notes: "Pause nachgetragen",
-          createdAt: `${todayISO}T17:00:00Z`,
+          createdAt: testTimestamp(todayISO, "17:00"),
         },
       ]);
       setupDefaultMocks({ history: [mockHistorySessionWithEdits] });
@@ -3105,10 +3263,10 @@ describe("TimeTrackingPage", () => {
           staffId: "10",
           editedBy: "10",
           fieldName: "check_in_time",
-          oldValue: `${todayISO}T07:00:00Z`,
-          newValue: `${todayISO}T08:00:00Z`,
+          oldValue: testTimestamp(todayISO, "07:00"),
+          newValue: testTimestamp(todayISO, "08:00"),
           notes: "Korrektur",
-          createdAt: `${todayISO}T17:00:00Z`,
+          createdAt: testTimestamp(todayISO, "17:00"),
         },
       ]);
       setupDefaultMocks({ history: [mockHistorySessionWithEdits] });
@@ -3175,10 +3333,10 @@ describe("TimeTrackingPage", () => {
           staffId: "10",
           editedBy: "10",
           fieldName: "check_in_time",
-          oldValue: `${todayISO}T07:00:00Z`,
-          newValue: `${todayISO}T08:00:00Z`,
+          oldValue: testTimestamp(todayISO, "07:00"),
+          newValue: testTimestamp(todayISO, "08:00"),
           notes: "Korrektur",
-          createdAt: `${todayISO}T17:00:00Z`,
+          createdAt: testTimestamp(todayISO, "17:00"),
         },
       ]);
       setupDefaultMocks({ history: [mockHistorySessionWithEdits] });
@@ -3210,7 +3368,7 @@ describe("TimeTrackingPage", () => {
           oldValue: "0",
           newValue: "30",
           notes: "Pause korrigiert",
-          createdAt: `${todayISO}T17:00:00Z`,
+          createdAt: testTimestamp(todayISO, "17:00"),
         },
       ]);
       setupDefaultMocks({ history: [mockHistorySessionWithEdits] });
@@ -3236,7 +3394,7 @@ describe("TimeTrackingPage", () => {
           oldValue: "present",
           newValue: "home_office",
           notes: "Ort-Änderung",
-          createdAt: `${todayISO}T17:00:00Z`,
+          createdAt: testTimestamp(todayISO, "17:00"),
         },
       ]);
       setupDefaultMocks({ history: [mockHistorySessionWithEdits] });
@@ -3265,7 +3423,7 @@ describe("TimeTrackingPage", () => {
           oldValue: null,
           newValue: "Some note",
           notes: "Added note",
-          createdAt: `${todayISO}T17:00:00Z`,
+          createdAt: testTimestamp(todayISO, "17:00"),
         },
       ]);
       setupDefaultMocks({ history: [mockHistorySessionWithEdits] });
@@ -3287,10 +3445,10 @@ describe("TimeTrackingPage", () => {
       const pastSessionWithEdits: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
-        checkInTime: `${yISO}T08:00:00Z`,
-        checkOutTime: `${yISO}T16:30:00Z`,
+        checkInTime: testTimestamp(yISO, "08:00"),
+        checkOutTime: testTimestamp(yISO, "16:30"),
         editCount: 1,
-        updatedAt: `${yISO}T17:00:00Z`,
+        updatedAt: testTimestamp(yISO, "17:00"),
       };
 
       vi.mocked(timeTrackingService.getSessionEdits).mockResolvedValue([
@@ -3300,10 +3458,10 @@ describe("TimeTrackingPage", () => {
           staffId: "10",
           editedBy: "10",
           fieldName: "check_in_time",
-          oldValue: `${yISO}T07:00:00Z`,
-          newValue: `${yISO}T08:00:00Z`,
+          oldValue: testTimestamp(yISO, "07:00"),
+          newValue: testTimestamp(yISO, "08:00"),
           notes: "Korrektur",
-          createdAt: `${yISO}T17:00:00Z`,
+          createdAt: testTimestamp(yISO, "17:00"),
         },
       ]);
       setupDefaultMocks({ history: [pastSessionWithEdits] });
@@ -3321,7 +3479,7 @@ describe("TimeTrackingPage", () => {
     });
 
     it("groups multiple edits with same timestamp", async () => {
-      const timestamp = `${todayISO}T17:00:00Z`;
+      const timestamp = testTimestamp(todayISO, "17:00");
       vi.mocked(timeTrackingService.getSessionEdits).mockResolvedValue([
         {
           id: "e1",
@@ -3329,8 +3487,8 @@ describe("TimeTrackingPage", () => {
           staffId: "10",
           editedBy: "10",
           fieldName: "check_in_time",
-          oldValue: `${todayISO}T07:00:00Z`,
-          newValue: `${todayISO}T08:00:00Z`,
+          oldValue: testTimestamp(todayISO, "07:00"),
+          newValue: testTimestamp(todayISO, "08:00"),
           notes: "Doppelkorrektur",
           createdAt: timestamp,
         },
@@ -3494,8 +3652,8 @@ describe("TimeTrackingPage", () => {
       const pastSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
-        checkInTime: `${yISO}T08:00:00Z`,
-        checkOutTime: `${yISO}T16:30:00Z`,
+        checkInTime: testTimestamp(yISO, "08:00"),
+        checkOutTime: testTimestamp(yISO, "16:30"),
       };
 
       setupDefaultMocks({ history: [pastSession] });
@@ -3509,10 +3667,10 @@ describe("TimeTrackingPage", () => {
           staffId: "10",
           editedBy: "10",
           fieldName: "check_in_time",
-          oldValue: `${yISO}T07:00:00Z`,
-          newValue: `${yISO}T08:00:00Z`,
+          oldValue: testTimestamp(yISO, "07:00"),
+          newValue: testTimestamp(yISO, "08:00"),
           notes: "Auto-expanded",
-          createdAt: `${yISO}T17:00:00Z`,
+          createdAt: testTimestamp(yISO, "17:00"),
         },
       ]);
 
@@ -3525,11 +3683,11 @@ describe("TimeTrackingPage", () => {
           expect(screen.getByTestId("modal")).toBeInTheDocument();
         });
 
-        fireEvent.click(screen.getByText("Zeitkorrektur"));
+        clickQuickEditReason("Zeitkorrektur");
 
-        const saveButtons = screen.getAllByText("Speichern");
+        const saveBtn = await waitForLastSaveButtonEnabled();
         await act(async () => {
-          fireEvent.click(saveButtons[saveButtons.length - 1]!);
+          fireEvent.click(saveBtn);
         });
 
         await waitFor(() => {
@@ -3554,8 +3712,8 @@ describe("TimeTrackingPage", () => {
       const pastSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
-        checkInTime: `${yISO}T08:00:00Z`,
-        checkOutTime: `${yISO}T16:30:00Z`,
+        checkInTime: testTimestamp(yISO, "08:00"),
+        checkOutTime: testTimestamp(yISO, "16:30"),
       };
 
       setupDefaultMocks({ history: [pastSession] });
@@ -3572,11 +3730,11 @@ describe("TimeTrackingPage", () => {
           expect(screen.getByTestId("modal")).toBeInTheDocument();
         });
 
-        fireEvent.click(screen.getByText("Zeitkorrektur"));
+        clickQuickEditReason("Zeitkorrektur");
 
-        const saveButtons = screen.getAllByText("Speichern");
+        const saveBtn = await waitForLastSaveButtonEnabled();
         await act(async () => {
-          fireEvent.click(saveButtons[saveButtons.length - 1]!);
+          fireEvent.click(saveBtn);
         });
 
         await waitFor(() => {
@@ -3649,8 +3807,8 @@ describe("TimeTrackingPage", () => {
       const pastSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
-        checkInTime: `${yISO}T08:00:00Z`,
-        checkOutTime: `${yISO}T16:30:00Z`,
+        checkInTime: testTimestamp(yISO, "08:00"),
+        checkOutTime: testTimestamp(yISO, "16:30"),
       };
       const pastAbsence: StaffAbsence = {
         ...mockAbsence,
@@ -3760,8 +3918,8 @@ describe("TimeTrackingPage", () => {
       const pastSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
-        checkInTime: `${yISO}T08:00:00Z`,
-        checkOutTime: `${yISO}T16:30:00Z`,
+        checkInTime: testTimestamp(yISO, "08:00"),
+        checkOutTime: testTimestamp(yISO, "16:30"),
       };
       const pastAbsence: StaffAbsence = {
         ...mockAbsence,
@@ -3929,8 +4087,8 @@ describe("TimeTrackingPage", () => {
       const pastSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
-        checkInTime: `${yISO}T08:00:00Z`,
-        checkOutTime: `${yISO}T16:30:00Z`,
+        checkInTime: testTimestamp(yISO, "08:00"),
+        checkOutTime: testTimestamp(yISO, "16:30"),
       };
 
       setupDefaultMocks({ history: [pastSession] });
@@ -3962,8 +4120,8 @@ describe("TimeTrackingPage", () => {
       const pastSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
-        checkInTime: `${yISO}T08:00:00Z`,
-        checkOutTime: `${yISO}T16:30:00Z`,
+        checkInTime: testTimestamp(yISO, "08:00"),
+        checkOutTime: testTimestamp(yISO, "16:30"),
       };
 
       setupDefaultMocks({ history: [pastSession] });
@@ -3978,7 +4136,7 @@ describe("TimeTrackingPage", () => {
       const activeHistory: WorkSessionHistory = {
         ...mockHistorySession,
         date: todayISO,
-        checkInTime: `${todayISO}T08:00:00Z`,
+        checkInTime: testTimestamp(todayISO, "08:00"),
         checkOutTime: null,
         netMinutes: 0,
       };
@@ -4000,8 +4158,8 @@ describe("TimeTrackingPage", () => {
       const hoSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
-        checkInTime: `${yISO}T08:00:00Z`,
-        checkOutTime: `${yISO}T16:00:00Z`,
+        checkInTime: testTimestamp(yISO, "08:00"),
+        checkOutTime: testTimestamp(yISO, "16:00"),
         status: "home_office",
       };
 
@@ -4018,8 +4176,8 @@ describe("TimeTrackingPage", () => {
       const presentSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
-        checkInTime: `${yISO}T08:00:00Z`,
-        checkOutTime: `${yISO}T16:00:00Z`,
+        checkInTime: testTimestamp(yISO, "08:00"),
+        checkOutTime: testTimestamp(yISO, "16:00"),
         status: "present",
       };
 
@@ -4036,10 +4194,10 @@ describe("TimeTrackingPage", () => {
       const sessionWithEdits: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
-        checkInTime: `${yISO}T08:00:00Z`,
-        checkOutTime: `${yISO}T16:30:00Z`,
+        checkInTime: testTimestamp(yISO, "08:00"),
+        checkOutTime: testTimestamp(yISO, "16:30"),
         editCount: 2,
-        updatedAt: `${yISO}T17:00:00Z`,
+        updatedAt: testTimestamp(yISO, "17:00"),
       };
 
       setupDefaultMocks({ history: [sessionWithEdits] });
@@ -4125,8 +4283,8 @@ describe("TimeTrackingPage", () => {
       const pastSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
-        checkInTime: `${yISO}T08:00:00Z`,
-        checkOutTime: `${yISO}T16:30:00Z`,
+        checkInTime: testTimestamp(yISO, "08:00"),
+        checkOutTime: testTimestamp(yISO, "16:30"),
       };
 
       setupDefaultMocks({ history: [pastSession] });
@@ -4143,11 +4301,11 @@ describe("TimeTrackingPage", () => {
           expect(screen.getByTestId("modal")).toBeInTheDocument();
         });
 
-        fireEvent.click(screen.getByText("Zeitkorrektur"));
+        clickQuickEditReason("Zeitkorrektur");
 
-        const saveButtons = screen.getAllByText("Speichern");
+        const saveBtn = await waitForLastSaveButtonEnabled();
         await act(async () => {
-          fireEvent.click(saveButtons[saveButtons.length - 1]!);
+          fireEvent.click(saveBtn);
         });
 
         await waitFor(() => {
@@ -4264,8 +4422,8 @@ describe("TimeTrackingPage", () => {
       const pastSession: WorkSessionHistory = {
         ...mockHistorySession,
         date: yISO,
-        checkInTime: `${yISO}T08:00:00Z`,
-        checkOutTime: `${yISO}T12:00:00Z`,
+        checkInTime: testTimestamp(yISO, "08:00"),
+        checkOutTime: testTimestamp(yISO, "12:00"),
         netMinutes: 240,
       };
       const pastAbsence: StaffAbsence = {
@@ -4293,8 +4451,8 @@ describe("TimeTrackingPage", () => {
     const todayEditedHistory: WorkSessionHistory = {
       ...mockHistorySession,
       date: todayISO,
-      checkInTime: `${todayISO}T08:00:00Z`,
-      checkOutTime: `${todayISO}T16:30:00Z`,
+      checkInTime: testTimestamp(todayISO, "08:00"),
+      checkOutTime: testTimestamp(todayISO, "16:30"),
       editCount: 1,
     };
 
@@ -4323,8 +4481,8 @@ describe("TimeTrackingPage", () => {
       const uneditedHistory: WorkSessionHistory = {
         ...mockHistorySession,
         date: todayISO,
-        checkInTime: `${todayISO}T08:00:00Z`,
-        checkOutTime: `${todayISO}T16:30:00Z`,
+        checkInTime: testTimestamp(todayISO, "08:00"),
+        checkOutTime: testTimestamp(todayISO, "16:30"),
         editCount: 0,
       };
       setupDefaultMocks({

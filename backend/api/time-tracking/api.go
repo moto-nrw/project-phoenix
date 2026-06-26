@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -103,7 +104,8 @@ type CheckInRequest struct {
 }
 
 type ConfigResponse struct {
-	AccountStartDate string `json:"account_start_date"`
+	AccountStartDate    string `json:"account_start_date"`
+	BreakAutoEndEnabled bool   `json:"break_auto_end_enabled"`
 }
 
 // Bind validates the check-in request
@@ -249,7 +251,10 @@ func (rs *Resource) getConfig(w http.ResponseWriter, r *http.Request) {
 		accountStartDate = value
 	}
 
-	common.Respond(w, r, http.StatusOK, ConfigResponse{AccountStartDate: accountStartDate}, "Time tracking config retrieved successfully")
+	common.Respond(w, r, http.StatusOK, ConfigResponse{
+		AccountStartDate:    accountStartDate,
+		BreakAutoEndEnabled: os.Getenv("BREAK_AUTO_END_ENABLED") != "false",
+	}, "Time tracking config retrieved successfully")
 }
 
 // getHistory handles GET /api/time-tracking/history?from=2026-01-01&to=2026-01-31

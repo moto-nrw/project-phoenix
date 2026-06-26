@@ -1173,6 +1173,53 @@ func TestWSStartBreak_AlreadyOnBreak(t *testing.T) {
 	assert.Contains(t, err.Error(), "break already active")
 }
 
+func TestWSAutoEndExpiredBreaks_UsesPlannedEndAndRecalculatesBreakMinutes(t *testing.T) {
+	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
+	startedAt := time.Now().Add(-2 * time.Hour)
+	plannedEnd := startedAt.Add(90 * time.Minute)
+	sessionID := int64(50)
+	breakID := int64(10)
+	endedBreak := &activeModels.WorkSessionBreak{
+		Model:           base.Model{ID: breakID},
+		SessionID:       sessionID,
+		StartedAt:       startedAt,
+		EndedAt:         &plannedEnd,
+		DurationMinutes: 90,
+	}
+
+	breakRepo.getExpiredBreaksFunc = func(_ context.Context, before time.Time) ([]*activeModels.WorkSessionBreak, error) {
+		assert.True(t, before.After(plannedEnd) || before.Equal(plannedEnd))
+		return []*activeModels.WorkSessionBreak{
+			{
+				Model:          base.Model{ID: breakID},
+				SessionID:      sessionID,
+				StartedAt:      startedAt,
+				PlannedEndTime: &plannedEnd,
+			},
+		}, nil
+	}
+	breakRepo.endBreakFunc = func(_ context.Context, id int64, endedAt time.Time, durationMinutes int) error {
+		assert.Equal(t, breakID, id)
+		assert.True(t, plannedEnd.Equal(endedAt))
+		assert.Equal(t, 90, durationMinutes)
+		return nil
+	}
+	breakRepo.getBySessionIDFunc = func(_ context.Context, id int64) ([]*activeModels.WorkSessionBreak, error) {
+		assert.Equal(t, sessionID, id)
+		return []*activeModels.WorkSessionBreak{endedBreak}, nil
+	}
+	sessionRepo.updateBreakMinutesFunc = func(_ context.Context, id int64, breakMinutes int) error {
+		assert.Equal(t, sessionID, id)
+		assert.Equal(t, 90, breakMinutes)
+		return nil
+	}
+
+	count, err := svc.AutoEndExpiredBreaks(context.Background())
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+}
+
 // ============================================================================
 // EndBreak Tests
 // ============================================================================

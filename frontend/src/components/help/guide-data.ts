@@ -636,7 +636,8 @@ export const appChapters: readonly GuideChapter[] = [
           "`Zeiterfassung` öffnen.",
           "`In der OGS`, `Homeoffice` oder `Abwesend` wählen.",
           "Mit `Einstempeln` beginnen und am Ende `Ausstempeln`.",
-          "Pausen mit einer geplanten Dauer starten. Die Pause endet automatisch nach Ablauf oder manuell über `Pause beenden`.",
+          "Pausen mit einer festen oder individuellen Dauer starten. Wenn eure Installation die automatische Fortsetzung nutzt, läuft die Arbeitszeit nach Ablauf der gewählten Dauer weiter.",
+          "Falls automatische Fortsetzung serverseitig nicht verfügbar ist, zeigt die Stempeluhr das an und die Pause muss manuell mit `Pause beenden` beendet werden.",
           "Bei langen Arbeitstagen die Pausenhinweise beachten.",
           "Für Krankheit, Fortbildung oder sonstige Abwesenheit `Abwesend` wählen und die Abwesenheit mit Art, Zeitraum und optionaler Notiz speichern.",
         ],
@@ -646,7 +647,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "orange",
         },
         screenshot:
-          "Zeiterfassung mit Einstempeln, Pause, Ausstempeln und Abwesenheit melden.",
+          "Zeiterfassung mit Einstempeln, individueller Pausenlänge, Ausstempeln und Abwesenheit melden.",
         image: "/help/screens/zeiterfassung.webp",
       },
       {
