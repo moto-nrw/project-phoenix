@@ -61,7 +61,7 @@ func AppendMessage(
 //
 // otherAccountID is the account whose reads count as "the other side read it":
 // the thread's guardian for the staff view, the querying guardian's own account
-// excluded for the parent view (LatestReadAtByOther positively gates on staff
+// excluded for the parent view (LatestReadCursorByOther positively gates on staff
 // membership, so a guardian's cursor never satisfies the receipt either way).
 func DecorateReadReceipts(
 	ctx context.Context,
@@ -70,7 +70,7 @@ func DecorateReadReceipts(
 	threadID, otherAccountID int64,
 	messages []*usersModels.ParentMessage,
 ) {
-	cutoff, err := readRepo.LatestReadAtByOther(ctx, threadID, otherAccountID)
+	cutoff, err := readRepo.LatestReadCursorByOther(ctx, threadID, otherAccountID)
 	if err != nil {
 		if logger == nil {
 			logger = slog.Default()

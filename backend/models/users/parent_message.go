@@ -2,7 +2,6 @@ package users
 
 import (
 	"context"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
@@ -44,16 +43,27 @@ func (m *ParentMessage) TableName() string { return tableUsersParentMessages }
 
 // StampStaffReadReceipts marks every guardian-authored message at or before the
 // staff read cursor with ReadByStaff=true (the "OGS hat gelesen" indicator).
-// cutoff is the newest staff read instant in the thread (nil = staff has not
+// cutoff is the furthest staff read cursor in the thread (nil = staff has not
 // read anything yet, so nothing is stamped). Pure presentation logic shared by
 // the parent side (services/parent) and the staff side (services/messaging) so
 // the receipt rule cannot drift between the two views of the same thread.
-func StampStaffReadReceipts(messages []*ParentMessage, cutoff *time.Time) {
+func StampStaffReadReceipts(messages []*ParentMessage, cutoff *ReadCursor) {
 	if cutoff == nil {
 		return
 	}
 	for _, msg := range messages {
-		if msg.SenderKind != ParentMessageSenderStaff && !msg.CreatedAt.After(*cutoff) {
+		// Gate POSITIVELY on guardian authorship. A "!= staff" test would also stamp
+		// a system message (sender_kind 'system', introduced by the #1672 requests
+		// follow-up) as staff-read — a wrong receipt on a row no staff member wrote.
+		if msg.SenderKind != ParentMessageSenderGuardian {
+			continue
+		}
+		// Compare on the SAME composite (created_at, id) the unread predicates use,
+		// not the timestamp alone: two messages can share a created_at, and a
+		// timestamp-only "not after cutoff" test would mark a tied guardian message
+		// with a higher id as read while the staff badge still counts it unread.
+		if msg.CreatedAt.Before(cutoff.LastReadAt) ||
+			(msg.CreatedAt.Equal(cutoff.LastReadAt) && msg.ID <= cutoff.LastReadMessageID) {
 			msg.ReadByStaff = true
 		}
 	}

@@ -119,6 +119,12 @@ export function useUnreadCount({
   // instead of leaving the previous tenant's count rendered (a cross-tenant leak
   // that would otherwise persist forever if the new tenant's fetch fails).
   const displayedKeyRef = useRef(cacheKey);
+  // Latest refresh(), so the error-path reconciliation below can re-fetch for the
+  // CURRENT tenant without listing refresh in its own deps (self-reference). It is
+  // reassigned right after the useCallback, mirroring fetcherRef/onErrorRef above.
+  const refreshRef = useRef<((skipCache?: boolean) => Promise<void>) | null>(
+    null,
+  );
 
   const refresh = useCallback(
     async (skipCache = false) => {
@@ -187,10 +193,27 @@ export function useUnreadCount({
         isFetchingRef.current = false;
         pendingForceRef.current = false;
         setIsLoading(false);
+        // A tenant switch that landed while this fetch was in flight made the
+        // switch's own refresh() return early on the in-flight guard above. On the
+        // SUCCESS path the do-while re-loop already re-fetched for the new key; but
+        // if this fetch FAILED (e.g. the JWT was re-scoped by the switch and the
+        // request 401'd), nothing else reconciles the badge and it would keep
+        // showing the previous tenant's count — the exact cross-tenant leak the
+        // displayedKeyRef logic exists to prevent. When the displayed count no
+        // longer belongs to the current tenant, clear it and re-fetch.
+        if (
+          enabledRef.current &&
+          displayedKeyRef.current !== cacheKeyRef.current
+        ) {
+          setUnreadCount(0);
+          displayedKeyRef.current = cacheKeyRef.current;
+          void refreshRef.current?.();
+        }
       }
     },
     [enabled, cacheKey],
   );
+  refreshRef.current = refresh;
 
   useEffect(() => {
     void refresh();

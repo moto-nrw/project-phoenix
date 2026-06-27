@@ -150,7 +150,30 @@ func (s *service) ListInbox(ctx context.Context, onlyUnread bool) ([]*usersModel
 		return nil, fmt.Errorf("messaging: list inbox: %w", err)
 	}
 	s.suppressDisabledUnread(ctx, rows)
+	// suppressDisabledUnread zeroes every unread badge when the school has turned
+	// messaging off. In the "Nur ungelesen" view that would otherwise leave rows
+	// with no visible badge — an internally contradictory "unread" list (the rows
+	// were SELECTed for having unread, then their badges were suppressed). Drop the
+	// now-badgeless rows so the filter and the suppressed badges agree. When
+	// messaging is enabled the badges are intact (every onlyUnread row has count
+	// >= 1), so this is a no-op there.
+	if onlyUnread {
+		rows = keepUnread(rows)
+	}
 	return rows, nil
+}
+
+// keepUnread returns only the rows that still carry an unread badge, preserving
+// order. Used by the onlyUnread inbox after suppressDisabledUnread so a disabled
+// school's filtered list does not render badgeless "unread" rows.
+func keepUnread(rows []*usersModels.InboxThread) []*usersModels.InboxThread {
+	out := make([]*usersModels.InboxThread, 0, len(rows))
+	for _, row := range rows {
+		if row.UnreadCount > 0 {
+			out = append(out, row)
+		}
+	}
+	return out
 }
 
 // suppressDisabledUnread zeroes the unread count on every inbox/student-card row

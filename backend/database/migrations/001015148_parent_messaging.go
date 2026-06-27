@@ -264,7 +264,7 @@ func parentMessagingUp(ctx context.Context, db *bun.DB) error {
 	// unread on first open — acceptable, since they have not reviewed it yet.
 	//
 	// Accepted tradeoff: the parent portal's "OGS hat gelesen" indicator derives
-	// from the newest read cursor of a STAFF account (LatestReadAtByOther gates
+	// from the newest read cursor of a STAFF account (LatestReadCursorByOther gates
 	// positively on users.staff membership at the thread's tenant), so seeding
 	// staff cursors here makes every migrated note render as read by the OGS. That
 	// is truthful — staff saw these notes in the old notes UI before migration.

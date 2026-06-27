@@ -61,6 +61,16 @@ type InboxThread struct {
 	UnreadCount       int        `bun:"unread_count" json:"unread_count"`
 }
 
+// ReadCursor is the composite position of a read cursor: the read instant and
+// its message-id tie-breaker. The "OGS hat gelesen" receipt compares guardian
+// messages against it using the SAME composite tie-break as the unread
+// predicates, so a message tied on created_at with a higher id is only marked
+// staff-read once the staff cursor actually reached that id.
+type ReadCursor struct {
+	LastReadAt        time.Time `bun:"last_read_at"`
+	LastReadMessageID int64     `bun:"last_read_message_id"`
+}
+
 // ThreadHeader is the minimal chat-window header projection: the child and
 // guardian display names plus the relationship type. Built by a light join, it
 // deliberately omits the inbox projection's unread count.
@@ -111,7 +121,10 @@ type ParentMessageReadRepository interface {
 	// if absent. Unlike the inbox projection it does NOT run the correlated
 	// unread COUNT subquery the chat header never uses.
 	FindThreadHeader(ctx context.Context, threadID int64) (*ThreadHeader, error)
-	// LatestReadAtByOther returns the newest read cursor in the thread among
-	// accounts other than excludeAccountID.
-	LatestReadAtByOther(ctx context.Context, threadID, excludeAccountID int64) (*time.Time, error)
+	// LatestReadCursorByOther returns the furthest read cursor (by the composite
+	// (last_read_at, last_read_message_id)) held in the thread by a STAFF account
+	// other than excludeAccountID, or nil when no such cursor exists. Drives the
+	// "OGS hat gelesen" receipt, which must compare on the same composite the
+	// unread predicates use rather than the timestamp alone.
+	LatestReadCursorByOther(ctx context.Context, threadID, excludeAccountID int64) (*ReadCursor, error)
 }

@@ -19,6 +19,17 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "OgsConversation" });
 
+// Nudge the sidebar unread badge to refetch after a LOCAL read/send (which marks
+// the thread read server-side). SSE-driven refreshes do NOT call this: the
+// portal-wide ParentRealtimeBridge already dispatches the badge refresh on the
+// parent_message event, so dispatching again from the resulting thread update
+// would fire the (debounced but still doubled) badge fetch twice per message.
+function nudgeUnreadBadge(): void {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("parent-messages-unread-refresh"));
+  }
+}
+
 /**
  * The parent <-> OGS chat for one child. The parent is talking to "the OGS
  * [Schulname]" — the child is only context, never the counterpart. Used both
@@ -94,7 +105,11 @@ export function OgsConversation({
     void (async () => {
       setLoading(true);
       await refresh();
-      if (active) setLoading(false);
+      if (active) {
+        setLoading(false);
+        // Opening the conversation marked it read server-side; refresh the badge.
+        nudgeUnreadBadge();
+      }
     })();
     return () => {
       active = false;
@@ -123,14 +138,6 @@ export function OgsConversation({
     if (el) el.scrollTop = el.scrollHeight;
   }, [thread]);
 
-  // Opening/refreshing the conversation marks it read server-side, so nudge the
-  // sidebar unread badge to refetch.
-  useEffect(() => {
-    if (thread && typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("parent-messages-unread-refresh"));
-    }
-  }, [thread]);
-
   const handleSend = useCallback(async () => {
     const body = draft.trim();
     if (!body || sending) return;
@@ -143,6 +150,9 @@ export function OgsConversation({
       // load error left by an earlier failed background refresh.
       if (applyThread(++applySeqRef.current, view)) setLoadError(null);
       setDraft("");
+      // Sending advances the reader's own cursor (any prior staff messages are now
+      // read), so refresh the sidebar badge.
+      nudgeUnreadBadge();
     } catch (err) {
       logger.warn("ogs_message_send_failed", {
         error: err instanceof Error ? err.message : String(err),

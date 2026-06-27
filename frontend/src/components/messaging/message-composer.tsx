@@ -67,7 +67,15 @@ export function MessageComposer({
           maxLength={MAX_MESSAGE_LEN}
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
+            // Ignore the Enter that confirms an IME composition candidate
+            // (accented letters, mobile autocomplete): nativeEvent.isComposing is
+            // true mid-composition, and sending there would fire off a
+            // half-composed message instead of accepting the candidate.
+            if (
+              event.key === "Enter" &&
+              !event.shiftKey &&
+              !event.nativeEvent.isComposing
+            ) {
               event.preventDefault();
               if (!disabled) onSend();
             }

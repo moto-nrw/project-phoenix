@@ -68,6 +68,20 @@ func counterpartUnread(alias string, staffReader bool) string {
 	return fmt.Sprintf(`%s.sender_kind = 'staff'`, alias)
 }
 
+// afterReadCursor builds the load-bearing composite tie-break "message <alias>
+// is strictly after the reader's read cursor", comparing (created_at, id)
+// against (last_read_at, last_read_message_id) of the joined cursor row `r`.
+// This fragment is the correctness core of every unread number in the feature
+// (inbox COUNT column + both unread-EXISTS badges), so it lives in ONE place —
+// a fix here can't land in one copy and silently skip the others, which would
+// make the inbox list count and the sidebar badge diverge.
+func afterReadCursor(alias string) string {
+	return fmt.Sprintf(
+		`(%[1]s.created_at, %[1]s.id) > (COALESCE(r.last_read_at, '1970-01-01'::timestamptz), COALESCE(r.last_read_message_id, 0))`,
+		alias,
+	)
+}
+
 // inboxSelect builds the InboxThread projection. staffReader switches the
 // "unread" side: staff readers count unread guardian-side activity, guardian
 // readers count unread staff-side activity (see counterpartUnread).
@@ -76,8 +90,8 @@ func inboxSelect(q *bun.SelectQuery, accountID int64, staffReader bool) *bun.Sel
 		SELECT COUNT(*) FROM users.parent_messages cm
 		WHERE cm.thread_id = t.id
 		  AND %s
-		  AND (cm.created_at, cm.id) > (COALESCE(r.last_read_at, '1970-01-01'::timestamptz), COALESCE(r.last_read_message_id, 0))
-	) AS unread_count`, counterpartUnread("cm", staffReader))
+		  AND %s
+	) AS unread_count`, counterpartUnread("cm", staffReader), afterReadCursor("cm"))
 
 	return q.
 		TableExpr("users.parent_message_threads AS t").
@@ -159,8 +173,8 @@ var guardianUnreadExists = fmt.Sprintf(`EXISTS (
 	SELECT 1 FROM users.parent_messages um
 	WHERE um.thread_id = t.id
 	  AND %s
-	  AND (um.created_at, um.id) > (COALESCE(r.last_read_at, '1970-01-01'::timestamptz), COALESCE(r.last_read_message_id, 0))
-)`, counterpartUnread("um", true))
+	  AND %s
+)`, counterpartUnread("um", true), afterReadCursor("um"))
 
 // staffUnreadExists is the guardian-reader counterpart of guardianUnreadExists:
 // "unread staff-side activity" (staff messages plus staff-triggered system
@@ -170,8 +184,8 @@ var staffUnreadExists = fmt.Sprintf(`EXISTS (
 	SELECT 1 FROM users.parent_messages um
 	WHERE um.thread_id = t.id
 	  AND %s
-	  AND (um.created_at, um.id) > (COALESCE(r.last_read_at, '1970-01-01'::timestamptz), COALESCE(r.last_read_message_id, 0))
-)`, counterpartUnread("um", false))
+	  AND %s
+)`, counterpartUnread("um", false), afterReadCursor("um"))
 
 // applyStaffScope narrows a thread query to the students a staff member may
 // read: all students (admin / all_staff scope) or only their supervised
@@ -327,13 +341,14 @@ func (r *ParentMessageReadRepository) FindThreadHeader(ctx context.Context, thre
 	return rows[0], nil
 }
 
-// LatestReadAtByOther returns the newest read cursor in the thread among
-// accounts other than excludeAccountID. Used by the parent portal for the
-// "OGS hat gelesen" trust indicator.
-func (r *ParentMessageReadRepository) LatestReadAtByOther(ctx context.Context, threadID, excludeAccountID int64) (*time.Time, error) {
-	var out struct {
-		LastReadAt *time.Time `bun:"last_read_at"`
-	}
+// LatestReadCursorByOther returns the furthest read cursor (by the composite
+// (last_read_at, last_read_message_id)) in the thread among STAFF accounts other
+// than excludeAccountID, or nil when none exists. Used by the parent portal for
+// the "OGS hat gelesen" trust indicator. Returning the composite (not just the
+// MAX timestamp) lets the receipt compare on the same tie-break the unread
+// predicates use, so a tied higher-id message is not stamped read prematurely.
+func (r *ParentMessageReadRepository) LatestReadCursorByOther(ctx context.Context, threadID, excludeAccountID int64) (*users.ReadCursor, error) {
+	var rows []users.ReadCursor
 	// The "OGS hat gelesen" receipt must reflect a STAFF read, never another
 	// guardian's. A relationship-based exclusion ("drop every guardian of this
 	// student") is wrong in BOTH directions: it still counts an unrelated parent
@@ -343,11 +358,13 @@ func (r *ParentMessageReadRepository) LatestReadAtByOther(ctx context.Context, t
 	// gate POSITIVELY on staff membership: count a cursor only when its account
 	// belongs to a (non-deleted) staff member at the thread's tenant. The querying
 	// account is still excluded so the guardian's own read never satisfies "the
-	// OGS read it".
+	// OGS read it". ORDER BY the composite DESC + LIMIT 1 returns the single
+	// furthest staff cursor (a message read by ANY staff member counts as read).
 	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr("users.parent_message_reads AS r").
 		Join("JOIN users.parent_message_threads AS t ON t.id = r.thread_id").
-		ColumnExpr("MAX(r.last_read_at) AS last_read_at").
+		ColumnExpr("r.last_read_at AS last_read_at").
+		ColumnExpr("r.last_read_message_id AS last_read_message_id").
 		Where("r.thread_id = ?", threadID).
 		Where("r.account_id <> ?", excludeAccountID).
 		Where(`EXISTS (
@@ -358,14 +375,20 @@ func (r *ParentMessageReadRepository) LatestReadAtByOther(ctx context.Context, t
 			  AND st.tenant_id = t.tenant_id
 			  AND st.deleted_at IS NULL
 			  AND p.deleted_at IS NULL
-		)`)
+		)`).
+		OrderExpr("r.last_read_at DESC").
+		OrderExpr("r.last_read_message_id DESC").
+		Limit(1)
 	if where, val, ok := base.TenantWhere(ctx, "r"); ok {
 		query = query.Where(where, val)
 	}
-	if err := query.Scan(ctx, &out); err != nil {
+	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "latest parent message read cursor", Err: err}
 	}
-	return out.LastReadAt, nil
+	if len(rows) == 0 {
+		return nil, nil
+	}
+	return &rows[0], nil
 }
 
 // UnreadThreadCountForStaff counts threads with an unread guardian message
