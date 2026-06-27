@@ -243,6 +243,7 @@ const PARENTS_PUBLIC_PATHS = [
   "/reset-password",
   "/email-confirm",
   "/children",
+  "/messages",
   "/enroll",
   "/accept-guardian-invite",
 ];

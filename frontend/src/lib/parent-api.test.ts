@@ -9,13 +9,10 @@ import {
   updateParentPortalLocale,
   submitSickNote,
   listSickDays,
-  listChildNotes,
-  addChildNote,
   getChildFeatures,
   type Child,
   type EnrollmentRequest,
   type StatusDay,
-  type ParentNote,
 } from "./parent-api";
 
 import type { SubmitEnrollmentPayload } from "./enrollment-submission-api";
@@ -437,67 +434,6 @@ describe("listSickDays", () => {
     const out = await listSickDays("84");
     expect(out).toHaveLength(1);
     expect(seenURL).toContain("/api/parent/me/children/84/sick-note");
-  });
-});
-
-// --- parent notes ----------------------------------------------------
-
-function mkNote(body: string): ParentNote {
-  return {
-    id: "7",
-    student_id: "84",
-    body,
-    created_at: "2026-06-01T09:00:00Z",
-  };
-}
-
-describe("listChildNotes", () => {
-  it("GETs the notes route and returns the data array", async () => {
-    let seenURL = "";
-    mockFetch(async (input) => {
-      seenURL = typeof input === "string" ? input : input.toString();
-      return jsonResponse({ data: [mkNote("Hallo")] });
-    });
-    const out = await listChildNotes("84");
-    expect(out).toHaveLength(1);
-    expect(out[0]!.body).toBe("Hallo");
-    expect(seenURL).toContain("/api/parent/me/children/84/notes");
-  });
-});
-
-describe("addChildNote", () => {
-  it("POSTs the body to the notes route and returns the newest list", async () => {
-    let seenBody = "";
-    let seenMethod = "";
-    mockFetch(async (_input, init) => {
-      seenMethod = init?.method ?? "";
-      seenBody = (init?.body as string) ?? "";
-      return jsonResponse(
-        { data: [mkNote("neu"), mkNote("alt")] },
-        { status: 201 },
-      );
-    });
-    const out = await addChildNote("84", "neu");
-    expect(seenMethod).toBe("POST");
-    expect(seenBody).toContain('"body":"neu"');
-    expect(out).toHaveLength(2);
-    expect(out[0]!.body).toBe("neu");
-  });
-
-  it("throws with the backend error message on non-OK", async () => {
-    mockFetch(async () =>
-      jsonResponse({ error: "Nachrichten deaktiviert" }, { status: 403 }),
-    );
-    await expect(addChildNote("84", "x")).rejects.toThrow(
-      /Nachrichten deaktiviert/,
-    );
-  });
-
-  it("throws a generic message on non-OK non-JSON body", async () => {
-    mockFetch(async () => new Response("nope", { status: 500 }));
-    await expect(addChildNote("84", "x")).rejects.toThrow(
-      /Request failed \(500\)/,
-    );
   });
 });
 

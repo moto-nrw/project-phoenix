@@ -396,6 +396,28 @@ export function useGlobalSSE(): SSEHookState {
           scheduleFlush();
           break;
         }
+
+        case "parent_message": {
+          // A parent sent a message (or staff replied elsewhere). This single
+          // app-wide connection fans the trigger out to the messaging surfaces
+          // via window events, so the inbox/thread/student-card pages do NOT each
+          // open their own EventSource to the same endpoint (mirrors the parents
+          // portal's ParentRealtimeBridge). `messages-unread-refresh` refreshes
+          // the sidebar badge; `messages-activity` carries thread_id/student_id so
+          // an open inbox/thread/card can refetch (or skip) selectively.
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("messages-unread-refresh"));
+            window.dispatchEvent(
+              new CustomEvent("messages-activity", {
+                detail: {
+                  threadId: event.data?.thread_id ?? null,
+                  studentId: event.data?.student_id ?? null,
+                },
+              }),
+            );
+          }
+          break;
+        }
       }
     },
     [scheduleFlush],

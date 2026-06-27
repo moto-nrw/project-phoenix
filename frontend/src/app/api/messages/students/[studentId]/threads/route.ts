@@ -3,9 +3,9 @@ import { apiGet } from "~/lib/api-helpers.server";
 import { createGetHandler } from "~/lib/route-wrapper.server";
 
 /**
- * Proxy GET /api/students/{id}/parent-notes → backend. Returns the newest
- * notes a guardian left for the student via the parents portal. Backend
- * enforces staff read access to the student.
+ * Proxy GET /api/messages/students/{studentId}/threads → backend. Returns the
+ * staff view of one child's conversations, so the student-detail card loads
+ * only that child's threads instead of the whole tenant inbox.
  */
 export const GET = createGetHandler(
   async (
@@ -13,12 +13,12 @@ export const GET = createGetHandler(
     token: string,
     params: Record<string, unknown>,
   ) => {
-    const id = params.id as string;
-    if (!id) {
+    const studentId = params.studentId as string;
+    if (!studentId) {
       throw new Error("Student ID is required");
     }
     const response = await apiGet<{ data: unknown }>(
-      `/api/students/${id}/parent-notes`,
+      `/api/messages/students/${studentId}/threads`,
       token,
     );
     return response.data;

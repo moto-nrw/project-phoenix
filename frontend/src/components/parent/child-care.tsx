@@ -1,22 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { Loader2, Send, Trash2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import { Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
 import {
   type CareException,
   type ChildFeatures,
-  type ParentNote,
   ParentApiError,
   type StatusDay,
   type StudentStatusKind,
-  addChildNote,
   deleteCareException,
   getChildFeatures,
   listCareExceptions,
-  listChildNotes,
   listSickDays,
   submitCareException,
   submitSickNote,
@@ -63,20 +60,6 @@ function formatLocaleDate(iso: string, locale: string): string {
   }
 }
 
-function formatLocaleDateTime(iso: string, locale: string): string {
-  try {
-    return new Intl.DateTimeFormat(locale, {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(iso));
-  } catch {
-    return iso;
-  }
-}
-
 // --- data hook ---
 
 // Sick notes and team messages default ON so a transient features-fetch
@@ -86,7 +69,12 @@ function formatLocaleDateTime(iso: string, locale: string): string {
 // error beats showing one the backend might reject with 403.
 const DEFAULT_FEATURES: ChildFeatures = {
   sick_note_enabled: true,
-  notes_enabled: true,
+  // Default false on fetch failure (least privilege), consistent with the other
+  // consequential flags below: the features fetch .catch returns DEFAULT_FEATURES,
+  // and a school with messaging turned OFF would otherwise show an enabled
+  // composer on a transient hiccup → send → 403. The backend enforces the gate
+  // regardless; this just keeps the UI from dead-ending on an action it can see.
+  notes_enabled: false,
   pickup_change_enabled: false,
   // Capability flags default to false on fetch failure (least privilege —
   // hide invite/remove if we can't confirm they're enabled; the backend
@@ -97,7 +85,6 @@ const DEFAULT_FEATURES: ChildFeatures = {
 
 export interface ChildCare {
   readonly sickDays: StatusDay[];
-  readonly notes: ParentNote[];
   readonly careExceptions: CareException[];
   // Whether the care-exception list actually loaded. A failed fetch leaves
   // careExceptions empty, which is indistinguishable from "no overrides exist"
@@ -112,7 +99,6 @@ export interface ChildCare {
     reason: string,
     status: StudentStatusKind,
   ): Promise<void>;
-  postNote(body: string): Promise<ParentNote[]>;
   saveCareException(params: {
     date: string;
     pickupTime?: string;
@@ -123,30 +109,43 @@ export interface ChildCare {
 
 export function useChildCare(studentId: string): ChildCare {
   const [sickDays, setSickDays] = useState<StatusDay[]>([]);
-  const [notes, setNotes] = useState<ParentNote[]>([]);
   const [careExceptions, setCareExceptions] = useState<CareException[]>([]);
   const [careExceptionsLoaded, setCareExceptionsLoaded] = useState(false);
   const [features, setFeatures] = useState<ChildFeatures>(DEFAULT_FEATURES);
   const [loading, setLoading] = useState(true);
+  // Stale-response guard: load re-runs on every studentId change, and on a fast
+  // child A→B switch (same hook instance reused) a late-resolving load(A) must
+  // not overwrite B's data — one child's sick days / care exceptions / feature
+  // flags shown under another would mis-set the pickup-modal safety gate. Each
+  // run claims the next token; only the most-recently-started run may setState.
+  // Mirrors OgsConversation.refresh. mountedRef additionally blocks post-unmount.
+  const loadSeqRef = useRef(0);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const load = useCallback(async () => {
+    const seq = ++loadSeqRef.current;
     setLoading(true);
     // Track the care-exception fetch separately: an empty list from a failed
     // fetch must NOT be treated as "no overrides", or the pickup modal could
     // clear a leg it never prefilled (see careExceptionsLoaded above).
     let exceptionsOk = true;
     try {
-      const [days, noteList, exceptions, flags] = await Promise.all([
+      const [days, exceptions, flags] = await Promise.all([
         listSickDays(studentId).catch(() => [] as StatusDay[]),
-        listChildNotes(studentId).catch(() => [] as ParentNote[]),
         listCareExceptions(studentId).catch(() => {
           exceptionsOk = false;
           return [] as CareException[];
         }),
         getChildFeatures(studentId).catch(() => DEFAULT_FEATURES),
       ]);
+      if (!mountedRef.current || seq !== loadSeqRef.current) return;
       setSickDays(days);
-      setNotes(noteList);
       setCareExceptions(exceptions);
       setCareExceptionsLoaded(exceptionsOk);
       setFeatures(flags);
@@ -156,7 +155,9 @@ export function useChildCare(studentId: string): ChildCare {
         student_id: studentId,
       });
     } finally {
-      setLoading(false);
+      // Only the latest run owns the loading flag, so a stale load resolving
+      // after a newer one can't flip it back off prematurely.
+      if (mountedRef.current && seq === loadSeqRef.current) setLoading(false);
     }
   }, [studentId]);
 
@@ -177,15 +178,6 @@ export function useChildCare(studentId: string): ChildCare {
           ...updated,
         ].sort((a, b) => a.date.localeCompare(b.date));
       });
-    },
-    [studentId],
-  );
-
-  const postNote = useCallback(
-    async (body: string) => {
-      const updated = await addChildNote(studentId, body);
-      setNotes(updated);
-      return updated;
     },
     [studentId],
   );
@@ -217,13 +209,11 @@ export function useChildCare(studentId: string): ChildCare {
 
   return {
     sickDays,
-    notes,
     careExceptions,
     careExceptionsLoaded,
     features,
     loading,
     reportSick,
-    postNote,
     saveCareException,
     removeCareException,
   };
@@ -360,115 +350,6 @@ export function SickNoteModal({
             {t("sick.submit")}
           </Button>
         </div>
-      </div>
-    </Modal>
-  );
-}
-
-// --- notes modal ---
-
-export function NotesModal({
-  notes,
-  onClose,
-  onSubmit,
-}: Readonly<{
-  notes: ParentNote[];
-  onClose: () => void;
-  onSubmit: (body: string) => Promise<ParentNote[]>;
-}>) {
-  const t = useTranslations("parentChildCare");
-  const locale = useLocale();
-  const [body, setBody] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [list, setList] = useState<ParentNote[]>(notes);
-
-  const handleSubmit = async () => {
-    const trimmed = body.trim();
-    if (trimmed.length === 0) {
-      setError(t("notes.empty"));
-      return;
-    }
-    setSubmitting(true);
-    setError(null);
-    try {
-      const updated = await onSubmit(trimmed);
-      setList(updated);
-      setBody("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("notes.sendError"));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <Modal
-      isOpen
-      onClose={onClose}
-      title={t("notes.title")}
-      closeLabel={t("close")}
-    >
-      <div className="space-y-4">
-        <label className="block">
-          <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            {t("notes.newLabel")}
-          </span>
-          <textarea
-            value={body}
-            maxLength={MAX_NOTE_LEN}
-            onChange={(e) => setBody(e.target.value)}
-            rows={3}
-            placeholder={t("notes.placeholder")}
-            className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400/40 focus-visible:outline-none"
-          />
-          <span className="mt-1 block text-right text-xs text-gray-400">
-            {body.length}/{MAX_NOTE_LEN}
-          </span>
-        </label>
-        {error && (
-          <p className="rounded-lg bg-[#FF3130]/10 px-3 py-2 text-sm text-[#CC2626]">
-            {error}
-          </p>
-        )}
-        <div className="flex justify-end">
-          <Button
-            type="button"
-            size="md"
-            className="gap-2"
-            onClick={() => void handleSubmit()}
-            disabled={submitting}
-          >
-            {submitting ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            ) : (
-              <Send className="h-4 w-4" aria-hidden="true" />
-            )}
-            {t("notes.send")}
-          </Button>
-        </div>
-        {list.length > 0 && (
-          <div className="border-t border-gray-100 pt-4">
-            <p className="mb-2 text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              {t("notes.lastSent")}
-            </p>
-            <ul className="space-y-2">
-              {list.map((note) => (
-                <li
-                  key={note.id}
-                  className="rounded-xl border border-gray-200 bg-gray-50/70 p-3"
-                >
-                  <p className="text-sm whitespace-pre-wrap text-gray-900">
-                    {note.body}
-                  </p>
-                  <p className="mt-1 text-xs text-gray-500">
-                    {formatLocaleDateTime(note.created_at, locale)}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
       </div>
     </Modal>
   );
@@ -737,31 +618,4 @@ export function SickStatusSummary({
           to: formatLocaleDate(last.date, locale),
         });
   return <span className="text-sm font-semibold text-gray-900">{label}</span>;
-}
-
-export function ParentNotesList({ notes }: Readonly<{ notes: ParentNote[] }>) {
-  const t = useTranslations("parentChildCare");
-  const locale = useLocale();
-  if (notes.length === 0) {
-    return (
-      <p className="text-sm leading-6 text-gray-600">{t("notes.listEmpty")}</p>
-    );
-  }
-  return (
-    <ul className="space-y-2">
-      {notes.map((note) => (
-        <li
-          key={note.id}
-          className="rounded-xl border border-gray-200 bg-gray-50/70 p-3"
-        >
-          <p className="text-sm whitespace-pre-wrap text-gray-900">
-            {note.body}
-          </p>
-          <p className="mt-1 text-xs text-gray-500">
-            {formatLocaleDateTime(note.created_at, locale)}
-          </p>
-        </li>
-      ))}
-    </ul>
-  );
 }

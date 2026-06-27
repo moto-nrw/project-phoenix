@@ -220,15 +220,16 @@
       "pickupLabel": "Marrja",
       "regularPickup": "Marrje e rregullt",
       "messagesLabel": "Mesazhe",
-      "noMessages": "Nuk ka mesazhe të reja",
-      "noMessagesSent": "Asnjë mesazh i dërguar",
-      "messagesSent": "{count, plural, one {# mesazh i dërguar} other {# mesazhe të dërguara}}"
+      "noConversations": "Asnjë bisedë",
+      "unreadCount": "{count, plural, one {# mesazh i palexuar} other {# mesazhe të palexuara}}",
+      "conversationsCount": "{count, plural, one {# bisedë} other {# biseda}}"
     },
     "messages": {
       "eyebrow": "Portali i prindërve",
-      "title": "Mesazhe për ekipin",
-      "description": "Njoftime të shkurtra për stafin e kujdesit.",
-      "compose": "Shkruaj"
+      "title": "Mesazhe me OGS-në",
+      "description": "Biseda rreth fëmijës suaj.",
+      "compose": "Mesazh i ri",
+      "empty": "Ende asnjë bisedë. Dërgoni OGS-së mesazhin e parë."
     }
   },
   "parentChildCare": {
@@ -248,16 +249,6 @@
       "invalidDate": "Ju lutemi zgjidhni një datë të vlefshme (data e mbarimit pas datës së fillimit).",
       "saveError": "Mungesa nuk u ruajt dot.",
       "submit": "Dërgo njoftimin e mungesës"
-    },
-    "notes": {
-      "title": "Mesazh për ekipin",
-      "newLabel": "Mesazh i ri",
-      "placeholder": "Njoftim i shkurtër për stafin e kujdesit …",
-      "empty": "Ju lutemi shkruani një mesazh.",
-      "sendError": "Mesazhi nuk u dërgua dot.",
-      "send": "Dërgo",
-      "lastSent": "Dërguar së fundmi",
-      "listEmpty": "Ende asnjë mesazh i dërguar."
     },
     "summary": {
       "none": "Asnjë mungesë",
@@ -743,5 +734,8 @@
       "auto_renewed": "Pararegjistruar",
       "pending_admin_review": "Në shqyrtim"
     }
+  },
+  "parentOgsMessaging": {
+    "readByStaff": "OGS e ka lexuar"
   }
 }

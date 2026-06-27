@@ -9,6 +9,7 @@ import { ParentShellProvider } from "~/lib/shell-auth-context";
 import { BreadcrumbProvider } from "~/lib/breadcrumb-context";
 import { AppShell } from "~/components/dashboard/app-shell";
 import { Loading } from "~/components/ui/loading";
+import { ParentRealtimeBridge } from "~/components/parent/parent-realtime-bridge";
 
 function FullPageLoading() {
   // Always rendered under the parents-portal NextIntlClientProvider, so the
@@ -99,6 +100,7 @@ export function ParentAuthGuard({
   return (
     <ParentShellProvider>
       <BreadcrumbProvider>
+        <ParentRealtimeBridge />
         <AppShell>{children}</AppShell>
       </BreadcrumbProvider>
     </ParentShellProvider>
