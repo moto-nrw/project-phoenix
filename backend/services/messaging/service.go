@@ -282,8 +282,8 @@ func (s *service) markReadAndBuild(ctx context.Context, thread *usersModels.Pare
 	}
 	accountID := accountIDFromCtx(ctx)
 	if len(messages) > 0 {
-		newest := messages[len(messages)-1].CreatedAt
-		if err := s.readRepo.MarkReadUpTo(ctx, thread.TenantID, thread.ID, accountID, newest); err != nil {
+		newest := messages[len(messages)-1]
+		if err := s.readRepo.MarkReadUpTo(ctx, thread.TenantID, thread.ID, accountID, newest.CreatedAt, newest.ID); err != nil {
 			return nil, fmt.Errorf("messaging: mark read: %w", err)
 		}
 	}
@@ -462,7 +462,7 @@ func (s *service) appendStaffMessage(ctx context.Context, thread *usersModels.Pa
 	if err := s.threadRepo.TouchLastMessage(ctx, thread.ID, at, usersModels.ParentMessageSenderStaff, body); err != nil {
 		return fmt.Errorf("messaging: update thread: %w", err)
 	}
-	if err := s.readRepo.MarkReadUpTo(ctx, thread.TenantID, thread.ID, accountID, at); err != nil {
+	if err := s.readRepo.MarkReadUpTo(ctx, thread.TenantID, thread.ID, accountID, at, msg.ID); err != nil {
 		return fmt.Errorf("messaging: mark read: %w", err)
 	}
 	return nil

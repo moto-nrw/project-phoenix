@@ -123,13 +123,21 @@ func parentMessagingUp(ctx context.Context, db *bun.DB) error {
 	}
 
 	// Per-reader read cursor (account = guardian or staff). Unread is any
-	// message after last_read_at not sent by the reader.
+	// message after the cursor not sent by the reader. The cursor is the COMPOSITE
+	// (last_read_at, last_read_message_id): two messages in a thread can share a
+	// created_at (clock_timestamp() is microsecond-precision, so rapid/concurrent
+	// sends can tie), and the message list breaks those ties by id DESC. A
+	// timestamp-only cursor would treat a tied message that committed after the
+	// reader's snapshot as already read (created_at NOT > last_read_at), silently
+	// dropping it from the unread badge — so the cursor and every unread predicate
+	// carry the same id tie-breaker. Defaults to 0 ("before any message").
 	_, err = tx.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS users.parent_message_reads (
-			tenant_id    BIGINT NOT NULL REFERENCES platform.schools(id),
-			thread_id    BIGINT NOT NULL REFERENCES users.parent_message_threads(id) ON DELETE CASCADE,
-			account_id   BIGINT NOT NULL REFERENCES auth.accounts(id),
-			last_read_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			tenant_id            BIGINT NOT NULL REFERENCES platform.schools(id),
+			thread_id            BIGINT NOT NULL REFERENCES users.parent_message_threads(id) ON DELETE CASCADE,
+			account_id           BIGINT NOT NULL REFERENCES auth.accounts(id),
+			last_read_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			last_read_message_id BIGINT NOT NULL DEFAULT 0,
 			PRIMARY KEY (thread_id, account_id)
 		);
 
@@ -266,13 +274,27 @@ func parentMessagingUp(ctx context.Context, db *bun.DB) error {
 	// table, so suppressing the staff backlog badge (above) and hiding the parent
 	// indicator cannot both be satisfied. The badge suppression is the more
 	// important UX, so it wins.
+	// Seed last_read_message_id alongside last_read_at at the thread's newest
+	// message (by created_at DESC, id DESC — the same ordering the inbox preview
+	// backfill above uses), so the seeded cursor is the exact composite the unread
+	// predicates compare against. Threads always have a backfilled message here,
+	// but COALESCE keeps the seed safe (0) if somehow none exists.
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO users.parent_message_reads (tenant_id, thread_id, account_id, last_read_at)
-		SELECT t.tenant_id, t.id, atn.account_id, COALESCE(t.last_message_at, t.created_at)
+		INSERT INTO users.parent_message_reads (tenant_id, thread_id, account_id, last_read_at, last_read_message_id)
+		SELECT t.tenant_id, t.id, atn.account_id,
+		       COALESCE(t.last_message_at, t.created_at),
+		       COALESCE(lm.id, 0)
 		FROM users.parent_message_threads t
 		JOIN auth.account_tenants atn
 			ON atn.tenant_id = t.tenant_id
 			AND atn.status = 'active'
+		LEFT JOIN LATERAL (
+			SELECT m.id
+			FROM users.parent_messages m
+			WHERE m.thread_id = t.id
+			ORDER BY m.created_at DESC, m.id DESC
+			LIMIT 1
+		) lm ON true
 		ON CONFLICT (thread_id, account_id) DO NOTHING;
 	`)
 	if err != nil {

@@ -115,6 +115,57 @@ func TestParentMessaging_ThreadsMessagesAndReadState(t *testing.T) {
 	assert.Equal(t, 1, guardianThreads[0].UnreadCount)
 }
 
+// TestParentMessaging_UnreadCreatedAtTie guards the read-cursor tie-breaker: two
+// messages in a thread can share a created_at (clock_timestamp() is microsecond
+// precision, so rapid/concurrent sends can tie), and the message list breaks
+// those ties by id DESC. A timestamp-only cursor would treat a tied message that
+// the reader never saw as already read; the composite (last_read_at,
+// last_read_message_id) cursor must keep it unread.
+func TestParentMessaging_UnreadCreatedAtTie(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
+	msgRepo := usersRepo.NewParentMessageRepository(db)
+	readRepo := usersRepo.NewParentMessageReadRepository(db)
+	ctx := tenantCtx()
+	reader := chain.AccountID
+
+	thread := newThread(chain.StudentID, chain.AccountID)
+	require.NoError(t, threadRepo.Create(ctx, thread))
+
+	// Two guardian messages forced to the SAME created_at instant; the second
+	// gets the higher id (the tie-break the thread list orders by).
+	tie := time.Now().Truncate(time.Microsecond)
+	m1 := newMessage(thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, "erste")
+	m1.CreatedAt, m1.UpdatedAt = tie, tie
+	require.NoError(t, msgRepo.Create(ctx, m1))
+	m2 := newMessage(thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, "zweite")
+	m2.CreatedAt, m2.UpdatedAt = tie, tie
+	require.NoError(t, msgRepo.Create(ctx, m2))
+	require.Greater(t, m2.ID, m1.ID, "second insert must get the higher id")
+
+	// Reader read up to m1 (the message it actually saw). m2 committed with the
+	// SAME created_at but a higher id, so it must remain unread — a timestamp-only
+	// cursor (created_at > last_read_at) would silently drop it.
+	require.NoError(t, readRepo.MarkReadUpTo(ctx, 1, thread.ID, reader, m1.CreatedAt, m1.ID))
+	count, err := readRepo.UnreadThreadCountForStaff(ctx, reader, true, nil)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count, "tied message with a higher id must stay unread")
+
+	inThread, err := readRepo.UnreadCountInThread(ctx, thread.ID, reader, usersModels.ParentMessageSenderGuardian)
+	require.NoError(t, err)
+	assert.Equal(t, 1, inThread, "per-thread unread must also honor the id tie-breaker")
+
+	// Reading up to m2 (the higher tie-break id) clears it.
+	require.NoError(t, readRepo.MarkReadUpTo(ctx, 1, thread.ID, reader, m2.CreatedAt, m2.ID))
+	count, err = readRepo.UnreadThreadCountForStaff(ctx, reader, true, nil)
+	require.NoError(t, err)
+	assert.Equal(t, 0, count)
+}
+
 // TestParentMessaging_OneThreadPerGuardian verifies the chat model: exactly one
 // conversation per (child, guardian). A second create for the same pair is
 // rejected by the unique constraint, and FindByStudentGuardian returns the

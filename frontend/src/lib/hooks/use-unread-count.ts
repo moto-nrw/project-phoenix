@@ -112,6 +112,13 @@ export function useUnreadCount({
   // and the refresh the switch queued would be silently dropped.
   const cacheKeyRef = useRef(cacheKey);
   cacheKeyRef.current = cacheKey;
+  // Tracks the cacheKey whose count is currently shown in React state. Unlike
+  // the refs above it is NOT overwritten every render — it advances only when we
+  // actually set a count, so refresh() can detect a tenant switch (cacheKey
+  // changed) that has no cached entry for the new tenant and clear the badge
+  // instead of leaving the previous tenant's count rendered (a cross-tenant leak
+  // that would otherwise persist forever if the new tenant's fetch fails).
+  const displayedKeyRef = useRef(cacheKey);
 
   const refresh = useCallback(
     async (skipCache = false) => {
@@ -134,7 +141,16 @@ export function useUnreadCount({
         const cached = readCache(cacheKey);
         if (cached !== null) {
           setUnreadCount(cached);
+          displayedKeyRef.current = cacheKey;
           setIsLoading(false);
+        } else if (displayedKeyRef.current !== cacheKey) {
+          // Tenant switched and the new tenant has no cached count: clear the
+          // stale previous-tenant count NOW rather than after the network
+          // resolves. Without this, a failed fetch leaves the old school's badge
+          // number in the sidebar indefinitely (cross-tenant metadata leak).
+          setUnreadCount(0);
+          displayedKeyRef.current = cacheKey;
+          setIsLoading(true);
         }
       }
 
@@ -162,6 +178,7 @@ export function useUnreadCount({
             continue;
           }
           setUnreadCount(count);
+          displayedKeyRef.current = fetchKey;
           if (fetchKey) writeCache(fetchKey, count);
         } while (pendingForceRef.current);
       } catch (error) {

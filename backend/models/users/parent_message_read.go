@@ -11,14 +11,22 @@ import (
 const tableUsersParentMessageReads = "users.parent_message_reads"
 
 // ParentMessageRead is a reader's read cursor in a thread. The reader is an
-// auth.account — guardian or staff alike. Unread for that reader is any
-// message in the thread after LastReadAt that the reader did not send.
+// auth.account — guardian or staff alike. Unread for that reader is any message
+// in the thread after the cursor (LastReadAt, LastReadMessageID) that the reader
+// did not send.
 type ParentMessageRead struct {
 	bun.BaseModel `bun:"table:users.parent_message_reads,alias:pmr"`
 	base.TenantModel
 	ThreadID   int64     `bun:"thread_id,pk" json:"thread_id"`
 	AccountID  int64     `bun:"account_id,pk" json:"account_id"`
 	LastReadAt time.Time `bun:"last_read_at,notnull" json:"last_read_at"`
+	// LastReadMessageID is the id tie-breaker for LastReadAt: the cursor is the
+	// composite (LastReadAt, LastReadMessageID). Two messages in a thread can
+	// share a created_at, and the message list orders ties by id DESC, so unread
+	// is "(created_at, id) > (last_read_at, last_read_message_id)". Without the id,
+	// a tied message that committed after the reader's snapshot would be wrongly
+	// counted as read. 0 means "before any message".
+	LastReadMessageID int64 `bun:"last_read_message_id,notnull" json:"last_read_message_id"`
 }
 
 // TableName returns the schema-qualified table name.
@@ -61,13 +69,16 @@ type ThreadHeader struct {
 type ParentMessageReadRepository interface {
 	// MarkRead upserts the reader's cursor for a thread to now().
 	MarkRead(ctx context.Context, tenantID, threadID, accountID int64) error
-	// MarkReadUpTo upserts the reader's cursor to readAt (the timestamp of the
-	// newest message actually shown) rather than now(), for callers that record
-	// the read AFTER snapshotting the message list. Marking to now() would advance
-	// the cursor past a message that committed between the snapshot and the mark,
-	// silently dropping it from the reader's unread count even though it was never
-	// shown. The cursor never moves backward (GREATEST of old/new).
-	MarkReadUpTo(ctx context.Context, tenantID, threadID, accountID int64, readAt time.Time) error
+	// MarkReadUpTo upserts the reader's cursor to (readAt, readMessageID) — the
+	// created_at AND id of the newest message actually shown — rather than now(),
+	// for callers that record the read AFTER snapshotting the message list. Marking
+	// to now() would advance the cursor past a message that committed between the
+	// snapshot and the mark, silently dropping it from the reader's unread count
+	// even though it was never shown. readMessageID is the tie-breaker that keeps a
+	// message sharing the newest created_at from being swallowed (see the unread
+	// predicates). The cursor never moves backward (it advances only when the new
+	// composite is greater than the stored one).
+	MarkReadUpTo(ctx context.Context, tenantID, threadID, accountID int64, readAt time.Time, readMessageID int64) error
 	// UnreadCountForStudents counts threads with at least one message the
 	// reader has not seen, sent by the other side, restricted to the given
 	// student IDs. A nil studentIDs means "all students in tenant".

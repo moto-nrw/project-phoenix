@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -190,21 +190,40 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
   const [modal, setModal] = useState<null | "sick" | "pickup">(null);
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
 
+  // Monotonic request counter so only the latest in-flight thread fetch may
+  // write state. Navigating between children reuses this component (the route
+  // param changes), so without this guard a late response for child A — or a
+  // failed request for child B after viewing A — could leave A's conversation
+  // preview/unread count rendered on B's page.
+  const threadsRequestRef = useRef(0);
+
   // The child's conversation (this child only), fetched via the per-child
   // endpoint so we don't pull the guardian's whole cross-tenant inbox just to
   // render one child. Chat model: at most one conversation per child.
   const reloadThreads = useCallback(() => {
-    listChildThreads(child.student_id)
-      .then(setThreads)
+    const requestStudentId = child.student_id;
+    const seq = ++threadsRequestRef.current;
+    listChildThreads(requestStudentId)
+      .then((result) => {
+        // Drop a response that lost the race to a newer request (child switch or
+        // a concurrent SSE-triggered reload) so stale data never renders.
+        if (threadsRequestRef.current !== seq) return;
+        setThreads(result);
+      })
       .catch((err) => {
+        if (threadsRequestRef.current !== seq) return;
         logger.warn("child_threads_load_failed", {
           error: err instanceof Error ? err.message : String(err),
-          student_id: child.student_id,
+          student_id: requestStudentId,
         });
       });
   }, [child.student_id]);
 
   useEffect(() => {
+    // Reset on child change so child A's preview never shows on child B while B's
+    // request is in flight; the seq guard then keeps a late A response from
+    // overwriting B.
+    setThreads([]);
     reloadThreads();
   }, [reloadThreads]);
 

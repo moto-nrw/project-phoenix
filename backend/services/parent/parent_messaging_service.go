@@ -210,8 +210,8 @@ func (s *service) GetChildConversation(ctx context.Context, accountID, studentID
 		// shown (and the refetch that would heal it is what advanced the cursor).
 		// Messages are ordered ASC, so the last element is the newest.
 		if len(messages) > 0 {
-			newest := messages[len(messages)-1].CreatedAt
-			return s.messageReadRepo.MarkReadUpTo(txCtx, thread.TenantID, thread.ID, accountID, newest)
+			newest := messages[len(messages)-1]
+			return s.messageReadRepo.MarkReadUpTo(txCtx, thread.TenantID, thread.ID, accountID, newest.CreatedAt, newest.ID)
 		}
 		// Empty conversation: do NOT create/advance the read cursor. A NOW() cursor
 		// here would move past a staff message that commits between the empty
@@ -327,7 +327,7 @@ func (s *service) appendGuardianMessage(ctx context.Context, thread *usersModels
 	if err := s.messageThreadRepo.TouchLastMessage(ctx, thread.ID, at, usersModels.ParentMessageSenderGuardian, body); err != nil {
 		return err
 	}
-	return s.messageReadRepo.MarkReadUpTo(ctx, thread.TenantID, thread.ID, accountID, at)
+	return s.messageReadRepo.MarkReadUpTo(ctx, thread.TenantID, thread.ID, accountID, at, msg.ID)
 }
 
 // resolveGuardianName returns the guardian's display name for the child's
