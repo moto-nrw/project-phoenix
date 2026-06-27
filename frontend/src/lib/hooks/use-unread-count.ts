@@ -104,6 +104,14 @@ export function useUnreadCount({
   // reset-to-0 (and never gets persisted to the cache).
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
+  // Always reflects the latest cacheKey. cacheKey is per-tenant, so a fetch that
+  // started under one tenant can resolve AFTER a tenant switch changed the key.
+  // The loop captures the key it fetched for and, on resolve, discards the stale
+  // result and re-fetches for the new key — otherwise the in-flight fetch would
+  // write the previous tenant's count into the shared badge (a cross-tenant leak)
+  // and the refresh the switch queued would be silently dropped.
+  const cacheKeyRef = useRef(cacheKey);
+  cacheKeyRef.current = cacheKey;
 
   const refresh = useCallback(
     async (skipCache = false) => {
@@ -136,13 +144,25 @@ export function useUnreadCount({
         // the last write reflects the newest count rather than a stale one.
         do {
           pendingForceRef.current = false;
+          // The key this iteration is fetching for. A tenant switch mid-flight
+          // changes cacheKeyRef; the resolved count then belongs to the previous
+          // tenant and must not be shown or cached under the new key.
+          const fetchKey = cacheKeyRef.current;
           const count = await fetcherRef.current();
           // The gate may have flipped off while this fetch was in flight; the
           // effect already reset the count to 0, so a stale non-zero count here
           // must NOT win (and must not be cached). Bail and let the reset stand.
           if (!enabledRef.current) return;
+          // Tenant switched mid-flight (cacheKey changed): discard this stale
+          // result and re-fetch for the new key, so the badge never retains the
+          // previous tenant's count. The refresh() the switch triggered hit the
+          // in-flight guard and returned; this re-loop is what honors it.
+          if (cacheKeyRef.current !== fetchKey) {
+            pendingForceRef.current = true;
+            continue;
+          }
           setUnreadCount(count);
-          if (cacheKey) writeCache(cacheKey, count);
+          if (fetchKey) writeCache(fetchKey, count);
         } while (pendingForceRef.current);
       } catch (error) {
         onErrorRef.current?.(error);

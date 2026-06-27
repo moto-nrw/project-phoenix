@@ -86,6 +86,17 @@ func parentMessagingUp(ctx context.Context, db *bun.DB) error {
 	// the chat history stays stable even if an account/profile is renamed
 	// or removed, and reads need no joins. student_id is denormalized for
 	// the inbox ACL filter (student -> group).
+	//
+	// created_at is the read cursor for the whole feature (MarkReadUpTo advances
+	// to the newest returned message's created_at), so it MUST stamp at actual
+	// insert time, not transaction start. The send runs inside the request-wide
+	// tenant transaction and the message INSERT is its LAST statement (after
+	// load-thread / settings / guardian-link checks / get-or-create-thread), so
+	// NOW() (= transaction_timestamp) would back-date the message to before all
+	// that work — widening the [created_at, commit] window during which a
+	// concurrent reader can advance its cursor past this still-uncommitted
+	// message and silently mark it read. clock_timestamp() stamps at the insert
+	// itself, near commit, shrinking that window to the bare tail of the txn.
 	_, err = tx.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS users.parent_messages (
 			id                BIGSERIAL PRIMARY KEY,
@@ -96,8 +107,8 @@ func parentMessagingUp(ctx context.Context, db *bun.DB) error {
 			sender_kind       TEXT NOT NULL,
 			sender_name       TEXT NOT NULL,
 			body              TEXT NOT NULL,
-			created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			created_at        TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+			updated_at        TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
 			CONSTRAINT chk_parent_messages_sender_kind CHECK (sender_kind IN ('guardian','staff')),
 			CONSTRAINT chk_parent_messages_body_not_blank CHECK (length(btrim(body)) > 0)
 		);
