@@ -65,6 +65,29 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
+
+	t.Run("rejects all-not-present moves as conflict", func(t *testing.T) {
+		rs := &Resource{
+			ActiveService: &trackingMockActiveService{
+				moveStudentsToActiveGroupFunc: func(_ context.Context, _ []int64, _ int64) (*activeSvc.StudentMoveResult, error) {
+					return nil, &activeSvc.ActiveError{Op: "MoveStudentsToActiveGroup", Err: activeSvc.ErrStudentsNotPresent}
+				},
+			},
+		}
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/active/visits/move-to-group",
+			bytes.NewBufferString(`{"student_ids":[42],"target_active_group_id":99}`),
+		)
+		w := httptest.NewRecorder()
+
+		rs.moveStudentsToActiveGroup(w, req)
+
+		require.Equal(t, http.StatusConflict, w.Code)
+		var body map[string]any
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+		assert.Equal(t, "Students Not Present", body["status"])
+	})
 }
 
 func TestMoveStudentsToTransit(t *testing.T) {
@@ -111,5 +134,28 @@ func TestMoveStudentsToTransit(t *testing.T) {
 		rs.moveStudentsToTransit(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("rejects all-not-present moves as conflict", func(t *testing.T) {
+		rs := &Resource{
+			ActiveService: &trackingMockActiveService{
+				moveStudentsToTransitFunc: func(_ context.Context, _ []int64) (*activeSvc.StudentMoveResult, error) {
+					return nil, &activeSvc.ActiveError{Op: "MoveStudentsToTransit", Err: activeSvc.ErrStudentsNotPresent}
+				},
+			},
+		}
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/active/visits/move-to-transit",
+			bytes.NewBufferString(`{"student_ids":[42]}`),
+		)
+		w := httptest.NewRecorder()
+
+		rs.moveStudentsToTransit(w, req)
+
+		require.Equal(t, http.StatusConflict, w.Code)
+		var body map[string]any
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+		assert.Equal(t, "Students Not Present", body["status"])
 	})
 }

@@ -754,6 +754,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                     ref={(el) => {
                       navRefs.current[index] = el;
                     }}
+                    aria-label={item.label}
                     className={`relative z-10 flex min-h-[44px] items-center justify-center gap-2.5 rounded-full px-3 py-2.5 transition-colors duration-200 ${
                       isActive
                         ? "bg-gray-900 text-white"
@@ -777,7 +778,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
               {showOverflowMenu && (
                 <button
                   ref={moreButtonRef}
+                  type="button"
                   onClick={() => setIsOverflowMenuOpen(true)}
+                  aria-label="Mehr"
                   className={`relative z-10 flex min-h-[44px] items-center justify-center gap-2.5 rounded-full px-3 py-2.5 transition-colors duration-200 ${
                     isOverflowMenuOpen || isAnyAdditionalNavActive
                       ? "bg-gray-900 text-white"

@@ -24,6 +24,7 @@ var (
 	ErrCannotDeleteActiveGroup   = errors.New("cannot delete active group with active visits")
 	ErrStudentAlreadyActive      = errors.New("student already has an active visit")
 	ErrStaffAlreadySupervising   = errors.New("staff member already supervising this group")
+	ErrStudentsNotPresent        = errors.New("no requested students are currently present")
 	ErrInvalidData               = errors.New("invalid data provided")
 	ErrDatabaseOperation         = errors.New("database operation failed")
 	// Activity session management errors

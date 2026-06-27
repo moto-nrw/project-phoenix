@@ -178,6 +178,27 @@ func TestActiveService_MoveStudentsToActiveGroup_PreservesVisitHistory(t *testin
 	assert.ErrorIs(t, err, activeSvc.ErrVisitNotFound)
 }
 
+func TestActiveService_MoveStudentsToActiveGroup_RejectsWhenNoStudentsPresent(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	activity := testpkg.CreateTestActivityGroup(t, db, "move-all-absent-target")
+	room := testpkg.CreateTestRoom(t, db, "Move All Absent Target Room")
+	targetGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	absentStudent := testpkg.CreateTestStudent(t, db, "Move", "AllAbsent", "MAA1")
+
+	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, targetGroup.ID, absentStudent.ID)
+
+	result, err := service.MoveStudentsToActiveGroup(ctx, []int64{absentStudent.ID}, targetGroup.ID)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, activeSvc.ErrStudentsNotPresent)
+}
+
 func TestActiveService_MoveStudentsToActiveGroup_InvalidInput(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -327,6 +348,23 @@ func TestActiveService_MoveStudentsToTransit_EndsVisitKeepsAttendanceOpen(t *tes
 		Scan(ctx)
 	require.NoError(t, err)
 	assert.Nil(t, reloaded.CheckOutTime, "moving to transit must not perform a daily checkout")
+}
+
+func TestActiveService_MoveStudentsToTransit_RejectsWhenNoStudentsPresent(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	absentStudent := testpkg.CreateTestStudent(t, db, "TransitMove", "AllAbsent", "TMA3")
+	defer testpkg.CleanupActivityFixtures(t, db, absentStudent.ID)
+
+	result, err := service.MoveStudentsToTransit(ctx, []int64{absentStudent.ID})
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, activeSvc.ErrStudentsNotPresent)
 }
 
 func TestActiveService_MoveStudentsToTransit_InvalidInput(t *testing.T) {

@@ -92,6 +92,14 @@ func TestErrorRenderer_StudentAlreadyActiveConflict(t *testing.T) {
 	assert.Equal(t, "Student Already Has Active Visit", resp.StatusText)
 }
 
+func TestErrorRenderer_StudentsNotPresentConflict(t *testing.T) {
+	renderer := active.ErrorRenderer(activeSvc.ErrStudentsNotPresent)
+	resp, ok := renderer.(*active.ErrResponse)
+	assert.True(t, ok)
+	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
+	assert.Equal(t, "Students Not Present", resp.StatusText)
+}
+
 func TestErrorRenderer_UnknownError(t *testing.T) {
 	unknownErr := errors.New("unknown error")
 	renderer := active.ErrorRenderer(unknownErr)

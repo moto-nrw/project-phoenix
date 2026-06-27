@@ -194,6 +194,9 @@ func (s *service) MoveStudentsToActiveGroup(ctx context.Context, studentIDs []in
 			return nil, err
 		}
 	}
+	if moveResultOnlySkippedNotPresent(result) {
+		return nil, &ActiveError{Op: "MoveStudentsToActiveGroup", Err: ErrStudentsNotPresent}
+	}
 
 	return result, nil
 }
@@ -238,8 +241,23 @@ func (s *service) MoveStudentsToTransit(ctx context.Context, studentIDs []int64)
 		}
 		result.Moved = append(result.Moved, studentID)
 	}
+	if moveResultOnlySkippedNotPresent(result) {
+		return nil, &ActiveError{Op: "MoveStudentsToTransit", Err: ErrStudentsNotPresent}
+	}
 
 	return result, nil
+}
+
+func moveResultOnlySkippedNotPresent(result *StudentMoveResult) bool {
+	if result == nil || len(result.Moved) > 0 || len(result.Unchanged) > 0 || len(result.Skipped) == 0 {
+		return false
+	}
+	for _, skipped := range result.Skipped {
+		if skipped.Reason != StudentMoveSkipNotPresent {
+			return false
+		}
+	}
+	return true
 }
 
 func newStudentMoveResult(activeGroupID, roomID *int64) *StudentMoveResult {
