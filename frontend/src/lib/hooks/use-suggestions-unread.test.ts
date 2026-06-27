@@ -144,7 +144,12 @@ describe("useSuggestionsUnread", () => {
 
   it("skipCache parameter forces fresh fetch", async () => {
     mockUseSession.mockReturnValue({ status: "authenticated" });
-    mockFetchUnreadCount.mockResolvedValueOnce(10);
+    // The shared useUnreadCount hook honors a forced refresh that lands while
+    // the mount fetch is still in flight by draining it into a second fetch
+    // (so a cache-busting event can't be dropped). Return the fresh value for
+    // every call so that queued second fetch yields the same count, not
+    // undefined; the assertion below still verifies the forced refresh wins.
+    mockFetchUnreadCount.mockResolvedValue(10);
 
     // Set cached data
     localStorage.setItem(

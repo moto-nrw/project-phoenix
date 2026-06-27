@@ -11,6 +11,7 @@ package messaging
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -164,10 +165,16 @@ func (s *service) UnreadThreadCount(ctx context.Context) (int, error) {
 func (s *service) canReadStudent(ctx context.Context, studentID int64) error {
 	student, err := s.persons.GetStudentByID(ctx, studentID)
 	if err != nil {
+		// A missing/out-of-tenant student (stale search result, hand-crafted id)
+		// is an authorization decision, not a server fault: GetStudentByID wraps
+		// sql.ErrNoRows for a row that does not exist, so treat that as 403.
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrForbidden
+		}
 		// A transient lookup failure (DB blip/timeout) is NOT an authorization
 		// decision: surface it as a server error (→ 500, retryable) rather than a
 		// permanent ErrForbidden (403) that tells staff they may never read this
-		// thread. Only an actually-missing student is a 403.
+		// thread.
 		return fmt.Errorf("messaging: load student for read check: %w", err)
 	}
 	if student == nil {
