@@ -74,21 +74,9 @@ vi.mock("~/components/ui", () => ({
     ) : null,
 }));
 
-vi.mock("~/components/simple/SimpleAlert", () => ({
-  SimpleAlert: ({
-    type,
-    message,
-    onClose,
-  }: {
-    type: string;
-    message: string;
-    onClose: () => void;
-  }) => (
-    <div data-testid={`alert-${type}`}>
-      {message}
-      <button onClick={onClose}>Close</button>
-    </div>
-  ),
+vi.mock("~/components/ui/alert", () => ({
+  Alert: ({ type, message }: { type: string; message: string }) =>
+    message ? <div data-testid={`alert-${type}`}>{message}</div> : null,
 }));
 
 describe("RolePermissionManagementModal", () => {
@@ -549,18 +537,6 @@ describe("RolePermissionManagementModal", () => {
         screen.getByText(/Fehler beim Aktualisieren der Berechtigungen/i),
       ).toBeInTheDocument();
     });
-  });
-
-  it("closes error alert when dismiss button is clicked", async () => {
-    mockGetPermissions.mockRejectedValue(new Error("fail"));
-    renderModal();
-
-    await waitFor(() => {
-      expect(screen.getByTestId("alert-error")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("Close"));
-    expect(screen.queryByTestId("alert-error")).not.toBeInTheDocument();
   });
 
   // =========================================================================

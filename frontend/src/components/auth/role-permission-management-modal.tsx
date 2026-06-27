@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { ChevronRight, Check, Minus } from "lucide-react";
 import { FormModal } from "~/components/ui";
-import { SimpleAlert } from "~/components/simple/SimpleAlert";
+import { Alert } from "~/components/ui/alert";
 import { useToast } from "~/contexts/ToastContext";
 import { authService } from "~/lib/auth-service";
 import {
@@ -33,7 +33,6 @@ export function RolePermissionManagementModal({
   const getPermissionDisplayName = (p: Permission) =>
     formatPermissionDisplay(p.resource, p.action);
   const { success: toastSuccess } = useToast();
-  const [showErrorAlert, setShowErrorAlert] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   // Warning alert disabled for now to reduce noise in UI
   const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
@@ -50,7 +49,6 @@ export function RolePermissionManagementModal({
 
   const showError = (message: string) => {
     setErrorMessage(message);
-    setShowErrorAlert(true);
   };
 
   const fetchPermissions = async () => {
@@ -239,6 +237,8 @@ export function RolePermissionManagementModal({
         footer={footer}
       >
         <div className="space-y-4 md:space-y-6">
+          <Alert type="error" message={errorMessage} />
+
           {/* Stats */}
           <div className="rounded-xl border border-gray-100 bg-purple-50/30 p-3 md:p-4">
             <div className="flex items-center justify-between">
@@ -381,15 +381,6 @@ export function RolePermissionManagementModal({
           )}
         </div>
       </FormModal>
-
-      {/* Success toasts handled globally */}
-      {showErrorAlert && (
-        <SimpleAlert
-          type="error"
-          message={errorMessage}
-          onClose={() => setShowErrorAlert(false)}
-        />
-      )}
       {/* Warning alert intentionally disabled */}
     </>
   );

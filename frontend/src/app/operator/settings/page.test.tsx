@@ -1,13 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
-const { mockUseSession, mockUpdateSession, mockSessionFetch } = vi.hoisted(
-  () => ({
-    mockUseSession: vi.fn(),
-    mockUpdateSession: vi.fn(),
-    mockSessionFetch: vi.fn(),
-  }),
-);
+const {
+  mockUseSession,
+  mockUpdateSession,
+  mockSessionFetch,
+  mockToastSuccess,
+  mockToastError,
+} = vi.hoisted(() => ({
+  mockUseSession: vi.fn(),
+  mockUpdateSession: vi.fn(),
+  mockSessionFetch: vi.fn(),
+  mockToastSuccess: vi.fn(),
+  mockToastError: vi.fn(),
+}));
 
 vi.mock("next-auth/react", () => ({
   useSession: mockUseSession,
@@ -15,6 +21,13 @@ vi.mock("next-auth/react", () => ({
 
 vi.mock("~/lib/session-cache", () => ({
   sessionFetch: (...args: unknown[]) => mockSessionFetch(...args),
+}));
+
+vi.mock("~/contexts/ToastContext", () => ({
+  useToast: () => ({
+    success: mockToastSuccess,
+    error: mockToastError,
+  }),
 }));
 
 vi.mock("~/components/ui/loading", () => ({
@@ -25,10 +38,6 @@ vi.mock("~/components/ui/page-header", () => ({
   PageHeaderWithSearch: ({ title }: { title: string }) => (
     <div data-testid="page-header">{title}</div>
   ),
-}));
-
-vi.mock("~/components/simple/SimpleAlert", () => ({
-  SimpleAlert: () => null,
 }));
 
 vi.mock("~/components/ui", () => ({
@@ -189,6 +198,10 @@ describe("OperatorSettingsPage", () => {
     await waitFor(() => {
       expect(mockUpdateSession).toHaveBeenCalled();
     });
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      "Profil erfolgreich aktualisiert",
+      { duration: 3000 },
+    );
   });
 
   it("handles save error gracefully", async () => {
@@ -219,6 +232,10 @@ describe("OperatorSettingsPage", () => {
     await waitFor(() => {
       expect(mockUpdateSession).not.toHaveBeenCalled();
     });
+    expect(mockToastError).toHaveBeenCalledWith(
+      "Fehler beim Speichern des Profils",
+      { duration: 3000 },
+    );
   });
 
   it("cancels editing and restores original values", async () => {
@@ -351,6 +368,10 @@ describe("OperatorSettingsPage", () => {
           }),
         );
       });
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        "Eine Bestätigungs-E-Mail wird an new@example.com gesendet. Bitte überprüfe dein Postfach.",
+        { duration: 3000 },
+      );
     });
 
     it("closes dialog after successful submission", async () => {
