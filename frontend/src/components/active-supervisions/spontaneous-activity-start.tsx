@@ -453,7 +453,18 @@ export function SpontaneousActivityStart({
                         tabIndex={-1}
                         aria-selected={index === activeActivityIndex}
                         onMouseEnter={() => setActiveActivityIndex(index)}
-                        onClick={() => selectActivitySuggestion(activity)}
+                        // Select on pointer-down and keep focus on the input.
+                        // Safari/iOS does not focus a clicked button, so the
+                        // input would blur with relatedTarget === null, the
+                        // blur handler would close the menu, and the option
+                        // would unmount before its click fired — making pointer
+                        // selection unreliable on touch. preventDefault stops
+                        // the focus shift (no blur, menu stays open); we run the
+                        // selection here so a missed onClick can't drop it.
+                        onPointerDown={(event) => {
+                          event.preventDefault();
+                          selectActivitySuggestion(activity);
+                        }}
                         className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 aria-selected:bg-gray-100 aria-selected:text-gray-900"
                       >
                         {activity.name}

@@ -466,4 +466,42 @@ describe("SpontaneousActivityStart", () => {
       });
     });
   });
+
+  it("selects an activity suggestion on pointer-down even when the input blurs with no relatedTarget (Safari/iOS)", async () => {
+    const onStart = vi.fn();
+    render(
+      <SpontaneousActivityStart
+        currentStaffId="11"
+        defaultRoomId="3"
+        onStart={onStart}
+      />,
+    );
+
+    await openModalAndWaitForRefs();
+    const activityInput = screen.getByPlaceholderText(
+      "Aktivität suchen oder neu eingeben",
+    );
+    fireEvent.change(activityInput, { target: { value: "Bast" } });
+    const option = screen.getByRole("option", { name: "Basteln" });
+
+    // Safari/iOS does not focus a clicked button, so the input blurs with a
+    // null relatedTarget. Selection must happen on pointer-down (which the
+    // component preventDefaults to keep focus on the input) BEFORE that blur
+    // can close the menu and unmount the option.
+    fireEvent.pointerDown(option, { button: 0, pointerType: "mouse" });
+    fireEvent.blur(activityInput, { relatedTarget: null });
+
+    expect(activityInput).toHaveValue("Basteln");
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+
+    submitForm();
+    await waitFor(() => {
+      expect(onStart).toHaveBeenCalledWith({
+        title: "Basteln",
+        roomId: "3",
+        activityGroupId: "9",
+        additionalStaffIds: [],
+      });
+    });
+  });
 });
