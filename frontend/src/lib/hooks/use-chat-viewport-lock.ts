@@ -37,14 +37,31 @@ export function useChatViewportLock<T extends HTMLElement>(ready: boolean) {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    const vv = window.visualViewport;
     const fit = () => {
       const top = el.getBoundingClientRect().top;
+      // Measure against the VISUAL viewport, not window.innerHeight: when the
+      // iOS soft keyboard opens it shrinks visualViewport.height (and fires only
+      // visualViewport's own resize/scroll, never window's resize) while leaving
+      // window.innerHeight unchanged. Keying off innerHeight would leave the
+      // composer + "Senden" button stranded behind the keyboard — exactly the
+      // parent-on-mobile flow this chat targets. Fall back to innerHeight where
+      // visualViewport is unavailable (older browsers / jsdom) so nothing else
+      // changes.
+      const viewportHeight = vv?.height ?? window.innerHeight;
       // 8px breathing room at the bottom; never collapse below a usable size.
-      el.style.height = `${Math.max(window.innerHeight - top - 8, 240)}px`;
+      el.style.height = `${Math.max(viewportHeight - top - 8, 240)}px`;
     };
     fit();
     window.addEventListener("resize", fit);
-    return () => window.removeEventListener("resize", fit);
+    // The iOS keyboard only nudges visualViewport, so listen there too.
+    vv?.addEventListener("resize", fit);
+    vv?.addEventListener("scroll", fit);
+    return () => {
+      window.removeEventListener("resize", fit);
+      vv?.removeEventListener("resize", fit);
+      vv?.removeEventListener("scroll", fit);
+    };
   }, [ready]);
 
   return ref;

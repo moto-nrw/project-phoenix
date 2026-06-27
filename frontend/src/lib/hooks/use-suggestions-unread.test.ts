@@ -15,7 +15,16 @@ vi.mock("~/lib/suggestions-api", () => ({
   fetchUnreadCount: mockFetchUnreadCount,
 }));
 
+// The hook prefixes its cache key with the active tenant slug (per-tenant
+// metadata must not leak across a tenant switch). Pin the slug so the resolved
+// key is deterministic; CACHE_KEY mirrors what the hook builds.
+vi.mock("~/components/tenant/tenant-provider", () => ({
+  useTenantSlugSafe: (): string => "testschool",
+}));
+
 import { useSuggestionsUnread } from "./use-suggestions-unread";
+
+const CACHE_KEY = "suggestions_unread_count:testschool";
 
 interface CachedData {
   count: number;
@@ -69,10 +78,7 @@ describe("useSuggestionsUnread", () => {
       count: 3,
       timestamp: Date.now(),
     };
-    localStorage.setItem(
-      "suggestions_unread_count",
-      JSON.stringify(cachedData),
-    );
+    localStorage.setItem(CACHE_KEY, JSON.stringify(cachedData));
 
     const { result } = renderHook(() => useSuggestionsUnread());
 
@@ -98,10 +104,7 @@ describe("useSuggestionsUnread", () => {
       count: 3,
       timestamp: Date.now() - 61 * 1000,
     };
-    localStorage.setItem(
-      "suggestions_unread_count",
-      JSON.stringify(expiredData),
-    );
+    localStorage.setItem(CACHE_KEY, JSON.stringify(expiredData));
 
     const { result } = renderHook(() => useSuggestionsUnread());
 
@@ -153,7 +156,7 @@ describe("useSuggestionsUnread", () => {
 
     // Set cached data
     localStorage.setItem(
-      "suggestions_unread_count",
+      CACHE_KEY,
       JSON.stringify({ count: 3, timestamp: Date.now() }),
     );
 
@@ -244,7 +247,7 @@ describe("useSuggestionsUnread", () => {
 
     // Set cached data
     localStorage.setItem(
-      "suggestions_unread_count",
+      CACHE_KEY,
       JSON.stringify({ count: 3, timestamp: Date.now() }),
     );
 
@@ -254,7 +257,7 @@ describe("useSuggestionsUnread", () => {
     window.dispatchEvent(new Event("suggestions-unread-refresh"));
 
     await waitFor(() => {
-      expect(localStorage.getItem("suggestions_unread_count")).toBeNull();
+      expect(localStorage.getItem(CACHE_KEY)).toBeNull();
     });
   });
 
@@ -263,7 +266,7 @@ describe("useSuggestionsUnread", () => {
     mockFetchUnreadCount.mockResolvedValueOnce(5);
 
     // Set invalid JSON in cache
-    localStorage.setItem("suggestions_unread_count", "invalid-json");
+    localStorage.setItem(CACHE_KEY, "invalid-json");
 
     const { result } = renderHook(() => useSuggestionsUnread());
 
@@ -281,7 +284,7 @@ describe("useSuggestionsUnread", () => {
     renderHook(() => useSuggestionsUnread());
 
     await waitFor(() => {
-      const cached = localStorage.getItem("suggestions_unread_count");
+      const cached = localStorage.getItem(CACHE_KEY);
       expect(cached).not.toBeNull();
       if (cached) {
         const data = JSON.parse(cached) as CachedData;
