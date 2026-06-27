@@ -71,7 +71,15 @@ func NewHub(logger *slog.Logger) *Hub {
 	}
 }
 
-// Register adds a client to the hub and subscribes them to specified active groups
+// Register adds a STAFF (tenant-portal) client to the hub and subscribes them to
+// the specified active groups.
+//
+// INVARIANT: guardian-portal connections MUST go through RegisterParent, never
+// here. Registering a guardian via Register would index them in tenantClients and
+// hand them staff-scoped fan-out (BroadcastToTenant, the staff copy of
+// BroadcastParentMessage) — a cross-portal data leak. The two index sets
+// (tenantClients vs guardianClients) are the enforcement: Unregister branches on
+// client.IsParent, which only RegisterParent sets.
 func (h *Hub) Register(client *Client, tenantID int64, activeGroupIDs []string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()

@@ -135,21 +135,13 @@ export function formatChatTime(iso: string): string {
  * Full chat timestamp with year ("12.03.2026, 14:30") for the message list and
  * thread headers. Returns "" for missing input; invalid ISO falls back to the
  * raw input. Single source for the staff inbox/thread pages and the parents
- * messages list.
+ * messages list. Composes the existing date + time formatters rather than
+ * spinning up a third Intl path that could drift from the rest of the app.
  */
 export function formatChatDateTime(iso: string | undefined): string {
   if (!iso) return "";
-  try {
-    return new Intl.DateTimeFormat("de-DE", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(iso));
-  } catch {
-    return iso;
-  }
+  if (isNaN(new Date(iso).getTime())) return iso;
+  return `${formatDate(iso)}, ${formatTime(iso)}`;
 }
 
 /**

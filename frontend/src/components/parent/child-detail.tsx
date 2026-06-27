@@ -33,6 +33,7 @@ import RelatedAccountsPanel from "~/components/parent/related-accounts-panel";
 import GuardiansPanel from "~/components/parent/guardians-panel";
 import { Button } from "~/components/ui/button";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
+import { formatChatDateTime } from "~/lib/date-helpers";
 
 // Quick-actions that are wired to real backend flows. The rest remain
 // "coming soon" stubs until their features ship.
@@ -641,7 +642,6 @@ function ChildMessagesPanel({
   mobile?: boolean;
 }>) {
   const t = useTranslations("parentChildDetail");
-  const locale = useLocale();
   const router = useRouter();
   // Chat model: at most one conversation per child.
   const conversation = threads[0];
@@ -697,7 +697,7 @@ function ChildMessagesPanel({
               )}
             </span>
             <span className="flex-shrink-0 text-xs whitespace-nowrap text-gray-400">
-              {formatDate(conversation.last_message_at, locale, t)}
+              {formatChatDateTime(conversation.last_message_at)}
             </span>
           </button>
         )}

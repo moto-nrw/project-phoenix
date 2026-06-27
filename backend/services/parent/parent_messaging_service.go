@@ -13,7 +13,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -86,7 +86,46 @@ func (s *service) ListMessageThreads(ctx context.Context, accountID int64) ([]*u
 	if txErr != nil {
 		return nil, fmt.Errorf("parent: list message threads: %w", txErr)
 	}
+	// Darken the per-row unread pill for a school that has turned messaging off, so
+	// the row agrees with the sidebar badge (UnreadMessageCount counts only enabled
+	// tenants). History stays readable — only the unread signal is suppressed. Only
+	// the multi-child picker calls this, so the extra per-tenant flag reads stay off
+	// the common single-child path.
+	s.suppressDisabledUnread(ctx, out)
 	return out, nil
+}
+
+// suppressDisabledUnread zeroes the unread count on rows whose tenant has parent
+// messaging turned off, mirroring UnreadMessageCount's enabled-tenant filter so
+// the row pills and the aggregate badge can never disagree. The enabled flag is
+// resolved once per distinct tenant (cached in-loop). A resolve failure leaves
+// the row untouched: hiding a real unread behind a transient settings hiccup is
+// worse than briefly over-counting. ResolveBoolForTenant opens its own tenant tx,
+// so this runs OUTSIDE the admin tx above.
+func (s *service) suppressDisabledUnread(ctx context.Context, rows []*usersModels.InboxThread) {
+	enabled := make(map[int64]bool)
+	for _, row := range rows {
+		if row.UnreadCount == 0 || row.TenantID <= 0 {
+			continue
+		}
+		on, cached := enabled[row.TenantID]
+		if !cached {
+			val, err := s.settings.ResolveBoolForTenant(ctx, row.TenantID, configModels.KeyParentNotesEnabled)
+			if err != nil {
+				s.logger.Warn("parent: resolve messaging setting for thread list failed",
+					slog.Int64("tenant_id", row.TenantID),
+					slog.String("error", err.Error()),
+				)
+				on = true
+			} else {
+				on = val
+			}
+			enabled[row.TenantID] = on
+		}
+		if !on {
+			row.UnreadCount = 0
+		}
+	}
 }
 
 // ListChildThreads returns the guardian's conversation(s) about ONE of their
@@ -318,7 +357,10 @@ func (s *service) PostChildMessage(ctx context.Context, accountID, studentID int
 }
 
 // appendGuardianMessage writes a guardian message into the thread, updates the
-// thread's last-activity fields, and marks it read for the sender.
+// thread's last-activity fields, and marks it read for the sender. The append +
+// read-cursor invariant is shared with the staff side via
+// parentmessaging.AppendMessage (one home for the "drive off the DB-stamped
+// created_at" rule).
 func (s *service) appendGuardianMessage(ctx context.Context, thread *usersModels.ParentMessageThread, accountID int64, senderName, body string) error {
 	msg := &usersModels.ParentMessage{
 		ThreadID:        thread.ID,
@@ -329,23 +371,7 @@ func (s *service) appendGuardianMessage(ctx context.Context, thread *usersModels
 		Body:            body,
 	}
 	msg.SetTenantID(thread.TenantID)
-	if err := s.messageRepo.Create(ctx, msg); err != nil {
-		return err
-	}
-	// Drive the thread touch and read cursor off the inserted row's DB-stamped
-	// created_at, NOT a Go time.Now(): messages.created_at is the Postgres clock,
-	// so seeding from the app clock desyncs the two when the app host leads
-	// Postgres (multi-host) — a staff reply within the skew window would be marked
-	// read though never seen, and the monotonic preview guard could keep the older
-	// message. Mirrors appendStaffMessage on the staff side.
-	at := msg.CreatedAt
-	// Guarded, monotonic update: a staff reply that committed with a newer instant
-	// must keep owning the inbox preview/order, so this guardian send no-ops rather
-	// than clobbering it when it is the older of the two (see TouchLastMessage).
-	if err := s.messageThreadRepo.TouchLastMessage(ctx, thread.ID, at, usersModels.ParentMessageSenderGuardian, body); err != nil {
-		return err
-	}
-	return s.messageReadRepo.MarkReadUpTo(ctx, thread.TenantID, thread.ID, accountID, at, msg.ID)
+	return parentmessaging.AppendMessage(ctx, s.messageRepo, s.messageThreadRepo, s.messageReadRepo, msg)
 }
 
 // resolveGuardianName returns the guardian's display name for the child's
@@ -388,17 +414,8 @@ func (s *service) resolveGuardianName(ctx context.Context, tenantID, accountID i
 }
 
 // broadcastParentMessage wakes the guardian's own tabs and the tenant's staff.
-// threadID/studentID let an open chat skip refetching unrelated threads.
+// threadID/studentID let an open chat skip refetching unrelated threads. The
+// fan-out contract is shared with the staff side via parentmessaging.Broadcast.
 func (s *service) broadcastParentMessage(tenantID, guardianAccountID, threadID, studentID int64) {
-	if s.broadcaster == nil || tenantID <= 0 {
-		return
-	}
-	event := realtime.NewParentMessageEvent(guardianAccountID, threadID, studentID)
-	if err := s.broadcaster.BroadcastParentMessage(tenantID, guardianAccountID, event); err != nil {
-		s.logger.Warn("parent: failed to broadcast parent message",
-			slog.Int64("tenant_id", tenantID),
-			slog.Int64("guardian_account_id", guardianAccountID),
-			slog.String("error", err.Error()),
-		)
-	}
+	parentmessaging.Broadcast(s.broadcaster, s.logger, tenantID, guardianAccountID, threadID, studentID)
 }

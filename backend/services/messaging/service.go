@@ -26,6 +26,7 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -439,7 +440,9 @@ func (s *service) ListStudentThreads(ctx context.Context, studentID int64) ([]*u
 
 // appendStaffMessage writes a staff message into the thread, stamps the
 // sender's name, and updates the thread's last-activity fields. The caller has
-// already authorized and validated the body.
+// already authorized and validated the body. The append + read-cursor invariant
+// is shared with the parent side via parentmessaging.AppendMessage (one home for
+// the "drive off the DB-stamped created_at" rule).
 func (s *service) appendStaffMessage(ctx context.Context, thread *usersModels.ParentMessageThread, accountID int64, body string) error {
 	msg := &usersModels.ParentMessage{
 		ThreadID:        thread.ID,
@@ -450,27 +453,8 @@ func (s *service) appendStaffMessage(ctx context.Context, thread *usersModels.Pa
 		Body:            body,
 	}
 	msg.SetTenantID(thread.TenantID)
-	if err := s.messageRepo.Create(ctx, msg); err != nil {
-		return fmt.Errorf("messaging: create message: %w", err)
-	}
-	// Drive both the thread touch and the read cursor off the inserted row's
-	// DB-stamped created_at, NOT a Go time.Now(). messages.created_at defaults to
-	// the Postgres clock; seeding these from the app clock desyncs the two whenever
-	// the app host's clock leads Postgres (multi-host deploy): a guardian message
-	// arriving within the skew window would be marked read though never seen, and
-	// the monotonic preview guard (TouchLastMessage) could keep the older message.
-	// Using the row's own created_at keeps every comparison on one clock. It is
-	// also exactly the cursor a dual-role (staff+guardian) sender needs so their
-	// own just-sent message is not counted as unread staff activity for themselves.
-	at := msg.CreatedAt
-	// Guarded, monotonic update: a concurrent guardian send that committed with a
-	// newer instant must not be clobbered by this staff send's older one (and vice
-	// versa). TouchLastMessage no-ops when the stored last_message_at is newer.
-	if err := s.threadRepo.TouchLastMessage(ctx, thread.ID, at, usersModels.ParentMessageSenderStaff, body); err != nil {
-		return fmt.Errorf("messaging: update thread: %w", err)
-	}
-	if err := s.readRepo.MarkReadUpTo(ctx, thread.TenantID, thread.ID, accountID, at, msg.ID); err != nil {
-		return fmt.Errorf("messaging: mark read: %w", err)
+	if err := parentmessaging.AppendMessage(ctx, s.messageRepo, s.threadRepo, s.readRepo, msg); err != nil {
+		return fmt.Errorf("messaging: append staff message: %w", err)
 	}
 	return nil
 }
@@ -523,17 +507,7 @@ func (s *service) broadcastAfterCommit(ctx context.Context, thread *usersModels.
 }
 
 func (s *service) broadcastValues(tenantID, guardianAccountID, threadID, studentID int64) {
-	if s.broadcaster == nil || tenantID <= 0 {
-		return
-	}
-	event := realtime.NewParentMessageEvent(guardianAccountID, threadID, studentID)
-	if err := s.broadcaster.BroadcastParentMessage(tenantID, guardianAccountID, event); err != nil {
-		s.logger.Warn("messaging: failed to broadcast parent message",
-			slog.Int64("tenant_id", tenantID),
-			slog.Int64("guardian_account_id", guardianAccountID),
-			slog.String("error", err.Error()),
-		)
-	}
+	parentmessaging.Broadcast(s.broadcaster, s.logger, tenantID, guardianAccountID, threadID, studentID)
 }
 
 func containsGuardian(guardians []*usersModels.MessageableGuardian, accountID int64) bool {

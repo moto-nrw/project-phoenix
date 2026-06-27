@@ -166,6 +166,36 @@ describe("useSuggestionsUnread", () => {
     });
   });
 
+  it("drains a forced refresh that lands mid-flight into a second fetch", async () => {
+    // Documents an intentional behavior change from the old hand-rolled hook: the
+    // shared useUnreadCount honors a cache-busting refresh that arrives WHILE the
+    // mount fetch is still in flight by re-running the fetcher once it resolves,
+    // instead of dropping it. One extra request in a rare race is the price of the
+    // badge never sticking on a stale pre-event count.
+    mockUseSession.mockReturnValue({ status: "authenticated" });
+    let resolveMount: (n: number) => void = () => undefined;
+    const mountFetch = new Promise<number>((resolve) => {
+      resolveMount = resolve;
+    });
+    mockFetchUnreadCount
+      .mockReturnValueOnce(mountFetch) // mount fetch hangs until we release it
+      .mockResolvedValue(9); // the drained re-fetch
+
+    const { result } = renderHook(() => useSuggestionsUnread());
+
+    // The mount fetch is in flight; a forced refresh now queues (it can't run
+    // concurrently) and must be drained after the mount fetch resolves.
+    void result.current.refresh(true);
+    resolveMount(4);
+
+    await waitFor(() => {
+      expect(mockFetchUnreadCount.mock.calls.length).toBe(2);
+    });
+    await waitFor(() => {
+      expect(result.current.unreadCount).toBe(9);
+    });
+  });
+
   it("prevents concurrent fetches", async () => {
     mockUseSession.mockReturnValue({ status: "authenticated" });
     mockFetchUnreadCount.mockImplementation(

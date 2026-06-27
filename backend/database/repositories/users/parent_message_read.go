@@ -108,6 +108,7 @@ func inboxSelect(q *bun.SelectQuery, accountID int64, staffReader bool) *bun.Sel
 	return q.
 		TableExpr("users.parent_message_threads AS t").
 		ColumnExpr("t.id AS thread_id").
+		ColumnExpr("t.tenant_id AS tenant_id").
 		ColumnExpr("t.student_id AS student_id").
 		ColumnExpr("btrim(COALESCE(pn.first_name,'') || ' ' || COALESCE(pn.last_name,'')) AS student_name").
 		ColumnExpr("s.school_class AS school_class").
@@ -312,9 +313,9 @@ func (r *ParentMessageReadRepository) ListThreadsForGuardianTenants(ctx context.
 }
 
 // UnreadThreadCountForGuardianTenants counts the guardian's unread threads
-// across the given tenants in one query. Cross-tenant counterpart of
-// UnreadThreadCountForGuardian; run under WithAdminTx. See
-// ListThreadsForGuardianTenants for the ownership/scoping rationale.
+// across the given tenants in one query — the parent-portal sidebar badge
+// source. Cross-tenant: run under WithAdminTx. See ListThreadsForGuardianTenants
+// for the ownership/scoping rationale.
 func (r *ParentMessageReadRepository) UnreadThreadCountForGuardianTenants(ctx context.Context, accountID int64, tenantIDs []int64) (int, error) {
 	if len(tenantIDs) == 0 {
 		return 0, nil
@@ -335,33 +336,6 @@ func (r *ParentMessageReadRepository) UnreadThreadCountForGuardianTenants(ctx co
 		Count(ctx)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "count unread guardian threads cross-tenant", Err: err}
-	}
-	return count, nil
-}
-
-// UnreadThreadCountForGuardian counts the guardian's threads with unread
-// staff-side activity in the current tenant. The parent service sums this over
-// the guardian's tenants for the portal badge — a light COUNT mirroring the
-// staff UnreadThreadCountForStaff, instead of fetching the full thread
-// projection just to add up its unread numbers.
-func (r *ParentMessageReadRepository) UnreadThreadCountForGuardian(ctx context.Context, accountID int64) (int, error) {
-	query := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr("users.parent_message_threads AS t").
-		// Exclude soft-deleted students so an offboarded child's unread thread is
-		// not counted in the portal badge while the list (inboxSelect) hides it —
-		// see UnreadThreadCountForGuardianTenants.
-		Join("JOIN users.students AS s ON s.id = t.student_id").
-		Join("JOIN users.persons AS pn ON pn.id = s.person_id AND pn.deleted_at IS NULL").
-		Join("LEFT JOIN users.parent_message_reads AS r ON r.thread_id = t.id AND r.account_id = ? AND r.tenant_id = t.tenant_id", accountID).
-		Where("t.guardian_account_id = ?", accountID).
-		Where(guardianStillLinked).
-		Where(staffUnreadExists)
-	if where, val, ok := base.TenantWhere(ctx, "t"); ok {
-		query = query.Where(where, val)
-	}
-	count, err := query.Count(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "count unread guardian threads", Err: err}
 	}
 	return count, nil
 }

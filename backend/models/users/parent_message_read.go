@@ -39,7 +39,13 @@ func (r *ParentMessageRead) TableName() string { return tableUsersParentMessageR
 // by a join in the repository (bun tags drive the scan; json tags are unused
 // here — the handler maps to a DTO).
 type InboxThread struct {
-	ThreadID          int64      `bun:"thread_id" json:"thread_id"`
+	ThreadID int64 `bun:"thread_id" json:"thread_id"`
+	// TenantID is the thread's owning school. Internal only (json:"-"): the parent
+	// service uses it to suppress the unread pill for a school that has turned
+	// messaging off, so the per-row count matches the sidebar badge. StudentID
+	// alone is NOT globally unique across tenants, so the row must carry its own
+	// tenant to be mapped to the per-tenant enabled flag.
+	TenantID          int64      `bun:"tenant_id" json:"-"`
 	StudentID         int64      `bun:"student_id" json:"student_id"`
 	StudentName       string     `bun:"student_name" json:"student_name"`
 	SchoolClass       string     `bun:"school_class" json:"school_class"`
@@ -101,9 +107,6 @@ type ParentMessageReadRepository interface {
 	// ListThreadsForStudent returns the staff view of one child's threads,
 	// newest-activity first. The caller must have authorized read access.
 	ListThreadsForStudent(ctx context.Context, accountID, studentID int64) ([]*InboxThread, error)
-	// UnreadThreadCountForGuardian counts the guardian's threads in the current
-	// tenant with unread staff-side activity (the parent-portal badge source).
-	UnreadThreadCountForGuardian(ctx context.Context, accountID int64) (int, error)
 	// UnreadThreadCountForGuardianTenants is the cross-tenant variant: it counts
 	// the guardian's unread threads across the given tenants in ONE query, so the
 	// portal badge does not open one transaction per school. Run under WithAdminTx.
