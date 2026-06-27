@@ -5,6 +5,8 @@ import Link from "next/link";
 import { ArrowRight, MessageSquare } from "lucide-react";
 import { OgsConversation } from "~/components/parent/ogs-conversation";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
+import { Alert } from "~/components/ui/alert";
+import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import {
   type Child,
   type ThreadSummary,
@@ -139,14 +141,19 @@ export default function ParentMessagesPage() {
   }, [load]);
 
   // Keep the list fresh without a full skeleton flash: the portal-wide SSE
-  // bridge dispatches parent-threads-refresh on new activity, and we also
-  // refetch when the window regains focus.
+  // bridge dispatches parent-threads-refresh on new activity. Route it through
+  // the shared useMessagesActivity hook (eventName override) like OgsConversation
+  // does, instead of a hand-rolled addEventListener — one place owns the
+  // matching + backgrounded-tab deferral.
+  useMessagesActivity({
+    eventName: "parent-threads-refresh",
+    onMatch: () => void load({ silent: true }),
+  });
+  // Also refetch when the window regains focus (the hook covers SSE, not focus).
   useEffect(() => {
     const refresh = () => void load({ silent: true });
-    window.addEventListener("parent-threads-refresh", refresh);
     window.addEventListener("focus", refresh);
     return () => {
-      window.removeEventListener("parent-threads-refresh", refresh);
       window.removeEventListener("focus", refresh);
     };
   }, [load]);
@@ -158,9 +165,10 @@ export default function ParentMessagesPage() {
   if (error) {
     return (
       <div className="mx-auto max-w-7xl">
-        <div className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-5 text-sm text-[#FF3130] shadow-sm">
-          Die Nachrichten konnten nicht geladen werden.
-        </div>
+        <Alert
+          type="error"
+          message="Die Nachrichten konnten nicht geladen werden."
+        />
       </div>
     );
   }

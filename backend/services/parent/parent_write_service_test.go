@@ -186,6 +186,31 @@ func TestPostChildMessage_BodyTooLong(t *testing.T) {
 	require.ErrorIs(t, err, parentService.ErrNoteTooLong)
 }
 
+// TestPostChildMessage_AllowsMultibyteUpToRuneLimit re-establishes the
+// at-the-limit accept guard the deleted one-way notes suite carried
+// (TestAddParentNote_AllowsMultibyteUpToRuneLimit): the cap counts CHARACTERS
+// (utf8.RuneCountInString), not bytes. 2000 umlauts = 2000 runes but ~4000 UTF-8
+// bytes, so a regression to len(body) (or a varchar(2000) column cap) would
+// silently reject legitimate German messages. Only the over-limit case
+// (BodyTooLong above) was re-tested after the rewrite; this pins the boundary
+// from the accepting side so the rune-count semantics can't quietly revert.
+func TestPostChildMessage_AllowsMultibyteUpToRuneLimit(t *testing.T) {
+	svc, _, db, _ := buildMessagingWriteService(t, true, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	body := strings.Repeat("ä", maxMessageRunesForTest)
+	view, err := svc.PostChildMessage(context.Background(), chain.AccountID, chain.StudentID, body)
+	require.NoError(t, err)
+	require.NotNil(t, view)
+	require.Len(t, view.Messages, 1, "the just-sent at-limit message is persisted and returned")
+	require.Equal(t, body, view.Messages[0].Body)
+}
+
+// maxMessageRunesForTest mirrors the service's maxParentNoteLen (kept local so
+// the test doesn't depend on an unexported constant).
+const maxMessageRunesForTest = 2000
+
 // TestChildMessaging_FeatureDisabled re-establishes the "messaging turned off →
 // 403" guard for BOTH write paths: with operations.parent_notes_enabled off, a
 // fully-permitted guardian still cannot post a message or submit a request. The

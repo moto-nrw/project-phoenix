@@ -20,6 +20,14 @@ import { useEffect, useRef } from "react";
  *
  * debounceMs collapses bursts (the morning rush wakes every tenant staffer per
  * message) into one refetch — used by the heavy inbox query.
+ *
+ * Backgrounded-tab guard: opening/refetching a thread advances the reader's read
+ * cursor server-side (GET marks the thread read), so firing onMatch while the tab
+ * is hidden would silently mark an unseen message read — the staffer never sees
+ * it and the unread badge never lights up. While `document.hidden`, a matching
+ * event is remembered and flushed once the tab becomes visible again, so a real
+ * read only happens when the user is actually looking. (Refetch-only consumers
+ * like the inbox are unaffected by the delay.)
  */
 export interface MessagesActivityDetail {
   readonly threadId?: string | null;
@@ -44,12 +52,11 @@ export function useMessagesActivity({
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
-    const handler = (event: Event) => {
-      const detail = (event as CustomEvent<MessagesActivityDetail>).detail;
-      if (threadId && detail?.threadId && detail.threadId !== threadId) return;
-      if (studentId && detail?.studentId && detail.studentId !== studentId) {
-        return;
-      }
+    // A matching event arrived while the tab was hidden — defer the refetch until
+    // the tab is visible again so a backgrounded thread is never marked read unseen.
+    let pendingWhileHidden = false;
+
+    const fire = () => {
       if (debounceMs && debounceMs > 0) {
         if (timer) clearTimeout(timer);
         timer = setTimeout(() => onMatchRef.current(), debounceMs);
@@ -57,9 +64,36 @@ export function useMessagesActivity({
         onMatchRef.current();
       }
     };
+
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<MessagesActivityDetail>).detail;
+      if (threadId && detail?.threadId && detail.threadId !== threadId) return;
+      if (studentId && detail?.studentId && detail.studentId !== studentId) {
+        return;
+      }
+      if (typeof document !== "undefined" && document.hidden) {
+        pendingWhileHidden = true;
+        return;
+      }
+      fire();
+    };
+
+    const onVisibility = () => {
+      if (
+        typeof document !== "undefined" &&
+        !document.hidden &&
+        pendingWhileHidden
+      ) {
+        pendingWhileHidden = false;
+        fire();
+      }
+    };
+
     window.addEventListener(eventName, handler);
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       window.removeEventListener(eventName, handler);
+      document.removeEventListener("visibilitychange", onVisibility);
       if (timer) clearTimeout(timer);
     };
   }, [threadId, studentId, debounceMs, eventName]);

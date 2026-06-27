@@ -210,11 +210,22 @@ func (s *service) UnreadThreadCount(ctx context.Context) (int, error) {
 	// off: the inbox history stays readable (ListInbox/GetThread are NOT gated),
 	// but a disabled feature must not keep lighting up a red unread count. Sends
 	// are already blocked by requireEnabled on the write paths.
-	if err := s.requireEnabled(ctx); err != nil {
-		if errors.Is(err, ErrMessagingDisabled) {
-			return 0, nil
-		}
-		return 0, err
+	//
+	// A resolve FAILURE (transient settings DB hiccup) must fail OPEN — count as
+	// enabled — exactly like suppressDisabledUnread and the parent
+	// UnreadMessageCount. Failing closed here (500) while ListInbox keeps
+	// rendering lit unread pills is the precise divergence those siblings' fail-open
+	// comments were written to prevent: over-counting on a blip beats a stale-blank
+	// badge that contradicts the inbox.
+	enabled, err := s.settings.ResolveBool(ctx, configModels.KeyParentNotesEnabled)
+	if err != nil {
+		s.logger.Warn("messaging: resolve messaging setting for badge failed, counting as enabled",
+			slog.String("error", err.Error()),
+		)
+		enabled = true
+	}
+	if !enabled {
+		return 0, nil
 	}
 	accountID := accountIDFromCtx(ctx)
 	allStudents, groupIDs := s.scope(ctx)
