@@ -131,7 +131,15 @@ export default function ParentMessagesPage() {
         setError(message);
       }
     } finally {
-      if (!silent && mountedRef.current && seq === loadSeqRef.current) {
+      // Release the initial skeleton once the LATEST run settles, regardless of
+      // whether it was silent. If a silent refresh (SSE/focus) starts before the
+      // initial non-silent load resolves, it bumps loadSeqRef: the initial run
+      // then skips this finally (stale seq) and the silent run would skip it too
+      // (silent), leaving `loading` stuck true and the skeleton rendered forever
+      // even though the silent run already populated children/rows. Clearing on
+      // the latest run regardless of silent fixes that; a redundant setLoading(false)
+      // on a silent run is a no-op since loading is only ever set true by !silent.
+      if (mountedRef.current && seq === loadSeqRef.current) {
         setLoading(false);
       }
     }

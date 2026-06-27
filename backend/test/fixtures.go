@@ -2994,6 +2994,15 @@ func CleanupParentGuardianChain(tb testing.TB, db *bun.DB, c ParentChain) {
 			tb.Logf("cleanup warning: %v", err)
 		}
 	}
+	// Parent messaging rows FIRST: threads reference users.students and
+	// auth.accounts WITHOUT ON DELETE CASCADE, so any thread/message/read a test
+	// created on this chain blocks the student/account deletes below with an FK
+	// violation (and leaks rows into the shared test DB). Deleting the threads
+	// would cascade messages + reads via their thread_id FK, but delete all three
+	// explicitly by student so a stray row never survives.
+	exec(`DELETE FROM users.parent_message_reads WHERE thread_id IN (SELECT id FROM users.parent_message_threads WHERE student_id = ?)`, c.StudentID)
+	exec(`DELETE FROM users.parent_messages WHERE student_id = ?`, c.StudentID)
+	exec(`DELETE FROM users.parent_message_threads WHERE student_id = ?`, c.StudentID)
 	exec(`DELETE FROM active.student_status_days WHERE student_id = ?`, c.StudentID)
 	exec(`DELETE FROM users.students_guardians WHERE student_id = ?`, c.StudentID)
 	exec(`DELETE FROM auth.account_tenants WHERE account_id = ?`, c.AccountID)
