@@ -410,11 +410,14 @@ export function SpontaneousActivityStart({
                     setActiveActivityIndex(filteredActivities.length - 1);
                     return;
                   }
-                  // Enter intentionally falls through to the form's implicit
-                  // submission (matching the previous datalist behaviour):
-                  // the typed text is submitted as-is instead of being
-                  // replaced by the highlighted suggestion. Suggestions are
-                  // picked via hover/click or the chips below.
+                  if (event.key === "Enter") {
+                    const activeActivity =
+                      filteredActivities[activeActivityIndex];
+                    if (activeActivity) {
+                      event.preventDefault();
+                      selectActivitySuggestion(activeActivity);
+                    }
+                  }
                 }}
                 placeholder="Aktivität suchen oder neu eingeben"
                 autoComplete="off"

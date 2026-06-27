@@ -422,7 +422,12 @@ describe("SpontaneousActivityStart", () => {
     expect(screen.getByTestId("modal")).toBeInTheDocument();
   });
 
-  it("submits the typed title on Enter instead of replacing it with the highlighted suggestion", async () => {
+  it("selects the active activity suggestion on Enter before submitting", async () => {
+    mocks.getActivities.mockResolvedValueOnce([
+      { id: "5", name: "Ballspiele" },
+      { id: "9", name: "Basteln" },
+      { id: "7", name: "Freispiel" },
+    ]);
     const onStart = vi.fn();
     render(
       <SpontaneousActivityStart
@@ -436,26 +441,27 @@ describe("SpontaneousActivityStart", () => {
     const activityInput = screen.getByPlaceholderText(
       "Aktivität suchen oder neu eingeben",
     );
-    fireEvent.change(activityInput, { target: { value: "Bas" } });
-    // A suggestion is highlighted, but Enter must NOT adopt it (datalist
-    // parity): the typed text stays untouched.
+    fireEvent.change(activityInput, { target: { value: "Ba" } });
+    expect(screen.getByRole("option", { name: "Ballspiele" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    fireEvent.keyDown(activityInput, { key: "ArrowDown" });
     expect(screen.getByRole("option", { name: "Basteln" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
 
     fireEvent.keyDown(activityInput, { key: "Enter" });
-    expect(activityInput).toHaveValue("Bas");
+    expect(activityInput).toHaveValue("Basteln");
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
 
-    // Submitting sends the partial text verbatim as a new activity title
-    // (jsdom does not perform native implicit submission on Enter, so the
-    // form submit is triggered directly here).
     submitForm();
     await waitFor(() => {
       expect(onStart).toHaveBeenCalledWith({
-        title: "Bas",
+        title: "Basteln",
         roomId: "3",
-        activityGroupId: undefined,
+        activityGroupId: "9",
         additionalStaffIds: [],
       });
     });
