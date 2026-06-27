@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import CombinedGroupsPage from "./page";
+
+const mockRouterPush = vi.fn();
 
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
@@ -19,8 +21,33 @@ vi.mock("next-auth/react", () => ({
 }));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), back: vi.fn() }),
+  useRouter: () => ({
+    push: mockRouterPush,
+    replace: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    refresh: vi.fn(),
+    prefetch: vi.fn(),
+  }),
   redirect: vi.fn(),
+}));
+
+vi.mock("next/link", () => ({
+  default: ({
+    children,
+    href,
+    className,
+    "aria-label": ariaLabel,
+  }: {
+    children: React.ReactNode;
+    href: string;
+    className?: string;
+    "aria-label"?: string;
+  }) => (
+    <a href={href} className={className} aria-label={ariaLabel}>
+      {children}
+    </a>
+  ),
 }));
 
 const mockGetCombinedGroups = vi.fn();
@@ -32,28 +59,6 @@ vi.mock("@/lib/api", () => ({
 
 vi.mock("~/components/ui/loading", () => ({
   Loading: () => <div data-testid="loading">Loading...</div>,
-}));
-
-vi.mock("@/components/dashboard", () => ({
-  DataListPage: ({
-    title,
-    data,
-    renderEntity,
-  }: {
-    title: string;
-    data: unknown[];
-    renderEntity: (item: unknown) => React.ReactNode;
-  }) => (
-    <div data-testid="data-list-page">
-      <h1>{title}</h1>
-      <span data-testid="item-count">{data.length}</span>
-      {data.map((item, i) => (
-        <div key={i} data-testid="list-item">
-          {renderEntity(item)}
-        </div>
-      ))}
-    </div>
-  ),
 }));
 
 describe("CombinedGroupsPage", () => {
@@ -121,6 +126,98 @@ describe("CombinedGroupsPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Abgelaufen")).toBeInTheDocument();
     });
+  });
+
+  it("filters combined groups by search term", async () => {
+    mockGetCombinedGroups.mockResolvedValue([
+      {
+        id: "1",
+        name: "Kombination A",
+        is_active: true,
+        is_expired: false,
+        access_policy: "all",
+      },
+      {
+        id: "2",
+        name: "Feriengruppe",
+        is_active: true,
+        is_expired: false,
+        access_policy: "specific",
+      },
+    ]);
+
+    render(<CombinedGroupsPage />);
+
+    await screen.findByText("Kombination A");
+
+    const searchInput = screen.getAllByPlaceholderText("Suchen...")[0];
+    if (!searchInput) throw new Error("Search input was not rendered");
+
+    fireEvent.change(searchInput, { target: { value: "Ferien" } });
+
+    expect(screen.getByText("Feriengruppe")).toBeInTheDocument();
+    expect(screen.queryByText("Kombination A")).not.toBeInTheDocument();
+  });
+
+  it("shows no results message when search has no matches", async () => {
+    mockGetCombinedGroups.mockResolvedValue([
+      {
+        id: "1",
+        name: "Kombination A",
+        is_active: true,
+        is_expired: false,
+        access_policy: "all",
+      },
+    ]);
+
+    render(<CombinedGroupsPage />);
+
+    await screen.findByText("Kombination A");
+
+    const searchInput = screen.getAllByPlaceholderText("Suchen...")[0];
+    if (!searchInput) throw new Error("Search input was not rendered");
+
+    fireEvent.change(searchInput, { target: { value: "Nichts" } });
+
+    expect(screen.getByText("Keine Ergebnisse gefunden.")).toBeInTheDocument();
+  });
+
+  it("links to the create page", async () => {
+    mockGetCombinedGroups.mockResolvedValue([]);
+
+    render(<CombinedGroupsPage />);
+
+    await screen.findByText("Keine Einträge vorhanden.");
+
+    const createLinks = screen.getAllByRole("link", {
+      name: "Neue Kombination erstellen",
+    });
+    const createLink = createLinks[0];
+    if (!createLink) throw new Error("Create link was not rendered");
+
+    expect(createLink).toHaveAttribute("href", "/database/groups/combined/new");
+  });
+
+  it("navigates to the detail page when a group is selected", async () => {
+    mockGetCombinedGroups.mockResolvedValue([
+      {
+        id: "1",
+        name: "Kombination A",
+        is_active: true,
+        is_expired: false,
+        access_policy: "all",
+      },
+    ]);
+
+    render(<CombinedGroupsPage />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Kombination A/ }),
+    );
+
+    expect(mockRouterPush).toHaveBeenCalledWith(
+      "/test-tenant/database/groups/combined/1",
+    );
   });
 
   it("shows error state on API failure", async () => {
