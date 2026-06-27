@@ -23,32 +23,6 @@ func NewParentMessageReadRepository(db *bun.DB) users.ParentMessageReadRepositor
 	return &ParentMessageReadRepository{db: db}
 }
 
-// MarkRead upserts the reader's cursor for a thread to now(). The composite
-// cursor's id tie-breaker stays 0: a NOW() (transaction_timestamp) cursor is
-// strictly greater than every committed message's clock_timestamp() created_at,
-// so the id is never consulted — and on the off chance a created_at ties NOW(),
-// counting it unread is the safe direction. MarkReadUpTo carries the real id.
-func (r *ParentMessageReadRepository) MarkRead(ctx context.Context, tenantID, threadID, accountID int64) error {
-	row := &users.ParentMessageRead{
-		ThreadID:   threadID,
-		AccountID:  accountID,
-		LastReadAt: time.Now(),
-	}
-	row.SetTenantID(tenantID)
-
-	_, err := base.GetDB(ctx, r.db).NewInsert().
-		Model(row).
-		ModelTableExpr("users.parent_message_reads").
-		On("CONFLICT (thread_id, account_id) DO UPDATE").
-		Set("last_read_at = NOW()").
-		Set("last_read_message_id = 0").
-		Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{Op: "mark parent message thread read", Err: err}
-	}
-	return nil
-}
-
 // MarkReadUpTo upserts the reader's cursor to the composite (readAt,
 // readMessageID) instead of NOW(), never moving it backward. The cursor advances
 // only when the new composite is greater than the stored one (timestamp first,
@@ -250,24 +224,6 @@ func (r *ParentMessageReadRepository) ListThreadsForStudent(ctx context.Context,
 	return rows, nil
 }
 
-// ListThreadsForGuardian returns the guardian's own threads, newest activity
-// first; unread counts staff messages (the side the guardian has not read).
-func (r *ParentMessageReadRepository) ListThreadsForGuardian(ctx context.Context, accountID int64) ([]*users.InboxThread, error) {
-	var rows []*users.InboxThread
-	query := inboxSelect(base.GetDB(ctx, r.db).NewSelect(), accountID, false).
-		Where("t.guardian_account_id = ?", accountID).
-		// Hide empty (opened-but-unwritten) threads from the guardian's list too.
-		Where(threadHasMessages).
-		Where(guardianStillLinked)
-	if where, val, ok := base.TenantWhere(ctx, "t"); ok {
-		query = query.Where(where, val)
-	}
-	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list guardian threads", Err: err}
-	}
-	return rows, nil
-}
-
 // ListThreadsForGuardianStudent returns the guardian's own threads about ONE of
 // their children in the current tenant; unread counts staff-side activity. The
 // per-child detail page uses this so it stops fetching the guardian's whole
@@ -369,28 +325,6 @@ func (r *ParentMessageReadRepository) FindThreadHeader(ctx context.Context, thre
 		return nil, nil
 	}
 	return rows[0], nil
-}
-
-// UnreadCountInThread counts messages from fromSenderKind created after the
-// reader's cursor in a single thread.
-func (r *ParentMessageReadRepository) UnreadCountInThread(ctx context.Context, threadID, accountID int64, fromSenderKind string) (int, error) {
-	query := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr("users.parent_messages AS m").
-		Join("LEFT JOIN users.parent_message_reads AS r ON r.thread_id = m.thread_id AND r.account_id = ?", accountID).
-		Where("m.thread_id = ?", threadID).
-		Where("m.sender_kind = ?", fromSenderKind).
-		Where("(m.created_at, m.id) > (COALESCE(r.last_read_at, '1970-01-01'::timestamptz), COALESCE(r.last_read_message_id, 0))")
-	// thread_id is a global PK, so add the tenant filter now (free while it is the
-	// only query here without one) — defense-in-depth should this ever be wired
-	// under a no-tenant/admin context, it must not count across tenants.
-	if where, val, ok := base.TenantWhere(ctx, "m"); ok {
-		query = query.Where(where, val)
-	}
-	count, err := query.Count(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "count unread parent messages in thread", Err: err}
-	}
-	return count, nil
 }
 
 // LatestReadAtByOther returns the newest read cursor in the thread among

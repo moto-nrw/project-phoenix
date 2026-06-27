@@ -149,7 +149,37 @@ func (s *service) ListInbox(ctx context.Context, onlyUnread bool) ([]*usersModel
 	if err != nil {
 		return nil, fmt.Errorf("messaging: list inbox: %w", err)
 	}
+	s.suppressDisabledUnread(ctx, rows)
 	return rows, nil
+}
+
+// suppressDisabledUnread zeroes the unread count on every inbox/student-card row
+// when the school has turned parent messaging off, so the red row pills agree
+// with the darkened sidebar badge (UnreadThreadCount returns 0 when disabled).
+// Without it a disabled school with historical unread guardian messages shows a
+// dark badge but lit pills — the exact disagreement the parent side's
+// suppressDisabledUnread was built to prevent. History stays readable; only the
+// unread signal is suppressed. The staff service runs inside the request's tenant
+// transaction, so a single ResolveBool covers every row. A resolve failure leaves
+// the rows untouched — briefly over-counting beats hiding a real unread behind a
+// transient settings hiccup (mirrors the parent side's fail-open).
+func (s *service) suppressDisabledUnread(ctx context.Context, rows []*usersModels.InboxThread) {
+	if len(rows) == 0 {
+		return
+	}
+	enabled, err := s.settings.ResolveBool(ctx, configModels.KeyParentNotesEnabled)
+	if err != nil {
+		s.logger.Warn("messaging: resolve messaging setting for inbox failed",
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+	if enabled {
+		return
+	}
+	for _, row := range rows {
+		row.UnreadCount = 0
+	}
 }
 
 func (s *service) UnreadThreadCount(ctx context.Context) (int, error) {
@@ -251,16 +281,10 @@ func (s *service) buildThreadDetail(ctx context.Context, thread *usersModels.Par
 // paths can mark-read off the SAME snapshot they return (see markReadAndBuild).
 func (s *service) buildDetailFromMessages(ctx context.Context, thread *usersModels.ParentMessageThread, messages []*usersModels.ParentMessage) *ThreadDetail {
 	// "OGS hat gelesen" receipt: flag guardian messages a staff member has read.
-	// A transient lookup failure must be logged, not silently swallowed —
-	// otherwise the receipt disappears with no trace until the next good load.
-	if cutoff, err := s.readRepo.LatestReadAtByOther(ctx, thread.ID, thread.GuardianAccountID); err != nil {
-		s.logger.Warn("messaging: read-receipt lookup failed",
-			slog.Int64("thread_id", thread.ID),
-			slog.String("error", err.Error()),
-		)
-	} else {
-		usersModels.StampStaffReadReceipts(messages, cutoff)
-	}
+	// Shared with the parent side via parentmessaging.DecorateReadReceipts so the
+	// receipt rule can't drift between the two chats (the staff reader's own read
+	// is excluded by passing the thread's guardian as the "other" account).
+	parentmessaging.DecorateReadReceipts(ctx, s.readRepo, s.logger, thread.ID, thread.GuardianAccountID, messages)
 	detail := &ThreadDetail{
 		ThreadID:          thread.ID,
 		StudentID:         thread.StudentID,
@@ -435,6 +459,7 @@ func (s *service) ListStudentThreads(ctx context.Context, studentID int64) ([]*u
 	if err != nil {
 		return nil, fmt.Errorf("messaging: list student threads: %w", err)
 	}
+	s.suppressDisabledUnread(ctx, rows)
 	return rows, nil
 }
 

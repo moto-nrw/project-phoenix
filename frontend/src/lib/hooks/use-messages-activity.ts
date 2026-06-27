@@ -3,12 +3,13 @@
 import { useEffect, useRef } from "react";
 
 /**
- * Subscribe to the app-wide `messages-activity` window event (dispatched once by
- * the single global SSE connection in use-global-sse on every parent_message
- * trigger), so messaging surfaces refetch WITHOUT opening their own EventSource.
- * Replaces the hand-rolled addEventListener + CustomEvent cast + id-mismatch
- * skip + cleanup previously copied into the inbox, the thread page, and the
- * student-detail card.
+ * Subscribe to a messaging window event (the app-wide `messages-activity`
+ * dispatched by the staff global SSE connection in use-global-sse, or — via the
+ * `eventName` override — the parents portal's `parent-conversation-refresh` from
+ * ParentRealtimeBridge), so messaging surfaces refetch WITHOUT opening their own
+ * EventSource. Replaces the hand-rolled addEventListener + CustomEvent cast +
+ * id-mismatch skip + cleanup previously copied into the inbox, the thread page,
+ * the student-detail card, and the parent conversation view.
  *
  * Matching: the callback fires unless the event explicitly names a DIFFERENT id
  * than the one this consumer cares about. A missing/null id ALWAYS matches —
@@ -30,11 +31,13 @@ export function useMessagesActivity({
   threadId,
   studentId,
   debounceMs,
+  eventName = "messages-activity",
 }: {
   onMatch: () => void;
   threadId?: string;
   studentId?: string;
   debounceMs?: number;
+  eventName?: string;
 }): void {
   const onMatchRef = useRef(onMatch);
   onMatchRef.current = onMatch;
@@ -54,10 +57,10 @@ export function useMessagesActivity({
         onMatchRef.current();
       }
     };
-    window.addEventListener("messages-activity", handler);
+    window.addEventListener(eventName, handler);
     return () => {
-      window.removeEventListener("messages-activity", handler);
+      window.removeEventListener(eventName, handler);
       if (timer) clearTimeout(timer);
     };
-  }, [threadId, studentId, debounceMs]);
+  }, [threadId, studentId, debounceMs, eventName]);
 }

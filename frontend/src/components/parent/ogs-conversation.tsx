@@ -14,6 +14,7 @@ import {
   postChildMessage,
 } from "~/lib/parent-api";
 import { useChildCare } from "~/components/parent/child-care";
+import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "OgsConversation" });
@@ -102,22 +103,16 @@ export function OgsConversation({
 
   // Real-time: the portal-wide ParentRealtimeBridge owns the SINGLE SSE
   // connection to /api/parent/sse/events and dispatches `parent-conversation-
-  // refresh` (carrying the affected studentId) per parent_message. Listen to
-  // that window event instead of opening a SECOND EventSource to the same
-  // endpoint — the duplicate doubled SSE connections + backend goroutines and
-  // fired every event twice. A multi-child guardian gets one event per child,
-  // so skip the refetch when it names a DIFFERENT child.
-  useEffect(() => {
-    const onRefresh = (event: Event) => {
-      const detail = (event as CustomEvent<{ studentId?: string | null }>)
-        .detail;
-      if (detail?.studentId && detail.studentId !== studentId) return;
-      void refresh();
-    };
-    window.addEventListener("parent-conversation-refresh", onRefresh);
-    return () =>
-      window.removeEventListener("parent-conversation-refresh", onRefresh);
-  }, [refresh, studentId]);
+  // refresh` (carrying the affected studentId) per parent_message. Subscribe via
+  // the shared useMessagesActivity hook (eventName override) instead of opening a
+  // SECOND EventSource — that duplicate doubled SSE connections + backend
+  // goroutines and fired every event twice. The hook skips the refetch when the
+  // event names a DIFFERENT child (a multi-child guardian gets one event per child).
+  useMessagesActivity({
+    eventName: "parent-conversation-refresh",
+    studentId,
+    onMatch: () => void refresh(),
+  });
 
   const messages = thread?.messages ?? [];
   const counterpart = thread?.counterpart_name ?? "OGS";
@@ -230,8 +225,13 @@ export function OgsConversation({
               enabled AND this relationship grants notes.write (both folded into
               care.features.notes_enabled). A pickup-only/emergency guardian, or
               a school with messaging off, gets a read-only history instead of a
-              composer that always 403s on send. */}
-          {care.features.notes_enabled ? (
+              composer that always 403s on send.
+
+              Gate on care.loading FIRST: features start at DEFAULT_FEATURES
+              (notes_enabled = false) until getChildFeatures resolves, so without
+              this guard a messaging-enabled school would flash the read-only
+              fallback on first paint before flipping to the composer. */}
+          {care.loading ? null : care.features.notes_enabled ? (
             <MessageComposer
               value={draft}
               onChange={setDraft}

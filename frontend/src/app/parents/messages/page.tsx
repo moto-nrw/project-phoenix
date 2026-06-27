@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, MessageSquare } from "lucide-react";
 import { OgsConversation } from "~/components/parent/ogs-conversation";
@@ -84,32 +84,53 @@ export default function ParentMessagesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Latest-wins guard: focus and the SSE parent-threads-refresh both fire
+  // load({silent:true}), so two background fetches can overlap. Without a token
+  // an earlier-started-but-later-resolving run would clobber newer data with a
+  // stale snapshot. Each run claims the next token; only the most-recently-started
+  // one may setState. Mirrors OgsConversation / useChildCare.
+  const loadSeqRef = useRef(0);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     const silent = opts?.silent ?? false;
+    const seq = ++loadSeqRef.current;
     if (!silent) setLoading(true);
     try {
       const childList = await listMyChildren();
-      setChildren(childList);
       // Only the multi-child picker needs the thread list. The single-child
       // path renders <OgsConversation>, which fetches its own conversation, so
       // skip the cross-tenant ListThreadsForGuardianTenants query (admin tx +
       // multi-join) for the common single-child guardian — it was fetched in
       // parallel and discarded before.
-      if (childList.length > 1) {
-        const threads = await listMessageThreads();
-        setRows(buildRows(childList, threads));
-      } else {
-        setRows([]);
-      }
+      const nextRows =
+        childList.length > 1
+          ? buildRows(childList, await listMessageThreads())
+          : [];
+      // Apply only if this is still the latest run (and we're mounted), so a
+      // slow run resolving after a newer one can't overwrite fresher data.
+      if (!mountedRef.current || seq !== loadSeqRef.current) return;
+      setChildren(childList);
+      setRows(nextRows);
       setError(null);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
       logger.warn("parent_messages_load_failed", { error: message });
       // A silent (background) refresh must not replace the visible list with an
       // error screen — keep the current data and just log.
-      if (!silent) setError(message);
+      if (!silent && mountedRef.current && seq === loadSeqRef.current) {
+        setError(message);
+      }
     } finally {
-      if (!silent) setLoading(false);
+      if (!silent && mountedRef.current && seq === loadSeqRef.current) {
+        setLoading(false);
+      }
     }
   }, []);
 

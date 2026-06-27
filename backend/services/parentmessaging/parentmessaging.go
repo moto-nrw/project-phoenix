@@ -50,6 +50,40 @@ func AppendMessage(
 	return readRepo.MarkReadUpTo(ctx, msg.GetTenantID(), msg.ThreadID, msg.SenderAccountID, at, msg.ID)
 }
 
+// DecorateReadReceipts stamps the "OGS hat gelesen" indicator (ReadByStaff) on
+// every guardian-authored message the staff side has already read, using the
+// newest read cursor in the thread held by an account OTHER than the querying
+// one. BOTH portals run their message snapshot through this — the staff chat and
+// the parent read/write paths — so the receipt rule can never drift between the
+// two services (it used to be hand-mirrored in each, differing only by log
+// prefix). A transient lookup failure is logged, not fatal: the indicator simply
+// stays hidden until the next load rather than blanking the whole chat.
+//
+// otherAccountID is the account whose reads count as "the other side read it":
+// the thread's guardian for the staff view, the querying guardian's own account
+// excluded for the parent view (LatestReadAtByOther positively gates on staff
+// membership, so a guardian's cursor never satisfies the receipt either way).
+func DecorateReadReceipts(
+	ctx context.Context,
+	readRepo usersModels.ParentMessageReadRepository,
+	logger *slog.Logger,
+	threadID, otherAccountID int64,
+	messages []*usersModels.ParentMessage,
+) {
+	cutoff, err := readRepo.LatestReadAtByOther(ctx, threadID, otherAccountID)
+	if err != nil {
+		if logger == nil {
+			logger = slog.Default()
+		}
+		logger.Warn("parent messaging: read-receipt lookup failed",
+			slog.Int64("thread_id", threadID),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+	usersModels.StampStaffReadReceipts(messages, cutoff)
+}
+
 // Broadcast fires the parent-OGS SSE wake-up: the addressed guardian's own tabs
 // plus the tenant's staff (whose access-filtered inboxes refetch). Fire-and-forget
 // — a nil broadcaster or non-positive tenant is a no-op, and a delivery error is

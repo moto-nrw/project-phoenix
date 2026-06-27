@@ -33,22 +33,14 @@ type MessageThreadView struct {
 }
 
 // decorateReadReceipts stamps the "OGS hat gelesen" indicator (ReadByStaff) on
-// every guardian-authored message the staff side has already read, using the
-// newest staff read cursor in the thread. BOTH the read path
-// (GetChildConversation) and the write path (PostChildMessage) run their message
-// snapshot through this, so an existing receipt survives a send instead of
-// vanishing until the next full GET/SSE refresh. A transient lookup failure is
-// logged, not fatal — the indicator simply stays hidden until the next load.
+// every guardian-authored message the staff side has already read. BOTH the read
+// path (GetChildConversation) and the write path (PostChildMessage) run their
+// message snapshot through this, so an existing receipt survives a send instead
+// of vanishing until the next full GET/SSE refresh. Delegates to the shared
+// parentmessaging.DecorateReadReceipts so the receipt rule stays identical to the
+// staff chat (one home for it, not two hand-mirrored copies).
 func (s *service) decorateReadReceipts(ctx context.Context, threadID, guardianAccountID int64, messages []*usersModels.ParentMessage) {
-	cutoff, err := s.messageReadRepo.LatestReadAtByOther(ctx, threadID, guardianAccountID)
-	if err != nil {
-		s.logger.Warn("parent: read-receipt lookup failed",
-			slog.Int64("thread_id", threadID),
-			slog.String("error", err.Error()),
-		)
-		return
-	}
-	usersModels.StampStaffReadReceipts(messages, cutoff)
+	parentmessaging.DecorateReadReceipts(ctx, s.messageReadRepo, s.logger, threadID, guardianAccountID, messages)
 }
 
 // ListMessageThreads returns the guardian's conversations across all their
@@ -151,6 +143,11 @@ func (s *service) ListChildThreads(ctx context.Context, accountID, studentID int
 	if txErr != nil {
 		return nil, fmt.Errorf("parent: list child threads: %w", txErr)
 	}
+	// Same suppression as ListMessageThreads: darken the per-row unread pill for a
+	// school that has turned messaging off so the child-detail row agrees with the
+	// sidebar badge (UnreadMessageCount counts only enabled tenants). Without it the
+	// badge reads 0 while the child-detail panel still renders a red pill.
+	s.suppressDisabledUnread(ctx, out)
 	return out, nil
 }
 
@@ -204,7 +201,17 @@ func (s *service) UnreadMessageCount(ctx context.Context, accountID int64) (int,
 	for _, tenantID := range tenantIDs {
 		on, err := s.settings.ResolveBoolForTenant(ctx, tenantID, configModels.KeyParentNotesEnabled)
 		if err != nil {
-			return 0, fmt.Errorf("parent: resolve messaging setting: %w", err)
+			// Fail OPEN, exactly like the row-pill path (suppressDisabledUnread): a
+			// transient settings hiccup must not make the badge vanish (500) while the
+			// thread-list rows keep showing unread pills. Count the tenant as enabled so
+			// the badge and the rows can never visibly disagree; over-counting on a blip
+			// beats hiding a real unread.
+			s.logger.Warn("parent: resolve messaging setting for badge failed, counting tenant as enabled",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("error", err.Error()),
+			)
+			enabledTenantIDs = append(enabledTenantIDs, tenantID)
+			continue
 		}
 		if on {
 			enabledTenantIDs = append(enabledTenantIDs, tenantID)

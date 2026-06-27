@@ -73,8 +73,6 @@ type ThreadHeader struct {
 // ParentMessageReadRepository tracks read cursors and answers inbox/unread
 // queries for staff. All methods run inside a tenant transaction.
 type ParentMessageReadRepository interface {
-	// MarkRead upserts the reader's cursor for a thread to now().
-	MarkRead(ctx context.Context, tenantID, threadID, accountID int64) error
 	// MarkReadUpTo upserts the reader's cursor to (readAt, readMessageID) — the
 	// created_at AND id of the newest message actually shown — rather than now(),
 	// for callers that record the read AFTER snapshotting the message list. Marking
@@ -92,9 +90,6 @@ type ParentMessageReadRepository interface {
 	// ListInboxForStaff returns the staff member's readable threads,
 	// newest-activity first; unread counts guardian messages.
 	ListInboxForStaff(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64, onlyUnread bool) ([]*InboxThread, error)
-	// ListThreadsForGuardian returns the guardian's own threads in the
-	// current tenant, newest-activity first; unread counts staff messages.
-	ListThreadsForGuardian(ctx context.Context, accountID int64) ([]*InboxThread, error)
 	// ListThreadsForGuardianStudent returns the guardian's own threads about one
 	// of their children in the current tenant; unread counts staff messages. Runs
 	// under the child's tenant tx (the caller resolves ownership first).
@@ -116,10 +111,6 @@ type ParentMessageReadRepository interface {
 	// if absent. Unlike the inbox projection it does NOT run the correlated
 	// unread COUNT subquery the chat header never uses.
 	FindThreadHeader(ctx context.Context, threadID int64) (*ThreadHeader, error)
-	// UnreadCountInThread counts messages in the thread from the given
-	// sender side (ParentMessageSenderGuardian / ...Staff) created after the
-	// reader's cursor.
-	UnreadCountInThread(ctx context.Context, threadID, accountID int64, fromSenderKind string) (int, error)
 	// LatestReadAtByOther returns the newest read cursor in the thread among
 	// accounts other than excludeAccountID.
 	LatestReadAtByOther(ctx context.Context, threadID, excludeAccountID int64) (*time.Time, error)

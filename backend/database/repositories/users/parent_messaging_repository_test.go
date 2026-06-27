@@ -90,8 +90,10 @@ func TestParentMessaging_ThreadsMessagesAndReadState(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, threadCount)
 
-	// After reading, unread clears.
-	require.NoError(t, readRepo.MarkRead(ctx, 1, thread.ID, reader))
+	// After reading up to the newest message, unread clears. (MarkReadUpTo is the
+	// production read path; the old NOW()-cursor MarkRead was removed as dead code.)
+	newest := messages[len(messages)-1]
+	require.NoError(t, readRepo.MarkReadUpTo(ctx, 1, thread.ID, reader, newest.CreatedAt, newest.ID))
 	threadCount, err = readRepo.UnreadThreadCountForStaff(ctx, reader, true, nil)
 	require.NoError(t, err)
 	assert.Equal(t, 0, threadCount)
@@ -102,14 +104,14 @@ func TestParentMessaging_ThreadsMessagesAndReadState(t *testing.T) {
 
 	// Guardian thread list: unread counts STAFF messages after the cursor.
 	// The reader has read up to now, so the staff message is read → 0 unread.
-	guardianThreads, err := readRepo.ListThreadsForGuardian(ctx, reader)
+	guardianThreads, err := readRepo.ListThreadsForGuardianStudent(ctx, reader, chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, guardianThreads, 1)
 	assert.Equal(t, 0, guardianThreads[0].UnreadCount)
 
 	// A new staff message makes the guardian list show 1 unread.
 	require.NoError(t, msgRepo.Create(ctx, newMessage(thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderStaff, "noch eine antwort")))
-	guardianThreads, err = readRepo.ListThreadsForGuardian(ctx, reader)
+	guardianThreads, err = readRepo.ListThreadsForGuardianStudent(ctx, reader, chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, guardianThreads, 1)
 	assert.Equal(t, 1, guardianThreads[0].UnreadCount)
@@ -155,10 +157,6 @@ func TestParentMessaging_UnreadCreatedAtTie(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, count, "tied message with a higher id must stay unread")
 
-	inThread, err := readRepo.UnreadCountInThread(ctx, thread.ID, reader, usersModels.ParentMessageSenderGuardian)
-	require.NoError(t, err)
-	assert.Equal(t, 1, inThread, "per-thread unread must also honor the id tie-breaker")
-
 	// Reading up to m2 (the higher tie-break id) clears it.
 	require.NoError(t, readRepo.MarkReadUpTo(ctx, 1, thread.ID, reader, m2.CreatedAt, m2.ID))
 	count, err = readRepo.UnreadThreadCountForStaff(ctx, reader, true, nil)
@@ -196,14 +194,14 @@ func TestParentMessaging_OneThreadPerGuardian(t *testing.T) {
 	// An opened-but-unwritten conversation (created by the "open chat" path)
 	// stays hidden from the guardian's list until its first message, so opening
 	// a chat never litters the list.
-	threads, err := readRepo.ListThreadsForGuardian(ctx, chain.AccountID)
+	threads, err := readRepo.ListThreadsForGuardianStudent(ctx, chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	assert.Empty(t, threads, "an empty conversation must stay hidden until the first message")
 
 	// After the first message it appears — still exactly one conversation.
 	msgRepo := usersRepo.NewParentMessageRepository(db)
 	require.NoError(t, msgRepo.Create(ctx, newMessage(first.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderStaff, "hallo")))
-	threads, err = readRepo.ListThreadsForGuardian(ctx, chain.AccountID)
+	threads, err = readRepo.ListThreadsForGuardianStudent(ctx, chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	assert.Len(t, threads, 1, "guardian should have exactly one conversation about the child")
 }
