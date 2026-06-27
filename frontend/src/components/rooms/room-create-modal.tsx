@@ -1,10 +1,8 @@
 "use client";
 
-import { Modal } from "~/components/ui/modal";
-import { DatabaseForm } from "~/components/ui/database/database-form";
 import type { Room } from "@/lib/room-helpers";
 import { roomsConfig } from "@/lib/database/configs/rooms.config";
-import { configToFormSection } from "@/lib/database/types";
+import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
 
 interface RoomCreateModalProps {
   readonly isOpen: boolean;
@@ -18,20 +16,14 @@ export function RoomCreateModal({
   onCreate,
 }: RoomCreateModalProps) {
   return (
-    <Modal
+    <DatabaseFormModal<Room>
       isOpen={isOpen}
       onClose={onClose}
       title={roomsConfig.labels?.createModalTitle ?? "Neuer Raum"}
-    >
-      <DatabaseForm
-        theme={roomsConfig.theme}
-        sections={roomsConfig.form.sections.map(configToFormSection)}
-        initialData={roomsConfig.form.defaultValues}
-        onSubmit={onCreate}
-        onCancel={onClose}
-        submitLabel="Erstellen"
-        stickyActions
-      />
-    </Modal>
+      config={roomsConfig}
+      onSubmit={onCreate}
+      submitLabel="Erstellen"
+      stickyActions
+    />
   );
 }
