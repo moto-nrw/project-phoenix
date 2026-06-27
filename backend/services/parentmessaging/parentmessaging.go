@@ -112,29 +112,55 @@ func AppendMessage(
 }
 
 // MarkReadToNewest advances the reader's read cursor to the newest message in
-// the supplied snapshot — and ONLY to that message, never to NOW(). Both portals
-// call this off the SAME slice they return to the client, so the cursor can never
-// jump past a counterpart message that committed between the caller's ListByThread
-// snapshot and this mark: such a message is absent from `messages`, so it would
-// fall under a NOW() cursor and be silently dropped from the reader's unread badge
-// though they never saw it (and the refetch that would heal it is what advanced
-// the cursor). An empty snapshot leaves the cursor untouched for the same reason —
-// a get-or-created empty thread must not move its cursor past a not-yet-listed
-// first message. Messages are ordered oldest-first, so the last element is newest.
-// MarkReadUpTo itself is monotonic, so a stale snapshot never rolls the cursor
-// back. This rule used to be hand-mirrored in services/messaging (staff) and
-// services/parent (guardian); keeping it here is what stops the two portals'
-// unread counts from drifting if it is ever hardened.
+// the supplied snapshot that the reader did NOT author — and ONLY to that
+// message, never to NOW() and never to one of the reader's OWN rows. Both portals
+// call this off the SAME slice they return to the client.
+//
+// Two hazards make the "not authored by the reader" bound load-bearing, not a
+// nicety:
+//
+//  1. Never NOW(): a counterpart message that committed between the caller's
+//     ListByThread snapshot and this mark is absent from `messages`, so a NOW()
+//     cursor would fall past it and silently drop it from the reader's unread badge
+//     though they never saw it (and the refetch that would heal it is what advanced
+//     the cursor).
+//
+//  2. Never the reader's OWN row: created_at defaults to the inserting
+//     transaction's start instant, so a counterpart whose tx began earlier (lower
+//     created_at) but commits LATER sits below a message stamped now. On a send
+//     path the snapshot's newest element is the reader's just-inserted message at
+//     ~now; advancing the cursor onto it would leap past that still-in-flight
+//     counterpart and mark it read once it commits, even though the sender never
+//     saw it. The reader's own messages are never unread to them anyway
+//     (notReaderAuthored excludes them by sender_account_id), so the cursor never
+//     needs to cover them — bounding to the newest counterpart message is both
+//     sufficient and the only safe choice. This is the same reason
+//     AppendMessage deliberately does not move the sender's cursor on insert.
+//
+// A snapshot with no counterpart message (empty thread, or only the reader's own
+// rows) leaves the cursor untouched: there is nothing the reader needs to mark
+// seen. Messages are ordered oldest-first, so the last non-authored element is the
+// newest counterpart. MarkReadUpTo itself is monotonic, so a stale snapshot never
+// rolls the cursor back. This rule used to be hand-mirrored in services/messaging
+// (staff) and services/parent (guardian); keeping it here is what stops the two
+// portals' unread counts from drifting.
 func MarkReadToNewest(
 	ctx context.Context,
 	readRepo usersModels.ParentMessageReadRepository,
 	tenantID, threadID, accountID int64,
 	messages []*usersModels.ParentMessage,
 ) error {
-	if len(messages) == 0 {
+	var newest *usersModels.ParentMessage
+	for _, msg := range messages {
+		// Oldest-first order: keep overwriting so newest ends up last. Skip the
+		// reader's own rows (see hazard 2 above).
+		if msg != nil && msg.SenderAccountID != accountID {
+			newest = msg
+		}
+	}
+	if newest == nil {
 		return nil
 	}
-	newest := messages[len(messages)-1]
 	return readRepo.MarkReadUpTo(ctx, tenantID, threadID, accountID, newest.CreatedAt, newest.ID)
 }
 

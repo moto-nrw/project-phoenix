@@ -321,9 +321,10 @@ func (s *service) PostChildMessage(ctx context.Context, accountID, studentID int
 		// staff message that became visible since the last GET (e.g. a reply that
 		// arrived while an SSE refresh was missed) must count as read — otherwise the
 		// sidebar badge keeps counting a message already on screen until a separate
-		// read-marking GET runs. Snapshot-bounded (never NOW()), so it can't swallow a
-		// counterpart message that committed after this list. See
-		// parentmessaging.MarkReadToNewest.
+		// read-marking GET runs. Bounded to the newest STAFF row in the snapshot
+		// (never NOW(), never our own just-sent message), so it can't leap the cursor
+		// to ~now and swallow a staff message committing concurrently in a still-open
+		// tx. See parentmessaging.MarkReadToNewest.
 		if err := parentmessaging.MarkReadToNewest(txCtx, s.messageReadRepo, thread.TenantID, thread.ID, accountID, messages); err != nil {
 			return err
 		}
