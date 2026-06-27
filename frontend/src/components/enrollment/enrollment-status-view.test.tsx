@@ -4,7 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   confirmRenewal,
   fetchStatus,
+  listEnrollmentChangeRequests,
   patchStatus,
+  replyEnrollmentChangeRequest,
   withdrawStatus,
   type StatusResponse,
 } from "~/lib/enrollment-submission-api";
@@ -13,12 +15,20 @@ import { EnrollmentStatusView } from "./enrollment-status-view";
 vi.mock("~/lib/enrollment-submission-api", () => ({
   confirmRenewal: vi.fn(),
   fetchStatus: vi.fn(),
+  listEnrollmentChangeRequests: vi.fn(),
   patchStatus: vi.fn(),
+  replyEnrollmentChangeRequest: vi.fn(),
   withdrawStatus: vi.fn(),
 }));
 
 const mockFetchStatus = vi.mocked(fetchStatus);
+const mockListEnrollmentChangeRequests = vi.mocked(
+  listEnrollmentChangeRequests,
+);
 const mockPatchStatus = vi.mocked(patchStatus);
+const mockReplyEnrollmentChangeRequest = vi.mocked(
+  replyEnrollmentChangeRequest,
+);
 const mockWithdrawStatus = vi.mocked(withdrawStatus);
 const mockConfirmRenewal = vi.mocked(confirmRenewal);
 
@@ -46,7 +56,10 @@ function status(overrides: Partial<StatusResponse> = {}): StatusResponse {
 describe("EnrollmentStatusView", () => {
   beforeEach(() => {
     mockFetchStatus.mockReset();
+    mockListEnrollmentChangeRequests.mockReset();
+    mockListEnrollmentChangeRequests.mockResolvedValue([]);
     mockPatchStatus.mockReset();
+    mockReplyEnrollmentChangeRequest.mockReset();
     mockWithdrawStatus.mockReset();
     mockConfirmRenewal.mockReset();
     Object.defineProperty(window, "confirm", {

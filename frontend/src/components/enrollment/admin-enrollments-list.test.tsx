@@ -4,6 +4,7 @@ import "@testing-library/jest-dom/vitest";
 
 const mocks = vi.hoisted(() => ({
   fetchSettingsSchema: vi.fn(),
+  listAdminEnrollmentChangeRequests: vi.fn(),
   listAdminRequests: vi.fn(),
   listCareOfferings: vi.fn(),
   listPhases: vi.fn(),
@@ -11,6 +12,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("~/lib/enrollment-admin-api", () => ({
+  listAdminEnrollmentChangeRequests: mocks.listAdminEnrollmentChangeRequests,
   listAdminRequests: mocks.listAdminRequests,
 }));
 
@@ -87,12 +89,14 @@ function settingsSchema(enrollmentEnabled: boolean) {
 
 beforeEach(() => {
   mocks.fetchSettingsSchema.mockReset();
+  mocks.listAdminEnrollmentChangeRequests.mockReset();
   mocks.listAdminRequests.mockReset();
   mocks.listCareOfferings.mockReset();
   mocks.listPhases.mockReset();
   mocks.listSchemas.mockReset();
 
   mocks.fetchSettingsSchema.mockResolvedValue(settingsSchema(false));
+  mocks.listAdminEnrollmentChangeRequests.mockResolvedValue([]);
   mocks.listAdminRequests.mockResolvedValue([]);
   mocks.listCareOfferings.mockResolvedValue([]);
   mocks.listPhases.mockResolvedValue([]);
