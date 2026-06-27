@@ -1904,18 +1904,18 @@ function MeinRaumPageContent() {
                         )}
                         {(() => {
                           const absence = getStudentAbsence({
-                            sick: presentStudent.sick,
-                            classTrip: presentStudent.class_trip,
-                            excused: presentStudent.excused,
+                            sick: student.sick,
+                            classTrip: student.class_trip,
+                            excused: student.excused,
                           });
-                          if (absence && !presentStudent.actual_pickup_time) {
+                          if (absence && !student.actual_pickup_time) {
                             return <StudentAbsenceRow label={absence.label} />;
                           }
                           const dayPlanningNotComingLabel =
-                            getDayPlanningNotComingLabel(presentStudent);
+                            getDayPlanningNotComingLabel(student);
                           if (
                             dayPlanningNotComingLabel &&
-                            !presentStudent.actual_pickup_time
+                            !student.actual_pickup_time
                           ) {
                             return (
                               <StudentAbsenceRow
@@ -1927,7 +1927,7 @@ function MeinRaumPageContent() {
                             <>
                               <ArrivalTimeRow
                                 arrivalTime={studentArrival?.expectedArrival}
-                                actualTime={presentStudent.actual_arrival_time}
+                                actualTime={student.actual_arrival_time}
                                 isException={
                                   !arrivalExceptionAbsent &&
                                   (studentArrival?.isException ?? false)
@@ -1945,7 +1945,7 @@ function MeinRaumPageContent() {
                               />
                               <PickupTimeRow
                                 pickupTime={studentPickup?.pickupTime}
-                                actualTime={presentStudent.actual_pickup_time}
+                                actualTime={student.actual_pickup_time}
                                 isException={
                                   studentPickup?.isException ?? false
                                 }
