@@ -2,6 +2,7 @@ package users
 
 import (
 	"context"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
@@ -40,6 +41,23 @@ func (m *ParentMessage) BeforeAppendModel(query any) error {
 
 // GetID/GetCreatedAt/GetUpdatedAt are provided by the embedded base.Model.
 func (m *ParentMessage) TableName() string { return tableUsersParentMessages }
+
+// StampStaffReadReceipts marks every guardian-authored message at or before the
+// staff read cursor with ReadByStaff=true (the "OGS hat gelesen" indicator).
+// cutoff is the newest staff read instant in the thread (nil = staff has not
+// read anything yet, so nothing is stamped). Pure presentation logic shared by
+// the parent side (services/parent) and the staff side (services/messaging) so
+// the receipt rule cannot drift between the two views of the same thread.
+func StampStaffReadReceipts(messages []*ParentMessage, cutoff *time.Time) {
+	if cutoff == nil {
+		return
+	}
+	for _, msg := range messages {
+		if msg.SenderKind != ParentMessageSenderStaff && !msg.CreatedAt.After(*cutoff) {
+			msg.ReadByStaff = true
+		}
+	}
+}
 
 // ParentMessageRepository is the tenant-scoped data-access contract for
 // messages. All methods must run inside a tenant transaction.

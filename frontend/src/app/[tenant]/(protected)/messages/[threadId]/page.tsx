@@ -142,10 +142,13 @@ function MessageThreadContent() {
     setSendError(null);
     try {
       const updated = await postMessage(threadId, body);
-      // Show the sent message immediately, then revalidate so the read state
-      // comes back fresh.
+      // The POST returns the full, current message list, so apply it
+      // optimistically WITHOUT a follow-up refetch — staff don't render read
+      // receipts in this view, so there is no read-state to re-fetch (the parent
+      // side likewise applies its POST result directly). The SSE echo for this
+      // send still drives one debounced revalidate if anything else changed.
       await mutate((prev) => (prev ? { ...prev, messages: updated } : prev), {
-        revalidate: true,
+        revalidate: false,
       });
       setDraft("");
     } catch (err) {
@@ -232,11 +235,7 @@ function MessageThreadContent() {
             <p className="py-6 text-center text-sm text-gray-400">
               Verlauf wird geladen…
             </p>
-          ) : messages.length === 0 ? (
-            <p className="py-6 text-center text-sm text-gray-500">
-              Noch keine Nachrichten in dieser Unterhaltung.
-            </p>
-          ) : (
+          ) : messages.length > 0 ? (
             messages.map((message) => (
               <ChatBubble
                 key={message.id}
@@ -246,6 +245,19 @@ function MessageThreadContent() {
                 createdAt={message.created_at}
               />
             ))
+          ) : loadError ? (
+            // The header seed (fallbackData) keeps `thread` truthy with an empty
+            // messages array, so a failed history fetch would otherwise render the
+            // "no messages" empty state for a thread that actually has history.
+            // Surface the load failure instead of a misleading empty conversation.
+            <Alert
+              type="error"
+              message="Nachrichtenverlauf konnte nicht geladen werden."
+            />
+          ) : (
+            <p className="py-6 text-center text-sm text-gray-500">
+              Noch keine Nachrichten in dieser Unterhaltung.
+            </p>
           )}
         </div>
 

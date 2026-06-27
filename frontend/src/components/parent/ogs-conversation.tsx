@@ -144,7 +144,9 @@ export function OgsConversation({
     try {
       const view = await postChildMessage(studentId, body);
       // Claim the token AFTER the POST resolves so this authoritative result wins.
-      applyThread(++applySeqRef.current, view);
+      // A successful send means the thread is loadable, so clear any stale
+      // load error left by an earlier failed background refresh.
+      if (applyThread(++applySeqRef.current, view)) setLoadError(null);
       setDraft("");
     } catch (err) {
       logger.warn("ogs_message_send_failed", {
@@ -187,16 +189,13 @@ export function OgsConversation({
           ref={scrollRef}
           className="flex-1 space-y-3 overflow-y-auto px-5 py-4 sm:px-6"
         >
+          {/* Keep already-loaded messages on screen even if a later background
+              refresh (SSE / focus) fails transiently — only fall back to the
+              error state when there is nothing to show. Otherwise a flaky
+              refetch would wipe a visible conversation. */}
           {loading ? (
             <ThreadSkeleton />
-          ) : loadError ? (
-            <Alert
-              type="error"
-              message="Die Nachrichten konnten nicht geladen werden."
-            />
-          ) : messages.length === 0 ? (
-            <EmptyThread />
-          ) : (
+          ) : messages.length > 0 ? (
             messages.map((message) => (
               <ChatBubble
                 key={message.id}
@@ -211,6 +210,13 @@ export function OgsConversation({
                 }
               />
             ))
+          ) : loadError ? (
+            <Alert
+              type="error"
+              message="Die Nachrichten konnten nicht geladen werden."
+            />
+          ) : (
+            <EmptyThread />
           )}
         </div>
 

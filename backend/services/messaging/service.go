@@ -152,6 +152,16 @@ func (s *service) ListInbox(ctx context.Context, onlyUnread bool) ([]*usersModel
 }
 
 func (s *service) UnreadThreadCount(ctx context.Context) (int, error) {
+	// Darken the staff sidebar badge when the school has turned parent messaging
+	// off: the inbox history stays readable (ListInbox/GetThread are NOT gated),
+	// but a disabled feature must not keep lighting up a red unread count. Sends
+	// are already blocked by requireEnabled on the write paths.
+	if err := s.requireEnabled(ctx); err != nil {
+		if errors.Is(err, ErrMessagingDisabled) {
+			return 0, nil
+		}
+		return 0, err
+	}
 	accountID := accountIDFromCtx(ctx)
 	allStudents, groupIDs := s.scope(ctx)
 	count, err := s.readRepo.UnreadThreadCountForStaff(ctx, accountID, allStudents, groupIDs)
@@ -247,12 +257,8 @@ func (s *service) buildDetailFromMessages(ctx context.Context, thread *usersMode
 			slog.Int64("thread_id", thread.ID),
 			slog.String("error", err.Error()),
 		)
-	} else if cutoff != nil {
-		for _, msg := range messages {
-			if msg.SenderKind != usersModels.ParentMessageSenderStaff && !msg.CreatedAt.After(*cutoff) {
-				msg.ReadByStaff = true
-			}
-		}
+	} else {
+		usersModels.StampStaffReadReceipts(messages, cutoff)
 	}
 	detail := &ThreadDetail{
 		ThreadID:          thread.ID,
@@ -337,6 +343,29 @@ func (s *service) PostMessage(ctx context.Context, threadID int64, body string) 
 	return messages, nil
 }
 
+// authorizeThreadParticipants enforces the shared precondition for opening or
+// starting a conversation: the staffer may read the child, messaging is enabled
+// for the tenant, and the chosen recipient is an account-holding guardian of the
+// child. StartThread and OpenThread both run it so their access rules cannot
+// drift apart. Must run inside the tenant transaction.
+func (s *service) authorizeThreadParticipants(ctx context.Context, studentID, guardianAccountID int64) error {
+	if err := s.canReadStudent(ctx, studentID); err != nil {
+		return err
+	}
+	if err := s.requireEnabled(ctx); err != nil {
+		return err
+	}
+	// The recipient must be an account-holding guardian of this child.
+	guardians, err := s.threadRepo.ListGuardiansForStudent(ctx, studentID)
+	if err != nil {
+		return fmt.Errorf("messaging: list guardians: %w", err)
+	}
+	if !containsGuardian(guardians, guardianAccountID) {
+		return ErrInvalidGuardian
+	}
+	return nil
+}
+
 // StartThread sends the OGS's first message to a guardian about a child. The
 // conversation is get-or-create: if one already exists for the (student,
 // guardian) pair the message is appended to it instead of opening a second.
@@ -348,20 +377,8 @@ func (s *service) StartThread(ctx context.Context, studentID, guardianAccountID 
 	if utf8.RuneCountInString(body) > maxMessageLen {
 		return nil, ErrBodyTooLong
 	}
-	if err := s.canReadStudent(ctx, studentID); err != nil {
+	if err := s.authorizeThreadParticipants(ctx, studentID, guardianAccountID); err != nil {
 		return nil, err
-	}
-	if err := s.requireEnabled(ctx); err != nil {
-		return nil, err
-	}
-
-	// The recipient must be an account-holding guardian of this child.
-	guardians, err := s.threadRepo.ListGuardiansForStudent(ctx, studentID)
-	if err != nil {
-		return nil, fmt.Errorf("messaging: list guardians: %w", err)
-	}
-	if !containsGuardian(guardians, guardianAccountID) {
-		return nil, ErrInvalidGuardian
 	}
 
 	accountID := accountIDFromCtx(ctx)
@@ -387,18 +404,8 @@ func (s *service) StartThread(ctx context.Context, studentID, guardianAccountID 
 // created thread has no messages and is filtered out of the inbox until the
 // first reply, so opening a chat never litters the inbox.
 func (s *service) OpenThread(ctx context.Context, studentID, guardianAccountID int64) (*ThreadDetail, error) {
-	if err := s.canReadStudent(ctx, studentID); err != nil {
+	if err := s.authorizeThreadParticipants(ctx, studentID, guardianAccountID); err != nil {
 		return nil, err
-	}
-	if err := s.requireEnabled(ctx); err != nil {
-		return nil, err
-	}
-	guardians, err := s.threadRepo.ListGuardiansForStudent(ctx, studentID)
-	if err != nil {
-		return nil, fmt.Errorf("messaging: list guardians: %w", err)
-	}
-	if !containsGuardian(guardians, guardianAccountID) {
-		return nil, ErrInvalidGuardian
 	}
 
 	thread, err := s.threadRepo.GetOrCreate(ctx, tenant.FromContext(ctx), studentID, guardianAccountID)

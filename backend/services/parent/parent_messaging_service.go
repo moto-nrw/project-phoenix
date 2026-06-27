@@ -48,14 +48,7 @@ func (s *service) decorateReadReceipts(ctx context.Context, threadID, guardianAc
 		)
 		return
 	}
-	if cutoff == nil {
-		return
-	}
-	for _, msg := range messages {
-		if msg.SenderKind != usersModels.ParentMessageSenderStaff && !msg.CreatedAt.After(*cutoff) {
-			msg.ReadByStaff = true
-		}
-	}
+	usersModels.StampStaffReadReceipts(messages, cutoff)
 }
 
 // ListMessageThreads returns the guardian's conversations across all their
@@ -145,21 +138,46 @@ func (s *service) UnreadMessageCount(ctx context.Context, accountID int64) (int,
 	if accountID <= 0 {
 		return 0, fmt.Errorf("parent: account_id must be positive")
 	}
-	// ONE cross-tenant admin transaction for BOTH the child lookup and the count
-	// (this fires on every parent_message SSE event and on focus) — see
-	// ListMessageThreads for why the two steps share a single SET ROLE +
-	// BEGIN/COMMIT instead of nesting two admin transactions.
-	total := 0
-	txErr := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
+	// Resolve the guardian's children (cross-tenant) in one admin transaction.
+	var tenantIDs []int64
+	if txErr := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
 		children, err := s.childRepo.ListByAccount(adminCtx, accountID)
 		if err != nil {
 			return err
 		}
-		tenantIDs := distinctTenantIDs(children)
-		if len(tenantIDs) == 0 {
-			return nil
+		tenantIDs = distinctTenantIDs(children)
+		return nil
+	}); txErr != nil {
+		return 0, fmt.Errorf("parent: unread message count: %w", txErr)
+	}
+	if len(tenantIDs) == 0 {
+		return 0, nil
+	}
+
+	// Only count schools where parent messaging is currently enabled, so the
+	// portal badge goes dark for a school that has turned the feature off (the
+	// guardian can still open and read the archived history — only the unread
+	// signal is suppressed). The flag is per-tenant, so a guardian with one child
+	// at an enabled school and one at a disabled school sees only the former's
+	// unread. ResolveBoolForTenant wraps its own tenant tx, so it runs outside the
+	// admin tx above.
+	enabledTenantIDs := make([]int64, 0, len(tenantIDs))
+	for _, tenantID := range tenantIDs {
+		on, err := s.settings.ResolveBoolForTenant(ctx, tenantID, configModels.KeyParentNotesEnabled)
+		if err != nil {
+			return 0, fmt.Errorf("parent: resolve messaging setting: %w", err)
 		}
-		count, err := s.messageReadRepo.UnreadThreadCountForGuardianTenants(adminCtx, accountID, tenantIDs)
+		if on {
+			enabledTenantIDs = append(enabledTenantIDs, tenantID)
+		}
+	}
+	if len(enabledTenantIDs) == 0 {
+		return 0, nil
+	}
+
+	total := 0
+	txErr := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
+		count, err := s.messageReadRepo.UnreadThreadCountForGuardianTenants(adminCtx, accountID, enabledTenantIDs)
 		if err != nil {
 			return err
 		}
