@@ -281,17 +281,6 @@ func (s *service) requireLinkedGuardian(ctx context.Context, thread *usersModels
 	return nil
 }
 
-// buildThreadDetail snapshots the thread's messages and builds the chat detail.
-// Used by the send path (StartThread), which does not advance the read cursor
-// off the listed snapshot.
-func (s *service) buildThreadDetail(ctx context.Context, thread *usersModels.ParentMessageThread) (*ThreadDetail, error) {
-	messages, err := s.messageRepo.ListByThread(ctx, thread.ID, 0)
-	if err != nil {
-		return nil, fmt.Errorf("messaging: list messages: %w", err)
-	}
-	return s.buildDetailFromMessages(ctx, thread, messages)
-}
-
 // buildDetailFromMessages assembles the chat-window payload (read receipts,
 // header, request diffs) from an already-fetched message snapshot, so the read
 // paths can mark-read off the SAME snapshot they return (see markReadAndBuild).
@@ -447,7 +436,12 @@ func (s *service) StartThread(ctx context.Context, studentID, guardianAccountID 
 		slog.Int64("guardian_account_id", guardianAccountID),
 		slog.Int64("tenant_id", thread.TenantID),
 	)
-	return s.buildThreadDetail(ctx, thread)
+	// Mark the returned snapshot read, exactly as PostMessage/OpenThread do. When
+	// this hits an already-existing conversation with unread guardian messages, the
+	// detail we hand back has just shown them to the staffer; advancing the cursor
+	// here keeps the inbox/sidebar unread count from staying lit after the SSE
+	// refetch. Snapshot-bounded (never NOW()) via markReadAndBuild.
+	return s.markReadAndBuild(ctx, thread)
 }
 
 // OpenThread get-or-creates the (student, guardian) conversation and returns
