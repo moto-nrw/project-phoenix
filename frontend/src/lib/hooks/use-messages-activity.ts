@@ -56,12 +56,25 @@ export function useMessagesActivity({
     // the tab is visible again so a backgrounded thread is never marked read unseen.
     let pendingWhileHidden = false;
 
+    // Run onMatch, but re-check visibility FIRST: the tab can be backgrounded
+    // during the debounce window (event arrives while visible → timer scheduled →
+    // user switches tabs before it fires). Firing now would mark the thread read
+    // unseen, so defer to the visibilitychange flush instead — same guard the
+    // arrival handler applies, repeated here because the timer outlives it.
+    const runMatch = () => {
+      if (typeof document !== "undefined" && document.hidden) {
+        pendingWhileHidden = true;
+        return;
+      }
+      onMatchRef.current();
+    };
+
     const fire = () => {
       if (debounceMs && debounceMs > 0) {
         if (timer) clearTimeout(timer);
-        timer = setTimeout(() => onMatchRef.current(), debounceMs);
+        timer = setTimeout(runMatch, debounceMs);
       } else {
-        onMatchRef.current();
+        runMatch();
       }
     };
 

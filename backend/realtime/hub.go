@@ -27,11 +27,15 @@ func tenantGroupKey(tenantID int64, groupID string) string {
 }
 
 // removeClient returns clients with the first occurrence of target removed,
-// preserving the others. Order is not significant for broadcast fan-out.
+// preserving the order of the others. The freed tail slot is niled out so the
+// removed *Client (and its 32-buffered event channel) can be GC'd immediately
+// instead of being retained in the backing array until the slot is overwritten.
 func removeClient(clients []*Client, target *Client) []*Client {
 	for i, c := range clients {
 		if c == target {
-			return append(clients[:i], clients[i+1:]...)
+			copy(clients[i:], clients[i+1:])
+			clients[len(clients)-1] = nil
+			return clients[:len(clients)-1]
 		}
 	}
 	return clients

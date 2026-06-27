@@ -267,21 +267,11 @@ func (s *service) GetChildConversation(ctx context.Context, accountID, studentID
 		// so the write side (PostChildMessage) renders identical markers.
 		s.decorateReadReceipts(txCtx, thread.ID, accountID, messages)
 		view.Messages = messages
-		// Mark read only up to the newest message actually returned, not NOW(): a
-		// staff message that commits between the ListByThread snapshot above and
-		// this mark is absent from `messages` yet would fall under a NOW() cursor,
-		// dropping it from the guardian's unread count even though it was never
-		// shown (and the refetch that would heal it is what advanced the cursor).
-		// Messages are ordered ASC, so the last element is the newest.
-		if len(messages) > 0 {
-			newest := messages[len(messages)-1]
-			return s.messageReadRepo.MarkReadUpTo(txCtx, thread.TenantID, thread.ID, accountID, newest.CreatedAt, newest.ID)
-		}
-		// Empty conversation: do NOT create/advance the read cursor. A NOW() cursor
-		// here would move past a staff message that commits between the empty
-		// snapshot and this mark, so the parent's unread badge would never light up
-		// for that first unseen message.
-		return nil
+		// Mark read only up to the newest message actually returned, never NOW().
+		// The mark-to-newest invariant (and the empty-conversation skip) lives in
+		// parentmessaging.MarkReadToNewest, shared with the staff side so the two
+		// portals' unread counts can't drift.
+		return parentmessaging.MarkReadToNewest(txCtx, s.messageReadRepo, thread.TenantID, thread.ID, accountID, messages)
 	})
 	if txErr != nil {
 		return nil, fmt.Errorf("parent: get child conversation: %w", txErr)

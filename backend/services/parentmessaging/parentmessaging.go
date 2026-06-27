@@ -50,6 +50,33 @@ func AppendMessage(
 	return readRepo.MarkReadUpTo(ctx, msg.GetTenantID(), msg.ThreadID, msg.SenderAccountID, at, msg.ID)
 }
 
+// MarkReadToNewest advances the reader's read cursor to the newest message in
+// the supplied snapshot — and ONLY to that message, never to NOW(). Both portals
+// call this off the SAME slice they return to the client, so the cursor can never
+// jump past a counterpart message that committed between the caller's ListByThread
+// snapshot and this mark: such a message is absent from `messages`, so it would
+// fall under a NOW() cursor and be silently dropped from the reader's unread badge
+// though they never saw it (and the refetch that would heal it is what advanced
+// the cursor). An empty snapshot leaves the cursor untouched for the same reason —
+// a get-or-created empty thread must not move its cursor past a not-yet-listed
+// first message. Messages are ordered oldest-first, so the last element is newest.
+// MarkReadUpTo itself is monotonic, so a stale snapshot never rolls the cursor
+// back. This rule used to be hand-mirrored in services/messaging (staff) and
+// services/parent (guardian); keeping it here is what stops the two portals'
+// unread counts from drifting if it is ever hardened.
+func MarkReadToNewest(
+	ctx context.Context,
+	readRepo usersModels.ParentMessageReadRepository,
+	tenantID, threadID, accountID int64,
+	messages []*usersModels.ParentMessage,
+) error {
+	if len(messages) == 0 {
+		return nil
+	}
+	newest := messages[len(messages)-1]
+	return readRepo.MarkReadUpTo(ctx, tenantID, threadID, accountID, newest.CreatedAt, newest.ID)
+}
+
 // DecorateReadReceipts stamps the "OGS hat gelesen" indicator (ReadByStaff) on
 // every guardian-authored message the staff side has already read, using the
 // newest read cursor in the thread held by an account OTHER than the querying

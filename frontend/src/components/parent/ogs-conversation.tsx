@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
+import { Skeleton } from "~/components/ui/skeleton";
 import { MessageComposer } from "~/components/messaging/message-composer";
 import { ChatBubble } from "~/components/messaging/chat-bubble";
 import { useChatViewportLock } from "~/lib/hooks/use-chat-viewport-lock";
@@ -277,9 +278,9 @@ function EmptyThread() {
 function ThreadSkeleton() {
   return (
     <div className="space-y-3">
-      <div className="h-12 w-2/3 animate-pulse rounded-2xl bg-gray-100" />
-      <div className="ml-auto h-12 w-1/2 animate-pulse rounded-2xl bg-gray-100" />
-      <div className="h-12 w-3/5 animate-pulse rounded-2xl bg-gray-100" />
+      <Skeleton className="h-12 w-2/3 rounded-2xl bg-gray-100" />
+      <Skeleton className="ml-auto h-12 w-1/2 rounded-2xl bg-gray-100" />
+      <Skeleton className="h-12 w-3/5 rounded-2xl bg-gray-100" />
     </div>
   );
 }

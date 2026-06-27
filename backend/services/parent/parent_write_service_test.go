@@ -225,6 +225,48 @@ func TestChildMessaging_FeatureDisabled(t *testing.T) {
 	require.ErrorIs(t, err, parentService.ErrNotesDisabled, "posting must be refused when messaging is disabled")
 }
 
+// TestPostChildMessage_NotOwned re-establishes the cross-family ownership guard
+// the deleted one-way notes suite carried (TestAddParentNote_NotOwned): a guardian
+// MUST NOT be able to inject a message onto a child they do not guardian. This is
+// the single most security-critical invariant of the messaging feature (account A
+// writing into account B's family thread); enforcement lives in resolveOwnedChild,
+// so this pins it directly against a future refactor of that resolve path.
+func TestPostChildMessage_NotOwned(t *testing.T) {
+	svc, _, db, _ := buildMessagingWriteService(t, true, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	other := testpkg.CreateTestStudent(t, db, "Mara", "Fremd", "2b")
+	defer func() {
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.students WHERE id = ?`, other.ID)
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.persons WHERE id = ?`, other.PersonID)
+	}()
+
+	_, err := svc.PostChildMessage(context.Background(), chain.AccountID, other.ID, "Hallo OGS")
+	require.ErrorIs(t, err, parentService.ErrChildNotLinked,
+		"a guardian must not post a message on a child they do not guardian")
+}
+
+// TestGetChildConversation_NotOwned is the read-side counterpart: a guardian MUST
+// NOT be able to read another family's conversation. GetChildConversation also
+// marks the thread read, so an ownership bypass here would both leak a message and
+// silently advance the wrong reader's cursor.
+func TestGetChildConversation_NotOwned(t *testing.T) {
+	svc, _, db, _ := buildMessagingWriteService(t, true, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	other := testpkg.CreateTestStudent(t, db, "Mara", "Fremd", "2b")
+	defer func() {
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.students WHERE id = ?`, other.ID)
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.persons WHERE id = ?`, other.PersonID)
+	}()
+
+	_, err := svc.GetChildConversation(context.Background(), chain.AccountID, other.ID)
+	require.ErrorIs(t, err, parentService.ErrChildNotLinked,
+		"a guardian must not read a conversation for a child they do not guardian")
+}
+
 func TestSubmitSickNote_FutureDateDoesNotFlipLiveFlag(t *testing.T) {
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)

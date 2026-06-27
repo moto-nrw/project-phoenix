@@ -335,27 +335,18 @@ func (s *service) buildDetailFromMessages(ctx context.Context, thread *usersMode
 
 // markReadAndBuild lists the thread's messages, advances the staff reader's read
 // cursor only up to the newest message actually fetched (never NOW()), and
-// returns the chat detail built from that same snapshot. Marking to NOW() would
-// advance the cursor past a guardian message that committed between the snapshot
-// and the mark, silently dropping it from the staff unread badge though staff
-// never saw it — the same hazard the parent side guards against (see parent
-// GetChildConversation). Messages are oldest-first, so the last is the newest.
+// returns the chat detail built from that same snapshot. The mark-to-newest rule
+// (and why NOW() would silently drop a just-committed guardian message from the
+// staff badge) lives in parentmessaging.MarkReadToNewest, shared with the parent
+// side so the two portals can't drift.
 func (s *service) markReadAndBuild(ctx context.Context, thread *usersModels.ParentMessageThread) (*ThreadDetail, error) {
 	messages, err := s.messageRepo.ListByThread(ctx, thread.ID, 0)
 	if err != nil {
 		return nil, fmt.Errorf("messaging: list messages: %w", err)
 	}
-	accountID := accountIDFromCtx(ctx)
-	if len(messages) > 0 {
-		newest := messages[len(messages)-1]
-		if err := s.readRepo.MarkReadUpTo(ctx, thread.TenantID, thread.ID, accountID, newest.CreatedAt, newest.ID); err != nil {
-			return nil, fmt.Errorf("messaging: mark read: %w", err)
-		}
+	if err := parentmessaging.MarkReadToNewest(ctx, s.readRepo, thread.TenantID, thread.ID, accountIDFromCtx(ctx), messages); err != nil {
+		return nil, fmt.Errorf("messaging: mark read: %w", err)
 	}
-	// Empty snapshot: leave the cursor untouched. Marking read to NOW() on an empty
-	// get-or-created thread would advance the cursor past a guardian message that
-	// commits between this empty ListByThread snapshot and the mark, dropping it
-	// from the staff unread badge though staff never saw it.
 	return s.buildDetailFromMessages(ctx, thread, messages), nil
 }
 

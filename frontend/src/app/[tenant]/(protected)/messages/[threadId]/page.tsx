@@ -120,13 +120,17 @@ function MessageThreadContent() {
   });
 
   // Loading the thread marks it read server-side, so nudge the sidebar unread
-  // badge to refetch. Guarding on !isLoading skips the instant inbox seed
-  // (which doesn't touch the read cursor) and fires only after the real GET.
+  // badge to refetch. Gate on !isValidating (NOT !isLoading): the inbox seed is
+  // passed as fallbackData, so `data` is defined on first render and isLoading is
+  // already false while the real GET is still in flight — firing then would refetch
+  // the badge against the STILL-stale (lit) count before the read cursor advanced.
+  // isValidating stays true until the GET resolves, so this fires only once the
+  // real read has happened (mirrors the messagesLoading gate above).
   useEffect(() => {
-    if (thread && !isLoading && typeof window !== "undefined") {
+    if (thread && !isValidating && typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("messages-unread-refresh"));
     }
-  }, [thread, isLoading]);
+  }, [thread, isValidating]);
 
   // Keep the newest message in view when the list changes.
   useEffect(() => {
