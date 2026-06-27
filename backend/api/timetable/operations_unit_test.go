@@ -14,10 +14,12 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
@@ -121,7 +123,7 @@ func TestOperationsCreateAndStartSpontaneous(t *testing.T) {
 	res := NewResource(Dependencies{
 		InstanceService:   instanceSvc,
 		OperationsService: service,
-		TimetableData:     scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
+		TimetableData:     operationTimetableData(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		PersonService: &instMockPersonService{
 			findByAccountIDFn: func(_ context.Context, accountID int64) (*userModels.Person, error) {
 				assert.Equal(t, int64(120), accountID)
@@ -185,7 +187,7 @@ func TestOperationsCreateAndStartSpontaneousReusesActivityByName(t *testing.T) {
 	res := NewResource(Dependencies{
 		InstanceService:   instanceSvc,
 		OperationsService: service,
-		TimetableData:     scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}, ActivityGroupRepo: groupRepo, ActivityCategoryRepo: &fakeOperationActivityCategoryRepo{}}),
+		TimetableData:     operationTimetableData(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}, ActivityGroupRepo: groupRepo, ActivityCategoryRepo: &fakeOperationActivityCategoryRepo{}}),
 		PersonService: &instMockPersonService{
 			findByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
 				person := &userModels.Person{}
@@ -234,7 +236,7 @@ func TestOperationsCreateAndStartSpontaneousCreatesActivityForNewName(t *testing
 	res := NewResource(Dependencies{
 		InstanceService:   instanceSvc,
 		OperationsService: service,
-		TimetableData:     scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}, ActivityGroupRepo: groupRepo, ActivityCategoryRepo: categoryRepo}),
+		TimetableData:     operationTimetableData(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}, ActivityGroupRepo: groupRepo, ActivityCategoryRepo: categoryRepo}),
 		PersonService: &instMockPersonService{
 			findByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
 				person := &userModels.Person{}
@@ -287,7 +289,7 @@ func TestServerSpontaneousActivityWindowCapsLateWindowSameDay(t *testing.T) {
 
 func TestOperationsCreateAndStartSpontaneousRejectsStudents(t *testing.T) {
 	res := NewResource(Dependencies{
-		TimetableData:     scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
+		TimetableData:     operationTimetableData(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		InstanceService:   &mockInstanceService{},
 		OperationsService: &fakeOperationsService{},
 		SettingsService: &fakeOperationSettingsService{
@@ -309,12 +311,39 @@ func TestOperationsCreateAndStartSpontaneousRejectsStudents(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
+func TestOperationsCreateAndStartSpontaneousRejectsSchulhofRoom(t *testing.T) {
+	instanceSvc := &mockInstanceService{}
+	res := NewResource(Dependencies{
+		TimetableData: operationTimetableData(scheduleSvc.TimetableDataDependencies{
+			ActiveGroupRepo: &fakeOperationActiveGroupRepo{},
+			RoomRepo: &fakeOperationRoomRepo{
+				room: &facilitiesModels.Room{Name: constants.SchulhofRoomName},
+			},
+		}),
+		InstanceService:   instanceSvc,
+		OperationsService: &fakeOperationsService{},
+		SettingsService: &fakeOperationSettingsService{
+			hasOverride: true,
+			boolValue:   true,
+		},
+	})
+	router := operationRouter(http.MethodPost, "/spontaneous/start", res.operationsCreateAndStartSpontaneous)
+
+	rr := executeOperationRequest(router, http.MethodPost, "/spontaneous/start", map[string]any{
+		"title":   "Pausenhof",
+		"room_id": int64(7),
+	})
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	assert.Nil(t, instanceSvc.lastCreate, "Schulhof must be rejected before creating a spontaneous instance")
+}
+
 func TestOperationsCreateAndStartSpontaneousRejectsOccupiedRoom(t *testing.T) {
 	instanceSvc := &mockInstanceService{}
 	res := NewResource(Dependencies{
 		InstanceService:   instanceSvc,
 		OperationsService: &fakeOperationsService{},
-		TimetableData:     scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{hasRoomConflict: true}}),
+		TimetableData:     operationTimetableData(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{hasRoomConflict: true}}),
 		SettingsService: &fakeOperationSettingsService{
 			hasOverride: true,
 			boolValue:   true,
@@ -337,7 +366,7 @@ func TestOperationsCreateAndStartSpontaneousRejectsOccupiedRoom(t *testing.T) {
 func TestOperationsCreateAndStartSpontaneousRequiresSetting(t *testing.T) {
 	instanceSvc := &mockInstanceService{}
 	res := NewResource(Dependencies{
-		TimetableData:     scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
+		TimetableData:     operationTimetableData(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		InstanceService:   instanceSvc,
 		OperationsService: &fakeOperationsService{},
 		SettingsService: &fakeOperationSettingsService{
@@ -362,7 +391,7 @@ func TestOperationsCreateAndStartSpontaneousRequiresSetting(t *testing.T) {
 func TestOperationsCreateAndStartSpontaneousRejectsFixedScheduleCareConcept(t *testing.T) {
 	instanceSvc := &mockInstanceService{}
 	res := NewResource(Dependencies{
-		TimetableData:     scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
+		TimetableData:     operationTimetableData(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		InstanceService:   instanceSvc,
 		OperationsService: &fakeOperationsService{},
 		SettingsService: &fakeOperationSettingsService{
@@ -387,7 +416,7 @@ func TestOperationsCreateAndStartSpontaneousRejectsFixedScheduleCareConcept(t *t
 
 func TestOperationsCapabilities(t *testing.T) {
 	res := NewResource(Dependencies{
-		TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
+		TimetableData: operationTimetableData(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		SettingsService: &fakeOperationSettingsService{
 			hasOverride: true,
 			boolValue:   true,
@@ -403,7 +432,7 @@ func TestOperationsCapabilities(t *testing.T) {
 
 func TestOperationsCapabilitiesDefaultsToEnabled(t *testing.T) {
 	res := NewResource(Dependencies{
-		TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
+		TimetableData: operationTimetableData(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		SettingsService: &fakeOperationSettingsService{
 			hasOverride: false,
 			boolValue:   false,
@@ -419,7 +448,7 @@ func TestOperationsCapabilitiesDefaultsToEnabled(t *testing.T) {
 
 func TestOperationsCapabilitiesDisabledForFixedScheduleCareConcept(t *testing.T) {
 	res := NewResource(Dependencies{
-		TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
+		TimetableData: operationTimetableData(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		SettingsService: &fakeOperationSettingsService{
 			hasOverride: true,
 			boolValue:   true,
@@ -605,6 +634,32 @@ type fakeOperationActiveGroupRepo struct {
 	activeModels.GroupRepository
 	hasRoomConflict bool
 	err             error
+}
+
+type fakeOperationRoomRepo struct {
+	facilitiesModels.RoomRepository
+	room *facilitiesModels.Room
+	err  error
+}
+
+func operationTimetableData(deps scheduleSvc.TimetableDataDependencies) scheduleSvc.TimetableDataService {
+	if deps.ActiveGroupRepo == nil {
+		deps.ActiveGroupRepo = &fakeOperationActiveGroupRepo{}
+	}
+	if deps.RoomRepo == nil {
+		deps.RoomRepo = &fakeOperationRoomRepo{room: &facilitiesModels.Room{Name: "Lernraum"}}
+	}
+	return scheduleSvc.NewTimetableDataService(deps)
+}
+
+func (r *fakeOperationRoomRepo) FindByID(_ context.Context, _ interface{}) (*facilitiesModels.Room, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	if r.room == nil {
+		return nil, sql.ErrNoRows
+	}
+	return r.room, nil
 }
 
 type fakeOperationActivityGroupRepo struct {

@@ -86,6 +86,8 @@ func (m *trackingMockSettingsService) ClearLoginImageURL(ctx context.Context, te
 type trackingMockActiveService struct {
 	getTrackingIndicatorsFunc              func(ctx context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error)
 	assignTransitStudentsToActiveGroupFunc func(ctx context.Context, studentIDs []int64, activeGroupID int64) (*activeSvc.TransitAssignResult, error)
+	moveStudentsToActiveGroupFunc          func(ctx context.Context, studentIDs []int64, activeGroupID int64) (*activeSvc.StudentMoveResult, error)
+	moveStudentsToTransitFunc              func(ctx context.Context, studentIDs []int64) (*activeSvc.StudentMoveResult, error)
 }
 
 // The only method used by the tracking handler:
@@ -196,9 +198,24 @@ func (m *trackingMockActiveService) ListStudentsPresentInRoom(ctx context.Contex
 func (m *trackingMockActiveService) ListStudentsInTransit(ctx context.Context) ([]int64, error) {
 	return nil, nil
 }
+func (m *trackingMockActiveService) ListStudentsPresentToday(ctx context.Context) ([]int64, error) {
+	return nil, nil
+}
 func (m *trackingMockActiveService) AssignTransitStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64) (*activeSvc.TransitAssignResult, error) {
 	if m.assignTransitStudentsToActiveGroupFunc != nil {
 		return m.assignTransitStudentsToActiveGroupFunc(ctx, studentIDs, activeGroupID)
+	}
+	return nil, nil
+}
+func (m *trackingMockActiveService) MoveStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64) (*activeSvc.StudentMoveResult, error) {
+	if m.moveStudentsToActiveGroupFunc != nil {
+		return m.moveStudentsToActiveGroupFunc(ctx, studentIDs, activeGroupID)
+	}
+	return nil, nil
+}
+func (m *trackingMockActiveService) MoveStudentsToTransit(ctx context.Context, studentIDs []int64) (*activeSvc.StudentMoveResult, error) {
+	if m.moveStudentsToTransitFunc != nil {
+		return m.moveStudentsToTransitFunc(ctx, studentIDs)
 	}
 	return nil, nil
 }

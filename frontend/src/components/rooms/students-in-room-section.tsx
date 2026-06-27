@@ -194,43 +194,49 @@ export function StudentsInRoomSection({
     }
 
     setBulkMoveState({ type: "loading" });
-    const results = await Promise.allSettled(
-      studentIds.map(async (studentId) => {
-        const visit = await activeService.getStudentCurrentVisit(studentId);
-        if (!visit) {
-          throw new Error(`Kind ${studentId} hat keinen aktiven Besuch.`);
-        }
-        if (visit.activeGroupId === target.activeGroupId) {
-          return;
-        }
-        await activeService.updateVisit(visit.id, {
-          ...visit,
-          activeGroupId: target.activeGroupId,
+    try {
+      const result = await activeService.moveStudentsToActiveGroup(
+        studentIds,
+        target.activeGroupId,
+      );
+      const skipped = result.skipped.length;
+      if (skipped > 0) {
+        logger.warn("room_bulk_move_partial_failure", {
+          selected_count: studentIds.length,
+          skipped_count: skipped,
+          target_active_group_id: target.activeGroupId,
+          skipped_reasons: result.skipped.map((item) => item.reason),
         });
-      }),
-    );
-    const failures = results.filter((result) => result.status === "rejected");
-    if (failures.length > 0) {
+        setBulkMoveState({
+          type: "error",
+          message: `${skipped} von ${studentIds.length} Kindern konnten nicht bewegt werden.`,
+        });
+        await refreshRoomConsumers();
+        return;
+      }
+
+      setSelectedStudentIds(new Set());
+      setTargetActiveGroupId("");
+      setBulkMoveState({ type: "idle" });
+      const successCount = result.moved.length + result.unchanged.length;
+      toastSuccess(
+        `${successCount} ${
+          successCount === 1 ? "Kind" : "Kinder"
+        } nach ${target.roomName} bewegt.`,
+      );
+      await refreshRoomConsumers();
+    } catch (err) {
       logger.warn("room_bulk_move_partial_failure", {
         selected_count: studentIds.length,
-        failed_count: failures.length,
         target_active_group_id: target.activeGroupId,
+        error: err instanceof Error ? err.message : String(err),
       });
       setBulkMoveState({
         type: "error",
-        message: `${failures.length} von ${studentIds.length} Kindern konnten nicht bewegt werden.`,
+        message: "Die ausgewählten Kinder konnten nicht bewegt werden.",
       });
       await refreshRoomConsumers();
-      return;
     }
-
-    setSelectedStudentIds(new Set());
-    setTargetActiveGroupId("");
-    setBulkMoveState({ type: "idle" });
-    toastSuccess(
-      `${studentIds.length} ${studentIds.length === 1 ? "Kind" : "Kinder"} nach ${target.roomName} bewegt.`,
-    );
-    await refreshRoomConsumers();
   };
 
   return (

@@ -43,7 +43,10 @@ type Service interface {
 	CountActiveVisitsByActiveGroupID(ctx context.Context, activeGroupID int64) (int, error)
 	ListStudentsPresentInRoom(ctx context.Context, roomID int64) ([]int64, error)
 	ListStudentsInTransit(ctx context.Context) ([]int64, error)
+	ListStudentsPresentToday(ctx context.Context) ([]int64, error)
 	AssignTransitStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64) (*TransitAssignResult, error)
+	MoveStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64) (*StudentMoveResult, error)
+	MoveStudentsToTransit(ctx context.Context, studentIDs []int64) (*StudentMoveResult, error)
 
 	// Group Supervisor operations
 	GetGroupSupervisor(ctx context.Context, id int64) (*active.GroupSupervisor, error)
@@ -177,6 +180,23 @@ type TransitAssignResult struct {
 	Skipped       []TransitAssignSkipped `json:"skipped"`
 	ActiveGroupID int64                  `json:"active_group_id"`
 	RoomID        int64                  `json:"room_id"`
+}
+
+// StudentMoveSkipped describes a student that could not be moved during a
+// historical room/Schulhof move operation.
+type StudentMoveSkipped struct {
+	StudentID int64  `json:"student_id"`
+	Reason    string `json:"reason"`
+}
+
+// StudentMoveResult is returned by real move operations that preserve the
+// room-visit timeline instead of mutating an existing visit's active_group_id.
+type StudentMoveResult struct {
+	Moved         []int64              `json:"moved"`
+	Unchanged     []int64              `json:"unchanged"`
+	Skipped       []StudentMoveSkipped `json:"skipped"`
+	ActiveGroupID *int64               `json:"active_group_id,omitempty"`
+	RoomID        *int64               `json:"room_id,omitempty"`
 }
 
 // DashboardAnalytics represents aggregated analytics for dashboard

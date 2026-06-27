@@ -58,6 +58,19 @@ interface TransitAssignResult {
   room_id: number;
 }
 
+interface StudentMoveSkipped {
+  student_id: number;
+  reason: string;
+}
+
+export interface StudentMoveResult {
+  moved: number[];
+  unchanged: number[];
+  skipped: StudentMoveSkipped[];
+  active_group_id?: number | null;
+  room_id?: number | null;
+}
+
 interface BackendResponseEnvelope<T> {
   data: T;
   message?: string;
@@ -1044,6 +1057,36 @@ export const activeService = {
       {
         student_ids: studentIds.map((id) => Number.parseInt(id, 10)),
         active_group_id: Number.parseInt(activeGroupId, 10),
+      },
+    );
+  },
+
+  moveStudentsToActiveGroup: async (
+    studentIds: string[],
+    activeGroupId: string,
+  ): Promise<StudentMoveResult> => {
+    return coreFetch<StudentMoveResult>(
+      "POST",
+      "/api/active/visits/move-to-group",
+      "/active/visits/move-to-group",
+      "Move students to active group",
+      {
+        student_ids: studentIds.map((id) => Number.parseInt(id, 10)),
+        target_active_group_id: Number.parseInt(activeGroupId, 10),
+      },
+    );
+  },
+
+  moveStudentsToTransit: async (
+    studentIds: string[],
+  ): Promise<StudentMoveResult> => {
+    return coreFetch<StudentMoveResult>(
+      "POST",
+      "/api/active/visits/move-to-transit",
+      "/active/visits/move-to-transit",
+      "Move students to transit",
+      {
+        student_ids: studentIds.map((id) => Number.parseInt(id, 10)),
       },
     );
   },

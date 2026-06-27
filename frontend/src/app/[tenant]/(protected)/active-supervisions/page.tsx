@@ -8,7 +8,7 @@ import {
   useCallback,
   useRef,
 } from "react";
-import { CheckCircle2, UserPlus } from "lucide-react";
+import { CheckCircle2, LogOut, UserPlus } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { redirect } from "next/navigation";
@@ -18,6 +18,7 @@ import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
 import { Loading } from "~/components/ui/loading";
@@ -75,6 +76,7 @@ import {
   SpontaneousActivityStart,
   type SpontaneousActivityStartPayload,
 } from "~/components/active-supervisions/spontaneous-activity-start";
+import { StudentMovePanel } from "~/components/active-supervisions/student-move-panel";
 import {
   SCHULHOF_ROOM_NAME,
   SCHULHOF_TAB_ID,
@@ -278,6 +280,9 @@ function MeinRaumPageContent() {
   const [addStudentSearch, setAddStudentSearch] = useState("");
   const [addStudentResults, setAddStudentResults] = useState<Student[]>([]);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
+  const [studentsMovingToTransit, setStudentsMovingToTransit] = useState<
+    Set<string>
+  >(() => new Set());
 
   // OGS group rooms for color detection
   const [myGroupRooms, setMyGroupRooms] = useState<string[]>([]);
@@ -1214,6 +1219,86 @@ function MeinRaumPageContent() {
     [activeTimetableInstanceId, mutateRoster],
   );
 
+  const refreshCurrentSupervisionView = useCallback(async () => {
+    const room = currentRoomRef.current;
+    await mutateDashboard();
+    if (mutateRoster) {
+      await mutateRoster();
+    }
+    setRefreshKey((prev) => prev + 1);
+    if (!room) return;
+
+    const studentsFromVisits = await loadRoomVisits(
+      room.id,
+      room.room_name,
+      groupNameToIdMapRef.current,
+      room.room_color,
+    );
+    setStudents(studentsFromVisits);
+    updateRoomStudentCount(room.id, studentsFromVisits.length);
+  }, [loadRoomVisits, mutateDashboard, mutateRoster, updateRoomStudentCount]);
+
+  const handleMoveStudentsToCurrentGroup = useCallback(
+    async (studentIds: string[]) => {
+      const room = currentRoomRef.current;
+      if (!room) {
+        throw new Error("no active supervision target selected");
+      }
+      const result = await activeService.moveStudentsToActiveGroup(
+        studentIds,
+        room.id,
+      );
+      await refreshCurrentSupervisionView();
+      return result;
+    },
+    [refreshCurrentSupervisionView],
+  );
+
+  const handleMoveStudentsToTransit = useCallback(
+    async (studentIds: string[]) => {
+      const uniqueIds = [...new Set(studentIds)].filter(Boolean);
+      if (uniqueIds.length === 0) return;
+
+      setStudentsMovingToTransit((current) => {
+        const next = new Set(current);
+        uniqueIds.forEach((id) => next.add(id));
+        return next;
+      });
+
+      try {
+        const result = await activeService.moveStudentsToTransit(uniqueIds);
+        const notPresentCount = result.skipped.filter(
+          (item) => item.reason === "not_present",
+        ).length;
+        if (result.skipped.length > 0) {
+          setError(
+            notPresentCount === result.skipped.length
+              ? notPresentCount === 1
+                ? "Kind ist noch nicht anwesend."
+                : `${notPresentCount} Kinder sind noch nicht anwesend.`
+              : "Einige Kinder konnten nicht entfernt werden.",
+          );
+        } else {
+          setError(null);
+        }
+        await refreshCurrentSupervisionView();
+      } catch (err) {
+        logger.error("failed to move active supervision students to transit", {
+          student_ids: uniqueIds,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        setError("Kind konnte nicht aus dem Raum entfernt werden.");
+      } finally {
+        setStudentsMovingToTransit((current) => {
+          const next = new Set(current);
+          uniqueIds.forEach((id) => next.delete(id));
+          return next;
+        });
+      }
+    },
+    [refreshCurrentSupervisionView],
+  );
+
   // Handle releasing Schulhof supervision
   const handleReleaseSupervision = useCallback(async () => {
     if (!currentRoom || !currentStaffId) return;
@@ -1357,6 +1442,10 @@ function MeinRaumPageContent() {
   const filteredStudents = (Array.isArray(students) ? students : []).filter(
     (student) =>
       matchesStudentFilters(student, searchTerm, groupFilter, selectedYear),
+  );
+  const currentSupervisionStudentIds = useMemo(
+    () => students.map((student) => student.id.toString()),
+    [students],
   );
   const isWaitingForUrlRoomSelection =
     !!roomParam &&
@@ -1764,121 +1853,146 @@ function MeinRaumPageContent() {
               );
 
               return (
-                <StudentCard
-                  key={student.id}
-                  studentId={student.id}
-                  firstName={student.first_name}
-                  lastName={student.second_name}
-                  photoUrl={student.photo_url ?? null}
-                  gradient={GROUP_CARD_GRADIENT}
-                  onClick={() =>
-                    router.push(
-                      `/students/${student.id}?from=/active-supervisions`,
-                    )
-                  }
-                  locationBadge={
-                    <StudentPresenceBadge
-                      student={(() => {
-                        const badgePlanning = getStudentPresenceBadgePlanning({
-                          ...student,
-                          arrival_is_exception: studentArrival?.isException,
-                          arrival_time: studentArrival?.expectedArrival,
-                          arrival_notes: studentArrival?.notes,
-                        });
-                        return {
-                          ...student,
-                          not_arrival_today: badgePlanning.notArrivalToday,
-                          not_arrival_reason: badgePlanning.notArrivalReason,
-                        };
-                      })()}
-                      displayMode="contextAware"
-                      userGroups={myGroupIds}
-                      groupRooms={myGroupRooms}
-                      variant="modern"
-                      size="md"
-                    />
-                  }
-                  extraContent={
-                    <>
-                      {student.school_class && (
-                        <StudentInfoRow icon={<SchoolClassIcon />}>
-                          {student.school_class}
-                        </StudentInfoRow>
-                      )}
-                      {student.group_name && (
-                        <StudentInfoRow icon={<GroupIcon />}>
-                          Gruppe: {student.group_name}
-                        </StudentInfoRow>
-                      )}
-                      {(() => {
-                        const absence = getStudentAbsence({
-                          sick: student.sick,
-                          classTrip: student.class_trip,
-                          excused: student.excused,
-                        });
-                        if (absence && !student.actual_pickup_time) {
-                          return <StudentAbsenceRow label={absence.label} />;
-                        }
-                        const dayPlanningNotComingLabel =
-                          getDayPlanningNotComingLabel(student);
-                        if (
-                          dayPlanningNotComingLabel &&
-                          !student.actual_pickup_time
-                        ) {
-                          return (
-                            <StudentAbsenceRow
-                              label={dayPlanningNotComingLabel}
-                            />
+                <div key={student.id} className="space-y-2">
+                  <StudentCard
+                    key={student.id}
+                    studentId={student.id}
+                    firstName={student.first_name}
+                    lastName={student.second_name}
+                    photoUrl={student.photo_url ?? null}
+                    gradient={GROUP_CARD_GRADIENT}
+                    onClick={() =>
+                      router.push(
+                        `/students/${student.id}?from=/active-supervisions`,
+                      )
+                    }
+                    locationBadge={
+                      <StudentPresenceBadge
+                        student={(() => {
+                          const badgePlanning = getStudentPresenceBadgePlanning(
+                            {
+                              ...student,
+                              arrival_is_exception: studentArrival?.isException,
+                              arrival_time: studentArrival?.expectedArrival,
+                              arrival_notes: studentArrival?.notes,
+                            },
                           );
-                        }
-                        return (
-                          <>
-                            <ArrivalTimeRow
-                              arrivalTime={studentArrival?.expectedArrival}
-                              actualTime={student.actual_arrival_time}
-                              isException={studentArrival?.isException ?? false}
-                              isAbsent={
-                                (studentArrival?.isException ?? false) &&
-                                !studentArrival?.expectedArrival
-                              }
-                              notes={
-                                studentArrival
-                                  ? combineTimeNotes(
-                                      studentArrival.notes,
-                                      studentArrival.dayNotes,
-                                    )
-                                  : undefined
-                              }
-                              now={now}
-                            />
-                            <PickupTimeRow
-                              pickupTime={studentPickup?.pickupTime}
-                              actualTime={student.actual_pickup_time}
-                              isException={studentPickup?.isException ?? false}
-                              notes={
-                                studentPickup
-                                  ? combineTimeNotes(
-                                      studentPickup.notes,
-                                      studentPickup.dayNotes,
-                                    )
-                                  : undefined
-                              }
-                              now={now}
-                            />
-                          </>
-                        );
-                      })()}
-                    </>
-                  }
-                  trackingIndicators={
-                    trackingData?.labels.length ? (
-                      <TrackingIndicators
-                        labels={trackingData.labels}
-                        results={trackingData.results[student.id] ?? []}
+                          return {
+                            ...student,
+                            not_arrival_today: badgePlanning.notArrivalToday,
+                            not_arrival_reason: badgePlanning.notArrivalReason,
+                          };
+                        })()}
+                        displayMode="contextAware"
+                        userGroups={myGroupIds}
+                        groupRooms={myGroupRooms}
+                        variant="modern"
+                        size="md"
                       />
-                    ) : undefined
-                  }
-                />
+                    }
+                    extraContent={
+                      <>
+                        {student.school_class && (
+                          <StudentInfoRow icon={<SchoolClassIcon />}>
+                            {student.school_class}
+                          </StudentInfoRow>
+                        )}
+                        {student.group_name && (
+                          <StudentInfoRow icon={<GroupIcon />}>
+                            Gruppe: {student.group_name}
+                          </StudentInfoRow>
+                        )}
+                        {(() => {
+                          const absence = getStudentAbsence({
+                            sick: student.sick,
+                            classTrip: student.class_trip,
+                            excused: student.excused,
+                          });
+                          if (absence && !student.actual_pickup_time) {
+                            return <StudentAbsenceRow label={absence.label} />;
+                          }
+                          const dayPlanningNotComingLabel =
+                            getDayPlanningNotComingLabel(student);
+                          if (
+                            dayPlanningNotComingLabel &&
+                            !student.actual_pickup_time
+                          ) {
+                            return (
+                              <StudentAbsenceRow
+                                label={dayPlanningNotComingLabel}
+                              />
+                            );
+                          }
+                          return (
+                            <>
+                              <ArrivalTimeRow
+                                arrivalTime={studentArrival?.expectedArrival}
+                                actualTime={student.actual_arrival_time}
+                                isException={
+                                  studentArrival?.isException ?? false
+                                }
+                                isAbsent={
+                                  (studentArrival?.isException ?? false) &&
+                                  !studentArrival?.expectedArrival
+                                }
+                                notes={
+                                  studentArrival
+                                    ? combineTimeNotes(
+                                        studentArrival.notes,
+                                        studentArrival.dayNotes,
+                                      )
+                                    : undefined
+                                }
+                                now={now}
+                              />
+                              <PickupTimeRow
+                                pickupTime={studentPickup?.pickupTime}
+                                actualTime={student.actual_pickup_time}
+                                isException={
+                                  studentPickup?.isException ?? false
+                                }
+                                notes={
+                                  studentPickup
+                                    ? combineTimeNotes(
+                                        studentPickup.notes,
+                                        studentPickup.dayNotes,
+                                      )
+                                    : undefined
+                                }
+                                now={now}
+                              />
+                            </>
+                          );
+                        })()}
+                      </>
+                    }
+                    trackingIndicators={
+                      trackingData?.labels.length ? (
+                        <TrackingIndicators
+                          labels={trackingData.labels}
+                          results={trackingData.results[student.id] ?? []}
+                        />
+                      ) : undefined
+                    }
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="compact"
+                    disabled={studentsMovingToTransit.has(
+                      student.id.toString(),
+                    )}
+                    onClick={() =>
+                      void handleMoveStudentsToTransit([student.id.toString()])
+                    }
+                    className="w-full gap-2 rounded-lg py-2 shadow-none"
+                  >
+                    <LogOut className="h-4 w-4" aria-hidden="true" />
+                    {isSchulhofActive
+                      ? "Aus Schulhof entfernen"
+                      : "Aus Raum entfernen"}
+                  </Button>
+                </div>
               );
             })}
           </div>
@@ -2132,6 +2246,20 @@ function MeinRaumPageContent() {
             onToggle={() => handleToggleSchulhof().catch(() => undefined)}
           />
         )}
+
+      {currentRoom &&
+      (!isSchulhofActive || schulhofStatus?.isUserSupervising) ? (
+        <StudentMovePanel
+          targetActiveGroupId={currentRoom.id}
+          targetLabel={
+            isSchulhofActive
+              ? SCHULHOF_ROOM_NAME
+              : (currentRoom.room_name ?? currentRoom.name)
+          }
+          currentStudentIds={currentSupervisionStudentIds}
+          onMove={handleMoveStudentsToCurrentGroup}
+        />
+      ) : null}
 
       {/* Student Grid - Mobile Optimized */}
       {(!isSchulhofActive || schulhofStatus?.isUserSupervising) &&

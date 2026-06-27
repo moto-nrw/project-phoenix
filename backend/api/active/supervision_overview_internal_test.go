@@ -173,7 +173,16 @@ func (s *stubActiveService) GetStudentsCurrentVisits(_ context.Context, _ []int6
 func (s *stubActiveService) ListStudentsInTransit(_ context.Context) ([]int64, error) {
 	return nil, nil
 }
+func (s *stubActiveService) ListStudentsPresentToday(_ context.Context) ([]int64, error) {
+	return nil, nil
+}
 func (s *stubActiveService) AssignTransitStudentsToActiveGroup(_ context.Context, _ []int64, _ int64) (*activeSvc.TransitAssignResult, error) {
+	return nil, nil
+}
+func (s *stubActiveService) MoveStudentsToActiveGroup(_ context.Context, _ []int64, _ int64) (*activeSvc.StudentMoveResult, error) {
+	return nil, nil
+}
+func (s *stubActiveService) MoveStudentsToTransit(_ context.Context, _ []int64) (*activeSvc.StudentMoveResult, error) {
 	return nil, nil
 }
 func (s *stubActiveService) CountActiveVisitsByRoomID(_ context.Context, _ int64) (int, error) {

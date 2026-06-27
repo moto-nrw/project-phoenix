@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activityModel "github.com/moto-nrw/project-phoenix/models/activities"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -163,6 +164,23 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 	}
 	if len(req.StudentIDs) > 0 {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("student_ids are not accepted for spontaneous operational starts")))
+		return
+	}
+	room, err := rs.timetableData.GetRoom(r.Context(), req.RoomID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("room not found")))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServerWrap("load spontaneous room failed", err))
+		return
+	}
+	if room == nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("room not found")))
+		return
+	}
+	if room.Name == constants.SchulhofRoomName {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("für den Schulhof bitte die Schulhof-Aufsicht verwenden")))
 		return
 	}
 	if err := rs.lockSpontaneousStartRoom(r.Context(), req.RoomID); err != nil {

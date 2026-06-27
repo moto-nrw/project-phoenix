@@ -175,7 +175,7 @@ function buildStudentQueryParams(filters?: {
   inHouse?: boolean;
   groupId?: string;
   roomId?: string;
-  locationState?: "transit";
+  locationState?: "present" | "transit";
   dayStatus?: "comes_today" | "not_coming_today";
   bus?: "yes" | "no";
   photoConsent?: "yes" | "no";
@@ -507,7 +507,7 @@ export const studentService = {
     inHouse?: boolean;
     groupId?: string;
     roomId?: string;
-    locationState?: "transit";
+    locationState?: "present" | "transit";
     dayStatus?: "comes_today" | "not_coming_today";
     bus?: "yes" | "no";
     photoConsent?: "yes" | "no";
