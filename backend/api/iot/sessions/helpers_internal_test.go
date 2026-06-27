@@ -29,6 +29,10 @@ func (b *captureMirrorBroadcaster) BroadcastToGroup(_ int64, _ string, _ realtim
 	return nil
 }
 
+func (b *captureMirrorBroadcaster) BroadcastParentMessage(_, _ int64, _ realtime.Event) error {
+	return nil
+}
+
 func (b *captureMirrorBroadcaster) BroadcastToTenant(tenantID int64, event realtime.Event) error {
 	b.called = true
 	b.tenantID = tenantID

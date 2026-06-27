@@ -45,6 +45,7 @@ import (
 	usersAPI "github.com/moto-nrw/project-phoenix/api/users"
 	worktimemodelsAPI "github.com/moto-nrw/project-phoenix/api/work-time-models"
 
+	messagingAPI "github.com/moto-nrw/project-phoenix/api/messaging"
 	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
 	parentAPI "github.com/moto-nrw/project-phoenix/api/parent"
 	platformAPI "github.com/moto-nrw/project-phoenix/api/platform"
@@ -92,6 +93,7 @@ type API struct {
 	TimeTracking     *timeTrackingAPI.Resource
 	Timetable        *timetableAPI.Resource
 	Emergency        *emergencyAPI.Resource
+	Messaging        *messagingAPI.Resource
 
 	// Operator Dashboard (platform domain)
 	Operator *operatorAPI.Resource
@@ -390,6 +392,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		Logger:                  logger.With("handler", "students"),
 		DB:                      db,
 	})
+	api.Messaging = messagingAPI.NewResource(api.Services.Messaging, db)
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, db)
 	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.GuardianInvitation, api.Services.Users, api.Services.Education, api.Services.UserContext, db)
 	api.Import = importAPI.NewResource(api.Services.Import, api.Services.StaffImport, api.Services.Users, db)
@@ -578,6 +581,7 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 		// Mount student resources
 		r.Mount("/students", a.Students.Router())
+		r.Mount("/messages", a.Messaging.Router())
 
 		// Mount guardian resources
 		r.Mount("/guardians", a.Guardians.Router())
@@ -671,4 +675,10 @@ func (a *API) registerRoutesWithRateLimiting() {
 		a.Parent.SetAuthRateLimiter(authRateLimiter.Middleware())
 	}
 	a.Router.Mount("/parent", a.Parent.Router())
+
+	// Parent-portal SSE stream. Mounted at root (not under /parent, which is a
+	// catch-all mount) and authenticated with ParentMiddleware. Delivers only
+	// whitelisted triggers (parent_message) for the tenants of the guardian's
+	// children.
+	a.Router.Mount("/parent-sse", a.SSE.ParentRouter())
 }

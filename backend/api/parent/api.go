@@ -133,13 +133,21 @@ func (rs *Resource) Router() chi.Router {
 		// the calling account's guardian links inside the service — the
 		// account id always comes from the JWT, never the URL/body.
 		//   - sick-note: report the child sick for one or more dates
-		//   - notes: append / list short messages for the team
 		//   - care-exception: set/clear a one-day pickup & arrival time
 		r.Get("/me/children/{studentId}/features", rs.getChildFeatures)
 		r.Get("/me/children/{studentId}/sick-note", rs.listSickDays)
 		r.Post("/me/children/{studentId}/sick-note", rs.submitSickNote)
-		r.Get("/me/children/{studentId}/notes", rs.listNotes)
-		r.Post("/me/children/{studentId}/notes", rs.addNote)
+
+		// Parent-OGS messaging — chat model. One continuous conversation per
+		// child with the OGS (no subject). The list aggregates the guardian's
+		// conversations across all their children; the per-child routes read
+		// the conversation (marking it read) and post a message (creating the
+		// conversation on the first message). Gated by operations.parent_notes_enabled.
+		r.Get("/me/messages", rs.listMessageThreads)
+		r.Get("/me/messages/unread-count", rs.unreadMessageCount)
+		r.Get("/me/messages/children/{studentId}/threads", rs.listChildThreads)
+		r.Get("/me/messages/children/{studentId}", rs.getChildConversation)
+		r.Post("/me/messages/children/{studentId}", rs.postChildMessage)
 		r.Get("/me/children/{studentId}/care-exception", rs.listCareExceptions)
 		r.Post("/me/children/{studentId}/care-exception", rs.submitCareException)
 		r.Delete("/me/children/{studentId}/care-exception", rs.deleteCareException)

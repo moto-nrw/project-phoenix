@@ -105,6 +105,8 @@ func (s *service) resolvePermittedChild(ctx context.Context, accountID, studentI
 		resolved = &parentChild{
 			tenantID:            child.TenantID,
 			guardianPermissions: child.GuardianPermissions,
+			studentName:         strings.TrimSpace(child.FirstName + " " + child.LastName),
+			schoolName:          child.SchoolName,
 		}
 		return nil
 	})
@@ -127,6 +129,10 @@ func childHasPermission(child *parentModels.ChildSummary, permission string) boo
 type parentChild struct {
 	tenantID            int64
 	guardianPermissions map[string]interface{}
+	// studentName / schoolName feed the OGS messaging views (thread counterpart
+	// + child label); resolved once here from the cross-tenant child lookup.
+	studentName string
+	schoolName  string
 }
 
 func (c *parentChild) hasPermission(permission string) bool {
@@ -330,86 +336,6 @@ func (s *service) ListSickDays(ctx context.Context, accountID, studentID int64, 
 		return nil, fmt.Errorf("parent: list absences: %w", txErr)
 	}
 	return out, nil
-}
-
-// AddParentNote appends a note and returns the newest few.
-func (s *service) AddParentNote(ctx context.Context, accountID, studentID int64, body string) ([]*usersModels.StudentParentNote, error) {
-	body = strings.TrimSpace(body)
-	if body == "" {
-		return nil, ErrEmptyNote
-	}
-	// Characters (runes), not bytes — matches the frontend maxLength budget.
-	if utf8.RuneCountInString(body) > maxParentNoteLen {
-		return nil, ErrNoteTooLong
-	}
-
-	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionNotesWrite)
-	if err != nil {
-		return nil, err
-	}
-
-	enabled, err := s.settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentNotesEnabled)
-	if err != nil {
-		return nil, fmt.Errorf("parent: resolve notes setting: %w", err)
-	}
-	if !enabled {
-		return nil, ErrNotesDisabled
-	}
-
-	var notes []*usersModels.StudentParentNote
-	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		note := &usersModels.StudentParentNote{
-			StudentID:         studentID,
-			GuardianAccountID: accountID,
-			Body:              body,
-		}
-		note.SetTenantID(child.tenantID)
-		if err := s.noteRepo.Create(txCtx, note); err != nil {
-			return err
-		}
-		list, err := s.noteRepo.ListByStudent(txCtx, studentID, ParentNoteDisplayLimit)
-		if err != nil {
-			return err
-		}
-		notes = list
-		return nil
-	})
-	if txErr != nil {
-		return nil, fmt.Errorf("parent: add note: %w", txErr)
-	}
-
-	s.logger.Info("parent added note",
-		slog.Int64("account_id", accountID),
-		slog.Int64("student_id", studentID),
-		slog.Int64("tenant_id", child.tenantID),
-	)
-	return notes, nil
-}
-
-// ListParentNotes returns the newest notes for the child (authorization
-// only — not gated by the setting).
-func (s *service) ListParentNotes(ctx context.Context, accountID, studentID int64, limit int) ([]*usersModels.StudentParentNote, error) {
-	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
-	if err != nil {
-		return nil, err
-	}
-	if limit <= 0 {
-		limit = ParentNoteDisplayLimit
-	}
-
-	var notes []*usersModels.StudentParentNote
-	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		list, err := s.noteRepo.ListByStudent(txCtx, studentID, limit)
-		if err != nil {
-			return err
-		}
-		notes = list
-		return nil
-	})
-	if txErr != nil {
-		return nil, fmt.Errorf("parent: list notes: %w", txErr)
-	}
-	return notes, nil
 }
 
 // SubmitCareException sets the guardian-authored pickup and/or arrival override

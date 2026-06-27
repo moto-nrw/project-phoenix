@@ -351,6 +351,12 @@ type TenantResolveResponse struct {
 	// It is public tenant-shell metadata because non-admin staff also need to
 	// know whether NFC-only areas like classic activities should appear.
 	NFCEnabled bool `json:"nfc_enabled"`
+	// ParentMessagingEnabled is the tenant's resolved operations.parent_notes_enabled
+	// setting. Surfaced here (like the photo flag) so non-admin staff — who don't
+	// carry config:read — can hide the "Neue Nachricht" compose entry points when
+	// the school has parent-OGS messaging turned off, instead of composing into a
+	// 403 dead-end. Defaults to false when the setting is missing/unresolvable.
+	ParentMessagingEnabled bool `json:"parent_messaging_enabled"`
 }
 
 // resolveTenant handles GET /auth/tenant/resolve?slug={slug}
@@ -399,6 +405,7 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 	// settings outage never auto-enables the avatar UI for opt-out schools.
 	studentPhotosEnabled := false
 	nfcEnabled := false
+	parentMessagingEnabled := false
 	if rs.SettingsService != nil {
 		val, err := rs.SettingsService.ResolveStringForTenant(r.Context(), school.ID, configModel.KeyStudentPhotosEnabled)
 		if err == nil {
@@ -407,20 +414,24 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		if val, err := rs.SettingsService.ResolveBoolForTenant(r.Context(), school.ID, configModel.KeyAttendanceNFCEnabled); err == nil {
 			nfcEnabled = val
 		}
+		if val, err := rs.SettingsService.ResolveBoolForTenant(r.Context(), school.ID, configModel.KeyParentNotesEnabled); err == nil {
+			parentMessagingEnabled = val
+		}
 	}
 
 	resp := &TenantResolveResponse{
-		TenantID:             school.ID,
-		Slug:                 school.Slug,
-		Name:                 school.Name,
-		Subdomain:            school.Subdomain,
-		OrganizationID:       school.OrganizationID,
-		OrganizationName:     orgName,
-		Hidden:               school.Hidden,
-		Settings:             settings,
-		PresenceMode:         presenceMode,
-		StudentPhotosEnabled: studentPhotosEnabled,
-		NFCEnabled:           nfcEnabled,
+		TenantID:               school.ID,
+		Slug:                   school.Slug,
+		Name:                   school.Name,
+		Subdomain:              school.Subdomain,
+		OrganizationID:         school.OrganizationID,
+		OrganizationName:       orgName,
+		Hidden:                 school.Hidden,
+		Settings:               settings,
+		PresenceMode:           presenceMode,
+		StudentPhotosEnabled:   studentPhotosEnabled,
+		NFCEnabled:             nfcEnabled,
+		ParentMessagingEnabled: parentMessagingEnabled,
 	}
 
 	common.Respond(w, r, http.StatusOK, resp, "Tenant resolved successfully")

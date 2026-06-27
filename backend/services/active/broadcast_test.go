@@ -63,6 +63,8 @@ func (m *mockBroadcaster) BroadcastToAll(event realtime.Event) error {
 	return nil
 }
 
+func (m *mockBroadcaster) BroadcastParentMessage(_, _ int64, _ realtime.Event) error { return nil }
+
 func (m *mockBroadcaster) BroadcastToTenant(_ int64, event realtime.Event) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

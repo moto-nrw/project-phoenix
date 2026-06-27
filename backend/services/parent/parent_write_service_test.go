@@ -61,6 +61,8 @@ type captureBroadcaster struct {
 func (c *captureBroadcaster) BroadcastToGroup(_ int64, _ string, _ realtime.Event) error {
 	return nil
 }
+func (c *captureBroadcaster) BroadcastParentMessage(_, _ int64, _ realtime.Event) error { return nil }
+
 func (c *captureBroadcaster) BroadcastToTenant(tenantID int64, _ realtime.Event) error {
 	c.tenantEvents = append(c.tenantEvents, tenantID)
 	return nil
@@ -77,13 +79,35 @@ func buildWriteService(t *testing.T, sickEnabled, notesEnabled bool) (parentServ
 		ChildRepo:     repos.ParentChild,
 		StatusDayRepo: repos.StudentStatusDay,
 		StudentRepo:   repos.Student,
-		NoteRepo:      repos.StudentParentNote,
 		Settings:      stubSettings{sickEnabled: sickEnabled, notesEnabled: notesEnabled},
 		Broadcaster:   bc,
 		DB:            db,
 		Logger:        slog.Default(),
 	})
 	return svc, bc, db
+}
+
+func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool) (parentService.Service, *captureBroadcaster, *bun.DB, *repositories.Factory) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	repos := repositories.NewFactory(db)
+	bc := &captureBroadcaster{}
+	svc := parentService.NewService(parentService.ServiceConfig{
+		ChildRepo:            repos.ParentChild,
+		StatusDayRepo:        repos.StudentStatusDay,
+		StudentRepo:          repos.Student,
+		PickupExceptionRepo:  repos.StudentPickupException,
+		ArrivalExceptionRepo: repos.StudentArrivalException,
+		Settings:             stubSettings{sickEnabled: sickEnabled, notesEnabled: notesEnabled},
+		Broadcaster:          bc,
+		MessageThreadRepo:    repos.ParentMessageThread,
+		MessageRepo:          repos.ParentMessage,
+		MessageReadRepo:      repos.ParentMessageRead,
+		DB:                   db,
+		Logger:               slog.Default(),
+	})
+	return svc, bc, db, repos
 }
 
 // --- SubmitSickNote ---
@@ -108,6 +132,72 @@ func TestSubmitSickNote_TodayFlipsLiveFlagAndStoresReason(t *testing.T) {
 	assert.True(t, sick, "today's sick note must flip the live sick flag")
 
 	assert.Contains(t, bc.tenantEvents, chain.TenantID, "SSE broadcast must fire for the tenant")
+}
+
+// TestChildMessaging_RequiresNotesWritePermission is the regression guard for the
+// messaging write paths: a guardian with parent_portal.access but NOT
+// parent_portal.notes.write (e.g. a pickup_only / emergency_contact preset) may
+// read the conversation but must not post messages or submit/withdraw change
+// requests. It replaces the deleted TestAddParentNote_MissingGuardianPermission
+// that guarded the old one-way notes path, and asserts the API enforces what the
+// UI already hides (ChildFeatures.NotesEnabled gates on the same permission). See
+// .claude/rules/guardian-parent-permissions.md.
+func TestChildMessaging_RequiresNotesWritePermission(t *testing.T) {
+	svc, _, db, _ := buildMessagingWriteService(t, true, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	// Downgrade the guardian to read-only portal access (no notes.write).
+	_, err := db.ExecContext(context.Background(), `
+		UPDATE users.students_guardians
+		SET permissions = '{"parent_portal.access": true}'::jsonb
+		WHERE tenant_id = ? AND student_id = ? AND guardian_profile_id = ?
+	`, chain.TenantID, chain.StudentID, chain.GuardianProfileID)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	_, err = svc.PostChildMessage(ctx, chain.AccountID, chain.StudentID, "Hallo OGS")
+	require.ErrorIs(t, err, parentService.ErrGuardianPermissionDenied, "posting a message must require notes.write")
+}
+
+// TestPostChildMessage_EmptyBody re-establishes a guard the deleted one-way
+// notes suite covered: a blank / whitespace-only message body is rejected with a
+// clean ErrEmptyNote (→ 400) BEFORE any insert. Without it the empty body would
+// reach the chk_parent_messages_body_not_blank CHECK and surface as a raw 500.
+func TestPostChildMessage_EmptyBody(t *testing.T) {
+	svc, _, db, _ := buildMessagingWriteService(t, true, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	_, err := svc.PostChildMessage(context.Background(), chain.AccountID, chain.StudentID, "   \n\t ")
+	require.ErrorIs(t, err, parentService.ErrEmptyNote)
+}
+
+// TestPostChildMessage_BodyTooLong locks in the rune-count upper bound
+// (maxParentNoteLen = 2000) on the messaging path, mirroring the sick-note
+// ReasonTooLong guard. 2001 runes → ErrNoteTooLong (→ 400), never a silent insert.
+func TestPostChildMessage_BodyTooLong(t *testing.T) {
+	svc, _, db, _ := buildMessagingWriteService(t, true, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	_, err := svc.PostChildMessage(context.Background(), chain.AccountID, chain.StudentID, strings.Repeat("x", 2001))
+	require.ErrorIs(t, err, parentService.ErrNoteTooLong)
+}
+
+// TestChildMessaging_FeatureDisabled re-establishes the "messaging turned off →
+// 403" guard for BOTH write paths: with operations.parent_notes_enabled off, a
+// fully-permitted guardian still cannot post a message or submit a request. The
+// frontend hides the composer on the same flag; this asserts the API agrees.
+func TestChildMessaging_FeatureDisabled(t *testing.T) {
+	svc, _, db, _ := buildMessagingWriteService(t, true, false)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	ctx := context.Background()
+	_, err := svc.PostChildMessage(ctx, chain.AccountID, chain.StudentID, "Hallo OGS")
+	require.ErrorIs(t, err, parentService.ErrNotesDisabled, "posting must be refused when messaging is disabled")
 }
 
 func TestSubmitSickNote_FutureDateDoesNotFlipLiveFlag(t *testing.T) {
@@ -261,111 +351,6 @@ func TestListSickDays_NotOwned(t *testing.T) {
 	svc, _, _ := buildWriteService(t, true, true)
 	from := timezone.TodayDate()
 	_, err := svc.ListSickDays(context.Background(), 999999, 888888, from, timezone.NewDate(from.Year, from.Month+1, from.Day))
-	require.ErrorIs(t, err, parentService.ErrChildNotLinked)
-}
-
-// --- AddParentNote / ListParentNotes ---
-
-func TestAddParentNote_PersistsAndReturnsNewestFirst(t *testing.T) {
-	svc, _, db := buildWriteService(t, true, true)
-	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
-
-	ctx := context.Background()
-	_, err := svc.AddParentNote(ctx, chain.AccountID, chain.StudentID, "Erste Nachricht")
-	require.NoError(t, err)
-	_, err = svc.AddParentNote(ctx, chain.AccountID, chain.StudentID, "Zweite Nachricht")
-	require.NoError(t, err)
-	notes, err := svc.AddParentNote(ctx, chain.AccountID, chain.StudentID, "Dritte Nachricht")
-	require.NoError(t, err)
-
-	require.Len(t, notes, 3)
-	assert.Equal(t, "Dritte Nachricht", notes[0].Body, "newest first")
-	assert.Equal(t, chain.AccountID, notes[0].GuardianAccountID)
-
-	count, err := db.NewSelect().TableExpr("users.student_parent_notes").
-		Where("student_id = ?", chain.StudentID).Count(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, 3, count)
-}
-
-func TestAddParentNote_LimitedToNewestThree(t *testing.T) {
-	svc, _, db := buildWriteService(t, true, true)
-	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
-
-	ctx := context.Background()
-	for i := 0; i < 5; i++ {
-		_, err := svc.AddParentNote(ctx, chain.AccountID, chain.StudentID, "note")
-		require.NoError(t, err)
-	}
-	notes, err := svc.ListParentNotes(ctx, chain.AccountID, chain.StudentID, 0)
-	require.NoError(t, err)
-	assert.Len(t, notes, parentService.ParentNoteDisplayLimit, "default display limit is honoured")
-}
-
-func TestAddParentNote_EmptyBody(t *testing.T) {
-	svc, _, _ := buildWriteService(t, true, true)
-	_, err := svc.AddParentNote(context.Background(), 1, 2, "   ")
-	require.ErrorIs(t, err, parentService.ErrEmptyNote)
-}
-
-func TestAddParentNote_TooLong(t *testing.T) {
-	svc, _, _ := buildWriteService(t, true, true)
-	_, err := svc.AddParentNote(context.Background(), 1, 2, strings.Repeat("y", 2001))
-	require.ErrorIs(t, err, parentService.ErrNoteTooLong)
-}
-
-func TestAddParentNote_FeatureDisabled(t *testing.T) {
-	svc, _, db := buildWriteService(t, true, false) // notes disabled
-	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
-
-	_, err := svc.AddParentNote(context.Background(), chain.AccountID, chain.StudentID, "Hallo")
-	require.ErrorIs(t, err, parentService.ErrNotesDisabled)
-}
-
-func TestAddParentNote_MissingGuardianPermission(t *testing.T) {
-	svc, _, db := buildWriteService(t, true, true)
-	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
-
-	_, err := db.ExecContext(context.Background(), `
-		UPDATE users.students_guardians
-		SET permissions = '{"parent_portal.access": true}'::jsonb
-		WHERE tenant_id = ? AND student_id = ? AND guardian_profile_id = ?
-	`, chain.TenantID, chain.StudentID, chain.GuardianProfileID)
-	require.NoError(t, err)
-
-	_, err = svc.AddParentNote(context.Background(), chain.AccountID, chain.StudentID, "Bitte beachten")
-	require.ErrorIs(t, err, parentService.ErrGuardianPermissionDenied)
-}
-
-func TestAddParentNote_NotOwned(t *testing.T) {
-	svc, _, _ := buildWriteService(t, true, true)
-	_, err := svc.AddParentNote(context.Background(), 777777, 666666, "Hallo")
-	require.ErrorIs(t, err, parentService.ErrChildNotLinked)
-}
-
-func TestListParentNotes_ReadsRegardlessOfSetting(t *testing.T) {
-	svcWrite, _, db := buildWriteService(t, true, true)
-	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
-
-	ctx := context.Background()
-	_, err := svcWrite.AddParentNote(ctx, chain.AccountID, chain.StudentID, "bleibt sichtbar")
-	require.NoError(t, err)
-
-	svcRead, _, _ := buildWriteService(t, true, false) // notes now disabled
-	notes, err := svcRead.ListParentNotes(ctx, chain.AccountID, chain.StudentID, 3)
-	require.NoError(t, err)
-	require.Len(t, notes, 1)
-	assert.Equal(t, "bleibt sichtbar", notes[0].Body)
-}
-
-func TestListParentNotes_NotOwned(t *testing.T) {
-	svc, _, _ := buildWriteService(t, true, true)
-	_, err := svc.ListParentNotes(context.Background(), 555555, 444444, 3)
 	require.ErrorIs(t, err, parentService.ErrChildNotLinked)
 }
 
@@ -586,32 +571,3 @@ func TestChildFeatures_NotOwned(t *testing.T) {
 	_, err := svc.ChildFeatures(context.Background(), 999999, 888888)
 	require.ErrorIs(t, err, parentService.ErrChildNotLinked)
 }
-
-// --- length limit counts characters, not bytes ---
-
-func TestAddParentNote_AllowsMultibyteUpToRuneLimit(t *testing.T) {
-	svc, _, db := buildWriteService(t, true, true)
-	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
-
-	// 2000 umlauts = 2000 characters but 4000 UTF-8 bytes. The old len()
-	// check would have rejected this; the rune count must accept it.
-	body := strings.Repeat("ä", maxNoteRunesForTest)
-	notes, err := svc.AddParentNote(context.Background(), chain.AccountID, chain.StudentID, body)
-	require.NoError(t, err)
-	require.Len(t, notes, 1)
-}
-
-func TestAddParentNote_RejectsOverRuneLimit(t *testing.T) {
-	svc, _, db := buildWriteService(t, true, true)
-	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
-
-	_, err := svc.AddParentNote(context.Background(), chain.AccountID, chain.StudentID,
-		strings.Repeat("ä", maxNoteRunesForTest+1))
-	require.ErrorIs(t, err, parentService.ErrNoteTooLong)
-}
-
-// maxNoteRunesForTest mirrors the service's maxParentNoteLen (kept local so
-// the test doesn't depend on an exported constant).
-const maxNoteRunesForTest = 2000

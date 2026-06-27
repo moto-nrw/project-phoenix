@@ -42,6 +42,8 @@ func (b *recordingBroadcaster) BroadcastToGroup(_ int64, _ string, event realtim
 	return nil
 }
 
+func (b *recordingBroadcaster) BroadcastParentMessage(_, _ int64, _ realtime.Event) error { return nil }
+
 func (b *recordingBroadcaster) BroadcastToTenant(_ int64, event realtime.Event) error {
 	b.events = append(b.events, event)
 	return nil
@@ -76,7 +78,7 @@ func setupTestContext(t *testing.T) *testContext {
 	resource := studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:           svc.Users,
 		GuardianService:         svc.Guardian,
-		StudentService:          userService.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentParentNote),
+		StudentService:          userService.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent),
 		EducationService:        svc.Education,
 		UserContextService:      svc.UserContext,
 		ActiveService:           svc.Active,

@@ -2994,7 +2994,6 @@ func CleanupParentGuardianChain(tb testing.TB, db *bun.DB, c ParentChain) {
 			tb.Logf("cleanup warning: %v", err)
 		}
 	}
-	exec(`DELETE FROM users.student_parent_notes WHERE student_id = ?`, c.StudentID)
 	exec(`DELETE FROM active.student_status_days WHERE student_id = ?`, c.StudentID)
 	exec(`DELETE FROM users.students_guardians WHERE student_id = ?`, c.StudentID)
 	exec(`DELETE FROM auth.account_tenants WHERE account_id = ?`, c.AccountID)
