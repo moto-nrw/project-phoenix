@@ -326,7 +326,7 @@ func TestParentMessaging_TouchLastMessage_Monotonic(t *testing.T) {
 	t2 := t1.Add(2 * time.Second)
 
 	// First real activity: a guardian message at t2 wins the empty (NULL) thread.
-	require.NoError(t, threadRepo.TouchLastMessage(ctx, thread.ID, t2, usersModels.ParentMessageSenderGuardian, "neuere Nachricht"))
+	require.NoError(t, threadRepo.TouchLastMessage(ctx, thread.ID, t2, 1, usersModels.ParentMessageSenderGuardian, "neuere Nachricht"))
 	got, err := threadRepo.FindByID(ctx, thread.ID)
 	require.NoError(t, err)
 	require.NotNil(t, got.LastMessageAt)
@@ -336,7 +336,7 @@ func TestParentMessaging_TouchLastMessage_Monotonic(t *testing.T) {
 
 	// A staff send that committed afterwards but captured an OLDER instant (t1)
 	// must be a no-op: preview/order/last-sender stay on the t2 message.
-	require.NoError(t, threadRepo.TouchLastMessage(ctx, thread.ID, t1, usersModels.ParentMessageSenderStaff, "ältere Antwort"))
+	require.NoError(t, threadRepo.TouchLastMessage(ctx, thread.ID, t1, 2, usersModels.ParentMessageSenderStaff, "ältere Antwort"))
 	got, err = threadRepo.FindByID(ctx, thread.ID)
 	require.NoError(t, err)
 	assert.WithinDuration(t, t2, *got.LastMessageAt, time.Second, "stale older send must not move last_message_at back")
@@ -345,12 +345,51 @@ func TestParentMessaging_TouchLastMessage_Monotonic(t *testing.T) {
 
 	// A genuinely newer send (t3 > t2) does advance the thread.
 	t3 := t2.Add(2 * time.Second)
-	require.NoError(t, threadRepo.TouchLastMessage(ctx, thread.ID, t3, usersModels.ParentMessageSenderStaff, "neueste Antwort"))
+	require.NoError(t, threadRepo.TouchLastMessage(ctx, thread.ID, t3, 3, usersModels.ParentMessageSenderStaff, "neueste Antwort"))
 	got, err = threadRepo.FindByID(ctx, thread.ID)
 	require.NoError(t, err)
 	assert.WithinDuration(t, t3, *got.LastMessageAt, time.Second)
 	assert.Equal(t, usersModels.ParentMessageSenderStaff, derefStr(got.LastSenderKind))
 	assert.Equal(t, "neueste Antwort", got.LastMessageBody)
+}
+
+// TestParentMessaging_TouchLastMessage_TiedTimestamp pins the id tie-breaker:
+// clock_timestamp() can hand two messages in the same thread an identical
+// created_at, so the monotonic preview guard must fall back to the message id
+// (the second half of the (created_at, id) order ListByThread and the unread
+// cursor use). On an equal instant the higher-id message owns the preview/sender,
+// and a lower-id message that commits afterwards must NOT steal it back.
+func TestParentMessaging_TouchLastMessage_TiedTimestamp(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	ctx := tenantCtx()
+	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
+
+	thread := newThread(chain.StudentID, chain.AccountID)
+	require.NoError(t, threadRepo.Create(ctx, thread))
+	require.Positive(t, thread.ID)
+
+	at := time.Now().Truncate(time.Second)
+
+	// Lower-id message lands first and wins the empty thread.
+	require.NoError(t, threadRepo.TouchLastMessage(ctx, thread.ID, at, 10, usersModels.ParentMessageSenderGuardian, "erste gleiche Zeit"))
+
+	// Same instant, HIGHER id: the genuinely newer message must take over.
+	require.NoError(t, threadRepo.TouchLastMessage(ctx, thread.ID, at, 20, usersModels.ParentMessageSenderStaff, "neuere gleiche Zeit"))
+	got, err := threadRepo.FindByID(ctx, thread.ID)
+	require.NoError(t, err)
+	assert.Equal(t, usersModels.ParentMessageSenderStaff, derefStr(got.LastSenderKind), "higher id at equal instant must win")
+	assert.Equal(t, "neuere gleiche Zeit", got.LastMessageBody)
+
+	// Same instant, LOWER id committing afterwards: must be a no-op.
+	require.NoError(t, threadRepo.TouchLastMessage(ctx, thread.ID, at, 15, usersModels.ParentMessageSenderGuardian, "ältere gleiche Zeit"))
+	got, err = threadRepo.FindByID(ctx, thread.ID)
+	require.NoError(t, err)
+	assert.Equal(t, usersModels.ParentMessageSenderStaff, derefStr(got.LastSenderKind), "lower id at equal instant must not steal the preview")
+	assert.Equal(t, "neuere gleiche Zeit", got.LastMessageBody, "lower id at equal instant must not overwrite the preview")
 }
 
 func derefStr(s *string) string {

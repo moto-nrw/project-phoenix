@@ -104,26 +104,36 @@ func (r *ParentMessageThreadRepository) GetOrCreate(ctx context.Context, tenantI
 // stored last_message_at. This is the single write path for those fields on both
 // portals.
 //
-// The `last_message_at < at` guard is what makes concurrent sends correct.
-// Without it, a staff reply and a guardian message to the SAME thread each load
-// the thread, stamp their own captured instant, and race on a full-row Update:
-// whichever transaction COMMITS last wins, even when its message is actually the
-// OLDER of the two. That leaves /api/messages and the parent thread list sorted
-// by — and previewing — the wrong message, showing the wrong last sender.
-// Folding every update into this one guarded statement makes the denormalized
-// fields monotonic in time, so a later-committing-but-older writer is a no-op and
-// the genuinely-latest message always owns the preview. A fresh thread (NULL
-// last_message_at) always loses to its first real message.
-func (r *ParentMessageThreadRepository) TouchLastMessage(ctx context.Context, threadID int64, at time.Time, senderKind, body string) error {
+// The `(last_message_at, last_message_id)` guard is what makes concurrent sends
+// correct. Without it, a staff reply and a guardian message to the SAME thread
+// each load the thread, stamp their own captured instant, and race on a full-row
+// Update: whichever transaction COMMITS last wins, even when its message is
+// actually the OLDER of the two. That leaves /api/messages and the parent thread
+// list sorted by — and previewing — the wrong message, showing the wrong last
+// sender. Folding every update into this one guarded statement makes the
+// denormalized fields monotonic in the SAME (created_at, id) order the message
+// log uses, so a later-committing-but-older writer is a no-op and the
+// genuinely-latest message always owns the preview. The id tie-breaker matters
+// because clock_timestamp() can hand two messages the same created_at (the unread
+// cursor already tie-breaks on id for exactly this reason): on an equal instant
+// the higher-id message still wins, so the preview can never lag behind
+// ListByThread. A fresh thread (NULL last_message_at) always loses to its first
+// real message.
+func (r *ParentMessageThreadRepository) TouchLastMessage(ctx context.Context, threadID int64, at time.Time, messageID int64, senderKind, body string) error {
 	query := base.GetDB(ctx, r.DB).NewUpdate().
 		Model((*users.ParentMessageThread)(nil)).
 		ModelTableExpr(tableExprParentMessageThreadsAsThread).
 		Set("last_message_at = ?", at).
+		Set("last_message_id = ?", messageID).
 		Set("last_sender_kind = ?", senderKind).
 		Set("last_message_body = ?", body).
 		Set("updated_at = ?", at).
 		Where(`"parent_message_thread".id = ?`, threadID).
-		Where(`("parent_message_thread".last_message_at IS NULL OR "parent_message_thread".last_message_at < ?)`, at)
+		Where(`("parent_message_thread".last_message_at IS NULL
+			OR "parent_message_thread".last_message_at < ?
+			OR ("parent_message_thread".last_message_at = ?
+				AND ("parent_message_thread".last_message_id IS NULL
+					OR "parent_message_thread".last_message_id < ?)))`, at, at, messageID)
 
 	if where, val, ok := base.TenantWhere(ctx, "parent_message_thread"); ok {
 		query = query.Where(where, val)

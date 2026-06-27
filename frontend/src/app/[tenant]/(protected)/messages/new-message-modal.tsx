@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Modal } from "~/components/ui/modal";
 import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { getApiErrorMessage } from "~/components/ui/modal-utils";
 import { fetchStudents } from "~/lib/student-api";
@@ -61,6 +62,11 @@ export function NewMessageModal({
 
   const [guardians, setGuardians] = useState<Guardian[]>([]);
   const [guardiansLoading, setGuardiansLoading] = useState(false);
+  // A failed guardian lookup (403/500/network) is an operational error, not the
+  // domain fact "this child has no portal guardian" — keep it separate so the UI
+  // can offer a retry instead of misreporting the failure as an empty list.
+  const [guardiansError, setGuardiansError] = useState<string | null>(null);
+  const [guardiansReloadKey, setGuardiansReloadKey] = useState(0);
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -99,20 +105,35 @@ export function NewMessageModal({
   useEffect(() => {
     if (!student) {
       setGuardians([]);
+      setGuardiansError(null);
       return;
     }
     let active = true;
     setGuardiansLoading(true);
+    setGuardiansError(null);
     fetchGuardians(student.id)
       .then((list) => {
-        if (active) setGuardians(list);
+        if (active) {
+          setGuardians(list);
+          setGuardiansError(null);
+        }
       })
       .catch((err) => {
         logger.warn("new_message_guardians_load_failed", {
           error: err instanceof Error ? err.message : String(err),
           student_id: student.id,
         });
-        if (active) setGuardians([]);
+        if (active) {
+          setGuardians([]);
+          setGuardiansError(
+            getApiErrorMessage(
+              err,
+              "laden",
+              "Bezugspersonen",
+              "Bezugspersonen konnten nicht geladen werden.",
+            ),
+          );
+        }
       })
       .finally(() => {
         if (active) setGuardiansLoading(false);
@@ -120,7 +141,7 @@ export function NewMessageModal({
     return () => {
       active = false;
     };
-  }, [student]);
+  }, [student, guardiansReloadKey]);
 
   const resetToStudentStep = () => {
     setStudent(null);
@@ -242,6 +263,18 @@ export function NewMessageModal({
           {error && <Alert type="error" message={error} />}
           {guardiansLoading ? (
             <p className="py-3 text-center text-sm text-gray-500">Lädt…</p>
+          ) : guardiansError ? (
+            <div className="space-y-2">
+              <Alert type="error" message={guardiansError} />
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={() => setGuardiansReloadKey((k) => k + 1)}
+              >
+                Erneut versuchen
+              </Button>
+            </div>
           ) : guardians.length === 0 ? (
             <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-600">
               Dieses Kind hat keine Bezugsperson mit Eltern-Zugang.

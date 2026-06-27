@@ -29,7 +29,14 @@ type ParentMessageThread struct {
 	StudentID         int64      `bun:"student_id,notnull" json:"student_id"`
 	GuardianAccountID int64      `bun:"guardian_account_id,notnull" json:"guardian_account_id"`
 	LastMessageAt     *time.Time `bun:"last_message_at" json:"last_message_at,omitempty"`
-	LastSenderKind    *string    `bun:"last_sender_kind" json:"last_sender_kind,omitempty"`
+	// LastMessageID is the id of whichever message last set LastMessageAt. It is
+	// the second half of the (created_at, id) composite the message log orders
+	// by, so TouchLastMessage can break ties when two messages share a
+	// created_at (clock_timestamp() can collide): the higher-id message wins,
+	// exactly as ListByThread and the unread cursor order them. Every path that
+	// updates LastMessageAt MUST set this in the same UPDATE.
+	LastMessageID  *int64  `bun:"last_message_id" json:"last_message_id,omitempty"`
+	LastSenderKind *string `bun:"last_sender_kind" json:"last_sender_kind,omitempty"`
 	// LastMessageBody denormalizes the body of whichever message last set
 	// LastMessageAt, so the inbox projection reads the preview straight off the
 	// thread row instead of a correlated subquery that re-scans parent_messages
@@ -60,13 +67,16 @@ type ParentMessageThreadRepository interface {
 	Create(ctx context.Context, thread *ParentMessageThread) error
 	Update(ctx context.Context, thread *ParentMessageThread) error
 	// TouchLastMessage atomically advances the denormalized last-activity fields
-	// (last_message_at, last_sender_kind, last_message_body) that drive the inbox
-	// preview/order, but ONLY when `at` is newer than the stored last_message_at.
-	// This is the single, concurrency-safe write path for those fields: it makes
-	// them monotonic so two near-simultaneous sends (staff + guardian) to the same
-	// thread can't have the later-committing-but-older one clobber the newer
-	// preview/order. Callers must still insert the message row separately.
-	TouchLastMessage(ctx context.Context, threadID int64, at time.Time, senderKind, body string) error
+	// (last_message_at, last_message_id, last_sender_kind, last_message_body) that
+	// drive the inbox preview/order, but ONLY when the message's (at, messageID)
+	// composite is newer than the stored (last_message_at, last_message_id). This
+	// is the single, concurrency-safe write path for those fields: it makes them
+	// monotonic in the SAME (created_at, id) order the message log uses, so two
+	// near-simultaneous sends (staff + guardian) to the same thread can't have the
+	// later-committing-but-older one clobber the newer preview/order — including
+	// when both messages share a created_at, where the higher id wins. Callers
+	// must still insert the message row separately.
+	TouchLastMessage(ctx context.Context, threadID int64, at time.Time, messageID int64, senderKind, body string) error
 	// FindByID returns the thread by id (tenant-scoped), or nil when absent.
 	FindByID(ctx context.Context, id int64) (*ParentMessageThread, error)
 	// FindByStudentGuardian returns the single conversation for a (student,

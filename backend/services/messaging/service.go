@@ -289,13 +289,13 @@ func (s *service) buildThreadDetail(ctx context.Context, thread *usersModels.Par
 	if err != nil {
 		return nil, fmt.Errorf("messaging: list messages: %w", err)
 	}
-	return s.buildDetailFromMessages(ctx, thread, messages), nil
+	return s.buildDetailFromMessages(ctx, thread, messages)
 }
 
 // buildDetailFromMessages assembles the chat-window payload (read receipts,
 // header, request diffs) from an already-fetched message snapshot, so the read
 // paths can mark-read off the SAME snapshot they return (see markReadAndBuild).
-func (s *service) buildDetailFromMessages(ctx context.Context, thread *usersModels.ParentMessageThread, messages []*usersModels.ParentMessage) *ThreadDetail {
+func (s *service) buildDetailFromMessages(ctx context.Context, thread *usersModels.ParentMessageThread, messages []*usersModels.ParentMessage) (*ThreadDetail, error) {
 	// "OGS hat gelesen" receipt: flag guardian messages a staff member has read.
 	// Shared with the parent side via parentmessaging.DecorateReadReceipts so the
 	// receipt rule can't drift between the two chats (the staff reader's own read
@@ -307,12 +307,21 @@ func (s *service) buildDetailFromMessages(ctx context.Context, thread *usersMode
 		GuardianAccountID: thread.GuardianAccountID,
 		Messages:          messages,
 	}
-	if header, err := s.readRepo.FindThreadHeader(ctx, thread.ID); err == nil && header != nil {
+	// A lookup error is a request failure, not blank metadata: GetThread has
+	// already advanced the read cursor by this point, so silently returning an
+	// empty-header detail would mark the thread read while handing the client an
+	// incomplete chat. A genuinely missing header (nil, no error) is fine to
+	// leave blank — the thread simply has no resolvable student/guardian names.
+	header, err := s.readRepo.FindThreadHeader(ctx, thread.ID)
+	if err != nil {
+		return nil, fmt.Errorf("messaging: thread header: %w", err)
+	}
+	if header != nil {
 		detail.StudentName = header.StudentName
 		detail.GuardianName = header.GuardianName
 		detail.RelationshipType = header.RelationshipType
 	}
-	return detail
+	return detail, nil
 }
 
 // markReadAndBuild lists the thread's messages, advances the staff reader's read
@@ -329,7 +338,7 @@ func (s *service) markReadAndBuild(ctx context.Context, thread *usersModels.Pare
 	if err := parentmessaging.MarkReadToNewest(ctx, s.readRepo, thread.TenantID, thread.ID, accountIDFromCtx(ctx), messages); err != nil {
 		return nil, fmt.Errorf("messaging: mark read: %w", err)
 	}
-	return s.buildDetailFromMessages(ctx, thread, messages), nil
+	return s.buildDetailFromMessages(ctx, thread, messages)
 }
 
 func (s *service) GetThread(ctx context.Context, threadID int64) (*ThreadDetail, error) {

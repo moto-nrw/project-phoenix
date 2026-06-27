@@ -105,7 +105,7 @@ func AppendMessage(
 		return err
 	}
 	at := msg.CreatedAt
-	if err := threadRepo.TouchLastMessage(ctx, msg.ThreadID, at, msg.SenderKind, msg.Body); err != nil {
+	if err := threadRepo.TouchLastMessage(ctx, msg.ThreadID, at, msg.ID, msg.SenderKind, msg.Body); err != nil {
 		return err
 	}
 	return readRepo.MarkReadUpTo(ctx, msg.GetTenantID(), msg.ThreadID, msg.SenderAccountID, at, msg.ID)

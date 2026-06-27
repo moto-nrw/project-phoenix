@@ -63,6 +63,7 @@ func parentMessagingUp(ctx context.Context, db *bun.DB) error {
 			student_id          BIGINT NOT NULL REFERENCES users.students(id) ON DELETE CASCADE,
 			guardian_account_id BIGINT NOT NULL REFERENCES auth.accounts(id),
 			last_message_at     TIMESTAMPTZ,
+			last_message_id     BIGINT,
 			last_sender_kind    TEXT,
 			last_message_body   TEXT NOT NULL DEFAULT '',
 			created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -237,16 +238,19 @@ func parentMessagingUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error backfilling parent messages from notes: %w", err)
 	}
 
-	// Denormalize the inbox preview (last_message_body) onto each backfilled
-	// thread so the staff inbox projection reads it off the thread row instead
-	// of a correlated subquery. Pick the newest message per thread (created_at,
-	// then id as a deterministic tiebreaker), mirroring the projection's
-	// ORDER BY created_at DESC, id DESC.
+	// Denormalize the inbox preview (last_message_body) and the composite
+	// tie-breaker (last_message_id) onto each backfilled thread so the staff
+	// inbox projection reads them off the thread row instead of a correlated
+	// subquery. Pick the newest message per thread (created_at, then id as a
+	// deterministic tiebreaker), mirroring the projection's ORDER BY created_at
+	// DESC, id DESC — and seed last_message_id from that SAME row so the
+	// TouchLastMessage monotonic guard has the right (created_at, id) baseline.
 	_, err = tx.ExecContext(ctx, `
 		UPDATE users.parent_message_threads t
-		SET last_message_body = lm.body
+		SET last_message_body = lm.body,
+		    last_message_id = lm.id
 		FROM (
-			SELECT DISTINCT ON (m.thread_id) m.thread_id, m.body
+			SELECT DISTINCT ON (m.thread_id) m.thread_id, m.body, m.id
 			FROM users.parent_messages m
 			ORDER BY m.thread_id, m.created_at DESC, m.id DESC
 		) lm
