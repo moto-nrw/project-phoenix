@@ -68,10 +68,14 @@ export function ParentMessagesCard({
   // Debounced like the inbox: during the morning rush every staffer with a
   // child-detail page open would otherwise re-run the full student-threads
   // projection once per parent message anywhere in the tenant.
+  // Refetch-only (re-runs the student-threads projection, never advances a read
+  // cursor), so fire even in a background tab — marksRead: false skips the
+  // hidden-tab deferral that exists only for read-advancing chat views.
   useMessagesActivity({
     onMatch: () => void mutate(),
     studentId,
     debounceMs: 500,
+    marksRead: false,
   });
 
   return (

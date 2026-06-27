@@ -22,7 +22,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
@@ -183,21 +182,16 @@ func keepUnread(rows []*usersModels.InboxThread) []*usersModels.InboxThread {
 // dark badge but lit pills — the exact disagreement the parent side's
 // suppressDisabledUnread was built to prevent. History stays readable; only the
 // unread signal is suppressed. The staff service runs inside the request's tenant
-// transaction, so a single ResolveBool covers every row. A resolve failure leaves
-// the rows untouched — briefly over-counting beats hiding a real unread behind a
-// transient settings hiccup (mirrors the parent side's fail-open).
+// transaction, so a single resolve covers every row. The "is messaging enabled"
+// decision (and its fail-OPEN direction: a resolve failure leaves the rows
+// untouched, briefly over-counting rather than hiding a real unread) lives in
+// parentmessaging.MessagingEnabled, shared with the badge and the parent side so
+// the four gate sites can never drift to disagreeing answers.
 func (s *service) suppressDisabledUnread(ctx context.Context, rows []*usersModels.InboxThread) {
 	if len(rows) == 0 {
 		return
 	}
-	enabled, err := s.settings.ResolveBool(ctx, configModels.KeyParentNotesEnabled)
-	if err != nil {
-		s.logger.Warn("messaging: resolve messaging setting for inbox failed",
-			slog.String("error", err.Error()),
-		)
-		return
-	}
-	if enabled {
+	if parentmessaging.MessagingEnabled(ctx, s.settings, s.logger) {
 		return
 	}
 	for _, row := range rows {
@@ -209,22 +203,10 @@ func (s *service) UnreadThreadCount(ctx context.Context) (int, error) {
 	// Darken the staff sidebar badge when the school has turned parent messaging
 	// off: the inbox history stays readable (ListInbox/GetThread are NOT gated),
 	// but a disabled feature must not keep lighting up a red unread count. Sends
-	// are already blocked by requireEnabled on the write paths.
-	//
-	// A resolve FAILURE (transient settings DB hiccup) must fail OPEN — count as
-	// enabled — exactly like suppressDisabledUnread and the parent
-	// UnreadMessageCount. Failing closed here (500) while ListInbox keeps
-	// rendering lit unread pills is the precise divergence those siblings' fail-open
-	// comments were written to prevent: over-counting on a blip beats a stale-blank
-	// badge that contradicts the inbox.
-	enabled, err := s.settings.ResolveBool(ctx, configModels.KeyParentNotesEnabled)
-	if err != nil {
-		s.logger.Warn("messaging: resolve messaging setting for badge failed, counting as enabled",
-			slog.String("error", err.Error()),
-		)
-		enabled = true
-	}
-	if !enabled {
+	// are already blocked by requireEnabled on the write paths. The enabled check
+	// (and its fail-OPEN direction) is shared via parentmessaging.MessagingEnabled
+	// so the badge, the row pills, and the write paths agree on one answer.
+	if !parentmessaging.MessagingEnabled(ctx, s.settings, s.logger) {
 		return 0, nil
 	}
 	accountID := accountIDFromCtx(ctx)
@@ -509,12 +491,14 @@ func (s *service) appendStaffMessage(ctx context.Context, thread *usersModels.Pa
 	return nil
 }
 
+// requireEnabled blocks writes (reply, new thread, open) when the school has
+// turned messaging off. It fails OPEN on a transient resolve error (via
+// parentmessaging.MessagingEnabled): a config-DB blip must not 500 every reply
+// while the badge and inbox keep rendering unread — the write side now agrees
+// with the read side instead of diverging. A genuine disabled flag still returns
+// ErrMessagingDisabled (-> 403).
 func (s *service) requireEnabled(ctx context.Context) error {
-	enabled, err := s.settings.ResolveBool(ctx, configModels.KeyParentNotesEnabled)
-	if err != nil {
-		return fmt.Errorf("messaging: resolve setting: %w", err)
-	}
-	if !enabled {
+	if !parentmessaging.MessagingEnabled(ctx, s.settings, s.logger) {
 		return ErrMessagingDisabled
 	}
 	return nil

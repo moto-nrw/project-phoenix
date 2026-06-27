@@ -11,9 +11,70 @@ import (
 	"context"
 	"log/slog"
 
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 )
+
+// SettingsResolver resolves a boolean setting inside the current tenant
+// transaction. Satisfied by services/config.SettingsService; declared here as a
+// narrow interface so this shared core does not depend on the whole settings
+// service (and to keep the import graph acyclic).
+type SettingsResolver interface {
+	ResolveBool(ctx context.Context, key string) (bool, error)
+}
+
+// TenantSettingsResolver resolves a boolean setting for an explicit tenant,
+// opening its own tenant transaction. Used by callers OUTSIDE tenant middleware
+// (the cross-tenant parent badge, the unauthenticated tenant-resolve handler).
+type TenantSettingsResolver interface {
+	ResolveBoolForTenant(ctx context.Context, tenantID int64, key string) (bool, error)
+}
+
+// MessagingEnabled reports whether parent messaging is on for the CURRENT tenant
+// transaction. It is the single home for BOTH the setting key and the fail-OPEN
+// direction, so every read- and write-path across the staff and parent services
+// agrees: a transient settings-resolve error counts as ENABLED.
+//
+// Failing open is deliberate and uniform. The unread badge, the inbox/row pills,
+// the compose-button visibility, and the reply path all gate on this one flag; if
+// they disagreed during a config-DB blip the staffer would see and read unread
+// messages while the "Neue Nachricht" button vanished and every reply 500'd — a
+// half-disabled UI that contradicts the still-rendering inbox. Over-permitting on
+// a rare blip beats that split brain: messaging is a soft, non-destructive feature
+// flag, not a security boundary. (Unlike the photos/NFC flags, which fail closed
+// for opt-out safety because enabling them surfaces data a school opted out of.)
+func MessagingEnabled(ctx context.Context, settings SettingsResolver, logger *slog.Logger) bool {
+	enabled, err := settings.ResolveBool(ctx, configModels.KeyParentNotesEnabled)
+	if err != nil {
+		loggerOr(logger).Warn("parent messaging: resolve enabled failed, failing open (counting as enabled)",
+			slog.String("error", err.Error()),
+		)
+		return true
+	}
+	return enabled
+}
+
+// MessagingEnabledForTenant is MessagingEnabled for an explicit tenant, for
+// callers running outside tenant middleware. Same key, same fail-OPEN contract.
+func MessagingEnabledForTenant(ctx context.Context, settings TenantSettingsResolver, tenantID int64, logger *slog.Logger) bool {
+	enabled, err := settings.ResolveBoolForTenant(ctx, tenantID, configModels.KeyParentNotesEnabled)
+	if err != nil {
+		loggerOr(logger).Warn("parent messaging: resolve enabled for tenant failed, failing open (counting as enabled)",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("error", err.Error()),
+		)
+		return true
+	}
+	return enabled
+}
+
+func loggerOr(logger *slog.Logger) *slog.Logger {
+	if logger == nil {
+		return slog.Default()
+	}
+	return logger
+}
 
 // AppendMessage persists an already-built ParentMessage, then updates the
 // thread's last-activity preview and the sender's own read cursor in lockstep.
@@ -99,10 +160,7 @@ func DecorateReadReceipts(
 ) {
 	cutoff, err := readRepo.LatestReadCursorByOther(ctx, threadID, otherAccountID)
 	if err != nil {
-		if logger == nil {
-			logger = slog.Default()
-		}
-		logger.Warn("parent messaging: read-receipt lookup failed",
+		loggerOr(logger).Warn("parent messaging: read-receipt lookup failed",
 			slog.Int64("thread_id", threadID),
 			slog.String("error", err.Error()),
 		)
@@ -126,10 +184,7 @@ func Broadcast(
 	}
 	event := realtime.NewParentMessageEvent(guardianAccountID, threadID, studentID)
 	if err := broadcaster.BroadcastParentMessage(tenantID, guardianAccountID, event); err != nil {
-		if logger == nil {
-			logger = slog.Default()
-		}
-		logger.Warn("parent messaging: failed to broadcast parent message",
+		loggerOr(logger).Warn("parent messaging: failed to broadcast parent message",
 			slog.Int64("tenant_id", tenantID),
 			slog.Int64("guardian_account_id", guardianAccountID),
 			slog.String("error", err.Error()),

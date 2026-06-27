@@ -10,7 +10,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
@@ -90,10 +89,12 @@ func (s *service) ListMessageThreads(ctx context.Context, accountID int64) ([]*u
 // suppressDisabledUnread zeroes the unread count on rows whose tenant has parent
 // messaging turned off, mirroring UnreadMessageCount's enabled-tenant filter so
 // the row pills and the aggregate badge can never disagree. The enabled flag is
-// resolved once per distinct tenant (cached in-loop). A resolve failure leaves
-// the row untouched: hiding a real unread behind a transient settings hiccup is
-// worse than briefly over-counting. ResolveBoolForTenant opens its own tenant tx,
-// so this runs OUTSIDE the admin tx above.
+// resolved once per distinct tenant (cached in-loop). The fail-OPEN direction (a
+// resolve failure counts the tenant as enabled — hiding a real unread behind a
+// transient settings hiccup is worse than briefly over-counting) and the setting
+// key both live in parentmessaging.MessagingEnabledForTenant, shared with the
+// staff side. ResolveBoolForTenant opens its own tenant tx, so this runs OUTSIDE
+// the admin tx above.
 func (s *service) suppressDisabledUnread(ctx context.Context, rows []*usersModels.InboxThread) {
 	enabled := make(map[int64]bool)
 	for _, row := range rows {
@@ -102,16 +103,7 @@ func (s *service) suppressDisabledUnread(ctx context.Context, rows []*usersModel
 		}
 		on, cached := enabled[row.TenantID]
 		if !cached {
-			val, err := s.settings.ResolveBoolForTenant(ctx, row.TenantID, configModels.KeyParentNotesEnabled)
-			if err != nil {
-				s.logger.Warn("parent: resolve messaging setting for thread list failed",
-					slog.Int64("tenant_id", row.TenantID),
-					slog.String("error", err.Error()),
-				)
-				on = true
-			} else {
-				on = val
-			}
+			on = parentmessaging.MessagingEnabledForTenant(ctx, s.settings, row.TenantID, s.logger)
 			enabled[row.TenantID] = on
 		}
 		if !on {
@@ -195,25 +187,14 @@ func (s *service) UnreadMessageCount(ctx context.Context, accountID int64) (int,
 	// guardian can still open and read the archived history — only the unread
 	// signal is suppressed). The flag is per-tenant, so a guardian with one child
 	// at an enabled school and one at a disabled school sees only the former's
-	// unread. ResolveBoolForTenant wraps its own tenant tx, so it runs outside the
-	// admin tx above.
+	// unread. The per-tenant resolve fails OPEN and shares its key with the
+	// row-pill path via parentmessaging.MessagingEnabledForTenant (which wraps its
+	// own tenant tx, so it runs outside the admin tx above): a transient settings
+	// hiccup must not make the badge vanish while the thread-list rows keep showing
+	// unread pills.
 	enabledTenantIDs := make([]int64, 0, len(tenantIDs))
 	for _, tenantID := range tenantIDs {
-		on, err := s.settings.ResolveBoolForTenant(ctx, tenantID, configModels.KeyParentNotesEnabled)
-		if err != nil {
-			// Fail OPEN, exactly like the row-pill path (suppressDisabledUnread): a
-			// transient settings hiccup must not make the badge vanish (500) while the
-			// thread-list rows keep showing unread pills. Count the tenant as enabled so
-			// the badge and the rows can never visibly disagree; over-counting on a blip
-			// beats hiding a real unread.
-			s.logger.Warn("parent: resolve messaging setting for badge failed, counting tenant as enabled",
-				slog.Int64("tenant_id", tenantID),
-				slog.String("error", err.Error()),
-			)
-			enabledTenantIDs = append(enabledTenantIDs, tenantID)
-			continue
-		}
-		if on {
+		if parentmessaging.MessagingEnabledForTenant(ctx, s.settings, tenantID, s.logger) {
 			enabledTenantIDs = append(enabledTenantIDs, tenantID)
 		}
 	}
@@ -300,11 +281,11 @@ func (s *service) PostChildMessage(ctx context.Context, accountID, studentID int
 	if err != nil {
 		return nil, err
 	}
-	enabled, err := s.settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentNotesEnabled)
-	if err != nil {
-		return nil, fmt.Errorf("parent: resolve messaging setting: %w", err)
-	}
-	if !enabled {
+	// Fail OPEN on a transient resolve error (via the shared helper) so a config-DB
+	// blip does not 500 a guardian's reply while the badge and thread list keep
+	// rendering unread — the write side agrees with the read side. A genuine
+	// disabled flag still returns ErrNotesDisabled.
+	if !parentmessaging.MessagingEnabledForTenant(ctx, s.settings, child.tenantID, s.logger) {
 		return nil, ErrNotesDisabled
 	}
 

@@ -66,7 +66,13 @@ function MessagesInboxContent() {
   // wakes EVERY tenant staffer per message and this inbox query is heavy (joins
   // + correlated unread subqueries), so debounce: a burst collapses into a
   // single revalidation instead of one refetch per event.
-  useMessagesActivity({ onMatch: () => void mutate(), debounceMs: 500 });
+  // Refetch-only (revalidates the list, never advances a read cursor), so fire
+  // even in a background tab — marksRead: false skips the hidden-tab deferral.
+  useMessagesActivity({
+    onMatch: () => void mutate(),
+    debounceMs: 500,
+    marksRead: false,
+  });
 
   const filteredThreads = useMemo(() => {
     const list: InboxThread[] = threads ?? [];

@@ -28,6 +28,7 @@ import (
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -414,9 +415,14 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		if val, err := rs.SettingsService.ResolveBoolForTenant(r.Context(), school.ID, configModel.KeyAttendanceNFCEnabled); err == nil {
 			nfcEnabled = val
 		}
-		if val, err := rs.SettingsService.ResolveBoolForTenant(r.Context(), school.ID, configModel.KeyParentNotesEnabled); err == nil {
-			parentMessagingEnabled = val
-		}
+		// Messaging compose visibility fails OPEN (counts a resolve error as
+		// enabled), UNLIKE the photos/NFC flags above. It must agree with the unread
+		// badge, the inbox row pills, and the reply path — all centralized in
+		// parentmessaging.MessagingEnabled* — so a config-DB blip cannot half-disable
+		// the UI (button hidden while the badge/inbox still show unread). Messaging is
+		// a soft, non-destructive flag, so brief over-enabling on an outage is the
+		// accepted trade for that consistency.
+		parentMessagingEnabled = parentmessaging.MessagingEnabledForTenant(r.Context(), rs.SettingsService, school.ID, nil)
 	}
 
 	resp := &TenantResolveResponse{

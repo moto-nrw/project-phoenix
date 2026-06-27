@@ -116,19 +116,19 @@ export function formatTime(dateString: string): string {
  * Compact chat timestamp ("12.03., 14:30") for message bubbles — day/month plus
  * time, no year. Single source for the parent-OGS chat bubbles (chat-bubble,
  * ogs-conversation). Invalid ISO falls back to the raw input rather than
- * throwing, so a malformed timestamp never blanks a whole message list.
+ * throwing, so a malformed timestamp never blanks a whole message list. The clock
+ * portion reuses formatTime so the hour cycle / locale can never drift from the
+ * rest of the app (the day/month part has no shared helper, hence the inline
+ * formatter).
  */
 export function formatChatTime(iso: string): string {
-  try {
-    return new Intl.DateTimeFormat("de-DE", {
-      day: "2-digit",
-      month: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(iso));
-  } catch {
-    return iso;
-  }
+  const date = new Date(iso);
+  if (isNaN(date.getTime())) return iso;
+  const dayMonth = new Intl.DateTimeFormat("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+  }).format(date);
+  return `${dayMonth}, ${formatTime(iso)}`;
 }
 
 /**

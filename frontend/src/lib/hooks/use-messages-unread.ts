@@ -24,5 +24,11 @@ export function useMessagesUnread() {
     eventNames: ["messages-unread-refresh"],
     // Collapse the tenant-wide message fan-out into one count refetch per burst.
     eventDebounceMs: 500,
+    // Refetch on focus, matching the parent badge. SSE stops reconnecting after
+    // maxReconnectAttempts and stays "failed"; if that happens while the tab is
+    // backgrounded, no messages-unread-refresh event fires for a new message and
+    // the badge would stay stale until a full reload. A focus refetch heals it
+    // when the staffer returns to the tab.
+    refetchOnFocus: true,
   });
 }

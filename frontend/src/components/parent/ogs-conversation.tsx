@@ -285,6 +285,11 @@ function ThreadSkeleton() {
   );
 }
 
+// Always-visible parents-portal back link. The kit BackButton/MobileBackButton
+// don't fit here: BackButton routes via useTenantRouter (the tenant portal) and
+// both are mobile-only by design, whereas this affordance must work on desktop in
+// the parents portal too. A plain Link to the portal-absolute path is the correct
+// primitive; the kit has no desktop, portal-agnostic back component to reuse.
 function BackBar() {
   return (
     <Link

@@ -52,6 +52,52 @@ interface ApiResponse<T> {
 }
 
 /**
+ * Reads the backend error message off a failed /api/messages response and throws
+ * it, falling back to the supplied German default only when the body carries no
+ * `error`. Without this every helper discarded the envelope's `error`, so a 403
+ * "messaging disabled" surfaced as a generic "... konnte nicht geladen werden"
+ * and the real reason was lost. Mirrors parent-api.ts's shared error path.
+ */
+async function throwApiError(
+  response: Response,
+  fallback: string,
+): Promise<never> {
+  let message = fallback;
+  try {
+    const body = (await response.json()) as { error?: string };
+    if (body.error) message = body.error;
+  } catch {
+    // Body was not JSON — keep the German fallback.
+  }
+  throw new Error(message);
+}
+
+/** GET a /api/messages route, surfacing the backend error on failure. */
+async function getEnvelope<T>(
+  url: string,
+  fallback: string,
+): Promise<ApiResponse<T>> {
+  const response = await fetch(url);
+  if (!response.ok) await throwApiError(response, fallback);
+  return (await response.json()) as ApiResponse<T>;
+}
+
+/** POST to a /api/messages route, surfacing the backend error on failure. */
+async function postEnvelope<T>(
+  url: string,
+  body: unknown,
+  fallback: string,
+): Promise<ApiResponse<T>> {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) await throwApiError(response, fallback);
+  return (await response.json()) as ApiResponse<T>;
+}
+
+/**
  * German label for a guardian relationship type. Delegates to the shared
  * getRelationshipTypeLabel (lib/guardian-helpers) — the SAME label set the
  * guardian admin UI uses — so a guardian never reads differently in the
@@ -68,13 +114,10 @@ export async function fetchInboxWithFilters(filters: {
 }): Promise<InboxThread[]> {
   const params = new URLSearchParams();
   if (filters.onlyUnread) params.set("unread", "true");
-  const response = await fetch(
+  const result = await getEnvelope<InboxThread[]>(
     `/api/messages${params.size > 0 ? `?${params.toString()}` : ""}`,
+    "Nachrichten konnten nicht geladen werden",
   );
-  if (!response.ok) {
-    throw new Error("Nachrichten konnten nicht geladen werden");
-  }
-  const result = (await response.json()) as ApiResponse<InboxThread[]>;
   return result.data ?? [];
 }
 
@@ -86,13 +129,10 @@ export async function fetchInboxWithFilters(filters: {
 export async function fetchStudentThreads(
   studentId: string,
 ): Promise<InboxThread[]> {
-  const response = await fetch(
+  const result = await getEnvelope<InboxThread[]>(
     `/api/messages/students/${encodeURIComponent(studentId)}/threads`,
+    "Nachrichten konnten nicht geladen werden",
   );
-  if (!response.ok) {
-    throw new Error("Nachrichten konnten nicht geladen werden");
-  }
-  const result = (await response.json()) as ApiResponse<InboxThread[]>;
   return result.data ?? [];
 }
 
@@ -100,13 +140,10 @@ export async function fetchStudentThreads(
  * Fetch the number of unread message threads for the unread badge.
  */
 export async function fetchUnreadCount(): Promise<number> {
-  const response = await fetch("/api/messages/unread-count");
-  if (!response.ok) {
-    throw new Error("Ungelesene Nachrichten konnten nicht geladen werden");
-  }
-  const result = (await response.json()) as ApiResponse<{
-    unread_count: number;
-  }>;
+  const result = await getEnvelope<{ unread_count: number }>(
+    "/api/messages/unread-count",
+    "Ungelesene Nachrichten konnten nicht geladen werden",
+  );
   return result.data?.unread_count ?? 0;
 }
 
@@ -115,13 +152,13 @@ export async function fetchUnreadCount(): Promise<number> {
  * for the chat window.
  */
 export async function fetchThread(threadId: string): Promise<ThreadDetail> {
-  const response = await fetch(`/api/messages/threads/${threadId}`);
-  if (!response.ok) {
-    throw new Error("Nachrichtenverlauf konnte nicht geladen werden");
-  }
-  const result = (await response.json()) as ApiResponse<ThreadDetail>;
+  const fallback = "Nachrichtenverlauf konnte nicht geladen werden";
+  const result = await getEnvelope<ThreadDetail>(
+    `/api/messages/threads/${threadId}`,
+    fallback,
+  );
   if (!result.data) {
-    throw new Error("Nachrichtenverlauf konnte nicht geladen werden");
+    throw new Error(fallback);
   }
   return result.data;
 }
@@ -133,15 +170,11 @@ export async function postMessage(
   threadId: string,
   body: string,
 ): Promise<Message[]> {
-  const response = await fetch(`/api/messages/threads/${threadId}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ body }),
-  });
-  if (!response.ok) {
-    throw new Error("Nachricht konnte nicht gesendet werden");
-  }
-  const result = (await response.json()) as ApiResponse<Message[]>;
+  const result = await postEnvelope<Message[]>(
+    `/api/messages/threads/${threadId}`,
+    { body },
+    "Nachricht konnte nicht gesendet werden",
+  );
   return result.data ?? [];
 }
 
@@ -155,21 +188,18 @@ export async function startThread(input: {
   guardianAccountId: string;
   body: string;
 }): Promise<ThreadDetail> {
-  const response = await fetch("/api/messages/threads", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+  const fallback = "Nachricht konnte nicht gesendet werden";
+  const result = await postEnvelope<ThreadDetail>(
+    "/api/messages/threads",
+    {
       student_id: input.studentId,
       guardian_account_id: input.guardianAccountId,
       body: input.body,
-    }),
-  });
-  if (!response.ok) {
-    throw new Error("Nachricht konnte nicht gesendet werden");
-  }
-  const result = (await response.json()) as ApiResponse<ThreadDetail>;
+    },
+    fallback,
+  );
   if (!result.data) {
-    throw new Error("Nachricht konnte nicht gesendet werden");
+    throw new Error(fallback);
   }
   return result.data;
 }
@@ -184,20 +214,17 @@ export async function openThread(input: {
   studentId: string;
   guardianAccountId: string;
 }): Promise<ThreadDetail> {
-  const response = await fetch("/api/messages/threads/open", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+  const fallback = "Unterhaltung konnte nicht geöffnet werden";
+  const result = await postEnvelope<ThreadDetail>(
+    "/api/messages/threads/open",
+    {
       student_id: input.studentId,
       guardian_account_id: input.guardianAccountId,
-    }),
-  });
-  if (!response.ok) {
-    throw new Error("Unterhaltung konnte nicht geöffnet werden");
-  }
-  const result = (await response.json()) as ApiResponse<ThreadDetail>;
+    },
+    fallback,
+  );
   if (!result.data) {
-    throw new Error("Unterhaltung konnte nicht geöffnet werden");
+    throw new Error(fallback);
   }
   return result.data;
 }
@@ -207,10 +234,9 @@ export async function openThread(input: {
  * receive a new message thread.
  */
 export async function fetchGuardians(studentId: string): Promise<Guardian[]> {
-  const response = await fetch(`/api/messages/students/${studentId}/guardians`);
-  if (!response.ok) {
-    throw new Error("Bezugspersonen konnten nicht geladen werden");
-  }
-  const result = (await response.json()) as ApiResponse<Guardian[]>;
+  const result = await getEnvelope<Guardian[]>(
+    `/api/messages/students/${studentId}/guardians`,
+    "Bezugspersonen konnten nicht geladen werden",
+  );
   return result.data ?? [];
 }

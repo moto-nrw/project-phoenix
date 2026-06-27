@@ -21,13 +21,19 @@ import { useEffect, useRef } from "react";
  * debounceMs collapses bursts (the morning rush wakes every tenant staffer per
  * message) into one refetch — used by the heavy inbox query.
  *
- * Backgrounded-tab guard: opening/refetching a thread advances the reader's read
- * cursor server-side (GET marks the thread read), so firing onMatch while the tab
- * is hidden would silently mark an unseen message read — the staffer never sees
- * it and the unread badge never lights up. While `document.hidden`, a matching
- * event is remembered and flushed once the tab becomes visible again, so a real
- * read only happens when the user is actually looking. (Refetch-only consumers
- * like the inbox are unaffected by the delay.)
+ * Backgrounded-tab guard (marksRead consumers only): opening/refetching a thread
+ * advances the reader's read cursor server-side (GET marks the thread read), so
+ * firing onMatch while the tab is hidden would silently mark an unseen message
+ * read — the staffer never sees it and the unread badge never lights up. For those
+ * consumers (the staff thread page, the parent conversation view) a matching event
+ * arriving while `document.hidden` is remembered and flushed once the tab is
+ * visible again, so a real read only happens when the user is actually looking.
+ *
+ * Refetch-only consumers (the inbox, the parent multi-child list, the child-detail
+ * card) never advance a read cursor, so deferring them just leaves the rows/unread
+ * pills stale in a background tab for no benefit. They pass `marksRead: false` to
+ * fire immediately. The flag defaults to `true` so a new read-advancing consumer
+ * keeps the protective guard unless it explicitly opts out.
  */
 export interface MessagesActivityDetail {
   readonly threadId?: string | null;
@@ -40,12 +46,19 @@ export function useMessagesActivity({
   studentId,
   debounceMs,
   eventName = "messages-activity",
+  marksRead = true,
 }: {
   onMatch: () => void;
   threadId?: string;
   studentId?: string;
   debounceMs?: number;
   eventName?: string;
+  /**
+   * Whether onMatch advances a server-side read cursor (true for thread/chat
+   * views). When true the hidden-tab guard defers the refetch until the tab is
+   * visible; when false the refetch fires immediately even in a background tab.
+   */
+  marksRead?: boolean;
 }): void {
   const onMatchRef = useRef(onMatch);
   onMatchRef.current = onMatch;
@@ -62,7 +75,7 @@ export function useMessagesActivity({
     // unseen, so defer to the visibilitychange flush instead — same guard the
     // arrival handler applies, repeated here because the timer outlives it.
     const runMatch = () => {
-      if (typeof document !== "undefined" && document.hidden) {
+      if (marksRead && typeof document !== "undefined" && document.hidden) {
         pendingWhileHidden = true;
         return;
       }
@@ -84,7 +97,7 @@ export function useMessagesActivity({
       if (studentId && detail?.studentId && detail.studentId !== studentId) {
         return;
       }
-      if (typeof document !== "undefined" && document.hidden) {
+      if (marksRead && typeof document !== "undefined" && document.hidden) {
         pendingWhileHidden = true;
         return;
       }
@@ -109,5 +122,5 @@ export function useMessagesActivity({
       document.removeEventListener("visibilitychange", onVisibility);
       if (timer) clearTimeout(timer);
     };
-  }, [threadId, studentId, debounceMs, eventName]);
+  }, [threadId, studentId, debounceMs, eventName, marksRead]);
 }

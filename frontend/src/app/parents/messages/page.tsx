@@ -6,6 +6,7 @@ import { ArrowRight, MessageSquare } from "lucide-react";
 import { OgsConversation } from "~/components/parent/ogs-conversation";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { Alert } from "~/components/ui/alert";
+import { Skeleton } from "~/components/ui/skeleton";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import {
   type Child,
@@ -148,6 +149,9 @@ export default function ParentMessagesPage() {
   useMessagesActivity({
     eventName: "parent-threads-refresh",
     onMatch: () => void load({ silent: true }),
+    // Refetch-only multi-child list (never advances a read cursor), so fire even
+    // in a background tab instead of deferring to focus.
+    marksRead: false,
   });
   // Also refetch when the window regains focus (the hook covers SSE, not focus).
   useEffect(() => {
@@ -298,7 +302,7 @@ function EmptyMessages() {
 function ParentMessagesSkeleton() {
   return (
     <div className="mx-auto w-full max-w-5xl">
-      <div className="h-[calc(100dvh-13rem)] min-h-[20rem] animate-pulse rounded-2xl border border-gray-200 bg-white shadow-sm lg:h-[calc(100dvh-8.5rem)]" />
+      <Skeleton className="h-[calc(100dvh-13rem)] min-h-[20rem] rounded-2xl border border-gray-200 bg-white shadow-sm lg:h-[calc(100dvh-8.5rem)]" />
     </div>
   );
 }
