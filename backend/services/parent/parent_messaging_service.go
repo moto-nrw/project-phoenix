@@ -316,6 +316,17 @@ func (s *service) PostChildMessage(ctx context.Context, accountID, studentID int
 		// otherwise existing receipts blink off until the next full GET/SSE refresh.
 		s.decorateReadReceipts(txCtx, thread.ID, accountID, messages)
 		view.Messages = messages
+		// Advance the guardian's read cursor over this returned snapshot, exactly as
+		// GetChildConversation does. The guardian is now viewing this list, so any
+		// staff message that became visible since the last GET (e.g. a reply that
+		// arrived while an SSE refresh was missed) must count as read — otherwise the
+		// sidebar badge keeps counting a message already on screen until a separate
+		// read-marking GET runs. Snapshot-bounded (never NOW()), so it can't swallow a
+		// counterpart message that committed after this list. See
+		// parentmessaging.MarkReadToNewest.
+		if err := parentmessaging.MarkReadToNewest(txCtx, s.messageReadRepo, thread.TenantID, thread.ID, accountID, messages); err != nil {
+			return err
+		}
 		captured := child.tenantID
 		capturedThread := view.ThreadID
 		tenant.RegisterAfterCommit(txCtx, func() {

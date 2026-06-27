@@ -105,9 +105,16 @@ func notReaderAuthored(alias string) string {
 // "unread" side: staff readers count unread guardian-side activity, guardian
 // readers count unread staff-side activity (see counterpartUnread).
 func inboxSelect(q *bun.SelectQuery, accountID int64, staffReader bool) *bun.SelectQuery {
+	// cm.tenant_id = t.tenant_id is REQUIRED for index usability, not just RLS. The
+	// only index on parent_messages leads with tenant_id (tenant_id, thread_id,
+	// created_at); the cross-tenant guardian queries (ListThreadsForGuardianTenants)
+	// run this under WithAdminTx where RLS is bypassed and injects no tenant
+	// predicate, so a thread_id-only correlated filter cannot use the index and
+	// seq-scans parent_messages per thread row. Binding the leading column makes it
+	// an index scan. Redundant-but-correct under RLS-scoped staff queries.
 	unreadSub := fmt.Sprintf(`(
 		SELECT COUNT(*) FROM users.parent_messages cm
-		WHERE cm.thread_id = t.id
+		WHERE cm.thread_id = t.id AND cm.tenant_id = t.tenant_id
 		  AND %s
 		  AND %s
 		  AND %s
@@ -154,8 +161,12 @@ func inboxSelect(q *bun.SelectQuery, accountID int64, staffReader bool) *bun.Sel
 // never written to out of the inbox / thread lists: an empty thread must not
 // appear until its first message. Checks message existence directly rather
 // than the denormalized last_message_at so it holds even if that field drifts.
+// hm.tenant_id = t.tenant_id binds the leading index column so this EXISTS uses
+// the (tenant_id, thread_id, ...) index even under WithAdminTx (cross-tenant
+// guardian queries), where RLS injects no tenant predicate — see unreadSub.
 const threadHasMessages = `EXISTS (
-	SELECT 1 FROM users.parent_messages hm WHERE hm.thread_id = t.id
+	SELECT 1 FROM users.parent_messages hm
+	WHERE hm.thread_id = t.id AND hm.tenant_id = t.tenant_id
 )`
 
 // guardianStillLinked keeps a guardian-facing thread visible only while the
@@ -195,7 +206,7 @@ const guardianStillLinked = `EXISTS (
 // `?` (notReaderAuthored) bound to the reader's account id at the call site.
 var guardianUnreadExists = fmt.Sprintf(`EXISTS (
 	SELECT 1 FROM users.parent_messages um
-	WHERE um.thread_id = t.id
+	WHERE um.thread_id = t.id AND um.tenant_id = t.tenant_id
 	  AND %s
 	  AND %s
 	  AND %s
@@ -208,7 +219,7 @@ var guardianUnreadExists = fmt.Sprintf(`EXISTS (
 // account id at the call site.
 var staffUnreadExists = fmt.Sprintf(`EXISTS (
 	SELECT 1 FROM users.parent_messages um
-	WHERE um.thread_id = t.id
+	WHERE um.thread_id = t.id AND um.tenant_id = t.tenant_id
 	  AND %s
 	  AND %s
 	  AND %s

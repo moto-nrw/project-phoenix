@@ -380,6 +380,16 @@ func (s *service) PostMessage(ctx context.Context, threadID int64, body string) 
 	if err != nil {
 		return nil, fmt.Errorf("messaging: list messages: %w", err)
 	}
+	// Advance the staff reader's cursor over this returned snapshot, exactly as the
+	// GET path (markReadAndBuild) does. The client applies this list with
+	// revalidate:false, so a guardian message that became visible since the last GET
+	// (an SSE echo missed/delayed before this send) would otherwise stay lit in the
+	// sidebar/inbox unread count though it is already on screen. Snapshot-bounded
+	// (never NOW()) so it can't swallow a counterpart message committed after this
+	// list. See parentmessaging.MarkReadToNewest.
+	if err := parentmessaging.MarkReadToNewest(ctx, s.readRepo, thread.TenantID, thread.ID, accountID, messages); err != nil {
+		return nil, fmt.Errorf("messaging: mark read: %w", err)
+	}
 	s.broadcastAfterCommit(ctx, thread)
 	return messages, nil
 }
