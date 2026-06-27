@@ -2,9 +2,11 @@
 
 import { createLogger } from "~/lib/logger";
 import { useEffect, useState, Suspense } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { useTenantRouter } from "~/lib/tenant-router";
-import { PageHeader } from "@/components/dashboard";
+import { MobileBackButton } from "~/components/ui/mobile-back-button";
 import {
   fetchActivity,
   getEnrolledStudents,
@@ -21,6 +23,7 @@ import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { NfcModeGuard } from "~/components/tenant/nfc-mode-guard";
 
 const logger = createLogger({ component: "ActivityDetailPage" });
+const ACTIVITIES_BACK_URL = "/activities";
 
 function ActivityDetailContent() {
   const router = useTenantRouter();
@@ -139,11 +142,25 @@ function ActivityDetailContent() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <PageHeader title="Aktivitätsdetails" backUrl="/activities" />
-
-      {/* Main Content */}
       <main className="mx-auto max-w-4xl p-4">
+        <MobileBackButton
+          href={ACTIVITIES_BACK_URL}
+          ariaLabel="Zurück zu Aktivitäten"
+        />
+
+        <div className="mb-4 hidden md:block">
+          <Link
+            href={ACTIVITIES_BACK_URL}
+            className="mb-3 inline-flex items-center gap-2 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden />
+            Zurück
+          </Link>
+          <h1 className="text-2xl font-semibold text-gray-900">
+            Aktivitätsdetails
+          </h1>
+        </div>
+
         {/* Error Alert */}
         {error && activity && (
           <div

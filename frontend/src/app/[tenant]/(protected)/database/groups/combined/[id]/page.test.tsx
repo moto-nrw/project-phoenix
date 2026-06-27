@@ -28,12 +28,6 @@ vi.mock("@/lib/api", () => ({
   },
 }));
 
-vi.mock("@/components/dashboard", () => ({
-  PageHeader: ({ title }: { title: string }) => (
-    <div data-testid="page-header">{title}</div>
-  ),
-}));
-
 vi.mock("@/components/groups", () => ({
   CombinedGroupForm: ({
     formTitle,

@@ -15,14 +15,6 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
-vi.mock("@/components/dashboard", () => ({
-  PageHeader: ({ title, backUrl }: { title: string; backUrl: string }) => (
-    <div data-testid="page-header" data-backurl={backUrl}>
-      {title}
-    </div>
-  ),
-}));
-
 const mockActivity = {
   id: "1",
   name: "Schachclub",
@@ -153,13 +145,20 @@ describe("ActivityDetailPage", () => {
     });
   });
 
-  it("displays page header with correct title and back URL", async () => {
+  it("displays page title with the activities back link", async () => {
     render(<ActivityDetailPage />);
 
     await waitFor(() => {
-      const header = screen.getByTestId("page-header");
-      expect(header).toHaveTextContent("Aktivitätsdetails");
-      expect(header).toHaveAttribute("data-backurl", "/activities");
+      expect(
+        screen.getByRole("heading", {
+          level: 1,
+          name: "Aktivitätsdetails",
+        }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Zurück" })).toHaveAttribute(
+        "href",
+        "/activities",
+      );
     });
   });
 

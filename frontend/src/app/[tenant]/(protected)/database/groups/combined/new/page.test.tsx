@@ -16,12 +16,6 @@ vi.mock("@/lib/api", () => ({
   },
 }));
 
-vi.mock("@/components/dashboard", () => ({
-  PageHeader: ({ title }: { title: string }) => (
-    <div data-testid="page-header">{title}</div>
-  ),
-}));
-
 vi.mock("@/components/groups", () => ({
   CombinedGroupForm: ({
     formTitle,
@@ -70,11 +64,18 @@ describe("NewCombinedGroupPage", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders page header with correct title", () => {
+  it("renders page title with the combined groups back link", () => {
     render(<NewCombinedGroupPage />);
 
-    expect(screen.getByTestId("page-header")).toHaveTextContent(
-      "Neue Gruppenkombination",
+    expect(
+      screen.getByRole("heading", {
+        level: 1,
+        name: "Neue Gruppenkombination",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Zurück" })).toHaveAttribute(
+      "href",
+      "/database/groups/combined",
     );
   });
 
