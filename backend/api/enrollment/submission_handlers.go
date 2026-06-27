@@ -365,6 +365,7 @@ type EditBootstrapResponse struct {
 	CareRequired              bool                      `json:"care_required"`
 	LegalTexts                PublicLegalTextsResponse  `json:"legal_texts"`
 	Draft                     EditDraftResponse         `json:"draft"`
+	EditMode                  string                    `json:"edit_mode"`
 }
 
 type EditDraftResponse struct {
@@ -516,7 +517,8 @@ func (rs *Resource) getEditBootstrap(w http.ResponseWriter, r *http.Request) {
 			PhotoEnabled:        draft.LegalTexts.PhotoEnabled,
 			Blocks:              draft.LegalTexts.Blocks,
 		},
-		Draft: toEditDraftResponse(draft),
+		Draft:    toEditDraftResponse(draft),
+		EditMode: draft.EditMode,
 	}, "Enrollment edit bootstrap retrieved")
 }
 

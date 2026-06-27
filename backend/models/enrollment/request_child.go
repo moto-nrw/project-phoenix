@@ -130,6 +130,7 @@ type RequestChildRepository interface {
 	ListByRequestIDs(ctx context.Context, requestIDs []int64) ([]*RequestChild, error)
 
 	UpdateStatus(ctx context.Context, id int64, newStatus string, reason *string, reviewedBy int64) error
+	UpdateData(ctx context.Context, child *RequestChild) error
 	LinkCreatedStudent(ctx context.Context, requestChildID, studentID int64) error
 	UpdateActivationPlan(ctx context.Context, requestChildID int64, mode string, activateOn *timezone.Date) error
 	DeleteByRequestID(ctx context.Context, requestID int64) error

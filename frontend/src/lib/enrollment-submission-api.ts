@@ -134,7 +134,10 @@ export interface EnrollmentEditDraft {
   children: EnrollmentEditDraftChild[];
 }
 
+type EnrollmentEditMode = "direct_edit" | "change_request";
+
 export interface EnrollmentEditBootstrap {
+  edit_mode: EnrollmentEditMode;
   phase: PublicPhase;
   schema: PublicFormSchema | null;
   offerings: PublicCareOffering[];
@@ -142,6 +145,40 @@ export interface EnrollmentEditBootstrap {
   care_required: boolean;
   legal_texts: PublicLegalTexts;
   draft: EnrollmentEditDraft;
+}
+
+type EnrollmentChangeRequestStatus =
+  | "pending_review"
+  | "needs_parent_response"
+  | "approved"
+  | "rejected"
+  | "cancelled";
+
+type EnrollmentChangeRequestMessageAuthor = "parent" | "staff" | "system";
+
+interface EnrollmentChangeRequestMessage {
+  id: string;
+  author_type: EnrollmentChangeRequestMessageAuthor;
+  author_account_id?: number | null;
+  body: string;
+  internal_only: boolean;
+  created_at: string;
+}
+
+export interface EnrollmentChangeRequest {
+  id: string;
+  request_id: string;
+  status: EnrollmentChangeRequestStatus;
+  parent_note?: string | null;
+  admin_decision_note?: string | null;
+  base_snapshot: Record<string, unknown>;
+  proposed_snapshot: Record<string, unknown>;
+  diff: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  reviewed_at?: string | null;
+  reviewed_by_account_id?: number | null;
+  messages?: EnrollmentChangeRequestMessage[];
 }
 
 interface BackendEnvelope<T> {
@@ -430,6 +467,67 @@ export async function updateEnrollmentRequest(
     throw await readError(response, fallback);
   }
   return readJSON<SubmitEnrollmentResult>(response);
+}
+
+export async function createEnrollmentChangeRequest(
+  token: string,
+  payload: SubmitEnrollmentPayload,
+  parentNote = "",
+  fallback = "Änderungsanfrage konnte nicht gespeichert werden",
+): Promise<EnrollmentChangeRequest> {
+  const response = await fetch(
+    `/api/enrollment/requests/${encodeURIComponent(token)}/change-requests`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...payload,
+        parent_note: parentNote,
+      }),
+    },
+  );
+  if (!response.ok) {
+    throw await readError(response, fallback);
+  }
+  return readJSON<EnrollmentChangeRequest>(response);
+}
+
+export async function listEnrollmentChangeRequests(
+  token: string,
+): Promise<EnrollmentChangeRequest[]> {
+  const response = await fetch(
+    `/api/enrollment/requests/${encodeURIComponent(token)}/change-requests`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Änderungsanfragen konnten nicht geladen werden",
+    );
+  }
+  const list = await readJSON<EnrollmentChangeRequest[]>(response);
+  return Array.isArray(list) ? list : [];
+}
+
+export async function replyEnrollmentChangeRequest(
+  token: string,
+  changeRequestId: string,
+  body: string,
+): Promise<EnrollmentChangeRequest> {
+  const response = await fetch(
+    `/api/enrollment/requests/${encodeURIComponent(
+      token,
+    )}/change-requests/${encodeURIComponent(changeRequestId)}/messages`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body }),
+    },
+  );
+  if (!response.ok) {
+    throw await readError(response, "Antwort konnte nicht gesendet werden");
+  }
+  return readJSON<EnrollmentChangeRequest>(response);
 }
 
 export async function patchStatus(

@@ -8,6 +8,7 @@ import {
   Check,
   Clock,
   Mail,
+  MessageSquare,
   Pencil,
   ShieldCheck,
   UserRound,
@@ -16,8 +17,11 @@ import { useLocale, useTranslations } from "next-intl";
 import {
   confirmRenewal,
   fetchStatus,
+  listEnrollmentChangeRequests,
   patchStatus,
+  replyEnrollmentChangeRequest,
   withdrawStatus,
+  type EnrollmentChangeRequest,
   type StatusChild,
   type StatusGuardian,
   type StatusResponse,
@@ -47,6 +51,26 @@ const TERMINAL_STATUSES = new Set<StatusChild["status"]>([
   "withdrawn",
 ]);
 
+const CHANGE_REQUEST_LABELS: Record<EnrollmentChangeRequest["status"], string> =
+  {
+    pending_review: "Wartet auf Prüfung",
+    needs_parent_response: "Rückfrage offen",
+    approved: "Freigegeben",
+    rejected: "Abgelehnt",
+    cancelled: "Abgebrochen",
+  };
+
+const CHANGE_REQUEST_STYLES: Record<
+  EnrollmentChangeRequest["status"],
+  { bg: string; dot: string; text: string }
+> = {
+  pending_review: { bg: "#EEF3FF", dot: "#5080D8", text: "#355A9A" },
+  needs_parent_response: { bg: "#FFF4E6", dot: "#F78C10", text: "#8A5600" },
+  approved: { bg: "#83CD2D1A", dot: "#83CD2D", text: "#5A8B1F" },
+  rejected: { bg: "#FF31301A", dot: "#FF3130", text: "#9F1F1E" },
+  cancelled: { bg: "#F3F4F6", dot: "#9CA3AF", text: "#4B5563" },
+};
+
 interface Props {
   readonly token: string;
   readonly justSubmitted?: boolean;
@@ -57,6 +81,9 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
   const locale = useLocale();
   const pathname = usePathname();
   const [status, setStatus] = useState<StatusResponse | null>(null);
+  const [changeRequests, setChangeRequests] = useState<
+    EnrollmentChangeRequest[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +93,10 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
   const [savingEdit, setSavingEdit] = useState(false);
   const [withdrawingChild, setWithdrawingChild] = useState<string | null>(null);
   const [confirmingRenewal, setConfirmingRenewal] = useState(false);
+  const [replyingChangeRequest, setReplyingChangeRequest] = useState<
+    string | null
+  >(null);
+  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
 
   const [editFirstName, setEditFirstName] = useState("");
   const [editLastName, setEditLastName] = useState("");
@@ -76,12 +107,22 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
     setError(null);
     setNotFound(false);
     try {
-      const result = await fetchStatus(token);
+      const [result, requestChanges] = await Promise.all([
+        fetchStatus(token),
+        listEnrollmentChangeRequests(token).catch((err) => {
+          logger.warn("change_requests_load_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+          return [] as EnrollmentChangeRequest[];
+        }),
+      ]);
       if (!result) {
         setNotFound(true);
+        setChangeRequests([]);
         return;
       }
       setStatus(result);
+      setChangeRequests(requestChanges);
       setEditFirstName(result.guardian_first_name);
       setEditLastName(result.guardian_last_name);
       setEditPhone(result.guardian_phone ?? "");
@@ -106,6 +147,26 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
   const editHref = pathname?.startsWith("/parents")
     ? `/parents/enroll/status/${encodeURIComponent(token)}/edit`
     : `${pathname?.replace(/\/$/, "") ?? ""}/edit`;
+
+  const handleChangeRequestReply = async (changeRequestId: string) => {
+    const body = (replyDrafts[changeRequestId] ?? "").trim();
+    if (!body) return;
+    setReplyingChangeRequest(changeRequestId);
+    setError(null);
+    setInfo(null);
+    try {
+      await replyEnrollmentChangeRequest(token, changeRequestId, body);
+      setReplyDrafts((prev) => ({ ...prev, [changeRequestId]: "" }));
+      setInfo(t("changeRequestReplySaved"));
+      await load();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : t("unknownError");
+      logger.error("change_request_reply_failed", { error: message });
+      setError(message);
+    } finally {
+      setReplyingChangeRequest(null);
+    }
+  };
 
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -211,6 +272,14 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
     !!status.withdrawn_at ||
     status.children.every((c) => c.status === "withdrawn");
   const hasMultipleChildren = status.children.length > 1;
+  const hasWithdrawnChild = status.children.some(
+    (c) => c.status === "withdrawn",
+  );
+  const canRequestChange =
+    !allEditable &&
+    !allWithdrawn &&
+    !hasWithdrawnChild &&
+    status.children.some((c) => c.status !== "submitted");
 
   const pendingRenewalCount = status.children.filter(
     (c) => c.status === "pending_renewal",
@@ -250,14 +319,14 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
                 ? t("submittedDescription")
                 : t("statusDescription", { date: submittedDate })}
             </p>
-            {allEditable && (
+            {(allEditable || canRequestChange) && (
               <div className="mt-6">
                 <Link
                   href={editHref}
                   className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                 >
                   <Pencil className="h-4 w-4" aria-hidden="true" />
-                  {t("editFull")}
+                  {allEditable ? t("editFull") : t("requestChange")}
                 </Link>
               </div>
             )}
@@ -313,6 +382,20 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
         <div className="rounded-2xl border border-[#83CD2D]/30 bg-[#83CD2D]/5 p-4 text-sm text-[#5BA01F]">
           {info}
         </div>
+      )}
+
+      {(canRequestChange || changeRequests.length > 0) && (
+        <ChangeRequestsPanel
+          canCreate={canRequestChange}
+          editHref={editHref}
+          requests={changeRequests}
+          replyDrafts={replyDrafts}
+          replyingId={replyingChangeRequest}
+          onReply={(id) => void handleChangeRequestReply(id)}
+          onReplyDraftChange={(id, value) =>
+            setReplyDrafts((prev) => ({ ...prev, [id]: value }))
+          }
+        />
       )}
 
       {showOptInBanner && (
@@ -569,7 +652,11 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
           </form>
         )}
         {!allEditable && !editing && (
-          <p className="text-sm text-gray-500">{t("editLocked")}</p>
+          <p className="text-sm text-gray-500">
+            {canRequestChange
+              ? t("editLockedWithChangeRequest")
+              : t("editLocked")}
+          </p>
         )}
       </section>
 
@@ -611,6 +698,200 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
       )}
     </div>
   );
+}
+
+function ChangeRequestsPanel({
+  canCreate,
+  editHref,
+  onReply,
+  onReplyDraftChange,
+  replyDrafts,
+  replyingId,
+  requests,
+}: {
+  readonly canCreate: boolean;
+  readonly editHref: string;
+  readonly requests: EnrollmentChangeRequest[];
+  readonly replyDrafts: Record<string, string>;
+  readonly replyingId: string | null;
+  readonly onReplyDraftChange: (id: string, value: string) => void;
+  readonly onReply: (id: string) => void;
+}) {
+  const t = useTranslations("enrollmentStatus");
+  const locale = useLocale();
+
+  return (
+    <section className="moto-content-surface space-y-4 rounded-xl border p-5 shadow-sm sm:p-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex gap-3">
+          <span className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border text-gray-600 shadow-sm">
+            <MessageSquare className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div>
+            <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+              {t("changeRequestsEyebrow")}
+            </p>
+            <h2 className="mt-1 text-xl font-semibold text-gray-900">
+              {t("changeRequestsTitle")}
+            </h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
+              {t("changeRequestsDescription")}
+            </p>
+          </div>
+        </div>
+        {canCreate ? (
+          <Link
+            href={editHref}
+            className="inline-flex h-10 w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:w-auto"
+          >
+            <Pencil className="h-4 w-4" aria-hidden="true" />
+            {t("requestChange")}
+          </Link>
+        ) : null}
+      </div>
+
+      {requests.length === 0 ? (
+        <p className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-600">
+          {t("changeRequestsEmpty")}
+        </p>
+      ) : (
+        <ul className="space-y-3">
+          {requests.map((request) => {
+            const messages = (request.messages ?? []).filter(
+              (message) => !message.internal_only,
+            );
+            return (
+              <li
+                key={request.id}
+                className="rounded-xl border border-gray-200 bg-white p-4"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">
+                      {t("changeRequestCreated", {
+                        date: formatDateTime(request.created_at, locale),
+                      })}
+                    </p>
+                    {request.parent_note ? (
+                      <p className="mt-2 text-sm leading-6 text-gray-600">
+                        {request.parent_note}
+                      </p>
+                    ) : null}
+                  </div>
+                  <ChangeRequestPill status={request.status} />
+                </div>
+
+                {messages.length > 0 ? (
+                  <ol className="mt-4 space-y-2 border-t border-gray-100 pt-3">
+                    {messages.map((message) => (
+                      <li
+                        key={message.id}
+                        className="rounded-lg bg-gray-50 px-3 py-2"
+                      >
+                        <p className="text-xs font-semibold text-gray-500">
+                          {changeRequestAuthorLabel(message.author_type)} ·{" "}
+                          {formatDateTime(message.created_at, locale)}
+                        </p>
+                        <p className="mt-1 text-sm leading-6 whitespace-pre-wrap text-gray-700">
+                          {message.body}
+                        </p>
+                      </li>
+                    ))}
+                  </ol>
+                ) : null}
+
+                {request.admin_decision_note ? (
+                  <div className="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-sm leading-6 text-gray-700">
+                    <span className="font-semibold">
+                      {t("changeRequestDecisionNote")}{" "}
+                    </span>
+                    {request.admin_decision_note}
+                  </div>
+                ) : null}
+
+                {request.status === "needs_parent_response" ? (
+                  <form
+                    className="mt-4 space-y-3 border-t border-gray-100 pt-3"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      onReply(request.id);
+                    }}
+                  >
+                    <label className="block">
+                      <span className="text-sm font-semibold text-gray-700">
+                        {t("changeRequestReplyLabel")}
+                      </span>
+                      <textarea
+                        value={replyDrafts[request.id] ?? ""}
+                        onChange={(event) =>
+                          onReplyDraftChange(request.id, event.target.value)
+                        }
+                        rows={3}
+                        required
+                        className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
+                      />
+                    </label>
+                    <button
+                      type="submit"
+                      disabled={replyingId === request.id}
+                      className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
+                    >
+                      {replyingId === request.id
+                        ? t("changeRequestReplySending")
+                        : t("changeRequestReplySubmit")}
+                    </button>
+                  </form>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function ChangeRequestPill({
+  status,
+}: {
+  readonly status: EnrollmentChangeRequest["status"];
+}) {
+  const styles = CHANGE_REQUEST_STYLES[status];
+  return (
+    <span
+      className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold"
+      style={{
+        backgroundColor: styles.bg,
+        color: styles.text,
+      }}
+    >
+      <span
+        className="h-2 w-2 rounded-full"
+        style={{ backgroundColor: styles.dot }}
+      />
+      {CHANGE_REQUEST_LABELS[status]}
+    </span>
+  );
+}
+
+function changeRequestAuthorLabel(
+  authorType: NonNullable<
+    EnrollmentChangeRequest["messages"]
+  >[number]["author_type"],
+): string {
+  if (authorType === "staff") return "OGS";
+  if (authorType === "system") return "System";
+  return "Sie";
+}
+
+function formatDateTime(value: string, locale: string): string {
+  return new Date(value).toLocaleString(locale, {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function StepNumber({ children }: { readonly children: React.ReactNode }) {

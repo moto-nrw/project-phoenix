@@ -22,13 +22,18 @@ const (
 // without a schema change. These constants exist so the in-tree call sites
 // stay typo-safe.
 const (
-	EmailKindGuardianInvitation       = "guardian_invitation"
-	EmailKindEnrollmentSubmitted      = "enrollment_submitted"
-	EmailKindEnrollmentAdminNotify    = "enrollment_admin_notification"
-	EmailKindEnrollmentDecisionDigest = "enrollment_decision_digest"
-	EmailKindEnrollmentApproved       = "enrollment_approved"
-	EmailKindEnrollmentWaitlisted     = "enrollment_waitlisted"
-	EmailKindEnrollmentRejected       = "enrollment_rejected"
+	EmailKindGuardianInvitation                 = "guardian_invitation"
+	EmailKindEnrollmentSubmitted                = "enrollment_submitted"
+	EmailKindEnrollmentAdminNotify              = "enrollment_admin_notification"
+	EmailKindEnrollmentDecisionDigest           = "enrollment_decision_digest"
+	EmailKindEnrollmentApproved                 = "enrollment_approved"
+	EmailKindEnrollmentWaitlisted               = "enrollment_waitlisted"
+	EmailKindEnrollmentRejected                 = "enrollment_rejected"
+	EmailKindEnrollmentChangeRequestSubmitted   = "enrollment_change_request_submitted"
+	EmailKindEnrollmentChangeRequestQuestion    = "enrollment_change_request_question"
+	EmailKindEnrollmentChangeRequestParentReply = "enrollment_change_request_parent_reply"
+	EmailKindEnrollmentChangeRequestApproved    = "enrollment_change_request_approved"
+	EmailKindEnrollmentChangeRequestRejected    = "enrollment_change_request_rejected"
 
 	// Rollover (phase renewal) email kinds. The renderers are
 	// minimal-text placeholders in slice 1; proper branded templates

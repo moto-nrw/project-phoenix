@@ -106,6 +106,12 @@ type UpdateChildOfferingsInput struct {
 	ActorRole      string
 }
 
+type SyncApprovedChildDataInput struct {
+	RequestID      int64
+	ChildID        int64
+	ActorAccountID int64
+}
+
 // DecideOutcome is what the admin handler gets back from Decide. It
 // carries the refreshed RequestChild plus an optional follow-up
 // instruction asking the handler to issue a guardian invitation

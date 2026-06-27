@@ -98,6 +98,7 @@ type RequestRepository interface {
 	// UpdateGuardianData writes the guardian-editable fields (names, phone,
 	// consent flags, custom answers) and bumps updated_at.
 	UpdateGuardianData(ctx context.Context, req *Request) error
+	UpdateGuardianDataWithEmail(ctx context.Context, req *Request) error
 
 	// MarkWithdrawn stamps withdrawn_at and bumps updated_at.
 	MarkWithdrawn(ctx context.Context, requestID int64, withdrawnAt time.Time) error

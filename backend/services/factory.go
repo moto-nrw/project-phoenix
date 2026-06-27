@@ -119,14 +119,15 @@ type Factory struct {
 	EmailTemplateRegistry *platform.TemplateRegistry
 
 	// Enrollment domain (parent-enrollment PR 5+).
-	EnrollmentFormSchema   enrollment.FormSchemaService
-	EnrollmentCareOffering enrollment.CareOfferingService
-	EnrollmentCaptcha      enrollment.CaptchaService
-	EnrollmentRequest      enrollment.RequestService
-	EnrollmentPhase        enrollment.PhaseService
-	EnrollmentDecision     enrollment.DecisionService
-	EnrollmentReport       enrollment.ReportService
-	EnrollmentRollover     enrollment.RolloverService
+	EnrollmentFormSchema    enrollment.FormSchemaService
+	EnrollmentCareOffering  enrollment.CareOfferingService
+	EnrollmentCaptcha       enrollment.CaptchaService
+	EnrollmentRequest       enrollment.RequestService
+	EnrollmentPhase         enrollment.PhaseService
+	EnrollmentDecision      enrollment.DecisionService
+	EnrollmentReport        enrollment.ReportService
+	EnrollmentRollover      enrollment.RolloverService
+	EnrollmentChangeRequest enrollment.ChangeRequestService
 
 	// Parent (cross-tenant guardian portal - PR 9)
 	Parent parent.Service
@@ -696,6 +697,36 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			DefaultFrom: defaultFrom,
 		})),
 	)
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindEnrollmentChangeRequestSubmitted,
+		platform.RendererFunc(enrollment.NewEnrollmentChangeRequestSubmittedRenderer(enrollment.EmailRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindEnrollmentChangeRequestQuestion,
+		platform.RendererFunc(enrollment.NewEnrollmentChangeRequestQuestionRenderer(enrollment.EmailRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindEnrollmentChangeRequestParentReply,
+		platform.RendererFunc(enrollment.NewEnrollmentChangeRequestParentReplyRenderer(enrollment.EmailRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindEnrollmentChangeRequestApproved,
+		platform.RendererFunc(enrollment.NewEnrollmentChangeRequestApprovedRenderer(enrollment.EmailRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindEnrollmentChangeRequestRejected,
+		platform.RendererFunc(enrollment.NewEnrollmentChangeRequestRejectedRenderer(enrollment.EmailRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
 	// Rollover (annual phase renewal) emails. Slice 1 reuses the
 	// submission template as a placeholder. Proper branded copy lands
 	// in a follow-up PR.
@@ -1033,6 +1064,27 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		PhaseRepo:                repos.Phase,
 		DataAccessLogRepo:        repos.DataAccessLog,
 	})
+	enrollmentDecisionApplier, _ := enrollmentDecisionService.(enrollment.ChangeRequestDecisionApplier)
+
+	enrollmentChangeRequestService := enrollment.NewChangeRequestService(enrollment.ChangeRequestServiceConfig{
+		ChangeRequestRepo:        repos.ChangeRequest,
+		MessageRepo:              repos.ChangeRequestMessage,
+		RequestRepo:              repos.Request,
+		RequestChildRepo:         repos.RequestChild,
+		RequestGuardianRepo:      repos.RequestGuardian,
+		RequestChildOfferingRepo: repos.RequestChildOffering,
+		CareOfferingRepo:         repos.CareOffering,
+		FormSchemaRepo:           repos.FormSchema,
+		PhaseRepo:                repos.Phase,
+		SchoolRepo:               repos.School,
+		DecisionService:          enrollmentDecisionApplier,
+		Settings:                 settingsService,
+		OutboxEnqueuer:           platform.NewEnrollmentOutboxAdapter(emailOutboxService),
+		FrontendURL:              frontendURL,
+		ParentsURL:               parentsURL,
+		DB:                       db,
+		Logger:                   logger.With("service", "enrollment-change-request"),
+	})
 
 	// Rollover service depends on DecisionService for the
 	// rollover_auto_approve=true deadline path.
@@ -1196,14 +1248,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		EmailOutboxWorker:     emailOutboxWorker,
 		EmailTemplateRegistry: emailTemplateRegistry,
 
-		EnrollmentFormSchema:   enrollmentFormSchemaService,
-		EnrollmentCareOffering: enrollmentCareOfferingService,
-		EnrollmentCaptcha:      enrollmentCaptchaService,
-		EnrollmentRequest:      enrollmentRequestService,
-		EnrollmentPhase:        enrollmentPhaseService,
-		EnrollmentDecision:     enrollmentDecisionService,
-		EnrollmentReport:       enrollmentReportService,
-		EnrollmentRollover:     enrollmentRolloverService,
+		EnrollmentFormSchema:    enrollmentFormSchemaService,
+		EnrollmentCareOffering:  enrollmentCareOfferingService,
+		EnrollmentCaptcha:       enrollmentCaptchaService,
+		EnrollmentRequest:       enrollmentRequestService,
+		EnrollmentPhase:         enrollmentPhaseService,
+		EnrollmentDecision:      enrollmentDecisionService,
+		EnrollmentReport:        enrollmentReportService,
+		EnrollmentRollover:      enrollmentRolloverService,
+		EnrollmentChangeRequest: enrollmentChangeRequestService,
 
 		Parent: parentService,
 	}

@@ -156,6 +156,20 @@ func registerEnrollmentNotifications() {
 		},
 	})
 
+	config.Register(config.Definition{
+		Key:             config.KeyEnrollmentChangeRequestEmailNotificationsEnabled,
+		Label:           "E-Mails zu Änderungsanfragen",
+		Description:     "Sendet zusätzliche E-Mails, wenn Eltern nach Prüfungsbeginn eine Änderungsanfrage einreichen, beantworten oder wenn die Verwaltung dazu Rückfragen, Zusagen oder Ablehnungen sendet.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "enrollment",
+		Category:        "benachrichtigung",
+		SortOrder:       42,
+		DependsOn:       dependsOnEnabled,
+	})
+
 	// enrollment.show_status_reason_to_parent moved to per-phase column -
 	// each phase decides whether parents see admin-provided reason
 	// strings on the status page.

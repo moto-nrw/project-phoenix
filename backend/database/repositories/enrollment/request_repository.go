@@ -255,7 +255,15 @@ func (r *RequestRepository) findByStatusToken(ctx context.Context, token, lockCl
 // Custom method (backend-conventions Rule 2): fixed multi-column projection
 // for the parent-portal edit flow.
 func (r *RequestRepository) UpdateGuardianData(ctx context.Context, req *enrollment.Request) error {
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
+	return r.updateGuardianData(ctx, req, false)
+}
+
+func (r *RequestRepository) UpdateGuardianDataWithEmail(ctx context.Context, req *enrollment.Request) error {
+	return r.updateGuardianData(ctx, req, true)
+}
+
+func (r *RequestRepository) updateGuardianData(ctx context.Context, req *enrollment.Request, includeEmail bool) error {
+	q := base.GetDB(ctx, r.db).NewUpdate().
 		Model(req).
 		ModelTableExpr(requestTableExpr).
 		Set("guardian_first_name = ?", req.GuardianFirstName).
@@ -264,8 +272,11 @@ func (r *RequestRepository) UpdateGuardianData(ctx context.Context, req *enrollm
 		Set("consent_flags = ?", req.ConsentFlags).
 		Set("custom_data = ?", req.CustomData).
 		Set("updated_at = NOW()").
-		Where(`"request".id = ?`, req.ID).
-		Exec(ctx)
+		Where(`"request".id = ?`, req.ID)
+	if includeEmail {
+		q = q.Set("guardian_email = ?", req.GuardianEmail)
+	}
+	_, err := q.Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to update guardian data: %w", err)
 	}

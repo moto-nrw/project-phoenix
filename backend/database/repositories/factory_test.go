@@ -107,4 +107,16 @@ func TestNewFactory(t *testing.T) {
 		assert.NotNil(t, factory.AuthEvent)
 		assert.NotNil(t, factory.DataImport)
 	})
+
+	t.Run("enrollment repositories", func(t *testing.T) {
+		assert.NotNil(t, factory.FormSchema)
+		assert.NotNil(t, factory.Request)
+		assert.NotNil(t, factory.RequestChild)
+		assert.NotNil(t, factory.RequestGuardian)
+		assert.NotNil(t, factory.CareOffering)
+		assert.NotNil(t, factory.RequestChildOffering)
+		assert.NotNil(t, factory.ChangeRequest)
+		assert.NotNil(t, factory.ChangeRequestMessage)
+		assert.NotNil(t, factory.Phase)
+	})
 }
