@@ -3011,3 +3011,31 @@ func CleanupParentGuardianChain(tb testing.TB, db *bun.DB, c ParentChain) {
 	exec(`DELETE FROM users.persons WHERE id = ?`, c.PersonID)
 	exec(`DELETE FROM auth.accounts WHERE id = ?`, c.AccountID)
 }
+
+// CleanupParentMessagingForAccount removes parent-messaging rows that reference
+// an account directly: message reads keyed by account_id and messages sent by
+// the account (sender_account_id). Both columns FK auth.accounts(id) WITHOUT ON
+// DELETE CASCADE, so a test that sends a message or records a read from a
+// SEPARATE staff/reader account (distinct from the guardian chain) must clear
+// those rows before deleting that account — otherwise CleanupAuthFixtures hits
+// an FK violation and leaks the account into the shared test DB.
+//
+// CleanupParentGuardianChain already deletes these rows by student_id, but defers
+// run LIFO: the staff-account cleanup is registered last and so runs first.
+// Register this helper as the LAST defer (it then runs FIRST) so it clears the
+// FK ahead of the account delete.
+func CleanupParentMessagingForAccount(tb testing.TB, db *bun.DB, accountIDs ...int64) {
+	tb.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	exec := func(query string, arg int64) {
+		if _, err := db.ExecContext(ctx, query, arg); err != nil {
+			tb.Logf("cleanup warning: %v", err)
+		}
+	}
+	for _, id := range accountIDs {
+		exec(`DELETE FROM users.parent_message_reads WHERE account_id = ?`, id)
+		exec(`DELETE FROM users.parent_messages WHERE sender_account_id = ?`, id)
+	}
+}

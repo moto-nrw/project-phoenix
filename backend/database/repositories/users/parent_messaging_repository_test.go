@@ -60,6 +60,9 @@ func TestParentMessaging_ThreadsMessagesAndReadState(t *testing.T) {
 	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
 	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
 	defer testpkg.CleanupAuthFixtures(t, db, staffAccount.ID)
+	// Messages/reads from staffAccount FK auth.accounts without ON DELETE
+	// CASCADE; clear them before the LIFO-earlier account delete above.
+	defer testpkg.CleanupParentMessagingForAccount(t, db, staffAccount.ID)
 
 	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
 	msgRepo := usersRepo.NewParentMessageRepository(db)
@@ -150,6 +153,9 @@ func TestParentMessaging_UnreadCreatedAtTie(t *testing.T) {
 	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
 	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
 	defer testpkg.CleanupAuthFixtures(t, db, staffAccount.ID)
+	// The staff reader records reads that FK auth.accounts without ON DELETE
+	// CASCADE; clear them before the LIFO-earlier account delete above.
+	defer testpkg.CleanupParentMessagingForAccount(t, db, staffAccount.ID)
 
 	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
 	msgRepo := usersRepo.NewParentMessageRepository(db)
