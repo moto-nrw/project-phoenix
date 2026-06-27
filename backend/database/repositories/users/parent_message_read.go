@@ -82,6 +82,25 @@ func afterReadCursor(alias string) string {
 	)
 }
 
+// notReaderAuthored excludes the reader's OWN messages from their unread set,
+// keyed on sender_account_id (a real column) regardless of sender_kind. It is the
+// third leg of every unread predicate, and carries a single `?` bound to the
+// reader's account id at the call site.
+//
+// This is what keeps a dual-role (staff+guardian) account from counting its own
+// just-sent message as unread to itself: that account is the counterpart of
+// itself, so its guardian-sent message matches a staff reader's
+// counterpartUnread('guardian') (and vice versa). The model contract is exactly
+// "unread = a message after the cursor the reader did NOT send" (see
+// models/users/parent_message_read.go). Enforcing it here — rather than advancing
+// the sender's read cursor on send — is why parentmessaging.AppendMessage no
+// longer moves the cursor: a cursor leap to the just-sent message also skips an
+// earlier counterpart message that committed after the send (lower created_at,
+// later commit), silently marking an unseen message read.
+func notReaderAuthored(alias string) string {
+	return fmt.Sprintf(`%s.sender_account_id <> ?`, alias)
+}
+
 // inboxSelect builds the InboxThread projection. staffReader switches the
 // "unread" side: staff readers count unread guardian-side activity, guardian
 // readers count unread staff-side activity (see counterpartUnread).
@@ -91,7 +110,8 @@ func inboxSelect(q *bun.SelectQuery, accountID int64, staffReader bool) *bun.Sel
 		WHERE cm.thread_id = t.id
 		  AND %s
 		  AND %s
-	) AS unread_count`, counterpartUnread("cm", staffReader), afterReadCursor("cm"))
+		  AND %s
+	) AS unread_count`, counterpartUnread("cm", staffReader), afterReadCursor("cm"), notReaderAuthored("cm"))
 
 	return q.
 		TableExpr("users.parent_message_threads AS t").
@@ -112,7 +132,10 @@ func inboxSelect(q *bun.SelectQuery, accountID int64, staffReader bool) *bun.Sel
 		// last_message_at is set), so the inbox preview no longer needs a
 		// correlated subquery that re-scans parent_messages per thread row.
 		ColumnExpr("COALESCE(t.last_message_body,'') AS last_message_body").
-		ColumnExpr(unreadSub).
+		// accountID binds the notReaderAuthored `?` in unreadSub (cm.sender_account_id
+		// <> ?). bun renders args in SQL-fragment order, so this select-list arg
+		// precedes the read-cursor join's account-id arg below; both are the same id.
+		ColumnExpr(unreadSub, accountID).
 		Join("JOIN users.students AS s ON s.id = t.student_id").
 		Join("JOIN users.persons AS pn ON pn.id = s.person_id AND pn.deleted_at IS NULL").
 		Join("LEFT JOIN platform.schools AS sch ON sch.id = t.tenant_id").
@@ -168,24 +191,28 @@ const guardianStillLinked = `EXISTS (
 // guardianUnreadExists is the EXISTS predicate for "unread guardian-side
 // activity" for the staff reader (used by the inbox onlyUnread filter and the
 // badge). Mirrors the inbox unread_count column: guardian messages plus the
-// guardian's own system events (e.g. a withdrawn request).
+// guardian's own system events (e.g. a withdrawn request). It carries a single
+// `?` (notReaderAuthored) bound to the reader's account id at the call site.
 var guardianUnreadExists = fmt.Sprintf(`EXISTS (
 	SELECT 1 FROM users.parent_messages um
 	WHERE um.thread_id = t.id
 	  AND %s
 	  AND %s
-)`, counterpartUnread("um", true), afterReadCursor("um"))
+	  AND %s
+)`, counterpartUnread("um", true), afterReadCursor("um"), notReaderAuthored("um"))
 
 // staffUnreadExists is the guardian-reader counterpart of guardianUnreadExists:
 // "unread staff-side activity" (staff messages plus staff-triggered system
 // events such as a confirmed/rejected request). Drives the parent-portal unread
-// badge count.
+// badge count. It carries a single `?` (notReaderAuthored) bound to the reader's
+// account id at the call site.
 var staffUnreadExists = fmt.Sprintf(`EXISTS (
 	SELECT 1 FROM users.parent_messages um
 	WHERE um.thread_id = t.id
 	  AND %s
 	  AND %s
-)`, counterpartUnread("um", false), afterReadCursor("um"))
+	  AND %s
+)`, counterpartUnread("um", false), afterReadCursor("um"), notReaderAuthored("um"))
 
 // applyStaffScope narrows a thread query to the students a staff member may
 // read: all students (admin / all_staff scope) or only their supervised
@@ -211,7 +238,7 @@ func (r *ParentMessageReadRepository) ListInboxForStaff(ctx context.Context, acc
 		query = query.Where(where, val)
 	}
 	if onlyUnread {
-		query = query.Where(guardianUnreadExists)
+		query = query.Where(guardianUnreadExists, accountID)
 	}
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list parent message inbox", Err: err}
@@ -302,7 +329,7 @@ func (r *ParentMessageReadRepository) UnreadThreadCountForGuardianTenants(ctx co
 		Where("t.guardian_account_id = ?", accountID).
 		Where("t.tenant_id IN (?)", bun.List(tenantIDs)).
 		Where(guardianStillLinked).
-		Where(staffUnreadExists).
+		Where(staffUnreadExists, accountID).
 		Count(ctx)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "count unread guardian threads cross-tenant", Err: err}
@@ -403,7 +430,7 @@ func (r *ParentMessageReadRepository) UnreadThreadCountForStaff(ctx context.Cont
 		// so the COUNT must match or it inflates past every openable thread.
 		Join("JOIN users.persons AS pn ON pn.id = s.person_id AND pn.deleted_at IS NULL").
 		Join("LEFT JOIN users.parent_message_reads AS r ON r.thread_id = t.id AND r.account_id = ? AND r.tenant_id = t.tenant_id", accountID).
-		Where(guardianUnreadExists)
+		Where(guardianUnreadExists, accountID)
 	query = applyStaffScope(query, allStudents, groupIDs)
 	if where, val, ok := base.TenantWhere(ctx, "t"); ok {
 		query = query.Where(where, val)

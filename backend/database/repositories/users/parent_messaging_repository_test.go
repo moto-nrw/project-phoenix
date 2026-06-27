@@ -51,25 +51,36 @@ func TestParentMessaging_ThreadsMessagesAndReadState(t *testing.T) {
 	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	// The staff reader is a DISTINCT account from the guardian — in production the
+	// inbox reader and the guardian sender are never the same account. Unread is
+	// "a message after the cursor the reader did NOT send", so a reader's own
+	// messages are excluded by sender_account_id (notReaderAuthored). Reusing one
+	// id for both sides would hide that rule and the read-cursor arithmetic it
+	// guards.
+	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
+	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
+	defer testpkg.CleanupAuthFixtures(t, db, staffAccount.ID)
 
 	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
 	msgRepo := usersRepo.NewParentMessageRepository(db)
 	readRepo := usersRepo.NewParentMessageReadRepository(db)
 	ctx := tenantCtx()
-	reader := chain.AccountID
+	guardian := chain.AccountID
 
-	thread := newThread(chain.StudentID, chain.AccountID)
+	thread := newThread(chain.StudentID, guardian)
 	require.NoError(t, threadRepo.Create(ctx, thread))
 	require.Positive(t, thread.ID)
 
 	found, err := threadRepo.FindByID(ctx, thread.ID)
 	require.NoError(t, err)
 	require.NotNil(t, found)
-	assert.Equal(t, chain.AccountID, found.GuardianAccountID)
+	assert.Equal(t, guardian, found.GuardianAccountID)
 
-	require.NoError(t, msgRepo.Create(ctx, newMessage(thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, "hallo")))
-	require.NoError(t, msgRepo.Create(ctx, newMessage(thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, "noch was")))
-	require.NoError(t, msgRepo.Create(ctx, newMessage(thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderStaff, "antwort")))
+	// Two guardian messages (from the guardian) and one staff reply (from the
+	// staff reader's own account).
+	require.NoError(t, msgRepo.Create(ctx, newMessage(thread.ID, chain.StudentID, guardian, usersModels.ParentMessageSenderGuardian, "hallo")))
+	require.NoError(t, msgRepo.Create(ctx, newMessage(thread.ID, chain.StudentID, guardian, usersModels.ParentMessageSenderGuardian, "noch was")))
+	require.NoError(t, msgRepo.Create(ctx, newMessage(thread.ID, chain.StudentID, staffAccount.ID, usersModels.ParentMessageSenderStaff, "antwort")))
 
 	messages, err := msgRepo.ListByThread(ctx, thread.ID, 0)
 	require.NoError(t, err)
@@ -78,7 +89,7 @@ func TestParentMessaging_ThreadsMessagesAndReadState(t *testing.T) {
 	assert.Equal(t, usersModels.ParentMessageSenderStaff, messages[2].SenderKind)
 
 	// Staff inbox: one row, guardian + child names, unread = 2 guardian msgs.
-	inbox, err := readRepo.ListInboxForStaff(ctx, reader, true, nil, false)
+	inbox, err := readRepo.ListInboxForStaff(ctx, staffAccount.ID, true, nil, false)
 	require.NoError(t, err)
 	require.Len(t, inbox, 1)
 	assert.Equal(t, "Felix Schneider", inbox[0].StudentName)
@@ -86,32 +97,35 @@ func TestParentMessaging_ThreadsMessagesAndReadState(t *testing.T) {
 	assert.Equal(t, "parent", inbox[0].RelationshipType)
 	assert.Equal(t, 2, inbox[0].UnreadCount)
 
-	threadCount, err := readRepo.UnreadThreadCountForStaff(ctx, reader, true, nil)
+	threadCount, err := readRepo.UnreadThreadCountForStaff(ctx, staffAccount.ID, true, nil)
 	require.NoError(t, err)
 	assert.Equal(t, 1, threadCount)
 
-	// After reading up to the newest message, unread clears. (MarkReadUpTo is the
-	// production read path; the old NOW()-cursor MarkRead was removed as dead code.)
+	// After the staff reader reads up to the newest message, their unread clears.
+	// (MarkReadUpTo is the production read path; the old NOW()-cursor MarkRead was
+	// removed as dead code.)
 	newest := messages[len(messages)-1]
-	require.NoError(t, readRepo.MarkReadUpTo(ctx, 1, thread.ID, reader, newest.CreatedAt, newest.ID))
-	threadCount, err = readRepo.UnreadThreadCountForStaff(ctx, reader, true, nil)
+	require.NoError(t, readRepo.MarkReadUpTo(ctx, 1, thread.ID, staffAccount.ID, newest.CreatedAt, newest.ID))
+	threadCount, err = readRepo.UnreadThreadCountForStaff(ctx, staffAccount.ID, true, nil)
 	require.NoError(t, err)
 	assert.Equal(t, 0, threadCount)
 
-	onlyUnread, err := readRepo.ListInboxForStaff(ctx, reader, true, nil, true)
+	onlyUnread, err := readRepo.ListInboxForStaff(ctx, staffAccount.ID, true, nil, true)
 	require.NoError(t, err)
 	assert.Empty(t, onlyUnread)
 
-	// Guardian thread list: unread counts STAFF messages after the cursor.
-	// The reader has read up to now, so the staff message is read → 0 unread.
-	guardianThreads, err := readRepo.ListThreadsForGuardianStudent(ctx, reader, chain.StudentID)
+	// Guardian thread list: unread counts STAFF messages after the GUARDIAN's own
+	// cursor. Once the guardian has read up to the newest message, the staff reply
+	// is read → 0 unread.
+	require.NoError(t, readRepo.MarkReadUpTo(ctx, 1, thread.ID, guardian, newest.CreatedAt, newest.ID))
+	guardianThreads, err := readRepo.ListThreadsForGuardianStudent(ctx, guardian, chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, guardianThreads, 1)
 	assert.Equal(t, 0, guardianThreads[0].UnreadCount)
 
 	// A new staff message makes the guardian list show 1 unread.
-	require.NoError(t, msgRepo.Create(ctx, newMessage(thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderStaff, "noch eine antwort")))
-	guardianThreads, err = readRepo.ListThreadsForGuardianStudent(ctx, reader, chain.StudentID)
+	require.NoError(t, msgRepo.Create(ctx, newMessage(thread.ID, chain.StudentID, staffAccount.ID, usersModels.ParentMessageSenderStaff, "noch eine antwort")))
+	guardianThreads, err = readRepo.ListThreadsForGuardianStudent(ctx, guardian, chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, guardianThreads, 1)
 	assert.Equal(t, 1, guardianThreads[0].UnreadCount)
@@ -129,11 +143,19 @@ func TestParentMessaging_UnreadCreatedAtTie(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
+	// Distinct staff reader (see TestParentMessaging_ThreadsMessagesAndReadState):
+	// the guardian messages must be sent by an account OTHER than the reader, or
+	// the own-message exclusion (notReaderAuthored) would drop them before the
+	// tie-break is exercised.
+	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
+	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
+	defer testpkg.CleanupAuthFixtures(t, db, staffAccount.ID)
+
 	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
 	msgRepo := usersRepo.NewParentMessageRepository(db)
 	readRepo := usersRepo.NewParentMessageReadRepository(db)
 	ctx := tenantCtx()
-	reader := chain.AccountID
+	reader := staffAccount.ID
 
 	thread := newThread(chain.StudentID, chain.AccountID)
 	require.NoError(t, threadRepo.Create(ctx, thread))

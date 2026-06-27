@@ -20,11 +20,15 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "OgsConversation" });
 
-// Nudge the sidebar unread badge to refetch after a LOCAL read/send (which marks
-// the thread read server-side). SSE-driven refreshes do NOT call this: the
-// portal-wide ParentRealtimeBridge already dispatches the badge refresh on the
-// parent_message event, so dispatching again from the resulting thread update
-// would fire the (debounced but still doubled) badge fetch twice per message.
+// Nudge the sidebar unread badge to refetch after a read/send that marked the
+// thread read server-side. EVERY such path must call this AFTER the read
+// resolves, including the SSE-driven refresh: the portal-wide
+// ParentRealtimeBridge dispatches its own badge refresh BEFORE the conversation
+// GET runs (and defers hidden-tab reads), so that first fetch races ahead of the
+// read-cursor advance and can leave the badge counting a message this open chat
+// has already marked read. Re-nudging once refresh() resolves corrects the stale
+// count; the extra debounced fetch is the price of not trusting the bridge's
+// pre-read ordering.
 function nudgeUnreadBadge(): void {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("parent-messages-unread-refresh"));
@@ -127,7 +131,11 @@ export function OgsConversation({
   useMessagesActivity({
     eventName: "parent-conversation-refresh",
     studentId,
-    onMatch: () => void refresh(),
+    // refresh() marks the thread read server-side; nudge the badge AFTER it
+    // resolves so the sidebar count drops the message this chat just read. The
+    // bridge's own pre-read badge dispatch races ahead of this and would
+    // otherwise leave the badge stale (see nudgeUnreadBadge).
+    onMatch: () => void refresh().then(nudgeUnreadBadge),
   });
 
   const messages = thread?.messages ?? [];

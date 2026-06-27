@@ -334,9 +334,9 @@ func (s *service) PostChildMessage(ctx context.Context, accountID, studentID int
 	return view, nil
 }
 
-// appendGuardianMessage writes a guardian message into the thread, updates the
-// thread's last-activity fields, and marks it read for the sender. The append +
-// read-cursor invariant is shared with the staff side via
+// appendGuardianMessage writes a guardian message into the thread and updates the
+// thread's last-activity fields. The append invariant (and why it does NOT move
+// the sender's read cursor) is shared with the staff side via
 // parentmessaging.AppendMessage (one home for the "drive off the DB-stamped
 // created_at" rule).
 func (s *service) appendGuardianMessage(ctx context.Context, thread *usersModels.ParentMessageThread, accountID int64, senderName, body string) error {
@@ -349,7 +349,7 @@ func (s *service) appendGuardianMessage(ctx context.Context, thread *usersModels
 		Body:            body,
 	}
 	msg.SetTenantID(thread.TenantID)
-	return parentmessaging.AppendMessage(ctx, s.messageRepo, s.messageThreadRepo, s.messageReadRepo, msg)
+	return parentmessaging.AppendMessage(ctx, s.messageRepo, s.messageThreadRepo, msg)
 }
 
 // resolveGuardianName returns the guardian's display name for the child's

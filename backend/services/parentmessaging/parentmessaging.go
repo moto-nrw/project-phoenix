@@ -77,38 +77,38 @@ func loggerOr(logger *slog.Logger) *slog.Logger {
 }
 
 // AppendMessage persists an already-built ParentMessage, then updates the
-// thread's last-activity preview and the sender's own read cursor in lockstep.
-// The caller has already authorized/validated the body and stamped
-// SenderKind / SenderName / tenant on msg.
+// thread's last-activity preview. The caller has already authorized/validated the
+// body and stamped SenderKind / SenderName / tenant on msg.
 //
-// Both the thread touch and the read cursor are driven off the inserted row's
-// DB-stamped created_at (msg.CreatedAt), NOT a Go time.Now(): messages.created_at
-// defaults to the Postgres clock, so seeding these from the app clock desyncs the
-// two whenever the app host's clock leads Postgres (multi-host deploy) — a
-// counterpart message arriving within the skew window would be marked read though
-// never seen, and the monotonic preview guard (TouchLastMessage) could keep the
-// older message. Using the row's own created_at keeps every comparison on one
-// clock; it is also exactly the cursor a dual-role (staff+guardian) sender needs
-// so their own just-sent message is not counted as unread for themselves.
+// The thread touch is driven off the inserted row's DB-stamped created_at
+// (msg.CreatedAt), NOT a Go time.Now(): messages.created_at defaults to the
+// Postgres clock, so seeding it from the app clock desyncs the preview whenever
+// the app host's clock leads Postgres (multi-host deploy) and the monotonic
+// preview guard (TouchLastMessage) could then keep the older message. Using the
+// row's own created_at keeps every comparison on one clock.
 //
-// TouchLastMessage and MarkReadUpTo are both guarded/monotonic: a concurrent
-// counterpart send that committed with a newer instant is never clobbered by an
-// older one.
+// It deliberately does NOT advance the sender's read cursor. Advancing the cursor
+// to the just-sent message leaps it past an EARLIER counterpart message that
+// committed AFTER this send: created_at defaults to the transaction's start
+// instant, so a counterpart whose tx began first (lower created_at) but committed
+// later sits below the sent message's timestamp, and a cursor moved to the send
+// would mark that never-seen message read once it commits. Instead the unread
+// predicates exclude a reader's OWN messages by sender_account_id
+// (notReaderAuthored in database/repositories/users/parent_message_read.go), which
+// is what keeps a dual-role (staff+guardian) sender from counting their own
+// just-sent message as unread to themselves — without any cursor move. The
+// legitimate "I have now seen everything" advance happens on the read path
+// (MarkReadToNewest), bounded to the snapshot actually returned to the client.
 func AppendMessage(
 	ctx context.Context,
 	msgRepo usersModels.ParentMessageRepository,
 	threadRepo usersModels.ParentMessageThreadRepository,
-	readRepo usersModels.ParentMessageReadRepository,
 	msg *usersModels.ParentMessage,
 ) error {
 	if err := msgRepo.Create(ctx, msg); err != nil {
 		return err
 	}
-	at := msg.CreatedAt
-	if err := threadRepo.TouchLastMessage(ctx, msg.ThreadID, at, msg.ID, msg.SenderKind, msg.Body); err != nil {
-		return err
-	}
-	return readRepo.MarkReadUpTo(ctx, msg.GetTenantID(), msg.ThreadID, msg.SenderAccountID, at, msg.ID)
+	return threadRepo.TouchLastMessage(ctx, msg.ThreadID, msg.CreatedAt, msg.ID, msg.SenderKind, msg.Body)
 }
 
 // MarkReadToNewest advances the reader's read cursor to the newest message in

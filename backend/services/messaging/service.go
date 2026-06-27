@@ -481,9 +481,10 @@ func (s *service) ListStudentThreads(ctx context.Context, studentID int64) ([]*u
 
 // appendStaffMessage writes a staff message into the thread, stamps the
 // sender's name, and updates the thread's last-activity fields. The caller has
-// already authorized and validated the body. The append + read-cursor invariant
-// is shared with the parent side via parentmessaging.AppendMessage (one home for
-// the "drive off the DB-stamped created_at" rule).
+// already authorized and validated the body. The append invariant (and why it
+// does NOT move the sender's read cursor) is shared with the parent side via
+// parentmessaging.AppendMessage (one home for the "drive off the DB-stamped
+// created_at" rule).
 func (s *service) appendStaffMessage(ctx context.Context, thread *usersModels.ParentMessageThread, accountID int64, body string) error {
 	msg := &usersModels.ParentMessage{
 		ThreadID:        thread.ID,
@@ -494,7 +495,7 @@ func (s *service) appendStaffMessage(ctx context.Context, thread *usersModels.Pa
 		Body:            body,
 	}
 	msg.SetTenantID(thread.TenantID)
-	if err := parentmessaging.AppendMessage(ctx, s.messageRepo, s.threadRepo, s.readRepo, msg); err != nil {
+	if err := parentmessaging.AppendMessage(ctx, s.messageRepo, s.threadRepo, msg); err != nil {
 		return fmt.Errorf("messaging: append staff message: %w", err)
 	}
 	return nil
