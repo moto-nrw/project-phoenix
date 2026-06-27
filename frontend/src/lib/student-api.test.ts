@@ -161,6 +161,7 @@ describe("student-api", () => {
           school_class: "3a",
           group_id: "10",
           location: "Schule",
+          location_state: "transit",
           page: 1,
           page_size: 20,
         };
@@ -176,6 +177,7 @@ describe("student-api", () => {
         expect(calledUrl).toContain("search=Max");
         expect(calledUrl).toContain("school_class=3a");
         expect(calledUrl).toContain("group_id=10");
+        expect(calledUrl).toContain("location_state=transit");
         expect(calledUrl).toContain("page=1");
         expect(calledUrl).toContain("page_size=20");
       });

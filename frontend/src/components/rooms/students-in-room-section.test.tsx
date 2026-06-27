@@ -13,6 +13,7 @@ const {
   mockUseTenantMutateMatching,
   mockGetStudentCurrentVisit,
   mockUpdateVisit,
+  mockMoveStudentsToActiveGroup,
   mockGetActiveGroups,
   mockToastSuccess,
 } = vi.hoisted(() => ({
@@ -25,6 +26,7 @@ const {
   mockUseTenantMutateMatching: vi.fn(),
   mockGetStudentCurrentVisit: vi.fn(),
   mockUpdateVisit: vi.fn(),
+  mockMoveStudentsToActiveGroup: vi.fn(),
   mockGetActiveGroups: vi.fn(),
   mockToastSuccess: vi.fn(),
 }));
@@ -49,6 +51,8 @@ vi.mock("~/lib/active-service", () => ({
     getStudentCurrentVisit: (...args: unknown[]) =>
       mockGetStudentCurrentVisit(...args),
     updateVisit: (...args: unknown[]) => mockUpdateVisit(...args),
+    moveStudentsToActiveGroup: (...args: unknown[]) =>
+      mockMoveStudentsToActiveGroup(...args),
   },
 }));
 
@@ -194,6 +198,7 @@ beforeEach(() => {
   mockUseTenantMutateMatching.mockReset();
   mockGetStudentCurrentVisit.mockReset();
   mockUpdateVisit.mockReset();
+  mockMoveStudentsToActiveGroup.mockReset();
   mockGetActiveGroups.mockReset();
   mockToastSuccess.mockReset();
   mockUseSearchParams.mockReset();
@@ -441,18 +446,13 @@ describe("StudentsInRoomSection", () => {
           ],
         },
       });
-      mockGetStudentCurrentVisit.mockImplementation((studentId: string) =>
-        Promise.resolve({
-          id: `visit-${studentId}`,
-          studentId,
-          activeGroupId: "current-group",
-          checkInTime: new Date("2026-05-14T08:00:00.000Z"),
-          isActive: true,
-          createdAt: new Date("2026-05-14T08:00:00.000Z"),
-          updatedAt: new Date("2026-05-14T08:00:00.000Z"),
-        }),
-      );
-      mockUpdateVisit.mockResolvedValue({});
+      mockMoveStudentsToActiveGroup.mockResolvedValue({
+        moved: [7, 8],
+        unchanged: [],
+        skipped: [],
+        active_group_id: 900,
+        room_id: 9000,
+      });
 
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
 
@@ -471,18 +471,13 @@ describe("StudentsInRoomSection", () => {
       fireEvent.click(screen.getByRole("button", { name: "In Raum setzen" }));
 
       await waitFor(() => {
-        expect(mockUpdateVisit).toHaveBeenCalledTimes(2);
+        expect(mockMoveStudentsToActiveGroup).toHaveBeenCalledWith(
+          ["7", "8"],
+          "900",
+        );
       });
-      expect(mockGetStudentCurrentVisit).toHaveBeenCalledWith("7");
-      expect(mockGetStudentCurrentVisit).toHaveBeenCalledWith("8");
-      expect(mockUpdateVisit).toHaveBeenCalledWith(
-        "visit-7",
-        expect.objectContaining({ activeGroupId: "900", studentId: "7" }),
-      );
-      expect(mockUpdateVisit).toHaveBeenCalledWith(
-        "visit-8",
-        expect.objectContaining({ activeGroupId: "900", studentId: "8" }),
-      );
+      expect(mockGetStudentCurrentVisit).not.toHaveBeenCalled();
+      expect(mockUpdateVisit).not.toHaveBeenCalled();
       expect(refreshCaches).toHaveBeenCalledTimes(1);
       expect(mockToastSuccess).toHaveBeenCalledWith(
         "2 Kinder nach Raum 6 bewegt.",
@@ -500,6 +495,7 @@ describe("StudentsInRoomSection", () => {
 
       expect(mockGetStudentCurrentVisit).not.toHaveBeenCalled();
       expect(mockUpdateVisit).not.toHaveBeenCalled();
+      expect(mockMoveStudentsToActiveGroup).not.toHaveBeenCalled();
       expect(
         screen.getByRole("button", { name: "In Raum setzen" }),
       ).toBeDisabled();
@@ -509,14 +505,12 @@ describe("StudentsInRoomSection", () => {
       const refreshCaches = vi.fn().mockResolvedValue(undefined);
       mockUseTenantMutateMatching.mockReturnValue(refreshCaches);
       setSWR({ data: { students: [makeStudent({ id: "7" })] } });
-      mockGetStudentCurrentVisit.mockResolvedValue({
-        id: "visit-7",
-        studentId: "7",
-        activeGroupId: "900",
-        checkInTime: new Date("2026-05-14T08:00:00.000Z"),
-        isActive: true,
-        createdAt: new Date("2026-05-14T08:00:00.000Z"),
-        updatedAt: new Date("2026-05-14T08:00:00.000Z"),
+      mockMoveStudentsToActiveGroup.mockResolvedValue({
+        moved: [],
+        unchanged: [7],
+        skipped: [],
+        active_group_id: 900,
+        room_id: 9000,
       });
 
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
@@ -530,8 +524,12 @@ describe("StudentsInRoomSection", () => {
       fireEvent.click(screen.getByRole("button", { name: "In Raum setzen" }));
 
       await waitFor(() => {
-        expect(mockGetStudentCurrentVisit).toHaveBeenCalledWith("7");
+        expect(mockMoveStudentsToActiveGroup).toHaveBeenCalledWith(
+          ["7"],
+          "900",
+        );
       });
+      expect(mockGetStudentCurrentVisit).not.toHaveBeenCalled();
       expect(mockUpdateVisit).not.toHaveBeenCalled();
       expect(mockToastSuccess).toHaveBeenCalledWith(
         "1 Kind nach Raum 6 bewegt.",
@@ -550,21 +548,13 @@ describe("StudentsInRoomSection", () => {
           ],
         },
       });
-      mockGetStudentCurrentVisit.mockImplementation((studentId: string) => {
-        if (studentId === "7") {
-          return Promise.resolve(null);
-        }
-        return Promise.resolve({
-          id: "visit-8",
-          studentId: "8",
-          activeGroupId: "current-group",
-          checkInTime: new Date("2026-05-14T08:00:00.000Z"),
-          isActive: true,
-          createdAt: new Date("2026-05-14T08:00:00.000Z"),
-          updatedAt: new Date("2026-05-14T08:00:00.000Z"),
-        });
+      mockMoveStudentsToActiveGroup.mockResolvedValue({
+        moved: [8],
+        unchanged: [],
+        skipped: [{ student_id: 7, reason: "not_present" }],
+        active_group_id: 900,
+        room_id: 9000,
       });
-      mockUpdateVisit.mockResolvedValue({});
 
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
 
@@ -584,11 +574,12 @@ describe("StudentsInRoomSection", () => {
           "1 von 2 Kindern konnten nicht bewegt werden.",
         );
       });
-      expect(mockUpdateVisit).toHaveBeenCalledTimes(1);
-      expect(mockUpdateVisit).toHaveBeenCalledWith(
-        "visit-8",
-        expect.objectContaining({ activeGroupId: "900", studentId: "8" }),
+      expect(mockMoveStudentsToActiveGroup).toHaveBeenCalledWith(
+        ["7", "8"],
+        "900",
       );
+      expect(mockGetStudentCurrentVisit).not.toHaveBeenCalled();
+      expect(mockUpdateVisit).not.toHaveBeenCalled();
       expect(mockToastSuccess).not.toHaveBeenCalled();
       expect(refreshCaches).toHaveBeenCalledTimes(1);
     });

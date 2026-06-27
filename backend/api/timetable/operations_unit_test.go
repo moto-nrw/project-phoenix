@@ -312,6 +312,8 @@ func TestOperationsCreateAndStartSpontaneousRejectsStudents(t *testing.T) {
 }
 
 func TestOperationsCreateAndStartSpontaneousRejectsSchulhofRoom(t *testing.T) {
+	const schulhofRoomID int64 = 42
+
 	instanceSvc := &mockInstanceService{}
 	res := NewResource(Dependencies{
 		TimetableData: operationTimetableData(scheduleSvc.TimetableDataDependencies{
@@ -331,7 +333,7 @@ func TestOperationsCreateAndStartSpontaneousRejectsSchulhofRoom(t *testing.T) {
 
 	rr := executeOperationRequest(router, http.MethodPost, "/spontaneous/start", map[string]any{
 		"title":   "Pausenhof",
-		"room_id": int64(7),
+		"room_id": schulhofRoomID,
 	})
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code)

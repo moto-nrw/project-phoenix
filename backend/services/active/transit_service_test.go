@@ -91,6 +91,19 @@ func TestActiveService_ListStudentsPresentToday(t *testing.T) {
 	assert.NotContains(t, ids, absentStudent.ID)
 }
 
+func TestActiveService_ListStudentsPresentToday_NoOpenAttendance(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(987654)
+
+	ids, err := service.ListStudentsPresentToday(ctx)
+
+	require.NoError(t, err)
+	assert.Empty(t, ids)
+}
+
 func TestActiveService_MoveStudentsToActiveGroup_PreservesVisitHistory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -165,6 +178,93 @@ func TestActiveService_MoveStudentsToActiveGroup_PreservesVisitHistory(t *testin
 	assert.ErrorIs(t, err, activeSvc.ErrVisitNotFound)
 }
 
+func TestActiveService_MoveStudentsToActiveGroup_InvalidInput(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	result, err := service.MoveStudentsToActiveGroup(ctx, nil, 0)
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, activeSvc.ErrInvalidData)
+
+	activity := testpkg.CreateTestActivityGroup(t, db, "move-invalid-input")
+	room := testpkg.CreateTestRoom(t, db, "Move Invalid Input Room")
+	targetGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, targetGroup.ID)
+
+	result, err = service.MoveStudentsToActiveGroup(ctx, []int64{-42}, targetGroup.ID)
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, activeSvc.ErrInvalidData)
+}
+
+func TestActiveService_MoveStudentsToActiveGroup_EndedTargetFails(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	activity := testpkg.CreateTestActivityGroup(t, db, "move-ended-target")
+	room := testpkg.CreateTestRoom(t, db, "Move Ended Target Room")
+	targetGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	student := testpkg.CreateTestStudent(t, db, "Move", "Blocked", "MET1")
+	endTime := time.Now()
+	targetGroup.EndTime = &endTime
+	require.NoError(t, service.UpdateActiveGroup(ctx, targetGroup))
+
+	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, targetGroup.ID, student.ID)
+
+	result, err := service.MoveStudentsToActiveGroup(ctx, []int64{student.ID}, targetGroup.ID)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, activeSvc.ErrActiveGroupAlreadyEnded)
+}
+
+func TestActiveService_MoveStudentsToActiveGroup_BinaryModeReturnsUnchanged(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	_, err := db.NewRaw(`
+		INSERT INTO config.setting_values (tenant_id, setting_key, value, updated_by)
+		VALUES (1, 'operations.presence_mode', '"binary"', NULL)
+		ON CONFLICT (tenant_id, setting_key)
+		DO UPDATE SET value = EXCLUDED.value, updated_at = now()
+	`).Exec(ctx)
+	require.NoError(t, err)
+	defer func() {
+		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = 1 AND setting_key = 'operations.presence_mode'`).Exec(ctx)
+	}()
+
+	activity := testpkg.CreateTestActivityGroup(t, db, "move-binary-target")
+	room := testpkg.CreateTestRoom(t, db, "Move Binary Target Room")
+	targetGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, targetGroup.ID)
+
+	const (
+		studentA int64 = 50001
+		studentB int64 = 50002
+	)
+	result, err := service.MoveStudentsToActiveGroup(ctx, []int64{studentA, studentB, studentA}, targetGroup.ID)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, result.ActiveGroupID)
+	require.NotNil(t, result.RoomID)
+	assert.Equal(t, targetGroup.ID, *result.ActiveGroupID)
+	assert.Equal(t, room.ID, *result.RoomID)
+	assert.Empty(t, result.Moved)
+	assert.ElementsMatch(t, []int64{studentA, studentB}, result.Unchanged)
+	assert.Empty(t, result.Skipped)
+}
+
 func TestActiveService_MoveStudentsToTransit_EndsVisitKeepsAttendanceOpen(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -227,6 +327,57 @@ func TestActiveService_MoveStudentsToTransit_EndsVisitKeepsAttendanceOpen(t *tes
 		Scan(ctx)
 	require.NoError(t, err)
 	assert.Nil(t, reloaded.CheckOutTime, "moving to transit must not perform a daily checkout")
+}
+
+func TestActiveService_MoveStudentsToTransit_InvalidInput(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	result, err := service.MoveStudentsToTransit(ctx, nil)
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, activeSvc.ErrInvalidData)
+
+	result, err = service.MoveStudentsToTransit(ctx, []int64{-42})
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, activeSvc.ErrInvalidData)
+}
+
+func TestActiveService_MoveStudentsToTransit_BinaryModeReturnsUnchanged(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	_, err := db.NewRaw(`
+		INSERT INTO config.setting_values (tenant_id, setting_key, value, updated_by)
+		VALUES (1, 'operations.presence_mode', '"binary"', NULL)
+		ON CONFLICT (tenant_id, setting_key)
+		DO UPDATE SET value = EXCLUDED.value, updated_at = now()
+	`).Exec(ctx)
+	require.NoError(t, err)
+	defer func() {
+		_, _ = db.NewRaw(`DELETE FROM config.setting_values WHERE tenant_id = 1 AND setting_key = 'operations.presence_mode'`).Exec(ctx)
+	}()
+
+	const (
+		studentA int64 = 60001
+		studentB int64 = 60002
+	)
+	result, err := service.MoveStudentsToTransit(ctx, []int64{studentA, studentB, studentA})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Nil(t, result.ActiveGroupID)
+	assert.Nil(t, result.RoomID)
+	assert.Empty(t, result.Moved)
+	assert.ElementsMatch(t, []int64{studentA, studentB}, result.Unchanged)
+	assert.Empty(t, result.Skipped)
 }
 
 func TestActiveService_AssignTransitStudentsToActiveGroup(t *testing.T) {
