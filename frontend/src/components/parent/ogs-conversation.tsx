@@ -136,6 +136,9 @@ export function OgsConversation({
     // bridge's own pre-read badge dispatch races ahead of this and would
     // otherwise leave the badge stale (see nudgeUnreadBadge).
     onMatch: () => void refresh().then(nudgeUnreadBadge),
+    // SSE is this chat's only refresh path after mount; if the bridge dropped
+    // while the tab slept a message could have been missed, so refetch on return.
+    refetchOnFocus: true,
   });
 
   const messages = thread?.messages ?? [];

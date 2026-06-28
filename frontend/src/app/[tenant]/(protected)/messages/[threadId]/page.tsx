@@ -113,10 +113,14 @@ function MessageThreadContent() {
   // retained in the sanitized staff broadcast); unrelated threads are skipped.
   // Debounced so a burst of messages in the open thread collapses into one
   // fetchThread (each does list + read-receipt join + MarkReadUpTo).
+  // refetchOnFocus: this view's only refresh path is SSE (revalidateOnFocus is off
+  // above), so if the connection dropped while the tab slept a message could have
+  // been missed entirely — refetch on return to heal in lockstep with the badge.
   useMessagesActivity({
     onMatch: () => void mutate(),
     threadId,
     debounceMs: 500,
+    refetchOnFocus: true,
   });
 
   // Loading the thread marks it read server-side, so nudge the sidebar unread

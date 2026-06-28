@@ -34,6 +34,16 @@ import { useEffect, useRef } from "react";
  * pills stale in a background tab for no benefit. They pass `marksRead: false` to
  * fire immediately. The flag defaults to `true` so a new read-advancing consumer
  * keeps the protective guard unless it explicitly opts out.
+ *
+ * Missed-event recovery (`refetchOnFocus`): the SSE bridge stops reconnecting
+ * after maxReconnectAttempts and stays "failed". If that happens while the tab is
+ * backgrounded, a message arriving in that window dispatches NO window event, so a
+ * consumer whose ONLY refresh path is this hook (the staff thread page, the parent
+ * conversation view) never learns about it — returning to the tab shows a lit
+ * unread badge while the open conversation stays stale until a manual reload. The
+ * unread badges already heal via useUnreadCount's `refetchOnFocus`; passing
+ * `refetchOnFocus: true` here refetches the active conversation on the SAME window
+ * `focus` event so the open chat recovers in lockstep with its badge.
  */
 export interface MessagesActivityDetail {
   readonly threadId?: string | null;
@@ -47,6 +57,7 @@ export function useMessagesActivity({
   debounceMs,
   eventName = "messages-activity",
   marksRead = true,
+  refetchOnFocus = false,
 }: {
   onMatch: () => void;
   threadId?: string;
@@ -59,6 +70,13 @@ export function useMessagesActivity({
    * visible; when false the refetch fires immediately even in a background tab.
    */
   marksRead?: boolean;
+  /**
+   * Also refetch on window `focus`, recovering messages missed entirely while the
+   * tab slept and the SSE bridge was disconnected (no window event fired). Set on
+   * conversation views whose only refresh path is this hook; mirrors the unread
+   * badge's refetchOnFocus so the open chat heals on the same focus the badge does.
+   */
+  refetchOnFocus?: boolean;
 }): void {
   const onMatchRef = useRef(onMatch);
   onMatchRef.current = onMatch;
@@ -115,12 +133,23 @@ export function useMessagesActivity({
       }
     };
 
+    // Returning to the tab → recover any event missed entirely while it slept
+    // (SSE dropped / exhausted reconnects, so no `eventName` event ever arrived to
+    // set pendingWhileHidden). runMatch re-checks visibility, and `focus` only
+    // fires while the tab is foregrounded, so a read-advancing onMatch here always
+    // happens with the user looking. The rare overlap with onVisibility (an event
+    // DID arrive while hidden) is collapsed by debounce, or harmless for the
+    // latest-wins conversation refetches.
+    const onFocus = () => fire();
+
     window.addEventListener(eventName, handler);
     document.addEventListener("visibilitychange", onVisibility);
+    if (refetchOnFocus) window.addEventListener("focus", onFocus);
     return () => {
       window.removeEventListener(eventName, handler);
       document.removeEventListener("visibilitychange", onVisibility);
+      if (refetchOnFocus) window.removeEventListener("focus", onFocus);
       if (timer) clearTimeout(timer);
     };
-  }, [threadId, studentId, debounceMs, eventName, marksRead]);
+  }, [threadId, studentId, debounceMs, eventName, marksRead, refetchOnFocus]);
 }

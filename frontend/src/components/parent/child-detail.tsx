@@ -33,6 +33,7 @@ import RelatedAccountsPanel from "~/components/parent/related-accounts-panel";
 import GuardiansPanel from "~/components/parent/guardians-panel";
 import { Button } from "~/components/ui/button";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
+import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { formatChatDateTime } from "~/lib/date-helpers";
 
 // Quick-actions that are wired to real backend flows. The rest remain
@@ -229,33 +230,24 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
   }, [reloadThreads]);
 
   // Real-time: the portal-wide ParentRealtimeBridge owns the single parents-app
-  // SSE connection and dispatches `parent-threads-refresh` (any parent_message)
-  // and `parent-conversation-refresh` (carrying the affected studentId) on every
-  // event. The inbox and the open conversation already subscribe; this card must
-  // too, or a guardian sitting on the child-detail page sees stale unread counts
-  // and last-message previews until they remount. Skip the per-conversation event
-  // when it names a DIFFERENT child.
-  useEffect(() => {
-    const onThreadsRefresh = () => reloadThreads();
-    const onConversationRefresh = (event: Event) => {
-      const detail = (event as CustomEvent<{ studentId?: string | null }>)
-        .detail;
-      if (detail?.studentId && detail.studentId !== child.student_id) return;
-      reloadThreads();
-    };
-    window.addEventListener("parent-threads-refresh", onThreadsRefresh);
-    window.addEventListener(
-      "parent-conversation-refresh",
-      onConversationRefresh,
-    );
-    return () => {
-      window.removeEventListener("parent-threads-refresh", onThreadsRefresh);
-      window.removeEventListener(
-        "parent-conversation-refresh",
-        onConversationRefresh,
-      );
-    };
-  }, [reloadThreads, child.student_id]);
+  // SSE connection and dispatches `parent-conversation-refresh` (carrying the
+  // affected studentId) on every parent_message. Subscribe via the shared hook,
+  // like OgsConversation and the parent messages list, so this card refreshes its
+  // unread count + last-message preview without a remount. Listen ONLY to the
+  // filtered per-conversation event (not the unfiltered `parent-threads-refresh`
+  // the bridge also fires for the same message): the bridge dispatches both on
+  // every event, so the filtered one already covers all cases — and listening to
+  // both reloaded this child twice per own-child message and once per other-child
+  // message. The hook skips a refetch when the event names a DIFFERENT child.
+  // marksRead: false — reloadThreads only re-reads thread summaries; it never
+  // advances a read cursor (that happens when the conversation itself is opened),
+  // so it should refresh even in a background tab rather than deferring to focus.
+  useMessagesActivity({
+    eventName: "parent-conversation-refresh",
+    studentId: child.student_id,
+    onMatch: reloadThreads,
+    marksRead: false,
+  });
 
   const openAction = useCallback(
     (actionKey: string) => {
