@@ -556,6 +556,22 @@ export interface BackendSplitTemplateResult {
   instances_created: number;
 }
 
+export interface EndTemplateBody {
+  effective_date: string; // YYYY-MM-DD
+}
+
+export interface EndTemplateResult {
+  templateId: string;
+  effectiveDate: string;
+  deletedInstances: number;
+}
+
+export interface BackendEndTemplateResult {
+  template_id: number;
+  effective_date: string;
+  deleted_instances: number;
+}
+
 /**
  * Params for GET /api/timetable/conflict-check. Optional resource params
  * are omitted from the query string when empty — the backend treats a

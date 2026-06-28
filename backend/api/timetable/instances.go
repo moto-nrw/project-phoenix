@@ -129,9 +129,9 @@ func (rs *Resource) cancelInstance(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, resp, "Instance cancelled")
 }
 
-// deleteInstance handles DELETE /instances/{id}. Only already-cancelled
-// instances can be deleted; other statuses return the same 409 contract as
-// lifecycle transitions.
+// deleteInstance handles DELETE /instances/{id}. Planned and cancelled
+// instances can be deleted; active/completed history stays protected and
+// returns the same 409 contract as lifecycle transitions.
 func (rs *Resource) deleteInstance(w http.ResponseWriter, r *http.Request) {
 	id, err := common.ParseID(r)
 	if err != nil {

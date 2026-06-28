@@ -1261,7 +1261,7 @@ function TimetablesContent() {
     async (instance: EnrichedInstance) => {
       try {
         await timetableService.deleteCancelled(instance.id);
-        toastSuccess("Abgesagter Termin gelöscht");
+        toastSuccess("Termin gelöscht");
         updateUrlParams({ instance: null });
         await tenantMutate(swrKey);
         await tenantMutate(gapsSWRKey);
@@ -1283,6 +1283,53 @@ function TimetablesContent() {
       exceptionConflictsSWRKey,
       gapsSWRKey,
       swrKey,
+      tenantMutate,
+      toastError,
+      toastSuccess,
+      updateUrlParams,
+    ],
+  );
+
+  const handleDeleteFollowingInstances = useCallback(
+    async (instance: EnrichedInstance) => {
+      if (!instance.activityGroupId) return;
+      try {
+        const result = await timetableService.endTemplate(
+          instance.activityGroupId,
+          {
+            effective_date: instance.date,
+          },
+        );
+        toastSuccess(
+          `Regeltermin ab ${formatDate(result.effectiveDate)} beendet`,
+        );
+        updateUrlParams({ instance: null });
+        if (templatePeriodID) {
+          await tenantMutate(`timetable-templates-${templatePeriodID}`);
+        }
+        await tenantMutate(swrKey);
+        await tenantMutate(gapsSWRKey);
+        await tenantMutate(exceptionConflictsSWRKey);
+      } catch (err) {
+        logger.error("template_end_failed", {
+          template_id: instance.activityGroupId,
+          instance_id: instance.id,
+          effective_date: instance.date,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        toastError(
+          err instanceof Error
+            ? err.message
+            : "Folgetermine konnten nicht gelöscht werden",
+        );
+        throw err;
+      }
+    },
+    [
+      exceptionConflictsSWRKey,
+      gapsSWRKey,
+      swrKey,
+      templatePeriodID,
       tenantMutate,
       toastError,
       toastSuccess,
@@ -1678,6 +1725,7 @@ function TimetablesContent() {
         onClose={() => handleSelectInstance(null)}
         onLifecycleAction={handleLifecycle}
         onDeleteCancelled={handleDeleteCancelledInstance}
+        onDeleteFollowing={handleDeleteFollowingInstances}
         onEdit={(instance) => {
           setEditingInstance(instance);
           setEditingTemplate(null);

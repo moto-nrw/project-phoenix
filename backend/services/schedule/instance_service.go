@@ -363,25 +363,38 @@ func (s *instanceService) Cancel(ctx context.Context, instanceID int64) (*schedu
 	return instance, nil
 }
 
-// DeleteCancelled permanently removes a cancelled instance. Planned, active,
-// and completed instances stay protected: deleting those would hide scheduled
-// work, live sessions, or attendance history without the explicit cancellation
-// audit step.
+// DeleteCancelled permanently removes a planned or cancelled instance.
+// Historical name retained for compatibility with existing handlers. Active
+// and completed instances stay protected: deleting those would hide live
+// sessions or attendance history. For materialized template occurrences,
+// write a cancelled activity_exception first so materialization cannot
+// resurrect the deleted single occurrence.
 func (s *instanceService) DeleteCancelled(ctx context.Context, instanceID int64) error {
 	instance, err := s.loadForTransition(ctx, instanceID)
 	if err != nil {
 		return err
 	}
-	if instance.Status != scheduleModel.InstanceStatusCancelled {
+	switch instance.Status {
+	case scheduleModel.InstanceStatusPlanned, scheduleModel.InstanceStatusCancelled:
+		// allowed
+	default:
 		return fmt.Errorf("%w: cannot delete instance in status %q", ErrInvalidInstanceTransition, instance.Status)
 	}
-	if err := s.deps.InstanceRepo.Delete(ctx, instance.ID); err != nil {
-		return &ScheduleError{Op: "delete cancelled instance", Err: err}
+
+	if instance.ActivityGroupID != nil && !instance.IsSpontaneous {
+		if err := s.ensureCancelledSlotException(ctx, *instance.ActivityGroupID, instance.Date, deletedSlotReason); err != nil {
+			return err
+		}
 	}
-	s.getLogger().Info("cancelled instance deleted",
+
+	if err := s.deps.InstanceRepo.Delete(ctx, instance.ID); err != nil {
+		return &ScheduleError{Op: "delete instance", Err: err}
+	}
+	s.getLogger().Info("instance deleted",
 		slog.Int64("tenant_id", tenant.FromContext(ctx)),
 		slog.Int64("instance_id", instance.ID),
 		slog.String("date", instance.Date.String()),
+		slog.String("status", instance.Status),
 	)
 	return nil
 }
@@ -572,6 +585,10 @@ type capturedSlot struct {
 // admins can tell it apart from manually entered cancellations.
 const movedSlotReason = "Einzeltermin verschoben"
 
+// deletedSlotReason is stored on per-date cancellation exceptions created by
+// DeleteCancelled for a deleted materialized occurrence.
+const deletedSlotReason = "Einzeltermin gelöscht"
+
 // consumeMovedSlot writes a cancelled activity_exception for the original
 // (template, date) when an UpdatePlanned call moved a template-backed
 // instance to a different date or start time. Without it the original slot
@@ -629,6 +646,47 @@ func (s *instanceService) consumeMovedSlot(ctx context.Context, orig capturedSlo
 		slog.String("original_date", orig.Date.String()),
 		slog.String("original_start", orig.StartHHMMSS),
 		slog.String("new_date", req.Date.String()),
+	)
+	return nil
+}
+
+func (s *instanceService) ensureCancelledSlotException(ctx context.Context, activityGroupID int64, date timezone.Date, reason string) error {
+	existing, err := s.deps.ExceptionRepo.FindByActivityGroupAndDate(ctx, activityGroupID, date)
+	if err != nil {
+		return &ScheduleError{Op: "delete instance: check slot exception", Err: err}
+	}
+	if existing != nil {
+		if existing.ExceptionType == scheduleModel.ActivityExceptionCancelled {
+			return nil
+		}
+		existing.ExceptionType = scheduleModel.ActivityExceptionCancelled
+		existing.StartTime = nil
+		existing.EndTime = nil
+		existing.RoomID = nil
+		existing.Reason = &reason
+		if err := s.deps.ExceptionRepo.Update(ctx, existing); err != nil {
+			return &ScheduleError{Op: "delete instance: cancel existing exception", Err: err}
+		}
+		s.getLogger().Info("deleted instance: existing exception converted to cancellation",
+			slog.Int64("activity_group_id", activityGroupID),
+			slog.String("date", date.String()),
+		)
+		return nil
+	}
+
+	exc := &scheduleModel.ActivityException{
+		ActivityGroupID: activityGroupID,
+		ExceptionDate:   date,
+		ExceptionType:   scheduleModel.ActivityExceptionCancelled,
+		Reason:          &reason,
+	}
+	exc.SetTenantID(tenant.FromContext(ctx))
+	if err := s.deps.ExceptionRepo.Create(ctx, exc); err != nil {
+		return &ScheduleError{Op: "delete instance: create cancellation exception", Err: err}
+	}
+	s.getLogger().Info("deleted instance: slot consumed via cancelled exception",
+		slog.Int64("activity_group_id", activityGroupID),
+		slog.String("date", date.String()),
 	)
 	return nil
 }

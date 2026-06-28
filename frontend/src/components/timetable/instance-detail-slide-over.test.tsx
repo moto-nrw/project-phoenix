@@ -268,6 +268,34 @@ describe("InstanceDetailSlideOver", () => {
     );
   });
 
+  it("asks for delete scope on recurring planned instances", async () => {
+    const onDeleteCancelled = vi.fn().mockResolvedValue(undefined);
+    const onDeleteFollowing = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <InstanceDetailSlideOver
+        instance={instance({ activityGroupId: "7" })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        onDeleteCancelled={onDeleteCancelled}
+        onDeleteFollowing={onDeleteFollowing}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Löschen/ }));
+    expect(
+      screen.getByRole("dialog", { name: "Wiederholenden Termin löschen" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Dieser und alle folgenden"));
+    await waitFor(() =>
+      expect(onDeleteFollowing).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "42", activityGroupId: "7" }),
+      ),
+    );
+    expect(onDeleteCancelled).not.toHaveBeenCalled();
+  });
+
   it("renders completed, empty, and detailed attendance states", () => {
     const onClose = vi.fn();
     const { rerender } = render(

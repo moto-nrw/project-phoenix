@@ -882,9 +882,8 @@ func TestInstance_UpdatePlanned_RejectsNonPlanned(t *testing.T) {
 	}
 }
 
-func TestInstance_DeleteCancelled_OnlyCancelled(t *testing.T) {
+func TestInstance_DeleteCancelled_PlannedOrCancelled(t *testing.T) {
 	for _, status := range []string{
-		scheduleModels.InstanceStatusPlanned,
 		scheduleModels.InstanceStatusActive,
 		scheduleModels.InstanceStatusCompleted,
 	} {
@@ -900,13 +899,37 @@ func TestInstance_DeleteCancelled_OnlyCancelled(t *testing.T) {
 		})
 	}
 
-	t.Run("deletes cancelled", func(t *testing.T) {
+	t.Run("deletes planned template occurrence and writes cancellation exception", func(t *testing.T) {
+		s := buildLifecycle(t)
+		ai := seedInstance(t, s, false, false)
+
+		require.NoError(t, s.svc.DeleteCancelled(s.ctx, ai.ID))
+		assert.False(t, instanceExists(t, s, ai.ID))
+
+		exceptions := loadLifecycleExceptions(t, s)
+		require.Len(t, exceptions, 1)
+		assert.Equal(t, s.tmplID, exceptions[0].ActivityGroupID)
+		assert.Equal(t, ai.Date, exceptions[0].ExceptionDate)
+		assert.Equal(t, scheduleModels.ActivityExceptionCancelled, exceptions[0].ExceptionType)
+	})
+
+	t.Run("deletes cancelled template occurrence", func(t *testing.T) {
 		s := buildLifecycle(t)
 		ai := seedInstance(t, s, false, false)
 		forceSetInstanceStatus(t, s, ai.ID, scheduleModels.InstanceStatusCancelled)
 
 		require.NoError(t, s.svc.DeleteCancelled(s.ctx, ai.ID))
 		assert.False(t, instanceExists(t, s, ai.ID))
+		assert.Len(t, loadLifecycleExceptions(t, s), 1)
+	})
+
+	t.Run("deletes spontaneous planned occurrence without exception", func(t *testing.T) {
+		s := buildLifecycle(t)
+		id := insertInstance(t, s, timezone.NewDate(2026, 4, 20), scheduleModels.InstanceStatusPlanned, true)
+
+		require.NoError(t, s.svc.DeleteCancelled(s.ctx, id))
+		assert.False(t, instanceExists(t, s, id))
+		assert.Empty(t, loadLifecycleExceptions(t, s))
 	})
 }
 
@@ -954,6 +977,25 @@ func instanceExists(t *testing.T, s *lifecycleSetup, id int64) bool {
 		Scan(s.ctx, &count)
 	require.NoError(t, err)
 	return count > 0
+}
+
+func loadLifecycleExceptions(t *testing.T, s *lifecycleSetup) []*scheduleModels.ActivityException {
+	t.Helper()
+	var rows []*scheduleModels.ActivityException
+	err := s.db.NewSelect().
+		Model(&rows).
+		ModelTableExpr(`schedule.activity_exceptions AS "activity_exception"`).
+		Where(`"activity_exception".tenant_id = ?`, 1).
+		Order("exception_date ASC").
+		Scan(s.ctx)
+	require.NoError(t, err)
+	for _, row := range rows {
+		id := row.ID
+		t.Cleanup(func() {
+			testpkg.CleanupTableRecords(t, s.db, "schedule.activity_exceptions", id)
+		})
+	}
+	return rows
 }
 
 // --- B10 follow-up: Complete marks remaining expected as absent -------------

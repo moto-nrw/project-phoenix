@@ -14,6 +14,7 @@ import type {
   BackendConflictCheckResult,
   BackendCreateTemplateResult,
   BackendAttendanceResponse,
+  BackendEndTemplateResult,
   BackendExceptionConflictsResponse,
   BackendEnrichedInstance,
   BackendGapsResponse,
@@ -28,6 +29,7 @@ import type {
   AttendanceResponse,
   ConflictCheckResult,
   CreateTemplateResult,
+  EndTemplateResult,
   EnrichedInstance,
   ExceptionConflictsResponse,
   GapsResponse,
@@ -539,6 +541,16 @@ export function mapSplitTemplateResult(
     scheduleIds: (raw.schedule_ids ?? []).map(String),
     deletedInstances: raw.deleted_instances,
     instancesCreated: raw.instances_created,
+  };
+}
+
+export function mapEndTemplateResult(
+  raw: BackendEndTemplateResult,
+): EndTemplateResult {
+  return {
+    templateId: String(raw.template_id),
+    effectiveDate: raw.effective_date,
+    deletedInstances: raw.deleted_instances,
   };
 }
 
