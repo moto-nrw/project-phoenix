@@ -136,6 +136,7 @@ describe("tenant-api", () => {
         presenceMode: "detailed",
         studentPhotosEnabled: false,
         nfcEnabled: false,
+        messagingEnabled: false,
       });
     });
 
@@ -332,6 +333,7 @@ describe("tenant-api", () => {
         presenceMode: "detailed",
         studentPhotosEnabled: false,
         nfcEnabled: false,
+        messagingEnabled: false,
       });
     });
 
@@ -452,6 +454,7 @@ describe("tenant-api", () => {
         presenceMode: "detailed",
         studentPhotosEnabled: false,
         nfcEnabled: false,
+        messagingEnabled: false,
       });
     });
 

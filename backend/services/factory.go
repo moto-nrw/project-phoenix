@@ -36,6 +36,7 @@ import (
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/services/messaging"
 	"github.com/moto-nrw/project-phoenix/services/parent"
 	"github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
@@ -131,6 +132,9 @@ type Factory struct {
 
 	// Parent (cross-tenant guardian portal - PR 9)
 	Parent parent.Service
+
+	// Messaging (staff-side parent-OGS inbox / threads)
+	Messaging messaging.Service
 
 	// SettingsSideEffects is the per-key handler registry the API binds to
 	// SettingsResource.OnValueSet. Domain packages register handlers here
@@ -1108,6 +1112,20 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:                   logger.With("service", "enrollment-rollover"),
 	})
 
+	studentService := users.NewStudentService(repos.Student, repos.PrivacyConsent)
+
+	messagingService := messaging.NewService(messaging.Config{
+		ThreadRepo:  repos.ParentMessageThread,
+		MessageRepo: repos.ParentMessage,
+		ReadRepo:    repos.ParentMessageRead,
+		Persons:     usersService,
+		UserContext: userContextService,
+		Settings:    settingsService,
+		Broadcaster: realtimeHub,
+		DB:          db,
+		Logger:      logger.With("service", "messaging"),
+	})
+
 	parentService := parent.NewService(parent.ServiceConfig{
 		ChildRepo:               repos.ParentChild,
 		EnrollablePhaseRepo:     repos.ParentEnrollablePhase,
@@ -1115,11 +1133,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		GuardianProfileRepo:     repos.GuardianProfile,
 		StatusDayRepo:           repos.StudentStatusDay,
 		StudentRepo:             repos.Student,
-		NoteRepo:                repos.StudentParentNote,
 		PickupExceptionRepo:     repos.StudentPickupException,
 		ArrivalExceptionRepo:    repos.StudentArrivalException,
 		Settings:                settingsService,
 		Broadcaster:             realtimeHub,
+		MessageThreadRepo:       repos.ParentMessageThread,
+		MessageRepo:             repos.ParentMessage,
+		MessageReadRepo:         repos.ParentMessageRead,
 		GuardianInvites:         guardianInvitationService,
 		GuardianInviteRepo:      repos.GuardianInvitation,
 		StudentGuardianRepo:     repos.StudentGuardian,
@@ -1220,7 +1240,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Announcement:         announcementService,
 		Schools:              platform.NewSchoolService(repos.School),
 		WorkTimeModels:       config.NewWorkTimeModelService(repos.WorkTimeModel),
-		Students:             users.NewStudentService(repos.Student, repos.PrivacyConsent, repos.StudentParentNote),
+		Students:             studentService,
 		StudentStatusDays:    active.NewStudentStatusDayService(repos.StudentStatusDay),
 		StudentHistory:       active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog),
 		TimetableData: schedule.NewTimetableDataService(schedule.TimetableDataDependencies{
@@ -1264,7 +1284,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		EnrollmentRollover:      enrollmentRolloverService,
 		EnrollmentChangeRequest: enrollmentChangeRequestService,
 
-		Parent: parentService,
+		Parent:    parentService,
+		Messaging: messagingService,
 	}
 
 	factory.SettingsSideEffects = sideeffects.NewRegistry()

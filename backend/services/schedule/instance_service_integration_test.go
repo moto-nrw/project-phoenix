@@ -66,6 +66,10 @@ func (b *recordingInstanceBroadcaster) BroadcastToAll(event realtime.Event) erro
 	return nil
 }
 
+func (b *recordingInstanceBroadcaster) BroadcastParentMessage(_, _ int64, _ realtime.Event) error {
+	return nil
+}
+
 func (b *recordingInstanceBroadcaster) BroadcastToTenant(tenantID int64, event realtime.Event) error {
 	b.tenantID = tenantID
 	b.tenantEvents = append(b.tenantEvents, event)

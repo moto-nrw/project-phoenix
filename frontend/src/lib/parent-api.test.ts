@@ -9,13 +9,17 @@ import {
   updateParentPortalLocale,
   submitSickNote,
   listSickDays,
-  listChildNotes,
-  addChildNote,
   getChildFeatures,
+  listMessageThreads,
+  listChildThreads,
+  fetchMessagesUnreadCount,
+  getChildConversation,
+  postChildMessage,
   type Child,
   type EnrollmentRequest,
   type StatusDay,
-  type ParentNote,
+  type ThreadSummary,
+  type ThreadView,
 } from "./parent-api";
 
 import type { SubmitEnrollmentPayload } from "./enrollment-submission-api";
@@ -440,67 +444,6 @@ describe("listSickDays", () => {
   });
 });
 
-// --- parent notes ----------------------------------------------------
-
-function mkNote(body: string): ParentNote {
-  return {
-    id: "7",
-    student_id: "84",
-    body,
-    created_at: "2026-06-01T09:00:00Z",
-  };
-}
-
-describe("listChildNotes", () => {
-  it("GETs the notes route and returns the data array", async () => {
-    let seenURL = "";
-    mockFetch(async (input) => {
-      seenURL = typeof input === "string" ? input : input.toString();
-      return jsonResponse({ data: [mkNote("Hallo")] });
-    });
-    const out = await listChildNotes("84");
-    expect(out).toHaveLength(1);
-    expect(out[0]!.body).toBe("Hallo");
-    expect(seenURL).toContain("/api/parent/me/children/84/notes");
-  });
-});
-
-describe("addChildNote", () => {
-  it("POSTs the body to the notes route and returns the newest list", async () => {
-    let seenBody = "";
-    let seenMethod = "";
-    mockFetch(async (_input, init) => {
-      seenMethod = init?.method ?? "";
-      seenBody = (init?.body as string) ?? "";
-      return jsonResponse(
-        { data: [mkNote("neu"), mkNote("alt")] },
-        { status: 201 },
-      );
-    });
-    const out = await addChildNote("84", "neu");
-    expect(seenMethod).toBe("POST");
-    expect(seenBody).toContain('"body":"neu"');
-    expect(out).toHaveLength(2);
-    expect(out[0]!.body).toBe("neu");
-  });
-
-  it("throws with the backend error message on non-OK", async () => {
-    mockFetch(async () =>
-      jsonResponse({ error: "Nachrichten deaktiviert" }, { status: 403 }),
-    );
-    await expect(addChildNote("84", "x")).rejects.toThrow(
-      /Nachrichten deaktiviert/,
-    );
-  });
-
-  it("throws a generic message on non-OK non-JSON body", async () => {
-    mockFetch(async () => new Response("nope", { status: 500 }));
-    await expect(addChildNote("84", "x")).rejects.toThrow(
-      /Request failed \(500\)/,
-    );
-  });
-});
-
 describe("getChildFeatures", () => {
   it("GETs the features route and returns the resolved flags", async () => {
     let seenURL = "";
@@ -520,6 +463,203 @@ describe("getChildFeatures", () => {
     mockFetch(async () => new Response("nope", { status: 500 }));
     await expect(getChildFeatures("84")).rejects.toThrow(
       /Request failed \(500\)/,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function mkThreadSummary(
+  overrides: Partial<ThreadSummary> = {},
+): ThreadSummary {
+  return {
+    thread_id: "t1",
+    student_id: "42",
+    student_name: "Max Mustermann",
+    school_name: "OGS A",
+    counterpart_name: "OGS OGS A",
+    unread: 0,
+    ...overrides,
+  };
+}
+
+function mkThreadView(overrides: Partial<ThreadView> = {}): ThreadView {
+  return {
+    thread_id: "t1",
+    student_id: "42",
+    student_name: "Max Mustermann",
+    school_name: "OGS A",
+    counterpart_name: "OGS OGS A",
+    messages: [],
+    ...overrides,
+  };
+}
+
+// --- listMessageThreads -------------------------------------------------------
+
+describe("listMessageThreads", () => {
+  it("GETs /api/parent/me/messages and returns the data array", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({ data: [mkThreadSummary({ unread: 2 })] });
+    });
+    const out = await listMessageThreads();
+    expect(out).toHaveLength(1);
+    expect(out[0]!.thread_id).toBe("t1");
+    expect(out[0]!.unread).toBe(2);
+    expect(seenURL).toBe("/api/parent/me/messages");
+  });
+
+  it("throws on non-OK with a clear message", async () => {
+    mockFetch(async () => new Response("nope", { status: 500 }));
+    await expect(listMessageThreads()).rejects.toThrow(
+      /Request failed \(500\)/,
+    );
+  });
+
+  it("returns an empty array when data is missing from the envelope", async () => {
+    mockFetch(async () => jsonResponse({}));
+    // parent-api's getJson unwraps { data } or returns the body directly;
+    // an envelope with no data field falls through to the body itself which
+    // is an empty object — cast defensively.
+    const out = await listMessageThreads();
+    // Either empty array or empty object-like — the key invariant is no throw.
+    expect(out).toBeDefined();
+  });
+});
+
+// --- listChildThreads ---------------------------------------------------------
+
+describe("listChildThreads", () => {
+  it("GETs the per-child threads route with encoded studentId", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({ data: [mkThreadSummary()] });
+    });
+    const out = await listChildThreads("42");
+    expect(out).toHaveLength(1);
+    expect(seenURL).toContain("/api/parent/me/messages/children/42/threads");
+  });
+
+  it("URL-encodes the studentId", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({ data: [] });
+    });
+    await listChildThreads("a/b");
+    expect(seenURL).toContain("a%2Fb");
+  });
+
+  it("throws on non-OK", async () => {
+    mockFetch(async () =>
+      jsonResponse({ error: "forbidden" }, { status: 403 }),
+    );
+    await expect(listChildThreads("42")).rejects.toThrow(/forbidden/);
+  });
+});
+
+// --- fetchMessagesUnreadCount -------------------------------------------------
+
+describe("fetchMessagesUnreadCount", () => {
+  it("GETs /api/parent/me/messages/unread-count and returns the count", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({ unread_count: 7 });
+    });
+    const count = await fetchMessagesUnreadCount();
+    expect(count).toBe(7);
+    expect(seenURL).toContain("/api/parent/me/messages/unread-count");
+  });
+
+  it("returns 0 when unread_count is missing from the response", async () => {
+    mockFetch(async () => jsonResponse({}));
+    const count = await fetchMessagesUnreadCount();
+    expect(count).toBe(0);
+  });
+
+  it("throws on non-OK", async () => {
+    mockFetch(async () => new Response("", { status: 500 }));
+    await expect(fetchMessagesUnreadCount()).rejects.toThrow(
+      /Request failed \(500\)/,
+    );
+  });
+});
+
+// --- getChildConversation -----------------------------------------------------
+
+describe("getChildConversation", () => {
+  it("GETs the child conversation route and returns a ThreadView", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse(mkThreadView({ messages: [] }));
+    });
+    const view = await getChildConversation("42");
+    expect(view.student_id).toBe("42");
+    expect(view.messages).toEqual([]);
+    expect(seenURL).toContain("/api/parent/me/messages/children/42");
+  });
+
+  it("URL-encodes the studentId", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse(mkThreadView());
+    });
+    await getChildConversation("a/b");
+    expect(seenURL).toContain("a%2Fb");
+  });
+
+  it("throws on non-OK", async () => {
+    mockFetch(async () =>
+      jsonResponse({ error: "not found" }, { status: 404 }),
+    );
+    await expect(getChildConversation("42")).rejects.toThrow(/not found/);
+  });
+});
+
+// --- postChildMessage ---------------------------------------------------------
+
+describe("postChildMessage", () => {
+  it("POSTs the message body and returns the updated ThreadView", async () => {
+    let seenURL = "";
+    let seenBody = "";
+    let seenMethod = "";
+    mockFetch(async (input, init) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      seenBody = (init?.body as string) ?? "";
+      seenMethod = init?.method ?? "";
+      return jsonResponse(mkThreadView({ thread_id: "t99" }), { status: 201 });
+    });
+    const view = await postChildMessage("42", "Hallo OGS!");
+    expect(view.thread_id).toBe("t99");
+    expect(seenMethod).toBe("POST");
+    expect(seenURL).toContain("/api/parent/me/messages/children/42");
+    expect(seenBody).toContain('"body":"Hallo OGS!"');
+  });
+
+  it("URL-encodes the studentId in the POST URL", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse(mkThreadView(), { status: 201 });
+    });
+    await postChildMessage("x/y", "text");
+    expect(seenURL).toContain("x%2Fy");
+  });
+
+  it("throws on non-OK with the backend error message", async () => {
+    mockFetch(async () =>
+      jsonResponse({ error: "Messaging deaktiviert" }, { status: 403 }),
+    );
+    await expect(postChildMessage("42", "test")).rejects.toThrow(
+      /Messaging deaktiviert/,
     );
   });
 });

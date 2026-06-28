@@ -220,15 +220,16 @@
       "pickupLabel": "Pickup",
       "regularPickup": "Regular pickup",
       "messagesLabel": "Messages",
-      "noMessages": "No new messages",
-      "noMessagesSent": "No messages sent",
-      "messagesSent": "{count, plural, one {# message sent} other {# messages sent}}"
+      "noConversations": "No conversations",
+      "unreadCount": "{count, plural, one {# unread message} other {# unread messages}}",
+      "conversationsCount": "{count, plural, one {# conversation} other {# conversations}}"
     },
     "messages": {
       "eyebrow": "Parent portal",
-      "title": "Messages to the team",
-      "description": "Short notes to the care team.",
-      "compose": "Write"
+      "title": "Messages with the OGS",
+      "description": "Conversations about your child.",
+      "compose": "New message",
+      "empty": "No conversations yet. Send the OGS the first message."
     }
   },
   "parentChildCare": {
@@ -248,16 +249,6 @@
       "invalidDate": "Please choose a valid date (end date after start date).",
       "saveError": "The absence could not be saved.",
       "submit": "Send absence"
-    },
-    "notes": {
-      "title": "Message to the team",
-      "newLabel": "New message",
-      "placeholder": "Short note to the care team …",
-      "empty": "Please enter a message.",
-      "sendError": "The message could not be sent.",
-      "send": "Send",
-      "lastSent": "Recently sent",
-      "listEmpty": "No messages sent yet."
     },
     "summary": {
       "none": "No absence",
@@ -832,5 +823,8 @@
         "sun": "Sun"
       }
     }
+  },
+  "parentOgsMessaging": {
+    "readByStaff": "Read"
   }
 }
