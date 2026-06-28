@@ -451,6 +451,78 @@ func TestStudentEnrollmentRepository_FindByStudentID(t *testing.T) {
 	})
 }
 
+func TestStudentEnrollmentRepository_FindActiveByStudentIDs(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).StudentEnrollment
+	ctx := testpkg.TenantContext(1)
+	onDate := timezone.NewDate(2026, time.September, 15)
+	validFrom := timezone.NewDate(2026, time.September, 1)
+	futureFrom := timezone.NewDate(2026, time.October, 1)
+	endsOnDate := onDate
+	endsAfterDate := timezone.NewDate(2026, time.September, 16)
+	expiredUntil := timezone.NewDate(2026, time.September, 10)
+
+	studentA := testpkg.CreateTestStudent(t, db, "FindActive", "Alpha", "1a")
+	studentB := testpkg.CreateTestStudent(t, db, "FindActive", "Beta", "1a")
+	studentOther := testpkg.CreateTestStudent(t, db, "FindActive", "Other", "1a")
+	groupAlpha := testpkg.CreateTestActivityGroup(t, db, "FindActiveAlpha")
+	groupBeta := testpkg.CreateTestActivityGroup(t, db, "FindActiveBeta")
+	groupFuture := testpkg.CreateTestActivityGroup(t, db, "FindActiveFuture")
+	groupExpired := testpkg.CreateTestActivityGroup(t, db, "FindActiveExpired")
+	groupBoundary := testpkg.CreateTestActivityGroup(t, db, "FindActiveBoundary")
+	defer testpkg.CleanupActivityFixtures(t, db,
+		studentA.ID, studentB.ID, studentOther.ID,
+		groupAlpha.ID, groupAlpha.CategoryID, *groupAlpha.CreatedBy,
+		groupBeta.ID, groupBeta.CategoryID, *groupBeta.CreatedBy,
+		groupFuture.ID, groupFuture.CategoryID, *groupFuture.CreatedBy,
+		groupExpired.ID, groupExpired.CategoryID, *groupExpired.CreatedBy,
+		groupBoundary.ID, groupBoundary.CategoryID, *groupBoundary.CreatedBy,
+	)
+
+	activeOpen := &activities.StudentEnrollment{StudentID: studentA.ID, ActivityGroupID: groupBeta.ID, ValidFrom: validFrom}
+	activeBounded := &activities.StudentEnrollment{StudentID: studentA.ID, ActivityGroupID: groupAlpha.ID, ValidFrom: validFrom, ValidUntil: &endsAfterDate}
+	activeSecondStudent := &activities.StudentEnrollment{StudentID: studentB.ID, ActivityGroupID: groupAlpha.ID, ValidFrom: validFrom}
+	future := &activities.StudentEnrollment{StudentID: studentA.ID, ActivityGroupID: groupFuture.ID, ValidFrom: futureFrom}
+	expired := &activities.StudentEnrollment{StudentID: studentA.ID, ActivityGroupID: groupExpired.ID, ValidFrom: validFrom, ValidUntil: &expiredUntil}
+	boundary := &activities.StudentEnrollment{StudentID: studentA.ID, ActivityGroupID: groupBoundary.ID, ValidFrom: validFrom, ValidUntil: &endsOnDate}
+	otherStudent := &activities.StudentEnrollment{StudentID: studentOther.ID, ActivityGroupID: groupAlpha.ID, ValidFrom: validFrom}
+	for _, enrollment := range []*activities.StudentEnrollment{
+		activeOpen,
+		activeBounded,
+		activeSecondStudent,
+		future,
+		expired,
+		boundary,
+		otherStudent,
+	} {
+		require.NoError(t, repo.Create(ctx, enrollment))
+		defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", enrollment.ID)
+	}
+
+	empty, err := repo.FindActiveByStudentIDs(ctx, nil, onDate)
+	require.NoError(t, err)
+	assert.Empty(t, empty)
+
+	got, err := repo.FindActiveByStudentIDs(ctx, []int64{studentA.ID, studentB.ID}, onDate)
+	require.NoError(t, err)
+	require.Len(t, got, 3)
+
+	assert.Equal(t, studentA.ID, got[0].StudentID)
+	require.NotNil(t, got[0].ActivityGroup)
+	assert.Equal(t, groupAlpha.ID, got[0].ActivityGroup.ID)
+	assert.Equal(t, groupAlpha.Name, got[0].ActivityGroup.Name)
+
+	assert.Equal(t, studentA.ID, got[1].StudentID)
+	require.NotNil(t, got[1].ActivityGroup)
+	assert.Equal(t, groupBeta.ID, got[1].ActivityGroup.ID)
+
+	assert.Equal(t, studentB.ID, got[2].StudentID)
+	require.NotNil(t, got[2].ActivityGroup)
+	assert.Equal(t, groupAlpha.ID, got[2].ActivityGroup.ID)
+}
+
 func TestStudentEnrollmentRepository_FindByGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -793,6 +865,75 @@ func TestStudentEnrollmentRepository_DeleteByStudentGroupsAndWindow(t *testing.T
 	assert.Contains(t, err.Error(), "student_id is required")
 }
 
+func TestStudentEnrollmentRepository_BackfillEnrollmentRequestChildSource(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).StudentEnrollment
+	ctx := testpkg.TenantContext(1)
+
+	student := testpkg.CreateTestStudent(t, db, "BackfillSource", "Student", "1a")
+	groupLinked := testpkg.CreateTestActivityGroup(t, db, "BackfillSourceLinked")
+	groupManual := testpkg.CreateTestActivityGroup(t, db, "BackfillSourceManual")
+	requestChildID := createEnrollmentRequestChildForStudentEnrollmentTest(t, db, student.ID)
+	defer testpkg.CleanupActivityFixtures(t, db,
+		student.ID,
+		groupLinked.ID, groupLinked.CategoryID, *groupLinked.CreatedBy,
+		groupManual.ID, groupManual.CategoryID, *groupManual.CreatedBy,
+	)
+
+	reviewedAt := time.Now().UTC()
+	_, err := db.NewRaw(`
+		UPDATE enrollment.request_children
+		SET reviewed_at = ?
+		WHERE tenant_id = 1 AND id = ?
+	`, reviewedAt, requestChildID).Exec(context.Background())
+	require.NoError(t, err)
+
+	validFrom := timezone.NewDate(2026, time.September, 1)
+	validUntil := timezone.NewDate(2027, time.July, 31)
+	manualUntil := timezone.NewDate(2028, time.July, 31)
+	linkedEnrollment := &activities.StudentEnrollment{
+		StudentID:       student.ID,
+		ActivityGroupID: groupLinked.ID,
+		ValidFrom:       validFrom,
+		ValidUntil:      &validUntil,
+	}
+	manualEnrollment := &activities.StudentEnrollment{
+		StudentID:       student.ID,
+		ActivityGroupID: groupManual.ID,
+		ValidFrom:       validFrom,
+		ValidUntil:      &manualUntil,
+	}
+	require.NoError(t, repo.Create(ctx, linkedEnrollment))
+	require.NoError(t, repo.Create(ctx, manualEnrollment))
+	defer testpkg.CleanupTableRecords(t, db, "activities.student_enrollments", linkedEnrollment.ID, manualEnrollment.ID)
+
+	rows, err := repo.BackfillEnrollmentRequestChildSource(ctx, student.ID, requestChildID, nil)
+	require.NoError(t, err)
+	assert.Zero(t, rows)
+
+	rows, err = repo.BackfillEnrollmentRequestChildSource(ctx, student.ID, requestChildID, []int64{groupLinked.ID})
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, rows)
+
+	gotLinked, err := repo.FindByID(ctx, linkedEnrollment.ID)
+	require.NoError(t, err)
+	require.NotNil(t, gotLinked.EnrollmentRequestChildID)
+	assert.Equal(t, requestChildID, *gotLinked.EnrollmentRequestChildID)
+
+	gotManual, err := repo.FindByID(ctx, manualEnrollment.ID)
+	require.NoError(t, err)
+	assert.Nil(t, gotManual.EnrollmentRequestChildID)
+
+	_, err = repo.BackfillEnrollmentRequestChildSource(ctx, 0, requestChildID, []int64{groupLinked.ID})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "student_id is required")
+	_, err = repo.BackfillEnrollmentRequestChildSource(ctx, student.ID, 0, []int64{groupLinked.ID})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "enrollment_request_child_id is required")
+}
+
 func TestStudentEnrollmentRepository_DeleteByEnrollmentRequestChild(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -936,6 +1077,11 @@ func TestStudentEnrollmentRepository_QueryErrorsAreWrapped(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "find by student ID")
 
+	from := timezone.NewDate(2026, time.June, 1)
+	_, err = repo.FindActiveByStudentIDs(ctx, []int64{900150}, from)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "find active enrollments by student IDs")
+
 	_, err = repo.FindByGroupID(ctx, 900200)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "find by group ID")
@@ -944,7 +1090,6 @@ func TestStudentEnrollmentRepository_QueryErrorsAreWrapped(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "count by group ID")
 
-	from := timezone.NewDate(2026, time.June, 1)
 	to := from.AddDays(1)
 	_, err = repo.FindByValidFromRange(ctx, from, to)
 	require.Error(t, err)
@@ -981,6 +1126,14 @@ func TestStudentEnrollmentRepository_QueryErrorsAreWrapped(t *testing.T) {
 	_, err = repo.DeleteByStudentGroupsAndWindow(ctx, 900900, []int64{901000}, from, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "delete by student groups and window")
+
+	_, err = repo.BackfillEnrollmentRequestChildSource(ctx, 901050, 901060, []int64{901070})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "backfill enrollment request child source")
+
+	_, err = repo.DeleteByEnrollmentRequestChild(ctx, 901080, 901090)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "delete by enrollment request child")
 
 	err = repo.CloseOpenByGroupAndPeriod(ctx, 901100, nil, from)
 	require.Error(t, err)

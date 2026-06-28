@@ -23,6 +23,16 @@ type careUsageExportRequest struct {
 	Filters careUsageExportFiltersRequest `json:"filters"`
 }
 
+type classRosterExportRequest struct {
+	Format  listexport.Format               `json:"format"`
+	Filters classRosterExportFiltersRequest `json:"filters"`
+}
+
+type classRosterExportFiltersRequest struct {
+	PhaseID     json.RawMessage `json:"phase_id"`
+	SchoolClass string          `json:"school_class"`
+}
+
 type careUsageExportFiltersRequest struct {
 	PhaseID         string   `json:"phase_id"`
 	Status          string   `json:"status,omitempty"`
@@ -30,6 +40,8 @@ type careUsageExportFiltersRequest struct {
 	CareOfferingIDs []string `json:"care_offering_ids,omitempty"`
 	DayCount        *int     `json:"day_count,omitempty"`
 	GradeLevel      *int16   `json:"grade_level,omitempty"`
+	Weekday         string   `json:"weekday,omitempty"`
+	PickupTime      string   `json:"pickup_time,omitempty"`
 	Search          string   `json:"search,omitempty"`
 }
 
@@ -53,6 +65,8 @@ type careUsageAppliedFiltersResponse struct {
 	CareOfferingIDs []string `json:"care_offering_ids"`
 	DayCount        *int     `json:"day_count,omitempty"`
 	GradeLevel      *int16   `json:"grade_level,omitempty"`
+	Weekday         string   `json:"weekday,omitempty"`
+	PickupTime      string   `json:"pickup_time,omitempty"`
 	Search          string   `json:"search,omitempty"`
 }
 
@@ -66,6 +80,7 @@ type careUsageOfferingStatResponse struct {
 type careUsageFilterOptionsResponse struct {
 	Offerings   []careUsageOfferingOptionResponse `json:"offerings"`
 	GradeLevels []int16                           `json:"grade_levels"`
+	PickupTimes []string                          `json:"pickup_times"`
 }
 
 type careUsageOfferingOptionResponse struct {
@@ -85,6 +100,7 @@ type careUsageRowResponse struct {
 	Offerings         []careUsageRowOfferingResponse `json:"offerings"`
 	EffectiveDays     []string                       `json:"effective_days"`
 	DayCount          int                            `json:"day_count"`
+	PickupByDay       map[string]string              `json:"pickup_by_day"`
 	GuardianFirstName string                         `json:"guardian_first_name"`
 	GuardianLastName  string                         `json:"guardian_last_name"`
 	GuardianEmail     string                         `json:"guardian_email"`
@@ -197,6 +213,63 @@ func (rs *Resource) exportCareUsageReport(w http.ResponseWriter, r *http.Request
 	_, _ = w.Write(file.Data)
 }
 
+func (rs *Resource) exportClassRosterReport(w http.ResponseWriter, r *http.Request) {
+	if rs.ReportService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("report service not configured")))
+		return
+	}
+	if rs.ListExportService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("list export service not configured")))
+		return
+	}
+	format, filters, err := parseClassRosterExportRequest(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	claims := jwt.ClaimsFromCtx(r.Context())
+	actorAccountID := int64(claims.ID)
+	actorRole := strings.Join(claims.Roles, ",")
+
+	var report *enrollmentService.ClassRosterReport
+	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+		out, e := rs.ReportService.ExportClassRoster(ctx, filters, actorAccountID, actorRole, string(format))
+		if e != nil {
+			return e
+		}
+		report = out
+		return nil
+	})
+	if err != nil {
+		if errors.Is(err, enrollmentService.ErrReportPhaseNotFound) {
+			common.RenderError(w, r, common.ErrorNotFound(err))
+			return
+		}
+		if errors.Is(err, enrollmentService.ErrReportExportTooLarge) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
+		if errors.Is(err, enrollmentService.ErrReportInvalidFilter) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	file, err := buildClassRosterExportFile(rs.ListExportService, report, format)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	w.Header().Set("Content-Type", file.ContentType)
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, file.Filename))
+	w.Header().Set("Content-Length", strconv.Itoa(len(file.Data)))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(file.Data)
+}
+
 func parseCareUsageFiltersFromQuery(r *http.Request) (enrollmentService.CareUsageFilters, error) {
 	q := r.URL.Query()
 	var filters enrollmentService.CareUsageFilters
@@ -206,6 +279,8 @@ func parseCareUsageFiltersFromQuery(r *http.Request) (enrollmentService.CareUsag
 	}
 	filters.PhaseID = phaseID
 	filters.Status = q.Get("status")
+	filters.Weekday = q.Get("weekday")
+	filters.PickupTime = q.Get("pickup_time")
 	filters.Search = q.Get("search")
 	offeringIDs, err := parseCareOfferingIDsFromQuery(q["care_offering_ids"])
 	if err != nil {
@@ -291,6 +366,58 @@ func parseCareUsageExportRequest(r *http.Request) (listexport.Format, enrollment
 	return format, filters, nil
 }
 
+func parseClassRosterExportRequest(r *http.Request) (listexport.Format, enrollmentService.ClassRosterFilters, error) {
+	var body classRosterExportRequest
+	if r.Body != nil {
+		raw, _ := io.ReadAll(io.LimitReader(r.Body, 1<<16))
+		if len(raw) > 0 {
+			if err := json.Unmarshal(raw, &body); err != nil {
+				return "", enrollmentService.ClassRosterFilters{}, fmt.Errorf("invalid export request body: %w", err)
+			}
+		}
+	}
+	format := listexport.Format(strings.ToLower(string(body.Format)))
+	if format == "" {
+		format = listexport.FormatPDF
+	}
+	switch format {
+	case listexport.FormatPDF, listexport.FormatDOCX, listexport.FormatXLSX:
+	default:
+		return "", enrollmentService.ClassRosterFilters{}, fmt.Errorf("unsupported export format %q (use pdf, docx or xlsx)", format)
+	}
+	phaseID, err := parseClassRosterPhaseID(body.Filters.PhaseID)
+	if err != nil {
+		return "", enrollmentService.ClassRosterFilters{}, err
+	}
+	filters := enrollmentService.ClassRosterFilters{
+		PhaseID:     phaseID,
+		SchoolClass: strings.TrimSpace(body.Filters.SchoolClass),
+	}
+	if filters.SchoolClass == "" {
+		return "", enrollmentService.ClassRosterFilters{}, errors.New("school_class is required")
+	}
+	return format, filters, nil
+}
+
+func parseClassRosterPhaseID(raw json.RawMessage) (int64, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return 0, errors.New("phase_id is required")
+	}
+	var asString string
+	if err := json.Unmarshal(raw, &asString); err == nil {
+		phaseID, parseErr := strconv.ParseInt(strings.TrimSpace(asString), 10, 64)
+		if parseErr != nil || phaseID <= 0 {
+			return 0, errors.New("phase_id must be positive")
+		}
+		return phaseID, nil
+	}
+	var asNumber int64
+	if err := json.Unmarshal(raw, &asNumber); err == nil && asNumber > 0 {
+		return asNumber, nil
+	}
+	return 0, errors.New("phase_id must be positive")
+}
+
 func (req careUsageExportFiltersRequest) toServiceFilters() (enrollmentService.CareUsageFilters, error) {
 	phaseID, err := parseRequiredPositiveInt64(req.PhaseID, "filters.phase_id")
 	if err != nil {
@@ -301,6 +428,8 @@ func (req careUsageExportFiltersRequest) toServiceFilters() (enrollmentService.C
 		Status:     req.Status,
 		DayCount:   req.DayCount,
 		GradeLevel: req.GradeLevel,
+		Weekday:    req.Weekday,
+		PickupTime: req.PickupTime,
 		Search:     req.Search,
 	}
 	if strings.TrimSpace(req.CareOfferingID) != "" {
@@ -350,11 +479,14 @@ func toCareUsageReportResponse(report *enrollmentService.CareUsageReport) *careU
 			Status:     report.Filters.Status,
 			DayCount:   report.Filters.DayCount,
 			GradeLevel: report.Filters.GradeLevel,
+			Weekday:    report.Filters.Weekday,
+			PickupTime: report.Filters.PickupTime,
 			Search:     report.Filters.Search,
 		},
 		Totals: report.Totals,
 		FilterOptions: careUsageFilterOptionsResponse{
 			GradeLevels: report.FilterOptions.GradeLevels,
+			PickupTimes: report.FilterOptions.PickupTimes,
 		},
 		Rows: make([]careUsageRowResponse, 0, len(report.Rows)),
 	}
@@ -390,6 +522,7 @@ func toCareUsageReportResponse(report *enrollmentService.CareUsageReport) *careU
 			Status:            row.Status,
 			EffectiveDays:     nonNilStringSlice(row.EffectiveDays),
 			DayCount:          row.DayCount,
+			PickupByDay:       nonNilStringMap(row.PickupByDay),
 			GuardianFirstName: row.GuardianFirstName,
 			GuardianLastName:  row.GuardianLastName,
 			GuardianEmail:     row.GuardianEmail,
@@ -430,6 +563,121 @@ func buildCareUsageExportFile(svc listexport.Service, report *enrollmentService.
 	}
 }
 
+func buildClassRosterExportFile(svc listexport.Service, report *enrollmentService.ClassRosterReport, format listexport.Format) (listexport.File, error) {
+	filename := "Klassenliste " + strings.TrimSpace(report.Filters.SchoolClass)
+	if phaseName := strings.TrimSpace(report.Phase.Name); phaseName != "" {
+		filename += " " + phaseName
+	}
+	return svc.Render(buildClassRosterTableDocument(report), format, filename)
+}
+
+func buildClassRosterTableDocument(report *enrollmentService.ClassRosterReport) listexport.Document {
+	cols := []listexport.Column{
+		{ID: listexport.ColumnName, Label: "Name"},
+		{ID: listexport.ColumnSchoolClass, Label: "Klasse"},
+		{ID: listexport.ColumnGroup, Label: "Gruppe"},
+		{ID: listexport.ColumnEnrollmentSummary, Label: "Betreuungs-/Anmeldestatus"},
+		{ID: listexport.ColumnCareDays, Label: "Betreuungstage"},
+		{ID: listexport.ColumnWeeklyMonday, Label: "Montag"},
+		{ID: listexport.ColumnWeeklyTuesday, Label: "Dienstag"},
+		{ID: listexport.ColumnWeeklyWednesday, Label: "Mittwoch"},
+		{ID: listexport.ColumnWeeklyThursday, Label: "Donnerstag"},
+		{ID: listexport.ColumnWeeklyFriday, Label: "Freitag"},
+		{ID: listexport.ColumnDeparture, Label: "Geh-/Abholweise"},
+	}
+	rows := make([]listexport.Row, 0, len(report.Rows))
+	for _, row := range report.Rows {
+		rows = append(rows, listexport.Row{Values: map[listexport.ColumnID]string{
+			listexport.ColumnName:              strings.TrimSpace(row.FirstName + " " + row.LastName),
+			listexport.ColumnSchoolClass:       row.SchoolClass,
+			listexport.ColumnGroup:             row.GroupName,
+			listexport.ColumnEnrollmentSummary: row.EnrollmentSummary,
+			listexport.ColumnCareDays:          classRosterCareDaysLabel(row.CareDays),
+			listexport.ColumnWeeklyMonday:      classRosterWeeklyCell(row, "mon"),
+			listexport.ColumnWeeklyTuesday:     classRosterWeeklyCell(row, "tue"),
+			listexport.ColumnWeeklyWednesday:   classRosterWeeklyCell(row, "wed"),
+			listexport.ColumnWeeklyThursday:    classRosterWeeklyCell(row, "thu"),
+			listexport.ColumnWeeklyFriday:      classRosterWeeklyCell(row, "fri"),
+			listexport.ColumnDeparture:         row.Departure,
+		}})
+	}
+	return listexport.Document{
+		Title:       classRosterTitle(report),
+		Subtitle:    classRosterSubtitle(report),
+		GeneratedAt: time.Now(),
+		Filters:     classRosterFilterLabels(report),
+		Columns:     cols,
+		Rows:        rows,
+		Footer:      exportConfidentialityNote,
+	}
+}
+
+func classRosterTitle(report *enrollmentService.ClassRosterReport) string {
+	title := "Klassenliste"
+	if report == nil {
+		return title
+	}
+	if className := strings.TrimSpace(report.Filters.SchoolClass); className != "" {
+		title += " " + className
+	}
+	if phaseName := strings.TrimSpace(report.Phase.Name); phaseName != "" {
+		title += " - " + phaseName
+	}
+	return title
+}
+
+func classRosterSubtitle(report *enrollmentService.ClassRosterReport) string {
+	if report == nil {
+		return "0 Kinder"
+	}
+	return fmt.Sprintf("%d Kinder, %d angemeldet", report.Totals.Students, report.Totals.Registered)
+}
+
+func classRosterFilterLabels(report *enrollmentService.ClassRosterReport) []string {
+	if report == nil {
+		return nil
+	}
+	return []string{
+		"Anmeldephase: " + strings.TrimSpace(report.Phase.Name),
+		"Klasse: " + strings.TrimSpace(report.Filters.SchoolClass),
+		"Status: " + statusLabelDE(report.Filters.Status),
+	}
+}
+
+func classRosterCareDaysLabel(days []string) string {
+	if len(days) == 0 {
+		return "keine"
+	}
+	return formatDayCodes(days)
+}
+
+func classRosterWeeklyCell(row enrollmentService.ClassRosterRow, day string) string {
+	arrival := strings.TrimSpace(row.ArrivalByDay[day])
+	pickup := strings.TrimSpace(row.PickupByDay[day])
+	if arrival != "" && pickup != "" {
+		return "Ankunft: " + arrival + ", Abholung: " + pickup
+	}
+	if arrival != "" {
+		return "Ankunft: " + arrival
+	}
+	if pickup != "" {
+		return "Abholung: " + pickup
+	}
+	if containsReportDay(row.CareDays, day) {
+		return "Betreuung"
+	}
+	return "nein"
+}
+
+func containsReportDay(days []string, needle string) bool {
+	for _, day := range days {
+		if strings.EqualFold(strings.TrimSpace(day), needle) {
+			return true
+		}
+	}
+	return false
+}
+
 func buildCareUsageTableDocument(report *enrollmentService.CareUsageReport) listexport.Document {
 	cols := []listexport.Column{
 		{ID: "child_last_name", Label: "Kind Nachname"},
@@ -440,6 +688,11 @@ func buildCareUsageTableDocument(report *enrollmentService.CareUsageReport) list
 		{ID: "offering_days", Label: "Tage je Angebot"},
 		{ID: "effective_days", Label: "Effektive Betreuungstage"},
 		{ID: "day_count", Label: "Anzahl Tage"},
+		{ID: "pickup_mon", Label: "Mo Gehzeit"},
+		{ID: "pickup_tue", Label: "Di Gehzeit"},
+		{ID: "pickup_wed", Label: "Mi Gehzeit"},
+		{ID: "pickup_thu", Label: "Do Gehzeit"},
+		{ID: "pickup_fri", Label: "Fr Gehzeit"},
 		{ID: "guardian_name", Label: "Eltern"},
 		{ID: "guardian_email", Label: "E-Mail"},
 		{ID: "guardian_phone", Label: "Telefon"},
@@ -455,6 +708,11 @@ func buildCareUsageTableDocument(report *enrollmentService.CareUsageReport) list
 			"offering_days":    careUsageOfferingDayDetails(row.Offerings),
 			"effective_days":   formatDayCodes(row.EffectiveDays),
 			"day_count":        strconv.Itoa(row.DayCount),
+			"pickup_mon":       row.PickupByDay["mon"],
+			"pickup_tue":       row.PickupByDay["tue"],
+			"pickup_wed":       row.PickupByDay["wed"],
+			"pickup_thu":       row.PickupByDay["thu"],
+			"pickup_fri":       row.PickupByDay["fri"],
 			"guardian_name":    strings.TrimSpace(row.GuardianFirstName + " " + row.GuardianLastName),
 			"guardian_email":   row.GuardianEmail,
 			"guardian_phone":   strOrEmpty(row.GuardianPhone),
@@ -486,6 +744,7 @@ func buildCareUsageRecordDocument(report *enrollmentService.CareUsageReport) lis
 				{Label: "Betreuungsangebote", Value: careUsageOfferingDayDetails(row.Offerings)},
 				{Label: "Effektive Betreuungstage", Value: formatDayCodes(row.EffectiveDays)},
 				{Label: "Anzahl Tage", Value: strconv.Itoa(row.DayCount)},
+				{Label: "Gehzeiten", Value: careUsagePickupDayDetails(row.PickupByDay)},
 				{Label: "Eltern", Value: strings.TrimSpace(row.GuardianFirstName + " " + row.GuardianLastName)},
 				{Label: "E-Mail", Value: row.GuardianEmail},
 				{Label: "Telefon", Value: strOrEmpty(row.GuardianPhone)},
@@ -540,6 +799,12 @@ func careUsageFilterLabels(report *enrollmentService.CareUsageReport) []string {
 	}
 	if report.Filters.GradeLevel != nil {
 		labels = append(labels, fmt.Sprintf("Zielklasse: %d", *report.Filters.GradeLevel))
+	}
+	if strings.TrimSpace(report.Filters.Weekday) != "" {
+		labels = append(labels, "Wochentag: "+formatDayCodes([]string{report.Filters.Weekday}))
+	}
+	if strings.TrimSpace(report.Filters.PickupTime) != "" {
+		labels = append(labels, "Gehzeit: "+strings.TrimSpace(report.Filters.PickupTime))
 	}
 	if strings.TrimSpace(report.Filters.Search) != "" {
 		labels = append(labels, "Suche: "+strings.TrimSpace(report.Filters.Search))
@@ -607,6 +872,21 @@ func careUsageDayCountFields(report *enrollmentService.CareUsageReport) []listex
 	return fields
 }
 
+func careUsagePickupDayDetails(pickupByDay map[string]string) string {
+	if len(pickupByDay) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(weekdayOrder))
+	for _, day := range weekdayOrder {
+		pickupTime := strings.TrimSpace(pickupByDay[day])
+		if pickupTime == "" {
+			continue
+		}
+		parts = append(parts, dayLabelsDE[day]+" "+pickupTime)
+	}
+	return strings.Join(parts, "; ")
+}
+
 func sortedDayCountKeys(counts map[string]int) []int {
 	out := make([]int, 0, len(counts))
 	seen := make(map[int]bool, len(counts))
@@ -632,6 +912,13 @@ func dayCountLabelDE(count int) string {
 func nonNilStringSlice(values []string) []string {
 	if values == nil {
 		return []string{}
+	}
+	return values
+}
+
+func nonNilStringMap(values map[string]string) map[string]string {
+	if values == nil {
+		return map[string]string{}
 	}
 	return values
 }

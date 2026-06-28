@@ -23,8 +23,9 @@ const (
 	OpLessThanOrEqual    Operator = "<="
 
 	// String operators
-	OpLike  Operator = "LIKE"
-	OpILike Operator = "ILIKE"
+	OpLike      Operator = "LIKE"
+	OpILike     Operator = "ILIKE"
+	OpTrimEqual Operator = "TRIM_EQUALS"
 
 	// Null checking
 	OpIsNull    Operator = "IS NULL"
@@ -119,6 +120,11 @@ func (f *Filter) Like(field, value string) *Filter {
 // ILike adds a case-insensitive LIKE condition
 func (f *Filter) ILike(field, value string) *Filter {
 	return f.Where(field, OpILike, value)
+}
+
+// TrimEqual adds a case-insensitive equality condition after trimming both sides.
+func (f *Filter) TrimEqual(field, value string) *Filter {
+	return f.Where(field, OpTrimEqual, value)
 }
 
 // IsNull adds an IS NULL condition
@@ -253,6 +259,8 @@ func applyOperatorWithColumnRef(query *bun.SelectQuery, columnRef string, condit
 		return query.Where(columnRef+" LIKE ?", condition.Value)
 	case OpILike:
 		return query.Where(columnRef+" ILIKE ?", condition.Value)
+	case OpTrimEqual:
+		return query.Where("LOWER(TRIM("+columnRef+")) = LOWER(TRIM(?))", condition.Value)
 	case OpIsNull:
 		return query.Where(columnRef + " IS NULL")
 	case OpIsNotNull:
@@ -295,6 +303,8 @@ func applyOperatorWithIdent(query *bun.SelectQuery, field string, condition Filt
 		return query.Where("? LIKE ?", fieldIdent, condition.Value)
 	case OpILike:
 		return query.Where("? ILIKE ?", fieldIdent, condition.Value)
+	case OpTrimEqual:
+		return query.Where("LOWER(TRIM(?)) = LOWER(TRIM(?))", fieldIdent, condition.Value)
 	case OpIsNull:
 		return query.Where("? IS NULL", fieldIdent)
 	case OpIsNotNull:

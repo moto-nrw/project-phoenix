@@ -68,9 +68,10 @@ const (
 // carries the given status - handy for "show me everything still
 // awaiting a decision".
 type RequestListFilters struct {
-	PhaseID          int64
-	ChildStatus      string
-	CreatedStudentID int64
+	PhaseID           int64
+	ChildStatus       string
+	CreatedStudentID  int64
+	CreatedStudentIDs []int64
 }
 
 // DuplicateChildKey identifies one (first_name, last_name) pair the

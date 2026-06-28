@@ -172,6 +172,10 @@ type StudentEnrollmentRepository interface {
 	// FindByStudentID finds all enrollments for a specific student
 	FindByStudentID(ctx context.Context, studentID int64) ([]*StudentEnrollment, error)
 
+	// FindActiveByStudentIDs finds active enrollments for a batch of students
+	// on the given date. valid_until is exclusive.
+	FindActiveByStudentIDs(ctx context.Context, studentIDs []int64, onDate timezone.Date) ([]*StudentEnrollment, error)
+
 	// FindByGroupID finds all enrollments for a specific group
 	FindByGroupID(ctx context.Context, groupID int64) ([]*StudentEnrollment, error)
 
