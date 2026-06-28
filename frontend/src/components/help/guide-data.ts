@@ -855,6 +855,7 @@ export const appChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Nachrichten-Posteingang als Unterhaltungs-Liste mit Bezugsperson, Beziehung, letzter Nachricht und Ungelesen-Abzeichen.",
+        image: "/help/screens/nachrichten.webp",
       },
       {
         id: "feedback",
