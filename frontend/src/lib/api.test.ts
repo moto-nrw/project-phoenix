@@ -291,6 +291,39 @@ describe("api.ts helper functions", () => {
     });
   });
 
+  describe("studentService.getSchoolClasses", () => {
+    it("fetches distinct class options without sampling the students page", async () => {
+      const { fetchWithRetry } = await import("./api-helpers");
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        data: {
+          success: true,
+          data: ["1a", "2b"],
+        },
+        response: new Response(),
+      });
+
+      const { studentService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        const result = await studentService.getSchoolClasses({
+          token: "test-token",
+        });
+
+        expect(result).toEqual(["1a", "2b"]);
+        expect(fetchWithRetry).toHaveBeenCalledWith(
+          "/api/students/school-classes",
+          "test-token",
+          expect.any(Object),
+        );
+        const callUrl = vi.mocked(fetchWithRetry).mock.calls[0]?.[0];
+        expect(callUrl).not.toContain("page_size=1000");
+      } finally {
+        restore();
+      }
+    });
+  });
+
   describe("groupService.getGroups", () => {
     it("returns empty array when response is null", async () => {
       const { fetchWithRetry } = await import("./api-helpers");

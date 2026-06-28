@@ -150,6 +150,7 @@ func (rs *Resource) Router() chi.Router {
 
 		// Routes requiring users:read permission
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listStudents)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/school-classes", rs.listSchoolClasses)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Post("/export", rs.exportStudents)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}", rs.getStudent)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/in-group-room", rs.getStudentInGroupRoom)
@@ -506,13 +507,31 @@ func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListPar
 		// intentionally NOT cleared here even though buildBaseFilter ignores it
 		// because the room and group intersection was already computed via FindByIDs
 		// above, so re-applying group_id downstream would be redundant.
-	} else if params.groupID > 0 && params.locationState == "" {
-		// group-only branch keeps existing behavior
+	} else if params.groupID > 0 && params.locationState == "" && params.canUseGroupOnlyShortcut() {
+		// Fast path for true group-only requests keeps existing behavior.
 		students, err := rs.PersonService.GetStudentsByGroupIDs(ctx, []int64{params.groupID})
 		if err != nil {
 			return nil, 0, err
 		}
 		return students, len(students), nil
+	} else if params.groupID > 0 && params.locationState == "" {
+		students, err := rs.PersonService.GetStudentsByGroupIDs(ctx, []int64{params.groupID})
+		if err != nil {
+			return nil, 0, err
+		}
+		if len(students) == 0 {
+			return []*users.Student{}, 0, nil
+		}
+		ids := make([]int64, 0, len(students))
+		for _, student := range students {
+			if student != nil {
+				ids = append(ids, student.ID)
+			}
+		}
+		if len(ids) == 0 {
+			return []*users.Student{}, 0, nil
+		}
+		params.studentIDs = ids
 	}
 
 	// Standard path. buildBaseFilter picks up params.studentIDs (if set by
@@ -532,6 +551,15 @@ func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListPar
 	}
 
 	return students, totalCount, nil
+}
+
+func (rs *Resource) listSchoolClasses(w http.ResponseWriter, r *http.Request) {
+	classes, err := rs.StudentService.ListSchoolClasses(r.Context())
+	if err != nil {
+		renderError(w, r, ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, classes, "School classes retrieved successfully")
 }
 
 func (rs *Resource) filterStudentIDsByGroup(ctx context.Context, studentIDs []int64, groupID int64) ([]int64, error) {
@@ -1547,6 +1575,9 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 
 // ListStudentsHandler returns the handler for listing students.
 func (rs *Resource) ListStudentsHandler() http.HandlerFunc { return rs.listStudents }
+
+// ListSchoolClassesHandler returns the handler for listing distinct school classes.
+func (rs *Resource) ListSchoolClassesHandler() http.HandlerFunc { return rs.listSchoolClasses }
 
 // SchoolCheckinHandler returns the handler for POST /api/students/{id}/school-checkin.
 // Exposed for integration tests that bypass the router's middleware chain.

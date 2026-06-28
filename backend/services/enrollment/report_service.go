@@ -1132,7 +1132,7 @@ func careUsagePickupByDay(req *enrollmentModels.Request, child *enrollmentModels
 
 func careUsageScheduleByTarget(req *enrollmentModels.Request, child *enrollmentModels.RequestChild, schemas map[int64]*enrollmentModels.FormSchema, target string) (map[string]string, error) {
 	out := map[string]string{}
-	if req == nil || req.SchemaID == nil || child == nil || child.CustomData == nil {
+	if req == nil || req.SchemaID == nil || child == nil {
 		return out, nil
 	}
 	schema := schemas[*req.SchemaID]
@@ -1141,8 +1141,8 @@ func careUsageScheduleByTarget(req *enrollmentModels.Request, child *enrollmentM
 	}
 	fields := careUsageScheduleFields(schema, target)
 	for _, field := range fields {
-		raw, ok := child.CustomData[field.Key]
-		if !ok || raw == nil {
+		raw := classRosterFieldValue(req, child, field)
+		if raw == nil {
 			continue
 		}
 		schedule, err := decodeCareUsageWeekdaySchedule(raw)
@@ -1167,8 +1167,7 @@ func careUsageScheduleFields(schema *enrollmentModels.FormSchema, target string)
 	fields := make([]enrollmentModels.FormField, 0)
 	for _, field := range schema.Fields {
 		if field.Target != target ||
-			field.Type != enrollmentModels.FormFieldWeekdaySchedule ||
-			!field.AppliesToCh {
+			field.Type != enrollmentModels.FormFieldWeekdaySchedule {
 			continue
 		}
 		fields = append(fields, field)

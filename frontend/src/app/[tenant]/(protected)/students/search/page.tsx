@@ -346,16 +346,6 @@ function compactStoredFilters(filters: PersistedSearchFilters) {
   ) as PersistedSearchFilters;
 }
 
-function schoolClassOptionsFromStudents(students: Student[]) {
-  return Array.from(
-    new Set(
-      students
-        .map((student) => student.school_class?.trim())
-        .filter((value): value is string => Boolean(value)),
-    ),
-  ).sort((a, b) => a.localeCompare(b, "de", { numeric: true }));
-}
-
 function safelyRemoveStoredFilters(storageKey: string) {
   try {
     window.localStorage.removeItem(storageKey);
@@ -942,12 +932,7 @@ function SearchPageContent() {
 
   const { data: schoolClassOptionsData } = useSWRAuth<unknown>(
     "search-student-school-classes",
-    async () => {
-      const result = await studentService.getStudents({
-        pageSize: FULL_STUDENT_SEARCH_PAGE_SIZE,
-      });
-      return schoolClassOptionsFromStudents(result.students);
-    },
+    async () => studentService.getSchoolClasses(),
     { revalidateOnFocus: false },
   );
   const schoolClassOptions = useMemo(

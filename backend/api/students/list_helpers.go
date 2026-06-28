@@ -108,6 +108,14 @@ func (p *studentListParams) hasAdministrativeFilters() bool {
 		isActiveFilterValue(p.pickupStatus)
 }
 
+func (p *studentListParams) canUseGroupOnlyShortcut() bool {
+	return p.schoolClass == "" &&
+		p.guardianName == "" &&
+		p.roomID == 0 &&
+		len(p.studentIDs) == 0 &&
+		!p.hasInMemoryFilters()
+}
+
 // isActiveFilterValue treats both empty and the neutral "all" sentinel as "off".
 func isActiveFilterValue(value string) bool {
 	return value != "" && value != "all"

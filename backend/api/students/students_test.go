@@ -1689,6 +1689,32 @@ func TestListStudents_GroupAndCombinedFilters(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 	})
 
+	t.Run("filter_with_group_id_and_school_class", func(t *testing.T) {
+		group := testpkg.CreateTestEducationGroup(t, tc.db, "FilterGroupClass")
+		matching := testpkg.CreateTestStudent(t, tc.db, "Filter", "MatchingClass", "FGC1")
+		other := testpkg.CreateTestStudent(t, tc.db, "Filter", "OtherClass", "FGC2")
+		testpkg.AssignStudentToGroup(t, tc.db, matching.ID, group.ID)
+		testpkg.AssignStudentToGroup(t, tc.db, other.ID, group.ID)
+		defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID, matching.ID, other.ID)
+
+		router := setupRouter(tc.resource.ListStudentsHandler(), "")
+		req := testutil.NewRequest("GET", fmt.Sprintf("/?group_id=%d&school_class=FGC1&page_size=50", group.ID), nil)
+
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+		var resp struct {
+			Data []struct {
+				ID          int64  `json:"id"`
+				SchoolClass string `json:"school_class"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+		require.Len(t, resp.Data, 1)
+		assert.Equal(t, matching.ID, resp.Data[0].ID)
+		assert.Equal(t, "FGC1", resp.Data[0].SchoolClass)
+	})
+
 	t.Run("filter_combined_search_and_class", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Combined", "Filter", "CF1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
@@ -1709,4 +1735,36 @@ func TestListStudents_GroupAndCombinedFilters(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})
+}
+
+func TestListSchoolClasses(t *testing.T) {
+	tc := setupTestContext(t)
+	first := testpkg.CreateTestStudent(t, tc.db, "Class", "One", "DistinctClass1")
+	second := testpkg.CreateTestStudent(t, tc.db, "Class", "Two", "DistinctClass2")
+	duplicate := testpkg.CreateTestStudent(t, tc.db, "Class", "Duplicate", "DistinctClass1")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, first.ID, second.ID, duplicate.ID)
+
+	router := setupRouter(tc.resource.ListSchoolClassesHandler(), "")
+	req := testutil.NewRequest("GET", "/", nil)
+
+	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+	assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+	var resp struct {
+		Data []string `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	assert.Contains(t, resp.Data, "DistinctClass1")
+	assert.Contains(t, resp.Data, "DistinctClass2")
+	assert.Equal(t, 1, countString(resp.Data, "DistinctClass1"))
+}
+
+func countString(values []string, needle string) int {
+	count := 0
+	for _, value := range values {
+		if value == needle {
+			count++
+		}
+	}
+	return count
 }

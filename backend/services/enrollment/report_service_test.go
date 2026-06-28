@@ -122,6 +122,98 @@ func TestClassRosterRowUsesPhaseEnrollmentData(t *testing.T) {
 	assert.Contains(t, row.Departure, "(mit: Mia)")
 }
 
+func TestCareUsageScheduleReadsGuardianLevelFields(t *testing.T) {
+	schemaID := int64(89)
+	req := &enrollmentModels.Request{
+		Model: baseModels.Model{ID: 11},
+		CustomData: map[string]any{
+			"guardian_pickup":  map[string]any{"mon": "15:30"},
+			"guardian_arrival": map[string]any{"mon": "11:15"},
+		},
+		GuardianFirstName: "Eva",
+		GuardianLastName:  "Muster",
+		SchemaID:          &schemaID,
+	}
+	child := &enrollmentModels.RequestChild{
+		Model:      baseModels.Model{ID: 21},
+		RequestID:  11,
+		FirstName:  "Lina",
+		LastName:   "Muster",
+		Status:     enrollmentModels.ChildStatusApproved,
+		CustomData: map[string]any{},
+	}
+	schemas := map[int64]*enrollmentModels.FormSchema{
+		schemaID: {
+			Fields: []enrollmentModels.FormField{
+				{Key: "guardian_pickup", Target: enrollmentModels.TargetSchedulePickup, Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: false},
+				{Key: "guardian_arrival", Target: enrollmentModels.TargetScheduleArrival, Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: false},
+			},
+		},
+	}
+
+	pickupByDay, err := careUsagePickupByDay(req, child, schemas)
+	require.NoError(t, err)
+	arrivalByDay, err := careUsageScheduleByTarget(req, child, schemas, enrollmentModels.TargetScheduleArrival)
+	require.NoError(t, err)
+	links := []*enrollmentModels.RequestChildOffering{
+		{RequestChildID: 21, CareOfferingID: 1, SelectedDays: []string{"mon"}},
+	}
+	offerings := map[int64]*enrollmentModels.CareOffering{
+		1: {Name: "Randstunde", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice},
+	}
+	row := careUsageRow(req, child, links, offerings, map[int64]bool{1: true}, pickupByDay)
+
+	assert.Equal(t, "15:30", pickupByDay["mon"])
+	assert.Equal(t, "11:15", arrivalByDay["mon"])
+	assert.True(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", PickupTime: "15:30"}))
+	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", PickupTime: "14:30"}))
+}
+
+func TestClassRosterRowReadsGuardianLevelSchedules(t *testing.T) {
+	schemaID := int64(90)
+	req := &enrollmentModels.Request{
+		Model:       baseModels.Model{ID: 12},
+		SchemaID:    &schemaID,
+		SubmittedAt: time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC),
+		CustomData: map[string]any{
+			"guardian_arrival": map[string]any{"mon": "11:15"},
+			"guardian_pickup":  map[string]any{"mon": "15:30"},
+		},
+	}
+	child := &enrollmentModels.RequestChild{
+		Model:      baseModels.Model{ID: 22},
+		RequestID:  12,
+		FirstName:  "Lina",
+		LastName:   "Muster",
+		Status:     enrollmentModels.ChildStatusApproved,
+		CustomData: map[string]any{},
+	}
+	student := &userModels.Student{
+		Model:       baseModels.Model{ID: 102},
+		PersonID:    202,
+		SchoolClass: "1a",
+	}
+	person := &userModels.Person{FirstName: "Lina", LastName: "Muster"}
+	enrollment := &classRosterApprovedEnrollment{
+		request: req,
+		child:   child,
+	}
+	schemas := map[int64]*enrollmentModels.FormSchema{
+		schemaID: {
+			Fields: []enrollmentModels.FormField{
+				{Key: "guardian_arrival", Target: enrollmentModels.TargetScheduleArrival, Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: false},
+				{Key: "guardian_pickup", Target: enrollmentModels.TargetSchedulePickup, Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: false},
+			},
+		},
+	}
+
+	row, err := classRosterRow(student, person, "Eulen", enrollment, nil, schemas)
+
+	require.NoError(t, err)
+	assert.Equal(t, "11:15", row.ArrivalByDay["mon"])
+	assert.Equal(t, "15:30", row.PickupByDay["mon"])
+}
+
 func TestClassRosterRowMarksMissingEnrollmentAsNoRegistration(t *testing.T) {
 	student := &userModels.Student{
 		Model:       baseModels.Model{ID: 101},

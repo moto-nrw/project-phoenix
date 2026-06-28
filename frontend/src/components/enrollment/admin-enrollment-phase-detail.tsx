@@ -60,7 +60,7 @@ import { useClickOutside } from "~/lib/hooks/use-click-outside";
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
 import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
 import { createLogger } from "~/lib/logger";
-import { studentService, type Student } from "~/lib/api";
+import { studentService } from "~/lib/api";
 import { useSWRAuth } from "~/lib/swr";
 
 const logger = createLogger({ component: "AdminEnrollmentPhaseDetail" });
@@ -68,7 +68,6 @@ const logger = createLogger({ component: "AdminEnrollmentPhaseDetail" });
 const ALL_STATUS_FILTER = "all";
 const ALL_VALUE = "all";
 const DAY_COUNT_OPTIONS = [0, 1, 2, 3, 4, 5] as const;
-const CLASS_ROSTER_STUDENT_PAGE_SIZE = 1000;
 
 const STATUS_LABELS: Record<ChildStatus, string> = {
   submitted: "Eingegangen",
@@ -221,12 +220,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
 
   const { data: schoolClassOptionsData } = useSWRAuth<unknown>(
     "enrollment-phase-school-classes",
-    async () => {
-      const result = await studentService.getStudents({
-        pageSize: CLASS_ROSTER_STUDENT_PAGE_SIZE,
-      });
-      return schoolClassOptionsFromStudents(result.students);
-    },
+    async () => studentService.getSchoolClasses(),
     { revalidateOnFocus: false },
   );
   const schoolClassOptions = useMemo(
@@ -1291,17 +1285,6 @@ function ExportFormatIcon({
     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-gray-100 text-gray-600">
       <Icon className="h-4 w-4" aria-hidden="true" />
     </span>
-  );
-}
-
-function schoolClassOptionsFromStudents(students: Student[]): string[] {
-  const seen = new Set<string>();
-  for (const student of students) {
-    const schoolClass = student.school_class?.trim();
-    if (schoolClass) seen.add(schoolClass);
-  }
-  return [...seen].sort((a, b) =>
-    a.localeCompare(b, "de", { numeric: true, sensitivity: "base" }),
   );
 }
 

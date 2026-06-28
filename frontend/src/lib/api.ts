@@ -167,6 +167,22 @@ function parseStudentsPaginatedResponse(responseData: unknown): StudentsResult {
   return { students: [] };
 }
 
+function parseSchoolClassesResponse(responseData: unknown): string[] {
+  const value =
+    responseData &&
+    typeof responseData === "object" &&
+    "success" in responseData &&
+    "data" in responseData
+      ? (responseData as ApiResponseWrapper<unknown>).data
+      : responseData;
+
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 /**
  * Build query parameters for student API requests
  */
@@ -560,6 +576,39 @@ export const studentService = {
       };
     } catch (error) {
       throw handleApiError(error, "Error fetching students");
+    }
+  },
+
+  getSchoolClasses: async (filters?: { token?: string }): Promise<string[]> => {
+    const useProxyApi = globalThis.window !== undefined;
+    const url = useProxyApi
+      ? "/api/students/school-classes"
+      : `${env.API_URL}/api/students/school-classes`;
+
+    try {
+      if (useProxyApi) {
+        let authToken = filters?.token;
+        if (!authToken) {
+          const session = await getSession();
+          authToken = session?.user?.token;
+        }
+
+        const { data } = await fetchWithRetry<unknown>(url, authToken, {
+          onAuthFailure: handleAuthFailure,
+          getNewToken: getNewTokenFromSession,
+        });
+
+        if (data === null) {
+          throw new Error("Authentication failed");
+        }
+
+        return parseSchoolClassesResponse(data);
+      }
+
+      const response = await api.get(url);
+      return parseSchoolClassesResponse(response.data);
+    } catch (error) {
+      throw handleApiError(error, "Error fetching school classes");
     }
   },
 
