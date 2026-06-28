@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	parentMessagingVersion     = "1.15.148"
-	parentMessagingDescription = "Create parent-OGS messaging tables (threads, messages, reads), backfill from student_parent_notes, then drop that table"
+	parentMessagingVersion     = "1.15.149"
+	parentMessagingDescription = "Create parent-OGS messaging tables (threads, messages, reads), backfill from student_parent_notes, then drop that table. Fully idempotent: a production/staging environment that already ran this under the burned 001015148 bun name re-runs it as a safe no-op."
 )
 
 func init() {
@@ -39,7 +39,7 @@ func init() {
 }
 
 func parentMessagingUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.148: Creating parent messaging tables...")
+	fmt.Println("Migration 1.15.149: Creating parent messaging tables...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -165,16 +165,30 @@ func parentMessagingUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating updated_at triggers: %w", err)
 	}
 
-	// RLS — tenant isolation, same shape as student_parent_notes.
+	// RLS — tenant isolation, same shape as student_parent_notes. CREATE POLICY has
+	// no IF NOT EXISTS in PostgreSQL, so guard it with a pg_policies existence check
+	// (mirrors 001015148_enrollment_change_requests): an environment that already ran
+	// parent messaging under the burned 001015148 bun name re-runs this without
+	// "policy already exists". ENABLE/FORCE RLS and GRANT are naturally idempotent.
 	for _, table := range []string{"parent_message_threads", "parent_messages", "parent_message_reads"} {
 		_, err = tx.ExecContext(ctx, fmt.Sprintf(`
 			ALTER TABLE users.%[1]s ENABLE ROW LEVEL SECURITY;
 			ALTER TABLE users.%[1]s FORCE ROW LEVEL SECURITY;
 
-			CREATE POLICY tenant_isolation_users_%[1]s ON users.%[1]s
-				FOR ALL
-				USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint)
-				WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint);
+			DO $$
+			BEGIN
+				IF NOT EXISTS (
+					SELECT 1 FROM pg_policies
+					WHERE schemaname = 'users'
+						AND tablename = '%[1]s'
+						AND policyname = 'tenant_isolation_users_%[1]s'
+				) THEN
+					CREATE POLICY tenant_isolation_users_%[1]s ON users.%[1]s
+						FOR ALL
+						USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint)
+						WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint);
+				END IF;
+			END $$;
 
 			GRANT SELECT, INSERT, UPDATE, DELETE ON users.%[1]s TO phoenix_tenant;
 		`, table))
@@ -191,28 +205,44 @@ func parentMessagingUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error granting sequence usage: %w", err)
 	}
 
-	// Backfill from existing parent notes. The migration runs as the superuser
-	// (bypasses RLS), so it sees every tenant's notes. One thread per
-	// (tenant, student, guardian); each note becomes a guardian message with
-	// the guardian's name frozen from their profile at migration time.
-	//
-	// Two things the naive backfill got wrong:
-	//   1. last_sender_kind='guardian' on every thread flooded the staff inbox
-	//      with "awaiting OGS reply" for notes already handled in the old UI.
-	//      Seed it NULL (a neutral "nobody is waiting" state the CHECK permits)
-	//      instead.
-	//   2. No read cursor meant every historical note counted as unread, so a
-	//      school that used notes for months saw its inbox badge inflated by the
-	//      entire backlog. Seed a read cursor (below) so migrated history starts
-	//      read for everyone who already has access.
-	//
-	// Backfill EVERY note (no students_guardians filter): a guardian deliberately
-	// unlinked from the child since writing a note must not have that free-text
-	// silently destroyed when the source table is dropped below. The thread is
-	// still created, but the parent-portal read paths gate on a live link with
-	// parent_portal.access (guardianStillLinked), so an unlinked guardian never
-	// sees the resurrected thread — staff keep the history, nothing is lost.
-	_, err = tx.ExecContext(ctx, `
+	// Backfill only when the legacy source table still exists. The existence of
+	// users.student_parent_notes IS the "backfill not yet done" flag: on a fresh DB
+	// and on an environment that ran *enrollment* under the burned 001015148 bun
+	// name (notes left intact) it is present -> run the one-time backfill below; on
+	// the environment that already ran *parent messaging* under 001015148 the table
+	// was dropped at the end of that run, so it is absent here -> skip the whole
+	// backfill. This makes the re-run safe (no "relation does not exist") and
+	// non-duplicating (the threads/messages/cursors from the first run stay as-is).
+	var notesExist bool
+	if err = tx.QueryRowContext(ctx,
+		`SELECT to_regclass('users.student_parent_notes') IS NOT NULL`,
+	).Scan(&notesExist); err != nil {
+		return fmt.Errorf("error checking for users.student_parent_notes: %w", err)
+	}
+
+	if notesExist {
+		// Backfill from existing parent notes. The migration runs as the superuser
+		// (bypasses RLS), so it sees every tenant's notes. One thread per
+		// (tenant, student, guardian); each note becomes a guardian message with
+		// the guardian's name frozen from their profile at migration time.
+		//
+		// Two things the naive backfill got wrong:
+		//   1. last_sender_kind='guardian' on every thread flooded the staff inbox
+		//      with "awaiting OGS reply" for notes already handled in the old UI.
+		//      Seed it NULL (a neutral "nobody is waiting" state the CHECK permits)
+		//      instead.
+		//   2. No read cursor meant every historical note counted as unread, so a
+		//      school that used notes for months saw its inbox badge inflated by the
+		//      entire backlog. Seed a read cursor (below) so migrated history starts
+		//      read for everyone who already has access.
+		//
+		// Backfill EVERY note (no students_guardians filter): a guardian deliberately
+		// unlinked from the child since writing a note must not have that free-text
+		// silently destroyed when the source table is dropped below. The thread is
+		// still created, but the parent-portal read paths gate on a live link with
+		// parent_portal.access (guardianStillLinked), so an unlinked guardian never
+		// sees the resurrected thread — staff keep the history, nothing is lost.
+		_, err = tx.ExecContext(ctx, `
 		INSERT INTO users.parent_message_threads
 			(tenant_id, student_id, guardian_account_id, last_message_at, last_sender_kind, created_at, updated_at)
 		SELECT n.tenant_id, n.student_id, n.guardian_account_id,
@@ -234,18 +264,18 @@ func parentMessagingUp(ctx context.Context, db *bun.DB) error {
 			ON gp.account_id = n.guardian_account_id
 			AND gp.tenant_id = n.tenant_id;
 	`)
-	if err != nil {
-		return fmt.Errorf("error backfilling parent messages from notes: %w", err)
-	}
+		if err != nil {
+			return fmt.Errorf("error backfilling parent messages from notes: %w", err)
+		}
 
-	// Denormalize the inbox preview (last_message_body) and the composite
-	// tie-breaker (last_message_id) onto each backfilled thread so the staff
-	// inbox projection reads them off the thread row instead of a correlated
-	// subquery. Pick the newest message per thread (created_at, then id as a
-	// deterministic tiebreaker), mirroring the projection's ORDER BY created_at
-	// DESC, id DESC — and seed last_message_id from that SAME row so the
-	// TouchLastMessage monotonic guard has the right (created_at, id) baseline.
-	_, err = tx.ExecContext(ctx, `
+		// Denormalize the inbox preview (last_message_body) and the composite
+		// tie-breaker (last_message_id) onto each backfilled thread so the staff
+		// inbox projection reads them off the thread row instead of a correlated
+		// subquery. Pick the newest message per thread (created_at, then id as a
+		// deterministic tiebreaker), mirroring the projection's ORDER BY created_at
+		// DESC, id DESC — and seed last_message_id from that SAME row so the
+		// TouchLastMessage monotonic guard has the right (created_at, id) baseline.
+		_, err = tx.ExecContext(ctx, `
 		UPDATE users.parent_message_threads t
 		SET last_message_body = lm.body,
 		    last_message_id = lm.id
@@ -256,34 +286,34 @@ func parentMessagingUp(ctx context.Context, db *bun.DB) error {
 		) lm
 		WHERE lm.thread_id = t.id;
 	`)
-	if err != nil {
-		return fmt.Errorf("error backfilling thread last_message_body: %w", err)
-	}
+		if err != nil {
+			return fmt.Errorf("error backfilling thread last_message_body: %w", err)
+		}
 
-	// Seed a read cursor at each backfilled thread's newest message for every
-	// account currently active in the tenant. Migrated history therefore starts
-	// READ for all existing staff (no backlog badge) and for the guardian
-	// themselves; only messages sent AFTER the migration count as unread. New
-	// accounts created later have no cursor and will see migrated history as
-	// unread on first open — acceptable, since they have not reviewed it yet.
-	//
-	// Accepted tradeoff: the parent portal's "OGS hat gelesen" indicator derives
-	// from the newest read cursor of a STAFF account (LatestReadCursorByOther gates
-	// positively on users.staff membership at the thread's tenant), so seeding
-	// staff cursors here makes every migrated note render as read by the OGS. That
-	// is truthful — staff saw these notes in the old notes UI before migration.
-	// Seeding guardian / other-parent cursors too is harmless to that indicator
-	// (they are not staff, so they are never counted); they only serve the
-	// backlog-badge suppression. The two indicators share this single cursor
-	// table, so suppressing the staff backlog badge (above) and hiding the parent
-	// indicator cannot both be satisfied. The badge suppression is the more
-	// important UX, so it wins.
-	// Seed last_read_message_id alongside last_read_at at the thread's newest
-	// message (by created_at DESC, id DESC — the same ordering the inbox preview
-	// backfill above uses), so the seeded cursor is the exact composite the unread
-	// predicates compare against. Threads always have a backfilled message here,
-	// but COALESCE keeps the seed safe (0) if somehow none exists.
-	_, err = tx.ExecContext(ctx, `
+		// Seed a read cursor at each backfilled thread's newest message for every
+		// account currently active in the tenant. Migrated history therefore starts
+		// READ for all existing staff (no backlog badge) and for the guardian
+		// themselves; only messages sent AFTER the migration count as unread. New
+		// accounts created later have no cursor and will see migrated history as
+		// unread on first open — acceptable, since they have not reviewed it yet.
+		//
+		// Accepted tradeoff: the parent portal's "OGS hat gelesen" indicator derives
+		// from the newest read cursor of a STAFF account (LatestReadCursorByOther gates
+		// positively on users.staff membership at the thread's tenant), so seeding
+		// staff cursors here makes every migrated note render as read by the OGS. That
+		// is truthful — staff saw these notes in the old notes UI before migration.
+		// Seeding guardian / other-parent cursors too is harmless to that indicator
+		// (they are not staff, so they are never counted); they only serve the
+		// backlog-badge suppression. The two indicators share this single cursor
+		// table, so suppressing the staff backlog badge (above) and hiding the parent
+		// indicator cannot both be satisfied. The badge suppression is the more
+		// important UX, so it wins.
+		// Seed last_read_message_id alongside last_read_at at the thread's newest
+		// message (by created_at DESC, id DESC — the same ordering the inbox preview
+		// backfill above uses), so the seeded cursor is the exact composite the unread
+		// predicates compare against. Threads always have a backfilled message here,
+		// but COALESCE keeps the seed safe (0) if somehow none exists.
+		_, err = tx.ExecContext(ctx, `
 		INSERT INTO users.parent_message_reads (tenant_id, thread_id, account_id, last_read_at, last_read_message_id)
 		SELECT t.tenant_id, t.id, atn.account_id,
 		       COALESCE(t.last_message_at, t.created_at),
@@ -301,9 +331,10 @@ func parentMessagingUp(ctx context.Context, db *bun.DB) error {
 		) lm ON true
 		ON CONFLICT (thread_id, account_id) DO NOTHING;
 	`)
-	if err != nil {
-		return fmt.Errorf("error seeding parent message read cursors: %w", err)
-	}
+		if err != nil {
+			return fmt.Errorf("error seeding parent message read cursors: %w", err)
+		}
+	} // end if notesExist
 
 	// Drop the old one-way notes table now that ALL of its content lives in
 	// parent_messages — the backfill above migrated every note (including those
@@ -321,7 +352,7 @@ func parentMessagingUp(ctx context.Context, db *bun.DB) error {
 }
 
 func parentMessagingDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.148: Dropping parent messaging tables...")
+	fmt.Println("Rolling back migration 1.15.149: Dropping parent messaging tables...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -387,12 +418,13 @@ func parentMessagingDown(ctx context.Context, db *bun.DB) error {
 	// is non-blank.
 	//
 	// Filter ONLY on sender_kind = 'guardian'. The `kind` column does not exist at
-	// this migration's own schema level — it is added by 1.15.149, whose down
-	// migration (which DependsOn 1.15.148, so it runs first on a reverse-order
-	// rollback) has already DROP COLUMN'd it by the time this runs. Referencing
-	// m.kind here would fail with "column m.kind does not exist" and abort the whole
-	// rollback, restoring zero notes. At the 1.15.148 schema every guardian row is a
-	// plain message; the few guardian-authored request rows (added by 1.15.149) carry
+	// this migration's own schema level — it is added by the later #1672 requests
+	// migration (expected 1.15.151), whose down migration (which DependsOn 1.15.149,
+	// so it runs first on a reverse-order rollback) has already DROP COLUMN'd it by
+	// the time this runs. Referencing m.kind here would fail with "column m.kind does
+	// not exist" and abort the whole rollback, restoring zero notes. At the 1.15.149
+	// schema every guardian row is a plain message; the few guardian-authored request
+	// rows (added by 1.15.151) carry
 	// human-readable German bodies ("Anfrage: …"), so restoring them as notes is
 	// harmless and there is no surviving column to distinguish them anyway.
 	_, err = tx.ExecContext(ctx, `
