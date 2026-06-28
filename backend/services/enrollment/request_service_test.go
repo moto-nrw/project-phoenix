@@ -1066,6 +1066,59 @@ func TestRequestService_ReplaceEditable_LocksAfterReviewStarted(t *testing.T) {
 	assert.Equal(t, enrollmentModels.ChildStatusUnderReview, children[0].Status)
 }
 
+func TestRequestService_GetEditDraft_ChangeRequestIncludesInactiveCurrentOffering(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	repoFactory := repositories.NewFactory(env.db)
+	offering := setupCareOfferingForCapacity(t, env, 10)
+
+	req := validSubmission(env.phaseID)
+	req.GuardianEmail = "draft-inactive-current@example.com"
+	req.Children[0].OfferingIDs = []int64{offering.ID}
+	submitted, err := env.svc.Submit(ctx, req)
+	require.NoError(t, err)
+	enableChangeRequestMode(t, env, submitted.Children[0].ID)
+
+	offering.IsActive = false
+	require.NoError(t, repoFactory.CareOffering.Update(ctx, offering))
+
+	draft, err := env.svc.GetEditDraft(ctx, submitted.Request.StatusToken)
+	require.NoError(t, err)
+	require.Equal(t, enrollmentService.EditModeChangeRequest, draft.EditMode)
+
+	var inactiveCurrent *enrollmentModels.CareOffering
+	for _, candidate := range draft.OpenOfferings {
+		if candidate.ID == offering.ID {
+			inactiveCurrent = candidate
+			break
+		}
+	}
+	require.NotNil(t, inactiveCurrent)
+	assert.False(t, inactiveCurrent.IsActive)
+}
+
+func TestRequestService_GetEditDraft_DirectEditRejectsInactiveCurrentOffering(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	repoFactory := repositories.NewFactory(env.db)
+	offering := setupCareOfferingForCapacity(t, env, 10)
+
+	req := validSubmission(env.phaseID)
+	req.GuardianEmail = "draft-direct-inactive@example.com"
+	req.Children[0].OfferingIDs = []int64{offering.ID}
+	submitted, err := env.svc.Submit(ctx, req)
+	require.NoError(t, err)
+
+	offering.IsActive = false
+	require.NoError(t, repoFactory.CareOffering.Update(ctx, offering))
+
+	_, err = env.svc.GetEditDraft(ctx, submitted.Request.StatusToken)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrEditNotAllowed))
+}
+
 func TestRequestService_ReplaceEditable_AllowsSubmittedEditsAfterEnrollmentWindowClosed(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()

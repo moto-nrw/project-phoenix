@@ -1440,8 +1440,34 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 		for _, offering := range openOfferings {
 			openByID[offering.ID] = offering
 		}
+		missingLinkedIDs := make(map[int64]struct{})
 		for _, link := range links {
-			if _, ok := openByID[link.CareOfferingID]; !ok {
+			if _, ok := openByID[link.CareOfferingID]; ok {
+				continue
+			}
+			if editMode != EditModeChangeRequest {
+				return ErrEditNotAllowed
+			}
+			missingLinkedIDs[link.CareOfferingID] = struct{}{}
+		}
+		if len(missingLinkedIDs) > 0 {
+			ids := make([]int64, 0, len(missingLinkedIDs))
+			for id := range missingLinkedIDs {
+				ids = append(ids, id)
+			}
+			currentOfferings, err := s.careOfferingRepo.ListByIDs(txCtx, ids)
+			if err != nil {
+				return fmt.Errorf("edit draft: list current inactive offerings: %w", err)
+			}
+			for _, offering := range currentOfferings {
+				if offering == nil || offering.PhaseID != phase.ID {
+					continue
+				}
+				openByID[offering.ID] = offering
+				openOfferings = append(openOfferings, offering)
+				delete(missingLinkedIDs, offering.ID)
+			}
+			if len(missingLinkedIDs) > 0 {
 				return ErrEditNotAllowed
 			}
 		}
@@ -2598,10 +2624,15 @@ func (s *requestService) applyCapacityOverflowWithPreservedClaims(
 		if err != nil {
 			return nil, fmt.Errorf("submit: count offering %d: %w", offeringID, err)
 		}
+		preserved := preservedClaims[offeringID]
+		current := count - preserved
+		if current < 0 {
+			current = 0
+		}
 		s := &slot{
 			capacity:  offering.Capacity,
-			current:   count,
-			preserved: preservedClaims[offeringID],
+			current:   current,
+			preserved: preserved,
 		}
 		slots[offeringID] = s
 		return s, nil

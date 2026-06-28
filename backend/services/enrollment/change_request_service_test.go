@@ -66,6 +66,14 @@ func newChangeRequestServiceWithDecisionForTest(t *testing.T, env *decisionTestE
 	})
 }
 
+func TestNewChangeRequestService_ParentsURLRequired(t *testing.T) {
+	assert.PanicsWithValue(t, "PARENTS_URL is required", func() {
+		enrollmentService.NewChangeRequestService(enrollmentService.ChangeRequestServiceConfig{
+			FrontendURL: "http://localhost:3000",
+		})
+	})
+}
+
 func makeLegacyNoSchemaRequest(t *testing.T, env *requestTestEnv, childStatus string) *enrollmentService.SubmitResult {
 	t.Helper()
 	ctx := testpkg.TenantContext(1)
@@ -651,6 +659,65 @@ func TestChangeRequestService_Approve_WaitlistsNonApprovedChildMovedOntoFullOffe
 	require.NoError(t, err)
 	require.Len(t, links, 1)
 	assert.Equal(t, offering.ID, links[0].CareOfferingID)
+}
+
+func TestChangeRequestService_Approve_DoesNotDoubleCountPreservedOfferingCapacity(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
+	offering := setupCareOfferingForCapacity(t, env, 2)
+	repoFactory := repositories.NewFactory(env.db)
+
+	req := validSubmission(env.phaseID)
+	req.GuardianEmail = "preserved-capacity-change-request@example.com"
+	req.Children[0].OfferingIDs = []int64{offering.ID}
+	req.Children = append(req.Children, enrollmentService.SubmitChild{
+		FirstName:        "Noah",
+		LastName:         "Beispiel",
+		DateOfBirth:      timezone.NewDate(2017, 8, 3),
+		TargetGradeLevel: testpkg.Int16Ptr(2),
+	})
+	result, err := env.svc.Submit(ctx, req)
+	require.NoError(t, err)
+	require.Len(t, result.Children, 2)
+	reason := "Bitte pruefen"
+	require.NoError(t, repoFactory.RequestChild.UpdateStatus(
+		ctx,
+		result.Children[0].ID,
+		enrollmentModels.ChildStatusUnderReview,
+		&reason,
+		env.creatorID,
+	))
+
+	proposed := req
+	proposed.Children[0].ID = result.Children[0].ID
+	proposed.Children[0].OfferingIDs = []int64{offering.ID}
+	proposed.Children[1].ID = result.Children[1].ID
+	proposed.Children[1].OfferingIDs = []int64{offering.ID}
+	svc := newChangeRequestServiceForTest(env)
+	created, err := svc.Create(ctx, result.Request.StatusToken, enrollmentService.CreateChangeRequestInput{
+		Submission: proposed,
+		ParentNote: "Zweites Kind soll ebenfalls das Angebot nutzen.",
+	})
+	require.NoError(t, err)
+
+	_, err = svc.Approve(ctx, created.ChangeRequest.ID, enrollmentService.ReviewChangeRequestInput{
+		Note:           "Freigegeben.",
+		ActorAccountID: env.creatorID,
+		ActorRole:      "admin",
+	})
+	require.NoError(t, err)
+
+	for _, child := range result.Children {
+		stored, err := repoFactory.RequestChild.FindByID(ctx, child.ID)
+		require.NoError(t, err)
+		assert.NotEqual(t, enrollmentModels.ChildStatusWaitlisted, stored.Status)
+		links, err := repoFactory.RequestChildOffering.ListByRequestChildID(ctx, child.ID)
+		require.NoError(t, err)
+		require.Len(t, links, 1)
+		assert.Equal(t, offering.ID, links[0].CareOfferingID)
+	}
 }
 
 func TestChangeRequestService_Approve_RejectsNonApprovedChildMovedOntoFullOffering(t *testing.T) {

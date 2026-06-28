@@ -127,7 +127,7 @@ func NewChangeRequestService(cfg ChangeRequestServiceConfig) ChangeRequestServic
 	}
 	parentsURL := strings.TrimRight(strings.TrimSpace(cfg.ParentsURL), "/")
 	if parentsURL == "" {
-		parentsURL = strings.TrimRight(strings.TrimSpace(cfg.FrontendURL), "/")
+		panic("PARENTS_URL is required")
 	}
 	return &changeRequestService{
 		changeRequestRepo:        cfg.ChangeRequestRepo,
