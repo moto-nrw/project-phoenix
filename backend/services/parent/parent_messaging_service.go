@@ -276,7 +276,7 @@ func (s *service) GetChildConversation(ctx context.Context, accountID, studentID
 		// The mark-to-newest invariant (and the empty-conversation skip) lives in
 		// parentmessaging.MarkReadToNewest, shared with the staff side so the two
 		// portals' unread counts can't drift.
-		advanced, err := parentmessaging.MarkReadToNewest(txCtx, s.messageReadRepo, thread.TenantID, thread.ID, accountID, messages)
+		advanced, err := parentmessaging.MarkReadToNewest(txCtx, s.messageReadRepo, thread.TenantID, thread.ID, accountID, false, messages)
 		if err != nil {
 			return err
 		}
@@ -363,7 +363,7 @@ func (s *service) PostChildMessage(ctx context.Context, accountID, studentID int
 		// (never NOW(), never our own just-sent message), so it can't leap the cursor
 		// to ~now and swallow a staff message committing concurrently in a still-open
 		// tx. See parentmessaging.MarkReadToNewest.
-		if _, err := parentmessaging.MarkReadToNewest(txCtx, s.messageReadRepo, thread.TenantID, thread.ID, accountID, messages); err != nil {
+		if _, err := parentmessaging.MarkReadToNewest(txCtx, s.messageReadRepo, thread.TenantID, thread.ID, accountID, false, messages); err != nil {
 			return err
 		}
 		captured := child.tenantID
@@ -458,7 +458,7 @@ func (s *service) CreateChildRequest(ctx context.Context, accountID, studentID i
 		// Advance the guardian's read cursor over this returned snapshot, bounded to
 		// the newest staff row (never NOW(), never our own request), exactly as
 		// PostChildMessage does. See parentmessaging.MarkReadToNewest.
-		if _, err := parentmessaging.MarkReadToNewest(txCtx, s.messageReadRepo, thread.TenantID, thread.ID, accountID, messages); err != nil {
+		if _, err := parentmessaging.MarkReadToNewest(txCtx, s.messageReadRepo, thread.TenantID, thread.ID, accountID, false, messages); err != nil {
 			return err
 		}
 		captured := child.tenantID
@@ -536,7 +536,7 @@ func (s *service) WithdrawChildRequest(ctx context.Context, accountID, studentID
 		// The guardian is now viewing this snapshot — advance the read cursor over it
 		// (bounded to the newest staff row; the withdrawal event is the guardian's own
 		// row and is skipped), exactly as PostChildMessage does.
-		if _, err := parentmessaging.MarkReadToNewest(txCtx, s.messageReadRepo, thread.TenantID, thread.ID, accountID, messages); err != nil {
+		if _, err := parentmessaging.MarkReadToNewest(txCtx, s.messageReadRepo, thread.TenantID, thread.ID, accountID, false, messages); err != nil {
 			return err
 		}
 		captured := child.tenantID

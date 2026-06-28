@@ -386,7 +386,7 @@ func (s *service) markReadAndBuild(ctx context.Context, thread *usersModels.Pare
 	if err != nil {
 		return nil, false, fmt.Errorf("messaging: list messages: %w", err)
 	}
-	advanced, err := parentmessaging.MarkReadToNewest(ctx, s.readRepo, thread.TenantID, thread.ID, accountIDFromCtx(ctx), messages)
+	advanced, err := parentmessaging.MarkReadToNewest(ctx, s.readRepo, thread.TenantID, thread.ID, accountIDFromCtx(ctx), true, messages)
 	if err != nil {
 		return nil, false, fmt.Errorf("messaging: mark read: %w", err)
 	}
@@ -453,7 +453,7 @@ func (s *service) PostMessage(ctx context.Context, threadID int64, body string) 
 	// newest GUARDIAN row in the snapshot (never NOW(), never our own just-sent
 	// message), so it can't leap the cursor to ~now and swallow a guardian message
 	// committing concurrently in a still-open tx. See parentmessaging.MarkReadToNewest.
-	if _, err := parentmessaging.MarkReadToNewest(ctx, s.readRepo, thread.TenantID, thread.ID, accountID, messages); err != nil {
+	if _, err := parentmessaging.MarkReadToNewest(ctx, s.readRepo, thread.TenantID, thread.ID, accountID, true, messages); err != nil {
 		return nil, fmt.Errorf("messaging: mark read: %w", err)
 	}
 	// Re-stamp the "Gelesen" receipts on the returned snapshot: the client applies

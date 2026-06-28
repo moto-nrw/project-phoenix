@@ -186,23 +186,66 @@ func TestMarkReadToNewest_AdvancesToNewestCounterpartMessage(t *testing.T) {
 	messages := []*usersModels.ParentMessage{oldestGuardian, newestGuardian, readerOwn}
 
 	rr := &fakeReadRepo{markAdvanced: true}
-	advanced, err := MarkReadToNewest(context.Background(), rr, 1, 42, reader, messages)
+	advanced, err := MarkReadToNewest(context.Background(), rr, 1, 42, reader, true, messages)
 	require.NoError(t, err)
 	assert.True(t, advanced)
 	require.Len(t, rr.marks, 1)
-	assert.Equal(t, newestGuardian.ID, rr.marks[0].messageID, "cursor must bound to the newest non-authored message, never the reader's own")
+	assert.Equal(t, newestGuardian.ID, rr.marks[0].messageID, "cursor must bound to the newest counterpart message the reader did not author, never the reader's own")
+}
+
+func TestMarkReadToNewest_DoesNotAdvancePastCounterpartViaOtherSideRow(t *testing.T) {
+	reader := int64(100)
+	// A staff reader's snapshot: a guardian message, then a LATER staff row from a
+	// DIFFERENT staff account and a LATER system event the staff side triggered.
+	// Neither later row is a counterpart (the unread query only counts guardian-side
+	// rows), so the cursor must bound to the guardian message (id 1) — not the later
+	// staff/system rows. Binding past them would skip a guardian message still
+	// committing with an earlier created_at in a concurrent send/read race.
+	guardian := msg(1, 200, usersModels.ParentMessageSenderGuardian)
+	otherStaff := msg(2, 300, usersModels.ParentMessageSenderStaff)
+	staffEvent := msg(3, 300, usersModels.ParentMessageSenderSystem)
+	staffEvent.EventActorKind = usersModels.ParentMessageSenderStaff
+	messages := []*usersModels.ParentMessage{guardian, otherStaff, staffEvent}
+
+	rr := &fakeReadRepo{markAdvanced: true}
+	advanced, err := MarkReadToNewest(context.Background(), rr, 1, 42, reader, true, messages)
+	require.NoError(t, err)
+	assert.True(t, advanced)
+	require.Len(t, rr.marks, 1)
+	assert.Equal(t, guardian.ID, rr.marks[0].messageID,
+		"cursor must bound to the newest counterpart row, never a later staff/system row")
+}
+
+func TestMarkReadToNewest_GuardianReaderBoundsToStaffSide(t *testing.T) {
+	reader := int64(100)
+	// A guardian reader: a staff message and a staff-triggered system event are the
+	// counterpart; the reader's own guardian message is not. The cursor must land on
+	// the newest staff-side row (the system event, id 3).
+	staffMsg := msg(1, 300, usersModels.ParentMessageSenderStaff)
+	readerOwn := msg(2, reader, usersModels.ParentMessageSenderGuardian)
+	staffEvent := msg(3, 300, usersModels.ParentMessageSenderSystem)
+	staffEvent.EventActorKind = usersModels.ParentMessageSenderStaff
+	messages := []*usersModels.ParentMessage{staffMsg, readerOwn, staffEvent}
+
+	rr := &fakeReadRepo{markAdvanced: true}
+	advanced, err := MarkReadToNewest(context.Background(), rr, 1, 42, reader, false, messages)
+	require.NoError(t, err)
+	assert.True(t, advanced)
+	require.Len(t, rr.marks, 1)
+	assert.Equal(t, staffEvent.ID, rr.marks[0].messageID,
+		"guardian reader's cursor bounds to the newest staff-side row")
 }
 
 func TestMarkReadToNewest_OwnOnlyOrEmptyDoesNotMark(t *testing.T) {
 	reader := int64(100)
 	rr := &fakeReadRepo{}
 	// Empty snapshot.
-	advanced, err := MarkReadToNewest(context.Background(), rr, 1, 42, reader, nil)
+	advanced, err := MarkReadToNewest(context.Background(), rr, 1, 42, reader, true, nil)
 	require.NoError(t, err)
 	assert.False(t, advanced)
 	// Only the reader's own messages → nothing to mark seen.
 	own := []*usersModels.ParentMessage{msg(1, reader, usersModels.ParentMessageSenderStaff)}
-	advanced, err = MarkReadToNewest(context.Background(), rr, 1, 42, reader, own)
+	advanced, err = MarkReadToNewest(context.Background(), rr, 1, 42, reader, true, own)
 	require.NoError(t, err)
 	assert.False(t, advanced)
 	assert.Empty(t, rr.marks, "no counterpart message means no cursor write")
@@ -211,7 +254,7 @@ func TestMarkReadToNewest_OwnOnlyOrEmptyDoesNotMark(t *testing.T) {
 func TestMarkReadToNewest_PropagatesRepoError(t *testing.T) {
 	rr := &fakeReadRepo{markErr: errors.New("upsert failed")}
 	messages := []*usersModels.ParentMessage{msg(1, 200, usersModels.ParentMessageSenderGuardian)}
-	_, err := MarkReadToNewest(context.Background(), rr, 1, 42, 100, messages)
+	_, err := MarkReadToNewest(context.Background(), rr, 1, 42, 100, true, messages)
 	require.Error(t, err)
 }
 

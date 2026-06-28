@@ -141,6 +141,28 @@ func StampGuardianReadReceipts(messages []*ParentMessage, cutoff *ReadCursor) {
 	}
 }
 
+// IsCounterpartMessage reports whether msg is "from the OTHER party" relative to
+// a reader on the given side — the SAME attribution the unread SQL uses
+// (database/repositories/users.counterpartUnread). A staff reader's counterpart
+// is the guardian side; a guardian reader's is the staff side. A system event
+// (request decision / withdrawal) carries sender_kind='system' and records the
+// triggering side in EventActorKind, so for those rows the side comes from
+// EventActorKind, not SenderKind. Keeping this in lock-step with counterpartUnread
+// is what lets MarkReadToNewest bound the read cursor to exactly the set of
+// messages the unread count considers — advancing past a later staff/system row
+// (not the reader's, but not a counterpart either) would skip an earlier
+// counterpart message still committing in a concurrent send/read race.
+func IsCounterpartMessage(msg *ParentMessage, staffReader bool) bool {
+	side := ParentMessageSenderStaff
+	if staffReader {
+		side = ParentMessageSenderGuardian
+	}
+	if msg.SenderKind == ParentMessageSenderSystem {
+		return msg.EventActorKind == side
+	}
+	return msg.SenderKind == side
+}
+
 // ParentMessageRepository is the tenant-scoped data-access contract for
 // messages. All methods must run inside a tenant transaction.
 type ParentMessageRepository interface {
