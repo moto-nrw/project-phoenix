@@ -27,6 +27,7 @@ function makeTenant(nfcEnabled: boolean): TenantInfo {
     presenceMode: "detailed",
     studentPhotosEnabled: false,
     nfcEnabled,
+    messagingEnabled: false,
   };
 }
 

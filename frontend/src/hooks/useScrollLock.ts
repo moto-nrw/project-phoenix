@@ -12,7 +12,12 @@ export function useScrollLock(isLocked: boolean) {
 
     if (isLocked) {
       // Simply hide overflow - scrollbar-gutter: stable in globals.css
-      // prevents layout shift from scrollbar disappearing
+      // prevents layout shift from scrollbar disappearing. Capture the prior
+      // value so cleanup RESTORES it instead of forcing "" — otherwise closing
+      // a modal opened over an already-scroll-locked page (e.g. the chat, which
+      // sets overflow:hidden for its whole lifetime) would clear that lock and
+      // leave the page scrollable until remount.
+      const prevOverflow = document.documentElement.style.overflow;
       document.documentElement.style.overflow = "hidden";
 
       // Cache modal content elements for performance
@@ -82,7 +87,7 @@ export function useScrollLock(isLocked: boolean) {
 
       // Cleanup function
       return () => {
-        document.documentElement.style.overflow = "";
+        document.documentElement.style.overflow = prevOverflow;
         document.removeEventListener("wheel", preventBackgroundScroll);
         document.removeEventListener("touchmove", preventBackgroundScroll);
         document.removeEventListener("keydown", handleKeyDown);

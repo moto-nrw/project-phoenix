@@ -59,12 +59,6 @@ func (f *fakeParentService) SubmitSickNote(context.Context, int64, int64, []time
 func (f *fakeParentService) ListSickDays(context.Context, int64, int64, timezone.Date, timezone.Date) ([]*activeModels.StudentStatusDay, error) {
 	return nil, nil
 }
-func (f *fakeParentService) AddParentNote(context.Context, int64, int64, string) ([]*userModels.StudentParentNote, error) {
-	return nil, nil
-}
-func (f *fakeParentService) ListParentNotes(context.Context, int64, int64, int) ([]*userModels.StudentParentNote, error) {
-	return nil, nil
-}
 func (f *fakeParentService) ChildFeatures(context.Context, int64, int64) (parentService.ChildFeatureFlags, error) {
 	return parentService.ChildFeatureFlags{}, nil
 }
@@ -76,6 +70,26 @@ func (f *fakeParentService) InviteRelatedAccount(context.Context, int64, int64, 
 }
 func (f *fakeParentService) RemoveRelatedAccount(context.Context, int64, int64, int64) error {
 	return nil
+}
+
+func (f *fakeParentService) ListMessageThreads(context.Context, int64) ([]*userModels.InboxThread, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) ListChildThreads(context.Context, int64, int64) ([]*userModels.InboxThread, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) UnreadMessageCount(context.Context, int64) (int, error) {
+	return 0, nil
+}
+
+func (f *fakeParentService) GetChildConversation(context.Context, int64, int64) (*parentService.MessageThreadView, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) PostChildMessage(context.Context, int64, int64, string) (*parentService.MessageThreadView, error) {
+	return nil, nil
 }
 
 func (f *fakeParentService) SubmitCareException(context.Context, int64, int64, timezone.Date, *time.Time, *time.Time) (*parentService.CareException, error) {

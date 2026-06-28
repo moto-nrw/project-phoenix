@@ -220,15 +220,16 @@
       "pickupLabel": "Abholung",
       "regularPickup": "Reguläre Abholung",
       "messagesLabel": "Nachrichten",
-      "noMessages": "Keine neuen Nachrichten",
-      "noMessagesSent": "Keine Nachrichten gesendet",
-      "messagesSent": "{count, plural, one {# Nachricht gesendet} other {# Nachrichten gesendet}}"
+      "noConversations": "Keine Unterhaltungen",
+      "unreadCount": "{count, plural, one {# ungelesene Nachricht} other {# ungelesene Nachrichten}}",
+      "conversationsCount": "{count, plural, one {# Unterhaltung} other {# Unterhaltungen}}"
     },
     "messages": {
       "eyebrow": "Elternportal",
-      "title": "Nachrichten an das Team",
-      "description": "Kurze Mitteilungen an die Betreuung.",
-      "compose": "Schreiben"
+      "title": "Nachrichten mit der OGS",
+      "description": "Unterhaltungen rund um Ihr Kind.",
+      "compose": "Neue Nachricht",
+      "empty": "Noch keine Unterhaltungen. Schreiben Sie der OGS die erste Nachricht."
     }
   },
   "parentChildCare": {
@@ -248,16 +249,6 @@
       "invalidDate": "Bitte ein gültiges Datum wählen (Bis-Datum nach Von-Datum).",
       "saveError": "Die Abmeldung konnte nicht gespeichert werden.",
       "submit": "Abmeldung senden"
-    },
-    "notes": {
-      "title": "Nachricht an das Team",
-      "newLabel": "Neue Nachricht",
-      "placeholder": "Kurze Mitteilung an die Betreuung …",
-      "empty": "Bitte eine Nachricht eingeben.",
-      "sendError": "Die Nachricht konnte nicht gesendet werden.",
-      "send": "Senden",
-      "lastSent": "Zuletzt gesendet",
-      "listEmpty": "Noch keine Nachrichten gesendet."
     },
     "summary": {
       "none": "Keine Abmeldung",
@@ -832,5 +823,8 @@
         "sun": "So"
       }
     }
+  },
+  "parentOgsMessaging": {
+    "readByStaff": "Gelesen"
   }
 }

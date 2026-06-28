@@ -54,6 +54,13 @@ export interface TenantInfo {
    * navigation without needing config:read.
    */
   nfcEnabled: boolean;
+  /**
+   * Whether parent-OGS messaging is enabled for this tenant
+   * (operations.parent_notes_enabled). Surfaced via tenant resolve so non-admin
+   * staff can hide the "Neue Nachricht" compose entry points when messaging is
+   * off, instead of composing into a backend 403.
+   */
+  messagingEnabled: boolean;
 }
 
 interface TenantResolveResponse {
@@ -68,6 +75,7 @@ interface TenantResolveResponse {
   presence_mode?: string;
   student_photos_enabled?: boolean;
   nfc_enabled?: boolean;
+  parent_messaging_enabled?: boolean;
 }
 
 /**
@@ -110,6 +118,7 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       presenceMode: normalizePresenceMode(data.presence_mode),
       studentPhotosEnabled: data.student_photos_enabled === true,
       nfcEnabled: data.nfc_enabled === true,
+      messagingEnabled: data.parent_messaging_enabled === true,
     };
   } catch {
     return null;
@@ -175,6 +184,7 @@ export async function listAllTenants(
           // Same story for the photo flag — re-resolved on tenant landing.
           studentPhotosEnabled: false,
           nfcEnabled: false,
+          messagingEnabled: false,
         })),
         status: "ok",
       };
@@ -230,6 +240,7 @@ export async function listAvailableTenants(): Promise<TenantInfo[]> {
     presenceMode: "detailed",
     studentPhotosEnabled: false,
     nfcEnabled: false,
+    messagingEnabled: false,
   }));
 }
 

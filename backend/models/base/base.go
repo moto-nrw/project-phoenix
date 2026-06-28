@@ -31,6 +31,14 @@ func (m *Model) BeforeAppend() error {
 	return nil
 }
 
+// GetID, GetCreatedAt and GetUpdatedAt satisfy the base.Entity interface for
+// every embedder of Model. They live here ONCE (backend-conventions.md Rule 3)
+// so individual entities never redeclare these trivial accessors; an entity
+// that needs different semantics may still shadow them.
+func (m *Model) GetID() any              { return m.ID }
+func (m *Model) GetCreatedAt() time.Time { return m.CreatedAt }
+func (m *Model) GetUpdatedAt() time.Time { return m.UpdatedAt }
+
 // TimeRange represents a time range with start and end timestamps
 type TimeRange struct {
 	StartTime time.Time  `bun:"start_time,nullzero,notnull" json:"start_time"`
