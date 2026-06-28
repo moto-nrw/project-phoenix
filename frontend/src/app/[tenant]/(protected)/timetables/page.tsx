@@ -1337,6 +1337,50 @@ function TimetablesContent() {
     ],
   );
 
+  const handleDeleteSeriesTemplate = useCallback(
+    async (template: TimetableTemplate, effectiveDate: string) => {
+      try {
+        const result = await timetableService.endTemplate(template.id, {
+          effective_date: effectiveDate,
+        });
+        toastSuccess(
+          `Regeltermin ab ${formatDate(result.effectiveDate)} gelöscht`,
+        );
+        setEventModalOpen(false);
+        setEditingInstance(null);
+        setEditingTemplate(null);
+        setConvertingInstance(null);
+        if (templatePeriodID) {
+          await tenantMutate(`timetable-templates-${templatePeriodID}`);
+        }
+        await tenantMutate(swrKey);
+        await tenantMutate(gapsSWRKey);
+        await tenantMutate(exceptionConflictsSWRKey);
+      } catch (err) {
+        logger.error("template_delete_failed", {
+          template_id: template.id,
+          effective_date: effectiveDate,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        toastError(
+          err instanceof Error
+            ? err.message
+            : "Regeltermin konnte nicht gelöscht werden",
+        );
+        throw err;
+      }
+    },
+    [
+      exceptionConflictsSWRKey,
+      gapsSWRKey,
+      swrKey,
+      templatePeriodID,
+      tenantMutate,
+      toastError,
+      toastSuccess,
+    ],
+  );
+
   const openEventCreate = useCallback(() => {
     setEditingInstance(null);
     setEditingTemplate(null);
@@ -1772,6 +1816,7 @@ function TimetablesContent() {
         initialInstance={editingInstance}
         initialSeries={editingTemplate}
         convertInstance={convertingInstance}
+        onDeleteSeries={handleDeleteSeriesTemplate}
         defaultRepeat={eventDefaultRepeat}
         variant={quickPrefill ? "quick" : "full"}
         defaultStartTime={quickPrefill?.startTime}

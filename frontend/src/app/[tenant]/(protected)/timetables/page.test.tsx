@@ -511,6 +511,11 @@ vi.mock("~/components/timetable/timetable-event-modal", () => ({
     defaultStartTime?: string;
     defaultEndTime?: string;
     defaultCalendarPeriodId?: string | null;
+    initialSeries?: { id: string } | null;
+    onDeleteSeries?: (
+      template: { id: string },
+      effectiveDate: string,
+    ) => Promise<void>;
   }) => {
     mockEventModalProps(props);
     return props.isOpen ? (
@@ -538,6 +543,16 @@ vi.mock("~/components/timetable/timetable-event-modal", () => ({
         >
           event-save-series
         </button>
+        {props.initialSeries && props.onDeleteSeries && (
+          <button
+            type="button"
+            onClick={() =>
+              void props.onDeleteSeries?.(props.initialSeries!, "2026-05-06")
+            }
+          >
+            event-delete-series
+          </button>
+        )}
       </div>
     ) : null;
   },
@@ -731,11 +746,14 @@ describe("TimetablesPage", () => {
     });
     mockPatchAttendance.mockResolvedValue({});
     mockDeleteCancelled.mockResolvedValue({});
-    mockEndTemplate.mockResolvedValue({
-      templateId: "7",
-      effectiveDate: "2026-05-04",
-      deletedInstances: 3,
-    });
+    mockEndTemplate.mockImplementation(
+      (_templateId: string, body: { effective_date: string }) =>
+        Promise.resolve({
+          templateId: "7",
+          effectiveDate: body.effective_date,
+          deletedInstances: 3,
+        }),
+    );
     mockArchiveTemplate.mockResolvedValue({});
     setupSWR();
     window.history.replaceState(null, "", "/acme/timetables");
@@ -834,6 +852,18 @@ describe("TimetablesPage", () => {
 
     fireEvent.click(screen.getByText("edit-template"));
     expect(screen.getByText("event-close")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("event-delete-series"));
+    await waitFor(() =>
+      expect(mockEndTemplate).toHaveBeenCalledWith("7", {
+        effective_date: "2026-05-06",
+      }),
+    );
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      "Regeltermin ab 06.05.2026 gelöscht",
+    );
+    expect(mockTenantMutate).toHaveBeenCalledWith("timetable-templates-5");
+
+    fireEvent.click(screen.getByText("edit-template"));
     fireEvent.click(screen.getByText("event-close"));
 
     fireEvent.click(screen.getByText("apply-template"));
