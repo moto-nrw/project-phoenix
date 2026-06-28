@@ -397,6 +397,7 @@ func (s *service) appendGuardianMessage(ctx context.Context, thread *usersModels
 		SenderKind:      usersModels.ParentMessageSenderGuardian,
 		SenderName:      senderName,
 		Body:            body,
+		Kind:            usersModels.ParentMessageKindMessage,
 	}
 	msg.SetTenantID(thread.TenantID)
 	return parentmessaging.AppendMessage(ctx, s.messageRepo, s.messageThreadRepo, msg)

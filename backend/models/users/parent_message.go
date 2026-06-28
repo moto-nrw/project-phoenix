@@ -40,7 +40,7 @@ type ParentMessage struct {
 	// ('event', e.g. a quick-action pill posting a Raumwechsel/Abholung notice
 	// into the thread) and a structured change request ('request'). Defaults to
 	// 'message' on insert via BeforeAppendModel.
-	Kind      string `bun:"kind,notnull" json:"kind"`
+	Kind      string `bun:"kind,notnull,default:'message'" json:"kind"`
 	EventType string `bun:"event_type,nullzero" json:"event_type,omitempty"`
 	// EventActorKind records which side TRIGGERED a system event ('staff' or
 	// 'guardian'), set from the action context when the event is created. The

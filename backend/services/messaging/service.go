@@ -592,6 +592,7 @@ func (s *service) appendStaffMessage(ctx context.Context, thread *usersModels.Pa
 		SenderKind:      usersModels.ParentMessageSenderStaff,
 		SenderName:      s.resolveStaffName(ctx, accountID),
 		Body:            body,
+		Kind:            usersModels.ParentMessageKindMessage,
 	}
 	msg.SetTenantID(thread.TenantID)
 	if err := parentmessaging.AppendMessage(ctx, s.messageRepo, s.threadRepo, msg); err != nil {

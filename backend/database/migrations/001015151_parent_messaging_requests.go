@@ -48,6 +48,7 @@ func parentMessagingRequestsUp(ctx context.Context, db *bun.DB) error {
 		ALTER TABLE users.parent_messages
 			ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'message',
 			ADD COLUMN IF NOT EXISTS event_type TEXT,
+			ADD COLUMN IF NOT EXISTS event_actor_kind TEXT,
 			ADD COLUMN IF NOT EXISTS request_type TEXT,
 			ADD COLUMN IF NOT EXISTS request_status TEXT,
 			ADD COLUMN IF NOT EXISTS payload JSONB,
@@ -64,6 +65,11 @@ func parentMessagingRequestsUp(ctx context.Context, db *bun.DB) error {
 		ALTER TABLE users.parent_messages
 			DROP CONSTRAINT IF EXISTS chk_parent_messages_sender_kind,
 			ADD CONSTRAINT chk_parent_messages_sender_kind CHECK (sender_kind IN ('guardian','staff','system'));
+
+		ALTER TABLE users.parent_messages
+			DROP CONSTRAINT IF EXISTS chk_parent_messages_event_actor_kind,
+			ADD CONSTRAINT chk_parent_messages_event_actor_kind
+				CHECK (event_actor_kind IS NULL OR event_actor_kind IN ('guardian','staff'));
 
 		ALTER TABLE users.parent_messages
 			DROP CONSTRAINT IF EXISTS chk_parent_messages_request_status,
@@ -108,6 +114,7 @@ func parentMessagingRequestsDown(ctx context.Context, db *bun.DB) error {
 		DROP INDEX IF EXISTS users.idx_parent_messages_open_requests;
 		ALTER TABLE users.parent_messages
 			DROP CONSTRAINT IF EXISTS chk_parent_messages_request_status,
+			DROP CONSTRAINT IF EXISTS chk_parent_messages_event_actor_kind,
 			DROP CONSTRAINT IF EXISTS chk_parent_messages_kind;
 		DELETE FROM users.parent_messages WHERE sender_kind = 'system';
 		ALTER TABLE users.parent_messages
@@ -122,6 +129,7 @@ func parentMessagingRequestsDown(ctx context.Context, db *bun.DB) error {
 			DROP COLUMN IF EXISTS payload,
 			DROP COLUMN IF EXISTS request_status,
 			DROP COLUMN IF EXISTS request_type,
+			DROP COLUMN IF EXISTS event_actor_kind,
 			DROP COLUMN IF EXISTS event_type,
 			DROP COLUMN IF EXISTS kind;
 	`)
