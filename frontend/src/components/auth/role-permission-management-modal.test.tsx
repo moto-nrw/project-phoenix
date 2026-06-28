@@ -151,6 +151,8 @@ describe("RolePermissionManagementModal", () => {
     vi.clearAllMocks();
     mockGetPermissions.mockResolvedValue(mockPermissions);
     mockGetRolePermissions.mockResolvedValue([]);
+    mockAssignPermission.mockResolvedValue(undefined);
+    mockRemovePermission.mockResolvedValue(undefined);
   });
 
   // =========================================================================
@@ -521,6 +523,39 @@ describe("RolePermissionManagementModal", () => {
     });
   });
 
+  it("clears a stale fetch error after reopening and loading successfully", async () => {
+    mockGetPermissions.mockRejectedValueOnce(new Error("Network error"));
+    const { rerender } = renderModal();
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Fehler beim Laden der Berechtigungen/i),
+      ).toBeInTheDocument();
+    });
+
+    rerender(
+      <RolePermissionManagementModal
+        isOpen={false}
+        onClose={mockOnClose}
+        role={mockRole}
+        onUpdate={mockOnUpdate}
+      />,
+    );
+    rerender(
+      <RolePermissionManagementModal
+        isOpen={true}
+        onClose={mockOnClose}
+        role={mockRole}
+        onUpdate={mockOnUpdate}
+      />,
+    );
+
+    await waitForLoad();
+
+    expect(screen.queryByTestId("alert-error")).not.toBeInTheDocument();
+    expect(screen.getByText("students:read")).toBeInTheDocument();
+  });
+
   it("shows error alert when saving fails", async () => {
     mockAssignPermission.mockRejectedValue(new Error("Save failed"));
     renderModal();
@@ -537,6 +572,32 @@ describe("RolePermissionManagementModal", () => {
         screen.getByText(/Fehler beim Aktualisieren der Berechtigungen/i),
       ).toBeInTheDocument();
     });
+  });
+
+  it("clears a stale save error after retrying successfully", async () => {
+    mockAssignPermission.mockRejectedValueOnce(new Error("Save failed"));
+    renderModal();
+    await waitForLoad();
+
+    const switches = screen.getAllByRole("switch");
+    fireEvent.click(switches[0]!);
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/i }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Fehler beim Aktualisieren der Berechtigungen/i),
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/i }));
+
+    await waitFor(() => {
+      expect(mockAssignPermission).toHaveBeenCalledTimes(2);
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        "Berechtigungen aktualisiert",
+      );
+    });
+    expect(screen.queryByTestId("alert-error")).not.toBeInTheDocument();
   });
 
   // =========================================================================

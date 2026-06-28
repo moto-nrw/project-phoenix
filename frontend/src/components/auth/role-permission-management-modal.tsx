@@ -53,6 +53,7 @@ export function RolePermissionManagementModal({
 
   const fetchPermissions = async () => {
     try {
+      setErrorMessage("");
       setLoading(true);
 
       const [allPerms, rolePerms] = await Promise.all([
@@ -168,6 +169,7 @@ export function RolePermissionManagementModal({
 
   const handleSaveChanges = async () => {
     try {
+      setErrorMessage("");
       setSaving(true);
       const keys = new Set([
         ...Object.keys(initialAssignedMap),
