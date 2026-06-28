@@ -107,9 +107,12 @@ type UpdateChildOfferingsInput struct {
 }
 
 type SyncApprovedChildDataInput struct {
-	RequestID      int64
-	ChildID        int64
-	ActorAccountID int64
+	RequestID                int64
+	ChildID                  int64
+	ActorAccountID           int64
+	ReplaceTargetedData      bool
+	PreviousSnapshot         map[string]any
+	PreviousRequestGuardians []*enrollmentModels.RequestGuardian
 }
 
 // DecideOutcome is what the admin handler gets back from Decide. It
@@ -1277,7 +1280,7 @@ func (s *decisionService) applyApproval(
 	// the approval — the targeted-field path is best-effort, the same
 	// philosophy the invitation-email enqueue uses elsewhere in this
 	// service.
-	if err := s.applyTargetedFields(ctx, request, child, student, guardian, reviewedBy); err != nil {
+	if err := s.applyTargetedFields(ctx, request, child, student, guardian, reviewedBy, targetedFieldSyncOptions{}); err != nil {
 		s.logger.Warn("decision: targeted-field dispatch had errors",
 			slog.Int64("request_id", request.ID),
 			slog.Int64("child_id", child.ID),
@@ -1509,6 +1512,200 @@ func (s *decisionService) linkAdditionalGuardians(
 		}
 	}
 	return nil
+}
+
+func (s *decisionService) reconcilePrimaryGuardianLink(
+	ctx context.Context,
+	request *enrollmentModels.Request,
+	studentID int64,
+) (*users.GuardianProfile, error) {
+	guardian, _, err := s.resolveGuardianProfile(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+	if s.studentGuardianRepo == nil {
+		return guardian, nil
+	}
+	links, err := s.studentGuardianRepo.FindByStudentID(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("decision: list approved child guardians: %w", err)
+	}
+	var primaryLink *users.StudentGuardian
+	var currentLink *users.StudentGuardian
+	for _, link := range links {
+		if link == nil {
+			continue
+		}
+		if link.IsPrimary {
+			primaryLink = link
+		}
+		if link.GuardianProfileID == guardian.ID {
+			currentLink = link
+		}
+	}
+
+	if currentLink != nil {
+		currentLink.RelationshipType = "guardian"
+		currentLink.IsPrimary = true
+		currentLink.IsEmergencyContact = true
+		currentLink.CanPickup = true
+		authorize.ApplyStudentGuardianRole(currentLink, authorize.GuardianRolePrimaryGuardian)
+		if err := currentLink.Validate(); err != nil {
+			return nil, fmt.Errorf("decision: validate current primary guardian link: %w", err)
+		}
+		if err := s.studentGuardianRepo.Update(ctx, currentLink); err != nil {
+			return nil, fmt.Errorf("decision: update current primary guardian link: %w", err)
+		}
+		if primaryLink != nil && primaryLink.ID != currentLink.ID {
+			if err := s.studentGuardianRepo.Delete(ctx, primaryLink.ID); err != nil {
+				return nil, fmt.Errorf("decision: remove stale primary guardian link: %w", err)
+			}
+		}
+		return guardian, nil
+	}
+
+	if primaryLink != nil {
+		primaryLink.GuardianProfileID = guardian.ID
+		primaryLink.RelationshipType = "guardian"
+		primaryLink.IsPrimary = true
+		primaryLink.IsEmergencyContact = true
+		primaryLink.CanPickup = true
+		authorize.ApplyStudentGuardianRole(primaryLink, authorize.GuardianRolePrimaryGuardian)
+		if err := primaryLink.Validate(); err != nil {
+			return nil, fmt.Errorf("decision: validate primary guardian link: %w", err)
+		}
+		if err := s.studentGuardianRepo.Update(ctx, primaryLink); err != nil {
+			return nil, fmt.Errorf("decision: update primary guardian link: %w", err)
+		}
+		return guardian, nil
+	}
+
+	rel := &users.StudentGuardian{
+		StudentID:          studentID,
+		GuardianProfileID:  guardian.ID,
+		RelationshipType:   "guardian",
+		IsPrimary:          true,
+		IsEmergencyContact: true,
+		CanPickup:          true,
+	}
+	authorize.ApplyStudentGuardianRole(rel, authorize.GuardianRolePrimaryGuardian)
+	if err := rel.Validate(); err != nil {
+		return nil, fmt.Errorf("decision: validate missing primary guardian link: %w", err)
+	}
+	if err := s.studentGuardianRepo.Create(ctx, rel); err != nil {
+		return nil, fmt.Errorf("decision: create missing primary guardian link: %w", err)
+	}
+	return guardian, nil
+}
+
+func (s *decisionService) reconcileApprovedChildGuardians(
+	ctx context.Context,
+	request *enrollmentModels.Request,
+	studentID int64,
+	previousGuardians []*enrollmentModels.RequestGuardian,
+) (map[int64]bool, error) {
+	currentProfileIDs := map[int64]bool{}
+	if s.requestGuardianRepo == nil || s.studentGuardianRepo == nil {
+		return currentProfileIDs, nil
+	}
+	if err := s.linkAdditionalGuardians(ctx, request, studentID); err != nil {
+		return currentProfileIDs, fmt.Errorf("decision: relink additional guardians: %w", err)
+	}
+	current, err := s.requestGuardianRepo.ListByRequestID(ctx, request.ID)
+	if err != nil {
+		return currentProfileIDs, fmt.Errorf("decision: list current additional guardians: %w", err)
+	}
+	for _, row := range current {
+		if row == nil {
+			continue
+		}
+		profileID, err := s.resolveAdditionalGuardianProfile(ctx, row)
+		if err != nil {
+			return currentProfileIDs, err
+		}
+		if profileID > 0 {
+			currentProfileIDs[profileID] = true
+		}
+	}
+	previousProfileIDs := map[int64]bool{}
+	for _, row := range previousGuardians {
+		if row != nil && row.GuardianProfileID != nil && *row.GuardianProfileID > 0 {
+			previousProfileIDs[*row.GuardianProfileID] = true
+		}
+	}
+	if err := s.deleteRemovedStudentGuardianLinks(ctx, studentID, previousProfileIDs, currentProfileIDs); err != nil {
+		return currentProfileIDs, fmt.Errorf("decision: unlink removed additional guardians: %w", err)
+	}
+	return currentProfileIDs, nil
+}
+
+func (s *decisionService) deleteRemovedStudentGuardianLinks(ctx context.Context, studentID int64, previous, keep map[int64]bool) error {
+	if len(previous) == 0 || s.studentGuardianRepo == nil {
+		return nil
+	}
+	links, err := s.studentGuardianRepo.FindByStudentID(ctx, studentID)
+	if err != nil {
+		return err
+	}
+	for _, link := range links {
+		if link == nil || link.IsPrimary {
+			continue
+		}
+		if previous[link.GuardianProfileID] && !keep[link.GuardianProfileID] {
+			if err := s.studentGuardianRepo.Delete(ctx, link.ID); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func mergeGuardianProfileKeepSets(sets ...map[int64]bool) map[int64]bool {
+	out := map[int64]bool{}
+	for _, set := range sets {
+		for id := range set {
+			if id > 0 {
+				out[id] = true
+			}
+		}
+	}
+	return out
+}
+
+func (s *decisionService) contactProfileIDsFromPreviousSnapshot(
+	ctx context.Context,
+	snapshot map[string]any,
+	child *enrollmentModels.RequestChild,
+	fieldKey string,
+) map[int64]bool {
+	out := map[int64]bool{}
+	if snapshot == nil || child == nil || s.guardianProfileRepo == nil {
+		return out
+	}
+	childRow := snapshotChildByID(snapshot, child.ID)
+	if childRow == nil {
+		return out
+	}
+	custom := mapFromAny(childRow["custom_data"])
+	raw := custom[fieldKey]
+	if raw == nil {
+		return out
+	}
+	var entries []enrollmentModels.ContactEntry
+	if err := decodeStructured(raw, &entries); err != nil {
+		return out
+	}
+	for _, entry := range entries {
+		email := strings.TrimSpace(strings.ToLower(entry.Email))
+		if email == "" {
+			continue
+		}
+		profile, err := s.guardianProfileRepo.FindByEmail(ctx, email)
+		if err == nil && profile != nil && profile.ID > 0 {
+			out[profile.ID] = true
+		}
+	}
+	return out
 }
 
 // createGuardianPhoneNumber inserts phone as the guardian's primary mobile
@@ -2080,6 +2277,12 @@ func (s *decisionService) ensureGuardianRoleForTenant(ctx context.Context, accou
 // Best-effort overall: per-field errors are collected and returned in
 // one combined error string but never abort the approval. The student
 // + per-child records have already been written by the caller.
+type targetedFieldSyncOptions struct {
+	Replace                bool
+	PreviousSnapshot       map[string]any
+	KeepGuardianProfileIDs map[int64]bool
+}
+
 func (s *decisionService) applyTargetedFields(
 	ctx context.Context,
 	request *enrollmentModels.Request,
@@ -2087,6 +2290,7 @@ func (s *decisionService) applyTargetedFields(
 	student *users.Student,
 	guardian *users.GuardianProfile,
 	reviewedBy int64,
+	options targetedFieldSyncOptions,
 ) error {
 	if s.formSchemaRepo == nil || request.SchemaID == nil {
 		return nil
@@ -2110,7 +2314,7 @@ func (s *decisionService) applyTargetedFields(
 			continue
 		}
 		raw := s.readFieldValue(request, child, &field)
-		if raw == nil {
+		if raw == nil && !options.Replace {
 			continue
 		}
 
@@ -2119,14 +2323,27 @@ func (s *decisionService) applyTargetedFields(
 			if str := stringValue(raw); str != "" {
 				student.HealthInfo = &str
 				studentDirty = true
+			} else if options.Replace {
+				student.HealthInfo = nil
+				studentDirty = true
 			}
 		case enrollmentModels.TargetStudentExtraInfo:
 			if str := stringValue(raw); str != "" {
 				student.ExtraInfo = &str
 				studentDirty = true
+			} else if options.Replace {
+				student.ExtraInfo = nil
+				studentDirty = true
 			}
 		case enrollmentModels.TargetStudentDeparture:
-			if days, err := decodeDepartureDays(raw); err != nil {
+			if raw == nil {
+				student.AllowedDepartureModes = users.AllowedDepartureModes{}
+				student.DepartureDays = users.DepartureDays{}
+				student.BusDays = users.BusDays{}
+				student.PickupDays = users.PickupDays{}
+				student.DepartureCompanionNote = nil
+				studentDirty = true
+			} else if days, err := decodeDepartureDays(raw); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
 			} else {
 				// Union with any earlier same-target field rather than overwriting:
@@ -2140,7 +2357,14 @@ func (s *decisionService) applyTargetedFields(
 				studentDirty = true
 			}
 		case enrollmentModels.TargetStudentAllowedDepartureModes:
-			if modes, err := decodeAllowedDepartureModes(raw); err != nil {
+			if raw == nil {
+				student.AllowedDepartureModes = users.AllowedDepartureModes{}
+				student.DepartureDays = users.DepartureDays{}
+				student.BusDays = users.BusDays{}
+				student.PickupDays = users.PickupDays{}
+				student.DepartureCompanionNote = nil
+				studentDirty = true
+			} else if modes, err := decodeAllowedDepartureModes(raw); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
 			} else {
 				if explicitAllowedDeparture != nil {
@@ -2150,30 +2374,69 @@ func (s *decisionService) applyTargetedFields(
 				studentDirty = true
 			}
 		case enrollmentModels.TargetStudentBusDays, enrollmentModels.TargetStudentBus:
-			if days, err := decodeBusDays(raw); err != nil {
+			if raw == nil {
+				student.BusDays = users.BusDays{}
+				studentDirty = true
+			} else if days, err := decodeBusDays(raw); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
 			} else {
 				student.BusDays = days
 				studentDirty = true
 			}
 		case enrollmentModels.TargetStudentPickupStatus:
-			if days, err := decodePickupDays(raw); err != nil {
+			if raw == nil {
+				student.PickupDays = users.PickupDays{}
+				studentDirty = true
+			} else if days, err := decodePickupDays(raw); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
 			} else {
 				student.PickupDays = days
 				studentDirty = true
 			}
 		case enrollmentModels.TargetSchedulePickup:
+			if options.Replace && s.pickupScheduleRepo != nil {
+				if err := s.pickupScheduleRepo.DeleteByStudentID(ctx, student.ID); err != nil {
+					errs = append(errs, fmt.Sprintf("%s: delete existing: %v", field.Target, err))
+					continue
+				}
+			}
+			if raw == nil {
+				continue
+			}
 			if err := s.dispatchWeekdaySchedule(ctx, raw, student.ID, reviewedBy, true); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
 			}
 		case enrollmentModels.TargetScheduleArrival:
+			if options.Replace && s.arrivalScheduleRepo != nil {
+				if err := s.arrivalScheduleRepo.DeleteByStudentID(ctx, student.ID); err != nil {
+					errs = append(errs, fmt.Sprintf("%s: delete existing: %v", field.Target, err))
+					continue
+				}
+			}
+			if raw == nil {
+				continue
+			}
 			if err := s.dispatchWeekdaySchedule(ctx, raw, student.ID, reviewedBy, false); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
 			}
 		case enrollmentModels.TargetStudentContacts:
-			if err := s.dispatchContactList(ctx, raw, student.ID); err != nil {
-				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
+			oldContactIDs := map[int64]bool{}
+			if options.Replace {
+				oldContactIDs = s.contactProfileIDsFromPreviousSnapshot(ctx, options.PreviousSnapshot, child, field.Key)
+			}
+			newContactIDs := map[int64]bool{}
+			if raw != nil {
+				ids, err := s.dispatchContactList(ctx, raw, student.ID)
+				if err != nil {
+					errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
+					continue
+				}
+				newContactIDs = ids
+			}
+			if options.Replace {
+				if err := s.deleteRemovedStudentGuardianLinks(ctx, student.ID, oldContactIDs, mergeGuardianProfileKeepSets(newContactIDs, options.KeepGuardianProfileIDs)); err != nil {
+					errs = append(errs, fmt.Sprintf("%s: remove stale links: %v", field.Target, err))
+				}
 			}
 		}
 	}
@@ -2212,6 +2475,25 @@ func (s *decisionService) applyTargetedFields(
 		if email, ok := request.ConsentFlags[enrollmentModels.ConsentKeyEmailContact].(bool); ok && email {
 			student.EmailContactAcceptedAt = &now
 			studentDirty = true
+		}
+		if options.Replace {
+			if photo, _ := request.ConsentFlags[enrollmentModels.ConsentKeyPhoto].(bool); !photo {
+				student.PhotoConsentGivenAt = nil
+				student.PhotoConsentGivenBy = nil
+				studentDirty = true
+			}
+			if agb, _ := request.ConsentFlags[enrollmentModels.ConsentKeyAGB].(bool); !agb {
+				student.AGBAcceptedAt = nil
+				studentDirty = true
+			}
+			if dp, _ := request.ConsentFlags[enrollmentModels.ConsentKeyDataProcessing].(bool); !dp {
+				student.DataProcessingAcceptedAt = nil
+				studentDirty = true
+			}
+			if email, _ := request.ConsentFlags[enrollmentModels.ConsentKeyEmailContact].(bool); !email {
+				student.EmailContactAcceptedAt = nil
+				studentDirty = true
+			}
 		}
 	}
 	if request.GuardianPhone != nil {
@@ -2526,18 +2808,19 @@ func contactGuardianRole(isEmergencyContact, canPickup bool) string {
 	return authorize.GuardianRoleCustom
 }
 
-func (s *decisionService) dispatchContactList(ctx context.Context, raw any, studentID int64) error {
+func (s *decisionService) dispatchContactList(ctx context.Context, raw any, studentID int64) (map[int64]bool, error) {
+	linkedProfileIDs := map[int64]bool{}
 	if s.guardianProfileRepo == nil || s.studentGuardianRepo == nil {
-		return nil
+		return linkedProfileIDs, nil
 	}
 	var entries []enrollmentModels.ContactEntry
 	if err := decodeStructured(raw, &entries); err != nil {
-		return fmt.Errorf("decode contact_list: %w", err)
+		return linkedProfileIDs, fmt.Errorf("decode contact_list: %w", err)
 	}
 	for i := range entries {
 		c := entries[i]
 		if err := c.Validate(); err != nil {
-			return err
+			return linkedProfileIDs, err
 		}
 
 		var profile *users.GuardianProfile
@@ -2557,9 +2840,10 @@ func (s *decisionService) dispatchContactList(ctx context.Context, raw any, stud
 				profile.Email = &emailLC
 			}
 			if err := s.guardianProfileRepo.Create(ctx, profile); err != nil {
-				return fmt.Errorf("create contact profile %s %s: %w", c.FirstName, c.LastName, err)
+				return linkedProfileIDs, fmt.Errorf("create contact profile %s %s: %w", c.FirstName, c.LastName, err)
 			}
 		}
+		linkedProfileIDs[profile.ID] = true
 
 		// Phone numbers — append, dedup by unique index.
 		if s.guardianPhoneRepo != nil {
@@ -2577,7 +2861,7 @@ func (s *decisionService) dispatchContactList(ctx context.Context, raw any, stud
 				}
 				if err := s.guardianPhoneRepo.Create(ctx, phone); err != nil {
 					if !strings.Contains(err.Error(), "unique") && !strings.Contains(err.Error(), "duplicate") {
-						return fmt.Errorf("create contact phone: %w", err)
+						return linkedProfileIDs, fmt.Errorf("create contact phone: %w", err)
 					}
 				}
 			}
@@ -2599,8 +2883,8 @@ func (s *decisionService) dispatchContactList(ctx context.Context, raw any, stud
 			rel.EmergencyPriority = c.EmergencyPriority
 		}
 		if _, err := s.studentGuardianRepo.LinkIfNotExists(ctx, rel); err != nil {
-			return fmt.Errorf("link contact to student: %w", err)
+			return linkedProfileIDs, fmt.Errorf("link contact to student: %w", err)
 		}
 	}
-	return nil
+	return linkedProfileIDs, nil
 }

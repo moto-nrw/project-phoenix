@@ -204,7 +204,7 @@ func (rs *Resource) Router() chi.Router {
 			})
 		})
 		r.Route("/admin/change-requests", func(r chi.Router) {
-			r.With(authorize.RequiresPermission("config:read")).Get("/", rs.listAdminChangeRequests)
+			r.With(authorize.RequiresPermission("config:manage")).Get("/", rs.listAdminChangeRequests)
 			r.Route("/{id}", func(r chi.Router) {
 				r.With(authorize.RequiresPermission("config:manage")).Get("/", rs.getAdminChangeRequest)
 				r.With(authorize.RequiresPermission("config:manage")).Post("/question", rs.askChangeRequestQuestion)

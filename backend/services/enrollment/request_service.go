@@ -137,6 +137,7 @@ type SubmitGuardian struct {
 // NULL on the resulting request_child_offerings row. The service
 // validates subset/non-empty before inserting.
 type SubmitChild struct {
+	ID               int64
 	FirstName        string
 	LastName         string
 	DateOfBirth      timezone.Date

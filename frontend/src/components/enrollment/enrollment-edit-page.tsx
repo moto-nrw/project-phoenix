@@ -174,6 +174,7 @@ export function EnrollmentEditPage({ params }: Props) {
           skipCaptcha
           localizedCopy
           lockedGuardianEmail
+          lockChildStructure={isChangeRequestMode}
           submitLabel={
             isChangeRequestMode ? t("changeRequestSubmit") : t("editSubmit")
           }

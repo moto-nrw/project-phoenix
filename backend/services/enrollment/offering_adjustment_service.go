@@ -11,6 +11,7 @@ import (
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 type offeringAdjustmentSnapshot struct {
@@ -249,9 +250,36 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 		return nil, fmt.Errorf("decision: sync approved child student: %w", err)
 	}
 
+	var guardian *users.GuardianProfile
+	if input.ReplaceTargetedData && s.guardianProfileRepo != nil {
+		guardian, err = s.reconcilePrimaryGuardianLink(ctx, req, student.ID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	keepGuardianProfileIDs := map[int64]bool{}
+	if input.ReplaceTargetedData {
+		var relinkErr error
+		keepGuardianProfileIDs, relinkErr = s.reconcileApprovedChildGuardians(ctx, req, student.ID, input.PreviousRequestGuardians)
+		if relinkErr != nil {
+			return nil, relinkErr
+		}
+	}
+
 	if s.guardianProfileRepo != nil {
-		if guardian, _, gerr := s.resolveGuardianProfile(ctx, req); gerr == nil && guardian != nil {
-			if terr := s.applyTargetedFields(ctx, req, child, student, guardian, input.ActorAccountID); terr != nil {
+		if guardian == nil {
+			resolved, _, gerr := s.resolveGuardianProfile(ctx, req)
+			if gerr == nil {
+				guardian = resolved
+			}
+		}
+		if guardian != nil {
+			if terr := s.applyTargetedFields(ctx, req, child, student, guardian, input.ActorAccountID, targetedFieldSyncOptions{
+				Replace:                input.ReplaceTargetedData,
+				PreviousSnapshot:       input.PreviousSnapshot,
+				KeepGuardianProfileIDs: keepGuardianProfileIDs,
+			}); terr != nil {
 				s.logger.Warn("decision: approved child targeted-field sync had errors",
 					slog.Int64("request_id", req.ID),
 					slog.Int64("child_id", child.ID),

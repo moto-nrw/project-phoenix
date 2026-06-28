@@ -1077,6 +1077,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		FormSchemaRepo:           repos.FormSchema,
 		PhaseRepo:                repos.Phase,
 		SchoolRepo:               repos.School,
+		GuardianProfileRepo:      repos.GuardianProfile,
+		GuardianPhoneRepo:        repos.GuardianPhoneNumber,
 		DecisionService:          enrollmentDecisionApplier,
 		Settings:                 settingsService,
 		OutboxEnqueuer:           platform.NewEnrollmentOutboxAdapter(emailOutboxService),

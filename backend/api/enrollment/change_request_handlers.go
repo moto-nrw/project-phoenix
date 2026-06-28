@@ -91,7 +91,7 @@ func (rs *Resource) createChangeRequest(w http.ResponseWriter, r *http.Request) 
 		mapChangeRequestError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusCreated, toChangeRequestResponse(agg, false), "Change request created")
+	common.Respond(w, r, http.StatusCreated, toChangeRequestResponse(agg, false, false), "Change request created")
 }
 
 func (rs *Resource) listPublicChangeRequests(w http.ResponseWriter, r *http.Request) {
@@ -111,7 +111,7 @@ func (rs *Resource) listPublicChangeRequests(w http.ResponseWriter, r *http.Requ
 	}
 	out := make([]ChangeRequestResponse, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, toChangeRequestResponse(row, false))
+		out = append(out, toChangeRequestResponse(row, false, false))
 	}
 	common.Respond(w, r, http.StatusOK, out, "Change requests retrieved")
 }
@@ -139,7 +139,7 @@ func (rs *Resource) replyToChangeRequest(w http.ResponseWriter, r *http.Request)
 		mapChangeRequestError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toChangeRequestResponse(agg, false), "Change request reply created")
+	common.Respond(w, r, http.StatusOK, toChangeRequestResponse(agg, false, false), "Change request reply created")
 }
 
 func (rs *Resource) listAdminChangeRequests(w http.ResponseWriter, r *http.Request) {
@@ -170,7 +170,7 @@ func (rs *Resource) listAdminChangeRequests(w http.ResponseWriter, r *http.Reque
 	}
 	out := make([]ChangeRequestResponse, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, toChangeRequestResponse(row, true))
+		out = append(out, toChangeRequestResponse(row, true, true))
 	}
 	common.Respond(w, r, http.StatusOK, out, "Admin change requests retrieved")
 }
@@ -190,7 +190,7 @@ func (rs *Resource) getAdminChangeRequest(w http.ResponseWriter, r *http.Request
 		mapChangeRequestError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toChangeRequestResponse(agg, true), "Admin change request retrieved")
+	common.Respond(w, r, http.StatusOK, toChangeRequestResponse(agg, true, true), "Admin change request retrieved")
 }
 
 func (rs *Resource) askChangeRequestQuestion(w http.ResponseWriter, r *http.Request) {
@@ -217,7 +217,7 @@ func (rs *Resource) askChangeRequestQuestion(w http.ResponseWriter, r *http.Requ
 		mapChangeRequestError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toChangeRequestResponse(agg, true), "Change request question created")
+	common.Respond(w, r, http.StatusOK, toChangeRequestResponse(agg, true, true), "Change request question created")
 }
 
 func (rs *Resource) approveChangeRequest(w http.ResponseWriter, r *http.Request) {
@@ -258,7 +258,7 @@ func (rs *Resource) reviewChangeRequest(w http.ResponseWriter, r *http.Request, 
 		mapChangeRequestError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toChangeRequestResponse(agg, true), "Change request reviewed")
+	common.Respond(w, r, http.StatusOK, toChangeRequestResponse(agg, true, true), "Change request reviewed")
 }
 
 func changeRequestIDParam(w http.ResponseWriter, r *http.Request) (int64, bool) {
@@ -270,7 +270,7 @@ func changeRequestIDParam(w http.ResponseWriter, r *http.Request) (int64, bool) 
 	return id, true
 }
 
-func toChangeRequestResponse(agg *enrollmentService.ChangeRequestAggregate, includeRequest bool) ChangeRequestResponse {
+func toChangeRequestResponse(agg *enrollmentService.ChangeRequestAggregate, includeRequest bool, includeInternal bool) ChangeRequestResponse {
 	if agg == nil || agg.ChangeRequest == nil {
 		return ChangeRequestResponse{}
 	}
@@ -287,17 +287,22 @@ func toChangeRequestResponse(agg *enrollmentService.ChangeRequestAggregate, incl
 		CreatedAt:         row.CreatedAt,
 		UpdatedAt:         row.UpdatedAt,
 		ReviewedAt:        row.ReviewedAt,
-		ReviewedBy:        row.ReviewedByAccountID,
+	}
+	if includeInternal {
+		resp.ReviewedBy = row.ReviewedByAccountID
 	}
 	for _, msg := range agg.Messages {
-		resp.Messages = append(resp.Messages, ChangeRequestMessageResponse{
-			ID:              strconv.FormatInt(msg.ID, 10),
-			AuthorType:      msg.AuthorType,
-			AuthorAccountID: msg.AuthorAccountID,
-			Body:            msg.Body,
-			InternalOnly:    msg.InternalOnly,
-			CreatedAt:       msg.CreatedAt,
-		})
+		out := ChangeRequestMessageResponse{
+			ID:           strconv.FormatInt(msg.ID, 10),
+			AuthorType:   msg.AuthorType,
+			Body:         msg.Body,
+			InternalOnly: msg.InternalOnly,
+			CreatedAt:    msg.CreatedAt,
+		}
+		if includeInternal {
+			out.AuthorAccountID = msg.AuthorAccountID
+		}
+		resp.Messages = append(resp.Messages, out)
 	}
 	if includeRequest && agg.Request != nil {
 		summary := &enrollmentService.RequestSummary{
@@ -319,6 +324,8 @@ func mapChangeRequestError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, enrollmentService.ErrChangeRequestNotAllowed),
 		errors.Is(err, enrollmentService.ErrEditNotAllowed):
 		common.RenderError(w, r, common.ErrorForbidden(err))
+	case errors.Is(err, enrollmentService.ErrChangeRequestConflict):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.change_request_conflict"))
 	case errors.Is(err, enrollmentService.ErrChangeRequestInvalidStatus),
 		errors.Is(err, enrollmentService.ErrChangeRequestInvalidData):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))

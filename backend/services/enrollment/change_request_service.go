@@ -16,6 +16,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -25,6 +26,7 @@ var (
 	ErrChangeRequestNotAllowed    = errors.New("enrollment change request is not allowed")
 	ErrChangeRequestInvalidStatus = errors.New("enrollment change request has invalid status")
 	ErrChangeRequestInvalidData   = errors.New("enrollment change request data is invalid")
+	ErrChangeRequestConflict      = errors.New("enrollment change request conflicts with newer enrollment data")
 )
 
 type CreateChangeRequestInput struct {
@@ -85,6 +87,8 @@ type ChangeRequestServiceConfig struct {
 	FormSchemaRepo           enrollmentModels.FormSchemaRepository
 	PhaseRepo                enrollmentModels.PhaseRepository
 	SchoolRepo               platformModels.SchoolRepository
+	GuardianProfileRepo      userModels.GuardianProfileRepository
+	GuardianPhoneRepo        userModels.GuardianPhoneNumberRepository
 	DecisionService          ChangeRequestDecisionApplier
 	Settings                 RequestSettingsResolver
 	OutboxEnqueuer           OutboxEnqueuer
@@ -105,6 +109,8 @@ type changeRequestService struct {
 	formSchemaRepo           enrollmentModels.FormSchemaRepository
 	phaseRepo                enrollmentModels.PhaseRepository
 	schoolRepo               platformModels.SchoolRepository
+	guardianProfileRepo      userModels.GuardianProfileRepository
+	guardianPhoneRepo        userModels.GuardianPhoneNumberRepository
 	decisionService          ChangeRequestDecisionApplier
 	settings                 RequestSettingsResolver
 	outboxEnqueuer           OutboxEnqueuer
@@ -134,6 +140,8 @@ func NewChangeRequestService(cfg ChangeRequestServiceConfig) ChangeRequestServic
 		formSchemaRepo:           cfg.FormSchemaRepo,
 		phaseRepo:                cfg.PhaseRepo,
 		schoolRepo:               cfg.SchoolRepo,
+		guardianProfileRepo:      cfg.GuardianProfileRepo,
+		guardianPhoneRepo:        cfg.GuardianPhoneRepo,
 		decisionService:          cfg.DecisionService,
 		settings:                 cfg.Settings,
 		outboxEnqueuer:           cfg.OutboxEnqueuer,
@@ -161,6 +169,9 @@ func (s *changeRequestService) Create(ctx context.Context, token string, input C
 			return fmt.Errorf("change request: lock children: %w", err)
 		}
 		if err := s.ensureCanCreate(txCtx, lockedReq, children); err != nil {
+			return err
+		}
+		if err := s.ensureNoOpenChangeRequest(txCtx, lockedReq.ID); err != nil {
 			return err
 		}
 		prepared, _, _, err := s.prepareProposed(txCtx, lockedReq, children, input.Submission)
@@ -449,9 +460,7 @@ func (s *changeRequestService) prepareProposed(
 	editReq := incoming
 	editReq.TenantID = req.GetTenantID()
 	editReq.PhaseID = req.PhaseID
-	if strings.TrimSpace(editReq.GuardianEmail) == "" {
-		editReq.GuardianEmail = req.GuardianEmail
-	}
+	editReq.GuardianEmail = req.GuardianEmail
 	editReq.GuardianAccountID = req.GuardianAccountID
 	if editReq.ConsentFlags == nil {
 		editReq.ConsentFlags = map[string]any{}
@@ -461,6 +470,9 @@ func (s *changeRequestService) prepareProposed(
 	}
 	if len(editReq.Children) != len(children) {
 		return editReq, nil, nil, fmt.Errorf("%w: child count changes are not supported for change requests", ErrChangeRequestInvalidData)
+	}
+	if err := validateChangeRequestChildIdentity(children, editReq.Children); err != nil {
+		return editReq, nil, nil, err
 	}
 
 	phase, err := s.phaseRepo.FindByID(ctx, req.PhaseID)
@@ -493,6 +505,9 @@ func (s *changeRequestService) prepareProposed(
 		return editReq, nil, nil, err
 	}
 	if err := rs.validateSubmission(ctx, editReq, legalBlocks); err != nil {
+		return editReq, nil, nil, err
+	}
+	if err := s.validateAccountLinkedGuardianEdits(ctx, req, editReq); err != nil {
 		return editReq, nil, nil, err
 	}
 	editReq.ConsentFlags = filterConsentFlags(editReq.ConsentFlags, legalBlocks)
@@ -593,6 +608,13 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 			return ErrChangeRequestNotAllowed
 		}
 	}
+	current, err := s.currentSnapshot(ctx, req, children)
+	if err != nil {
+		return err
+	}
+	if !jsonEqual(current, row.BaseSnapshot) {
+		return ErrChangeRequestConflict
+	}
 	proposed, err := snapshotToSubmitRequest(row.ProposedSnapshot)
 	if err != nil {
 		return err
@@ -600,6 +622,13 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 	prepared, materializedSelections, _, err := s.prepareProposed(ctx, req, children, proposed)
 	if err != nil {
 		return err
+	}
+	var previousGuardians []*enrollmentModels.RequestGuardian
+	if s.requestGuardianRepo != nil {
+		previousGuardians, err = s.requestGuardianRepo.ListByRequestID(ctx, req.ID)
+		if err != nil {
+			return fmt.Errorf("change request approve: list previous guardians: %w", err)
+		}
 	}
 
 	req.GuardianFirstName = strings.TrimSpace(prepared.GuardianFirstName)
@@ -659,9 +688,12 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 				return err
 			}
 			if _, err := s.decisionService.SyncApprovedChildData(ctx, SyncApprovedChildDataInput{
-				RequestID:      req.ID,
-				ChildID:        existing.ID,
-				ActorAccountID: input.ActorAccountID,
+				RequestID:                req.ID,
+				ChildID:                  existing.ID,
+				ActorAccountID:           input.ActorAccountID,
+				ReplaceTargetedData:      true,
+				PreviousSnapshot:         row.BaseSnapshot,
+				PreviousRequestGuardians: previousGuardians,
 			}); err != nil {
 				return err
 			}
@@ -680,13 +712,213 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 		if err := s.requestChildOfferingRepo.ReplaceForRequestChild(ctx, existing.ID, replacement); err != nil {
 			return err
 		}
-		if existing.Status == enrollmentModels.ChildStatusRejected {
+		if existing.Status == enrollmentModels.ChildStatusRejected && childSnapshotChanged(row.BaseSnapshot, row.ProposedSnapshot, existing.ID) {
 			if err := s.requestChildRepo.UpdateStatus(ctx, existing.ID, enrollmentModels.ChildStatusUnderReview, nil, input.ActorAccountID); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+func (s *changeRequestService) ensureNoOpenChangeRequest(ctx context.Context, requestID int64) error {
+	rows, err := s.changeRequestRepo.ListByRequestID(ctx, requestID)
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+		if row.Status == enrollmentModels.ChangeRequestStatusPendingReview ||
+			row.Status == enrollmentModels.ChangeRequestStatusNeedsParentResponse {
+			return fmt.Errorf("%w: an open change request already exists", ErrChangeRequestNotAllowed)
+		}
+	}
+	return nil
+}
+
+func validateChangeRequestChildIdentity(existing []*enrollmentModels.RequestChild, incoming []SubmitChild) error {
+	if len(existing) != len(incoming) {
+		return fmt.Errorf("%w: child count changes are not supported for change requests", ErrChangeRequestInvalidData)
+	}
+	for i, child := range existing {
+		if incoming[i].ID <= 0 {
+			return fmt.Errorf("%w: child %d id is required", ErrChangeRequestInvalidData, i)
+		}
+		if incoming[i].ID != child.ID {
+			return fmt.Errorf("%w: child order or identity changes are not supported for change requests", ErrChangeRequestInvalidData)
+		}
+	}
+	return nil
+}
+
+func childSnapshotChanged(base, proposed map[string]any, childID int64) bool {
+	baseChild := snapshotChildByID(base, childID)
+	proposedChild := snapshotChildByID(proposed, childID)
+	if baseChild == nil || proposedChild == nil {
+		return false
+	}
+	baseComparable := copySnapshotMapWithoutStatus(baseChild)
+	proposedComparable := copySnapshotMapWithoutStatus(proposedChild)
+	return !jsonEqual(baseComparable, proposedComparable)
+}
+
+func snapshotChildByID(snapshot map[string]any, childID int64) map[string]any {
+	for _, raw := range sliceFromAny(snapshot["children"]) {
+		row := mapFromAny(raw)
+		if int64FromAny(row["id"]) == childID {
+			return row
+		}
+	}
+	return nil
+}
+
+func copySnapshotMapWithoutStatus(in map[string]any) map[string]any {
+	out := make(map[string]any, len(in))
+	for key, value := range in {
+		if key == "status" {
+			continue
+		}
+		out[key] = value
+	}
+	return out
+}
+
+func (s *changeRequestService) validateAccountLinkedGuardianEdits(ctx context.Context, req *enrollmentModels.Request, editReq SubmitRequest) error {
+	if s.guardianProfileRepo == nil {
+		return nil
+	}
+	profile, err := s.primaryGuardianProfile(ctx, req)
+	if err != nil {
+		return fmt.Errorf("change request: load primary guardian profile for account guardrail: %w", err)
+	}
+	if profile != nil && profile.HasPortalAccount() {
+		if !sameTrimmedString(editReq.GuardianFirstName, req.GuardianFirstName) ||
+			!sameTrimmedString(editReq.GuardianLastName, req.GuardianLastName) ||
+			!sameOptionalString(editReq.GuardianPhone, req.GuardianPhone) {
+			return fmt.Errorf("%w: account-linked guardian profile details must be changed in the parent portal", ErrChangeRequestInvalidData)
+		}
+	}
+	if len(editReq.AdditionalGuardians) == 0 || s.requestGuardianRepo == nil {
+		return nil
+	}
+	existing, err := s.requestGuardianRepo.ListByRequestID(ctx, req.ID)
+	if err != nil {
+		return fmt.Errorf("change request: list guardians for account guardrail: %w", err)
+	}
+	for i, guardian := range editReq.AdditionalGuardians {
+		email := optionalLowerEmail(guardian.Email)
+		if email == "" {
+			continue
+		}
+		profile, err := s.guardianProfileRepo.FindByEmail(ctx, email)
+		if err != nil {
+			if errors.Is(err, userModels.ErrGuardianProfileNotFound) {
+				continue
+			}
+			return fmt.Errorf("change request: load co-guardian profile for account guardrail: %w", err)
+		}
+		if profile == nil || !profile.HasPortalAccount() {
+			continue
+		}
+		if old := matchingRequestGuardian(existing, profile.ID, email); old != nil {
+			if !sameTrimmedString(guardian.FirstName, old.FirstName) ||
+				!sameTrimmedString(guardian.LastName, old.LastName) ||
+				!sameOptionalString(guardian.Phone, old.Phone) {
+				return fmt.Errorf("%w: account-linked co-guardian %d details must be changed in the parent portal", ErrChangeRequestInvalidData, i)
+			}
+			continue
+		}
+		if !sameTrimmedString(guardian.FirstName, profile.FirstName) ||
+			!sameTrimmedString(guardian.LastName, profile.LastName) ||
+			!s.submittedPhoneMatchesProfile(ctx, profile.ID, guardian.Phone) {
+			return fmt.Errorf("%w: account-linked co-guardian %d details must match the parent portal profile", ErrChangeRequestInvalidData, i)
+		}
+	}
+	return nil
+}
+
+func (s *changeRequestService) primaryGuardianProfile(ctx context.Context, req *enrollmentModels.Request) (*userModels.GuardianProfile, error) {
+	if s.guardianProfileRepo == nil || req == nil {
+		return nil, nil
+	}
+	if req.GuardianAccountID != nil && *req.GuardianAccountID > 0 {
+		profile, err := s.guardianProfileRepo.FindByAccountID(ctx, *req.GuardianAccountID)
+		if err == nil && profile != nil {
+			return profile, nil
+		}
+		if err != nil && !errors.Is(err, userModels.ErrGuardianProfileNotFound) {
+			return nil, err
+		}
+	}
+	email := strings.TrimSpace(strings.ToLower(req.GuardianEmail))
+	if email == "" {
+		return nil, nil
+	}
+	profile, err := s.guardianProfileRepo.FindByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, userModels.ErrGuardianProfileNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return profile, nil
+}
+
+func matchingRequestGuardian(rows []*enrollmentModels.RequestGuardian, profileID int64, email string) *enrollmentModels.RequestGuardian {
+	email = strings.TrimSpace(strings.ToLower(email))
+	for _, row := range rows {
+		if row == nil {
+			continue
+		}
+		if row.GuardianProfileID != nil && *row.GuardianProfileID == profileID {
+			return row
+		}
+		if email != "" && optionalLowerEmail(row.Email) == email {
+			return row
+		}
+	}
+	return nil
+}
+
+func (s *changeRequestService) submittedPhoneMatchesProfile(ctx context.Context, profileID int64, submitted *string) bool {
+	phone := trimmedOptionalString(submitted)
+	if phone == "" {
+		return true
+	}
+	if s.guardianPhoneRepo == nil {
+		return false
+	}
+	rows, err := s.guardianPhoneRepo.FindByGuardianID(ctx, profileID)
+	if err != nil {
+		return false
+	}
+	for _, row := range rows {
+		if strings.TrimSpace(row.PhoneNumber) == phone {
+			return true
+		}
+	}
+	return false
+}
+
+func sameTrimmedString(left, right string) bool {
+	return strings.TrimSpace(left) == strings.TrimSpace(right)
+}
+
+func sameOptionalString(left, right *string) bool {
+	return trimmedOptionalString(left) == trimmedOptionalString(right)
+}
+
+func trimmedOptionalString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(*value)
+}
+
+func optionalLowerEmail(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(strings.ToLower(*value))
 }
 
 func (s *changeRequestService) withLockedChangeRequest(ctx context.Context, id int64, fn func(context.Context, *enrollmentModels.ChangeRequest) error) error {
@@ -755,7 +987,7 @@ func submitSnapshot(req SubmitRequest) map[string]any {
 				"selected_days": copyDays(row.SelectedDays),
 			})
 		}
-		children = append(children, map[string]any{
+		row := map[string]any{
 			"first_name":         child.FirstName,
 			"last_name":          child.LastName,
 			"date_of_birth":      child.DateOfBirth.String(),
@@ -763,7 +995,11 @@ func submitSnapshot(req SubmitRequest) map[string]any {
 			"custom_data":        child.CustomData,
 			"offering_ids":       offeringIDs,
 			"offering_days":      offeringDays,
-		})
+		}
+		if child.ID > 0 {
+			row["id"] = strconv.FormatInt(child.ID, 10)
+		}
+		children = append(children, row)
 	}
 	guardians := make([]any, 0, len(req.AdditionalGuardians))
 	for _, guardian := range req.AdditionalGuardians {
@@ -904,6 +1140,7 @@ func snapshotToSubmitRequest(snapshot map[string]any) (SubmitRequest, error) {
 			return out, fmt.Errorf("%w: child %d date_of_birth", ErrChangeRequestInvalidData, i)
 		}
 		child := SubmitChild{
+			ID:               int64FromAny(row["id"]),
 			FirstName:        stringFromAny(row["first_name"]),
 			LastName:         stringFromAny(row["last_name"]),
 			DateOfBirth:      dob,
@@ -1024,44 +1261,56 @@ func (s *changeRequestService) enqueueChangeRequestSubmitted(ctx context.Context
 	if s.outboxEnqueuer == nil {
 		return
 	}
-	_ = tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	kind := platformModels.EmailKindEnrollmentChangeRequestSubmitted
+	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		if !s.emailNotificationsEnabled(txCtx) {
 			return nil
 		}
 		for _, admin := range (&requestService{settings: s.settings}).resolveAdminEmails(txCtx) {
 			payload := s.emailPayload(txCtx, req, cr.ID, admin)
 			payload[EnrollmentPayloadAdminURL] = s.adminURL(cr.ID)
-			_ = s.outboxEnqueuer.Enqueue(txCtx, OutboxEnqueueRequest{
-				Kind:              platformModels.EmailKindEnrollmentChangeRequestSubmitted,
+			if enqueueErr := s.outboxEnqueuer.Enqueue(txCtx, OutboxEnqueueRequest{
+				Kind:              kind,
 				Payload:           payload,
 				RelatedEntityType: platformModels.EmailRelatedTypeEnrollmentRequest,
 				RelatedEntityID:   req.ID,
-			})
+			}); enqueueErr != nil {
+				s.logChangeRequestNotificationFailure(enqueueErr, tenantID, req.ID, cr.ID, kind, admin, "enqueue")
+			}
 		}
 		return nil
 	})
+	if err != nil {
+		s.logChangeRequestNotificationFailure(err, tenantID, req.ID, cr.ID, kind, "", "tenant_tx")
+	}
 }
 
 func (s *changeRequestService) enqueueParentReply(ctx context.Context, tenantID int64, req *enrollmentModels.Request, changeRequestID int64) {
 	if s.outboxEnqueuer == nil {
 		return
 	}
-	_ = tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	kind := platformModels.EmailKindEnrollmentChangeRequestParentReply
+	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		if !s.emailNotificationsEnabled(txCtx) {
 			return nil
 		}
 		for _, admin := range (&requestService{settings: s.settings}).resolveAdminEmails(txCtx) {
 			payload := s.emailPayload(txCtx, req, changeRequestID, admin)
 			payload[EnrollmentPayloadAdminURL] = s.adminURL(changeRequestID)
-			_ = s.outboxEnqueuer.Enqueue(txCtx, OutboxEnqueueRequest{
-				Kind:              platformModels.EmailKindEnrollmentChangeRequestParentReply,
+			if enqueueErr := s.outboxEnqueuer.Enqueue(txCtx, OutboxEnqueueRequest{
+				Kind:              kind,
 				Payload:           payload,
 				RelatedEntityType: platformModels.EmailRelatedTypeEnrollmentRequest,
 				RelatedEntityID:   req.ID,
-			})
+			}); enqueueErr != nil {
+				s.logChangeRequestNotificationFailure(enqueueErr, tenantID, req.ID, changeRequestID, kind, admin, "enqueue")
+			}
 		}
 		return nil
 	})
+	if err != nil {
+		s.logChangeRequestNotificationFailure(err, tenantID, req.ID, changeRequestID, kind, "", "tenant_tx")
+	}
 }
 
 func (s *changeRequestService) enqueueAdminQuestion(ctx context.Context, tenantID int64, req *enrollmentModels.Request, changeRequestID int64) {
@@ -1076,19 +1325,39 @@ func (s *changeRequestService) enqueueParentNotification(ctx context.Context, te
 	if s.outboxEnqueuer == nil {
 		return
 	}
-	_ = tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		if !s.emailNotificationsEnabled(txCtx) {
 			return nil
 		}
 		payload := s.emailPayload(txCtx, req, changeRequestID, req.GuardianEmail)
-		_ = s.outboxEnqueuer.Enqueue(txCtx, OutboxEnqueueRequest{
+		if enqueueErr := s.outboxEnqueuer.Enqueue(txCtx, OutboxEnqueueRequest{
 			Kind:              kind,
 			Payload:           payload,
 			RelatedEntityType: platformModels.EmailRelatedTypeEnrollmentRequest,
 			RelatedEntityID:   req.ID,
-		})
+		}); enqueueErr != nil {
+			s.logChangeRequestNotificationFailure(enqueueErr, tenantID, req.ID, changeRequestID, kind, req.GuardianEmail, "enqueue")
+		}
 		return nil
 	})
+	if err != nil {
+		s.logChangeRequestNotificationFailure(err, tenantID, req.ID, changeRequestID, kind, req.GuardianEmail, "tenant_tx")
+	}
+}
+
+func (s *changeRequestService) logChangeRequestNotificationFailure(err error, tenantID, requestID, changeRequestID int64, kind, recipient, stage string) {
+	if err == nil || s.logger == nil {
+		return
+	}
+	s.logger.Warn("change request notification enqueue failed",
+		slog.String("stage", stage),
+		slog.Int64("tenant_id", tenantID),
+		slog.Int64("request_id", requestID),
+		slog.Int64("change_request_id", changeRequestID),
+		slog.String("kind", kind),
+		slog.String("recipient", recipient),
+		slog.String("error", err.Error()),
+	)
 }
 
 func (s *changeRequestService) emailPayload(ctx context.Context, req *enrollmentModels.Request, changeRequestID int64, recipient string) map[string]any {
