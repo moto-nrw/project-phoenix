@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	parentMessagingVersion     = "1.15.148"
+	parentMessagingVersion     = "1.15.149"
 	parentMessagingDescription = "Create parent-OGS messaging tables (threads, messages, reads), backfill from student_parent_notes, then drop that table"
 )
 
@@ -19,6 +19,7 @@ func init() {
 		Version:     parentMessagingVersion,
 		Description: parentMessagingDescription,
 		DependsOn: []string{
+			"1.15.148", // enrollment.change_requests (keeps deterministic order after dev's 148)
 			"1.15.114", // users.student_parent_notes (backfill source)
 			"1.3.5",    // users.students
 			"1.3.5.1",  // users.guardian_profiles (note-backfill join, lines ~198/216)
@@ -39,7 +40,7 @@ func init() {
 }
 
 func parentMessagingUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.148: Creating parent messaging tables...")
+	fmt.Println("Migration 1.15.149: Creating parent messaging tables...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -321,7 +322,7 @@ func parentMessagingUp(ctx context.Context, db *bun.DB) error {
 }
 
 func parentMessagingDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.148: Dropping parent messaging tables...")
+	fmt.Println("Rolling back migration 1.15.149: Dropping parent messaging tables...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -387,12 +388,13 @@ func parentMessagingDown(ctx context.Context, db *bun.DB) error {
 	// is non-blank.
 	//
 	// Filter ONLY on sender_kind = 'guardian'. The `kind` column does not exist at
-	// this migration's own schema level — it is added by 1.15.149, whose down
-	// migration (which DependsOn 1.15.148, so it runs first on a reverse-order
-	// rollback) has already DROP COLUMN'd it by the time this runs. Referencing
-	// m.kind here would fail with "column m.kind does not exist" and abort the whole
-	// rollback, restoring zero notes. At the 1.15.148 schema every guardian row is a
-	// plain message; the few guardian-authored request rows (added by 1.15.149) carry
+	// this migration's own schema level — it is added by 1.15.150 (the follow-up
+	// requests migration), whose down migration (which DependsOn 1.15.149, so it
+	// runs first on a reverse-order rollback) has already DROP COLUMN'd it by the
+	// time this runs. Referencing m.kind here would fail with "column m.kind does
+	// not exist" and abort the whole rollback, restoring zero notes. At the 1.15.149
+	// schema every guardian row is a plain message; the few guardian-authored
+	// request rows (added by 1.15.150) carry
 	// human-readable German bodies ("Anfrage: …"), so restoring them as notes is
 	// harmless and there is no surviving column to distinguish them anyway.
 	_, err = tx.ExecContext(ctx, `
