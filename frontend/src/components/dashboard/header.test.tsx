@@ -245,7 +245,7 @@ describe("Header", () => {
   });
 
   it("renders database breadcrumb for database pages", () => {
-    mockUsePathname.mockReturnValue("/database/groups/combined");
+    mockUsePathname.mockReturnValue("/database/groups");
 
     render(<Header />);
     expect(screen.getByTestId("database-breadcrumb")).toBeInTheDocument();

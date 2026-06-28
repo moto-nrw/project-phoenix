@@ -106,11 +106,7 @@ vi.mock("./group-helpers", () => ({
   mapSingleGroupResponse: vi.fn(<T>(data: T): T => data),
   mapGroupResponse: vi.fn(<T>(data: T): T => data),
   prepareGroupForBackend: vi.fn(<T>(data: T): T => data),
-  mapSingleCombinedGroupResponse: vi.fn(<T>(data: T): T => data),
-  prepareCombinedGroupForBackend: vi.fn(<T>(data: T): T => data),
   mapGroupsResponse: vi.fn(<T>(data: T): T => data),
-  mapCombinedGroupsResponse: vi.fn(<T>(data: T): T => data),
-  mapCombinedGroupResponse: vi.fn(<T>(data: T): T => data),
 }));
 
 vi.mock("./room-helpers", () => ({
