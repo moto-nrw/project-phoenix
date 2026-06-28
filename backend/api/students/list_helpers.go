@@ -3,6 +3,7 @@ package students
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -108,6 +109,14 @@ func (p *studentListParams) hasAdministrativeFilters() bool {
 		isActiveFilterValue(p.pickupStatus)
 }
 
+func (p *studentListParams) canUseGroupOnlyShortcut() bool {
+	return p.schoolClass == "" &&
+		p.guardianName == "" &&
+		p.roomID == 0 &&
+		len(p.studentIDs) == 0 &&
+		!p.hasInMemoryFilters()
+}
+
 // isActiveFilterValue treats both empty and the neutral "all" sentinel as "off".
 func isActiveFilterValue(value string) bool {
 	return value != "" && value != "all"
@@ -122,11 +131,13 @@ func parseDayStatusParam(value string) string {
 	}
 }
 
-// buildBaseFilter creates the shared filter for school_class and guardian_name
+// buildBaseFilter creates the shared filter for school_class and guardian_name.
+// school_class is an exact class selector for class rosters; free text class
+// search still belongs in the broader `search` parameter.
 func (p *studentListParams) buildBaseFilter() *base.Filter {
 	filter := base.NewFilter()
-	if p.schoolClass != "" {
-		filter.ILike("school_class", "%"+p.schoolClass+"%")
+	if schoolClass := strings.TrimSpace(p.schoolClass); schoolClass != "" {
+		filter.TrimEqual("school_class", schoolClass)
 	}
 	if p.guardianName != "" {
 		filter.ILike("guardian_name", "%"+p.guardianName+"%")

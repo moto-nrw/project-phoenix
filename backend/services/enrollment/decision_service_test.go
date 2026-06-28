@@ -100,6 +100,13 @@ func setupDecisionTestWithSettings(
 	return &decisionTestEnv{rolloverTestEnv: env, decision: decision}, cleanup
 }
 
+func changeRequestApplierForTest(t *testing.T, env *decisionTestEnv) enrollmentService.ChangeRequestDecisionApplier {
+	t.Helper()
+	applier, ok := env.decision.(enrollmentService.ChangeRequestDecisionApplier)
+	require.True(t, ok, "decision service must implement the change-request applier contract")
+	return applier
+}
+
 // submitOneChild submits a single-child enrollment in the source
 // phase and returns the resulting request + child ids so tests can
 // drive Decide against a known row.
@@ -174,6 +181,71 @@ func publishDecisionScheduleSchema(t *testing.T, env *decisionTestEnv, key, targ
 	require.NoError(t, err)
 	env.sourcePhase.FormSchemaID = &schema.ID
 	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
+}
+
+func publishLegacyDuplicateTargetSchema(t *testing.T, env *decisionTestEnv, name string, fields []enrollmentModels.FormField) {
+	t.Helper()
+	ctx := testpkg.TenantContext(1)
+	schema := &enrollmentModels.FormSchema{
+		Name:      name,
+		Version:   1,
+		CreatedBy: env.creatorID,
+		Fields:    fields,
+	}
+	schema.SetTenantID(1)
+	_, err := env.db.NewInsert().Model(schema).
+		ModelTableExpr(`enrollment.form_schemas AS "form_schema"`).
+		Returning("*").Exec(ctx)
+	require.NoError(t, err)
+	require.Greater(t, schema.ID, int64(0))
+
+	env.sourcePhase.FormSchemaID = &schema.ID
+	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
+}
+
+func publishDecisionContactListSchema(t *testing.T, env *decisionTestEnv) {
+	t.Helper()
+	ctx := testpkg.TenantContext(1)
+	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
+		Repo:   env.repos.FormSchema,
+		Logger: slog.Default(),
+	})
+	schema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{{
+		Key:         "contacts",
+		Label:       "Weitere Kontakte",
+		Type:        enrollmentModels.FormFieldContactList,
+		Target:      enrollmentModels.TargetStudentContacts,
+		AppliesToCh: true,
+		SortOrder:   0,
+	}}, env.creatorID)
+	require.NoError(t, err)
+	env.sourcePhase.FormSchemaID = &schema.ID
+	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
+}
+
+func phoneOnlyContactEntry(firstName, lastName, phone string, isEmergencyContact, canPickup bool) map[string]any {
+	return map[string]any{
+		"first_name": firstName,
+		"last_name":  lastName,
+		"phone_numbers": []any{map[string]any{
+			"phone_number": phone,
+			"phone_type":   "mobile",
+			"is_primary":   true,
+		}},
+		"is_emergency_contact": isEmergencyContact,
+		"can_pickup":           canPickup,
+	}
+}
+
+func contactSnapshot(childID int64, contacts []any) map[string]any {
+	return map[string]any{
+		"children": []any{map[string]any{
+			"id": childID,
+			"custom_data": map[string]any{
+				"contacts": contacts,
+			},
+		}},
+	}
 }
 
 func createReviewerStaffWithDistinctAccount(t *testing.T, env *decisionTestEnv) (*usersModels.Staff, int64) {
@@ -546,6 +618,327 @@ func TestDecisionService_Decide_ApprovedLinksAdditionalGuardians(t *testing.T) {
 	}
 }
 
+func TestDecisionService_SyncApprovedChildData_RelinksPrimaryGuardian(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	reqID, childID := submitOneChild(t, env, "old-primary@example.com", "Lina", "PrimaryRelink")
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	beforeLinks, err := env.repos.StudentGuardian.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	require.Len(t, beforeLinks, 1)
+	oldProfileID := beforeLinks[0].GuardianProfileID
+
+	req, err := env.repos.Request.FindByID(ctx, reqID)
+	require.NoError(t, err)
+	req.GuardianFirstName = "Neue"
+	req.GuardianLastName = "Hauptperson"
+	req.GuardianEmail = "new-primary@example.com"
+	require.NoError(t, env.repos.Request.UpdateGuardianDataWithEmail(ctx, req))
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, enrollmentService.SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      env.creatorID,
+		ReplaceTargetedData: true,
+	})
+	require.NoError(t, err)
+
+	afterLinks, err := env.repos.StudentGuardian.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	require.Len(t, afterLinks, 1)
+	assert.True(t, afterLinks[0].IsPrimary)
+	assert.NotEqual(t, oldProfileID, afterLinks[0].GuardianProfileID)
+	assert.Equal(t, authorize.GuardianRolePrimaryGuardian, afterLinks[0].GuardianRole)
+	assert.True(t, authorize.StudentGuardianHasPermission(afterLinks[0], authorize.GuardianPermissionPortalAccess))
+
+	newProfile, err := env.repos.GuardianProfile.FindByEmail(ctx, "new-primary@example.com")
+	require.NoError(t, err)
+	assert.Equal(t, newProfile.ID, afterLinks[0].GuardianProfileID)
+}
+
+func TestDecisionService_SyncApprovedChildData_UpdatesStandalonePrimaryGuardianName(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	reqID, childID := submitOneChild(t, env, "primary-name-correction@example.com", "Lina", "NameCorrection")
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	before, err := env.repos.GuardianProfile.FindByEmail(ctx, "primary-name-correction@example.com")
+	require.NoError(t, err)
+	assert.Equal(t, "Eltern", before.FirstName)
+	assert.Equal(t, "Test", before.LastName)
+
+	req, err := env.repos.Request.FindByID(ctx, reqID)
+	require.NoError(t, err)
+	req.GuardianFirstName = "Mara"
+	req.GuardianLastName = "Korrigiert"
+	require.NoError(t, env.repos.Request.UpdateGuardianDataWithEmail(ctx, req))
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, enrollmentService.SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      env.creatorID,
+		ReplaceTargetedData: true,
+	})
+	require.NoError(t, err)
+
+	after, err := env.repos.GuardianProfile.FindByEmail(ctx, "primary-name-correction@example.com")
+	require.NoError(t, err)
+	assert.Equal(t, "Mara", after.FirstName)
+	assert.Equal(t, "Korrigiert", after.LastName)
+}
+
+func TestDecisionService_SyncApprovedChildData_DoesNotOverwriteAccountLinkedPrimaryGuardianName(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	reqID, childID := submitOneChild(t, env, "primary-account-name@example.com", "Lina", "AccountName")
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	profile, err := env.repos.GuardianProfile.FindByEmail(ctx, "primary-account-name@example.com")
+	require.NoError(t, err)
+	_, account := testpkg.CreateTestPersonWithAccount(t, env.db, "Portal", "Parent")
+	require.NoError(t, env.repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
+
+	req, err := env.repos.Request.FindByID(ctx, reqID)
+	require.NoError(t, err)
+	req.GuardianFirstName = "Nicht"
+	req.GuardianLastName = "Ueberschreiben"
+	require.NoError(t, env.repos.Request.UpdateGuardianDataWithEmail(ctx, req))
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, enrollmentService.SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      env.creatorID,
+		ReplaceTargetedData: true,
+	})
+	require.NoError(t, err)
+
+	after, err := env.repos.GuardianProfile.FindByID(ctx, profile.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Eltern", after.FirstName)
+	assert.Equal(t, "Test", after.LastName)
+	require.NotNil(t, after.AccountID)
+	assert.Equal(t, account.ID, *after.AccountID)
+}
+
+func TestDecisionService_SyncApprovedChildData_ReconcilesRemovedAdditionalGuardians(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	reqID, childID := submitOneChild(t, env, "primary-reconcile@example.com", "Lina", "CoGuardian")
+	oldEmail := "old-co-guardian@example.com"
+	require.NoError(t, env.repos.RequestGuardian.Create(ctx, &enrollmentModels.RequestGuardian{
+		RequestID: reqID,
+		FirstName: "Old",
+		LastName:  "Guardian",
+		Email:     &oldEmail,
+		SortOrder: 0,
+	}))
+
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	previousGuardians, err := env.repos.RequestGuardian.ListByRequestID(ctx, reqID)
+	require.NoError(t, err)
+	require.Len(t, previousGuardians, 1)
+	require.NotNil(t, previousGuardians[0].GuardianProfileID)
+	oldProfileID := *previousGuardians[0].GuardianProfileID
+
+	require.NoError(t, env.repos.RequestGuardian.DeleteByRequestID(ctx, reqID))
+	newEmail := "new-co-guardian@example.com"
+	require.NoError(t, env.repos.RequestGuardian.Create(ctx, &enrollmentModels.RequestGuardian{
+		RequestID: reqID,
+		FirstName: "New",
+		LastName:  "Guardian",
+		Email:     &newEmail,
+		SortOrder: 0,
+	}))
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, enrollmentService.SyncApprovedChildDataInput{
+		RequestID:                reqID,
+		ChildID:                  childID,
+		ActorAccountID:           env.creatorID,
+		ReplaceTargetedData:      true,
+		PreviousRequestGuardians: previousGuardians,
+	})
+	require.NoError(t, err)
+
+	newProfile, err := env.repos.GuardianProfile.FindByEmail(ctx, newEmail)
+	require.NoError(t, err)
+	links, err := env.repos.StudentGuardian.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	var oldLinked bool
+	var newLinked bool
+	for _, link := range links {
+		if link.GuardianProfileID == oldProfileID {
+			oldLinked = true
+		}
+		if link.GuardianProfileID == newProfile.ID {
+			newLinked = true
+			assert.False(t, link.IsPrimary)
+			assert.True(t, link.IsEmergencyContact)
+			assert.True(t, link.CanPickup)
+		}
+	}
+	assert.False(t, oldLinked, "removed co-guardian must lose the approved child link")
+	assert.True(t, newLinked, "new co-guardian must be linked to the approved child")
+}
+
+func TestDecisionService_SyncApprovedChildData_UpgradesExistingContactListLinkForCoGuardian(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	publishDecisionContactListSchema(t, env)
+
+	contactEmail := "weak-contact-to-coguardian@example.com"
+	weakContact := map[string]any{
+		"first_name":           "Weak",
+		"last_name":            "Contact",
+		"email":                contactEmail,
+		"is_emergency_contact": false,
+		"can_pickup":           false,
+	}
+	reqID, childID := submitOneChildWithCustomData(t, env, "primary-upgrade-coguardian@example.com", "Lina", "Upgrade", map[string]any{
+		"contacts": []any{weakContact},
+	})
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	profile, err := env.repos.GuardianProfile.FindByEmail(ctx, contactEmail)
+	require.NoError(t, err)
+	links, err := env.repos.StudentGuardian.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	var weakLink *usersModels.StudentGuardian
+	for _, link := range links {
+		if link != nil && link.GuardianProfileID == profile.ID {
+			weakLink = link
+			break
+		}
+	}
+	require.NotNil(t, weakLink)
+	require.False(t, weakLink.IsEmergencyContact)
+	require.False(t, weakLink.CanPickup)
+
+	require.NoError(t, env.repos.RequestGuardian.Create(ctx, &enrollmentModels.RequestGuardian{
+		RequestID: reqID,
+		FirstName: "Weak",
+		LastName:  "Contact",
+		Email:     &contactEmail,
+		SortOrder: 0,
+	}))
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, enrollmentService.SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      env.creatorID,
+		ReplaceTargetedData: true,
+	})
+	require.NoError(t, err)
+
+	links, err = env.repos.StudentGuardian.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	var upgraded *usersModels.StudentGuardian
+	for _, link := range links {
+		if link != nil && link.GuardianProfileID == profile.ID {
+			upgraded = link
+			break
+		}
+	}
+	require.NotNil(t, upgraded)
+	assert.False(t, upgraded.IsPrimary)
+	assert.True(t, upgraded.IsEmergencyContact)
+	assert.True(t, upgraded.CanPickup)
+	assert.Equal(t, authorize.GuardianRoleEmergency, upgraded.GuardianRole)
+	assert.False(t, authorize.StudentGuardianHasPermission(upgraded, authorize.GuardianPermissionPortalAccess))
+}
+
+func TestDecisionService_Decide_UpdatesStandaloneCoGuardianNameWhenReusingEmail(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	reqID, childID := submitOneChild(t, env, "primary-coguardian-name@example.com", "Kjell", "CoGuardianName")
+	email := "coguardian-name-correction@example.com"
+	profile := &usersModels.GuardianProfile{
+		FirstName:              "Old",
+		LastName:               "Name",
+		Email:                  &email,
+		PreferredContactMethod: "email",
+		LanguagePreference:     "de",
+	}
+	profile.SetTenantID(1)
+	require.NoError(t, env.repos.GuardianProfile.Create(ctx, profile))
+	require.NoError(t, env.repos.RequestGuardian.Create(ctx, &enrollmentModels.RequestGuardian{
+		RequestID: reqID,
+		FirstName: "New",
+		LastName:  "Name",
+		Email:     &email,
+		SortOrder: 0,
+	}))
+
+	_, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+
+	updated, err := env.repos.GuardianProfile.FindByEmail(ctx, email)
+	require.NoError(t, err)
+	assert.Equal(t, profile.ID, updated.ID)
+	assert.Equal(t, "New", updated.FirstName)
+	assert.Equal(t, "Name", updated.LastName)
+}
+
 // TestDecisionService_Decide_PersistsCoGuardianPhone verifies that on
 // approval a co-guardian's phone number is written to
 // users.guardian_phone_numbers, mirroring the primary guardian. The
@@ -592,6 +985,255 @@ func TestDecisionService_Decide_PersistsCoGuardianPhone(t *testing.T) {
 		assert.Equal(t, wantPhone[ex.FirstName], phones[0].PhoneNumber)
 		assert.True(t, phones[0].IsPrimary, "the co-guardian's only number is their primary")
 	}
+}
+
+func TestDecisionService_SyncApprovedChildData_ReplacesRemovedContactList(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
+		Repo:   env.repos.FormSchema,
+		Logger: slog.Default(),
+	})
+	schema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{{
+		Key:         "contacts",
+		Label:       "Weitere Kontakte",
+		Type:        enrollmentModels.FormFieldContactList,
+		Target:      enrollmentModels.TargetStudentContacts,
+		AppliesToCh: true,
+		SortOrder:   0,
+	}}, env.creatorID)
+	require.NoError(t, err)
+	env.sourcePhase.FormSchemaID = &schema.ID
+	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
+
+	oldEmail := "old-contact-list@example.com"
+	reqID, childID := submitOneChildWithCustomData(t, env, "primary-contact-list@example.com", "Lina", "Contacts", map[string]any{
+		"contacts": []any{map[string]any{
+			"first_name":           "Old",
+			"last_name":            "Contact",
+			"email":                oldEmail,
+			"is_emergency_contact": true,
+			"can_pickup":           true,
+		}},
+	})
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	oldProfile, err := env.repos.GuardianProfile.FindByEmail(ctx, oldEmail)
+	require.NoError(t, err)
+	links, err := env.repos.StudentGuardian.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(links), 2)
+
+	child, err := env.repos.RequestChild.FindByID(ctx, childID)
+	require.NoError(t, err)
+	child.CustomData = map[string]any{}
+	require.NoError(t, env.repos.RequestChild.UpdateData(ctx, child))
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, enrollmentService.SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      env.creatorID,
+		ReplaceTargetedData: true,
+		PreviousSnapshot: map[string]any{
+			"children": []any{map[string]any{
+				"id": childID,
+				"custom_data": map[string]any{
+					"contacts": []any{map[string]any{
+						"first_name":           "Old",
+						"last_name":            "Contact",
+						"email":                oldEmail,
+						"is_emergency_contact": true,
+						"can_pickup":           true,
+					}},
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	links, err = env.repos.StudentGuardian.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	for _, link := range links {
+		assert.NotEqual(t, oldProfile.ID, link.GuardianProfileID, "removed contact-list guardian must lose the approved child link")
+	}
+}
+
+func TestDecisionService_SyncApprovedChildData_ReplacesRemovedPhoneOnlyContactList(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	publishDecisionContactListSchema(t, env)
+
+	contact := phoneOnlyContactEntry("Phone", "Only", "0176 111222", true, true)
+	reqID, childID := submitOneChildWithCustomData(t, env, "primary-phone-remove@example.com", "Lina", "PhoneRemove", map[string]any{
+		"contacts": []any{contact},
+	})
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	links, err := env.repos.StudentGuardian.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	var oldProfileID int64
+	for _, link := range links {
+		if link != nil && !link.IsPrimary {
+			oldProfileID = link.GuardianProfileID
+			break
+		}
+	}
+	require.NotZero(t, oldProfileID, "initial approval must create a phone-only contact link")
+
+	child, err := env.repos.RequestChild.FindByID(ctx, childID)
+	require.NoError(t, err)
+	child.CustomData = map[string]any{}
+	require.NoError(t, env.repos.RequestChild.UpdateData(ctx, child))
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, enrollmentService.SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      env.creatorID,
+		ReplaceTargetedData: true,
+		PreviousSnapshot:    contactSnapshot(childID, []any{contact}),
+	})
+	require.NoError(t, err)
+
+	links, err = env.repos.StudentGuardian.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	for _, link := range links {
+		assert.NotEqual(t, oldProfileID, link.GuardianProfileID, "removed phone-only contact must lose the approved child link")
+	}
+}
+
+func TestDecisionService_SyncApprovedChildData_ReusesUnchangedPhoneOnlyContactList(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	publishDecisionContactListSchema(t, env)
+
+	contact := phoneOnlyContactEntry("Phone", "Stable", "0176 333444", true, true)
+	reqID, childID := submitOneChildWithCustomData(t, env, "primary-phone-reuse@example.com", "Lina", "PhoneReuse", map[string]any{
+		"contacts": []any{contact},
+	})
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	child, err := env.repos.RequestChild.FindByID(ctx, childID)
+	require.NoError(t, err)
+	child.CustomData = map[string]any{"contacts": []any{contact}}
+	require.NoError(t, env.repos.RequestChild.UpdateData(ctx, child))
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, enrollmentService.SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      env.creatorID,
+		ReplaceTargetedData: true,
+		PreviousSnapshot:    contactSnapshot(childID, []any{contact}),
+	})
+	require.NoError(t, err)
+
+	links, err := env.repos.StudentGuardian.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	nonPrimary := 0
+	for _, link := range links {
+		if link != nil && !link.IsPrimary {
+			nonPrimary++
+		}
+	}
+	assert.Equal(t, 1, nonPrimary, "unchanged phone-only contact must reuse the existing profile/link instead of duplicating it")
+}
+
+func TestDecisionService_SyncApprovedChildData_UpdatesExistingContactListPermissions(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	publishDecisionContactListSchema(t, env)
+
+	contactEmail := "toggle-contact-list@example.com"
+	oldContact := map[string]any{
+		"first_name":           "Toggle",
+		"last_name":            "Contact",
+		"email":                contactEmail,
+		"is_emergency_contact": true,
+		"can_pickup":           true,
+	}
+	reqID, childID := submitOneChildWithCustomData(t, env, "primary-contact-toggle@example.com", "Lina", "ContactToggle", map[string]any{
+		"contacts": []any{oldContact},
+	})
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	profile, err := env.repos.GuardianProfile.FindByEmail(ctx, contactEmail)
+	require.NoError(t, err)
+
+	newContact := map[string]any{
+		"first_name":           "Toggle",
+		"last_name":            "Contact",
+		"email":                contactEmail,
+		"is_emergency_contact": false,
+		"can_pickup":           false,
+	}
+	child, err := env.repos.RequestChild.FindByID(ctx, childID)
+	require.NoError(t, err)
+	child.CustomData = map[string]any{"contacts": []any{newContact}}
+	require.NoError(t, env.repos.RequestChild.UpdateData(ctx, child))
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, enrollmentService.SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      env.creatorID,
+		ReplaceTargetedData: true,
+		PreviousSnapshot:    contactSnapshot(childID, []any{oldContact}),
+	})
+	require.NoError(t, err)
+
+	links, err := env.repos.StudentGuardian.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	var contactLink *usersModels.StudentGuardian
+	for _, link := range links {
+		if link != nil && link.GuardianProfileID == profile.ID {
+			contactLink = link
+			break
+		}
+	}
+	require.NotNil(t, contactLink)
+	assert.False(t, contactLink.CanPickup)
+	assert.False(t, contactLink.IsEmergencyContact)
+	assert.Equal(t, authorize.GuardianRoleCustom, contactLink.GuardianRole)
+	assert.False(t, authorize.StudentGuardianHasPermission(contactLink, authorize.GuardianPermissionPortalAccess))
 }
 
 func TestDecisionService_Decide_ContactListSelfGuardianDoesNotAbortApproval(t *testing.T) {
@@ -1147,6 +1789,192 @@ func TestDecisionService_Decide_SchedulePickupUsesReviewerStaffID(t *testing.T) 
 		assert.NotEqual(t, reviewerAccountID, row.CreatedBy,
 			"the regression requires account id and staff id to stay distinct")
 	}
+}
+
+func TestDecisionService_SyncApprovedChildData_ReplacesRemovedPickupSchedule(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentModels.TargetSchedulePickup)
+	_, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "pickup-sync@example.com", "Anna", "PickupSync", map[string]any{
+		"pickup_times": map[string]any{"mon": "14:45", "wed": "16:00"},
+	})
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: reviewerAccountID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	rows, err := env.repos.StudentPickupSchedule.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+
+	child, err := env.repos.RequestChild.FindByID(ctx, childID)
+	require.NoError(t, err)
+	child.CustomData = map[string]any{}
+	require.NoError(t, env.repos.RequestChild.UpdateData(ctx, child))
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, enrollmentService.SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      reviewerAccountID,
+		ReplaceTargetedData: true,
+	})
+	require.NoError(t, err)
+
+	rows, err = env.repos.StudentPickupSchedule.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	assert.Empty(t, rows, "replacement sync must delete pickup schedules removed from the approved snapshot")
+}
+
+func TestDecisionService_SyncApprovedChildData_DuplicatePickupTargetDeletesOnce(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	publishLegacyDuplicateTargetSchema(t, env, "legacy-dup-pickup", []enrollmentModels.FormField{
+		{
+			Key: "pickup_visible", Label: "Abholzeiten",
+			Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: true,
+			Target: enrollmentModels.TargetSchedulePickup, AllowedTimes: []string{"14:45", "16:00"}, SortOrder: 0,
+		},
+		{
+			Key: "pickup_hidden", Label: "Abholzeiten alt",
+			Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: true,
+			Target: enrollmentModels.TargetSchedulePickup, AllowedTimes: []string{"14:45", "16:00"}, SortOrder: 1,
+		},
+	})
+	_, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "pickup-duplicate-target@example.com", "Anna", "PickupDup", map[string]any{
+		"pickup_visible": map[string]any{"mon": "14:45", "wed": "16:00"},
+	})
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: reviewerAccountID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	rows, err := env.repos.StudentPickupSchedule.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, enrollmentService.SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      reviewerAccountID,
+		ReplaceTargetedData: true,
+	})
+	require.NoError(t, err)
+
+	rows, err = env.repos.StudentPickupSchedule.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	assert.Len(t, rows, 2, "omitted duplicate pickup target must not delete rows recreated by the visible target")
+}
+
+func TestDecisionService_SyncApprovedChildData_DuplicateArrivalTargetDeletesOnce(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	publishLegacyDuplicateTargetSchema(t, env, "legacy-dup-arrival", []enrollmentModels.FormField{
+		{
+			Key: "arrival_visible", Label: "Ankunftszeiten",
+			Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: true,
+			Target: enrollmentModels.TargetScheduleArrival, SortOrder: 0,
+		},
+		{
+			Key: "arrival_hidden", Label: "Ankunftszeiten alt",
+			Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: true,
+			Target: enrollmentModels.TargetScheduleArrival, SortOrder: 1,
+		},
+	})
+	_, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "arrival-duplicate-target@example.com", "Anna", "ArrivalDup", map[string]any{
+		"arrival_visible": map[string]any{"mon": "07:45"},
+	})
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: reviewerAccountID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	rows, err := env.repos.StudentArrivalSchedule.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, enrollmentService.SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      reviewerAccountID,
+		ReplaceTargetedData: true,
+	})
+	require.NoError(t, err)
+
+	rows, err = env.repos.StudentArrivalSchedule.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	assert.Len(t, rows, 1, "omitted duplicate arrival target must not delete rows recreated by the visible target")
+}
+
+func TestDecisionService_SyncApprovedChildData_DuplicateStudentTargetKeepsSubmittedSiblingValue(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	publishLegacyDuplicateTargetSchema(t, env, "legacy-dup-health", []enrollmentModels.FormField{
+		{
+			Key: "health_visible", Label: "Gesundheit",
+			Type: enrollmentModels.FormFieldTextarea, AppliesToCh: true,
+			Target: enrollmentModels.TargetStudentHealthInfo, SortOrder: 0,
+		},
+		{
+			Key: "health_hidden", Label: "Gesundheit alt",
+			Type: enrollmentModels.FormFieldTextarea, AppliesToCh: true,
+			Target: enrollmentModels.TargetStudentHealthInfo, SortOrder: 1,
+		},
+	})
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "health-duplicate-target@example.com", "Anna", "HealthDup", map[string]any{
+		"health_visible": "Asthma",
+	})
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, enrollmentService.SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      env.creatorID,
+		ReplaceTargetedData: true,
+	})
+	require.NoError(t, err)
+
+	student, err := env.repos.Student.FindByID(ctx, studentID)
+	require.NoError(t, err)
+	require.NotNil(t, student.HealthInfo)
+	assert.Equal(t, "Asthma", *student.HealthInfo)
 }
 
 func TestDecisionService_Decide_ScheduleArrivalUsesReviewerStaffID(t *testing.T) {

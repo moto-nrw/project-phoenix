@@ -4,6 +4,7 @@ import {
   fireEvent,
   render,
   screen,
+  within,
   waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -536,6 +537,57 @@ describe("TimetableEventModal", () => {
       seriesId: "8",
       linkedInstanceId: "42",
     });
+  });
+
+  it("deletes an existing series from an editable effective date", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-05-06T10:00:00"));
+    const onDeleteSeries = vi.fn().mockResolvedValue(undefined);
+    const { onClose } = renderModal({
+      initialSeries: template,
+      onDeleteSeries,
+    });
+
+    await screen.findByText("Regeltermin bearbeiten");
+    fireEvent.click(screen.getByRole("button", { name: "Löschen" }));
+
+    const dialog = screen.getByRole("dialog", {
+      name: "Regeltermin löschen?",
+    });
+    const dateInput = within(dialog).getByLabelText(/Ab Datum/);
+    expect(dateInput).toHaveValue("2026-05-06");
+
+    fireEvent.change(dateInput, { target: { value: "" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Löschen" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Bitte ein Datum auswählen.",
+    );
+    expect(onDeleteSeries).not.toHaveBeenCalled();
+
+    fireEvent.change(dateInput, { target: { value: "2026-05-05" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Löschen" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Das Datum darf nicht in der Vergangenheit liegen.",
+    );
+    expect(onDeleteSeries).not.toHaveBeenCalled();
+
+    fireEvent.change(dateInput, { target: { value: "2026-05-07" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Löschen" }));
+
+    await waitFor(() =>
+      expect(onDeleteSeries).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "7" }),
+        "2026-05-07",
+      ),
+    );
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("does not show the series delete action while creating", async () => {
+    renderModal();
+
+    await screen.findByText("Haus A - Mensa");
+    expect(screen.queryByRole("button", { name: "Löschen" })).toBeNull();
   });
 
   it("surfaces save failures as validation errors", async () => {

@@ -29,6 +29,7 @@ import {
 
 import { Button } from "~/components/ui/button";
 import { useModal } from "~/components/dashboard/modal-context";
+import { ChoiceModal } from "~/components/ui/choice-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
@@ -93,6 +94,7 @@ interface InstanceDetailSlideOverProps {
   onClose: () => void;
   onLifecycleAction: (action: LifecycleAction) => Promise<void>;
   onDeleteCancelled?: (instance: EnrichedInstance) => Promise<void>;
+  onDeleteFollowing?: (instance: EnrichedInstance) => Promise<void>;
   onEdit?: (instance: EnrichedInstance) => void;
   onRepeat?: (instance: EnrichedInstance) => void;
   staffNames?: Map<string, string>;
@@ -199,6 +201,7 @@ export function InstanceDetailSlideOver({
   onClose,
   onLifecycleAction,
   onDeleteCancelled,
+  onDeleteFollowing,
   onEdit,
   onRepeat,
   staffNames = EMPTY_STAFF_NAMES,
@@ -213,6 +216,10 @@ export function InstanceDetailSlideOver({
   const [pendingConfirm, setPendingConfirm] =
     useState<PendingConfirmAction | null>(null);
   const [pendingDelete, setPendingDelete] = useState(false);
+  const [deleteScopeOpen, setDeleteScopeOpen] = useState(false);
+  const [pendingDeleteScope, setPendingDeleteScope] = useState<string | null>(
+    null,
+  );
   const [pendingStudentId, setPendingStudentId] = useState<string | null>(null);
   const students = useMemo(
     () =>
@@ -234,6 +241,8 @@ export function InstanceDetailSlideOver({
 
   useEffect(() => {
     setPendingConfirm(null);
+    setDeleteScopeOpen(false);
+    setPendingDeleteScope(null);
   }, [instance?.id]);
 
   const handleLifecycle = async (action: LifecycleAction) => {
@@ -255,6 +264,28 @@ export function InstanceDetailSlideOver({
     }
   };
 
+  const handleDeleteFollowing = async () => {
+    if (!instance || !onDeleteFollowing) return;
+    setPendingDelete(true);
+    try {
+      await onDeleteFollowing(instance);
+    } finally {
+      setPendingDelete(false);
+    }
+  };
+
+  const openDeleteFlow = () => {
+    if (
+      instance?.activityGroupId &&
+      !instance.isSpontaneous &&
+      onDeleteFollowing
+    ) {
+      setDeleteScopeOpen(true);
+      return;
+    }
+    setPendingConfirm("delete");
+  };
+
   const handleConfirm = () => {
     const action = pendingConfirm;
     setPendingConfirm(null);
@@ -262,6 +293,20 @@ export function InstanceDetailSlideOver({
       void handleDeleteCancelled();
     } else if (action) {
       void handleLifecycle(action);
+    }
+  };
+
+  const handleDeleteScopeSelect = async (scope: string) => {
+    setPendingDeleteScope(scope);
+    try {
+      if (scope === "following") {
+        await handleDeleteFollowing();
+      } else {
+        await handleDeleteCancelled();
+      }
+      setDeleteScopeOpen(false);
+    } finally {
+      setPendingDeleteScope(null);
     }
   };
 
@@ -295,10 +340,14 @@ export function InstanceDetailSlideOver({
           // outside-click and closes the slide-over, unmounting the modal
           // before its buttons can fire. See issue #1358.
           onInteractOutside={(event) => {
-            if (isModalOpen || pendingConfirm !== null) event.preventDefault();
+            if (isModalOpen || pendingConfirm !== null || deleteScopeOpen) {
+              event.preventDefault();
+            }
           }}
           onEscapeKeyDown={(event) => {
-            if (isModalOpen || pendingConfirm !== null) event.preventDefault();
+            if (isModalOpen || pendingConfirm !== null || deleteScopeOpen) {
+              event.preventDefault();
+            }
           }}
         >
           <SlideOverHeader>
@@ -509,6 +558,22 @@ export function InstanceDetailSlideOver({
                   </span>
                 </Button>
               )}
+              {instance.status === "planned" && onDeleteCancelled && (
+                <Button
+                  variant="outline_danger"
+                  size="md"
+                  type="button"
+                  onClick={openDeleteFlow}
+                  isLoading={pendingDelete}
+                  loadingText="Lösche …"
+                  disabled={pendingAction !== null || pendingDelete}
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <Trash2 className="h-4 w-4" />
+                    Löschen
+                  </span>
+                </Button>
+              )}
               {instance.status === "completed" && (
                 <span className="inline-flex items-center gap-2 text-xs text-gray-500">
                   <CheckCircle2 className="h-4 w-4" />
@@ -526,7 +591,7 @@ export function InstanceDetailSlideOver({
                       variant="outline_danger"
                       size="md"
                       type="button"
-                      onClick={() => setPendingConfirm("delete")}
+                      onClick={openDeleteFlow}
                       isLoading={pendingDelete}
                       loadingText="Lösche …"
                       disabled={pendingAction !== null || pendingDelete}
@@ -554,7 +619,11 @@ export function InstanceDetailSlideOver({
           isOpen
           onClose={() => setPendingConfirm(null)}
           onConfirm={handleConfirm}
-          title={CONFIRM_DIALOGS[pendingConfirm].title}
+          title={
+            pendingConfirm === "delete" && instance?.status === "planned"
+              ? "Termin löschen?"
+              : CONFIRM_DIALOGS[pendingConfirm].title
+          }
           confirmText={CONFIRM_DIALOGS[pendingConfirm].confirmText}
           cancelText="Abbrechen"
           confirmButtonClass={
@@ -564,9 +633,35 @@ export function InstanceDetailSlideOver({
           <p className="text-sm leading-relaxed text-gray-600">
             {pendingConfirm === "cancel" && instance?.status === "active"
               ? "Die laufende Betreuung wird gestoppt und der Termin als abgesagt markiert. Das kann nicht rückgängig gemacht werden."
-              : CONFIRM_DIALOGS[pendingConfirm].body}
+              : pendingConfirm === "delete" && instance?.status === "planned"
+                ? "Der geplante Termin wird dauerhaft entfernt."
+                : CONFIRM_DIALOGS[pendingConfirm].body}
           </p>
         </ConfirmationModal>
+      )}
+      {instance && (
+        <ChoiceModal
+          isOpen={deleteScopeOpen}
+          onClose={() => setDeleteScopeOpen(false)}
+          title="Wiederholenden Termin löschen"
+          description={`Der Termin am ${germanFullDate(instance.date)} gehört zu einem Regeltermin.`}
+          options={[
+            {
+              value: "single",
+              label: "Nur dieser Termin",
+              description:
+                "Löscht nur diesen Termin und verhindert, dass er erneut eingetragen wird.",
+            },
+            {
+              value: "following",
+              label: "Dieser und alle folgenden",
+              description:
+                "Beendet den Regeltermin ab diesem Datum; frühere Termine bleiben erhalten.",
+            },
+          ]}
+          onSelect={(value) => void handleDeleteScopeSelect(value)}
+          isBusy={pendingDeleteScope !== null}
+        />
       )}
     </SlideOver>
   );

@@ -69,6 +69,11 @@ export function StudentExportModal({
 
   useEffect(() => {
     if (!isOpen) return;
+    setPreset(filters.school_class ? "class_roster" : "ogs_weekly");
+  }, [filters.school_class, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
     const presetConfig = STUDENT_EXPORT_PRESETS.find(
       (item) => item.id === preset,
     );
