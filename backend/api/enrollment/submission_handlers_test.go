@@ -1,6 +1,7 @@
 package enrollment
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -55,6 +56,27 @@ func TestBuildServiceRequest_ParsesDateOfBirth(t *testing.T) {
 	assert.Equal(t,
 		timezone.NewDate(2018, 3, 4),
 		out.Children[0].DateOfBirth)
+}
+
+func TestSubmitEnrollmentRequest_DecodesStringChildID(t *testing.T) {
+	var wire SubmitEnrollmentRequest
+	err := json.Unmarshal([]byte(`{
+		"phase_id": 42,
+		"children": [{
+			"id": "640000001",
+			"first_name": "Lara",
+			"last_name": "Beispiel",
+			"date_of_birth": "2018-03-04"
+		}]
+	}`), &wire)
+	require.NoError(t, err)
+	require.Len(t, wire.Children, 1)
+	require.NotNil(t, wire.Children[0].ID)
+	assert.Equal(t, int64(640000001), *wire.Children[0].ID)
+
+	out, err := buildServiceRequest(&wire, 7777, "")
+	require.NoError(t, err)
+	assert.Equal(t, int64(640000001), out.Children[0].ID)
 }
 
 func TestBuildServiceRequest_RejectsBadDateOfBirth(t *testing.T) {

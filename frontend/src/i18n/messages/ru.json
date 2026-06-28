@@ -714,6 +714,28 @@
     "editLoadError": "Заявку нельзя изменить",
     "editSaveError": "Не удалось сохранить изменения",
     "editSubmit": "Сохранить изменения",
+    "changeRequestTitle": "Запросить изменение",
+    "changeRequestDescription": "Эта заявка уже была рассмотрена. Поэтому ваши изменения будут отправлены в OGS как запрос и вступят в силу только после одобрения.",
+    "changeRequestEyebrow": "Для проверки",
+    "changeRequestReasonLabel": "Примечание к изменению, необязательно",
+    "changeRequestReasonPlaceholder": "Что изменилось?",
+    "changeRequestSubmit": "Отправить запрос на изменение",
+    "changeRequestSaveError": "Не удалось сохранить запрос на изменение",
+    "requestChange": "Запросить изменение",
+    "changeRequestReplySaved": "Ответ отправлен.",
+    "changeRequestsEyebrow": "Изменения",
+    "changeRequestsTitle": "Запросы на изменение",
+    "changeRequestsDescription": "Здесь отображаются запросы на проверке, вопросы от OGS и завершенные решения.",
+    "changeRequestsEmpty": "Запросы на изменение еще не отправлялись.",
+    "changeRequestCreated": "Отправлено {date}",
+    "changeRequestDiffTitle": "Запрошенные изменения",
+    "changeRequestDiffEmpty": "Распознаваемых изменений полей нет.",
+    "changeRequestBefore": "Было",
+    "changeRequestRequested": "Запрошено",
+    "changeRequestDecisionNote": "Решение:",
+    "changeRequestReplyLabel": "Ответ",
+    "changeRequestReplySending": "Отправляется…",
+    "changeRequestReplySubmit": "Отправить ответ",
     "backToStatus": "Назад к статусу",
     "nameLabel": "Имя",
     "emailLabel": "E-mail",
@@ -728,6 +750,7 @@
     "save": "Сохранить",
     "cancel": "Отмена",
     "editLocked": "Изменения возможны только до принятия решения. Для изменений обратитесь в OGS.",
+    "editLockedWithChangeRequest": "Прямое редактирование больше невозможно. Вместо этого можно отправить запрос на изменение в OGS.",
     "manageEyebrow": "Управление записью",
     "withdrawAllTitle": "Отозвать всю запись",
     "withdrawTitle": "Отозвать запись",
@@ -742,6 +765,72 @@
       "pending_renewal": "Требуется подтверждение",
       "auto_renewed": "Предварительно записано",
       "pending_admin_review": "На проверке"
+    },
+    "changeRequestStatus": {
+      "pending_review": "Ожидает проверки",
+      "needs_parent_response": "Открыт вопрос",
+      "approved": "Одобрено",
+      "rejected": "Отклонено",
+      "cancelled": "Отменено"
+    },
+    "changeRequestAuthor": {
+      "parent": "Вы",
+      "staff": "OGS",
+      "system": "Система"
+    },
+    "diff": {
+      "yes": "Да",
+      "no": "Нет",
+      "childEntry": "Ребенок",
+      "additionalGuardianEntry": "Дополнительный представитель",
+      "snapshot": {
+        "additional_guardians": "Дополнительные представители",
+        "children": "Дети",
+        "consent_flags": "Согласия",
+        "custom_data": "Дополнительные данные",
+        "guardian_email": "E-mail",
+        "guardian_first_name": "Имя",
+        "guardian_last_name": "Фамилия",
+        "guardian_phone": "Телефон",
+        "phase_id": "Этап регистрации"
+      },
+      "child": {
+        "custom_data": "Дополнительные данные",
+        "date_of_birth": "Дата рождения",
+        "first_name": "Имя",
+        "last_name": "Фамилия",
+        "offering_days": "Дни ухода",
+        "offering_ids": "Предложения ухода",
+        "target_grade_level": "Целевой класс"
+      },
+      "guardian": {
+        "email": "E-mail",
+        "first_name": "Имя",
+        "last_name": "Фамилия",
+        "phone": "Телефон"
+      },
+      "record": {
+        "automatic_selected_days": "Автоматически",
+        "available_days": "Доступные дни",
+        "days_of_week_mode": "Режим",
+        "email": "E-mail",
+        "first_name": "Имя",
+        "last_name": "Фамилия",
+        "manual_selected_days": "Вручную",
+        "offering_id": "Предложение ухода",
+        "offering_ids": "Предложения ухода",
+        "phone": "Телефон",
+        "selected_days": "Дни"
+      },
+      "weekday": {
+        "mon": "Пн",
+        "tue": "Вт",
+        "wed": "Ср",
+        "thu": "Чт",
+        "fri": "Пт",
+        "sat": "Сб",
+        "sun": "Вс"
+      }
     }
   }
 }

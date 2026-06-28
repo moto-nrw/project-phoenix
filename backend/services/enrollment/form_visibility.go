@@ -200,6 +200,96 @@ func sanitizeVisibleAnswers(
 	return out
 }
 
+// mergeEditableCustomData keeps legacy/custom keys that are not editable by the
+// current schema while letting sanitized submitted answers replace the editable
+// field set. This prevents full edit/change-request snapshots from wiping data
+// that the reopened form cannot render, without preserving stale answers for
+// hidden schema fields.
+func mergeEditableCustomData(
+	existing map[string]any,
+	submitted map[string]any,
+	schema *enrollmentModels.FormSchema,
+	appliesToChild bool,
+) map[string]any {
+	out := make(map[string]any)
+	editable := editableCustomDataKeys(schema, appliesToChild)
+	for key, value := range existing {
+		if !editable[key] {
+			out[key] = value
+		}
+	}
+	for key, value := range submitted {
+		out[key] = value
+	}
+	return out
+}
+
+func existingChildCustomDataBySubmittedIdentity(existing []*enrollmentModels.RequestChild, submitted []SubmitChild) []map[string]any {
+	out := make([]map[string]any, len(submitted))
+	byID := make(map[int64]map[string]any, len(existing))
+	for _, child := range existing {
+		if child == nil || child.ID <= 0 {
+			continue
+		}
+		byID[child.ID] = child.CustomData
+	}
+	for i := range submitted {
+		if submitted[i].ID > 0 {
+			if custom, ok := byID[submitted[i].ID]; ok {
+				out[i] = custom
+				continue
+			}
+		}
+		if stableChildIndexIdentity(existing, submitted, i) {
+			out[i] = existing[i].CustomData
+		}
+	}
+	return out
+}
+
+func stableChildIndexIdentity(existing []*enrollmentModels.RequestChild, submitted []SubmitChild, i int) bool {
+	if i < 0 || i >= len(existing) || existing[i] == nil {
+		return false
+	}
+	if len(existing) == 1 && len(submitted) == 1 {
+		return true
+	}
+	if len(existing) != len(submitted) {
+		return false
+	}
+	return sameSubmittedChildIdentity(existing[i], submitted[i])
+}
+
+func sameSubmittedChildIdentity(existing *enrollmentModels.RequestChild, submitted SubmitChild) bool {
+	if existing == nil {
+		return false
+	}
+	return strings.TrimSpace(existing.FirstName) == strings.TrimSpace(submitted.FirstName) &&
+		strings.TrimSpace(existing.LastName) == strings.TrimSpace(submitted.LastName) &&
+		existing.DateOfBirth == submitted.DateOfBirth
+}
+
+func editableCustomDataKeys(schema *enrollmentModels.FormSchema, appliesToChild bool) map[string]bool {
+	keys := make(map[string]bool)
+	if schema == nil {
+		return keys
+	}
+	for i := range schema.Fields {
+		field := &schema.Fields[i]
+		if field.AppliesToCh != appliesToChild || field.Type == enrollmentModels.FormFieldInfo {
+			continue
+		}
+		keys[field.Key] = true
+		if appliesToChild {
+			switch field.Target {
+			case enrollmentModels.TargetStudentAllowedDepartureModes, enrollmentModels.TargetStudentDeparture:
+				keys[enrollmentModels.TargetStudentDepartureCompanionNote] = true
+			}
+		}
+	}
+	return keys
+}
+
 // validateRequiredCustomFields is the single required-field gate for the
 // public submit path. It enforces required core (built-in) fields and required
 // custom fields, skipping any field hidden by a visibility condition and

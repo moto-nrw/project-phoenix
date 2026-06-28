@@ -175,6 +175,8 @@ type Factory struct {
 	RequestGuardian      enrollmentModels.RequestGuardianRepository
 	CareOffering         enrollmentModels.CareOfferingRepository
 	RequestChildOffering enrollmentModels.RequestChildOfferingRepository
+	ChangeRequest        enrollmentModels.ChangeRequestRepository
+	ChangeRequestMessage enrollmentModels.ChangeRequestMessageRepository
 	SubmissionRateLimit  enrollmentModels.SubmissionRateLimitRepository
 	Phase                enrollmentModels.PhaseRepository
 
@@ -326,6 +328,8 @@ func NewFactory(db *bun.DB) *Factory {
 		RequestGuardian:      enrollment.NewRequestGuardianRepository(db),
 		CareOffering:         enrollment.NewCareOfferingRepository(db),
 		RequestChildOffering: enrollment.NewRequestChildOfferingRepository(db),
+		ChangeRequest:        enrollment.NewChangeRequestRepository(db),
+		ChangeRequestMessage: enrollment.NewChangeRequestMessageRepository(db),
 		SubmissionRateLimit:  enrollment.NewSubmissionRateLimitRepository(db),
 		Phase:                enrollment.NewPhaseRepository(db),
 

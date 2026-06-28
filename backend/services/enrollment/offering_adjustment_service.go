@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strconv"
 	"strings"
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 type offeringAdjustmentSnapshot struct {
@@ -198,6 +200,103 @@ func (s *decisionService) UpdateChildOfferings(ctx context.Context, input Update
 	if err := s.offeringAdjustmentRepo.Create(ctx, entry); err != nil {
 		return nil, fmt.Errorf("decision: create offering adjustment audit: %w", err)
 	}
+	return s.requestChildRepo.FindByID(ctx, child.ID)
+}
+
+func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncApprovedChildDataInput) (*enrollmentModels.RequestChild, error) {
+	if input.RequestID <= 0 || input.ChildID <= 0 {
+		return nil, fmt.Errorf("%w: request_id and child_id are required", ErrOfferingAdjustmentInvalid)
+	}
+	if s.requestRepo == nil || s.requestChildRepo == nil || s.studentRepo == nil || s.personRepo == nil {
+		return nil, fmt.Errorf("decision: approved child sync dependencies are not configured")
+	}
+
+	req, err := s.requestRepo.FindByID(ctx, input.RequestID)
+	if err != nil {
+		return nil, ErrDecisionRequestNotFound
+	}
+	child, err := s.requestChildRepo.FindByID(ctx, input.ChildID)
+	if err != nil || child == nil || child.RequestID != req.ID {
+		return nil, ErrDecisionChildNotFound
+	}
+	if child.Status != enrollmentModels.ChildStatusApproved || child.CreatedStudentID == nil || *child.CreatedStudentID <= 0 {
+		return nil, fmt.Errorf("%w: only approved children with a linked student can be synced", ErrOfferingAdjustmentInvalid)
+	}
+
+	student, err := s.studentRepo.FindByIDForUpdate(ctx, *child.CreatedStudentID)
+	if err != nil || student == nil {
+		return nil, ErrDecisionStudentNotFound
+	}
+	person, err := s.personRepo.FindByID(ctx, student.PersonID)
+	if err != nil || person == nil {
+		return nil, fmt.Errorf("decision: load approved child person: %w", err)
+	}
+
+	person.FirstName = child.FirstName
+	person.LastName = child.LastName
+	dob := child.DateOfBirth
+	person.Birthday = &dob
+	if err := s.personRepo.Update(ctx, person); err != nil {
+		return nil, fmt.Errorf("decision: sync approved child person: %w", err)
+	}
+
+	student.SchoolClass = s.gradeToClass(child.TargetGradeLevel)
+	guardianEmail := strings.TrimSpace(strings.ToLower(req.GuardianEmail))
+	if guardianEmail != "" {
+		student.GuardianEmail = &guardianEmail
+	}
+	student.GuardianPhone = req.GuardianPhone
+	if err := s.studentRepo.Update(ctx, student); err != nil {
+		return nil, fmt.Errorf("decision: sync approved child student: %w", err)
+	}
+
+	var guardian *users.GuardianProfile
+	if input.ReplaceTargetedData && s.guardianProfileRepo != nil {
+		guardian, err = s.reconcilePrimaryGuardianLink(ctx, req, student.ID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	keepGuardianProfileIDs := map[int64]bool{}
+	if input.ReplaceTargetedData {
+		var relinkErr error
+		keepGuardianProfileIDs, relinkErr = s.reconcileApprovedChildGuardians(ctx, req, student.ID, input.PreviousRequestGuardians)
+		if relinkErr != nil {
+			return nil, relinkErr
+		}
+	}
+
+	if s.guardianProfileRepo != nil {
+		if guardian == nil {
+			resolved, _, gerr := s.resolveGuardianProfile(ctx, req)
+			if gerr == nil {
+				guardian = resolved
+			}
+		}
+		if guardian != nil {
+			if terr := s.applyTargetedFields(ctx, req, child, student, guardian, input.ActorAccountID, targetedFieldSyncOptions{
+				Replace:                input.ReplaceTargetedData,
+				PreviousSnapshot:       input.PreviousSnapshot,
+				KeepGuardianProfileIDs: keepGuardianProfileIDs,
+			}); terr != nil {
+				s.logger.Warn("decision: approved child targeted-field sync had errors",
+					slog.Int64("request_id", req.ID),
+					slog.Int64("child_id", child.ID),
+					slog.String("error", terr.Error()),
+				)
+				if input.ReplaceTargetedData {
+					return nil, fmt.Errorf("decision: approved child targeted-field replacement sync: %w", terr)
+				}
+			}
+		}
+	}
+	if input.ReplaceTargetedData {
+		if _, relinkErr := s.reconcileApprovedChildGuardians(ctx, req, student.ID, input.PreviousRequestGuardians); relinkErr != nil {
+			return nil, relinkErr
+		}
+	}
+
 	return s.requestChildRepo.FindByID(ctx, child.ID)
 }
 

@@ -35,6 +35,7 @@ import (
 // selected_days is a non-empty subset of the offering's
 // available_days.
 type SubmitChildRequest struct {
+	ID               *int64                  `json:"id,omitempty,string"`
 	FirstName        string                  `json:"first_name"`
 	LastName         string                  `json:"last_name"`
 	DateOfBirth      string                  `json:"date_of_birth"`
@@ -223,6 +224,7 @@ func buildServiceRequest(wireReq *SubmitEnrollmentRequest, tenantID int64, remot
 			})
 		}
 		out.Children = append(out.Children, enrollmentService.SubmitChild{
+			ID:               int64PtrValue(c.ID),
 			FirstName:        c.FirstName,
 			LastName:         c.LastName,
 			DateOfBirth:      dob,
@@ -233,6 +235,13 @@ func buildServiceRequest(wireReq *SubmitEnrollmentRequest, tenantID int64, remot
 		})
 	}
 	return out, nil
+}
+
+func int64PtrValue(v *int64) int64 {
+	if v == nil {
+		return 0
+	}
+	return *v
 }
 
 // Stable error codes returned in the JSON envelope so the frontend can
@@ -333,6 +342,7 @@ type StatusResponse struct {
 	GuardianPhone     *string               `json:"guardian_phone,omitempty"`
 	SubmittedAt       time.Time             `json:"submitted_at"`
 	WithdrawnAt       *time.Time            `json:"withdrawn_at,omitempty"`
+	EditMode          string                `json:"edit_mode"`
 	Children          []StatusChildResponse `json:"children"`
 	// AdditionalGuardians are the co-guardians the parent added beyond the
 	// primary guardian above. Empty when none were added.
@@ -365,6 +375,7 @@ type EditBootstrapResponse struct {
 	CareRequired              bool                      `json:"care_required"`
 	LegalTexts                PublicLegalTextsResponse  `json:"legal_texts"`
 	Draft                     EditDraftResponse         `json:"draft"`
+	EditMode                  string                    `json:"edit_mode"`
 }
 
 type EditDraftResponse struct {
@@ -425,6 +436,8 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 		req       *enrollmentModels.Request
 		children  []*enrollmentModels.RequestChild
 		guardians []*enrollmentModels.RequestGuardian
+		editMode  string
+		statusErr error
 	)
 	err := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
 		serviceReq, serviceChildren, err := rs.RequestService.GetByStatusToken(adminCtx, token)
@@ -433,6 +446,12 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 		}
 		req = serviceReq
 		children = serviceChildren
+		mode, modeErr := rs.RequestService.EditModeForStatus(adminCtx, req, children)
+		if modeErr != nil {
+			statusErr = fmt.Errorf("status: compute edit mode: %w", modeErr)
+			return statusErr
+		}
+		editMode = mode
 		// Best-effort: a failure here must not hide the request status, but a
 		// silent drop would mask a permission/RLS/DB problem behind a 200 with
 		// missing co-guardians. Log it so the failure is visible.
@@ -445,6 +464,10 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	if err != nil {
+		if statusErr != nil {
+			common.RenderError(w, r, common.ErrorInternalServer(statusErr))
+			return
+		}
 		common.RenderError(w, r, common.ErrorNotFound(err))
 		return
 	}
@@ -457,6 +480,7 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 		GuardianPhone:     req.GuardianPhone,
 		SubmittedAt:       req.SubmittedAt,
 		WithdrawnAt:       req.WithdrawnAt,
+		EditMode:          editMode,
 	}
 	for _, c := range children {
 		resp.Children = append(resp.Children, StatusChildResponse{
@@ -516,7 +540,8 @@ func (rs *Resource) getEditBootstrap(w http.ResponseWriter, r *http.Request) {
 			PhotoEnabled:        draft.LegalTexts.PhotoEnabled,
 			Blocks:              draft.LegalTexts.Blocks,
 		},
-		Draft: toEditDraftResponse(draft),
+		Draft:    toEditDraftResponse(draft),
+		EditMode: draft.EditMode,
 	}, "Enrollment edit bootstrap retrieved")
 }
 

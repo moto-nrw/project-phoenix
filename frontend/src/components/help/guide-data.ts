@@ -703,9 +703,9 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Anmeldungen einrichten",
         icon: LayoutDashboard,
         summary:
-          "Der Admin-Bereich für die Online-Anmeldung: eingegangene Anmeldungen bearbeiten und in vier Unterseiten den Ablauf einrichten - `Überblick`, `Anmeldephasen`, `Betreuungsangebote` und `Anmeldeformulare`.",
+          "Der Admin-Bereich für die Online-Anmeldung: eingegangene Anmeldungen bearbeiten, Änderungsanfragen prüfen und in vier Unterseiten den Ablauf einrichten - `Überblick`, `Änderungsanfragen`, `Anmeldephasen`, `Betreuungsangebote` und `Anmeldeformulare`.",
         steps: [
-          "`Anmeldungen` öffnen. Du landest im `Überblick` mit allen Anmeldephasen und der Zahl der Eingänge (`Gesamt`, `Offen`, `Bestätigt`, `Abgelehnt`).",
+          "`Anmeldungen` öffnen. Du landest im `Überblick` mit allen Anmeldephasen, der Zahl der Eingänge (`Gesamt`, `Offen`, `Bestätigt`, `Abgelehnt`) und dem Einstieg zu offenen Änderungsanfragen.",
           "Beim ersten Einrichten führt dich der Bereich `Einrichtung` (`Online-Anmeldung vorbereiten`) Schritt für Schritt durch alles Nötige. Zuerst `Online-Anmeldung aktivieren`: schaltet den Elternlink frei (in den `Einstellungen` unter `Anmeldung`).",
           "Unter `Einstellungen` -> `Anmeldung` -> `Rechtstexte` aktivierst du nur die Blöcke, die eure Einrichtung tatsächlich nutzt. Jeder Block hat denselben Ablauf: `Im Anmeldeformular anzeigen` einschalten, den Pflichttext im Dialog eintragen und speichern. Bei `AGB / Teilnahmebedingungen` wählst du zuerst die Quelle: `Text eingeben` oder `PDF-Datei hochladen`. Nur die gewählte Quelle erscheint im Elternformular; die andere Quelle kann gespeichert bleiben, wird aber nicht angezeigt. Ausgeschaltete Blöcke bleiben im Hintergrund gespeichert, erscheinen aber nicht im Elternformular. Eigene Formularvorlagen können diese Standardblöcke unter `Rechtstexte und Einwilligungen` je Vorlage ein- oder ausblenden, abweichend bearbeiten oder um eigene Einwilligungen ergänzen.",
         ],
@@ -730,6 +730,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Eine Anmeldung öffnen und Kind, erziehungsberechtigte Personen (Hauptkontakt und weitere erziehungsberechtigte Personen), gewähltes Betreuungsangebot und Formularangaben prüfen.",
           "Mit `Bestätigen`, `Warteliste` oder `Ablehnen` entscheiden; mit `Zur Prüfung` für später vormerken.",
           "Bei bestätigten Kindern können Betreuungsangebote über `Betreuungsangebote bearbeiten` nachträglich korrigiert werden. Eine Begründung ist Pflicht; die Änderungshistorie zeigt danach, wer was wann angepasst hat.",
+          "Wenn Eltern nach einer Entscheidung Daten korrigieren, erscheint die Anfrage unter `Änderungsanfragen`. Die Änderungsübersicht zeigt pro Kind oder erziehungsberechtigter Person, welche Felder von `Bisher` auf `Neu` geändert wurden. Dort kannst du Rückfragen senden, die Änderung freigeben oder mit Begründung ablehnen.",
           "Über `Elternansicht öffnen` jederzeit prüfen, was Familien gerade sehen.",
         ],
         callout: {

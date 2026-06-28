@@ -31,6 +31,7 @@ type Resource struct {
 	DecisionService           enrollmentService.DecisionService
 	ReportService             enrollmentService.ReportService
 	RolloverService           enrollmentService.RolloverService
+	ChangeRequestService      enrollmentService.ChangeRequestService
 	GuardianInvitationService authService.GuardianInvitationService
 	GuardianProfileLoader     usersService.GuardianProfileLoader
 	SchoolService             platformSvc.SchoolService
@@ -58,6 +59,7 @@ func NewResource(
 	decisionSvc enrollmentService.DecisionService,
 	reportSvc enrollmentService.ReportService,
 	rolloverSvc enrollmentService.RolloverService,
+	changeRequestSvc enrollmentService.ChangeRequestService,
 	guardianInvitationSvc authService.GuardianInvitationService,
 	guardianProfileLoader usersService.GuardianProfileLoader,
 	schoolService platformSvc.SchoolService,
@@ -73,6 +75,7 @@ func NewResource(
 		DecisionService:           decisionSvc,
 		ReportService:             reportSvc,
 		RolloverService:           rolloverSvc,
+		ChangeRequestService:      changeRequestSvc,
 		GuardianInvitationService: guardianInvitationSvc,
 		GuardianProfileLoader:     guardianProfileLoader,
 		SchoolService:             schoolService,
@@ -106,6 +109,9 @@ func (rs *Resource) Router() chi.Router {
 	r.Get("/requests/{statusToken}/edit-bootstrap", rs.getEditBootstrap)
 	r.Patch("/requests/{statusToken}", rs.patchStatus)
 	r.Put("/requests/{statusToken}", rs.replaceStatus)
+	r.Get("/requests/{statusToken}/change-requests", rs.listPublicChangeRequests)
+	r.Post("/requests/{statusToken}/change-requests", rs.createChangeRequest)
+	r.Post("/requests/{statusToken}/change-requests/{changeRequestId}/messages", rs.replyToChangeRequest)
 	r.Post("/requests/{statusToken}/withdraw", rs.withdrawStatus)
 	r.Post("/requests/{statusToken}/confirm-renewal", rs.confirmRenewal)
 
@@ -195,6 +201,15 @@ func (rs *Resource) Router() chi.Router {
 				r.With(authorize.RequiresPermission("config:manage")).Post("/children/{childId}/decide", rs.decideAdminChild)
 				r.With(authorize.RequiresPermission("config:manage")).Put("/children/{childId}/offerings", rs.updateAdminChildOfferings)
 				r.With(authorize.RequiresPermission("config:manage")).Get("/children/{childId}/offering-adjustments", rs.listAdminChildOfferingAdjustments)
+			})
+		})
+		r.Route("/admin/change-requests", func(r chi.Router) {
+			r.With(authorize.RequiresPermission("config:manage")).Get("/", rs.listAdminChangeRequests)
+			r.Route("/{id}", func(r chi.Router) {
+				r.With(authorize.RequiresPermission("config:manage")).Get("/", rs.getAdminChangeRequest)
+				r.With(authorize.RequiresPermission("config:manage")).Post("/question", rs.askChangeRequestQuestion)
+				r.With(authorize.RequiresPermission("config:manage")).Post("/approve", rs.approveChangeRequest)
+				r.With(authorize.RequiresPermission("config:manage")).Post("/reject", rs.rejectChangeRequest)
 			})
 		})
 		r.Route("/admin/reports", func(r chi.Router) {
