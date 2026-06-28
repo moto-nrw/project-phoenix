@@ -109,7 +109,7 @@ import OperatorPersonsPage from "./page";
 import {
   mockSchool,
   setupSWR,
-} from "../provisioning/provisioning-test-helpers";
+} from "~/test/helpers/operator-provisioning/provisioning-test-helpers";
 
 const mockPerson = {
   id: "300",

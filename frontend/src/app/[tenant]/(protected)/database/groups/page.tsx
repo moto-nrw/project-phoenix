@@ -13,7 +13,7 @@ import type {
 } from "~/components/ui/page-header/types";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
-import { groupsConfig } from "@/lib/database/configs/groups.config";
+import { groupsConfig } from "@/components/database/configs/groups.config";
 import type { Group } from "@/lib/group-helpers";
 import { GroupCreateModal, GroupsMasterDetail } from "@/components/groups";
 import { ConfirmationModal } from "~/components/ui/modal";

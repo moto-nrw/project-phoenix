@@ -1,6 +1,6 @@
 "use client";
 
-import { devicesConfig } from "@/lib/database/configs/devices.config";
+import { devicesConfig } from "@/components/database/configs/devices.config";
 import type { Device } from "@/lib/iot-helpers";
 import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
 

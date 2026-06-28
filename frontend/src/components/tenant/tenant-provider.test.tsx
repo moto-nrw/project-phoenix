@@ -5,6 +5,7 @@ import "@testing-library/jest-dom/vitest";
 import type { TenantInfo } from "~/lib/tenant-api";
 
 // Override the global mock from test/setup.ts to use the REAL implementation
+vi.unmock("~/lib/tenant-context");
 vi.unmock("~/components/tenant/tenant-provider");
 
 // Hoisted shared state for the cross-tab subscription test below.

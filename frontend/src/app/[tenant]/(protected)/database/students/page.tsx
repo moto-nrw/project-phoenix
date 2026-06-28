@@ -28,7 +28,7 @@ import {
 import { ConfirmationModal } from "~/components/ui/modal";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
-import { studentsConfig } from "@/lib/database/configs/students.config";
+import { studentsConfig } from "@/components/database/configs/students.config";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import type { Student } from "@/lib/api";
 import type { StudentGuardianPayload } from "@/lib/guardian-helpers";

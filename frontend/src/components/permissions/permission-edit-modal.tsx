@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { permissionsConfig } from "@/lib/database/configs/permissions.config";
+import { permissionsConfig } from "@/components/database/configs/permissions.config";
 import type { Permission } from "@/lib/auth-helpers";
 import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
 

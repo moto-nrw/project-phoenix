@@ -1,7 +1,7 @@
 "use client";
 
 import type { Room } from "@/lib/room-helpers";
-import { roomsConfig } from "@/lib/database/configs/rooms.config";
+import { roomsConfig } from "@/components/database/configs/rooms.config";
 import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
 
 interface RoomCreateModalProps {

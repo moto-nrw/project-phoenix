@@ -1,7 +1,7 @@
 // Activity Entity Configuration
 
-import { defineEntityConfig } from "../types";
-import { databaseThemes } from "@/components/ui/database/themes";
+import { defineEntityConfig } from "@/lib/database/types";
+import { databaseThemes } from "@/lib/database/themes";
 import type { Activity, ActivitySupervisor } from "@/lib/activity-helpers";
 import { getSupervisors } from "@/lib/activity-api";
 import { getSession } from "next-auth/react";

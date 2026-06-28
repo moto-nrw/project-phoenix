@@ -18,7 +18,7 @@ import type {
 } from "~/components/ui/page-header/types";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
-import { roomsConfig } from "@/lib/database/configs/rooms.config";
+import { roomsConfig } from "@/components/database/configs/rooms.config";
 import { formatFloor, type Room } from "@/lib/room-helpers";
 import { RoomCreateModal, RoomsMasterDetail } from "@/components/rooms";
 import { ConfirmationModal } from "~/components/ui/modal";

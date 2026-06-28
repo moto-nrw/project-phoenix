@@ -13,7 +13,7 @@ import type {
 } from "~/components/ui/page-header/types";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
-import { activitiesConfig } from "@/lib/database/configs/activities.config";
+import { activitiesConfig } from "@/components/database/configs/activities.config";
 import type { Activity } from "@/lib/activity-helpers";
 import {
   ActivitiesMasterDetail,

@@ -144,7 +144,7 @@ import OperatorDevicesPage from "./page";
 import {
   mockSchool,
   setupSWR,
-} from "../provisioning/provisioning-test-helpers";
+} from "~/test/helpers/operator-provisioning/provisioning-test-helpers";
 
 // Matches the old provisioning/page.test.tsx Devices Tab fixture.
 const mockDevice = {

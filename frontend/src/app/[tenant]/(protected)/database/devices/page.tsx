@@ -19,7 +19,7 @@ import type {
 } from "~/components/ui/page-header/types";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
-import { devicesConfig } from "@/lib/database/configs/devices.config";
+import { devicesConfig } from "@/components/database/configs/devices.config";
 import { getDeviceTypeDisplayName, type Device } from "@/lib/iot-helpers";
 import {
   DeviceCreateModal,

@@ -154,7 +154,7 @@ import {
   mockOrg,
   mockSchool,
   setupSWR,
-} from "../provisioning/provisioning-test-helpers";
+} from "~/test/helpers/operator-provisioning/provisioning-test-helpers";
 
 type SWROverrides = Partial<Omit<Parameters<typeof setupSWR>[0], "useSWRMock">>;
 function withDefaultSWR(overrides: SWROverrides = {}) {

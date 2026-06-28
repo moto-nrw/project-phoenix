@@ -63,7 +63,7 @@ vi.mock("~/components/ui/database/database-form", () => ({
 }));
 
 // Mock roles config
-vi.mock("@/lib/database/configs/roles.config", () => ({
+vi.mock("@/components/database/configs/roles.config", () => ({
   rolesConfig: {
     labels: {
       createModalTitle: "Neue Rolle",

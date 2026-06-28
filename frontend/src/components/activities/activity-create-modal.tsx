@@ -1,7 +1,7 @@
 "use client";
 
 import type { Activity } from "@/lib/activity-helpers";
-import { activitiesConfig } from "@/lib/database/configs/activities.config";
+import { activitiesConfig } from "@/components/database/configs/activities.config";
 import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
 
 interface ActivityCreateModalProps {

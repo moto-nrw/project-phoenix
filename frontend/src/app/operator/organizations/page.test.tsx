@@ -121,7 +121,10 @@ vi.mock("~/components/ui/skeleton", () => ({
 }));
 
 import OperatorOrganizationsPage from "./page";
-import { mockOrg, setupSWR } from "../provisioning/provisioning-test-helpers";
+import {
+  mockOrg,
+  setupSWR,
+} from "~/test/helpers/operator-provisioning/provisioning-test-helpers";
 
 type SWROverrides = Partial<Omit<Parameters<typeof setupSWR>[0], "useSWRMock">>;
 function withDefaultSWR(overrides: SWROverrides = {}) {

@@ -2,8 +2,8 @@
 
 // Role Entity Configuration
 
-import { defineEntityConfig } from "../types";
-import { databaseThemes } from "@/components/ui/database/themes";
+import { defineEntityConfig } from "@/lib/database/types";
+import { databaseThemes } from "@/lib/database/themes";
 import type { Role, BackendRole } from "@/lib/auth-helpers";
 import {
   mapRoleResponse,

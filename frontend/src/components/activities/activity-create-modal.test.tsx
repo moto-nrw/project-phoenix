@@ -49,7 +49,7 @@ vi.mock("~/components/ui/database/database-form", () => ({
 }));
 
 // Mock activitiesConfig and configToFormSection
-vi.mock("@/lib/database/configs/activities.config", () => ({
+vi.mock("@/components/database/configs/activities.config", () => ({
   activitiesConfig: {
     labels: {
       createModalTitle: "Neue Aktivität",

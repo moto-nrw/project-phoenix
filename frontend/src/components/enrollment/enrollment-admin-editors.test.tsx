@@ -45,6 +45,11 @@ vi.mock("~/components/tenant/tenant-provider", () => ({
   useNFCEnabled: vi.fn(() => true),
 }));
 
+vi.mock("~/lib/tenant-context", () => ({
+  useTenantSlugSafe: () => "demo",
+  useTenantRoutingModeSafe: () => "path",
+}));
+
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => mocks.toast,
 }));

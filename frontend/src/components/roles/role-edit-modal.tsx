@@ -1,6 +1,6 @@
 "use client";
 
-import { rolesConfig } from "@/lib/database/configs/roles.config";
+import { rolesConfig } from "@/components/database/configs/roles.config";
 import type { Role } from "@/lib/auth-helpers";
 import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
 

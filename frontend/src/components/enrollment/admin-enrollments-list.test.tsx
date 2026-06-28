@@ -39,6 +39,11 @@ vi.mock("~/components/tenant/tenant-provider", () => ({
   useTenantRoutingModeSafe: () => "path",
 }));
 
+vi.mock("~/lib/tenant-context", () => ({
+  useTenantSlugSafe: () => "demo",
+  useTenantRoutingModeSafe: () => "path",
+}));
+
 import { AdminEnrollmentsList } from "./admin-enrollments-list";
 import type { Phase } from "~/lib/enrollment-phase-api";
 

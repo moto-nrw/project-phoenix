@@ -49,7 +49,7 @@ vi.mock("~/components/ui/database/database-form", () => ({
 }));
 
 // Mock roomsConfig and configToFormSection
-vi.mock("@/lib/database/configs/rooms.config", () => ({
+vi.mock("@/components/database/configs/rooms.config", () => ({
   roomsConfig: {
     labels: {
       createModalTitle: "Neuer Raum",

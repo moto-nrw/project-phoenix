@@ -1,6 +1,6 @@
 "use client";
 
-import { groupsConfig } from "@/lib/database/configs/groups.config";
+import { groupsConfig } from "@/components/database/configs/groups.config";
 import type { Group } from "@/lib/group-helpers";
 import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
 

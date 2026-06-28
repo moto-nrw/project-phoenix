@@ -129,7 +129,7 @@ import {
   mockOrg,
   mockSchool,
   setupSWR,
-} from "../provisioning/provisioning-test-helpers";
+} from "~/test/helpers/operator-provisioning/provisioning-test-helpers";
 
 // Matches the old provisioning/page.test.tsx Accounts Tab fixtures.
 const mockAccount: {

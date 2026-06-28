@@ -12,7 +12,7 @@ import {
   revalidateTenantCache,
 } from "~/lib/operator/provisioning-api";
 import type { SchoolSummary } from "~/lib/operator/provisioning-helpers";
-import { buildSchoolColumns } from "~/lib/operator/school-table-columns";
+import { buildSchoolColumns } from "~/components/operator/school-table-columns";
 import { DataTable } from "~/components/ui/data-table";
 import {
   EmptyState,

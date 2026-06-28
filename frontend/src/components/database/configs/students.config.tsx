@@ -1,7 +1,7 @@
 // Student Entity Configuration
 
-import { defineEntityConfig } from "../types";
-import { databaseThemes } from "@/components/ui/database/themes";
+import { defineEntityConfig } from "@/lib/database/types";
+import { databaseThemes } from "@/lib/database/themes";
 import { GroupSelect } from "@/components/ui/database";
 import type { Student } from "@/lib/api";
 import { busDaysFromToggle, formatBusDays } from "@/lib/student-helpers";

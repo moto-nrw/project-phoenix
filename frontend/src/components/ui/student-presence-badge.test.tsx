@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 
 // Opt out of the global tenant-provider mock so the real TenantContext
 // is wired in — the wrapper depends on it to decide between badges.
+vi.unmock("~/lib/tenant-context");
 vi.unmock("~/components/tenant/tenant-provider");
 
 import { TenantProvider } from "~/components/tenant/tenant-provider";

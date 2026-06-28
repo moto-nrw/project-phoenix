@@ -1,7 +1,7 @@
 // Group Entity Configuration
 
-import { defineEntityConfig } from "../types";
-import { databaseThemes } from "@/components/ui/database/themes";
+import { defineEntityConfig } from "@/lib/database/types";
+import { databaseThemes } from "@/lib/database/themes";
 import type { Group, BackendGroup } from "@/lib/group-helpers";
 import { mapGroupResponse } from "@/lib/group-helpers";
 import { createLogger } from "~/lib/logger";

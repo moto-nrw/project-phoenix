@@ -49,7 +49,7 @@ vi.mock("~/components/ui/database/database-form", () => ({
 }));
 
 // Mock groupsConfig
-vi.mock("@/lib/database/configs/groups.config", () => ({
+vi.mock("@/components/database/configs/groups.config", () => ({
   groupsConfig: {
     labels: {
       createModalTitle: "Neue Gruppe",

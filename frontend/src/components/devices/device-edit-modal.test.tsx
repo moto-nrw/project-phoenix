@@ -50,7 +50,7 @@ vi.mock("~/components/ui/database/database-form", () => ({
 }));
 
 // Mock devicesConfig
-vi.mock("@/lib/database/configs/devices.config", () => ({
+vi.mock("@/components/database/configs/devices.config", () => ({
   devicesConfig: {
     labels: {
       editModalTitle: "Gerät bearbeiten",

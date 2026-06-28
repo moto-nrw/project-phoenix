@@ -1,7 +1,7 @@
 // Database Entity Configuration Types
 
 import type { ReactNode } from "react";
-import type { DatabaseTheme } from "@/components/ui/database/themes";
+import type { DatabaseTheme } from "@/lib/database/themes";
 
 // Field types supported by the database forms
 type FieldType =

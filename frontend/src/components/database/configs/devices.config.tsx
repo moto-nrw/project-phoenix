@@ -1,7 +1,7 @@
 // Device Entity Configuration
 
-import { defineEntityConfig } from "../types";
-import { databaseThemes } from "@/components/ui/database/themes";
+import { defineEntityConfig } from "@/lib/database/types";
+import { databaseThemes } from "@/lib/database/themes";
 import type { Device } from "@/lib/iot-helpers";
 import {
   prepareDeviceForBackend,

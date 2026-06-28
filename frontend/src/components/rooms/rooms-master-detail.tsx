@@ -15,7 +15,7 @@ import {
 } from "~/components/database/grouped-list";
 import { MasterDetailLayout } from "~/components/database/master-detail-layout";
 import { DatabaseForm } from "~/components/ui/database/database-form";
-import { roomsConfig } from "@/lib/database/configs/rooms.config";
+import { roomsConfig } from "@/components/database/configs/rooms.config";
 import { formatFloor, isSystemRoom, type Room } from "@/lib/room-helpers";
 import { buildRoomFormSections } from "./room-form-sections";
 
