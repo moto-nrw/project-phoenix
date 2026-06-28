@@ -11,6 +11,7 @@ import (
 	"time"
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -169,6 +170,7 @@ type ReportServiceConfig struct {
 	DataAccessLogRepo        auditModels.DataAccessLogRepository
 	StudentRepo              userModels.StudentRepository
 	PersonRepo               userModels.PersonRepository
+	EducationGroupRepo       educationModels.GroupRepository
 }
 
 type reportService struct {
@@ -181,6 +183,7 @@ type reportService struct {
 	dataAccessLogRepo        auditModels.DataAccessLogRepository
 	studentRepo              userModels.StudentRepository
 	personRepo               userModels.PersonRepository
+	educationGroupRepo       educationModels.GroupRepository
 }
 
 func NewReportService(cfg ReportServiceConfig) ReportService {
@@ -194,6 +197,7 @@ func NewReportService(cfg ReportServiceConfig) ReportService {
 		dataAccessLogRepo:        cfg.DataAccessLogRepo,
 		studentRepo:              cfg.StudentRepo,
 		personRepo:               cfg.PersonRepo,
+		educationGroupRepo:       cfg.EducationGroupRepo,
 	}
 }
 
@@ -379,6 +383,9 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 	if s.personRepo == nil {
 		return nil, fmt.Errorf("class roster report: person repo not configured")
 	}
+	if s.educationGroupRepo == nil {
+		return nil, fmt.Errorf("class roster report: education group repo not configured")
+	}
 
 	phase, err := s.phaseRepo.FindByID(ctx, filters.PhaseID)
 	if err != nil {
@@ -394,6 +401,10 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 	persons, err := s.personRepo.FindByIDs(ctx, classRosterPersonIDs(students))
 	if err != nil {
 		return nil, fmt.Errorf("class roster report: load persons: %w", err)
+	}
+	groups, err := s.classRosterGroupNames(ctx, students)
+	if err != nil {
+		return nil, err
 	}
 
 	requests, err := s.requestRepo.ListAdmin(ctx, enrollmentModels.RequestListFilters{PhaseID: filters.PhaseID})
@@ -454,7 +465,7 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 			continue
 		}
 		person := persons[student.PersonID]
-		row, err := classRosterRow(student, person, enrollmentsByStudent[student.ID], offeringByID, schemas)
+		row, err := classRosterRow(student, person, classRosterGroupName(student, groups), enrollmentsByStudent[student.ID], offeringByID, schemas)
 		if err != nil {
 			return nil, err
 		}
@@ -686,10 +697,9 @@ func careUsageRow(req *enrollmentModels.Request, child *enrollmentModels.Request
 }
 
 type classRosterApprovedEnrollment struct {
-	request  *enrollmentModels.Request
-	child    *enrollmentModels.RequestChild
-	childIDs []int64
-	links    []*enrollmentModels.RequestChildOffering
+	request *enrollmentModels.Request
+	child   *enrollmentModels.RequestChild
+	links   []*enrollmentModels.RequestChildOffering
 }
 
 func classRosterPersonIDs(students []*userModels.Student) []int64 {
@@ -703,6 +713,42 @@ func classRosterPersonIDs(students []*userModels.Student) []int64 {
 		ids = append(ids, student.PersonID)
 	}
 	return ids
+}
+
+func classRosterGroupIDs(students []*userModels.Student) []int64 {
+	ids := make([]int64, 0, len(students))
+	seen := map[int64]bool{}
+	for _, student := range students {
+		if student == nil || student.GroupID == nil || *student.GroupID <= 0 || seen[*student.GroupID] {
+			continue
+		}
+		seen[*student.GroupID] = true
+		ids = append(ids, *student.GroupID)
+	}
+	return ids
+}
+
+func (s *reportService) classRosterGroupNames(ctx context.Context, students []*userModels.Student) (map[int64]*educationModels.Group, error) {
+	groupIDs := classRosterGroupIDs(students)
+	if len(groupIDs) == 0 {
+		return nil, nil
+	}
+	groups, err := s.educationGroupRepo.FindByIDs(ctx, groupIDs)
+	if err != nil {
+		return nil, fmt.Errorf("class roster report: load groups: %w", err)
+	}
+	return groups, nil
+}
+
+func classRosterGroupName(student *userModels.Student, groups map[int64]*educationModels.Group) string {
+	if student == nil || student.GroupID == nil || groups == nil {
+		return ""
+	}
+	group := groups[*student.GroupID]
+	if group == nil {
+		return ""
+	}
+	return group.Name
 }
 
 func classRosterApprovedEnrollments(
@@ -729,16 +775,18 @@ func classRosterApprovedEnrollments(
 		}
 		current := out[studentID]
 		if current == nil {
-			out[studentID] = &classRosterApprovedEnrollment{request: req, child: child, childIDs: []int64{child.ID}}
+			out[studentID] = &classRosterApprovedEnrollment{request: req, child: child}
 		} else if classRosterChildIsNewer(req, child, current.request, current.child) {
 			current.request = req
 			current.child = child
-			current.childIDs = append(current.childIDs, child.ID)
-		} else {
-			current.childIDs = append(current.childIDs, child.ID)
 		}
-		childIDs = append(childIDs, child.ID)
 	}
+	for _, enrollment := range out {
+		if enrollment != nil && enrollment.child != nil && enrollment.child.ID > 0 {
+			childIDs = append(childIDs, enrollment.child.ID)
+		}
+	}
+	sort.Slice(childIDs, func(i, j int) bool { return childIDs[i] < childIDs[j] })
 	return out, childIDs
 }
 
@@ -764,14 +812,10 @@ func classRosterChildIsNewer(candidateReq *enrollmentModels.Request, candidateCh
 func classRosterAttachOfferingLinks(enrollments map[int64]*classRosterApprovedEnrollment, links []*enrollmentModels.RequestChildOffering) {
 	studentIDByChildID := make(map[int64]int64)
 	for studentID, enrollment := range enrollments {
-		if enrollment == nil {
+		if enrollment == nil || enrollment.child == nil || enrollment.child.ID <= 0 {
 			continue
 		}
-		for _, childID := range enrollment.childIDs {
-			if childID > 0 {
-				studentIDByChildID[childID] = studentID
-			}
-		}
+		studentIDByChildID[enrollment.child.ID] = studentID
 	}
 	for _, link := range links {
 		if link == nil {
@@ -788,6 +832,7 @@ func classRosterAttachOfferingLinks(enrollments map[int64]*classRosterApprovedEn
 func classRosterRow(
 	student *userModels.Student,
 	person *userModels.Person,
+	groupName string,
 	enrollment *classRosterApprovedEnrollment,
 	offeringByID map[int64]*enrollmentModels.CareOffering,
 	schemas map[int64]*enrollmentModels.FormSchema,
@@ -795,6 +840,7 @@ func classRosterRow(
 	row := ClassRosterRow{
 		StudentID:         student.ID,
 		SchoolClass:       student.SchoolClass,
+		GroupName:         groupName,
 		EnrollmentSummary: "Keine Anmeldung",
 		CareDays:          []string{},
 		ArrivalByDay:      map[string]string{},
@@ -1170,8 +1216,8 @@ func careUsageRowMatches(row CareUsageRow, filters CareUsageFilters) bool {
 		if !containsString(row.EffectiveDays, filters.Weekday) {
 			return false
 		}
-		if filters.PickupTime != "" {
-			return row.PickupByDay[filters.Weekday] == filters.PickupTime
+		if filters.PickupTime != "" && row.PickupByDay[filters.Weekday] != filters.PickupTime {
+			return false
 		}
 	}
 	if filters.PickupTime != "" {

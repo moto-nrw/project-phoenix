@@ -1,6 +1,7 @@
 package enrollment
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	baseModels "github.com/moto-nrw/project-phoenix/models/base"
+	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -107,9 +109,10 @@ func TestClassRosterRowUsesPhaseEnrollmentData(t *testing.T) {
 		},
 	}
 
-	row, err := classRosterRow(student, person, enrollment, offerings, schemas)
+	row, err := classRosterRow(student, person, "Eulen", enrollment, offerings, schemas)
 
 	require.NoError(t, err)
+	assert.Equal(t, "Eulen", row.GroupName)
 	assert.True(t, row.Registered)
 	assert.Equal(t, "Angemeldet: Randstunde", row.EnrollmentSummary)
 	assert.Equal(t, []string{"mon"}, row.CareDays)
@@ -127,7 +130,7 @@ func TestClassRosterRowMarksMissingEnrollmentAsNoRegistration(t *testing.T) {
 	}
 	person := &userModels.Person{FirstName: "Tom", LastName: "Ohne"}
 
-	row, err := classRosterRow(student, person, nil, nil, nil)
+	row, err := classRosterRow(student, person, "", nil, nil, nil)
 
 	require.NoError(t, err)
 	assert.False(t, row.Registered)
@@ -157,6 +160,64 @@ func TestClassRosterApprovedEnrollmentsOnlyUsesApprovedChildrenInClass(t *testin
 	require.Len(t, got, 1)
 	assert.Equal(t, int64(10), got[studentID].child.ID)
 	assert.Equal(t, []int64{10}, childIDs)
+}
+
+func TestClassRosterApprovedEnrollmentsUsesOnlyNewestChildLinks(t *testing.T) {
+	studentID := int64(100)
+	requestByID := map[int64]*enrollmentModels.Request{
+		1: {Model: baseModels.Model{ID: 1}, SubmittedAt: time.Date(2026, 1, 1, 8, 0, 0, 0, time.UTC)},
+		2: {Model: baseModels.Model{ID: 2}, SubmittedAt: time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC)},
+	}
+	studentByID := map[int64]*userModels.Student{
+		studentID: {Model: baseModels.Model{ID: studentID}},
+	}
+	children := []*enrollmentModels.RequestChild{
+		{Model: baseModels.Model{ID: 10}, RequestID: 1, Status: enrollmentModels.ChildStatusApproved, CreatedStudentID: &studentID},
+		{Model: baseModels.Model{ID: 20}, RequestID: 2, Status: enrollmentModels.ChildStatusApproved, CreatedStudentID: &studentID},
+	}
+
+	got, childIDs := classRosterApprovedEnrollments(children, requestByID, studentByID)
+	classRosterAttachOfferingLinks(got, []*enrollmentModels.RequestChildOffering{
+		{RequestChildID: 10, CareOfferingID: 1},
+		{RequestChildID: 20, CareOfferingID: 2},
+	})
+
+	require.Len(t, got, 1)
+	assert.Equal(t, int64(20), got[studentID].child.ID)
+	assert.Equal(t, []int64{20}, childIDs)
+	require.Len(t, got[studentID].links, 1)
+	assert.Equal(t, int64(2), got[studentID].links[0].CareOfferingID)
+}
+
+func TestClassRosterGroupNameResolvesAssignedGroup(t *testing.T) {
+	groupID := int64(12)
+	student := &userModels.Student{GroupID: &groupID}
+	groups := map[int64]*educationModels.Group{
+		groupID: {Name: "Klasse 2a"},
+	}
+
+	assert.Equal(t, "Klasse 2a", classRosterGroupName(student, groups))
+}
+
+func TestReportServiceClassRosterGroupNamesLoadsUniqueGroups(t *testing.T) {
+	groupID := int64(12)
+	otherGroupID := int64(13)
+	repo := &fakeEducationGroupRepo{groups: map[int64]*educationModels.Group{
+		groupID:      {Name: "Klasse 2a"},
+		otherGroupID: {Name: "Klasse 3b"},
+	}}
+	svc := &reportService{educationGroupRepo: repo}
+
+	groups, err := svc.classRosterGroupNames(context.Background(), []*userModels.Student{
+		{GroupID: &groupID},
+		{GroupID: &groupID},
+		{GroupID: &otherGroupID},
+		{},
+	})
+
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []int64{groupID, otherGroupID}, repo.seenIDs)
+	assert.Equal(t, "Klasse 2a", groups[groupID].Name)
 }
 
 func TestCareUsageRowDoesNotInflateMissingParentChoiceDays(t *testing.T) {
@@ -237,6 +298,7 @@ func TestCareUsageRowMatchesFilters(t *testing.T) {
 	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", DayCount: &otherDayCount}))
 	assert.True(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", Weekday: "mon"}))
 	assert.True(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", Weekday: "wed", PickupTime: "16:00"}))
+	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", Weekday: "wed", PickupTime: "16:00", Search: "unbekannt"}))
 	assert.True(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", PickupTime: "14:30"}))
 	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", Weekday: "tue"}))
 	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", Weekday: "wed", PickupTime: "14:30"}))
@@ -386,4 +448,21 @@ func TestCareUsageRowCarriesManualAndAutomaticDays(t *testing.T) {
 	assert.Equal(t, []string{"fri"}, row.Offerings[0].ManualSelectedDays)
 	assert.Equal(t, []string{"mon", "tue", "wed", "thu"}, row.Offerings[0].AutomaticSelectedDays)
 	assert.Equal(t, []string{"mon", "tue", "wed", "thu", "fri"}, row.Offerings[0].Days)
+}
+
+type fakeEducationGroupRepo struct {
+	educationModels.GroupRepository
+	groups  map[int64]*educationModels.Group
+	seenIDs []int64
+}
+
+func (r *fakeEducationGroupRepo) FindByIDs(_ context.Context, ids []int64) (map[int64]*educationModels.Group, error) {
+	r.seenIDs = append([]int64(nil), ids...)
+	out := make(map[int64]*educationModels.Group, len(ids))
+	for _, id := range ids {
+		if group := r.groups[id]; group != nil {
+			out[id] = group
+		}
+	}
+	return out, nil
 }

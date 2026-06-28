@@ -53,6 +53,7 @@ func TestBuildClassRosterTableDocumentRendersPhaseAwareCells(t *testing.T) {
 				FirstName:         "Lina",
 				LastName:          "Muster",
 				SchoolClass:       "1a",
+				GroupName:         "Eulen",
 				Registered:        true,
 				EnrollmentSummary: "Angemeldet: Randstunde",
 				CareDays:          []string{"mon", "wed"},
@@ -79,6 +80,7 @@ func TestBuildClassRosterTableDocumentRendersPhaseAwareCells(t *testing.T) {
 	assert.Equal(t, "2 Kinder, 1 angemeldet", doc.Subtitle)
 	require.Len(t, doc.Rows, 2)
 	assert.Equal(t, "Angemeldet: Randstunde", doc.Rows[0].Values[listexport.ColumnEnrollmentSummary])
+	assert.Equal(t, "Eulen", doc.Rows[0].Values[listexport.ColumnGroup])
 	assert.Equal(t, "Mo, Mi", doc.Rows[0].Values[listexport.ColumnCareDays])
 	assert.Equal(t, "Ankunft: 11:30, Abholung: 14:30", doc.Rows[0].Values[listexport.ColumnWeeklyMonday])
 	assert.Equal(t, "Betreuung", doc.Rows[0].Values[listexport.ColumnWeeklyWednesday])

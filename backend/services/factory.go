@@ -1035,6 +1035,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DataAccessLogRepo:        repos.DataAccessLog,
 		StudentRepo:              repos.Student,
 		PersonRepo:               repos.Person,
+		EducationGroupRepo:       repos.Group,
 	})
 
 	// Rollover service depends on DecisionService for the
