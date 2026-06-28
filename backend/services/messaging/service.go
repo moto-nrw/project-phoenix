@@ -26,6 +26,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
+	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -52,6 +53,21 @@ var (
 	ErrGuardianAccessRevoked = errors.New("messaging: recipient no longer has access to this child")
 	// ErrMessagingDisabled means the feature flag is off for the tenant.
 	ErrMessagingDisabled = errors.New("messaging: messaging disabled for this school")
+	// ErrRequestNotFound means a structured request row does not exist.
+	ErrRequestNotFound = errors.New("messaging: request not found")
+	// ErrInvalidRequestStatus means the request cannot transition that way.
+	ErrInvalidRequestStatus = errors.New("messaging: invalid request status transition")
+	// ErrRejectReasonRequired means staff rejected without a reason.
+	ErrRejectReasonRequired = errors.New("messaging: reject reason is required")
+	// ErrRejectReasonTooLong means the reject reason exceeded maxMasterDataFieldLen.
+	ErrRejectReasonTooLong = errors.New("messaging: reject reason too long")
+	// ErrRequestNoLongerPossible means confirm revalidation/apply failed.
+	ErrRequestNoLongerPossible = errors.New("messaging: request is no longer possible")
+	// ErrInvalidRequestType means the request_type is not registered.
+	ErrInvalidRequestType = errors.New("messaging: invalid request type")
+	// ErrInvalidRequestPayload means a request payload failed shape/policy
+	// validation at create time (bad field, weekday, mode, or time).
+	ErrInvalidRequestPayload = errors.New("messaging: invalid request payload")
 )
 
 // ThreadDetail is the chat-window payload: conversation header (child,
@@ -68,7 +84,7 @@ type ThreadDetail struct {
 
 // Service is the staff-side messaging contract.
 type Service interface {
-	ListInbox(ctx context.Context, onlyUnread bool) ([]*usersModels.InboxThread, error)
+	ListInbox(ctx context.Context, onlyUnread bool, onlyOpenRequests bool) ([]*usersModels.InboxThread, error)
 	UnreadMessageCount(ctx context.Context) (int, error)
 	GetThread(ctx context.Context, threadID int64) (*ThreadDetail, error)
 	PostMessage(ctx context.Context, threadID int64, body string) ([]*usersModels.ParentMessage, error)
@@ -84,6 +100,26 @@ type Service interface {
 	// access to the child, then filters server-side instead of having the card
 	// fetch the whole tenant inbox.
 	ListStudentThreads(ctx context.Context, studentID int64) ([]*usersModels.InboxThread, error)
+	// ConfirmRequest applies a still-open parent change request (care schedule or
+	// student master data) inside a transaction, marks it 'erledigt', posts the
+	// decision event into the thread, and returns the refreshed thread messages.
+	ConfirmRequest(ctx context.Context, requestID int64) ([]*usersModels.ParentMessage, error)
+	// RejectRequest declines a still-open request with a reason, marks it
+	// 'abgelehnt', posts the parent-visible decision event, and returns the
+	// refreshed thread messages.
+	RejectRequest(ctx context.Context, requestID int64, reason string) ([]*usersModels.ParentMessage, error)
+	// BuildRequestDiffs returns the "current → requested" comparison for every
+	// still-open request in the message list, keyed by request message ID. Must
+	// run inside a tenant transaction.
+	BuildRequestDiffs(ctx context.Context, studentID int64, messages []*usersModels.ParentMessage) map[int64][]RequestDiffEntry
+}
+
+// RequestDiffEntry is one field-level "current → requested" comparison row in a
+// change request's diff (staff- and parent-visible).
+type RequestDiffEntry struct {
+	Label string
+	Old   string
+	New   string
 }
 
 type service struct {
@@ -150,10 +186,10 @@ func accountIDFromCtx(ctx context.Context) int64 {
 	return int64(jwt.ClaimsFromCtx(ctx).ID)
 }
 
-func (s *service) ListInbox(ctx context.Context, onlyUnread bool) ([]*usersModels.InboxThread, error) {
+func (s *service) ListInbox(ctx context.Context, onlyUnread bool, onlyOpenRequests bool) ([]*usersModels.InboxThread, error) {
 	accountID := accountIDFromCtx(ctx)
 	allStudents, groupIDs := s.scope(ctx)
-	rows, err := s.readRepo.ListInboxForStaff(ctx, accountID, allStudents, groupIDs, onlyUnread)
+	rows, err := s.readRepo.ListInboxForStaff(ctx, accountID, allStudents, groupIDs, onlyUnread, onlyOpenRequests)
 	if err != nil {
 		return nil, fmt.Errorf("messaging: list inbox: %w", err)
 	}

@@ -387,7 +387,7 @@ func (s *service) appendSystemEvent(ctx context.Context, thread *usersModels.Par
 	// Guarded, monotonic update so a concurrent newer guardian message keeps
 	// owning the inbox preview/order (see TouchLastMessage): a decided request
 	// that committed later but with an older instant must not reorder the thread.
-	if err := s.threadRepo.TouchLastMessage(ctx, thread.ID, msg.CreatedAt, usersModels.ParentMessageSenderStaff, body); err != nil {
+	if err := s.threadRepo.TouchLastMessage(ctx, thread.ID, msg.CreatedAt, msg.ID, usersModels.ParentMessageSenderStaff, body); err != nil {
 		return fmt.Errorf("messaging: update thread: %w", err)
 	}
 	return nil

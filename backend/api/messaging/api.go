@@ -155,6 +155,7 @@ func (rs *Resource) listInbox(w http.ResponseWriter, r *http.Request) {
 	rows, err := rs.Service.ListInbox(
 		r.Context(),
 		r.URL.Query().Get("unread") == "true",
+		r.URL.Query().Get("open_requests") == "true",
 	)
 	if err != nil {
 		renderMessagingError(w, r, err)
