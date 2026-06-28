@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { authConfig, _resetRefreshState, _testHelpers } from "./config";
+import { tenantAuthConfig as authConfig } from "./tenant-config";
+import { _resetRefreshState, _testHelpers } from "./shared";
 import { operatorAuthConfig } from "./operator-config";
 import { parentAuthConfig } from "./parent-config";
 import type { NextAuthConfig, User } from "next-auth";

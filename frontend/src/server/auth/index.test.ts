@@ -14,9 +14,9 @@ vi.mock("react", () => ({
   cache: vi.fn((fn: unknown) => fn),
 }));
 
-// Mock the config
-vi.mock("./config", () => ({
-  authConfig: {
+// Mock the tenant auth config used by the default auth instance.
+vi.mock("./tenant-config", () => ({
+  tenantAuthConfig: {
     providers: [],
     callbacks: {},
     pages: { signIn: "/" },
