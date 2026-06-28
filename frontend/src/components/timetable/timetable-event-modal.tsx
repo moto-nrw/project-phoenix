@@ -9,7 +9,6 @@ import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceModal } from "~/components/ui/choice-modal";
 import { Input } from "~/components/ui/input";
-import { renderModalErrorAlert } from "~/components/ui/modal-utils";
 import {
   SlideOver,
   SlideOverCloseButton,
@@ -1252,11 +1251,12 @@ export function TimetableEventModal({
           className="flex-1 overflow-y-auto px-5 py-4"
         >
           <div className="flex flex-col gap-5">
-            {initialInstance &&
-              initialInstance.status !== "planned" &&
-              renderModalErrorAlert({
-                message: "Nur geplante Termine können bearbeitet werden.",
-              })}
+            {initialInstance && initialInstance.status !== "planned" && (
+              <Alert
+                type="error"
+                message="Nur geplante Termine können bearbeitet werden."
+              />
+            )}
 
             {isEditingSeries && (
               <p className="text-xs text-gray-500">
@@ -1617,15 +1617,16 @@ export function TimetableEventModal({
               </div>
             )}
 
-            {isSeriesFlow &&
-              calendarPeriods.length === 0 &&
-              renderModalErrorAlert({
-                message:
-                  "Für diese Woche gibt es keinen aktiven Planungszeitraum. Lege zuerst oben im Plan einen Zeitraum an.",
-              })}
+            {isSeriesFlow && calendarPeriods.length === 0 && (
+              <Alert
+                type="error"
+                message="Für diese Woche gibt es keinen aktiven Planungszeitraum. Lege zuerst oben im Plan einen Zeitraum an."
+              />
+            )}
 
-            {validationError &&
-              renderModalErrorAlert({ message: validationError })}
+            {validationError && (
+              <Alert type="error" message={validationError} />
+            )}
           </div>
         </form>
 

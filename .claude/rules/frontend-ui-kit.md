@@ -79,7 +79,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Location / presence badge | `LocationBadge`, `PresenceBadge`, `StudentPresenceBadge` | `~/components/ui/location-badge`, etc. |
 | Back navigation | `BackButton`, `MobileBackButton` | `~/components/ui/back-button`, `~/components/ui/mobile-back-button` |
 | Overlay / side panel | `Drawer`, slide-over | `~/components/ui/drawer`, `~/components/ui/slide-over` |
-| API error message text | `getApiErrorMessage` | `~/components/ui/modal-utils` |
+| API error message text | `getApiErrorMessage` | `~/lib/api-error-message` |
 | List/search page header | `PageHeaderWithSearch` | `~/components/ui/page-header` |
 | Header nav tabs (sliding indicator, mobile dropdown) | `NavigationTabs` | `~/components/ui/page-header/NavigationTabs` |
 | Kebab / overflow action menu | `OverflowMenu` | `~/components/ui/page-header/OverflowMenu` |
