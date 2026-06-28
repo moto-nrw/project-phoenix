@@ -136,6 +136,7 @@ export interface EnrollmentEditDraft {
 }
 
 type EnrollmentEditMode = "direct_edit" | "change_request";
+type EnrollmentStatusEditMode = EnrollmentEditMode | "none";
 
 export interface EnrollmentEditBootstrap {
   edit_mode: EnrollmentEditMode;
@@ -414,6 +415,7 @@ export interface StatusResponse {
   guardian_phone?: string | null;
   submitted_at: string;
   withdrawn_at?: string | null;
+  edit_mode: EnrollmentStatusEditMode;
   children: StatusChild[];
   /** Co-guardians the parent added beyond the primary guardian. */
   additional_guardians?: StatusGuardian[];

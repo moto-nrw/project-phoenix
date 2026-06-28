@@ -487,7 +487,16 @@ func (s *changeRequestService) prepareProposed(
 	for _, offering := range openOfferings {
 		openByID[offering.ID] = offering
 	}
-	materializedSelections, err := materializeAndValidateChildrenOfferingSelections(editReq.Children, openByID, phase.CareOfferingSelectionMode)
+	offeringCatalogs, changeRequestByID, err := s.changeRequestOfferingCatalogs(ctx, children, openByID)
+	if err != nil {
+		return editReq, nil, nil, nil, err
+	}
+	materializedSelections, err := materializeAndValidateChangeRequestChildrenOfferingSelections(
+		editReq.Children,
+		children,
+		offeringCatalogs,
+		phase.CareOfferingSelectionMode,
+	)
 	if err != nil {
 		return editReq, nil, nil, nil, err
 	}
@@ -511,13 +520,13 @@ func (s *changeRequestService) prepareProposed(
 		return editReq, nil, nil, nil, err
 	}
 	editReq.ConsentFlags = filterConsentFlags(editReq.ConsentFlags, legalBlocks)
-	if err := rs.validateRequiredCustomFields(schema, editReq, openByID); err != nil {
+	if err := rs.validateRequiredCustomFields(schema, editReq, changeRequestByID); err != nil {
 		return editReq, nil, nil, nil, err
 	}
-	if err := rs.validateAccompaniedCompanionNote(schema, editReq, openByID); err != nil {
+	if err := rs.validateAccompaniedCompanionNote(schema, editReq, changeRequestByID); err != nil {
 		return editReq, nil, nil, nil, err
 	}
-	if err := rs.validateConstrainedSchedules(schema, editReq, openByID); err != nil {
+	if err := rs.validateConstrainedSchedules(schema, editReq, changeRequestByID); err != nil {
 		return editReq, nil, nil, nil, err
 	}
 	byKey := buildFieldsByKey(schema)
@@ -528,11 +537,11 @@ func (s *changeRequestService) prepareProposed(
 			guardianAnswers: rawGuardian,
 			childAnswers:    editReq.Children[i].CustomData,
 			gradeLevel:      editReq.Children[i].TargetGradeLevel,
-			offeringNames:   selectedOfferingNames(editReq.Children[i], openByID),
+			offeringNames:   selectedOfferingNames(editReq.Children[i], changeRequestByID),
 			fieldsByKey:     byKey,
 		}
 		sanitizedChild := sanitizeVisibleAnswers(schema, true, editReq.Children[i].CustomData, childCtx)
-		pruneChildScheduleAnswers(schema, sanitizedChild, relevantCareDaysForChild(editReq.Children[i], openByID))
+		pruneChildScheduleAnswers(schema, sanitizedChild, relevantCareDaysForChild(editReq.Children[i], changeRequestByID))
 		editReq.Children[i].CustomData = mergeEditableCustomData(existingCustomData[i], sanitizedChild, schema, true)
 	}
 	editReq.CustomData = mergeEditableCustomData(
@@ -544,7 +553,125 @@ func (s *changeRequestService) prepareProposed(
 		schema,
 		false,
 	)
-	return editReq, materializedSelections, phase, openByID, nil
+	return editReq, materializedSelections, phase, changeRequestByID, nil
+}
+
+func (s *changeRequestService) changeRequestOfferingCatalogs(
+	ctx context.Context,
+	children []*enrollmentModels.RequestChild,
+	openByID map[int64]*enrollmentModels.CareOffering,
+) ([]map[int64]*enrollmentModels.CareOffering, map[int64]*enrollmentModels.CareOffering, error) {
+	childIDs := make([]int64, 0, len(children))
+	childIndexByID := make(map[int64]int, len(children))
+	for i, child := range children {
+		if child == nil {
+			continue
+		}
+		childIDs = append(childIDs, child.ID)
+		childIndexByID[child.ID] = i
+	}
+
+	links, err := s.requestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("change request: load current child offerings: %w", err)
+	}
+
+	currentIDs := make(map[int64]bool)
+	currentByChild := make([]map[int64]bool, len(children))
+	for _, link := range links {
+		if link == nil {
+			continue
+		}
+		idx, ok := childIndexByID[link.RequestChildID]
+		if !ok {
+			continue
+		}
+		if currentByChild[idx] == nil {
+			currentByChild[idx] = map[int64]bool{}
+		}
+		currentByChild[idx][link.CareOfferingID] = true
+		if openByID[link.CareOfferingID] == nil {
+			currentIDs[link.CareOfferingID] = true
+		}
+	}
+
+	currentOfferingsByID := map[int64]*enrollmentModels.CareOffering{}
+	if len(currentIDs) > 0 {
+		ids := make([]int64, 0, len(currentIDs))
+		for id := range currentIDs {
+			ids = append(ids, id)
+		}
+		currentOfferings, err := s.careOfferingRepo.ListByIDs(ctx, ids)
+		if err != nil {
+			return nil, nil, fmt.Errorf("change request: load current inactive offerings: %w", err)
+		}
+		for _, offering := range currentOfferings {
+			if offering != nil {
+				currentOfferingsByID[offering.ID] = offering
+			}
+		}
+	}
+
+	combinedByID := make(map[int64]*enrollmentModels.CareOffering, len(openByID)+len(currentOfferingsByID))
+	for id, offering := range openByID {
+		combinedByID[id] = offering
+	}
+	for id, offering := range currentOfferingsByID {
+		combinedByID[id] = offering
+	}
+
+	catalogs := make([]map[int64]*enrollmentModels.CareOffering, len(children))
+	for i := range children {
+		catalog := make(map[int64]*enrollmentModels.CareOffering, len(openByID)+len(currentByChild[i]))
+		for id, offering := range openByID {
+			catalog[id] = offering
+		}
+		for id := range currentByChild[i] {
+			if offering := combinedByID[id]; offering != nil {
+				catalog[id] = offering
+			}
+		}
+		catalogs[i] = catalog
+	}
+	return catalogs, combinedByID, nil
+}
+
+func materializeAndValidateChangeRequestChildrenOfferingSelections(
+	children []SubmitChild,
+	existingChildren []*enrollmentModels.RequestChild,
+	catalogs []map[int64]*enrollmentModels.CareOffering,
+	selectionMode string,
+) ([][]materializedOfferingSelection, error) {
+	out := make([][]materializedOfferingSelection, len(children))
+	for i := range children {
+		catalog := map[int64]*enrollmentModels.CareOffering{}
+		if i < len(catalogs) && catalogs[i] != nil {
+			catalog = catalogs[i]
+		}
+		if err := validateOfferingSelections([]SubmitChild{children[i]}, catalog); err != nil {
+			return nil, fmt.Errorf("child %d: %w", i, err)
+		}
+		manualChild := cloneSubmitChildrenOfferingSelections([]SubmitChild{children[i]})[0]
+		selections, err := materializeOfferingSelections(children[i], catalog)
+		if err != nil {
+			return nil, fmt.Errorf("child %d: %w", i, err)
+		}
+		children[i].OfferingIDs, children[i].OfferingDays = selectionPayload(selections, catalog)
+		if err := validateOfferingGroupRules([]SubmitChild{children[i]}, catalog); err != nil {
+			return nil, err
+		}
+		if err := validateRequiredOfferings([]SubmitChild{children[i]}, catalog); err != nil {
+			return nil, err
+		}
+		if err := validateCareOfferingSelectionMode([]SubmitChild{manualChild}, catalog, selectionMode); err != nil {
+			return nil, err
+		}
+		if i < len(existingChildren) && existingChildren[i] == nil {
+			return nil, fmt.Errorf("%w: child %d missing existing row", ErrChangeRequestInvalidData, i)
+		}
+		out[i] = selections
+	}
+	return out, nil
 }
 
 func (s *changeRequestService) schemaForRequest(ctx context.Context, req *enrollmentModels.Request) (*enrollmentModels.FormSchema, error) {

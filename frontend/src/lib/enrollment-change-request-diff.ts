@@ -2,6 +2,7 @@ export interface EnrollmentChangeRequestDiffInput {
   readonly baseSnapshot: Record<string, unknown>;
   readonly proposedSnapshot: Record<string, unknown>;
   readonly diff: Record<string, unknown>;
+  readonly copy?: EnrollmentChangeRequestDiffCopy;
 }
 
 interface EnrollmentChangeRequestDiffRow {
@@ -17,64 +18,82 @@ export interface EnrollmentChangeRequestDiffGroup {
   readonly rows: EnrollmentChangeRequestDiffRow[];
 }
 
-const SNAPSHOT_LABELS: Record<string, string> = {
-  additional_guardians: "Weitere erziehungsberechtigte Personen",
-  children: "Kinder",
-  consent_flags: "Zustimmungen",
-  custom_data: "Zusatzangaben",
-  guardian_email: "E-Mail",
-  guardian_first_name: "Vorname",
-  guardian_last_name: "Nachname",
-  guardian_phone: "Telefon",
-  phase_id: "Anmeldephase",
-};
+export interface EnrollmentChangeRequestDiffCopy {
+  readonly snapshotLabels: Record<string, string>;
+  readonly childSnapshotLabels: Record<string, string>;
+  readonly guardianSnapshotLabels: Record<string, string>;
+  readonly recordValueLabels: Record<string, string>;
+  readonly weekdayLabels: Record<string, string>;
+  readonly childEntryLabel: string;
+  readonly additionalGuardianEntryLabel: string;
+  readonly emptyLabel: string;
+  readonly yesLabel: string;
+  readonly noLabel: string;
+}
 
-const CHILD_SNAPSHOT_LABELS: Record<string, string> = {
-  custom_data: "Zusatzangaben",
-  date_of_birth: "Geburtsdatum",
-  first_name: "Vorname",
-  last_name: "Nachname",
-  offering_days: "Betreuungstage",
-  offering_ids: "Betreuungsangebote",
-  target_grade_level: "Zielklasse",
-};
-
-const GUARDIAN_SNAPSHOT_LABELS: Record<string, string> = {
-  email: "E-Mail",
-  first_name: "Vorname",
-  last_name: "Nachname",
-  phone: "Telefon",
-};
-
-const RECORD_VALUE_LABELS: Record<string, string> = {
-  automatic_selected_days: "Automatisch",
-  available_days: "Verfügbare Tage",
-  days_of_week_mode: "Modus",
-  email: "E-Mail",
-  first_name: "Vorname",
-  last_name: "Nachname",
-  manual_selected_days: "Manuell",
-  offering_id: "Betreuungsangebot",
-  offering_ids: "Betreuungsangebote",
-  phone: "Telefon",
-  selected_days: "Tage",
-};
+export const DEFAULT_ENROLLMENT_CHANGE_REQUEST_DIFF_COPY: EnrollmentChangeRequestDiffCopy =
+  {
+    snapshotLabels: {
+      additional_guardians: "Weitere erziehungsberechtigte Personen",
+      children: "Kinder",
+      consent_flags: "Zustimmungen",
+      custom_data: "Zusatzangaben",
+      guardian_email: "E-Mail",
+      guardian_first_name: "Vorname",
+      guardian_last_name: "Nachname",
+      guardian_phone: "Telefon",
+      phase_id: "Anmeldephase",
+    },
+    childSnapshotLabels: {
+      custom_data: "Zusatzangaben",
+      date_of_birth: "Geburtsdatum",
+      first_name: "Vorname",
+      last_name: "Nachname",
+      offering_days: "Betreuungstage",
+      offering_ids: "Betreuungsangebote",
+      target_grade_level: "Zielklasse",
+    },
+    guardianSnapshotLabels: {
+      email: "E-Mail",
+      first_name: "Vorname",
+      last_name: "Nachname",
+      phone: "Telefon",
+    },
+    recordValueLabels: {
+      automatic_selected_days: "Automatisch",
+      available_days: "Verfügbare Tage",
+      days_of_week_mode: "Modus",
+      email: "E-Mail",
+      first_name: "Vorname",
+      last_name: "Nachname",
+      manual_selected_days: "Manuell",
+      offering_id: "Betreuungsangebot",
+      offering_ids: "Betreuungsangebote",
+      phone: "Telefon",
+      selected_days: "Tage",
+    },
+    weekdayLabels: {
+      mon: "Mo",
+      tue: "Di",
+      wed: "Mi",
+      thu: "Do",
+      fri: "Fr",
+      sat: "Sa",
+      sun: "So",
+    },
+    childEntryLabel: "Kind",
+    additionalGuardianEntryLabel: "Weitere Person",
+    emptyLabel: "Nicht gesetzt",
+    yesLabel: "Ja",
+    noLabel: "Nein",
+  };
 
 const CHILD_METADATA_KEYS = new Set(["id", "status"]);
 const GUARDIAN_METADATA_KEYS = new Set(["id"]);
 
-const WEEKDAY_LABELS: Record<string, string> = {
-  mon: "Mo",
-  tue: "Di",
-  wed: "Mi",
-  thu: "Do",
-  fri: "Fr",
-  sat: "Sa",
-  sun: "So",
-};
-
 export function buildEnrollmentChangeRequestDiffGroups({
   baseSnapshot,
+  copy = DEFAULT_ENROLLMENT_CHANGE_REQUEST_DIFF_COPY,
   proposedSnapshot,
   diff,
 }: EnrollmentChangeRequestDiffInput): EnrollmentChangeRequestDiffGroup[] {
@@ -82,18 +101,18 @@ export function buildEnrollmentChangeRequestDiffGroups({
     (key) => {
       const before = baseSnapshot[key];
       const after = proposedSnapshot[key];
-      const rows = snapshotDetailRows(key, before, after);
+      const rows = snapshotDetailRows(key, before, after, copy);
       if (rows.length === 0) {
         if (suppressesMetadataOnlyDiffs(key)) return [];
         if (snapshotValuesEqual(before, after)) return [];
         return [
           {
             key,
-            label: snapshotLabel(key),
+            label: snapshotLabel(key, copy),
             rows: [
               {
                 id: key,
-                label: snapshotLabel(key),
+                label: snapshotLabel(key, copy),
                 before,
                 after,
               },
@@ -104,7 +123,7 @@ export function buildEnrollmentChangeRequestDiffGroups({
       return [
         {
           key,
-          label: snapshotLabel(key),
+          label: snapshotLabel(key, copy),
           rows,
         },
       ];
@@ -122,21 +141,22 @@ export function changedEnrollmentChangeRequestLabels(
 
 export function formatEnrollmentChangeRequestValue(
   value: unknown,
-  emptyLabel = "Nicht gesetzt",
+  emptyLabel = DEFAULT_ENROLLMENT_CHANGE_REQUEST_DIFF_COPY.emptyLabel,
+  copy: EnrollmentChangeRequestDiffCopy = DEFAULT_ENROLLMENT_CHANGE_REQUEST_DIFF_COPY,
 ): string {
   if (value === null || value === undefined || value === "") {
     return emptyLabel;
   }
-  if (typeof value === "boolean") return value ? "Ja" : "Nein";
+  if (typeof value === "boolean") return value ? copy.yesLabel : copy.noLabel;
   if (typeof value === "string" || typeof value === "number") {
-    return formatScalar(value);
+    return formatScalar(value, copy);
   }
   if (Array.isArray(value)) {
-    return formatArrayValue(value, emptyLabel);
+    return formatArrayValue(value, emptyLabel, copy);
   }
   const record = snapshotRecord(value);
   if (record) {
-    return formatRecordValue(record, emptyLabel);
+    return formatRecordValue(record, emptyLabel, copy);
   }
   return String(value);
 }
@@ -171,13 +191,14 @@ function snapshotDetailRows(
   key: string,
   before: unknown,
   after: unknown,
+  copy: EnrollmentChangeRequestDiffCopy,
 ): EnrollmentChangeRequestDiffRow[] {
   if (key === "additional_guardians") {
     return recordArrayDiffRows(
       before,
       after,
-      "Weitere Person",
-      GUARDIAN_SNAPSHOT_LABELS,
+      copy.additionalGuardianEntryLabel,
+      copy.guardianSnapshotLabels,
       GUARDIAN_METADATA_KEYS,
     );
   }
@@ -185,8 +206,8 @@ function snapshotDetailRows(
     return recordArrayDiffRows(
       before,
       after,
-      "Kind",
-      CHILD_SNAPSHOT_LABELS,
+      copy.childEntryLabel,
+      copy.childSnapshotLabels,
       CHILD_METADATA_KEYS,
     );
   }
@@ -320,23 +341,27 @@ function normalizeSnapshotValue(value: unknown): unknown {
   );
 }
 
-function snapshotLabel(key: string): string {
-  return SNAPSHOT_LABELS[key] ?? key;
+function snapshotLabel(
+  key: string,
+  copy: EnrollmentChangeRequestDiffCopy,
+): string {
+  return copy.snapshotLabels[key] ?? key;
 }
 
 function formatArrayValue(
   value: readonly unknown[],
   emptyLabel: string,
+  copy: EnrollmentChangeRequestDiffCopy,
 ): string {
   if (value.length === 0) return emptyLabel;
   if (value.every(isScalarValue)) {
-    return value.map((item) => formatScalar(item)).join(", ");
+    return value.map((item) => formatScalar(item, copy)).join(", ");
   }
   return value
     .map((item, index) => {
       const record = snapshotRecord(item);
-      if (record) return formatRecordValue(record, emptyLabel);
-      return `${index + 1}. ${formatEnrollmentChangeRequestValue(item, emptyLabel)}`;
+      if (record) return formatRecordValue(record, emptyLabel, copy);
+      return `${index + 1}. ${formatEnrollmentChangeRequestValue(item, emptyLabel, copy)}`;
     })
     .join("; ");
 }
@@ -344,8 +369,9 @@ function formatArrayValue(
 function formatRecordValue(
   value: Record<string, unknown>,
   emptyLabel: string,
+  copy: EnrollmentChangeRequestDiffCopy,
 ): string {
-  const weekdaySummary = formatWeekdayRecord(value);
+  const weekdaySummary = formatWeekdayRecord(value, copy);
   if (weekdaySummary) return weekdaySummary;
 
   const entries = snapshotKeys(value, {}).filter(
@@ -357,27 +383,31 @@ function formatRecordValue(
   return entries
     .map(
       (key) =>
-        `${RECORD_VALUE_LABELS[key] ?? key}: ${formatEnrollmentChangeRequestValue(
+        `${copy.recordValueLabels[key] ?? key}: ${formatEnrollmentChangeRequestValue(
           value[key],
           emptyLabel,
+          copy,
         )}`,
     )
     .join("; ");
 }
 
-function formatWeekdayRecord(value: Record<string, unknown>): string | null {
-  const weekdayKeys = Object.keys(WEEKDAY_LABELS);
+function formatWeekdayRecord(
+  value: Record<string, unknown>,
+  copy: EnrollmentChangeRequestDiffCopy,
+): string | null {
+  const weekdayKeys = Object.keys(copy.weekdayLabels);
   const presentWeekdays = weekdayKeys.filter((key) => key in value);
   if (presentWeekdays.length === 0) return null;
 
   const selectedBooleanDays = presentWeekdays
     .filter((key) => value[key] === true)
-    .map((key) => WEEKDAY_LABELS[key]);
+    .map((key) => copy.weekdayLabels[key]);
   if (selectedBooleanDays.length > 0) return selectedBooleanDays.join(", ");
 
   const stringDays = presentWeekdays
     .filter((key) => typeof value[key] === "string" && value[key] !== "")
-    .map((key) => `${WEEKDAY_LABELS[key]}: ${value[key] as string}`);
+    .map((key) => `${copy.weekdayLabels[key]}: ${value[key] as string}`);
   if (stringDays.length > 0) return stringDays.join(", ");
 
   const arrayDays = presentWeekdays
@@ -387,9 +417,10 @@ function formatWeekdayRecord(value: Record<string, unknown>): string | null {
     )
     .map(
       (key) =>
-        `${WEEKDAY_LABELS[key]}: ${formatArrayValue(
+        `${copy.weekdayLabels[key]}: ${formatArrayValue(
           value[key] as unknown[],
           "",
+          copy,
         )}`,
     );
   return arrayDays.length > 0 ? arrayDays.join(", ") : null;
@@ -403,8 +434,11 @@ function isScalarValue(value: unknown): value is string | number | boolean {
   );
 }
 
-function formatScalar(value: string | number | boolean): string {
-  if (typeof value === "boolean") return value ? "Ja" : "Nein";
-  if (typeof value === "string") return WEEKDAY_LABELS[value] ?? value;
+function formatScalar(
+  value: string | number | boolean,
+  copy: EnrollmentChangeRequestDiffCopy,
+): string {
+  if (typeof value === "boolean") return value ? copy.yesLabel : copy.noLabel;
+  if (typeof value === "string") return copy.weekdayLabels[value] ?? value;
   return String(value);
 }

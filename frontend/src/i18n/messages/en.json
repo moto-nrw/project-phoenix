@@ -765,6 +765,72 @@
       "pending_renewal": "Confirmation required",
       "auto_renewed": "Preselected",
       "pending_admin_review": "Under review"
+    },
+    "changeRequestStatus": {
+      "pending_review": "Waiting for review",
+      "needs_parent_response": "Question open",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "cancelled": "Cancelled"
+    },
+    "changeRequestAuthor": {
+      "parent": "You",
+      "staff": "OGS",
+      "system": "System"
+    },
+    "diff": {
+      "yes": "Yes",
+      "no": "No",
+      "childEntry": "Child",
+      "additionalGuardianEntry": "Additional person",
+      "snapshot": {
+        "additional_guardians": "Additional guardians",
+        "children": "Children",
+        "consent_flags": "Consents",
+        "custom_data": "Additional information",
+        "guardian_email": "Email",
+        "guardian_first_name": "First name",
+        "guardian_last_name": "Last name",
+        "guardian_phone": "Phone",
+        "phase_id": "Enrollment phase"
+      },
+      "child": {
+        "custom_data": "Additional information",
+        "date_of_birth": "Date of birth",
+        "first_name": "First name",
+        "last_name": "Last name",
+        "offering_days": "Care days",
+        "offering_ids": "Care offerings",
+        "target_grade_level": "Target grade"
+      },
+      "guardian": {
+        "email": "Email",
+        "first_name": "First name",
+        "last_name": "Last name",
+        "phone": "Phone"
+      },
+      "record": {
+        "automatic_selected_days": "Automatic",
+        "available_days": "Available days",
+        "days_of_week_mode": "Mode",
+        "email": "Email",
+        "first_name": "First name",
+        "last_name": "Last name",
+        "manual_selected_days": "Manual",
+        "offering_id": "Care offering",
+        "offering_ids": "Care offerings",
+        "phone": "Phone",
+        "selected_days": "Days"
+      },
+      "weekday": {
+        "mon": "Mon",
+        "tue": "Tue",
+        "wed": "Wed",
+        "thu": "Thu",
+        "fri": "Fri",
+        "sat": "Sat",
+        "sun": "Sun"
+      }
     }
   }
 }

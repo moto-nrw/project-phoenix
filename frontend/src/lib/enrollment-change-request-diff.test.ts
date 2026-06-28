@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildEnrollmentChangeRequestDiffGroups,
+  DEFAULT_ENROLLMENT_CHANGE_REQUEST_DIFF_COPY,
   formatEnrollmentChangeRequestValue,
 } from "./enrollment-change-request-diff";
 
@@ -177,6 +178,34 @@ describe("buildEnrollmentChangeRequestDiffGroups", () => {
 
     expect(groups).toEqual([]);
   });
+
+  it("uses injected labels for parent-visible localized diffs", () => {
+    const copy = {
+      ...DEFAULT_ENROLLMENT_CHANGE_REQUEST_DIFF_COPY,
+      snapshotLabels: {
+        ...DEFAULT_ENROLLMENT_CHANGE_REQUEST_DIFF_COPY.snapshotLabels,
+        additional_guardians: "Additional guardians",
+      },
+      guardianSnapshotLabels: {
+        ...DEFAULT_ENROLLMENT_CHANGE_REQUEST_DIFF_COPY.guardianSnapshotLabels,
+        first_name: "First name",
+      },
+      additionalGuardianEntryLabel: "Additional person",
+    };
+    const groups = buildEnrollmentChangeRequestDiffGroups({
+      baseSnapshot: {
+        additional_guardians: [{ first_name: "Coco" }],
+      },
+      proposedSnapshot: {
+        additional_guardians: [{ first_name: "Cocoa" }],
+      },
+      diff: { changed: ["additional_guardians"] },
+      copy,
+    });
+
+    expect(groups[0]?.label).toBe("Additional guardians");
+    expect(groups[0]?.rows[0]?.label).toBe("Additional person 1 · First name");
+  });
 });
 
 describe("formatEnrollmentChangeRequestValue", () => {
@@ -192,5 +221,32 @@ describe("formatEnrollmentChangeRequestValue", () => {
         { offering_id: "12", selected_days: ["mon", "tue"] },
       ]),
     ).toBe("Betreuungsangebot: 12; Tage: Mo, Di");
+  });
+
+  it("uses injected value labels", () => {
+    const copy = {
+      ...DEFAULT_ENROLLMENT_CHANGE_REQUEST_DIFF_COPY,
+      recordValueLabels: {
+        ...DEFAULT_ENROLLMENT_CHANGE_REQUEST_DIFF_COPY.recordValueLabels,
+        selected_days: "Days",
+      },
+      weekdayLabels: {
+        ...DEFAULT_ENROLLMENT_CHANGE_REQUEST_DIFF_COPY.weekdayLabels,
+        mon: "Mon",
+      },
+      yesLabel: "Yes",
+      noLabel: "No",
+    };
+
+    expect(formatEnrollmentChangeRequestValue(true, "Not provided", copy)).toBe(
+      "Yes",
+    );
+    expect(
+      formatEnrollmentChangeRequestValue(
+        { selected_days: ["mon"] },
+        "Not provided",
+        copy,
+      ),
+    ).toBe("Days: Mon");
   });
 });

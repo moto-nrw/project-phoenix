@@ -1287,6 +1287,9 @@ func (s *decisionService) applyApproval(
 			slog.String("error", err.Error()),
 		)
 	}
+	if err := s.linkAdditionalGuardians(ctx, request, student.ID); err != nil {
+		return nil, fmt.Errorf("decision: relink additional guardians after targeted fields: %w", err)
+	}
 
 	// 5. Materialize per-care-offering enrollments. Every offering the
 	// parent picked that is bound to an activity_group becomes a row
@@ -1457,11 +1460,18 @@ func (s *decisionService) resolveGuardianProfile(
 }
 
 func (s *decisionService) applyStandaloneGuardianNameCorrection(ctx context.Context, profile *users.GuardianProfile, request *enrollmentModels.Request) error {
+	if request == nil {
+		return nil
+	}
+	return s.applyStandaloneGuardianProfileNameCorrection(ctx, profile, request.GuardianFirstName, request.GuardianLastName)
+}
+
+func (s *decisionService) applyStandaloneGuardianProfileNameCorrection(ctx context.Context, profile *users.GuardianProfile, firstName, lastName string) error {
 	if profile == nil || profile.AccountID != nil || profile.HasAccount {
 		return nil
 	}
-	first := strings.TrimSpace(request.GuardianFirstName)
-	last := strings.TrimSpace(request.GuardianLastName)
+	first := strings.TrimSpace(firstName)
+	last := strings.TrimSpace(lastName)
 	if profile.FirstName == first && profile.LastName == last {
 		return nil
 	}
@@ -1516,7 +1526,7 @@ func (s *decisionService) linkAdditionalGuardians(
 		if err := rel.Validate(); err != nil {
 			return fmt.Errorf("validate co-guardian student_guardian: %w", err)
 		}
-		if _, err := s.studentGuardianRepo.LinkIfNotExists(ctx, rel); err != nil {
+		if err := s.upsertContactStudentGuardianLink(ctx, rel); err != nil {
 			return fmt.Errorf("link co-guardian student_guardian: %w", err)
 		}
 		// Persist the co-guardian's phone number, mirroring the primary
@@ -1793,6 +1803,9 @@ func (s *decisionService) resolveAdditionalGuardianProfile(
 	var profileID int64
 	if email != "" {
 		if existing, err := s.guardianProfileRepo.FindByEmail(ctx, email); err == nil && existing != nil {
+			if err := s.applyStandaloneGuardianProfileNameCorrection(ctx, existing, extra.FirstName, extra.LastName); err != nil {
+				return 0, err
+			}
 			profileID = existing.ID
 		}
 	}

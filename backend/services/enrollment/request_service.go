@@ -185,6 +185,7 @@ type EditDraft struct {
 const (
 	EditModeDirectEdit    = "direct_edit"
 	EditModeChangeRequest = "change_request"
+	EditModeNone          = "none"
 )
 
 // EditPatch carries the fields the parent can edit between submission
@@ -204,6 +205,7 @@ type EditPatch struct {
 type RequestService interface {
 	Submit(ctx context.Context, req SubmitRequest) (*SubmitResult, error)
 	GetByStatusToken(ctx context.Context, token string) (*enrollmentModels.Request, []*enrollmentModels.RequestChild, error)
+	EditModeForStatus(ctx context.Context, req *enrollmentModels.Request, children []*enrollmentModels.RequestChild) (string, error)
 	GetEditDraft(ctx context.Context, token string) (*EditDraft, error)
 	ReplaceEditable(ctx context.Context, token string, req SubmitRequest) (*SubmitResult, error)
 	// GuardiansByStatusToken returns the additional guardians (co-guardians)
@@ -1252,6 +1254,46 @@ func (s *requestService) GetByStatusToken(ctx context.Context, token string) (*e
 		}
 	}
 	return req, children, nil
+}
+
+// EditModeForStatus returns the edit path the public status page may offer.
+// It intentionally mirrors GetEditDraft's gates without loading the full draft.
+func (s *requestService) EditModeForStatus(ctx context.Context, req *enrollmentModels.Request, children []*enrollmentModels.RequestChild) (string, error) {
+	if req == nil {
+		return EditModeNone, nil
+	}
+	tenantCtx := tenant.WithTenantID(ctx, req.GetTenantID())
+	mode := editModeForChildren(children)
+	switch mode {
+	case EditModeDirectEdit:
+		if err := s.ensureRequestEditable(tenantCtx, req, children); err != nil {
+			return EditModeNone, nil
+		}
+		if _, err := s.loadPhaseForEditableRequest(tenantCtx, req.PhaseID); err != nil {
+			if errors.Is(err, ErrEnrollmentDisabled) || errors.Is(err, ErrInvalidSubmission) {
+				return EditModeNone, nil
+			}
+			return EditModeNone, err
+		}
+		return EditModeDirectEdit, nil
+	case EditModeChangeRequest:
+		if err := s.ensureChangeRequestDraftAvailable(tenantCtx, req, children); err != nil {
+			return EditModeNone, nil
+		}
+		phase, err := s.loadPhaseForEditableRequest(tenantCtx, req.PhaseID)
+		if err != nil {
+			if errors.Is(err, ErrEnrollmentDisabled) || errors.Is(err, ErrInvalidSubmission) {
+				return EditModeNone, nil
+			}
+			return EditModeNone, err
+		}
+		if !IsEnrollmentWindowOpen(phase, time.Now()) {
+			return EditModeNone, nil
+		}
+		return EditModeChangeRequest, nil
+	default:
+		return EditModeNone, nil
+	}
 }
 
 // GuardiansByStatusToken loads the additional guardians (co-guardians)

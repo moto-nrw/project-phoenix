@@ -765,6 +765,72 @@
       "pending_renewal": "Bestätigung erforderlich",
       "auto_renewed": "Vorgemerkt",
       "pending_admin_review": "In Prüfung"
+    },
+    "changeRequestStatus": {
+      "pending_review": "Wartet auf Prüfung",
+      "needs_parent_response": "Rückfrage offen",
+      "approved": "Freigegeben",
+      "rejected": "Abgelehnt",
+      "cancelled": "Abgebrochen"
+    },
+    "changeRequestAuthor": {
+      "parent": "Sie",
+      "staff": "OGS",
+      "system": "System"
+    },
+    "diff": {
+      "yes": "Ja",
+      "no": "Nein",
+      "childEntry": "Kind",
+      "additionalGuardianEntry": "Weitere Person",
+      "snapshot": {
+        "additional_guardians": "Weitere erziehungsberechtigte Personen",
+        "children": "Kinder",
+        "consent_flags": "Zustimmungen",
+        "custom_data": "Zusatzangaben",
+        "guardian_email": "E-Mail",
+        "guardian_first_name": "Vorname",
+        "guardian_last_name": "Nachname",
+        "guardian_phone": "Telefon",
+        "phase_id": "Anmeldephase"
+      },
+      "child": {
+        "custom_data": "Zusatzangaben",
+        "date_of_birth": "Geburtsdatum",
+        "first_name": "Vorname",
+        "last_name": "Nachname",
+        "offering_days": "Betreuungstage",
+        "offering_ids": "Betreuungsangebote",
+        "target_grade_level": "Zielklasse"
+      },
+      "guardian": {
+        "email": "E-Mail",
+        "first_name": "Vorname",
+        "last_name": "Nachname",
+        "phone": "Telefon"
+      },
+      "record": {
+        "automatic_selected_days": "Automatisch",
+        "available_days": "Verfügbare Tage",
+        "days_of_week_mode": "Modus",
+        "email": "E-Mail",
+        "first_name": "Vorname",
+        "last_name": "Nachname",
+        "manual_selected_days": "Manuell",
+        "offering_id": "Betreuungsangebot",
+        "offering_ids": "Betreuungsangebote",
+        "phone": "Telefon",
+        "selected_days": "Tage"
+      },
+      "weekday": {
+        "mon": "Mo",
+        "tue": "Di",
+        "wed": "Mi",
+        "thu": "Do",
+        "fri": "Fr",
+        "sat": "Sa",
+        "sun": "So"
+      }
     }
   }
 }

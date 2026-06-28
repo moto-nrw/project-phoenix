@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import {
   buildEnrollmentChangeRequestDiffGroups,
   formatEnrollmentChangeRequestValue,
+  type EnrollmentChangeRequestDiffCopy,
   type EnrollmentChangeRequestDiffGroup,
 } from "~/lib/enrollment-change-request-diff";
 import { cn } from "~/lib/utils";
@@ -16,6 +17,7 @@ interface EnrollmentChangeRequestDiffProps {
   readonly afterLabel?: string;
   readonly emptyLabel?: string;
   readonly emptyMessage?: string;
+  readonly copy?: EnrollmentChangeRequestDiffCopy;
   readonly className?: string;
 }
 
@@ -27,6 +29,7 @@ export function EnrollmentChangeRequestDiff({
   afterLabel = "Neu",
   emptyLabel = "Nicht gesetzt",
   emptyMessage = "Die Anfrage enthält keine erkennbaren Feldänderungen.",
+  copy,
   className,
 }: EnrollmentChangeRequestDiffProps) {
   const groups = useMemo(
@@ -35,8 +38,9 @@ export function EnrollmentChangeRequestDiff({
         baseSnapshot,
         proposedSnapshot,
         diff,
+        copy,
       }),
-    [baseSnapshot, proposedSnapshot, diff],
+    [baseSnapshot, proposedSnapshot, diff, copy],
   );
 
   if (groups.length === 0) {
@@ -52,6 +56,7 @@ export function EnrollmentChangeRequestDiff({
           beforeLabel={beforeLabel}
           afterLabel={afterLabel}
           emptyLabel={emptyLabel}
+          copy={copy}
         />
       ))}
     </dl>
@@ -63,11 +68,13 @@ function DiffGroup({
   beforeLabel,
   emptyLabel,
   group,
+  copy,
 }: {
   readonly group: EnrollmentChangeRequestDiffGroup;
   readonly beforeLabel: string;
   readonly afterLabel: string;
   readonly emptyLabel: string;
+  readonly copy?: EnrollmentChangeRequestDiffCopy;
 }) {
   return (
     <div className="grid gap-3 rounded-xl border border-gray-100 bg-gray-50/70 p-3 sm:grid-cols-[12rem_1fr]">
@@ -83,11 +90,13 @@ function DiffGroup({
                 label={beforeLabel}
                 value={row.before}
                 emptyLabel={emptyLabel}
+                copy={copy}
               />
               <DiffValue
                 label={afterLabel}
                 value={row.after}
                 emptyLabel={emptyLabel}
+                copy={copy}
               />
             </div>
           </div>
@@ -101,16 +110,18 @@ function DiffValue({
   emptyLabel,
   label,
   value,
+  copy,
 }: {
   readonly label: string;
   readonly value: unknown;
   readonly emptyLabel: string;
+  readonly copy?: EnrollmentChangeRequestDiffCopy;
 }) {
   return (
     <div className="rounded-lg bg-gray-50 px-3 py-2">
       <p className="text-xs font-medium text-gray-500 uppercase">{label}</p>
       <p className="mt-1 text-sm break-words text-gray-900">
-        {formatEnrollmentChangeRequestValue(value, emptyLabel)}
+        {formatEnrollmentChangeRequestValue(value, emptyLabel, copy)}
       </p>
     </div>
   );

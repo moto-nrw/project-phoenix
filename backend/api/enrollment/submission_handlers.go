@@ -342,6 +342,7 @@ type StatusResponse struct {
 	GuardianPhone     *string               `json:"guardian_phone,omitempty"`
 	SubmittedAt       time.Time             `json:"submitted_at"`
 	WithdrawnAt       *time.Time            `json:"withdrawn_at,omitempty"`
+	EditMode          string                `json:"edit_mode"`
 	Children          []StatusChildResponse `json:"children"`
 	// AdditionalGuardians are the co-guardians the parent added beyond the
 	// primary guardian above. Empty when none were added.
@@ -435,6 +436,8 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 		req       *enrollmentModels.Request
 		children  []*enrollmentModels.RequestChild
 		guardians []*enrollmentModels.RequestGuardian
+		editMode  string
+		statusErr error
 	)
 	err := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
 		serviceReq, serviceChildren, err := rs.RequestService.GetByStatusToken(adminCtx, token)
@@ -443,6 +446,12 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 		}
 		req = serviceReq
 		children = serviceChildren
+		mode, modeErr := rs.RequestService.EditModeForStatus(adminCtx, req, children)
+		if modeErr != nil {
+			statusErr = fmt.Errorf("status: compute edit mode: %w", modeErr)
+			return statusErr
+		}
+		editMode = mode
 		// Best-effort: a failure here must not hide the request status, but a
 		// silent drop would mask a permission/RLS/DB problem behind a 200 with
 		// missing co-guardians. Log it so the failure is visible.
@@ -455,6 +464,10 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	if err != nil {
+		if statusErr != nil {
+			common.RenderError(w, r, common.ErrorInternalServer(statusErr))
+			return
+		}
 		common.RenderError(w, r, common.ErrorNotFound(err))
 		return
 	}
@@ -467,6 +480,7 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 		GuardianPhone:     req.GuardianPhone,
 		SubmittedAt:       req.SubmittedAt,
 		WithdrawnAt:       req.WithdrawnAt,
+		EditMode:          editMode,
 	}
 	for _, c := range children {
 		resp.Children = append(resp.Children, StatusChildResponse{

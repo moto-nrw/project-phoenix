@@ -291,6 +291,11 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 			}
 		}
 	}
+	if input.ReplaceTargetedData {
+		if _, relinkErr := s.reconcileApprovedChildGuardians(ctx, req, student.ID, input.PreviousRequestGuardians); relinkErr != nil {
+			return nil, relinkErr
+		}
+	}
 
 	return s.requestChildRepo.FindByID(ctx, child.ID)
 }

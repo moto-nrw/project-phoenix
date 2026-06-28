@@ -459,6 +459,80 @@ func TestChangeRequestService_Create_AllowsOnlyOneOpenRequest(t *testing.T) {
 	assert.True(t, errors.Is(err, enrollmentService.ErrChangeRequestNotAllowed))
 }
 
+func TestChangeRequestService_Create_AllowsKeepingInactiveCurrentOffering(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	repoFactory := repositories.NewFactory(env.db)
+	offering := setupCareOfferingForCapacity(t, env, 10)
+
+	req := validSubmission(env.phaseID)
+	req.GuardianEmail = "keep-inactive-offering@example.com"
+	req.Children[0].OfferingIDs = []int64{offering.ID}
+	result, err := env.svc.Submit(ctx, req)
+	require.NoError(t, err)
+	enableChangeRequestMode(t, env, result.Children[0].ID)
+
+	offering.IsActive = false
+	require.NoError(t, repoFactory.CareOffering.Update(ctx, offering))
+
+	phone := "+49 221 222333"
+	proposed := proposedChangeSubmission(t, env, result)
+	proposed.Children[0].OfferingIDs = []int64{offering.ID}
+	proposed.GuardianPhone = &phone
+	svc := newChangeRequestServiceForTest(env)
+	created, err := svc.Create(ctx, result.Request.StatusToken, enrollmentService.CreateChangeRequestInput{
+		Submission: proposed,
+		ParentNote: "Telefon korrigieren.",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, created.ChangeRequest)
+}
+
+func TestChangeRequestService_Create_RejectsInactiveOfferingOnlyCurrentForAnotherChild(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	repoFactory := repositories.NewFactory(env.db)
+	firstOffering := setupCareOfferingForCapacity(t, env, 10)
+	secondOffering := setupCareOfferingForCapacity(t, env, 10)
+	secondOffering.Name = "Second inactive slot"
+	require.NoError(t, repoFactory.CareOffering.Update(ctx, secondOffering))
+
+	req := validSubmission(env.phaseID)
+	req.GuardianEmail = "cross-child-inactive-offering@example.com"
+	req.Children[0].OfferingIDs = []int64{firstOffering.ID}
+	req.Children = append(req.Children, enrollmentService.SubmitChild{
+		FirstName:        "Noah",
+		LastName:         "Beispiel",
+		DateOfBirth:      timezone.NewDate(2017, 8, 3),
+		TargetGradeLevel: testpkg.Int16Ptr(2),
+		OfferingIDs:      []int64{secondOffering.ID},
+	})
+	result, err := env.svc.Submit(ctx, req)
+	require.NoError(t, err)
+	require.Len(t, result.Children, 2)
+	enableChangeRequestMode(t, env, result.Children[0].ID)
+
+	secondOffering.IsActive = false
+	require.NoError(t, repoFactory.CareOffering.Update(ctx, secondOffering))
+
+	proposed := req
+	proposed.Children[0].ID = result.Children[0].ID
+	proposed.Children[0].OfferingIDs = []int64{secondOffering.ID}
+	proposed.Children[1].ID = result.Children[1].ID
+	proposed.Children[1].OfferingIDs = []int64{secondOffering.ID}
+	svc := newChangeRequestServiceForTest(env)
+	_, err = svc.Create(ctx, result.Request.StatusToken, enrollmentService.CreateChangeRequestInput{
+		Submission: proposed,
+		ParentNote: "Betreuungsangebot wechseln.",
+	})
+
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrCareOfferingClosed), "expected ErrCareOfferingClosed, got %v", err)
+}
+
 func TestChangeRequestService_Create_ForcesStoredGuardianEmail(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()

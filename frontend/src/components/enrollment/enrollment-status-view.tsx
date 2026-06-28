@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   AlertTriangle,
@@ -28,6 +28,7 @@ import {
 } from "~/lib/enrollment-submission-api";
 import { createLogger } from "~/lib/logger";
 import { EnrollmentChangeRequestDiff } from "~/components/enrollment/enrollment-change-request-diff";
+import type { EnrollmentChangeRequestDiffCopy } from "~/lib/enrollment-change-request-diff";
 
 const logger = createLogger({ component: "EnrollmentStatusView" });
 
@@ -51,15 +52,6 @@ const TERMINAL_STATUSES = new Set<StatusChild["status"]>([
   "rejected",
   "withdrawn",
 ]);
-
-const CHANGE_REQUEST_LABELS: Record<EnrollmentChangeRequest["status"], string> =
-  {
-    pending_review: "Wartet auf Prüfung",
-    needs_parent_response: "Rückfrage offen",
-    approved: "Freigegeben",
-    rejected: "Abgelehnt",
-    cancelled: "Abgebrochen",
-  };
 
 const CHANGE_REQUEST_STYLES: Record<
   EnrollmentChangeRequest["status"],
@@ -144,11 +136,7 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
     void load();
   }, [load]);
 
-  const allEditable =
-    !!status &&
-    !status.withdrawn_at &&
-    status.children.length > 0 &&
-    status.children.every((c) => c.status === "submitted");
+  const allEditable = status?.edit_mode === "direct_edit";
   const editHref = pathname?.startsWith("/parents")
     ? `/parents/enroll/status/${encodeURIComponent(token)}/edit`
     : `${pathname?.replace(/\/$/, "") ?? ""}/edit`;
@@ -277,18 +265,11 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
     !!status.withdrawn_at ||
     status.children.every((c) => c.status === "withdrawn");
   const hasMultipleChildren = status.children.length > 1;
-  const hasWithdrawnChild = status.children.some(
-    (c) => c.status === "withdrawn",
-  );
   const hasOpenChangeRequest = changeRequests.some((request) =>
     OPEN_CHANGE_REQUEST_STATUSES.has(request.status),
   );
   const canRequestChange =
-    !allEditable &&
-    !allWithdrawn &&
-    !hasWithdrawnChild &&
-    !hasOpenChangeRequest &&
-    status.children.some((c) => c.status !== "submitted");
+    status.edit_mode === "change_request" && !hasOpenChangeRequest;
 
   const pendingRenewalCount = status.children.filter(
     (c) => c.status === "pending_renewal",
@@ -728,6 +709,64 @@ function ChangeRequestsPanel({
 }) {
   const t = useTranslations("enrollmentStatus");
   const locale = useLocale();
+  const diffCopy = useMemo<EnrollmentChangeRequestDiffCopy>(
+    () => ({
+      snapshotLabels: {
+        additional_guardians: t("diff.snapshot.additional_guardians"),
+        children: t("diff.snapshot.children"),
+        consent_flags: t("diff.snapshot.consent_flags"),
+        custom_data: t("diff.snapshot.custom_data"),
+        guardian_email: t("diff.snapshot.guardian_email"),
+        guardian_first_name: t("diff.snapshot.guardian_first_name"),
+        guardian_last_name: t("diff.snapshot.guardian_last_name"),
+        guardian_phone: t("diff.snapshot.guardian_phone"),
+        phase_id: t("diff.snapshot.phase_id"),
+      },
+      childSnapshotLabels: {
+        custom_data: t("diff.child.custom_data"),
+        date_of_birth: t("diff.child.date_of_birth"),
+        first_name: t("diff.child.first_name"),
+        last_name: t("diff.child.last_name"),
+        offering_days: t("diff.child.offering_days"),
+        offering_ids: t("diff.child.offering_ids"),
+        target_grade_level: t("diff.child.target_grade_level"),
+      },
+      guardianSnapshotLabels: {
+        email: t("diff.guardian.email"),
+        first_name: t("diff.guardian.first_name"),
+        last_name: t("diff.guardian.last_name"),
+        phone: t("diff.guardian.phone"),
+      },
+      recordValueLabels: {
+        automatic_selected_days: t("diff.record.automatic_selected_days"),
+        available_days: t("diff.record.available_days"),
+        days_of_week_mode: t("diff.record.days_of_week_mode"),
+        email: t("diff.record.email"),
+        first_name: t("diff.record.first_name"),
+        last_name: t("diff.record.last_name"),
+        manual_selected_days: t("diff.record.manual_selected_days"),
+        offering_id: t("diff.record.offering_id"),
+        offering_ids: t("diff.record.offering_ids"),
+        phone: t("diff.record.phone"),
+        selected_days: t("diff.record.selected_days"),
+      },
+      weekdayLabels: {
+        mon: t("diff.weekday.mon"),
+        tue: t("diff.weekday.tue"),
+        wed: t("diff.weekday.wed"),
+        thu: t("diff.weekday.thu"),
+        fri: t("diff.weekday.fri"),
+        sat: t("diff.weekday.sat"),
+        sun: t("diff.weekday.sun"),
+      },
+      childEntryLabel: t("diff.childEntry"),
+      additionalGuardianEntryLabel: t("diff.additionalGuardianEntry"),
+      emptyLabel: t("notProvided"),
+      yesLabel: t("diff.yes"),
+      noLabel: t("diff.no"),
+    }),
+    [t],
+  );
 
   return (
     <section className="moto-content-surface space-y-4 rounded-xl border p-5 shadow-sm sm:p-6">
@@ -798,7 +837,7 @@ function ChangeRequestsPanel({
                         className="rounded-lg bg-gray-50 px-3 py-2"
                       >
                         <p className="text-xs font-semibold text-gray-500">
-                          {changeRequestAuthorLabel(message.author_type)} ·{" "}
+                          {t(`changeRequestAuthor.${message.author_type}`)} ·{" "}
                           {formatDateTime(message.created_at, locale)}
                         </p>
                         <p className="mt-1 text-sm leading-6 whitespace-pre-wrap text-gray-700">
@@ -821,6 +860,7 @@ function ChangeRequestsPanel({
                     afterLabel={t("changeRequestRequested")}
                     emptyLabel={t("notProvided")}
                     emptyMessage={t("changeRequestDiffEmpty")}
+                    copy={diffCopy}
                   />
                 </div>
 
@@ -880,6 +920,7 @@ function ChangeRequestPill({
 }: {
   readonly status: EnrollmentChangeRequest["status"];
 }) {
+  const t = useTranslations("enrollmentStatus");
   const styles = CHANGE_REQUEST_STYLES[status];
   return (
     <span
@@ -893,19 +934,9 @@ function ChangeRequestPill({
         className="h-2 w-2 rounded-full"
         style={{ backgroundColor: styles.dot }}
       />
-      {CHANGE_REQUEST_LABELS[status]}
+      {t(`changeRequestStatus.${status}`)}
     </span>
   );
-}
-
-function changeRequestAuthorLabel(
-  authorType: NonNullable<
-    EnrollmentChangeRequest["messages"]
-  >[number]["author_type"],
-): string {
-  if (authorType === "staff") return "OGS";
-  if (authorType === "system") return "System";
-  return "Sie";
 }
 
 function formatDateTime(value: string, locale: string): string {

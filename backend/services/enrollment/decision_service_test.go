@@ -824,6 +824,121 @@ func TestDecisionService_SyncApprovedChildData_ReconcilesRemovedAdditionalGuardi
 	assert.True(t, newLinked, "new co-guardian must be linked to the approved child")
 }
 
+func TestDecisionService_SyncApprovedChildData_UpgradesExistingContactListLinkForCoGuardian(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	publishDecisionContactListSchema(t, env)
+
+	contactEmail := "weak-contact-to-coguardian@example.com"
+	weakContact := map[string]any{
+		"first_name":           "Weak",
+		"last_name":            "Contact",
+		"email":                contactEmail,
+		"is_emergency_contact": false,
+		"can_pickup":           false,
+	}
+	reqID, childID := submitOneChildWithCustomData(t, env, "primary-upgrade-coguardian@example.com", "Lina", "Upgrade", map[string]any{
+		"contacts": []any{weakContact},
+	})
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	profile, err := env.repos.GuardianProfile.FindByEmail(ctx, contactEmail)
+	require.NoError(t, err)
+	links, err := env.repos.StudentGuardian.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	var weakLink *usersModels.StudentGuardian
+	for _, link := range links {
+		if link != nil && link.GuardianProfileID == profile.ID {
+			weakLink = link
+			break
+		}
+	}
+	require.NotNil(t, weakLink)
+	require.False(t, weakLink.IsEmergencyContact)
+	require.False(t, weakLink.CanPickup)
+
+	require.NoError(t, env.repos.RequestGuardian.Create(ctx, &enrollmentModels.RequestGuardian{
+		RequestID: reqID,
+		FirstName: "Weak",
+		LastName:  "Contact",
+		Email:     &contactEmail,
+		SortOrder: 0,
+	}))
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, enrollmentService.SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      env.creatorID,
+		ReplaceTargetedData: true,
+	})
+	require.NoError(t, err)
+
+	links, err = env.repos.StudentGuardian.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	var upgraded *usersModels.StudentGuardian
+	for _, link := range links {
+		if link != nil && link.GuardianProfileID == profile.ID {
+			upgraded = link
+			break
+		}
+	}
+	require.NotNil(t, upgraded)
+	assert.False(t, upgraded.IsPrimary)
+	assert.True(t, upgraded.IsEmergencyContact)
+	assert.True(t, upgraded.CanPickup)
+	assert.Equal(t, authorize.GuardianRoleEmergency, upgraded.GuardianRole)
+	assert.False(t, authorize.StudentGuardianHasPermission(upgraded, authorize.GuardianPermissionPortalAccess))
+}
+
+func TestDecisionService_Decide_UpdatesStandaloneCoGuardianNameWhenReusingEmail(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	reqID, childID := submitOneChild(t, env, "primary-coguardian-name@example.com", "Kjell", "CoGuardianName")
+	email := "coguardian-name-correction@example.com"
+	profile := &usersModels.GuardianProfile{
+		FirstName:              "Old",
+		LastName:               "Name",
+		Email:                  &email,
+		PreferredContactMethod: "email",
+		LanguagePreference:     "de",
+	}
+	profile.SetTenantID(1)
+	require.NoError(t, env.repos.GuardianProfile.Create(ctx, profile))
+	require.NoError(t, env.repos.RequestGuardian.Create(ctx, &enrollmentModels.RequestGuardian{
+		RequestID: reqID,
+		FirstName: "New",
+		LastName:  "Name",
+		Email:     &email,
+		SortOrder: 0,
+	}))
+
+	_, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+
+	updated, err := env.repos.GuardianProfile.FindByEmail(ctx, email)
+	require.NoError(t, err)
+	assert.Equal(t, profile.ID, updated.ID)
+	assert.Equal(t, "New", updated.FirstName)
+	assert.Equal(t, "Name", updated.LastName)
+}
+
 // TestDecisionService_Decide_PersistsCoGuardianPhone verifies that on
 // approval a co-guardian's phone number is written to
 // users.guardian_phone_numbers, mirroring the primary guardian. The

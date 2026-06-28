@@ -42,6 +42,7 @@ function status(overrides: Partial<StatusResponse> = {}): StatusResponse {
     guardian_phone: "+49 221 1234567",
     submitted_at: "2026-01-15T10:00:00Z",
     withdrawn_at: null,
+    edit_mode: "direct_edit",
     children: [
       {
         id: "7",
@@ -171,6 +172,7 @@ describe("EnrollmentStatusView", () => {
   it("keeps open change requests visible but hides second creation", async () => {
     mockFetchStatus.mockResolvedValueOnce(
       status({
+        edit_mode: "change_request",
         children: [
           {
             id: "7",
@@ -208,6 +210,57 @@ describe("EnrollmentStatusView", () => {
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: "Änderung anfragen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides edit and change-request CTAs when backend reports no edit mode", async () => {
+    mockFetchStatus.mockResolvedValueOnce(
+      status({
+        edit_mode: "none",
+        children: [
+          {
+            id: "7",
+            first_name: "Lina",
+            last_name: "Muster",
+            status: "approved",
+          },
+        ],
+      }),
+    );
+
+    render(<EnrollmentStatusView token="tok" />);
+
+    expect(await screen.findByText("Lina Muster")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Anmeldung bearbeiten" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Änderung anfragen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows change-request CTA only when backend reports change-request mode", async () => {
+    mockFetchStatus.mockResolvedValueOnce(
+      status({
+        edit_mode: "change_request",
+        children: [
+          {
+            id: "7",
+            first_name: "Lina",
+            last_name: "Muster",
+            status: "approved",
+          },
+        ],
+      }),
+    );
+
+    render(<EnrollmentStatusView token="tok" />);
+
+    expect(
+      await screen.findAllByRole("link", { name: "Änderung anfragen" }),
+    ).toHaveLength(2);
+    expect(
+      screen.queryByRole("link", { name: "Anmeldung bearbeiten" }),
     ).not.toBeInTheDocument();
   });
 
