@@ -8,7 +8,7 @@ import {
 } from "@testing-library/react";
 import { MFAChallengeForm } from "./mfa-challenge-form";
 
-vi.mock("~/components/ui", () => ({
+vi.mock("~/components/ui/alert", () => ({
   Alert: ({ message }: { message: string }) => (
     <div role="alert">{message}</div>
   ),

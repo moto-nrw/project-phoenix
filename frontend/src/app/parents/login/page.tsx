@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
-import { Alert } from "~/components/ui";
+import { Alert } from "~/components/ui/alert";
 import {
   AuthShell,
   authInputClassName,

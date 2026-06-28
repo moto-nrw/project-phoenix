@@ -53,7 +53,7 @@ vi.mock("~/lib/permission-labels", () => ({
 }));
 
 // Mock UI components
-vi.mock("~/components/ui", () => ({
+vi.mock("~/components/ui/form-modal", () => ({
   FormModal: ({
     isOpen,
     children,

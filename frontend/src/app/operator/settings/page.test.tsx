@@ -40,7 +40,7 @@ vi.mock("~/components/ui/page-header", () => ({
   ),
 }));
 
-vi.mock("~/components/ui", () => ({
+vi.mock("~/components/ui/password-change-modal", () => ({
   PasswordChangeModal: () => null,
 }));
 

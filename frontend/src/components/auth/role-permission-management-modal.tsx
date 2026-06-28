@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { ChevronRight, Check, Minus } from "lucide-react";
-import { FormModal } from "~/components/ui";
+import { FormModal } from "~/components/ui/form-modal";
 import { Alert } from "~/components/ui/alert";
 import { useToast } from "~/contexts/ToastContext";
 import { authService } from "~/lib/auth-service";
