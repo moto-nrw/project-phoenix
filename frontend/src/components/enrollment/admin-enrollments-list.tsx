@@ -31,6 +31,7 @@ import {
   type FormSchema,
 } from "~/lib/enrollment-form-schema-api";
 import { fetchSettingsSchema } from "~/lib/settings-api";
+import { Alert } from "~/components/ui/alert";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
 import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
@@ -73,6 +74,9 @@ export function AdminEnrollmentsList() {
   const [changeRequests, setChangeRequests] = useState<
     AdminEnrollmentChangeRequest[]
   >([]);
+  const [changeRequestsError, setChangeRequestsError] = useState<string | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const latestSchemas = useMemo(() => latestSchemasByName(schemas), [schemas]);
@@ -82,19 +86,30 @@ export function AdminEnrollmentsList() {
     async function load() {
       setLoading(true);
       setError(null);
+      setChangeRequestsError(null);
       try {
         const [
           phasesData,
           allRequestsData,
-          changeRequestsData,
+          changeRequestsResult,
           schemasData,
           settingsData,
         ] = await Promise.all([
           listPhases(),
           listAdminRequests(),
-          listAdminEnrollmentChangeRequests().catch(
-            () => [] as AdminEnrollmentChangeRequest[],
-          ),
+          listAdminEnrollmentChangeRequests()
+            .then((data) => ({ data, error: null as string | null }))
+            .catch((err) => {
+              const message =
+                err instanceof Error ? err.message : "Unbekannter Fehler";
+              logger.error("admin_change_requests_load_failed", {
+                error: message,
+              });
+              return {
+                data: [] as AdminEnrollmentChangeRequest[],
+                error: message,
+              };
+            }),
           listSchemas().catch(() => [] as FormSchema[]),
           fetchSettingsSchema().catch(() => null),
         ]);
@@ -106,7 +121,8 @@ export function AdminEnrollmentsList() {
         if (cancelled) return;
         setPhases(phasesData);
         setAllRequests(allRequestsData);
-        setChangeRequests(changeRequestsData);
+        setChangeRequests(changeRequestsResult.data);
+        setChangeRequestsError(changeRequestsResult.error);
         setSchemas(schemasData);
         const activePhaseIds = new Set(
           phasesData
@@ -165,6 +181,7 @@ export function AdminEnrollmentsList() {
       />
 
       <ChangeRequestsOverview
+        error={changeRequestsError}
         requests={changeRequests}
         tenantPath={tenantPath}
       />
@@ -186,9 +203,11 @@ export function AdminEnrollmentsList() {
 }
 
 function ChangeRequestsOverview({
+  error,
   requests,
   tenantPath,
 }: Readonly<{
+  error: string | null;
   requests: AdminEnrollmentChangeRequest[];
   tenantPath: (path: string) => string;
 }>) {
@@ -226,12 +245,21 @@ function ChangeRequestsOverview({
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </Link>
       </div>
-      <div className="mt-4 grid gap-2 sm:grid-cols-3">
-        <PhaseStat label="Offen" value={pending.length} />
-        <PhaseStat label="Rückfragen" value={waitingForParent.length} />
-        <PhaseStat label="Gesamt" value={requests.length} />
-      </div>
-      {openCount === 0 ? (
+      {error ? (
+        <div className="mt-4">
+          <Alert
+            type="error"
+            message="Änderungsanfragen konnten nicht geladen werden. Die Zahlen sind unbekannt."
+          />
+        </div>
+      ) : (
+        <div className="mt-4 grid gap-2 sm:grid-cols-3">
+          <PhaseStat label="Offen" value={pending.length} />
+          <PhaseStat label="Rückfragen" value={waitingForParent.length} />
+          <PhaseStat label="Gesamt" value={requests.length} />
+        </div>
+      )}
+      {!error && openCount === 0 ? (
         <p className="mt-3 text-sm text-gray-500">
           Aktuell wartet keine Änderungsanfrage auf Bearbeitung.
         </p>

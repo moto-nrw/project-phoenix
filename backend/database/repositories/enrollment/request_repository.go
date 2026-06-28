@@ -88,6 +88,18 @@ func (r *RequestRepository) ListAdmin(ctx context.Context, filters enrollment.Re
 // since the child is already enrolled. Tenant-scoped via RLS — caller
 // must already be in a tenant-tx.
 func (r *RequestRepository) FindActiveDuplicate(ctx context.Context, phaseID int64, guardianEmail string, children []enrollment.DuplicateChildKey) ([]enrollment.DuplicateChildKey, error) {
+	return r.findActiveDuplicate(ctx, phaseID, guardianEmail, children, 0)
+}
+
+// FindActiveDuplicateExcludingRequest mirrors FindActiveDuplicate but ignores
+// children belonging to the given request. Change-request approval uses this
+// after locking the current request rows, where deleting/reinserting first
+// would destroy the snapshot conflict guard.
+func (r *RequestRepository) FindActiveDuplicateExcludingRequest(ctx context.Context, phaseID int64, guardianEmail string, children []enrollment.DuplicateChildKey, excludedRequestID int64) ([]enrollment.DuplicateChildKey, error) {
+	return r.findActiveDuplicate(ctx, phaseID, guardianEmail, children, excludedRequestID)
+}
+
+func (r *RequestRepository) findActiveDuplicate(ctx context.Context, phaseID int64, guardianEmail string, children []enrollment.DuplicateChildKey, excludedRequestID int64) ([]enrollment.DuplicateChildKey, error) {
 	if phaseID <= 0 {
 		return nil, fmt.Errorf("phase id must be positive")
 	}
@@ -113,6 +125,9 @@ func (r *RequestRepository) FindActiveDuplicate(ctx context.Context, phaseID int
 		Where(`req.phase_id = ?`, phaseID).
 		Where(`LOWER(TRIM(req.guardian_email)) = ?`, email).
 		Where(`rc.status NOT IN (?, ?)`, enrollment.ChildStatusRejected, enrollment.ChildStatusWithdrawn)
+	if excludedRequestID > 0 {
+		q = q.Where(`req.id <> ?`, excludedRequestID)
+	}
 
 	conds := make([]string, 0, len(children))
 	args := make([]any, 0, len(children)*2)

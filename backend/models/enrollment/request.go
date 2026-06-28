@@ -110,6 +110,7 @@ type RequestRepository interface {
 	// double-submits without affecting different parents or different
 	// child names.
 	FindActiveDuplicate(ctx context.Context, phaseID int64, guardianEmail string, children []DuplicateChildKey) ([]DuplicateChildKey, error)
+	FindActiveDuplicateExcludingRequest(ctx context.Context, phaseID int64, guardianEmail string, children []DuplicateChildKey, excludedRequestID int64) ([]DuplicateChildKey, error)
 
 	// ExistsByPhaseID reports whether any request row references the
 	// given phase.

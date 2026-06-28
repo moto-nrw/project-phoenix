@@ -183,6 +183,26 @@ func publishDecisionScheduleSchema(t *testing.T, env *decisionTestEnv, key, targ
 	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
 }
 
+func publishLegacyDuplicateTargetSchema(t *testing.T, env *decisionTestEnv, name string, fields []enrollmentModels.FormField) {
+	t.Helper()
+	ctx := testpkg.TenantContext(1)
+	schema := &enrollmentModels.FormSchema{
+		Name:      name,
+		Version:   1,
+		CreatedBy: env.creatorID,
+		Fields:    fields,
+	}
+	schema.SetTenantID(1)
+	_, err := env.db.NewInsert().Model(schema).
+		ModelTableExpr(`enrollment.form_schemas AS "form_schema"`).
+		Returning("*").Exec(ctx)
+	require.NoError(t, err)
+	require.Greater(t, schema.ID, int64(0))
+
+	env.sourcePhase.FormSchemaID = &schema.ID
+	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
+}
+
 func publishDecisionContactListSchema(t *testing.T, env *decisionTestEnv) {
 	t.Helper()
 	ctx := testpkg.TenantContext(1)
@@ -646,6 +666,90 @@ func TestDecisionService_SyncApprovedChildData_RelinksPrimaryGuardian(t *testing
 	newProfile, err := env.repos.GuardianProfile.FindByEmail(ctx, "new-primary@example.com")
 	require.NoError(t, err)
 	assert.Equal(t, newProfile.ID, afterLinks[0].GuardianProfileID)
+}
+
+func TestDecisionService_SyncApprovedChildData_UpdatesStandalonePrimaryGuardianName(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	reqID, childID := submitOneChild(t, env, "primary-name-correction@example.com", "Lina", "NameCorrection")
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	before, err := env.repos.GuardianProfile.FindByEmail(ctx, "primary-name-correction@example.com")
+	require.NoError(t, err)
+	assert.Equal(t, "Eltern", before.FirstName)
+	assert.Equal(t, "Test", before.LastName)
+
+	req, err := env.repos.Request.FindByID(ctx, reqID)
+	require.NoError(t, err)
+	req.GuardianFirstName = "Mara"
+	req.GuardianLastName = "Korrigiert"
+	require.NoError(t, env.repos.Request.UpdateGuardianDataWithEmail(ctx, req))
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, enrollmentService.SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      env.creatorID,
+		ReplaceTargetedData: true,
+	})
+	require.NoError(t, err)
+
+	after, err := env.repos.GuardianProfile.FindByEmail(ctx, "primary-name-correction@example.com")
+	require.NoError(t, err)
+	assert.Equal(t, "Mara", after.FirstName)
+	assert.Equal(t, "Korrigiert", after.LastName)
+}
+
+func TestDecisionService_SyncApprovedChildData_DoesNotOverwriteAccountLinkedPrimaryGuardianName(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	reqID, childID := submitOneChild(t, env, "primary-account-name@example.com", "Lina", "AccountName")
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	profile, err := env.repos.GuardianProfile.FindByEmail(ctx, "primary-account-name@example.com")
+	require.NoError(t, err)
+	_, account := testpkg.CreateTestPersonWithAccount(t, env.db, "Portal", "Parent")
+	require.NoError(t, env.repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
+
+	req, err := env.repos.Request.FindByID(ctx, reqID)
+	require.NoError(t, err)
+	req.GuardianFirstName = "Nicht"
+	req.GuardianLastName = "Ueberschreiben"
+	require.NoError(t, env.repos.Request.UpdateGuardianDataWithEmail(ctx, req))
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, enrollmentService.SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      env.creatorID,
+		ReplaceTargetedData: true,
+	})
+	require.NoError(t, err)
+
+	after, err := env.repos.GuardianProfile.FindByID(ctx, profile.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Eltern", after.FirstName)
+	assert.Equal(t, "Test", after.LastName)
+	require.NotNil(t, after.AccountID)
+	assert.Equal(t, account.ID, *after.AccountID)
 }
 
 func TestDecisionService_SyncApprovedChildData_ReconcilesRemovedAdditionalGuardians(t *testing.T) {
@@ -1613,6 +1717,149 @@ func TestDecisionService_SyncApprovedChildData_ReplacesRemovedPickupSchedule(t *
 	rows, err = env.repos.StudentPickupSchedule.FindByStudentID(ctx, studentID)
 	require.NoError(t, err)
 	assert.Empty(t, rows, "replacement sync must delete pickup schedules removed from the approved snapshot")
+}
+
+func TestDecisionService_SyncApprovedChildData_DuplicatePickupTargetDeletesOnce(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	publishLegacyDuplicateTargetSchema(t, env, "legacy-dup-pickup", []enrollmentModels.FormField{
+		{
+			Key: "pickup_visible", Label: "Abholzeiten",
+			Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: true,
+			Target: enrollmentModels.TargetSchedulePickup, AllowedTimes: []string{"14:45", "16:00"}, SortOrder: 0,
+		},
+		{
+			Key: "pickup_hidden", Label: "Abholzeiten alt",
+			Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: true,
+			Target: enrollmentModels.TargetSchedulePickup, AllowedTimes: []string{"14:45", "16:00"}, SortOrder: 1,
+		},
+	})
+	_, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "pickup-duplicate-target@example.com", "Anna", "PickupDup", map[string]any{
+		"pickup_visible": map[string]any{"mon": "14:45", "wed": "16:00"},
+	})
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: reviewerAccountID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	rows, err := env.repos.StudentPickupSchedule.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, enrollmentService.SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      reviewerAccountID,
+		ReplaceTargetedData: true,
+	})
+	require.NoError(t, err)
+
+	rows, err = env.repos.StudentPickupSchedule.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	assert.Len(t, rows, 2, "omitted duplicate pickup target must not delete rows recreated by the visible target")
+}
+
+func TestDecisionService_SyncApprovedChildData_DuplicateArrivalTargetDeletesOnce(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	publishLegacyDuplicateTargetSchema(t, env, "legacy-dup-arrival", []enrollmentModels.FormField{
+		{
+			Key: "arrival_visible", Label: "Ankunftszeiten",
+			Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: true,
+			Target: enrollmentModels.TargetScheduleArrival, SortOrder: 0,
+		},
+		{
+			Key: "arrival_hidden", Label: "Ankunftszeiten alt",
+			Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: true,
+			Target: enrollmentModels.TargetScheduleArrival, SortOrder: 1,
+		},
+	})
+	_, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "arrival-duplicate-target@example.com", "Anna", "ArrivalDup", map[string]any{
+		"arrival_visible": map[string]any{"mon": "07:45"},
+	})
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: reviewerAccountID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	rows, err := env.repos.StudentArrivalSchedule.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, enrollmentService.SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      reviewerAccountID,
+		ReplaceTargetedData: true,
+	})
+	require.NoError(t, err)
+
+	rows, err = env.repos.StudentArrivalSchedule.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	assert.Len(t, rows, 1, "omitted duplicate arrival target must not delete rows recreated by the visible target")
+}
+
+func TestDecisionService_SyncApprovedChildData_DuplicateStudentTargetKeepsSubmittedSiblingValue(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	publishLegacyDuplicateTargetSchema(t, env, "legacy-dup-health", []enrollmentModels.FormField{
+		{
+			Key: "health_visible", Label: "Gesundheit",
+			Type: enrollmentModels.FormFieldTextarea, AppliesToCh: true,
+			Target: enrollmentModels.TargetStudentHealthInfo, SortOrder: 0,
+		},
+		{
+			Key: "health_hidden", Label: "Gesundheit alt",
+			Type: enrollmentModels.FormFieldTextarea, AppliesToCh: true,
+			Target: enrollmentModels.TargetStudentHealthInfo, SortOrder: 1,
+		},
+	})
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "health-duplicate-target@example.com", "Anna", "HealthDup", map[string]any{
+		"health_visible": "Asthma",
+	})
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, enrollmentService.SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      env.creatorID,
+		ReplaceTargetedData: true,
+	})
+	require.NoError(t, err)
+
+	student, err := env.repos.Student.FindByID(ctx, studentID)
+	require.NoError(t, err)
+	require.NotNil(t, student.HealthInfo)
+	assert.Equal(t, "Asthma", *student.HealthInfo)
 }
 
 func TestDecisionService_Decide_ScheduleArrivalUsesReviewerStaffID(t *testing.T) {

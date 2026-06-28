@@ -139,4 +139,30 @@ describe("AdminEnrollmentsList setup guide", () => {
     });
     expect(link).toHaveAttribute("href", "/demo/admin/enrollments/phases/12");
   });
+
+  it("shows an unknown state when change requests fail to load", async () => {
+    mocks.listAdminEnrollmentChangeRequests.mockRejectedValue(
+      new Error("Nicht angemeldet"),
+    );
+
+    render(<AdminEnrollmentsList />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Online-Anmeldung vorbereiten")).toBeVisible();
+    });
+
+    expect(
+      screen.getByText(
+        "Änderungsanfragen konnten nicht geladen werden. Die Zahlen sind unbekannt.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.queryByText(
+        "Aktuell wartet keine Änderungsanfrage auf Bearbeitung.",
+      ),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Anfragen prüfen/ }),
+    ).toHaveAttribute("href", "/demo/admin/enrollments/change-requests");
+  });
 });

@@ -72,6 +72,10 @@ const CHANGE_REQUEST_STYLES: Record<
   cancelled: { bg: "#F3F4F6", dot: "#9CA3AF", text: "#4B5563" },
 };
 
+const OPEN_CHANGE_REQUEST_STATUSES = new Set<EnrollmentChangeRequest["status"]>(
+  ["pending_review", "needs_parent_response"],
+);
+
 interface Props {
   readonly token: string;
   readonly justSubmitted?: boolean;
@@ -276,10 +280,14 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
   const hasWithdrawnChild = status.children.some(
     (c) => c.status === "withdrawn",
   );
+  const hasOpenChangeRequest = changeRequests.some((request) =>
+    OPEN_CHANGE_REQUEST_STATUSES.has(request.status),
+  );
   const canRequestChange =
     !allEditable &&
     !allWithdrawn &&
     !hasWithdrawnChild &&
+    !hasOpenChangeRequest &&
     status.children.some((c) => c.status !== "submitted");
 
   const pendingRenewalCount = status.children.filter(

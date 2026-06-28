@@ -54,6 +54,27 @@ function status(overrides: Partial<StatusResponse> = {}): StatusResponse {
   };
 }
 
+function changeRequest(
+  overrides: Partial<EnrollmentChangeRequest> = {},
+): EnrollmentChangeRequest {
+  return {
+    id: "42",
+    request_id: "99",
+    status: "pending_review",
+    parent_note: "Name korrigieren",
+    admin_decision_note: null,
+    base_snapshot: { guardian_first_name: "Daniela" },
+    proposed_snapshot: { guardian_first_name: "Danielaaaa" },
+    diff: { changed: ["guardian_first_name"] },
+    created_at: "2026-06-28T11:09:00.000Z",
+    updated_at: "2026-06-28T11:09:00.000Z",
+    reviewed_at: null,
+    reviewed_by_account_id: null,
+    messages: [],
+    ...overrides,
+  };
+}
+
 describe("EnrollmentStatusView", () => {
   beforeEach(() => {
     mockFetchStatus.mockReset();
@@ -117,12 +138,7 @@ describe("EnrollmentStatusView", () => {
   });
 
   it("shows submitted change-request diffs to parents", async () => {
-    const changeRequest: EnrollmentChangeRequest = {
-      id: "42",
-      request_id: "99",
-      status: "pending_review",
-      parent_note: "Name korrigieren",
-      admin_decision_note: null,
+    const submittedChangeRequest = changeRequest({
       base_snapshot: {
         guardian_first_name: "Daniela",
         additional_guardians: [{ first_name: "Coco", last_name: "Sommer" }],
@@ -132,14 +148,11 @@ describe("EnrollmentStatusView", () => {
         additional_guardians: [{ first_name: "Coco", last_name: "Sommerer" }],
       },
       diff: { changed: ["additional_guardians", "guardian_first_name"] },
-      created_at: "2026-06-28T11:09:00.000Z",
-      updated_at: "2026-06-28T11:09:00.000Z",
-      reviewed_at: null,
-      reviewed_by_account_id: null,
-      messages: [],
-    };
+    });
     mockFetchStatus.mockResolvedValueOnce(status());
-    mockListEnrollmentChangeRequests.mockResolvedValueOnce([changeRequest]);
+    mockListEnrollmentChangeRequests.mockResolvedValueOnce([
+      submittedChangeRequest,
+    ]);
 
     render(<EnrollmentStatusView token="tok" />);
 
@@ -153,6 +166,49 @@ describe("EnrollmentStatusView", () => {
     expect(screen.getByText("Sommer")).toBeInTheDocument();
     expect(screen.getByText("Sommerer")).toBeInTheDocument();
     expect(screen.queryByText("1 Eintrag")).not.toBeInTheDocument();
+  });
+
+  it("keeps open change requests visible but hides second creation", async () => {
+    mockFetchStatus.mockResolvedValueOnce(
+      status({
+        children: [
+          {
+            id: "7",
+            first_name: "Lina",
+            last_name: "Muster",
+            status: "approved",
+          },
+        ],
+      }),
+    );
+    mockListEnrollmentChangeRequests.mockResolvedValueOnce([
+      changeRequest({
+        status: "needs_parent_response",
+        messages: [
+          {
+            id: "9",
+            author_type: "staff",
+            body: "Bitte Nachweis ergänzen.",
+            internal_only: false,
+            created_at: "2026-06-28T12:00:00.000Z",
+          },
+        ],
+      }),
+    ]);
+
+    render(<EnrollmentStatusView token="tok" />);
+
+    expect(
+      await screen.findByText("Angefragte Änderungen"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Bitte Nachweis ergänzen.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Antwort")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Antwort senden" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Änderung anfragen" }),
+    ).not.toBeInTheDocument();
   });
 
   it("confirms pending renewals and reloads the status", async () => {

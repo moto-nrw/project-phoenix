@@ -620,6 +620,9 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 	if err != nil {
 		return err
 	}
+	if err := s.ensureNoActiveDuplicateForApproval(ctx, req, prepared); err != nil {
+		return err
+	}
 	var previousGuardians []*enrollmentModels.RequestGuardian
 	if s.requestGuardianRepo != nil {
 		previousGuardians, err = s.requestGuardianRepo.ListByRequestID(ctx, req.ID)
@@ -643,12 +646,13 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 		}
 		for i, guardian := range prepared.AdditionalGuardians {
 			if err := s.requestGuardianRepo.Create(ctx, &enrollmentModels.RequestGuardian{
-				RequestID: req.ID,
-				FirstName: guardian.FirstName,
-				LastName:  guardian.LastName,
-				Email:     guardian.Email,
-				Phone:     guardian.Phone,
-				SortOrder: i,
+				RequestID:         req.ID,
+				FirstName:         guardian.FirstName,
+				LastName:          guardian.LastName,
+				Email:             guardian.Email,
+				Phone:             guardian.Phone,
+				GuardianProfileID: matchingPreviousGuardianProfileID(previousGuardians, guardian),
+				SortOrder:         i,
 			}); err != nil {
 				return fmt.Errorf("change request approve: create guardian %d: %w", i, err)
 			}
@@ -716,6 +720,71 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 		}
 	}
 	return nil
+}
+
+func (s *changeRequestService) ensureNoActiveDuplicateForApproval(ctx context.Context, req *enrollmentModels.Request, prepared SubmitRequest) error {
+	emailLC := strings.ToLower(strings.TrimSpace(req.GuardianEmail))
+	if err := s.requestRepo.AcquireSubmissionDedupLock(ctx, req.PhaseID, fnvHash64(emailLC)); err != nil {
+		return fmt.Errorf("change request approve: acquire duplicate lock: %w", err)
+	}
+
+	dupKeys := make([]enrollmentModels.DuplicateChildKey, 0, len(prepared.Children))
+	for _, child := range prepared.Children {
+		dupKeys = append(dupKeys, enrollmentModels.DuplicateChildKey{
+			FirstName: child.FirstName,
+			LastName:  child.LastName,
+		})
+	}
+	dupes, err := s.requestRepo.FindActiveDuplicateExcludingRequest(ctx, req.PhaseID, req.GuardianEmail, dupKeys, req.ID)
+	if err != nil {
+		return fmt.Errorf("change request approve: duplicate check: %w", err)
+	}
+	if len(dupes) > 0 {
+		return ErrDuplicateEnrollment
+	}
+	return nil
+}
+
+func matchingPreviousGuardianProfileID(previous []*enrollmentModels.RequestGuardian, guardian SubmitGuardian) *int64 {
+	key := submitGuardianProfileCarryKey(guardian)
+	for _, row := range previous {
+		if row == nil || row.GuardianProfileID == nil || *row.GuardianProfileID <= 0 {
+			continue
+		}
+		if requestGuardianProfileCarryKey(row) == key {
+			return row.GuardianProfileID
+		}
+	}
+	return nil
+}
+
+func submitGuardianProfileCarryKey(guardian SubmitGuardian) string {
+	return strings.Join([]string{
+		normalizedProfileCarryValue(guardian.FirstName),
+		normalizedProfileCarryValue(guardian.LastName),
+		normalizedProfileCarryPtr(guardian.Email),
+		normalizedProfileCarryPtr(guardian.Phone),
+	}, "\x00")
+}
+
+func requestGuardianProfileCarryKey(guardian *enrollmentModels.RequestGuardian) string {
+	return strings.Join([]string{
+		normalizedProfileCarryValue(guardian.FirstName),
+		normalizedProfileCarryValue(guardian.LastName),
+		normalizedProfileCarryPtr(guardian.Email),
+		normalizedProfileCarryPtr(guardian.Phone),
+	}, "\x00")
+}
+
+func normalizedProfileCarryPtr(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return normalizedProfileCarryValue(*value)
+}
+
+func normalizedProfileCarryValue(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
 }
 
 func (s *changeRequestService) ensureNoOpenChangeRequest(ctx context.Context, requestID int64) error {

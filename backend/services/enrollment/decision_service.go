@@ -1424,6 +1424,9 @@ func (s *decisionService) resolveGuardianProfile(
 	if email != "" {
 		existing, err := s.guardianProfileRepo.FindByEmail(ctx, email)
 		if err == nil && existing != nil {
+			if err := s.applyStandaloneGuardianNameCorrection(ctx, existing, request); err != nil {
+				return nil, false, err
+			}
 			return existing, false, nil
 		}
 		// errors.Is(sql.ErrNoRows) and "not found" both flow through;
@@ -1451,6 +1454,26 @@ func (s *decisionService) resolveGuardianProfile(
 		return nil, false, fmt.Errorf("decision: create guardian profile: %w", err)
 	}
 	return profile, true, nil
+}
+
+func (s *decisionService) applyStandaloneGuardianNameCorrection(ctx context.Context, profile *users.GuardianProfile, request *enrollmentModels.Request) error {
+	if profile == nil || profile.AccountID != nil || profile.HasAccount {
+		return nil
+	}
+	first := strings.TrimSpace(request.GuardianFirstName)
+	last := strings.TrimSpace(request.GuardianLastName)
+	if profile.FirstName == first && profile.LastName == last {
+		return nil
+	}
+	profile.FirstName = first
+	profile.LastName = last
+	if err := profile.Validate(); err != nil {
+		return fmt.Errorf("decision: validate guardian profile name correction: %w", err)
+	}
+	if err := s.guardianProfileRepo.Update(ctx, profile); err != nil {
+		return fmt.Errorf("decision: update guardian profile name correction: %w", err)
+	}
+	return nil
 }
 
 // linkAdditionalGuardians materializes the co-guardians stored on the
@@ -2322,13 +2345,33 @@ func (s *decisionService) applyTargetedFields(
 	var explicitDeparture *users.DepartureDays
 	var explicitAllowedDeparture *users.AllowedDepartureModes
 
+	fieldRaws := make([]any, len(schema.Fields))
+	targetHasMeaningfulValue := make(map[string]bool, len(schema.Fields))
 	for i := range schema.Fields {
 		field := schema.Fields[i]
 		if field.Target == "" {
 			continue
 		}
 		raw := s.readFieldValue(request, child, &field)
+		fieldRaws[i] = raw
+		if targetedFieldHasMeaningfulValue(field.Target, raw) {
+			targetHasMeaningfulValue[field.Target] = true
+		}
+	}
+
+	pickupScheduleDeleted := false
+	arrivalScheduleDeleted := false
+
+	for i := range schema.Fields {
+		field := schema.Fields[i]
+		if field.Target == "" {
+			continue
+		}
+		raw := fieldRaws[i]
 		if raw == nil && !options.Replace {
+			continue
+		}
+		if options.Replace && !targetedFieldHasMeaningfulValue(field.Target, raw) && targetHasMeaningfulValue[field.Target] {
 			continue
 		}
 
@@ -2408,7 +2451,8 @@ func (s *decisionService) applyTargetedFields(
 				studentDirty = true
 			}
 		case enrollmentModels.TargetSchedulePickup:
-			if options.Replace && s.pickupScheduleRepo != nil {
+			if options.Replace && s.pickupScheduleRepo != nil && !pickupScheduleDeleted {
+				pickupScheduleDeleted = true
 				if err := s.pickupScheduleRepo.DeleteByStudentID(ctx, student.ID); err != nil {
 					errs = append(errs, fmt.Sprintf("%s: delete existing: %v", field.Target, err))
 					continue
@@ -2421,7 +2465,8 @@ func (s *decisionService) applyTargetedFields(
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
 			}
 		case enrollmentModels.TargetScheduleArrival:
-			if options.Replace && s.arrivalScheduleRepo != nil {
+			if options.Replace && s.arrivalScheduleRepo != nil && !arrivalScheduleDeleted {
+				arrivalScheduleDeleted = true
 				if err := s.arrivalScheduleRepo.DeleteByStudentID(ctx, student.ID); err != nil {
 					errs = append(errs, fmt.Sprintf("%s: delete existing: %v", field.Target, err))
 					continue
@@ -2564,6 +2609,41 @@ func (s *decisionService) applyTargetedFields(
 		return errors.New(strings.Join(errs, "; "))
 	}
 	return nil
+}
+
+func targetedFieldHasMeaningfulValue(target string, raw any) bool {
+	if raw == nil {
+		return false
+	}
+	switch target {
+	case enrollmentModels.TargetStudentHealthInfo, enrollmentModels.TargetStudentExtraInfo:
+		return strings.TrimSpace(stringValue(raw)) != ""
+	default:
+		return structuredTargetValueHasEntries(raw)
+	}
+}
+
+func structuredTargetValueHasEntries(raw any) bool {
+	switch value := raw.(type) {
+	case string:
+		return strings.TrimSpace(value) != ""
+	case []any:
+		return len(value) > 0
+	case []map[string]any:
+		return len(value) > 0
+	case []string:
+		return len(value) > 0
+	case map[string]any:
+		return len(value) > 0
+	case map[string]string:
+		return len(value) > 0
+	case map[string][]string:
+		return len(value) > 0
+	case map[string][]any:
+		return len(value) > 0
+	default:
+		return true
+	}
 }
 
 // truncateRunes caps s to at most max runes (not bytes), preserving valid

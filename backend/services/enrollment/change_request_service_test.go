@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -306,6 +307,104 @@ func TestChangeRequestService_Approve_RejectsStaleBaseSnapshot(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentService.ErrChangeRequestConflict))
+}
+
+func TestChangeRequestService_Approve_RejectsActiveDuplicateAfterRename(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	first := validSubmission(env.phaseID)
+	first.GuardianEmail = "duplicate-approval@example.com"
+	first.Children[0].FirstName = "Lina"
+	first.Children[0].LastName = "Beispiel"
+	firstResult, err := env.svc.Submit(ctx, first)
+	require.NoError(t, err)
+	enableChangeRequestMode(t, env, firstResult.Children[0].ID)
+
+	second := validSubmission(env.phaseID)
+	second.GuardianEmail = "duplicate-approval@example.com"
+	second.Children[0].FirstName = "Noah"
+	second.Children[0].LastName = "Beispiel"
+	_, err = env.svc.Submit(ctx, second)
+	require.NoError(t, err)
+
+	svc := newChangeRequestServiceForTest(env)
+	proposed := first
+	proposed.Children[0].ID = firstResult.Children[0].ID
+	proposed.Children[0].FirstName = "Noah"
+	created, err := svc.Create(ctx, firstResult.Request.StatusToken, enrollmentService.CreateChangeRequestInput{
+		Submission: proposed,
+		ParentNote: "Bitte Namen korrigieren.",
+	})
+	require.NoError(t, err)
+
+	_, err = svc.Approve(ctx, created.ChangeRequest.ID, enrollmentService.ReviewChangeRequestInput{
+		Note:           "Freigegeben.",
+		ActorAccountID: env.creatorID,
+		ActorRole:      "admin",
+	})
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrDuplicateEnrollment))
+
+	child, err := repositories.NewFactory(env.db).RequestChild.FindByID(ctx, firstResult.Children[0].ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Lina", child.FirstName)
+}
+
+func TestChangeRequestService_Approve_PreservesAdditionalGuardianProfileID(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	phone := "+49 221 555 010"
+	req := validSubmission(env.phaseID)
+	req.GuardianEmail = "guardian-stamp@example.com"
+	req.AdditionalGuardians = []enrollmentService.SubmitGuardian{
+		{FirstName: "Opa", LastName: "Schmidt", Phone: &phone},
+	}
+	result, err := env.svc.Submit(ctx, req)
+	require.NoError(t, err)
+	enableChangeRequestMode(t, env, result.Children[0].ID)
+
+	repoFactory := repositories.NewFactory(env.db)
+	profile := &usersModels.GuardianProfile{
+		FirstName:              "Opa",
+		LastName:               "Schmidt",
+		PreferredContactMethod: "phone",
+		LanguagePreference:     "de",
+	}
+	profile.SetTenantID(1)
+	require.NoError(t, repoFactory.GuardianProfile.Create(ctx, profile))
+	guardians, err := repoFactory.RequestGuardian.ListByRequestID(ctx, result.Request.ID)
+	require.NoError(t, err)
+	require.Len(t, guardians, 1)
+	require.NoError(t, repoFactory.RequestGuardian.StampResolvedProfile(ctx, guardians[0].ID, profile.ID))
+
+	guardianPhone := "+49 221 555 011"
+	proposed := proposedChangeSubmission(t, env, result)
+	proposed.GuardianEmail = "attacker@example.com"
+	proposed.GuardianPhone = &guardianPhone
+	proposed.AdditionalGuardians = req.AdditionalGuardians
+	svc := newChangeRequestServiceForTest(env)
+	created, err := svc.Create(ctx, result.Request.StatusToken, enrollmentService.CreateChangeRequestInput{
+		Submission: proposed,
+		ParentNote: "Bitte Telefonnummer korrigieren.",
+	})
+	require.NoError(t, err)
+
+	_, err = svc.Approve(ctx, created.ChangeRequest.ID, enrollmentService.ReviewChangeRequestInput{
+		Note:           "Freigegeben.",
+		ActorAccountID: env.creatorID,
+		ActorRole:      "admin",
+	})
+	require.NoError(t, err)
+
+	guardians, err = repoFactory.RequestGuardian.ListByRequestID(ctx, result.Request.ID)
+	require.NoError(t, err)
+	require.Len(t, guardians, 1)
+	require.NotNil(t, guardians[0].GuardianProfileID)
+	assert.Equal(t, profile.ID, *guardians[0].GuardianProfileID)
 }
 
 func TestChangeRequestService_Create_AllowsOnlyOneOpenRequest(t *testing.T) {
