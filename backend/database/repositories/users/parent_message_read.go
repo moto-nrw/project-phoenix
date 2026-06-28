@@ -75,12 +75,26 @@ func (r *ParentMessageReadRepository) MarkReadUpTo(ctx context.Context, tenantID
 
 // counterpartUnread builds the SQL boolean for "a message from the OTHER party
 // relative to the reader", on the given message alias: a staff reader counts
-// unread guardian messages, a guardian reader counts unread staff messages.
+// unread guardian-side activity, a guardian reader counts unread staff-side
+// activity.
+//
+// A system event (request decision / withdrawal) carries sender_kind='system'
+// and records the side that TRIGGERED it in event_actor_kind, so the counterpart
+// side cannot be read from sender_kind for those rows — it must come from
+// event_actor_kind. A staff confirm/reject (event_actor_kind='staff') is unread
+// to the guardian; a parent withdrawal (event_actor_kind='guardian') is unread to
+// staff. Plain messages match on sender_kind directly. Centralizing both cases
+// here keeps every unread number (inbox COUNT column, sidebar badges, unread
+// EXISTS filter) consistent — see the callers of this helper.
 func counterpartUnread(alias string, staffReader bool) string {
+	side := "staff"
 	if staffReader {
-		return fmt.Sprintf(`%s.sender_kind = 'guardian'`, alias)
+		side = "guardian"
 	}
-	return fmt.Sprintf(`%s.sender_kind = 'staff'`, alias)
+	return fmt.Sprintf(
+		`(%[1]s.sender_kind = '%[2]s' OR (%[1]s.sender_kind = 'system' AND %[1]s.event_actor_kind = '%[2]s'))`,
+		alias, side,
+	)
 }
 
 // afterReadCursor builds the load-bearing composite tie-break "message <alias>
