@@ -224,6 +224,51 @@ func mergeEditableCustomData(
 	return out
 }
 
+func existingChildCustomDataBySubmittedIdentity(existing []*enrollmentModels.RequestChild, submitted []SubmitChild) []map[string]any {
+	out := make([]map[string]any, len(submitted))
+	byID := make(map[int64]map[string]any, len(existing))
+	for _, child := range existing {
+		if child == nil || child.ID <= 0 {
+			continue
+		}
+		byID[child.ID] = child.CustomData
+	}
+	for i := range submitted {
+		if submitted[i].ID > 0 {
+			if custom, ok := byID[submitted[i].ID]; ok {
+				out[i] = custom
+				continue
+			}
+		}
+		if stableChildIndexIdentity(existing, submitted, i) {
+			out[i] = existing[i].CustomData
+		}
+	}
+	return out
+}
+
+func stableChildIndexIdentity(existing []*enrollmentModels.RequestChild, submitted []SubmitChild, i int) bool {
+	if i < 0 || i >= len(existing) || existing[i] == nil {
+		return false
+	}
+	if len(existing) == 1 && len(submitted) == 1 {
+		return true
+	}
+	if len(existing) != len(submitted) {
+		return false
+	}
+	return sameSubmittedChildIdentity(existing[i], submitted[i])
+}
+
+func sameSubmittedChildIdentity(existing *enrollmentModels.RequestChild, submitted SubmitChild) bool {
+	if existing == nil {
+		return false
+	}
+	return strings.TrimSpace(existing.FirstName) == strings.TrimSpace(submitted.FirstName) &&
+		strings.TrimSpace(existing.LastName) == strings.TrimSpace(submitted.LastName) &&
+		existing.DateOfBirth == submitted.DateOfBirth
+}
+
 func editableCustomDataKeys(schema *enrollmentModels.FormSchema, appliesToChild bool) map[string]bool {
 	keys := make(map[string]bool)
 	if schema == nil {

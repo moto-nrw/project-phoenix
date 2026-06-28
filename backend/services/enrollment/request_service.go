@@ -1531,6 +1531,7 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 		}
 		byKey := buildFieldsByKey(schema)
 		rawGuardian := editReq.CustomData
+		existingCustomData := existingChildCustomDataBySubmittedIdentity(children, editReq.Children)
 		for i := range editReq.Children {
 			childCtx := fieldVisibilityContext{
 				guardianAnswers: rawGuardian,
@@ -1544,11 +1545,7 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 				schema, sanitizedChild,
 				relevantCareDaysForChild(editReq.Children[i], openByID),
 			)
-			var existingCustom map[string]any
-			if i < len(children) {
-				existingCustom = children[i].CustomData
-			}
-			editReq.Children[i].CustomData = mergeEditableCustomData(existingCustom, sanitizedChild, schema, true)
+			editReq.Children[i].CustomData = mergeEditableCustomData(existingCustomData[i], sanitizedChild, schema, true)
 		}
 		editReq.CustomData = mergeEditableCustomData(
 			req.CustomData,

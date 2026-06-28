@@ -118,6 +118,87 @@ func TestRequestService_ReplaceEditable_PreservesLegacyCustomDataWithoutSchema(t
 	assert.Equal(t, "keine", children[0].CustomData["allergies"])
 }
 
+func TestRequestService_ReplaceEditable_PreservesChildCustomDataByIDWhenMiddleChildRemoved(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	base := validSubmission(env.phaseID)
+	base.GuardianEmail = "multi-child-edit@example.com"
+	base.Children = []enrollmentService.SubmitChild{
+		{
+			FirstName:        "Lina",
+			LastName:         "Beispiel",
+			DateOfBirth:      timezone.NewDate(2018, 4, 15),
+			TargetGradeLevel: testpkg.Int16Ptr(1),
+		},
+		{
+			FirstName:        "Mika",
+			LastName:         "Beispiel",
+			DateOfBirth:      timezone.NewDate(2017, 7, 22),
+			TargetGradeLevel: testpkg.Int16Ptr(2),
+		},
+		{
+			FirstName:        "Noah",
+			LastName:         "Beispiel",
+			DateOfBirth:      timezone.NewDate(2016, 8, 3),
+			TargetGradeLevel: testpkg.Int16Ptr(3),
+		},
+	}
+	result, err := env.svc.Submit(ctx, base)
+	require.NoError(t, err)
+	require.Len(t, result.Children, 3)
+
+	_, err = env.db.NewUpdate().
+		TableExpr("enrollment.requests").
+		Set("schema_id = NULL").
+		Where("id = ?", result.Request.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+	legacyByChild := map[int64]string{
+		result.Children[0].ID: "first-child",
+		result.Children[1].ID: "removed-middle-child",
+		result.Children[2].ID: "last-child",
+	}
+	for childID, legacy := range legacyByChild {
+		_, err = env.db.NewUpdate().
+			TableExpr("enrollment.request_children").
+			Set("custom_data = ?", map[string]any{"legacy_note": legacy}).
+			Where("id = ?", childID).
+			Exec(ctx)
+		require.NoError(t, err)
+	}
+
+	edit := base
+	edit.Children = []enrollmentService.SubmitChild{
+		{
+			ID:               result.Children[0].ID,
+			FirstName:        base.Children[0].FirstName,
+			LastName:         base.Children[0].LastName,
+			DateOfBirth:      base.Children[0].DateOfBirth,
+			TargetGradeLevel: base.Children[0].TargetGradeLevel,
+			CustomData:       map[string]any{},
+		},
+		{
+			ID:               result.Children[2].ID,
+			FirstName:        base.Children[2].FirstName,
+			LastName:         base.Children[2].LastName,
+			DateOfBirth:      base.Children[2].DateOfBirth,
+			TargetGradeLevel: base.Children[2].TargetGradeLevel,
+			CustomData:       map[string]any{},
+		},
+	}
+	_, err = env.svc.ReplaceEditable(ctx, result.Request.StatusToken, edit)
+	require.NoError(t, err)
+
+	_, children, err := env.svc.GetByStatusToken(ctx, result.Request.StatusToken)
+	require.NoError(t, err)
+	require.Len(t, children, 2)
+	assert.Equal(t, "first-child", children[0].CustomData["legacy_note"])
+	assert.Equal(t, "last-child", children[1].CustomData["legacy_note"])
+	assert.NotEqual(t, "removed-middle-child", children[1].CustomData["legacy_note"])
+}
+
 func TestChangeRequestService_Approve_PreservesLegacyCustomDataWithoutSchema(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()

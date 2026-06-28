@@ -1648,7 +1648,7 @@ func (s *decisionService) deleteRemovedStudentGuardianLinks(ctx context.Context,
 		return err
 	}
 	for _, link := range links {
-		if link == nil || link.IsPrimary {
+		if link == nil || link.IsPrimary || authorize.IsFullGuardianRole(link.GuardianRole) {
 			continue
 		}
 		if previous[link.GuardianProfileID] && !keep[link.GuardianProfileID] {
@@ -1676,36 +1676,50 @@ func (s *decisionService) contactProfileIDsFromPreviousSnapshot(
 	ctx context.Context,
 	snapshot map[string]any,
 	child *enrollmentModels.RequestChild,
+	studentID int64,
 	fieldKey string,
-) map[int64]bool {
+) (map[int64]bool, error) {
 	out := map[int64]bool{}
 	if snapshot == nil || child == nil || s.guardianProfileRepo == nil {
-		return out
+		return out, nil
 	}
 	childRow := snapshotChildByID(snapshot, child.ID)
 	if childRow == nil {
-		return out
+		return out, nil
 	}
 	custom := mapFromAny(childRow["custom_data"])
 	raw := custom[fieldKey]
 	if raw == nil {
-		return out
+		return out, nil
 	}
 	var entries []enrollmentModels.ContactEntry
 	if err := decodeStructured(raw, &entries); err != nil {
-		return out
+		return out, nil
 	}
 	for _, entry := range entries {
 		email := strings.TrimSpace(strings.ToLower(entry.Email))
 		if email == "" {
+			profiles, err := s.phoneOnlyContactProfilesForStudent(ctx, studentID, entry)
+			if err != nil {
+				return out, err
+			}
+			for _, profile := range profiles {
+				if profile != nil && profile.ID > 0 {
+					out[profile.ID] = true
+				}
+			}
 			continue
 		}
 		profile, err := s.guardianProfileRepo.FindByEmail(ctx, email)
 		if err == nil && profile != nil && profile.ID > 0 {
 			out[profile.ID] = true
+			continue
+		}
+		if err != nil && !errors.Is(err, users.ErrGuardianProfileNotFound) {
+			return out, err
 		}
 	}
-	return out
+	return out, nil
 }
 
 // createGuardianPhoneNumber inserts phone as the guardian's primary mobile
@@ -2422,7 +2436,12 @@ func (s *decisionService) applyTargetedFields(
 		case enrollmentModels.TargetStudentContacts:
 			oldContactIDs := map[int64]bool{}
 			if options.Replace {
-				oldContactIDs = s.contactProfileIDsFromPreviousSnapshot(ctx, options.PreviousSnapshot, child, field.Key)
+				var err error
+				oldContactIDs, err = s.contactProfileIDsFromPreviousSnapshot(ctx, options.PreviousSnapshot, child, student.ID, field.Key)
+				if err != nil {
+					errs = append(errs, fmt.Sprintf("%s: resolve previous contacts: %v", field.Target, err))
+					continue
+				}
 			}
 			newContactIDs := map[int64]bool{}
 			if raw != nil {
@@ -2808,6 +2827,138 @@ func contactGuardianRole(isEmergencyContact, canPickup bool) string {
 	return authorize.GuardianRoleCustom
 }
 
+func contactIdentityName(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func contactIdentityPhones(entry enrollmentModels.ContactEntry) map[string]bool {
+	phones := map[string]bool{}
+	for _, phone := range entry.PhoneNumbers {
+		number := strings.TrimSpace(phone.PhoneNumber)
+		if number != "" {
+			phones[number] = true
+		}
+	}
+	return phones
+}
+
+func (s *decisionService) phoneOnlyContactProfilesForStudent(
+	ctx context.Context,
+	studentID int64,
+	entry enrollmentModels.ContactEntry,
+) ([]*users.GuardianProfile, error) {
+	if studentID <= 0 ||
+		s.studentGuardianRepo == nil ||
+		s.guardianProfileRepo == nil ||
+		s.guardianPhoneRepo == nil {
+		return nil, nil
+	}
+	firstName := contactIdentityName(entry.FirstName)
+	lastName := contactIdentityName(entry.LastName)
+	phones := contactIdentityPhones(entry)
+	if firstName == "" || lastName == "" || len(phones) == 0 {
+		return nil, nil
+	}
+
+	links, err := s.studentGuardianRepo.FindByStudentID(ctx, studentID)
+	if err != nil {
+		return nil, err
+	}
+	profileIDs := make([]int64, 0, len(links))
+	seenProfileIDs := map[int64]bool{}
+	for _, link := range links {
+		if link == nil ||
+			link.IsPrimary ||
+			authorize.IsFullGuardianRole(link.GuardianRole) ||
+			link.GuardianProfileID <= 0 ||
+			seenProfileIDs[link.GuardianProfileID] {
+			continue
+		}
+		seenProfileIDs[link.GuardianProfileID] = true
+		profileIDs = append(profileIDs, link.GuardianProfileID)
+	}
+	if len(profileIDs) == 0 {
+		return nil, nil
+	}
+
+	profiles, err := s.guardianProfileRepo.FindByIDs(ctx, profileIDs)
+	if err != nil {
+		return nil, err
+	}
+	phonesByProfile, err := s.guardianPhoneRepo.FindByGuardianIDs(ctx, profileIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	matches := make([]*users.GuardianProfile, 0, 1)
+	for _, profileID := range profileIDs {
+		profile := profiles[profileID]
+		if profile == nil ||
+			contactIdentityName(profile.FirstName) != firstName ||
+			contactIdentityName(profile.LastName) != lastName {
+			continue
+		}
+		for _, phone := range phonesByProfile[profileID] {
+			if phone != nil && phones[strings.TrimSpace(phone.PhoneNumber)] {
+				matches = append(matches, profile)
+				break
+			}
+		}
+	}
+	return matches, nil
+}
+
+func (s *decisionService) upsertContactStudentGuardianLink(ctx context.Context, rel *users.StudentGuardian) error {
+	if rel == nil {
+		return errors.New("contact student guardian link cannot be nil")
+	}
+	if err := rel.Validate(); err != nil {
+		return err
+	}
+
+	existing, err := s.studentGuardianRepo.FindByStudentAndGuardianForUpdate(ctx, rel.StudentID, rel.GuardianProfileID)
+	if err != nil {
+		if !errors.Is(err, users.ErrStudentGuardianNotFound) {
+			return err
+		}
+		inserted, linkErr := s.studentGuardianRepo.LinkIfNotExists(ctx, rel)
+		if linkErr != nil || inserted {
+			return linkErr
+		}
+		existing, err = s.studentGuardianRepo.FindByStudentAndGuardianForUpdate(ctx, rel.StudentID, rel.GuardianProfileID)
+		if err != nil {
+			return err
+		}
+	}
+	if existing.IsPrimary || authorize.IsFullGuardianRole(existing.GuardianRole) {
+		return nil
+	}
+
+	existing.RelationshipType = rel.RelationshipType
+	existing.IsEmergencyContact = rel.IsEmergencyContact
+	existing.CanPickup = rel.CanPickup
+	existing.EmergencyPriority = rel.EmergencyPriority
+	existing.GuardianRole = rel.GuardianRole
+	existing.Permissions = rel.Permissions
+	updated, err := s.studentGuardianRepo.UpdateColumns(
+		ctx,
+		existing,
+		"relationship_type",
+		"is_emergency_contact",
+		"can_pickup",
+		"emergency_priority",
+		"guardian_role",
+		"permissions",
+	)
+	if err != nil {
+		return err
+	}
+	if updated == 0 {
+		return users.ErrStudentGuardianNotFound
+	}
+	return nil
+}
+
 func (s *decisionService) dispatchContactList(ctx context.Context, raw any, studentID int64) (map[int64]bool, error) {
 	linkedProfileIDs := map[int64]bool{}
 	if s.guardianProfileRepo == nil || s.studentGuardianRepo == nil {
@@ -2826,8 +2977,21 @@ func (s *decisionService) dispatchContactList(ctx context.Context, raw any, stud
 		var profile *users.GuardianProfile
 		emailLC := strings.ToLower(strings.TrimSpace(c.Email))
 		if emailLC != "" {
-			existing, _ := s.guardianProfileRepo.FindByEmail(ctx, emailLC)
-			profile = existing
+			existing, err := s.guardianProfileRepo.FindByEmail(ctx, emailLC)
+			if err != nil && !errors.Is(err, users.ErrGuardianProfileNotFound) {
+				return linkedProfileIDs, fmt.Errorf("find contact profile by email: %w", err)
+			}
+			if err == nil {
+				profile = existing
+			}
+		} else {
+			matches, err := s.phoneOnlyContactProfilesForStudent(ctx, studentID, c)
+			if err != nil {
+				return linkedProfileIDs, fmt.Errorf("resolve phone-only contact profile: %w", err)
+			}
+			if len(matches) > 0 {
+				profile = matches[0]
+			}
 		}
 		if profile == nil {
 			profile = &users.GuardianProfile{
@@ -2882,7 +3046,7 @@ func (s *decisionService) dispatchContactList(ctx context.Context, raw any, stud
 		if c.EmergencyPriority > 0 {
 			rel.EmergencyPriority = c.EmergencyPriority
 		}
-		if _, err := s.studentGuardianRepo.LinkIfNotExists(ctx, rel); err != nil {
+		if err := s.upsertContactStudentGuardianLink(ctx, rel); err != nil {
 			return linkedProfileIDs, fmt.Errorf("link contact to student: %w", err)
 		}
 	}

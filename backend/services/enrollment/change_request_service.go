@@ -522,6 +522,7 @@ func (s *changeRequestService) prepareProposed(
 	}
 	byKey := buildFieldsByKey(schema)
 	rawGuardian := editReq.CustomData
+	existingCustomData := existingChildCustomDataBySubmittedIdentity(children, editReq.Children)
 	for i := range editReq.Children {
 		childCtx := fieldVisibilityContext{
 			guardianAnswers: rawGuardian,
@@ -532,11 +533,7 @@ func (s *changeRequestService) prepareProposed(
 		}
 		sanitizedChild := sanitizeVisibleAnswers(schema, true, editReq.Children[i].CustomData, childCtx)
 		pruneChildScheduleAnswers(schema, sanitizedChild, relevantCareDaysForChild(editReq.Children[i], openByID))
-		var existingCustom map[string]any
-		if i < len(children) {
-			existingCustom = children[i].CustomData
-		}
-		editReq.Children[i].CustomData = mergeEditableCustomData(existingCustom, sanitizedChild, schema, true)
+		editReq.Children[i].CustomData = mergeEditableCustomData(existingCustomData[i], sanitizedChild, schema, true)
 	}
 	editReq.CustomData = mergeEditableCustomData(
 		req.CustomData,
