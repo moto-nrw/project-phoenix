@@ -432,6 +432,8 @@ jobs:
       group: deploy-production
       cancel-in-progress: false
     runs-on: ubuntu-latest
+    environment:
+      name: production
     permissions:
       contents: read
       pull-requests: read
@@ -440,6 +442,20 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.ref }}
+
+      - name: Guard production source
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref }}
+        run: |
+          if [[ "$REF_NAME" != "refs/heads/main" ]]; then
+            echo "Production deploys must run from refs/heads/main, got $REF_NAME"
+            exit 1
+          fi
+          if [[ "$EVENT_NAME" != "push" && "$EVENT_NAME" != "workflow_dispatch" ]]; then
+            echo "Production deploys only allow push or workflow_dispatch, got $EVENT_NAME"
+            exit 1
+          fi
 
       - name: Install SOPS
         run: |
