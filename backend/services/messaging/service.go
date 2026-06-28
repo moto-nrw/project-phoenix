@@ -92,6 +92,9 @@ type service struct {
 	readRepo    usersModels.ParentMessageReadRepository
 
 	persons     userService.PersonService
+	students    userService.StudentService
+	arrival     scheduleService.ArrivalScheduleService
+	pickup      scheduleService.PickupScheduleService
 	userContext userContextService.UserContextService
 	settings    configService.SettingsService
 	broadcaster realtime.Broadcaster
@@ -106,6 +109,9 @@ type Config struct {
 	MessageRepo usersModels.ParentMessageRepository
 	ReadRepo    usersModels.ParentMessageReadRepository
 	Persons     userService.PersonService
+	Students    userService.StudentService
+	Arrival     scheduleService.ArrivalScheduleService
+	Pickup      scheduleService.PickupScheduleService
 	UserContext userContextService.UserContextService
 	Settings    configService.SettingsService
 	Broadcaster realtime.Broadcaster
@@ -124,6 +130,9 @@ func NewService(cfg Config) Service {
 		messageRepo: cfg.MessageRepo,
 		readRepo:    cfg.ReadRepo,
 		persons:     cfg.Persons,
+		students:    cfg.Students,
+		arrival:     cfg.Arrival,
+		pickup:      cfg.Pickup,
 		userContext: cfg.UserContext,
 		settings:    cfg.Settings,
 		broadcaster: cfg.Broadcaster,

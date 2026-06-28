@@ -2,12 +2,26 @@ package users
 
 import (
 	"context"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
 
 const tableUsersParentMessages = "users.parent_messages"
+
+const (
+	ParentMessageKindMessage = "message"
+	ParentMessageKindEvent   = "event"
+	ParentMessageKindRequest = "request"
+
+	ParentMessageRequestStatusOpen        = "offen"
+	ParentMessageRequestStatusDone        = "erledigt"
+	ParentMessageRequestStatusRejected    = "abgelehnt"
+	ParentMessageRequestStatusWithdrawn   = "zurueckgezogen"
+	ParentMessageRequestCareSchedule      = "care_schedule"
+	ParentMessageRequestStudentMasterData = "student_master_data"
+)
 
 // ParentMessage is a single message in a child's parent-OGS thread.
 // Append-only: each send is a new row. SenderName is denormalized at send
@@ -22,6 +36,27 @@ type ParentMessage struct {
 	SenderKind      string `bun:"sender_kind,notnull" json:"sender_kind"`
 	SenderName      string `bun:"sender_name,notnull" json:"sender_name"`
 	Body            string `bun:"body,notnull" json:"body"`
+	// Kind discriminates a plain chat message ('message') from a system event
+	// ('event', e.g. a quick-action pill posting a Raumwechsel/Abholung notice
+	// into the thread) and a structured change request ('request'). Defaults to
+	// 'message' on insert via BeforeAppendModel.
+	Kind      string `bun:"kind,notnull" json:"kind"`
+	EventType string `bun:"event_type,nullzero" json:"event_type,omitempty"`
+	// EventActorKind records which side TRIGGERED a system event ('staff' or
+	// 'guardian'), set from the action context when the event is created. The
+	// unread query attributes the event to this side instead of inferring it from
+	// sender_account_id, which is ambiguous for a dual-role staff+guardian
+	// account. NULL for plain messages / requests (they carry their side in
+	// SenderKind).
+	EventActorKind string         `bun:"event_actor_kind,nullzero" json:"event_actor_kind,omitempty"`
+	RequestType    string         `bun:"request_type,nullzero" json:"request_type,omitempty"`
+	RequestStatus  string         `bun:"request_status,nullzero" json:"request_status,omitempty"`
+	Payload        map[string]any `bun:"payload,type:jsonb" json:"payload,omitempty"`
+	RefTable       string         `bun:"ref_table,nullzero" json:"ref_table,omitempty"`
+	RefID          *int64         `bun:"ref_id" json:"ref_id,omitempty"`
+	AppliedAt      *time.Time     `bun:"applied_at" json:"applied_at,omitempty"`
+	AppliedBy      *int64         `bun:"applied_by" json:"applied_by,omitempty"`
+	DecisionReason string         `bun:"decision_reason,nullzero" json:"decision_reason,omitempty"`
 	// ReadByStaff is the parent-facing "OGS hat gelesen" indicator on a
 	// guardian-authored message; ReadByGuardian is the staff-facing "von den
 	// Eltern gelesen" indicator on a staff-authored message. Both are derived
@@ -39,6 +74,9 @@ func (m *ParentMessage) BeforeAppendModel(query any) error {
 		q.ModelTableExpr(tableUsersParentMessages)
 	}
 	if q, ok := query.(*bun.InsertQuery); ok {
+		if m.Kind == "" {
+			m.Kind = ParentMessageKindMessage
+		}
 		q.ModelTableExpr(tableUsersParentMessages)
 	}
 	return nil
@@ -107,7 +145,13 @@ func StampGuardianReadReceipts(messages []*ParentMessage, cutoff *ReadCursor) {
 // messages. All methods must run inside a tenant transaction.
 type ParentMessageRepository interface {
 	Create(ctx context.Context, message *ParentMessage) error
+	Update(ctx context.Context, message *ParentMessage) error
 	FindByID(ctx context.Context, id int64) (*ParentMessage, error)
+	// FindByIDForUpdate is FindByID with a SELECT … FOR UPDATE row lock, so a
+	// confirm/reject re-reads and locks the request inside the request
+	// transaction before applying — two staff confirming the same request
+	// serialize instead of both applying it.
+	FindByIDForUpdate(ctx context.Context, id int64) (*ParentMessage, error)
 	// ListByThread returns a thread's messages oldest-first (chat order).
 	// limit <= 0 returns all.
 	ListByThread(ctx context.Context, threadID int64, limit int) ([]*ParentMessage, error)
