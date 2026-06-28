@@ -1010,6 +1010,6 @@ describe("StudentHistorySection", () => {
       .getByText("Feedbackhistorie")
       .closest("button");
     fireEvent.click(feedbackButton!);
-    expect(onNavigate).toHaveBeenCalledWith("/students/456/feedback_history");
+    expect(onNavigate).toHaveBeenCalledWith("/students/456/feedback-history");
   });
 });

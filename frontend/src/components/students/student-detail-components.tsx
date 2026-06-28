@@ -888,7 +888,7 @@ export function StudentHistorySection({
           disabled={feedbackDisabled}
           onClick={
             !feedbackDisabled
-              ? () => onNavigate(`/students/${studentId}/feedback_history`)
+              ? () => onNavigate(`/students/${studentId}/feedback-history`)
               : undefined
           }
         />

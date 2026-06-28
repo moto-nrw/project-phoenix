@@ -226,7 +226,7 @@ describe("StudentHistoryBreadcrumb", () => {
       <StudentHistoryBreadcrumb
         referrer="/students/search"
         breadcrumbLabel="Suche"
-        pathname="/students/123/feedback_history"
+        pathname="/students/123/feedback-history"
         studentName="Emma Müller"
         historyType="Feedbackhistorie"
       />,

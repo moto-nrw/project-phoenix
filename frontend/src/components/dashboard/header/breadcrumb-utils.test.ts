@@ -20,7 +20,7 @@ describe("breadcrumb-utils", () => {
       });
 
       it("should return 'Feedback Historie' for feedback history page", () => {
-        expect(getPageTitle("/students/123/feedback_history")).toBe(
+        expect(getPageTitle("/students/123/feedback-history")).toBe(
           "Feedback Historie",
         );
       });
@@ -240,7 +240,7 @@ describe("breadcrumb-utils", () => {
 
   describe("getHistoryType", () => {
     it("should return 'Feedback Historie' for feedback history path", () => {
-      expect(getHistoryType("/students/123/feedback_history")).toBe(
+      expect(getHistoryType("/students/123/feedback-history")).toBe(
         "Feedback Historie",
       );
     });
@@ -283,7 +283,7 @@ describe("breadcrumb-utils", () => {
       });
 
       it("should not identify history pages as detail page", () => {
-        const result = getPageTypeInfo("/students/123/feedback_history");
+        const result = getPageTypeInfo("/students/123/feedback-history");
         expect(result.isStudentDetailPage).toBe(false);
         expect(result.isStudentHistoryPage).toBe(true);
       });
@@ -291,7 +291,7 @@ describe("breadcrumb-utils", () => {
 
     describe("student history page", () => {
       it("should identify feedback history page", () => {
-        const result = getPageTypeInfo("/students/123/feedback_history");
+        const result = getPageTypeInfo("/students/123/feedback-history");
         expect(result.isStudentHistoryPage).toBe(true);
         expect(result.isStudentDetailPage).toBe(false);
       });
