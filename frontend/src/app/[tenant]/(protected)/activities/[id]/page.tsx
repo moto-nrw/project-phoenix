@@ -360,37 +360,10 @@ function ActivityDetailContent() {
                   Teilnehmende Kinder
                 </h3>
 
-                <div className="flex items-center gap-4">
-                  <div className="text-sm text-gray-500">
-                    {students.length > 0
-                      ? `${students.length} von ${activity.max_participant} Teilnehmer`
-                      : "Keine Teilnehmer"}
-                  </div>
-
-                  <button
-                    onClick={() =>
-                      router.push(
-                        `/database/activities/${activityId}/add-students`,
-                      )
-                    }
-                    className="flex items-center gap-1 rounded-md bg-green-50 px-3 py-1.5 text-green-600 transition-colors hover:bg-green-100"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-4 w-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 4v16m8-8H4"
-                      />
-                    </svg>
-                    <span>Kind hinzufügen</span>
-                  </button>
+                <div className="text-sm text-gray-500">
+                  {students.length > 0
+                    ? `${students.length} von ${activity.max_participant} Teilnehmer`
+                    : "Keine Teilnehmer"}
                 </div>
               </div>
 

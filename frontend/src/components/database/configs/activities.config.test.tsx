@@ -234,4 +234,8 @@ describe("activitiesConfig", () => {
     );
     expect(activitiesConfig.labels?.deleteConfirmation).toContain("löschen");
   });
+
+  it("does not expose custom detail actions for removed activity subpages", () => {
+    expect(activitiesConfig.detail.actions?.custom).toBeUndefined();
+  });
 });

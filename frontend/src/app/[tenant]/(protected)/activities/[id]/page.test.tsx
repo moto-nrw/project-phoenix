@@ -318,25 +318,14 @@ describe("ActivityDetailPage", () => {
     });
   });
 
-  it("navigates to add students page when button clicked", async () => {
-    render(<ActivityDetailPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Kind hinzufügen")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("Kind hinzufügen"));
-    expect(mockPush).toHaveBeenCalledWith(
-      "/test-tenant/database/activities/1/add-students",
-    );
-  });
-
   it("navigates to student detail when student is clicked", async () => {
     render(<ActivityDetailPage />);
 
     await waitFor(() => {
       expect(screen.getByText("Peter Müller")).toBeInTheDocument();
     });
+
+    expect(screen.queryByText("Kind hinzufügen")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByText("Peter Müller"));
     expect(mockPush).toHaveBeenCalledWith(
