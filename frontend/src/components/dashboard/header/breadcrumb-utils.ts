@@ -42,7 +42,6 @@ export function getPageTitle(pathname: string): string {
 
 function getStudentPageTitle(pathname: string): string {
   if (pathname.includes("/feedback_history")) return "Feedback Historie";
-  if (pathname.includes("/mensa_history")) return "Mensa Historie";
   if (pathname.includes("/room-history")) return "Anwesenheitsprotokoll";
   return "Kinder Details";
 }
@@ -139,7 +138,6 @@ export function getBreadcrumbLabel(referrer: string): string {
  */
 export function getHistoryType(pathname: string): string {
   if (pathname.includes("/feedback_history")) return "Feedback Historie";
-  if (pathname.includes("/mensa_history")) return "Mensa Historie";
   if (pathname.includes("/room-history")) return "Anwesenheitsprotokoll";
   return "";
 }
@@ -165,13 +163,11 @@ export function getPageTypeInfo(pathname: string): PageTypeInfo {
     pathname !== "/students" &&
     pathname !== "/students/search" &&
     !pathname.includes("/feedback_history") &&
-    !pathname.includes("/mensa_history") &&
     !pathname.includes("/room-history");
 
   const isStudentHistoryPage =
     isStudentPath &&
     (pathname.includes("/feedback_history") ||
-      pathname.includes("/mensa_history") ||
       pathname.includes("/room-history"));
 
   const isStaffDetailPage =

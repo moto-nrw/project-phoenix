@@ -25,12 +25,6 @@ describe("breadcrumb-utils", () => {
         );
       });
 
-      it("should return 'Mensa Historie' for mensa history page", () => {
-        expect(getPageTitle("/students/123/mensa_history")).toBe(
-          "Mensa Historie",
-        );
-      });
-
       it("should return 'Anwesenheitsprotokoll' for room history page", () => {
         expect(getPageTitle("/students/123/room-history")).toBe(
           "Anwesenheitsprotokoll",
@@ -251,12 +245,6 @@ describe("breadcrumb-utils", () => {
       );
     });
 
-    it("should return 'Mensa Historie' for mensa history path", () => {
-      expect(getHistoryType("/students/123/mensa_history")).toBe(
-        "Mensa Historie",
-      );
-    });
-
     it("should return 'Anwesenheitsprotokoll' for room history path", () => {
       expect(getHistoryType("/students/123/room-history")).toBe(
         "Anwesenheitsprotokoll",
@@ -306,11 +294,6 @@ describe("breadcrumb-utils", () => {
         const result = getPageTypeInfo("/students/123/feedback_history");
         expect(result.isStudentHistoryPage).toBe(true);
         expect(result.isStudentDetailPage).toBe(false);
-      });
-
-      it("should identify mensa history page", () => {
-        const result = getPageTypeInfo("/students/123/mensa_history");
-        expect(result.isStudentHistoryPage).toBe(true);
       });
 
       it("should identify room history page", () => {
