@@ -1,7 +1,3 @@
-import { createGetHandler } from "~/lib/route-wrapper.server";
-import { apiGet } from "~/lib/api-helpers.server";
+import { proxyGet } from "~/lib/route-proxy.server";
 
-export const GET = createGetHandler(async (request, token, _params) => {
-  const response = await apiGet<{ data: unknown }>(`/api/me/staff`, token);
-  return response.data;
-});
+export const GET = proxyGet("/api/me/staff");

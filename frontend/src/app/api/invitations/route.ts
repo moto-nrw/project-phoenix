@@ -1,9 +1,7 @@
 import type { NextRequest } from "next/server";
-import { apiGet, apiPost } from "~/lib/api-helpers.server";
-import {
-  createGetHandler,
-  createPostHandler,
-} from "~/lib/route-wrapper.server";
+import { apiPost } from "~/lib/api-helpers.server";
+import { createPostHandler } from "~/lib/route-wrapper.server";
+import { proxyGet } from "~/lib/route-proxy.server";
 
 interface BackendInvitation {
   id: number;
@@ -50,15 +48,7 @@ interface BackendCreateInvitationPayload {
   position?: string;
 }
 
-export const GET = createGetHandler<BackendInvitation[]>(
-  async (_request: NextRequest, token: string) => {
-    const response = await apiGet<BackendResponse<BackendInvitation[]>>(
-      "/auth/invitations",
-      token,
-    );
-    return response.data;
-  },
-);
+export const GET = proxyGet<BackendInvitation[]>("/auth/invitations");
 
 export const POST = createPostHandler<
   BackendInvitation,

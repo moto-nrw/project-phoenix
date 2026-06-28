@@ -1,39 +1,14 @@
-import type { NextRequest } from "next/server";
-import { apiDelete, apiGet, apiPut } from "~/lib/api-helpers.server";
-import {
-  createDeleteHandler,
-  createGetHandler,
-  createPutHandler,
-  isStringParam,
-} from "~/lib/route-wrapper.server";
+import { proxyDelete, proxyGet, proxyPut } from "~/lib/route-proxy.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
-export const GET = createGetHandler(
-  async (_request: NextRequest, token: string, params) => {
-    if (!isStringParam(params.id)) throw new Error("Invalid id parameter");
-    const response = await apiGet<{ data: unknown }>(
-      `/api/timetable/templates/${params.id}`,
-      token,
-    );
-    return response.data;
-  },
+export const GET = proxyGet(
+  (params) => `/api/timetable/templates/${requirePathSegmentParam(params)}`,
 );
 
-export const PUT = createPutHandler(
-  async (_request: NextRequest, body: unknown, token: string, params) => {
-    if (!isStringParam(params.id)) throw new Error("Invalid id parameter");
-    const response = await apiPut<{ data: unknown }>(
-      `/api/timetable/templates/${params.id}`,
-      token,
-      body ?? {},
-    );
-    return response.data;
-  },
+export const PUT = proxyPut(
+  (params) => `/api/timetable/templates/${requirePathSegmentParam(params)}`,
 );
 
-export const DELETE = createDeleteHandler(
-  async (_request: NextRequest, token: string, params) => {
-    if (!isStringParam(params.id)) throw new Error("Invalid id parameter");
-    await apiDelete(`/api/timetable/templates/${params.id}`, token);
-    return null;
-  },
+export const DELETE = proxyDelete(
+  (params) => `/api/timetable/templates/${requirePathSegmentParam(params)}`,
 );

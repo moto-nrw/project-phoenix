@@ -5,19 +5,8 @@
 //   school-year period when the tenant has none and returns
 //   { periods: [...], created: boolean }.
 //
-// The Go backend wraps responses in { status, data, message }. Strip that
-// envelope here so route-wrapper does not double-wrap the payload.
-import type { NextRequest } from "next/server";
-import { apiPost } from "~/lib/api-helpers.server";
-import { createPostHandler } from "~/lib/route-wrapper.server";
+// The Go backend wraps responses in { status, data, message }. proxyPost
+// strips that envelope so route-wrapper does not double-wrap the payload.
+import { proxyPost } from "~/lib/route-proxy.server";
 
-export const POST = createPostHandler(
-  async (_request: NextRequest, body: unknown, token: string) => {
-    const response = await apiPost<{ data: unknown }>(
-      "/api/timetable/periods/bootstrap",
-      token,
-      body ?? {},
-    );
-    return response.data;
-  },
-);
+export const POST = proxyPost("/api/timetable/periods/bootstrap");

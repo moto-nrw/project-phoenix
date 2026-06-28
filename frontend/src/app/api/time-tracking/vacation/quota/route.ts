@@ -1,6 +1,4 @@
-import { createProxyGetDataHandler } from "~/lib/route-wrapper.server";
+import { proxyGet } from "~/lib/route-proxy.server";
 
 // Proxies GET /api/time-tracking/vacation/quota?year=YYYY → backend
-export const GET = createProxyGetDataHandler(
-  "/api/time-tracking/vacation/quota",
-);
+export const GET = proxyGet("/api/time-tracking/vacation/quota");
