@@ -397,6 +397,13 @@ export function useGlobalSSE(): SSEHookState {
           break;
         }
 
+        // A counterpart read a conversation. Handled identically to a new
+        // message on the staff side: the sidebar badge must refresh (a staff
+        // member reading in another tab dropped the count) and any open
+        // thread/card refetches to pick up the guardian "Gelesen" receipt. The
+        // backend only emits this when a read cursor actually advanced, so the
+        // refetch it triggers cannot loop back into another read event.
+        case "parent_message_read":
         case "parent_message": {
           // A parent sent a message (or staff replied elsewhere). This single
           // app-wide connection fans the trigger out to the messaging surfaces

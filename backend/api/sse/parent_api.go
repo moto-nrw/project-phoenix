@@ -30,10 +30,10 @@ func (rs *Resource) ParentRouter() chi.Router {
 	return r
 }
 
-// parentEventsHandler streams parent_message triggers to a guardian. The
-// connection is registered against the guardian's own children (student IDs),
-// so it is woken only for those children's threads — never another family's,
-// and never by staff-oriented tenant/group broadcasts.
+// parentEventsHandler streams parent_message and parent_message_read triggers to
+// a guardian. The connection is registered against the guardian's own account, so
+// it is woken only for its own threads — never another family's, and never by
+// staff-oriented tenant/group broadcasts.
 func (rs *Resource) parentEventsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

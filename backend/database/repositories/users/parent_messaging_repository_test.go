@@ -100,18 +100,29 @@ func TestParentMessaging_ThreadsMessagesAndReadState(t *testing.T) {
 	assert.Equal(t, "parent", inbox[0].RelationshipType)
 	assert.Equal(t, 2, inbox[0].UnreadCount)
 
-	threadCount, err := readRepo.UnreadThreadCountForStaff(ctx, staffAccount.ID, true, nil)
+	// Sidebar badge counts unread MESSAGES (not threads): the two guardian
+	// messages above are both unread to the staff reader, so the badge is 2 —
+	// matching the inbox row pill above, not "1 thread".
+	unread, err := readRepo.UnreadMessageCountForStaff(ctx, staffAccount.ID, true, nil)
 	require.NoError(t, err)
-	assert.Equal(t, 1, threadCount)
+	assert.Equal(t, 2, unread)
 
 	// After the staff reader reads up to the newest message, their unread clears.
 	// (MarkReadUpTo is the production read path; the old NOW()-cursor MarkRead was
-	// removed as dead code.)
+	// removed as dead code.) MarkReadUpTo reports that the cursor advanced.
 	newest := messages[len(messages)-1]
-	require.NoError(t, readRepo.MarkReadUpTo(ctx, 1, thread.ID, staffAccount.ID, newest.CreatedAt, newest.ID))
-	threadCount, err = readRepo.UnreadThreadCountForStaff(ctx, staffAccount.ID, true, nil)
+	advanced, err := readRepo.MarkReadUpTo(ctx, 1, thread.ID, staffAccount.ID, newest.CreatedAt, newest.ID)
 	require.NoError(t, err)
-	assert.Equal(t, 0, threadCount)
+	assert.True(t, advanced, "first read from an empty cursor advances")
+	unread, err = readRepo.UnreadMessageCountForStaff(ctx, staffAccount.ID, true, nil)
+	require.NoError(t, err)
+	assert.Equal(t, 0, unread)
+
+	// Re-marking the same newest message does NOT advance (idempotent) — this is
+	// what gates the read-receipt SSE push so it can't ping-pong.
+	advanced, err = readRepo.MarkReadUpTo(ctx, 1, thread.ID, staffAccount.ID, newest.CreatedAt, newest.ID)
+	require.NoError(t, err)
+	assert.False(t, advanced, "re-reading the same newest message is a no-op")
 
 	onlyUnread, err := readRepo.ListInboxForStaff(ctx, staffAccount.ID, true, nil, true)
 	require.NoError(t, err)
@@ -120,7 +131,8 @@ func TestParentMessaging_ThreadsMessagesAndReadState(t *testing.T) {
 	// Guardian thread list: unread counts STAFF messages after the GUARDIAN's own
 	// cursor. Once the guardian has read up to the newest message, the staff reply
 	// is read → 0 unread.
-	require.NoError(t, readRepo.MarkReadUpTo(ctx, 1, thread.ID, guardian, newest.CreatedAt, newest.ID))
+	_, err = readRepo.MarkReadUpTo(ctx, 1, thread.ID, guardian, newest.CreatedAt, newest.ID)
+	require.NoError(t, err)
 	guardianThreads, err := readRepo.ListThreadsForGuardianStudent(ctx, guardian, chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, guardianThreads, 1)
@@ -180,14 +192,18 @@ func TestParentMessaging_UnreadCreatedAtTie(t *testing.T) {
 	// Reader read up to m1 (the message it actually saw). m2 committed with the
 	// SAME created_at but a higher id, so it must remain unread — a timestamp-only
 	// cursor (created_at > last_read_at) would silently drop it.
-	require.NoError(t, readRepo.MarkReadUpTo(ctx, 1, thread.ID, reader, m1.CreatedAt, m1.ID))
-	count, err := readRepo.UnreadThreadCountForStaff(ctx, reader, true, nil)
+	advanced, err := readRepo.MarkReadUpTo(ctx, 1, thread.ID, reader, m1.CreatedAt, m1.ID)
+	require.NoError(t, err)
+	assert.True(t, advanced, "first read advances the cursor")
+	count, err := readRepo.UnreadMessageCountForStaff(ctx, reader, true, nil)
 	require.NoError(t, err)
 	assert.Equal(t, 1, count, "tied message with a higher id must stay unread")
 
 	// Reading up to m2 (the higher tie-break id) clears it.
-	require.NoError(t, readRepo.MarkReadUpTo(ctx, 1, thread.ID, reader, m2.CreatedAt, m2.ID))
-	count, err = readRepo.UnreadThreadCountForStaff(ctx, reader, true, nil)
+	advanced, err = readRepo.MarkReadUpTo(ctx, 1, thread.ID, reader, m2.CreatedAt, m2.ID)
+	require.NoError(t, err)
+	assert.True(t, advanced, "reading the higher tie-break id advances the cursor")
+	count, err = readRepo.UnreadMessageCountForStaff(ctx, reader, true, nil)
 	require.NoError(t, err)
 	assert.Equal(t, 0, count)
 }

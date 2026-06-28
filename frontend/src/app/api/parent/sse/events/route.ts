@@ -12,8 +12,8 @@ export const runtime = "nodejs";
  * Parent-portal SSE proxy. Same streaming proxy as the tenant route
  * (proxySSEStream), but authenticates with the parent NextAuth session
  * (parent.session-token) and proxies to the backend's parent-scoped stream at
- * /parent-sse/events, which delivers only the whitelisted parent_message trigger
- * for the tenants of the guardian's children.
+ * /parent-sse/events, which delivers the guardian-scoped parent_message and
+ * parent_message_read triggers for the tenants of the guardian's children.
  */
 export async function GET(request: NextRequest) {
   const session = await parentAuth();

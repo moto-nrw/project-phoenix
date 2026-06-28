@@ -29,7 +29,14 @@ func NewParentMessageReadRepository(db *bun.DB) users.ParentMessageReadRepositor
 // then id), so a stale list snapshot can never roll the cursor back and a tied
 // message keeps its tie-breaker. See the interface doc for why a NOW() cursor
 // would swallow a message that committed after the caller's list snapshot.
-func (r *ParentMessageReadRepository) MarkReadUpTo(ctx context.Context, tenantID, threadID, accountID int64, readAt time.Time, readMessageID int64) error {
+//
+// Returns whether the cursor actually ADVANCED (true on a first read or a real
+// forward move, false on a stale/no-op write). The read-receipt SSE push gates on
+// this so a refetch that marks nothing new read does not fire an event — which is
+// what stops the receipt event from ping-ponging with the refetch it triggers on
+// the other side. The monotonic guard is now the ON CONFLICT ... WHERE clause
+// (no-advance simply touches no row), so RowsAffected is exactly "advanced".
+func (r *ParentMessageReadRepository) MarkReadUpTo(ctx context.Context, tenantID, threadID, accountID int64, readAt time.Time, readMessageID int64) (bool, error) {
 	row := &users.ParentMessageRead{
 		ThreadID:          threadID,
 		AccountID:         accountID,
@@ -40,22 +47,30 @@ func (r *ParentMessageReadRepository) MarkReadUpTo(ctx context.Context, tenantID
 
 	// Advance the (last_read_at, last_read_message_id) pair atomically: compare the
 	// incoming composite against the stored one and take the incoming only when it
-	// is strictly greater. Advancing the two columns with independent GREATEST()
-	// could mix a newer timestamp with an older id (or vice versa) and corrupt the
-	// cursor.
+	// is strictly greater. The strictly-greater test lives in the ON CONFLICT DO
+	// UPDATE ... WHERE so a non-advance touches NO row (RowsAffected == 0) — that is
+	// what makes the returned bool an exact "did the cursor move". A CASE in SET
+	// would always write the row (RowsAffected == 1) and lose that signal. Comparing
+	// the composite as a tuple (not two independent GREATEST()) keeps a newer
+	// timestamp from mixing with an older id and corrupting the cursor.
 	const advance = `(EXCLUDED.last_read_at, EXCLUDED.last_read_message_id) > ` +
 		`(parent_message_reads.last_read_at, parent_message_reads.last_read_message_id)`
-	_, err := base.GetDB(ctx, r.db).NewInsert().
+	res, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(row).
 		ModelTableExpr("users.parent_message_reads").
 		On("CONFLICT (thread_id, account_id) DO UPDATE").
-		Set("last_read_at = CASE WHEN " + advance + " THEN EXCLUDED.last_read_at ELSE parent_message_reads.last_read_at END").
-		Set("last_read_message_id = CASE WHEN " + advance + " THEN EXCLUDED.last_read_message_id ELSE parent_message_reads.last_read_message_id END").
+		Set("last_read_at = EXCLUDED.last_read_at").
+		Set("last_read_message_id = EXCLUDED.last_read_message_id").
+		Where(advance).
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "mark parent message thread read up to", Err: err}
+		return false, &modelBase.DatabaseError{Op: "mark parent message thread read up to", Err: err}
 	}
-	return nil
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return false, &modelBase.DatabaseError{Op: "mark parent message thread read up to", Err: err}
+	}
+	return affected > 0, nil
 }
 
 // counterpartUnread builds the SQL boolean for "a message from the OTHER party
@@ -199,11 +214,13 @@ const guardianStillLinked = `EXISTS (
 	  AND sg_link.permissions @> '{"parent_portal.access": true}'::jsonb
 )`
 
-// guardianUnreadExists is the EXISTS predicate for "unread guardian-side
-// activity" for the staff reader (used by the inbox onlyUnread filter and the
-// badge). Mirrors the inbox unread_count column: guardian messages plus the
-// guardian's own system events (e.g. a withdrawn request). It carries a single
-// `?` (notReaderAuthored) bound to the reader's account id at the call site.
+// guardianUnreadExists is the EXISTS predicate for "this thread has at least one
+// unread guardian-side message" for the staff reader, used by the inbox onlyUnread
+// FILTER (which keeps or drops whole threads). The sidebar badge no longer uses it
+// — it counts unread messages via unreadMessageCountSelect. Mirrors the inbox
+// unread_count column: guardian messages plus the guardian's own system events
+// (e.g. a withdrawn request). It carries a single `?` (notReaderAuthored) bound to
+// the reader's account id at the call site.
 var guardianUnreadExists = fmt.Sprintf(`EXISTS (
 	SELECT 1 FROM users.parent_messages um
 	WHERE um.thread_id = t.id AND um.tenant_id = t.tenant_id
@@ -212,18 +229,34 @@ var guardianUnreadExists = fmt.Sprintf(`EXISTS (
 	  AND %s
 )`, counterpartUnread("um", true), afterReadCursor("um"), notReaderAuthored("um"))
 
-// staffUnreadExists is the guardian-reader counterpart of guardianUnreadExists:
-// "unread staff-side activity" (staff messages plus staff-triggered system
-// events such as a confirmed/rejected request). Drives the parent-portal unread
-// badge count. It carries a single `?` (notReaderAuthored) bound to the reader's
-// account id at the call site.
-var staffUnreadExists = fmt.Sprintf(`EXISTS (
-	SELECT 1 FROM users.parent_messages um
-	WHERE um.thread_id = t.id AND um.tenant_id = t.tenant_id
-	  AND %s
-	  AND %s
-	  AND %s
-)`, counterpartUnread("um", false), afterReadCursor("um"), notReaderAuthored("um"))
+// unreadMessageCountSelect builds a query whose ROWS are the unread MESSAGES for
+// the given reader: counterpart-authored messages strictly after the reader's
+// read cursor, excluding the reader's own. It is the aggregate twin of
+// inboxSelect's unread_count COLUMN — same three predicates (counterpartUnread,
+// afterReadCursor, notReaderAuthored) — but spanning many threads, so the sidebar
+// badges count unread messages and match the per-thread pills instead of counting
+// unread threads. staffReader switches the counterpart side (staff count guardian
+// messages, guardians count staff messages). Callers add the scope/ownership
+// filters (staff scope, or guardian + tenant set) and Count().
+//
+// parent_messages is the base table; the threads/persons joins reuse inboxSelect's
+// soft-delete and tenant-index discipline: pn.deleted_at IS NULL hides an
+// offboarded child's messages (so a badge can't outlive every openable thread),
+// and um.tenant_id = t.tenant_id binds the leading index column so the guardian
+// cross-tenant variant under WithAdminTx still uses the (tenant_id, thread_id,
+// created_at) index. The r LEFT JOIN is unique per (thread, account), so no row
+// fans out and COUNT(*) is an exact message count.
+func unreadMessageCountSelect(q *bun.SelectQuery, accountID int64, staffReader bool) *bun.SelectQuery {
+	return q.
+		TableExpr("users.parent_messages AS um").
+		Join("JOIN users.parent_message_threads AS t ON t.id = um.thread_id AND t.tenant_id = um.tenant_id").
+		Join("JOIN users.students AS s ON s.id = t.student_id").
+		Join("JOIN users.persons AS pn ON pn.id = s.person_id AND pn.deleted_at IS NULL").
+		Join("LEFT JOIN users.parent_message_reads AS r ON r.thread_id = t.id AND r.account_id = ? AND r.tenant_id = t.tenant_id", accountID).
+		Where(counterpartUnread("um", staffReader)).
+		Where(afterReadCursor("um")).
+		Where(notReaderAuthored("um"), accountID)
+}
 
 // applyStaffScope narrows a thread query to the students a staff member may
 // read: all students (admin / all_staff scope) or only their supervised
@@ -320,30 +353,24 @@ func (r *ParentMessageReadRepository) ListThreadsForGuardianTenants(ctx context.
 	return rows, nil
 }
 
-// UnreadThreadCountForGuardianTenants counts the guardian's unread threads
-// across the given tenants in one query — the parent-portal sidebar badge
-// source. Cross-tenant: run under WithAdminTx. See ListThreadsForGuardianTenants
-// for the ownership/scoping rationale.
-func (r *ParentMessageReadRepository) UnreadThreadCountForGuardianTenants(ctx context.Context, accountID int64, tenantIDs []int64) (int, error) {
+// UnreadMessageCountForGuardianTenants counts the guardian's unread staff
+// MESSAGES across the given tenants in one query — the parent-portal sidebar
+// badge source. It counts messages (not threads) so the badge matches the staff
+// side and the per-thread pills. Cross-tenant: run under WithAdminTx. See
+// ListThreadsForGuardianTenants for the ownership/scoping rationale; the
+// persons deleted_at IS NULL join inside unreadMessageCountSelect hides an
+// offboarded child's messages so the badge can't outlive its openable thread.
+func (r *ParentMessageReadRepository) UnreadMessageCountForGuardianTenants(ctx context.Context, accountID int64, tenantIDs []int64) (int, error) {
 	if len(tenantIDs) == 0 {
 		return 0, nil
 	}
-	count, err := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr("users.parent_message_threads AS t").
-		// Mirror the guardian thread LIST (ListThreadsForGuardianTenants → inboxSelect),
-		// which joins persons with deleted_at IS NULL and so hides an offboarded
-		// child's thread. Without this join the count would still include it,
-		// leaving the portal badge stuck at "1 unread" with no thread to open.
-		Join("JOIN users.students AS s ON s.id = t.student_id").
-		Join("JOIN users.persons AS pn ON pn.id = s.person_id AND pn.deleted_at IS NULL").
-		Join("LEFT JOIN users.parent_message_reads AS r ON r.thread_id = t.id AND r.account_id = ? AND r.tenant_id = t.tenant_id", accountID).
+	count, err := unreadMessageCountSelect(base.GetDB(ctx, r.db).NewSelect(), accountID, false).
 		Where("t.guardian_account_id = ?", accountID).
 		Where("t.tenant_id IN (?)", bun.List(tenantIDs)).
 		Where(guardianStillLinked).
-		Where(staffUnreadExists, accountID).
 		Count(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "count unread guardian threads cross-tenant", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "count unread guardian messages cross-tenant", Err: err}
 	}
 	return count, nil
 }
@@ -459,26 +486,19 @@ func (r *ParentMessageReadRepository) GuardianReadCursor(ctx context.Context, th
 	return &rows[0], nil
 }
 
-// UnreadThreadCountForStaff counts threads with an unread guardian message
-// for the staff reader, within their visible student scope.
-func (r *ParentMessageReadRepository) UnreadThreadCountForStaff(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64) (int, error) {
-	query := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr("users.parent_message_threads AS t").
-		Join("JOIN users.students AS s ON s.id = t.student_id").
-		// Exclude soft-deleted students so an offboarded child's unread thread
-		// can't leave a permanent, unclearable badge: the inbox LIST joins
-		// persons with deleted_at IS NULL (inboxSelect) and hides such threads,
-		// so the COUNT must match or it inflates past every openable thread.
-		Join("JOIN users.persons AS pn ON pn.id = s.person_id AND pn.deleted_at IS NULL").
-		Join("LEFT JOIN users.parent_message_reads AS r ON r.thread_id = t.id AND r.account_id = ? AND r.tenant_id = t.tenant_id", accountID).
-		Where(guardianUnreadExists, accountID)
+// UnreadMessageCountForStaff counts unread guardian MESSAGES for the staff
+// reader, within their visible student scope — the sidebar badge source. It
+// counts messages (not threads) so the badge matches the per-thread unread pills
+// in the inbox: a thread with three unread guardian messages contributes 3, not 1.
+func (r *ParentMessageReadRepository) UnreadMessageCountForStaff(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64) (int, error) {
+	query := unreadMessageCountSelect(base.GetDB(ctx, r.db).NewSelect(), accountID, true)
 	query = applyStaffScope(query, allStudents, groupIDs)
 	if where, val, ok := base.TenantWhere(ctx, "t"); ok {
 		query = query.Where(where, val)
 	}
 	count, err := query.Count(ctx)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "count unread parent message threads", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "count unread parent messages for staff", Err: err}
 	}
 	return count, nil
 }

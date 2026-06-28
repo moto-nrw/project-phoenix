@@ -73,6 +73,15 @@ const (
 	// (or staff replied), so staff inbox / parent thread views refetch their
 	// list and unread badge. Trigger only — clients refetch via the API.
 	EventParentMessage EventType = "parent_message"
+
+	// EventParentMessageRead signals that the COUNTERPART in a parent-OGS thread
+	// has read the conversation, so the other side's open chat refreshes its
+	// "Gelesen" receipts live. Unlike EventParentMessage it adds no message: the
+	// client re-decorates read receipts only and must NOT bump any unread badge (a
+	// counterpart's read never changes the reader's own unread set). It is emitted
+	// ONLY when a read cursor actually advances (parentmessaging.MarkReadToNewest),
+	// so it cannot ping-pong with the receipt refetch it triggers on the far side.
+	EventParentMessageRead EventType = "parent_message_read"
 )
 
 // Event represents a Server-Sent Event that will be broadcast to clients
@@ -191,6 +200,22 @@ func NewEvent(eventType EventType, activeGroupID string, data EventData) Event {
 // an open chat refetch only the affected thread. Centralizing the payload shape
 // here means adding a field can never drift between the two emitters.
 func NewParentMessageEvent(guardianAccountID, threadID, studentID int64) Event {
+	return NewEvent(EventParentMessage, "", parentMessageData(guardianAccountID, threadID, studentID))
+}
+
+// NewParentMessageReadEvent builds the EventParentMessageRead SSE event. It
+// carries the SAME envelope as NewParentMessageEvent (guardian Source + the
+// thread/student filter for an open chat), differing only in Type so the client
+// routes it to a receipt-only refresh instead of a new-message refresh + badge
+// bump. Same staffSafeParentMessage sanitization applies to the staff fan-out.
+func NewParentMessageReadEvent(guardianAccountID, threadID, studentID int64) Event {
+	return NewEvent(EventParentMessageRead, "", parentMessageData(guardianAccountID, threadID, studentID))
+}
+
+// parentMessageData builds the shared payload for the parent-messaging events:
+// the guardian account as Source plus the (optional) thread/student filter. One
+// home so the new-message and read events can never drift in shape.
+func parentMessageData(guardianAccountID, threadID, studentID int64) EventData {
 	gid := strconv.FormatInt(guardianAccountID, 10)
 	data := EventData{Source: &gid}
 	if threadID > 0 {
@@ -201,5 +226,5 @@ func NewParentMessageEvent(guardianAccountID, threadID, studentID int64) Event {
 		sid := strconv.FormatInt(studentID, 10)
 		data.StudentID = &sid
 	}
-	return NewEvent(EventParentMessage, "", data)
+	return data
 }

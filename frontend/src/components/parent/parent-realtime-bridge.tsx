@@ -16,20 +16,36 @@ import type { SSEEvent } from "~/lib/sse-types";
  * `parent-threads-refresh` (the messages list), and `parent-conversation-refresh`
  * carrying the affected studentId (an open OgsConversation). This is the SINGLE
  * SSE connection for the parents portal — surfaces react to these window events
- * rather than each opening its own EventSource to the same endpoint. Renders
+ * rather than each opening its own EventSource to the same endpoint.
+ *
+ * A parent_message_read trigger (the OGS read this guardian's messages, or the
+ * guardian read in another tab) only refreshes the unread badge and the open
+ * conversation's "Gelesen" receipts — it does NOT refresh the thread LIST, whose
+ * order and previews a read never changes. The backend emits it only on a real
+ * cursor advance, so the conversation refetch it triggers cannot loop. Renders
  * nothing.
  */
 export function ParentRealtimeBridge() {
   const handleSSE = useCallback((event: SSEEvent) => {
-    if (event.type !== "parent_message") return;
     if (typeof window === "undefined") return;
-    window.dispatchEvent(new CustomEvent("parent-messages-unread-refresh"));
-    window.dispatchEvent(new CustomEvent("parent-threads-refresh"));
-    window.dispatchEvent(
-      new CustomEvent("parent-conversation-refresh", {
-        detail: { studentId: event.data?.student_id ?? null },
-      }),
-    );
+    if (event.type === "parent_message") {
+      window.dispatchEvent(new CustomEvent("parent-messages-unread-refresh"));
+      window.dispatchEvent(new CustomEvent("parent-threads-refresh"));
+      window.dispatchEvent(
+        new CustomEvent("parent-conversation-refresh", {
+          detail: { studentId: event.data?.student_id ?? null },
+        }),
+      );
+      return;
+    }
+    if (event.type === "parent_message_read") {
+      window.dispatchEvent(new CustomEvent("parent-messages-unread-refresh"));
+      window.dispatchEvent(
+        new CustomEvent("parent-conversation-refresh", {
+          detail: { studentId: event.data?.student_id ?? null },
+        }),
+      );
+    }
   }, []);
   useSSE("/api/parent/sse/events", { onMessage: handleSSE });
   return null;

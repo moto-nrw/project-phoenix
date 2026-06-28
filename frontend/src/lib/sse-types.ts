@@ -25,7 +25,11 @@ type SSEEventType =
   // Parent-OGS messaging: a parent sent a message or staff replied. A trigger
   // for the staff inbox / child thread / parent thread to refetch and update
   // the unread badge. See backend/realtime/events.go EventParentMessage.
-  | "parent_message";
+  | "parent_message"
+  // Parent-OGS messaging: the COUNTERPART read the conversation. A trigger for an
+  // open chat to refresh its "Gelesen" receipts only — no new message, no unread
+  // badge change. See backend/realtime/events.go EventParentMessageRead.
+  | "parent_message_read";
 
 // SSE Connection Status
 export type ConnectionStatus = "connected" | "reconnecting" | "failed" | "idle";

@@ -204,7 +204,7 @@ func (s *service) UnreadMessageCount(ctx context.Context, accountID int64) (int,
 
 	total := 0
 	txErr := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
-		count, err := s.messageReadRepo.UnreadThreadCountForGuardianTenants(adminCtx, accountID, enabledTenantIDs)
+		count, err := s.messageReadRepo.UnreadMessageCountForGuardianTenants(adminCtx, accountID, enabledTenantIDs)
 		if err != nil {
 			return err
 		}
@@ -252,7 +252,21 @@ func (s *service) GetChildConversation(ctx context.Context, accountID, studentID
 		// The mark-to-newest invariant (and the empty-conversation skip) lives in
 		// parentmessaging.MarkReadToNewest, shared with the staff side so the two
 		// portals' unread counts can't drift.
-		return parentmessaging.MarkReadToNewest(txCtx, s.messageReadRepo, thread.TenantID, thread.ID, accountID, messages)
+		advanced, err := parentmessaging.MarkReadToNewest(txCtx, s.messageReadRepo, thread.TenantID, thread.ID, accountID, messages)
+		if err != nil {
+			return err
+		}
+		if advanced {
+			// The guardian just read staff messages — wake the OGS side so its
+			// staff-facing "von den Eltern gelesen" receipt updates live. After commit
+			// and only on a real advance, so it can't loop with the refetch it triggers.
+			tenantID := thread.TenantID
+			threadID := thread.ID
+			tenant.RegisterAfterCommit(txCtx, func() {
+				s.broadcastReadReceipt(tenantID, accountID, threadID, studentID)
+			})
+		}
+		return nil
 	})
 	if txErr != nil {
 		return nil, fmt.Errorf("parent: get child conversation: %w", txErr)
@@ -325,7 +339,7 @@ func (s *service) PostChildMessage(ctx context.Context, accountID, studentID int
 		// (never NOW(), never our own just-sent message), so it can't leap the cursor
 		// to ~now and swallow a staff message committing concurrently in a still-open
 		// tx. See parentmessaging.MarkReadToNewest.
-		if err := parentmessaging.MarkReadToNewest(txCtx, s.messageReadRepo, thread.TenantID, thread.ID, accountID, messages); err != nil {
+		if _, err := parentmessaging.MarkReadToNewest(txCtx, s.messageReadRepo, thread.TenantID, thread.ID, accountID, messages); err != nil {
 			return err
 		}
 		captured := child.tenantID
@@ -408,4 +422,13 @@ func (s *service) resolveGuardianName(ctx context.Context, tenantID, accountID i
 // fan-out contract is shared with the staff side via parentmessaging.Broadcast.
 func (s *service) broadcastParentMessage(tenantID, guardianAccountID, threadID, studentID int64) {
 	parentmessaging.Broadcast(s.broadcaster, s.logger, tenantID, guardianAccountID, threadID, studentID)
+}
+
+// broadcastReadReceipt wakes the OGS side (and the guardian's own tabs) to refresh
+// "Gelesen" receipts after the guardian read a conversation, over the shared
+// receipt fan-out. Mirrors broadcastParentMessage but as a read-only event;
+// callers fire it after commit and ONLY on a real cursor advance, so it can't loop
+// with the receipt refetch it triggers.
+func (s *service) broadcastReadReceipt(tenantID, guardianAccountID, threadID, studentID int64) {
+	parentmessaging.BroadcastRead(s.broadcaster, s.logger, tenantID, guardianAccountID, threadID, studentID)
 }

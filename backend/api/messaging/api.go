@@ -200,7 +200,7 @@ func (rs *Resource) listStudentThreads(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) unreadCount(w http.ResponseWriter, r *http.Request) {
-	count, err := rs.Service.UnreadThreadCount(r.Context())
+	count, err := rs.Service.UnreadMessageCount(r.Context())
 	if err != nil {
 		renderMessagingError(w, r, err)
 		return

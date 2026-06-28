@@ -144,12 +144,17 @@ func AppendMessage(
 // rolls the cursor back. This rule used to be hand-mirrored in services/messaging
 // (staff) and services/parent (guardian); keeping it here is what stops the two
 // portals' unread counts from drifting.
+// It returns whether the cursor actually ADVANCED (false when there was nothing
+// to mark, or the snapshot was already read). The read-receipt SSE push gates on
+// this so a refetch that marks nothing new does not emit an event — the bound that
+// stops the receipt event from ping-ponging with the refetch it triggers on the
+// counterpart.
 func MarkReadToNewest(
 	ctx context.Context,
 	readRepo usersModels.ParentMessageReadRepository,
 	tenantID, threadID, accountID int64,
 	messages []*usersModels.ParentMessage,
-) error {
+) (bool, error) {
 	var newest *usersModels.ParentMessage
 	for _, msg := range messages {
 		// Oldest-first order: keep overwriting so newest ends up last. Skip the
@@ -159,7 +164,7 @@ func MarkReadToNewest(
 		}
 	}
 	if newest == nil {
-		return nil
+		return false, nil
 	}
 	return readRepo.MarkReadUpTo(ctx, tenantID, threadID, accountID, newest.CreatedAt, newest.ID)
 }
@@ -238,6 +243,31 @@ func Broadcast(
 	event := realtime.NewParentMessageEvent(guardianAccountID, threadID, studentID)
 	if err := broadcaster.BroadcastParentMessage(tenantID, guardianAccountID, event); err != nil {
 		loggerOr(logger).Warn("parent messaging: failed to broadcast parent message",
+			slog.Int64("tenant_id", tenantID),
+			slog.Int64("guardian_account_id", guardianAccountID),
+			slog.String("error", err.Error()),
+		)
+	}
+}
+
+// BroadcastRead fires the read-receipt SSE wake-up over the SAME guardian+staff
+// fan-out as Broadcast, but as an EventParentMessageRead so the far side refreshes
+// only its "Gelesen" receipts (no new message, no unread-badge change). Callers
+// schedule it AFTER commit and ONLY when the read cursor actually advanced (see
+// MarkReadToNewest) — so it can't loop with the receipt refetch it triggers.
+// Fire-and-forget: a nil broadcaster or non-positive tenant is a no-op and a
+// delivery error is logged, never returned.
+func BroadcastRead(
+	broadcaster realtime.Broadcaster,
+	logger *slog.Logger,
+	tenantID, guardianAccountID, threadID, studentID int64,
+) {
+	if broadcaster == nil || tenantID <= 0 {
+		return
+	}
+	event := realtime.NewParentMessageReadEvent(guardianAccountID, threadID, studentID)
+	if err := broadcaster.BroadcastParentMessage(tenantID, guardianAccountID, event); err != nil {
+		loggerOr(logger).Warn("parent messaging: failed to broadcast read receipt",
 			slog.Int64("tenant_id", tenantID),
 			slog.Int64("guardian_account_id", guardianAccountID),
 			slog.String("error", err.Error()),

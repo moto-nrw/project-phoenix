@@ -160,6 +160,7 @@ export function useSSE(
           "instance_cancelled",
           "instance_overdue",
           "parent_message",
+          "parent_message_read",
         ];
 
         for (const eventType of eventTypes) {

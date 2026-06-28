@@ -91,12 +91,16 @@ type ParentMessageReadRepository interface {
 	// even though it was never shown. readMessageID is the tie-breaker that keeps a
 	// message sharing the newest created_at from being swallowed (see the unread
 	// predicates). The cursor never moves backward (it advances only when the new
-	// composite is greater than the stored one).
-	MarkReadUpTo(ctx context.Context, tenantID, threadID, accountID int64, readAt time.Time, readMessageID int64) error
-	// UnreadCountForStudents counts threads with at least one message the
-	// reader has not seen, sent by the other side, restricted to the given
-	// student IDs. A nil studentIDs means "all students in tenant".
-	UnreadThreadCountForStaff(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64) (int, error)
+	// composite is greater than the stored one). Returns whether the cursor actually
+	// advanced, so the read-receipt SSE push can fire only on a real move and not
+	// ping-pong with the refetch it triggers on the counterpart.
+	MarkReadUpTo(ctx context.Context, tenantID, threadID, accountID int64, readAt time.Time, readMessageID int64) (bool, error)
+	// UnreadMessageCountForStaff counts unread guardian MESSAGES the staff reader
+	// has not seen (sent by the other side), within the given student scope — the
+	// sidebar badge source. Counts messages, not threads, so the badge matches the
+	// per-thread unread pills. allStudents = whole tenant; otherwise scoped to
+	// groupIDs.
+	UnreadMessageCountForStaff(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64) (int, error)
 	// ListInboxForStaff returns the staff member's readable threads,
 	// newest-activity first; unread counts guardian messages.
 	ListInboxForStaff(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64, onlyUnread bool) ([]*InboxThread, error)
@@ -112,10 +116,12 @@ type ParentMessageReadRepository interface {
 	// ListThreadsForStudent returns the staff view of one child's threads,
 	// newest-activity first. The caller must have authorized read access.
 	ListThreadsForStudent(ctx context.Context, accountID, studentID int64) ([]*InboxThread, error)
-	// UnreadThreadCountForGuardianTenants is the cross-tenant variant: it counts
-	// the guardian's unread threads across the given tenants in ONE query, so the
-	// portal badge does not open one transaction per school. Run under WithAdminTx.
-	UnreadThreadCountForGuardianTenants(ctx context.Context, accountID int64, tenantIDs []int64) (int, error)
+	// UnreadMessageCountForGuardianTenants is the cross-tenant variant: it counts
+	// the guardian's unread staff MESSAGES across the given tenants in ONE query, so
+	// the portal badge does not open one transaction per school. Counts messages,
+	// not threads (matching the staff side and the per-thread pills). Run under
+	// WithAdminTx.
+	UnreadMessageCountForGuardianTenants(ctx context.Context, accountID int64, tenantIDs []int64) (int, error)
 	// FindThreadHeader returns just the chat-window header fields (student name,
 	// guardian name, relationship) for a single thread with a light join, or nil
 	// if absent. Unlike the inbox projection it does NOT run the correlated

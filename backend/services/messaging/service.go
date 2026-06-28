@@ -69,7 +69,7 @@ type ThreadDetail struct {
 // Service is the staff-side messaging contract.
 type Service interface {
 	ListInbox(ctx context.Context, onlyUnread bool) ([]*usersModels.InboxThread, error)
-	UnreadThreadCount(ctx context.Context) (int, error)
+	UnreadMessageCount(ctx context.Context) (int, error)
 	GetThread(ctx context.Context, threadID int64) (*ThreadDetail, error)
 	PostMessage(ctx context.Context, threadID int64, body string) ([]*usersModels.ParentMessage, error)
 	StartThread(ctx context.Context, studentID, guardianAccountID int64, body string) (*ThreadDetail, error)
@@ -177,7 +177,7 @@ func keepUnread(rows []*usersModels.InboxThread) []*usersModels.InboxThread {
 
 // suppressDisabledUnread zeroes the unread count on every inbox/student-card row
 // when the school has turned parent messaging off, so the red row pills agree
-// with the darkened sidebar badge (UnreadThreadCount returns 0 when disabled).
+// with the darkened sidebar badge (UnreadMessageCount returns 0 when disabled).
 // Without it a disabled school with historical unread guardian messages shows a
 // dark badge but lit pills — the exact disagreement the parent side's
 // suppressDisabledUnread was built to prevent. History stays readable; only the
@@ -199,7 +199,7 @@ func (s *service) suppressDisabledUnread(ctx context.Context, rows []*usersModel
 	}
 }
 
-func (s *service) UnreadThreadCount(ctx context.Context) (int, error) {
+func (s *service) UnreadMessageCount(ctx context.Context) (int, error) {
 	// Darken the staff sidebar badge when the school has turned parent messaging
 	// off: the inbox history stays readable (ListInbox/GetThread are NOT gated),
 	// but a disabled feature must not keep lighting up a red unread count. Sends
@@ -211,7 +211,7 @@ func (s *service) UnreadThreadCount(ctx context.Context) (int, error) {
 	}
 	accountID := accountIDFromCtx(ctx)
 	allStudents, groupIDs := s.scope(ctx)
-	count, err := s.readRepo.UnreadThreadCountForStaff(ctx, accountID, allStudents, groupIDs)
+	count, err := s.readRepo.UnreadMessageCountForStaff(ctx, accountID, allStudents, groupIDs)
 	if err != nil {
 		return 0, fmt.Errorf("messaging: unread count: %w", err)
 	}
@@ -323,15 +323,24 @@ func (s *service) buildDetailFromMessages(ctx context.Context, thread *usersMode
 // (and why NOW() would silently drop a just-committed guardian message from the
 // staff badge) lives in parentmessaging.MarkReadToNewest, shared with the parent
 // side so the two portals can't drift.
-func (s *service) markReadAndBuild(ctx context.Context, thread *usersModels.ParentMessageThread) (*ThreadDetail, error) {
+// markReadAndBuild also reports whether the staff reader's cursor ADVANCED, so the
+// pure-read callers (GetThread, OpenThread) can fire a read-receipt SSE wake-up to
+// the guardian's open chat only on a real move. The send callers (StartThread,
+// PostMessage) ignore it — their new-message broadcast already refreshes receipts.
+func (s *service) markReadAndBuild(ctx context.Context, thread *usersModels.ParentMessageThread) (*ThreadDetail, bool, error) {
 	messages, err := s.messageRepo.ListByThread(ctx, thread.ID, 0)
 	if err != nil {
-		return nil, fmt.Errorf("messaging: list messages: %w", err)
+		return nil, false, fmt.Errorf("messaging: list messages: %w", err)
 	}
-	if err := parentmessaging.MarkReadToNewest(ctx, s.readRepo, thread.TenantID, thread.ID, accountIDFromCtx(ctx), messages); err != nil {
-		return nil, fmt.Errorf("messaging: mark read: %w", err)
+	advanced, err := parentmessaging.MarkReadToNewest(ctx, s.readRepo, thread.TenantID, thread.ID, accountIDFromCtx(ctx), messages)
+	if err != nil {
+		return nil, false, fmt.Errorf("messaging: mark read: %w", err)
 	}
-	return s.buildDetailFromMessages(ctx, thread, messages)
+	detail, err := s.buildDetailFromMessages(ctx, thread, messages)
+	if err != nil {
+		return nil, false, err
+	}
+	return detail, advanced, nil
 }
 
 func (s *service) GetThread(ctx context.Context, threadID int64) (*ThreadDetail, error) {
@@ -339,7 +348,16 @@ func (s *service) GetThread(ctx context.Context, threadID int64) (*ThreadDetail,
 	if err != nil {
 		return nil, err
 	}
-	return s.markReadAndBuild(ctx, thread)
+	detail, advanced, err := s.markReadAndBuild(ctx, thread)
+	if err != nil {
+		return nil, err
+	}
+	if advanced {
+		// Staff just read guardian messages — wake the guardian's open chat so its
+		// "Gelesen" receipts update live (only on a real advance, never looping).
+		s.broadcastReadAfterCommit(ctx, thread)
+	}
+	return detail, nil
 }
 
 func (s *service) PostMessage(ctx context.Context, threadID int64, body string) ([]*usersModels.ParentMessage, error) {
@@ -381,7 +399,7 @@ func (s *service) PostMessage(ctx context.Context, threadID int64, body string) 
 	// newest GUARDIAN row in the snapshot (never NOW(), never our own just-sent
 	// message), so it can't leap the cursor to ~now and swallow a guardian message
 	// committing concurrently in a still-open tx. See parentmessaging.MarkReadToNewest.
-	if err := parentmessaging.MarkReadToNewest(ctx, s.readRepo, thread.TenantID, thread.ID, accountID, messages); err != nil {
+	if _, err := parentmessaging.MarkReadToNewest(ctx, s.readRepo, thread.TenantID, thread.ID, accountID, messages); err != nil {
 		return nil, fmt.Errorf("messaging: mark read: %w", err)
 	}
 	// Re-stamp the "Gelesen" receipts on the returned snapshot: the client applies
@@ -451,8 +469,11 @@ func (s *service) StartThread(ctx context.Context, studentID, guardianAccountID 
 	// this hits an already-existing conversation with unread guardian messages, the
 	// detail we hand back has just shown them to the staffer; advancing the cursor
 	// here keeps the inbox/sidebar unread count from staying lit after the SSE
-	// refetch. Snapshot-bounded (never NOW()) via markReadAndBuild.
-	return s.markReadAndBuild(ctx, thread)
+	// refetch. Snapshot-bounded (never NOW()) via markReadAndBuild. The advance flag
+	// is ignored: this is a SEND path, and broadcastAfterCommit above already wakes
+	// the guardian with the new message (which refreshes receipts too).
+	detail, _, err := s.markReadAndBuild(ctx, thread)
+	return detail, err
 }
 
 // OpenThread get-or-creates the (student, guardian) conversation and returns
@@ -468,7 +489,16 @@ func (s *service) OpenThread(ctx context.Context, studentID, guardianAccountID i
 	if err != nil {
 		return nil, fmt.Errorf("messaging: get-or-create thread: %w", err)
 	}
-	return s.markReadAndBuild(ctx, thread)
+	detail, advanced, err := s.markReadAndBuild(ctx, thread)
+	if err != nil {
+		return nil, err
+	}
+	if advanced {
+		// Opening an existing conversation with unread guardian messages reads them —
+		// wake the guardian's open chat so its "Gelesen" receipts update live.
+		s.broadcastReadAfterCommit(ctx, thread)
+	}
+	return detail, nil
 }
 
 func (s *service) ListGuardians(ctx context.Context, studentID int64) ([]*usersModels.MessageableGuardian, error) {
@@ -567,6 +597,24 @@ func (s *service) broadcastAfterCommit(ctx context.Context, thread *usersModels.
 
 func (s *service) broadcastValues(tenantID, guardianAccountID, threadID, studentID int64) {
 	parentmessaging.Broadcast(s.broadcaster, s.logger, tenantID, guardianAccountID, threadID, studentID)
+}
+
+// broadcastReadAfterCommit queues the read-receipt SSE wake-up to fire only AFTER
+// the request transaction commits, mirroring broadcastAfterCommit. The guardian's
+// open chat refreshes its "Gelesen" receipts; staff tabs get a (sanitized)
+// receipt-refresh nudge. Callers fire it only when the staff cursor actually
+// advanced, so it never loops with the refetch it triggers.
+func (s *service) broadcastReadAfterCommit(ctx context.Context, thread *usersModels.ParentMessageThread) {
+	if thread == nil {
+		return
+	}
+	tenantID := thread.TenantID
+	guardianAccountID := thread.GuardianAccountID
+	threadID := thread.ID
+	studentID := thread.StudentID
+	tenant.RegisterAfterCommit(ctx, func() {
+		parentmessaging.BroadcastRead(s.broadcaster, s.logger, tenantID, guardianAccountID, threadID, studentID)
+	})
 }
 
 func containsGuardian(guardians []*usersModels.MessageableGuardian, accountID int64) bool {
