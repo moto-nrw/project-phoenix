@@ -1143,6 +1143,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		MessageThreadRepo:       repos.ParentMessageThread,
 		MessageRepo:             repos.ParentMessage,
 		MessageReadRepo:         repos.ParentMessageRead,
+		DiffBuilder:             messagingService,
 		GuardianInvites:         guardianInvitationService,
 		GuardianInviteRepo:      repos.GuardianInvitation,
 		StudentGuardianRepo:     repos.StudentGuardian,

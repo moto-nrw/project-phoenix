@@ -72,6 +72,14 @@ var (
 	// on the unique index (e.g. a double-click); the change was not saved and
 	// the caller should reload and retry.
 	ErrCareExceptionRaced = errors.New("parent: this day was just changed, please reload and try again")
+	// ErrInvalidParentRequestType means the change-request type is not registered.
+	ErrInvalidParentRequestType = errors.New("parent: invalid request type")
+	// ErrParentRequestNotFound means the request row does not exist in the
+	// guardian's conversation for this child.
+	ErrParentRequestNotFound = errors.New("parent: request not found")
+	// ErrParentRequestNotOpen means the request was already decided/withdrawn and
+	// can no longer be withdrawn.
+	ErrParentRequestNotOpen = errors.New("parent: request is not open")
 )
 
 // resolveOwnedChild validates the account is a guardian of the student

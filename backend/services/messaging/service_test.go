@@ -295,7 +295,7 @@ func TestOpenThread_EmptyConversationStaysHiddenFromInbox(t *testing.T) {
 	assert.Positive(t, detail.ThreadID)
 	assert.Empty(t, detail.Messages)
 
-	inbox, err := f.svc.ListInbox(ctx, false)
+	inbox, err := f.svc.ListInbox(ctx, false, false)
 	require.NoError(t, err)
 	assert.Empty(t, inbox, "an opened-but-unwritten conversation must stay out of the inbox")
 }
@@ -336,21 +336,21 @@ func TestListInbox_ShowsConversationWithUnread(t *testing.T) {
 	createGuardianMessage(t, f.db, f.chain, started.ThreadID, "Frage eins")
 	createGuardianMessage(t, f.db, f.chain, started.ThreadID, "Frage zwei")
 
-	inbox, err := f.svc.ListInbox(ctx, false)
+	inbox, err := f.svc.ListInbox(ctx, false, false)
 	require.NoError(t, err)
 	require.Len(t, inbox, 1)
 	assert.Equal(t, "Felix Schneider", inbox[0].StudentName)
 	assert.Equal(t, "Sabine Schneider", inbox[0].GuardianName)
 	assert.Equal(t, 2, inbox[0].UnreadCount, "badge counts unread messages, not threads")
 
-	onlyUnread, err := f.svc.ListInbox(ctx, true)
+	onlyUnread, err := f.svc.ListInbox(ctx, true, false)
 	require.NoError(t, err)
 	require.Len(t, onlyUnread, 1)
 
 	// Read it: onlyUnread now drops the row.
 	_, err = f.svc.GetThread(ctx, started.ThreadID)
 	require.NoError(t, err)
-	onlyUnread, err = f.svc.ListInbox(ctx, true)
+	onlyUnread, err = f.svc.ListInbox(ctx, true, false)
 	require.NoError(t, err)
 	assert.Empty(t, onlyUnread, "a fully-read conversation leaves the onlyUnread filter")
 }
@@ -483,12 +483,12 @@ func TestMessaging_DisabledFeature(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 0, count, "disabled feature darkens the staff badge")
 
-	inbox, err := disabled.ListInbox(ctx, false)
+	inbox, err := disabled.ListInbox(ctx, false, false)
 	require.NoError(t, err)
 	require.Len(t, inbox, 1)
 	assert.Equal(t, 0, inbox[0].UnreadCount, "disabled feature suppresses the row unread pill")
 
-	onlyUnread, err := disabled.ListInbox(ctx, true)
+	onlyUnread, err := disabled.ListInbox(ctx, true, false)
 	require.NoError(t, err)
 	assert.Empty(t, onlyUnread)
 }

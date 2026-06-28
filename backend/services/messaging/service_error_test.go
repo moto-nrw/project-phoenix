@@ -81,7 +81,7 @@ type fakeReadRepo struct {
 	studentErr  error
 }
 
-func (f *fakeReadRepo) ListInboxForStaff(context.Context, int64, bool, []int64, bool) ([]*usersModels.InboxThread, error) {
+func (f *fakeReadRepo) ListInboxForStaff(context.Context, int64, bool, []int64, bool, ...bool) ([]*usersModels.InboxThread, error) {
 	return f.inbox, f.inboxErr
 }
 
@@ -126,7 +126,7 @@ func errCtx() context.Context { return adminCtx(1) }
 
 func TestListInbox_RepoErrorPropagates(t *testing.T) {
 	svc := errSvc(&fakeThreadRepo{}, &fakeMessageRepo{}, &fakeReadRepo{inboxErr: errBoom})
-	_, err := svc.ListInbox(errCtx(), false)
+	_, err := svc.ListInbox(errCtx(), false, false)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "list inbox")
 }

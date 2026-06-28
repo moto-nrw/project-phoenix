@@ -13,6 +13,13 @@ const (
 	GuardianPermissionNotesWrite       = "parent_portal.notes.write"
 	GuardianPermissionEnrollmentsView  = "parent_portal.enrollments.view"
 	GuardianPermissionEnrollmentSubmit = "parent_portal.enrollment.submit"
+	// GuardianPermissionRequestSubmit allows a parent to submit (and withdraw)
+	// structured change-requests — care-schedule and master-data changes that
+	// OVERWRITE the child's permanent schedule / name / contact data once staff
+	// confirm them. It is deliberately separate from notes.write (plain chat): a
+	// guardian must not gain authority to mutate master data just because they
+	// may send a message. See .claude/rules/guardian-parent-permissions.md.
+	GuardianPermissionRequestSubmit = "parent_portal.request.submit"
 	// GuardianPermissionGuardianEdit allows a parent to edit the contact data
 	// (name, email, phone, address) of contact-only guardians of their child,
 	// plus the per-child pickup note and emergency priority. It never permits
@@ -39,6 +46,7 @@ var fullParentPortalPermissions = []string{
 	GuardianPermissionPortalAccess,
 	GuardianPermissionSickNoteSubmit,
 	GuardianPermissionNotesWrite,
+	GuardianPermissionRequestSubmit,
 	GuardianPermissionEnrollmentsView,
 	GuardianPermissionEnrollmentSubmit,
 	GuardianPermissionGuardianEdit,
