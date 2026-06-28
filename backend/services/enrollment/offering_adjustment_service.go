@@ -285,6 +285,9 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 					slog.Int64("child_id", child.ID),
 					slog.String("error", terr.Error()),
 				)
+				if input.ReplaceTargetedData {
+					return nil, fmt.Errorf("decision: approved child targeted-field replacement sync: %w", terr)
+				}
 			}
 		}
 	}

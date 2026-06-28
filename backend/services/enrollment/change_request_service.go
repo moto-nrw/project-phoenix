@@ -174,7 +174,7 @@ func (s *changeRequestService) Create(ctx context.Context, token string, input C
 		if err := s.ensureNoOpenChangeRequest(txCtx, lockedReq.ID); err != nil {
 			return err
 		}
-		prepared, _, _, err := s.prepareProposed(txCtx, lockedReq, children, input.Submission)
+		prepared, _, _, _, err := s.prepareProposed(txCtx, lockedReq, children, input.Submission)
 		if err != nil {
 			return err
 		}
@@ -456,7 +456,7 @@ func (s *changeRequestService) prepareProposed(
 	req *enrollmentModels.Request,
 	children []*enrollmentModels.RequestChild,
 	incoming SubmitRequest,
-) (SubmitRequest, [][]materializedOfferingSelection, *enrollmentModels.Phase, error) {
+) (SubmitRequest, [][]materializedOfferingSelection, *enrollmentModels.Phase, map[int64]*enrollmentModels.CareOffering, error) {
 	editReq := incoming
 	editReq.TenantID = req.GetTenantID()
 	editReq.PhaseID = req.PhaseID
@@ -469,19 +469,19 @@ func (s *changeRequestService) prepareProposed(
 		editReq.CustomData = map[string]any{}
 	}
 	if len(editReq.Children) != len(children) {
-		return editReq, nil, nil, fmt.Errorf("%w: child count changes are not supported for change requests", ErrChangeRequestInvalidData)
+		return editReq, nil, nil, nil, fmt.Errorf("%w: child count changes are not supported for change requests", ErrChangeRequestInvalidData)
 	}
 	if err := validateChangeRequestChildIdentity(children, editReq.Children); err != nil {
-		return editReq, nil, nil, err
+		return editReq, nil, nil, nil, err
 	}
 
 	phase, err := s.phaseRepo.FindByID(ctx, req.PhaseID)
 	if err != nil || phase == nil || !phase.IsActive {
-		return editReq, nil, nil, ErrEnrollmentDisabled
+		return editReq, nil, nil, nil, ErrEnrollmentDisabled
 	}
 	openOfferings, err := s.careOfferingRepo.ListActiveByPhase(ctx, phase.ID)
 	if err != nil {
-		return editReq, nil, nil, fmt.Errorf("change request: load phase offerings: %w", err)
+		return editReq, nil, nil, nil, fmt.Errorf("change request: load phase offerings: %w", err)
 	}
 	openByID := make(map[int64]*enrollmentModels.CareOffering, len(openOfferings))
 	for _, offering := range openOfferings {
@@ -489,36 +489,36 @@ func (s *changeRequestService) prepareProposed(
 	}
 	materializedSelections, err := materializeAndValidateChildrenOfferingSelections(editReq.Children, openByID, phase.CareOfferingSelectionMode)
 	if err != nil {
-		return editReq, nil, nil, err
+		return editReq, nil, nil, nil, err
 	}
 
 	schema, err := s.schemaForRequest(ctx, req)
 	if err != nil {
-		return editReq, nil, nil, err
+		return editReq, nil, nil, nil, err
 	}
 	legalBlocks, err := s.legalBlocksForRequest(ctx, schema)
 	if err != nil {
-		return editReq, nil, nil, err
+		return editReq, nil, nil, nil, err
 	}
 	rs := &requestService{settings: s.settings, formSchemaRepo: s.formSchemaRepo, logger: s.logger}
 	if err := normalizeAdditionalGuardians(&editReq); err != nil {
-		return editReq, nil, nil, err
+		return editReq, nil, nil, nil, err
 	}
 	if err := rs.validateSubmission(ctx, editReq, legalBlocks); err != nil {
-		return editReq, nil, nil, err
+		return editReq, nil, nil, nil, err
 	}
 	if err := s.validateAccountLinkedGuardianEdits(ctx, req, editReq); err != nil {
-		return editReq, nil, nil, err
+		return editReq, nil, nil, nil, err
 	}
 	editReq.ConsentFlags = filterConsentFlags(editReq.ConsentFlags, legalBlocks)
 	if err := rs.validateRequiredCustomFields(schema, editReq, openByID); err != nil {
-		return editReq, nil, nil, err
+		return editReq, nil, nil, nil, err
 	}
 	if err := rs.validateAccompaniedCompanionNote(schema, editReq, openByID); err != nil {
-		return editReq, nil, nil, err
+		return editReq, nil, nil, nil, err
 	}
 	if err := rs.validateConstrainedSchedules(schema, editReq, openByID); err != nil {
-		return editReq, nil, nil, err
+		return editReq, nil, nil, nil, err
 	}
 	byKey := buildFieldsByKey(schema)
 	rawGuardian := editReq.CustomData
@@ -544,7 +544,7 @@ func (s *changeRequestService) prepareProposed(
 		schema,
 		false,
 	)
-	return editReq, materializedSelections, phase, nil
+	return editReq, materializedSelections, phase, openByID, nil
 }
 
 func (s *changeRequestService) schemaForRequest(ctx context.Context, req *enrollmentModels.Request) (*enrollmentModels.FormSchema, error) {
@@ -616,7 +616,7 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 	if err != nil {
 		return err
 	}
-	prepared, materializedSelections, _, err := s.prepareProposed(ctx, req, children, proposed)
+	prepared, materializedSelections, phase, openByID, err := s.prepareProposed(ctx, req, children, proposed)
 	if err != nil {
 		return err
 	}
@@ -629,6 +629,10 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 		if err != nil {
 			return fmt.Errorf("change request approve: list previous guardians: %w", err)
 		}
+	}
+	childStatusOverrides, err := s.changeRequestCapacityOverrides(ctx, row, children, prepared, phase, openByID)
+	if err != nil {
+		return err
 	}
 
 	req.GuardianFirstName = strings.TrimSpace(prepared.GuardianFirstName)
@@ -671,7 +675,7 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 			return err
 		}
 		selections := materializedSelections[i]
-		if existing.Status == enrollmentModels.ChildStatusApproved && existing.CreatedStudentID != nil && s.decisionService != nil {
+		if s.approvedChildUsesDecisionSync(existing) {
 			offeringInput := UpdateChildOfferingsInput{
 				RequestID:      req.ID,
 				ChildID:        existing.ID,
@@ -713,6 +717,12 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 		if err := s.requestChildOfferingRepo.ReplaceForRequestChild(ctx, existing.ID, replacement); err != nil {
 			return err
 		}
+		if status, ok := childStatusOverrides[i]; ok {
+			if err := s.requestChildRepo.UpdateStatus(ctx, existing.ID, status, nil, input.ActorAccountID); err != nil {
+				return err
+			}
+			continue
+		}
 		if existing.Status == enrollmentModels.ChildStatusRejected && childSnapshotChanged(row.BaseSnapshot, row.ProposedSnapshot, existing.ID) {
 			if err := s.requestChildRepo.UpdateStatus(ctx, existing.ID, enrollmentModels.ChildStatusUnderReview, nil, input.ActorAccountID); err != nil {
 				return err
@@ -720,6 +730,76 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 		}
 	}
 	return nil
+}
+
+func (s *changeRequestService) changeRequestCapacityOverrides(
+	ctx context.Context,
+	row *enrollmentModels.ChangeRequest,
+	children []*enrollmentModels.RequestChild,
+	prepared SubmitRequest,
+	phase *enrollmentModels.Phase,
+	openByID map[int64]*enrollmentModels.CareOffering,
+) (map[int]string, error) {
+	overrides := make(map[int]string)
+	if s.requestChildOfferingRepo == nil || len(children) == 0 {
+		return overrides, nil
+	}
+
+	candidates := make([]SubmitChild, 0, len(children))
+	candidateIndexes := make([]int, 0, len(children))
+	preservedChildIDs := make([]int64, 0, len(children))
+	for i, child := range children {
+		if s.approvedChildUsesDecisionSync(child) {
+			continue
+		}
+		reopensRejected := child.Status == enrollmentModels.ChildStatusRejected &&
+			childSnapshotChanged(row.BaseSnapshot, row.ProposedSnapshot, child.ID)
+		if !childStatusCountsForCapacity(child.Status) && !reopensRejected {
+			continue
+		}
+		candidates = append(candidates, prepared.Children[i])
+		candidateIndexes = append(candidateIndexes, i)
+		if childStatusCountsForCapacity(child.Status) {
+			preservedChildIDs = append(preservedChildIDs, child.ID)
+		}
+	}
+	if len(candidates) == 0 {
+		return overrides, nil
+	}
+
+	preservedClaims := make(map[int64]int)
+	existingLinks, err := s.requestChildOfferingRepo.ListByRequestChildIDs(ctx, preservedChildIDs)
+	if err != nil {
+		return nil, fmt.Errorf("change request approve: load existing child offerings for capacity: %w", err)
+	}
+	for _, link := range existingLinks {
+		preservedClaims[link.CareOfferingID]++
+	}
+
+	rs := &requestService{requestChildOfferingRepo: s.requestChildOfferingRepo}
+	candidateOverrides, err := rs.applyCapacityOverflowWithPreservedClaims(ctx, phase, candidates, openByID, preservedClaims)
+	if err != nil {
+		return nil, fmt.Errorf("change request approve: capacity overflow: %w", err)
+	}
+	for candidateIdx, status := range candidateOverrides {
+		if candidateIdx < 0 || candidateIdx >= len(candidateIndexes) {
+			continue
+		}
+		overrides[candidateIndexes[candidateIdx]] = status
+	}
+	return overrides, nil
+}
+
+func (s *changeRequestService) approvedChildUsesDecisionSync(child *enrollmentModels.RequestChild) bool {
+	return child != nil &&
+		child.Status == enrollmentModels.ChildStatusApproved &&
+		child.CreatedStudentID != nil &&
+		s.decisionService != nil
+}
+
+func childStatusCountsForCapacity(status string) bool {
+	return status != enrollmentModels.ChildStatusRejected &&
+		status != enrollmentModels.ChildStatusWithdrawn
 }
 
 func (s *changeRequestService) ensureNoActiveDuplicateForApproval(ctx context.Context, req *enrollmentModels.Request, prepared SubmitRequest) error {
@@ -988,11 +1068,17 @@ func optionalLowerEmail(value *string) string {
 }
 
 func (s *changeRequestService) withLockedChangeRequest(ctx context.Context, id int64, fn func(context.Context, *enrollmentModels.ChangeRequest) error) error {
-	row, err := s.changeRequestRepo.FindByIDForUpdate(ctx, id)
+	row, err := s.changeRequestRepo.FindByID(ctx, id)
 	if err != nil || row == nil {
 		return ErrChangeRequestNotFound
 	}
-	return fn(ctx, row)
+	return tenant.WithTenantTx(ctx, s.db, row.GetTenantID(), func(txCtx context.Context, _ bun.Tx) error {
+		locked, err := s.changeRequestRepo.FindByIDForUpdate(txCtx, id)
+		if err != nil || locked == nil {
+			return ErrChangeRequestNotFound
+		}
+		return fn(txCtx, locked)
+	})
 }
 
 func (s *changeRequestService) loadAggregate(ctx context.Context, id int64, includeInternal bool) (*ChangeRequestAggregate, error) {

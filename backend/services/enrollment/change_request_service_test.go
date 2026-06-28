@@ -41,6 +41,31 @@ func newChangeRequestServiceForTest(env *requestTestEnv) enrollmentService.Chang
 	})
 }
 
+func newChangeRequestServiceWithDecisionForTest(t *testing.T, env *decisionTestEnv) enrollmentService.ChangeRequestService {
+	t.Helper()
+	return enrollmentService.NewChangeRequestService(enrollmentService.ChangeRequestServiceConfig{
+		ChangeRequestRepo:        env.repos.ChangeRequest,
+		MessageRepo:              env.repos.ChangeRequestMessage,
+		RequestRepo:              env.repos.Request,
+		RequestChildRepo:         env.repos.RequestChild,
+		RequestGuardianRepo:      env.repos.RequestGuardian,
+		RequestChildOfferingRepo: env.repos.RequestChildOffering,
+		CareOfferingRepo:         env.repos.CareOffering,
+		FormSchemaRepo:           env.repos.FormSchema,
+		PhaseRepo:                env.repos.Phase,
+		SchoolRepo:               env.repos.School,
+		GuardianProfileRepo:      env.repos.GuardianProfile,
+		GuardianPhoneRepo:        env.repos.GuardianPhoneNumber,
+		DecisionService:          changeRequestApplierForTest(t, env),
+		Settings:                 env.settings,
+		OutboxEnqueuer:           env.outbox,
+		FrontendURL:              "http://localhost:3000",
+		ParentsURL:               "http://parents.localhost:3000",
+		DB:                       env.db,
+		Logger:                   slog.Default(),
+	})
+}
+
 func makeLegacyNoSchemaRequest(t *testing.T, env *requestTestEnv, childStatus string) *enrollmentService.SubmitResult {
 	t.Helper()
 	ctx := testpkg.TenantContext(1)
@@ -496,4 +521,201 @@ func TestChangeRequestService_Approve_DoesNotReopenUnchangedRejectedChild(t *tes
 	child, err := repoFactory.RequestChild.FindByID(ctx, result.Children[0].ID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.ChildStatusRejected, child.Status)
+}
+
+func TestChangeRequestService_Approve_WaitlistsNonApprovedChildMovedOntoFullOffering(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
+	offering := setupCareOfferingForCapacity(t, env, 1)
+	repoFactory := repositories.NewFactory(env.db)
+
+	holderReq := validSubmission(env.phaseID)
+	holderReq.GuardianEmail = "holder-change-request-waitlist@example.com"
+	holderReq.Children[0].FirstName = "Slot"
+	holderReq.Children[0].LastName = "Holder"
+	holderReq.Children[0].OfferingIDs = []int64{offering.ID}
+	_, err := env.svc.Submit(ctx, holderReq)
+	require.NoError(t, err)
+
+	candidateReq := validSubmission(env.phaseID)
+	candidateReq.GuardianEmail = "candidate-change-request-waitlist@example.com"
+	candidateReq.Children[0].FirstName = "Capacity"
+	candidateReq.Children[0].LastName = "Candidate"
+	candidate, err := env.svc.Submit(ctx, candidateReq)
+	require.NoError(t, err)
+	reason := "Bitte pruefen"
+	require.NoError(t, repoFactory.RequestChild.UpdateStatus(
+		ctx,
+		candidate.Children[0].ID,
+		enrollmentModels.ChildStatusUnderReview,
+		&reason,
+		env.creatorID,
+	))
+
+	proposed := proposedChangeSubmission(t, env, candidate)
+	proposed.Children[0].OfferingIDs = []int64{offering.ID}
+	svc := newChangeRequestServiceForTest(env)
+	created, err := svc.Create(ctx, candidate.Request.StatusToken, enrollmentService.CreateChangeRequestInput{
+		Submission: proposed,
+		ParentNote: "Bitte Betreuungsangebot wechseln.",
+	})
+	require.NoError(t, err)
+
+	_, err = svc.Approve(ctx, created.ChangeRequest.ID, enrollmentService.ReviewChangeRequestInput{
+		Note:           "Freigegeben.",
+		ActorAccountID: env.creatorID,
+		ActorRole:      "admin",
+	})
+	require.NoError(t, err)
+
+	child, err := repoFactory.RequestChild.FindByID(ctx, candidate.Children[0].ID)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentModels.ChildStatusWaitlisted, child.Status)
+	links, err := repoFactory.RequestChildOffering.ListByRequestChildID(ctx, candidate.Children[0].ID)
+	require.NoError(t, err)
+	require.Len(t, links, 1)
+	assert.Equal(t, offering.ID, links[0].CareOfferingID)
+}
+
+func TestChangeRequestService_Approve_RejectsNonApprovedChildMovedOntoFullOffering(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowReject)
+	offering := setupCareOfferingForCapacity(t, env, 1)
+	repoFactory := repositories.NewFactory(env.db)
+
+	holderReq := validSubmission(env.phaseID)
+	holderReq.GuardianEmail = "holder-change-request-reject@example.com"
+	holderReq.Children[0].FirstName = "Reject"
+	holderReq.Children[0].LastName = "Holder"
+	holderReq.Children[0].OfferingIDs = []int64{offering.ID}
+	_, err := env.svc.Submit(ctx, holderReq)
+	require.NoError(t, err)
+
+	candidateReq := validSubmission(env.phaseID)
+	candidateReq.GuardianEmail = "candidate-change-request-reject@example.com"
+	candidateReq.Children[0].FirstName = "Reject"
+	candidateReq.Children[0].LastName = "Candidate"
+	candidate, err := env.svc.Submit(ctx, candidateReq)
+	require.NoError(t, err)
+	reason := "Bitte pruefen"
+	require.NoError(t, repoFactory.RequestChild.UpdateStatus(
+		ctx,
+		candidate.Children[0].ID,
+		enrollmentModels.ChildStatusUnderReview,
+		&reason,
+		env.creatorID,
+	))
+	beforeLinks, err := repoFactory.RequestChildOffering.ListByRequestChildID(ctx, candidate.Children[0].ID)
+	require.NoError(t, err)
+	require.Empty(t, beforeLinks)
+
+	proposed := proposedChangeSubmission(t, env, candidate)
+	proposed.Children[0].OfferingIDs = []int64{offering.ID}
+	svc := newChangeRequestServiceForTest(env)
+	created, err := svc.Create(ctx, candidate.Request.StatusToken, enrollmentService.CreateChangeRequestInput{
+		Submission: proposed,
+		ParentNote: "Bitte Betreuungsangebot wechseln.",
+	})
+	require.NoError(t, err)
+
+	_, err = svc.Approve(ctx, created.ChangeRequest.ID, enrollmentService.ReviewChangeRequestInput{
+		Note:           "Freigegeben.",
+		ActorAccountID: env.creatorID,
+		ActorRole:      "admin",
+	})
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrCareOfferingFull), "expected ErrCareOfferingFull, got %v", err)
+
+	changeRequest, err := repoFactory.ChangeRequest.FindByID(ctx, created.ChangeRequest.ID)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentModels.ChangeRequestStatusPendingReview, changeRequest.Status)
+	child, err := repoFactory.RequestChild.FindByID(ctx, candidate.Children[0].ID)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentModels.ChildStatusUnderReview, child.Status)
+	afterLinks, err := repoFactory.RequestChildOffering.ListByRequestChildID(ctx, candidate.Children[0].ID)
+	require.NoError(t, err)
+	assert.Empty(t, afterLinks)
+}
+
+func TestChangeRequestService_Approve_RollsBackApprovedChildScheduleReplacementFailure(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentModels.TargetSchedulePickup)
+	_, reviewerWithStaffAccountID := createReviewerStaffWithDistinctAccount(t, env)
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "pickup-change-request-rollback@example.com", "Anna", "Rollback", map[string]any{
+		"pickup_times": map[string]any{"mon": "14:45"},
+	})
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: reviewerWithStaffAccountID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+	rows, err := env.repos.StudentPickupSchedule.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, 14, rows[0].PickupTime.Hour())
+	assert.Equal(t, 45, rows[0].PickupTime.Minute())
+
+	requestRow, err := env.repos.Request.FindByID(ctx, reqID)
+	require.NoError(t, err)
+	grade := int16(2)
+	proposed := enrollmentService.SubmitRequest{
+		TenantID:          1,
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "Test",
+		GuardianEmail:     "ignored@example.com",
+		ConsentFlags: map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   true,
+			"photo":           true,
+		},
+		Children: []enrollmentService.SubmitChild{
+			{
+				ID:               childID,
+				FirstName:        "Anna",
+				LastName:         "Rollback",
+				DateOfBirth:      timezone.NewDate(2018, 4, 15),
+				TargetGradeLevel: &grade,
+				CustomData: map[string]any{
+					"pickup_times": map[string]any{"mon": "16:00"},
+				},
+			},
+		},
+	}
+	svc := newChangeRequestServiceWithDecisionForTest(t, env)
+	created, err := svc.Create(ctx, requestRow.StatusToken, enrollmentService.CreateChangeRequestInput{
+		Submission: proposed,
+		ParentNote: "Bitte Abholzeit anpassen.",
+	})
+	require.NoError(t, err)
+	reviewerWithoutStaff := testpkg.CreateTestAccount(t, env.db, "reviewer-without-staff-change-request")
+
+	_, err = svc.Approve(ctx, created.ChangeRequest.ID, enrollmentService.ReviewChangeRequestInput{
+		Note:           "Freigegeben.",
+		ActorAccountID: reviewerWithoutStaff.ID,
+		ActorRole:      "admin",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "targeted-field replacement sync")
+
+	changeRequest, err := env.repos.ChangeRequest.FindByID(ctx, created.ChangeRequest.ID)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentModels.ChangeRequestStatusPendingReview, changeRequest.Status)
+	rows, err = env.repos.StudentPickupSchedule.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	require.Len(t, rows, 1, "failed replacement sync must roll back the schedule delete")
+	assert.Equal(t, 14, rows[0].PickupTime.Hour())
+	assert.Equal(t, 45, rows[0].PickupTime.Minute())
 }
