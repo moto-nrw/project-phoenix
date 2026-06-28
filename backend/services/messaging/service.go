@@ -80,6 +80,10 @@ type ThreadDetail struct {
 	GuardianName      string
 	RelationshipType  string
 	Messages          []*usersModels.ParentMessage
+	// Diffs maps an open request message ID to its current→requested field
+	// comparison, so staff can decide on a clear "alt → neu" view instead of the
+	// raw requested values. Only computed for still-open requests.
+	Diffs map[int64][]RequestDiffEntry
 }
 
 // Service is the staff-side messaging contract.
@@ -359,6 +363,11 @@ func (s *service) buildDetailFromMessages(ctx context.Context, thread *usersMode
 		detail.GuardianName = header.GuardianName
 		detail.RelationshipType = header.RelationshipType
 	}
+	// Attach the current→requested diffs for every still-open request in the
+	// thread so staff decide on a clear "alt → neu" view. Computed from the same
+	// message snapshot (and the child's live schedule/master data) inside the
+	// tenant tx this runs in.
+	detail.Diffs = s.BuildRequestDiffs(ctx, thread.StudentID, messages)
 	return detail, nil
 }
 
