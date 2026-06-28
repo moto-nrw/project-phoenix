@@ -9,6 +9,8 @@ import {
   toISODate,
   parseISODate,
   todayISO,
+  formatChatTime,
+  formatChatDateTime,
 } from "./date-helpers";
 
 describe("toISODate", () => {
@@ -369,5 +371,67 @@ describe("getStartDateForTimeRange", () => {
     // Should go back to Monday Jan 29
     expect(result.getMonth()).toBe(0); // January
     expect(result.getDate()).toBe(29);
+  });
+});
+
+describe("formatChatTime", () => {
+  it("returns 'dd.MM., HH:mm' format for a valid ISO timestamp", () => {
+    // Use a fixed ISO string and check the shape: "15.01., 14:30"
+    const result = formatChatTime("2024-01-15T13:30:00Z");
+    // day.month format + ", " + HH:MM — the exact time depends on local TZ,
+    // so assert the structural shape rather than an exact string.
+    expect(result).toMatch(/^\d{2}\.\d{2}\., \d{2}:\d{2}$/);
+  });
+
+  it("returns the raw input string for an invalid ISO (never throws)", () => {
+    expect(formatChatTime("not-a-date")).toBe("not-a-date");
+  });
+
+  it("returns the raw input for an empty string", () => {
+    expect(formatChatTime("")).toBe("");
+  });
+
+  it("includes both day/month and clock parts separated by ', '", () => {
+    const result = formatChatTime("2026-06-10T08:05:00Z");
+    expect(result).toContain(", ");
+    const parts = result.split(", ");
+    expect(parts).toHaveLength(2);
+    // day.month. part
+    expect(parts[0]).toMatch(/^\d{2}\.\d{2}\.$/);
+    // HH:MM part
+    expect(parts[1]).toMatch(/^\d{2}:\d{2}$/);
+  });
+});
+
+describe("formatChatDateTime", () => {
+  it("returns empty string for undefined", () => {
+    expect(formatChatDateTime(undefined)).toBe("");
+  });
+
+  it("returns empty string for empty string", () => {
+    expect(formatChatDateTime("")).toBe("");
+  });
+
+  it("returns the raw input for an invalid ISO string", () => {
+    expect(formatChatDateTime("garbage")).toBe("garbage");
+  });
+
+  it("returns 'dd.mm.yyyy, HH:mm' structural shape for a valid ISO timestamp", () => {
+    const result = formatChatDateTime("2024-01-15T13:30:00Z");
+    // e.g. "15.01.2024, 14:30" — exact time depends on TZ, check shape.
+    expect(result).toMatch(/^\d{2}\.\d{2}\.\d{4}, \d{2}:\d{2}$/);
+  });
+
+  it("composes formatDate + formatTime (same as separate calls)", () => {
+    const iso = "2026-03-20T10:15:00Z";
+    const combined = formatChatDateTime(iso);
+    expect(combined).toBe(`${formatDate(iso)}, ${formatTime(iso)}`);
+  });
+
+  it("handles a date-only string ('YYYY-MM-DD') without throwing", () => {
+    // date-only strings are valid ISO and should produce a formatted result
+    const result = formatChatDateTime("2026-06-10");
+    expect(typeof result).toBe("string");
+    expect(result.length).toBeGreaterThan(0);
   });
 });
