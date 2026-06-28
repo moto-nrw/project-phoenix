@@ -13,10 +13,13 @@ import { useEffect, useRef } from "react";
  *
  * Matching: the callback fires unless the event explicitly names a DIFFERENT id
  * than the one this consumer cares about. A missing/null id ALWAYS matches —
- * the staff fan-out is sanitized (student_id stripped, see
- * realtime/events.go staffSafeParentMessage), so a null studentId must trigger a
- * refetch, not be skipped. thread_id is retained in that fan-out, so a thread
- * page still skips unrelated threads.
+ * the staff fan-out is sanitized (both thread_id and student_id stripped, see
+ * realtime/events.go staffSafeParentMessage), so a null threadId/studentId must
+ * trigger a refetch, not be skipped. thread_id survives on the guardian's OWN
+ * events, so a parent conversation view still skips unrelated threads; on the
+ * staff side it is null, so a staff thread page refetches on any parent message
+ * (the debounce collapses the burst) rather than letting an unauthorized staffer
+ * correlate events to a specific conversation.
  *
  * debounceMs collapses bursts (the morning rush wakes every tenant staffer per
  * message) into one refetch — used by the heavy inbox query.

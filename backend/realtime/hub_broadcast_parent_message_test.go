@@ -69,6 +69,41 @@ func TestHubBroadcastParentMessage_RoutesByGuardianAndTenant(t *testing.T) {
 	expectNoEvent(t, staffTenant200, "staff in tenant 200")
 }
 
+// TestHubBroadcastParentMessage_SanitizesStaffCopy — the addressed guardian
+// receives the full event (their own data), while every staff client gets a
+// copy with thread_id, student_id, and source all cleared. ThreadID is opaque,
+// but a staffer who knows a thread URL and later loses access to that child must
+// not be able to correlate future triggers to that specific conversation.
+func TestHubBroadcastParentMessage_SanitizesStaffCopy(t *testing.T) {
+	hub := NewHub(slog.Default())
+
+	guardian := newParentClient(hub, 501)
+	staff := &Client{Channel: make(chan Event, 10), UserID: 3, SubscribedGroups: make(map[string]bool)}
+	hub.Register(staff, int64(100), []string{})
+
+	event := NewParentMessageEvent(int64(501), int64(77), int64(42))
+	if err := hub.BroadcastParentMessage(int64(100), int64(501), event); err != nil {
+		t.Fatalf("BroadcastParentMessage returned error: %v", err)
+	}
+
+	guardianGot := <-guardian.Channel
+	if guardianGot.Data.ThreadID == nil || guardianGot.Data.StudentID == nil || guardianGot.Data.Source == nil {
+		t.Errorf("guardian should receive the full event, got thread=%v student=%v source=%v",
+			guardianGot.Data.ThreadID, guardianGot.Data.StudentID, guardianGot.Data.Source)
+	}
+
+	staffGot := <-staff.Channel
+	if staffGot.Data.ThreadID != nil {
+		t.Errorf("staff copy must strip thread_id, got %q", *staffGot.Data.ThreadID)
+	}
+	if staffGot.Data.StudentID != nil {
+		t.Errorf("staff copy must strip student_id, got %q", *staffGot.Data.StudentID)
+	}
+	if staffGot.Data.Source != nil {
+		t.Errorf("staff copy must strip source, got %q", *staffGot.Data.Source)
+	}
+}
+
 // TestHubBroadcastParentMessage_EmptyHub — no clients connected must not panic.
 func TestHubBroadcastParentMessage_EmptyHub(t *testing.T) {
 	hub := NewHub(slog.Default())

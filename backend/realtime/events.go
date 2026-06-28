@@ -123,12 +123,15 @@ type EventData struct {
 	// refetching the heavy inbox projection on every message tenant-wide. Trigger
 	// only; the client still refetches the affected thread via the API.
 	//
-	// NOTE: ThreadID is an opaque conversation id (no child/guardian identity) and
-	// is broadcast to staff; StudentID and Source (guardian account id) are NOT —
-	// they are cleared for the staff fan-out by staffSafeParentMessage so an
-	// unauthorized staffer cannot observe which child/guardian a thread concerns
-	// from raw SSE traffic (gdpr.student_data_scope = group_supervisors_only). The
-	// addressed guardian's own clients still receive the full event.
+	// NOTE: ThreadID, StudentID, and Source (guardian account id) are all cleared
+	// for the staff fan-out by staffSafeParentMessage so an unauthorized staffer
+	// cannot observe which child/guardian — or which specific conversation — a
+	// thread concerns from raw SSE traffic (gdpr.student_data_scope =
+	// group_supervisors_only). ThreadID is opaque, but a staffer who once opened a
+	// thread (or otherwise knows its URL) and later loses access to that child
+	// could still correlate future parent_message events to that conversation, so
+	// it is stripped too. The addressed guardian's own clients still receive the
+	// full event.
 	ThreadID *string `json:"thread_id,omitempty"`
 
 	// Source tracking
@@ -138,30 +141,34 @@ type EventData struct {
 	Reason *string `json:"reason,omitempty"`
 }
 
-// staffSafeParentMessage returns a copy of a parent-message event with the
-// guardian-identifying fields cleared, for fan-out to staff who may not be
+// staffSafeParentMessage returns a copy of a parent-message event with every
+// conversation-identifying field cleared, for fan-out to staff who may not be
 // authorized to read the thread. The guardian's OWN clients receive the full
 // event (their own data); staff only need a refresh trigger for their
-// access-filtered inbox. StudentID and Source (the guardian account id) are
-// removed so an unauthorized staffer cannot observe which child/guardian a
-// thread concerns from raw SSE traffic. ThreadID is retained — an opaque
-// conversation id carrying no child/guardian identity — so an open staff thread
-// can still refetch only the affected thread.
+// access-filtered inbox. ThreadID, StudentID, and Source (the guardian account
+// id) are all removed so an unauthorized staffer cannot observe which
+// child/guardian — or which specific conversation — a thread concerns from raw
+// SSE traffic. ThreadID is opaque, but a staffer who once opened a thread (or
+// otherwise knows its URL) and later loses access to that child could still
+// correlate future parent_message events to that conversation through the
+// per-thread useMessagesActivity filter, even though GET
+// /api/messages/threads/{id} would now be forbidden — so it is stripped too.
 //
 // The receiver is a value copy: reassigning the copy's pointer fields to nil
 // leaves the original event (delivered to the guardian) untouched.
 //
-// Accepted consequence: with StudentID cleared, the per-student
-// useMessagesActivity filter on the staff ParentMessagesCard cannot match, so
-// every mounted card refetches its projection on any tenant-wide parent message
-// (the studentId prop is intentionally INERT for staff — it only narrows the
+// Accepted consequence: with ThreadID and StudentID both cleared, neither the
+// per-thread filter on the staff thread page nor the per-student filter on the
+// staff ParentMessagesCard can match, so every mounted staff messaging surface
+// refetches its projection on any tenant-wide parent message (the threadId and
+// studentId props are intentionally INERT for staff — they only narrow the
 // guardian's own clients). This is a deliberate privacy-over-efficiency trade:
-// leaking which child a thread concerns to an unauthorized staffer is worse than
-// an extra refetch. The 500 ms debounce on the staff side collapses a sick-note
-// rush into far fewer fetches; ThreadID (opaque, no identity) is retained so an
-// OPEN staff thread still refetches only itself.
+// leaking which child or conversation a thread concerns to an unauthorized
+// staffer is worse than an extra refetch. The 500 ms debounce on the staff side
+// collapses a sick-note rush into far fewer fetches.
 func staffSafeParentMessage(event Event) Event {
 	safe := event
+	safe.Data.ThreadID = nil
 	safe.Data.StudentID = nil
 	safe.Data.Source = nil
 	return safe
