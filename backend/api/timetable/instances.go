@@ -162,6 +162,11 @@ func renderInstanceLifecycleError(w http.ResponseWriter, r *http.Request, err er
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, scheduleSvc.ErrInvalidInstanceTransition):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "invalid_transition"))
+	case errors.Is(err, scheduleSvc.ErrAmbiguousTemplateInstanceDelete):
+		common.RenderError(w, r, common.ErrorConflictWithCode(
+			errors.New("dieser Termin kann nicht einzeln gelöscht werden, weil die Vorlage an diesem Tag mehrere Termine hat"),
+			"ambiguous_template_instance_delete",
+		))
 	case isUniqueViolationOnConstraint(err, "idx_activity_instances_template_unique"):
 		common.RenderError(w, r, common.ErrorConflictWithCode(
 			errors.New("instance already exists for this template/date/start_time"),

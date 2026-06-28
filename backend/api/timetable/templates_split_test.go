@@ -55,6 +55,9 @@ func splitRouter(parentCtx context.Context, res *Resource, perms []string) chi.R
 		})
 	})
 	r.Post("/templates", res.createTemplate)
+	r.Get("/templates", res.listTemplates)
+	r.Get("/templates/{id}", res.getTemplate)
+	r.Put("/templates/{id}", res.updateTemplate)
 	r.With(authorize.RequiresPermission(permissions.SchedulesManage)).
 		Post("/templates/{id}/split", res.splitTemplate)
 	r.With(authorize.RequiresPermission(permissions.SchedulesManage)).
@@ -191,6 +194,37 @@ func TestTemplateEndHandler_HappyPath(t *testing.T) {
 	assert.Equal(t, created.TemplateID, resp.TemplateID)
 	assert.Equal(t, effective.String(), resp.EffectiveDate)
 	assert.Equal(t, 0, resp.DeletedInstances)
+}
+
+func TestTemplateEndHandler_RemovesTemplateFromActiveCRUD(t *testing.T) {
+	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
+	s := buildTemplateSetup(t, mat)
+	defer s.cleanupFn()
+	attachSplitService(s, mat)
+	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
+
+	created := createSourceTemplate(t, router, s, "Tpl-End-Hidden")
+	effective := timezone.TodayDate().AddDays(7)
+
+	w := doTemplateJSON(t, router, http.MethodPost,
+		fmt.Sprintf("/templates/%d/end", created.TemplateID), endBody(effective))
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	listW := doTemplateJSON(t, router, http.MethodGet, "/templates", nil)
+	require.Equal(t, http.StatusOK, listW.Code, "body=%s", listW.Body.String())
+	list := decodeTemplateData[listTemplatesResponse](t, listW)
+	for _, tpl := range list.Templates {
+		assert.NotEqual(t, created.TemplateID, tpl.ID, "ended template must not remain in the active template list")
+	}
+
+	getW := doTemplateJSON(t, router, http.MethodGet,
+		fmt.Sprintf("/templates/%d", created.TemplateID), nil)
+	assert.Equal(t, http.StatusNotFound, getW.Code, "body=%s", getW.Body.String())
+
+	updateBody := createTemplateBody(s, "Tpl-End-Hidden-Resurrected")
+	putW := doTemplateJSON(t, router, http.MethodPut,
+		fmt.Sprintf("/templates/%d", created.TemplateID), updateBody)
+	assert.Equal(t, http.StatusNotFound, putW.Code, "body=%s", putW.Body.String())
 }
 
 func TestTemplateEndHandler_BadEffectiveDate(t *testing.T) {

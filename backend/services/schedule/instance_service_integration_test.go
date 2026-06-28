@@ -931,15 +931,35 @@ func TestInstance_DeleteCancelled_PlannedOrCancelled(t *testing.T) {
 		assert.False(t, instanceExists(t, s, id))
 		assert.Empty(t, loadLifecycleExceptions(t, s))
 	})
+
+	t.Run("rejects single delete when template has multiple same-day slots", func(t *testing.T) {
+		s := buildLifecycle(t)
+		date := timezone.NewDate(2026, 4, 20)
+		firstID := insertInstanceAt(t, s, date, scheduleModels.InstanceStatusPlanned, false, 14)
+		secondID := insertInstanceAt(t, s, date, scheduleModels.InstanceStatusPlanned, false, 15)
+
+		err := s.svc.DeleteCancelled(s.ctx, firstID)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, scheduleSvc.ErrAmbiguousTemplateInstanceDelete)
+		assert.True(t, instanceExists(t, s, firstID))
+		assert.True(t, instanceExists(t, s, secondID))
+		assert.Empty(t, loadLifecycleExceptions(t, s))
+	})
 }
 
 func insertInstance(t *testing.T, s *lifecycleSetup, date timezone.Date, status string, spontaneous bool) int64 {
 	t.Helper()
+	return insertInstanceAt(t, s, date, status, spontaneous, 14)
+}
+
+func insertInstanceAt(t *testing.T, s *lifecycleSetup, date timezone.Date, status string, spontaneous bool, startHour int) int64 {
+	t.Helper()
+	endHour := startHour + 1
 	row := &scheduleModels.ActivityInstance{
 		Date:          date,
 		Title:         fmt.Sprintf("Row-%s-%d", status, time.Now().UnixNano()),
-		StartTime:     time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
-		EndTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
+		StartTime:     time.Date(1, 1, 1, startHour, 0, 0, 0, time.UTC),
+		EndTime:       time.Date(1, 1, 1, endHour, 0, 0, 0, time.UTC),
 		RoomID:        s.roomID,
 		Status:        status,
 		IsSpontaneous: spontaneous,
@@ -950,6 +970,9 @@ func insertInstance(t *testing.T, s *lifecycleSetup, date timezone.Date, status 
 	row.SetTenantID(1)
 	_, err := s.db.NewInsert().Model(row).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", row.ID)
+	})
 	return row.ID
 }
 

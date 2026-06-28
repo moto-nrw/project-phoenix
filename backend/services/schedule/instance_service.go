@@ -57,6 +57,13 @@ var (
 	// tenant-scoped foreign id that does not resolve in the current tenant.
 	// Handlers map this to 400.
 	ErrInvalidInstanceReference = errors.New("invalid instance reference")
+
+	// ErrAmbiguousTemplateInstanceDelete is returned when a single-instance
+	// delete would need to persist a date-wide cancellation exception but the
+	// template has multiple materialized slots on that date. Handlers map this
+	// to 409 so the UI can explain that the user must delete the series or keep
+	// the slots unchanged until slot-scoped exceptions exist.
+	ErrAmbiguousTemplateInstanceDelete = errors.New("template instance delete is ambiguous")
 )
 
 // ActiveSessionEnder is the subset of active.Service used by Complete and
@@ -382,6 +389,9 @@ func (s *instanceService) DeleteCancelled(ctx context.Context, instanceID int64)
 	}
 
 	if instance.ActivityGroupID != nil && !instance.IsSpontaneous {
+		if err := s.rejectAmbiguousTemplateDelete(ctx, *instance.ActivityGroupID, instance.Date); err != nil {
+			return err
+		}
 		if err := s.ensureCancelledSlotException(ctx, *instance.ActivityGroupID, instance.Date, deletedSlotReason); err != nil {
 			return err
 		}
@@ -396,6 +406,23 @@ func (s *instanceService) DeleteCancelled(ctx context.Context, instanceID int64)
 		slog.String("date", instance.Date.String()),
 		slog.String("status", instance.Status),
 	)
+	return nil
+}
+
+func (s *instanceService) rejectAmbiguousTemplateDelete(ctx context.Context, activityGroupID int64, date timezone.Date) error {
+	rows, err := s.deps.InstanceRepo.FindByActivityGroupAndDate(ctx, activityGroupID, date)
+	if err != nil {
+		return &ScheduleError{Op: "delete instance: check same-day template slots", Err: err}
+	}
+	templateBacked := 0
+	for _, row := range rows {
+		if row != nil && !row.IsSpontaneous {
+			templateBacked++
+		}
+	}
+	if templateBacked > 1 {
+		return fmt.Errorf("%w: template has %d same-day slots", ErrAmbiguousTemplateInstanceDelete, templateBacked)
+	}
 	return nil
 }
 

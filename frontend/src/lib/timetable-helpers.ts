@@ -612,6 +612,7 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
           schedule.calendar_period_id !== null
             ? String(schedule.calendar_period_id)
             : undefined,
+        validUntil: schedule.valid_until,
       })),
     })),
   };

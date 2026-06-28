@@ -275,7 +275,11 @@ export function InstanceDetailSlideOver({
   };
 
   const openDeleteFlow = () => {
-    if (instance?.activityGroupId && onDeleteFollowing) {
+    if (
+      instance?.activityGroupId &&
+      !instance.isSpontaneous &&
+      onDeleteFollowing
+    ) {
       setDeleteScopeOpen(true);
       return;
     }
