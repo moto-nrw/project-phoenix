@@ -23,6 +23,16 @@ type careUsageExportRequest struct {
 	Filters careUsageExportFiltersRequest `json:"filters"`
 }
 
+type classRosterExportRequest struct {
+	Format  listexport.Format               `json:"format"`
+	Filters classRosterExportFiltersRequest `json:"filters"`
+}
+
+type classRosterExportFiltersRequest struct {
+	PhaseID     json.RawMessage `json:"phase_id"`
+	SchoolClass string          `json:"school_class"`
+}
+
 type careUsageExportFiltersRequest struct {
 	PhaseID         string   `json:"phase_id"`
 	Status          string   `json:"status,omitempty"`
@@ -203,6 +213,63 @@ func (rs *Resource) exportCareUsageReport(w http.ResponseWriter, r *http.Request
 	_, _ = w.Write(file.Data)
 }
 
+func (rs *Resource) exportClassRosterReport(w http.ResponseWriter, r *http.Request) {
+	if rs.ReportService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("report service not configured")))
+		return
+	}
+	if rs.ListExportService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("list export service not configured")))
+		return
+	}
+	format, filters, err := parseClassRosterExportRequest(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	claims := jwt.ClaimsFromCtx(r.Context())
+	actorAccountID := int64(claims.ID)
+	actorRole := strings.Join(claims.Roles, ",")
+
+	var report *enrollmentService.ClassRosterReport
+	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+		out, e := rs.ReportService.ExportClassRoster(ctx, filters, actorAccountID, actorRole, string(format))
+		if e != nil {
+			return e
+		}
+		report = out
+		return nil
+	})
+	if err != nil {
+		if errors.Is(err, enrollmentService.ErrReportPhaseNotFound) {
+			common.RenderError(w, r, common.ErrorNotFound(err))
+			return
+		}
+		if errors.Is(err, enrollmentService.ErrReportExportTooLarge) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
+		if errors.Is(err, enrollmentService.ErrReportInvalidFilter) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	file, err := buildClassRosterExportFile(rs.ListExportService, report, format)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	w.Header().Set("Content-Type", file.ContentType)
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, file.Filename))
+	w.Header().Set("Content-Length", strconv.Itoa(len(file.Data)))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(file.Data)
+}
+
 func parseCareUsageFiltersFromQuery(r *http.Request) (enrollmentService.CareUsageFilters, error) {
 	q := r.URL.Query()
 	var filters enrollmentService.CareUsageFilters
@@ -297,6 +364,58 @@ func parseCareUsageExportRequest(r *http.Request) (listexport.Format, enrollment
 		return "", enrollmentService.CareUsageFilters{}, errors.New("filters.phase_id is required")
 	}
 	return format, filters, nil
+}
+
+func parseClassRosterExportRequest(r *http.Request) (listexport.Format, enrollmentService.ClassRosterFilters, error) {
+	var body classRosterExportRequest
+	if r.Body != nil {
+		raw, _ := io.ReadAll(io.LimitReader(r.Body, 1<<16))
+		if len(raw) > 0 {
+			if err := json.Unmarshal(raw, &body); err != nil {
+				return "", enrollmentService.ClassRosterFilters{}, fmt.Errorf("invalid export request body: %w", err)
+			}
+		}
+	}
+	format := listexport.Format(strings.ToLower(string(body.Format)))
+	if format == "" {
+		format = listexport.FormatPDF
+	}
+	switch format {
+	case listexport.FormatPDF, listexport.FormatDOCX, listexport.FormatXLSX:
+	default:
+		return "", enrollmentService.ClassRosterFilters{}, fmt.Errorf("unsupported export format %q (use pdf, docx or xlsx)", format)
+	}
+	phaseID, err := parseClassRosterPhaseID(body.Filters.PhaseID)
+	if err != nil {
+		return "", enrollmentService.ClassRosterFilters{}, err
+	}
+	filters := enrollmentService.ClassRosterFilters{
+		PhaseID:     phaseID,
+		SchoolClass: strings.TrimSpace(body.Filters.SchoolClass),
+	}
+	if filters.SchoolClass == "" {
+		return "", enrollmentService.ClassRosterFilters{}, errors.New("school_class is required")
+	}
+	return format, filters, nil
+}
+
+func parseClassRosterPhaseID(raw json.RawMessage) (int64, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return 0, errors.New("phase_id is required")
+	}
+	var asString string
+	if err := json.Unmarshal(raw, &asString); err == nil {
+		phaseID, parseErr := strconv.ParseInt(strings.TrimSpace(asString), 10, 64)
+		if parseErr != nil || phaseID <= 0 {
+			return 0, errors.New("phase_id must be positive")
+		}
+		return phaseID, nil
+	}
+	var asNumber int64
+	if err := json.Unmarshal(raw, &asNumber); err == nil && asNumber > 0 {
+		return asNumber, nil
+	}
+	return 0, errors.New("phase_id must be positive")
 }
 
 func (req careUsageExportFiltersRequest) toServiceFilters() (enrollmentService.CareUsageFilters, error) {
@@ -442,6 +561,121 @@ func buildCareUsageExportFile(svc listexport.Service, report *enrollmentService.
 	default:
 		return listexport.File{}, fmt.Errorf("unsupported export format %q", format)
 	}
+}
+
+func buildClassRosterExportFile(svc listexport.Service, report *enrollmentService.ClassRosterReport, format listexport.Format) (listexport.File, error) {
+	filename := "Klassenliste " + strings.TrimSpace(report.Filters.SchoolClass)
+	if phaseName := strings.TrimSpace(report.Phase.Name); phaseName != "" {
+		filename += " " + phaseName
+	}
+	return svc.Render(buildClassRosterTableDocument(report), format, filename)
+}
+
+func buildClassRosterTableDocument(report *enrollmentService.ClassRosterReport) listexport.Document {
+	cols := []listexport.Column{
+		{ID: listexport.ColumnName, Label: "Name"},
+		{ID: listexport.ColumnSchoolClass, Label: "Klasse"},
+		{ID: listexport.ColumnGroup, Label: "Gruppe"},
+		{ID: listexport.ColumnEnrollmentSummary, Label: "Betreuungs-/Anmeldestatus"},
+		{ID: listexport.ColumnCareDays, Label: "Betreuungstage"},
+		{ID: listexport.ColumnWeeklyMonday, Label: "Montag"},
+		{ID: listexport.ColumnWeeklyTuesday, Label: "Dienstag"},
+		{ID: listexport.ColumnWeeklyWednesday, Label: "Mittwoch"},
+		{ID: listexport.ColumnWeeklyThursday, Label: "Donnerstag"},
+		{ID: listexport.ColumnWeeklyFriday, Label: "Freitag"},
+		{ID: listexport.ColumnDeparture, Label: "Geh-/Abholweise"},
+	}
+	rows := make([]listexport.Row, 0, len(report.Rows))
+	for _, row := range report.Rows {
+		rows = append(rows, listexport.Row{Values: map[listexport.ColumnID]string{
+			listexport.ColumnName:              strings.TrimSpace(row.FirstName + " " + row.LastName),
+			listexport.ColumnSchoolClass:       row.SchoolClass,
+			listexport.ColumnGroup:             row.GroupName,
+			listexport.ColumnEnrollmentSummary: row.EnrollmentSummary,
+			listexport.ColumnCareDays:          classRosterCareDaysLabel(row.CareDays),
+			listexport.ColumnWeeklyMonday:      classRosterWeeklyCell(row, "mon"),
+			listexport.ColumnWeeklyTuesday:     classRosterWeeklyCell(row, "tue"),
+			listexport.ColumnWeeklyWednesday:   classRosterWeeklyCell(row, "wed"),
+			listexport.ColumnWeeklyThursday:    classRosterWeeklyCell(row, "thu"),
+			listexport.ColumnWeeklyFriday:      classRosterWeeklyCell(row, "fri"),
+			listexport.ColumnDeparture:         row.Departure,
+		}})
+	}
+	return listexport.Document{
+		Title:       classRosterTitle(report),
+		Subtitle:    classRosterSubtitle(report),
+		GeneratedAt: time.Now(),
+		Filters:     classRosterFilterLabels(report),
+		Columns:     cols,
+		Rows:        rows,
+		Footer:      exportConfidentialityNote,
+	}
+}
+
+func classRosterTitle(report *enrollmentService.ClassRosterReport) string {
+	title := "Klassenliste"
+	if report == nil {
+		return title
+	}
+	if className := strings.TrimSpace(report.Filters.SchoolClass); className != "" {
+		title += " " + className
+	}
+	if phaseName := strings.TrimSpace(report.Phase.Name); phaseName != "" {
+		title += " - " + phaseName
+	}
+	return title
+}
+
+func classRosterSubtitle(report *enrollmentService.ClassRosterReport) string {
+	if report == nil {
+		return "0 Kinder"
+	}
+	return fmt.Sprintf("%d Kinder, %d angemeldet", report.Totals.Students, report.Totals.Registered)
+}
+
+func classRosterFilterLabels(report *enrollmentService.ClassRosterReport) []string {
+	if report == nil {
+		return nil
+	}
+	return []string{
+		"Anmeldephase: " + strings.TrimSpace(report.Phase.Name),
+		"Klasse: " + strings.TrimSpace(report.Filters.SchoolClass),
+		"Status: " + statusLabelDE(report.Filters.Status),
+	}
+}
+
+func classRosterCareDaysLabel(days []string) string {
+	if len(days) == 0 {
+		return "keine"
+	}
+	return formatDayCodes(days)
+}
+
+func classRosterWeeklyCell(row enrollmentService.ClassRosterRow, day string) string {
+	arrival := strings.TrimSpace(row.ArrivalByDay[day])
+	pickup := strings.TrimSpace(row.PickupByDay[day])
+	if arrival != "" && pickup != "" {
+		return "Ankunft: " + arrival + ", Abholung: " + pickup
+	}
+	if arrival != "" {
+		return "Ankunft: " + arrival
+	}
+	if pickup != "" {
+		return "Abholung: " + pickup
+	}
+	if containsReportDay(row.CareDays, day) {
+		return "Betreuung"
+	}
+	return "nein"
+}
+
+func containsReportDay(days []string, needle string) bool {
+	for _, day := range days {
+		if strings.EqualFold(strings.TrimSpace(day), needle) {
+			return true
+		}
+	}
+	return false
 }
 
 func buildCareUsageTableDocument(report *enrollmentService.CareUsageReport) listexport.Document {

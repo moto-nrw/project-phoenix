@@ -940,7 +940,7 @@ function SearchPageContent() {
     },
   );
 
-  const { data: schoolClassOptions = [] } = useSWRAuth<string[]>(
+  const { data: schoolClassOptionsData } = useSWRAuth<unknown>(
     "search-student-school-classes",
     async () => {
       const result = await studentService.getStudents({
@@ -949,6 +949,15 @@ function SearchPageContent() {
       return schoolClassOptionsFromStudents(result.students);
     },
     { revalidateOnFocus: false },
+  );
+  const schoolClassOptions = useMemo(
+    () =>
+      Array.isArray(schoolClassOptionsData)
+        ? schoolClassOptionsData.filter(
+            (item): item is string => typeof item === "string",
+          )
+        : [],
+    [schoolClassOptionsData],
   );
 
   // Generate SWR cache key for students (changes when filters change → SWR auto-cancels old requests)

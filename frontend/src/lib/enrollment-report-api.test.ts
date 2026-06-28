@@ -9,6 +9,7 @@ vi.mock("~/lib/logger", () => ({
 
 import {
   exportCareUsageReport,
+  exportPhaseClassRoster,
   getCareUsageReport,
   type CareUsageFilters,
   type CareUsageReport,
@@ -383,5 +384,70 @@ describe("exportCareUsageReport", () => {
     });
     expect(anchor.click).not.toHaveBeenCalled();
     expect(URL.createObjectURL).not.toHaveBeenCalled();
+  });
+});
+
+describe("exportPhaseClassRoster", () => {
+  let anchor: {
+    href: string;
+    download: string;
+    click: ReturnType<typeof vi.fn>;
+    remove: ReturnType<typeof vi.fn>;
+  };
+
+  beforeEach(() => {
+    globalThis.fetch = originalFetch;
+    anchor = {
+      href: "",
+      download: "",
+      click: vi.fn(),
+      remove: vi.fn(),
+    };
+    vi.spyOn(document, "createElement").mockReturnValue(
+      anchor as unknown as HTMLAnchorElement,
+    );
+    vi.spyOn(document.body, "append").mockImplementation(() => undefined);
+    URL.createObjectURL = vi.fn(() => "blob:class-roster");
+    URL.revokeObjectURL = vi.fn();
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    URL.createObjectURL = originalCreateObjectURL;
+    URL.revokeObjectURL = originalRevokeObjectURL;
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("posts phase and class filters, then downloads the roster", async () => {
+    const fetchFn = mockFetch(
+      async () =>
+        ({
+          ok: true,
+          headers: new Headers(),
+          blob: async () => new Blob(["PDF"]),
+        }) as unknown as Response,
+    );
+
+    await exportPhaseClassRoster("42", "1a", "pdf");
+
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchFn.mock.calls[0]!;
+    expect(url).toBe("/api/enrollment/admin/reports/class-roster/export");
+    expect(init).toMatchObject({
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+      format: "pdf",
+      filters: {
+        phase_id: "42",
+        school_class: "1a",
+      },
+    });
+    expect(anchor.href).toBe("blob:class-roster");
+    expect(anchor.download).toBe("klassenliste.pdf");
+    expect(anchor.click).toHaveBeenCalledTimes(1);
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:class-roster");
   });
 });

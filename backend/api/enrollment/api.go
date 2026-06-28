@@ -200,6 +200,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Route("/admin/reports", func(r chi.Router) {
 			r.With(authorize.RequiresPermission("config:read")).Get("/care-usage", rs.getCareUsageReport)
 			r.With(authorize.RequiresPermission("config:manage")).Post("/care-usage/export", rs.exportCareUsageReport)
+			r.With(authorize.RequiresPermission("config:manage")).Post("/class-roster/export", rs.exportClassRosterReport)
 		})
 		r.Route("/admin/students/{studentId}/requests", func(r chi.Router) {
 			r.With(authorize.RequiresPermission("config:manage")).Get("/", rs.listAdminRequestsByStudent)

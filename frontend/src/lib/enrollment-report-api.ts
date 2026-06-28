@@ -165,6 +165,42 @@ export async function exportCareUsageReport(
   URL.revokeObjectURL(url);
 }
 
+export async function exportPhaseClassRoster(
+  phaseId: string,
+  schoolClass: string,
+  format: EnrollmentReportFormat,
+): Promise<void> {
+  const response = await fetch(
+    "/api/enrollment/admin/reports/class-roster/export",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        format,
+        filters: {
+          phase_id: phaseId,
+          school_class: schoolClass,
+        },
+      }),
+    },
+  );
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Klassenliste konnte nicht exportiert werden",
+    );
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filenameFromDisposition(response) ?? `klassenliste.${format}`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 function appendCareUsageParams(url: URL, filters: CareUsageFilters) {
   url.searchParams.set("phase_id", String(filters.phase_id));
   if (filters.status) url.searchParams.set("status", filters.status);

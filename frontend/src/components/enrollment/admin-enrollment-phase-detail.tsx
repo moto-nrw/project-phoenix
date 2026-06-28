@@ -43,6 +43,7 @@ import {
   type EnrollmentReportFormat,
   type EnrollmentReportStatus,
   exportCareUsageReport,
+  exportPhaseClassRoster,
   getCareUsageReport,
 } from "~/lib/enrollment-report-api";
 import {
@@ -59,12 +60,15 @@ import { useClickOutside } from "~/lib/hooks/use-click-outside";
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
 import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
 import { createLogger } from "~/lib/logger";
+import { studentService, type Student } from "~/lib/api";
+import { useSWRAuth } from "~/lib/swr";
 
 const logger = createLogger({ component: "AdminEnrollmentPhaseDetail" });
 
 const ALL_STATUS_FILTER = "all";
 const ALL_VALUE = "all";
 const DAY_COUNT_OPTIONS = [0, 1, 2, 3, 4, 5] as const;
+const CLASS_ROSTER_STUDENT_PAGE_SIZE = 1000;
 
 const STATUS_LABELS: Record<ChildStatus, string> = {
   submitted: "Eingegangen",
@@ -197,6 +201,8 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   const [gradeLevel, setGradeLevel] = useState<string>(ALL_VALUE);
   const [weekday, setWeekday] = useState<string>(ALL_VALUE);
   const [pickupTime, setPickupTime] = useState<string>(ALL_VALUE);
+  const [classRosterSchoolClass, setClassRosterSchoolClass] =
+    useState<string>(ALL_VALUE);
   const [search, setSearch] = useState("");
   const [report, setReport] = useState<CareUsageReport | null>(null);
   const [loading, setLoading] = useState(true);
@@ -208,8 +214,25 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     useState<EnrollmentExportFormat | null>(null);
   const [exportingReportFormat, setExportingReportFormat] =
     useState<EnrollmentReportFormat | null>(null);
+  const [exportingClassRosterFormat, setExportingClassRosterFormat] =
+    useState<EnrollmentReportFormat | null>(null);
   const phaseUrl = useEnrollmentPublicUrl({ tenantSlug, phaseId });
   useSetBreadcrumb({ pageTitle: phase?.name ?? "Anmeldephase" });
+
+  const { data: schoolClassOptionsData } = useSWRAuth<unknown>(
+    "enrollment-phase-school-classes",
+    async () => {
+      const result = await studentService.getStudents({
+        pageSize: CLASS_ROSTER_STUDENT_PAGE_SIZE,
+      });
+      return schoolClassOptionsFromStudents(result.students);
+    },
+    { revalidateOnFocus: false },
+  );
+  const schoolClassOptions = useMemo(
+    () => coerceSchoolClassOptions(schoolClassOptionsData),
+    [schoolClassOptionsData],
+  );
 
   const handleExport = useCallback(
     async (format: EnrollmentExportFormat) => {
@@ -333,6 +356,33 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       }
     },
     [phaseId, reportFilters, toast],
+  );
+
+  const handleClassRosterExport = useCallback(
+    async (format: EnrollmentReportFormat) => {
+      if (classRosterSchoolClass === ALL_VALUE) {
+        toast.error("Bitte zuerst eine Klasse wählen.");
+        return;
+      }
+      setExportingClassRosterFormat(format);
+      try {
+        await exportPhaseClassRoster(phaseId, classRosterSchoolClass, format);
+        toast.success("Klassenliste wurde erstellt.");
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Export fehlgeschlagen";
+        logger.error("phase_class_roster_export_failed", {
+          error: message,
+          format,
+          phase_id: phaseId,
+          school_class: classRosterSchoolClass,
+        });
+        toast.error(message);
+      } finally {
+        setExportingClassRosterFormat(null);
+      }
+    },
+    [classRosterSchoolClass, phaseId, toast],
   );
 
   const overviewHref = tenantSlug
@@ -750,6 +800,14 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         </div>
       </section>
 
+      <ClassRosterExportPanel
+        schoolClassOptions={schoolClassOptions}
+        selectedSchoolClass={classRosterSchoolClass}
+        onSelectedSchoolClassChange={setClassRosterSchoolClass}
+        exportingFormat={exportingClassRosterFormat}
+        onExport={(format) => void handleClassRosterExport(format)}
+      />
+
       {reportError ? (
         <div className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4 text-sm text-[#CC2626]">
           {reportError}
@@ -806,6 +864,105 @@ function SelectField({
       {label}
       {children}
     </label>
+  );
+}
+
+function ClassRosterExportPanel({
+  schoolClassOptions,
+  selectedSchoolClass,
+  onSelectedSchoolClassChange,
+  exportingFormat,
+  onExport,
+}: Readonly<{
+  schoolClassOptions: string[];
+  selectedSchoolClass: string;
+  onSelectedSchoolClassChange: (value: string) => void;
+  exportingFormat: EnrollmentReportFormat | null;
+  onExport: (format: EnrollmentReportFormat) => void;
+}>) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  useClickOutside(containerRef, () => setOpen(false), open);
+  const formats: readonly EnrollmentReportFormat[] = ["pdf", "docx", "xlsx"];
+  const hasSelectedClass = selectedSchoolClass !== ALL_VALUE;
+  const disabled = exportingFormat !== null || !hasSelectedClass;
+
+  return (
+    <section className="moto-content-surface relative z-10 rounded-2xl border p-4 shadow-sm backdrop-blur-md">
+      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div className="min-w-0 md:w-72">
+          <SelectField
+            label="Klasse für Klassenliste"
+            id="phase-class-roster-class"
+          >
+            <CustomSelect
+              id="phase-class-roster-class"
+              value={selectedSchoolClass}
+              onChange={onSelectedSchoolClassChange}
+              options={[
+                {
+                  value: ALL_VALUE,
+                  label:
+                    schoolClassOptions.length === 0
+                      ? "Keine Klassen"
+                      : "Klasse wählen",
+                },
+                ...schoolClassOptions.map((schoolClass) => ({
+                  value: schoolClass,
+                  label: schoolClass,
+                })),
+              ]}
+            />
+          </SelectField>
+        </div>
+
+        <div className="relative" ref={containerRef}>
+          <button
+            type="button"
+            onClick={() => setOpen((value) => !value)}
+            disabled={disabled}
+            aria-haspopup="menu"
+            aria-expanded={open}
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Download className="h-4 w-4" aria-hidden="true" />
+            {exportingFormat === null
+              ? "Klassenliste exportieren"
+              : `Exportiere ${REPORT_EXPORT_LABELS[exportingFormat]}...`}
+            <ChevronDown
+              className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`}
+              aria-hidden="true"
+            />
+          </button>
+
+          {open ? (
+            <div
+              role="menu"
+              aria-label="Klassenliste exportieren"
+              className="absolute right-0 z-30 mt-2 min-w-64 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg"
+            >
+              {formats.map((format) => (
+                <button
+                  key={format}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setOpen(false);
+                    onExport(format);
+                  }}
+                  className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 active:bg-gray-100"
+                >
+                  <ExportFormatIcon format={format} />
+                  <span className="flex-1">
+                    {REPORT_EXPORT_MENU_LABELS[format]}
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -1135,6 +1292,28 @@ function ExportFormatIcon({
       <Icon className="h-4 w-4" aria-hidden="true" />
     </span>
   );
+}
+
+function schoolClassOptionsFromStudents(students: Student[]): string[] {
+  const seen = new Set<string>();
+  for (const student of students) {
+    const schoolClass = student.school_class?.trim();
+    if (schoolClass) seen.add(schoolClass);
+  }
+  return [...seen].sort((a, b) =>
+    a.localeCompare(b, "de", { numeric: true, sensitivity: "base" }),
+  );
+}
+
+function coerceSchoolClassOptions(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .sort((a, b) =>
+      a.localeCompare(b, "de", { numeric: true, sensitivity: "base" }),
+    );
 }
 
 function calculateRequestStats(
