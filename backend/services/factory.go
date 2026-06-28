@@ -1030,6 +1030,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		RequestChildRepo:         repos.RequestChild,
 		RequestChildOfferingRepo: repos.RequestChildOffering,
 		CareOfferingRepo:         repos.CareOffering,
+		FormSchemaRepo:           repos.FormSchema,
 		PhaseRepo:                repos.Phase,
 		DataAccessLogRepo:        repos.DataAccessLog,
 	})

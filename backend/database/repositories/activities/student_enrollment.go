@@ -91,6 +91,78 @@ func (r *StudentEnrollmentRepository) FindByStudentID(ctx context.Context, stude
 	return enrollments, nil
 }
 
+// FindActiveByStudentIDs finds active enrollments for a batch of students on
+// the given date. valid_until is exclusive, matching timetable materialization.
+func (r *StudentEnrollmentRepository) FindActiveByStudentIDs(ctx context.Context, studentIDs []int64, onDate timezone.Date) ([]*activities.StudentEnrollment, error) {
+	if len(studentIDs) == 0 {
+		return []*activities.StudentEnrollment{}, nil
+	}
+
+	type enrollmentResult struct {
+		Enrollment    *activities.StudentEnrollment `bun:"student_enrollment"`
+		ActivityGroup *activities.Group             `bun:"activity_group"`
+	}
+
+	var results []enrollmentResult
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&results).
+		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
+		ColumnExpr(`"student_enrollment".id AS "student_enrollment__id"`).
+		ColumnExpr(`"student_enrollment".created_at AS "student_enrollment__created_at"`).
+		ColumnExpr(`"student_enrollment".updated_at AS "student_enrollment__updated_at"`).
+		ColumnExpr(`"student_enrollment".tenant_id AS "student_enrollment__tenant_id"`).
+		ColumnExpr(`"student_enrollment".student_id AS "student_enrollment__student_id"`).
+		ColumnExpr(`"student_enrollment".activity_group_id AS "student_enrollment__activity_group_id"`).
+		ColumnExpr(`"student_enrollment".valid_from AS "student_enrollment__valid_from"`).
+		ColumnExpr(`"student_enrollment".valid_until AS "student_enrollment__valid_until"`).
+		ColumnExpr(`"student_enrollment".calendar_period_id AS "student_enrollment__calendar_period_id"`).
+		ColumnExpr(`"student_enrollment".enrollment_request_child_id AS "student_enrollment__enrollment_request_child_id"`).
+		ColumnExpr(`"student_enrollment".selected_weekdays AS "student_enrollment__selected_weekdays"`).
+		ColumnExpr(`"student_enrollment".attendance_status AS "student_enrollment__attendance_status"`).
+		ColumnExpr(`"activity_group".id AS "activity_group__id"`).
+		ColumnExpr(`"activity_group".created_at AS "activity_group__created_at"`).
+		ColumnExpr(`"activity_group".updated_at AS "activity_group__updated_at"`).
+		ColumnExpr(`"activity_group".tenant_id AS "activity_group__tenant_id"`).
+		ColumnExpr(`"activity_group".name AS "activity_group__name"`).
+		ColumnExpr(`"activity_group".max_participants AS "activity_group__max_participants"`).
+		ColumnExpr(`"activity_group".is_open AS "activity_group__is_open"`).
+		ColumnExpr(`"activity_group".category_id AS "activity_group__category_id"`).
+		ColumnExpr(`"activity_group".planned_room_id AS "activity_group__planned_room_id"`).
+		ColumnExpr(`"activity_group".created_by AS "activity_group__created_by"`).
+		ColumnExpr(`"activity_group".type AS "activity_group__type"`).
+		ColumnExpr(`"activity_group".education_group_id AS "activity_group__education_group_id"`).
+		ColumnExpr(`"activity_group".is_template AS "activity_group__is_template"`).
+		ColumnExpr(`"activity_group".archived_at AS "activity_group__archived_at"`).
+		Join(`LEFT JOIN activities.groups AS "activity_group" ON "activity_group".tenant_id = "student_enrollment".tenant_id AND "activity_group".id = "student_enrollment".activity_group_id`).
+		Where(`"student_enrollment".student_id IN (?)`, bun.List(studentIDs)).
+		Where(`"student_enrollment".valid_from <= ?`, onDate).
+		Where(`("student_enrollment".valid_until IS NULL OR "student_enrollment".valid_until > ?)`, onDate)
+
+	if where, val, ok := base.TenantWhere(ctx, "student_enrollment"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.
+		Order(`"student_enrollment".student_id ASC`).
+		Order(`"activity_group".name ASC`).
+		Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find active enrollments by student IDs",
+			Err: err,
+		}
+	}
+
+	enrollments := make([]*activities.StudentEnrollment, 0, len(results))
+	for _, result := range results {
+		if result.Enrollment == nil {
+			continue
+		}
+		result.Enrollment.ActivityGroup = result.ActivityGroup
+		enrollments = append(enrollments, result.Enrollment)
+	}
+	return enrollments, nil
+}
+
 // FindByGroupID finds all enrollments for a specific group
 func (r *StudentEnrollmentRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*activities.StudentEnrollment, error) {
 	type enrollmentResult struct {

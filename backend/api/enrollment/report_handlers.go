@@ -30,6 +30,8 @@ type careUsageExportFiltersRequest struct {
 	CareOfferingIDs []string `json:"care_offering_ids,omitempty"`
 	DayCount        *int     `json:"day_count,omitempty"`
 	GradeLevel      *int16   `json:"grade_level,omitempty"`
+	Weekday         string   `json:"weekday,omitempty"`
+	PickupTime      string   `json:"pickup_time,omitempty"`
 	Search          string   `json:"search,omitempty"`
 }
 
@@ -53,6 +55,8 @@ type careUsageAppliedFiltersResponse struct {
 	CareOfferingIDs []string `json:"care_offering_ids"`
 	DayCount        *int     `json:"day_count,omitempty"`
 	GradeLevel      *int16   `json:"grade_level,omitempty"`
+	Weekday         string   `json:"weekday,omitempty"`
+	PickupTime      string   `json:"pickup_time,omitempty"`
 	Search          string   `json:"search,omitempty"`
 }
 
@@ -66,6 +70,7 @@ type careUsageOfferingStatResponse struct {
 type careUsageFilterOptionsResponse struct {
 	Offerings   []careUsageOfferingOptionResponse `json:"offerings"`
 	GradeLevels []int16                           `json:"grade_levels"`
+	PickupTimes []string                          `json:"pickup_times"`
 }
 
 type careUsageOfferingOptionResponse struct {
@@ -85,6 +90,7 @@ type careUsageRowResponse struct {
 	Offerings         []careUsageRowOfferingResponse `json:"offerings"`
 	EffectiveDays     []string                       `json:"effective_days"`
 	DayCount          int                            `json:"day_count"`
+	PickupByDay       map[string]string              `json:"pickup_by_day"`
 	GuardianFirstName string                         `json:"guardian_first_name"`
 	GuardianLastName  string                         `json:"guardian_last_name"`
 	GuardianEmail     string                         `json:"guardian_email"`
@@ -206,6 +212,8 @@ func parseCareUsageFiltersFromQuery(r *http.Request) (enrollmentService.CareUsag
 	}
 	filters.PhaseID = phaseID
 	filters.Status = q.Get("status")
+	filters.Weekday = q.Get("weekday")
+	filters.PickupTime = q.Get("pickup_time")
 	filters.Search = q.Get("search")
 	offeringIDs, err := parseCareOfferingIDsFromQuery(q["care_offering_ids"])
 	if err != nil {
@@ -301,6 +309,8 @@ func (req careUsageExportFiltersRequest) toServiceFilters() (enrollmentService.C
 		Status:     req.Status,
 		DayCount:   req.DayCount,
 		GradeLevel: req.GradeLevel,
+		Weekday:    req.Weekday,
+		PickupTime: req.PickupTime,
 		Search:     req.Search,
 	}
 	if strings.TrimSpace(req.CareOfferingID) != "" {
@@ -350,11 +360,14 @@ func toCareUsageReportResponse(report *enrollmentService.CareUsageReport) *careU
 			Status:     report.Filters.Status,
 			DayCount:   report.Filters.DayCount,
 			GradeLevel: report.Filters.GradeLevel,
+			Weekday:    report.Filters.Weekday,
+			PickupTime: report.Filters.PickupTime,
 			Search:     report.Filters.Search,
 		},
 		Totals: report.Totals,
 		FilterOptions: careUsageFilterOptionsResponse{
 			GradeLevels: report.FilterOptions.GradeLevels,
+			PickupTimes: report.FilterOptions.PickupTimes,
 		},
 		Rows: make([]careUsageRowResponse, 0, len(report.Rows)),
 	}
@@ -390,6 +403,7 @@ func toCareUsageReportResponse(report *enrollmentService.CareUsageReport) *careU
 			Status:            row.Status,
 			EffectiveDays:     nonNilStringSlice(row.EffectiveDays),
 			DayCount:          row.DayCount,
+			PickupByDay:       nonNilStringMap(row.PickupByDay),
 			GuardianFirstName: row.GuardianFirstName,
 			GuardianLastName:  row.GuardianLastName,
 			GuardianEmail:     row.GuardianEmail,
@@ -440,6 +454,11 @@ func buildCareUsageTableDocument(report *enrollmentService.CareUsageReport) list
 		{ID: "offering_days", Label: "Tage je Angebot"},
 		{ID: "effective_days", Label: "Effektive Betreuungstage"},
 		{ID: "day_count", Label: "Anzahl Tage"},
+		{ID: "pickup_mon", Label: "Mo Gehzeit"},
+		{ID: "pickup_tue", Label: "Di Gehzeit"},
+		{ID: "pickup_wed", Label: "Mi Gehzeit"},
+		{ID: "pickup_thu", Label: "Do Gehzeit"},
+		{ID: "pickup_fri", Label: "Fr Gehzeit"},
 		{ID: "guardian_name", Label: "Eltern"},
 		{ID: "guardian_email", Label: "E-Mail"},
 		{ID: "guardian_phone", Label: "Telefon"},
@@ -455,6 +474,11 @@ func buildCareUsageTableDocument(report *enrollmentService.CareUsageReport) list
 			"offering_days":    careUsageOfferingDayDetails(row.Offerings),
 			"effective_days":   formatDayCodes(row.EffectiveDays),
 			"day_count":        strconv.Itoa(row.DayCount),
+			"pickup_mon":       row.PickupByDay["mon"],
+			"pickup_tue":       row.PickupByDay["tue"],
+			"pickup_wed":       row.PickupByDay["wed"],
+			"pickup_thu":       row.PickupByDay["thu"],
+			"pickup_fri":       row.PickupByDay["fri"],
 			"guardian_name":    strings.TrimSpace(row.GuardianFirstName + " " + row.GuardianLastName),
 			"guardian_email":   row.GuardianEmail,
 			"guardian_phone":   strOrEmpty(row.GuardianPhone),
@@ -486,6 +510,7 @@ func buildCareUsageRecordDocument(report *enrollmentService.CareUsageReport) lis
 				{Label: "Betreuungsangebote", Value: careUsageOfferingDayDetails(row.Offerings)},
 				{Label: "Effektive Betreuungstage", Value: formatDayCodes(row.EffectiveDays)},
 				{Label: "Anzahl Tage", Value: strconv.Itoa(row.DayCount)},
+				{Label: "Gehzeiten", Value: careUsagePickupDayDetails(row.PickupByDay)},
 				{Label: "Eltern", Value: strings.TrimSpace(row.GuardianFirstName + " " + row.GuardianLastName)},
 				{Label: "E-Mail", Value: row.GuardianEmail},
 				{Label: "Telefon", Value: strOrEmpty(row.GuardianPhone)},
@@ -540,6 +565,12 @@ func careUsageFilterLabels(report *enrollmentService.CareUsageReport) []string {
 	}
 	if report.Filters.GradeLevel != nil {
 		labels = append(labels, fmt.Sprintf("Zielklasse: %d", *report.Filters.GradeLevel))
+	}
+	if strings.TrimSpace(report.Filters.Weekday) != "" {
+		labels = append(labels, "Wochentag: "+formatDayCodes([]string{report.Filters.Weekday}))
+	}
+	if strings.TrimSpace(report.Filters.PickupTime) != "" {
+		labels = append(labels, "Gehzeit: "+strings.TrimSpace(report.Filters.PickupTime))
 	}
 	if strings.TrimSpace(report.Filters.Search) != "" {
 		labels = append(labels, "Suche: "+strings.TrimSpace(report.Filters.Search))
@@ -607,6 +638,21 @@ func careUsageDayCountFields(report *enrollmentService.CareUsageReport) []listex
 	return fields
 }
 
+func careUsagePickupDayDetails(pickupByDay map[string]string) string {
+	if len(pickupByDay) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(weekdayOrder))
+	for _, day := range weekdayOrder {
+		pickupTime := strings.TrimSpace(pickupByDay[day])
+		if pickupTime == "" {
+			continue
+		}
+		parts = append(parts, dayLabelsDE[day]+" "+pickupTime)
+	}
+	return strings.Join(parts, "; ")
+}
+
 func sortedDayCountKeys(counts map[string]int) []int {
 	out := make([]int, 0, len(counts))
 	seen := make(map[int]bool, len(counts))
@@ -632,6 +678,13 @@ func dayCountLabelDE(count int) string {
 func nonNilStringSlice(values []string) []string {
 	if values == nil {
 		return []string{}
+	}
+	return values
+}
+
+func nonNilStringMap(values map[string]string) map[string]string {
+	if values == nil {
+		return map[string]string{}
 	}
 	return values
 }

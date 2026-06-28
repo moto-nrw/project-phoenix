@@ -830,6 +830,7 @@ describe("api.ts helper functions", () => {
           search: "John",
           inHouse: false,
           groupId: "456",
+          schoolClass: "3a",
           page: 3,
           pageSize: 100,
           token: "test-token",
@@ -839,6 +840,7 @@ describe("api.ts helper functions", () => {
         expect(callUrl).toContain("search=John");
         expect(callUrl).toContain("in_house=false");
         expect(callUrl).toContain("group_id=456");
+        expect(callUrl).toContain("school_class=3a");
         expect(callUrl).toContain("page=3");
         expect(callUrl).toContain("page_size=100");
       } finally {

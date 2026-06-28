@@ -112,6 +112,7 @@ func TestCareUsageRowMatchesFilters(t *testing.T) {
 		},
 		EffectiveDays:     []string{"mon", "wed", "fri"},
 		DayCount:          3,
+		PickupByDay:       map[string]string{"mon": "14:30", "wed": "16:00", "fri": "14:30"},
 		GuardianFirstName: "Eva",
 		GuardianLastName:  "Muster",
 		GuardianEmail:     "eva@example.test",
@@ -127,6 +128,11 @@ func TestCareUsageRowMatchesFilters(t *testing.T) {
 	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: enrollmentModels.ChildStatusRejected}))
 	otherDayCount := 4
 	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", DayCount: &otherDayCount}))
+	assert.True(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", Weekday: "mon"}))
+	assert.True(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", Weekday: "wed", PickupTime: "16:00"}))
+	assert.True(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", PickupTime: "14:30"}))
+	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", Weekday: "tue"}))
+	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", Weekday: "wed", PickupTime: "14:30"}))
 
 	otherGrade := int16(3)
 	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", GradeLevel: &otherGrade}))

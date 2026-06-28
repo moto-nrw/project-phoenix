@@ -23,6 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	activityService "github.com/moto-nrw/project-phoenix/services/activities"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -59,6 +60,7 @@ type Resource struct {
 	StudentService          userService.StudentService
 	StudentStatusDayService activeService.StudentStatusDayService
 	StudentHistoryService   activeService.StudentHistoryService
+	ActivityService         activityService.ActivityService
 	EnrollmentDecision      enrollmentService.DecisionService
 	EnrollmentFormSchema    enrollmentService.FormSchemaService
 	Broadcaster             realtime.Broadcaster
@@ -86,6 +88,7 @@ type ResourceConfig struct {
 	StudentService          userService.StudentService
 	StudentStatusDayService activeService.StudentStatusDayService
 	StudentHistoryService   activeService.StudentHistoryService
+	ActivityService         activityService.ActivityService
 	EnrollmentDecision      enrollmentService.DecisionService
 	EnrollmentFormSchema    enrollmentService.FormSchemaService
 	Broadcaster             realtime.Broadcaster
@@ -118,6 +121,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		StudentService:          cfg.StudentService,
 		StudentStatusDayService: cfg.StudentStatusDayService,
 		StudentHistoryService:   cfg.StudentHistoryService,
+		ActivityService:         cfg.ActivityService,
 		EnrollmentDecision:      cfg.EnrollmentDecision,
 		EnrollmentFormSchema:    cfg.EnrollmentFormSchema,
 		Broadcaster:             cfg.Broadcaster,

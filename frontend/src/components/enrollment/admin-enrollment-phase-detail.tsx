@@ -180,6 +180,8 @@ const DAY_LABELS: Record<string, string> = {
   sun: "So",
 };
 
+const CARE_USAGE_WEEKDAYS = ["mon", "tue", "wed", "thu", "fri"] as const;
+
 export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   const tenantSlug = useTenantSlugSafe();
   const toast = useToast();
@@ -193,6 +195,8 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   >(null);
   const [dayCount, setDayCount] = useState<string>(ALL_VALUE);
   const [gradeLevel, setGradeLevel] = useState<string>(ALL_VALUE);
+  const [weekday, setWeekday] = useState<string>(ALL_VALUE);
+  const [pickupTime, setPickupTime] = useState<string>(ALL_VALUE);
   const [search, setSearch] = useState("");
   const [report, setReport] = useState<CareUsageReport | null>(null);
   const [loading, setLoading] = useState(true);
@@ -242,6 +246,12 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     if (gradeLevel !== ALL_VALUE) {
       filters.grade_level = Number(gradeLevel);
     }
+    if (weekday !== ALL_VALUE) {
+      filters.weekday = weekday;
+    }
+    if (pickupTime !== ALL_VALUE) {
+      filters.pickup_time = pickupTime;
+    }
     const trimmedSearch = search.trim();
     if (trimmedSearch !== "") {
       filters.search = trimmedSearch;
@@ -252,8 +262,10 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     explicitOfferingIds,
     gradeLevel,
     phaseId,
+    pickupTime,
     search,
     statusFilter,
+    weekday,
   ]);
 
   const handleReportOfferingsChange = useCallback((ids: string[]) => {
@@ -471,6 +483,16 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         sortValue: (row) => row.day_count,
       },
       {
+        key: "pickup_by_day",
+        header: "Gehzeiten",
+        render: (row) => (
+          <p className="max-w-48 text-sm text-gray-700">
+            {formatPickupByDay(row.pickup_by_day ?? {}) || "-"}
+          </p>
+        ),
+        sortValue: (row) => formatPickupByDay(row.pickup_by_day ?? {}),
+      },
+      {
         key: "actions",
         header: "Aktionen",
         align: "right",
@@ -601,7 +623,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
               Filter.
             </p>
           </div>
-          <div className="grid gap-3 lg:grid-cols-[repeat(4,minmax(9rem,1fr))]">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[repeat(6,minmax(9rem,1fr))]">
             <SelectField label="Status" id="enrollment-status-filter">
               <CustomSelect
                 id="enrollment-status-filter"
@@ -672,6 +694,42 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
                       label: `${grade}. Klasse`,
                     }),
                   ),
+                ]}
+              />
+            </SelectField>
+            <SelectField label="Wochentag" id="enrollment-weekday-filter">
+              <CustomSelect
+                id="enrollment-weekday-filter"
+                value={weekday}
+                onChange={setWeekday}
+                options={[
+                  { value: ALL_VALUE, label: "Alle Tage" },
+                  ...CARE_USAGE_WEEKDAYS.map((day) => ({
+                    value: day,
+                    label: DAY_LABELS[day] ?? day,
+                  })),
+                ]}
+              />
+            </SelectField>
+            <SelectField label="Gehzeit" id="enrollment-pickup-time-filter">
+              <CustomSelect
+                id="enrollment-pickup-time-filter"
+                value={pickupTime}
+                onChange={setPickupTime}
+                options={[
+                  { value: ALL_VALUE, label: "Alle Gehzeiten" },
+                  ...(report?.filter_options.pickup_times ?? []).map(
+                    (time) => ({
+                      value: time,
+                      label: `${time} Uhr`,
+                    }),
+                  ),
+                  ...(pickupTime !== ALL_VALUE &&
+                  !(report?.filter_options.pickup_times ?? []).includes(
+                    pickupTime,
+                  )
+                    ? [{ value: pickupTime, label: `${pickupTime} Uhr` }]
+                    : []),
                 ]}
               />
             </SelectField>
@@ -764,22 +822,82 @@ function ReportStats({
 }>) {
   const totals = report?.totals;
   return (
-    <section className="relative z-10 grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-[repeat(7,minmax(0,1fr))_minmax(15rem,1.2fr)]">
-      <ReportStatCard
-        label="Kinder"
-        value={loading ? "..." : String(totals?.children ?? 0)}
-      />
-      {DAY_COUNT_OPTIONS.map((count) => (
+    <section className="relative z-10 space-y-2">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-[repeat(7,minmax(0,1fr))_minmax(15rem,1.2fr)]">
         <ReportStatCard
-          key={count}
-          label={formatDayCountLabel(count)}
-          value={
-            loading ? "..." : String(totals?.by_day_count[String(count)] ?? 0)
-          }
+          label="Kinder"
+          value={loading ? "..." : String(totals?.children ?? 0)}
         />
-      ))}
-      <ReportExportCard exportingFormat={exportingFormat} onExport={onExport} />
+        {DAY_COUNT_OPTIONS.map((count) => (
+          <ReportStatCard
+            key={count}
+            label={formatDayCountLabel(count)}
+            value={
+              loading ? "..." : String(totals?.by_day_count[String(count)] ?? 0)
+            }
+          />
+        ))}
+        <ReportExportCard
+          exportingFormat={exportingFormat}
+          onExport={onExport}
+        />
+      </div>
+      <DeploymentPlanningStats report={report} loading={loading} />
     </section>
+  );
+}
+
+function DeploymentPlanningStats({
+  report,
+  loading,
+}: Readonly<{
+  report: CareUsageReport | null;
+  loading: boolean;
+}>) {
+  const pickupTimes = useMemo(() => pickupTimesForReport(report), [report]);
+  if (!loading && pickupTimes.length === 0) return null;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+          Einsatzplanung
+        </p>
+        <p className="text-sm font-medium text-gray-900">
+          {loading ? "..." : `${report?.totals.children ?? 0} Kinder`}
+        </p>
+      </div>
+      <div className="mt-3 grid gap-2 md:grid-cols-5">
+        {CARE_USAGE_WEEKDAYS.map((day) => (
+          <div
+            key={day}
+            className="moto-content-surface rounded-xl border px-3 py-2 shadow-sm backdrop-blur-md"
+          >
+            <p className="text-xs font-semibold text-gray-500">
+              {DAY_LABELS[day]}
+            </p>
+            <div className="mt-2 flex flex-col gap-1">
+              {loading ? (
+                <p className="text-sm font-semibold text-gray-900">...</p>
+              ) : (
+                pickupTimes.map((time) => (
+                  <div
+                    key={`${day}-${time}`}
+                    className="flex items-center justify-between gap-2 text-sm"
+                  >
+                    <span className="text-gray-600">{time}</span>
+                    <span className="font-semibold text-gray-900">
+                      {report?.totals.by_weekday_pickup_time?.[day]?.[time] ??
+                        0}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -894,6 +1012,27 @@ function OfferingList({ row }: Readonly<{ row: CareUsageRow }>) {
 
 function formatDays(days: string[]): string {
   return days.map((day) => DAY_LABELS[day] ?? day).join(", ");
+}
+
+function formatPickupByDay(pickupByDay: Record<string, string>): string {
+  return CARE_USAGE_WEEKDAYS.map((day) => {
+    const time = pickupByDay[day];
+    return time ? `${DAY_LABELS[day]} ${time}` : "";
+  })
+    .filter(Boolean)
+    .join("; ");
+}
+
+function pickupTimesForReport(report: CareUsageReport | null): string[] {
+  const seen = new Set<string>(report?.filter_options.pickup_times ?? []);
+  for (const byPickupTime of Object.values(
+    report?.totals.by_weekday_pickup_time ?? {},
+  )) {
+    for (const pickupTime of Object.keys(byPickupTime)) {
+      seen.add(pickupTime);
+    }
+  }
+  return Array.from(seen).sort((a, b) => a.localeCompare(b));
 }
 
 function formatOfferingDaySource(

@@ -141,6 +141,7 @@ const GROUP_OPTIONS: Array<{ value: GroupMode; label: string }> = [
 
 const FILTER_QUERY_PARAMS = [
   "year",
+  "school_class",
   "group_id",
   "room_id",
   "room_name",
@@ -275,6 +276,7 @@ function normalizeStoredFilters(
       ) === "all"
         ? ""
         : (params.get("year") ?? ""),
+    school_class: params.get("school_class") ?? "",
     group_id: params.get("group_id") ?? "",
     room_id: params.get("room_id") ?? "",
     room_name: params.get("room_id") ? (params.get("room_name") ?? "") : "",
@@ -342,6 +344,16 @@ function compactStoredFilters(filters: PersistedSearchFilters) {
       (entry): entry is [FilterQueryParam, string] => Boolean(entry[1]),
     ),
   ) as PersistedSearchFilters;
+}
+
+function schoolClassOptionsFromStudents(students: Student[]) {
+  return Array.from(
+    new Set(
+      students
+        .map((student) => student.school_class?.trim())
+        .filter((value): value is string => Boolean(value)),
+    ),
+  ).sort((a, b) => a.localeCompare(b, "de", { numeric: true }));
 }
 
 function safelyRemoveStoredFilters(storageKey: string) {
@@ -692,6 +704,9 @@ function SearchPageContent() {
   const [selectedGroup, setSelectedGroup] = useState(
     initialFilterParams.get("group_id") ?? "",
   );
+  const [selectedSchoolClass, setSelectedSchoolClass] = useState(
+    initialFilterParams.get("school_class") ?? "",
+  );
   const [selectedYear, setSelectedYear] = useState<string>(initialYear);
   const [attendanceFilter, setAttendanceFilter] = useState<StatusFilter>(
     initialAttendanceFilter,
@@ -764,6 +779,7 @@ function SearchPageContent() {
       );
 
       setSelectedGroup(params.get("group_id") ?? "");
+      setSelectedSchoolClass(params.get("school_class") ?? "");
       setSelectedYear(
         validQueryValue(
           params.get("year"),
@@ -924,6 +940,17 @@ function SearchPageContent() {
     },
   );
 
+  const { data: schoolClassOptions = [] } = useSWRAuth<string[]>(
+    "search-student-school-classes",
+    async () => {
+      const result = await studentService.getStudents({
+        pageSize: FULL_STUDENT_SEARCH_PAGE_SIZE,
+      });
+      return schoolClassOptionsFromStudents(result.students);
+    },
+    { revalidateOnFocus: false },
+  );
+
   // Generate SWR cache key for students (changes when filters change → SWR auto-cancels old requests)
   // Note: User context is only for badge styling, not for fetching students
   const photoConsentFeatureAvailable = studentPhotosSettingLoading
@@ -941,7 +968,7 @@ function SearchPageContent() {
   // applied server-side in the same in-memory pass as day_status, so the
   // backend returns correctly-filtered and correctly-counted pages. The cache
   // key just has to vary with every filter value so SWR refetches on change.
-  const studentsCacheKey = `search-students-${debouncedSearchTerm}-${selectedGroup}-${selectedRoomId}-${dayStatusFilter}-${photoConsentFeatureState}-${busFilter}-${requestedPhotoConsentFilter}-${pickupStatusFilter}`;
+  const studentsCacheKey = `search-students-${debouncedSearchTerm}-${selectedGroup}-${selectedSchoolClass}-${selectedRoomId}-${dayStatusFilter}-${photoConsentFeatureState}-${busFilter}-${requestedPhotoConsentFilter}-${pickupStatusFilter}`;
 
   // Fetch students with SWR (automatic deduplication, cancellation, and revalidation)
   const {
@@ -954,6 +981,7 @@ function SearchPageContent() {
       const filters = {
         search: debouncedSearchTerm,
         groupId: selectedGroup,
+        schoolClass: selectedSchoolClass || undefined,
         roomId: selectedRoomId || undefined,
         dayStatus: dayStatusFilter === "all" ? undefined : dayStatusFilter,
         // Administrative filters (#1492) are now applied server-side, so the
@@ -1012,6 +1040,14 @@ function SearchPageContent() {
     (value: string) => {
       setSelectedYear(value);
       updateUrlParams({ year: value === "all" ? "" : value });
+    },
+    [updateUrlParams],
+  );
+
+  const updateSelectedSchoolClass = useCallback(
+    (value: string) => {
+      setSelectedSchoolClass(value);
+      updateUrlParams({ school_class: value });
     },
     [updateUrlParams],
   );
@@ -1107,6 +1143,7 @@ function SearchPageContent() {
   const clearAllFilters = useCallback(() => {
     setSearchTerm("");
     setSelectedGroup("");
+    setSelectedSchoolClass("");
     setSelectedYear("all");
     setAttendanceFilter("all");
     setBusFilter("all");
@@ -1231,7 +1268,7 @@ function SearchPageContent() {
       {
         title: "Organisation",
         icon: DetailIcons.building,
-        filterIds: ["year", "group", "room"],
+        filterIds: ["year", "schoolClass", "group", "room"],
       },
       {
         title: "Anwesenheit",
@@ -1267,6 +1304,26 @@ function SearchPageContent() {
         value: selectedYear,
         onChange: (value) => updateSelectedYear(value as string),
         options: SCHOOL_YEAR_DROPDOWN_OPTIONS,
+      },
+      {
+        id: "schoolClass",
+        label: "Klasse",
+        type: "dropdown",
+        value: selectedSchoolClass,
+        onChange: (value) => updateSelectedSchoolClass(value as string),
+        options: [
+          { value: "", label: "Alle Klassen" },
+          ...schoolClassOptions.map((schoolClass) => ({
+            value: schoolClass,
+            label: schoolClass,
+          })),
+          ...(selectedSchoolClass &&
+          !schoolClassOptions.some(
+            (schoolClass) => schoolClass === selectedSchoolClass,
+          )
+            ? [{ value: selectedSchoolClass, label: selectedSchoolClass }]
+            : []),
+        ],
       },
       {
         id: "group",
@@ -1447,6 +1504,7 @@ function SearchPageContent() {
     ],
     [
       selectedYear,
+      selectedSchoolClass,
       selectedGroup,
       pickupTimeFilter,
       arrivalTimeFilter,
@@ -1459,6 +1517,7 @@ function SearchPageContent() {
       trackingFilter,
       trackingLabels,
       groups,
+      schoolClassOptions,
       rooms,
       studentsData,
       selectedRoomId,
@@ -1469,6 +1528,7 @@ function SearchPageContent() {
       sortMode,
       groupMode,
       updateSelectedYear,
+      updateSelectedSchoolClass,
       updateSelectedGroup,
       updateAttendanceFilter,
       updateBusFilter,
@@ -1500,6 +1560,14 @@ function SearchPageContent() {
         id: "year",
         label: `Jahr ${selectedYear}`,
         onRemove: () => updateSelectedYear("all"),
+      });
+    }
+
+    if (selectedSchoolClass) {
+      filters.push({
+        id: "schoolClass",
+        label: `Klasse ${selectedSchoolClass}`,
+        onRemove: () => updateSelectedSchoolClass(""),
       });
     }
 
@@ -1642,6 +1710,7 @@ function SearchPageContent() {
   }, [
     searchTerm,
     selectedYear,
+    selectedSchoolClass,
     selectedGroup,
     attendanceFilter,
     busFilter,
@@ -1659,6 +1728,7 @@ function SearchPageContent() {
     groupMode,
     clearRoomFilter,
     updateSelectedYear,
+    updateSelectedSchoolClass,
     updateSelectedGroup,
     updateAttendanceFilter,
     updateBusFilter,
@@ -1677,6 +1747,7 @@ function SearchPageContent() {
       search: searchTerm,
       group_id: selectedGroup,
       year: selectedYear,
+      school_class: selectedSchoolClass,
       status: attendanceFilter,
       bus: busFilter,
       photo_consent: effectivePhotoConsentFilter,
@@ -1691,6 +1762,7 @@ function SearchPageContent() {
       searchTerm,
       selectedGroup,
       selectedYear,
+      selectedSchoolClass,
       attendanceFilter,
       busFilter,
       effectivePhotoConsentFilter,

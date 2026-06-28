@@ -372,7 +372,8 @@ func TestListStudents(t *testing.T) {
 	// Create test students using fixtures
 	student1 := testpkg.CreateTestStudent(t, tc.db, "List", "StudentOne", "1a")
 	student2 := testpkg.CreateTestStudent(t, tc.db, "List", "StudentTwo", "1b")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student1.ID, student2.ID)
+	student3 := testpkg.CreateTestStudent(t, tc.db, "List", "StudentEleven", "11a")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student1.ID, student2.ID, student3.ID)
 
 	router := setupRouter(tc.resource.ListStudentsHandler(), "")
 
@@ -395,6 +396,8 @@ func TestListStudents(t *testing.T) {
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Contains(t, rr.Body.String(), "StudentOne")
+		assert.NotContains(t, rr.Body.String(), "StudentEleven")
 	})
 
 	t.Run("success_with_search_filter", func(t *testing.T) {

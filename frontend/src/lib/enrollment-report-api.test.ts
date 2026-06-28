@@ -29,6 +29,10 @@ function report(overrides: Partial<CareUsageReport> = {}): CareUsageReport {
     totals: {
       children: 2,
       by_day_count: { "2": 1, "5": 1 },
+      by_weekday_pickup_time: {
+        mon: { "14:30": 1, "16:00": 1 },
+        tue: { "14:30": 1 },
+      },
     },
     by_offering: [
       {
@@ -41,6 +45,7 @@ function report(overrides: Partial<CareUsageReport> = {}): CareUsageReport {
     filter_options: {
       offerings: [{ id: "7", name: "OGS", counts_as_care: true }],
       grade_levels: [1, 2],
+      pickup_times: ["14:30", "16:00"],
     },
     rows: [
       {
@@ -62,6 +67,7 @@ function report(overrides: Partial<CareUsageReport> = {}): CareUsageReport {
         ],
         effective_days: ["monday", "tuesday"],
         day_count: 2,
+        pickup_by_day: { mon: "14:30", tue: "16:00" },
         guardian_first_name: "Grace",
         guardian_last_name: "Hopper",
         guardian_email: "grace@example.test",
@@ -115,6 +121,8 @@ describe("getCareUsageReport", () => {
       care_offering_ids: ["7", "8"],
       day_count: 0,
       grade_level: 1,
+      weekday: "mon",
+      pickup_time: "14:30",
       search: "  Ada  ",
     };
     const actual = await getCareUsageReport(filters);
@@ -122,7 +130,7 @@ describe("getCareUsageReport", () => {
     expect(actual).toStrictEqual(expected);
     expect(seenInit).toEqual({ cache: "no-store" });
     expect(seenURL).toBe(
-      "/api/enrollment/admin/reports/care-usage?phase_id=42&status=approved&care_offering_ids=7&care_offering_ids=8&day_count=0&grade_level=1&search=Ada",
+      "/api/enrollment/admin/reports/care-usage?phase_id=42&status=approved&care_offering_ids=7&care_offering_ids=8&day_count=0&grade_level=1&weekday=mon&pickup_time=14%3A30&search=Ada",
     );
   });
 

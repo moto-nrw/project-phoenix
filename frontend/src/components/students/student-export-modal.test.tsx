@@ -97,6 +97,21 @@ describe("StudentExportModal", () => {
     expect(screen.getByRole("checkbox", { name: /Montag/ })).not.toBeChecked();
   });
 
+  it("defaults to the class roster preset when a class filter is active", async () => {
+    await openModal({
+      filters: { search: "mila", school_class: "3a" },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Titel")).toHaveValue("Klassenliste");
+    });
+    expect(
+      screen.getByRole("checkbox", {
+        name: /Betreuungs-\/Anmeldestatus/,
+      }),
+    ).toBeChecked();
+  });
+
   it("lets users edit title, format, and columns before exporting", async () => {
     const { onClose } = await openModal();
 

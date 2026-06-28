@@ -13,6 +13,8 @@ export interface CareUsageFilters {
   care_offering_ids?: string[];
   day_count?: number;
   grade_level?: number;
+  weekday?: string;
+  pickup_time?: string;
   search?: string;
 }
 
@@ -27,16 +29,20 @@ export interface CareUsageReport {
     care_offering_ids: string[];
     day_count?: number;
     grade_level?: number;
+    weekday?: string;
+    pickup_time?: string;
     search?: string;
   };
   totals: {
     children: number;
     by_day_count: Record<string, number>;
+    by_weekday_pickup_time: Record<string, Record<string, number>>;
   };
   by_offering: CareUsageOfferingStat[];
   filter_options: {
     offerings: CareUsageOfferingOption[];
     grade_levels: number[];
+    pickup_times: string[];
   };
   rows: CareUsageRow[];
 }
@@ -65,6 +71,7 @@ export interface CareUsageRow {
   offerings: CareUsageRowOffering[];
   effective_days: string[];
   day_count: number;
+  pickup_by_day: Record<string, string>;
   guardian_first_name: string;
   guardian_last_name: string;
   guardian_email: string;
@@ -175,6 +182,12 @@ function appendCareUsageParams(url: URL, filters: CareUsageFilters) {
   }
   if (filters.grade_level) {
     url.searchParams.set("grade_level", String(filters.grade_level));
+  }
+  if (filters.weekday) {
+    url.searchParams.set("weekday", filters.weekday);
+  }
+  if (filters.pickup_time) {
+    url.searchParams.set("pickup_time", filters.pickup_time);
   }
   if (filters.search?.trim()) {
     url.searchParams.set("search", filters.search.trim());

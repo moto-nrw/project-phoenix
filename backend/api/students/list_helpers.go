@@ -122,11 +122,13 @@ func parseDayStatusParam(value string) string {
 	}
 }
 
-// buildBaseFilter creates the shared filter for school_class and guardian_name
+// buildBaseFilter creates the shared filter for school_class and guardian_name.
+// school_class is an exact class selector for class rosters; free text class
+// search still belongs in the broader `search` parameter.
 func (p *studentListParams) buildBaseFilter() *base.Filter {
 	filter := base.NewFilter()
 	if p.schoolClass != "" {
-		filter.ILike("school_class", "%"+p.schoolClass+"%")
+		filter.ILike("school_class", p.schoolClass)
 	}
 	if p.guardianName != "" {
 		filter.ILike("guardian_name", "%"+p.guardianName+"%")
