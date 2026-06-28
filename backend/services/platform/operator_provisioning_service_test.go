@@ -470,6 +470,9 @@ func (m *mockAuthService) GetAccountsWithRolesAndPermissions(context.Context, ma
 func (m *mockAuthService) InitiatePasswordReset(context.Context, string) (*authModels.PasswordResetToken, error) {
 	return nil, nil
 }
+func (m *mockAuthService) InitiateParentPasswordReset(context.Context, string) (*authModels.PasswordResetToken, error) {
+	return nil, nil
+}
 func (m *mockAuthService) ResetPassword(context.Context, string, string) error { return nil }
 func (m *mockAuthService) CleanupExpiredRateLimits(context.Context) (int, error) {
 	return 0, nil

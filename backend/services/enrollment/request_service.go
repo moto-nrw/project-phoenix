@@ -137,6 +137,7 @@ type SubmitGuardian struct {
 // NULL on the resulting request_child_offerings row. The service
 // validates subset/non-empty before inserting.
 type SubmitChild struct {
+	ID               int64
 	FirstName        string
 	LastName         string
 	DateOfBirth      timezone.Date
@@ -178,7 +179,14 @@ type EditDraft struct {
 	Schema           *enrollmentModels.FormSchema
 	OpenOfferings    []*enrollmentModels.CareOffering
 	LegalTexts       LegalTexts
+	EditMode         string
 }
+
+const (
+	EditModeDirectEdit    = "direct_edit"
+	EditModeChangeRequest = "change_request"
+	EditModeNone          = "none"
+)
 
 // EditPatch carries the fields the parent can edit between submission
 // and the first admin decision. Pointer fields = "leave alone unless
@@ -197,6 +205,7 @@ type EditPatch struct {
 type RequestService interface {
 	Submit(ctx context.Context, req SubmitRequest) (*SubmitResult, error)
 	GetByStatusToken(ctx context.Context, token string) (*enrollmentModels.Request, []*enrollmentModels.RequestChild, error)
+	EditModeForStatus(ctx context.Context, req *enrollmentModels.Request, children []*enrollmentModels.RequestChild) (string, error)
 	GetEditDraft(ctx context.Context, token string) (*EditDraft, error)
 	ReplaceEditable(ctx context.Context, token string, req SubmitRequest) (*SubmitResult, error)
 	// GuardiansByStatusToken returns the additional guardians (co-guardians)
@@ -1247,6 +1256,46 @@ func (s *requestService) GetByStatusToken(ctx context.Context, token string) (*e
 	return req, children, nil
 }
 
+// EditModeForStatus returns the edit path the public status page may offer.
+// It intentionally mirrors GetEditDraft's gates without loading the full draft.
+func (s *requestService) EditModeForStatus(ctx context.Context, req *enrollmentModels.Request, children []*enrollmentModels.RequestChild) (string, error) {
+	if req == nil {
+		return EditModeNone, nil
+	}
+	tenantCtx := tenant.WithTenantID(ctx, req.GetTenantID())
+	mode := editModeForChildren(children)
+	switch mode {
+	case EditModeDirectEdit:
+		if err := s.ensureRequestEditable(tenantCtx, req, children); err != nil {
+			return EditModeNone, nil
+		}
+		if _, err := s.loadPhaseForEditableRequest(tenantCtx, req.PhaseID); err != nil {
+			if errors.Is(err, ErrEnrollmentDisabled) || errors.Is(err, ErrInvalidSubmission) {
+				return EditModeNone, nil
+			}
+			return EditModeNone, err
+		}
+		return EditModeDirectEdit, nil
+	case EditModeChangeRequest:
+		if err := s.ensureChangeRequestDraftAvailable(tenantCtx, req, children); err != nil {
+			return EditModeNone, nil
+		}
+		phase, err := s.loadPhaseForEditableRequest(tenantCtx, req.PhaseID)
+		if err != nil {
+			if errors.Is(err, ErrEnrollmentDisabled) || errors.Is(err, ErrInvalidSubmission) {
+				return EditModeNone, nil
+			}
+			return EditModeNone, err
+		}
+		if !IsEnrollmentWindowOpen(phase, time.Now()) {
+			return EditModeNone, nil
+		}
+		return EditModeChangeRequest, nil
+	default:
+		return EditModeNone, nil
+	}
+}
+
 // GuardiansByStatusToken loads the additional guardians (co-guardians)
 // behind a public status token. Same token/expiry gate as
 // GetByStatusToken; caller sets an admin-tx context (token-only auth).
@@ -1356,14 +1405,25 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 		schema        *enrollmentModels.FormSchema
 		openOfferings []*enrollmentModels.CareOffering
 		legalTexts    LegalTexts
+		editMode      string
 	)
 	if err := tenant.WithTenantTx(ctx, s.db, req.GetTenantID(), func(txCtx context.Context, _ bun.Tx) error {
-		if err := s.ensureRequestEditable(txCtx, req, children); err != nil {
-			return err
+		editMode = editModeForChildren(children)
+		if editMode == EditModeDirectEdit {
+			if err := s.ensureRequestEditable(txCtx, req, children); err != nil {
+				return err
+			}
+		} else {
+			if err := s.ensureChangeRequestDraftAvailable(txCtx, req, children); err != nil {
+				return err
+			}
 		}
 		loadedPhase, err := s.loadPhaseForEditableRequest(txCtx, req.PhaseID)
 		if err != nil {
 			return err
+		}
+		if editMode == EditModeChangeRequest && !IsEnrollmentWindowOpen(loadedPhase, time.Now()) {
+			return ErrEnrollmentWindowClosed
 		}
 		phase = loadedPhase
 		loadedSchema, err := s.schemaForEditableRequest(txCtx, req, phase)
@@ -1380,8 +1440,34 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 		for _, offering := range openOfferings {
 			openByID[offering.ID] = offering
 		}
+		missingLinkedIDs := make(map[int64]struct{})
 		for _, link := range links {
-			if _, ok := openByID[link.CareOfferingID]; !ok {
+			if _, ok := openByID[link.CareOfferingID]; ok {
+				continue
+			}
+			if editMode != EditModeChangeRequest {
+				return ErrEditNotAllowed
+			}
+			missingLinkedIDs[link.CareOfferingID] = struct{}{}
+		}
+		if len(missingLinkedIDs) > 0 {
+			ids := make([]int64, 0, len(missingLinkedIDs))
+			for id := range missingLinkedIDs {
+				ids = append(ids, id)
+			}
+			currentOfferings, err := s.careOfferingRepo.ListByIDs(txCtx, ids)
+			if err != nil {
+				return fmt.Errorf("edit draft: list current inactive offerings: %w", err)
+			}
+			for _, offering := range currentOfferings {
+				if offering == nil || offering.PhaseID != phase.ID {
+					continue
+				}
+				openByID[offering.ID] = offering
+				openOfferings = append(openOfferings, offering)
+				delete(missingLinkedIDs, offering.ID)
+			}
+			if len(missingLinkedIDs) > 0 {
 				return ErrEditNotAllowed
 			}
 		}
@@ -1405,6 +1491,7 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 		Schema:           schema,
 		OpenOfferings:    openOfferings,
 		LegalTexts:       legalTexts,
+		EditMode:         editMode,
 	}, nil
 }
 
@@ -1510,28 +1597,33 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 		if err := s.validateConstrainedSchedules(schema, editReq, openByID); err != nil {
 			return err
 		}
-		if schema != nil {
-			byKey := buildFieldsByKey(schema)
-			rawGuardian := editReq.CustomData
-			for i := range editReq.Children {
-				childCtx := fieldVisibilityContext{
-					guardianAnswers: rawGuardian,
-					childAnswers:    editReq.Children[i].CustomData,
-					gradeLevel:      editReq.Children[i].TargetGradeLevel,
-					offeringNames:   selectedOfferingNames(editReq.Children[i], openByID),
-					fieldsByKey:     byKey,
-				}
-				editReq.Children[i].CustomData = sanitizeVisibleAnswers(schema, true, editReq.Children[i].CustomData, childCtx)
-				pruneChildScheduleAnswers(
-					schema, editReq.Children[i].CustomData,
-					relevantCareDaysForChild(editReq.Children[i], openByID),
-				)
+		byKey := buildFieldsByKey(schema)
+		rawGuardian := editReq.CustomData
+		existingCustomData := existingChildCustomDataBySubmittedIdentity(children, editReq.Children)
+		for i := range editReq.Children {
+			childCtx := fieldVisibilityContext{
+				guardianAnswers: rawGuardian,
+				childAnswers:    editReq.Children[i].CustomData,
+				gradeLevel:      editReq.Children[i].TargetGradeLevel,
+				offeringNames:   selectedOfferingNames(editReq.Children[i], openByID),
+				fieldsByKey:     byKey,
 			}
-			editReq.CustomData = sanitizeVisibleAnswers(schema, false, rawGuardian, fieldVisibilityContext{
+			sanitizedChild := sanitizeVisibleAnswers(schema, true, editReq.Children[i].CustomData, childCtx)
+			pruneChildScheduleAnswers(
+				schema, sanitizedChild,
+				relevantCareDaysForChild(editReq.Children[i], openByID),
+			)
+			editReq.Children[i].CustomData = mergeEditableCustomData(existingCustomData[i], sanitizedChild, schema, true)
+		}
+		editReq.CustomData = mergeEditableCustomData(
+			req.CustomData,
+			sanitizeVisibleAnswers(schema, false, rawGuardian, fieldVisibilityContext{
 				guardianAnswers: rawGuardian,
 				fieldsByKey:     byKey,
-			})
-		}
+			}),
+			schema,
+			false,
+		)
 
 		emailLC := strings.ToLower(strings.TrimSpace(req.GuardianEmail))
 		emailHash := fnvHash64(emailLC)
@@ -1681,6 +1773,39 @@ func (s *requestService) ensureRequestEditable(ctx context.Context, req *enrollm
 	}
 	for _, c := range children {
 		if c.Status != enrollmentModels.ChildStatusSubmitted {
+			return ErrEditNotAllowed
+		}
+	}
+	return nil
+}
+
+func editModeForChildren(children []*enrollmentModels.RequestChild) string {
+	if len(children) == 0 {
+		return EditModeDirectEdit
+	}
+	for _, c := range children {
+		if c.Status != enrollmentModels.ChildStatusSubmitted {
+			return EditModeChangeRequest
+		}
+	}
+	return EditModeDirectEdit
+}
+
+func (s *requestService) ensureChangeRequestDraftAvailable(ctx context.Context, req *enrollmentModels.Request, children []*enrollmentModels.RequestChild) error {
+	if req == nil || req.WithdrawnAt != nil {
+		return ErrEditNotAllowed
+	}
+	if !s.allowSubmissionEdit(ctx) {
+		return ErrEditNotAllowed
+	}
+	if len(children) == 0 {
+		return ErrEditNotAllowed
+	}
+	if editModeForChildren(children) != EditModeChangeRequest {
+		return ErrEditNotAllowed
+	}
+	for _, c := range children {
+		if c.Status == enrollmentModels.ChildStatusWithdrawn {
 			return ErrEditNotAllowed
 		}
 	}
@@ -2499,10 +2624,15 @@ func (s *requestService) applyCapacityOverflowWithPreservedClaims(
 		if err != nil {
 			return nil, fmt.Errorf("submit: count offering %d: %w", offeringID, err)
 		}
+		preserved := preservedClaims[offeringID]
+		current := count - preserved
+		if current < 0 {
+			current = 0
+		}
 		s := &slot{
 			capacity:  offering.Capacity,
-			current:   count,
-			preserved: preservedClaims[offeringID],
+			current:   current,
+			preserved: preserved,
 		}
 		slots[offeringID] = s
 		return s, nil

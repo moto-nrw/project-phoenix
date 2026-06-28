@@ -223,6 +223,11 @@ func (rs *Resource) Router() chi.Router {
 		// effective date and continue with a successor template.
 		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 			Post("/templates/{id}/split", rs.splitTemplate)
+		// "Dieser und alle folgenden löschen" — cap the template at the
+		// effective date without creating a successor and remove planned
+		// future instances.
+		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+			Post("/templates/{id}/end", rs.endTemplate)
 		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 			Delete("/templates/{id}", rs.archiveTemplate)
 	})

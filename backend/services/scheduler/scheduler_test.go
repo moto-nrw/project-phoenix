@@ -1188,6 +1188,9 @@ func (m *mockActiveService) CheckInStudent(_ context.Context, _, _, _ int64, _ b
 func (m *mockActiveService) CheckOutStudent(_ context.Context, _, _ int64, _ bool) (*activeService.AttendanceResult, error) {
 	return nil, nil
 }
+func (m *mockActiveService) CheckOutStudentFromDevice(_ context.Context, _, _ int64) (*activeService.AttendanceResult, error) {
+	return nil, nil
+}
 func (m *mockActiveService) CheckTeacherStudentAccess(_ context.Context, _, _ int64) (bool, error) {
 	return false, nil
 }
@@ -2357,13 +2360,16 @@ func (m *mockBreakAutoEnder) AutoEndExpiredBreaks(_ context.Context) (int, error
 }
 
 func TestWaitUntilNextMinute_ShutdownDuringWait(t *testing.T) {
-	s := &Scheduler{done: make(chan struct{}), logger: slog.Default()}
-	go func() {
-		time.Sleep(50 * time.Millisecond)
-		close(s.done)
-	}()
-	result := s.waitUntilNextMinute()
-	assert.False(t, result, "should return false when shutdown signal fires during wait")
+	synctest.Test(t, func(t *testing.T) {
+		s := &Scheduler{done: make(chan struct{}), logger: slog.Default()}
+		go func() {
+			time.Sleep(50 * time.Millisecond)
+			close(s.done)
+		}()
+
+		result := s.waitUntilNextMinute()
+		assert.False(t, result, "should return false when shutdown signal fires during wait")
+	})
 }
 
 func TestScheduleCleanupTask_DisabledByEnv(t *testing.T) {

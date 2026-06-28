@@ -11,6 +11,7 @@ import "@testing-library/jest-dom/vitest";
 const mocks = vi.hoisted(() => ({
   decideAdminChild: vi.fn(),
   exportCareUsageReport: vi.fn(),
+  exportPhaseClassRoster: vi.fn(),
   exportPhaseRegistrations: vi.fn(),
   getCareUsageReport: vi.fn(),
   listAdminRequests: vi.fn(),
@@ -42,9 +43,18 @@ vi.mock("~/lib/enrollment-report-api", async (importOriginal) => {
   return {
     ...actual,
     exportCareUsageReport: mocks.exportCareUsageReport,
+    exportPhaseClassRoster: mocks.exportPhaseClassRoster,
     getCareUsageReport: mocks.getCareUsageReport,
   };
 });
+
+vi.mock("~/lib/swr", () => ({
+  useSWRAuth: () => ({
+    data: ["1a", "2b"],
+    error: undefined,
+    isLoading: false,
+  }),
+}));
 
 vi.mock("~/components/tenant/tenant-provider", () => ({
   useTenantSlugSafe: () => "demo",
@@ -63,6 +73,12 @@ vi.mock("~/lib/breadcrumb-context", () => ({
 
 vi.mock("~/lib/enrollment-public-url", () => ({
   useEnrollmentPublicUrl: () => "http://demo.localhost:3000/enroll/1",
+}));
+
+vi.mock("~/lib/api", () => ({
+  studentService: {
+    getStudents: vi.fn(),
+  },
 }));
 
 import { AdminEnrollmentPhaseDetail } from "./admin-enrollment-phase-detail";
@@ -93,7 +109,6 @@ const requests = [
     guardian_last_name: "Muster",
     guardian_email: "eva@example.test",
     submitted_at: "2026-06-18T11:15:00Z",
-    status_token: "token",
     children: [
       {
         id: "20",
@@ -214,6 +229,7 @@ beforeEach(() => {
     report({ filters }),
   );
   mocks.exportCareUsageReport.mockResolvedValue(undefined);
+  mocks.exportPhaseClassRoster.mockResolvedValue(undefined);
   mocks.exportPhaseRegistrations.mockResolvedValue(undefined);
   mocks.decideAdminChild.mockResolvedValue({ id: "20", status: "approved" });
 });
@@ -354,6 +370,34 @@ describe("AdminEnrollmentPhaseDetail", () => {
       expect(mocks.exportCareUsageReport).toHaveBeenCalledWith(
         expect.objectContaining({ status: "all" }),
         "docx",
+      );
+    });
+  });
+
+  it("exports a phase-aware class roster for the selected class", async () => {
+    await renderPhase();
+
+    fireEvent.click(
+      screen.getByRole("combobox", { name: "Klasse für Klassenliste" }),
+    );
+    fireEvent.click(screen.getByRole("option", { name: "1a" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Klassenliste exportieren" }),
+    );
+    const rosterMenu = screen.getByRole("menu", {
+      name: "Klassenliste exportieren",
+    });
+    fireEvent.click(
+      within(rosterMenu).getByRole("menuitem", {
+        name: "Als PDF exportieren",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.exportPhaseClassRoster).toHaveBeenCalledWith(
+        "1",
+        "1a",
+        "pdf",
       );
     });
   });

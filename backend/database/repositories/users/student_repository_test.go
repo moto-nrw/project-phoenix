@@ -607,6 +607,24 @@ func TestStudentRepository_FindBySchoolClass(t *testing.T) {
 		assert.Len(t, students, 2)
 	})
 
+	t.Run("finds students by trimmed school class", func(t *testing.T) {
+		uniqueClass := fmt.Sprintf("TrimmedClass%d", time.Now().UnixNano())
+		student := testpkg.CreateTestStudent(t, db, "TrimmedClass", "Test", uniqueClass)
+		defer cleanupStudentRecords(t, db, student.ID)
+		_, err := db.NewUpdate().
+			TableExpr(`users.students`).
+			Set(`school_class = ?`, "  "+uniqueClass+"  ").
+			Where(`id = ?`, student.ID).
+			Exec(ctx)
+		require.NoError(t, err)
+
+		students, err := repo.FindBySchoolClass(ctx, uniqueClass)
+
+		require.NoError(t, err)
+		require.Len(t, students, 1)
+		assert.Equal(t, student.ID, students[0].ID)
+	})
+
 	t.Run("returns empty slice for non-existent class", func(t *testing.T) {
 		students, err := repo.FindBySchoolClass(ctx, "NonExistent99XYZ")
 		require.NoError(t, err)

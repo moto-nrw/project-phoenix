@@ -80,6 +80,57 @@ describe("CustomSelect", () => {
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
 
+  it("keeps Escape from reaching document listeners while the trigger owns an open listbox", () => {
+    const onDocumentKeyDown = vi.fn();
+    document.addEventListener("keydown", onDocumentKeyDown);
+
+    try {
+      render(
+        <CustomSelect
+          value=""
+          options={options}
+          onChange={vi.fn()}
+          ariaLabel="Auswahl"
+        />,
+      );
+
+      const trigger = screen.getByRole("combobox", { name: "Auswahl" });
+      fireEvent.click(trigger);
+      fireEvent.keyDown(trigger, { key: "Escape" });
+
+      expect(onDocumentKeyDown).not.toHaveBeenCalled();
+      expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    } finally {
+      document.removeEventListener("keydown", onDocumentKeyDown);
+    }
+  });
+
+  it("keeps Escape from reaching document listeners while an option owns focus", () => {
+    const onDocumentKeyDown = vi.fn();
+    document.addEventListener("keydown", onDocumentKeyDown);
+
+    try {
+      render(
+        <CustomSelect
+          value=""
+          options={options}
+          onChange={vi.fn()}
+          ariaLabel="Auswahl"
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("combobox", { name: "Auswahl" }));
+      fireEvent.keyDown(screen.getByRole("option", { name: "Erste Option" }), {
+        key: "Escape",
+      });
+
+      expect(onDocumentKeyDown).not.toHaveBeenCalled();
+      expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    } finally {
+      document.removeEventListener("keydown", onDocumentKeyDown);
+    }
+  });
+
   it("ignores disabled options", () => {
     const onChange = vi.fn();
     render(

@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -32,6 +33,25 @@ func setupActivityService(t *testing.T, db *bun.DB) activities.ActivityService {
 // cleanupGroup is a test helper to delete a group with admin permission (for cleanup purposes)
 func cleanupGroup(service activities.ActivityService, ctx context.Context, groupID int64) {
 	_ = service.DeleteGroup(ctx, groupID, 0, true) // 0 staff ID, true = admin permission
+}
+
+type fakeActiveEnrollmentRepo struct {
+	activitiesModels.StudentEnrollmentRepository
+	enrollments []*activitiesModels.StudentEnrollment
+	err         error
+	calls       int
+	studentIDs  []int64
+	onDate      timezone.Date
+}
+
+func (r *fakeActiveEnrollmentRepo) FindActiveByStudentIDs(ctx context.Context, studentIDs []int64, onDate timezone.Date) ([]*activitiesModels.StudentEnrollment, error) {
+	r.calls++
+	r.studentIDs = append([]int64(nil), studentIDs...)
+	r.onDate = onDate
+	if r.err != nil {
+		return nil, r.err
+	}
+	return r.enrollments, nil
 }
 
 // =============================================================================
@@ -665,6 +685,62 @@ func TestActivityService_GetStudentEnrollments(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.GreaterOrEqual(t, len(result), 1)
+	})
+}
+
+func TestActivityService_GetActiveStudentEnrollmentsByStudentIDs(t *testing.T) {
+	onDate := timezone.NewDate(2026, time.September, 15)
+
+	t.Run("returns empty map without repository call for empty input", func(t *testing.T) {
+		repo := &fakeActiveEnrollmentRepo{}
+		service, err := activities.NewService(nil, nil, nil, nil, repo, nil, nil)
+		require.NoError(t, err)
+
+		result, err := service.GetActiveStudentEnrollmentsByStudentIDs(testpkg.TenantContext(1), nil, onDate)
+
+		require.NoError(t, err)
+		assert.Empty(t, result)
+		assert.Zero(t, repo.calls)
+	})
+
+	t.Run("wraps repository errors", func(t *testing.T) {
+		repo := &fakeActiveEnrollmentRepo{err: errors.New("database unavailable")}
+		service, err := activities.NewService(nil, nil, nil, nil, repo, nil, nil)
+		require.NoError(t, err)
+
+		result, err := service.GetActiveStudentEnrollmentsByStudentIDs(testpkg.TenantContext(1), []int64{10}, onDate)
+
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "get active student enrollments by student IDs")
+		assert.Equal(t, []int64{10}, repo.studentIDs)
+		assert.Equal(t, onDate, repo.onDate)
+	})
+
+	t.Run("groups active enrollments by student and de-duplicates groups", func(t *testing.T) {
+		groupA := &activitiesModels.Group{Model: base.Model{ID: 101}, Name: "A"}
+		groupB := &activitiesModels.Group{Model: base.Model{ID: 202}, Name: "B"}
+		repo := &fakeActiveEnrollmentRepo{
+			enrollments: []*activitiesModels.StudentEnrollment{
+				nil,
+				{StudentID: 0, ActivityGroupID: 999},
+				{StudentID: 10, ActivityGroupID: groupA.ID, ActivityGroup: groupA},
+				{StudentID: 10, ActivityGroupID: groupA.ID, ActivityGroup: groupA},
+				{StudentID: 10, ActivityGroupID: 303},
+				{StudentID: 20, ActivityGroupID: groupB.ID, ActivityGroup: groupB},
+			},
+		}
+		service, err := activities.NewService(nil, nil, nil, nil, repo, nil, nil)
+		require.NoError(t, err)
+
+		result, err := service.GetActiveStudentEnrollmentsByStudentIDs(testpkg.TenantContext(1), []int64{10, 20}, onDate)
+
+		require.NoError(t, err)
+		require.Len(t, result[10], 2)
+		assert.Equal(t, int64(101), result[10][0].ID)
+		assert.Equal(t, int64(303), result[10][1].ID)
+		require.Len(t, result[20], 1)
+		assert.Equal(t, groupB, result[20][0])
 	})
 }
 

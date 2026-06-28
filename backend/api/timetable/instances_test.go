@@ -676,6 +676,19 @@ func TestDeleteInstance_InvalidTransition(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "invalid_transition")
 }
 
+func TestDeleteInstance_AmbiguousTemplateInstanceDelete(t *testing.T) {
+	mock := &mockInstanceService{deleteErr: &wrappedErr{inner: scheduleSvc.ErrAmbiguousTemplateInstanceDelete}}
+	rs := NewResource(Dependencies{InstanceService: mock})
+	router := chi.NewRouter()
+	router.Delete("/instances/{id}", rs.deleteInstance)
+
+	w := doDelete(t, router, "/instances/1")
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.Contains(t, w.Body.String(), "ambiguous_template_instance_delete")
+	assert.Contains(t, w.Body.String(), "mehrere Termine")
+}
+
 func TestDeleteInstance_InternalError(t *testing.T) {
 	mock := &mockInstanceService{deleteErr: errors.New("db failure")}
 	rs := NewResource(Dependencies{InstanceService: mock})
@@ -1036,6 +1049,14 @@ func TestRenderInstanceLifecycleError(t *testing.T) {
 		renderInstanceLifecycleError(w, r, scheduleSvc.ErrInvalidInstanceTransition)
 		assert.Equal(t, http.StatusConflict, w.Code)
 		assert.Contains(t, w.Body.String(), "invalid_transition")
+	})
+
+	t.Run("ambiguous-template-instance-delete", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		renderInstanceLifecycleError(w, r, scheduleSvc.ErrAmbiguousTemplateInstanceDelete)
+		assert.Equal(t, http.StatusConflict, w.Code)
+		assert.Contains(t, w.Body.String(), "ambiguous_template_instance_delete")
 	})
 
 	t.Run("unknown-error-500", func(t *testing.T) {

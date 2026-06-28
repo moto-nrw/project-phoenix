@@ -415,6 +415,7 @@ backend/server.log
 # IDE configurations
 .idea/
 .vscode/
+.serena/
 # Docker compose files should use templates
 docker-compose.yml
 docker-compose.prod.yml

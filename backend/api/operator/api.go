@@ -33,6 +33,7 @@ type Resource struct {
 	authRateLimiter         func(http.Handler) http.Handler
 	emailConfirmRateLimiter func(http.Handler) http.Handler
 	invitationRateLimiter   func(http.Handler) http.Handler
+	operatorLookup          OperatorLookup
 }
 
 // ResourceConfig holds dependencies for the operator resource
@@ -118,6 +119,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		invitationsResource:   NewInvitationsResource(cfg.InvitationService),
 		unregisteredTagScans:  cfg.UnregisteredTagScanService,
 		tokenAuth:             tokenAuth,
+		operatorLookup:        cfg.AuthService,
 	}
 	if cfg.SettingsService != nil {
 		resource.settingsResource = NewSettingsResource(cfg.SettingsService, cfg.DB, cfg.Broadcaster, cfg.SchoolService, cfg.ActiveService)
@@ -201,6 +203,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(rs.tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 		r.Use(RequiresOperatorScope)
+		r.Use(RequiresActiveOperator(rs.operatorLookup))
 
 		// Passkey management for the currently-authenticated operator.
 		// Keep these as individual leaves instead of r.Route("/auth/passkeys", ...)

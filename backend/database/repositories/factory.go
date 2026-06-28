@@ -155,6 +155,7 @@ type Factory struct {
 	AnnouncementView         platformModels.AnnouncementViewRepository
 	OperatorAuditLog         platformModels.OperatorAuditLogRepository
 	OperatorEmailChangeToken platformModels.OperatorEmailChangeTokenRepository
+	OperatorRefreshToken     platformModels.OperatorRefreshTokenRepository
 	OperatorInvitationToken  platformModels.OperatorInvitationTokenRepository
 	OperatorSummaries        platformModels.OperatorSummariesRepository
 	School                   platformModels.SchoolRepository
@@ -174,6 +175,8 @@ type Factory struct {
 	RequestGuardian      enrollmentModels.RequestGuardianRepository
 	CareOffering         enrollmentModels.CareOfferingRepository
 	RequestChildOffering enrollmentModels.RequestChildOfferingRepository
+	ChangeRequest        enrollmentModels.ChangeRequestRepository
+	ChangeRequestMessage enrollmentModels.ChangeRequestMessageRepository
 	SubmissionRateLimit  enrollmentModels.SubmissionRateLimitRepository
 	Phase                enrollmentModels.PhaseRepository
 
@@ -306,6 +309,7 @@ func NewFactory(db *bun.DB) *Factory {
 		AnnouncementView:         platformRepo.NewAnnouncementViewRepository(db),
 		OperatorAuditLog:         platformRepo.NewOperatorAuditLogRepository(db),
 		OperatorEmailChangeToken: platformRepo.NewOperatorEmailChangeTokenRepository(db),
+		OperatorRefreshToken:     platformRepo.NewOperatorRefreshTokenRepository(db),
 		OperatorInvitationToken:  platformRepo.NewOperatorInvitationTokenRepository(db),
 		OperatorSummaries:        platformRepo.NewOperatorSummariesRepository(db),
 		School:                   platformRepo.NewSchoolRepository(db),
@@ -324,6 +328,8 @@ func NewFactory(db *bun.DB) *Factory {
 		RequestGuardian:      enrollment.NewRequestGuardianRepository(db),
 		CareOffering:         enrollment.NewCareOfferingRepository(db),
 		RequestChildOffering: enrollment.NewRequestChildOfferingRepository(db),
+		ChangeRequest:        enrollment.NewChangeRequestRepository(db),
+		ChangeRequestMessage: enrollment.NewChangeRequestMessageRepository(db),
 		SubmissionRateLimit:  enrollment.NewSubmissionRateLimitRepository(db),
 		Phase:                enrollment.NewPhaseRepository(db),
 

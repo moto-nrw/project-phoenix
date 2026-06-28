@@ -68,9 +68,10 @@ const (
 // carries the given status - handy for "show me everything still
 // awaiting a decision".
 type RequestListFilters struct {
-	PhaseID          int64
-	ChildStatus      string
-	CreatedStudentID int64
+	PhaseID           int64
+	ChildStatus       string
+	CreatedStudentID  int64
+	CreatedStudentIDs []int64
 }
 
 // DuplicateChildKey identifies one (first_name, last_name) pair the
@@ -98,6 +99,7 @@ type RequestRepository interface {
 	// UpdateGuardianData writes the guardian-editable fields (names, phone,
 	// consent flags, custom answers) and bumps updated_at.
 	UpdateGuardianData(ctx context.Context, req *Request) error
+	UpdateGuardianDataWithEmail(ctx context.Context, req *Request) error
 
 	// MarkWithdrawn stamps withdrawn_at and bumps updated_at.
 	MarkWithdrawn(ctx context.Context, requestID int64, withdrawnAt time.Time) error
@@ -109,6 +111,7 @@ type RequestRepository interface {
 	// double-submits without affecting different parents or different
 	// child names.
 	FindActiveDuplicate(ctx context.Context, phaseID int64, guardianEmail string, children []DuplicateChildKey) ([]DuplicateChildKey, error)
+	FindActiveDuplicateExcludingRequest(ctx context.Context, phaseID int64, guardianEmail string, children []DuplicateChildKey, excludedRequestID int64) ([]DuplicateChildKey, error)
 
 	// ExistsByPhaseID reports whether any request row references the
 	// given phase.

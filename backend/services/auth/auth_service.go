@@ -37,6 +37,7 @@ type ServiceConfig struct {
 	Dispatcher          *email.Dispatcher
 	DefaultFrom         email.Email
 	FrontendURL         string
+	ParentsURL          string
 	PasswordResetExpiry time.Duration
 	Settings            configSvc.SettingsService
 }
@@ -59,6 +60,7 @@ func NewServiceConfig(
 		Dispatcher:          dispatcher,
 		DefaultFrom:         defaultFrom,
 		FrontendURL:         frontendURL,
+		ParentsURL:          frontendURL,
 		PasswordResetExpiry: passwordResetExpiry,
 	}, nil
 }
@@ -70,6 +72,7 @@ type Service struct {
 	dispatcher          *email.Dispatcher
 	defaultFrom         email.Email
 	frontendURL         string
+	parentsURL          string
 	passwordResetExpiry time.Duration
 	jwtExpiry           time.Duration
 	jwtRefreshExpiry    time.Duration
@@ -115,6 +118,7 @@ func NewService(
 		dispatcher:          config.Dispatcher,
 		defaultFrom:         config.DefaultFrom,
 		frontendURL:         config.FrontendURL,
+		parentsURL:          config.ParentsURL,
 		passwordResetExpiry: config.PasswordResetExpiry,
 		jwtExpiry:           tokenAuth.JwtExpiry,
 		jwtRefreshExpiry:    tokenAuth.JwtRefreshExpiry,
@@ -142,6 +146,7 @@ func (s *Service) WithTx(tx bun.Tx) interface{} {
 		dispatcher:          s.dispatcher,
 		defaultFrom:         s.defaultFrom,
 		frontendURL:         s.frontendURL,
+		parentsURL:          s.parentsURL,
 		passwordResetExpiry: s.passwordResetExpiry,
 		jwtExpiry:           s.jwtExpiry,
 		jwtRefreshExpiry:    s.jwtRefreshExpiry,

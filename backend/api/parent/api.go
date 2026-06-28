@@ -43,10 +43,9 @@ type Resource struct {
 	authRateLimiter       func(http.Handler) http.Handler
 }
 
-// SetAuthRateLimiter sets the rate limiter middleware for the public parent
-// login endpoint. Mirrors the tenant and operator wiring in api/base.go so
-// brute-force attempts return 429 — which the frontend NextAuth provider
-// translates into the localized "Zu viele Anmeldeversuche" error code.
+// SetAuthRateLimiter sets the rate limiter middleware for public parent auth
+// endpoints. Mirrors the tenant and operator wiring in api/base.go so
+// brute-force attempts return 429.
 func (rs *Resource) SetAuthRateLimiter(mw func(http.Handler) http.Handler) {
 	rs.authRateLimiter = mw
 }
@@ -86,6 +85,8 @@ func (rs *Resource) Router() chi.Router {
 			r.Use(rs.authRateLimiter)
 		}
 		r.Post("/login", rs.login)
+		r.Post("/password-reset", rs.initiatePasswordReset)
+		r.Post("/password-reset/confirm", rs.resetPassword)
 	})
 
 	// Authenticated parent routes — all require scope=parent.

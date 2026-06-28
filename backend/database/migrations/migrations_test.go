@@ -1,11 +1,15 @@
 package migrations
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/uptrace/bun"
 )
 
 func TestNoDuplicateMigrationVersions(t *testing.T) {
@@ -107,4 +111,43 @@ func TestScheduleTimeframesAreMigratedToTimezoneFreeClockTimes(t *testing.T) {
 			t.Fatalf("timeframe clock migration must contain %q", required)
 		}
 	}
+}
+
+func TestOperatorRefreshTokenMigrationUpDown(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := context.Background()
+
+	if err := downOperatorRefreshTokens(ctx, db); err != nil {
+		t.Fatalf("pre-clean operator refresh token migration: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = upOperatorRefreshTokens(context.Background(), db)
+	})
+
+	if err := upOperatorRefreshTokens(ctx, db); err != nil {
+		t.Fatalf("run operator refresh token migration: %v", err)
+	}
+	if !relationExists(t, db, "platform.operator_refresh_tokens") {
+		t.Fatal("operator refresh token table was not created")
+	}
+	if !relationExists(t, db, "platform.idx_operator_refresh_tokens_operator_id") {
+		t.Fatal("operator refresh token operator_id index was not created")
+	}
+
+	if err := downOperatorRefreshTokens(ctx, db); err != nil {
+		t.Fatalf("rollback operator refresh token migration: %v", err)
+	}
+	if relationExists(t, db, "platform.operator_refresh_tokens") {
+		t.Fatal("operator refresh token table still exists after rollback")
+	}
+}
+
+func relationExists(t *testing.T, db *bun.DB, relation string) bool {
+	t.Helper()
+	var exists bool
+	if err := db.NewRaw(`SELECT to_regclass(?) IS NOT NULL`, relation).Scan(context.Background(), &exists); err != nil {
+		t.Fatalf("check relation %s: %v", relation, err)
+	}
+	return exists
 }
