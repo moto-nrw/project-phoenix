@@ -454,11 +454,7 @@ function TimetableDisabledState() {
 function TimetablesContent() {
   const searchParams = useSearchParams();
   const { status } = useSession({ required: true });
-  const {
-    success: toastSuccess,
-    error: toastError,
-    warning: toastWarning,
-  } = useToast();
+  const toast = useToast();
   const tenantMutate = useTenantMutate();
 
   const [view, setView] = useState<TimetableView>(() =>
@@ -919,8 +915,8 @@ function TimetablesContent() {
   useEffect(() => {
     if (!errorMessage) return;
     logger.error("week_load_failed", { error: errorMessage });
-    toastError(`Betreuungsplan konnte nicht geladen werden: ${errorMessage}`);
-  }, [errorMessage, toastError]);
+    toast.error(`Betreuungsplan konnte nicht geladen werden: ${errorMessage}`);
+  }, [errorMessage, toast]);
 
   useEffect(() => {
     if (!periodsError) return;
@@ -929,8 +925,8 @@ function TimetablesContent() {
         ? periodsError.message
         : String(periodsError);
     logger.error("periods_load_failed", { error: message });
-    toastError(`Planungszeiträume konnten nicht geladen werden: ${message}`);
-  }, [periodsError, toastError]);
+    toast.error(`Planungszeiträume konnten nicht geladen werden: ${message}`);
+  }, [periodsError, toast]);
 
   // Phase 2: silently create the default school-year period when the
   // tenant has none. The backend POST /periods/bootstrap is idempotent;
@@ -975,8 +971,8 @@ function TimetablesContent() {
     logger.error("plan_quality_load_failed", {
       error: planQualityErrorMessage,
     });
-    toastError("Planstatus konnte nicht vollständig geladen werden.");
-  }, [planQualityErrorMessage, toastError]);
+    toast.error("Planstatus konnte nicht vollständig geladen werden.");
+  }, [planQualityErrorMessage, toast]);
 
   // Memoise on data?.instances so the reference is stable between renders
   // when SWR returns the same response (the linter warns when arrays are
@@ -1144,18 +1140,18 @@ function TimetablesContent() {
         if (action === "start") {
           const res = await timetableService.start(selectedInstance.id);
           if (res.warnings.length > 0) {
-            toastSuccess(
+            toast.success(
               `Gestartet: ${res.warnings.length} Hinweis(e): ${res.warnings.map((w) => w.message).join(", ")}`,
             );
           } else {
-            toastSuccess("Aktivität gestartet");
+            toast.success("Aktivität gestartet");
           }
         } else if (action === "complete") {
           await timetableService.complete(selectedInstance.id);
-          toastSuccess("Aktivität beendet");
+          toast.success("Aktivität beendet");
         } else {
           await timetableService.cancel(selectedInstance.id);
-          toastSuccess("Aktivität abgesagt");
+          toast.success("Aktivität abgesagt");
         }
         await tenantMutate(swrKey);
         await tenantMutate(gapsSWRKey);
@@ -1166,7 +1162,7 @@ function TimetablesContent() {
           instance_id: selectedInstance.id,
           error: err instanceof Error ? err.message : String(err),
         });
-        toastError(
+        toast.error(
           err instanceof Error
             ? err.message
             : "Aktion konnte nicht durchgeführt werden",
@@ -1180,8 +1176,7 @@ function TimetablesContent() {
       gapsSWRKey,
       exceptionConflictsSWRKey,
       tenantMutate,
-      toastSuccess,
-      toastError,
+      toast,
     ],
   );
 
@@ -1193,11 +1188,11 @@ function TimetablesContent() {
           substituteStaffId,
           date,
         );
-        toastSuccess(
+        toast.success(
           `Ersatz eingetragen: ${result.affectedInstances.length} Termin(e) aktualisiert`,
         );
         if (result.warnings.length > 0) {
-          toastError(
+          toast.error(
             `${result.warnings.length} mögliche Zeitüberschneidung(en) prüfen.`,
           );
         }
@@ -1211,7 +1206,7 @@ function TimetablesContent() {
           date,
           error: err instanceof Error ? err.message : String(err),
         });
-        toastError(
+        toast.error(
           err instanceof Error
             ? err.message
             : "Ersatz konnte nicht eingetragen werden",
@@ -1219,14 +1214,7 @@ function TimetablesContent() {
         throw err;
       }
     },
-    [
-      exceptionConflictsSWRKey,
-      gapsSWRKey,
-      swrKey,
-      tenantMutate,
-      toastError,
-      toastSuccess,
-    ],
+    [exceptionConflictsSWRKey, gapsSWRKey, swrKey, tenantMutate, toast],
   );
 
   const handleAttendancePatch = useCallback(
@@ -1237,7 +1225,7 @@ function TimetablesContent() {
     ) => {
       try {
         await timetableService.patchAttendance(instanceId, studentId, body);
-        toastSuccess("Kinderstatus aktualisiert");
+        toast.success("Kinderstatus aktualisiert");
         await tenantMutate(swrKey);
         await tenantMutate(exceptionConflictsSWRKey);
       } catch (err) {
@@ -1246,7 +1234,7 @@ function TimetablesContent() {
           student_id: studentId,
           error: err instanceof Error ? err.message : String(err),
         });
-        toastError(
+        toast.error(
           err instanceof Error
             ? err.message
             : "Kinderstatus konnte nicht aktualisiert werden",
@@ -1254,14 +1242,14 @@ function TimetablesContent() {
         throw err;
       }
     },
-    [exceptionConflictsSWRKey, swrKey, tenantMutate, toastError, toastSuccess],
+    [exceptionConflictsSWRKey, swrKey, tenantMutate, toast],
   );
 
   const handleDeleteCancelledInstance = useCallback(
     async (instance: EnrichedInstance) => {
       try {
         await timetableService.deleteCancelled(instance.id);
-        toastSuccess("Termin gelöscht");
+        toast.success("Termin gelöscht");
         updateUrlParams({ instance: null });
         await tenantMutate(swrKey);
         await tenantMutate(gapsSWRKey);
@@ -1271,7 +1259,7 @@ function TimetablesContent() {
           instance_id: instance.id,
           error: err instanceof Error ? err.message : String(err),
         });
-        toastError(
+        toast.error(
           err instanceof Error
             ? err.message
             : "Termin konnte nicht gelöscht werden",
@@ -1284,8 +1272,7 @@ function TimetablesContent() {
       gapsSWRKey,
       swrKey,
       tenantMutate,
-      toastError,
-      toastSuccess,
+      toast,
       updateUrlParams,
     ],
   );
@@ -1300,7 +1287,7 @@ function TimetablesContent() {
             effective_date: instance.date,
           },
         );
-        toastSuccess(
+        toast.success(
           `Regeltermin ab ${formatDate(result.effectiveDate)} beendet`,
         );
         updateUrlParams({ instance: null });
@@ -1317,7 +1304,7 @@ function TimetablesContent() {
           effective_date: instance.date,
           error: err instanceof Error ? err.message : String(err),
         });
-        toastError(
+        toast.error(
           err instanceof Error
             ? err.message
             : "Folgetermine konnten nicht gelöscht werden",
@@ -1331,8 +1318,7 @@ function TimetablesContent() {
       swrKey,
       templatePeriodID,
       tenantMutate,
-      toastError,
-      toastSuccess,
+      toast,
       updateUrlParams,
     ],
   );
@@ -1343,7 +1329,7 @@ function TimetablesContent() {
         const result = await timetableService.endTemplate(template.id, {
           effective_date: effectiveDate,
         });
-        toastSuccess(
+        toast.success(
           `Regeltermin ab ${formatDate(result.effectiveDate)} gelöscht`,
         );
         setEventModalOpen(false);
@@ -1362,7 +1348,7 @@ function TimetablesContent() {
           effective_date: effectiveDate,
           error: err instanceof Error ? err.message : String(err),
         });
-        toastError(
+        toast.error(
           err instanceof Error
             ? err.message
             : "Regeltermin konnte nicht gelöscht werden",
@@ -1376,8 +1362,7 @@ function TimetablesContent() {
       swrKey,
       templatePeriodID,
       tenantMutate,
-      toastError,
-      toastSuccess,
+      toast,
     ],
   );
 
@@ -1449,7 +1434,7 @@ function TimetablesContent() {
         ? calendarPeriods.find((p) => p.id === periodId)
         : null;
       if (!period) {
-        toastWarning(
+        toast.warning(
           "Kein aktiver Planungszeitraum. Der Regeltermin kann nicht eingetragen werden.",
         );
         openPeriodCreate();
@@ -1479,13 +1464,13 @@ function TimetablesContent() {
         const warnings = Array.from(warningsByCode.values());
         if (warnings.length > 0) {
           for (const warning of warnings) {
-            toastWarning(warning.message);
+            toast.warning(warning.message);
           }
           if (warnings.some((w) => w.code === "no_active_period")) {
             openPeriodCreate();
           }
         } else {
-          toastSuccess(
+          toast.success(
             `${totalCreated} ${
               totalCreated === 1 ? "Termin" : "Termine"
             } für "${template.name}" angelegt`,
@@ -1499,7 +1484,7 @@ function TimetablesContent() {
           template_id: template.id,
           error: err instanceof Error ? err.message : String(err),
         });
-        toastError(
+        toast.error(
           err instanceof Error
             ? err.message
             : "Regeltermin konnte nicht eingetragen werden",
@@ -1514,9 +1499,7 @@ function TimetablesContent() {
       openPeriodCreate,
       swrKey,
       tenantMutate,
-      toastError,
-      toastWarning,
-      toastSuccess,
+      toast,
     ],
   );
 
@@ -1526,7 +1509,7 @@ function TimetablesContent() {
     setArchiveLoading(true);
     try {
       await timetableService.archiveTemplate(archivingTemplate.id);
-      toastSuccess(`Regeltermin "${archivingTemplate.name}" archiviert`);
+      toast.success(`Regeltermin "${archivingTemplate.name}" archiviert`);
       setArchivingTemplate(null);
       if (templatePeriodID) {
         await tenantMutate(`timetable-templates-${templatePeriodID}`);
@@ -1543,7 +1526,7 @@ function TimetablesContent() {
         template_id: archivingTemplate.id,
         error: message,
       });
-      toastError(message);
+      toast.error(message);
     } finally {
       setArchiveLoading(false);
     }
@@ -1554,8 +1537,7 @@ function TimetablesContent() {
     swrKey,
     templatePeriodID,
     tenantMutate,
-    toastError,
-    toastSuccess,
+    toast,
   ]);
 
   if (status === "loading") {
@@ -1779,7 +1761,7 @@ function TimetablesContent() {
         }}
         onRepeat={(instance) => {
           if (assignedPeriods.length === 0) {
-            toastWarning(
+            toast.warning(
               "Lege zuerst einen Planungszeitraum für diese Woche an.",
             );
             openPeriodCreate();
