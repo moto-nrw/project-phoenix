@@ -20,7 +20,6 @@ import {
   DatabaseBreadcrumb,
   OgsGroupsBreadcrumb,
   ActiveSupervisionsBreadcrumb,
-  InvitationsBreadcrumb,
   EnrollmentBreadcrumb,
   ActivityBreadcrumb,
   RoomBreadcrumb,
@@ -308,11 +307,6 @@ function HeaderBreadcrumb({
     return (
       <ActiveSupervisionsBreadcrumb supervisionName={activeSupervisionName} />
     );
-  }
-
-  // Invitations page
-  if (pathname === "/invitations") {
-    return <InvitationsBreadcrumb />;
   }
 
   if (pageTypeInfo.isEnrollmentPage) {

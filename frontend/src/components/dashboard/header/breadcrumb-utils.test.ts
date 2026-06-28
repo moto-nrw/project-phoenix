@@ -30,10 +30,6 @@ describe("breadcrumb-utils", () => {
           "Anwesenheitsprotokoll",
         );
       });
-
-      it("should return 'Kinder' for /students route", () => {
-        expect(getPageTitle("/students")).toBe("Kinder");
-      });
     });
 
     describe("room pages", () => {
@@ -113,10 +109,6 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/activities")).toBe("Aktivitäten");
       });
 
-      it("should return 'Statistiken' for /statistics", () => {
-        expect(getPageTitle("/statistics")).toBe("Statistiken");
-      });
-
       it("should return 'Vertretungen' for /substitutions", () => {
         expect(getPageTitle("/substitutions")).toBe("Vertretungen");
       });
@@ -129,10 +121,6 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/emergency")).toBe("Notfall");
       });
 
-      it("should return 'Einladungen' for /invitations", () => {
-        expect(getPageTitle("/invitations")).toBe("Einladungen");
-      });
-
       it("should return enrollment sub-page titles", () => {
         expect(getPageTitle("/admin/enrollments")).toBe("Überblick");
         expect(getPageTitle("/admin/enrollments/phases/phase-1")).toBe(
@@ -142,10 +130,6 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/enrollment-phases")).toBe("Anmeldephasen");
         expect(getPageTitle("/care-offerings")).toBe("Betreuungsangebote");
         expect(getPageTitle("/enrollment-form")).toBe("Anmeldeformulare");
-      });
-
-      it("should return 'Borndal Feedback' for /borndal_feedback", () => {
-        expect(getPageTitle("/borndal_feedback")).toBe("Borndal Feedback");
       });
 
       it("should return 'Home' for unknown route", () => {

@@ -95,9 +95,6 @@ vi.mock("./header/breadcrumb-components", () => ({
   ActiveSupervisionsBreadcrumb: () => (
     <div data-testid="active-supervisions-breadcrumb">Active</div>
   ),
-  InvitationsBreadcrumb: () => (
-    <div data-testid="invitations-breadcrumb">Invitations</div>
-  ),
   ActivityBreadcrumb: () => (
     <div data-testid="activity-breadcrumb">Activity</div>
   ),
@@ -265,13 +262,6 @@ describe("Header", () => {
     expect(
       screen.getByTestId("active-supervisions-breadcrumb"),
     ).toBeInTheDocument();
-  });
-
-  it("renders invitations breadcrumb", () => {
-    mockUsePathname.mockReturnValue("/invitations");
-
-    render(<Header />);
-    expect(screen.getByTestId("invitations-breadcrumb")).toBeInTheDocument();
   });
 
   it("renders activity breadcrumb for activity detail pages", () => {

@@ -9,7 +9,6 @@ import {
   DatabaseBreadcrumb,
   OgsGroupsBreadcrumb,
   ActiveSupervisionsBreadcrumb,
-  InvitationsBreadcrumb,
   EnrollmentBreadcrumb,
   ActivityBreadcrumb,
   RoomBreadcrumb,
@@ -136,26 +135,6 @@ describe("ActiveSupervisionsBreadcrumb", () => {
 
     expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
     expect(screen.getByText("Raum 1.2")).toBeInTheDocument();
-  });
-});
-
-describe("InvitationsBreadcrumb", () => {
-  it("renders three-level breadcrumb", () => {
-    render(<InvitationsBreadcrumb />);
-
-    expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
-    expect(screen.getByText("Personal")).toBeInTheDocument();
-    expect(screen.getByText("Einladungen")).toBeInTheDocument();
-  });
-
-  it("links correctly", () => {
-    render(<InvitationsBreadcrumb />);
-
-    const databaseLink = screen.getByRole("link", { name: "Datenverwaltung" });
-    expect(databaseLink).toHaveAttribute("href", "/database");
-
-    const teachersLink = screen.getByRole("link", { name: "Personal" });
-    expect(teachersLink).toHaveAttribute("href", "/database/personal");
   });
 });
 
