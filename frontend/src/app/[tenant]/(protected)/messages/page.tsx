@@ -144,9 +144,17 @@ function MessagesInboxContent() {
                 Noch keine Nachrichten
               </h3>
               <p className="text-gray-600">
-                {messagingEnabled
-                  ? "Hier erscheinen Unterhaltungen mit den Eltern. Über `Neue Nachricht` können Sie selbst eine beginnen."
-                  : "Der Nachrichtenaustausch mit den Eltern ist für diese Schule deaktiviert."}
+                {messagingEnabled ? (
+                  <>
+                    Hier erscheinen Unterhaltungen mit den Eltern. Über{" "}
+                    <span className="font-medium text-gray-700">
+                      Neue Nachricht
+                    </span>{" "}
+                    können Sie selbst eine beginnen.
+                  </>
+                ) : (
+                  "Der Nachrichtenaustausch mit den Eltern ist für diese Schule deaktiviert."
+                )}
               </p>
             </div>
             {messagingEnabled && (

@@ -290,6 +290,10 @@ func (s *service) buildDetailFromMessages(ctx context.Context, thread *usersMode
 	// receipt rule can't drift between the two chats (the staff reader's own read
 	// is excluded by passing the thread's guardian as the "other" account).
 	parentmessaging.DecorateReadReceipts(ctx, s.readRepo, s.logger, thread.ID, thread.GuardianAccountID, messages)
+	// "Gelesen" receipt on the staff's OWN messages: flag staff messages the
+	// guardian has read, using the guardian's read cursor. Symmetric to the
+	// "OGS hat gelesen" receipt above so each side sees when the other has read.
+	parentmessaging.DecorateGuardianReadReceipts(ctx, s.readRepo, s.logger, thread.ID, messages)
 	detail := &ThreadDetail{
 		ThreadID:          thread.ID,
 		StudentID:         thread.StudentID,
@@ -380,6 +384,12 @@ func (s *service) PostMessage(ctx context.Context, threadID int64, body string) 
 	if err := parentmessaging.MarkReadToNewest(ctx, s.readRepo, thread.TenantID, thread.ID, accountID, messages); err != nil {
 		return nil, fmt.Errorf("messaging: mark read: %w", err)
 	}
+	// Re-stamp the "Gelesen" receipts on the returned snapshot: the client applies
+	// this list optimistically (revalidate:false), so without it the staff's older,
+	// guardian-read messages would lose their receipt until the next GET/SSE refresh.
+	// The just-sent message is unread by the guardian (cursor unchanged by our send),
+	// so it correctly stays unstamped.
+	parentmessaging.DecorateGuardianReadReceipts(ctx, s.readRepo, s.logger, thread.ID, messages)
 	s.broadcastAfterCommit(ctx, thread)
 	return messages, nil
 }

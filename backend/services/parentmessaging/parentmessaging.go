@@ -195,6 +195,33 @@ func DecorateReadReceipts(
 	usersModels.StampStaffReadReceipts(messages, cutoff)
 }
 
+// DecorateGuardianReadReceipts is the staff-side mirror of DecorateReadReceipts:
+// it stamps ReadByGuardian (the staff-facing "von den Eltern gelesen" indicator)
+// on every staff-authored message the thread's guardian has already read, using
+// the guardian's read cursor. The staff chat runs its snapshot through this so
+// staff can see whether the parent has read their reply — the symmetric
+// counterpart of the parent-facing "OGS hat gelesen" receipt. Like the staff
+// version, a transient lookup failure is logged and the indicator simply stays
+// hidden until the next load rather than blanking the chat. Guardian-only: the
+// parent never needs to be told it read its own conversation.
+func DecorateGuardianReadReceipts(
+	ctx context.Context,
+	readRepo usersModels.ParentMessageReadRepository,
+	logger *slog.Logger,
+	threadID int64,
+	messages []*usersModels.ParentMessage,
+) {
+	cutoff, err := readRepo.GuardianReadCursor(ctx, threadID)
+	if err != nil {
+		loggerOr(logger).Warn("parent messaging: guardian read-receipt lookup failed",
+			slog.Int64("thread_id", threadID),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+	usersModels.StampGuardianReadReceipts(messages, cutoff)
+}
+
 // Broadcast fires the parent-OGS SSE wake-up: the addressed guardian's own tabs
 // plus the tenant's staff (whose access-filtered inboxes refetch). Fire-and-forget
 // — a nil broadcaster or non-positive tenant is a no-op, and a delivery error is

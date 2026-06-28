@@ -429,6 +429,36 @@ func (r *ParentMessageReadRepository) LatestReadCursorByOther(ctx context.Contex
 	return &rows[0], nil
 }
 
+// GuardianReadCursor returns the read cursor of the thread's guardian account, or
+// nil when the guardian has not read anything yet. Drives the staff-facing "von
+// den Eltern gelesen" receipt. Unlike LatestReadCursorByOther (which aggregates
+// over every staff cursor and excludes the querying account), a thread has exactly
+// ONE guardian account (t.guardian_account_id), so this matches the single read
+// row for that account directly — no staff-membership gate, no aggregation. The
+// composite (last_read_at, last_read_message_id) is returned so the receipt
+// compares on the same tie-break the unread predicates use.
+func (r *ParentMessageReadRepository) GuardianReadCursor(ctx context.Context, threadID int64) (*users.ReadCursor, error) {
+	var rows []users.ReadCursor
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr("users.parent_message_reads AS r").
+		Join("JOIN users.parent_message_threads AS t ON t.id = r.thread_id").
+		ColumnExpr("r.last_read_at AS last_read_at").
+		ColumnExpr("r.last_read_message_id AS last_read_message_id").
+		Where("r.thread_id = ?", threadID).
+		Where("r.account_id = t.guardian_account_id").
+		Limit(1)
+	if where, val, ok := base.TenantWhere(ctx, "r"); ok {
+		query = query.Where(where, val)
+	}
+	if err := query.Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "guardian parent message read cursor", Err: err}
+	}
+	if len(rows) == 0 {
+		return nil, nil
+	}
+	return &rows[0], nil
+}
+
 // UnreadThreadCountForStaff counts threads with an unread guardian message
 // for the staff reader, within their visible student scope.
 func (r *ParentMessageReadRepository) UnreadThreadCountForStaff(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64) (int, error) {

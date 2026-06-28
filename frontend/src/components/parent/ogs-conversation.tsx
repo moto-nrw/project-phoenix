@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { ArrowLeft } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -51,6 +52,7 @@ export function OgsConversation({
   readonly showBack?: boolean;
   readonly showChild?: boolean;
 }) {
+  const t = useTranslations("parentOgsMessaging");
   const [thread, setThread] = useState<ThreadView | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -222,7 +224,7 @@ export function OgsConversation({
                 createdAt={message.created_at}
                 readReceiptLabel={
                   message.sender_kind === "guardian" && message.read_by_staff
-                    ? "Gelesen"
+                    ? t("readByStaff")
                     : undefined
                 }
               />

@@ -127,4 +127,10 @@ type ParentMessageReadRepository interface {
 	// "OGS hat gelesen" receipt, which must compare on the same composite the
 	// unread predicates use rather than the timestamp alone.
 	LatestReadCursorByOther(ctx context.Context, threadID, excludeAccountID int64) (*ReadCursor, error)
+	// GuardianReadCursor returns the read cursor of the thread's guardian account
+	// (t.guardian_account_id), or nil when the guardian has not read anything yet.
+	// Drives the staff-facing "von den Eltern gelesen" receipt — the mirror of
+	// LatestReadCursorByOther, but simpler: a thread has exactly ONE guardian
+	// account, so no aggregation over multiple readers is needed.
+	GuardianReadCursor(ctx context.Context, threadID int64) (*ReadCursor, error)
 }

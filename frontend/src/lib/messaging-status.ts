@@ -19,5 +19,10 @@ export interface ChatMessage {
   readonly sender_name: string;
   readonly body: string;
   readonly created_at: string; // ISO timestamp
+  // read_by_staff: a guardian message the OGS has read ("OGS hat gelesen",
+  // shown to the parent). read_by_guardian: a staff message the guardian has
+  // read ("Gelesen", shown to staff). Each side renders the receipt for its OWN
+  // messages the other side has read.
   readonly read_by_staff?: boolean;
+  readonly read_by_guardian?: boolean;
 }

@@ -84,12 +84,13 @@ type InboxThreadResponse struct {
 }
 
 type MessageResponse struct {
-	ID          string    `json:"id"`
-	SenderKind  string    `json:"sender_kind"`
-	SenderName  string    `json:"sender_name"`
-	Body        string    `json:"body"`
-	CreatedAt   time.Time `json:"created_at"`
-	ReadByStaff bool      `json:"read_by_staff,omitempty"`
+	ID             string    `json:"id"`
+	SenderKind     string    `json:"sender_kind"`
+	SenderName     string    `json:"sender_name"`
+	Body           string    `json:"body"`
+	CreatedAt      time.Time `json:"created_at"`
+	ReadByStaff    bool      `json:"read_by_staff,omitempty"`
+	ReadByGuardian bool      `json:"read_by_guardian,omitempty"`
 }
 
 type ThreadDetailResponse struct {
@@ -127,12 +128,13 @@ func toMessageResponses(messages []*usersModels.ParentMessage) []MessageResponse
 	out := make([]MessageResponse, 0, len(messages))
 	for _, m := range messages {
 		out = append(out, MessageResponse{
-			ID:          strconv.FormatInt(m.ID, 10),
-			SenderKind:  m.SenderKind,
-			SenderName:  m.SenderName,
-			Body:        m.Body,
-			CreatedAt:   m.CreatedAt,
-			ReadByStaff: m.ReadByStaff,
+			ID:             strconv.FormatInt(m.ID, 10),
+			SenderKind:     m.SenderKind,
+			SenderName:     m.SenderName,
+			Body:           m.Body,
+			CreatedAt:      m.CreatedAt,
+			ReadByStaff:    m.ReadByStaff,
+			ReadByGuardian: m.ReadByGuardian,
 		})
 	}
 	return out

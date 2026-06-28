@@ -251,6 +251,11 @@ function MessageThreadContent() {
                 own={message.sender_kind === "staff"}
                 senderName={message.sender_name}
                 createdAt={message.created_at}
+                readReceiptLabel={
+                  message.sender_kind === "staff" && message.read_by_guardian
+                    ? "Gelesen"
+                    : undefined
+                }
               />
             ))
           ) : loadError ? (
