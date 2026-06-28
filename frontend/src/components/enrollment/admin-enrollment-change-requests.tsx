@@ -23,6 +23,7 @@ import {
 } from "~/lib/enrollment-admin-api";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { createLogger } from "~/lib/logger";
+import { CustomSelect } from "~/components/ui/custom-select";
 
 const logger = createLogger({ component: "AdminEnrollmentChangeRequests" });
 
@@ -132,25 +133,23 @@ export function AdminEnrollmentChangeRequestsList() {
               und bei bestätigten Kindern in die Stammdaten übernommen.
             </p>
           </div>
-          <label className="block w-full sm:w-64">
+          <label
+            className="block w-full sm:w-64"
+            htmlFor="change-request-status-filter"
+          >
             <span className="text-xs font-semibold text-gray-500 uppercase">
               Status
             </span>
-            <select
+            <CustomSelect
+              id="change-request-status-filter"
               value={status}
-              onChange={(event) =>
-                setStatus(
-                  event.target.value as "" | AdminEnrollmentChangeRequestStatus,
-                )
+              onChange={(value) =>
+                setStatus(value as "" | AdminEnrollmentChangeRequestStatus)
               }
-              className="mt-2 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
-            >
-              {STATUS_OPTIONS.map((option) => (
-                <option key={option.value || "all"} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              ariaLabel="Status"
+              className="mt-2"
+              options={STATUS_OPTIONS}
+            />
           </label>
         </div>
 

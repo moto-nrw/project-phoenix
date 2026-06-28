@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
@@ -27,7 +27,10 @@ vi.mock("~/lib/tenant-path", () => ({
   useTenantAwarePath: () => (path: string) => path,
 }));
 
-import { AdminEnrollmentChangeRequestDetail } from "./admin-enrollment-change-requests";
+import {
+  AdminEnrollmentChangeRequestDetail,
+  AdminEnrollmentChangeRequestsList,
+} from "./admin-enrollment-change-requests";
 import type { AdminEnrollmentChangeRequest } from "~/lib/enrollment-admin-api";
 
 const baseChangeRequest: AdminEnrollmentChangeRequest = {
@@ -127,5 +130,39 @@ describe("AdminEnrollmentChangeRequestDetail", () => {
     expect(screen.getByText("Neuer Hinweis")).toBeInTheDocument();
     expect(screen.getByText("Telefon")).toBeInTheDocument();
     expect(screen.getByText("+49 221 555 991")).toBeInTheDocument();
+  });
+});
+
+describe("AdminEnrollmentChangeRequestsList", () => {
+  beforeEach(() => {
+    mocks.approveEnrollmentChangeRequest.mockReset();
+    mocks.askEnrollmentChangeRequestQuestion.mockReset();
+    mocks.getAdminEnrollmentChangeRequest.mockReset();
+    mocks.listAdminEnrollmentChangeRequests.mockReset();
+    mocks.rejectEnrollmentChangeRequest.mockReset();
+  });
+
+  it("filters status through the custom dropdown", async () => {
+    mocks.listAdminEnrollmentChangeRequests
+      .mockResolvedValueOnce([baseChangeRequest])
+      .mockResolvedValueOnce([]);
+
+    render(<AdminEnrollmentChangeRequestsList />);
+
+    await waitFor(() =>
+      expect(mocks.listAdminEnrollmentChangeRequests).toHaveBeenCalledWith({}),
+    );
+
+    const statusFilter = screen.getByRole("combobox", { name: "Status" });
+    expect(statusFilter.tagName).toBe("BUTTON");
+
+    fireEvent.click(statusFilter);
+    fireEvent.click(screen.getByRole("option", { name: "Freigegeben" }));
+
+    await waitFor(() =>
+      expect(mocks.listAdminEnrollmentChangeRequests).toHaveBeenLastCalledWith({
+        status: "approved",
+      }),
+    );
   });
 });
