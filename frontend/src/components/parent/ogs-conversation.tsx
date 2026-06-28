@@ -222,7 +222,7 @@ export function OgsConversation({
                 createdAt={message.created_at}
                 readReceiptLabel={
                   message.sender_kind === "guardian" && message.read_by_staff
-                    ? "OGS hat gelesen"
+                    ? "Gelesen"
                     : undefined
                 }
               />

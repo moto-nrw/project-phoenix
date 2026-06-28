@@ -24,7 +24,7 @@ export function ChatBubble({
   senderName: string;
   createdAt: string;
   // Shown after the timestamp on an own message the other side has read, e.g.
-  // "OGS hat gelesen". Omit to show no read receipt.
+  // "Gelesen". Omit to show no read receipt.
   readReceiptLabel?: string;
 }>) {
   return (
