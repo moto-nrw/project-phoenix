@@ -72,10 +72,8 @@ function getMainRouteTitle(pathname: string): string {
     "/ogs-groups": "Meine Gruppe",
     "/active-supervisions": "Aktuelle Aufsicht",
     "/staff": "Mitarbeiter",
-    "/students": "Kinder",
     "/rooms": "Räume",
     "/activities": "Aktivitäten",
-    "/statistics": "Statistiken",
     "/substitutions": "Vertretungen",
     "/timetables": "Betreuungsplan",
     "/database": "Datenverwaltung",
@@ -88,7 +86,6 @@ function getMainRouteTitle(pathname: string): string {
     "/care-offerings": "Betreuungsangebote",
     "/enrollment-form": "Anmeldeformulare",
     "/time-tracking": "Zeiterfassung",
-    "/borndal_feedback": "Borndal Feedback",
     "/operator/suggestions": "Vorschläge",
     "/operator/announcements": "Ankündigungen",
   };
