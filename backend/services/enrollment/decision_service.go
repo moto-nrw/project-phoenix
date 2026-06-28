@@ -1757,19 +1757,26 @@ func (s *decisionService) contactProfileIDsFromPreviousSnapshot(
 
 // createGuardianPhoneNumber inserts phone as the guardian's primary mobile
 // number on users.guardian_phone_numbers. A blank phone or an unwired repo
-// is a no-op. A unique-violation (the guardian already has this number on
-// file from a previous enrollment, or an earlier child of the same request
-// already wrote it) is benign and returns nil; any other error is returned
-// for the caller to decide whether to surface or swallow.
+// is a no-op. The helper is idempotent because approval can relink the same
+// guardian more than once while syncing targeted contact fields.
 func (s *decisionService) createGuardianPhoneNumber(ctx context.Context, profileID int64, phone string) error {
 	phone = strings.TrimSpace(phone)
 	if phone == "" || s.guardianPhoneRepo == nil {
 		return nil
 	}
+	existing, err := s.guardianPhoneRepo.FindByGuardianID(ctx, profileID)
+	if err != nil {
+		return fmt.Errorf("find existing guardian phone numbers: %w", err)
+	}
+	for _, current := range existing {
+		if current != nil && strings.TrimSpace(current.PhoneNumber) == phone {
+			return nil
+		}
+	}
 	row := &users.GuardianPhoneNumber{
 		GuardianProfileID: profileID,
 		PhoneNumber:       phone,
-		PhoneType:         users.PhoneType("mobile"),
+		PhoneType:         users.PhoneTypeMobile,
 		IsPrimary:         true,
 	}
 	if err := s.guardianPhoneRepo.Create(ctx, row); err != nil {
