@@ -28,7 +28,7 @@ export function MessageComposer({
   onChange,
   onSend,
   sending,
-  placeholder = "Nachricht schreiben…",
+  placeholder = "Nachricht schreiben...",
   disabled: externallyDisabled = false,
 }: {
   readonly value: string;
@@ -98,7 +98,7 @@ export function MessageComposer({
         size="md"
         onClick={onSend}
         isLoading={sending}
-        loadingText="Senden…"
+        loadingText="Senden..."
         disabled={disabled}
         className="h-[46px] sm:flex-shrink-0"
       >

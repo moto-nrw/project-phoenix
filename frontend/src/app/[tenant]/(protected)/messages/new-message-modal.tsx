@@ -129,8 +129,8 @@ export function NewMessageModal({
             getApiErrorMessage(
               err,
               "laden",
-              "Bezugspersonen",
-              "Bezugspersonen konnten nicht geladen werden.",
+              "Eltern",
+              "Eltern konnten nicht geladen werden.",
             ),
           );
         }
@@ -190,7 +190,7 @@ export function NewMessageModal({
           />
           <div className="max-h-72 space-y-1 overflow-y-auto">
             {isSearching && (
-              <p className="py-3 text-center text-sm text-gray-500">Suche…</p>
+              <p className="py-3 text-center text-sm text-gray-500">Suche...</p>
             )}
             {!isSearching &&
               query.trim().length >= 2 &&
@@ -257,12 +257,10 @@ export function NewMessageModal({
               </p>
             )}
           </div>
-          <p className="text-sm font-medium text-gray-700">
-            Bezugsperson wählen
-          </p>
+          <p className="text-sm font-medium text-gray-700">Eltern wählen</p>
           {error && <Alert type="error" message={error} />}
           {guardiansLoading ? (
-            <p className="py-3 text-center text-sm text-gray-500">Lädt…</p>
+            <p className="py-3 text-center text-sm text-gray-500">Lädt...</p>
           ) : guardiansError ? (
             <div className="space-y-2">
               <Alert type="error" message={guardiansError} />
@@ -277,7 +275,7 @@ export function NewMessageModal({
             </div>
           ) : guardians.length === 0 ? (
             <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-600">
-              Dieses Kind hat keine Bezugsperson mit Eltern-Zugang.
+              Für dieses Kind ist kein Eltern-Zugang hinterlegt.
             </p>
           ) : (
             <div className="space-y-1">
@@ -304,7 +302,7 @@ export function NewMessageModal({
                       </span>
                     )}
                     {openingId === g.account_id && (
-                      <span className="text-xs text-gray-400">Öffnen…</span>
+                      <span className="text-xs text-gray-400">Öffnen...</span>
                     )}
                   </span>
                 </button>

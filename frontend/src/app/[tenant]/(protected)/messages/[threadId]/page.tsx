@@ -241,7 +241,7 @@ function MessageThreadContent() {
         >
           {messagesLoading ? (
             <p className="py-6 text-center text-sm text-gray-400">
-              Verlauf wird geladen…
+              Verlauf wird geladen...
             </p>
           ) : messages.length > 0 ? (
             messages.map((message) => (

@@ -261,7 +261,7 @@ export function OgsConversation({
               onChange={setDraft}
               onSend={() => void handleSend()}
               sending={sending}
-              placeholder="Nachricht an die OGS schreiben…"
+              placeholder="Nachricht an die OGS schreiben..."
             />
           ) : (
             <p className="rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-500">
