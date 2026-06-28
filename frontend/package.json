@@ -113,31 +113,10 @@
     ]
   },
   "knip": {
-    "entry": [
-      "src/app/**/*.{ts,tsx}",
-      "src/env.js",
-      "src/sentry.client.config.ts",
-      "src/sentry.server.config.ts",
-      "src/lib/utils.ts",
-      "src/lib/image-utils.ts",
-      "src/lib/database/configs/*.{ts,tsx}",
-      "src/lib/swr/index.ts",
-      "src/server/auth/token-refresh.ts",
-      "src/server/auth/shared.ts",
-      "src/server/auth/operator.ts",
-      "src/**/*.test.{ts,tsx}",
-      "src/test/mocks/*.ts",
-      "src/test/fixtures/*.ts",
-      "src/test/helpers/*.ts"
-    ],
-    "project": [
-      "src/**/*.{ts,tsx,js}"
-    ],
+    "includeEntryExports": true,
     "ignoreDependencies": [
       "sharp",
-      "lint-staged",
-      "@fontsource/geist-sans",
-      "@moto-nrw/design-system"
+      "lint-staged"
     ]
   }
 }
