@@ -6,6 +6,7 @@ import {
 interface BackendChildFeatures {
   sick_note_enabled: boolean;
   notes_enabled: boolean;
+  request_submit_enabled: boolean;
   pickup_change_enabled: boolean;
 }
 

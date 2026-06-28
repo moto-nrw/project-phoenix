@@ -171,6 +171,7 @@ func parseSickDayRange(r *http.Request) (timezone.Date, timezone.Date, error) {
 type ChildFeaturesResponse struct {
 	SickNoteEnabled              bool `json:"sick_note_enabled"`
 	NotesEnabled                 bool `json:"notes_enabled"`
+	RequestSubmitEnabled         bool `json:"request_submit_enabled"`
 	PickupChangeEnabled          bool `json:"pickup_change_enabled"`
 	RelatedAccountsInviteEnabled bool `json:"related_accounts_invite_enabled"`
 	RelatedAccountsRemoveEnabled bool `json:"related_accounts_remove_enabled"`
@@ -196,6 +197,7 @@ func (rs *Resource) getChildFeatures(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, ChildFeaturesResponse{
 		SickNoteEnabled:              flags.SickNoteEnabled,
 		NotesEnabled:                 flags.NotesEnabled,
+		RequestSubmitEnabled:         flags.RequestSubmitEnabled,
 		PickupChangeEnabled:          flags.PickupChangeEnabled,
 		RelatedAccountsInviteEnabled: flags.RelatedAccountsInviteEnabled,
 		RelatedAccountsRemoveEnabled: flags.RelatedAccountsRemoveEnabled,

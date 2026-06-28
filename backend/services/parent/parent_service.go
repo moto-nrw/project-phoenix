@@ -165,9 +165,13 @@ type Service interface {
 // ChildFeatureFlags reports the resolved per-tenant parent-portal feature
 // toggles for a single child.
 type ChildFeatureFlags struct {
-	SickNoteEnabled     bool
-	NotesEnabled        bool
-	PickupChangeEnabled bool
+	SickNoteEnabled bool
+	NotesEnabled    bool
+	// RequestSubmitEnabled is true when messaging is on AND the guardian holds
+	// parent_portal.request.submit for this child — gates the change-request
+	// quick actions (care schedule / master data) in the parent UI.
+	RequestSubmitEnabled bool
+	PickupChangeEnabled  bool
 	// RelatedAccountsInviteEnabled is true when parents may invite further
 	// guardians (guardians.parent_invite_mode != disabled).
 	RelatedAccountsInviteEnabled bool
