@@ -52,6 +52,7 @@ function mkThread(overrides: Partial<InboxThread> = {}): InboxThread {
     student_name: "Max M.",
     guardian_name: "Anna M.",
     unread_count: 0,
+    open_request_count: 0,
     ...overrides,
   };
 }

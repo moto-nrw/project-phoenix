@@ -2,9 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { Loader2, Trash2 } from "lucide-react";
+import {
+  CalendarClock,
+  CalendarRange,
+  HeartPulse,
+  IdCard,
+  Loader2,
+  type LucideIcon,
+  Trash2,
+} from "lucide-react";
 import { Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
+import { Alert } from "~/components/ui/alert";
 import {
   type CareException,
   type ChildFeatures,
@@ -75,6 +84,10 @@ const DEFAULT_FEATURES: ChildFeatures = {
   // composer on a transient hiccup → send → 403. The backend enforces the gate
   // regardless; this just keeps the UI from dead-ending on an action it can see.
   notes_enabled: false,
+  // Consequential capability: default false on fetch failure (least privilege),
+  // so a transient hiccup hides the request actions rather than dead-ending on
+  // a 403; the backend enforces the gate regardless.
+  request_submit_enabled: false,
   pickup_change_enabled: false,
   // Capability flags default to false on fetch failure (least privilege —
   // hide invite/remove if we can't confirm they're enabled; the backend
@@ -618,4 +631,478 @@ export function SickStatusSummary({
           to: formatLocaleDate(last.date, locale),
         });
   return <span className="text-sm font-semibold text-gray-900">{label}</span>;
+}
+
+// --- OGS request modals (parent -> OGS structured requests) ---------------
+//
+// These mirror the sick/pickup self-service modals above (same Modal, same
+// field/footer markup) so the whole parent action surface looks identical: calm
+// neutral palette, no brand colour — the "Anfrage senden" wording and the
+// chooser carry the request meaning, not colour. They own form state and call
+// onSubmit(payload); the caller performs the API request and closes on success
+// (throwing surfaces the error here).
+
+// Weekday numbers match the backend (ISO: Monday=1 .. Friday=5).
+const REQUEST_WEEKDAYS = [
+  { num: 1, label: "Montag" },
+  { num: 2, label: "Dienstag" },
+  { num: 3, label: "Mittwoch" },
+  { num: 4, label: "Donnerstag" },
+  { num: 5, label: "Freitag" },
+] as const;
+
+// Empty value = "leave this weekday's departure mode unchanged".
+const REQUEST_CARE_MODES = [
+  { value: "", label: "Unverändert" },
+  { value: "alone", label: "Geht alleine" },
+  { value: "bus", label: "Fährt Bus" },
+  { value: "pickup", label: "Wird abgeholt" },
+] as const;
+
+interface CareWeekdayDraft {
+  mode: string;
+  arrival: string;
+  pickup: string;
+}
+
+// RequestModalFooter renders the shared cancel/submit buttons for the request
+// modals using the kit Button (so disabled/loading states and brand styling
+// come from the kit, not a hand-rolled button). It is passed to the Modal's
+// `footer` slot — a sticky bar OUTSIDE the scrollable content — so "Anfrage
+// senden" stays visible on short viewports instead of being clipped below the
+// modal's scroll area.
+function RequestModalFooter({
+  submitting,
+  onCancel,
+  onSubmit,
+}: Readonly<{
+  submitting: boolean;
+  onCancel: () => void;
+  onSubmit: () => void;
+}>) {
+  return (
+    <>
+      <Button type="button" variant="outline" size="md" onClick={onCancel}>
+        Abbrechen
+      </Button>
+      <Button
+        type="button"
+        size="md"
+        className="gap-2"
+        onClick={onSubmit}
+        disabled={submitting}
+      >
+        {submitting && (
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+        )}
+        Anfrage senden
+      </Button>
+    </>
+  );
+}
+
+export function CareScheduleRequestModal({
+  onClose,
+  onSubmit,
+}: Readonly<{
+  onClose: () => void;
+  onSubmit: (payload: Record<string, unknown>) => Promise<void>;
+}>) {
+  const [rows, setRows] = useState<Record<number, CareWeekdayDraft>>(() =>
+    Object.fromEntries(
+      REQUEST_WEEKDAYS.map((w) => [
+        w.num,
+        { mode: "", arrival: "", pickup: "" },
+      ]),
+    ),
+  );
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const setField = (
+    num: number,
+    field: keyof CareWeekdayDraft,
+    value: string,
+  ) =>
+    setRows((prev) => ({ ...prev, [num]: { ...prev[num]!, [field]: value } }));
+
+  const handleSubmit = async () => {
+    const weekdays = REQUEST_WEEKDAYS.flatMap((w) => {
+      const row = rows[w.num]!;
+      if (!row.mode && !row.arrival && !row.pickup) return [];
+      const entry: {
+        weekday: number;
+        mode?: string;
+        arrival?: string;
+        pickup?: string;
+      } = { weekday: w.num };
+      if (row.mode) entry.mode = row.mode;
+      if (row.arrival) entry.arrival = row.arrival;
+      if (row.pickup) entry.pickup = row.pickup;
+      return [entry];
+    });
+    if (weekdays.length === 0) {
+      setError("Bitte mindestens einen Tag anpassen.");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await onSubmit({ weekdays });
+      onClose();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Die Anfrage konnte nicht gesendet werden.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const timeClass =
+    "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none";
+
+  return (
+    <Modal
+      isOpen
+      onClose={onClose}
+      title="Betreuungszeiten ändern"
+      footer={
+        <RequestModalFooter
+          submitting={submitting}
+          onCancel={onClose}
+          onSubmit={() => void handleSubmit()}
+        />
+      }
+    >
+      <div className="space-y-4">
+        <p className="text-sm leading-6 text-gray-600">
+          Wochenplan Mo–Fr als Anfrage an die OGS. Nur ausgefüllte Angaben
+          werden geändert, leere Felder bleiben wie bisher.
+        </p>
+        <div className="space-y-3">
+          {REQUEST_WEEKDAYS.map((w) => {
+            const row = rows[w.num]!;
+            return (
+              <div
+                key={w.num}
+                className="rounded-xl border border-gray-200 p-3"
+              >
+                <p className="mb-2 text-sm font-semibold text-gray-900">
+                  {w.label}
+                </p>
+                <div className="space-y-2">
+                  <CustomSelect
+                    value={row.mode}
+                    options={REQUEST_CARE_MODES}
+                    onChange={(v) => setField(w.num, "mode", v)}
+                    ariaLabel={`Abholart ${w.label}`}
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-medium text-gray-500">
+                        Bringzeit
+                      </span>
+                      <input
+                        type="time"
+                        value={row.arrival}
+                        onChange={(e) =>
+                          setField(w.num, "arrival", e.target.value)
+                        }
+                        className={timeClass}
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-medium text-gray-500">
+                        Abholzeit
+                      </span>
+                      <input
+                        type="time"
+                        value={row.pickup}
+                        onChange={(e) =>
+                          setField(w.num, "pickup", e.target.value)
+                        }
+                        className={timeClass}
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {error && <Alert type="error" message={error} />}
+      </div>
+    </Modal>
+  );
+}
+
+export function MasterDataRequestModal({
+  onClose,
+  onSubmit,
+}: Readonly<{
+  onClose: () => void;
+  onSubmit: (payload: Record<string, unknown>) => Promise<void>;
+}>) {
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [birthday, setBirthday] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async () => {
+    const fields: Record<string, string> = {};
+    if (firstName.trim()) fields.first_name = firstName.trim();
+    if (lastName.trim()) fields.last_name = lastName.trim();
+    if (birthday.trim()) fields.birthday = birthday.trim();
+    if (email.trim()) fields.guardian_email = email.trim();
+    if (phone.trim()) fields.guardian_phone = phone.trim();
+    if (note.trim()) fields.extra_info = note.trim();
+    if (Object.keys(fields).length === 0) {
+      setError("Bitte mindestens ein Feld ausfüllen.");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await onSubmit({ fields });
+      onClose();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Die Anfrage konnte nicht gesendet werden.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const fieldClass =
+    "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none";
+
+  return (
+    <Modal
+      isOpen
+      onClose={onClose}
+      title="Stammdaten ändern"
+      footer={
+        <RequestModalFooter
+          submitting={submitting}
+          onCancel={onClose}
+          onSubmit={() => void handleSubmit()}
+        />
+      }
+    >
+      <div className="space-y-4">
+        <p className="text-sm leading-6 text-gray-600">
+          Die OGS prüft die Änderung und übernimmt sie nach Bestätigung. Nur
+          ausgefüllte Felder werden geändert.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
+              Vorname
+            </span>
+            <input
+              type="text"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              placeholder="Vorname des Kindes"
+              className={fieldClass}
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
+              Nachname
+            </span>
+            <input
+              type="text"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              placeholder="Nachname des Kindes"
+              className={fieldClass}
+            />
+          </label>
+        </div>
+        <label className="block">
+          <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
+            Geburtsdatum
+          </span>
+          <input
+            type="date"
+            value={birthday}
+            onChange={(e) => setBirthday(e.target.value)}
+            className={fieldClass}
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
+            E-Mail
+          </span>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="neue.adresse@example.de"
+            className={fieldClass}
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
+            Telefon
+          </span>
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="0151 23456789"
+            className={fieldClass}
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
+            Weitere Hinweise
+          </span>
+          <textarea
+            value={note}
+            maxLength={MAX_NOTE_LEN}
+            onChange={(e) => setNote(e.target.value)}
+            rows={3}
+            placeholder="z. B. neue Anschrift, Notfallkontakt"
+            className={`resize-none ${fieldClass}`}
+          />
+        </label>
+        {error && <Alert type="error" message={error} />}
+      </div>
+    </Modal>
+  );
+}
+
+export type OgsActionKey =
+  | "sick"
+  | "pickup"
+  | "care_schedule"
+  | "student_master_data";
+
+// A single parent action available from the OGS chat. Two deliberately separate
+// groups so a parent never confuses a one-off exception with a permanent change:
+// the "direct" group is self-service and takes effect immediately for a single
+// day; the "request" group is an Anfrage the OGS must confirm before it changes
+// anything permanently.
+export interface OgsAction {
+  readonly key: OgsActionKey;
+  // Full label (menus / long surfaces); shortLabel keeps the chat chips compact.
+  readonly label: string;
+  readonly shortLabel: string;
+  readonly hint: string;
+  readonly Icon: LucideIcon;
+  readonly enabled: boolean;
+  readonly group: "direct" | "request";
+}
+
+// The SINGLE source of truth for the actions a parent can take from the OGS
+// chat. Consumed by the always-visible quick-action chips above the composer
+// (OgsConversation) — keep it here so the chips and any future menu can never
+// drift apart. The self-service actions are gated on the school's feature flags;
+// the two change-requests are gated on request_submit_enabled (the guardian's
+// parent_portal.request.submit permission) so a chat-only guardian never sees an
+// action the backend would reject with a 403.
+export function getOgsActions(features: ChildFeatures): OgsAction[] {
+  return [
+    {
+      key: "sick",
+      label: "Krankmeldung",
+      shortLabel: "Krankmeldung",
+      hint: "Kind für einen oder mehrere Tage krankmelden",
+      Icon: HeartPulse,
+      enabled: features.sick_note_enabled,
+      group: "direct",
+    },
+    {
+      key: "pickup",
+      label: "Abholung für einen Tag",
+      shortLabel: "Abholung",
+      hint: "Abhol- oder Bringzeit an einem einzelnen Tag anpassen",
+      Icon: CalendarClock,
+      enabled: features.pickup_change_enabled,
+      group: "direct",
+    },
+    {
+      key: "care_schedule",
+      label: "Betreuungszeiten dauerhaft ändern",
+      shortLabel: "Betreuungszeiten",
+      hint: "Wochenplan (Mo–Fr) anpassen",
+      Icon: CalendarRange,
+      enabled: features.request_submit_enabled,
+      group: "request",
+    },
+    {
+      key: "student_master_data",
+      label: "Stammdaten ändern",
+      shortLabel: "Stammdaten",
+      hint: "Name, Geburtsdatum oder Kontaktdaten anpassen",
+      Icon: IdCard,
+      enabled: features.request_submit_enabled,
+      group: "request",
+    },
+  ];
+}
+
+// The chooser behind the calm "Anfrage" link in the OGS chat. Self-service
+// (immediate) actions live as pills next to the composer; the change requests
+// are deliberately one step removed because they are rarer and consequential.
+// This is where the "the OGS confirms before it takes effect" expectation is set
+// in full — there is room here, unlike the cramped composer strip — so the
+// distinction can never be misread. Lists the request actions from the shared
+// getOgsActions source and hands the chosen key back to open the matching form.
+export function RequestChooserModal({
+  features,
+  onPick,
+  onClose,
+}: Readonly<{
+  features: ChildFeatures;
+  onPick: (key: OgsActionKey) => void;
+  onClose: () => void;
+}>) {
+  const requests = getOgsActions(features).filter(
+    (action) => action.group === "request" && action.enabled,
+  );
+  return (
+    <Modal isOpen onClose={onClose} title="Änderung anfragen">
+      <div className="space-y-3">
+        <p className="text-sm leading-6 text-gray-500">
+          Die OGS prüft Ihre Anfrage und übernimmt sie erst nach Bestätigung.
+          Bis dahin ändert sich nichts.
+        </p>
+        <div className="space-y-2">
+          {requests.map((action) => (
+            <button
+              key={action.key}
+              type="button"
+              onClick={() => onPick(action.key)}
+              className="flex w-full items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 text-left transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-500">
+                <action.Icon className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-gray-900">
+                  {action.label}
+                </span>
+                <span className="block text-xs text-gray-500">
+                  {action.hint}
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </Modal>
+  );
 }

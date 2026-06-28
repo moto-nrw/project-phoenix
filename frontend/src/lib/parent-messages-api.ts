@@ -8,11 +8,12 @@
  * Go backend with the staff JWT. Backend int64 ids arrive already stringified.
  */
 
-import type { ChatMessage } from "~/lib/messaging-status";
+import type { ChatMessage, RequestDiffEntry } from "~/lib/messaging-status";
 import { getRelationshipTypeLabel } from "~/lib/guardian-helpers";
 
 // The wire message shape is shared with the parent client; see ChatMessage.
 export type Message = ChatMessage;
+export type { RequestDiffEntry };
 
 export interface InboxThread {
   thread_id: string;
@@ -26,6 +27,9 @@ export interface InboxThread {
   last_sender_kind?: "guardian" | "staff";
   last_message_body?: string;
   unread_count: number;
+  // Number of still-open parent change-requests in this thread, for the inbox
+  // "offene Anfragen" badge. Always present from the backend.
+  open_request_count: number;
 }
 
 export interface ThreadDetail {
@@ -111,9 +115,11 @@ export function relationshipLabel(rel?: string): string {
 
 export async function fetchInboxWithFilters(filters: {
   onlyUnread?: boolean;
+  onlyOpenRequests?: boolean;
 }): Promise<InboxThread[]> {
   const params = new URLSearchParams();
   if (filters.onlyUnread) params.set("unread", "true");
+  if (filters.onlyOpenRequests) params.set("open_requests", "true");
   const result = await getEnvelope<InboxThread[]>(
     `/api/messages${params.size > 0 ? `?${params.toString()}` : ""}`,
     "Nachrichten konnten nicht geladen werden",
@@ -176,6 +182,37 @@ export async function postMessage(
     "Nachricht konnte nicht gesendet werden",
   );
   return result.data ?? [];
+}
+
+/**
+ * Decide a parent change-request (confirm / reject). The backend returns the
+ * full, current message list of the thread (with the request's new status and a
+ * refreshed diff map), so callers can apply it like a postMessage result.
+ */
+async function postRequestAction(
+  requestId: string,
+  action: "confirm" | "reject",
+  body: unknown = {},
+): Promise<Message[]> {
+  const result = await postEnvelope<Message[]>(
+    `/api/messages/requests/${requestId}/${action}`,
+    body,
+    "Anfrage konnte nicht aktualisiert werden",
+  );
+  return result.data ?? [];
+}
+
+/** Confirm a parent change-request (applies it server-side). */
+export function confirmRequest(requestId: string): Promise<Message[]> {
+  return postRequestAction(requestId, "confirm");
+}
+
+/** Reject a parent change-request with a reason shown back to the guardian. */
+export function rejectRequest(
+  requestId: string,
+  reason: string,
+): Promise<Message[]> {
+  return postRequestAction(requestId, "reject", { reason });
 }
 
 /**

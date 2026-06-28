@@ -3,21 +3,39 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ChevronRight, Pencil } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { MessageComposer } from "~/components/messaging/message-composer";
-import { ChatBubble } from "~/components/messaging/chat-bubble";
+import { ChatBubble, ChatEventCard } from "~/components/messaging/chat-bubble";
+import { RequestDiffPanel } from "~/components/messaging/request-diff-panel";
+import { RequestStatusBadge } from "~/components/messaging/request-status-badge";
 import { useChatViewportLock } from "~/lib/hooks/use-chat-viewport-lock";
 import { getApiErrorMessage } from "~/components/ui/modal-utils";
+import { parentRequestStatusI18nKey } from "~/lib/messaging-status";
 import {
+  type ChildFeatures,
+  type ParentMessage,
   type ThreadView,
+  createChildRequest,
   getChildConversation,
   postChildMessage,
+  withdrawChildRequest,
 } from "~/lib/parent-api";
-import { useChildCare } from "~/components/parent/child-care";
+import {
+  CareScheduleRequestModal,
+  MasterDataRequestModal,
+  PickupTimeModal,
+  RequestChooserModal,
+  SickNoteModal,
+  getOgsActions,
+  useChildCare,
+  type OgsActionKey,
+} from "~/components/parent/child-care";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { createLogger } from "~/lib/logger";
+import { formatChatTime } from "~/lib/date-helpers";
 
 const logger = createLogger({ component: "OgsConversation" });
 
@@ -58,6 +76,8 @@ export function OgsConversation({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const care = useChildCare(studentId);
+  const [activeModal, setActiveModal] = useState<OgsActionKey | null>(null);
+  const [requestChooserOpen, setRequestChooserOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -184,6 +204,50 @@ export function OgsConversation({
     }
   }, [draft, sending, studentId, applyThread]);
 
+  // The request modals own their form state and error display; this just
+  // performs the API call and updates the thread. Throwing propagates back to
+  // the modal so it can surface the message and stay open.
+  const submitRequest = useCallback(
+    async (
+      type: "care_schedule" | "student_master_data",
+      payload: Record<string, unknown>,
+    ) => {
+      const view = await createChildRequest(studentId, type, payload);
+      // Claim the token AFTER the request resolves so this authoritative result wins.
+      applyThread(++applySeqRef.current, view);
+    },
+    [studentId, applyThread],
+  );
+
+  // Self-service actions (sick note, pickup change) emit a system event into
+  // this thread server-side; refetch so the new event card appears at once
+  // instead of waiting on the SSE round-trip.
+  const refreshAfterSelfService = useCallback(() => {
+    void refresh().then(nudgeUnreadBadge);
+  }, [refresh]);
+
+  const withdrawRequest = useCallback(
+    async (requestId: string) => {
+      setSendError(null);
+      try {
+        const view = await withdrawChildRequest(studentId, requestId);
+        // Claim the token AFTER the request resolves so this authoritative result wins.
+        applyThread(++applySeqRef.current, view);
+      } catch (err) {
+        if (!mountedRef.current) return;
+        setSendError(
+          getApiErrorMessage(
+            err,
+            "zurückziehen",
+            "Anfrage",
+            "Die Anfrage konnte nicht zurückgezogen werden.",
+          ),
+        );
+      }
+    },
+    [studentId, applyThread],
+  );
+
   return (
     <div
       ref={containerRef}
@@ -215,20 +279,34 @@ export function OgsConversation({
           {loading ? (
             <ThreadSkeleton />
           ) : messages.length > 0 ? (
-            messages.map((message) => (
-              <ChatBubble
-                key={message.id}
-                body={message.body}
-                own={message.sender_kind === "guardian"}
-                senderName={message.sender_name}
-                createdAt={message.created_at}
-                readReceiptLabel={
-                  message.sender_kind === "guardian" && message.read_by_staff
-                    ? t("readByStaff")
-                    : undefined
-                }
-              />
-            ))
+            messages.map((message) =>
+              message.kind === "event" ? (
+                <ChatEventCard
+                  key={message.id}
+                  body={message.body}
+                  createdAt={message.created_at}
+                />
+              ) : message.kind === "request" ? (
+                <RequestItem
+                  key={message.id}
+                  message={message}
+                  onWithdraw={() => void withdrawRequest(message.id)}
+                />
+              ) : (
+                <ChatBubble
+                  key={message.id}
+                  body={message.body}
+                  own={message.sender_kind === "guardian"}
+                  senderName={message.sender_name}
+                  createdAt={message.created_at}
+                  readReceiptLabel={
+                    message.sender_kind === "guardian" && message.read_by_staff
+                      ? t("readByStaff")
+                      : undefined
+                  }
+                />
+              ),
+            )
           ) : loadError ? (
             <Alert
               type="error"
@@ -245,6 +323,12 @@ export function OgsConversation({
               <Alert type="error" message={sendError} />
             </div>
           ) : null}
+          <QuickActions
+            features={care.features}
+            loading={care.loading}
+            onPick={(key) => setActiveModal(key)}
+            onOpenRequests={() => setRequestChooserOpen(true)}
+          />
           {/* Only show the free-text composer when the school has parent notes
               enabled AND this relationship grants notes.write (both folded into
               care.features.notes_enabled). A pickup-only/emergency guardian, or
@@ -271,7 +355,173 @@ export function OgsConversation({
           )}
         </div>
       </section>
+
+      {requestChooserOpen && (
+        <RequestChooserModal
+          features={care.features}
+          onClose={() => setRequestChooserOpen(false)}
+          onPick={(key) => {
+            setRequestChooserOpen(false);
+            setActiveModal(key);
+          }}
+        />
+      )}
+      {activeModal === "sick" && (
+        <SickNoteModal
+          onClose={() => setActiveModal(null)}
+          onSubmit={async (dates, reason, status) => {
+            await care.reportSick(dates, reason, status);
+            refreshAfterSelfService();
+          }}
+        />
+      )}
+      {activeModal === "pickup" && (
+        <PickupTimeModal
+          careExceptions={care.careExceptions}
+          careExceptionsLoaded={care.careExceptionsLoaded}
+          pickupChangeEnabled={care.features.pickup_change_enabled}
+          onClose={() => setActiveModal(null)}
+          onSubmit={async (params) => {
+            await care.saveCareException(params);
+            refreshAfterSelfService();
+          }}
+          onRemove={async (date) => {
+            await care.removeCareException(date);
+            refreshAfterSelfService();
+          }}
+        />
+      )}
+      {activeModal === "care_schedule" && (
+        <CareScheduleRequestModal
+          onClose={() => setActiveModal(null)}
+          onSubmit={(payload) => submitRequest("care_schedule", payload)}
+        />
+      )}
+      {activeModal === "student_master_data" && (
+        <MasterDataRequestModal
+          onClose={() => setActiveModal(null)}
+          onSubmit={(payload) => submitRequest("student_master_data", payload)}
+        />
+      )}
     </div>
+  );
+}
+
+function RequestItem({
+  message,
+  onWithdraw,
+}: Readonly<{ message: ParentMessage; onWithdraw: () => void }>) {
+  const t = useTranslations("parentOgsMessaging");
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-gray-900">{message.body}</p>
+          <p className="mt-1 text-xs text-gray-500">
+            {formatChatTime(message.created_at)}
+            {message.read_by_staff ? ` · ${t("readByStaff")}` : ""}
+          </p>
+        </div>
+        <RequestStatusBadge
+          label={t(parentRequestStatusI18nKey(message.request_status))}
+        />
+      </div>
+      <RequestDiffPanel
+        diff={message.diff}
+        heading="Ihre Änderungswünsche"
+        decisionReason={message.decision_reason}
+      />
+      {message.request_status === "offen" ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="md"
+          className="mt-3"
+          onClick={onWithdraw}
+        >
+          {t("requestWithdraw")}
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+// Quick actions above the composer. The structured actions previously hid behind
+// an unlabelled "+", so parents rarely discovered them and typed the same thing
+// as free text instead, which silently loses the auto-apply.
+//
+// The two groups are deliberately NOT shown alike, because they are not alike:
+//   - Immediate self-service (sick note, pickup-for-a-day) → white action pills.
+//     Frequent, low-stakes, take effect at once. One tap, one thing.
+//   - Change requests (care schedule, master data) → a single, equally large
+//     "Dauerhafte Änderung" pill that opens a chooser. Rare, consequential,
+//     confirmed by the OGS.
+// The request pill is set apart by its wording alone plus a trailing chevron
+// that reads as "opens options" rather than "does it now". The chooser then
+// spells out "the OGS confirms before it takes effect" in full, where there is
+// room, so it can never be misread. Feature flags still gate the pills.
+//
+// Pills render only once the per-child feature flags have loaded: the pickup
+// flag arrives async (defaults off), so rendering early made "Abholung" pop in a
+// beat after the others. While loading we reserve one pill-row of height so the
+// whole set appears at once without shifting the composer.
+function QuickActions({
+  features,
+  loading,
+  onPick,
+  onOpenRequests,
+}: Readonly<{
+  features: ChildFeatures;
+  loading: boolean;
+  onPick: (key: OgsActionKey) => void;
+  onOpenRequests: () => void;
+}>) {
+  if (loading) return <div className="mb-3 h-9" aria-hidden="true" />;
+  const actions = getOgsActions(features).filter((action) => action.enabled);
+  const direct = actions.filter((action) => action.group === "direct");
+  const hasRequests = actions.some((action) => action.group === "request");
+  if (direct.length === 0 && !hasRequests) return null;
+  return (
+    <div className="mb-3 flex flex-wrap gap-2">
+      {direct.map((action) => (
+        <QuickActionPill key={action.key} action={action} onPick={onPick} />
+      ))}
+      {hasRequests ? (
+        <button
+          type="button"
+          onClick={onOpenRequests}
+          title="Dauerhafte Änderung anfragen. Die OGS bestätigt sie."
+          className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        >
+          <Pencil className="h-4 w-4 text-gray-400" aria-hidden="true" />
+          Dauerhafte Änderung
+          <ChevronRight
+            className="-mr-1 h-4 w-4 text-gray-400"
+            aria-hidden="true"
+          />
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function QuickActionPill({
+  action,
+  onPick,
+}: Readonly<{
+  action: ReturnType<typeof getOgsActions>[number];
+  onPick: (key: OgsActionKey) => void;
+}>) {
+  return (
+    <button
+      type="button"
+      onClick={() => onPick(action.key)}
+      title={action.hint}
+      className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+    >
+      <action.Icon className="h-4 w-4 text-gray-400" aria-hidden="true" />
+      {action.shortLabel}
+    </button>
   );
 }
 

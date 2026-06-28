@@ -825,6 +825,11 @@
     }
   },
   "parentOgsMessaging": {
-    "readByStaff": "Прочитано"
+    "readByStaff": "Прочитано",
+    "requestWithdraw": "Отозвать",
+    "statusOpen": "Открыто",
+    "statusDone": "Выполнено",
+    "statusRejected": "Отклонено",
+    "statusWithdrawn": "Отозвано"
   }
 }

@@ -825,6 +825,11 @@
     }
   },
   "parentOgsMessaging": {
-    "readByStaff": "Lexuar"
+    "readByStaff": "Lexuar",
+    "requestWithdraw": "Tërhiqe",
+    "statusOpen": "E hapur",
+    "statusDone": "E përfunduar",
+    "statusRejected": "E refuzuar",
+    "statusWithdrawn": "E tërhequr"
   }
 }

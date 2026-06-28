@@ -825,6 +825,11 @@
     }
   },
   "parentOgsMessaging": {
-    "readByStaff": "Read"
+    "readByStaff": "Read",
+    "requestWithdraw": "Withdraw",
+    "statusOpen": "Open",
+    "statusDone": "Done",
+    "statusRejected": "Rejected",
+    "statusWithdrawn": "Withdrawn"
   }
 }
