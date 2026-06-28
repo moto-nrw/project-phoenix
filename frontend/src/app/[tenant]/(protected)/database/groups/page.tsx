@@ -6,7 +6,7 @@ import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
   ActiveFilter,
   FilterConfig,
@@ -15,7 +15,8 @@ import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { groupsConfig } from "@/components/database/configs/groups.config";
 import type { Group } from "@/lib/group-helpers";
-import { GroupCreateModal, GroupsMasterDetail } from "@/components/groups";
+import { GroupCreateModal } from "@/components/groups/group-create-modal";
+import { GroupsMasterDetail } from "@/components/groups/groups-master-detail";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/hooks/useIsMobile";

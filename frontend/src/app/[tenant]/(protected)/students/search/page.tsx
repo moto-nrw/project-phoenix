@@ -14,12 +14,12 @@ import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { Alert } from "~/components/ui/alert";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
   FilterConfig,
   ActiveFilter,
   FilterSection,
-} from "~/components/ui/page-header";
+} from "~/components/ui/page-header/types";
 import { DetailIcons } from "~/components/ui/detail-modal-components";
 import { studentService, groupService, roomService } from "~/lib/api";
 import type { Student, Group, Room } from "~/lib/api";

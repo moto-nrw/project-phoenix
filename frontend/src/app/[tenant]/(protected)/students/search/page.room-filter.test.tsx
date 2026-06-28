@@ -58,7 +58,7 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   useBreadcrumb: () => ({ breadcrumb: {}, setBreadcrumb: vi.fn() }),
 }));
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: () => <div data-testid="header" />,
 }));
 

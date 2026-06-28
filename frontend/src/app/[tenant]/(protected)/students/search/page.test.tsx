@@ -56,7 +56,7 @@ vi.mock("~/components/ui/alert", () => ({
 }));
 
 // Mock PageHeaderWithSearch
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({
     filters,
     activeFilters,

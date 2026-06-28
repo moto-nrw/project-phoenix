@@ -71,7 +71,7 @@ vi.mock("~/components/ui/loading", () => ({
 }));
 
 // Mock PageHeaderWithSearch (vi.fn wrapper enables mockImplementation in enhanced tests)
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: vi.fn(
     ({ title, badge }: { title: string; badge?: { count: number } }) => (
       <div data-testid="page-header" data-count={badge?.count}>
@@ -333,7 +333,8 @@ describe("EmptyRoomsView onClearAllFilters coverage", () => {
     } as never);
 
     // Override PageHeaderWithSearch to render onClearAllFilters button
-    const mod = await import("~/components/ui/page-header");
+    const mod =
+      await import("~/components/ui/page-header/PageHeaderWithSearch");
     vi.mocked(
       mod.PageHeaderWithSearch as React.FC<Record<string, unknown>>,
     ).mockImplementation((props: Record<string, unknown>) => {
@@ -677,7 +678,8 @@ describe("matchesStudentFilters edge cases", () => {
     localStorage.clear();
 
     // Override PageHeaderWithSearch to expose search and filter
-    const mod = await import("~/components/ui/page-header");
+    const mod =
+      await import("~/components/ui/page-header/PageHeaderWithSearch");
     vi.mocked(
       mod.PageHeaderWithSearch as React.FC<Record<string, unknown>>,
     ).mockImplementation((props: Record<string, unknown>) => {

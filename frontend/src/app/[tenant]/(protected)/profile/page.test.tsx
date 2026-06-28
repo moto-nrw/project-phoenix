@@ -50,7 +50,7 @@ vi.mock("~/lib/image-utils", () => ({
 }));
 
 // Mock UI Components
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({ title }: { title: string }) => (
     <div data-testid="page-header">{title}</div>
   ),

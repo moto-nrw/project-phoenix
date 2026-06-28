@@ -15,7 +15,7 @@ import { compressAvatar } from "~/lib/image-utils";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { PasswordChangeModal } from "~/components/ui/password-change-modal";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { TrustedDevicesSection } from "~/components/settings/trusted-devices-section";
 import { PasskeySettingsSection } from "~/components/settings/passkey-settings-section";
 import { getInitials } from "~/lib/format-utils";

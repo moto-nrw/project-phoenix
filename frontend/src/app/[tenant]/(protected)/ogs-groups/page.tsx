@@ -14,8 +14,11 @@ import { useTenantRouter } from "~/lib/tenant-router";
 import { RoleGuard } from "~/components/auth/role-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
-import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import type {
+  FilterConfig,
+  ActiveFilter,
+} from "~/components/ui/page-header/types";
 import { studentService } from "~/lib/api";
 import type { Student } from "~/lib/api";
 import {

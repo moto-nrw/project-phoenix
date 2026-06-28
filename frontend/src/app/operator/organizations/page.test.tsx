@@ -70,7 +70,7 @@ vi.mock("~/lib/format-utils", () => ({
   formatCount: (value: number) => new Intl.NumberFormat("de-DE").format(value),
 }));
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({ title, tabs, actionButton }: any) => (
     <div data-testid="page-header">
       <h1>{title}</h1>

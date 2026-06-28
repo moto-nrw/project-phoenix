@@ -85,7 +85,7 @@ vi.mock("~/components/database/database-page-layout", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({
     search,
     filters,
@@ -130,7 +130,7 @@ vi.mock("~/components/ui/page-header", () => ({
   ),
 }));
 
-vi.mock("@/components/rooms", () => ({
+vi.mock("@/components/rooms/room-create-modal", () => ({
   RoomCreateModal: ({
     isOpen,
     onClose,
@@ -164,6 +164,9 @@ vi.mock("@/components/rooms", () => ({
       </div>
     ) : null;
   },
+}));
+
+vi.mock("@/components/rooms/rooms-master-detail", () => ({
   RoomsMasterDetail: ({
     groupDefinitions,
     selectedId,

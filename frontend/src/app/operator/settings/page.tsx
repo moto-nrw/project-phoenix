@@ -4,7 +4,7 @@ import { Suspense, useState, useEffect, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { Loading } from "~/components/ui/loading";
 import { PasswordChangeModal } from "~/components/ui/password-change-modal";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { useToast } from "~/contexts/ToastContext";
 import { sessionFetch } from "~/lib/session-cache";
 import { TrustedDevicesSection } from "~/components/settings/trusted-devices-section";

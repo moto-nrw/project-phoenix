@@ -12,7 +12,7 @@ import {
   useGroupedItems,
   type Grouper,
 } from "~/components/database/use-grouped-items";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
   ActiveFilter,
   FilterConfig,

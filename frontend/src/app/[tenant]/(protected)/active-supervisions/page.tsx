@@ -18,8 +18,11 @@ import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
-import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import type {
+  FilterConfig,
+  ActiveFilter,
+} from "~/components/ui/page-header/types";
 import { Loading } from "~/components/ui/loading";
 import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import { EmptyStudentResults } from "~/components/ui/empty-student-results";

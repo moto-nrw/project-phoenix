@@ -11,7 +11,7 @@ import {
   useGroupedItems,
   type Grouper,
 } from "~/components/database/use-grouped-items";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
   FilterConfig,
   ActiveFilter,
@@ -20,7 +20,8 @@ import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { roomsConfig } from "@/components/database/configs/rooms.config";
 import { formatFloor, type Room } from "@/lib/room-helpers";
-import { RoomCreateModal, RoomsMasterDetail } from "@/components/rooms";
+import { RoomCreateModal } from "@/components/rooms/room-create-modal";
+import { RoomsMasterDetail } from "@/components/rooms/rooms-master-detail";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/hooks/useIsMobile";

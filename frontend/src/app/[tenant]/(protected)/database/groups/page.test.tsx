@@ -77,7 +77,7 @@ vi.mock("~/components/database/database-page-layout", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({
     search,
     filters,
@@ -122,7 +122,7 @@ vi.mock("~/components/ui/page-header", () => ({
   ),
 }));
 
-vi.mock("@/components/groups", () => ({
+vi.mock("@/components/groups/group-create-modal", () => ({
   GroupCreateModal: ({
     isOpen,
     onClose,
@@ -156,6 +156,9 @@ vi.mock("@/components/groups", () => ({
       </div>
     ) : null;
   },
+}));
+
+vi.mock("@/components/groups/groups-master-detail", () => ({
   GroupsMasterDetail: ({
     groups,
     selectedId,

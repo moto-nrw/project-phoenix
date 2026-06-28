@@ -201,7 +201,7 @@ vi.mock("~/components/ui/loading", () => ({
   Loading: () => <div data-testid="loading" />,
 }));
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({
     actionButton,
     mobileActionButton,

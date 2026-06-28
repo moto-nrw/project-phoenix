@@ -9,7 +9,7 @@ import { DatabaseCreateAction } from "~/components/database/database-create-acti
 import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
   ActiveFilter,
   FilterConfig,

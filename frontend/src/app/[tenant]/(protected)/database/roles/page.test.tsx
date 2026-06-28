@@ -72,7 +72,7 @@ vi.mock("~/components/database/database-page-layout", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({
     search,
     onClearAllFilters,

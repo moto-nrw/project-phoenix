@@ -5,7 +5,7 @@ import { useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import useSWR from "swr";
 import { useSession } from "next-auth/react";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import {
   operatorProvisioningService,

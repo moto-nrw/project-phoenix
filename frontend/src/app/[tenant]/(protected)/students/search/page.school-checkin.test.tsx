@@ -155,7 +155,7 @@ vi.mock("~/components/ui/alert", () => ({
   Alert: ({ message }: { message: string }) => <div>{message}</div>,
 }));
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({
     actionButton,
     mobileActionButton,

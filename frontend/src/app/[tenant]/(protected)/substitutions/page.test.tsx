@@ -72,7 +72,7 @@ vi.mock("~/lib/breadcrumb-context", () => ({
 }));
 
 // Mock PageHeaderWithSearch
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({
     search,
     filters,

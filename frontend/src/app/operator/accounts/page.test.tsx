@@ -77,7 +77,7 @@ vi.mock("~/lib/operator/provisioning-api", async () => {
   };
 });
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({ title, tabs, actionButton }: any) => (
     <div data-testid="page-header">
       <h1>{title}</h1>
@@ -106,7 +106,7 @@ vi.mock("~/components/ui/skeleton", () => ({
   ),
 }));
 
-vi.mock("~/components/teachers", () => ({
+vi.mock("~/components/teachers/caregiver-capability-modal", () => ({
   CaregiverCapabilityModal: ({
     isOpen,
     accountId,

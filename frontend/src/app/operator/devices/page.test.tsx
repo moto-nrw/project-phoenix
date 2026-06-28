@@ -90,7 +90,7 @@ vi.mock("~/lib/format-utils", () => ({
   getRelativeTime: (dateStr: string) => `relative(${dateStr})`,
 }));
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({ title, tabs, actionButton }: any) => (
     <div data-testid="page-header">
       <h1>{title}</h1>

@@ -30,7 +30,7 @@ import { DataTable, DataTableStatusBadge } from "~/components/ui/data-table";
 import { buildSchoolColumns } from "~/components/operator/school-table-columns";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
-import { CaregiverCapabilityModal } from "~/components/teachers";
+import { CaregiverCapabilityModal } from "~/components/teachers/caregiver-capability-modal";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { formatCount } from "~/lib/format-utils";
 import { createLogger } from "~/lib/logger";

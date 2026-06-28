@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 
 interface Tab {

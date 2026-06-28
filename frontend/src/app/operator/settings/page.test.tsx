@@ -34,7 +34,7 @@ vi.mock("~/components/ui/loading", () => ({
   Loading: () => <div>Loading...</div>,
 }));
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({ title }: { title: string }) => (
     <div data-testid="page-header">{title}</div>
   ),

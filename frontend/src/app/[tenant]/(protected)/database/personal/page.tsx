@@ -12,14 +12,12 @@ import {
   useGroupedItems,
   type Grouper,
 } from "~/components/database/use-grouped-items";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type { ActiveFilter } from "~/components/ui/page-header/types";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/hooks/useIsMobile";
-import {
-  CaregiverCapabilityModal,
-  StaffMasterDetail,
-} from "@/components/teachers";
+import { CaregiverCapabilityModal } from "@/components/teachers/caregiver-capability-modal";
+import { StaffMasterDetail } from "@/components/teachers/staff-master-detail";
 import { TeacherEditModal } from "@/components/teachers/teacher-edit-modal";
 import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-modal";
 import { InvitationForm } from "~/components/admin/invitation-form";
