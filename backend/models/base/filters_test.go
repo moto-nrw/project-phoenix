@@ -274,10 +274,16 @@ func TestFilter_DateBetween(t *testing.T) {
 	if f.conditions[0].Field != "start_date" || f.conditions[0].Operator != OpLessThanOrEqual {
 		t.Errorf("DateBetween first condition = %+v, want start_date <=", f.conditions[0])
 	}
+	if got, ok := f.conditions[0].Value.(timezone.Date); !ok || got != date {
+		t.Errorf("DateBetween first value = %T(%v), want timezone.Date(%v)", f.conditions[0].Value, f.conditions[0].Value, date)
+	}
 
 	// end_date >= date
 	if f.conditions[1].Field != "end_date" || f.conditions[1].Operator != OpGreaterThanOrEqual {
 		t.Errorf("DateBetween second condition = %+v, want end_date >=", f.conditions[1])
+	}
+	if got, ok := f.conditions[1].Value.(timezone.Date); !ok || got != date {
+		t.Errorf("DateBetween second value = %T(%v), want timezone.Date(%v)", f.conditions[1].Value, f.conditions[1].Value, date)
 	}
 }
 

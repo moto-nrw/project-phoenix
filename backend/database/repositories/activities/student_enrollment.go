@@ -143,8 +143,8 @@ func (r *StudentEnrollmentRepository) FindActiveByStudentIDs(ctx context.Context
 	}
 
 	if err := query.
-		Order(`"student_enrollment".student_id ASC`).
-		Order(`"activity_group".name ASC`).
+		OrderExpr(`"student_enrollment".student_id ASC`).
+		OrderExpr(`"activity_group".name ASC`).
 		Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active enrollments by student IDs",
