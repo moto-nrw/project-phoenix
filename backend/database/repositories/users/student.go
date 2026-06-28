@@ -194,7 +194,7 @@ func (r *StudentRepository) FindBySchoolClass(ctx context.Context, schoolClass s
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&students).
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
-		Where("LOWER(school_class) = LOWER(?)", schoolClass)
+		Where("LOWER(TRIM(school_class)) = LOWER(TRIM(?))", schoolClass)
 
 	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
 		query = query.Where(where, val)

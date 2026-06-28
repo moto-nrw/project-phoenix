@@ -3,6 +3,7 @@ package students
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -135,8 +136,8 @@ func parseDayStatusParam(value string) string {
 // search still belongs in the broader `search` parameter.
 func (p *studentListParams) buildBaseFilter() *base.Filter {
 	filter := base.NewFilter()
-	if p.schoolClass != "" {
-		filter.ILike("school_class", p.schoolClass)
+	if schoolClass := strings.TrimSpace(p.schoolClass); schoolClass != "" {
+		filter.TrimEqual("school_class", schoolClass)
 	}
 	if p.guardianName != "" {
 		filter.ILike("guardian_name", "%"+p.guardianName+"%")

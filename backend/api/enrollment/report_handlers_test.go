@@ -1,6 +1,8 @@
 package enrollment
 
 import (
+	"context"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -8,6 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
@@ -37,6 +42,28 @@ func TestParseClassRosterExportRequestRejectsMissingClass(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "school_class is required")
+}
+
+func TestClassRosterExportRequiresConfigManageAndUsersRead(t *testing.T) {
+	testutil.SeedTestJWTConfig()
+	router := (&Resource{
+		ReportService:     &fakeClassRosterReportService{},
+		ListExportService: listexport.NewService(),
+		runInTenantTxForTest: func(r *http.Request, fn func(context.Context) error) error {
+			return fn(r.Context())
+		},
+	}).Router()
+	body := `{"format":"xlsx","filters":{"phase_id":42,"school_class":"1a"}}`
+
+	configOnly := newClassRosterExportHTTPRequest(t, body, []string{permissions.ConfigManage})
+	configOnlyRecorder := httptest.NewRecorder()
+	router.ServeHTTP(configOnlyRecorder, configOnly)
+	assert.Equal(t, http.StatusForbidden, configOnlyRecorder.Code)
+
+	configAndUsersRead := newClassRosterExportHTTPRequest(t, body, []string{permissions.ConfigManage, permissions.UsersRead})
+	configAndUsersReadRecorder := httptest.NewRecorder()
+	router.ServeHTTP(configAndUsersReadRecorder, configAndUsersRead)
+	assert.Equal(t, http.StatusOK, configAndUsersReadRecorder.Code)
 }
 
 func TestBuildClassRosterTableDocumentRendersPhaseAwareCells(t *testing.T) {
@@ -86,4 +113,48 @@ func TestBuildClassRosterTableDocumentRendersPhaseAwareCells(t *testing.T) {
 	assert.Equal(t, "Betreuung", doc.Rows[0].Values[listexport.ColumnWeeklyWednesday])
 	assert.Equal(t, "Keine Anmeldung", doc.Rows[1].Values[listexport.ColumnEnrollmentSummary])
 	assert.Equal(t, "nein", doc.Rows[1].Values[listexport.ColumnWeeklyMonday])
+}
+
+func newClassRosterExportHTTPRequest(t *testing.T, body string, perms []string) *http.Request {
+	t.Helper()
+	token := testutil.MintTestJWT(t, jwt.AppClaims{
+		ID:          100,
+		Sub:         "admin@example.test",
+		TenantID:    200,
+		Roles:       []string{"admin"},
+		Permissions: perms,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/admin/reports/class-roster/export", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	return req
+}
+
+type fakeClassRosterReportService struct {
+	enrollmentService.ReportService
+}
+
+func (s *fakeClassRosterReportService) ExportClassRoster(_ context.Context, filters enrollmentService.ClassRosterFilters, _ int64, _, _ string) (*enrollmentService.ClassRosterReport, error) {
+	return &enrollmentService.ClassRosterReport{
+		Phase: enrollmentService.CareUsagePhase{ID: filters.PhaseID, Name: "Schuljahr 2026"},
+		Filters: enrollmentService.ClassRosterAppliedFilters{
+			PhaseID:     filters.PhaseID,
+			SchoolClass: filters.SchoolClass,
+			Status:      enrollmentModels.ChildStatusApproved,
+		},
+		Totals: enrollmentService.ClassRosterTotals{Students: 1, Registered: 1},
+		Rows: []enrollmentService.ClassRosterRow{
+			{
+				FirstName:         "Lina",
+				LastName:          "Muster",
+				SchoolClass:       filters.SchoolClass,
+				Registered:        true,
+				EnrollmentSummary: "Angemeldet",
+				CareDays:          []string{"mon"},
+				ArrivalByDay:      map[string]string{},
+				PickupByDay:       map[string]string{},
+				Departure:         "Abholung",
+			},
+		},
+	}, nil
 }

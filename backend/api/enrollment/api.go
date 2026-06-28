@@ -13,6 +13,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -200,7 +201,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Route("/admin/reports", func(r chi.Router) {
 			r.With(authorize.RequiresPermission("config:read")).Get("/care-usage", rs.getCareUsageReport)
 			r.With(authorize.RequiresPermission("config:manage")).Post("/care-usage/export", rs.exportCareUsageReport)
-			r.With(authorize.RequiresPermission("config:manage")).Post("/class-roster/export", rs.exportClassRosterReport)
+			r.With(authorize.RequiresAllPermissions(permissions.ConfigManage, permissions.UsersRead)).Post("/class-roster/export", rs.exportClassRosterReport)
 		})
 		r.Route("/admin/students/{studentId}/requests", func(r chi.Router) {
 			r.With(authorize.RequiresPermission("config:manage")).Get("/", rs.listAdminRequestsByStudent)

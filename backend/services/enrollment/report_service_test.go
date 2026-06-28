@@ -256,6 +256,7 @@ func TestClassRosterApprovedEnrollmentsOnlyUsesApprovedChildrenInClass(t *testin
 
 func TestClassRosterApprovedEnrollmentsUsesOnlyNewestChildLinks(t *testing.T) {
 	studentID := int64(100)
+	newestOfferingID := int64(20)
 	requestByID := map[int64]*enrollmentModels.Request{
 		1: {Model: baseModels.Model{ID: 1}, SubmittedAt: time.Date(2026, 1, 1, 8, 0, 0, 0, time.UTC)},
 		2: {Model: baseModels.Model{ID: 2}, SubmittedAt: time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC)},
@@ -271,14 +272,78 @@ func TestClassRosterApprovedEnrollmentsUsesOnlyNewestChildLinks(t *testing.T) {
 	got, childIDs := classRosterApprovedEnrollments(children, requestByID, studentByID)
 	classRosterAttachOfferingLinks(got, []*enrollmentModels.RequestChildOffering{
 		{RequestChildID: 10, CareOfferingID: 1},
-		{RequestChildID: 20, CareOfferingID: 2},
+		{RequestChildID: 20, CareOfferingID: newestOfferingID},
 	})
 
 	require.Len(t, got, 1)
 	assert.Equal(t, int64(20), got[studentID].child.ID)
 	assert.Equal(t, []int64{20}, childIDs)
 	require.Len(t, got[studentID].links, 1)
-	assert.Equal(t, int64(2), got[studentID].links[0].CareOfferingID)
+	assert.Equal(t, newestOfferingID, got[studentID].links[0].CareOfferingID)
+}
+
+func TestClassRosterScopesRequestLimitToSelectedClass(t *testing.T) {
+	studentID := int64(100)
+	personID := int64(200)
+	requestID := int64(300)
+	childID := int64(400)
+	repo := &fakeClassRosterRequestRepo{
+		requests: []*enrollmentModels.Request{
+			{Model: baseModels.Model{ID: requestID}, SubmittedAt: time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC)},
+		},
+	}
+	svc := classRosterTestService(
+		[]*userModels.Student{{Model: baseModels.Model{ID: studentID}, PersonID: personID, SchoolClass: "1a"}},
+		map[int64]*userModels.Person{personID: {FirstName: "Lina", LastName: "Muster"}},
+		repo,
+		&fakeClassRosterChildRepo{children: []*enrollmentModels.RequestChild{
+			{Model: baseModels.Model{ID: childID}, RequestID: requestID, Status: enrollmentModels.ChildStatusApproved, CreatedStudentID: &studentID},
+		}},
+	)
+
+	report, err := svc.ClassRoster(context.Background(), ClassRosterFilters{PhaseID: 55, SchoolClass: "1a"})
+
+	require.NoError(t, err)
+	require.Len(t, report.Rows, 1)
+	assert.Equal(t, []int64{studentID}, repo.seenFilters.CreatedStudentIDs)
+	assert.Equal(t, 1, report.Totals.Registered)
+}
+
+func TestClassRosterAppliesChildLimitAfterClassFiltering(t *testing.T) {
+	studentID := int64(100)
+	otherStudentID := int64(200)
+	personID := int64(300)
+	requestID := int64(400)
+	childID := int64(500)
+	children := make([]*enrollmentModels.RequestChild, 0, maxReportRows+2)
+	for i := 0; i <= maxReportRows; i++ {
+		children = append(children, &enrollmentModels.RequestChild{
+			Model:            baseModels.Model{ID: int64(1000 + i)},
+			RequestID:        requestID,
+			Status:           enrollmentModels.ChildStatusApproved,
+			CreatedStudentID: &otherStudentID,
+		})
+	}
+	children = append(children, &enrollmentModels.RequestChild{
+		Model:            baseModels.Model{ID: childID},
+		RequestID:        requestID,
+		Status:           enrollmentModels.ChildStatusApproved,
+		CreatedStudentID: &studentID,
+	})
+	svc := classRosterTestService(
+		[]*userModels.Student{{Model: baseModels.Model{ID: studentID}, PersonID: personID, SchoolClass: "1a"}},
+		map[int64]*userModels.Person{personID: {FirstName: "Lina", LastName: "Muster"}},
+		&fakeClassRosterRequestRepo{requests: []*enrollmentModels.Request{
+			{Model: baseModels.Model{ID: requestID}, SubmittedAt: time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC)},
+		}},
+		&fakeClassRosterChildRepo{children: children},
+	)
+
+	report, err := svc.ClassRoster(context.Background(), ClassRosterFilters{PhaseID: 55, SchoolClass: "1a"})
+
+	require.NoError(t, err)
+	require.Len(t, report.Rows, 1)
+	assert.True(t, report.Rows[0].Registered)
 }
 
 func TestClassRosterGroupNameResolvesAssignedGroup(t *testing.T) {
@@ -557,4 +622,88 @@ func (r *fakeEducationGroupRepo) FindByIDs(_ context.Context, ids []int64) (map[
 		}
 	}
 	return out, nil
+}
+
+func classRosterTestService(students []*userModels.Student, persons map[int64]*userModels.Person, requestRepo *fakeClassRosterRequestRepo, childRepo *fakeClassRosterChildRepo) *reportService {
+	return &reportService{
+		requestRepo:              requestRepo,
+		requestChildRepo:         childRepo,
+		requestChildOfferingRepo: &fakeClassRosterChildOfferingRepo{},
+		careOfferingRepo:         &fakeClassRosterCareOfferingRepo{},
+		phaseRepo:                &fakeClassRosterPhaseRepo{},
+		studentRepo:              &fakeClassRosterStudentRepo{students: students},
+		personRepo:               &fakeClassRosterPersonRepo{persons: persons},
+		educationGroupRepo:       &fakeEducationGroupRepo{},
+	}
+}
+
+type fakeClassRosterStudentRepo struct {
+	userModels.StudentRepository
+	students []*userModels.Student
+}
+
+func (r *fakeClassRosterStudentRepo) FindBySchoolClass(_ context.Context, _ string) ([]*userModels.Student, error) {
+	return r.students, nil
+}
+
+type fakeClassRosterPersonRepo struct {
+	userModels.PersonRepository
+	persons map[int64]*userModels.Person
+}
+
+func (r *fakeClassRosterPersonRepo) FindByIDs(_ context.Context, ids []int64) (map[int64]*userModels.Person, error) {
+	out := make(map[int64]*userModels.Person, len(ids))
+	for _, id := range ids {
+		if person := r.persons[id]; person != nil {
+			out[id] = person
+		}
+	}
+	return out, nil
+}
+
+type fakeClassRosterRequestRepo struct {
+	enrollmentModels.RequestRepository
+	requests    []*enrollmentModels.Request
+	seenFilters enrollmentModels.RequestListFilters
+}
+
+func (r *fakeClassRosterRequestRepo) ListAdmin(_ context.Context, filters enrollmentModels.RequestListFilters) ([]*enrollmentModels.Request, error) {
+	r.seenFilters = filters
+	if len(filters.CreatedStudentIDs) == 0 {
+		return make([]*enrollmentModels.Request, maxExportRequests+1), nil
+	}
+	return r.requests, nil
+}
+
+type fakeClassRosterChildRepo struct {
+	enrollmentModels.RequestChildRepository
+	children []*enrollmentModels.RequestChild
+}
+
+func (r *fakeClassRosterChildRepo) ListByRequestIDs(_ context.Context, _ []int64) ([]*enrollmentModels.RequestChild, error) {
+	return r.children, nil
+}
+
+type fakeClassRosterChildOfferingRepo struct {
+	enrollmentModels.RequestChildOfferingRepository
+}
+
+func (r *fakeClassRosterChildOfferingRepo) ListByRequestChildIDs(_ context.Context, _ []int64) ([]*enrollmentModels.RequestChildOffering, error) {
+	return nil, nil
+}
+
+type fakeClassRosterCareOfferingRepo struct {
+	enrollmentModels.CareOfferingRepository
+}
+
+func (r *fakeClassRosterCareOfferingRepo) ListByPhase(_ context.Context, _ int64) ([]*enrollmentModels.CareOffering, error) {
+	return nil, nil
+}
+
+type fakeClassRosterPhaseRepo struct {
+	enrollmentModels.PhaseRepository
+}
+
+func (r *fakeClassRosterPhaseRepo) FindByID(_ context.Context, id int64) (*enrollmentModels.Phase, error) {
+	return &enrollmentModels.Phase{Model: baseModels.Model{ID: id}, Name: "Schuljahr 2026"}, nil
 }

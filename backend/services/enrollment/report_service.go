@@ -398,6 +398,13 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 	if len(students) > maxReportRows {
 		return nil, fmt.Errorf("class roster report: %d students: %w", len(students), ErrReportExportTooLarge)
 	}
+	studentByID := make(map[int64]*userModels.Student, len(students))
+	for _, student := range students {
+		if student != nil {
+			studentByID[student.ID] = student
+		}
+	}
+	studentIDs := classRosterStudentIDs(students)
 	persons, err := s.personRepo.FindByIDs(ctx, classRosterPersonIDs(students))
 	if err != nil {
 		return nil, fmt.Errorf("class roster report: load persons: %w", err)
@@ -407,29 +414,29 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 		return nil, err
 	}
 
-	requests, err := s.requestRepo.ListAdmin(ctx, enrollmentModels.RequestListFilters{PhaseID: filters.PhaseID})
-	if err != nil {
-		return nil, fmt.Errorf("class roster report: list requests: %w", err)
-	}
-	if len(requests) > maxExportRequests {
-		return nil, fmt.Errorf("class roster report: %d requests: %w", len(requests), ErrReportExportTooLarge)
-	}
-	requestByID := make(map[int64]*enrollmentModels.Request, len(requests))
-	reqIDs := make([]int64, 0, len(requests))
-	for _, req := range requests {
-		if req == nil {
-			continue
+	var requests []*enrollmentModels.Request
+	var children []*enrollmentModels.RequestChild
+	if len(studentIDs) > 0 {
+		requests, err = s.requestRepo.ListAdmin(ctx, enrollmentModels.RequestListFilters{
+			PhaseID:           filters.PhaseID,
+			CreatedStudentIDs: studentIDs,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("class roster report: list requests: %w", err)
 		}
-		requestByID[req.ID] = req
-		reqIDs = append(reqIDs, req.ID)
+		if len(requests) > maxExportRequests {
+			return nil, fmt.Errorf("class roster report: %d requests: %w", len(requests), ErrReportExportTooLarge)
+		}
+		children, err = s.requestChildRepo.ListByRequestIDs(ctx, classRosterRequestIDs(requests))
+		if err != nil {
+			return nil, fmt.Errorf("class roster report: list children: %w", err)
+		}
+		children = classRosterChildrenForStudents(children, studentByID)
+		if len(children) > maxReportRows {
+			return nil, fmt.Errorf("class roster report: %d children: %w", len(children), ErrReportExportTooLarge)
+		}
 	}
-	children, err := s.requestChildRepo.ListByRequestIDs(ctx, reqIDs)
-	if err != nil {
-		return nil, fmt.Errorf("class roster report: list children: %w", err)
-	}
-	if len(children) > maxReportRows {
-		return nil, fmt.Errorf("class roster report: %d children: %w", len(children), ErrReportExportTooLarge)
-	}
+	requestByID := classRosterRequestsByID(requests)
 
 	offerings, err := s.careOfferingRepo.ListByPhase(ctx, filters.PhaseID)
 	if err != nil {
@@ -446,12 +453,6 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 		return nil, err
 	}
 
-	studentByID := make(map[int64]*userModels.Student, len(students))
-	for _, student := range students {
-		if student != nil {
-			studentByID[student.ID] = student
-		}
-	}
 	enrollmentsByStudent, approvedChildIDs := classRosterApprovedEnrollments(children, requestByID, studentByID)
 	links, err := s.requestChildOfferingRepo.ListByRequestChildIDs(ctx, approvedChildIDs)
 	if err != nil {
@@ -702,6 +703,19 @@ type classRosterApprovedEnrollment struct {
 	links   []*enrollmentModels.RequestChildOffering
 }
 
+func classRosterStudentIDs(students []*userModels.Student) []int64 {
+	ids := make([]int64, 0, len(students))
+	seen := map[int64]bool{}
+	for _, student := range students {
+		if student == nil || student.ID <= 0 || seen[student.ID] {
+			continue
+		}
+		seen[student.ID] = true
+		ids = append(ids, student.ID)
+	}
+	return ids
+}
+
 func classRosterPersonIDs(students []*userModels.Student) []int64 {
 	ids := make([]int64, 0, len(students))
 	seen := map[int64]bool{}
@@ -713,6 +727,42 @@ func classRosterPersonIDs(students []*userModels.Student) []int64 {
 		ids = append(ids, student.PersonID)
 	}
 	return ids
+}
+
+func classRosterRequestIDs(requests []*enrollmentModels.Request) []int64 {
+	ids := make([]int64, 0, len(requests))
+	seen := map[int64]bool{}
+	for _, req := range requests {
+		if req == nil || req.ID <= 0 || seen[req.ID] {
+			continue
+		}
+		seen[req.ID] = true
+		ids = append(ids, req.ID)
+	}
+	return ids
+}
+
+func classRosterRequestsByID(requests []*enrollmentModels.Request) map[int64]*enrollmentModels.Request {
+	out := make(map[int64]*enrollmentModels.Request, len(requests))
+	for _, req := range requests {
+		if req != nil {
+			out[req.ID] = req
+		}
+	}
+	return out
+}
+
+func classRosterChildrenForStudents(children []*enrollmentModels.RequestChild, studentByID map[int64]*userModels.Student) []*enrollmentModels.RequestChild {
+	out := make([]*enrollmentModels.RequestChild, 0, len(children))
+	for _, child := range children {
+		if child == nil || child.CreatedStudentID == nil {
+			continue
+		}
+		if studentByID[*child.CreatedStudentID] != nil {
+			out = append(out, child)
+		}
+	}
+	return out
 }
 
 func classRosterGroupIDs(students []*userModels.Student) []int64 {
