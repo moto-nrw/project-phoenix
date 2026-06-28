@@ -179,32 +179,6 @@ export async function postMessage(
 }
 
 /**
- * Send the OGS's first message to one guardian about one child. The backend
- * get-or-creates the conversation and returns the full ThreadDetail (including
- * the message).
- */
-export async function startThread(input: {
-  studentId: string;
-  guardianAccountId: string;
-  body: string;
-}): Promise<ThreadDetail> {
-  const fallback = "Nachricht konnte nicht gesendet werden";
-  const result = await postEnvelope<ThreadDetail>(
-    "/api/messages/threads",
-    {
-      student_id: input.studentId,
-      guardian_account_id: input.guardianAccountId,
-      body: input.body,
-    },
-    fallback,
-  );
-  if (!result.data) {
-    throw new Error(fallback);
-  }
-  return result.data;
-}
-
-/**
  * Get-or-create the conversation for a (child, guardian) pair and return it
  * (with history if any) WITHOUT sending a message — opens the chat window
  * directly from the recipient picker, WhatsApp-style. The empty thread stays

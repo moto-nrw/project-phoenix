@@ -4,7 +4,7 @@
  */
 
 /** Who sent a message: the guardian or the OGS staff. */
-export type MessageSenderKind = "guardian" | "staff";
+type MessageSenderKind = "guardian" | "staff";
 
 /**
  * One message in a parent-OGS conversation, as it arrives over the wire (int64

@@ -32,7 +32,7 @@ func NewParentMessageThreadRepository(db *bun.DB) users.ParentMessageThreadRepos
 // Delegates to the generic base helper so the schema-qualified query and tenant
 // filter are not duplicated (backend-conventions Rule 2).
 func (r *ParentMessageThreadRepository) FindByID(ctx context.Context, id int64) (*users.ParentMessageThread, error) {
-	return r.Repository.FindByIDOrNil(ctx, id)
+	return r.FindByIDOrNil(ctx, id)
 }
 
 // FindByStudentGuardian returns the single conversation for a (student,

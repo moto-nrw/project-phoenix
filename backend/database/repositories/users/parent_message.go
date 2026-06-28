@@ -27,7 +27,7 @@ func NewParentMessageRepository(db *bun.DB) users.ParentMessageRepository {
 // absent. Delegates to the generic base helper so the schema-qualified query
 // and tenant filter are not duplicated (backend-conventions Rule 2).
 func (r *ParentMessageRepository) FindByID(ctx context.Context, id int64) (*users.ParentMessage, error) {
-	return r.Repository.FindByIDOrNil(ctx, id)
+	return r.FindByIDOrNil(ctx, id)
 }
 
 // ListByThread returns a thread's messages oldest-first (chat order). A positive

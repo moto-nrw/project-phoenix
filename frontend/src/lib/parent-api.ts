@@ -456,7 +456,7 @@ export async function listSickDays(studentId: string): Promise<StatusDay[]> {
 // own messages, "staff" for replies from the OGS. For staff messages
 // `sender_name` is the "OGS [Schulname]" label.
 // The wire message shape is shared with the staff client; see ChatMessage.
-export type ParentMessage = ChatMessage;
+type ParentMessage = ChatMessage;
 
 // One row on the messages landing page: a child's conversation, with the
 // guardian's unread (staff-sent) count and last-activity metadata.

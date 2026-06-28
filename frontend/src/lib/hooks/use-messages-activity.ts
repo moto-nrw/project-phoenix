@@ -48,7 +48,7 @@ import { useEffect, useRef } from "react";
  * `refetchOnFocus: true` here refetches the active conversation on the SAME window
  * `focus` event so the open chat recovers in lockstep with its badge.
  */
-export interface MessagesActivityDetail {
+interface MessagesActivityDetail {
   readonly threadId?: string | null;
   readonly studentId?: string | null;
 }
