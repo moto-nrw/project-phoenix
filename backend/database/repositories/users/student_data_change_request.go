@@ -19,6 +19,10 @@ const tableExprStudentDataChangeRequestsAsReq = `users.student_data_change_reque
 // not exist. Services map this to a 409/404.
 var ErrChangeRequestNotPending = users.ErrChangeRequestNotPending
 
+// ErrChangeRequestNotFound is returned when no change request row exists under
+// the current tenant.
+var ErrChangeRequestNotFound = users.ErrChangeRequestNotFound
+
 // StudentDataChangeRequestRepository is the tenant-scoped data-access layer for
 // parent Stammdaten changes. It embeds the generic base.Repository for
 // Create/FindByID and adds the listing + decision helpers the parent and staff
@@ -135,16 +139,16 @@ func (r *StudentDataChangeRequestRepository) HasPendingForField(ctx context.Cont
 	return exists, nil
 }
 
-// FindPendingByIDForUpdate locks a pending change request row for the current
-// tenant. The lock closes the staff-decision race where one reviewer could apply
-// live changes after another reviewer already decided the row.
+// FindPendingByIDForUpdate locks a change request row for the current tenant
+// and verifies it is still pending. The lock closes the staff-decision race
+// where one reviewer could apply live changes after another reviewer already
+// decided the row.
 func (r *StudentDataChangeRequestRepository) FindPendingByIDForUpdate(ctx context.Context, id int64) (*users.StudentDataChangeRequest, error) {
 	row := new(users.StudentDataChangeRequest)
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(row).
 		ModelTableExpr(tableExprStudentDataChangeRequestsAsReq).
 		Where(`"student_data_change_request".id = ?`, id).
-		Where(`"student_data_change_request".status = ?`, users.DataChangeStatusPending).
 		For("UPDATE")
 
 	if where, val, ok := base.TenantWhere(ctx, "student_data_change_request"); ok {
@@ -153,9 +157,12 @@ func (r *StudentDataChangeRequestRepository) FindPendingByIDForUpdate(ctx contex
 
 	if err := query.Scan(ctx); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrChangeRequestNotPending
+			return nil, ErrChangeRequestNotFound
 		}
 		return nil, &modelBase.DatabaseError{Op: "find pending student data change request for update", Err: err}
+	}
+	if row.Status != users.DataChangeStatusPending {
+		return nil, ErrChangeRequestNotPending
 	}
 	return row, nil
 }

@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -138,6 +139,88 @@ describe("ChildMasterDataView", () => {
     expect(await screen.findByText("Gespeichert")).toBeInTheDocument();
   });
 
+  it("does not duplicate a blur save while the debounced save is in flight", async () => {
+    let resolveSave: ((value: ChildMasterData) => void) | undefined;
+    mockUpdateField.mockImplementation(
+      () =>
+        new Promise<ChildMasterData>((resolve) => {
+          resolveSave = resolve;
+        }),
+    );
+
+    render(<ChildMasterDataView studentId="42" />);
+    const health = await screen.findByDisplayValue("Allergie");
+
+    vi.useFakeTimers();
+    try {
+      fireEvent.change(health, { target: { value: "Neue Info" } });
+      await act(async () => {
+        vi.advanceTimersByTime(1500);
+      });
+      fireEvent.blur(health);
+
+      expect(mockUpdateField).toHaveBeenCalledTimes(1);
+      expect(mockUpdateField).toHaveBeenCalledWith(
+        "42",
+        "student",
+        "health_info",
+        "Neue Info",
+      );
+
+      await act(async () => {
+        resolveSave?.(masterData({ health_info: "Neue Info" }));
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps newer autosave input when an older response resolves first", async () => {
+    const resolvers: Array<(value: ChildMasterData) => void> = [];
+    mockUpdateField.mockImplementation(
+      (_studentId, _target, _field, value) =>
+        new Promise<ChildMasterData>((resolve) => {
+          resolvers.push(() =>
+            resolve(masterData({ health_info: String(value) })),
+          );
+        }),
+    );
+
+    render(<ChildMasterDataView studentId="42" />);
+    const health = await screen.findByDisplayValue("Allergie");
+
+    vi.useFakeTimers();
+    try {
+      fireEvent.change(health, { target: { value: "Zwischenstand" } });
+      await act(async () => {
+        vi.advanceTimersByTime(1500);
+      });
+      expect(mockUpdateField).toHaveBeenCalledTimes(1);
+
+      fireEvent.change(health, { target: { value: "Neuester Stand" } });
+      expect(health).toHaveValue("Neuester Stand");
+
+      await act(async () => {
+        resolvers[0]?.(masterData({ health_info: "Zwischenstand" }));
+      });
+
+      expect(health).toHaveValue("Neuester Stand");
+      expect(mockUpdateField).toHaveBeenCalledTimes(2);
+      expect(mockUpdateField).toHaveBeenLastCalledWith(
+        "42",
+        "student",
+        "health_info",
+        "Neuester Stand",
+      );
+
+      await act(async () => {
+        resolvers[1]?.(masterData({ health_info: "Neuester Stand" }));
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("submits approval-required identity changes and refreshes pending state", async () => {
     mockGetMasterData.mockResolvedValueOnce(masterData()).mockResolvedValueOnce(
       masterData({
@@ -243,6 +326,40 @@ describe("ChildMasterDataView", () => {
         },
       ]),
     );
+  });
+
+  it("preserves dirty request drafts across unrelated direct-edit refreshes", async () => {
+    mockUpdateField.mockResolvedValue(masterData({ health_info: "Neue Info" }));
+
+    render(<ChildMasterDataView studentId="42" />);
+
+    const firstName = await screen.findByDisplayValue("Lara");
+    fireEvent.change(firstName, { target: { value: "Lea" } });
+
+    const health = screen.getByDisplayValue("Allergie");
+    fireEvent.change(health, { target: { value: "Neue Info" } });
+    fireEvent.blur(health);
+
+    await waitFor(() => expect(mockUpdateField).toHaveBeenCalled());
+    expect(firstName).toHaveValue("Lea");
+  });
+
+  it("preserves dirty departure drafts across unrelated direct-edit refreshes", async () => {
+    mockUpdateField.mockResolvedValue(masterData({ health_info: "Neue Info" }));
+
+    render(<ChildMasterDataView studentId="42" />);
+
+    await screen.findByRole("heading", { name: "Dauerhafte Gehzeiten" });
+    const wedPickup = screen.getByLabelText("Mi Wird abgeholt");
+    fireEvent.click(wedPickup);
+    expect(wedPickup).toBeChecked();
+
+    const health = screen.getByDisplayValue("Allergie");
+    fireEvent.change(health, { target: { value: "Neue Info" } });
+    fireEvent.blur(health);
+
+    await waitFor(() => expect(mockUpdateField).toHaveBeenCalled());
+    expect(wedPickup).toBeChecked();
   });
 
   it("does not offer accompanied departure requests without companion-note support", async () => {

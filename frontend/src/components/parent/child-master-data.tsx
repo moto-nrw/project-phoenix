@@ -235,12 +235,43 @@ function IdentitySection({
   const firstNamePending = pendingByField.has("person/first_name");
   const lastNamePending = pendingByField.has("person/last_name");
   const birthdayPending = pendingByField.has("person/birthday");
+  const identityBase = useRef({
+    firstName: data.first_name,
+    lastName: data.last_name,
+    birthday: data.birthday ?? "",
+  });
 
   useEffect(() => {
-    setFirstName(data.first_name);
-    setLastName(data.last_name);
-    setBirthday(data.birthday ?? "");
-  }, [data.first_name, data.last_name, data.birthday, data.pending_changes]);
+    const previous = identityBase.current;
+    const next = {
+      firstName: data.first_name,
+      lastName: data.last_name,
+      birthday: data.birthday ?? "",
+    };
+    setFirstName((current) =>
+      current === previous.firstName || firstNamePending
+        ? next.firstName
+        : current,
+    );
+    setLastName((current) =>
+      current === previous.lastName || lastNamePending
+        ? next.lastName
+        : current,
+    );
+    setBirthday((current) =>
+      current === previous.birthday || birthdayPending
+        ? next.birthday
+        : current,
+    );
+    identityBase.current = next;
+  }, [
+    data.first_name,
+    data.last_name,
+    data.birthday,
+    firstNamePending,
+    lastNamePending,
+    birthdayPending,
+  ]);
 
   const changes = useMemo<MasterDataChangeInput[]>(() => {
     const out: MasterDataChangeInput[] = [];
@@ -390,6 +421,7 @@ function DepartureSection({
     () => normalizeDepartureModes(data.allowed_departure_modes),
     [data.allowed_departure_modes],
   );
+  const departureBase = useRef(current);
   const changed = useMemo(
     () => !departureModesEqual(modes, current),
     [modes, current],
@@ -399,8 +431,12 @@ function DepartureSection({
     features.master_data_request_enabled && !pending && !hasAccompanied;
 
   useEffect(() => {
-    setModes(normalizeDepartureModes(data.allowed_departure_modes));
-  }, [data.allowed_departure_modes]);
+    const previous = departureBase.current;
+    setModes((draft) =>
+      departureModesEqual(draft, previous) || pending ? current : draft,
+    );
+    departureBase.current = current;
+  }, [current, pending]);
 
   const toggle = (day: string, mode: string) => {
     setModes((prev) => {
@@ -540,33 +576,80 @@ function AutoSaveField({
   const [local, setLocal] = useState(value);
   const [status, setStatus] = useState<SaveStatus>("idle");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savedValue = useRef(value);
+  const latestValue = useRef(value);
+  const inFlightValue = useRef<string | null>(null);
+  const queuedValue = useRef<string | null>(null);
 
   useEffect(() => {
-    setLocal(value);
+    const previousSaved = savedValue.current;
+    savedValue.current = value;
+    if (
+      inFlightValue.current === null &&
+      latestValue.current === previousSaved
+    ) {
+      latestValue.current = value;
+      setLocal(value);
+    } else if (
+      latestValue.current === value &&
+      inFlightValue.current === null
+    ) {
+      setStatus("saved");
+    }
   }, [value]);
 
   const doSave = useCallback(
     async (next: string) => {
-      if (next === value) {
+      if (next === savedValue.current) {
         setStatus("idle");
         return;
       }
+      if (inFlightValue.current === next) {
+        return;
+      }
+      if (inFlightValue.current !== null) {
+        queuedValue.current = next;
+        setStatus("saving");
+        return;
+      }
+
+      inFlightValue.current = next;
       setStatus("saving");
       try {
         await onSave(next);
-        setStatus("saved");
+        savedValue.current = next;
+        if (latestValue.current === next) {
+          setStatus("saved");
+        }
       } catch {
+        queuedValue.current = null;
         setStatus("error");
+      } finally {
+        inFlightValue.current = null;
+        const queued = queuedValue.current;
+        queuedValue.current = null;
+        if (
+          queued !== null &&
+          queued === latestValue.current &&
+          queued !== savedValue.current
+        ) {
+          void doSave(queued);
+        }
       }
     },
-    [onSave, value],
+    [onSave],
   );
 
   const handleChange = (next: string) => {
     setLocal(next);
+    latestValue.current = next;
     setStatus("idle");
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => void doSave(next), AUTO_SAVE_DELAY_MS);
+    if (inFlightValue.current !== null) {
+      queuedValue.current = next;
+    } else {
+      timer.current = setTimeout(() => void doSave(next), AUTO_SAVE_DELAY_MS);
+    }
   };
 
   const handleBlur = () => {
@@ -574,7 +657,9 @@ function AutoSaveField({
       clearTimeout(timer.current);
       timer.current = null;
     }
-    if (local !== value) void doSave(local);
+    if (local !== savedValue.current && inFlightValue.current !== local) {
+      void doSave(local);
+    }
   };
 
   return (

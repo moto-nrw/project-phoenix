@@ -16,6 +16,10 @@ const tableUsersStudentDataChangeRequests = "users.student_data_change_requests"
 // row was already terminal under the caller's tenant.
 var ErrChangeRequestNotPending = errors.New("users: change request is not pending")
 
+// ErrChangeRequestNotFound means no row with the requested id exists in the
+// caller's tenant.
+var ErrChangeRequestNotFound = errors.New("users: change request not found")
+
 // Change-request lifecycle states. Track A (direct edit) writes rows directly
 // as auto_applied — the live record was already updated, the row is the audit
 // trail. Track B (review) writes pending rows that a staff decision moves to
@@ -118,9 +122,10 @@ type StudentDataChangeRequestRepository interface {
 	// duplicate requests instead of stacking them.
 	HasPendingForField(ctx context.Context, studentID int64, target, fieldKey string) (bool, error)
 
-	// FindPendingByIDForUpdate locks a pending request row for staff decision
-	// processing. It returns ErrChangeRequestNotPending when the row is missing
-	// or already decided in the current tenant.
+	// FindPendingByIDForUpdate locks a request row for staff decision
+	// processing. It returns ErrChangeRequestNotFound when the row is missing
+	// in the current tenant and ErrChangeRequestNotPending when it exists but
+	// is already decided / audit-only.
 	FindPendingByIDForUpdate(ctx context.Context, id int64) (*StudentDataChangeRequest, error)
 
 	// Decide moves a pending row to approved/rejected, stamping review_reason,

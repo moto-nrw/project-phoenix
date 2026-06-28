@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"reflect"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -26,6 +27,9 @@ var (
 	// ErrReviewInvalidValue means the stored new_value could not be decoded when
 	// applying an approval.
 	ErrReviewInvalidValue = errors.New("users: change request value is invalid")
+	// ErrReviewStaleValue means the live value no longer matches the request's
+	// old_value baseline, so approval would overwrite a newer staff/import edit.
+	ErrReviewStaleValue = errors.New("users: change request baseline changed")
 )
 
 // MasterDataReviewItem is one pending request enriched with the child's name for
@@ -138,6 +142,9 @@ func (s *masterDataReviewService) Decide(ctx context.Context, input MasterDataRe
 	}
 	req, err := s.changeRequestRepo.FindPendingByIDForUpdate(ctx, input.RequestID)
 	if err != nil {
+		if errors.Is(err, userModels.ErrChangeRequestNotFound) {
+			return nil, ErrReviewNotFound
+		}
 		if errors.Is(err, userModels.ErrChangeRequestNotPending) {
 			return nil, ErrReviewNotPending
 		}
@@ -221,6 +228,19 @@ func (s *masterDataReviewService) applyApprovedChange(ctx context.Context, req *
 }
 
 func (s *masterDataReviewService) applyPersonChange(ctx context.Context, req *userModels.StudentDataChangeRequest) error {
+	var value string
+	if err := json.Unmarshal(req.NewValue, &value); err != nil {
+		return ErrReviewInvalidValue
+	}
+	var parsedBirthday *timezone.Date
+	if req.FieldKey == "birthday" {
+		d, parseErr := timezone.ParseDate(value)
+		if parseErr != nil {
+			return ErrReviewInvalidValue
+		}
+		parsedBirthday = &d
+	}
+
 	student, err := s.studentRepo.FindByID(ctx, req.StudentID)
 	if err != nil {
 		return fmt.Errorf("review: load student: %w", err)
@@ -229,21 +249,22 @@ func (s *masterDataReviewService) applyPersonChange(ctx context.Context, req *us
 	if err != nil {
 		return fmt.Errorf("review: load person: %w", err)
 	}
-	var value string
-	if err := json.Unmarshal(req.NewValue, &value); err != nil {
-		return ErrReviewInvalidValue
+
+	currentRaw, err := personFieldRaw(person, req.FieldKey)
+	if err != nil {
+		return err
 	}
+	if !jsonRawEqual(currentRaw, req.OldValue) {
+		return ErrReviewStaleValue
+	}
+
 	switch req.FieldKey {
 	case "first_name":
 		person.FirstName = value
 	case "last_name":
 		person.LastName = value
 	case "birthday":
-		d, parseErr := timezone.ParseDate(value)
-		if parseErr != nil {
-			return ErrReviewInvalidValue
-		}
-		person.Birthday = &d
+		person.Birthday = parsedBirthday
 	default:
 		return ErrReviewInvalidTarget
 	}
@@ -257,12 +278,9 @@ func (s *masterDataReviewService) applyDepartureChange(ctx context.Context, req 
 	if req.FieldKey != "allowed_departure_modes" {
 		return ErrReviewInvalidTarget
 	}
-	var modes userModels.AllowedDepartureModes
-	if err := json.Unmarshal(req.NewValue, &modes); err != nil {
-		return ErrReviewInvalidValue
-	}
-	if err := modes.Validate(); err != nil {
-		return ErrReviewInvalidValue
+	modes, err := decodeDepartureModes(req.NewValue)
+	if err != nil {
+		return err
 	}
 	if modes.HasMode(userModels.DepartureAccompanied) {
 		return ErrReviewInvalidValue
@@ -271,6 +289,13 @@ func (s *masterDataReviewService) applyDepartureChange(ctx context.Context, req 
 	if err != nil {
 		return fmt.Errorf("review: load student: %w", err)
 	}
+	oldModes, err := decodeDepartureModes(req.OldValue)
+	if err != nil {
+		return err
+	}
+	if !departureModesEqual(student.AllowedDepartureModes.Normalize(), oldModes.Normalize()) {
+		return ErrReviewStaleValue
+	}
 	// Setting AllowedDepartureModes makes StudentRepository.Update persist the
 	// derived departure_days / pickup_days / bus_days columns too.
 	student.AllowedDepartureModes = modes.Normalize()
@@ -278,4 +303,67 @@ func (s *masterDataReviewService) applyDepartureChange(ctx context.Context, req 
 		return fmt.Errorf("review: update student departure: %w", err)
 	}
 	return nil
+}
+
+func personFieldRaw(person *userModels.Person, field string) (json.RawMessage, error) {
+	switch field {
+	case "first_name":
+		return jsonString(person.FirstName), nil
+	case "last_name":
+		return jsonString(person.LastName), nil
+	case "birthday":
+		if person.Birthday == nil {
+			return json.RawMessage("null"), nil
+		}
+		return jsonString(person.Birthday.String()), nil
+	default:
+		return nil, ErrReviewInvalidTarget
+	}
+}
+
+func decodeDepartureModes(raw json.RawMessage) (userModels.AllowedDepartureModes, error) {
+	var modes userModels.AllowedDepartureModes
+	if err := json.Unmarshal(raw, &modes); err != nil {
+		return nil, ErrReviewInvalidValue
+	}
+	if modes == nil {
+		modes = userModels.AllowedDepartureModes{}
+	}
+	if err := modes.Validate(); err != nil {
+		return nil, ErrReviewInvalidValue
+	}
+	return modes, nil
+}
+
+func departureModesEqual(a, b userModels.AllowedDepartureModes) bool {
+	for _, day := range userModels.PickupDayOrder {
+		left := a[day]
+		right := b[day]
+		if len(left) != len(right) {
+			return false
+		}
+		for i := range left {
+			if left[i] != right[i] {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func jsonString(s string) json.RawMessage {
+	b, _ := json.Marshal(s)
+	return b
+}
+
+func jsonRawEqual(a, b json.RawMessage) bool {
+	var left any
+	var right any
+	if err := json.Unmarshal(a, &left); err != nil {
+		return false
+	}
+	if err := json.Unmarshal(b, &right); err != nil {
+		return false
+	}
+	return reflect.DeepEqual(left, right)
 }

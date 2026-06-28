@@ -140,6 +140,7 @@ func TestDecideMasterDataChangeRequest_MapsServiceErrors(t *testing.T) {
 	}{
 		{name: "not found", err: userService.ErrReviewNotFound, want: http.StatusNotFound},
 		{name: "not pending", err: userService.ErrReviewNotPending, want: http.StatusConflict, code: "change_request_not_pending"},
+		{name: "stale", err: userService.ErrReviewStaleValue, want: http.StatusConflict, code: "change_request_stale"},
 		{name: "invalid target", err: userService.ErrReviewInvalidTarget, want: http.StatusBadRequest},
 		{name: "internal", err: errors.New("boom"), want: http.StatusInternalServerError},
 	}

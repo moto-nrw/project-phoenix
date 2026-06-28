@@ -169,6 +169,29 @@ func TestUpdateMasterDataField_HealthInfo_AppliesAndAudits(t *testing.T) {
 	assert.Equal(t, 1, count)
 }
 
+func TestUpdateMasterDataField_NormalizedNoopSkipsAudit(t *testing.T) {
+	svc, db := buildMasterDataService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	data, err := svc.UpdateMasterDataField(
+		context.Background(), chain.AccountID, chain.StudentID,
+		usersModels.DataChangeTargetGuardianProfile, "email",
+		json.RawMessage(strconv.Quote("  "+chain.Email+"  ")),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, data.Email)
+	assert.Equal(t, chain.Email, *data.Email)
+
+	var count int
+	err = db.NewRaw(
+		`SELECT count(*) FROM users.student_data_change_requests WHERE student_id = ? AND status = ?`,
+		chain.StudentID, usersModels.DataChangeStatusAutoApplied,
+	).Scan(context.Background(), &count)
+	require.NoError(t, err)
+	assert.Equal(t, 0, count)
+}
+
 func TestUpdateMasterDataField_GuardianProfile_AppliesAndAudits(t *testing.T) {
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)

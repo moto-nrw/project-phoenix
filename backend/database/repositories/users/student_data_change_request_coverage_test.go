@@ -80,6 +80,11 @@ func TestStudentDataChangeRequestRepository_CoverageFiltersAndDecisionBranches(t
 
 	err = repo.Decide(ctx, pending.ID, usersModels.DataChangeStatusApproved, nil, chain.AccountID, true)
 	assert.ErrorIs(t, err, usersRepo.ErrChangeRequestNotPending)
+
+	_, err = repo.FindPendingByIDForUpdate(ctx, pending.ID)
+	assert.ErrorIs(t, err, usersRepo.ErrChangeRequestNotPending)
+	_, err = repo.FindPendingByIDForUpdate(ctx, 999_999_999)
+	assert.ErrorIs(t, err, usersRepo.ErrChangeRequestNotFound)
 }
 
 func TestStudentDataChangeRequestRepository_CoveragePendingQueueTenantIsolation(t *testing.T) {

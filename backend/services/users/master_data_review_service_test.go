@@ -96,7 +96,7 @@ func TestMasterDataReview_ApproveAppliesOtherPersonFields(t *testing.T) {
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	lastName := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "last_name", `"Schneider"`, `"Müller"`)
-	birthday := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "birthday", `"2018-03-04"`, `"2017-12-24"`)
+	birthday := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "birthday", `null`, `"2017-12-24"`)
 
 	err := tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		if _, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: lastName.ID, Approve: true}); e != nil {
@@ -256,6 +256,12 @@ func TestMasterDataReview_ListPendingEmptyAndInvalidRequestID(t *testing.T) {
 		return e
 	})
 	assert.ErrorIs(t, err, userService.ErrReviewNotFound)
+
+	err = tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: 999_999_999, Approve: true})
+		return e
+	})
+	assert.ErrorIs(t, err, userService.ErrReviewNotFound)
 }
 
 func TestMasterDataReview_ApproveAppliesDepartureModes(t *testing.T) {
@@ -280,6 +286,65 @@ func TestMasterDataReview_ApproveAppliesDepartureModes(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []userModels.DepartureMode{userModels.DepartureBus}, student.AllowedDepartureModes[userModels.PickupDayMonday])
 	assert.Equal(t, []userModels.DepartureMode{userModels.DeparturePickup}, student.AllowedDepartureModes[userModels.PickupDayWednesday])
+}
+
+func TestMasterDataReview_StalePersonApprovalConflicts(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() {
+		require.NoError(t, db.Close())
+	}()
+	repos := repositories.NewFactory(db)
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
+
+	person, err := repos.Person.FindByID(context.Background(), chain.PersonID)
+	require.NoError(t, err)
+	person.FirstName = "StaffEdit"
+	require.NoError(t, repos.Person.Update(context.Background(), person))
+
+	err = tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true})
+		return e
+	})
+	assert.ErrorIs(t, err, userService.ErrReviewStaleValue)
+
+	person, err = repos.Person.FindByID(context.Background(), chain.PersonID)
+	require.NoError(t, err)
+	assert.Equal(t, "StaffEdit", person.FirstName)
+}
+
+func TestMasterDataReview_StaleDepartureApprovalConflicts(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() {
+		require.NoError(t, db.Close())
+	}()
+	repos := repositories.NewFactory(db)
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetDeparture, "allowed_departure_modes", `{}`, `{"mon":["bus"]}`)
+
+	student, err := repos.Student.FindByID(context.Background(), chain.StudentID)
+	require.NoError(t, err)
+	student.AllowedDepartureModes = userModels.AllowedDepartureModes{
+		userModels.PickupDayTuesday: []userModels.DepartureMode{userModels.DeparturePickup},
+	}
+	require.NoError(t, repos.Student.Update(context.Background(), student))
+
+	err = tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true})
+		return e
+	})
+	assert.ErrorIs(t, err, userService.ErrReviewStaleValue)
+
+	student, err = repos.Student.FindByID(context.Background(), chain.StudentID)
+	require.NoError(t, err)
+	assert.Equal(t, []userModels.DepartureMode{userModels.DeparturePickup}, student.AllowedDepartureModes[userModels.PickupDayTuesday])
+	assert.Empty(t, student.AllowedDepartureModes[userModels.PickupDayMonday])
 }
 
 func TestMasterDataReview_ApprovalBroadcastsStudentUpdatedAfterCommit(t *testing.T) {

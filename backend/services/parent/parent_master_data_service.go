@@ -153,12 +153,14 @@ func (s *service) UpdateMasterDataField(ctx context.Context, accountID, studentI
 
 	var out *ChildMasterData
 	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		oldRaw, newRaw, targetRef, applyErr := s.applyTrackAEdit(txCtx, accountID, studentID, child.tenantID, target, fieldKey, newStr)
+		oldRaw, newRaw, targetRef, changed, applyErr := s.applyTrackAEdit(txCtx, accountID, studentID, child.tenantID, target, fieldKey, newStr)
 		if applyErr != nil {
 			return applyErr
 		}
-		if recErr := s.recordAutoApplied(txCtx, child.tenantID, studentID, accountID, target, fieldKey, oldRaw, newRaw, targetRef); recErr != nil {
-			return recErr
+		if changed {
+			if recErr := s.recordAutoApplied(txCtx, child.tenantID, studentID, accountID, target, fieldKey, oldRaw, newRaw, targetRef); recErr != nil {
+				return recErr
+			}
 		}
 		data, loadErr := s.loadMasterData(txCtx, accountID, studentID)
 		if loadErr != nil {
@@ -167,9 +169,11 @@ func (s *service) UpdateMasterDataField(ctx context.Context, accountID, studentI
 		out = data
 
 		capturedTenant := child.tenantID
-		tenant.RegisterAfterCommit(txCtx, func() {
-			s.broadcastStudentUpdated(capturedTenant, studentID)
-		})
+		if changed {
+			tenant.RegisterAfterCommit(txCtx, func() {
+				s.broadcastStudentUpdated(capturedTenant, studentID)
+			})
+		}
 		return nil
 	})
 	if txErr != nil {
@@ -188,7 +192,7 @@ func (s *service) UpdateMasterDataField(ctx context.Context, accountID, studentI
 
 // applyTrackAEdit writes the single field to its live record and returns the old
 // and new values as JSON (for the audit row) plus the optional target ref id.
-func (s *service) applyTrackAEdit(ctx context.Context, accountID, studentID, tenantID int64, target, fieldKey, newStr string) (oldRaw, newRaw json.RawMessage, targetRef *int64, err error) {
+func (s *service) applyTrackAEdit(ctx context.Context, accountID, studentID, tenantID int64, target, fieldKey, newStr string) (oldRaw, newRaw json.RawMessage, targetRef *int64, changed bool, err error) {
 	switch target {
 	case usersModels.DataChangeTargetStudent:
 		return s.applyStudentEdit(ctx, studentID, fieldKey, newStr)
@@ -197,7 +201,7 @@ func (s *service) applyTrackAEdit(ctx context.Context, accountID, studentID, ten
 	case usersModels.DataChangeTargetGuardianPhone:
 		return s.applyGuardianPhoneEdit(ctx, accountID, tenantID, newStr)
 	default:
-		return nil, nil, nil, ErrMasterDataFieldNotEditable
+		return nil, nil, nil, false, ErrMasterDataFieldNotEditable
 	}
 }
 
@@ -205,35 +209,40 @@ func isTrackAGuardianTarget(target string) bool {
 	return target == usersModels.DataChangeTargetGuardianProfile || target == usersModels.DataChangeTargetGuardianPhone
 }
 
-func (s *service) applyStudentEdit(ctx context.Context, studentID int64, fieldKey, newStr string) (json.RawMessage, json.RawMessage, *int64, error) {
+func (s *service) applyStudentEdit(ctx context.Context, studentID int64, fieldKey, newStr string) (json.RawMessage, json.RawMessage, *int64, bool, error) {
 	student, err := s.studentRepo.FindByIDForUpdate(ctx, studentID)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, false, err
 	}
 	switch fieldKey {
 	case "health_info":
 		oldRaw := jsonStringPtr(student.HealthInfo)
-		student.HealthInfo = strPtrOrNil(newStr)
-		if err := s.studentRepo.Update(ctx, student); err != nil {
-			return nil, nil, nil, err
+		next := strPtrOrNil(newStr)
+		newRaw := jsonStringPtr(next)
+		if string(oldRaw) == string(newRaw) {
+			return oldRaw, newRaw, nil, false, nil
 		}
-		return oldRaw, jsonStringPtr(student.HealthInfo), nil, nil
+		student.HealthInfo = next
+		if err := s.studentRepo.Update(ctx, student); err != nil {
+			return nil, nil, nil, false, err
+		}
+		return oldRaw, newRaw, nil, true, nil
 	default:
-		return nil, nil, nil, ErrMasterDataFieldNotEditable
+		return nil, nil, nil, false, ErrMasterDataFieldNotEditable
 	}
 }
 
-func (s *service) applyGuardianProfileEdit(ctx context.Context, accountID int64, fieldKey, newStr string) (json.RawMessage, json.RawMessage, *int64, error) {
+func (s *service) applyGuardianProfileEdit(ctx context.Context, accountID int64, fieldKey, newStr string) (json.RawMessage, json.RawMessage, *int64, bool, error) {
 	profile, err := s.guardianProfileRepo.FindByAccountID(ctx, accountID)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, false, err
 	}
 	if err := s.guardianProfileRepo.LockByIDForUpdate(ctx, profile.ID); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, false, err
 	}
 	profile, err = s.guardianProfileRepo.FindByID(ctx, profile.ID)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, false, err
 	}
 	var oldRaw json.RawMessage
 	switch fieldKey {
@@ -251,34 +260,38 @@ func (s *service) applyGuardianProfileEdit(ctx context.Context, accountID int64,
 		profile.AddressPostalCode = strPtrOrNil(newStr)
 	case "preferred_contact_method":
 		if newStr == "" {
-			return nil, nil, nil, ErrMasterDataInvalidValue
+			return nil, nil, nil, false, ErrMasterDataInvalidValue
 		}
 		oldRaw = jsonString(profile.PreferredContactMethod)
 		profile.PreferredContactMethod = newStr
 	case "language_preference":
 		if !localization.IsSupported(newStr) {
-			return nil, nil, nil, ErrMasterDataInvalidValue
+			return nil, nil, nil, false, ErrMasterDataInvalidValue
 		}
 		oldRaw = jsonString(profile.LanguagePreference)
 		profile.LanguagePreference = localization.NormalizeLocale(newStr)
 	default:
-		return nil, nil, nil, ErrMasterDataFieldNotEditable
+		return nil, nil, nil, false, ErrMasterDataFieldNotEditable
 	}
 
 	// Validate() trims/lowercases the email and rejects bad emails / contact
 	// methods — turn its failure into the stable invalid-value sentinel.
 	if err := profile.Validate(); err != nil {
-		return nil, nil, nil, fmt.Errorf("%w: %s", ErrMasterDataInvalidValue, err.Error())
+		return nil, nil, nil, false, fmt.Errorf("%w: %s", ErrMasterDataInvalidValue, err.Error())
+	}
+	newRaw := s.guardianProfileFieldJSON(profile, fieldKey)
+	if string(oldRaw) == string(newRaw) {
+		ref := profile.ID
+		return oldRaw, newRaw, &ref, false, nil
 	}
 	if err := s.guardianProfileRepo.Update(ctx, profile); err != nil {
 		if isGuardianEmailUniqueViolation(err) && profile.Email != nil {
-			return nil, nil, nil, ErrGuardianEmailConflict
+			return nil, nil, nil, false, ErrGuardianEmailConflict
 		}
-		return nil, nil, nil, err
+		return nil, nil, nil, false, err
 	}
 	ref := profile.ID
-	newRaw := s.guardianProfileFieldJSON(profile, fieldKey)
-	return oldRaw, newRaw, &ref, nil
+	return oldRaw, newRaw, &ref, true, nil
 }
 
 // guardianProfileFieldJSON returns the post-update value of the named field as
@@ -305,17 +318,17 @@ func (s *service) guardianProfileFieldJSON(profile *usersModels.GuardianProfile,
 // applyGuardianPhoneEdit upserts the calling guardian's primary phone number. An
 // empty value clears it. Multi-phone management is staff-side; the portal edits
 // only the primary number.
-func (s *service) applyGuardianPhoneEdit(ctx context.Context, accountID, tenantID int64, newStr string) (json.RawMessage, json.RawMessage, *int64, error) {
+func (s *service) applyGuardianPhoneEdit(ctx context.Context, accountID, tenantID int64, newStr string) (json.RawMessage, json.RawMessage, *int64, bool, error) {
 	profile, err := s.guardianProfileRepo.FindByAccountID(ctx, accountID)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, false, err
 	}
 	if err := s.guardianProfileRepo.LockByIDForUpdate(ctx, profile.ID); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, false, err
 	}
 	phones, err := s.guardianPhoneRepo.FindByGuardianID(ctx, profile.ID)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, false, err
 	}
 	existing := pickPrimaryPhone(phones)
 
@@ -328,22 +341,28 @@ func (s *service) applyGuardianPhoneEdit(ctx context.Context, accountID, tenantI
 	if newStr == "" {
 		if existing != nil {
 			if err := s.guardianPhoneRepo.Delete(ctx, existing.ID); err != nil {
-				return nil, nil, nil, err
+				return nil, nil, nil, false, err
 			}
+			return oldRaw, json.RawMessage("null"), nil, true, nil
 		}
-		return oldRaw, json.RawMessage("null"), nil, nil
+		return oldRaw, json.RawMessage("null"), nil, false, nil
 	}
 
 	if existing != nil {
 		existing.PhoneNumber = newStr
 		if err := existing.Validate(); err != nil {
-			return nil, nil, nil, fmt.Errorf("%w: %s", ErrMasterDataInvalidValue, err.Error())
+			return nil, nil, nil, false, fmt.Errorf("%w: %s", ErrMasterDataInvalidValue, err.Error())
+		}
+		newRaw := jsonString(existing.PhoneNumber)
+		if string(oldRaw) == string(newRaw) {
+			ref := existing.ID
+			return oldRaw, newRaw, &ref, false, nil
 		}
 		if err := s.guardianPhoneRepo.Update(ctx, existing); err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, false, err
 		}
 		ref := existing.ID
-		return oldRaw, jsonString(existing.PhoneNumber), &ref, nil
+		return oldRaw, newRaw, &ref, true, nil
 	}
 
 	phone := &usersModels.GuardianPhoneNumber{
@@ -355,13 +374,13 @@ func (s *service) applyGuardianPhoneEdit(ctx context.Context, accountID, tenantI
 	}
 	phone.SetTenantID(tenantID)
 	if err := phone.Validate(); err != nil {
-		return nil, nil, nil, fmt.Errorf("%w: %s", ErrMasterDataInvalidValue, err.Error())
+		return nil, nil, nil, false, fmt.Errorf("%w: %s", ErrMasterDataInvalidValue, err.Error())
 	}
 	if err := s.guardianPhoneRepo.Create(ctx, phone); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, false, err
 	}
 	ref := phone.ID
-	return oldRaw, jsonString(phone.PhoneNumber), &ref, nil
+	return oldRaw, jsonString(phone.PhoneNumber), &ref, true, nil
 }
 
 // recordAutoApplied inserts the Track A audit row for a direct edit.
