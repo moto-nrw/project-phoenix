@@ -1,14 +1,5 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { useEffect } from "react";
-import { useTenantRouter } from "~/lib/tenant-router";
-
-export default function InvitationsPage() {
-  const router = useTenantRouter();
-
-  useEffect(() => {
-    router.replace("/database/personal");
-  }, [router]);
-
-  return null;
+export default function InvitationsRedirectPage() {
+  redirect("database/personal");
 }
