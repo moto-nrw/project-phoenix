@@ -14,6 +14,7 @@ import type {
   BackendConflictCheckResult,
   BackendCreateTemplateResult,
   BackendAttendanceResponse,
+  BackendEndTemplateResult,
   BackendExceptionConflictsResponse,
   BackendEnrichedInstance,
   BackendGapsResponse,
@@ -28,6 +29,7 @@ import type {
   AttendanceResponse,
   ConflictCheckResult,
   CreateTemplateResult,
+  EndTemplateResult,
   EnrichedInstance,
   ExceptionConflictsResponse,
   GapsResponse,
@@ -542,6 +544,16 @@ export function mapSplitTemplateResult(
   };
 }
 
+export function mapEndTemplateResult(
+  raw: BackendEndTemplateResult,
+): EndTemplateResult {
+  return {
+    templateId: String(raw.template_id),
+    effectiveDate: raw.effective_date,
+    deletedInstances: raw.deleted_instances,
+  };
+}
+
 export function mapConflictCheckResult(
   raw: BackendConflictCheckResult,
 ): ConflictCheckResult {
@@ -600,6 +612,7 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
           schedule.calendar_period_id !== null
             ? String(schedule.calendar_period_id)
             : undefined,
+        validUntil: schedule.valid_until,
       })),
     })),
   };

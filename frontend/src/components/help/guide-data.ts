@@ -617,6 +617,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Über `Weitere Optionen` `Personal` und `Kinder` zuordnen. Mit `Klasse/Gruppe komplett hinzufügen …` kommt eine ganze Klasse oder Gruppe auf einmal in die Auswahl.",
           "Speichern. Wiederholte Termine trägt Phoenix automatisch für das gesamte Schuljahr ein. Hinweise zu doppelt belegten Räumen, Personal oder Kindern können beim Ausfüllen erscheinen, verhindern das Speichern aber nicht.",
           "Beim Bearbeiten eines Termins aus einer Serie fragt die App, wofür die Änderung gilt: `Nur dieser Termin`, `Dieser und alle folgenden` oder `Alle Termine der Serie`.",
+          "Beim Löschen eines Serientermins wählen Sie zwischen `Nur dieser Termin` und `Dieser und alle folgenden`; frühere Termine bleiben erhalten. Einen Regeltermin löschen Sie über `Bearbeiten` -> `Löschen` und wählen dort das `Ab Datum`.",
           "Geplante Termine erscheinen zur Startzeit in der `Aktuellen Aufsicht` unter `Als Nächstes` und werden dort mit `Starten` begonnen.",
         ],
         callout: {

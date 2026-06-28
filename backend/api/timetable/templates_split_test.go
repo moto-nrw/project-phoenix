@@ -55,8 +55,13 @@ func splitRouter(parentCtx context.Context, res *Resource, perms []string) chi.R
 		})
 	})
 	r.Post("/templates", res.createTemplate)
+	r.Get("/templates", res.listTemplates)
+	r.Get("/templates/{id}", res.getTemplate)
+	r.Put("/templates/{id}", res.updateTemplate)
 	r.With(authorize.RequiresPermission(permissions.SchedulesManage)).
 		Post("/templates/{id}/split", res.splitTemplate)
+	r.With(authorize.RequiresPermission(permissions.SchedulesManage)).
+		Post("/templates/{id}/end", res.endTemplate)
 	return r
 }
 
@@ -74,6 +79,10 @@ func splitBody(s *templateSetup, name string, effective timezone.Date) map[strin
 	delete(body, "materialize_from")
 	delete(body, "materialize_to")
 	return body
+}
+
+func endBody(effective timezone.Date) map[string]any {
+	return map[string]any{"effective_date": effective.String()}
 }
 
 func TestTemplateSplitHandler_HappyPath(t *testing.T) {
@@ -164,5 +173,114 @@ func TestTemplateSplitHandler_ForbiddenForReadOnly(t *testing.T) {
 	body := splitBody(s, "Tpl-Split-NurLesenNeu", timezone.TodayDate().AddDays(7))
 	w := doTemplateJSON(t, readOnlyRouter, http.MethodPost,
 		fmt.Sprintf("/templates/%d/split", created.TemplateID), body)
+	assert.Equal(t, http.StatusForbidden, w.Code, "body=%s", w.Body.String())
+}
+
+func TestTemplateEndHandler_HappyPath(t *testing.T) {
+	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
+	s := buildTemplateSetup(t, mat)
+	defer s.cleanupFn()
+	attachSplitService(s, mat)
+	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
+
+	created := createSourceTemplate(t, router, s, "Tpl-End-Quelle")
+	effective := timezone.TodayDate().AddDays(7)
+
+	w := doTemplateJSON(t, router, http.MethodPost,
+		fmt.Sprintf("/templates/%d/end", created.TemplateID), endBody(effective))
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	resp := decodeTemplateData[endTemplateResponse](t, w)
+	assert.Equal(t, created.TemplateID, resp.TemplateID)
+	assert.Equal(t, effective.String(), resp.EffectiveDate)
+	assert.Equal(t, 0, resp.DeletedInstances)
+}
+
+func TestTemplateEndHandler_RemovesTemplateFromActiveCRUD(t *testing.T) {
+	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
+	s := buildTemplateSetup(t, mat)
+	defer s.cleanupFn()
+	attachSplitService(s, mat)
+	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
+
+	created := createSourceTemplate(t, router, s, "Tpl-End-Hidden")
+	effective := timezone.TodayDate().AddDays(7)
+
+	w := doTemplateJSON(t, router, http.MethodPost,
+		fmt.Sprintf("/templates/%d/end", created.TemplateID), endBody(effective))
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	listW := doTemplateJSON(t, router, http.MethodGet, "/templates", nil)
+	require.Equal(t, http.StatusOK, listW.Code, "body=%s", listW.Body.String())
+	list := decodeTemplateData[listTemplatesResponse](t, listW)
+	for _, tpl := range list.Templates {
+		assert.NotEqual(t, created.TemplateID, tpl.ID, "ended template must not remain in the active template list")
+	}
+
+	getW := doTemplateJSON(t, router, http.MethodGet,
+		fmt.Sprintf("/templates/%d", created.TemplateID), nil)
+	assert.Equal(t, http.StatusNotFound, getW.Code, "body=%s", getW.Body.String())
+
+	updateBody := createTemplateBody(s, "Tpl-End-Hidden-Resurrected")
+	putW := doTemplateJSON(t, router, http.MethodPut,
+		fmt.Sprintf("/templates/%d", created.TemplateID), updateBody)
+	assert.Equal(t, http.StatusNotFound, putW.Code, "body=%s", putW.Body.String())
+}
+
+func TestTemplateEndHandler_BadEffectiveDate(t *testing.T) {
+	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
+	s := buildTemplateSetup(t, mat)
+	defer s.cleanupFn()
+	attachSplitService(s, mat)
+	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
+
+	created := createSourceTemplate(t, router, s, "Tpl-End-DatumQuelle")
+
+	t.Run("malformed date", func(t *testing.T) {
+		w := doTemplateJSON(t, router, http.MethodPost,
+			fmt.Sprintf("/templates/%d/end", created.TemplateID),
+			map[string]any{"effective_date": "12.07.2026"})
+		assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
+	})
+
+	t.Run("missing date", func(t *testing.T) {
+		w := doTemplateJSON(t, router, http.MethodPost,
+			fmt.Sprintf("/templates/%d/end", created.TemplateID), map[string]any{})
+		assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
+	})
+
+	t.Run("past date", func(t *testing.T) {
+		w := doTemplateJSON(t, router, http.MethodPost,
+			fmt.Sprintf("/templates/%d/end", created.TemplateID),
+			endBody(timezone.TodayDate().AddDays(-1)))
+		assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
+	})
+}
+
+func TestTemplateEndHandler_UnknownTemplate(t *testing.T) {
+	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
+	s := buildTemplateSetup(t, mat)
+	defer s.cleanupFn()
+	attachSplitService(s, mat)
+	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
+
+	w := doTemplateJSON(t, router, http.MethodPost, "/templates/999999999/end",
+		endBody(timezone.TodayDate().AddDays(7)))
+	assert.Equal(t, http.StatusNotFound, w.Code, "body=%s", w.Body.String())
+}
+
+func TestTemplateEndHandler_ForbiddenForReadOnly(t *testing.T) {
+	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
+	s := buildTemplateSetup(t, mat)
+	defer s.cleanupFn()
+	attachSplitService(s, mat)
+
+	adminRouter := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
+	created := createSourceTemplate(t, adminRouter, s, "Tpl-End-NurLesen")
+
+	readOnlyRouter := splitRouter(s.ctx, s.res, []string{permissions.SchedulesRead})
+	w := doTemplateJSON(t, readOnlyRouter, http.MethodPost,
+		fmt.Sprintf("/templates/%d/end", created.TemplateID),
+		endBody(timezone.TodayDate().AddDays(7)))
 	assert.Equal(t, http.StatusForbidden, w.Code, "body=%s", w.Body.String())
 }
