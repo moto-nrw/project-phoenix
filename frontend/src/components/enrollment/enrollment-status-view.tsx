@@ -27,6 +27,7 @@ import {
   type StatusResponse,
 } from "~/lib/enrollment-submission-api";
 import { createLogger } from "~/lib/logger";
+import { EnrollmentChangeRequestDiff } from "~/components/enrollment/enrollment-change-request-diff";
 
 const logger = createLogger({ component: "EnrollmentStatusView" });
 
@@ -799,6 +800,21 @@ function ChangeRequestsPanel({
                     ))}
                   </ol>
                 ) : null}
+
+                <div className="mt-4 border-t border-gray-100 pt-3">
+                  <p className="mb-3 text-sm font-semibold text-gray-900">
+                    {t("changeRequestDiffTitle")}
+                  </p>
+                  <EnrollmentChangeRequestDiff
+                    baseSnapshot={request.base_snapshot}
+                    proposedSnapshot={request.proposed_snapshot}
+                    diff={request.diff}
+                    beforeLabel={t("changeRequestBefore")}
+                    afterLabel={t("changeRequestRequested")}
+                    emptyLabel={t("notProvided")}
+                    emptyMessage={t("changeRequestDiffEmpty")}
+                  />
+                </div>
 
                 {request.admin_decision_note ? (
                   <div className="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-sm leading-6 text-gray-700">

@@ -24,6 +24,8 @@ import {
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { createLogger } from "~/lib/logger";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { EnrollmentChangeRequestDiff } from "~/components/enrollment/enrollment-change-request-diff";
+import { changedEnrollmentChangeRequestLabels } from "~/lib/enrollment-change-request-diff";
 
 const logger = createLogger({ component: "AdminEnrollmentChangeRequests" });
 
@@ -59,30 +61,6 @@ const STATUS_OPTIONS: Array<{
   { value: "approved", label: "Freigegeben" },
   { value: "rejected", label: "Abgelehnt" },
 ];
-
-const SNAPSHOT_LABELS: Record<string, string> = {
-  additional_guardians: "Weitere erziehungsberechtigte Personen",
-  children: "Kinder",
-  consent_flags: "Zustimmungen",
-  custom_data: "Zusatzangaben",
-  guardian_email: "E-Mail",
-  guardian_first_name: "Vorname",
-  guardian_last_name: "Nachname",
-  guardian_phone: "Telefon",
-  phase_id: "Anmeldephase",
-};
-
-const CHILD_SNAPSHOT_LABELS: Record<string, string> = {
-  custom_data: "Zusatzangaben",
-  date_of_birth: "Geburtsdatum",
-  first_name: "Vorname",
-  last_name: "Nachname",
-  offering_days: "Betreuungstage",
-  offering_ids: "Betreuungsangebote",
-  target_grade_level: "Zielklasse",
-};
-
-const CHILD_METADATA_KEYS = new Set(["id", "status"]);
 
 export function AdminEnrollmentChangeRequestsList() {
   const tenantPath = useTenantAwarePath();
@@ -499,8 +477,6 @@ function ChangeSummary({
 }: {
   readonly request: AdminEnrollmentChangeRequest;
 }) {
-  const changed = changedFieldKeys(request);
-
   return (
     <section className="moto-content-surface space-y-4 rounded-2xl border p-5 shadow-sm">
       <div>
@@ -519,53 +495,11 @@ function ChangeSummary({
         </div>
       ) : null}
 
-      {changed.length === 0 ? (
-        <p className="text-sm text-gray-600">
-          Die Anfrage enthält keine erkennbaren Feldänderungen.
-        </p>
-      ) : (
-        <dl className="space-y-3">
-          {changed.map((key) => {
-            const detailRows = snapshotDetailRows(
-              key,
-              request.base_snapshot[key],
-              request.proposed_snapshot[key],
-            );
-            return (
-              <div
-                key={key}
-                className="grid gap-3 rounded-xl border border-gray-100 bg-gray-50/70 p-3 sm:grid-cols-[12rem_1fr]"
-              >
-                <dt className="text-sm font-semibold text-gray-900">
-                  {SNAPSHOT_LABELS[key] ?? key}
-                </dt>
-                <dd
-                  className={
-                    detailRows.length > 0
-                      ? "space-y-2 text-sm"
-                      : "grid gap-2 text-sm sm:grid-cols-2"
-                  }
-                >
-                  {detailRows.length > 0 ? (
-                    <SnapshotDetailRows rows={detailRows} />
-                  ) : (
-                    <>
-                      <SnapshotValue
-                        label="Bisher"
-                        value={request.base_snapshot[key]}
-                      />
-                      <SnapshotValue
-                        label="Neu"
-                        value={request.proposed_snapshot[key]}
-                      />
-                    </>
-                  )}
-                </dd>
-              </div>
-            );
-          })}
-        </dl>
-      )}
+      <EnrollmentChangeRequestDiff
+        baseSnapshot={request.base_snapshot}
+        proposedSnapshot={request.proposed_snapshot}
+        diff={request.diff}
+      />
     </section>
   );
 }
@@ -614,51 +548,6 @@ function MessageThread({
         </div>
       ) : null}
     </section>
-  );
-}
-
-function SnapshotValue({
-  label,
-  value,
-}: {
-  readonly label: string;
-  readonly value: unknown;
-}) {
-  return (
-    <div className="rounded-lg bg-white px-3 py-2">
-      <p className="text-xs font-medium text-gray-500 uppercase">{label}</p>
-      <p className="mt-1 text-sm break-words text-gray-900">
-        {formatSnapshotValue(value)}
-      </p>
-    </div>
-  );
-}
-
-interface SnapshotDetailRow {
-  label: string;
-  before: unknown;
-  after: unknown;
-}
-
-function SnapshotDetailRows({
-  rows,
-}: {
-  readonly rows: readonly SnapshotDetailRow[];
-}) {
-  return (
-    <div className="space-y-2">
-      {rows.map((row) => (
-        <div key={row.label} className="rounded-lg bg-white px-3 py-2">
-          <p className="text-xs font-medium break-words text-gray-500 uppercase">
-            {row.label}
-          </p>
-          <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            <SnapshotValue label="Bisher" value={row.before} />
-            <SnapshotValue label="Neu" value={row.after} />
-          </div>
-        </div>
-      ))}
-    </div>
   );
 }
 
@@ -722,131 +611,12 @@ function ChangeRequestStatusBadge({
   );
 }
 
-function changedFieldKeys(request: AdminEnrollmentChangeRequest): string[] {
-  const changed = request.diff.changed;
-  if (Array.isArray(changed)) {
-    return changed.filter(
-      (value): value is string => typeof value === "string",
-    );
-  }
-  return Object.keys(request.diff);
-}
-
 function changedFieldLabels(request: AdminEnrollmentChangeRequest): string[] {
-  return changedFieldKeys(request).map((key) => SNAPSHOT_LABELS[key] ?? key);
-}
-
-function snapshotDetailRows(
-  key: string,
-  before: unknown,
-  after: unknown,
-): SnapshotDetailRow[] {
-  if (key === "custom_data") {
-    return objectSnapshotDiffRows(before, after, "");
-  }
-  if (key === "children") {
-    return childSnapshotDiffRows(before, after);
-  }
-  return [];
-}
-
-function childSnapshotDiffRows(before: unknown, after: unknown) {
-  const beforeRows = Array.isArray(before) ? before : [];
-  const afterRows = Array.isArray(after) ? after : [];
-  const rows: SnapshotDetailRow[] = [];
-  const max = Math.max(beforeRows.length, afterRows.length);
-  for (let index = 0; index < max; index += 1) {
-    const beforeRecord = snapshotRecord(beforeRows[index]);
-    const afterRecord = snapshotRecord(afterRows[index]);
-    const childLabel = `Kind ${index + 1}`;
-    if (!beforeRecord || !afterRecord) {
-      if (!snapshotValuesEqual(beforeRows[index], afterRows[index])) {
-        rows.push({
-          label: childLabel,
-          before: beforeRows[index],
-          after: afterRows[index],
-        });
-      }
-      continue;
-    }
-
-    const keys = snapshotKeys(beforeRecord, afterRecord);
-    for (const childKey of keys) {
-      if (CHILD_METADATA_KEYS.has(childKey)) continue;
-      if (childKey === "custom_data") {
-        rows.push(
-          ...objectSnapshotDiffRows(
-            beforeRecord[childKey],
-            afterRecord[childKey],
-            `${childLabel} · Zusatzangaben`,
-          ),
-        );
-        continue;
-      }
-      if (!snapshotValuesEqual(beforeRecord[childKey], afterRecord[childKey])) {
-        rows.push({
-          label: `${childLabel} · ${CHILD_SNAPSHOT_LABELS[childKey] ?? childKey}`,
-          before: beforeRecord[childKey],
-          after: afterRecord[childKey],
-        });
-      }
-    }
-  }
-  return rows;
-}
-
-function objectSnapshotDiffRows(
-  before: unknown,
-  after: unknown,
-  labelPrefix: string,
-) {
-  const beforeRecord = snapshotRecord(before) ?? {};
-  const afterRecord = snapshotRecord(after) ?? {};
-  return snapshotKeys(beforeRecord, afterRecord).flatMap((key) => {
-    if (snapshotValuesEqual(beforeRecord[key], afterRecord[key])) return [];
-    return [
-      {
-        label: labelPrefix ? `${labelPrefix} · ${key}` : key,
-        before: beforeRecord[key],
-        after: afterRecord[key],
-      },
-    ];
+  return changedEnrollmentChangeRequestLabels({
+    baseSnapshot: request.base_snapshot,
+    proposedSnapshot: request.proposed_snapshot,
+    diff: request.diff,
   });
-}
-
-function snapshotKeys(
-  before: Record<string, unknown>,
-  after: Record<string, unknown>,
-) {
-  return Array.from(
-    new Set([...Object.keys(before), ...Object.keys(after)]),
-  ).sort((a, b) => a.localeCompare(b));
-}
-
-function snapshotRecord(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  return value as Record<string, unknown>;
-}
-
-function snapshotValuesEqual(before: unknown, after: unknown): boolean {
-  return (
-    JSON.stringify(normalizeSnapshotValue(before)) ===
-    JSON.stringify(normalizeSnapshotValue(after))
-  );
-}
-
-function normalizeSnapshotValue(value: unknown): unknown {
-  if (value === undefined) return null;
-  if (Array.isArray(value)) return value.map(normalizeSnapshotValue);
-  const record = snapshotRecord(value);
-  if (!record) return value;
-  return snapshotKeys(record, {}).reduce<Record<string, unknown>>(
-    (out, key) => {
-      out[key] = normalizeSnapshotValue(record[key]);
-      return out;
-    },
-    {},
-  );
 }
 
 function summarizeChangeRequests(rows: AdminEnrollmentChangeRequest[]) {
@@ -875,24 +645,6 @@ function formatDateTime(value: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function formatSnapshotValue(value: unknown): string {
-  if (value === null || value === undefined || value === "") {
-    return "Nicht gesetzt";
-  }
-  if (typeof value === "boolean") return value ? "Ja" : "Nein";
-  if (typeof value === "string" || typeof value === "number") {
-    return String(value);
-  }
-  if (Array.isArray(value)) {
-    return `${value.length} Eintrag${value.length === 1 ? "" : "e"}`;
-  }
-  if (typeof value === "object") {
-    const entries = Object.keys(value as Record<string, unknown>).length;
-    return `${entries} Feld${entries === 1 ? "" : "er"}`;
-  }
-  return String(value);
 }
 
 function messageAuthorLabel(authorType: string): string {

@@ -8,6 +8,7 @@ import {
   patchStatus,
   replyEnrollmentChangeRequest,
   withdrawStatus,
+  type EnrollmentChangeRequest,
   type StatusResponse,
 } from "~/lib/enrollment-submission-api";
 import { EnrollmentStatusView } from "./enrollment-status-view";
@@ -113,6 +114,45 @@ describe("EnrollmentStatusView", () => {
       await screen.findByText("Änderungen gespeichert."),
     ).toBeInTheDocument();
     expect(mockFetchStatus).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows submitted change-request diffs to parents", async () => {
+    const changeRequest: EnrollmentChangeRequest = {
+      id: "42",
+      request_id: "99",
+      status: "pending_review",
+      parent_note: "Name korrigieren",
+      admin_decision_note: null,
+      base_snapshot: {
+        guardian_first_name: "Daniela",
+        additional_guardians: [{ first_name: "Coco", last_name: "Sommer" }],
+      },
+      proposed_snapshot: {
+        guardian_first_name: "Danielaaaa",
+        additional_guardians: [{ first_name: "Coco", last_name: "Sommerer" }],
+      },
+      diff: { changed: ["additional_guardians", "guardian_first_name"] },
+      created_at: "2026-06-28T11:09:00.000Z",
+      updated_at: "2026-06-28T11:09:00.000Z",
+      reviewed_at: null,
+      reviewed_by_account_id: null,
+      messages: [],
+    };
+    mockFetchStatus.mockResolvedValueOnce(status());
+    mockListEnrollmentChangeRequests.mockResolvedValueOnce([changeRequest]);
+
+    render(<EnrollmentStatusView token="tok" />);
+
+    expect(
+      await screen.findByText("Angefragte Änderungen"),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Vorname").length).toBeGreaterThan(0);
+    expect(screen.getByText("Daniela")).toBeInTheDocument();
+    expect(screen.getByText("Danielaaaa")).toBeInTheDocument();
+    expect(screen.getByText("Weitere Person 1 · Nachname")).toBeInTheDocument();
+    expect(screen.getByText("Sommer")).toBeInTheDocument();
+    expect(screen.getByText("Sommerer")).toBeInTheDocument();
+    expect(screen.queryByText("1 Eintrag")).not.toBeInTheDocument();
   });
 
   it("confirms pending renewals and reloads the status", async () => {

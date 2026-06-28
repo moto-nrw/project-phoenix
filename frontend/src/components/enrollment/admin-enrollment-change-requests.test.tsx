@@ -41,6 +41,13 @@ const baseChangeRequest: AdminEnrollmentChangeRequest = {
   admin_decision_note: null,
   base_snapshot: {
     guardian_phone: "+49 221 555 990",
+    additional_guardians: [
+      {
+        first_name: "Coco",
+        last_name: "Sommer",
+        email: "coco@example.test",
+      },
+    ],
     custom_data: {
       note: "Alter Hinweis",
       seed_source: "legacy-seed",
@@ -59,6 +66,13 @@ const baseChangeRequest: AdminEnrollmentChangeRequest = {
   },
   proposed_snapshot: {
     guardian_phone: "+49 221 555 991",
+    additional_guardians: [
+      {
+        first_name: "Cocoa",
+        last_name: "Sommer",
+        email: "cocoa@example.test",
+      },
+    ],
     custom_data: {
       note: "Neuer Hinweis",
       seed_source: "legacy-seed",
@@ -73,7 +87,14 @@ const baseChangeRequest: AdminEnrollmentChangeRequest = {
       },
     ],
   },
-  diff: { changed: ["children", "custom_data", "guardian_phone"] },
+  diff: {
+    changed: [
+      "additional_guardians",
+      "children",
+      "custom_data",
+      "guardian_phone",
+    ],
+  },
   created_at: "2026-06-27T10:00:00.000Z",
   updated_at: "2026-06-27T10:00:00.000Z",
   reviewed_at: null,
@@ -128,8 +149,12 @@ describe("AdminEnrollmentChangeRequestDetail", () => {
     expect(screen.getByText("note")).toBeInTheDocument();
     expect(screen.getByText("Alter Hinweis")).toBeInTheDocument();
     expect(screen.getByText("Neuer Hinweis")).toBeInTheDocument();
-    expect(screen.getByText("Telefon")).toBeInTheDocument();
+    expect(screen.getAllByText("Telefon").length).toBeGreaterThan(0);
     expect(screen.getByText("+49 221 555 991")).toBeInTheDocument();
+    expect(screen.getByText("Weitere Person 1 · Vorname")).toBeInTheDocument();
+    expect(screen.getByText("Coco")).toBeInTheDocument();
+    expect(screen.getByText("Cocoa")).toBeInTheDocument();
+    expect(screen.queryByText("1 Eintrag")).not.toBeInTheDocument();
   });
 });
 
