@@ -196,3 +196,76 @@ func TestCareScheduleDiff_ShowsCurrentVsRequested(t *testing.T) {
 	assert.Empty(t, byLabel["Montag · Bringzeit"].OldModes)
 	assert.Empty(t, byLabel["Montag · Bringzeit"].NewMode)
 }
+
+// TestCareScheduleDiff_NonEmptyCurrentModes exercises the departure-mode diff
+// when the child ALREADY has an allowed mode set (the non-empty branch of
+// germanAllowedDepartureModes / departureModeKeys), not just the empty→alone
+// default covered by TestCareScheduleDiff_ShowsCurrentVsRequested. The "current"
+// side must read the child's allowed mode (bus) so a parent re-requesting it does
+// not look like a no-op and confirming does not silently drop it.
+func TestCareScheduleDiff_NonEmptyCurrentModes(t *testing.T) {
+	svc, _, db, ctx := newApplyService(t)
+	student := testpkg.CreateTestStudent(t, db, "Mode", "Diff", "1a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	// Seed a current Monday departure mode = bus.
+	require.NoError(t, svc.ApplyCareSchedule(ctx, careRequest(student.ID,
+		[]any{map[string]any{"weekday": 1, "mode": "bus"}})))
+
+	// Request a mode change AND a pickup-time change so both the departure-mode
+	// row (non-empty current) and the pickup-time row are produced.
+	diff, err := svc.CareScheduleDiff(ctx, student.ID, map[string]any{"weekdays": []any{
+		map[string]any{"weekday": 1, "mode": "pickup", "pickup": "16:30"},
+	}})
+	require.NoError(t, err)
+
+	byLabel := map[string]messaging.RequestDiffEntry{}
+	for _, e := range diff {
+		byLabel[e.Label] = e
+	}
+	mode := byLabel["Montag · Abholart"]
+	assert.Equal(t, "Fährt Bus", mode.Old, "current side renders the existing allowed mode")
+	assert.Equal(t, "Wird abgeholt", mode.New)
+	assert.Equal(t, []string{"bus"}, mode.OldModes, "structured current modes carry the raw bus key")
+	assert.Equal(t, "pickup", mode.NewMode)
+
+	// The pickup-time row: no current pickup time → "—", requested 16:30.
+	pickup := byLabel["Montag · Abholzeit"]
+	assert.Equal(t, "—", pickup.Old, "no current pickup time shows a dash")
+	assert.Equal(t, "16:30", pickup.New)
+	assert.Equal(t, messaging.DiffCareKindPickup, pickup.CareKind)
+}
+
+// TestRequestRegistry_UnknownTypeContract pins the registry-derived guards a
+// direct API client hits: an unknown request type is rejected by validation
+// (ErrInvalidRequestType) and falls back to the generic guardian-facing label,
+// and a known type with an unsupported departure mode is rejected.
+func TestRequestRegistry_UnknownTypeContract(t *testing.T) {
+	// Unknown type → generic label fallback (no per-type body).
+	assert.Equal(t, "Anfrage", messaging.RequestBody("totally.unknown"))
+
+	// Unknown type → validation rejects with ErrInvalidRequestType.
+	require.ErrorIs(t, messaging.ValidateRequestPayload("totally.unknown", map[string]any{}),
+		messaging.ErrInvalidRequestType)
+
+	// Known type, unsupported departure mode → rejected (not persisted).
+	require.Error(t, messaging.ValidateRequestPayload(usersModels.ParentMessageRequestCareSchedule,
+		map[string]any{"weekdays": []any{map[string]any{"weekday": 1, "mode": "rocket"}}}))
+}
+
+// TestCanonicalizeRequestPayload_KeepsMode pins that a departure-MODE change
+// survives canonicalization into the persisted payload (the create path stores
+// the canonical form). TestCanonicalizeRequestPayload only exercises arrival/
+// pickup aspects; this covers the mode aspect so a confirm later applies it.
+func TestCanonicalizeRequestPayload_KeepsMode(t *testing.T) {
+	out, err := messaging.CanonicalizeRequestPayload(usersModels.ParentMessageRequestCareSchedule,
+		map[string]any{"weekdays": []any{map[string]any{"weekday": 2, "mode": "bus"}}})
+	require.NoError(t, err)
+	weekdays, ok := out["weekdays"].([]any)
+	require.True(t, ok)
+	require.Len(t, weekdays, 1)
+	tue, ok := weekdays[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, float64(2), tue["weekday"])
+	assert.Equal(t, "bus", tue["mode"], "the departure mode is preserved in the canonical payload")
+}
