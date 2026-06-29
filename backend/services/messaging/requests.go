@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -47,19 +48,26 @@ type requestHandler struct {
 	// with the result discarded, so the two cannot drift.
 	canonicalize func(payload map[string]any) (map[string]any, error)
 	// diff is a method expression on *service, so the receiver is the first arg.
-	diff         func(*service, context.Context, *diffSource, map[string]any) ([]RequestDiffEntry, error)
-	auditSummary func(*usersModels.ParentMessage) string
+	diff func(*service, context.Context, *diffSource, map[string]any) ([]RequestDiffEntry, error)
+	// broadcastChanges fires the cache-invalidation SSE events for the data this
+	// request type's apply mutates (student master data, schedules), so staff
+	// views (student detail, dashboard, arrival caches) refresh after a confirm.
+	// The parent-message SSE alone only wakes the conversation, not those views.
+	// A method expression on *service; registers its own after-commit callbacks.
+	broadcastChanges func(*service, context.Context, *usersModels.ParentMessage)
+	auditSummary     func(*usersModels.ParentMessage) string
 }
 
 var parentMessageRequestRegistry = map[string]requestHandler{
 	usersModels.ParentMessageRequestCareSchedule: {
-		requestBody:  "Anfrage: Dauerhafte Betreuungszeiten ändern",
-		confirmBody:  "Anfrage bestätigt, Betreuungszeiten übernommen",
-		apply:        applyCareScheduleRequest,
-		validate:     validateCareSchedulePayload,
-		canonicalize: canonicalizeCareSchedulePayload,
-		diff:         (*service).careScheduleDiffFrom,
-		auditSummary: careScheduleAuditSummary,
+		requestBody:      "Anfrage: Dauerhafte Betreuungszeiten ändern",
+		confirmBody:      "Anfrage bestätigt, Betreuungszeiten übernommen",
+		apply:            applyCareScheduleRequest,
+		validate:         validateCareSchedulePayload,
+		canonicalize:     canonicalizeCareSchedulePayload,
+		diff:             (*service).careScheduleDiffFrom,
+		broadcastChanges: (*service).broadcastCareScheduleChanges,
+		auditSummary:     careScheduleAuditSummary,
 	},
 }
 
@@ -218,6 +226,14 @@ func (s *service) ConfirmRequest(ctx context.Context, requestID int64) ([]*users
 	tenant.RegisterAfterCommit(ctx, func() {
 		s.recordApplyAudit(request, accountID)
 	})
+	// Invalidate the staff caches the applied change touches (student master data,
+	// schedules). The parent-message broadcast below only wakes the conversation,
+	// so without this an open staff tab keeps showing the pre-confirm care plan
+	// until an unrelated refetch. Per-type so a future request kind invalidates
+	// exactly what its apply mutates.
+	if handler.broadcastChanges != nil {
+		handler.broadcastChanges(s, ctx, request)
+	}
 	s.broadcastAfterCommit(ctx, thread)
 	return s.messageRepo.ListByThread(ctx, thread.ID, 0)
 }
@@ -573,6 +589,42 @@ func (s *service) applyPickupChanges(ctx context.Context, studentID, staffID int
 		merged = append(merged, sc)
 	}
 	return s.pickup.UpsertBulkStudentPickupSchedules(ctx, studentID, merged)
+}
+
+// broadcastCareScheduleChanges invalidates the staff-side caches a confirmed
+// care-schedule change touches: the student master record (departure modes →
+// student_updated, tenant-scoped, mirroring services/parent/parent_write_service.go)
+// and the arrival/pickup schedules (arrival_schedule_changed, global, mirroring
+// api/students/arrival_schedule_handlers.go — the event the student list/detail
+// and "not arriving today" badges invalidate on). Registered after-commit so a
+// woken client refetches the persisted plan, never the pre-commit snapshot, and a
+// 5xx rollback fires no phantom invalidation. Fire-and-forget: a broadcast error
+// only costs other tabs an auto-refresh, never the confirm itself.
+func (s *service) broadcastCareScheduleChanges(ctx context.Context, request *usersModels.ParentMessage) {
+	if s.broadcaster == nil {
+		return
+	}
+	tenantID := request.TenantID
+	studentID := request.StudentID
+	tenant.RegisterAfterCommit(ctx, func() {
+		source := "parent_request"
+		studentEvent := realtime.NewEvent(realtime.EventStudentUpdated, "", realtime.EventData{Source: &source})
+		if err := s.broadcaster.BroadcastToTenant(tenantID, studentEvent); err != nil {
+			s.logger.Warn("messaging: broadcast student_updated after confirm failed",
+				slog.Int64("tenant_id", tenantID),
+				slog.Int64("student_id", studentID),
+				slog.String("error", err.Error()),
+			)
+		}
+		arrivalEvent := realtime.NewEvent(realtime.EventArrivalScheduleChanged, "", realtime.EventData{Source: &source})
+		if err := s.broadcaster.BroadcastToAll(arrivalEvent); err != nil {
+			s.logger.Warn("messaging: broadcast arrival_schedule_changed after confirm failed",
+				slog.Int64("tenant_id", tenantID),
+				slog.Int64("student_id", studentID),
+				slog.String("error", err.Error()),
+			)
+		}
+	})
 }
 
 func confirmEventBody(requestType string) string {

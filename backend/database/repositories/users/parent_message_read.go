@@ -111,10 +111,10 @@ func afterReadCursor(alias string) string {
 	)
 }
 
-// notReaderAuthored excludes the reader's OWN messages from their unread set,
-// keyed on sender_account_id (a real column) regardless of sender_kind. It is the
-// third leg of every unread predicate, and carries a single `?` bound to the
-// reader's account id at the call site.
+// notReaderAuthored excludes the reader's OWN plain messages from their unread
+// set, keyed on sender_account_id (a real column). It is the third leg of every
+// unread predicate, and carries a single `?` bound to the reader's account id at
+// the call site.
 //
 // This is what keeps a dual-role (staff+guardian) account from counting its own
 // just-sent message as unread to itself: that account is the counterpart of
@@ -126,8 +126,19 @@ func afterReadCursor(alias string) string {
 // longer moves the cursor: a cursor leap to the just-sent message also skips an
 // earlier counterpart message that committed after the send (lower created_at,
 // later commit), silently marking an unseen message read.
+//
+// System events (request decisions / withdrawals) are DELIBERATELY exempt from
+// the account exclusion: they carry the triggering side in event_actor_kind and
+// are attributed by SIDE, not account — counterpartUnread already decides which
+// portal they are unread to. appendSystemEvent stores the ACTOR in
+// sender_account_id, so for a dual-role account a confirm/reject it triggers as
+// staff (or a withdrawal as guardian) would match its own account and be filtered
+// back out of the OPPOSITE side's unread set — silently cancelling exactly the
+// event_actor_kind attribution that exists to light the other portal's badge. So
+// the self-exclusion applies to plain messages only; for system events
+// counterpartUnread is the sole, side-correct gate.
 func notReaderAuthored(alias string) string {
-	return fmt.Sprintf(`%s.sender_account_id <> ?`, alias)
+	return fmt.Sprintf(`(%[1]s.sender_kind = 'system' OR %[1]s.sender_account_id <> ?)`, alias)
 }
 
 // inboxSelect builds the InboxThread projection. staffReader switches the

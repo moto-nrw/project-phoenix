@@ -30,6 +30,9 @@ func TestRequestRegistryComplete(t *testing.T) {
 		if h.diff == nil {
 			t.Errorf("request type %q: missing diff", reqType)
 		}
+		if h.broadcastChanges == nil {
+			t.Errorf("request type %q: missing broadcastChanges", reqType)
+		}
 		if h.auditSummary == nil {
 			t.Errorf("request type %q: missing auditSummary", reqType)
 		}
