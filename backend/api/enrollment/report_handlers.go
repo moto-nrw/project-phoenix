@@ -575,30 +575,26 @@ func buildClassRosterTableDocument(report *enrollmentService.ClassRosterReport) 
 	cols := []listexport.Column{
 		{ID: listexport.ColumnName, Label: "Name"},
 		{ID: listexport.ColumnSchoolClass, Label: "Klasse"},
-		{ID: listexport.ColumnGroup, Label: "Gruppe"},
-		{ID: listexport.ColumnEnrollmentSummary, Label: "Betreuungs-/Anmeldestatus"},
-		{ID: listexport.ColumnCareDays, Label: "Betreuungstage"},
 		{ID: listexport.ColumnWeeklyMonday, Label: "Montag"},
 		{ID: listexport.ColumnWeeklyTuesday, Label: "Dienstag"},
 		{ID: listexport.ColumnWeeklyWednesday, Label: "Mittwoch"},
 		{ID: listexport.ColumnWeeklyThursday, Label: "Donnerstag"},
 		{ID: listexport.ColumnWeeklyFriday, Label: "Freitag"},
 		{ID: listexport.ColumnDeparture, Label: "Geh-/Abholweise"},
+		{ID: listexport.ColumnGuardianContacts, Label: "Erziehungsberechtigte"},
 	}
 	rows := make([]listexport.Row, 0, len(report.Rows))
 	for _, row := range report.Rows {
 		rows = append(rows, listexport.Row{Values: map[listexport.ColumnID]string{
-			listexport.ColumnName:              strings.TrimSpace(row.FirstName + " " + row.LastName),
-			listexport.ColumnSchoolClass:       row.SchoolClass,
-			listexport.ColumnGroup:             row.GroupName,
-			listexport.ColumnEnrollmentSummary: row.EnrollmentSummary,
-			listexport.ColumnCareDays:          classRosterCareDaysLabel(row.CareDays),
-			listexport.ColumnWeeklyMonday:      classRosterWeeklyCell(row, "mon"),
-			listexport.ColumnWeeklyTuesday:     classRosterWeeklyCell(row, "tue"),
-			listexport.ColumnWeeklyWednesday:   classRosterWeeklyCell(row, "wed"),
-			listexport.ColumnWeeklyThursday:    classRosterWeeklyCell(row, "thu"),
-			listexport.ColumnWeeklyFriday:      classRosterWeeklyCell(row, "fri"),
-			listexport.ColumnDeparture:         row.Departure,
+			listexport.ColumnName:             strings.TrimSpace(row.FirstName + " " + row.LastName),
+			listexport.ColumnSchoolClass:      row.SchoolClass,
+			listexport.ColumnWeeklyMonday:     classRosterWeeklyCell(row, "mon"),
+			listexport.ColumnWeeklyTuesday:    classRosterWeeklyCell(row, "tue"),
+			listexport.ColumnWeeklyWednesday:  classRosterWeeklyCell(row, "wed"),
+			listexport.ColumnWeeklyThursday:   classRosterWeeklyCell(row, "thu"),
+			listexport.ColumnWeeklyFriday:     classRosterWeeklyCell(row, "fri"),
+			listexport.ColumnDeparture:        row.Departure,
+			listexport.ColumnGuardianContacts: classRosterGuardianContactsLabel(row.Guardians),
 		}})
 	}
 	return listexport.Document{
@@ -644,29 +640,91 @@ func classRosterFilterLabels(report *enrollmentService.ClassRosterReport) []stri
 	}
 }
 
-func classRosterCareDaysLabel(days []string) string {
-	if len(days) == 0 {
-		return "keine"
-	}
-	return formatDayCodes(days)
-}
-
 func classRosterWeeklyCell(row enrollmentService.ClassRosterRow, day string) string {
-	arrival := strings.TrimSpace(row.ArrivalByDay[day])
+	parts := []string{}
+	offerings := classRosterDailyOfferings(row, day)
+	if len(offerings) > 0 {
+		parts = append(parts, strings.Join(offerings, "; "))
+	} else if containsReportDay(row.CareDays, day) {
+		parts = append(parts, "Betreuung")
+	}
 	pickup := strings.TrimSpace(row.PickupByDay[day])
-	if arrival != "" && pickup != "" {
-		return "Ankunft: " + arrival + ", Abholung: " + pickup
-	}
-	if arrival != "" {
-		return "Ankunft: " + arrival
-	}
 	if pickup != "" {
-		return "Abholung: " + pickup
+		parts = append(parts, "bis "+pickup)
 	}
-	if containsReportDay(row.CareDays, day) {
-		return "Betreuung"
+	if len(parts) > 0 {
+		return strings.Join(parts, ", ")
 	}
 	return "nein"
+}
+
+func classRosterDailyOfferings(row enrollmentService.ClassRosterRow, day string) []string {
+	normalizedDay := strings.ToLower(strings.TrimSpace(day))
+	if normalizedDay == "" {
+		return nil
+	}
+	if names := normalizedClassRosterOfferingNames(row.OfferingsByDay[normalizedDay]); len(names) > 0 {
+		return names
+	}
+	if len(row.Offerings) == 0 {
+		return nil
+	}
+	seen := map[string]bool{}
+	names := []string{}
+	for _, offering := range row.Offerings {
+		if !containsReportDay(offering.Days, normalizedDay) {
+			continue
+		}
+		name := strings.TrimSpace(offering.Name)
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+func classRosterGuardianContactsLabel(guardians []enrollmentService.ClassRosterGuardian) string {
+	parts := make([]string, 0, len(guardians))
+	for _, guardian := range guardians {
+		name := strings.TrimSpace(guardian.Name)
+		details := []string{}
+		if email := strings.TrimSpace(guardian.Email); email != "" {
+			details = append(details, email)
+		}
+		if phone := strings.TrimSpace(guardian.Phone); phone != "" {
+			details = append(details, phone)
+		}
+		switch {
+		case name != "" && len(details) > 0:
+			parts = append(parts, name+" ("+strings.Join(details, ", ")+")")
+		case name != "":
+			parts = append(parts, name)
+		case len(details) > 0:
+			parts = append(parts, strings.Join(details, ", "))
+		}
+	}
+	return strings.Join(parts, "; ")
+}
+
+func normalizedClassRosterOfferingNames(names []string) []string {
+	if len(names) == 0 {
+		return nil
+	}
+	seen := map[string]bool{}
+	out := make([]string, 0, len(names))
+	for _, name := range names {
+		name = strings.TrimSpace(name)
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func containsReportDay(days []string, needle string) bool {
@@ -732,8 +790,8 @@ func buildCareUsageTableDocument(report *enrollmentService.CareUsageReport) list
 func buildCareUsageRecordDocument(report *enrollmentService.CareUsageReport) listexport.RecordDocument {
 	records := make([]listexport.Record, 0, len(report.Rows)+1)
 	records = append(records, listexport.Record{
-		Title:  "Statistik",
-		Fields: careUsageDayCountFields(report),
+		Title:  "Einsatzplanung nach Gehzeit",
+		Fields: careUsagePickupPlanningFields(report),
 	})
 	for _, row := range report.Rows {
 		records = append(records, listexport.Record{
@@ -861,15 +919,49 @@ func careUsageOfferingDayDetail(offering enrollmentService.CareUsageRowOffering)
 	return formatDayCodes(offering.Days)
 }
 
-func careUsageDayCountFields(report *enrollmentService.CareUsageReport) []listexport.Field {
-	fields := []listexport.Field{{Label: "Kinder", Value: strconv.Itoa(report.Totals.Children)}}
-	for _, count := range sortedDayCountKeys(report.Totals.ByDayCount) {
-		fields = append(fields, listexport.Field{
-			Label: dayCountLabelDE(count),
-			Value: strconv.Itoa(report.Totals.ByDayCount[strconv.Itoa(count)]),
-		})
+func careUsagePickupPlanningFields(report *enrollmentService.CareUsageReport) []listexport.Field {
+	pickupTimes := careUsagePickupPlanningTimes(report)
+	fields := make([]listexport.Field, 0, len(weekdayOrder)*len(pickupTimes))
+	for _, day := range weekdayOrder {
+		for _, pickupTime := range pickupTimes {
+			count := 0
+			if report != nil && report.Totals.ByWeekdayPickupTime[day] != nil {
+				count = report.Totals.ByWeekdayPickupTime[day][pickupTime]
+			}
+			fields = append(fields, listexport.Field{
+				Label: dayLabelsDE[day] + " bis " + pickupTime,
+				Value: strconv.Itoa(count),
+			})
+		}
 	}
 	return fields
+}
+
+func careUsagePickupPlanningTimes(report *enrollmentService.CareUsageReport) []string {
+	if report == nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	for _, pickupTime := range report.FilterOptions.PickupTimes {
+		pickupTime = strings.TrimSpace(pickupTime)
+		if pickupTime != "" {
+			seen[pickupTime] = true
+		}
+	}
+	for _, byPickupTime := range report.Totals.ByWeekdayPickupTime {
+		for pickupTime := range byPickupTime {
+			pickupTime = strings.TrimSpace(pickupTime)
+			if pickupTime != "" {
+				seen[pickupTime] = true
+			}
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for pickupTime := range seen {
+		out = append(out, pickupTime)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func careUsagePickupDayDetails(pickupByDay map[string]string) string {
@@ -885,28 +977,6 @@ func careUsagePickupDayDetails(pickupByDay map[string]string) string {
 		parts = append(parts, dayLabelsDE[day]+" "+pickupTime)
 	}
 	return strings.Join(parts, "; ")
-}
-
-func sortedDayCountKeys(counts map[string]int) []int {
-	out := make([]int, 0, len(counts))
-	seen := make(map[int]bool, len(counts))
-	for raw := range counts {
-		count, err := strconv.Atoi(raw)
-		if err != nil || seen[count] {
-			continue
-		}
-		seen[count] = true
-		out = append(out, count)
-	}
-	sort.Ints(out)
-	return out
-}
-
-func dayCountLabelDE(count int) string {
-	if count == 1 {
-		return "1 Tag"
-	}
-	return fmt.Sprintf("%d Tage", count)
 }
 
 func nonNilStringSlice(values []string) []string {

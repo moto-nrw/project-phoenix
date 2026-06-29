@@ -14,12 +14,19 @@ const (
 	GuardianPermissionEnrollmentsView  = "parent_portal.enrollments.view"
 	GuardianPermissionEnrollmentSubmit = "parent_portal.enrollment.submit"
 	// GuardianPermissionRequestSubmit allows a parent to submit (and withdraw)
-	// structured change-requests — care-schedule and master-data changes that
-	// OVERWRITE the child's permanent schedule / name / contact data once staff
-	// confirm them. It is deliberately separate from notes.write (plain chat): a
-	// guardian must not gain authority to mutate master data just because they
-	// may send a message. See .claude/rules/guardian-parent-permissions.md.
+	// structured change-requests — care-schedule changes that OVERWRITE the
+	// child's permanent weekday schedule once staff confirm them. It is
+	// deliberately separate from notes.write (plain chat): a guardian must not
+	// gain authority to mutate the schedule just because they may send a
+	// message. See .claude/rules/guardian-parent-permissions.md.
 	GuardianPermissionRequestSubmit = "parent_portal.request.submit"
+	// GuardianPermissionMasterDataEdit gates Track A direct Stammdaten edits
+	// (health info, contact data) that apply immediately.
+	GuardianPermissionMasterDataEdit = "parent_portal.master_data.edit"
+	// GuardianPermissionMasterDataRequest gates Track B change requests for
+	// high-stakes / OGS-coupled fields (child name, birthday, permanent
+	// weekday Gehzeit) that require staff approval.
+	GuardianPermissionMasterDataRequest = "parent_portal.master_data.request"
 	// GuardianPermissionGuardianEdit allows a parent to edit the contact data
 	// (name, email, phone, address) of contact-only guardians of their child,
 	// plus the per-child pickup note and emergency priority. It never permits
@@ -49,6 +56,8 @@ var fullParentPortalPermissions = []string{
 	GuardianPermissionRequestSubmit,
 	GuardianPermissionEnrollmentsView,
 	GuardianPermissionEnrollmentSubmit,
+	GuardianPermissionMasterDataEdit,
+	GuardianPermissionMasterDataRequest,
 	GuardianPermissionGuardianEdit,
 	GuardianPermissionPickupManage,
 }

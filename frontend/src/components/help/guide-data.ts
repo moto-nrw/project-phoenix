@@ -459,6 +459,28 @@ export const appChapters: readonly GuideChapter[] = [
         ],
       },
       {
+        id: "stammdaten-aenderungen-pruefen",
+        title: "Stammdaten-Änderungen prüfen",
+        icon: ClipboardCheck,
+        summary:
+          "Eltern pflegen viele Stammdaten ihres Kindes im Elternportal selbst. Sensible Angaben (Name, Geburtsdatum, dauerhafte Gehzeiten) ändern sie nur auf Anfrage – diese geben Sie hier frei.",
+        steps: [
+          "Die meisten Felder (z. B. Gesundheitshinweise, eigene Kontaktdaten der Eltern) ändern Eltern direkt; die Änderung wird sofort übernommen und protokolliert.",
+          "Für Name, Geburtsdatum und dauerhafte Gehzeiten reichen Eltern über `Änderung anfragen` einen Vorschlag ein, statt direkt zu ändern.",
+          "Offene Anfragen finden Sie als Admin unter `Änderungsanfragen` in der Seitenleiste.",
+          "Pro Anfrage sehen Sie das Kind, das betroffene Feld und die Änderung (alter → neuer Wert).",
+          "Mit `Freigeben` wird der neue Wert in den Datensatz übernommen, mit `Ablehnen` bleibt der bisherige Wert erhalten. Eine Begründung können Sie optional ergänzen.",
+          "Ob Eltern Stammdaten direkt ändern bzw. Änderungen anfragen dürfen, steuern Sie unter `Einstellungen` im Bereich `Elternportal`.",
+        ],
+        callout: {
+          title: "Was wird direkt übernommen?",
+          body: "Direkt geänderte Felder sind sofort wirksam und im Verlauf nachvollziehbar. Nur die freigabepflichtigen Felder warten auf Ihre Bestätigung – bis dahin bleibt der bisherige Wert gültig.",
+          tone: "blue",
+        },
+        screenshot:
+          "Admin-Seite „Änderungsanfragen“ mit Kind, geändertem Feld, altem und neuem Wert sowie Freigeben- und Ablehnen-Schaltflächen.",
+      },
+      {
         id: "meine-gruppen",
         title: "Meine Gruppen",
         icon: Users,
@@ -710,10 +732,12 @@ export const appChapters: readonly GuideChapter[] = [
           "`Anmeldungen` öffnen. Du landest im `Überblick` mit allen Anmeldephasen, der Zahl der Eingänge (`Gesamt`, `Offen`, `Bestätigt`, `Abgelehnt`) und dem Einstieg zu offenen Änderungsanfragen.",
           "Beim ersten Einrichten führt dich der Bereich `Einrichtung` (`Online-Anmeldung vorbereiten`) Schritt für Schritt durch alles Nötige. Zuerst `Online-Anmeldung aktivieren`: schaltet den Elternlink frei (in den `Einstellungen` unter `Anmeldung`).",
           "Unter `Einstellungen` -> `Anmeldung` -> `Rechtstexte` aktivierst du nur die Blöcke, die eure Einrichtung tatsächlich nutzt. Jeder Block hat denselben Ablauf: `Im Anmeldeformular anzeigen` einschalten, den Pflichttext im Dialog eintragen und speichern. Bei `AGB / Teilnahmebedingungen` wählst du zuerst die Quelle: `Text eingeben` oder `PDF-Datei hochladen`. Nur die gewählte Quelle erscheint im Elternformular; die andere Quelle kann gespeichert bleiben, wird aber nicht angezeigt. Ausgeschaltete Blöcke bleiben im Hintergrund gespeichert, erscheinen aber nicht im Elternformular. Eigene Formularvorlagen können diese Standardblöcke unter `Rechtstexte und Einwilligungen` je Vorlage ein- oder ausblenden, abweichend bearbeiten oder um eigene Einwilligungen ergänzen.",
+          "Für Familien, die die Frist verpasst haben, `Anmeldephasen` öffnen und in der passenden Phase im Drei-Punkte-Menü `Nachzügler-Link erstellen` wählen. E-Mail-Adresse der erziehungsberechtigten Person eintragen, optional einen internen Grund notieren und den erzeugten Link an die Familie schicken. Der Link öffnet genau diese Phase trotz geschlossener Frist und kann nur einmal erfolgreich genutzt werden.",
+          "Als letzte Absicherung kann ein Admin unter `Anmeldephasen` in der passenden Phase im Drei-Punkte-Menü `Manuelle Anmeldung` wählen. Dort wird dieselbe Formularvorlage wie für Eltern geladen; nach interner Begründung und Bestätigung, dass die Einwilligung extern vorliegt, wird das Kind direkt angelegt und freigegeben.",
         ],
         callout: {
           title: "So hängt alles zusammen",
-          body: "Alles hängt an der `Anmeldephase`: Sie legt den Zeitraum und das Anmeldefenster fest. `Betreuungsangebote` gehören zu einer Phase, und jede Phase nutzt ein `Anmeldeformular`. Richte deshalb in dieser Reihenfolge ein: zuerst die `Online-Anmeldung` in den Einstellungen aktivieren (sonst ist der Elternlink nicht erreichbar), dann eine Anmeldephase anlegen, danach die Betreuungsangebote, bei Bedarf ein eigenes Formular - am Ende die Elternansicht testen. Der `Überblick` enthält dafür den Bereich `Einrichtung`, der dich Schritt für Schritt führt.",
+          body: "Alles hängt an der `Anmeldephase`: Sie legt den Zeitraum und das Anmeldefenster fest. `Betreuungsangebote` gehören zu einer Phase, und jede Phase nutzt ein `Anmeldeformular`. Richte deshalb in dieser Reihenfolge ein: zuerst die `Online-Anmeldung` in den Einstellungen aktivieren (sonst ist der Elternlink nicht erreichbar), dann eine Anmeldephase anlegen, danach die Betreuungsangebote, bei Bedarf ein eigenes Formular - am Ende die Elternansicht testen. Für Nachzügler bleibt die Phase geschlossen; du erzeugst nur einen einzelnen Sonderlink oder nutzt die manuelle Freigabe.",
           tone: "blue",
         },
         screenshot:
@@ -729,8 +753,9 @@ export const appChapters: readonly GuideChapter[] = [
           "Bei einer Phase auf `Anmeldungen ansehen` klicken, um die eingegangenen Anmeldungen zu prüfen.",
           "Mit `Status`, den `Angeboten für die Auswertung`, der `Anzahl Betreuungstage`, `Zielklasse`, `Wochentag`, `Gehzeit` oder der Suche die Tabelle auf die Kinder eingrenzen, die du brauchst.",
           "Die Kennzahlen über der Tabelle zeigen, wie viele Kinder an einem, zwei, drei, vier oder fünf Tagen betreut werden. Die Karte `Einsatzplanung` zeigt zusätzlich, wie viele Kinder je Wochentag bis zu welcher Gehzeit bleiben.",
-          "Für Klassenlehrkräfte unter `Klasse für Klassenliste` den Klassenverband wählen und `Klassenliste exportieren` nutzen. Die Liste enthält den gesamten Klassenverband, auch Kinder ohne bestätigte Anmeldung, und zeigt bestätigte Betreuungsangebote, Betreuungstage und Geh-/Abholweise dieser Phase.",
+          "Für Klassenlehrkräfte unter `Klasse für Klassenliste` den Klassenverband wählen und `Klassenliste exportieren` nutzen. Die Liste enthält den gesamten Klassenverband, auch Kinder ohne bestätigte Anmeldung, und zeigt pro Wochentag die gebuchten Angebote, zum Beispiel `Randstunde` oder `Ganztag`, inklusive Abholzeit, Geh-/Abholweise und Kontaktdaten der Erziehungsberechtigten.",
           "Eine Anmeldung öffnen und Kind, erziehungsberechtigte Personen (Hauptkontakt und weitere erziehungsberechtigte Personen), gewähltes Betreuungsangebot und Formularangaben prüfen.",
+          "Wenn eine Familie nach der Frist nachgereicht hat, erscheint die Anmeldung nach Nutzung des Nachzügler-Links ganz normal in dieser Liste. Bei der manuellen Freigabe ist das Kind bereits bestätigt; prüfe anschließend bei Bedarf den Statuslink oder die Kinddetailseite.",
           "Mit `Bestätigen`, `Warteliste` oder `Ablehnen` entscheiden; mit `Zur Prüfung` für später vormerken.",
           "Bei bestätigten Kindern können Betreuungsangebote über `Betreuungsangebote bearbeiten` nachträglich korrigiert werden. Eine Begründung ist Pflicht; die Änderungshistorie zeigt danach, wer was wann angepasst hat.",
           "Wenn Eltern nach einer Entscheidung Daten korrigieren, erscheint die Anfrage unter `Änderungsanfragen`. Die Änderungsübersicht zeigt pro Kind oder erziehungsberechtigter Person, welche Felder von `Bisher` auf `Neu` geändert wurden. Dort kannst du Rückfragen senden, die Änderung freigeben oder mit Begründung ablehnen.",
@@ -757,8 +782,8 @@ export const appChapters: readonly GuideChapter[] = [
           "`PDF` und `Word-Dokument` erzeugen eine gut lesbare Datei mit einem Block pro Kind, gruppiert nach Status und innerhalb jeder Gruppe alphabetisch nach Nachname, inklusive Kontaktdaten, gewählten Angeboten, Zustimmungen und allen Formularangaben.",
           "`Excel-Datei` erzeugt eine Tabelle mit Gruppenzeilen pro Status, einer Datenzeile pro Kind und jedem Feld in einer eigenen Spalte - für Weiterverarbeitung oder Archiv.",
           "Über das `Status`-Auswahlfeld nur einen Teil exportieren (zum Beispiel nur `Bestätigt`); der Export übernimmt den gerade gewählten Status. `Alle` exportiert alles.",
-          "Für eine Auswertung nach Betreuungsangeboten, Betreuungstagen, Wochentag oder Gehzeit nutzt du die Filter und die Karte `Auswertung exportieren`; dort wählst du `Excel`, `PDF` oder `Word-Dokument` für genau diese gefilterte Ansicht.",
-          "Für die Übergabe an Klassenlehrkräfte nutzt du in der Phase `Klasse für Klassenliste` und `Klassenliste exportieren`; diese Liste ist auf bestätigte Anmeldungen der Phase bezogen.",
+          "Für eine Auswertung nach Betreuungsangeboten, Betreuungstagen, Wochentag oder Gehzeit nutzt du die Filter und die Karte `Auswertung exportieren`; dort wählst du `Excel`, `PDF` oder `Word-Dokument` für genau diese gefilterte Ansicht. PDF und Word beginnen mit einer Einsatzplanung nach Wochentag und Gehzeit.",
+          "Für die Übergabe an Klassenlehrkräfte nutzt du in der Phase `Klasse für Klassenliste` und `Klassenliste exportieren`; diese Liste ist pro Klasse aufgebaut und zeigt pro Wochentag die bestätigten Angebote der Phase, Abholzeiten, Geh-/Abholweise und Erziehungsberechtigte.",
         ],
         callout: {
           title: "Vertrauliche Daten - sorgsam aufbewahren",
@@ -784,7 +809,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Das Anmeldefenster steuert die öffentliche Anmeldung",
-          body: "Das `Anmeldefenster` der Phase entscheidet, wann Familien absenden können. Über das Aktionsmenü öffnest du mit `Formular ansehen` den Elternlink, wechselst mit `Anmeldungen ansehen` zu den Eingängen oder bereitest mit `Anschlussphase erstellen` eine Folgephase vor.",
+          body: "Das `Anmeldefenster` der Phase entscheidet, wann Familien absenden können. Über das Aktionsmenü öffnest du mit `Formular ansehen` den Elternlink, wechselst mit `Anmeldungen ansehen` zu den Eingängen, erstellst einen `Nachzügler-Link`, startest eine `Manuelle Anmeldung` oder bereitest mit `Anschlussphase erstellen` eine Folgephase vor.",
           tone: "gray",
         },
         screenshot:

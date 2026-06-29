@@ -175,6 +175,9 @@ type ChildFeaturesResponse struct {
 	PickupChangeEnabled          bool `json:"pickup_change_enabled"`
 	RelatedAccountsInviteEnabled bool `json:"related_accounts_invite_enabled"`
 	RelatedAccountsRemoveEnabled bool `json:"related_accounts_remove_enabled"`
+	MasterDataEditEnabled        bool `json:"master_data_edit_enabled"`
+	MasterDataContactEditEnabled bool `json:"master_data_contact_edit_enabled"`
+	MasterDataRequestEnabled     bool `json:"master_data_request_enabled"`
 }
 
 // getChildFeatures returns the resolved parent-portal feature flags for the
@@ -201,6 +204,9 @@ func (rs *Resource) getChildFeatures(w http.ResponseWriter, r *http.Request) {
 		PickupChangeEnabled:          flags.PickupChangeEnabled,
 		RelatedAccountsInviteEnabled: flags.RelatedAccountsInviteEnabled,
 		RelatedAccountsRemoveEnabled: flags.RelatedAccountsRemoveEnabled,
+		MasterDataEditEnabled:        flags.MasterDataEditEnabled,
+		MasterDataContactEditEnabled: flags.MasterDataContactEditEnabled,
+		MasterDataRequestEnabled:     flags.MasterDataRequestEnabled,
 	}, "Child features retrieved")
 }
 
@@ -264,6 +270,18 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "notes_disabled"))
 	case errors.Is(err, parentService.ErrPickupChangeDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "pickup_change_disabled"))
+	case errors.Is(err, parentService.ErrMasterDataEditDisabled):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "master_data_edit_disabled"))
+	case errors.Is(err, parentService.ErrMasterDataRequestDisabled):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "master_data_request_disabled"))
+	case errors.Is(err, parentService.ErrMasterDataFieldNotEditable):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "master_data_field_not_editable"))
+	case errors.Is(err, parentService.ErrMasterDataInvalidValue):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "master_data_invalid_value"))
+	case errors.Is(err, parentService.ErrMasterDataDuplicatePending):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "master_data_duplicate_pending"))
+	case errors.Is(err, parentService.ErrMasterDataNoChanges):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "master_data_no_changes"))
 	case errors.Is(err, parentService.ErrCareExceptionConflict):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "care_exception_conflict"))
 	case errors.Is(err, parentService.ErrCareExceptionRaced):

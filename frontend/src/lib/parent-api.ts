@@ -11,6 +11,7 @@
 import { createLogger } from "~/lib/logger";
 import type { AppLocale } from "~/i18n/locales";
 import type { ChatMessage } from "~/lib/messaging-status";
+import { readEnrollmentError } from "~/lib/enrollment-error-messages";
 import type {
   MeProfileResponse,
   SubmitEnrollmentPayload,
@@ -99,6 +100,9 @@ export interface ChildFeatures {
   readonly pickup_change_enabled: boolean;
   readonly related_accounts_invite_enabled: boolean;
   readonly related_accounts_remove_enabled: boolean;
+  readonly master_data_edit_enabled: boolean;
+  readonly master_data_contact_edit_enabled: boolean;
+  readonly master_data_request_enabled: boolean;
 }
 
 // One day's pickup/arrival override. Mirrors api/parent.CareExceptionResponse.
@@ -279,6 +283,16 @@ async function deleteJson<T>(url: string): Promise<T> {
   return unwrapEnvelope((await response.json()) as ApiEnvelope<T>);
 }
 
+async function patchJson<T>(url: string, body: unknown): Promise<T> {
+  const response = await fetch(url, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) await throwResponseError(url, response);
+  return unwrapEnvelope((await response.json()) as ApiEnvelope<T>);
+}
+
 async function putJson<T>(url: string, body: unknown): Promise<T> {
   const response = await fetch(url, {
     method: "PUT",
@@ -381,19 +395,12 @@ export async function submitParentEnrollment(
     },
   );
   if (!response.ok) {
-    let message = "Anmeldung konnte nicht übermittelt werden";
-    try {
-      const body = (await response.json()) as { error?: string };
-      if (body.error) message = body.error;
-    } catch {
-      // Body was not JSON, keep the generic message.
-    }
-    logger.error("parent_submit_failed", {
-      tenant_slug: tenantSlug,
-      status: response.status,
-      message,
-    });
-    throw new Error(message);
+    throw await readEnrollmentError(
+      response,
+      "Anmeldung konnte nicht übermittelt werden",
+      logger,
+      "parent_submit_failed",
+    );
   }
   const json = (await response.json()) as {
     data?: SubmitEnrollmentResult;
@@ -692,6 +699,88 @@ export async function deleteCareException(
 ): Promise<void> {
   await deleteJson<null>(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/care-exception?date=${encodeURIComponent(date)}`,
+  );
+}
+
+// --- Stammdaten (master data view + change flow) ---
+
+// One change-request row in the parent view. Mirrors
+// api/parent.MasterDataChangeResponse. old/new values are JSON (string for the
+// fields shipped today; object for departure modes).
+export interface MasterDataChange {
+  readonly id: string;
+  readonly target: string;
+  readonly field_key: string;
+  readonly old_value?: unknown;
+  readonly new_value: unknown;
+  readonly status: "auto_applied" | "pending" | "approved" | "rejected";
+  readonly created_at: string;
+}
+
+// The structured Stammdaten view. Mirrors api/parent.MasterDataResponse.
+export interface ChildMasterData {
+  readonly student_id: string;
+  readonly first_name: string;
+  readonly last_name: string;
+  readonly birthday?: string;
+  readonly school_class: string;
+  readonly status: string;
+  readonly enrolled_from?: string;
+  readonly enrolled_until?: string;
+  readonly health_info?: string;
+  readonly guardian_profile_id: string;
+  readonly email?: string;
+  readonly address_street?: string;
+  readonly address_city?: string;
+  readonly address_postal_code?: string;
+  readonly preferred_contact_method: string;
+  readonly language_preference: string;
+  readonly primary_phone?: string;
+  readonly departure_days?: Record<string, string>;
+  readonly allowed_departure_modes?: Record<string, string[]>;
+  readonly pending_changes: MasterDataChange[];
+}
+
+/** Fetches the child's structured Stammdaten view (guardian's own data included). */
+export async function getChildMasterData(
+  studentId: string,
+): Promise<ChildMasterData> {
+  return getJson<ChildMasterData>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/master-data`,
+  );
+}
+
+/**
+ * Applies a Track A direct edit to a single field and returns the refreshed
+ * view. `value` is JSON (a string for every Track A field today).
+ */
+export async function updateMasterDataField(
+  studentId: string,
+  target: string,
+  field: string,
+  value: unknown,
+): Promise<ChildMasterData> {
+  return patchJson<ChildMasterData>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/master-data/${encodeURIComponent(target)}/${encodeURIComponent(field)}`,
+    { value },
+  );
+}
+
+/** One proposed Track B change. value is JSON (string or departure-modes object). */
+export interface MasterDataChangeInput {
+  readonly target: string;
+  readonly field_key: string;
+  readonly value: unknown;
+}
+
+/** Submits Track B change requests (name, birthday, permanent Gehzeit) for approval. */
+export async function submitMasterDataRequest(
+  studentId: string,
+  changes: MasterDataChangeInput[],
+): Promise<MasterDataChange[]> {
+  return postJson<MasterDataChange[]>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/master-data/requests`,
+    { changes },
   );
 }
 

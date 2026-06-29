@@ -378,14 +378,16 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 		offerings     []*enrollmentModels.CareOffering
 		selectionMode = enrollmentModels.PhaseCareOfferingSelectionOptional
 	)
+	lateInviteToken := lateInviteTokenFromRequest(r)
 	schoolID, err := rs.resolvePublicTenantID(r.Context(), slug)
 	if err == nil {
 		err = tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(txCtx context.Context, _ bun.Tx) error {
 			if rs.RequestService == nil {
 				return errors.New("request service not configured")
 			}
-			// Shared public phase gate: enabled + active + open window.
-			phase, phaseErr := rs.RequestService.LoadOpenPublicPhase(txCtx, phaseID, time.Now())
+			// Shared public phase gate: enabled + active + open window, or
+			// a valid late-invite exception for this exact phase.
+			phase, phaseErr := rs.RequestService.LoadPublicPhaseWithLateInvite(txCtx, phaseID, time.Now(), lateInviteToken)
 			if phaseErr != nil {
 				return phaseErr
 			}
@@ -440,6 +442,10 @@ func renderPublicEnrollmentError(w http.ResponseWriter, r *http.Request, err err
 	}
 	if errors.Is(err, enrollmentService.ErrEnrollmentWindowClosed) {
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, ErrCodeEnrollmentWindowClosed))
+		return
+	}
+	if errors.Is(err, enrollmentService.ErrLateInviteInvalid) {
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, ErrCodeEnrollmentLateInviteInvalid))
 		return
 	}
 	common.RenderError(w, r, common.ErrorNotFound(err))
@@ -541,11 +547,13 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 		captcha   PublicCaptchaConfigResponse
 		legalErr  error
 	)
+	lateInviteToken := lateInviteTokenFromRequest(r)
 	schoolID, resolveErr := rs.resolvePublicTenantID(r.Context(), slug)
 	if resolveErr == nil {
 		resolveErr = tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(txCtx context.Context, _ bun.Tx) error {
-			// Shared public phase gate: enabled + active + open window.
-			loadedPhase, phaseErr := rs.RequestService.LoadOpenPublicPhase(txCtx, phaseID, time.Now())
+			// Shared public phase gate: enabled + active + open window, or
+			// a valid late-invite exception for this exact phase.
+			loadedPhase, phaseErr := rs.RequestService.LoadPublicPhaseWithLateInvite(txCtx, phaseID, time.Now(), lateInviteToken)
 			if phaseErr != nil {
 				return phaseErr
 			}
@@ -571,11 +579,12 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 			offerings = list
 			captcha.Enabled = rs.CaptchaService.IsEnabled(txCtx)
 			captcha.SiteKey = rs.CaptchaService.SiteKey(txCtx)
-			legalTexts, legalTextErr := rs.RequestService.LegalTextsForPhase(txCtx, phaseID)
+			legalTexts, legalTextErr := rs.RequestService.LegalTextsForPhaseWithLateInvite(txCtx, phaseID, lateInviteToken)
 			if legalTextErr != nil {
 				if !errors.Is(legalTextErr, enrollmentService.ErrInvalidSubmission) &&
 					!errors.Is(legalTextErr, enrollmentService.ErrEnrollmentDisabled) &&
-					!errors.Is(legalTextErr, enrollmentService.ErrEnrollmentWindowClosed) {
+					!errors.Is(legalTextErr, enrollmentService.ErrEnrollmentWindowClosed) &&
+					!errors.Is(legalTextErr, enrollmentService.ErrLateInviteInvalid) {
 					legalErr = legalTextErr
 				}
 				return legalTextErr

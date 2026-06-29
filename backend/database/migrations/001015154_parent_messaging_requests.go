@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	parentMessagingRequestsVersion     = "1.15.153"
+	parentMessagingRequestsVersion     = "1.15.154"
 	parentMessagingRequestsDescription = "Extend parent messaging rows with events and structured requests"
 )
 

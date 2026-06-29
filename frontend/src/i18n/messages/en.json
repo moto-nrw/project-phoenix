@@ -870,6 +870,104 @@
       }
     }
   },
+  "parentMasterData": {
+    "title": "Master data",
+    "subtitle": "Here you can see the data stored for your child. You can change most fields directly; some changes are reviewed by the team first.",
+    "back": "Back",
+    "loadError": "The master data could not be loaded. Please refresh the page.",
+    "saved": "Saved",
+    "saveError": "The change could not be saved.",
+    "openLink": "View & change master data",
+    "editableHint": "Changes are saved automatically.",
+    "readonlyHint": "This information is maintained by the OGS.",
+    "requestHint": "These changes are reviewed by the team before they are applied.",
+    "requestButton": "Request change",
+    "requestSubmitted": "Request sent. The team will review your change.",
+    "requestError": "The request could not be sent.",
+    "noChanges": "There are no changes to submit.",
+    "pendingBadge": "Under review",
+    "pendingNotice": "A change to this field is awaiting confirmation by the team.",
+    "editDisabled": "Editing master data is disabled for this OGS.",
+    "requestDisabled": "Change requests are disabled for this OGS.",
+    "notSet": "Not provided",
+    "sections": {
+      "child": "Child details",
+      "health": "Health",
+      "contact": "Your contact details",
+      "departure": "Permanent ways home"
+    },
+    "fields": {
+      "firstName": "First name",
+      "lastName": "Last name",
+      "birthday": "Date of birth",
+      "schoolClass": "Class",
+      "status": "Status",
+      "carePeriod": "Care period",
+      "healthInfo": "Health notes / allergies",
+      "email": "Email address",
+      "addressStreet": "Street and number",
+      "addressCity": "City",
+      "addressPostalCode": "Postal code",
+      "contactMethod": "Preferred contact method",
+      "language": "Language",
+      "phone": "Phone number",
+      "day": "Day"
+    },
+    "contactMethods": {
+      "email": "Email",
+      "phone": "Phone",
+      "mobile": "Mobile",
+      "sms": "SMS"
+    },
+    "departureModes": {
+      "pickup": "Picked up",
+      "bus": "Bus",
+      "alone": "Goes alone",
+      "accompanied": "Goes with another child",
+      "none": "Not specified"
+    },
+    "departureDays": {
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri"
+    }
+  },
+  "staffMasterDataReview": {
+    "title": "Change requests",
+    "subtitle": "Master-data changes submitted by parents that need approval.",
+    "loadError": "The change requests could not be loaded.",
+    "empty": "No open change requests.",
+    "columns": {
+      "child": "Child",
+      "field": "Field",
+      "change": "Change",
+      "submitted": "Submitted",
+      "actions": "Action"
+    },
+    "fields": {
+      "first_name": "First name",
+      "last_name": "Last name",
+      "birthday": "Date of birth",
+      "health_info": "Health notes",
+      "email": "Email",
+      "primary": "Phone number",
+      "address_street": "Street",
+      "address_city": "City",
+      "address_postal_code": "Postal code",
+      "preferred_contact_method": "Contact method",
+      "language_preference": "Language",
+      "allowed_departure_modes": "Permanent ways home"
+    },
+    "empty_value": "—",
+    "approve": "Approve",
+    "reject": "Reject",
+    "reason": "Reason (optional)",
+    "approved": "Change applied",
+    "rejected": "Change rejected",
+    "decideError": "The decision could not be saved."
+  },
   "parentOgsMessaging": {
     "readByStaff": "Read",
     "requestWithdraw": "Withdraw",

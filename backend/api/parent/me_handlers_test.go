@@ -32,6 +32,21 @@ type fakeParentService struct {
 	updateProfileErr  error
 	gotUpdateLocale   string
 	updateCalledCount int
+
+	masterData       *parentService.ChildMasterData
+	masterDataErr    error
+	updateMasterData *parentService.ChildMasterData
+	updateMasterErr  error
+	gotMasterAccount int64
+	gotMasterStudent int64
+	gotMasterTarget  string
+	gotMasterField   string
+	gotMasterValue   json.RawMessage
+	submitRows       []*userModels.StudentDataChangeRequest
+	submitErr        error
+	gotSubmitChanges []parentService.MasterDataFieldChange
+	listRows         []*userModels.StudentDataChangeRequest
+	listErr          error
 }
 
 func (f *fakeParentService) GetProfile(_ context.Context, _ int64) (*parentService.Profile, error) {
@@ -110,6 +125,30 @@ func (f *fakeParentService) ListCareExceptions(context.Context, int64, int64, ti
 
 func (f *fakeParentService) DeleteCareException(context.Context, int64, int64, timezone.Date) error {
 	return nil
+}
+
+func (f *fakeParentService) GetChildMasterData(context.Context, int64, int64) (*parentService.ChildMasterData, error) {
+	return f.masterData, f.masterDataErr
+}
+
+func (f *fakeParentService) UpdateMasterDataField(_ context.Context, accountID, studentID int64, target, field string, value json.RawMessage) (*parentService.ChildMasterData, error) {
+	f.gotMasterAccount = accountID
+	f.gotMasterStudent = studentID
+	f.gotMasterTarget = target
+	f.gotMasterField = field
+	f.gotMasterValue = value
+	return f.updateMasterData, f.updateMasterErr
+}
+
+func (f *fakeParentService) SubmitMasterDataChangeRequest(_ context.Context, accountID, studentID int64, changes []parentService.MasterDataFieldChange) ([]*userModels.StudentDataChangeRequest, error) {
+	f.gotMasterAccount = accountID
+	f.gotMasterStudent = studentID
+	f.gotSubmitChanges = changes
+	return f.submitRows, f.submitErr
+}
+
+func (f *fakeParentService) ListMyMasterDataRequests(context.Context, int64, int64) ([]*userModels.StudentDataChangeRequest, error) {
+	return f.listRows, f.listErr
 }
 
 func (f *fakeParentService) ListChildGuardians(context.Context, int64, int64) ([]*parentService.ChildGuardian, error) {

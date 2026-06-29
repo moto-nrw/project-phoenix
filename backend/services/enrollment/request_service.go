@@ -3,8 +3,10 @@ package enrollment
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -29,6 +31,7 @@ import (
 var (
 	ErrEnrollmentDisabled     = errors.New("enrollment is not enabled for this tenant")
 	ErrEnrollmentWindowClosed = errors.New("enrollment window is closed")
+	ErrLateInviteInvalid      = errors.New("late invite is invalid")
 	ErrInvalidSubmission      = errors.New("invalid submission")
 	ErrCareOfferingClosed     = errors.New("one or more selected care offerings are not currently accepting applications")
 	ErrCareOfferingFull       = errors.New("one or more selected care offerings are at capacity")
@@ -95,6 +98,19 @@ type SubmitRequest struct {
 	// all possible.
 	RemoteIP string
 
+	// LateInviteToken opens a closed phase only for the token-bound guardian
+	// email. It is validated and consumed inside Submit's write transaction.
+	LateInviteToken string
+
+	// Internal admin paths set these. Public HTTP callers never deserialize
+	// them directly; handlers construct the service request.
+	SkipRateLimit            bool
+	AllowClosedPhase         bool
+	SuppressSubmissionEmails bool
+	ExternalConsentConfirmed bool
+	SubmissionSource         string
+	SourceMetadata           map[string]any
+
 	GuardianFirstName string
 	GuardianLastName  string
 	GuardianEmail     string
@@ -160,6 +176,21 @@ type SubmitResult struct {
 	StatusURL string
 }
 
+type CreateLateInviteInput struct {
+	PhaseID           int64
+	GuardianEmail     string
+	GuardianFirstName string
+	GuardianLastName  string
+	Reason            string
+	ExpiresAt         *time.Time
+	CreatedBy         int64
+}
+
+type CreateLateInviteResult struct {
+	Invite *enrollmentModels.LateInvite
+	Token  string
+}
+
 type materializedOfferingSelection struct {
 	OfferingID            int64
 	SelectedDays          []string
@@ -204,6 +235,7 @@ type EditPatch struct {
 // service builds on the same data.
 type RequestService interface {
 	Submit(ctx context.Context, req SubmitRequest) (*SubmitResult, error)
+	CreateLateInvite(ctx context.Context, input CreateLateInviteInput) (*CreateLateInviteResult, error)
 	GetByStatusToken(ctx context.Context, token string) (*enrollmentModels.Request, []*enrollmentModels.RequestChild, error)
 	EditModeForStatus(ctx context.Context, req *enrollmentModels.Request, children []*enrollmentModels.RequestChild) (string, error)
 	GetEditDraft(ctx context.Context, token string) (*EditDraft, error)
@@ -247,6 +279,8 @@ type RequestService interface {
 	// LoadOpenPublicPhase, so stale or closed phases surface the sentinel
 	// errors instead of an incomplete legal contract.
 	LegalTextsForPhase(ctx context.Context, phaseID int64) (LegalTexts, error)
+	LegalTextsForPhaseWithLateInvite(ctx context.Context, phaseID int64, lateInviteToken string) (LegalTexts, error)
+	LegalTextsForManualEnrollmentPhase(ctx context.Context, phaseID int64) (LegalTexts, error)
 
 	// LoadOpenPublicPhase is the shared public phase gate: every public
 	// form-load endpoint (schema, offerings, legal texts, bootstrap) calls
@@ -256,6 +290,8 @@ type RequestService interface {
 	// when the id is unknown, and ErrEnrollmentWindowClosed outside the
 	// phase's enrollment window. Caller must be inside a tenant-tx.
 	LoadOpenPublicPhase(ctx context.Context, phaseID int64, now time.Time) (*enrollmentModels.Phase, error)
+	LoadPublicPhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentModels.Phase, error)
+	LoadManualEnrollmentPhase(ctx context.Context, phaseID int64) (*enrollmentModels.Phase, error)
 }
 
 // LegalTexts bundles the per-tenant legal texts surfaced on the public
@@ -303,6 +339,7 @@ type RequestServiceConfig struct {
 	RequestRepo              enrollmentModels.RequestRepository
 	RequestChildRepo         enrollmentModels.RequestChildRepository
 	RequestGuardianRepo      enrollmentModels.RequestGuardianRepository
+	LateInviteRepo           enrollmentModels.LateInviteRepository
 	RequestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
 	CareOfferingRepo         enrollmentModels.CareOfferingRepository
 	FormSchemaRepo           enrollmentModels.FormSchemaRepository
@@ -336,6 +373,7 @@ type requestService struct {
 	requestRepo              enrollmentModels.RequestRepository
 	requestChildRepo         enrollmentModels.RequestChildRepository
 	requestGuardianRepo      enrollmentModels.RequestGuardianRepository
+	lateInviteRepo           enrollmentModels.LateInviteRepository
 	requestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
 	careOfferingRepo         enrollmentModels.CareOfferingRepository
 	formSchemaRepo           enrollmentModels.FormSchemaRepository
@@ -362,6 +400,7 @@ func NewRequestService(cfg RequestServiceConfig) RequestService {
 		requestRepo:              cfg.RequestRepo,
 		requestChildRepo:         cfg.RequestChildRepo,
 		requestGuardianRepo:      cfg.RequestGuardianRepo,
+		lateInviteRepo:           cfg.LateInviteRepo,
 		requestChildOfferingRepo: cfg.RequestChildOfferingRepo,
 		careOfferingRepo:         cfg.CareOfferingRepo,
 		formSchemaRepo:           cfg.FormSchemaRepo,
@@ -392,15 +431,24 @@ func NewRequestService(cfg RequestServiceConfig) RequestService {
 // phase carries its own enrollment window, form-schema reference, and
 // care-overflow mode - all the things that used to be tenant-wide.
 func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*SubmitResult, error) {
-	if err := s.enforceRateLimit(ctx, req); err != nil {
-		return nil, err
+	if !req.SkipRateLimit {
+		if err := s.enforceRateLimit(ctx, req); err != nil {
+			return nil, err
+		}
 	}
+	if strings.TrimSpace(req.LateInviteToken) != "" {
+		req.AllowClosedPhase = true
+		req.SubmissionSource = enrollmentModels.RequestSourceLateInvite
+	}
+	submissionSource := normalizedSubmissionSource(req.SubmissionSource)
+	sourceMetadata := cloneSourceMetadata(req.SourceMetadata)
+
 	phase, err := s.loadPhaseForSubmission(ctx, req.PhaseID)
 	if err != nil {
 		return nil, err
 	}
 	now := time.Now()
-	if !IsEnrollmentWindowOpen(phase, now) {
+	if !req.AllowClosedPhase && !IsEnrollmentWindowOpen(phase, now) {
 		return nil, ErrEnrollmentWindowClosed
 	}
 
@@ -450,6 +498,9 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	legalBlocks, err := s.resolveSubmissionLegalBlocks(ctx, schema)
 	if err != nil {
 		return nil, fmt.Errorf("submit: resolve legal blocks: %w", err)
+	}
+	if req.ExternalConsentConfirmed {
+		req.ConsentFlags = ensureRequiredConsentFlags(req.ConsentFlags, legalBlocks)
 	}
 	// Normalize + validate additional guardians (co-guardians the parent
 	// added beyond the primary). Mutates req.AdditionalGuardians in place:
@@ -546,6 +597,16 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 			return fmt.Errorf("submit: acquire dedup lock: %w", err)
 		}
 
+		var lateInvite *enrollmentModels.LateInvite
+		if strings.TrimSpace(req.LateInviteToken) != "" {
+			invite, inviteErr := s.findLateInviteForSubmit(txCtx, req.LateInviteToken, phase.ID, emailLC, now)
+			if inviteErr != nil {
+				return inviteErr
+			}
+			lateInvite = invite
+			sourceMetadata["late_invite_id"] = invite.ID
+		}
+
 		// Dedup check runs inside the lock so the result is stable for
 		// the rest of the tx. Different parents or different child
 		// names slip past untouched; rejected/withdrawn rows are
@@ -573,12 +634,19 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 			GuardianPhone:      req.GuardianPhone,
 			ConsentFlags:       req.ConsentFlags,
 			CustomData:         req.CustomData,
+			SubmissionSource:   submissionSource,
+			SourceMetadata:     sourceMetadata,
 			StatusToken:        statusToken,
 			StatusTokenExpires: &statusExpiresAt,
 			SubmittedAt:        time.Now(),
 		}
 		if err := s.requestRepo.Create(txCtx, request); err != nil {
 			return fmt.Errorf("submit: create request: %w", err)
+		}
+		if lateInvite != nil {
+			if err := s.lateInviteRepo.MarkUsed(txCtx, lateInvite.ID, request.ID, time.Now()); err != nil {
+				return fmt.Errorf("submit: mark late invite used: %w", err)
+			}
 		}
 		createdRequest = request
 
@@ -642,7 +710,9 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	}
 
 	statusURL := s.statusURL(statusToken)
-	s.enqueueSubmissionEmails(ctx, req.TenantID, createdRequest, createdChildren, statusURL)
+	if !req.SuppressSubmissionEmails {
+		s.enqueueSubmissionEmails(ctx, req.TenantID, createdRequest, createdChildren, statusURL)
+	}
 
 	s.logger.Info("enrollment request submitted",
 		slog.Int64("request_id", createdRequest.ID),
@@ -654,6 +724,68 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		Children:  createdChildren,
 		StatusURL: statusURL,
 	}, nil
+}
+
+func (s *requestService) CreateLateInvite(ctx context.Context, input CreateLateInviteInput) (*CreateLateInviteResult, error) {
+	if s.lateInviteRepo == nil {
+		return nil, fmt.Errorf("late invite repository is not configured")
+	}
+	if input.PhaseID <= 0 {
+		return nil, fmt.Errorf("%w: phase_id is required", ErrInvalidSubmission)
+	}
+	if input.CreatedBy <= 0 {
+		return nil, fmt.Errorf("%w: created_by is required", ErrInvalidSubmission)
+	}
+	email, err := normalizeGuardianEmail(input.GuardianEmail)
+	if err != nil {
+		return nil, err
+	}
+	phase, err := s.loadPhaseForEditableRequest(ctx, input.PhaseID)
+	if err != nil {
+		return nil, err
+	}
+	token, err := newStatusToken()
+	if err != nil {
+		return nil, fmt.Errorf("late invite: generate token: %w", err)
+	}
+	expiresAt := time.Now().Add(14 * 24 * time.Hour)
+	if input.ExpiresAt != nil {
+		expiresAt = *input.ExpiresAt
+	}
+	if !expiresAt.After(time.Now()) {
+		return nil, fmt.Errorf("%w: expires_at must be in the future", ErrInvalidSubmission)
+	}
+	firstName := optionalTrimmedString(input.GuardianFirstName)
+	lastName := optionalTrimmedString(input.GuardianLastName)
+	reason := optionalTrimmedString(input.Reason)
+	invite := &enrollmentModels.LateInvite{
+		PhaseID:           phase.ID,
+		TokenHash:         lateInviteTokenHash(token),
+		GuardianEmail:     email,
+		GuardianFirstName: firstName,
+		GuardianLastName:  lastName,
+		ExpiresAt:         expiresAt,
+		CreatedBy:         input.CreatedBy,
+		Reason:            reason,
+	}
+	if err := s.lateInviteRepo.Create(ctx, invite); err != nil {
+		return nil, err
+	}
+	return &CreateLateInviteResult{Invite: invite, Token: token}, nil
+}
+
+func (s *requestService) findLateInviteForSubmit(ctx context.Context, token string, phaseID int64, guardianEmail string, now time.Time) (*enrollmentModels.LateInvite, error) {
+	if s.lateInviteRepo == nil {
+		return nil, fmt.Errorf("%w: late invite support is not configured", ErrLateInviteInvalid)
+	}
+	invite, err := s.lateInviteRepo.FindUsableByTokenHashForUpdate(ctx, lateInviteTokenHash(token), phaseID, now)
+	if err != nil {
+		return nil, ErrLateInviteInvalid
+	}
+	if strings.ToLower(strings.TrimSpace(invite.GuardianEmail)) != guardianEmail {
+		return nil, ErrLateInviteInvalid
+	}
+	return invite, nil
 }
 
 func (s *requestService) validateSubmission(ctx context.Context, req SubmitRequest, legalBlocks []LegalBlock) error {
@@ -2123,6 +2255,57 @@ func newStatusToken() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
+func lateInviteTokenHash(token string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(token)))
+	return hex.EncodeToString(sum[:])
+}
+
+func normalizedSubmissionSource(source string) string {
+	switch strings.TrimSpace(source) {
+	case enrollmentModels.RequestSourceLateInvite:
+		return enrollmentModels.RequestSourceLateInvite
+	case enrollmentModels.RequestSourceAdminManual:
+		return enrollmentModels.RequestSourceAdminManual
+	default:
+		return enrollmentModels.RequestSourcePublic
+	}
+}
+
+func cloneSourceMetadata(src map[string]any) map[string]any {
+	out := make(map[string]any, len(src))
+	for k, v := range src {
+		out[k] = v
+	}
+	return out
+}
+
+func ensureRequiredConsentFlags(flags map[string]any, legalBlocks []LegalBlock) map[string]any {
+	out := cloneSourceMetadata(flags)
+	for _, key := range requiredConsentKeys(legalBlocks) {
+		out[key] = true
+	}
+	return out
+}
+
+func optionalTrimmedString(value string) *string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
+
+func normalizeGuardianEmail(email string) (string, error) {
+	trimmed := strings.ToLower(strings.TrimSpace(email))
+	if trimmed == "" {
+		return "", fmt.Errorf("%w: guardian email is required", ErrInvalidSubmission)
+	}
+	if err := users.ValidateOptionalEmail(trimmed); err != nil {
+		return "", ErrInvalidGuardianEmail
+	}
+	return trimmed, nil
+}
+
 func (s *requestService) statusURL(token string) string {
 	// Status link is parent-facing - sent in the submitted/approved/
 	// waitlisted/rejected emails. Routes to the parents portal.
@@ -2232,10 +2415,26 @@ func (s *requestService) LegalTexts(ctx context.Context) (LegalTexts, error) {
 }
 
 func (s *requestService) LegalTextsForPhase(ctx context.Context, phaseID int64) (LegalTexts, error) {
-	phase, err := s.LoadOpenPublicPhase(ctx, phaseID, time.Now())
+	return s.LegalTextsForPhaseWithLateInvite(ctx, phaseID, "")
+}
+
+func (s *requestService) LegalTextsForPhaseWithLateInvite(ctx context.Context, phaseID int64, lateInviteToken string) (LegalTexts, error) {
+	phase, err := s.LoadPublicPhaseWithLateInvite(ctx, phaseID, time.Now(), lateInviteToken)
 	if err != nil {
 		return LegalTexts{}, err
 	}
+	return s.legalTextsForLoadedPhase(ctx, phase)
+}
+
+func (s *requestService) LegalTextsForManualEnrollmentPhase(ctx context.Context, phaseID int64) (LegalTexts, error) {
+	phase, err := s.LoadManualEnrollmentPhase(ctx, phaseID)
+	if err != nil {
+		return LegalTexts{}, err
+	}
+	return s.legalTextsForLoadedPhase(ctx, phase)
+}
+
+func (s *requestService) legalTextsForLoadedPhase(ctx context.Context, phase *enrollmentModels.Phase) (LegalTexts, error) {
 	texts, err := s.LegalTexts(ctx)
 	if err != nil {
 		return LegalTexts{}, err
@@ -2260,14 +2459,30 @@ func (s *requestService) LegalTextsForPhase(ctx context.Context, phaseID int64) 
 // LoadOpenPublicPhase implements the shared public phase gate documented
 // on the RequestService interface.
 func (s *requestService) LoadOpenPublicPhase(ctx context.Context, phaseID int64, now time.Time) (*enrollmentModels.Phase, error) {
+	return s.LoadPublicPhaseWithLateInvite(ctx, phaseID, now, "")
+}
+
+func (s *requestService) LoadPublicPhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentModels.Phase, error) {
 	phase, err := s.loadPhaseForEditableRequest(ctx, phaseID)
 	if err != nil {
 		return nil, err
 	}
 	if !IsEnrollmentWindowOpen(phase, now) {
-		return nil, ErrEnrollmentWindowClosed
+		if strings.TrimSpace(lateInviteToken) == "" {
+			return nil, ErrEnrollmentWindowClosed
+		}
+		if s.lateInviteRepo == nil {
+			return nil, ErrLateInviteInvalid
+		}
+		if _, err := s.lateInviteRepo.FindUsableByTokenHash(ctx, lateInviteTokenHash(lateInviteToken), phaseID, now); err != nil {
+			return nil, ErrLateInviteInvalid
+		}
 	}
 	return phase, nil
+}
+
+func (s *requestService) LoadManualEnrollmentPhase(ctx context.Context, phaseID int64) (*enrollmentModels.Phase, error) {
+	return s.loadPhaseForEditableRequest(ctx, phaseID)
 }
 
 func (s *requestService) loadPhaseForEditableRequest(ctx context.Context, phaseID int64) (*enrollmentModels.Phase, error) {

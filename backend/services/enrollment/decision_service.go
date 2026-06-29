@@ -85,11 +85,13 @@ var validDecisionStatuses = map[DecisionStatus]bool{
 
 // DecideInput carries the per-child decision the admin makes.
 type DecideInput struct {
-	RequestID  int64
-	ChildID    int64
-	Status     DecisionStatus
-	Reason     string // optional; surfaced to parent only when phase.show_status_reason_to_parent
-	ReviewedBy int64  // admin's auth account id
+	RequestID                  int64
+	ChildID                    int64
+	Status                     DecisionStatus
+	Reason                     string // optional; surfaced to parent only when phase.show_status_reason_to_parent
+	ReviewedBy                 int64  // admin's auth account id
+	SuppressParentEmail        bool
+	SuppressGuardianInvitation bool
 }
 
 type OfferingAdjustmentSelection struct {
@@ -1024,7 +1026,9 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 		if err != nil {
 			return nil, err
 		}
-		outcome.PendingInvite = invite
+		if !input.SuppressGuardianInvitation {
+			outcome.PendingInvite = invite
+		}
 	}
 
 	if err := s.requestChildRepo.UpdateStatus(ctx, target.ID, string(input.Status), reasonPtr, input.ReviewedBy); err != nil {
@@ -1044,7 +1048,9 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 	// so a hard failure WILL roll back - log+swallow keeps the
 	// behaviour aligned with submit's "delivery is downstream of the
 	// decision".)
-	s.enqueueDecisionEmail(ctx, request, target, phase, input.Status, reasonPtr)
+	if !input.SuppressParentEmail {
+		s.enqueueDecisionEmail(ctx, request, target, phase, input.Status, reasonPtr)
+	}
 
 	// Refetch to surface DB-managed fields (reviewed_at, updated_at).
 	refreshed, err := s.findChildByID(ctx, input.RequestID, input.ChildID)

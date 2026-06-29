@@ -112,6 +112,7 @@ func (s *service) resolvePermittedChild(ctx context.Context, accountID, studentI
 		}
 		resolved = &parentChild{
 			tenantID:            child.TenantID,
+			guardianProfileID:   child.GuardianProfileID,
 			guardianPermissions: child.GuardianPermissions,
 			studentName:         strings.TrimSpace(child.FirstName + " " + child.LastName),
 			schoolName:          child.SchoolName,
@@ -136,6 +137,7 @@ func childHasPermission(child *parentModels.ChildSummary, permission string) boo
 // parentChild is the minimal resolved context a per-child write needs.
 type parentChild struct {
 	tenantID            int64
+	guardianProfileID   int64
 	guardianPermissions map[string]interface{}
 	// studentName / schoolName feed the OGS messaging views (thread counterpart
 	// + child label); resolved once here from the cross-tenant child lookup.
@@ -297,6 +299,19 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve remove setting: %w", err)
 	}
+	masterEdit, err := s.settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentMasterDataEditEnabled)
+	if err != nil {
+		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve master-data edit setting: %w", err)
+	}
+	masterRequest, err := s.settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentMasterDataRequestEnabled)
+	if err != nil {
+		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve master-data request setting: %w", err)
+	}
+	guardianManagement, err := s.guardianManagementEnabled(ctx, child.tenantID)
+	if err != nil {
+		return ChildFeatureFlags{}, err
+	}
+	canEditMasterData := masterEdit && child.hasPermission(authorize.GuardianPermissionMasterDataEdit)
 	return ChildFeatureFlags{
 		SickNoteEnabled:              sick && child.hasPermission(authorize.GuardianPermissionSickNoteSubmit),
 		NotesEnabled:                 notes && child.hasPermission(authorize.GuardianPermissionNotesWrite),
@@ -304,6 +319,9 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 		PickupChangeEnabled:          pickupChange,
 		RelatedAccountsInviteEnabled: inviteMode != configModels.ParentInviteModeDisabled,
 		RelatedAccountsRemoveEnabled: canRemove && inviteMode != configModels.ParentInviteModeDisabled,
+		MasterDataEditEnabled:        canEditMasterData,
+		MasterDataContactEditEnabled: canEditMasterData && guardianManagement,
+		MasterDataRequestEnabled:     masterRequest && child.hasPermission(authorize.GuardianPermissionMasterDataRequest),
 	}, nil
 }
 

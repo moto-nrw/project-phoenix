@@ -165,6 +165,9 @@ func (rs *Resource) Router() chi.Router {
 				// FROM this phase. Both require config:manage.
 				r.With(authorize.RequiresPermission("config:manage")).Post("/rollover", rs.createRollover)
 				r.With(authorize.RequiresPermission("config:read")).Get("/review", rs.listRolloverReview)
+				r.With(authorize.RequiresPermission("config:manage")).Get("/manual-bootstrap", rs.getManualEnrollmentBootstrap)
+				r.With(authorize.RequiresPermission("config:manage")).Post("/late-invites", rs.createLateInvite)
+				r.With(authorize.RequiresPermission("config:manage")).Post("/manual-approved-enrollments", rs.createManualApprovedEnrollment)
 				// Compact export of every registration in the phase
 				// (PDF for print, XLSX for data). Gated config:manage
 				// (not config:read like the review list): one call

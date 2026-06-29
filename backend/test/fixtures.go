@@ -2994,6 +2994,8 @@ func CleanupParentGuardianChain(tb testing.TB, db *bun.DB, c ParentChain) {
 			tb.Logf("cleanup warning: %v", err)
 		}
 	}
+	exec(`DELETE FROM users.student_data_change_requests WHERE student_id = ?`, c.StudentID)
+	exec(`DELETE FROM users.guardian_phone_numbers WHERE guardian_profile_id = ?`, c.GuardianProfileID)
 	// Parent messaging rows FIRST: threads reference users.students and
 	// auth.accounts WITHOUT ON DELETE CASCADE, so any thread/message/read a test
 	// created on this chain blocks the student/account deletes below with an FK

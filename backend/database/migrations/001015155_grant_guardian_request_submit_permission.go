@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	grantGuardianRequestSubmitPermissionVersion     = "1.15.154"
+	grantGuardianRequestSubmitPermissionVersion     = "1.15.155"
 	grantGuardianRequestSubmitPermissionDescription = "Grant parent_portal.request.submit to guardians that already hold full parent-portal access (#1672 review finding #4)."
 )
 

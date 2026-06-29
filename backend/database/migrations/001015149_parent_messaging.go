@@ -419,12 +419,12 @@ func parentMessagingDown(ctx context.Context, db *bun.DB) error {
 	//
 	// Filter ONLY on sender_kind = 'guardian'. The `kind` column does not exist at
 	// this migration's own schema level — it is added by the later #1672 requests
-	// migration (expected 1.15.153), whose down migration (which DependsOn 1.15.149,
+	// migration (expected 1.15.154), whose down migration (which DependsOn 1.15.149,
 	// so it runs first on a reverse-order rollback) has already DROP COLUMN'd it by
 	// the time this runs. Referencing m.kind here would fail with "column m.kind does
 	// not exist" and abort the whole rollback, restoring zero notes. At the 1.15.149
 	// schema every guardian row is a plain message; the few guardian-authored request
-	// rows (added by 1.15.153) carry
+	// rows (added by 1.15.154) carry
 	// human-readable German bodies ("Anfrage: …"), so restoring them as notes is
 	// harmless and there is no surviving column to distinguish them anyway.
 	_, err = tx.ExecContext(ctx, `
