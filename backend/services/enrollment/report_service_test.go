@@ -116,10 +116,52 @@ func TestClassRosterRowUsesPhaseEnrollmentData(t *testing.T) {
 	assert.True(t, row.Registered)
 	assert.Equal(t, "Angemeldet: Randstunde", row.EnrollmentSummary)
 	assert.Equal(t, []string{"mon"}, row.CareDays)
+	assert.Equal(t, []string{"Randstunde"}, row.OfferingsByDay["mon"])
 	assert.Equal(t, "11:30", row.ArrivalByDay["mon"])
 	assert.Equal(t, "14:30", row.PickupByDay["mon"])
 	assert.Contains(t, row.Departure, "Mo: Abholung, Mit anderem Kind")
 	assert.Contains(t, row.Departure, "(mit: Mia)")
+}
+
+func TestClassRosterRowBuildsDailyOfferingNames(t *testing.T) {
+	req := &enrollmentModels.Request{
+		Model:       baseModels.Model{ID: 13},
+		SubmittedAt: time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC),
+	}
+	child := &enrollmentModels.RequestChild{
+		Model:       baseModels.Model{ID: 23},
+		RequestID:   13,
+		DateOfBirth: timezone.NewDate(2018, 5, 4),
+		Status:      enrollmentModels.ChildStatusApproved,
+	}
+	student := &userModels.Student{
+		Model:       baseModels.Model{ID: 103},
+		PersonID:    203,
+		SchoolClass: "1a",
+	}
+	person := &userModels.Person{FirstName: "Lina", LastName: "Muster"}
+	enrollment := &classRosterApprovedEnrollment{
+		request: req,
+		child:   child,
+		links: []*enrollmentModels.RequestChildOffering{
+			{RequestChildID: 23, CareOfferingID: 1, SelectedDays: []string{"mon", "wed"}},
+			{RequestChildID: 23, CareOfferingID: 2, SelectedDays: []string{"wed", "fri"}},
+		},
+	}
+	offerings := map[int64]*enrollmentModels.CareOffering{
+		1: {Name: "Randstunde", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice},
+		2: {Name: "Ganztag bis 16:00", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice},
+	}
+
+	row, err := classRosterRow(student, person, "", enrollment, offerings, nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"mon", "wed", "fri"}, row.CareDays)
+	assert.Equal(t, []string{"Randstunde"}, row.OfferingsByDay["mon"])
+	assert.Equal(t, []string{"Ganztag bis 16:00", "Randstunde"}, row.OfferingsByDay["wed"])
+	assert.Equal(t, []string{"Ganztag bis 16:00"}, row.OfferingsByDay["fri"])
+	assert.Empty(t, row.OfferingsByDay["tue"])
+	assert.Empty(t, row.OfferingsByDay["thu"])
 }
 
 func TestCareUsageScheduleReadsGuardianLevelFields(t *testing.T) {
@@ -228,6 +270,7 @@ func TestClassRosterRowMarksMissingEnrollmentAsNoRegistration(t *testing.T) {
 	assert.False(t, row.Registered)
 	assert.Equal(t, "Keine Anmeldung", row.EnrollmentSummary)
 	assert.Equal(t, []string{}, row.CareDays)
+	assert.Equal(t, map[string][]string{}, row.OfferingsByDay)
 	assert.Equal(t, "Geht alleine", row.Departure)
 }
 

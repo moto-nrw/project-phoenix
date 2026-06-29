@@ -652,21 +652,71 @@ func classRosterCareDaysLabel(days []string) string {
 }
 
 func classRosterWeeklyCell(row enrollmentService.ClassRosterRow, day string) string {
+	parts := []string{}
+	offerings := classRosterDailyOfferings(row, day)
+	if len(offerings) > 0 {
+		parts = append(parts, strings.Join(offerings, "; "))
+	} else if containsReportDay(row.CareDays, day) {
+		parts = append(parts, "Betreuung")
+	}
 	arrival := strings.TrimSpace(row.ArrivalByDay[day])
 	pickup := strings.TrimSpace(row.PickupByDay[day])
-	if arrival != "" && pickup != "" {
-		return "Ankunft: " + arrival + ", Abholung: " + pickup
-	}
 	if arrival != "" {
-		return "Ankunft: " + arrival
+		parts = append(parts, "Ankunft: "+arrival)
 	}
 	if pickup != "" {
-		return "Abholung: " + pickup
+		parts = append(parts, "Abholung: "+pickup)
 	}
-	if containsReportDay(row.CareDays, day) {
-		return "Betreuung"
+	if len(parts) > 0 {
+		return strings.Join(parts, ", ")
 	}
 	return "nein"
+}
+
+func classRosterDailyOfferings(row enrollmentService.ClassRosterRow, day string) []string {
+	normalizedDay := strings.ToLower(strings.TrimSpace(day))
+	if normalizedDay == "" {
+		return nil
+	}
+	if names := normalizedClassRosterOfferingNames(row.OfferingsByDay[normalizedDay]); len(names) > 0 {
+		return names
+	}
+	if len(row.Offerings) == 0 {
+		return nil
+	}
+	seen := map[string]bool{}
+	names := []string{}
+	for _, offering := range row.Offerings {
+		if !containsReportDay(offering.Days, normalizedDay) {
+			continue
+		}
+		name := strings.TrimSpace(offering.Name)
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+func normalizedClassRosterOfferingNames(names []string) []string {
+	if len(names) == 0 {
+		return nil
+	}
+	seen := map[string]bool{}
+	out := make([]string, 0, len(names))
+	for _, name := range names {
+		name = strings.TrimSpace(name)
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func containsReportDay(days []string, needle string) bool {

@@ -84,9 +84,13 @@ func TestBuildClassRosterTableDocumentRendersPhaseAwareCells(t *testing.T) {
 				Registered:        true,
 				EnrollmentSummary: "Angemeldet: Randstunde",
 				CareDays:          []string{"mon", "wed"},
-				ArrivalByDay:      map[string]string{"mon": "11:30"},
-				PickupByDay:       map[string]string{"mon": "14:30"},
-				Departure:         "Mo: Abholung",
+				OfferingsByDay: map[string][]string{
+					"mon": []string{"Randstunde"},
+					"wed": []string{"Ganztag"},
+				},
+				ArrivalByDay: map[string]string{"mon": "11:30"},
+				PickupByDay:  map[string]string{"mon": "14:30"},
+				Departure:    "Mo: Abholung",
 			},
 			{
 				FirstName:         "Tom",
@@ -94,6 +98,7 @@ func TestBuildClassRosterTableDocumentRendersPhaseAwareCells(t *testing.T) {
 				SchoolClass:       "1a",
 				EnrollmentSummary: "Keine Anmeldung",
 				CareDays:          []string{},
+				OfferingsByDay:    map[string][]string{},
 				ArrivalByDay:      map[string]string{},
 				PickupByDay:       map[string]string{},
 				Departure:         "Geht alleine",
@@ -109,8 +114,8 @@ func TestBuildClassRosterTableDocumentRendersPhaseAwareCells(t *testing.T) {
 	assert.Equal(t, "Angemeldet: Randstunde", doc.Rows[0].Values[listexport.ColumnEnrollmentSummary])
 	assert.Equal(t, "Eulen", doc.Rows[0].Values[listexport.ColumnGroup])
 	assert.Equal(t, "Mo, Mi", doc.Rows[0].Values[listexport.ColumnCareDays])
-	assert.Equal(t, "Ankunft: 11:30, Abholung: 14:30", doc.Rows[0].Values[listexport.ColumnWeeklyMonday])
-	assert.Equal(t, "Betreuung", doc.Rows[0].Values[listexport.ColumnWeeklyWednesday])
+	assert.Equal(t, "Randstunde, Ankunft: 11:30, Abholung: 14:30", doc.Rows[0].Values[listexport.ColumnWeeklyMonday])
+	assert.Equal(t, "Ganztag", doc.Rows[0].Values[listexport.ColumnWeeklyWednesday])
 	assert.Equal(t, "Keine Anmeldung", doc.Rows[1].Values[listexport.ColumnEnrollmentSummary])
 	assert.Equal(t, "nein", doc.Rows[1].Values[listexport.ColumnWeeklyMonday])
 }

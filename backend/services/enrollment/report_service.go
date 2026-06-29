@@ -147,6 +147,7 @@ type ClassRosterRow struct {
 	Registered        bool                   `json:"registered"`
 	EnrollmentSummary string                 `json:"enrollment_summary"`
 	Offerings         []CareUsageRowOffering `json:"offerings"`
+	OfferingsByDay    map[string][]string    `json:"offerings_by_day"`
 	CareDays          []string               `json:"care_days"`
 	ArrivalByDay      map[string]string      `json:"arrival_by_day"`
 	PickupByDay       map[string]string      `json:"pickup_by_day"`
@@ -893,6 +894,7 @@ func classRosterRow(
 		GroupName:         groupName,
 		EnrollmentSummary: "Keine Anmeldung",
 		CareDays:          []string{},
+		OfferingsByDay:    map[string][]string{},
 		ArrivalByDay:      map[string]string{},
 		PickupByDay:       map[string]string{},
 	}
@@ -924,11 +926,43 @@ func classRosterRow(
 	row.Registered = true
 	row.EnrollmentSummary = classRosterEnrollmentSummary(careRow.Offerings)
 	row.Offerings = careRow.Offerings
+	row.OfferingsByDay = classRosterOfferingsByDay(careRow.Offerings)
 	row.CareDays = careRow.EffectiveDays
 	row.PickupByDay = pickupByDay
 	row.ArrivalByDay = arrivalByDay
 	row.Departure = departure
 	return row, nil
+}
+
+func classRosterOfferingsByDay(offerings []CareUsageRowOffering) map[string][]string {
+	out := map[string][]string{}
+	seenByDay := map[string]map[string]bool{}
+	for _, offering := range offerings {
+		name := strings.TrimSpace(offering.Name)
+		if name == "" {
+			continue
+		}
+		for _, day := range offering.Days {
+			day = strings.ToLower(strings.TrimSpace(day))
+			if day == "" {
+				continue
+			}
+			seen := seenByDay[day]
+			if seen == nil {
+				seen = map[string]bool{}
+				seenByDay[day] = seen
+			}
+			if seen[name] {
+				continue
+			}
+			seen[name] = true
+			out[day] = append(out[day], name)
+		}
+	}
+	for day := range out {
+		sort.Strings(out[day])
+	}
+	return out
 }
 
 func classRosterMergeOfferingLinks(links []*enrollmentModels.RequestChildOffering) []*enrollmentModels.RequestChildOffering {
