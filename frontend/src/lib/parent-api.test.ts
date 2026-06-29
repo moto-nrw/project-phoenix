@@ -281,6 +281,25 @@ describe("submitParentEnrollment", () => {
     ).rejects.toThrow(/Anmeldung bereits vorhanden/);
   });
 
+  it("preserves coded enrollment errors from the parent submit route", async () => {
+    mockFetch(async () =>
+      jsonResponse(
+        {
+          error: "late invite is invalid",
+          code: "enrollment.late_invite_invalid",
+        },
+        { status: 403 },
+      ),
+    );
+    await expect(
+      submitParentEnrollment("school", validPayload),
+    ).rejects.toMatchObject({
+      code: "enrollment.late_invite_invalid",
+      status: 403,
+      message: expect.stringContaining("Nachzügler-Link"),
+    });
+  });
+
   it("throws with German fallback when error body is malformed", async () => {
     mockFetch(async () => new Response("not json", { status: 500 }));
     await expect(
