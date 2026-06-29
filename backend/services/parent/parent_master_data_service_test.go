@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -138,6 +139,69 @@ func TestGetChildMasterData_ReturnsChainData(t *testing.T) {
 	assert.Equal(t, chain.GuardianProfileID, data.GuardianProfileID)
 	assert.Equal(t, chain.Email, *data.Email)
 	assert.Empty(t, data.PendingChanges)
+}
+
+func TestMasterDataUsesSelectedChildGuardianProfile(t *testing.T) {
+	svc, db := buildMasterDataService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	ctx := context.Background()
+	const secondTenantID int64 = 2
+	testpkg.EnsureTestTenant(t, db, secondTenantID)
+	testpkg.MapAccountToTenant(t, db, chain.AccountID, secondTenantID)
+	secondStudent := testpkg.CreateTestStudentForTenant(t, db, secondTenantID, "Mila", "Schneider", "2a")
+	defer testpkg.CleanupTableRecords(t, db, "users.persons", secondStudent.PersonID)
+	defer testpkg.CleanupTableRecords(t, db, "users.students", secondStudent.ID)
+
+	secondEmail := "second-child-guardian@example.test"
+	secondProfile := &usersModels.GuardianProfile{
+		FirstName:              "Sabine",
+		LastName:               "Zweite",
+		Email:                  &secondEmail,
+		AccountID:              &chain.AccountID,
+		HasAccount:             true,
+		PreferredContactMethod: "phone",
+		LanguagePreference:     "en",
+	}
+	secondProfile.SetTenantID(secondTenantID)
+	_, err := db.NewInsert().Model(secondProfile).ModelTableExpr(`users.guardian_profiles`).Exec(ctx)
+	require.NoError(t, err)
+	defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", secondProfile.ID)
+
+	link := &usersModels.StudentGuardian{
+		StudentID:         secondStudent.ID,
+		GuardianProfileID: secondProfile.ID,
+		RelationshipType:  "parent",
+	}
+	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRolePrimaryGuardian)
+	link.SetTenantID(secondTenantID)
+	_, err = db.NewInsert().Model(link).ModelTableExpr(`users.students_guardians`).Exec(ctx)
+	require.NoError(t, err)
+	defer testpkg.CleanupTableRecords(t, db, "users.students_guardians", link.ID)
+
+	data, err := svc.GetChildMasterData(ctx, chain.AccountID, secondStudent.ID)
+	require.NoError(t, err)
+	assert.Equal(t, secondProfile.ID, data.GuardianProfileID)
+	require.NotNil(t, data.Email)
+	assert.Equal(t, secondEmail, *data.Email)
+	assert.Equal(t, "phone", data.PreferredContactMethod)
+	assert.Equal(t, "en", data.LanguagePreference)
+
+	updated, err := svc.UpdateMasterDataField(
+		ctx, chain.AccountID, secondStudent.ID,
+		usersModels.DataChangeTargetGuardianProfile, "email",
+		json.RawMessage(`"selected-child@example.test"`),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, updated.Email)
+	assert.Equal(t, secondProfile.ID, updated.GuardianProfileID)
+	assert.Equal(t, "selected-child@example.test", *updated.Email)
+
+	firstProfile, err := repositories.NewFactory(db).GuardianProfile.FindByID(ctx, chain.GuardianProfileID)
+	require.NoError(t, err)
+	require.NotNil(t, firstProfile.Email)
+	assert.Equal(t, chain.Email, *firstProfile.Email)
 }
 
 func TestUpdateMasterDataField_HealthInfo_AppliesAndAudits(t *testing.T) {

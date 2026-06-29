@@ -7,6 +7,8 @@ import { useTranslations } from "next-intl";
 
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
+import { CustomSelect } from "~/components/ui/custom-select";
+import { SUPPORTED_LOCALES } from "~/i18n/locales";
 import { createLogger } from "~/lib/logger";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import {
@@ -25,6 +27,7 @@ const logger = createLogger({ component: "ChildMasterData" });
 const AUTO_SAVE_DELAY_MS = 1500;
 const DEPARTURE_DAYS = ["mon", "tue", "wed", "thu", "fri"] as const;
 const DEPARTURE_REQUEST_MODES = ["alone", "bus", "pickup"] as const;
+const CONTACT_METHODS = ["email", "phone", "mobile", "sms"] as const;
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -186,6 +189,32 @@ function ChildMasterDataContent({
           disabled={!contactEditEnabled}
           onSave={(v) => saveField("guardian_phone", "primary", v)}
         />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <AutoSaveSelect
+            label={t("fields.contactMethod")}
+            value={data.preferred_contact_method}
+            options={CONTACT_METHODS.map((method) => ({
+              value: method,
+              label: t(`contactMethods.${method}`),
+            }))}
+            disabled={!contactEditEnabled}
+            onSave={(v) =>
+              saveField("guardian_profile", "preferred_contact_method", v)
+            }
+          />
+          <AutoSaveSelect
+            label={t("fields.language")}
+            value={data.language_preference}
+            options={SUPPORTED_LOCALES.map((locale) => ({
+              value: locale.code,
+              label: locale.label,
+            }))}
+            disabled={!contactEditEnabled}
+            onSave={(v) =>
+              saveField("guardian_profile", "language_preference", v)
+            }
+          />
+        </div>
         <AutoSaveField
           label={t("fields.addressStreet")}
           value={data.address_street ?? ""}
@@ -660,7 +689,6 @@ function AutoSaveField({
           setStatus("saved");
         }
       } catch {
-        queuedValue.current = null;
         setStatus("error");
       } finally {
         inFlightValue.current = null;
@@ -716,6 +744,112 @@ function AutoSaveField({
           disabled={disabled}
           onChange={(e) => handleChange(e.target.value)}
           onBlur={handleBlur}
+        />
+      </div>
+    </div>
+  );
+}
+
+function AutoSaveSelect({
+  label,
+  value,
+  options,
+  disabled = false,
+  onSave,
+}: Readonly<{
+  label: string;
+  value: string;
+  options: readonly { value: string; label: string }[];
+  disabled?: boolean;
+  onSave: (value: string) => Promise<void>;
+}>) {
+  const [local, setLocal] = useState(value);
+  const [status, setStatus] = useState<SaveStatus>("idle");
+  const savedValue = useRef(value);
+  const latestValue = useRef(value);
+  const inFlightValue = useRef<string | null>(null);
+  const queuedValue = useRef<string | null>(null);
+
+  useEffect(() => {
+    const previousSaved = savedValue.current;
+    savedValue.current = value;
+    if (
+      inFlightValue.current === null &&
+      latestValue.current === previousSaved
+    ) {
+      latestValue.current = value;
+      setLocal(value);
+    } else if (
+      latestValue.current === value &&
+      inFlightValue.current === null
+    ) {
+      setStatus("saved");
+    }
+  }, [value]);
+
+  const doSave = useCallback(
+    async (next: string) => {
+      if (next === savedValue.current) {
+        setStatus("idle");
+        return;
+      }
+      if (inFlightValue.current === next) {
+        return;
+      }
+      if (inFlightValue.current !== null) {
+        queuedValue.current = next;
+        setStatus("saving");
+        return;
+      }
+
+      inFlightValue.current = next;
+      setStatus("saving");
+      try {
+        await onSave(next);
+        savedValue.current = next;
+        if (latestValue.current === next) {
+          setStatus("saved");
+        }
+      } catch {
+        setStatus("error");
+      } finally {
+        inFlightValue.current = null;
+        const queued = queuedValue.current;
+        queuedValue.current = null;
+        if (
+          queued !== null &&
+          queued === latestValue.current &&
+          queued !== savedValue.current
+        ) {
+          void doSave(queued);
+        }
+      }
+    },
+    [onSave],
+  );
+
+  const handleChange = (next: string) => {
+    setLocal(next);
+    latestValue.current = next;
+    setStatus("idle");
+    void doSave(next);
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+          {label}
+        </span>
+        <SaveIndicator status={status} />
+      </div>
+      <div className="mt-1">
+        <CustomSelect
+          ariaLabel={label}
+          value={local}
+          options={options}
+          disabled={disabled}
+          onChange={handleChange}
         />
       </div>
     </div>

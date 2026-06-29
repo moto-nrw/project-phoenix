@@ -73,15 +73,17 @@ func TestMasterDataReview_ApproveAppliesNameChange(t *testing.T) {
 
 	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Maximilian"`)
 
-	var decided *userModels.StudentDataChangeRequest
+	var decided *userService.MasterDataReviewItem
 	err := tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		d, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true})
 		decided = d
 		return e
 	})
 	require.NoError(t, err)
-	assert.Equal(t, userModels.DataChangeStatusApproved, decided.Status)
-	require.NotNil(t, decided.AppliedAt)
+	assert.Equal(t, userModels.DataChangeStatusApproved, decided.Request.Status)
+	require.NotNil(t, decided.Request.AppliedAt)
+	assert.Equal(t, "Maximilian", decided.FirstName)
+	assert.Equal(t, "Schneider", decided.LastName)
 
 	person, err := repos.Person.FindByID(context.Background(), chain.PersonID)
 	require.NoError(t, err)

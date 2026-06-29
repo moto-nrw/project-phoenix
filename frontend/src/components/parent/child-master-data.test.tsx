@@ -148,8 +148,46 @@ describe("ChildMasterDataView", () => {
     expect(screen.getByLabelText("E-Mail-Adresse")).toHaveValue(
       "parent@example.test",
     );
+    expect(
+      screen.getByRole("combobox", { name: "Bevorzugter Kontaktweg" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("combobox", { name: "Sprache" }),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText("Vorname")).toHaveValue("Lara");
     expect(screen.getByLabelText("Geburtsdatum")).toHaveValue("2018-03-04");
+  });
+
+  it("auto-saves contact method and language controls", async () => {
+    render(<ChildMasterDataView studentId="42" />);
+
+    const method = await screen.findByRole("combobox", {
+      name: "Bevorzugter Kontaktweg",
+    });
+    fireEvent.click(method);
+    fireEvent.click(screen.getByRole("option", { name: "Telefon" }));
+
+    await waitFor(() =>
+      expect(mockUpdateField).toHaveBeenCalledWith(
+        "42",
+        "guardian_profile",
+        "preferred_contact_method",
+        "phone",
+      ),
+    );
+
+    const language = screen.getByRole("combobox", { name: "Sprache" });
+    fireEvent.click(language);
+    fireEvent.click(screen.getByRole("option", { name: "English" }));
+
+    await waitFor(() =>
+      expect(mockUpdateField).toHaveBeenCalledWith(
+        "42",
+        "guardian_profile",
+        "language_preference",
+        "en",
+      ),
+    );
   });
 
   it("merges direct-save snapshots without rolling back other saved fields", async () => {
@@ -279,6 +317,49 @@ describe("ChildMasterDataView", () => {
       await act(async () => {
         resolvers[1]?.(masterData({ health_info: "Neuester Stand" }));
       });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("preserves queued autosave input after an in-flight save fails", async () => {
+    let rejectFirst: ((error: Error) => void) | undefined;
+    mockUpdateField.mockImplementationOnce(
+      () =>
+        new Promise<ChildMasterData>((_resolve, reject) => {
+          rejectFirst = reject;
+        }),
+    );
+    mockUpdateField.mockImplementationOnce(
+      (_studentId, _target, _field, value) =>
+        Promise.resolve(masterData({ health_info: String(value) })),
+    );
+
+    render(<ChildMasterDataView studentId="42" />);
+    const health = await screen.findByDisplayValue("Allergie");
+
+    vi.useFakeTimers();
+    try {
+      fireEvent.change(health, { target: { value: "Zwischenstand" } });
+      await act(async () => {
+        vi.advanceTimersByTime(1500);
+      });
+      expect(mockUpdateField).toHaveBeenCalledTimes(1);
+
+      fireEvent.change(health, { target: { value: "Neuester Stand" } });
+      await act(async () => {
+        rejectFirst?.(new Error("write failed"));
+        await Promise.resolve();
+      });
+
+      expect(mockUpdateField).toHaveBeenCalledTimes(2);
+      expect(mockUpdateField).toHaveBeenLastCalledWith(
+        "42",
+        "student",
+        "health_info",
+        "Neuester Stand",
+      );
+      expect(health).toHaveValue("Neuester Stand");
     } finally {
       vi.useRealTimers();
     }
@@ -576,6 +657,10 @@ describe("ChildMasterDataView", () => {
     expect(await screen.findByDisplayValue("Allergie")).not.toBeDisabled();
     expect(screen.getByDisplayValue("parent@example.test")).toBeDisabled();
     expect(screen.getByDisplayValue("+491234")).toBeDisabled();
+    expect(
+      screen.getByRole("combobox", { name: "Bevorzugter Kontaktweg" }),
+    ).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: "Sprache" })).toBeDisabled();
     expect(screen.getByDisplayValue("Musterweg 1")).toBeDisabled();
     expect(
       screen.getByText(

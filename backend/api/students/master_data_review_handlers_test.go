@@ -25,7 +25,7 @@ import (
 type fakeMasterDataReviewService struct {
 	items     []*userService.MasterDataReviewItem
 	listErr   error
-	decided   *usersModels.StudentDataChangeRequest
+	decided   *userService.MasterDataReviewItem
 	decideErr error
 	gotInput  userService.MasterDataReviewDecideInput
 }
@@ -34,7 +34,7 @@ func (f *fakeMasterDataReviewService) ListPending(context.Context) ([]*userServi
 	return f.items, f.listErr
 }
 
-func (f *fakeMasterDataReviewService) Decide(_ context.Context, input userService.MasterDataReviewDecideInput) (*usersModels.StudentDataChangeRequest, error) {
+func (f *fakeMasterDataReviewService) Decide(_ context.Context, input userService.MasterDataReviewDecideInput) (*userService.MasterDataReviewItem, error) {
 	f.gotInput = input
 	return f.decided, f.decideErr
 }
@@ -47,6 +47,14 @@ func staffRequest(method, path, body string, requestID string) *http.Request {
 		rctx.URLParams.Add("requestId", requestID)
 	}
 	return req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+}
+
+func reviewItem(status string) *userService.MasterDataReviewItem {
+	return &userService.MasterDataReviewItem{
+		Request:   reviewRow(status),
+		FirstName: "Lara",
+		LastName:  "Beispiel",
+	}
 }
 
 func reviewRow(status string) *usersModels.StudentDataChangeRequest {
@@ -117,7 +125,7 @@ func TestListMasterDataChangeRequests_RequiresConfiguredService(t *testing.T) {
 }
 
 func TestDecideMasterDataChangeRequest_ForwardsDecisionAndReviewer(t *testing.T) {
-	svc := &fakeMasterDataReviewService{decided: reviewRow(usersModels.DataChangeStatusApproved)}
+	svc := &fakeMasterDataReviewService{decided: reviewItem(usersModels.DataChangeStatusApproved)}
 	rs := &Resource{MasterDataReviewService: svc}
 	req := staffRequest(
 		http.MethodPost,
@@ -135,6 +143,8 @@ func TestDecideMasterDataChangeRequest_ForwardsDecisionAndReviewer(t *testing.T)
 	assert.Equal(t, "passt", svc.gotInput.Reason)
 	assert.Equal(t, int64(55), svc.gotInput.ReviewedBy)
 	assert.Contains(t, w.Body.String(), `"status":"approved"`)
+	assert.Contains(t, w.Body.String(), `"first_name":"Lara"`)
+	assert.Contains(t, w.Body.String(), `"last_name":"Beispiel"`)
 }
 
 func TestDecideMasterDataChangeRequest_RejectsBadRequest(t *testing.T) {

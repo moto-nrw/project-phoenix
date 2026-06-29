@@ -104,6 +104,7 @@ func (s *service) resolvePermittedChild(ctx context.Context, accountID, studentI
 		}
 		resolved = &parentChild{
 			tenantID:            child.TenantID,
+			guardianProfileID:   child.GuardianProfileID,
 			guardianPermissions: child.GuardianPermissions,
 			studentName:         strings.TrimSpace(child.FirstName + " " + child.LastName),
 			schoolName:          child.SchoolName,
@@ -128,6 +129,7 @@ func childHasPermission(child *parentModels.ChildSummary, permission string) boo
 // parentChild is the minimal resolved context a per-child write needs.
 type parentChild struct {
 	tenantID            int64
+	guardianProfileID   int64
 	guardianPermissions map[string]interface{}
 	// studentName / schoolName feed the OGS messaging views (thread counterpart
 	// + child label); resolved once here from the cross-tenant child lookup.

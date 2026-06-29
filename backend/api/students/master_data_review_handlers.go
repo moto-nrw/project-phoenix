@@ -95,7 +95,7 @@ func (rs *Resource) decideMasterDataChangeRequest(w http.ResponseWriter, r *http
 	}
 
 	claims := jwt.ClaimsFromCtx(r.Context())
-	row, err := rs.MasterDataReviewService.Decide(r.Context(), userService.MasterDataReviewDecideInput{
+	item, err := rs.MasterDataReviewService.Decide(r.Context(), userService.MasterDataReviewDecideInput{
 		RequestID:  requestID,
 		Approve:    *body.Approve,
 		Reason:     body.Reason,
@@ -118,5 +118,5 @@ func (rs *Resource) decideMasterDataChangeRequest(w http.ResponseWriter, r *http
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, toMasterDataChangeRequestResponse(&userService.MasterDataReviewItem{Request: row}), "Decision applied")
+	common.Respond(w, r, http.StatusOK, toMasterDataChangeRequestResponse(item), "Decision applied")
 }

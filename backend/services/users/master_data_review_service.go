@@ -56,8 +56,8 @@ type MasterDataReviewService interface {
 	// newest-first, enriched with the child's name.
 	ListPending(ctx context.Context) ([]*MasterDataReviewItem, error)
 	// Decide approves (and applies) or rejects one pending request and returns
-	// the refreshed row.
-	Decide(ctx context.Context, input MasterDataReviewDecideInput) (*userModels.StudentDataChangeRequest, error)
+	// the refreshed row enriched with the child's name.
+	Decide(ctx context.Context, input MasterDataReviewDecideInput) (*MasterDataReviewItem, error)
 }
 
 type masterDataReviewService struct {
@@ -136,7 +136,7 @@ func (s *masterDataReviewService) ListPending(ctx context.Context) ([]*MasterDat
 	return items, nil
 }
 
-func (s *masterDataReviewService) Decide(ctx context.Context, input MasterDataReviewDecideInput) (*userModels.StudentDataChangeRequest, error) {
+func (s *masterDataReviewService) Decide(ctx context.Context, input MasterDataReviewDecideInput) (*MasterDataReviewItem, error) {
 	if input.RequestID <= 0 {
 		return nil, ErrReviewNotFound
 	}
@@ -168,7 +168,11 @@ func (s *masterDataReviewService) Decide(ctx context.Context, input MasterDataRe
 			slog.Int64("student_id", req.StudentID),
 			slog.Int64("reviewed_by", input.ReviewedBy),
 		)
-		return s.changeRequestRepo.FindByID(ctx, req.ID)
+		row, findErr := s.changeRequestRepo.FindByID(ctx, req.ID)
+		if findErr != nil {
+			return nil, fmt.Errorf("review: reload rejected request: %w", findErr)
+		}
+		return s.enrichReviewItem(ctx, row)
 	}
 
 	if err := s.applyApprovedChange(ctx, req); err != nil {
@@ -188,7 +192,29 @@ func (s *masterDataReviewService) Decide(ctx context.Context, input MasterDataRe
 		slog.Int64("reviewed_by", input.ReviewedBy),
 	)
 	s.deferStudentUpdated(ctx, req.StudentID)
-	return s.changeRequestRepo.FindByID(ctx, req.ID)
+	row, findErr := s.changeRequestRepo.FindByID(ctx, req.ID)
+	if findErr != nil {
+		return nil, fmt.Errorf("review: reload approved request: %w", findErr)
+	}
+	return s.enrichReviewItem(ctx, row)
+}
+
+func (s *masterDataReviewService) enrichReviewItem(ctx context.Context, row *userModels.StudentDataChangeRequest) (*MasterDataReviewItem, error) {
+	if row == nil {
+		return nil, ErrReviewNotFound
+	}
+	item := &MasterDataReviewItem{Request: row}
+	student, err := s.studentRepo.FindByID(ctx, row.StudentID)
+	if err != nil {
+		return nil, fmt.Errorf("review: load student: %w", err)
+	}
+	person, err := s.personRepo.FindByID(ctx, student.PersonID)
+	if err != nil {
+		return nil, fmt.Errorf("review: load person: %w", err)
+	}
+	item.FirstName = person.FirstName
+	item.LastName = person.LastName
+	return item, nil
 }
 
 func (s *masterDataReviewService) deferStudentUpdated(ctx context.Context, studentID int64) {
