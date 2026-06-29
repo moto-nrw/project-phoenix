@@ -885,7 +885,6 @@
     "eventRequestRejectedReason": "Kërkesa u refuzua: {reason}",
     "eventRequestWithdrawn": "Kërkesa u tërhoq",
     "diffHeading": "Ndryshimet tuaja të kërkuara",
-    "diffReasonLabel": "Arsyeja",
     "diffCareArrival": "Ora e ardhjes",
     "diffCarePickup": "Ora e marrjes",
     "diffCareDepartureMode": "Mënyra e largimit",

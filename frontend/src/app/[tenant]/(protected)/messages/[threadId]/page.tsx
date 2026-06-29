@@ -435,11 +435,7 @@ function RequestReviewCard({
           label={staffRequestStatusLabel(message.request_status)}
         />
       </div>
-      <RequestDiffPanel
-        diff={message.diff}
-        heading="Änderungen"
-        decisionReason={message.decision_reason}
-      />
+      <RequestDiffPanel diff={message.diff} heading="Änderungen" />
       {/* Both decisions require users:update + per-child write server-side, so
           hide them entirely from staff who lack that write capability (canDecide)
           — otherwise a read-only staffer clicks and gets a generic 403.

@@ -885,7 +885,6 @@
     "eventRequestRejectedReason": "Request rejected: {reason}",
     "eventRequestWithdrawn": "Request withdrawn",
     "diffHeading": "Your requested changes",
-    "diffReasonLabel": "Reason",
     "diffCareArrival": "Arrival time",
     "diffCarePickup": "Pickup time",
     "diffCareDepartureMode": "Departure type",

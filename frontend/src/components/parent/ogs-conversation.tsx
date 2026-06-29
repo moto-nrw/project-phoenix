@@ -479,12 +479,7 @@ function RequestItem({
           label={t(parentRequestStatusI18nKey(message.request_status))}
         />
       </div>
-      <RequestDiffPanel
-        diff={localizedDiff}
-        heading={t("diffHeading")}
-        decisionReason={message.decision_reason}
-        reasonLabel={t("diffReasonLabel")}
-      />
+      <RequestDiffPanel diff={localizedDiff} heading={t("diffHeading")} />
       {message.request_status === "offen" ? (
         <Button
           type="button"

@@ -885,7 +885,6 @@
     "eventRequestRejectedReason": "Anfrage abgelehnt: {reason}",
     "eventRequestWithdrawn": "Anfrage zurückgezogen",
     "diffHeading": "Ihre Änderungswünsche",
-    "diffReasonLabel": "Grund",
     "diffCareArrival": "Bringzeit",
     "diffCarePickup": "Abholzeit",
     "diffCareDepartureMode": "Abholart",

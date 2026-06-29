@@ -885,7 +885,6 @@
     "eventRequestRejectedReason": "Запрос отклонён: {reason}",
     "eventRequestWithdrawn": "Запрос отозван",
     "diffHeading": "Ваши запрошенные изменения",
-    "diffReasonLabel": "Причина",
     "diffCareArrival": "Время прихода",
     "diffCarePickup": "Время ухода",
     "diffCareDepartureMode": "Способ ухода",
