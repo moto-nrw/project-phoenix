@@ -7,6 +7,7 @@ import {
   createCrudService,
   createExtendedService,
   getDeleteErrorMessage,
+  MalformedCrudListResponseError,
 } from "./service-factory";
 import type { EntityConfig } from "./types";
 import { databaseThemes } from "@/components/ui/database/themes";
@@ -169,6 +170,54 @@ describe("createCrudService", () => {
       const result = await service.getList();
 
       expect(result.data[0]?.id).toBe("1");
+    });
+
+    it("throws a typed error for malformed list responses", async () => {
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ unexpected: true }),
+        headers: new Headers({
+          "content-type": "application/json",
+        }),
+      });
+
+      const service = createCrudService(mockConfig);
+      const caught = await service.getList().catch((error: unknown) => error);
+
+      expect(caught).toBeInstanceOf(MalformedCrudListResponseError);
+      expect((caught as Error).message).toContain(
+        "Malformed CRUD list response for Test Entities from /api/test",
+      );
+      expect(caught).toMatchObject({
+        entity: "Test Entities",
+        endpoint: "/api/test",
+        responseShape: "object keys: unexpected",
+      });
+    });
+
+    it("throws a typed error when paginated response data is not an array", async () => {
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: { id: "1", name: "Not an array" },
+            pagination: {
+              current_page: 1,
+              page_size: 10,
+              total_pages: 1,
+              total_records: 1,
+            },
+          }),
+        headers: new Headers({
+          "content-type": "application/json",
+        }),
+      });
+
+      const service = createCrudService(mockConfig);
+
+      await expect(service.getList()).rejects.toThrow(
+        MalformedCrudListResponseError,
+      );
     });
 
     it("includes filters in query string", async () => {
