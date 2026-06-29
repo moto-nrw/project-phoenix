@@ -96,11 +96,17 @@ func pdfColumnWidths(cols []Column, total float64) []float64 {
 		weight := 1.0
 		switch col.ID {
 		case ColumnName:
-			weight = 1.8
+			weight = 1.4
 		case ColumnSchoolClass:
-			weight = 0.8
+			weight = 0.65
 		case ColumnGroup:
 			weight = 1.2
+		case ColumnWeeklyMonday, ColumnWeeklyTuesday, ColumnWeeklyWednesday, ColumnWeeklyThursday, ColumnWeeklyFriday:
+			weight = 0.9
+		case ColumnDeparture:
+			weight = 1.5
+		case ColumnGuardianContacts:
+			weight = 2.7
 		}
 		weights[i] = weight
 		sum += weight

@@ -84,9 +84,16 @@ func TestBuildClassRosterTableDocumentRendersPhaseAwareCells(t *testing.T) {
 				Registered:        true,
 				EnrollmentSummary: "Angemeldet: Randstunde",
 				CareDays:          []string{"mon", "wed"},
-				ArrivalByDay:      map[string]string{"mon": "11:30"},
-				PickupByDay:       map[string]string{"mon": "14:30"},
-				Departure:         "Mo: Abholung",
+				OfferingsByDay: map[string][]string{
+					"mon": []string{"Randstunde"},
+					"wed": []string{"Ganztag"},
+				},
+				ArrivalByDay: map[string]string{"mon": "11:30"},
+				PickupByDay:  map[string]string{"mon": "14:30"},
+				Departure:    "Mo: Abholung",
+				Guardians: []enrollmentService.ClassRosterGuardian{
+					{Name: "Eva Muster", Email: "eva@example.test", Phone: "02551 123"},
+				},
 			},
 			{
 				FirstName:         "Tom",
@@ -94,9 +101,13 @@ func TestBuildClassRosterTableDocumentRendersPhaseAwareCells(t *testing.T) {
 				SchoolClass:       "1a",
 				EnrollmentSummary: "Keine Anmeldung",
 				CareDays:          []string{},
+				OfferingsByDay:    map[string][]string{},
 				ArrivalByDay:      map[string]string{},
 				PickupByDay:       map[string]string{},
 				Departure:         "Geht alleine",
+				Guardians: []enrollmentService.ClassRosterGuardian{
+					{Name: "Stamm Kontakt", Phone: "02551 456"},
+				},
 			},
 		},
 	}
@@ -105,14 +116,27 @@ func TestBuildClassRosterTableDocumentRendersPhaseAwareCells(t *testing.T) {
 
 	assert.Equal(t, "Klassenliste 1a - Schuljahr 2026", doc.Title)
 	assert.Equal(t, "2 Kinder, 1 angemeldet", doc.Subtitle)
+	assert.Equal(t, []listexport.Column{
+		{ID: listexport.ColumnName, Label: "Name"},
+		{ID: listexport.ColumnSchoolClass, Label: "Klasse"},
+		{ID: listexport.ColumnWeeklyMonday, Label: "Montag"},
+		{ID: listexport.ColumnWeeklyTuesday, Label: "Dienstag"},
+		{ID: listexport.ColumnWeeklyWednesday, Label: "Mittwoch"},
+		{ID: listexport.ColumnWeeklyThursday, Label: "Donnerstag"},
+		{ID: listexport.ColumnWeeklyFriday, Label: "Freitag"},
+		{ID: listexport.ColumnDeparture, Label: "Geh-/Abholweise"},
+		{ID: listexport.ColumnGuardianContacts, Label: "Erziehungsberechtigte"},
+	}, doc.Columns)
 	require.Len(t, doc.Rows, 2)
-	assert.Equal(t, "Angemeldet: Randstunde", doc.Rows[0].Values[listexport.ColumnEnrollmentSummary])
-	assert.Equal(t, "Eulen", doc.Rows[0].Values[listexport.ColumnGroup])
-	assert.Equal(t, "Mo, Mi", doc.Rows[0].Values[listexport.ColumnCareDays])
-	assert.Equal(t, "Ankunft: 11:30, Abholung: 14:30", doc.Rows[0].Values[listexport.ColumnWeeklyMonday])
-	assert.Equal(t, "Betreuung", doc.Rows[0].Values[listexport.ColumnWeeklyWednesday])
-	assert.Equal(t, "Keine Anmeldung", doc.Rows[1].Values[listexport.ColumnEnrollmentSummary])
+	assert.Empty(t, doc.Rows[0].Values[listexport.ColumnEnrollmentSummary])
+	assert.Empty(t, doc.Rows[0].Values[listexport.ColumnGroup])
+	assert.Empty(t, doc.Rows[0].Values[listexport.ColumnCareDays])
+	assert.Equal(t, "Randstunde, bis 14:30", doc.Rows[0].Values[listexport.ColumnWeeklyMonday])
+	assert.Equal(t, "Ganztag", doc.Rows[0].Values[listexport.ColumnWeeklyWednesday])
+	assert.Equal(t, "Eva Muster (eva@example.test, 02551 123)", doc.Rows[0].Values[listexport.ColumnGuardianContacts])
+	assert.Empty(t, doc.Rows[1].Values[listexport.ColumnEnrollmentSummary])
 	assert.Equal(t, "nein", doc.Rows[1].Values[listexport.ColumnWeeklyMonday])
+	assert.Equal(t, "Stamm Kontakt (02551 456)", doc.Rows[1].Values[listexport.ColumnGuardianContacts])
 }
 
 func newClassRosterExportHTTPRequest(t *testing.T, body string, perms []string) *http.Request {

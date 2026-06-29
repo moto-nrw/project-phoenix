@@ -14,6 +14,9 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -906,28 +909,34 @@ func TestCareUsageOfferingDayDetailsIncludesDayProvenance(t *testing.T) {
 	}
 }
 
-func TestBuildCareUsageRecordDocumentUsesDynamicDayCountBuckets(t *testing.T) {
+func TestBuildCareUsageRecordDocumentUsesPickupPlanningBuckets(t *testing.T) {
 	report := &enrollmentService.CareUsageReport{
 		Phase:   enrollmentService.CareUsagePhase{ID: 42, Name: "Demo"},
 		Filters: enrollmentService.CareUsageAppliedFilters{PhaseID: 42, Status: "all"},
 		Totals: enrollmentService.CareUsageTotals{
-			Children:   3,
-			ByDayCount: map[string]int{"0": 1, "6": 1, "7": 1},
+			Children: 3,
+			ByWeekdayPickupTime: map[string]map[string]int{
+				"mon": {"15:30": 2, "16:00": 1},
+				"tue": {"14:45": 1},
+				"fri": {"16:00": 3},
+			},
+		},
+		FilterOptions: enrollmentService.CareUsageFilterOptions{
+			PickupTimes: []string{"14:45", "15:30"},
 		},
 	}
 
 	doc := buildCareUsageRecordDocument(report)
-	if len(doc.Records) == 0 {
-		t.Fatal("expected stats record")
-	}
+	require.NotEmpty(t, doc.Records)
+	assert.Equal(t, "Einsatzplanung nach Gehzeit", doc.Records[0].Title)
 	fields := doc.Records[0].Fields
 	got := make([]string, 0, len(fields))
 	for _, field := range fields {
 		got = append(got, field.Label+"="+field.Value)
 	}
-	for _, want := range []string{"Kinder=3", "0 Tage=1", "6 Tage=1", "7 Tage=1"} {
+	for _, want := range []string{"Mo bis 14:45=0", "Mo bis 15:30=2", "Mo bis 16:00=1", "Di bis 14:45=1", "Fr bis 16:00=3"} {
 		if !strings.Contains(strings.Join(got, ";"), want) {
-			t.Fatalf("stats fields = %#v, missing %s", got, want)
+			t.Fatalf("pickup planning fields = %#v, missing %s", got, want)
 		}
 	}
 }

@@ -1063,12 +1063,14 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	enrollmentReportService := enrollment.NewReportService(enrollment.ReportServiceConfig{
 		RequestRepo:              repos.Request,
 		RequestChildRepo:         repos.RequestChild,
+		RequestGuardianRepo:      repos.RequestGuardian,
 		RequestChildOfferingRepo: repos.RequestChildOffering,
 		CareOfferingRepo:         repos.CareOffering,
 		FormSchemaRepo:           repos.FormSchema,
 		PhaseRepo:                repos.Phase,
 		DataAccessLogRepo:        repos.DataAccessLog,
 		StudentRepo:              repos.Student,
+		StudentGuardianRepo:      repos.StudentGuardian,
 		PersonRepo:               repos.Person,
 		EducationGroupRepo:       repos.Group,
 	})
