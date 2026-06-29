@@ -14,6 +14,6 @@ describe("InvitationsRedirectPage", () => {
   it("redirects to the personal database page", () => {
     InvitationsRedirectPage();
 
-    expect(mockRedirect).toHaveBeenCalledWith("database/personal");
+    expect(mockRedirect).toHaveBeenCalledWith("/database/personal");
   });
 });

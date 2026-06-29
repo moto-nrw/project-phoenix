@@ -80,7 +80,6 @@ function getMainRouteTitle(pathname: string): string {
     "/emergency": "Notfall",
     "/settings": "Einstellungen",
     "/profile": "Profil",
-    "/invitations": "Einladungen",
     "/admin/enrollments": "Überblick",
     "/enrollment-phases": "Anmeldephasen",
     "/care-offerings": "Betreuungsangebote",
