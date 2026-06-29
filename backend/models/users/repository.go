@@ -41,6 +41,9 @@ type PersonRepository interface {
 	// FindByID retrieves a person by their ID
 	FindByID(ctx context.Context, id interface{}) (*Person, error)
 
+	// FindByIDForUpdate retrieves and locks a person row for a transaction.
+	FindByIDForUpdate(ctx context.Context, id int64) (*Person, error)
+
 	// FindByIDs retrieves multiple persons by their IDs in a single query
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*Person, error)
 

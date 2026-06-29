@@ -459,6 +459,28 @@ export const appChapters: readonly GuideChapter[] = [
         ],
       },
       {
+        id: "stammdaten-aenderungen-pruefen",
+        title: "Stammdaten-Änderungen prüfen",
+        icon: ClipboardCheck,
+        summary:
+          "Eltern pflegen viele Stammdaten ihres Kindes im Elternportal selbst. Sensible Angaben (Name, Geburtsdatum, dauerhafte Gehzeiten) ändern sie nur auf Anfrage – diese geben Sie hier frei.",
+        steps: [
+          "Die meisten Felder (z. B. Gesundheitshinweise, eigene Kontaktdaten der Eltern) ändern Eltern direkt; die Änderung wird sofort übernommen und protokolliert.",
+          "Für Name, Geburtsdatum und dauerhafte Gehzeiten reichen Eltern über `Änderung anfragen` einen Vorschlag ein, statt direkt zu ändern.",
+          "Offene Anfragen finden Sie als Admin unter `Änderungsanfragen` in der Seitenleiste.",
+          "Pro Anfrage sehen Sie das Kind, das betroffene Feld und die Änderung (alter → neuer Wert).",
+          "Mit `Freigeben` wird der neue Wert in den Datensatz übernommen, mit `Ablehnen` bleibt der bisherige Wert erhalten. Eine Begründung können Sie optional ergänzen.",
+          "Ob Eltern Stammdaten direkt ändern bzw. Änderungen anfragen dürfen, steuern Sie unter `Einstellungen` im Bereich `Elternportal`.",
+        ],
+        callout: {
+          title: "Was wird direkt übernommen?",
+          body: "Direkt geänderte Felder sind sofort wirksam und im Verlauf nachvollziehbar. Nur die freigabepflichtigen Felder warten auf Ihre Bestätigung – bis dahin bleibt der bisherige Wert gültig.",
+          tone: "blue",
+        },
+        screenshot:
+          "Admin-Seite „Änderungsanfragen“ mit Kind, geändertem Feld, altem und neuem Wert sowie Freigeben- und Ablehnen-Schaltflächen.",
+      },
+      {
         id: "meine-gruppen",
         title: "Meine Gruppen",
         icon: Users,

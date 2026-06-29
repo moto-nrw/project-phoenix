@@ -989,6 +989,10 @@ func (noopPersonRepository) FindByID(context.Context, interface{}) (*userModel.P
 	panic("FindByID not implemented")
 }
 
+func (noopPersonRepository) FindByIDForUpdate(context.Context, int64) (*userModel.Person, error) {
+	panic("FindByIDForUpdate not implemented")
+}
+
 func (noopPersonRepository) FindByTagID(context.Context, string) (*userModel.Person, error) {
 	panic("FindByTagID not implemented")
 }

@@ -110,6 +110,14 @@ export function parentApiPut<T, B = unknown>(
   return parentServerFetch<T>(endpoint, token, { method: "PUT", body });
 }
 
+export function parentApiPatch<T, B = unknown>(
+  endpoint: string,
+  token: string,
+  body?: B,
+): Promise<T> {
+  return parentServerFetch<T>(endpoint, token, { method: "PATCH", body });
+}
+
 type NoBodyHandler<T> = (
   request: NextRequest,
   token: string,
@@ -217,6 +225,12 @@ export function createParentDeleteHandler<T>(handler: NoBodyHandler<T>) {
 }
 
 export function createParentPutHandler<T, B = unknown>(
+  handler: WithBodyHandler<T, B>,
+) {
+  return createParentWithBodyHandler(handler);
+}
+
+export function createParentPatchHandler<T, B = unknown>(
   handler: WithBodyHandler<T, B>,
 ) {
   return createParentWithBodyHandler(handler);

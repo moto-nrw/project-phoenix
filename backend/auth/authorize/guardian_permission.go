@@ -13,6 +13,13 @@ const (
 	GuardianPermissionNotesWrite       = "parent_portal.notes.write"
 	GuardianPermissionEnrollmentsView  = "parent_portal.enrollments.view"
 	GuardianPermissionEnrollmentSubmit = "parent_portal.enrollment.submit"
+	// GuardianPermissionMasterDataEdit gates Track A direct Stammdaten edits
+	// (health info, contact data) that apply immediately.
+	GuardianPermissionMasterDataEdit = "parent_portal.master_data.edit"
+	// GuardianPermissionMasterDataRequest gates Track B change requests for
+	// high-stakes / OGS-coupled fields (child name, birthday, permanent
+	// weekday Gehzeit) that require staff approval.
+	GuardianPermissionMasterDataRequest = "parent_portal.master_data.request"
 	// GuardianPermissionGuardianEdit allows a parent to edit the contact data
 	// (name, email, phone, address) of contact-only guardians of their child,
 	// plus the per-child pickup note and emergency priority. It never permits
@@ -41,6 +48,8 @@ var fullParentPortalPermissions = []string{
 	GuardianPermissionNotesWrite,
 	GuardianPermissionEnrollmentsView,
 	GuardianPermissionEnrollmentSubmit,
+	GuardianPermissionMasterDataEdit,
+	GuardianPermissionMasterDataRequest,
 	GuardianPermissionGuardianEdit,
 	GuardianPermissionPickupManage,
 }

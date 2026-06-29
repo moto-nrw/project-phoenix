@@ -51,23 +51,25 @@ func (r *ChildRepository) ListByAccount(ctx context.Context, accountID int64) ([
 	}
 
 	type row struct {
-		StudentID     int64          `bun:"student_id"`
-		TenantID      int64          `bun:"tenant_id"`
-		FirstName     string         `bun:"first_name"`
-		LastName      string         `bun:"last_name"`
-		SchoolClass   string         `bun:"school_class"`
-		Status        string         `bun:"status"`
-		EnrolledFrom  *timezone.Date `bun:"enrolled_from"`
-		EnrolledUntil *timezone.Date `bun:"enrolled_until"`
-		SchoolName    string         `bun:"school_name"`
-		SchoolSlug    string         `bun:"school_slug"`
-		Permissions   map[string]any `bun:"guardian_permissions"`
+		StudentID         int64          `bun:"student_id"`
+		TenantID          int64          `bun:"tenant_id"`
+		GuardianProfileID int64          `bun:"guardian_profile_id"`
+		FirstName         string         `bun:"first_name"`
+		LastName          string         `bun:"last_name"`
+		SchoolClass       string         `bun:"school_class"`
+		Status            string         `bun:"status"`
+		EnrolledFrom      *timezone.Date `bun:"enrolled_from"`
+		EnrolledUntil     *timezone.Date `bun:"enrolled_until"`
+		SchoolName        string         `bun:"school_name"`
+		SchoolSlug        string         `bun:"school_slug"`
+		Permissions       map[string]any `bun:"guardian_permissions"`
 	}
 
 	const query = `
 		SELECT
 			s.id           AS student_id,
 			s.tenant_id    AS tenant_id,
+			gp.id          AS guardian_profile_id,
 			p.first_name   AS first_name,
 			p.last_name    AS last_name,
 			COALESCE(s.school_class, '') AS school_class,
@@ -109,6 +111,7 @@ func (r *ChildRepository) ListByAccount(ctx context.Context, accountID int64) ([
 		out = append(out, &parentModels.ChildSummary{
 			StudentID:           rr.StudentID,
 			TenantID:            rr.TenantID,
+			GuardianProfileID:   rr.GuardianProfileID,
 			FirstName:           rr.FirstName,
 			LastName:            rr.LastName,
 			SchoolClass:         rr.SchoolClass,
@@ -139,23 +142,25 @@ func (r *ChildRepository) FindForAccount(ctx context.Context, accountID, student
 	}
 
 	type row struct {
-		StudentID     int64          `bun:"student_id"`
-		TenantID      int64          `bun:"tenant_id"`
-		FirstName     string         `bun:"first_name"`
-		LastName      string         `bun:"last_name"`
-		SchoolClass   string         `bun:"school_class"`
-		Status        string         `bun:"status"`
-		EnrolledFrom  *timezone.Date `bun:"enrolled_from"`
-		EnrolledUntil *timezone.Date `bun:"enrolled_until"`
-		SchoolName    string         `bun:"school_name"`
-		SchoolSlug    string         `bun:"school_slug"`
-		Permissions   map[string]any `bun:"guardian_permissions"`
+		StudentID         int64          `bun:"student_id"`
+		TenantID          int64          `bun:"tenant_id"`
+		GuardianProfileID int64          `bun:"guardian_profile_id"`
+		FirstName         string         `bun:"first_name"`
+		LastName          string         `bun:"last_name"`
+		SchoolClass       string         `bun:"school_class"`
+		Status            string         `bun:"status"`
+		EnrolledFrom      *timezone.Date `bun:"enrolled_from"`
+		EnrolledUntil     *timezone.Date `bun:"enrolled_until"`
+		SchoolName        string         `bun:"school_name"`
+		SchoolSlug        string         `bun:"school_slug"`
+		Permissions       map[string]any `bun:"guardian_permissions"`
 	}
 
 	const query = `
 		SELECT
 			s.id           AS student_id,
 			s.tenant_id    AS tenant_id,
+			gp.id          AS guardian_profile_id,
 			p.first_name   AS first_name,
 			p.last_name    AS last_name,
 			COALESCE(s.school_class, '') AS school_class,
@@ -200,6 +205,7 @@ func (r *ChildRepository) FindForAccount(ctx context.Context, accountID, student
 	return &parentModels.ChildSummary{
 		StudentID:           rr.StudentID,
 		TenantID:            rr.TenantID,
+		GuardianProfileID:   rr.GuardianProfileID,
 		FirstName:           rr.FirstName,
 		LastName:            rr.LastName,
 		SchoolClass:         rr.SchoolClass,

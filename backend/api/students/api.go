@@ -58,6 +58,7 @@ type Resource struct {
 	SchoolService           platformSvc.SchoolService
 	SettingsService         configService.SettingsService
 	StudentService          userService.StudentService
+	MasterDataReviewService userService.MasterDataReviewService
 	StudentStatusDayService activeService.StudentStatusDayService
 	StudentHistoryService   activeService.StudentHistoryService
 	ActivityService         activityService.ActivityService
@@ -86,6 +87,7 @@ type ResourceConfig struct {
 	SchoolService           platformSvc.SchoolService
 	SettingsService         configService.SettingsService
 	StudentService          userService.StudentService
+	MasterDataReviewService userService.MasterDataReviewService
 	StudentStatusDayService activeService.StudentStatusDayService
 	StudentHistoryService   activeService.StudentHistoryService
 	ActivityService         activityService.ActivityService
@@ -119,6 +121,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		SchoolService:           cfg.SchoolService,
 		SettingsService:         cfg.SettingsService,
 		StudentService:          cfg.StudentService,
+		MasterDataReviewService: cfg.MasterDataReviewService,
 		StudentStatusDayService: cfg.StudentStatusDayService,
 		StudentHistoryService:   cfg.StudentHistoryService,
 		ActivityService:         cfg.ActivityService,
@@ -160,6 +163,14 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/attendance-history", rs.getStudentAttendanceHistory)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/status-days", rs.getStudentStatusDays)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/enrollment-extra-fields", rs.getStudentEnrollmentExtraFields)
+
+		// Parent Stammdaten change-request review queue (Track B). Requests can
+		// contain parent-submitted name, birthday, and departure-plan changes,
+		// so both listing and terminal decisions require admin-level user
+		// management access. Static paths take precedence over the /{id} param
+		// route in chi.
+		r.With(authorize.RequiresPermission(permissions.UsersManage), withTx).Get("/master-data-change-requests", rs.listMasterDataChangeRequests)
+		r.With(authorize.RequiresPermission(permissions.UsersManage), withTx).Post("/master-data-change-requests/{requestId}/decide", rs.decideMasterDataChangeRequest)
 
 		// Routes requiring users:create permission
 		r.With(authorize.RequiresPermission(permissions.UsersCreate), withTx).Post("/", rs.createStudent)

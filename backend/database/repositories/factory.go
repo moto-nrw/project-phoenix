@@ -186,6 +186,9 @@ type Factory struct {
 	ParentEnrollablePhase   parentModels.EnrollablePhaseRepository
 	ParentEnrollmentRequest parentModels.EnrollmentRequestRepository
 
+	// Parent Stammdaten direct-edit audit + change-request review
+	StudentDataChangeRequest userModels.StudentDataChangeRequestRepository
+
 	// Parent-OGS messaging (tenant-scoped two-way conversation per child)
 	ParentMessageThread userModels.ParentMessageThreadRepository
 	ParentMessage       userModels.ParentMessageRepository
@@ -341,6 +344,9 @@ func NewFactory(db *bun.DB) *Factory {
 		ParentChild:             parentRepo.NewChildRepository(db),
 		ParentEnrollablePhase:   parentRepo.NewEnrollablePhaseRepository(db),
 		ParentEnrollmentRequest: parentRepo.NewEnrollmentRequestRepository(db),
+
+		// Parent Stammdaten direct-edit audit + change-request review
+		StudentDataChangeRequest: users.NewStudentDataChangeRequestRepository(db),
 
 		// Parent-OGS messaging (tenant-scoped two-way conversation per child)
 		ParentMessageThread: users.NewParentMessageThreadRepository(db),

@@ -10,6 +10,9 @@ import {
   submitSickNote,
   listSickDays,
   getChildFeatures,
+  getChildMasterData,
+  updateMasterDataField,
+  submitMasterDataRequest,
   listMessageThreads,
   listChildThreads,
   fetchMessagesUnreadCount,
@@ -18,6 +21,7 @@ import {
   type Child,
   type EnrollmentRequest,
   type StatusDay,
+  type ChildMasterData,
   type ThreadSummary,
   type ThreadView,
 } from "./parent-api";
@@ -308,6 +312,112 @@ describe("submitParentEnrollment", () => {
   });
 });
 
+// --- Stammdaten master-data helpers ---------------------------------
+
+function mkMasterData(): ChildMasterData {
+  return {
+    student_id: "42",
+    first_name: "Lara",
+    last_name: "Beispiel",
+    birthday: "2018-03-04",
+    school_class: "2a",
+    status: "active",
+    health_info: "Allergie",
+    guardian_profile_id: "77",
+    email: "parent@example.test",
+    address_street: "Musterweg 1",
+    address_city: "Köln",
+    address_postal_code: "50667",
+    preferred_contact_method: "email",
+    language_preference: "de",
+    primary_phone: "+491234",
+    allowed_departure_modes: { mon: ["pickup"], tue: ["bus", "alone"] },
+    pending_changes: [],
+  };
+}
+
+describe("parent master-data API helpers", () => {
+  it("loads a child's master data and URL-encodes the student id", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({ data: mkMasterData() });
+    });
+
+    const out = await getChildMasterData("42/unsafe");
+
+    expect(out.first_name).toBe("Lara");
+    expect(seenURL).toBe("/api/parent/me/children/42%2Funsafe/master-data");
+  });
+
+  it("patches one direct-edit field with encoded path segments", async () => {
+    let seenURL = "";
+    let seenMethod = "";
+    let seenBody = "";
+    mockFetch(async (input, init) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      seenMethod = init?.method ?? "";
+      seenBody = String(init?.body ?? "");
+      return jsonResponse({ data: mkMasterData() });
+    });
+
+    await updateMasterDataField(
+      "42/unsafe",
+      "guardian/profile",
+      "email address",
+      "new@example.test",
+    );
+
+    expect(seenMethod).toBe("PATCH");
+    expect(seenURL).toBe(
+      "/api/parent/me/children/42%2Funsafe/master-data/guardian%2Fprofile/email%20address",
+    );
+    expect(seenBody).toBe(JSON.stringify({ value: "new@example.test" }));
+  });
+
+  it("submits approval-required changes and unwraps the response", async () => {
+    let seenURL = "";
+    let seenMethod = "";
+    let seenBody = "";
+    mockFetch(async (input, init) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      seenMethod = init?.method ?? "";
+      seenBody = String(init?.body ?? "");
+      return jsonResponse({
+        data: [
+          {
+            id: "900",
+            target: "person",
+            field_key: "first_name",
+            new_value: "Lea",
+            status: "pending",
+            created_at: "2026-06-24T10:00:00Z",
+          },
+        ],
+      });
+    });
+
+    const out = await submitMasterDataRequest("42", [
+      { target: "person", field_key: "first_name", value: "Lea" },
+    ]);
+
+    expect(seenMethod).toBe("POST");
+    expect(seenURL).toBe("/api/parent/me/children/42/master-data/requests");
+    expect(seenBody).toContain('"field_key":"first_name"');
+    expect(out[0]!.id).toBe("900");
+  });
+
+  it("surfaces backend errors for master-data writes", async () => {
+    mockFetch(async () =>
+      jsonResponse({ error: "field is locked" }, { status: 409 }),
+    );
+
+    await expect(
+      updateMasterDataField("42", "student", "health_info", "x"),
+    ).rejects.toThrow(/field is locked/);
+  });
+});
+
 describe("fetchParentProfile", () => {
   it("unwraps the { data } envelope and returns the portal_locale", async () => {
     mockFetch(async () => jsonResponse({ data: { portal_locale: "en" } }));
@@ -469,12 +579,22 @@ describe("getChildFeatures", () => {
     mockFetch(async (input) => {
       seenURL = typeof input === "string" ? input : input.toString();
       return jsonResponse({
-        data: { sick_note_enabled: true, notes_enabled: false },
+        data: {
+          sick_note_enabled: true,
+          notes_enabled: false,
+          pickup_change_enabled: true,
+          related_accounts_invite_enabled: false,
+          related_accounts_remove_enabled: false,
+          master_data_edit_enabled: true,
+          master_data_contact_edit_enabled: false,
+          master_data_request_enabled: true,
+        },
       });
     });
     const out = await getChildFeatures("84");
     expect(out.sick_note_enabled).toBe(true);
     expect(out.notes_enabled).toBe(false);
+    expect(out.master_data_contact_edit_enabled).toBe(false);
     expect(seenURL).toContain("/api/parent/me/children/84/features");
   });
 
