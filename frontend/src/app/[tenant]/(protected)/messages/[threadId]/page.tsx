@@ -321,7 +321,10 @@ function MessageThreadContent() {
                   onConfirm={() =>
                     void applyRequestAction(message.id, "confirm")
                   }
-                  onRejectStart={() => setRejectingRequestId(message.id)}
+                  onRejectStart={() => {
+                    setRejectingRequestId(message.id);
+                    setRejectReason("");
+                  }}
                   onRejectCancel={() => {
                     setRejectingRequestId(null);
                     setRejectReason("");
