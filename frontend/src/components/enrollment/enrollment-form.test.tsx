@@ -436,12 +436,16 @@ describe("EnrollmentForm", () => {
     expect(mockFetchPublicActiveSchema).toHaveBeenCalledWith(
       "test-tenant",
       "5",
+      { lateInviteToken: undefined },
     );
     expect(mockFetchPublicCareOfferings).toHaveBeenCalledWith(
       "test-tenant",
       "5",
+      { lateInviteToken: undefined },
     );
-    expect(mockFetchPublicLegalTexts).toHaveBeenCalledWith("test-tenant", "5");
+    expect(mockFetchPublicLegalTexts).toHaveBeenCalledWith("test-tenant", "5", {
+      lateInviteToken: undefined,
+    });
     expect(screen.getByText("Flexible Betreuung")).toBeInTheDocument();
     expect(screen.getByText("Abholhinweis")).toBeInTheDocument();
     expect(screen.getByText("Allergien")).toBeInTheDocument();
