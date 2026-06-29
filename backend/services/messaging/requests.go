@@ -251,7 +251,10 @@ func (s *service) ConfirmRequest(ctx context.Context, requestID int64) ([]*users
 	if err := s.messageRepo.Update(ctx, request); err != nil {
 		return nil, fmt.Errorf("messaging: update request: %w", err)
 	}
-	if err := s.appendSystemEvent(ctx, thread, accountID, "request_status", confirmEventBody(request.RequestType)); err != nil {
+	if err := s.appendSystemEvent(ctx, thread, accountID, "request_status", confirmEventBody(request.RequestType), requestDecisionMeta{
+		requestType:   request.RequestType,
+		requestStatus: usersModels.ParentMessageRequestStatusDone,
+	}); err != nil {
 		return nil, err
 	}
 	// Emit the "applied" audit line only AFTER the tenant transaction actually
@@ -311,7 +314,11 @@ func (s *service) RejectRequest(ctx context.Context, requestID int64, reason str
 	if err := s.messageRepo.Update(ctx, request); err != nil {
 		return nil, fmt.Errorf("messaging: update request: %w", err)
 	}
-	if err := s.appendSystemEvent(ctx, thread, accountIDFromCtx(ctx), "request_status", "Anfrage abgelehnt: "+reason); err != nil {
+	if err := s.appendSystemEvent(ctx, thread, accountIDFromCtx(ctx), "request_status", "Anfrage abgelehnt: "+reason, requestDecisionMeta{
+		requestType:    request.RequestType,
+		requestStatus:  usersModels.ParentMessageRequestStatusRejected,
+		decisionReason: reason,
+	}); err != nil {
 		return nil, err
 	}
 	// Reject deliberately skips requireLinkedGuardian (so staff can wind down a
@@ -387,17 +394,32 @@ func (s *service) requireStudentWrite(ctx context.Context, studentID int64) erro
 	if student == nil {
 		return ErrForbidden
 	}
-	ok, err := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.userContext)
-	if err != nil {
-		return fmt.Errorf("messaging: check student write access: %w", err)
-	}
-	if !ok {
+	// CanUpdateStudent returns (false, reason) for EVERY per-child denial — the
+	// child is in a group this staffer does not supervise, has no group, or the
+	// account has no staff record. The returned error IS that authorization
+	// reason, not a transient failure, so map it to ErrForbidden (403) exactly
+	// like the student mutation endpoints (api/students/api.go), instead of
+	// wrapping it into a generic error that renderMessagingError reports as a 500.
+	if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.userContext); !ok {
 		return ErrForbidden
 	}
 	return nil
 }
 
-func (s *service) appendSystemEvent(ctx context.Context, thread *usersModels.ParentMessageThread, actorAccountID int64, eventType, body string) error {
+// requestDecisionMeta carries the structured outcome of a request decision so a
+// localized client (the parents portal) can render the event text in its own
+// language instead of the German Body. The German-only staff portal renders Body
+// directly and ignores these. RequestType is the decided request's type (only
+// meaningful for a confirm, to keep the "Stammdaten/Betreuungszeiten übernommen"
+// distinction); RequestStatus is the terminal status; DecisionReason is the
+// reject reason (empty otherwise).
+type requestDecisionMeta struct {
+	requestType    string
+	requestStatus  string
+	decisionReason string
+}
+
+func (s *service) appendSystemEvent(ctx context.Context, thread *usersModels.ParentMessageThread, actorAccountID int64, eventType, body string, meta requestDecisionMeta) error {
 	msg := &usersModels.ParentMessage{
 		ThreadID:        thread.ID,
 		StudentID:       thread.StudentID,
@@ -407,6 +429,11 @@ func (s *service) appendSystemEvent(ctx context.Context, thread *usersModels.Par
 		Body:            body,
 		Kind:            usersModels.ParentMessageKindEvent,
 		EventType:       eventType,
+		// Structured decision outcome — the parents portal localizes from these
+		// instead of the German Body; harmless on the staff side, which renders Body.
+		RequestType:    meta.requestType,
+		RequestStatus:  meta.requestStatus,
+		DecisionReason: meta.decisionReason,
 		// Staff-triggered decision (confirm / reject). Attribute the
 		// event to the staff side explicitly so the guardian's unread badge fires,
 		// even when this staffer is ALSO the thread's guardian (dual-role account).
@@ -935,9 +962,10 @@ func (s *service) masterDataDiffFrom(ctx context.Context, src *diffSource, paylo
 			oldVal = derefString(student.ExtraInfo)
 		}
 		entries = append(entries, RequestDiffEntry{
-			Label: f.Label,
-			Old:   dashIfEmpty(oldVal),
-			New:   dashIfEmpty(strings.TrimSpace(derefString(val))),
+			Label:    f.Label,
+			Old:      dashIfEmpty(oldVal),
+			New:      dashIfEmpty(strings.TrimSpace(derefString(val))),
+			FieldKey: f.Key,
 		})
 	}
 	return entries, nil
@@ -974,22 +1002,28 @@ func (s *service) careScheduleDiffFrom(ctx context.Context, src *diffSource, pay
 				// DepartureDays projection. Otherwise a day allowing {bus, pickup}
 				// renders as one mode, a parent re-requesting that mode looks like a
 				// no-op, and confirming silently drops the other allowed mode.
-				Old: germanAllowedDepartureModes(student.AllowedDepartureModes[abbrev]),
-				New: usersModels.DepartureMode(wd.Mode).GermanLabel(),
+				Old:      germanAllowedDepartureModes(student.AllowedDepartureModes[abbrev]),
+				New:      usersModels.DepartureMode(wd.Mode).GermanLabel(),
+				Weekday:  wd.Weekday,
+				CareKind: DiffCareKindDepartureMode,
 			})
 		}
 		if wd.Arrival != "" {
 			entries = append(entries, RequestDiffEntry{
-				Label: name + " · Bringzeit",
-				Old:   dashIfEmpty(arrivalMap[wd.Weekday]),
-				New:   wd.Arrival,
+				Label:    name + " · Bringzeit",
+				Old:      dashIfEmpty(arrivalMap[wd.Weekday]),
+				New:      wd.Arrival,
+				Weekday:  wd.Weekday,
+				CareKind: DiffCareKindArrival,
 			})
 		}
 		if wd.Pickup != "" {
 			entries = append(entries, RequestDiffEntry{
-				Label: name + " · Abholzeit",
-				Old:   dashIfEmpty(pickupMap[wd.Weekday]),
-				New:   wd.Pickup,
+				Label:    name + " · Abholzeit",
+				Old:      dashIfEmpty(pickupMap[wd.Weekday]),
+				New:      wd.Pickup,
+				Weekday:  wd.Weekday,
+				CareKind: DiffCareKindPickup,
 			})
 		}
 	}

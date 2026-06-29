@@ -118,12 +118,28 @@ type Service interface {
 	BuildRequestDiffs(ctx context.Context, studentID int64, messages []*usersModels.ParentMessage) map[int64][]RequestDiffEntry
 }
 
+// Diff care-kind discriminators (see RequestDiffEntry.CareKind). Stable wire
+// tokens — the localized parents portal maps them to its own labels.
+const (
+	DiffCareKindArrival       = "arrival"
+	DiffCareKindPickup        = "pickup"
+	DiffCareKindDepartureMode = "departure_mode"
+)
+
 // RequestDiffEntry is one field-level "current → requested" comparison row in a
 // change request's diff (staff- and parent-visible).
 type RequestDiffEntry struct {
 	Label string
 	Old   string
 	New   string
+	// Structured discriminators that let a localized client (the parents portal)
+	// render the label in its own language instead of the German Label, which is
+	// authoritative only for the German-only staff portal. FieldKey is set for
+	// master-data rows; Weekday (1-5) + CareKind for care-schedule rows. Older
+	// clients ignore them and keep showing Label.
+	FieldKey string
+	Weekday  int
+	CareKind string
 }
 
 type service struct {

@@ -34,6 +34,14 @@ export interface RequestDiffEntry {
   readonly label: string;
   readonly old: string;
   readonly new: string;
+  // Structured discriminators the backend sends so the localized parents portal
+  // can render the label in the guardian's language instead of the German
+  // `label` (authoritative only for the German-only staff portal). `field_key`
+  // is set for master-data rows; `weekday` (1-5) + `care_kind` for care-schedule
+  // rows. Absent on the staff side / legacy payloads → fall back to `label`.
+  readonly field_key?: string;
+  readonly weekday?: number;
+  readonly care_kind?: "arrival" | "pickup" | "departure_mode";
 }
 
 /**
@@ -116,4 +124,71 @@ export function parentRequestTypeI18nKey(requestType?: string): string {
     PARENT_REQUEST_TYPE_I18N_KEYS[requestType as RequestType] ??
     "requestTitleFallback"
   );
+}
+
+/**
+ * next-intl keys (parentOgsMessaging namespace) for a diff entry's label on the
+ * localized parents portal, keyed by the backend's structured discriminators so
+ * the German `label` is never shown to a non-German guardian. Care-schedule rows
+ * compose a weekday key (`diffWeekday{1..5}`) with one of these.
+ */
+export const PARENT_DIFF_FIELD_I18N_KEYS: Record<string, string> = {
+  first_name: "diffFieldFirstName",
+  last_name: "diffFieldLastName",
+  birthday: "diffFieldBirthday",
+  guardian_email: "diffFieldGuardianEmail",
+  guardian_phone: "diffFieldGuardianPhone",
+  extra_info: "diffFieldExtraInfo",
+};
+
+export const PARENT_DIFF_CARE_KIND_I18N_KEYS: Record<string, string> = {
+  arrival: "diffCareArrival",
+  pickup: "diffCarePickup",
+  departure_mode: "diffCareDepartureMode",
+};
+
+/**
+ * Descriptor for localizing a request-decision system event on the parents
+ * portal. Backend system-event bodies are German ("Anfrage bestätigt",
+ * "Anfrage abgelehnt: …", "Anfrage zurückgezogen"), so the parent side renders
+ * from the event's structured fields (event_type + request_status + request_type
+ * + decision_reason) instead. Returns null for any event the parent side can't
+ * localize from fields — the caller then falls back to the raw German body
+ * (matching the previous behavior for unknown events).
+ */
+export function parentEventI18nDescriptor(message: {
+  readonly kind?: MessageKind;
+  readonly event_type?: string;
+  readonly request_status?: string;
+  readonly request_type?: string;
+  readonly decision_reason?: string;
+}): { key: string; values?: { reason: string } } | null {
+  if (
+    message.kind !== "event" ||
+    message.event_type !== "request_status" ||
+    !message.request_status
+  ) {
+    return null;
+  }
+  switch (message.request_status) {
+    case "erledigt":
+      if (message.request_type === "care_schedule") {
+        return { key: "eventRequestConfirmedCareSchedule" };
+      }
+      if (message.request_type === "student_master_data") {
+        return { key: "eventRequestConfirmedMasterData" };
+      }
+      return { key: "eventRequestConfirmed" };
+    case "abgelehnt":
+      return message.decision_reason
+        ? {
+            key: "eventRequestRejectedReason",
+            values: { reason: message.decision_reason },
+          }
+        : { key: "eventRequestRejected" };
+    case "zurueckgezogen":
+      return { key: "eventRequestWithdrawn" };
+    default:
+      return null;
+  }
 }

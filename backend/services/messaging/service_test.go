@@ -23,11 +23,14 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/messaging"
+	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -44,6 +47,10 @@ import (
 type stubSettings struct {
 	configService.SettingsService
 	messagingEnabled bool
+	// dataScope, when set, makes the gdpr.student_data_scope lookups report an
+	// override of this value so CanReadStudent relaxes reads (e.g. "all_staff").
+	// Empty (the default) keeps the restrictive group-supervisors-only behavior.
+	dataScope string
 }
 
 func (s stubSettings) ResolveBool(_ context.Context, key string) (bool, error) {
@@ -53,8 +60,41 @@ func (s stubSettings) ResolveBool(_ context.Context, key string) (bool, error) {
 	return false, nil
 }
 
-func (s stubSettings) HasTenantOverride(_ context.Context, _ string) (bool, error) { return false, nil }
-func (s stubSettings) ResolveString(_ context.Context, _ string) (string, error)   { return "", nil }
+func (s stubSettings) HasTenantOverride(_ context.Context, key string) (bool, error) {
+	if key == configModels.KeyStudentDataScope && s.dataScope != "" {
+		return true, nil
+	}
+	return false, nil
+}
+
+func (s stubSettings) ResolveString(_ context.Context, key string) (string, error) {
+	if key == configModels.KeyStudentDataScope {
+		return s.dataScope, nil
+	}
+	return "", nil
+}
+
+// stubUserContext stands in for the user-context service so the per-child
+// authorization checks resolve: GetCurrentStaff returns a staff record (lets an
+// "all_staff"-scope reader pass CanReadStudent) while GetMyGroups /
+// GetMyActiveGroups report NO supervised groups (so the stricter write check
+// CanUpdateStudent denies — the caller supervises nothing).
+type stubUserContext struct {
+	userContextService.UserContextService
+	staff *usersModels.Staff
+}
+
+func (s stubUserContext) GetCurrentStaff(context.Context) (*usersModels.Staff, error) {
+	return s.staff, nil
+}
+
+func (s stubUserContext) GetMyGroups(context.Context) ([]*educationModels.Group, error) {
+	return nil, nil
+}
+
+func (s stubUserContext) GetMyActiveGroups(context.Context) ([]*activeModels.Group, error) {
+	return nil, nil
+}
 
 // captureBroadcaster records every parent-message fan-out with its event type so
 // the tests can assert a send fired EventParentMessage and a pure read fired
@@ -162,6 +202,27 @@ func createGuardianMessage(t *testing.T, db *bun.DB, chain testpkg.ParentChain, 
 	}
 	gm.SetTenantID(chain.TenantID)
 	require.NoError(t, repositories.NewFactory(db).ParentMessage.Create(tenant.WithTenantID(context.Background(), 1), gm))
+}
+
+// createOpenRequest inserts a still-open guardian change request straight through
+// the repo, so the staff decision paths (confirm/reject) have something decidable.
+func createOpenRequest(t *testing.T, db *bun.DB, chain testpkg.ParentChain, threadID int64) int64 {
+	t.Helper()
+	req := &usersModels.ParentMessage{
+		ThreadID:        threadID,
+		StudentID:       chain.StudentID,
+		SenderAccountID: chain.AccountID,
+		SenderKind:      usersModels.ParentMessageSenderGuardian,
+		SenderName:      "Sabine Schneider",
+		Body:            messaging.RequestBody(usersModels.ParentMessageRequestStudentMasterData),
+		Kind:            usersModels.ParentMessageKindRequest,
+		RequestType:     usersModels.ParentMessageRequestStudentMasterData,
+		RequestStatus:   usersModels.ParentMessageRequestStatusOpen,
+		Payload:         map[string]any{"fields": map[string]any{"first_name": "Neu"}},
+	}
+	req.SetTenantID(chain.TenantID)
+	require.NoError(t, repositories.NewFactory(db).ParentMessage.Create(tenant.WithTenantID(context.Background(), 1), req))
+	return req.ID
 }
 
 // --- StartThread / PostMessage / GetThread ------------------------------
@@ -428,6 +489,56 @@ func TestMessaging_MissingStudentIsForbidden(t *testing.T) {
 	_, err := f.svc.ListGuardians(ctx, 999999999)
 	require.ErrorIs(t, err, messaging.ErrForbidden)
 	_, err = f.svc.ListStudentThreads(ctx, 999999999)
+	require.ErrorIs(t, err, messaging.ErrForbidden)
+}
+
+// TestDecideRequest_WriteDeniedIsForbidden: a staffer who passes the coarse
+// users:update route gate AND can READ the child (gdpr.student_data_scope =
+// all_staff, verified staff) but does NOT supervise the child's group fails the
+// per-child write check on confirm/reject. CanUpdateStudent returns its denial as
+// an error; the service must map that to ErrForbidden (→ 403), not wrap it into a
+// generic error the handler reports as a 500.
+func TestDecideRequest_WriteDeniedIsForbidden(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	repos := repositories.NewFactory(db)
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
+	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Read", "Only")
+	t.Cleanup(func() { testpkg.CleanupStaffFixtures(t, db, staff.ID) })
+	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, staffAccount.ID) })
+	t.Cleanup(func() { testpkg.CleanupParentMessagingForAccount(t, db, staffAccount.ID) })
+
+	svc := messaging.NewService(messaging.Config{
+		ThreadRepo:  repos.ParentMessageThread,
+		MessageRepo: repos.ParentMessage,
+		ReadRepo:    repos.ParentMessageRead,
+		Persons:     newPersons(repos, db),
+		// Staff present (read passes under all_staff) but supervising no group
+		// (write denied).
+		UserContext: stubUserContext{staff: &usersModels.Staff{}},
+		Settings: stubSettings{
+			messagingEnabled: true,
+			dataScope:        configModels.StudentDataScopeAllStaff,
+		},
+		Broadcaster: &captureBroadcaster{},
+		DB:          db,
+		Logger:      slog.Default(),
+	})
+
+	thread, err := svc.StartThread(adminCtx(staffAccount.ID), chain.StudentID, chain.AccountID, "Hallo")
+	require.NoError(t, err)
+
+	// Reject and confirm both run requireStudentWrite after the read gate; both
+	// must surface the per-child denial as ErrForbidden.
+	rejectReqID := createOpenRequest(t, db, chain, thread.ThreadID)
+	confirmReqID := createOpenRequest(t, db, chain, thread.ThreadID)
+	ctx := claimsCtx(staffAccount.ID, []string{"users:update"})
+
+	_, err = svc.RejectRequest(ctx, rejectReqID, "Bitte erneut einreichen")
+	require.ErrorIs(t, err, messaging.ErrForbidden)
+	_, err = svc.ConfirmRequest(ctx, confirmReqID)
 	require.ErrorIs(t, err, messaging.ErrForbidden)
 }
 

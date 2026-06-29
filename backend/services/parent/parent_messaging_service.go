@@ -528,7 +528,7 @@ func (s *service) WithdrawChildRequest(ctx context.Context, accountID, studentID
 		if err := s.messageRepo.Update(txCtx, request); err != nil {
 			return err
 		}
-		if err := s.appendParentSystemEvent(txCtx, thread, accountID, "request_status", "Anfrage zurückgezogen", nil, ""); err != nil {
+		if err := s.appendParentSystemEvent(txCtx, thread, accountID, "request_status", "Anfrage zurückgezogen", usersModels.ParentMessageRequestStatusWithdrawn, nil, ""); err != nil {
 			return err
 		}
 		view.ThreadID = thread.ID
@@ -590,7 +590,7 @@ func (s *service) appendGuardianRequest(ctx context.Context, thread *usersModels
 // by the GUARDIAN side (not "system") so the staff inbox unread/awaiting-reply
 // signal fires correctly even for a dual-role account — mirrors the staff side's
 // appendSystemEvent, which stamps its decisions as staff.
-func (s *service) appendParentSystemEvent(ctx context.Context, thread *usersModels.ParentMessageThread, actorAccountID int64, eventType, body string, refID *int64, refTable string) error {
+func (s *service) appendParentSystemEvent(ctx context.Context, thread *usersModels.ParentMessageThread, actorAccountID int64, eventType, body, requestStatus string, refID *int64, refTable string) error {
 	msg := &usersModels.ParentMessage{
 		ThreadID:        thread.ID,
 		StudentID:       thread.StudentID,
@@ -600,9 +600,12 @@ func (s *service) appendParentSystemEvent(ctx context.Context, thread *usersMode
 		Body:            body,
 		Kind:            usersModels.ParentMessageKindEvent,
 		EventType:       eventType,
-		EventActorKind:  usersModels.ParentMessageSenderGuardian,
-		RefID:           refID,
-		RefTable:        refTable,
+		// Structured outcome for the localized parents portal (it renders from this
+		// instead of the German Body). Empty for non-request events.
+		RequestStatus:  requestStatus,
+		EventActorKind: usersModels.ParentMessageSenderGuardian,
+		RefID:          refID,
+		RefTable:       refTable,
 	}
 	msg.SetTenantID(thread.TenantID)
 	if err := s.messageRepo.Create(ctx, msg); err != nil {

@@ -10,6 +10,7 @@
 import { describe, it, expect } from "vitest";
 import type { ChatMessage } from "./messaging-status";
 import {
+  parentEventI18nDescriptor,
   parentRequestStatusI18nKey,
   parentRequestTypeI18nKey,
 } from "./messaging-status";
@@ -94,5 +95,89 @@ describe("parentRequestStatusI18nKey", () => {
   it("maps each status to its key and falls back to open", () => {
     expect(parentRequestStatusI18nKey("erledigt")).toBe("statusDone");
     expect(parentRequestStatusI18nKey(undefined)).toBe("statusOpen");
+  });
+});
+
+describe("parentEventI18nDescriptor", () => {
+  it("maps a confirmed care-schedule request to its localized key", () => {
+    expect(
+      parentEventI18nDescriptor({
+        kind: "event",
+        event_type: "request_status",
+        request_status: "erledigt",
+        request_type: "care_schedule",
+      }),
+    ).toEqual({ key: "eventRequestConfirmedCareSchedule" });
+  });
+
+  it("maps a confirmed master-data request to its localized key", () => {
+    expect(
+      parentEventI18nDescriptor({
+        kind: "event",
+        event_type: "request_status",
+        request_status: "erledigt",
+        request_type: "student_master_data",
+      }),
+    ).toEqual({ key: "eventRequestConfirmedMasterData" });
+  });
+
+  it("falls back to a generic confirmed key for an unknown request type", () => {
+    expect(
+      parentEventI18nDescriptor({
+        kind: "event",
+        event_type: "request_status",
+        request_status: "erledigt",
+      }),
+    ).toEqual({ key: "eventRequestConfirmed" });
+  });
+
+  it("carries the staff decision reason as a value for a rejection", () => {
+    expect(
+      parentEventI18nDescriptor({
+        kind: "event",
+        event_type: "request_status",
+        request_status: "abgelehnt",
+        decision_reason: "Bitte erneut einreichen",
+      }),
+    ).toEqual({
+      key: "eventRequestRejectedReason",
+      values: { reason: "Bitte erneut einreichen" },
+    });
+  });
+
+  it("uses the reasonless rejection key when no reason is present", () => {
+    expect(
+      parentEventI18nDescriptor({
+        kind: "event",
+        event_type: "request_status",
+        request_status: "abgelehnt",
+      }),
+    ).toEqual({ key: "eventRequestRejected" });
+  });
+
+  it("maps a guardian withdrawal to its localized key", () => {
+    expect(
+      parentEventI18nDescriptor({
+        kind: "event",
+        event_type: "request_status",
+        request_status: "zurueckgezogen",
+      }),
+    ).toEqual({ key: "eventRequestWithdrawn" });
+  });
+
+  it("returns null for non-request events so the caller keeps the raw body", () => {
+    expect(
+      parentEventI18nDescriptor({
+        kind: "event",
+        event_type: "room_change",
+        request_status: undefined,
+      }),
+    ).toBeNull();
+    expect(
+      parentEventI18nDescriptor({
+        kind: "message",
+        body: "Hallo",
+      } as ChatMessage),
+    ).toBeNull();
   });
 });

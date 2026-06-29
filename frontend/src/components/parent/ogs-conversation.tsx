@@ -14,8 +14,12 @@ import { RequestStatusBadge } from "~/components/messaging/request-status-badge"
 import { useChatViewportLock } from "~/lib/hooks/use-chat-viewport-lock";
 import { getApiErrorMessage } from "~/components/ui/modal-utils";
 import {
+  PARENT_DIFF_CARE_KIND_I18N_KEYS,
+  PARENT_DIFF_FIELD_I18N_KEYS,
+  parentEventI18nDescriptor,
   parentRequestStatusI18nKey,
   parentRequestTypeI18nKey,
+  type RequestDiffEntry,
 } from "~/lib/messaging-status";
 import {
   type ChildFeatures,
@@ -282,11 +286,22 @@ export function OgsConversation({
           {loading ? (
             <ThreadSkeleton />
           ) : messages.length > 0 ? (
-            messages.map((message) =>
-              message.kind === "event" ? (
+            messages.map((message) => {
+              const eventI18n =
+                message.kind === "event"
+                  ? parentEventI18nDescriptor(message)
+                  : null;
+              return message.kind === "event" ? (
                 <ChatEventCard
                   key={message.id}
-                  body={message.body}
+                  // Backend system-event bodies are German; render the localized
+                  // text from the event's structured fields, falling back to the
+                  // raw body only for events we can't localize.
+                  body={
+                    eventI18n
+                      ? t(eventI18n.key, eventI18n.values)
+                      : message.body
+                  }
                   createdAt={message.created_at}
                 />
               ) : message.kind === "request" ? (
@@ -308,8 +323,8 @@ export function OgsConversation({
                       : undefined
                   }
                 />
-              ),
-            )
+              );
+            })
           ) : loadError ? (
             <Alert
               type="error"
@@ -415,6 +430,27 @@ function RequestItem({
   onWithdraw,
 }: Readonly<{ message: ParentMessage; onWithdraw: () => void }>) {
   const t = useTranslations("parentOgsMessaging");
+  // The backend builds each diff label as a German string ("Vorname",
+  // "Montag · Bringzeit"). Re-derive it from the entry's structured fields so it
+  // renders in the guardian's language; fall back to the German label only when
+  // the backend sent no structured discriminators (legacy payloads).
+  const localizeDiffLabel = (entry: RequestDiffEntry): string => {
+    const fieldKey = entry.field_key
+      ? PARENT_DIFF_FIELD_I18N_KEYS[entry.field_key]
+      : undefined;
+    if (fieldKey) return t(fieldKey);
+    const careKey = entry.care_kind
+      ? PARENT_DIFF_CARE_KIND_I18N_KEYS[entry.care_kind]
+      : undefined;
+    if (entry.weekday && careKey) {
+      return `${t(`diffWeekday${entry.weekday}`)} · ${t(careKey)}`;
+    }
+    return entry.label;
+  };
+  const localizedDiff = message.diff?.map((entry) => ({
+    ...entry,
+    label: localizeDiffLabel(entry),
+  }));
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
@@ -432,9 +468,10 @@ function RequestItem({
         />
       </div>
       <RequestDiffPanel
-        diff={message.diff}
-        heading="Ihre Änderungswünsche"
+        diff={localizedDiff}
+        heading={t("diffHeading")}
         decisionReason={message.decision_reason}
+        reasonLabel={t("diffReasonLabel")}
       />
       {message.request_status === "offen" ? (
         <Button

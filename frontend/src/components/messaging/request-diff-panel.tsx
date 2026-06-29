@@ -12,10 +12,14 @@ export function RequestDiffPanel({
   diff,
   heading,
   decisionReason,
+  reasonLabel = "Grund",
 }: Readonly<{
   diff?: readonly RequestDiffEntry[];
   heading: string;
   decisionReason?: string;
+  // Label prefixing the decision reason. Defaults to German for the German-only
+  // staff portal; the localized parents portal passes a translated label.
+  reasonLabel?: string;
 }>) {
   return (
     <>
@@ -40,7 +44,7 @@ export function RequestDiffPanel({
       ) : null}
       {decisionReason ? (
         <p className="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700">
-          Grund: {decisionReason}
+          {reasonLabel}: {decisionReason}
         </p>
       ) : null}
     </>
