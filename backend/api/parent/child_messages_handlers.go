@@ -68,7 +68,38 @@ type ThreadSummaryResponse struct {
 	LastMessageAt   *time.Time `json:"last_message_at,omitempty"`
 	LastSenderKind  string     `json:"last_sender_kind,omitempty"`
 	LastMessageBody string     `json:"last_message_body,omitempty"`
-	Unread          int        `json:"unread"`
+	// Structured fields of the last message so the localized parents portal
+	// renders a request title / decision / withdrawal preview from fields instead
+	// of the German LastMessageBody (which the full conversation already
+	// localizes the same way). Empty for plain messages, where LastMessageBody is
+	// the human-written, language-neutral text.
+	LastMessageKind   string `json:"last_message_kind,omitempty"`
+	LastEventType     string `json:"last_event_type,omitempty"`
+	LastRequestType   string `json:"last_request_type,omitempty"`
+	LastRequestStatus string `json:"last_request_status,omitempty"`
+	Unread            int    `json:"unread"`
+}
+
+// toThreadSummary maps a projected inbox thread to the parent-facing summary,
+// masking the counterpart as the OGS/school label and carrying the structured
+// last-message fields the localized portal previews from. Shared by the inbox
+// list and the per-child list so the two cannot drift.
+func toThreadSummary(t *usersModels.InboxThread) ThreadSummaryResponse {
+	return ThreadSummaryResponse{
+		ThreadID:          strconv.FormatInt(t.ThreadID, 10),
+		StudentID:         strconv.FormatInt(t.StudentID, 10),
+		StudentName:       t.StudentName,
+		SchoolName:        t.SchoolName,
+		CounterpartName:   ogsLabel(t.SchoolName),
+		LastMessageAt:     t.LastMessageAt,
+		LastSenderKind:    t.LastSenderKind,
+		LastMessageBody:   t.LastMessageBody,
+		LastMessageKind:   t.LastMessageKind,
+		LastEventType:     t.LastEventType,
+		LastRequestType:   t.LastRequestType,
+		LastRequestStatus: t.LastRequestStatus,
+		Unread:            t.UnreadCount,
+	}
 }
 
 // ThreadViewResponse is the full conversation for one child. thread_id is empty
@@ -232,17 +263,7 @@ func (rs *Resource) listMessageThreads(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]ThreadSummaryResponse, 0, len(threads))
 	for _, t := range threads {
-		out = append(out, ThreadSummaryResponse{
-			ThreadID:        strconv.FormatInt(t.ThreadID, 10),
-			StudentID:       strconv.FormatInt(t.StudentID, 10),
-			StudentName:     t.StudentName,
-			SchoolName:      t.SchoolName,
-			CounterpartName: ogsLabel(t.SchoolName),
-			LastMessageAt:   t.LastMessageAt,
-			LastSenderKind:  t.LastSenderKind,
-			LastMessageBody: t.LastMessageBody,
-			Unread:          t.UnreadCount,
-		})
+		out = append(out, toThreadSummary(t))
 	}
 	common.Respond(w, r, http.StatusOK, out, "Threads retrieved")
 }
@@ -267,17 +288,7 @@ func (rs *Resource) listChildThreads(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]ThreadSummaryResponse, 0, len(threads))
 	for _, t := range threads {
-		out = append(out, ThreadSummaryResponse{
-			ThreadID:        strconv.FormatInt(t.ThreadID, 10),
-			StudentID:       strconv.FormatInt(t.StudentID, 10),
-			StudentName:     t.StudentName,
-			SchoolName:      t.SchoolName,
-			CounterpartName: ogsLabel(t.SchoolName),
-			LastMessageAt:   t.LastMessageAt,
-			LastSenderKind:  t.LastSenderKind,
-			LastMessageBody: t.LastMessageBody,
-			Unread:          t.UnreadCount,
-		})
+		out = append(out, toThreadSummary(t))
 	}
 	common.Respond(w, r, http.StatusOK, out, "Threads retrieved")
 }

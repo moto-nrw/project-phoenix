@@ -473,6 +473,14 @@ export interface ThreadSummary {
   readonly last_message_at?: string; // ISO timestamp
   readonly last_sender_kind?: "guardian" | "staff";
   readonly last_message_body?: string;
+  // Structured fields of the last message so the localized portal previews a
+  // request title / decision / withdrawal from fields instead of the German
+  // last_message_body (see parentThreadPreviewI18nDescriptor). Empty for plain
+  // messages, where last_message_body is the language-neutral written text.
+  readonly last_message_kind?: "message" | "event" | "request";
+  readonly last_event_type?: string;
+  readonly last_request_type?: string;
+  readonly last_request_status?: string;
   readonly unread: number;
 }
 

@@ -179,6 +179,16 @@ func inboxSelect(q *bun.SelectQuery, accountID int64, staffReader bool) *bun.Sel
 		// last_message_at is set), so the inbox preview no longer needs a
 		// correlated subquery that re-scans parent_messages per thread row.
 		ColumnExpr("COALESCE(t.last_message_body,'') AS last_message_body").
+		// Structured fields of the last message (joined as lm on last_message_id
+		// below), so the LOCALIZED parents portal renders a request title or a
+		// decision/withdrawal system-event preview from fields instead of the
+		// German last_message_body. Empty for a fresh thread (no last message) and
+		// for plain messages, where the body is already language-neutral. The
+		// German-only staff inbox ignores these.
+		ColumnExpr("COALESCE(lm.kind,'') AS last_message_kind").
+		ColumnExpr("COALESCE(lm.event_type,'') AS last_event_type").
+		ColumnExpr("COALESCE(lm.request_type,'') AS last_request_type").
+		ColumnExpr("COALESCE(lm.request_status,'') AS last_request_status").
 		// accountID binds the notReaderAuthored `?` in unreadSub (cm.sender_account_id
 		// <> ?). bun renders args in SQL-fragment order, so this select-list arg
 		// precedes the read-cursor join's account-id arg below; both are the same id.
@@ -204,6 +214,12 @@ func inboxSelect(q *bun.SelectQuery, accountID int64, staffReader bool) *bun.Sel
 		Join("LEFT JOIN users.guardian_profiles AS gp ON gp.account_id = t.guardian_account_id AND gp.tenant_id = t.tenant_id").
 		Join("LEFT JOIN users.students_guardians AS sg ON sg.guardian_profile_id = gp.id AND sg.student_id = t.student_id").
 		Join("LEFT JOIN users.parent_message_reads AS r ON r.thread_id = t.id AND r.account_id = ? AND r.tenant_id = t.tenant_id", accountID).
+		// The thread's last message, for the structured preview columns above. PK
+		// lookup (one row per thread), so it stays an index scan; tenant_id = t.tenant_id
+		// mirrors the other correlated reads (RLS-correct and index-leading under the
+		// cross-tenant guardian path). NULL last_message_id (fresh thread) -> no row,
+		// columns COALESCE to ''.
+		Join("LEFT JOIN users.parent_messages AS lm ON lm.id = t.last_message_id AND lm.tenant_id = t.tenant_id").
 		OrderExpr("t.last_message_at DESC NULLS LAST")
 }
 

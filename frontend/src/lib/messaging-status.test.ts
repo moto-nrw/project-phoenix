@@ -13,6 +13,7 @@ import {
   parentEventI18nDescriptor,
   parentRequestStatusI18nKey,
   parentRequestTypeI18nKey,
+  parentThreadPreviewI18nDescriptor,
 } from "./messaging-status";
 
 describe("messaging-status — ChatMessage type", () => {
@@ -165,5 +166,49 @@ describe("parentEventI18nDescriptor", () => {
         body: "Hallo",
       } as ChatMessage),
     ).toBeNull();
+  });
+});
+
+describe("parentThreadPreviewI18nDescriptor", () => {
+  it("localizes an open request's German title from its request_type", () => {
+    // Last message is the guardian's still-open request: the wire body is the
+    // German "Anfrage: …" title, so the preview must come from request_type.
+    expect(
+      parentThreadPreviewI18nDescriptor({
+        last_message_kind: "request",
+        last_request_type: "care_schedule",
+        last_request_status: "offen",
+      }),
+    ).toEqual({ key: "requestTypeCareSchedule" });
+  });
+
+  it("localizes a decision system event from its structured fields", () => {
+    expect(
+      parentThreadPreviewI18nDescriptor({
+        last_message_kind: "event",
+        last_event_type: "request_status",
+        last_request_status: "erledigt",
+        last_request_type: "care_schedule",
+      }),
+    ).toEqual({ key: "eventRequestConfirmedCareSchedule" });
+  });
+
+  it("omits the reject reason in previews (localized status only)", () => {
+    // The reject reason is staff free text (not localizable); the preview shows
+    // the localized status, while the full conversation still renders the reason.
+    expect(
+      parentThreadPreviewI18nDescriptor({
+        last_message_kind: "event",
+        last_event_type: "request_status",
+        last_request_status: "abgelehnt",
+      }),
+    ).toEqual({ key: "eventRequestRejected" });
+  });
+
+  it("returns null for a plain message so the caller keeps last_message_body", () => {
+    expect(
+      parentThreadPreviewI18nDescriptor({ last_message_kind: "message" }),
+    ).toBeNull();
+    expect(parentThreadPreviewI18nDescriptor({})).toBeNull();
   });
 });

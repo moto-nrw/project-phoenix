@@ -195,3 +195,42 @@ export function parentEventI18nDescriptor(message: {
       return null;
   }
 }
+
+/**
+ * Localized preview (parentOgsMessaging namespace key) for a thread's last
+ * message on the parents portal, or null when the last message is a plain
+ * guardian/staff message whose body is already language-neutral — the caller
+ * then shows `last_message_body` verbatim.
+ *
+ * System-generated bodies are German on the wire: a structured request keeps its
+ * German title ("Anfrage: …"), and a decision/withdrawal system event keeps its
+ * German body ("Anfrage bestätigt", "Anfrage abgelehnt: …", "Anfrage
+ * zurückgezogen"). The thread list / child-detail preview only receive
+ * `last_message_body`, so without this they show that German text to a
+ * non-German guardian until the next plain message arrives. Mirrors how the full
+ * conversation localizes each card from structured fields.
+ *
+ * The reject reason is deliberately NOT passed through: it is staff free text
+ * (not localizable), so a preview shows the localized status only ("Anfrage
+ * abgelehnt") rather than appending a German sentence; the full conversation
+ * still renders the reason.
+ */
+export function parentThreadPreviewI18nDescriptor(thread: {
+  readonly last_message_kind?: string;
+  readonly last_event_type?: string;
+  readonly last_request_type?: string;
+  readonly last_request_status?: string;
+}): { key: string; values?: { reason: string } } | null {
+  if (thread.last_message_kind === "request") {
+    return { key: parentRequestTypeI18nKey(thread.last_request_type) };
+  }
+  if (thread.last_message_kind === "event") {
+    return parentEventI18nDescriptor({
+      kind: "event",
+      event_type: thread.last_event_type,
+      request_status: thread.last_request_status,
+      request_type: thread.last_request_type,
+    });
+  }
+  return null;
+}

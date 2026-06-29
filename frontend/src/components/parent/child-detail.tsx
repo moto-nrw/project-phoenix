@@ -20,6 +20,7 @@ import {
   listChildThreads,
   listMyChildren,
 } from "~/lib/parent-api";
+import { parentThreadPreviewI18nDescriptor } from "~/lib/messaging-status";
 import { createLogger } from "~/lib/logger";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import {
@@ -634,9 +635,24 @@ function ChildMessagesPanel({
   mobile?: boolean;
 }>) {
   const t = useTranslations("parentChildDetail");
+  const tMsg = useTranslations("parentOgsMessaging");
   const router = useRouter();
   // Chat model: at most one conversation per child.
   const conversation = threads[0];
+  // System-generated bodies (request titles, decision/withdrawal events) are
+  // German on the wire; localize the preview from the structured last-message
+  // fields, falling back to the language-neutral body for plain messages.
+  const previewDescriptor = conversation
+    ? parentThreadPreviewI18nDescriptor({
+        last_message_kind: conversation.last_message_kind,
+        last_event_type: conversation.last_event_type,
+        last_request_type: conversation.last_request_type,
+        last_request_status: conversation.last_request_status,
+      })
+    : null;
+  const previewBody = previewDescriptor
+    ? tMsg(previewDescriptor.key, previewDescriptor.values)
+    : conversation?.last_message_body;
   return (
     <section
       className={
@@ -682,9 +698,9 @@ function ChildMessagesPanel({
                 </span>
                 <UnreadBadge count={conversation.unread} />
               </span>
-              {conversation.last_message_body && (
+              {previewBody && (
                 <span className="mt-0.5 block truncate text-sm text-gray-600">
-                  {conversation.last_message_body}
+                  {previewBody}
                 </span>
               )}
             </span>
