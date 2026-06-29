@@ -138,6 +138,12 @@ describe("AdminEnrollmentsList setup guide", () => {
       name: "Anmeldungen ansehen",
     });
     expect(link).toHaveAttribute("href", "/demo/admin/enrollments/phases/12");
+    expect(
+      screen.queryByRole("button", { name: /Nachzügler/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Manuell/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows an unknown state when change requests fail to load", async () => {

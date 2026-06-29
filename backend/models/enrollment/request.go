@@ -29,6 +29,8 @@ type Request struct {
 	GuardianAccountID  *int64         `bun:"guardian_account_id" json:"guardian_account_id,omitempty"`
 	ConsentFlags       map[string]any `bun:"consent_flags,type:jsonb,notnull,default:'{}'" json:"consent_flags"`
 	CustomData         map[string]any `bun:"custom_data,type:jsonb,notnull,default:'{}'" json:"custom_data"`
+	SubmissionSource   string         `bun:"submission_source,notnull,default:'public'" json:"submission_source"`
+	SourceMetadata     map[string]any `bun:"source_metadata,type:jsonb,notnull,default:'{}'" json:"source_metadata"`
 	StatusToken        string         `bun:"status_token,notnull,unique" json:"status_token"`
 	StatusTokenExpires *time.Time     `bun:"status_token_expires" json:"status_token_expires,omitempty"`
 	SubmittedAt        time.Time      `bun:"submitted_at,notnull,default:current_timestamp" json:"submitted_at"`
@@ -61,6 +63,12 @@ const (
 	RequestStatusPartial     = "partial"      // some children decided, others pending
 	RequestStatusFinalized   = "finalized"    // all children in a terminal status
 	RequestStatusWithdrawn   = "withdrawn"    // request withdrawn (withdrawn_at set)
+)
+
+const (
+	RequestSourcePublic      = "public"
+	RequestSourceLateInvite  = "late_invite"
+	RequestSourceAdminManual = "admin_manual"
 )
 
 // RequestListFilters narrows the admin list query. Zero-value fields

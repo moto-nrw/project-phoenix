@@ -87,6 +87,7 @@ export interface SubmitEnrollmentPayload {
   custom_data?: Record<string, unknown>;
   children: SubmitChildPayload[];
   captcha_token?: string;
+  late_invite_token?: string;
 }
 
 export interface SubmitEnrollmentResult {
@@ -218,6 +219,16 @@ export interface PublicCareOfferingsResult {
   careRequired: boolean;
 }
 
+export interface LateInviteFetchOptions {
+  lateInviteToken?: string;
+}
+
+function withLateInviteQuery(path: string, token?: string): string {
+  const trimmed = token?.trim();
+  if (!trimmed) return path;
+  return `${path}?late_invite=${encodeURIComponent(trimmed)}`;
+}
+
 /**
  * Fetches the public care-offering catalog for a given tenant slug
  * and phase. Returns the offerings plus the phase-level selection mode
@@ -227,11 +238,13 @@ export interface PublicCareOfferingsResult {
 export async function fetchPublicCareOfferings(
   tenantSlug: string,
   phaseId: string,
+  options: LateInviteFetchOptions = {},
 ): Promise<PublicCareOfferingsResult> {
+  const path = `/api/enrollment/care-offerings/public/${encodeURIComponent(
+    tenantSlug,
+  )}/${encodeURIComponent(phaseId)}`;
   const response = await fetch(
-    `/api/enrollment/care-offerings/public/${encodeURIComponent(
-      tenantSlug,
-    )}/${encodeURIComponent(phaseId)}`,
+    withLateInviteQuery(path, options.lateInviteToken),
     { cache: "no-store" },
   );
   if (!response.ok) {
@@ -318,11 +331,13 @@ export interface PublicEnrollmentBootstrap {
 export async function fetchPublicEnrollmentBootstrap(
   tenantSlug: string,
   phaseId: string,
+  options: LateInviteFetchOptions = {},
 ): Promise<PublicEnrollmentBootstrap> {
+  const path = `/api/enrollment/form-bootstrap/public/${encodeURIComponent(
+    tenantSlug,
+  )}/${encodeURIComponent(phaseId)}`;
   const response = await fetch(
-    `/api/enrollment/form-bootstrap/public/${encodeURIComponent(
-      tenantSlug,
-    )}/${encodeURIComponent(phaseId)}`,
+    withLateInviteQuery(path, options.lateInviteToken),
     { cache: "no-store" },
   );
   if (!response.ok) {

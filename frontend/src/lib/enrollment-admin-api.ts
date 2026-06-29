@@ -1,5 +1,10 @@
 import { createLogger } from "~/lib/logger";
 import { readEnrollmentError } from "~/lib/enrollment-error-messages";
+import type {
+  PublicEnrollmentBootstrap,
+  SubmitEnrollmentPayload,
+  SubmitEnrollmentResult,
+} from "~/lib/enrollment-submission-api";
 
 const logger = createLogger({ component: "EnrollmentAdminAPI" });
 
@@ -192,6 +197,7 @@ interface BackendEnvelope<T> {
 
 const BASE = "/api/enrollment/admin/requests";
 const CHANGE_REQUEST_BASE = "/api/enrollment/admin/change-requests";
+const PHASE_BASE = "/api/enrollment/phases";
 
 async function readJSON<T>(response: Response): Promise<T> {
   const raw = (await response.json()) as BackendEnvelope<T>;
@@ -247,6 +253,90 @@ export async function getAdminRequest(id: string): Promise<AdminRequestDetail> {
     throw await readError(response, "Anmeldung konnte nicht geladen werden");
   }
   return readJSON<AdminRequestDetail>(response);
+}
+
+export interface CreateLateInviteInput {
+  guardian_email: string;
+  guardian_first_name?: string;
+  guardian_last_name?: string;
+  reason?: string;
+  expires_at?: string;
+}
+
+export interface CreateLateInviteResult {
+  id: string;
+  phase_id: string;
+  guardian_email: string;
+  guardian_first_name?: string | null;
+  guardian_last_name?: string | null;
+  expires_at: string;
+  created_by: string;
+  reason?: string | null;
+  token: string;
+}
+
+export async function createLateInvite(
+  phaseId: string,
+  input: CreateLateInviteInput,
+): Promise<CreateLateInviteResult> {
+  const response = await fetch(
+    `${PHASE_BASE}/${encodeURIComponent(phaseId)}/late-invites`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Nachzügler-Link konnte nicht erstellt werden",
+    );
+  }
+  return readJSON<CreateLateInviteResult>(response);
+}
+
+export async function fetchManualEnrollmentBootstrap(
+  phaseId: string,
+): Promise<PublicEnrollmentBootstrap> {
+  const response = await fetch(
+    `${PHASE_BASE}/${encodeURIComponent(phaseId)}/manual-bootstrap`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Formularvorlage konnte nicht geladen werden",
+    );
+  }
+  return readJSON<PublicEnrollmentBootstrap>(response);
+}
+
+export interface CreateManualApprovedEnrollmentInput extends SubmitEnrollmentPayload {
+  external_consent_confirmed: boolean;
+  reason: string;
+  send_notification: boolean;
+}
+
+export async function createManualApprovedEnrollment(
+  phaseId: string,
+  input: CreateManualApprovedEnrollmentInput,
+): Promise<SubmitEnrollmentResult> {
+  const response = await fetch(
+    `${PHASE_BASE}/${encodeURIComponent(phaseId)}/manual-approved-enrollments`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Manuelle Anmeldung konnte nicht freigegeben werden",
+    );
+  }
+  return readJSON<SubmitEnrollmentResult>(response);
 }
 
 export async function listStudentEnrollmentRequests(

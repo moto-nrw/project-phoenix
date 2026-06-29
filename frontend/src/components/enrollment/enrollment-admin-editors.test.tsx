@@ -11,6 +11,8 @@ import { StrictMode } from "react";
 
 const mocks = vi.hoisted(() => ({
   createCareOffering: vi.fn(),
+  createLateInvite: vi.fn(),
+  createManualApprovedEnrollment: vi.fn(),
   createPhase: vi.fn(),
   createSchema: vi.fn(),
   cloneCareOffering: vi.fn(),
@@ -18,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   deletePhase: vi.fn(),
   deleteSchema: vi.fn(),
   deleteEnrollmentLegalDocument: vi.fn(),
+  fetchManualEnrollmentBootstrap: vi.fn(),
   fetchPublicLegalTexts: vi.fn(),
   listCareOfferings: vi.fn(),
   listPhases: vi.fn(),
@@ -134,6 +137,16 @@ vi.mock("~/lib/timetable-api", () => ({
   },
 }));
 
+vi.mock("~/lib/enrollment-admin-api", () => ({
+  createLateInvite: mocks.createLateInvite,
+  createManualApprovedEnrollment: mocks.createManualApprovedEnrollment,
+  fetchManualEnrollmentBootstrap: mocks.fetchManualEnrollmentBootstrap,
+}));
+
+vi.mock("~/components/enrollment/enrollment-form", () => ({
+  EnrollmentForm: () => <div data-testid="manual-enrollment-form" />,
+}));
+
 import { CareOfferingsEditor } from "./care-offerings-editor";
 import {
   EnrollmentFormEditor,
@@ -244,6 +257,8 @@ function deferred<T>() {
 
 beforeEach(() => {
   mocks.createCareOffering.mockReset();
+  mocks.createLateInvite.mockReset();
+  mocks.createManualApprovedEnrollment.mockReset();
   mocks.createPhase.mockReset();
   mocks.createSchema.mockReset();
   mocks.cloneCareOffering.mockReset();
@@ -251,6 +266,14 @@ beforeEach(() => {
   mocks.deletePhase.mockReset();
   mocks.deleteSchema.mockReset();
   mocks.fetchPublicLegalTexts.mockReset();
+  mocks.fetchManualEnrollmentBootstrap.mockReset();
+  mocks.fetchManualEnrollmentBootstrap.mockResolvedValue({
+    schema: schema(),
+    offerings: [],
+    care_offering_selection_mode: "optional",
+    captcha_config: null,
+    legal_texts: { blocks: [] },
+  });
   // Without this mock the editor's loadAll() fires a real fetch
   // (ECONNREFUSED in CI). Empty blocks = no tenant legal texts
   // configured, so the standard blocks stay disabled by default.
@@ -667,6 +690,49 @@ describe("PhasesEditor", () => {
       name: /Anmeldungen ansehen/,
     });
     expect(link).toHaveAttribute("href", "/demo/admin/enrollments/phases/12");
+  });
+
+  it("opens late invite and manual enrollment actions from the phase action menu", async () => {
+    mocks.listPhases.mockResolvedValue([phase({ id: "12" })]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+
+    render(<PhasesEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Schuljahr 2026/27",
+      }),
+    );
+
+    fireEvent.click(
+      await screen.findByRole("menuitem", {
+        name: "Nachzügler-Link erstellen",
+      }),
+    );
+    expect(
+      await screen.findByRole("dialog", {
+        name: "Nachzügler-Link erstellen",
+      }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Modal schließen" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Aktionen für Schuljahr 2026/27",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Manuelle Anmeldung" }),
+    );
+
+    expect(
+      await screen.findByRole("dialog", {
+        name: "Kind manuell über Anmeldung freigeben",
+      }),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(mocks.fetchManualEnrollmentBootstrap).toHaveBeenCalledWith("12");
+    });
   });
 });
 
