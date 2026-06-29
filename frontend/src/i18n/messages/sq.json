@@ -894,6 +894,9 @@
   "parentOgsMessaging": {
     "readByStaff": "Lexuar",
     "requestWithdraw": "Tërhiqe",
+    "requestTypeCareSchedule": "Kërkesë: Ndrysho oraret e rregullta të kujdesit",
+    "requestTypeMasterData": "Kërkesë: Ndrysho të dhënat personale",
+    "requestTitleFallback": "Kërkesë",
     "statusOpen": "E hapur",
     "statusDone": "E përfunduar",
     "statusRejected": "E refuzuar",

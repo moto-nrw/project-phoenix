@@ -167,6 +167,63 @@ func TestValidateRequestPayload(t *testing.T) {
 		map[string]any{"weekdays": []any{map[string]any{"weekday": 1, "arrival": "08:00"}}}))
 }
 
+// TestCanonicalizeRequestPayload locks in that the create path persists only the
+// sanitized payload: unknown keys are dropped and duplicate weekday entries are
+// collapsed to one canonical entry, so a direct API client cannot store ignored
+// junk that every later thread load would echo back.
+func TestCanonicalizeRequestPayload(t *testing.T) {
+	md := usersModels.ParentMessageRequestStudentMasterData
+	cs := usersModels.ParentMessageRequestCareSchedule
+
+	// Master data: a valid field plus an unknown sibling key → the sibling is
+	// dropped, only {"fields": {...}} survives.
+	out, err := messaging.CanonicalizeRequestPayload(md, map[string]any{
+		"fields":  map[string]any{"first_name": "Anna"},
+		"garbage": "ignored",
+		"bloat":   []any{1, 2, 3},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"fields"}, keysOf(out))
+	fields, ok := out["fields"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, map[string]any{"first_name": "Anna"}, fields)
+
+	// Care schedule: duplicate Monday entries (last value wins per aspect) plus an
+	// unknown key → exactly one Monday entry, no unknown keys.
+	out, err = messaging.CanonicalizeRequestPayload(cs, map[string]any{
+		"weekdays": []any{
+			map[string]any{"weekday": 1, "arrival": "08:00"},
+			map[string]any{"weekday": 1, "arrival": "09:00"},
+			map[string]any{"weekday": 1, "pickup": "15:00"},
+		},
+		"junk": "ignored",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"weekdays"}, keysOf(out))
+	weekdays, ok := out["weekdays"].([]any)
+	require.True(t, ok)
+	require.Len(t, weekdays, 1)
+	monday, ok := weekdays[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "09:00", monday["arrival"])
+	assert.Equal(t, "15:00", monday["pickup"])
+
+	// Invalid payloads still error (canonicalize is also the validator).
+	_, err = messaging.CanonicalizeRequestPayload(cs,
+		map[string]any{"weekdays": []any{map[string]any{"weekday": 9, "mode": "bus"}}})
+	require.Error(t, err)
+	_, err = messaging.CanonicalizeRequestPayload("unknown.type", map[string]any{})
+	require.Error(t, err)
+}
+
+func keysOf(m map[string]any) []string {
+	ks := make([]string, 0, len(m))
+	for k := range m {
+		ks = append(ks, k)
+	}
+	return ks
+}
+
 func TestCareScheduleDiff_ShowsCurrentVsRequested(t *testing.T) {
 	svc, _, db, ctx := newApplyService(t)
 	student := testpkg.CreateTestStudent(t, db, "Diff", "Plan", "1a")

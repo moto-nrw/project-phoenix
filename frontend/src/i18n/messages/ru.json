@@ -894,6 +894,9 @@
   "parentOgsMessaging": {
     "readByStaff": "Прочитано",
     "requestWithdraw": "Отозвать",
+    "requestTypeCareSchedule": "Запрос: изменить регулярное время присмотра",
+    "requestTypeMasterData": "Запрос: изменить личные данные",
+    "requestTitleFallback": "Запрос",
     "statusOpen": "Открыто",
     "statusDone": "Выполнено",
     "statusRejected": "Отклонено",

@@ -13,7 +13,10 @@ import { RequestDiffPanel } from "~/components/messaging/request-diff-panel";
 import { RequestStatusBadge } from "~/components/messaging/request-status-badge";
 import { useChatViewportLock } from "~/lib/hooks/use-chat-viewport-lock";
 import { getApiErrorMessage } from "~/components/ui/modal-utils";
-import { parentRequestStatusI18nKey } from "~/lib/messaging-status";
+import {
+  parentRequestStatusI18nKey,
+  parentRequestTypeI18nKey,
+} from "~/lib/messaging-status";
 import {
   type ChildFeatures,
   type ParentMessage,
@@ -416,7 +419,9 @@ function RequestItem({
     <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-gray-900">{message.body}</p>
+          <p className="text-sm font-semibold text-gray-900">
+            {t(parentRequestTypeI18nKey(message.request_type))}
+          </p>
           <p className="mt-1 text-xs text-gray-500">
             {formatChatTime(message.created_at)}
             {message.read_by_staff ? ` · ${t("readByStaff")}` : ""}

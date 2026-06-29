@@ -894,6 +894,9 @@
   "parentOgsMessaging": {
     "readByStaff": "Read",
     "requestWithdraw": "Withdraw",
+    "requestTypeCareSchedule": "Request: Change recurring care times",
+    "requestTypeMasterData": "Request: Change personal data",
+    "requestTitleFallback": "Request",
     "statusOpen": "Open",
     "statusDone": "Done",
     "statusRejected": "Rejected",

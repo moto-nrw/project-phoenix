@@ -894,6 +894,9 @@
   "parentOgsMessaging": {
     "readByStaff": "Gelesen",
     "requestWithdraw": "Zurückziehen",
+    "requestTypeCareSchedule": "Anfrage: Dauerhafte Betreuungszeiten ändern",
+    "requestTypeMasterData": "Anfrage: Stammdaten ändern",
+    "requestTitleFallback": "Anfrage",
     "statusOpen": "Offen",
     "statusDone": "Erledigt",
     "statusRejected": "Abgelehnt",

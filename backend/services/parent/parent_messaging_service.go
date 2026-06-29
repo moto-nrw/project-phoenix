@@ -410,7 +410,14 @@ func (s *service) CreateChildRequest(ctx context.Context, accountID, studentID i
 	if !messagingService.IsKnownRequestType(requestType) {
 		return nil, ErrInvalidParentRequestType
 	}
-	if err := messagingService.ValidateRequestPayload(requestType, payload); err != nil {
+	// Validate AND canonicalize: persist only the sanitized payload, never the raw
+	// guardian-supplied map. A direct API client can send valid fields/weekdays
+	// plus unknown keys or a large list of duplicate weekday entries; storing that
+	// verbatim as JSONB lets an authenticated guardian persist ignored junk that
+	// every later thread load echoes back. The canonical form is exactly what the
+	// apply path re-derives, so staff confirmation is unaffected.
+	canonicalPayload, err := messagingService.CanonicalizeRequestPayload(requestType, payload)
+	if err != nil {
 		return nil, err
 	}
 	// A change-request OVERWRITES the child's master data / care schedule once staff
@@ -442,7 +449,7 @@ func (s *service) CreateChildRequest(ctx context.Context, accountID, studentID i
 		if err != nil {
 			return err
 		}
-		if err := s.appendGuardianRequest(txCtx, thread, accountID, senderName, requestType, payload); err != nil {
+		if err := s.appendGuardianRequest(txCtx, thread, accountID, senderName, requestType, canonicalPayload); err != nil {
 			return err
 		}
 		view.ThreadID = thread.ID

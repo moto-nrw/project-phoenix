@@ -9,6 +9,10 @@
 
 import { describe, it, expect } from "vitest";
 import type { ChatMessage } from "./messaging-status";
+import {
+  parentRequestStatusI18nKey,
+  parentRequestTypeI18nKey,
+} from "./messaging-status";
 
 describe("messaging-status — ChatMessage type", () => {
   it("accepts a minimal guardian message conforming to the ChatMessage shape", () => {
@@ -65,5 +69,30 @@ describe("messaging-status — ChatMessage type", () => {
     expect(kinds).toHaveLength(2);
     expect(kinds).toContain("guardian");
     expect(kinds).toContain("staff");
+  });
+});
+
+describe("parentRequestTypeI18nKey", () => {
+  it("maps each request type to its localized title key", () => {
+    expect(parentRequestTypeI18nKey("care_schedule")).toBe(
+      "requestTypeCareSchedule",
+    );
+    expect(parentRequestTypeI18nKey("student_master_data")).toBe(
+      "requestTypeMasterData",
+    );
+  });
+
+  it("falls back to a generic key for unknown/absent types", () => {
+    expect(parentRequestTypeI18nKey(undefined)).toBe("requestTitleFallback");
+    expect(parentRequestTypeI18nKey("something_else")).toBe(
+      "requestTitleFallback",
+    );
+  });
+});
+
+describe("parentRequestStatusI18nKey", () => {
+  it("maps each status to its key and falls back to open", () => {
+    expect(parentRequestStatusI18nKey("erledigt")).toBe("statusDone");
+    expect(parentRequestStatusI18nKey(undefined)).toBe("statusOpen");
   });
 });

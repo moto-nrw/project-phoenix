@@ -83,6 +83,11 @@ const PARENT_STATUS_I18N_KEYS: Record<RequestStatus, string> = {
   zurueckgezogen: "statusWithdrawn",
 };
 
+const PARENT_REQUEST_TYPE_I18N_KEYS: Record<RequestType, string> = {
+  care_schedule: "requestTypeCareSchedule",
+  student_master_data: "requestTypeMasterData",
+};
+
 /** German label for the German-only staff portal. Unknown → "Offen". */
 export function staffRequestStatusLabel(status?: string): string {
   return (
@@ -98,5 +103,17 @@ export function parentRequestStatusI18nKey(status?: string): string {
   return (
     PARENT_STATUS_I18N_KEYS[status as RequestStatus] ??
     PARENT_STATUS_I18N_KEYS.offen
+  );
+}
+
+/**
+ * next-intl key (parentOgsMessaging namespace) for a request card's title,
+ * derived from request_type so the localized parents portal never displays the
+ * backend's German message body verbatim. Unknown → a generic "Request" key.
+ */
+export function parentRequestTypeI18nKey(requestType?: string): string {
+  return (
+    PARENT_REQUEST_TYPE_I18N_KEYS[requestType as RequestType] ??
+    "requestTitleFallback"
   );
 }

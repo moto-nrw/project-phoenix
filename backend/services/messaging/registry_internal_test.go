@@ -24,6 +24,9 @@ func TestRequestRegistryComplete(t *testing.T) {
 		if h.validate == nil {
 			t.Errorf("request type %q: missing validate", reqType)
 		}
+		if h.canonicalize == nil {
+			t.Errorf("request type %q: missing canonicalize", reqType)
+		}
 		if h.diff == nil {
 			t.Errorf("request type %q: missing diff", reqType)
 		}

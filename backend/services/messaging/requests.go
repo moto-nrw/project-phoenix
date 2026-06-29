@@ -73,6 +73,13 @@ type requestHandler struct {
 	confirmBody string
 	apply       func(context.Context, *service, *usersModels.ParentMessage, int64) error
 	validate    func(payload map[string]any) error
+	// canonicalize validates AND returns the sanitized payload that is safe to
+	// persist: unknown keys dropped, duplicate/over-large structures collapsed to
+	// one canonical entry per aspect. The create path stores THIS, never the raw
+	// guardian-supplied map, so a direct API client cannot persist ignored junk
+	// that every later thread load would echo back. validate is the same logic
+	// with the result discarded, so the two cannot drift.
+	canonicalize func(payload map[string]any) (map[string]any, error)
 	// diff is a method expression on *service, so the receiver is the first arg.
 	diff         func(*service, context.Context, *diffSource, map[string]any) ([]RequestDiffEntry, error)
 	auditSummary func(*usersModels.ParentMessage) string
@@ -84,6 +91,7 @@ var parentMessageRequestRegistry = map[string]requestHandler{
 		confirmBody:  "Anfrage bestätigt, Betreuungszeiten übernommen",
 		apply:        applyCareScheduleRequest,
 		validate:     validateCareSchedulePayload,
+		canonicalize: canonicalizeCareSchedulePayload,
 		diff:         (*service).careScheduleDiffFrom,
 		auditSummary: careScheduleAuditSummary,
 	},
@@ -92,6 +100,7 @@ var parentMessageRequestRegistry = map[string]requestHandler{
 		confirmBody:  "Anfrage bestätigt, Stammdaten übernommen",
 		apply:        applyStudentMasterDataRequest,
 		validate:     validateMasterDataPayload,
+		canonicalize: canonicalizeMasterDataPayload,
 		diff:         (*service).masterDataDiffFrom,
 		auditSummary: masterDataAuditSummary,
 	},
@@ -141,6 +150,36 @@ type careScheduleChanges struct {
 
 func (c careScheduleChanges) isEmpty() bool {
 	return len(c.modes) == 0 && len(c.arrivals) == 0 && len(c.pickups) == 0
+}
+
+// toCanonicalPayload rebuilds the persistable payload from the bucketed changes:
+// exactly one entry per weekday (1=Mon..5=Fri) that has a change, in fixed
+// weekday order, carrying only the merged mode/arrival/pickup. This is what
+// collapses a direct API client's duplicate or out-of-order weekday entries
+// into the same form the apply path already derives.
+func (c careScheduleChanges) toCanonicalPayload() careSchedulePayload {
+	weekdays := make([]careWeekdayPayload, 0, len(usersModels.PickupDayOrder))
+	for i, abbrev := range usersModels.PickupDayOrder {
+		wd := i + 1
+		entry := careWeekdayPayload{Weekday: wd}
+		present := false
+		if mode, ok := c.modes[abbrev]; ok {
+			entry.Mode = string(mode)
+			present = true
+		}
+		if arrival, ok := c.arrivals[wd]; ok {
+			entry.Arrival = arrival
+			present = true
+		}
+		if pickup, ok := c.pickups[wd]; ok {
+			entry.Pickup = pickup
+			present = true
+		}
+		if present {
+			weekdays = append(weekdays, entry)
+		}
+	}
+	return careSchedulePayload{Weekdays: weekdays}
 }
 
 type studentMasterDataPayload struct {
@@ -971,6 +1010,35 @@ func ValidateRequestPayload(requestType string, payload map[string]any) error {
 	return handler.validate(payload)
 }
 
+// CanonicalizeRequestPayload validates the payload AND returns the sanitized
+// canonical form that is safe to persist. It is the create path's single entry
+// point: storing the raw guardian-supplied map would let a direct API client
+// persist unknown keys or duplicate/over-large structures that validation
+// otherwise ignores, and every later thread load would echo them back. The
+// apply path re-derives the same canonical shape, so storing it changes nothing
+// for staff confirmation.
+func CanonicalizeRequestPayload(requestType string, payload map[string]any) (map[string]any, error) {
+	handler, ok := parentMessageRequestRegistry[requestType]
+	if !ok || handler.canonicalize == nil {
+		return nil, ErrInvalidRequestType
+	}
+	return handler.canonicalize(payload)
+}
+
+// structToMap round-trips a typed payload struct through JSON into a generic
+// map for JSONB storage, dropping any keys not declared on the struct.
+func structToMap(v any) (map[string]any, error) {
+	raw, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	var out map[string]any
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // buildCareScheduleChanges validates a care-schedule payload (weekday range,
 // departure-mode enum, HH:MM format) and buckets it into the per-aspect change
 // maps. It is the SINGLE parser shared by the create-time validation and the
@@ -1017,27 +1085,45 @@ func buildCareScheduleChanges(payload map[string]any) (careScheduleChanges, erro
 }
 
 func validateCareSchedulePayload(payload map[string]any) error {
+	_, err := canonicalizeCareSchedulePayload(payload)
+	return err
+}
+
+// canonicalizeCareSchedulePayload validates and returns the sanitized payload to
+// persist. Buckets via the shared parser (which rejects bad weekdays/modes/times),
+// then rebuilds one entry per changed weekday so unknown keys and duplicate
+// weekday rows from a direct API client never reach storage.
+func canonicalizeCareSchedulePayload(payload map[string]any) (map[string]any, error) {
 	changes, err := buildCareScheduleChanges(payload)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if changes.isEmpty() {
-		return fmt.Errorf("%w: no changes", ErrInvalidRequestPayload)
+		return nil, fmt.Errorf("%w: no changes", ErrInvalidRequestPayload)
 	}
-	return nil
+	return structToMap(changes.toCanonicalPayload())
 }
 
 func validateMasterDataPayload(payload map[string]any) error {
+	_, err := canonicalizeMasterDataPayload(payload)
+	return err
+}
+
+// canonicalizeMasterDataPayload validates and returns the sanitized payload to
+// persist. After validation it re-marshals the typed struct, so unknown sibling
+// keys a direct API client appended alongside "fields" are dropped and only the
+// canonical {"fields": {...}} shape reaches storage.
+func canonicalizeMasterDataPayload(payload map[string]any) (map[string]any, error) {
 	p, err := decodePayload[studentMasterDataPayload](payload)
 	if err != nil {
-		return ErrInvalidRequestPayload
+		return nil, ErrInvalidRequestPayload
 	}
 	if len(p.Fields) == 0 {
-		return fmt.Errorf("%w: no fields", ErrInvalidRequestPayload)
+		return nil, fmt.Errorf("%w: no fields", ErrInvalidRequestPayload)
 	}
 	for field, value := range p.Fields {
 		if !isAllowedStudentMasterDataField(field) {
-			return fmt.Errorf("%w: field %q not allowed", ErrInvalidRequestPayload, field)
+			return nil, fmt.Errorf("%w: field %q not allowed", ErrInvalidRequestPayload, field)
 		}
 		// Bound every free-text value so a direct API client cannot persist a
 		// multi-megabyte payload (notably extra_info, which neither Student.Validate
@@ -1045,17 +1131,17 @@ func validateMasterDataPayload(payload map[string]any) error {
 		// maxParentNoteLen note limit; count runes, not bytes, so German umlauts are
 		// not penalized.
 		if value != nil && utf8.RuneCountInString(*value) > maxMasterDataFieldLen {
-			return fmt.Errorf("%w: %q too long", ErrInvalidRequestPayload, field)
+			return nil, fmt.Errorf("%w: %q too long", ErrInvalidRequestPayload, field)
 		}
 		switch field {
 		case "first_name", "last_name":
 			if value == nil || strings.TrimSpace(*value) == "" {
-				return fmt.Errorf("%w: %q must not be empty", ErrInvalidRequestPayload, field)
+				return nil, fmt.Errorf("%w: %q must not be empty", ErrInvalidRequestPayload, field)
 			}
 		case "birthday":
 			if value != nil && strings.TrimSpace(*value) != "" {
 				if _, err := timezone.ParseDate(strings.TrimSpace(*value)); err != nil {
-					return fmt.Errorf("%w: birthday", ErrInvalidRequestPayload)
+					return nil, fmt.Errorf("%w: birthday", ErrInvalidRequestPayload)
 				}
 			}
 		case "guardian_email":
@@ -1065,18 +1151,18 @@ func validateMasterDataPayload(payload map[string]any) error {
 			// request stuck open and unconfirmable. Empty is allowed (clears the field).
 			if value != nil {
 				if err := usersModels.ValidateOptionalEmail(*value); err != nil {
-					return fmt.Errorf("%w: guardian_email", ErrInvalidRequestPayload)
+					return nil, fmt.Errorf("%w: guardian_email", ErrInvalidRequestPayload)
 				}
 			}
 		case "guardian_phone":
 			if value != nil {
 				if err := usersModels.ValidateOptionalPhone(*value); err != nil {
-					return fmt.Errorf("%w: guardian_phone", ErrInvalidRequestPayload)
+					return nil, fmt.Errorf("%w: guardian_phone", ErrInvalidRequestPayload)
 				}
 			}
 		}
 	}
-	return nil
+	return structToMap(p)
 }
 
 // germanAllowedDepartureModes renders a day's allowed departure modes (the
