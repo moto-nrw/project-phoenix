@@ -32,8 +32,6 @@ export function LateInviteModal({
   phaseUrl: string;
 }>) {
   const [guardianEmail, setGuardianEmail] = useState("");
-  const [guardianFirstName, setGuardianFirstName] = useState("");
-  const [guardianLastName, setGuardianLastName] = useState("");
   const [reason, setReason] = useState("");
   const [generatedUrl, setGeneratedUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -42,8 +40,6 @@ export function LateInviteModal({
   useEffect(() => {
     if (!isOpen) return;
     setGuardianEmail("");
-    setGuardianFirstName("");
-    setGuardianLastName("");
     setReason("");
     setGeneratedUrl("");
     setError(null);
@@ -61,8 +57,6 @@ export function LateInviteModal({
     try {
       const result = await createLateInvite(phase.id, {
         guardian_email: guardianEmail.trim(),
-        guardian_first_name: guardianFirstName.trim() || undefined,
-        guardian_last_name: guardianLastName.trim() || undefined,
         reason: reason.trim() || undefined,
       });
       setGeneratedUrl(buildLateInviteUrl(phaseUrl, result.token));
@@ -97,20 +91,6 @@ export function LateInviteModal({
           onChange={(event) => setGuardianEmail(event.target.value)}
           required
         />
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Input
-            name="late_invite_guardian_first_name"
-            label="Vorname"
-            value={guardianFirstName}
-            onChange={(event) => setGuardianFirstName(event.target.value)}
-          />
-          <Input
-            name="late_invite_guardian_last_name"
-            label="Nachname"
-            value={guardianLastName}
-            onChange={(event) => setGuardianLastName(event.target.value)}
-          />
-        </div>
         <label className="block">
           <span className="mb-2 block text-sm font-medium text-gray-700">
             Interner Grund

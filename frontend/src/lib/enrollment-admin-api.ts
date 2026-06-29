@@ -257,8 +257,6 @@ export async function getAdminRequest(id: string): Promise<AdminRequestDetail> {
 
 export interface CreateLateInviteInput {
   guardian_email: string;
-  guardian_first_name?: string;
-  guardian_last_name?: string;
   reason?: string;
   expires_at?: string;
 }
