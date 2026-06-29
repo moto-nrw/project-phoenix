@@ -2,6 +2,7 @@ package enrollment
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
@@ -109,17 +110,59 @@ func TestClassRosterRowUsesPhaseEnrollmentData(t *testing.T) {
 		},
 	}
 
-	row, err := classRosterRow(student, person, "Eulen", enrollment, offerings, schemas)
+	row, err := classRosterRow(student, person, "Eulen", enrollment, offerings, schemas, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, "Eulen", row.GroupName)
 	assert.True(t, row.Registered)
 	assert.Equal(t, "Angemeldet: Randstunde", row.EnrollmentSummary)
 	assert.Equal(t, []string{"mon"}, row.CareDays)
+	assert.Equal(t, []string{"Randstunde"}, row.OfferingsByDay["mon"])
 	assert.Equal(t, "11:30", row.ArrivalByDay["mon"])
 	assert.Equal(t, "14:30", row.PickupByDay["mon"])
 	assert.Contains(t, row.Departure, "Mo: Abholung, Mit anderem Kind")
 	assert.Contains(t, row.Departure, "(mit: Mia)")
+}
+
+func TestClassRosterRowBuildsDailyOfferingNames(t *testing.T) {
+	req := &enrollmentModels.Request{
+		Model:       baseModels.Model{ID: 13},
+		SubmittedAt: time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC),
+	}
+	child := &enrollmentModels.RequestChild{
+		Model:       baseModels.Model{ID: 23},
+		RequestID:   13,
+		DateOfBirth: timezone.NewDate(2018, 5, 4),
+		Status:      enrollmentModels.ChildStatusApproved,
+	}
+	student := &userModels.Student{
+		Model:       baseModels.Model{ID: 103},
+		PersonID:    203,
+		SchoolClass: "1a",
+	}
+	person := &userModels.Person{FirstName: "Lina", LastName: "Muster"}
+	enrollment := &classRosterApprovedEnrollment{
+		request: req,
+		child:   child,
+		links: []*enrollmentModels.RequestChildOffering{
+			{RequestChildID: 23, CareOfferingID: 1, SelectedDays: []string{"mon", "wed"}},
+			{RequestChildID: 23, CareOfferingID: 2, SelectedDays: []string{"wed", "fri"}},
+		},
+	}
+	offerings := map[int64]*enrollmentModels.CareOffering{
+		1: {Name: "Randstunde", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice},
+		2: {Name: "Ganztag bis 16:00", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice},
+	}
+
+	row, err := classRosterRow(student, person, "", enrollment, offerings, nil, nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"mon", "wed", "fri"}, row.CareDays)
+	assert.Equal(t, []string{"Randstunde"}, row.OfferingsByDay["mon"])
+	assert.Equal(t, []string{"Ganztag bis 16:00", "Randstunde"}, row.OfferingsByDay["wed"])
+	assert.Equal(t, []string{"Ganztag bis 16:00"}, row.OfferingsByDay["fri"])
+	assert.Empty(t, row.OfferingsByDay["tue"])
+	assert.Empty(t, row.OfferingsByDay["thu"])
 }
 
 func TestCareUsageScheduleReadsGuardianLevelFields(t *testing.T) {
@@ -207,7 +250,7 @@ func TestClassRosterRowReadsGuardianLevelSchedules(t *testing.T) {
 		},
 	}
 
-	row, err := classRosterRow(student, person, "Eulen", enrollment, nil, schemas)
+	row, err := classRosterRow(student, person, "Eulen", enrollment, nil, schemas, nil)
 
 	require.NoError(t, err)
 	assert.Equal(t, "11:15", row.ArrivalByDay["mon"])
@@ -222,13 +265,85 @@ func TestClassRosterRowMarksMissingEnrollmentAsNoRegistration(t *testing.T) {
 	}
 	person := &userModels.Person{FirstName: "Tom", LastName: "Ohne"}
 
-	row, err := classRosterRow(student, person, "", nil, nil, nil)
+	row, err := classRosterRow(student, person, "", nil, nil, nil, []ClassRosterGuardian{{Name: "Eva Ohne", Email: "eva@example.test", Phone: "02551 123"}})
 
 	require.NoError(t, err)
 	assert.False(t, row.Registered)
 	assert.Equal(t, "Keine Anmeldung", row.EnrollmentSummary)
 	assert.Equal(t, []string{}, row.CareDays)
+	assert.Equal(t, map[string][]string{}, row.OfferingsByDay)
 	assert.Equal(t, "Geht alleine", row.Departure)
+	assert.Equal(t, []ClassRosterGuardian{{Name: "Eva Ohne", Email: "eva@example.test", Phone: "02551 123"}}, row.Guardians)
+}
+
+func TestClassRosterRowFallsBackToLegacyStudentGuardianFields(t *testing.T) {
+	guardianName := "Stamm Kontakt"
+	guardianEmail := "stamm@example.test"
+	guardianPhone := "02551 456"
+	guardianContact := "0170 123456"
+	student := &userModels.Student{
+		Model:           baseModels.Model{ID: 101},
+		PersonID:        201,
+		SchoolClass:     "1a",
+		GuardianName:    &guardianName,
+		GuardianEmail:   &guardianEmail,
+		GuardianPhone:   &guardianPhone,
+		GuardianContact: &guardianContact,
+	}
+	person := &userModels.Person{FirstName: "Tom", LastName: "Ohne"}
+	want := []ClassRosterGuardian{{
+		Name:  "Stamm Kontakt",
+		Email: "stamm@example.test",
+		Phone: "02551 456; 0170 123456",
+	}}
+
+	t.Run("without enrollment", func(t *testing.T) {
+		row, err := classRosterRow(student, person, "", nil, nil, nil, nil)
+
+		require.NoError(t, err)
+		assert.False(t, row.Registered)
+		assert.Equal(t, want, row.Guardians)
+	})
+
+	t.Run("with enrollment but without request guardians", func(t *testing.T) {
+		req := &enrollmentModels.Request{Model: baseModels.Model{ID: 10}}
+		child := &enrollmentModels.RequestChild{
+			Model:       baseModels.Model{ID: 20},
+			RequestID:   10,
+			DateOfBirth: timezone.NewDate(2018, 5, 4),
+			Status:      enrollmentModels.ChildStatusApproved,
+		}
+		row, err := classRosterRow(student, person, "", &classRosterApprovedEnrollment{
+			request: req,
+			child:   child,
+		}, nil, nil, nil)
+
+		require.NoError(t, err)
+		assert.True(t, row.Registered)
+		assert.Equal(t, want, row.Guardians)
+	})
+}
+
+func TestClassRosterStudentGuardiansPreferLinkedContactsOverLegacyFields(t *testing.T) {
+	guardianName := "Stamm Kontakt"
+	guardianEmail := "stamm@example.test"
+	stalePhone := "02551 456"
+	staleContact := "0170 123456"
+	student := &userModels.Student{
+		GuardianName:    &guardianName,
+		GuardianEmail:   &guardianEmail,
+		GuardianPhone:   &stalePhone,
+		GuardianContact: &staleContact,
+	}
+	linked := []ClassRosterGuardian{{
+		Name:  "Stamm Kontakt",
+		Email: "stamm@example.test",
+		Phone: "02551 333",
+	}}
+
+	got := classRosterStudentGuardians(student, linked)
+
+	assert.Equal(t, linked, got)
 }
 
 func TestClassRosterApprovedEnrollmentsOnlyUsesApprovedChildrenInClass(t *testing.T) {
@@ -344,6 +459,84 @@ func TestClassRosterAppliesChildLimitAfterClassFiltering(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, report.Rows, 1)
 	assert.True(t, report.Rows[0].Registered)
+}
+
+func TestClassRosterLoadsGuardianContactsFromEnrollmentAndStudentFallback(t *testing.T) {
+	registeredStudentID := int64(100)
+	manualStudentID := int64(101)
+	registeredPersonID := int64(200)
+	manualPersonID := int64(201)
+	requestID := int64(300)
+	childID := int64(400)
+	primaryPhone := "02551 111"
+	additionalEmail := "zweiter@example.test"
+	additionalPhone := "02551 222"
+	students := []*userModels.Student{
+		{Model: baseModels.Model{ID: registeredStudentID}, PersonID: registeredPersonID, SchoolClass: "1a"},
+		{Model: baseModels.Model{ID: manualStudentID}, PersonID: manualPersonID, SchoolClass: "1a"},
+	}
+	svc := classRosterTestService(
+		students,
+		map[int64]*userModels.Person{
+			registeredPersonID: {FirstName: "Lina", LastName: "Muster"},
+			manualPersonID:     {FirstName: "Tom", LastName: "Ohne"},
+		},
+		&fakeClassRosterRequestRepo{requests: []*enrollmentModels.Request{{
+			Model:             baseModels.Model{ID: requestID},
+			GuardianFirstName: "Eva",
+			GuardianLastName:  "Muster",
+			GuardianEmail:     "eva@example.test",
+			GuardianPhone:     &primaryPhone,
+			SubmittedAt:       time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC),
+		}}},
+		&fakeClassRosterChildRepo{children: []*enrollmentModels.RequestChild{{
+			Model:            baseModels.Model{ID: childID},
+			RequestID:        requestID,
+			Status:           enrollmentModels.ChildStatusApproved,
+			CreatedStudentID: &registeredStudentID,
+		}}},
+	)
+	svc.requestGuardianRepo = &fakeClassRosterRequestGuardianRepo{guardians: []*enrollmentModels.RequestGuardian{{
+		Model:     baseModels.Model{ID: 500},
+		RequestID: requestID,
+		FirstName: "Zweiter",
+		LastName:  "Kontakt",
+		Email:     &additionalEmail,
+		Phone:     &additionalPhone,
+	}}}
+	svc.studentGuardianRepo = &fakeClassRosterStudentGuardianRepo{rows: []userModels.GuardianEmergencyContactRow{
+		{
+			StudentID:         manualStudentID,
+			GuardianProfileID: 700,
+			FirstName:         sql.NullString{String: "Stamm", Valid: true},
+			LastName:          sql.NullString{String: "Kontakt", Valid: true},
+			Email:             sql.NullString{String: "stamm@example.test", Valid: true},
+			PhoneNumber:       sql.NullString{String: "02551 333", Valid: true},
+		},
+		{
+			StudentID:         registeredStudentID,
+			GuardianProfileID: 701,
+			FirstName:         sql.NullString{String: "Nicht", Valid: true},
+			LastName:          sql.NullString{String: "Verwenden", Valid: true},
+			Email:             sql.NullString{String: "fallback@example.test", Valid: true},
+			PhoneNumber:       sql.NullString{String: "02551 999", Valid: true},
+		},
+	}}
+
+	report, err := svc.ClassRoster(context.Background(), ClassRosterFilters{PhaseID: 55, SchoolClass: "1a"})
+
+	require.NoError(t, err)
+	rowByFirstName := map[string]ClassRosterRow{}
+	for _, row := range report.Rows {
+		rowByFirstName[row.FirstName] = row
+	}
+	assert.Equal(t, []ClassRosterGuardian{
+		{Name: "Eva Muster", Email: "eva@example.test", Phone: "02551 111"},
+		{Name: "Zweiter Kontakt", Email: "zweiter@example.test", Phone: "02551 222"},
+	}, rowByFirstName["Lina"].Guardians)
+	assert.Equal(t, []ClassRosterGuardian{
+		{Name: "Stamm Kontakt", Email: "stamm@example.test", Phone: "02551 333"},
+	}, rowByFirstName["Tom"].Guardians)
 }
 
 func TestClassRosterGroupNameResolvesAssignedGroup(t *testing.T) {
@@ -497,6 +690,77 @@ func TestCareUsageRowMatchesExplicitOfferingFilter(t *testing.T) {
 	}))
 }
 
+func TestCareUsageRowMatchesBookedPickupDayFilters(t *testing.T) {
+	row := CareUsageRow{
+		Status: enrollmentModels.ChildStatusApproved,
+		Offerings: []CareUsageRowOffering{
+			{ID: 10, Name: "OGS Ganztag", Days: []string{"mon", "wed"}},
+			{ID: 11, Name: "Randstunde", Days: []string{"fri"}},
+		},
+		EffectiveDays: []string{"mon", "wed"},
+		PickupByDay:   map[string]string{"mon": "14:30", "wed": "16:00", "fri": "15:30"},
+	}
+
+	assert.True(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", Weekday: "fri"}))
+	assert.True(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", PickupTime: "15:30"}))
+	assert.True(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", Weekday: "fri", PickupTime: "15:30"}))
+	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", Weekday: "fri", PickupTime: "14:30"}))
+}
+
+func TestCareUsageRowMatchesWeekdayWithoutPickupTimes(t *testing.T) {
+	row := CareUsageRow{
+		Status: enrollmentModels.ChildStatusApproved,
+		Offerings: []CareUsageRowOffering{
+			{ID: 10, Name: "OGS Ganztag", Days: []string{"mon"}},
+			{ID: 11, Name: "Randstunde", Days: []string{"fri"}},
+		},
+		EffectiveDays: []string{"mon"},
+		PickupByDay:   map[string]string{},
+	}
+
+	assert.True(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", Weekday: "mon"}))
+	assert.True(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", Weekday: "fri"}))
+	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", Weekday: "mon", PickupTime: "14:30"}))
+	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", PickupTime: "14:30"}))
+	assert.Empty(t, careUsageBookedPickupDays(row, CareUsageFilters{Status: "all"}))
+}
+
+func TestCareUsageRowMatchesScopedBookedPickupDayFilters(t *testing.T) {
+	row := CareUsageRow{
+		Status: enrollmentModels.ChildStatusApproved,
+		Offerings: []CareUsageRowOffering{
+			{ID: 10, Name: "OGS Ganztag", Days: []string{"mon", "wed"}},
+			{ID: 11, Name: "Randstunde", Days: []string{"fri"}},
+		},
+		EffectiveDays: []string{"mon", "wed"},
+		PickupByDay:   map[string]string{"mon": "14:30", "wed": "16:00", "fri": "15:30"},
+	}
+	ogsOnly := CareUsageFilters{Status: "all", CareOfferingIDsSet: true, CareOfferingIDs: []int64{10}}
+	randstundeOnly := CareUsageFilters{Status: "all", CareOfferingIDsSet: true, CareOfferingIDs: []int64{11}}
+
+	assert.Equal(t, []string{"mon", "wed"}, careUsageBookedPickupDays(row, ogsOnly))
+	assert.False(t, careUsageRowMatches(row, CareUsageFilters{
+		Status:             "all",
+		CareOfferingIDsSet: true,
+		CareOfferingIDs:    []int64{10},
+		Weekday:            "fri",
+	}))
+	assert.False(t, careUsageRowMatches(row, CareUsageFilters{
+		Status:             "all",
+		CareOfferingIDsSet: true,
+		CareOfferingIDs:    []int64{10},
+		PickupTime:         "15:30",
+	}))
+	assert.Equal(t, []string{"fri"}, careUsageBookedPickupDays(row, randstundeOnly))
+	assert.True(t, careUsageRowMatches(row, CareUsageFilters{
+		Status:             "all",
+		CareOfferingIDsSet: true,
+		CareOfferingIDs:    []int64{11},
+		Weekday:            "fri",
+		PickupTime:         "15:30",
+	}))
+}
+
 func TestCareUsageRowMatchesZeroDayFilter(t *testing.T) {
 	zero := 0
 	row := CareUsageRow{
@@ -536,6 +800,19 @@ func TestCareUsageRowExcludesNonIncludedOfferingsFromDayCount(t *testing.T) {
 	require.Len(t, row.Offerings, 2)
 	assert.Equal(t, []string{"mon", "tue", "wed", "thu"}, row.EffectiveDays)
 	assert.Equal(t, 4, row.DayCount)
+}
+
+func TestCareUsageBookedPickupDaysIncludesNonCareOfferingDays(t *testing.T) {
+	row := CareUsageRow{
+		Offerings: []CareUsageRowOffering{
+			{Name: "OGS Ganztag", Days: []string{"mon", "wed"}},
+			{Name: "Randstunde", Days: []string{"fri"}},
+		},
+		EffectiveDays: []string{"mon", "wed"},
+		PickupByDay:   map[string]string{"mon": "14:30", "wed": "16:00", "fri": "14:30"},
+	}
+
+	assert.Equal(t, []string{"mon", "wed", "fri"}, careUsageBookedPickupDays(row, CareUsageFilters{Status: "all"}))
 }
 
 func TestCareUsageRowKeepsOfferingsVisibleWhenNoOfferingsAreIncluded(t *testing.T) {
@@ -628,10 +905,12 @@ func classRosterTestService(students []*userModels.Student, persons map[int64]*u
 	return &reportService{
 		requestRepo:              requestRepo,
 		requestChildRepo:         childRepo,
+		requestGuardianRepo:      &fakeClassRosterRequestGuardianRepo{},
 		requestChildOfferingRepo: &fakeClassRosterChildOfferingRepo{},
 		careOfferingRepo:         &fakeClassRosterCareOfferingRepo{},
 		phaseRepo:                &fakeClassRosterPhaseRepo{},
 		studentRepo:              &fakeClassRosterStudentRepo{students: students},
+		studentGuardianRepo:      &fakeClassRosterStudentGuardianRepo{},
 		personRepo:               &fakeClassRosterPersonRepo{persons: persons},
 		educationGroupRepo:       &fakeEducationGroupRepo{},
 	}
@@ -684,6 +963,25 @@ func (r *fakeClassRosterChildRepo) ListByRequestIDs(_ context.Context, _ []int64
 	return r.children, nil
 }
 
+type fakeClassRosterRequestGuardianRepo struct {
+	enrollmentModels.RequestGuardianRepository
+	guardians []*enrollmentModels.RequestGuardian
+}
+
+func (r *fakeClassRosterRequestGuardianRepo) ListByRequestIDs(_ context.Context, requestIDs []int64) ([]*enrollmentModels.RequestGuardian, error) {
+	seen := map[int64]bool{}
+	for _, id := range requestIDs {
+		seen[id] = true
+	}
+	out := make([]*enrollmentModels.RequestGuardian, 0, len(r.guardians))
+	for _, guardian := range r.guardians {
+		if guardian != nil && seen[guardian.RequestID] {
+			out = append(out, guardian)
+		}
+	}
+	return out, nil
+}
+
 type fakeClassRosterChildOfferingRepo struct {
 	enrollmentModels.RequestChildOfferingRepository
 }
@@ -698,6 +996,25 @@ type fakeClassRosterCareOfferingRepo struct {
 
 func (r *fakeClassRosterCareOfferingRepo) ListByPhase(_ context.Context, _ int64) ([]*enrollmentModels.CareOffering, error) {
 	return nil, nil
+}
+
+type fakeClassRosterStudentGuardianRepo struct {
+	userModels.StudentGuardianRepository
+	rows []userModels.GuardianEmergencyContactRow
+}
+
+func (r *fakeClassRosterStudentGuardianRepo) ListEmergencyContactRows(_ context.Context, studentIDs []int64) ([]userModels.GuardianEmergencyContactRow, error) {
+	seen := map[int64]bool{}
+	for _, id := range studentIDs {
+		seen[id] = true
+	}
+	out := make([]userModels.GuardianEmergencyContactRow, 0, len(r.rows))
+	for _, row := range r.rows {
+		if seen[row.StudentID] {
+			out = append(out, row)
+		}
+	}
+	return out, nil
 }
 
 type fakeClassRosterPhaseRepo struct {

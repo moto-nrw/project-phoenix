@@ -152,6 +152,15 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/me/children/{studentId}/care-exception", rs.submitCareException)
 		r.Delete("/me/children/{studentId}/care-exception", rs.deleteCareException)
 
+		// Stammdaten — structured view of the child's master data plus the
+		// calling guardian's own contact data. Track A direct edits apply
+		// immediately and are audited; Track B change requests (name,
+		// birthday, permanent Gehzeit) are added in a later step.
+		r.Get("/me/children/{studentId}/master-data", rs.getMasterData)
+		r.Patch("/me/children/{studentId}/master-data/{target}/{field}", rs.updateMasterDataField)
+		r.Get("/me/children/{studentId}/master-data/requests", rs.listMasterDataRequests)
+		r.Post("/me/children/{studentId}/master-data/requests", rs.submitMasterDataRequest)
+
 		// Related accounts — see who has access to the child, invite a
 		// further guardian by email (gated by guardians.parent_invite_mode),
 		// and remove an account's access (gated by guardians.parent_can_remove;

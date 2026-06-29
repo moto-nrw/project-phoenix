@@ -25,6 +25,11 @@ const mocks = vi.hoisted(() => ({
     sick_note_enabled: true,
     notes_enabled: true,
     pickup_change_enabled: false,
+    related_accounts_invite_enabled: false,
+    related_accounts_remove_enabled: false,
+    master_data_edit_enabled: false,
+    master_data_contact_edit_enabled: false,
+    master_data_request_enabled: false,
   }),
   setBreadcrumb: vi.fn(),
 }));
@@ -120,6 +125,11 @@ describe("Parent portal components", () => {
       sick_note_enabled: true,
       notes_enabled: true,
       pickup_change_enabled: false,
+      related_accounts_invite_enabled: false,
+      related_accounts_remove_enabled: false,
+      master_data_edit_enabled: false,
+      master_data_contact_edit_enabled: false,
+      master_data_request_enabled: false,
     });
     mocks.setBreadcrumb.mockReset();
   });
@@ -256,6 +266,11 @@ describe("Parent portal components", () => {
       sick_note_enabled: true,
       notes_enabled: true,
       pickup_change_enabled: false,
+      related_accounts_invite_enabled: false,
+      related_accounts_remove_enabled: false,
+      master_data_edit_enabled: false,
+      master_data_contact_edit_enabled: false,
+      master_data_request_enabled: false,
     });
     mocks.listCareExceptions.mockResolvedValueOnce([
       {

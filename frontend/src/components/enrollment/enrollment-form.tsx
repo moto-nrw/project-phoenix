@@ -104,6 +104,7 @@ interface Props {
   readonly gradeLevelMax: number;
   readonly onSubmitted: (statusURL: string) => void;
   readonly prefetchedData?: EnrollmentFormPrefetchedData;
+  readonly lateInviteToken?: string;
   readonly previewMode?: boolean;
   readonly previewSchema?: PublicFormSchema | null;
   /**
@@ -165,6 +166,7 @@ export function EnrollmentForm({
   gradeLevelMax,
   onSubmitted,
   prefetchedData,
+  lateInviteToken,
   previewMode = false,
   previewSchema,
   profileFetcher,
@@ -226,6 +228,10 @@ export function EnrollmentForm({
   // submit with the *same* unchanged message still scrolls back to it; on a
   // successful submit nothing is marked invalid so it's a no-op.
   const { formRef, errorRef, scrollToError } = useScrollToFirstError();
+  const lateInviteFetchOptions = useMemo(
+    () => ({ lateInviteToken }),
+    [lateInviteToken],
+  );
 
   const [guardianFirstName, setGuardianFirstName] = useState(
     initialDraft?.guardian_first_name ??
@@ -347,10 +353,18 @@ export function EnrollmentForm({
           previewSchema !== undefined
             ? Promise.resolve(previewSchema)
             : phaseID
-              ? fetchPublicActiveSchema(tenantSlug, phaseID).catch(() => null)
+              ? fetchPublicActiveSchema(
+                  tenantSlug,
+                  phaseID,
+                  lateInviteFetchOptions,
+                ).catch(() => null)
               : Promise.resolve(null),
           phaseID
-            ? fetchPublicCareOfferings(tenantSlug, phaseID)
+            ? fetchPublicCareOfferings(
+                tenantSlug,
+                phaseID,
+                lateInviteFetchOptions,
+              )
             : Promise.resolve({
                 offerings: [],
                 careOfferingSelectionMode: "optional" as const,
@@ -372,7 +386,11 @@ export function EnrollmentForm({
           previewSchema !== undefined
             ? resolvePreviewLegalTexts(tenantSlug, previewSchema)
             : phaseID
-              ? fetchPublicLegalTexts(tenantSlug, phaseID)
+              ? fetchPublicLegalTexts(
+                  tenantSlug,
+                  phaseID,
+                  lateInviteFetchOptions,
+                )
               : fetchPublicLegalTexts(tenantSlug),
         ]);
         if (cancelled) return;
@@ -424,6 +442,7 @@ export function EnrollmentForm({
     phaseID,
     prefetchedData,
     previewSchema,
+    lateInviteFetchOptions,
     profileFetcher,
     skipCaptcha,
     tr,
@@ -991,6 +1010,9 @@ export function EnrollmentForm({
         ),
         children: payloadChildren,
         captcha_token: skipCaptcha ? undefined : captchaToken || undefined,
+        late_invite_token: lateInviteToken?.trim()
+          ? lateInviteToken.trim()
+          : undefined,
       };
       const result = submitter
         ? await submitter(payload)

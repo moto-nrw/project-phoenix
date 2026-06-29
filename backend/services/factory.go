@@ -103,6 +103,7 @@ type Factory struct {
 	Schools              platform.SchoolService
 	WorkTimeModels       config.WorkTimeModelService
 	Students             users.StudentService
+	MasterDataReview     users.MasterDataReviewService
 	StudentStatusDays    active.StudentStatusDayService
 	StudentHistory       active.StudentHistoryService
 	TimetableData        schedule.TimetableDataService
@@ -1003,6 +1004,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		RequestRepo:              repos.Request,
 		RequestChildRepo:         repos.RequestChild,
 		RequestGuardianRepo:      repos.RequestGuardian,
+		LateInviteRepo:           repos.LateInvite,
 		RequestChildOfferingRepo: repos.RequestChildOffering,
 		CareOfferingRepo:         repos.CareOffering,
 		FormSchemaRepo:           repos.FormSchema,
@@ -1063,12 +1065,14 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	enrollmentReportService := enrollment.NewReportService(enrollment.ReportServiceConfig{
 		RequestRepo:              repos.Request,
 		RequestChildRepo:         repos.RequestChild,
+		RequestGuardianRepo:      repos.RequestGuardian,
 		RequestChildOfferingRepo: repos.RequestChildOffering,
 		CareOfferingRepo:         repos.CareOffering,
 		FormSchemaRepo:           repos.FormSchema,
 		PhaseRepo:                repos.Phase,
 		DataAccessLogRepo:        repos.DataAccessLog,
 		StudentRepo:              repos.Student,
+		StudentGuardianRepo:      repos.StudentGuardian,
 		PersonRepo:               repos.Person,
 		EducationGroupRepo:       repos.Group,
 	})
@@ -1137,6 +1141,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ArrivalExceptionRepo:    repos.StudentArrivalException,
 		Settings:                settingsService,
 		Broadcaster:             realtimeHub,
+		PersonRepo:              repos.Person,
+		ChangeRequestRepo:       repos.StudentDataChangeRequest,
 		MessageThreadRepo:       repos.ParentMessageThread,
 		MessageRepo:             repos.ParentMessage,
 		MessageReadRepo:         repos.ParentMessageRead,
@@ -1241,6 +1247,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Schools:              platform.NewSchoolService(repos.School),
 		WorkTimeModels:       config.NewWorkTimeModelService(repos.WorkTimeModel),
 		Students:             studentService,
+		MasterDataReview:     users.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, logger.With("service", "master-data-review"), realtimeHub),
 		StudentStatusDays:    active.NewStudentStatusDayService(repos.StudentStatusDay),
 		StudentHistory:       active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog),
 		TimetableData: schedule.NewTimetableDataService(schedule.TimetableDataDependencies{

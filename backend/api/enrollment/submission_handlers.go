@@ -80,6 +80,7 @@ type SubmitEnrollmentRequest struct {
 	CustomData          map[string]any          `json:"custom_data,omitempty"`
 	Children            []SubmitChildRequest    `json:"children"`
 	CaptchaToken        string                  `json:"captcha_token,omitempty"`
+	LateInviteToken     string                  `json:"late_invite_token,omitempty"`
 }
 
 // Bind defaults nil maps + slices to empty so downstream code doesn't
@@ -128,6 +129,9 @@ func (rs *Resource) submitEnrollment(w http.ResponseWriter, r *http.Request) {
 	if err := render.Bind(r, wireReq); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
+	}
+	if wireReq.LateInviteToken == "" {
+		wireReq.LateInviteToken = lateInviteTokenFromRequest(r)
 	}
 
 	remoteIP := remoteIPFromRequest(r)
@@ -202,6 +206,7 @@ func buildServiceRequest(wireReq *SubmitEnrollmentRequest, tenantID int64, remot
 		GuardianPhone:     wireReq.GuardianPhone,
 		ConsentFlags:      wireReq.ConsentFlags,
 		CustomData:        wireReq.CustomData,
+		LateInviteToken:   wireReq.LateInviteToken,
 	}
 	for _, g := range wireReq.AdditionalGuardians {
 		out.AdditionalGuardians = append(out.AdditionalGuardians, enrollmentService.SubmitGuardian{
@@ -256,6 +261,7 @@ const (
 	ErrCodeEnrollmentInvalidPhone                = "enrollment.invalid_phone"
 	ErrCodeEnrollmentInvalidEmail                = "enrollment.invalid_email"
 	ErrCodeEnrollmentPickupTimeNotAllowed        = "enrollment.pickup_time_not_allowed"
+	ErrCodeEnrollmentLateInviteInvalid           = "enrollment.late_invite_invalid"
 )
 
 // mapSubmitError translates service-layer sentinel errors into HTTP
@@ -265,6 +271,8 @@ func mapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, enrollmentService.ErrEnrollmentDisabled),
 		errors.Is(err, enrollmentService.ErrEnrollmentWindowClosed):
 		common.RenderError(w, r, common.ErrorForbidden(err))
+	case errors.Is(err, enrollmentService.ErrLateInviteInvalid):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, ErrCodeEnrollmentLateInviteInvalid))
 	case errors.Is(err, enrollmentService.ErrCareOfferingMissing):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingMissing))
 	case errors.Is(err, enrollmentService.ErrCareOfferingExactlyOneRequired):
@@ -312,6 +320,10 @@ func mapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 	}
+}
+
+func lateInviteTokenFromRequest(r *http.Request) string {
+	return strings.TrimSpace(r.URL.Query().Get("late_invite"))
 }
 
 // remoteIPFromRequest extracts the client IP for captcha verification +

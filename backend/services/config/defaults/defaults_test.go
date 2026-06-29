@@ -115,6 +115,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.parent_notes_enabled",
 		"operations.parent_pickup_change_enabled",
 		"operations.parent_guardian_management_enabled",
+		"operations.parent_master_data_edit_enabled",
+		"operations.parent_master_data_request_enabled",
 		// Related-accounts management.
 		"guardians.parent_invite_mode",
 		"guardians.parent_can_remove",

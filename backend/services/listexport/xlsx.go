@@ -107,8 +107,11 @@ func renderXLSX(doc Document) ([]byte, error) {
 	for idx := range doc.Columns {
 		col, _ := excelize.ColumnNumberToName(idx + 1)
 		width := 18.0
-		if doc.Columns[idx].ID == ColumnName {
+		switch doc.Columns[idx].ID {
+		case ColumnName:
 			width = 26
+		case ColumnDeparture, ColumnGuardianContacts:
+			width = 32
 		}
 		if err := f.SetColWidth(sheet, col, col, width); err != nil {
 			return nil, err

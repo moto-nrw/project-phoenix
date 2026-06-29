@@ -130,6 +130,28 @@ func (r *PersonRepository) FindByAccountID(ctx context.Context, accountID int64)
 	return person, nil
 }
 
+// FindByIDForUpdate fetches and locks a person row for the current tenant
+// transaction. Staff approval uses this before applying reviewed name/birthday
+// changes so concurrent approvals of different person fields cannot overwrite
+// each other with stale full-row snapshots.
+func (r *PersonRepository) FindByIDForUpdate(ctx context.Context, id int64) (*users.Person, error) {
+	person := new(users.Person)
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(person).
+		ModelTableExpr(`users.persons AS "person"`).
+		Where(`"person".id = ?`, id).
+		For("UPDATE")
+
+	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find person for update", Err: err}
+	}
+	return person, nil
+}
+
 // FindByIDs retrieves multiple persons by their IDs in a single query
 func (r *PersonRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64]*users.Person, error) {
 	if len(ids) == 0 {

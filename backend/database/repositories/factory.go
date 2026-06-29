@@ -173,6 +173,7 @@ type Factory struct {
 	Request              enrollmentModels.RequestRepository
 	RequestChild         enrollmentModels.RequestChildRepository
 	RequestGuardian      enrollmentModels.RequestGuardianRepository
+	LateInvite           enrollmentModels.LateInviteRepository
 	CareOffering         enrollmentModels.CareOfferingRepository
 	RequestChildOffering enrollmentModels.RequestChildOfferingRepository
 	ChangeRequest        enrollmentModels.ChangeRequestRepository
@@ -184,6 +185,9 @@ type Factory struct {
 	ParentChild             parentModels.ChildRepository
 	ParentEnrollablePhase   parentModels.EnrollablePhaseRepository
 	ParentEnrollmentRequest parentModels.EnrollmentRequestRepository
+
+	// Parent Stammdaten direct-edit audit + change-request review
+	StudentDataChangeRequest userModels.StudentDataChangeRequestRepository
 
 	// Parent-OGS messaging (tenant-scoped two-way conversation per child)
 	ParentMessageThread userModels.ParentMessageThreadRepository
@@ -328,6 +332,7 @@ func NewFactory(db *bun.DB) *Factory {
 		Request:              enrollment.NewRequestRepository(db),
 		RequestChild:         enrollment.NewRequestChildRepository(db),
 		RequestGuardian:      enrollment.NewRequestGuardianRepository(db),
+		LateInvite:           enrollment.NewLateInviteRepository(db),
 		CareOffering:         enrollment.NewCareOfferingRepository(db),
 		RequestChildOffering: enrollment.NewRequestChildOfferingRepository(db),
 		ChangeRequest:        enrollment.NewChangeRequestRepository(db),
@@ -339,6 +344,9 @@ func NewFactory(db *bun.DB) *Factory {
 		ParentChild:             parentRepo.NewChildRepository(db),
 		ParentEnrollablePhase:   parentRepo.NewEnrollablePhaseRepository(db),
 		ParentEnrollmentRequest: parentRepo.NewEnrollmentRequestRepository(db),
+
+		// Parent Stammdaten direct-edit audit + change-request review
+		StudentDataChangeRequest: users.NewStudentDataChangeRequestRepository(db),
 
 		// Parent-OGS messaging (tenant-scoped two-way conversation per child)
 		ParentMessageThread: users.NewParentMessageThreadRepository(db),

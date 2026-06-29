@@ -9,6 +9,7 @@ package parent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -106,6 +107,30 @@ type Service interface {
 	// Gated by guardians.parent_can_remove; the primary guardian is protected.
 	RemoveRelatedAccount(ctx context.Context, accountID, studentID, guardianProfileID int64) error
 
+	// GetChildMasterData returns the structured Stammdaten view for the child:
+	// the child's person + student fields and the calling guardian's own
+	// contact data, plus any pending Track B change requests. Authorization
+	// only (GuardianPermissionPortalAccess).
+	GetChildMasterData(ctx context.Context, accountID, studentID int64) (*ChildMasterData, error)
+
+	// UpdateMasterDataField applies a Track A direct edit to a single field and
+	// returns the refreshed Stammdaten view. The edit is written to the live
+	// record immediately and recorded as an auto_applied audit row. Gated by
+	// operations.parent_master_data_edit_enabled and
+	// GuardianPermissionMasterDataEdit.
+	UpdateMasterDataField(ctx context.Context, accountID, studentID int64, target, fieldKey string, value json.RawMessage) (*ChildMasterData, error)
+
+	// SubmitMasterDataChangeRequest records pending Track B change requests
+	// (name, birthday, permanent Gehzeit) for staff approval. Unchanged or
+	// already-pending fields are skipped/rejected. Gated by
+	// operations.parent_master_data_request_enabled and
+	// GuardianPermissionMasterDataRequest.
+	SubmitMasterDataChangeRequest(ctx context.Context, accountID, studentID int64, changes []MasterDataFieldChange) ([]*usersModels.StudentDataChangeRequest, error)
+
+	// ListMyMasterDataRequests returns the child's change requests (any status),
+	// newest-first. Authorization only.
+	ListMyMasterDataRequests(ctx context.Context, accountID, studentID int64) ([]*usersModels.StudentDataChangeRequest, error)
+
 	// ListChildGuardians returns every guardian linked to the child with
 	// contact + pickup detail and the caller's per-guardian edit capabilities.
 	// Authorization only (parent_portal.access).
@@ -162,6 +187,17 @@ type ChildFeatureFlags struct {
 	// RelatedAccountsRemoveEnabled is true when parents may remove another
 	// account's access (guardians.parent_can_remove).
 	RelatedAccountsRemoveEnabled bool
+	// MasterDataEditEnabled is true when parents may directly edit the
+	// non-guardian Track A Stammdaten fields (setting AND the relationship
+	// permission).
+	MasterDataEditEnabled bool
+	// MasterDataContactEditEnabled is true when parents may directly edit their
+	// guardian profile/phone contact fields. These writes require both the
+	// master-data edit setting and guardian-management setting.
+	MasterDataContactEditEnabled bool
+	// MasterDataRequestEnabled is true when parents may submit Track B
+	// change requests for approval (setting AND the relationship permission).
+	MasterDataRequestEnabled bool
 }
 
 // CareException is the parent-facing projection of a single day's pickup and/or
@@ -212,9 +248,14 @@ type ServiceConfig struct {
 	GuardianInviteRepo  authModels.GuardianInvitationRepository
 	StudentGuardianRepo usersModels.StudentGuardianRepository
 
-	// Guardian contact + pickup editing (#1667). The phone repo backs the
-	// wholesale phone-list replace on a contact edit; the audit repo records
-	// every contact-field and pickup/emergency flag change (append-only).
+	// Stammdaten view + change flow (Track A direct edit, Track B requests).
+	PersonRepo        usersModels.PersonRepository
+	ChangeRequestRepo usersModels.StudentDataChangeRequestRepository
+
+	// Guardian contact + pickup editing (#1667). The phone repo backs both the
+	// caller's primary-phone master-data edit and the wholesale phone-list replace
+	// on a contact edit; the audit repo records every contact-field and
+	// pickup/emergency flag change (append-only).
 	GuardianPhoneRepo       usersModels.GuardianPhoneNumberRepository
 	GuardianChangeAuditRepo auditModels.GuardianChangeRepository
 
@@ -243,6 +284,8 @@ type service struct {
 	guardianInviteRepo  authModels.GuardianInvitationRepository
 	studentGuardianRepo usersModels.StudentGuardianRepository
 
+	personRepo              usersModels.PersonRepository
+	changeRequestRepo       usersModels.StudentDataChangeRequestRepository
 	guardianPhoneRepo       usersModels.GuardianPhoneNumberRepository
 	guardianChangeAuditRepo auditModels.GuardianChangeRepository
 
@@ -267,6 +310,8 @@ func NewService(cfg ServiceConfig) Service {
 		arrivalExceptionRepo:    cfg.ArrivalExceptionRepo,
 		settings:                cfg.Settings,
 		broadcaster:             cfg.Broadcaster,
+		personRepo:              cfg.PersonRepo,
+		changeRequestRepo:       cfg.ChangeRequestRepo,
 		messageThreadRepo:       cfg.MessageThreadRepo,
 		messageRepo:             cfg.MessageRepo,
 		messageReadRepo:         cfg.MessageReadRepo,
