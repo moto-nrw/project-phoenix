@@ -6,7 +6,6 @@ import {
   CalendarClock,
   CalendarRange,
   HeartPulse,
-  IdCard,
   Loader2,
   type LucideIcon,
   Trash2,
@@ -837,152 +836,7 @@ export function CareScheduleRequestModal({
   );
 }
 
-export function MasterDataRequestModal({
-  onClose,
-  onSubmit,
-}: Readonly<{
-  onClose: () => void;
-  onSubmit: (payload: Record<string, unknown>) => Promise<void>;
-}>) {
-  const t = useTranslations("parentChildCare");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [birthday, setBirthday] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [note, setNote] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleSubmit = async () => {
-    const fields: Record<string, string> = {};
-    if (firstName.trim()) fields.first_name = firstName.trim();
-    if (lastName.trim()) fields.last_name = lastName.trim();
-    if (birthday.trim()) fields.birthday = birthday.trim();
-    if (email.trim()) fields.guardian_email = email.trim();
-    if (phone.trim()) fields.guardian_phone = phone.trim();
-    if (note.trim()) fields.extra_info = note.trim();
-    if (Object.keys(fields).length === 0) {
-      setError(t("request.masterData.noField"));
-      return;
-    }
-    setSubmitting(true);
-    setError(null);
-    try {
-      await onSubmit({ fields });
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("request.sendError"));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const fieldClass =
-    "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none";
-
-  return (
-    <Modal
-      isOpen
-      onClose={onClose}
-      title={t("request.masterData.title")}
-      footer={
-        <RequestModalFooter
-          submitting={submitting}
-          onCancel={onClose}
-          onSubmit={() => void handleSubmit()}
-        />
-      }
-    >
-      <div className="space-y-4">
-        <p className="text-sm leading-6 text-gray-600">
-          {t("request.masterData.intro")}
-        </p>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              {t("request.masterData.firstName")}
-            </span>
-            <input
-              type="text"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              placeholder={t("request.masterData.firstNamePlaceholder")}
-              className={fieldClass}
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              {t("request.masterData.lastName")}
-            </span>
-            <input
-              type="text"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              placeholder={t("request.masterData.lastNamePlaceholder")}
-              className={fieldClass}
-            />
-          </label>
-        </div>
-        <label className="block">
-          <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            {t("request.masterData.birthday")}
-          </span>
-          <input
-            type="date"
-            value={birthday}
-            onChange={(e) => setBirthday(e.target.value)}
-            className={fieldClass}
-          />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            {t("request.masterData.email")}
-          </span>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder={t("request.masterData.emailPlaceholder")}
-            className={fieldClass}
-          />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            {t("request.masterData.phone")}
-          </span>
-          <input
-            type="tel"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder={t("request.masterData.phonePlaceholder")}
-            className={fieldClass}
-          />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            {t("request.masterData.note")}
-          </span>
-          <textarea
-            value={note}
-            maxLength={MAX_NOTE_LEN}
-            onChange={(e) => setNote(e.target.value)}
-            rows={3}
-            placeholder={t("request.masterData.notePlaceholder")}
-            className={`resize-none ${fieldClass}`}
-          />
-        </label>
-        {error && <Alert type="error" message={error} />}
-      </div>
-    </Modal>
-  );
-}
-
-export type OgsActionKey =
-  | "sick"
-  | "pickup"
-  | "care_schedule"
-  | "student_master_data";
+export type OgsActionKey = "sick" | "pickup" | "care_schedule";
 
 // A single parent action available from the OGS chat. Two deliberately separate
 // groups so a parent never confuses a one-off exception with a permanent change:
@@ -1023,12 +877,6 @@ export function getOgsActions(features: ChildFeatures): OgsAction[] {
     {
       key: "care_schedule",
       Icon: CalendarRange,
-      enabled: features.request_submit_enabled,
-      group: "request",
-    },
-    {
-      key: "student_master_data",
-      Icon: IdCard,
       enabled: features.request_submit_enabled,
       group: "request",
     },

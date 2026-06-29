@@ -214,11 +214,11 @@ func createOpenRequest(t *testing.T, db *bun.DB, chain testpkg.ParentChain, thre
 		SenderAccountID: chain.AccountID,
 		SenderKind:      usersModels.ParentMessageSenderGuardian,
 		SenderName:      "Sabine Schneider",
-		Body:            messaging.RequestBody(usersModels.ParentMessageRequestStudentMasterData),
+		Body:            messaging.RequestBody(usersModels.ParentMessageRequestCareSchedule),
 		Kind:            usersModels.ParentMessageKindRequest,
-		RequestType:     usersModels.ParentMessageRequestStudentMasterData,
+		RequestType:     usersModels.ParentMessageRequestCareSchedule,
 		RequestStatus:   usersModels.ParentMessageRequestStatusOpen,
-		Payload:         map[string]any{"fields": map[string]any{"first_name": "Neu"}},
+		Payload:         map[string]any{"weekdays": []any{map[string]any{"weekday": 1, "arrival": "08:00"}}},
 	}
 	req.SetTenantID(chain.TenantID)
 	require.NoError(t, repositories.NewFactory(db).ParentMessage.Create(tenant.WithTenantID(context.Background(), 1), req))

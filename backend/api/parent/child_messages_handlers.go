@@ -42,13 +42,12 @@ type MessageResponse struct {
 // DiffEntry is one field an open request would change, shown to the guardian as
 // "current → requested" so they see what they asked to change, not just a
 // status. Absent for closed/applied requests. The structured discriminators
-// (field_key / weekday / care_kind) let the localized parents portal render the
-// label in the guardian's language instead of the German Label.
+// (weekday / care_kind) let the localized parents portal render the label in
+// the guardian's language instead of the German Label.
 type DiffEntry struct {
 	Label    string `json:"label"`
 	Old      string `json:"old"`
 	New      string `json:"new"`
-	FieldKey string `json:"field_key,omitempty"`
 	Weekday  int    `json:"weekday,omitempty"`
 	CareKind string `json:"care_kind,omitempty"`
 }
@@ -115,7 +114,6 @@ func toMessageResponses(messages []*usersModels.ParentMessage, counterpart strin
 				Label:    d.Label,
 				Old:      d.Old,
 				New:      d.New,
-				FieldKey: d.FieldKey,
 				Weekday:  d.Weekday,
 				CareKind: d.CareKind,
 			})

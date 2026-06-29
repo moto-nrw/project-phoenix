@@ -15,12 +15,11 @@ const (
 	ParentMessageKindEvent   = "event"
 	ParentMessageKindRequest = "request"
 
-	ParentMessageRequestStatusOpen        = "offen"
-	ParentMessageRequestStatusDone        = "erledigt"
-	ParentMessageRequestStatusRejected    = "abgelehnt"
-	ParentMessageRequestStatusWithdrawn   = "zurueckgezogen"
-	ParentMessageRequestCareSchedule      = "care_schedule"
-	ParentMessageRequestStudentMasterData = "student_master_data"
+	ParentMessageRequestStatusOpen      = "offen"
+	ParentMessageRequestStatusDone      = "erledigt"
+	ParentMessageRequestStatusRejected  = "abgelehnt"
+	ParentMessageRequestStatusWithdrawn = "zurueckgezogen"
+	ParentMessageRequestCareSchedule    = "care_schedule"
 )
 
 // ParentMessage is a single message in a child's parent-OGS thread.

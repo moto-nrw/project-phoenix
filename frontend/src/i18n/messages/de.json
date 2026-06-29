@@ -289,11 +289,6 @@
         "label": "Betreuungszeiten dauerhaft ändern",
         "shortLabel": "Betreuungszeiten",
         "hint": "Wochenplan (Mo–Fr) anpassen"
-      },
-      "student_master_data": {
-        "label": "Stammdaten ändern",
-        "shortLabel": "Stammdaten",
-        "hint": "Name, Geburtsdatum oder Kontaktdaten anpassen"
       }
     },
     "request": {
@@ -310,22 +305,6 @@
         "arrival": "Bringzeit",
         "pickup": "Abholzeit",
         "modeAria": "Abholart {day}"
-      },
-      "masterData": {
-        "title": "Stammdaten ändern",
-        "intro": "Die OGS prüft die Änderung und übernimmt sie nach Bestätigung. Nur ausgefüllte Felder werden geändert.",
-        "noField": "Bitte mindestens ein Feld ausfüllen.",
-        "firstName": "Vorname",
-        "firstNamePlaceholder": "Vorname des Kindes",
-        "lastName": "Nachname",
-        "lastNamePlaceholder": "Nachname des Kindes",
-        "birthday": "Geburtsdatum",
-        "email": "E-Mail",
-        "emailPlaceholder": "neue.adresse@example.de",
-        "phone": "Telefon",
-        "phonePlaceholder": "0151 23456789",
-        "note": "Weitere Hinweise",
-        "notePlaceholder": "z. B. neue Anschrift, Notfallkontakt"
       },
       "weekday": {
         "1": "Montag",
@@ -895,7 +874,6 @@
     "readByStaff": "Gelesen",
     "requestWithdraw": "Zurückziehen",
     "requestTypeCareSchedule": "Anfrage: Dauerhafte Betreuungszeiten ändern",
-    "requestTypeMasterData": "Anfrage: Stammdaten ändern",
     "requestTitleFallback": "Anfrage",
     "statusOpen": "Offen",
     "statusDone": "Erledigt",
@@ -903,18 +881,11 @@
     "statusWithdrawn": "Zurückgezogen",
     "eventRequestConfirmed": "Anfrage bestätigt",
     "eventRequestConfirmedCareSchedule": "Anfrage bestätigt, Betreuungszeiten übernommen",
-    "eventRequestConfirmedMasterData": "Anfrage bestätigt, Stammdaten übernommen",
     "eventRequestRejected": "Anfrage abgelehnt",
     "eventRequestRejectedReason": "Anfrage abgelehnt: {reason}",
     "eventRequestWithdrawn": "Anfrage zurückgezogen",
     "diffHeading": "Ihre Änderungswünsche",
     "diffReasonLabel": "Grund",
-    "diffFieldFirstName": "Vorname",
-    "diffFieldLastName": "Nachname",
-    "diffFieldBirthday": "Geburtsdatum",
-    "diffFieldGuardianEmail": "E-Mail",
-    "diffFieldGuardianPhone": "Telefon",
-    "diffFieldExtraInfo": "Hinweise",
     "diffCareArrival": "Bringzeit",
     "diffCarePickup": "Abholzeit",
     "diffCareDepartureMode": "Abholart",

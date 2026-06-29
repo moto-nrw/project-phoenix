@@ -15,7 +15,6 @@ import { useChatViewportLock } from "~/lib/hooks/use-chat-viewport-lock";
 import { getApiErrorMessage } from "~/components/ui/modal-utils";
 import {
   PARENT_DIFF_CARE_KIND_I18N_KEYS,
-  PARENT_DIFF_FIELD_I18N_KEYS,
   parentEventI18nDescriptor,
   parentRequestStatusI18nKey,
   parentRequestTypeI18nKey,
@@ -32,7 +31,6 @@ import {
 } from "~/lib/parent-api";
 import {
   CareScheduleRequestModal,
-  MasterDataRequestModal,
   PickupTimeModal,
   RequestChooserModal,
   SickNoteModal,
@@ -215,10 +213,7 @@ export function OgsConversation({
   // performs the API call and updates the thread. Throwing propagates back to
   // the modal so it can surface the message and stay open.
   const submitRequest = useCallback(
-    async (
-      type: "care_schedule" | "student_master_data",
-      payload: Record<string, unknown>,
-    ) => {
+    async (type: "care_schedule", payload: Record<string, unknown>) => {
       const view = await createChildRequest(studentId, type, payload);
       // Claim the token AFTER the request resolves so this authoritative result wins.
       applyThread(++applySeqRef.current, view);
@@ -415,12 +410,6 @@ export function OgsConversation({
           onSubmit={(payload) => submitRequest("care_schedule", payload)}
         />
       )}
-      {activeModal === "student_master_data" && (
-        <MasterDataRequestModal
-          onClose={() => setActiveModal(null)}
-          onSubmit={(payload) => submitRequest("student_master_data", payload)}
-        />
-      )}
     </div>
   );
 }
@@ -430,15 +419,11 @@ function RequestItem({
   onWithdraw,
 }: Readonly<{ message: ParentMessage; onWithdraw: () => void }>) {
   const t = useTranslations("parentOgsMessaging");
-  // The backend builds each diff label as a German string ("Vorname",
-  // "Montag · Bringzeit"). Re-derive it from the entry's structured fields so it
-  // renders in the guardian's language; fall back to the German label only when
-  // the backend sent no structured discriminators (legacy payloads).
+  // The backend builds each diff label as a German string ("Montag ·
+  // Bringzeit"). Re-derive it from the entry's structured fields so it renders
+  // in the guardian's language; fall back to the German label only when the
+  // backend sent no structured discriminators (legacy payloads).
   const localizeDiffLabel = (entry: RequestDiffEntry): string => {
-    const fieldKey = entry.field_key
-      ? PARENT_DIFF_FIELD_I18N_KEYS[entry.field_key]
-      : undefined;
-    if (fieldKey) return t(fieldKey);
     const careKey = entry.care_kind
       ? PARENT_DIFF_CARE_KIND_I18N_KEYS[entry.care_kind]
       : undefined;

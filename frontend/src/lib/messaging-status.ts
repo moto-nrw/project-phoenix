@@ -11,20 +11,16 @@
  */
 
 /** Who sent a message: the guardian, the OGS staff, or a system event. */
-export type MessageSenderKind = "guardian" | "staff" | "system";
+type MessageSenderKind = "guardian" | "staff" | "system";
 
 /** A timeline entry kind: a plain message, a system event, or a request. */
 export type MessageKind = "message" | "event" | "request";
 
 /** The structured change-request types a guardian can submit. */
-export type RequestType = "care_schedule" | "student_master_data";
+type RequestType = "care_schedule";
 
 /** The lifecycle status of a parent-OGS change request. */
-export type RequestStatus =
-  | "offen"
-  | "erledigt"
-  | "abgelehnt"
-  | "zurueckgezogen";
+type RequestStatus = "offen" | "erledigt" | "abgelehnt" | "zurueckgezogen";
 
 /**
  * One field a still-open request would change, rendered "current → requested".
@@ -36,10 +32,9 @@ export interface RequestDiffEntry {
   readonly new: string;
   // Structured discriminators the backend sends so the localized parents portal
   // can render the label in the guardian's language instead of the German
-  // `label` (authoritative only for the German-only staff portal). `field_key`
-  // is set for master-data rows; `weekday` (1-5) + `care_kind` for care-schedule
-  // rows. Absent on the staff side / legacy payloads → fall back to `label`.
-  readonly field_key?: string;
+  // `label` (authoritative only for the German-only staff portal). `weekday`
+  // (1-5) + `care_kind` identify a care-schedule row. Absent on the staff side /
+  // legacy payloads → fall back to `label`.
   readonly weekday?: number;
   readonly care_kind?: "arrival" | "pickup" | "departure_mode";
 }
@@ -93,7 +88,6 @@ const PARENT_STATUS_I18N_KEYS: Record<RequestStatus, string> = {
 
 const PARENT_REQUEST_TYPE_I18N_KEYS: Record<RequestType, string> = {
   care_schedule: "requestTypeCareSchedule",
-  student_master_data: "requestTypeMasterData",
 };
 
 /** German label for the German-only staff portal. Unknown → "Offen". */
@@ -127,20 +121,11 @@ export function parentRequestTypeI18nKey(requestType?: string): string {
 }
 
 /**
- * next-intl keys (parentOgsMessaging namespace) for a diff entry's label on the
- * localized parents portal, keyed by the backend's structured discriminators so
- * the German `label` is never shown to a non-German guardian. Care-schedule rows
- * compose a weekday key (`diffWeekday{1..5}`) with one of these.
+ * next-intl keys (parentOgsMessaging namespace) for a care-schedule diff entry's
+ * label on the localized parents portal, keyed by the backend's `care_kind`
+ * discriminator so the German `label` is never shown to a non-German guardian.
+ * Care-schedule rows compose a weekday key (`diffWeekday{1..5}`) with one of these.
  */
-export const PARENT_DIFF_FIELD_I18N_KEYS: Record<string, string> = {
-  first_name: "diffFieldFirstName",
-  last_name: "diffFieldLastName",
-  birthday: "diffFieldBirthday",
-  guardian_email: "diffFieldGuardianEmail",
-  guardian_phone: "diffFieldGuardianPhone",
-  extra_info: "diffFieldExtraInfo",
-};
-
 export const PARENT_DIFF_CARE_KIND_I18N_KEYS: Record<string, string> = {
   arrival: "diffCareArrival",
   pickup: "diffCarePickup",
@@ -174,9 +159,6 @@ export function parentEventI18nDescriptor(message: {
     case "erledigt":
       if (message.request_type === "care_schedule") {
         return { key: "eventRequestConfirmedCareSchedule" };
-      }
-      if (message.request_type === "student_master_data") {
-        return { key: "eventRequestConfirmedMasterData" };
       }
       return { key: "eventRequestConfirmed" };
     case "abgelehnt":

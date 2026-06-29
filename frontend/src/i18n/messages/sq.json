@@ -289,11 +289,6 @@
         "label": "Ndrysho përgjithmonë oraret e kujdesit",
         "shortLabel": "Oraret e kujdesit",
         "hint": "Përshtatni planin javor (Hën–Pre)"
-      },
-      "student_master_data": {
-        "label": "Ndrysho të dhënat bazë",
-        "shortLabel": "Të dhënat bazë",
-        "hint": "Përshtatni emrin, datëlindjen ose të dhënat e kontaktit"
       }
     },
     "request": {
@@ -310,22 +305,6 @@
         "arrival": "Ora e ardhjes",
         "pickup": "Ora e marrjes",
         "modeAria": "Mënyra e largimit {day}"
-      },
-      "masterData": {
-        "title": "Ndrysho të dhënat bazë",
-        "intro": "Institucioni shqyrton ndryshimin dhe e zbaton pas konfirmimit. Ndryshohen vetëm fushat e plotësuara.",
-        "noField": "Ju lutemi plotësoni të paktën një fushë.",
-        "firstName": "Emri",
-        "firstNamePlaceholder": "Emri i fëmijës",
-        "lastName": "Mbiemri",
-        "lastNamePlaceholder": "Mbiemri i fëmijës",
-        "birthday": "Datëlindja",
-        "email": "Email",
-        "emailPlaceholder": "new.address@example.com",
-        "phone": "Telefoni",
-        "phonePlaceholder": "+49 151 23456789",
-        "note": "Shënime shtesë",
-        "notePlaceholder": "p.sh. adresë e re, kontakt urgjence"
       },
       "weekday": {
         "1": "E hënë",
@@ -895,7 +874,6 @@
     "readByStaff": "Lexuar",
     "requestWithdraw": "Tërhiqe",
     "requestTypeCareSchedule": "Kërkesë: Ndrysho oraret e rregullta të kujdesit",
-    "requestTypeMasterData": "Kërkesë: Ndrysho të dhënat personale",
     "requestTitleFallback": "Kërkesë",
     "statusOpen": "E hapur",
     "statusDone": "E përfunduar",
@@ -903,18 +881,11 @@
     "statusWithdrawn": "E tërhequr",
     "eventRequestConfirmed": "Kërkesa u konfirmua",
     "eventRequestConfirmedCareSchedule": "Kërkesa u konfirmua, oraret e kujdesit u zbatuan",
-    "eventRequestConfirmedMasterData": "Kërkesa u konfirmua, të dhënat personale u përditësuan",
     "eventRequestRejected": "Kërkesa u refuzua",
     "eventRequestRejectedReason": "Kërkesa u refuzua: {reason}",
     "eventRequestWithdrawn": "Kërkesa u tërhoq",
     "diffHeading": "Ndryshimet tuaja të kërkuara",
     "diffReasonLabel": "Arsyeja",
-    "diffFieldFirstName": "Emri",
-    "diffFieldLastName": "Mbiemri",
-    "diffFieldBirthday": "Data e lindjes",
-    "diffFieldGuardianEmail": "Email",
-    "diffFieldGuardianPhone": "Telefoni",
-    "diffFieldExtraInfo": "Shënime",
     "diffCareArrival": "Ora e ardhjes",
     "diffCarePickup": "Ora e marrjes",
     "diffCareDepartureMode": "Mënyra e largimit",

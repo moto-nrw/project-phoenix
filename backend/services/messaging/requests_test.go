@@ -106,55 +106,8 @@ func TestApplyCareScheduleRequest_MergesPreservingOtherDays(t *testing.T) {
 	assert.Equal(t, "08:15", byDay[1], "Monday must be added")
 }
 
-func TestApplyStudentMasterDataRequest_UpdatesPersonAndStudent(t *testing.T) {
-	svc, sf, db, ctx := newApplyService(t)
-	student := testpkg.CreateTestStudent(t, db, "Old", "Name", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
-
-	req := &usersModels.ParentMessage{
-		StudentID:   student.ID,
-		RequestType: usersModels.ParentMessageRequestStudentMasterData,
-		Payload: map[string]any{"fields": map[string]any{
-			"first_name":     "Neu",
-			"birthday":       "2018-05-04",
-			"guardian_phone": "0151 99",
-		}},
-	}
-	require.NoError(t, svc.ApplyStudentMasterData(ctx, req))
-
-	person, err := sf.Users.Get(ctx, student.PersonID)
-	require.NoError(t, err)
-	assert.Equal(t, "Neu", person.FirstName)
-	require.NotNil(t, person.Birthday)
-	assert.Equal(t, "2018-05-04", person.Birthday.String())
-
-	reloaded, err := sf.Users.GetStudentByID(ctx, student.ID)
-	require.NoError(t, err)
-	require.NotNil(t, reloaded.GuardianPhone)
-	assert.Equal(t, "0151 99", *reloaded.GuardianPhone)
-}
-
 func TestValidateRequestPayload(t *testing.T) {
-	md := usersModels.ParentMessageRequestStudentMasterData
 	cs := usersModels.ParentMessageRequestCareSchedule
-
-	// Master data: disallowed field, empty name → error; valid → ok.
-	require.Error(t, messaging.ValidateRequestPayload(md,
-		map[string]any{"fields": map[string]any{"health_info": "x"}}))
-	require.Error(t, messaging.ValidateRequestPayload(md,
-		map[string]any{"fields": map[string]any{"first_name": ""}}))
-	// Contact fields are validated with the SAME canonical rules Student.Validate
-	// applies on apply, so a malformed value is rejected at create time instead of
-	// being accepted and then 500ing every staff ConfirmRequest. ("012" is too short
-	// for the canonical phone pattern; an empty value clears the field and is ok.)
-	require.Error(t, messaging.ValidateRequestPayload(md,
-		map[string]any{"fields": map[string]any{"guardian_phone": "012"}}))
-	require.Error(t, messaging.ValidateRequestPayload(md,
-		map[string]any{"fields": map[string]any{"guardian_email": "not-an-email"}}))
-	require.NoError(t, messaging.ValidateRequestPayload(md,
-		map[string]any{"fields": map[string]any{"guardian_phone": "0151 99"}}))
-	require.NoError(t, messaging.ValidateRequestPayload(md,
-		map[string]any{"fields": map[string]any{"guardian_email": "anna@example.com"}}))
 
 	// Care schedule: bad weekday, bad time, no changes → error; valid → ok.
 	require.Error(t, messaging.ValidateRequestPayload(cs,
@@ -172,25 +125,11 @@ func TestValidateRequestPayload(t *testing.T) {
 // collapsed to one canonical entry, so a direct API client cannot store ignored
 // junk that every later thread load would echo back.
 func TestCanonicalizeRequestPayload(t *testing.T) {
-	md := usersModels.ParentMessageRequestStudentMasterData
 	cs := usersModels.ParentMessageRequestCareSchedule
-
-	// Master data: a valid field plus an unknown sibling key → the sibling is
-	// dropped, only {"fields": {...}} survives.
-	out, err := messaging.CanonicalizeRequestPayload(md, map[string]any{
-		"fields":  map[string]any{"first_name": "Anna"},
-		"garbage": "ignored",
-		"bloat":   []any{1, 2, 3},
-	})
-	require.NoError(t, err)
-	assert.Equal(t, []string{"fields"}, keysOf(out))
-	fields, ok := out["fields"].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, map[string]any{"first_name": "Anna"}, fields)
 
 	// Care schedule: duplicate Monday entries (last value wins per aspect) plus an
 	// unknown key → exactly one Monday entry, no unknown keys.
-	out, err = messaging.CanonicalizeRequestPayload(cs, map[string]any{
+	out, err := messaging.CanonicalizeRequestPayload(cs, map[string]any{
 		"weekdays": []any{
 			map[string]any{"weekday": 1, "arrival": "08:00"},
 			map[string]any{"weekday": 1, "arrival": "09:00"},
@@ -246,26 +185,4 @@ func TestCareScheduleDiff_ShowsCurrentVsRequested(t *testing.T) {
 	assert.Equal(t, "08:00", byLabel["Montag · Bringzeit"].New)
 	assert.Equal(t, "Geht alleine", byLabel["Montag · Abholart"].Old)
 	assert.Equal(t, "Wird abgeholt", byLabel["Montag · Abholart"].New)
-}
-
-func TestApplyStudentMasterDataRequest_RejectsDisallowedAndEmpty(t *testing.T) {
-	svc, _, db, ctx := newApplyService(t)
-	student := testpkg.CreateTestStudent(t, db, "Keep", "Name", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
-
-	disallowed := &usersModels.ParentMessage{
-		StudentID:   student.ID,
-		RequestType: usersModels.ParentMessageRequestStudentMasterData,
-		Payload:     map[string]any{"fields": map[string]any{"health_info": "Allergie"}},
-	}
-	require.Error(t, svc.ApplyStudentMasterData(ctx, disallowed),
-		"health_info (Art. 9) must be rejected")
-
-	empty := &usersModels.ParentMessage{
-		StudentID:   student.ID,
-		RequestType: usersModels.ParentMessageRequestStudentMasterData,
-		Payload:     map[string]any{"fields": map[string]any{"first_name": ""}},
-	}
-	require.Error(t, svc.ApplyStudentMasterData(ctx, empty),
-		"empty name must be rejected")
 }

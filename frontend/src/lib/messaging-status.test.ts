@@ -78,9 +78,6 @@ describe("parentRequestTypeI18nKey", () => {
     expect(parentRequestTypeI18nKey("care_schedule")).toBe(
       "requestTypeCareSchedule",
     );
-    expect(parentRequestTypeI18nKey("student_master_data")).toBe(
-      "requestTypeMasterData",
-    );
   });
 
   it("falls back to a generic key for unknown/absent types", () => {
@@ -108,17 +105,6 @@ describe("parentEventI18nDescriptor", () => {
         request_type: "care_schedule",
       }),
     ).toEqual({ key: "eventRequestConfirmedCareSchedule" });
-  });
-
-  it("maps a confirmed master-data request to its localized key", () => {
-    expect(
-      parentEventI18nDescriptor({
-        kind: "event",
-        event_type: "request_status",
-        request_status: "erledigt",
-        request_type: "student_master_data",
-      }),
-    ).toEqual({ key: "eventRequestConfirmedMasterData" });
   });
 
   it("falls back to a generic confirmed key for an unknown request type", () => {

@@ -42,10 +42,6 @@ func (t *TestApplyService) ApplyCareSchedule(ctx context.Context, req *usersMode
 	return applyCareScheduleRequest(ctx, t.svc, req, 0)
 }
 
-func (t *TestApplyService) ApplyStudentMasterData(ctx context.Context, req *usersModels.ParentMessage) error {
-	return applyStudentMasterDataRequest(ctx, t.svc, req, 0)
-}
-
 func (t *TestApplyService) CareScheduleDiff(ctx context.Context, studentID int64, payload map[string]any) ([]RequestDiffEntry, error) {
 	// Call the real shared entry point directly (the careScheduleDiff forwarder
 	// was removed — it existed only for this test, conventions Rule 5/8).

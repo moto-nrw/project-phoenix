@@ -10,7 +10,7 @@
 
 import { createLogger } from "~/lib/logger";
 import type { AppLocale } from "~/i18n/locales";
-import type { ChatMessage, RequestDiffEntry } from "~/lib/messaging-status";
+import type { ChatMessage } from "~/lib/messaging-status";
 import type {
   MeProfileResponse,
   SubmitEnrollmentPayload,
@@ -461,7 +461,6 @@ export async function listSickDays(studentId: string): Promise<StatusDay[]> {
 // `sender_name` is the "OGS [Schulname]" label.
 // The wire message shape is shared with the staff client; see ChatMessage.
 export type ParentMessage = ChatMessage;
-export type { RequestDiffEntry };
 
 // One row on the messages landing page: a child's conversation, with the
 // guardian's unread (staff-sent) count and last-activity metadata.
@@ -553,7 +552,7 @@ export async function postChildMessage(
  */
 export async function createChildRequest(
   studentId: string,
-  requestType: "care_schedule" | "student_master_data",
+  requestType: "care_schedule",
   payload: Record<string, unknown>,
 ): Promise<ThreadView> {
   return postJson<ThreadView>(

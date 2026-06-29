@@ -289,11 +289,6 @@
         "label": "Change care times permanently",
         "shortLabel": "Care times",
         "hint": "Adjust the weekly schedule (Mon–Fri)"
-      },
-      "student_master_data": {
-        "label": "Change master data",
-        "shortLabel": "Master data",
-        "hint": "Adjust name, date of birth or contact details"
       }
     },
     "request": {
@@ -310,22 +305,6 @@
         "arrival": "Arrival time",
         "pickup": "Pickup time",
         "modeAria": "Departure mode {day}"
-      },
-      "masterData": {
-        "title": "Change master data",
-        "intro": "The school reviews the change and applies it after confirmation. Only filled-in fields are changed.",
-        "noField": "Please fill in at least one field.",
-        "firstName": "First name",
-        "firstNamePlaceholder": "First name of the child",
-        "lastName": "Last name",
-        "lastNamePlaceholder": "Last name of the child",
-        "birthday": "Date of birth",
-        "email": "Email",
-        "emailPlaceholder": "new.address@example.com",
-        "phone": "Phone",
-        "phonePlaceholder": "+49 151 23456789",
-        "note": "Additional notes",
-        "notePlaceholder": "e.g. new address, emergency contact"
       },
       "weekday": {
         "1": "Monday",
@@ -895,7 +874,6 @@
     "readByStaff": "Read",
     "requestWithdraw": "Withdraw",
     "requestTypeCareSchedule": "Request: Change recurring care times",
-    "requestTypeMasterData": "Request: Change personal data",
     "requestTitleFallback": "Request",
     "statusOpen": "Open",
     "statusDone": "Done",
@@ -903,18 +881,11 @@
     "statusWithdrawn": "Withdrawn",
     "eventRequestConfirmed": "Request confirmed",
     "eventRequestConfirmedCareSchedule": "Request confirmed, care times applied",
-    "eventRequestConfirmedMasterData": "Request confirmed, personal data updated",
     "eventRequestRejected": "Request rejected",
     "eventRequestRejectedReason": "Request rejected: {reason}",
     "eventRequestWithdrawn": "Request withdrawn",
     "diffHeading": "Your requested changes",
     "diffReasonLabel": "Reason",
-    "diffFieldFirstName": "First name",
-    "diffFieldLastName": "Last name",
-    "diffFieldBirthday": "Date of birth",
-    "diffFieldGuardianEmail": "Email",
-    "diffFieldGuardianPhone": "Phone",
-    "diffFieldExtraInfo": "Notes",
     "diffCareArrival": "Arrival time",
     "diffCarePickup": "Pickup time",
     "diffCareDepartureMode": "Departure type",

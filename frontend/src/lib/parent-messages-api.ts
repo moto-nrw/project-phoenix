@@ -8,12 +8,11 @@
  * Go backend with the staff JWT. Backend int64 ids arrive already stringified.
  */
 
-import type { ChatMessage, RequestDiffEntry } from "~/lib/messaging-status";
+import type { ChatMessage } from "~/lib/messaging-status";
 import { getRelationshipTypeLabel } from "~/lib/guardian-helpers";
 
 // The wire message shape is shared with the parent client; see ChatMessage.
 export type Message = ChatMessage;
-export type { RequestDiffEntry };
 
 export interface InboxThread {
   thread_id: string;

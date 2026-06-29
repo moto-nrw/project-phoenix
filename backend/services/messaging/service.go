@@ -59,7 +59,7 @@ var (
 	ErrInvalidRequestStatus = errors.New("messaging: invalid request status transition")
 	// ErrRejectReasonRequired means staff rejected without a reason.
 	ErrRejectReasonRequired = errors.New("messaging: reject reason is required")
-	// ErrRejectReasonTooLong means the reject reason exceeded maxMasterDataFieldLen.
+	// ErrRejectReasonTooLong means the reject reason exceeded maxFreeTextLen.
 	ErrRejectReasonTooLong = errors.New("messaging: reject reason too long")
 	// ErrRequestNoLongerPossible means confirm revalidation/apply failed.
 	ErrRequestNoLongerPossible = errors.New("messaging: request is no longer possible")
@@ -134,10 +134,9 @@ type RequestDiffEntry struct {
 	New   string
 	// Structured discriminators that let a localized client (the parents portal)
 	// render the label in its own language instead of the German Label, which is
-	// authoritative only for the German-only staff portal. FieldKey is set for
-	// master-data rows; Weekday (1-5) + CareKind for care-schedule rows. Older
-	// clients ignore them and keep showing Label.
-	FieldKey string
+	// authoritative only for the German-only staff portal. Weekday (1-5) +
+	// CareKind identify a care-schedule row. Older clients ignore them and keep
+	// showing Label.
 	Weekday  int
 	CareKind string
 }

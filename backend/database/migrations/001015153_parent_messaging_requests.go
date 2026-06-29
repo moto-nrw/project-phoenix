@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	parentMessagingRequestsVersion     = "1.15.151"
+	parentMessagingRequestsVersion     = "1.15.153"
 	parentMessagingRequestsDescription = "Extend parent messaging rows with events and structured requests"
 )
 
@@ -32,7 +32,7 @@ func init() {
 }
 
 func parentMessagingRequestsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.151: Extending parent messaging for events and requests...")
+	fmt.Println("Migration 1.15.153: Extending parent messaging for events and requests...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -91,7 +91,7 @@ func parentMessagingRequestsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func parentMessagingRequestsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.151: Removing parent messaging request fields...")
+	fmt.Println("Rolling back migration 1.15.153: Removing parent messaging request fields...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {

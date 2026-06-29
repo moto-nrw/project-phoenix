@@ -20,44 +20,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// maxMasterDataFieldLen bounds any single free-text master-data field value (in
-// runes) submitted in a change request, so a direct API client cannot persist an
-// unbounded payload. Matches the message-body limit.
-const maxMasterDataFieldLen = 2000
-
-// studentMasterDataField describes one parent-editable child master-data field.
-// This ordered table is the SINGLE source of truth for the field set: the
-// create-time allowlist, the confirm-time apply switch (guarded by its default
-// case), and the staff/parent diff order+labels all derive from it, so adding
-// or renaming a field is a one-line change here instead of four parallel edits.
-//
-// first_name/last_name/birthday live on the Person, the rest on the Student.
-// Medical/health (health_info), consent and internal staff-only fields
-// (supervisor_notes) plus operational fields (group, class, tag, photo consent)
-// are deliberately excluded — health_info is Art. 9 GDPR data and the operational
-// fields are not the parent's to change.
-type studentMasterDataField struct {
-	Key   string
-	Label string // German diff label
-}
-
-var studentMasterDataFields = []studentMasterDataField{
-	{Key: "first_name", Label: "Vorname"},
-	{Key: "last_name", Label: "Nachname"},
-	{Key: "birthday", Label: "Geburtsdatum"},
-	{Key: "guardian_email", Label: "E-Mail"},
-	{Key: "guardian_phone", Label: "Telefon"},
-	{Key: "extra_info", Label: "Hinweise"},
-}
-
-func isAllowedStudentMasterDataField(field string) bool {
-	for _, f := range studentMasterDataFields {
-		if f.Key == field {
-			return true
-		}
-	}
-	return false
-}
+// maxFreeTextLen bounds a single free-text field (in runes) — currently the
+// staff reject reason — so a direct API client cannot persist an unbounded
+// payload. Matches the message-body limit.
+const maxFreeTextLen = 2000
 
 // requestHandler is the SINGLE per-request-type behavior table. Every aspect
 // of a request type lives here — the immutable guardian-facing body, the
@@ -94,15 +60,6 @@ var parentMessageRequestRegistry = map[string]requestHandler{
 		canonicalize: canonicalizeCareSchedulePayload,
 		diff:         (*service).careScheduleDiffFrom,
 		auditSummary: careScheduleAuditSummary,
-	},
-	usersModels.ParentMessageRequestStudentMasterData: {
-		requestBody:  "Anfrage: Stammdaten ändern",
-		confirmBody:  "Anfrage bestätigt, Stammdaten übernommen",
-		apply:        applyStudentMasterDataRequest,
-		validate:     validateMasterDataPayload,
-		canonicalize: canonicalizeMasterDataPayload,
-		diff:         (*service).masterDataDiffFrom,
-		auditSummary: masterDataAuditSummary,
 	},
 }
 
@@ -180,10 +137,6 @@ func (c careScheduleChanges) toCanonicalPayload() careSchedulePayload {
 		}
 	}
 	return careSchedulePayload{Weekdays: weekdays}
-}
-
-type studentMasterDataPayload struct {
-	Fields map[string]*string `json:"fields"`
 }
 
 func decodePayload[T any](payload map[string]any) (T, error) {
@@ -278,7 +231,7 @@ func (s *service) RejectRequest(ctx context.Context, requestID int64, reason str
 	// this directly, so an unbounded reason would be persisted as decision_reason
 	// AND duplicated into the system-event body, making every later thread load
 	// carry the payload. Count runes so German umlauts are not penalized.
-	if utf8.RuneCountInString(reason) > maxMasterDataFieldLen {
+	if utf8.RuneCountInString(reason) > maxFreeTextLen {
 		return nil, ErrRejectReasonTooLong
 	}
 	// The request row is re-read under the lock below; the initial load is used
@@ -622,125 +575,6 @@ func (s *service) applyPickupChanges(ctx context.Context, studentID, staffID int
 	return s.pickup.UpsertBulkStudentPickupSchedules(ctx, studentID, merged)
 }
 
-func applyStudentMasterDataRequest(ctx context.Context, s *service, request *usersModels.ParentMessage, _ int64) error {
-	if s.students == nil || s.persons == nil {
-		return errors.New("student/person service not configured")
-	}
-	payload, err := decodePayload[studentMasterDataPayload](request.Payload)
-	if err != nil {
-		return err
-	}
-	if len(payload.Fields) == 0 {
-		return errors.New("no fields to apply")
-	}
-	student, err := s.students.GetByIDForUpdate(ctx, request.StudentID)
-	if err != nil {
-		return err
-	}
-
-	// Person fields (name, birthday) are loaded lazily — only when the request
-	// actually touches one — to avoid an unnecessary read for contact-only
-	// changes.
-	var person *usersModels.Person
-	loadPerson := func() error {
-		if person != nil {
-			return nil
-		}
-		p, err := s.persons.Get(ctx, student.PersonID)
-		if err != nil {
-			return err
-		}
-		if p == nil {
-			return errors.New("person not found")
-		}
-		person = p
-		return nil
-	}
-
-	personChanged, studentChanged := false, false
-	for field, value := range payload.Fields {
-		if !isAllowedStudentMasterDataField(field) {
-			return fmt.Errorf("field %q is not allowed", field)
-		}
-		switch field {
-		case "first_name", "last_name":
-			name := ""
-			if value != nil {
-				name = strings.TrimSpace(*value)
-			}
-			if name == "" {
-				return fmt.Errorf("field %q must not be empty", field)
-			}
-			if err := loadPerson(); err != nil {
-				return err
-			}
-			if field == "first_name" {
-				person.FirstName = name
-			} else {
-				person.LastName = name
-			}
-			personChanged = true
-		case "birthday":
-			if err := loadPerson(); err != nil {
-				return err
-			}
-			if value == nil || strings.TrimSpace(*value) == "" {
-				person.Birthday = nil
-			} else {
-				d, err := timezone.ParseDate(strings.TrimSpace(*value))
-				if err != nil {
-					return fmt.Errorf("invalid birthday: %w", err)
-				}
-				person.Birthday = &d
-			}
-			personChanged = true
-		case "guardian_email":
-			student.GuardianEmail = normalizedStringPtr(value)
-			studentChanged = true
-		case "guardian_phone":
-			student.GuardianPhone = normalizedStringPtr(value)
-			studentChanged = true
-		case "extra_info":
-			student.ExtraInfo = normalizedStringPtr(value)
-			studentChanged = true
-		default:
-			// The field passed the allowlist (studentMasterDataFields) but has no
-			// apply branch here — fail loudly rather than silently no-op, so a
-			// newly-added field can never validate-but-never-apply.
-			return fmt.Errorf("field %q has no apply handler", field)
-		}
-	}
-
-	if studentChanged {
-		if err := student.Validate(); err != nil {
-			return err
-		}
-		if err := s.students.Update(ctx, student); err != nil {
-			return err
-		}
-	}
-	if personChanged {
-		if err := person.Validate(); err != nil {
-			return err
-		}
-		if err := s.persons.Update(ctx, person); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func normalizedStringPtr(value *string) *string {
-	if value == nil {
-		return nil
-	}
-	trimmed := strings.TrimSpace(*value)
-	if trimmed == "" {
-		return nil
-	}
-	return &trimmed
-}
-
 func confirmEventBody(requestType string) string {
 	if h, ok := parentMessageRequestRegistry[requestType]; ok && h.confirmBody != "" {
 		return h.confirmBody
@@ -774,19 +608,6 @@ func auditChangeSummary(request *usersModels.ParentMessage) string {
 		return h.auditSummary(request)
 	}
 	return ""
-}
-
-func masterDataAuditSummary(request *usersModels.ParentMessage) string {
-	p, err := decodePayload[studentMasterDataPayload](request.Payload)
-	if err != nil {
-		return ""
-	}
-	keys := make([]string, 0, len(p.Fields))
-	for k := range p.Fields {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return strings.Join(keys, ",")
 }
 
 func careScheduleAuditSummary(request *usersModels.ParentMessage) string {
@@ -845,9 +666,9 @@ func (s *service) BuildRequestDiffs(ctx context.Context, studentID int64, messag
 
 // diffSource lazily loads and memoizes the student records a request diff
 // compares against. Each getter loads its record at most once, so building the
-// diffs for several open requests in one thread (e.g. a care-schedule and a
-// master-data request) reads the student a single time. Not safe to reuse
-// across BuildRequestDiffs calls — the values must be live per load.
+// diffs for several open care-schedule requests in one thread reads the student
+// a single time. Not safe to reuse across BuildRequestDiffs calls — the values
+// must be live per load.
 type diffSource struct {
 	s         *service
 	studentID int64
@@ -855,10 +676,6 @@ type diffSource struct {
 	student     *usersModels.Student
 	studentErr  error
 	studentDone bool
-
-	person     *usersModels.Person
-	personErr  error
-	personDone bool
 
 	arrivalMap  map[int]string
 	arrivalDone bool
@@ -878,21 +695,6 @@ func (d *diffSource) getStudent(ctx context.Context) (*usersModels.Student, erro
 		}
 	}
 	return d.student, d.studentErr
-}
-
-func (d *diffSource) getPerson(ctx context.Context) (*usersModels.Person, error) {
-	if !d.personDone {
-		d.personDone = true
-		student, err := d.getStudent(ctx)
-		if err != nil {
-			d.personErr = err
-		} else if person, err := d.s.persons.Get(ctx, student.PersonID); err != nil || person == nil {
-			d.personErr = fmt.Errorf("messaging: load person for diff: %w", err)
-		} else {
-			d.person = person
-		}
-	}
-	return d.person, d.personErr
 }
 
 // getArrival / getPickup are best-effort: a load failure yields an empty map so
@@ -922,53 +724,6 @@ func (d *diffSource) getPickup(ctx context.Context) map[int]string {
 		}
 	}
 	return d.pickupMap
-}
-
-func (s *service) masterDataDiffFrom(ctx context.Context, src *diffSource, payload map[string]any) ([]RequestDiffEntry, error) {
-	p, err := decodePayload[studentMasterDataPayload](payload)
-	if err != nil {
-		return nil, err
-	}
-	student, err := src.getStudent(ctx)
-	if err != nil {
-		return nil, err
-	}
-	person, err := src.getPerson(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	var entries []RequestDiffEntry
-	for _, f := range studentMasterDataFields {
-		val, ok := p.Fields[f.Key]
-		if !ok {
-			continue
-		}
-		var oldVal string
-		switch f.Key {
-		case "first_name":
-			oldVal = person.FirstName
-		case "last_name":
-			oldVal = person.LastName
-		case "birthday":
-			if person.Birthday != nil {
-				oldVal = person.Birthday.String()
-			}
-		case "guardian_email":
-			oldVal = derefString(student.GuardianEmail)
-		case "guardian_phone":
-			oldVal = derefString(student.GuardianPhone)
-		case "extra_info":
-			oldVal = derefString(student.ExtraInfo)
-		}
-		entries = append(entries, RequestDiffEntry{
-			Label:    f.Label,
-			Old:      dashIfEmpty(oldVal),
-			New:      dashIfEmpty(strings.TrimSpace(derefString(val))),
-			FieldKey: f.Key,
-		})
-	}
-	return entries, nil
 }
 
 func (s *service) careScheduleDiffFrom(ctx context.Context, src *diffSource, payload map[string]any) ([]RequestDiffEntry, error) {
@@ -1138,67 +893,6 @@ func canonicalizeCareSchedulePayload(payload map[string]any) (map[string]any, er
 	return structToMap(changes.toCanonicalPayload())
 }
 
-func validateMasterDataPayload(payload map[string]any) error {
-	_, err := canonicalizeMasterDataPayload(payload)
-	return err
-}
-
-// canonicalizeMasterDataPayload validates and returns the sanitized payload to
-// persist. After validation it re-marshals the typed struct, so unknown sibling
-// keys a direct API client appended alongside "fields" are dropped and only the
-// canonical {"fields": {...}} shape reaches storage.
-func canonicalizeMasterDataPayload(payload map[string]any) (map[string]any, error) {
-	p, err := decodePayload[studentMasterDataPayload](payload)
-	if err != nil {
-		return nil, ErrInvalidRequestPayload
-	}
-	if len(p.Fields) == 0 {
-		return nil, fmt.Errorf("%w: no fields", ErrInvalidRequestPayload)
-	}
-	for field, value := range p.Fields {
-		if !isAllowedStudentMasterDataField(field) {
-			return nil, fmt.Errorf("%w: field %q not allowed", ErrInvalidRequestPayload, field)
-		}
-		// Bound every free-text value so a direct API client cannot persist a
-		// multi-megabyte payload (notably extra_info, which neither Student.Validate
-		// nor any other layer length-caps). Matches maxMessageLen / the old
-		// maxParentNoteLen note limit; count runes, not bytes, so German umlauts are
-		// not penalized.
-		if value != nil && utf8.RuneCountInString(*value) > maxMasterDataFieldLen {
-			return nil, fmt.Errorf("%w: %q too long", ErrInvalidRequestPayload, field)
-		}
-		switch field {
-		case "first_name", "last_name":
-			if value == nil || strings.TrimSpace(*value) == "" {
-				return nil, fmt.Errorf("%w: %q must not be empty", ErrInvalidRequestPayload, field)
-			}
-		case "birthday":
-			if value != nil && strings.TrimSpace(*value) != "" {
-				if _, err := timezone.ParseDate(strings.TrimSpace(*value)); err != nil {
-					return nil, fmt.Errorf("%w: birthday", ErrInvalidRequestPayload)
-				}
-			}
-		case "guardian_email":
-			// Validate at create time with the SAME canonical rule Student.Validate
-			// applies on apply, so an invalid value is rejected up front (4xx) instead
-			// of being accepted, then 500ing every staff ConfirmRequest and leaving the
-			// request stuck open and unconfirmable. Empty is allowed (clears the field).
-			if value != nil {
-				if err := usersModels.ValidateOptionalEmail(*value); err != nil {
-					return nil, fmt.Errorf("%w: guardian_email", ErrInvalidRequestPayload)
-				}
-			}
-		case "guardian_phone":
-			if value != nil {
-				if err := usersModels.ValidateOptionalPhone(*value); err != nil {
-					return nil, fmt.Errorf("%w: guardian_phone", ErrInvalidRequestPayload)
-				}
-			}
-		}
-	}
-	return structToMap(p)
-}
-
 // germanAllowedDepartureModes renders a day's allowed departure modes (the
 // non-exclusive source of truth the apply path writes) as a combined German
 // label, e.g. "Fährt Bus / Wird abgeholt". An empty set means the child goes
@@ -1212,13 +906,6 @@ func germanAllowedDepartureModes(modes []usersModels.DepartureMode) string {
 		parts = append(parts, m.GermanLabel())
 	}
 	return strings.Join(parts, " / ")
-}
-
-func derefString(p *string) string {
-	if p == nil {
-		return ""
-	}
-	return *p
 }
 
 func dashIfEmpty(s string) string {
