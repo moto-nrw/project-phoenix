@@ -95,9 +95,6 @@ vi.mock("./header/breadcrumb-components", () => ({
   ActiveSupervisionsBreadcrumb: () => (
     <div data-testid="active-supervisions-breadcrumb">Active</div>
   ),
-  ActivityBreadcrumb: () => (
-    <div data-testid="activity-breadcrumb">Activity</div>
-  ),
   RoomBreadcrumb: () => <div data-testid="room-breadcrumb">Room</div>,
   StudentHistoryBreadcrumb: () => (
     <div data-testid="student-history-breadcrumb">History</div>
@@ -121,8 +118,6 @@ vi.mock("./header/breadcrumb-utils", () => ({
   getPageTypeInfo: (pathname: string) => ({
     isDatabaseSubPage: pathname.includes("/database/"),
     isDatabaseDeepPage: pathname.includes("/database/groups/"),
-    isActivityDetailPage:
-      pathname.includes("/activities/") && pathname !== "/activities",
     isRoomDetailPage: pathname.includes("/rooms/") && pathname !== "/rooms",
     isStudentHistoryPage:
       pathname.includes("/students/") && pathname.includes("/history"),
@@ -262,16 +257,6 @@ describe("Header", () => {
     expect(
       screen.getByTestId("active-supervisions-breadcrumb"),
     ).toBeInTheDocument();
-  });
-
-  it("renders activity breadcrumb for activity detail pages", () => {
-    mockUsePathname.mockReturnValue("/activities/123");
-    mockUseBreadcrumb.mockReturnValue({
-      breadcrumb: { activityName: "Test Activity" },
-    });
-
-    render(<Header />);
-    expect(screen.getByTestId("activity-breadcrumb")).toBeInTheDocument();
   });
 
   it("renders room breadcrumb for room detail pages", () => {

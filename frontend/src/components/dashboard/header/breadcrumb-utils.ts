@@ -146,7 +146,6 @@ export interface PageTypeInfo {
   isStudentHistoryPage: boolean;
   isStaffDetailPage: boolean;
   isRoomDetailPage: boolean;
-  isActivityDetailPage: boolean;
   isDatabaseSubPage: boolean;
   isDatabaseDeepPage: boolean;
   isEnrollmentPage: boolean;
@@ -172,9 +171,6 @@ export function getPageTypeInfo(pathname: string): PageTypeInfo {
   const isRoomDetailPage =
     pathname.startsWith("/rooms/") && pathname !== "/rooms";
 
-  const isActivityDetailPage =
-    pathname.startsWith("/activities/") && pathname !== "/activities";
-
   const isDatabaseSubPage =
     pathname.startsWith("/database/") && pathname !== "/database";
 
@@ -186,7 +182,6 @@ export function getPageTypeInfo(pathname: string): PageTypeInfo {
     isStudentHistoryPage,
     isStaffDetailPage,
     isRoomDetailPage,
-    isActivityDetailPage,
     isDatabaseSubPage,
     isDatabaseDeepPage,
     isEnrollmentPage,

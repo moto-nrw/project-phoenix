@@ -10,7 +10,6 @@ import {
   OgsGroupsBreadcrumb,
   ActiveSupervisionsBreadcrumb,
   EnrollmentBreadcrumb,
-  ActivityBreadcrumb,
   RoomBreadcrumb,
   StudentHistoryBreadcrumb,
   StudentDetailBreadcrumb,
@@ -164,22 +163,6 @@ describe("EnrollmentBreadcrumb", () => {
     expect(screen.getByText("Anmeldungen")).toBeInTheDocument();
     expect(screen.getByText("Überblick")).toBeInTheDocument();
     expect(screen.getByText("Schuljahr 2026/2027")).toBeInTheDocument();
-  });
-});
-
-describe("ActivityBreadcrumb", () => {
-  it("renders activity breadcrumb", () => {
-    render(<ActivityBreadcrumb activityName="Fußball AG" />);
-
-    expect(screen.getByText("Aktivitäten")).toBeInTheDocument();
-    expect(screen.getByText("Fußball AG")).toBeInTheDocument();
-  });
-
-  it("links to activities page", () => {
-    render(<ActivityBreadcrumb activityName="Fußball" />);
-
-    const activitiesLink = screen.getByRole("link", { name: "Aktivitäten" });
-    expect(activitiesLink).toHaveAttribute("href", "/activities");
   });
 });
 

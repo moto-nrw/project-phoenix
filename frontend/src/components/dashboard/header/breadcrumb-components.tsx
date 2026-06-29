@@ -214,23 +214,6 @@ export function EnrollmentBreadcrumb({
 }
 
 /**
- * Activity detail breadcrumb
- */
-interface ActivityBreadcrumbProps {
-  readonly activityName: string;
-}
-
-export function ActivityBreadcrumb({ activityName }: ActivityBreadcrumbProps) {
-  return (
-    <BreadcrumbNav>
-      <BreadcrumbLink href="/activities">Aktivitäten</BreadcrumbLink>
-      <BreadcrumbSeparator />
-      <BreadcrumbCurrent>{activityName}</BreadcrumbCurrent>
-    </BreadcrumbNav>
-  );
-}
-
-/**
  * Room detail breadcrumb
  */
 interface RoomBreadcrumbProps {

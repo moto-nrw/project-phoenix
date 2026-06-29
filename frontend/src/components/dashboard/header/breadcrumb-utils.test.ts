@@ -303,18 +303,6 @@ describe("breadcrumb-utils", () => {
       });
     });
 
-    describe("activity detail page", () => {
-      it("should identify activity detail page", () => {
-        const result = getPageTypeInfo("/activities/789");
-        expect(result.isActivityDetailPage).toBe(true);
-      });
-
-      it("should not identify /activities as detail page", () => {
-        const result = getPageTypeInfo("/activities");
-        expect(result.isActivityDetailPage).toBe(false);
-      });
-    });
-
     describe("database pages", () => {
       it("should identify database sub-page", () => {
         const result = getPageTypeInfo("/database/students");
@@ -347,7 +335,6 @@ describe("breadcrumb-utils", () => {
           isStudentHistoryPage: false,
           isStaffDetailPage: false,
           isRoomDetailPage: false,
-          isActivityDetailPage: false,
           isDatabaseSubPage: false,
           isDatabaseDeepPage: false,
           isEnrollmentPage: false,
@@ -360,7 +347,6 @@ describe("breadcrumb-utils", () => {
         expect(result.isStudentDetailPage).toBe(false);
         expect(result.isStudentHistoryPage).toBe(false);
         expect(result.isRoomDetailPage).toBe(false);
-        expect(result.isActivityDetailPage).toBe(false);
         expect(result.isDatabaseSubPage).toBe(false);
         expect(result.isDatabaseDeepPage).toBe(false);
         expect(result.isEnrollmentPage).toBe(false);

@@ -252,8 +252,8 @@ describe("MobileBottomNav", () => {
       expect(mockGet).toHaveBeenCalledWith("from");
     });
 
-    it("highlights correct item when path starts with href", () => {
-      mockUsePathname.mockReturnValue("/activities/123");
+    it("highlights the canonical activities route", () => {
+      mockUsePathname.mockReturnValue("/activities");
 
       render(<MobileBottomNav />);
 

@@ -21,7 +21,6 @@ import {
   OgsGroupsBreadcrumb,
   ActiveSupervisionsBreadcrumb,
   EnrollmentBreadcrumb,
-  ActivityBreadcrumb,
   RoomBreadcrumb,
   StudentHistoryBreadcrumb,
   StudentDetailBreadcrumb,
@@ -43,7 +42,6 @@ export function Header() {
     studentName,
     staffName,
     roomName,
-    activityName,
     referrerPage,
     activeSupervisionName,
     ogsGroupName,
@@ -171,7 +169,6 @@ export function Header() {
               studentName={studentName}
               staffName={staffName}
               roomName={roomName}
-              activityName={activityName}
               referrer={referrer}
               breadcrumbLabel={breadcrumbLabel}
               historyType={historyType}
@@ -261,7 +258,6 @@ interface HeaderBreadcrumbProps {
   readonly studentName?: string;
   readonly staffName?: string;
   readonly roomName?: string;
-  readonly activityName?: string;
   readonly referrer: string;
   readonly breadcrumbLabel: string;
   readonly historyType: string;
@@ -278,7 +274,6 @@ function HeaderBreadcrumb({
   studentName,
   staffName,
   roomName,
-  activityName,
   referrer,
   breadcrumbLabel,
   historyType,
@@ -323,11 +318,6 @@ function HeaderBreadcrumb({
     return (
       <ParentChildBreadcrumb childName={pageTitle} isScrolled={isScrolled} />
     );
-  }
-
-  // Activity detail page
-  if (pageTypeInfo.isActivityDetailPage && activityName) {
-    return <ActivityBreadcrumb activityName={activityName} />;
   }
 
   // Room detail page

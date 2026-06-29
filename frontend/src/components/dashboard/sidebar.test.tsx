@@ -298,8 +298,8 @@ describe("Sidebar", () => {
       expect(dashboardLink).toHaveClass("text-gray-900");
     });
 
-    it("highlights link when path starts with href", () => {
-      mockUsePathname.mockReturnValue("/activities/123");
+    it("highlights the canonical activities link", () => {
+      mockUsePathname.mockReturnValue("/activities");
 
       render(<Sidebar />);
 
