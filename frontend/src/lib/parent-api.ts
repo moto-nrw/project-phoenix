@@ -11,6 +11,7 @@
 import { createLogger } from "~/lib/logger";
 import type { AppLocale } from "~/i18n/locales";
 import type { ChatMessage } from "~/lib/messaging-status";
+import { readEnrollmentError } from "~/lib/enrollment-error-messages";
 import type {
   MeProfileResponse,
   SubmitEnrollmentPayload,
@@ -377,19 +378,12 @@ export async function submitParentEnrollment(
     },
   );
   if (!response.ok) {
-    let message = "Anmeldung konnte nicht übermittelt werden";
-    try {
-      const body = (await response.json()) as { error?: string };
-      if (body.error) message = body.error;
-    } catch {
-      // Body was not JSON, keep the generic message.
-    }
-    logger.error("parent_submit_failed", {
-      tenant_slug: tenantSlug,
-      status: response.status,
-      message,
-    });
-    throw new Error(message);
+    throw await readEnrollmentError(
+      response,
+      "Anmeldung konnte nicht übermittelt werden",
+      logger,
+      "parent_submit_failed",
+    );
   }
   const json = (await response.json()) as {
     data?: SubmitEnrollmentResult;

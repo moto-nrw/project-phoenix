@@ -299,6 +299,7 @@ export function ManualApprovedEnrollmentModal({
             prefetchedData={prefetchedData}
             submitter={submitter}
             skipCaptcha
+            lockChildStructure
             submitLabel="Kind anlegen und freigeben"
           />
         ) : null}

@@ -31,6 +31,7 @@ const mocks = vi.hoisted(() => ({
   updateSchema: vi.fn(),
   uploadEnrollmentLegalDocument: vi.fn(),
   getTemplates: vi.fn(),
+  enrollmentFormProps: [] as Array<{ lockChildStructure?: boolean }>,
   searchParams: new URLSearchParams(),
   toast: {
     success: vi.fn(),
@@ -144,7 +145,15 @@ vi.mock("~/lib/enrollment-admin-api", () => ({
 }));
 
 vi.mock("~/components/enrollment/enrollment-form", () => ({
-  EnrollmentForm: () => <div data-testid="manual-enrollment-form" />,
+  EnrollmentForm: (props: { lockChildStructure?: boolean }) => {
+    mocks.enrollmentFormProps.push(props);
+    return (
+      <div
+        data-testid="manual-enrollment-form"
+        data-lock-child-structure={String(props.lockChildStructure)}
+      />
+    );
+  },
 }));
 
 import { CareOfferingsEditor } from "./care-offerings-editor";
@@ -301,6 +310,7 @@ beforeEach(() => {
   mocks.deleteEnrollmentLegalDocument.mockReset();
   mocks.getTemplates.mockReset();
   mocks.getTemplates.mockResolvedValue({ templates: [] });
+  mocks.enrollmentFormProps = [];
   mocks.toast.success.mockReset();
   mocks.toast.error.mockReset();
   mocks.searchParams = new URLSearchParams();
@@ -732,6 +742,11 @@ describe("PhasesEditor", () => {
     ).toBeInTheDocument();
     await waitFor(() => {
       expect(mocks.fetchManualEnrollmentBootstrap).toHaveBeenCalledWith("12");
+    });
+    const form = await screen.findByTestId("manual-enrollment-form");
+    expect(form).toHaveAttribute("data-lock-child-structure", "true");
+    expect(mocks.enrollmentFormProps.at(-1)).toMatchObject({
+      lockChildStructure: true,
     });
   });
 });
