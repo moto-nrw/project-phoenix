@@ -893,6 +893,10 @@
     "diffWeekday2": "Tuesday",
     "diffWeekday3": "Wednesday",
     "diffWeekday4": "Thursday",
-    "diffWeekday5": "Friday"
+    "diffWeekday5": "Friday",
+    "diffModeAlone": "Goes alone",
+    "diffModeBus": "Takes the bus",
+    "diffModePickup": "Is picked up",
+    "diffModeAccompanied": "With another child"
   }
 }

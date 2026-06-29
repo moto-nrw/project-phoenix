@@ -185,4 +185,14 @@ func TestCareScheduleDiff_ShowsCurrentVsRequested(t *testing.T) {
 	assert.Equal(t, "08:00", byLabel["Montag · Bringzeit"].New)
 	assert.Equal(t, "Geht alleine", byLabel["Montag · Abholart"].Old)
 	assert.Equal(t, "Wird abgeholt", byLabel["Montag · Abholart"].New)
+	// Departure-mode rows carry the raw mode keys behind Old/New so the localized
+	// parents portal can render them in the guardian's language. An empty current
+	// set surfaces as the explicit "alone" key, never an empty slice.
+	mode := byLabel["Montag · Abholart"]
+	assert.Equal(t, []string{"alone"}, mode.OldModes)
+	assert.Equal(t, "pickup", mode.NewMode)
+	assert.Equal(t, messaging.DiffCareKindDepartureMode, mode.CareKind)
+	// Time rows stay language-neutral, so they carry no structured mode keys.
+	assert.Empty(t, byLabel["Montag · Bringzeit"].OldModes)
+	assert.Empty(t, byLabel["Montag · Bringzeit"].NewMode)
 }

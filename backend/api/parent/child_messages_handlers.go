@@ -50,6 +50,11 @@ type DiffEntry struct {
 	New      string `json:"new"`
 	Weekday  int    `json:"weekday,omitempty"`
 	CareKind string `json:"care_kind,omitempty"`
+	// Raw departure-mode keys behind Old/New for departure_mode rows, so the
+	// localized parents portal renders mode names in the guardian's language
+	// instead of the German Old/New strings. Empty for arrival/pickup rows.
+	OldModes []string `json:"old_modes,omitempty"`
+	NewMode  string   `json:"new_mode,omitempty"`
 }
 
 // ThreadSummaryResponse is one row on the parent thread list. counterpart_name
@@ -116,6 +121,8 @@ func toMessageResponses(messages []*usersModels.ParentMessage, counterpart strin
 				New:      d.New,
 				Weekday:  d.Weekday,
 				CareKind: d.CareKind,
+				OldModes: d.OldModes,
+				NewMode:  d.NewMode,
 			})
 		}
 		out = append(out, MessageResponse{

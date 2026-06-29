@@ -893,6 +893,10 @@
     "diffWeekday2": "Dienstag",
     "diffWeekday3": "Mittwoch",
     "diffWeekday4": "Donnerstag",
-    "diffWeekday5": "Freitag"
+    "diffWeekday5": "Freitag",
+    "diffModeAlone": "Geht alleine",
+    "diffModeBus": "Fährt Bus",
+    "diffModePickup": "Wird abgeholt",
+    "diffModeAccompanied": "Geht mit anderem Kind/Person"
   }
 }

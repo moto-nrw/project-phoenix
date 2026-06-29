@@ -813,6 +813,8 @@ func (s *service) careScheduleDiffFrom(ctx context.Context, src *diffSource, pay
 				New:      usersModels.DepartureMode(wd.Mode).GermanLabel(),
 				Weekday:  wd.Weekday,
 				CareKind: DiffCareKindDepartureMode,
+				OldModes: departureModeKeys(student.AllowedDepartureModes[abbrev]),
+				NewMode:  wd.Mode,
 			})
 		}
 		if wd.Arrival != "" {
@@ -958,6 +960,22 @@ func germanAllowedDepartureModes(modes []usersModels.DepartureMode) string {
 		parts = append(parts, m.GermanLabel())
 	}
 	return strings.Join(parts, " / ")
+}
+
+// departureModeKeys returns the raw mode keys (alone|bus|pickup|accompanied)
+// behind a day's allowed departure set, the structured counterpart to
+// germanAllowedDepartureModes so a localized client can render the mode names in
+// the guardian's language. An empty set means the child goes home alone, so it
+// yields ["alone"] rather than an ambiguous empty slice.
+func departureModeKeys(modes []usersModels.DepartureMode) []string {
+	if len(modes) == 0 {
+		return []string{string(usersModels.DepartureAlone)}
+	}
+	keys := make([]string, 0, len(modes))
+	for _, m := range modes {
+		keys = append(keys, string(m))
+	}
+	return keys
 }
 
 func dashIfEmpty(s string) string {

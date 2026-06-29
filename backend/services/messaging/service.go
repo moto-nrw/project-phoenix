@@ -139,6 +139,15 @@ type RequestDiffEntry struct {
 	// showing Label.
 	Weekday  int
 	CareKind string
+	// OldModes / NewMode carry the raw departure-mode keys (alone|bus|pickup|
+	// accompanied) behind Old/New for DiffCareKindDepartureMode rows, so the
+	// localized parents portal renders the mode names in the guardian's language
+	// instead of the German Old/New strings. OldModes is the day's allowed set
+	// (always non-empty; an "alone" entry stands in for an empty set); NewMode is
+	// the single requested mode. Empty for non-departure-mode rows (arrival/pickup
+	// times are language-neutral) and ignored by older/staff clients.
+	OldModes []string
+	NewMode  string
 }
 
 type service struct {

@@ -893,6 +893,10 @@
     "diffWeekday2": "E martë",
     "diffWeekday3": "E mërkurë",
     "diffWeekday4": "E enjte",
-    "diffWeekday5": "E premte"
+    "diffWeekday5": "E premte",
+    "diffModeAlone": "Largohet vetë",
+    "diffModeBus": "Udhëton me autobus",
+    "diffModePickup": "Merret",
+    "diffModeAccompanied": "Me një fëmijë tjetër"
   }
 }

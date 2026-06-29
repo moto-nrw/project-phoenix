@@ -37,6 +37,14 @@ export interface RequestDiffEntry {
   // legacy payloads → fall back to `label`.
   readonly weekday?: number;
   readonly care_kind?: "arrival" | "pickup" | "departure_mode";
+  // Raw departure-mode keys behind `old`/`new` for `departure_mode` rows, so the
+  // localized parents portal renders mode names in the guardian's language
+  // instead of the German `old`/`new` strings. `old_modes` is the day's allowed
+  // set (an "alone" entry stands in for an empty set); `new_mode` is the single
+  // requested mode. Absent for arrival/pickup rows (times are language-neutral)
+  // and for legacy payloads → fall back to `old`/`new`.
+  readonly old_modes?: string[];
+  readonly new_mode?: string;
 }
 
 /**
@@ -130,6 +138,19 @@ export const PARENT_DIFF_CARE_KIND_I18N_KEYS: Record<string, string> = {
   arrival: "diffCareArrival",
   pickup: "diffCarePickup",
   departure_mode: "diffCareDepartureMode",
+};
+
+/**
+ * next-intl keys (parentOgsMessaging namespace) for a departure-mode value on a
+ * departure_mode diff row, keyed by the backend's raw mode key (`old_modes` /
+ * `new_mode`) so the German `old`/`new` strings are never shown to a non-German
+ * guardian. Unknown keys → fall back to the raw German `old`/`new`.
+ */
+export const PARENT_DEPARTURE_MODE_I18N_KEYS: Record<string, string> = {
+  alone: "diffModeAlone",
+  bus: "diffModeBus",
+  pickup: "diffModePickup",
+  accompanied: "diffModeAccompanied",
 };
 
 /**

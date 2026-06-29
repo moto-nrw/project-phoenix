@@ -14,6 +14,7 @@ import { RequestStatusBadge } from "~/components/messaging/request-status-badge"
 import { useChatViewportLock } from "~/lib/hooks/use-chat-viewport-lock";
 import { getApiErrorMessage } from "~/components/ui/modal-utils";
 import {
+  PARENT_DEPARTURE_MODE_I18N_KEYS,
   PARENT_DIFF_CARE_KIND_I18N_KEYS,
   parentEventI18nDescriptor,
   parentRequestStatusI18nKey,
@@ -217,6 +218,11 @@ export function OgsConversation({
       const view = await createChildRequest(studentId, type, payload);
       // Claim the token AFTER the request resolves so this authoritative result wins.
       applyThread(++applySeqRef.current, view);
+      // Submitting a request advances the guardian read cursor server-side
+      // (MarkReadToNewest), so any prior staff messages are now read — nudge the
+      // sidebar badge so it drops them instead of going stale until an unrelated
+      // refresh, matching handleSend.
+      nudgeUnreadBadge();
     },
     [studentId, applyThread],
   );
@@ -235,6 +241,9 @@ export function OgsConversation({
         const view = await withdrawChildRequest(studentId, requestId);
         // Claim the token AFTER the request resolves so this authoritative result wins.
         applyThread(++applySeqRef.current, view);
+        // Withdrawing also advances the read cursor server-side, so nudge the
+        // badge like submitRequest/handleSend rather than leaving it stale.
+        nudgeUnreadBadge();
       } catch (err) {
         if (!mountedRef.current) return;
         setSendError(
@@ -432,10 +441,28 @@ function RequestItem({
     }
     return entry.label;
   };
-  const localizedDiff = message.diff?.map((entry) => ({
-    ...entry,
-    label: localizeDiffLabel(entry),
-  }));
+  // The backend's old/new for a departure_mode row are German labels ("Geht
+  // alleine", "Wird abgeholt"). Re-derive them from the raw mode keys so they
+  // render in the guardian's language; fall back to the raw key only for a mode
+  // we don't have a translation for. old_modes carries the allowed set ("alone"
+  // standing in for an empty set), joined the same way the backend joins them.
+  const localizeMode = (key: string): string => {
+    const modeKey = PARENT_DEPARTURE_MODE_I18N_KEYS[key];
+    return modeKey ? t(modeKey) : key;
+  };
+  const localizedDiff = message.diff?.map((entry) => {
+    const localized = { ...entry, label: localizeDiffLabel(entry) };
+    if (entry.care_kind !== "departure_mode") {
+      return localized;
+    }
+    return {
+      ...localized,
+      old: entry.old_modes?.length
+        ? entry.old_modes.map(localizeMode).join(" / ")
+        : entry.old,
+      new: entry.new_mode ? localizeMode(entry.new_mode) : entry.new,
+    };
+  });
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
