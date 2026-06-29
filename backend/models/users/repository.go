@@ -404,10 +404,12 @@ type PersonGuardianRepository interface {
 // GuardianEmergencyContactRow is one (guardian, phone number) projection row
 // for the emergency contact list; the consumer aggregates rows per student.
 type GuardianEmergencyContactRow struct {
-	StudentID   int64          `bun:"student_id"`
-	FirstName   sql.NullString `bun:"first_name"`
-	LastName    sql.NullString `bun:"last_name"`
-	PhoneNumber sql.NullString `bun:"phone_number"`
+	StudentID         int64          `bun:"student_id"`
+	GuardianProfileID int64          `bun:"guardian_profile_id"`
+	FirstName         sql.NullString `bun:"first_name"`
+	LastName          sql.NullString `bun:"last_name"`
+	Email             sql.NullString `bun:"email"`
+	PhoneNumber       sql.NullString `bun:"phone_number"`
 }
 
 type StudentGuardianRepository interface {

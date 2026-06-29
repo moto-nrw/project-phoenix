@@ -152,6 +152,13 @@ type ClassRosterRow struct {
 	ArrivalByDay      map[string]string      `json:"arrival_by_day"`
 	PickupByDay       map[string]string      `json:"pickup_by_day"`
 	Departure         string                 `json:"departure"`
+	Guardians         []ClassRosterGuardian  `json:"guardians"`
+}
+
+type ClassRosterGuardian struct {
+	Name  string `json:"name"`
+	Email string `json:"email,omitempty"`
+	Phone string `json:"phone,omitempty"`
 }
 
 type ReportService interface {
@@ -164,12 +171,14 @@ type ReportService interface {
 type ReportServiceConfig struct {
 	RequestRepo              enrollmentModels.RequestRepository
 	RequestChildRepo         enrollmentModels.RequestChildRepository
+	RequestGuardianRepo      enrollmentModels.RequestGuardianRepository
 	RequestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
 	CareOfferingRepo         enrollmentModels.CareOfferingRepository
 	FormSchemaRepo           enrollmentModels.FormSchemaRepository
 	PhaseRepo                enrollmentModels.PhaseRepository
 	DataAccessLogRepo        auditModels.DataAccessLogRepository
 	StudentRepo              userModels.StudentRepository
+	StudentGuardianRepo      userModels.StudentGuardianRepository
 	PersonRepo               userModels.PersonRepository
 	EducationGroupRepo       educationModels.GroupRepository
 }
@@ -177,12 +186,14 @@ type ReportServiceConfig struct {
 type reportService struct {
 	requestRepo              enrollmentModels.RequestRepository
 	requestChildRepo         enrollmentModels.RequestChildRepository
+	requestGuardianRepo      enrollmentModels.RequestGuardianRepository
 	requestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
 	careOfferingRepo         enrollmentModels.CareOfferingRepository
 	formSchemaRepo           enrollmentModels.FormSchemaRepository
 	phaseRepo                enrollmentModels.PhaseRepository
 	dataAccessLogRepo        auditModels.DataAccessLogRepository
 	studentRepo              userModels.StudentRepository
+	studentGuardianRepo      userModels.StudentGuardianRepository
 	personRepo               userModels.PersonRepository
 	educationGroupRepo       educationModels.GroupRepository
 }
@@ -191,12 +202,14 @@ func NewReportService(cfg ReportServiceConfig) ReportService {
 	return &reportService{
 		requestRepo:              cfg.RequestRepo,
 		requestChildRepo:         cfg.RequestChildRepo,
+		requestGuardianRepo:      cfg.RequestGuardianRepo,
 		requestChildOfferingRepo: cfg.RequestChildOfferingRepo,
 		careOfferingRepo:         cfg.CareOfferingRepo,
 		formSchemaRepo:           cfg.FormSchemaRepo,
 		phaseRepo:                cfg.PhaseRepo,
 		dataAccessLogRepo:        cfg.DataAccessLogRepo,
 		studentRepo:              cfg.StudentRepo,
+		studentGuardianRepo:      cfg.StudentGuardianRepo,
 		personRepo:               cfg.PersonRepo,
 		educationGroupRepo:       cfg.EducationGroupRepo,
 	}
@@ -304,7 +317,7 @@ func (s *reportService) CareUsage(ctx context.Context, filters CareUsageFilters)
 		report.Rows = append(report.Rows, row)
 		report.Totals.Children++
 		report.Totals.ByDayCount[strconv.Itoa(row.DayCount)]++
-		for _, day := range row.EffectiveDays {
+		for _, day := range careUsageBookedPickupDays(row) {
 			pickupTime := row.PickupByDay[day]
 			if pickupTime == "" {
 				continue
@@ -387,6 +400,12 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 	if s.educationGroupRepo == nil {
 		return nil, fmt.Errorf("class roster report: education group repo not configured")
 	}
+	if s.studentGuardianRepo == nil {
+		return nil, fmt.Errorf("class roster report: student guardian repo not configured")
+	}
+	if s.requestGuardianRepo == nil {
+		return nil, fmt.Errorf("class roster report: request guardian repo not configured")
+	}
 
 	phase, err := s.phaseRepo.FindByID(ctx, filters.PhaseID)
 	if err != nil {
@@ -406,6 +425,10 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 		}
 	}
 	studentIDs := classRosterStudentIDs(students)
+	studentGuardianContacts, err := s.classRosterStudentGuardianContacts(ctx, studentIDs)
+	if err != nil {
+		return nil, err
+	}
 	persons, err := s.personRepo.FindByIDs(ctx, classRosterPersonIDs(students))
 	if err != nil {
 		return nil, fmt.Errorf("class roster report: load persons: %w", err)
@@ -417,6 +440,7 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 
 	var requests []*enrollmentModels.Request
 	var children []*enrollmentModels.RequestChild
+	requestGuardiansByID := map[int64][]*enrollmentModels.RequestGuardian{}
 	if len(studentIDs) > 0 {
 		requests, err = s.requestRepo.ListAdmin(ctx, enrollmentModels.RequestListFilters{
 			PhaseID:           filters.PhaseID,
@@ -428,10 +452,16 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 		if len(requests) > maxExportRequests {
 			return nil, fmt.Errorf("class roster report: %d requests: %w", len(requests), ErrReportExportTooLarge)
 		}
-		children, err = s.requestChildRepo.ListByRequestIDs(ctx, classRosterRequestIDs(requests))
+		requestIDs := classRosterRequestIDs(requests)
+		children, err = s.requestChildRepo.ListByRequestIDs(ctx, requestIDs)
 		if err != nil {
 			return nil, fmt.Errorf("class roster report: list children: %w", err)
 		}
+		requestGuardians, err := s.requestGuardianRepo.ListByRequestIDs(ctx, requestIDs)
+		if err != nil {
+			return nil, fmt.Errorf("class roster report: list request guardians: %w", err)
+		}
+		requestGuardiansByID = classRosterRequestGuardiansByRequestID(requestGuardians)
 		children = classRosterChildrenForStudents(children, studentByID)
 		if len(children) > maxReportRows {
 			return nil, fmt.Errorf("class roster report: %d children: %w", len(children), ErrReportExportTooLarge)
@@ -460,6 +490,7 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 		return nil, fmt.Errorf("class roster report: list child offerings: %w", err)
 	}
 	classRosterAttachOfferingLinks(enrollmentsByStudent, links)
+	classRosterAttachRequestGuardians(enrollmentsByStudent, requestGuardiansByID)
 
 	rows := make([]ClassRosterRow, 0, len(students))
 	for _, student := range students {
@@ -467,7 +498,7 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 			continue
 		}
 		person := persons[student.PersonID]
-		row, err := classRosterRow(student, person, classRosterGroupName(student, groups), enrollmentsByStudent[student.ID], offeringByID, schemas)
+		row, err := classRosterRow(student, person, classRosterGroupName(student, groups), enrollmentsByStudent[student.ID], offeringByID, schemas, studentGuardianContacts[student.ID])
 		if err != nil {
 			return nil, err
 		}
@@ -698,10 +729,36 @@ func careUsageRow(req *enrollmentModels.Request, child *enrollmentModels.Request
 	}
 }
 
+func careUsageBookedPickupDays(row CareUsageRow) []string {
+	daySet := map[string]bool{}
+	for _, offering := range row.Offerings {
+		for _, day := range offering.Days {
+			day = strings.ToLower(strings.TrimSpace(day))
+			if day != "" && strings.TrimSpace(row.PickupByDay[day]) != "" {
+				daySet[day] = true
+			}
+		}
+	}
+	if len(daySet) == 0 {
+		for _, day := range row.EffectiveDays {
+			day = strings.ToLower(strings.TrimSpace(day))
+			if day != "" && strings.TrimSpace(row.PickupByDay[day]) != "" {
+				daySet[day] = true
+			}
+		}
+	}
+	days := make([]string, 0, len(daySet))
+	for day := range daySet {
+		days = append(days, day)
+	}
+	return sortedDayCodes(days)
+}
+
 type classRosterApprovedEnrollment struct {
-	request *enrollmentModels.Request
-	child   *enrollmentModels.RequestChild
-	links   []*enrollmentModels.RequestChildOffering
+	request   *enrollmentModels.Request
+	child     *enrollmentModels.RequestChild
+	links     []*enrollmentModels.RequestChildOffering
+	guardians []*enrollmentModels.RequestGuardian
 }
 
 func classRosterStudentIDs(students []*userModels.Student) []int64 {
@@ -749,6 +806,17 @@ func classRosterRequestsByID(requests []*enrollmentModels.Request) map[int64]*en
 		if req != nil {
 			out[req.ID] = req
 		}
+	}
+	return out
+}
+
+func classRosterRequestGuardiansByRequestID(guardians []*enrollmentModels.RequestGuardian) map[int64][]*enrollmentModels.RequestGuardian {
+	out := make(map[int64][]*enrollmentModels.RequestGuardian)
+	for _, guardian := range guardians {
+		if guardian == nil || guardian.RequestID <= 0 {
+			continue
+		}
+		out[guardian.RequestID] = append(out[guardian.RequestID], guardian)
 	}
 	return out
 }
@@ -880,6 +948,15 @@ func classRosterAttachOfferingLinks(enrollments map[int64]*classRosterApprovedEn
 	}
 }
 
+func classRosterAttachRequestGuardians(enrollments map[int64]*classRosterApprovedEnrollment, guardiansByRequestID map[int64][]*enrollmentModels.RequestGuardian) {
+	for _, enrollment := range enrollments {
+		if enrollment == nil || enrollment.request == nil {
+			continue
+		}
+		enrollment.guardians = guardiansByRequestID[enrollment.request.ID]
+	}
+}
+
 func classRosterRow(
 	student *userModels.Student,
 	person *userModels.Person,
@@ -887,6 +964,7 @@ func classRosterRow(
 	enrollment *classRosterApprovedEnrollment,
 	offeringByID map[int64]*enrollmentModels.CareOffering,
 	schemas map[int64]*enrollmentModels.FormSchema,
+	studentGuardians []ClassRosterGuardian,
 ) (ClassRosterRow, error) {
 	row := ClassRosterRow{
 		StudentID:         student.ID,
@@ -897,6 +975,7 @@ func classRosterRow(
 		OfferingsByDay:    map[string][]string{},
 		ArrivalByDay:      map[string]string{},
 		PickupByDay:       map[string]string{},
+		Guardians:         normalizeClassRosterGuardians(studentGuardians),
 	}
 	if person != nil {
 		row.FirstName = person.FirstName
@@ -931,7 +1010,149 @@ func classRosterRow(
 	row.PickupByDay = pickupByDay
 	row.ArrivalByDay = arrivalByDay
 	row.Departure = departure
+	row.Guardians = classRosterEnrollmentGuardians(enrollment.request, enrollment.guardians)
+	if len(row.Guardians) == 0 {
+		row.Guardians = normalizeClassRosterGuardians(studentGuardians)
+	}
 	return row, nil
+}
+
+func (s *reportService) classRosterStudentGuardianContacts(ctx context.Context, studentIDs []int64) (map[int64][]ClassRosterGuardian, error) {
+	out := make(map[int64][]ClassRosterGuardian, len(studentIDs))
+	if len(studentIDs) == 0 {
+		return out, nil
+	}
+	rows, err := s.studentGuardianRepo.ListEmergencyContactRows(ctx, studentIDs)
+	if err != nil {
+		return nil, fmt.Errorf("class roster report: load student guardians: %w", err)
+	}
+	return classRosterStudentGuardianContactsFromRows(rows), nil
+}
+
+func classRosterStudentGuardianContactsFromRows(rows []userModels.GuardianEmergencyContactRow) map[int64][]ClassRosterGuardian {
+	type contactAccumulator struct {
+		contacts map[string]ClassRosterGuardian
+		order    []string
+	}
+	byStudent := map[int64]*contactAccumulator{}
+	for _, row := range rows {
+		if row.StudentID <= 0 {
+			continue
+		}
+		name := strings.TrimSpace(row.FirstName.String + " " + row.LastName.String)
+		email := strings.TrimSpace(row.Email.String)
+		phone := strings.TrimSpace(row.PhoneNumber.String)
+		if name == "" && email == "" && phone == "" {
+			continue
+		}
+		key := classRosterStudentGuardianContactKey(row)
+		acc := byStudent[row.StudentID]
+		if acc == nil {
+			acc = &contactAccumulator{contacts: map[string]ClassRosterGuardian{}}
+			byStudent[row.StudentID] = acc
+		}
+		contact, exists := acc.contacts[key]
+		if !exists {
+			acc.order = append(acc.order, key)
+		}
+		if contact.Name == "" {
+			contact.Name = name
+		}
+		if contact.Email == "" {
+			contact.Email = email
+		}
+		contact.Phone = classRosterJoinUnique(contact.Phone, phone)
+		acc.contacts[key] = contact
+	}
+
+	out := make(map[int64][]ClassRosterGuardian, len(byStudent))
+	for studentID, acc := range byStudent {
+		contacts := make([]ClassRosterGuardian, 0, len(acc.order))
+		for _, key := range acc.order {
+			contacts = append(contacts, acc.contacts[key])
+		}
+		out[studentID] = normalizeClassRosterGuardians(contacts)
+	}
+	return out
+}
+
+func classRosterStudentGuardianContactKey(row userModels.GuardianEmergencyContactRow) string {
+	if row.GuardianProfileID > 0 {
+		return strconv.FormatInt(row.GuardianProfileID, 10)
+	}
+	return strings.ToLower(strings.TrimSpace(row.FirstName.String + " " + row.LastName.String + "|" + row.Email.String))
+}
+
+func classRosterEnrollmentGuardians(req *enrollmentModels.Request, additional []*enrollmentModels.RequestGuardian) []ClassRosterGuardian {
+	contacts := []ClassRosterGuardian{}
+	if req != nil {
+		contacts = append(contacts, ClassRosterGuardian{
+			Name:  strings.TrimSpace(req.GuardianFirstName + " " + req.GuardianLastName),
+			Email: strings.TrimSpace(req.GuardianEmail),
+			Phone: stringPtrValue(req.GuardianPhone),
+		})
+	}
+	for _, guardian := range additional {
+		if guardian == nil {
+			continue
+		}
+		contacts = append(contacts, ClassRosterGuardian{
+			Name:  strings.TrimSpace(guardian.FirstName + " " + guardian.LastName),
+			Email: stringPtrValue(guardian.Email),
+			Phone: stringPtrValue(guardian.Phone),
+		})
+	}
+	return normalizeClassRosterGuardians(contacts)
+}
+
+func normalizeClassRosterGuardians(contacts []ClassRosterGuardian) []ClassRosterGuardian {
+	if len(contacts) == 0 {
+		return []ClassRosterGuardian{}
+	}
+	out := make([]ClassRosterGuardian, 0, len(contacts))
+	seen := map[string]bool{}
+	for _, contact := range contacts {
+		contact.Name = strings.TrimSpace(contact.Name)
+		contact.Email = strings.TrimSpace(contact.Email)
+		contact.Phone = strings.TrimSpace(contact.Phone)
+		if contact.Name == "" && contact.Email == "" && contact.Phone == "" {
+			continue
+		}
+		key := strings.ToLower(contact.Name + "|" + contact.Email + "|" + contact.Phone)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, contact)
+	}
+	return out
+}
+
+func classRosterJoinUnique(existing, next string) string {
+	parts := []string{}
+	seen := map[string]bool{}
+	for _, value := range []string{existing, next} {
+		for _, part := range strings.Split(value, ";") {
+			part = strings.TrimSpace(part)
+			if part == "" {
+				continue
+			}
+			key := strings.ToLower(part)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			parts = append(parts, part)
+		}
+	}
+	return strings.Join(parts, "; ")
+}
+
+func stringPtrValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(*value)
 }
 
 func classRosterOfferingsByDay(offerings []CareUsageRowOffering) map[string][]string {
