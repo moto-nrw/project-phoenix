@@ -236,6 +236,28 @@ func TestMarkReadToNewest_GuardianReaderBoundsToStaffSide(t *testing.T) {
 		"guardian reader's cursor bounds to the newest staff-side row")
 }
 
+func TestMarkReadToNewest_DualRoleOwnSystemEventStillAdvances(t *testing.T) {
+	reader := int64(100)
+	// Dual-role staff+guardian account reading the GUARDIAN portal. It triggered a
+	// confirm/reject as STAFF, so the system event carries its OWN account in
+	// SenderAccountID but is attributed to the staff side via EventActorKind. The
+	// unread SQL counts it (notReaderAuthored exempts system rows), so the cursor
+	// MUST advance onto it — a bare SenderAccountID == reader skip stranded it as
+	// permanently unread once viewed.
+	guardianOwn := msg(1, reader, usersModels.ParentMessageSenderGuardian)
+	ownStaffEvent := msg(2, reader, usersModels.ParentMessageSenderSystem)
+	ownStaffEvent.EventActorKind = usersModels.ParentMessageSenderStaff
+	messages := []*usersModels.ParentMessage{guardianOwn, ownStaffEvent}
+
+	rr := &fakeReadRepo{markAdvanced: true}
+	advanced, err := MarkReadToNewest(context.Background(), rr, 1, 42, reader, false, messages)
+	require.NoError(t, err)
+	assert.True(t, advanced)
+	require.Len(t, rr.marks, 1)
+	assert.Equal(t, ownStaffEvent.ID, rr.marks[0].messageID,
+		"a dual-role account's own staff-triggered system event must advance the guardian-side cursor, not stay stuck unread")
+}
+
 func TestMarkReadToNewest_OwnOnlyOrEmptyDoesNotMark(t *testing.T) {
 	reader := int64(100)
 	rr := &fakeReadRepo{}

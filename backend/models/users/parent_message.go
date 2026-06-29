@@ -162,6 +162,21 @@ func IsCounterpartMessage(msg *ParentMessage, staffReader bool) bool {
 	return msg.SenderKind == side
 }
 
+// IsReaderAuthored reports whether msg is one the reader sent THEMSELVES and must
+// therefore be excluded from their own unread set — the model mirror of the unread
+// SQL's notReaderAuthored predicate
+// (database/repositories/users.notReaderAuthored = sender_kind='system' OR
+// sender_account_id <> ?). System events are DELIBERATELY never "reader authored":
+// they are attributed by triggering SIDE via EventActorKind, not by account, so a
+// dual-role (staff+guardian) account's own confirm/reject/withdrawal must still
+// count — and advance the cursor — on the opposite portal. Applying a bare
+// SenderAccountID == reader check to those rows would strand them as permanently
+// unread once viewed. Keeping this in lock-step with notReaderAuthored is what lets
+// MarkReadToNewest bound the read cursor to exactly the unread set.
+func IsReaderAuthored(msg *ParentMessage, accountID int64) bool {
+	return msg.SenderKind != ParentMessageSenderSystem && msg.SenderAccountID == accountID
+}
+
 // ParentMessageRepository is the tenant-scoped data-access contract for
 // messages. All methods must run inside a tenant transaction.
 type ParentMessageRepository interface {

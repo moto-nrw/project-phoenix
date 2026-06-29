@@ -117,6 +117,28 @@ func parentMessagingRequestsDown(ctx context.Context, db *bun.DB) error {
 			DROP CONSTRAINT IF EXISTS chk_parent_messages_event_actor_kind,
 			DROP CONSTRAINT IF EXISTS chk_parent_messages_kind;
 		DELETE FROM users.parent_messages WHERE sender_kind = 'system';
+		-- A confirm/reject/withdrawal system event is touched onto the thread via
+		-- TouchLastMessage, so when it was the latest row the denormalized preview
+		-- columns (last_message_at, last_message_id, last_sender_kind,
+		-- last_message_body) now point at a just-deleted message. The pre-requests
+		-- inbox reads those columns directly for previews and ordering, so leaving
+		-- them dangling shows a non-existent "latest message" until another chat
+		-- message touches the thread. Re-derive them from the newest SURVIVING
+		-- message (created_at DESC, id DESC — the inbox projection's ordering),
+		-- restricted to threads whose pointer actually moved.
+		UPDATE users.parent_message_threads t
+		SET last_message_at   = lm.created_at,
+		    last_message_id   = lm.id,
+		    last_sender_kind  = lm.sender_kind,
+		    last_message_body = lm.body
+		FROM (
+			SELECT DISTINCT ON (m.thread_id)
+			       m.thread_id, m.created_at, m.id, m.sender_kind, m.body
+			FROM users.parent_messages m
+			ORDER BY m.thread_id, m.created_at DESC, m.id DESC
+		) lm
+		WHERE lm.thread_id = t.id
+		  AND (t.last_message_id IS NULL OR t.last_message_id <> lm.id);
 		ALTER TABLE users.parent_messages
 			DROP CONSTRAINT IF EXISTS chk_parent_messages_sender_kind,
 			ADD CONSTRAINT chk_parent_messages_sender_kind CHECK (sender_kind IN ('guardian','staff'));

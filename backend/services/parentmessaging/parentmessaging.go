@@ -176,10 +176,14 @@ func MarkReadToNewest(
 		// Oldest-first order: keep overwriting so newest ends up last. Bound to the
 		// reader's unread set exactly — a COUNTERPART row (hazard 3) the reader did
 		// NOT author (hazard 2). Both legs mirror the unread SQL (counterpartUnread
-		// ∧ notReaderAuthored); the author skip still matters for a dual-role
-		// staff+guardian account, whose own counterpart-side message must not move
-		// the cursor either.
-		if msg.SenderAccountID != accountID && usersModels.IsCounterpartMessage(msg, staffReader) {
+		// ∧ notReaderAuthored) via their model helpers; the author skip still matters
+		// for a dual-role staff+guardian account, whose own counterpart-side PLAIN
+		// message must not move the cursor. IsReaderAuthored exempts system events
+		// from that skip exactly as notReaderAuthored does — a confirm/reject/
+		// withdrawal that account triggered is attributed by side, so on the opposite
+		// portal it is genuinely unread and MUST be allowed to advance the cursor;
+		// the bare account check stranded it as permanently unread once viewed.
+		if usersModels.IsCounterpartMessage(msg, staffReader) && !usersModels.IsReaderAuthored(msg, accountID) {
 			newest = msg
 		}
 	}
