@@ -324,6 +324,28 @@ func TestClassRosterRowFallsBackToLegacyStudentGuardianFields(t *testing.T) {
 	})
 }
 
+func TestClassRosterStudentGuardiansPreferLinkedContactsOverLegacyFields(t *testing.T) {
+	guardianName := "Stamm Kontakt"
+	guardianEmail := "stamm@example.test"
+	stalePhone := "02551 456"
+	staleContact := "0170 123456"
+	student := &userModels.Student{
+		GuardianName:    &guardianName,
+		GuardianEmail:   &guardianEmail,
+		GuardianPhone:   &stalePhone,
+		GuardianContact: &staleContact,
+	}
+	linked := []ClassRosterGuardian{{
+		Name:  "Stamm Kontakt",
+		Email: "stamm@example.test",
+		Phone: "02551 333",
+	}}
+
+	got := classRosterStudentGuardians(student, linked)
+
+	assert.Equal(t, linked, got)
+}
+
 func TestClassRosterApprovedEnrollmentsOnlyUsesApprovedChildrenInClass(t *testing.T) {
 	studentID := int64(100)
 	otherStudentID := int64(200)
@@ -683,6 +705,24 @@ func TestCareUsageRowMatchesBookedPickupDayFilters(t *testing.T) {
 	assert.True(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", PickupTime: "15:30"}))
 	assert.True(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", Weekday: "fri", PickupTime: "15:30"}))
 	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", Weekday: "fri", PickupTime: "14:30"}))
+}
+
+func TestCareUsageRowMatchesWeekdayWithoutPickupTimes(t *testing.T) {
+	row := CareUsageRow{
+		Status: enrollmentModels.ChildStatusApproved,
+		Offerings: []CareUsageRowOffering{
+			{ID: 10, Name: "OGS Ganztag", Days: []string{"mon"}},
+			{ID: 11, Name: "Randstunde", Days: []string{"fri"}},
+		},
+		EffectiveDays: []string{"mon"},
+		PickupByDay:   map[string]string{},
+	}
+
+	assert.True(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", Weekday: "mon"}))
+	assert.True(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", Weekday: "fri"}))
+	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", Weekday: "mon", PickupTime: "14:30"}))
+	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", PickupTime: "14:30"}))
+	assert.Empty(t, careUsageBookedPickupDays(row, CareUsageFilters{Status: "all"}))
 }
 
 func TestCareUsageRowMatchesScopedBookedPickupDayFilters(t *testing.T) {

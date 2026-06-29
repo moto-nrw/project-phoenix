@@ -758,6 +758,35 @@ func careUsageBookedPickupDays(row CareUsageRow, filters CareUsageFilters) []str
 	return sortedDayCodes(days)
 }
 
+func careUsageBookedDays(row CareUsageRow, filters CareUsageFilters) []string {
+	daySet := map[string]bool{}
+	includedOfferingIDs := makeIDSet(filters.CareOfferingIDs)
+	for _, offering := range row.Offerings {
+		if filters.CareOfferingIDsSet && !includedOfferingIDs[offering.ID] {
+			continue
+		}
+		for _, day := range offering.Days {
+			day = strings.ToLower(strings.TrimSpace(day))
+			if day != "" {
+				daySet[day] = true
+			}
+		}
+	}
+	if len(daySet) == 0 {
+		for _, day := range row.EffectiveDays {
+			day = strings.ToLower(strings.TrimSpace(day))
+			if day != "" {
+				daySet[day] = true
+			}
+		}
+	}
+	days := make([]string, 0, len(daySet))
+	for day := range daySet {
+		days = append(days, day)
+	}
+	return sortedDayCodes(days)
+}
+
 type classRosterApprovedEnrollment struct {
 	request   *enrollmentModels.Request
 	child     *enrollmentModels.RequestChild
@@ -1089,8 +1118,10 @@ func classRosterStudentGuardianContactKey(row userModels.GuardianEmergencyContac
 }
 
 func classRosterStudentGuardians(student *userModels.Student, linkedContacts []ClassRosterGuardian) []ClassRosterGuardian {
-	contacts := make([]ClassRosterGuardian, 0, len(linkedContacts)+1)
-	contacts = append(contacts, linkedContacts...)
+	contacts := normalizeClassRosterGuardians(linkedContacts)
+	if len(contacts) > 0 {
+		return contacts
+	}
 	if student != nil {
 		contacts = append(contacts, ClassRosterGuardian{
 			Name:  stringPtrValue(student.GuardianName),
@@ -1535,8 +1566,8 @@ func careUsageRowMatches(row CareUsageRow, filters CareUsageFilters) bool {
 		}
 	}
 	if filters.Weekday != "" {
-		bookedPickupDays := careUsageBookedPickupDays(row, filters)
-		if !containsString(bookedPickupDays, filters.Weekday) {
+		bookedDays := careUsageBookedDays(row, filters)
+		if !containsString(bookedDays, filters.Weekday) {
 			return false
 		}
 		if filters.PickupTime != "" && row.PickupByDay[filters.Weekday] != filters.PickupTime {
