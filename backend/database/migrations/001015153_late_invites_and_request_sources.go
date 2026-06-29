@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	lateInvitesAndRequestSourcesVersion     = "1.15.151"
+	lateInvitesAndRequestSourcesVersion     = "1.15.153"
 	lateInvitesAndRequestSourcesDescription = "Add enrollment request sources and late invite tokens for closed-phase parent submissions"
 )
 
@@ -21,7 +21,7 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.151: Adding enrollment late invites and request source fields...")
+			fmt.Println("Migration 1.15.153: Adding enrollment late invites and request source fields...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE enrollment.requests
 					ADD COLUMN IF NOT EXISTS submission_source TEXT NOT NULL DEFAULT 'public',
@@ -95,7 +95,7 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.151: Dropping enrollment late invites and request source fields...")
+			fmt.Println("Rolling back migration 1.15.153: Dropping enrollment late invites and request source fields...")
 			if _, err := db.NewRaw(`
 				DROP TABLE IF EXISTS enrollment.late_invites;
 				ALTER TABLE enrollment.requests
