@@ -276,6 +276,54 @@ func TestClassRosterRowMarksMissingEnrollmentAsNoRegistration(t *testing.T) {
 	assert.Equal(t, []ClassRosterGuardian{{Name: "Eva Ohne", Email: "eva@example.test", Phone: "02551 123"}}, row.Guardians)
 }
 
+func TestClassRosterRowFallsBackToLegacyStudentGuardianFields(t *testing.T) {
+	guardianName := "Stamm Kontakt"
+	guardianEmail := "stamm@example.test"
+	guardianPhone := "02551 456"
+	guardianContact := "0170 123456"
+	student := &userModels.Student{
+		Model:           baseModels.Model{ID: 101},
+		PersonID:        201,
+		SchoolClass:     "1a",
+		GuardianName:    &guardianName,
+		GuardianEmail:   &guardianEmail,
+		GuardianPhone:   &guardianPhone,
+		GuardianContact: &guardianContact,
+	}
+	person := &userModels.Person{FirstName: "Tom", LastName: "Ohne"}
+	want := []ClassRosterGuardian{{
+		Name:  "Stamm Kontakt",
+		Email: "stamm@example.test",
+		Phone: "02551 456; 0170 123456",
+	}}
+
+	t.Run("without enrollment", func(t *testing.T) {
+		row, err := classRosterRow(student, person, "", nil, nil, nil, nil)
+
+		require.NoError(t, err)
+		assert.False(t, row.Registered)
+		assert.Equal(t, want, row.Guardians)
+	})
+
+	t.Run("with enrollment but without request guardians", func(t *testing.T) {
+		req := &enrollmentModels.Request{Model: baseModels.Model{ID: 10}}
+		child := &enrollmentModels.RequestChild{
+			Model:       baseModels.Model{ID: 20},
+			RequestID:   10,
+			DateOfBirth: timezone.NewDate(2018, 5, 4),
+			Status:      enrollmentModels.ChildStatusApproved,
+		}
+		row, err := classRosterRow(student, person, "", &classRosterApprovedEnrollment{
+			request: req,
+			child:   child,
+		}, nil, nil, nil)
+
+		require.NoError(t, err)
+		assert.True(t, row.Registered)
+		assert.Equal(t, want, row.Guardians)
+	})
+}
+
 func TestClassRosterApprovedEnrollmentsOnlyUsesApprovedChildrenInClass(t *testing.T) {
 	studentID := int64(100)
 	otherStudentID := int64(200)
@@ -620,6 +668,59 @@ func TestCareUsageRowMatchesExplicitOfferingFilter(t *testing.T) {
 	}))
 }
 
+func TestCareUsageRowMatchesBookedPickupDayFilters(t *testing.T) {
+	row := CareUsageRow{
+		Status: enrollmentModels.ChildStatusApproved,
+		Offerings: []CareUsageRowOffering{
+			{ID: 10, Name: "OGS Ganztag", Days: []string{"mon", "wed"}},
+			{ID: 11, Name: "Randstunde", Days: []string{"fri"}},
+		},
+		EffectiveDays: []string{"mon", "wed"},
+		PickupByDay:   map[string]string{"mon": "14:30", "wed": "16:00", "fri": "15:30"},
+	}
+
+	assert.True(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", Weekday: "fri"}))
+	assert.True(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", PickupTime: "15:30"}))
+	assert.True(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", Weekday: "fri", PickupTime: "15:30"}))
+	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", Weekday: "fri", PickupTime: "14:30"}))
+}
+
+func TestCareUsageRowMatchesScopedBookedPickupDayFilters(t *testing.T) {
+	row := CareUsageRow{
+		Status: enrollmentModels.ChildStatusApproved,
+		Offerings: []CareUsageRowOffering{
+			{ID: 10, Name: "OGS Ganztag", Days: []string{"mon", "wed"}},
+			{ID: 11, Name: "Randstunde", Days: []string{"fri"}},
+		},
+		EffectiveDays: []string{"mon", "wed"},
+		PickupByDay:   map[string]string{"mon": "14:30", "wed": "16:00", "fri": "15:30"},
+	}
+	ogsOnly := CareUsageFilters{Status: "all", CareOfferingIDsSet: true, CareOfferingIDs: []int64{10}}
+	randstundeOnly := CareUsageFilters{Status: "all", CareOfferingIDsSet: true, CareOfferingIDs: []int64{11}}
+
+	assert.Equal(t, []string{"mon", "wed"}, careUsageBookedPickupDays(row, ogsOnly))
+	assert.False(t, careUsageRowMatches(row, CareUsageFilters{
+		Status:             "all",
+		CareOfferingIDsSet: true,
+		CareOfferingIDs:    []int64{10},
+		Weekday:            "fri",
+	}))
+	assert.False(t, careUsageRowMatches(row, CareUsageFilters{
+		Status:             "all",
+		CareOfferingIDsSet: true,
+		CareOfferingIDs:    []int64{10},
+		PickupTime:         "15:30",
+	}))
+	assert.Equal(t, []string{"fri"}, careUsageBookedPickupDays(row, randstundeOnly))
+	assert.True(t, careUsageRowMatches(row, CareUsageFilters{
+		Status:             "all",
+		CareOfferingIDsSet: true,
+		CareOfferingIDs:    []int64{11},
+		Weekday:            "fri",
+		PickupTime:         "15:30",
+	}))
+}
+
 func TestCareUsageRowMatchesZeroDayFilter(t *testing.T) {
 	zero := 0
 	row := CareUsageRow{
@@ -671,7 +772,7 @@ func TestCareUsageBookedPickupDaysIncludesNonCareOfferingDays(t *testing.T) {
 		PickupByDay:   map[string]string{"mon": "14:30", "wed": "16:00", "fri": "14:30"},
 	}
 
-	assert.Equal(t, []string{"mon", "wed", "fri"}, careUsageBookedPickupDays(row))
+	assert.Equal(t, []string{"mon", "wed", "fri"}, careUsageBookedPickupDays(row, CareUsageFilters{Status: "all"}))
 }
 
 func TestCareUsageRowKeepsOfferingsVisibleWhenNoOfferingsAreIncluded(t *testing.T) {

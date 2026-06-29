@@ -920,8 +920,8 @@ func careUsageOfferingDayDetail(offering enrollmentService.CareUsageRowOffering)
 }
 
 func careUsagePickupPlanningFields(report *enrollmentService.CareUsageReport) []listexport.Field {
-	fields := make([]listexport.Field, 0, len(weekdayOrder)*2)
-	pickupTimes := []string{"14:30", "16:00"}
+	pickupTimes := careUsagePickupPlanningTimes(report)
+	fields := make([]listexport.Field, 0, len(weekdayOrder)*len(pickupTimes))
 	for _, day := range weekdayOrder {
 		for _, pickupTime := range pickupTimes {
 			count := 0
@@ -935,6 +935,33 @@ func careUsagePickupPlanningFields(report *enrollmentService.CareUsageReport) []
 		}
 	}
 	return fields
+}
+
+func careUsagePickupPlanningTimes(report *enrollmentService.CareUsageReport) []string {
+	if report == nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	for _, pickupTime := range report.FilterOptions.PickupTimes {
+		pickupTime = strings.TrimSpace(pickupTime)
+		if pickupTime != "" {
+			seen[pickupTime] = true
+		}
+	}
+	for _, byPickupTime := range report.Totals.ByWeekdayPickupTime {
+		for pickupTime := range byPickupTime {
+			pickupTime = strings.TrimSpace(pickupTime)
+			if pickupTime != "" {
+				seen[pickupTime] = true
+			}
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for pickupTime := range seen {
+		out = append(out, pickupTime)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func careUsagePickupDayDetails(pickupByDay map[string]string) string {

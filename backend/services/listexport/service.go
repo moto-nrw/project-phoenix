@@ -46,7 +46,7 @@ func DefaultColumnsForPreset(preset Preset) []ColumnID {
 	case PresetOGSCompact:
 		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnCareDays, ColumnDeparture, ColumnPlannedPickup}
 	case PresetClassRoster:
-		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnWeeklyMonday, ColumnWeeklyTuesday, ColumnWeeklyWednesday, ColumnWeeklyThursday, ColumnWeeklyFriday, ColumnDeparture, ColumnGuardianContacts}
+		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnEnrollmentSummary, ColumnCareDays, ColumnWeeklyMonday, ColumnWeeklyTuesday, ColumnWeeklyWednesday, ColumnWeeklyThursday, ColumnWeeklyFriday, ColumnDeparture}
 	case PresetDailyPlanning:
 		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnDailyStatus, ColumnPlannedArrival, ColumnPlannedPickup, ColumnDailyNotes}
 	case PresetAttendanceSnapshot:

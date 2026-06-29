@@ -304,7 +304,7 @@ func TestDefaultColumnsForPreset(t *testing.T) {
 		want   []ColumnID
 	}{
 		{PresetOGSCompact, []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnCareDays, ColumnDeparture, ColumnPlannedPickup}},
-		{PresetClassRoster, []ColumnID{ColumnName, ColumnSchoolClass, ColumnWeeklyMonday, ColumnWeeklyTuesday, ColumnWeeklyWednesday, ColumnWeeklyThursday, ColumnWeeklyFriday, ColumnDeparture, ColumnGuardianContacts}},
+		{PresetClassRoster, []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnEnrollmentSummary, ColumnCareDays, ColumnWeeklyMonday, ColumnWeeklyTuesday, ColumnWeeklyWednesday, ColumnWeeklyThursday, ColumnWeeklyFriday, ColumnDeparture}},
 		{PresetDailyPlanning, []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnDailyStatus, ColumnPlannedArrival, ColumnPlannedPickup, ColumnDailyNotes}},
 		{PresetAttendanceSnapshot, []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnCurrentLocation, ColumnPlannedPickup}},
 		{PresetPickupList, []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnDeparture, ColumnPlannedPickup, ColumnDailyNotes}},

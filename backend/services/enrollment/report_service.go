@@ -317,7 +317,7 @@ func (s *reportService) CareUsage(ctx context.Context, filters CareUsageFilters)
 		report.Rows = append(report.Rows, row)
 		report.Totals.Children++
 		report.Totals.ByDayCount[strconv.Itoa(row.DayCount)]++
-		for _, day := range careUsageBookedPickupDays(row) {
+		for _, day := range careUsageBookedPickupDays(row, filters) {
 			pickupTime := row.PickupByDay[day]
 			if pickupTime == "" {
 				continue
@@ -729,9 +729,13 @@ func careUsageRow(req *enrollmentModels.Request, child *enrollmentModels.Request
 	}
 }
 
-func careUsageBookedPickupDays(row CareUsageRow) []string {
+func careUsageBookedPickupDays(row CareUsageRow, filters CareUsageFilters) []string {
 	daySet := map[string]bool{}
+	includedOfferingIDs := makeIDSet(filters.CareOfferingIDs)
 	for _, offering := range row.Offerings {
+		if filters.CareOfferingIDsSet && !includedOfferingIDs[offering.ID] {
+			continue
+		}
 		for _, day := range offering.Days {
 			day = strings.ToLower(strings.TrimSpace(day))
 			if day != "" && strings.TrimSpace(row.PickupByDay[day]) != "" {
@@ -966,6 +970,7 @@ func classRosterRow(
 	schemas map[int64]*enrollmentModels.FormSchema,
 	studentGuardians []ClassRosterGuardian,
 ) (ClassRosterRow, error) {
+	studentContactGuardians := classRosterStudentGuardians(student, studentGuardians)
 	row := ClassRosterRow{
 		StudentID:         student.ID,
 		SchoolClass:       student.SchoolClass,
@@ -975,7 +980,7 @@ func classRosterRow(
 		OfferingsByDay:    map[string][]string{},
 		ArrivalByDay:      map[string]string{},
 		PickupByDay:       map[string]string{},
-		Guardians:         normalizeClassRosterGuardians(studentGuardians),
+		Guardians:         studentContactGuardians,
 	}
 	if person != nil {
 		row.FirstName = person.FirstName
@@ -1012,7 +1017,7 @@ func classRosterRow(
 	row.Departure = departure
 	row.Guardians = classRosterEnrollmentGuardians(enrollment.request, enrollment.guardians)
 	if len(row.Guardians) == 0 {
-		row.Guardians = normalizeClassRosterGuardians(studentGuardians)
+		row.Guardians = studentContactGuardians
 	}
 	return row, nil
 }
@@ -1081,6 +1086,19 @@ func classRosterStudentGuardianContactKey(row userModels.GuardianEmergencyContac
 		return strconv.FormatInt(row.GuardianProfileID, 10)
 	}
 	return strings.ToLower(strings.TrimSpace(row.FirstName.String + " " + row.LastName.String + "|" + row.Email.String))
+}
+
+func classRosterStudentGuardians(student *userModels.Student, linkedContacts []ClassRosterGuardian) []ClassRosterGuardian {
+	contacts := make([]ClassRosterGuardian, 0, len(linkedContacts)+1)
+	contacts = append(contacts, linkedContacts...)
+	if student != nil {
+		contacts = append(contacts, ClassRosterGuardian{
+			Name:  stringPtrValue(student.GuardianName),
+			Email: stringPtrValue(student.GuardianEmail),
+			Phone: classRosterJoinUnique(stringPtrValue(student.GuardianPhone), stringPtrValue(student.GuardianContact)),
+		})
+	}
+	return normalizeClassRosterGuardians(contacts)
 }
 
 func classRosterEnrollmentGuardians(req *enrollmentModels.Request, additional []*enrollmentModels.RequestGuardian) []ClassRosterGuardian {
@@ -1517,7 +1535,8 @@ func careUsageRowMatches(row CareUsageRow, filters CareUsageFilters) bool {
 		}
 	}
 	if filters.Weekday != "" {
-		if !containsString(row.EffectiveDays, filters.Weekday) {
+		bookedPickupDays := careUsageBookedPickupDays(row, filters)
+		if !containsString(bookedPickupDays, filters.Weekday) {
 			return false
 		}
 		if filters.PickupTime != "" && row.PickupByDay[filters.Weekday] != filters.PickupTime {
@@ -1526,7 +1545,7 @@ func careUsageRowMatches(row CareUsageRow, filters CareUsageFilters) bool {
 	}
 	if filters.PickupTime != "" {
 		found := false
-		for _, day := range row.EffectiveDays {
+		for _, day := range careUsageBookedPickupDays(row, filters) {
 			if row.PickupByDay[day] == filters.PickupTime {
 				found = true
 				break

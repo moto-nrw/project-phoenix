@@ -916,10 +916,13 @@ func TestBuildCareUsageRecordDocumentUsesPickupPlanningBuckets(t *testing.T) {
 		Totals: enrollmentService.CareUsageTotals{
 			Children: 3,
 			ByWeekdayPickupTime: map[string]map[string]int{
-				"mon": {"14:30": 2, "16:00": 1},
-				"tue": {"14:30": 1},
+				"mon": {"15:30": 2, "16:00": 1},
+				"tue": {"14:45": 1},
 				"fri": {"16:00": 3},
 			},
+		},
+		FilterOptions: enrollmentService.CareUsageFilterOptions{
+			PickupTimes: []string{"14:45", "15:30"},
 		},
 	}
 
@@ -931,7 +934,7 @@ func TestBuildCareUsageRecordDocumentUsesPickupPlanningBuckets(t *testing.T) {
 	for _, field := range fields {
 		got = append(got, field.Label+"="+field.Value)
 	}
-	for _, want := range []string{"Mo bis 14:30=2", "Mo bis 16:00=1", "Di bis 14:30=1", "Di bis 16:00=0", "Fr bis 16:00=3"} {
+	for _, want := range []string{"Mo bis 14:45=0", "Mo bis 15:30=2", "Mo bis 16:00=1", "Di bis 14:45=1", "Fr bis 16:00=3"} {
 		if !strings.Contains(strings.Join(got, ";"), want) {
 			t.Fatalf("pickup planning fields = %#v, missing %s", got, want)
 		}
