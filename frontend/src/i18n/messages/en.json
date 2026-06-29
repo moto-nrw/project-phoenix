@@ -273,6 +273,73 @@
       "existingHint": "A change is already set for {date}. Saving overwrites it.",
       "reset": "Reset",
       "submit": "Save"
+    },
+    "actions": {
+      "sick": {
+        "label": "Report absence",
+        "shortLabel": "Absence",
+        "hint": "Report your child absent for one or more days"
+      },
+      "pickup": {
+        "label": "Pickup for one day",
+        "shortLabel": "Pickup",
+        "hint": "Adjust the pickup or arrival time for a single day"
+      },
+      "care_schedule": {
+        "label": "Change care times permanently",
+        "shortLabel": "Care times",
+        "hint": "Adjust the weekly schedule (Mon–Fri)"
+      },
+      "student_master_data": {
+        "label": "Change master data",
+        "shortLabel": "Master data",
+        "hint": "Adjust name, date of birth or contact details"
+      }
+    },
+    "request": {
+      "submit": "Send request",
+      "entryLabel": "Permanent change",
+      "entryHint": "Request a permanent change. The school confirms it.",
+      "chooserTitle": "Request a change",
+      "chooserIntro": "The school reviews your request and only applies it after confirmation. Nothing changes until then.",
+      "sendError": "The request could not be sent.",
+      "careSchedule": {
+        "title": "Change care times",
+        "intro": "Weekly schedule Mon–Fri as a request to the school. Only filled-in entries are changed, empty fields stay as before.",
+        "noChange": "Please adjust at least one day.",
+        "arrival": "Arrival time",
+        "pickup": "Pickup time",
+        "modeAria": "Departure mode {day}"
+      },
+      "masterData": {
+        "title": "Change master data",
+        "intro": "The school reviews the change and applies it after confirmation. Only filled-in fields are changed.",
+        "noField": "Please fill in at least one field.",
+        "firstName": "First name",
+        "firstNamePlaceholder": "First name of the child",
+        "lastName": "Last name",
+        "lastNamePlaceholder": "Last name of the child",
+        "birthday": "Date of birth",
+        "email": "Email",
+        "emailPlaceholder": "new.address@example.com",
+        "phone": "Phone",
+        "phonePlaceholder": "+49 151 23456789",
+        "note": "Additional notes",
+        "notePlaceholder": "e.g. new address, emergency contact"
+      },
+      "weekday": {
+        "1": "Monday",
+        "2": "Tuesday",
+        "3": "Wednesday",
+        "4": "Thursday",
+        "5": "Friday"
+      },
+      "careMode": {
+        "unchanged": "Unchanged",
+        "alone": "Goes alone",
+        "bus": "Takes the bus",
+        "pickup": "Is picked up"
+      }
     }
   },
   "parentLogin": {

@@ -476,6 +476,7 @@ function QuickActions({
   onPick: (key: OgsActionKey) => void;
   onOpenRequests: () => void;
 }>) {
+  const t = useTranslations("parentChildCare");
   if (loading) return <div className="mb-3 h-9" aria-hidden="true" />;
   const actions = getOgsActions(features).filter((action) => action.enabled);
   const direct = actions.filter((action) => action.group === "direct");
@@ -490,11 +491,11 @@ function QuickActions({
         <button
           type="button"
           onClick={onOpenRequests}
-          title="Dauerhafte Änderung anfragen. Die OGS bestätigt sie."
+          title={t("request.entryHint")}
           className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
         >
           <Pencil className="h-4 w-4 text-gray-400" aria-hidden="true" />
-          Dauerhafte Änderung
+          {t("request.entryLabel")}
           <ChevronRight
             className="-mr-1 h-4 w-4 text-gray-400"
             aria-hidden="true"
@@ -512,15 +513,16 @@ function QuickActionPill({
   action: ReturnType<typeof getOgsActions>[number];
   onPick: (key: OgsActionKey) => void;
 }>) {
+  const t = useTranslations("parentChildCare");
   return (
     <button
       type="button"
       onClick={() => onPick(action.key)}
-      title={action.hint}
+      title={t(`actions.${action.key}.hint`)}
       className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
     >
       <action.Icon className="h-4 w-4 text-gray-400" aria-hidden="true" />
-      {action.shortLabel}
+      {t(`actions.${action.key}.shortLabel`)}
     </button>
   );
 }

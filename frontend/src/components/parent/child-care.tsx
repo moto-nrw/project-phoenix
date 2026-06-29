@@ -642,21 +642,17 @@ export function SickStatusSummary({
 // onSubmit(payload); the caller performs the API request and closes on success
 // (throwing surfaces the error here).
 
-// Weekday numbers match the backend (ISO: Monday=1 .. Friday=5).
-const REQUEST_WEEKDAYS = [
-  { num: 1, label: "Montag" },
-  { num: 2, label: "Dienstag" },
-  { num: 3, label: "Mittwoch" },
-  { num: 4, label: "Donnerstag" },
-  { num: 5, label: "Freitag" },
-] as const;
+// Weekday numbers match the backend (ISO: Monday=1 .. Friday=5). Labels are
+// localized per-locale via t(`request.weekday.${num}`).
+const REQUEST_WEEKDAYS = [1, 2, 3, 4, 5] as const;
 
-// Empty value = "leave this weekday's departure mode unchanged".
+// Empty value = "leave this weekday's departure mode unchanged". Labels are
+// localized per-locale via t(`request.careMode.${key}`).
 const REQUEST_CARE_MODES = [
-  { value: "", label: "Unverändert" },
-  { value: "alone", label: "Geht alleine" },
-  { value: "bus", label: "Fährt Bus" },
-  { value: "pickup", label: "Wird abgeholt" },
+  { value: "", key: "unchanged" },
+  { value: "alone", key: "alone" },
+  { value: "bus", key: "bus" },
+  { value: "pickup", key: "pickup" },
 ] as const;
 
 interface CareWeekdayDraft {
@@ -680,10 +676,11 @@ function RequestModalFooter({
   onCancel: () => void;
   onSubmit: () => void;
 }>) {
+  const t = useTranslations("parentChildCare");
   return (
     <>
       <Button type="button" variant="outline" size="md" onClick={onCancel}>
-        Abbrechen
+        {t("cancel")}
       </Button>
       <Button
         type="button"
@@ -695,7 +692,7 @@ function RequestModalFooter({
         {submitting && (
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
         )}
-        Anfrage senden
+        {t("request.submit")}
       </Button>
     </>
   );
@@ -708,16 +705,22 @@ export function CareScheduleRequestModal({
   onClose: () => void;
   onSubmit: (payload: Record<string, unknown>) => Promise<void>;
 }>) {
+  const t = useTranslations("parentChildCare");
   const [rows, setRows] = useState<Record<number, CareWeekdayDraft>>(() =>
     Object.fromEntries(
-      REQUEST_WEEKDAYS.map((w) => [
-        w.num,
+      REQUEST_WEEKDAYS.map((num) => [
+        num,
         { mode: "", arrival: "", pickup: "" },
       ]),
     ),
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const careModeOptions = REQUEST_CARE_MODES.map((m) => ({
+    value: m.value,
+    label: t(`request.careMode.${m.key}`),
+  }));
 
   const setField = (
     num: number,
@@ -727,22 +730,22 @@ export function CareScheduleRequestModal({
     setRows((prev) => ({ ...prev, [num]: { ...prev[num]!, [field]: value } }));
 
   const handleSubmit = async () => {
-    const weekdays = REQUEST_WEEKDAYS.flatMap((w) => {
-      const row = rows[w.num]!;
+    const weekdays = REQUEST_WEEKDAYS.flatMap((num) => {
+      const row = rows[num]!;
       if (!row.mode && !row.arrival && !row.pickup) return [];
       const entry: {
         weekday: number;
         mode?: string;
         arrival?: string;
         pickup?: string;
-      } = { weekday: w.num };
+      } = { weekday: num };
       if (row.mode) entry.mode = row.mode;
       if (row.arrival) entry.arrival = row.arrival;
       if (row.pickup) entry.pickup = row.pickup;
       return [entry];
     });
     if (weekdays.length === 0) {
-      setError("Bitte mindestens einen Tag anpassen.");
+      setError(t("request.careSchedule.noChange"));
       return;
     }
     setSubmitting(true);
@@ -751,11 +754,7 @@ export function CareScheduleRequestModal({
       await onSubmit({ weekdays });
       onClose();
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Die Anfrage konnte nicht gesendet werden.",
-      );
+      setError(err instanceof Error ? err.message : t("request.sendError"));
     } finally {
       setSubmitting(false);
     }
@@ -768,7 +767,7 @@ export function CareScheduleRequestModal({
     <Modal
       isOpen
       onClose={onClose}
-      title="Betreuungszeiten ändern"
+      title={t("request.careSchedule.title")}
       footer={
         <RequestModalFooter
           submitting={submitting}
@@ -779,50 +778,49 @@ export function CareScheduleRequestModal({
     >
       <div className="space-y-4">
         <p className="text-sm leading-6 text-gray-600">
-          Wochenplan Mo–Fr als Anfrage an die OGS. Nur ausgefüllte Angaben
-          werden geändert, leere Felder bleiben wie bisher.
+          {t("request.careSchedule.intro")}
         </p>
         <div className="space-y-3">
-          {REQUEST_WEEKDAYS.map((w) => {
-            const row = rows[w.num]!;
+          {REQUEST_WEEKDAYS.map((num) => {
+            const row = rows[num]!;
+            const weekdayLabel = t(`request.weekday.${num}`);
             return (
-              <div
-                key={w.num}
-                className="rounded-xl border border-gray-200 p-3"
-              >
+              <div key={num} className="rounded-xl border border-gray-200 p-3">
                 <p className="mb-2 text-sm font-semibold text-gray-900">
-                  {w.label}
+                  {weekdayLabel}
                 </p>
                 <div className="space-y-2">
                   <CustomSelect
                     value={row.mode}
-                    options={REQUEST_CARE_MODES}
-                    onChange={(v) => setField(w.num, "mode", v)}
-                    ariaLabel={`Abholart ${w.label}`}
+                    options={careModeOptions}
+                    onChange={(v) => setField(num, "mode", v)}
+                    ariaLabel={t("request.careSchedule.modeAria", {
+                      day: weekdayLabel,
+                    })}
                   />
                   <div className="grid grid-cols-2 gap-2">
                     <label className="block">
                       <span className="mb-1 block text-xs font-medium text-gray-500">
-                        Bringzeit
+                        {t("request.careSchedule.arrival")}
                       </span>
                       <input
                         type="time"
                         value={row.arrival}
                         onChange={(e) =>
-                          setField(w.num, "arrival", e.target.value)
+                          setField(num, "arrival", e.target.value)
                         }
                         className={timeClass}
                       />
                     </label>
                     <label className="block">
                       <span className="mb-1 block text-xs font-medium text-gray-500">
-                        Abholzeit
+                        {t("request.careSchedule.pickup")}
                       </span>
                       <input
                         type="time"
                         value={row.pickup}
                         onChange={(e) =>
-                          setField(w.num, "pickup", e.target.value)
+                          setField(num, "pickup", e.target.value)
                         }
                         className={timeClass}
                       />
@@ -846,6 +844,7 @@ export function MasterDataRequestModal({
   onClose: () => void;
   onSubmit: (payload: Record<string, unknown>) => Promise<void>;
 }>) {
+  const t = useTranslations("parentChildCare");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [birthday, setBirthday] = useState("");
@@ -864,7 +863,7 @@ export function MasterDataRequestModal({
     if (phone.trim()) fields.guardian_phone = phone.trim();
     if (note.trim()) fields.extra_info = note.trim();
     if (Object.keys(fields).length === 0) {
-      setError("Bitte mindestens ein Feld ausfüllen.");
+      setError(t("request.masterData.noField"));
       return;
     }
     setSubmitting(true);
@@ -873,11 +872,7 @@ export function MasterDataRequestModal({
       await onSubmit({ fields });
       onClose();
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Die Anfrage konnte nicht gesendet werden.",
-      );
+      setError(err instanceof Error ? err.message : t("request.sendError"));
     } finally {
       setSubmitting(false);
     }
@@ -890,7 +885,7 @@ export function MasterDataRequestModal({
     <Modal
       isOpen
       onClose={onClose}
-      title="Stammdaten ändern"
+      title={t("request.masterData.title")}
       footer={
         <RequestModalFooter
           submitting={submitting}
@@ -901,38 +896,37 @@ export function MasterDataRequestModal({
     >
       <div className="space-y-4">
         <p className="text-sm leading-6 text-gray-600">
-          Die OGS prüft die Änderung und übernimmt sie nach Bestätigung. Nur
-          ausgefüllte Felder werden geändert.
+          {t("request.masterData.intro")}
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block">
             <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              Vorname
+              {t("request.masterData.firstName")}
             </span>
             <input
               type="text"
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
-              placeholder="Vorname des Kindes"
+              placeholder={t("request.masterData.firstNamePlaceholder")}
               className={fieldClass}
             />
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              Nachname
+              {t("request.masterData.lastName")}
             </span>
             <input
               type="text"
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
-              placeholder="Nachname des Kindes"
+              placeholder={t("request.masterData.lastNamePlaceholder")}
               className={fieldClass}
             />
           </label>
         </div>
         <label className="block">
           <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            Geburtsdatum
+            {t("request.masterData.birthday")}
           </span>
           <input
             type="date"
@@ -943,38 +937,38 @@ export function MasterDataRequestModal({
         </label>
         <label className="block">
           <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            E-Mail
+            {t("request.masterData.email")}
           </span>
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="neue.adresse@example.de"
+            placeholder={t("request.masterData.emailPlaceholder")}
             className={fieldClass}
           />
         </label>
         <label className="block">
           <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            Telefon
+            {t("request.masterData.phone")}
           </span>
           <input
             type="tel"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            placeholder="0151 23456789"
+            placeholder={t("request.masterData.phonePlaceholder")}
             className={fieldClass}
           />
         </label>
         <label className="block">
           <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            Weitere Hinweise
+            {t("request.masterData.note")}
           </span>
           <textarea
             value={note}
             maxLength={MAX_NOTE_LEN}
             onChange={(e) => setNote(e.target.value)}
             rows={3}
-            placeholder="z. B. neue Anschrift, Notfallkontakt"
+            placeholder={t("request.masterData.notePlaceholder")}
             className={`resize-none ${fieldClass}`}
           />
         </label>
@@ -997,10 +991,6 @@ export type OgsActionKey =
 // anything permanently.
 export interface OgsAction {
   readonly key: OgsActionKey;
-  // Full label (menus / long surfaces); shortLabel keeps the chat chips compact.
-  readonly label: string;
-  readonly shortLabel: string;
-  readonly hint: string;
   readonly Icon: LucideIcon;
   readonly enabled: boolean;
   readonly group: "direct" | "request";
@@ -1012,41 +1002,32 @@ export interface OgsAction {
 // drift apart. The self-service actions are gated on the school's feature flags;
 // the two change-requests are gated on request_submit_enabled (the guardian's
 // parent_portal.request.submit permission) so a chat-only guardian never sees an
-// action the backend would reject with a 403.
+// action the backend would reject with a 403. Display strings (label /
+// shortLabel / hint) are NOT carried here — this function is not a hook, so
+// consumers localize each key via t(`actions.${key}.{label,shortLabel,hint}`)
+// in the "parentChildCare" namespace (mirrors the child-detail action pattern).
 export function getOgsActions(features: ChildFeatures): OgsAction[] {
   return [
     {
       key: "sick",
-      label: "Krankmeldung",
-      shortLabel: "Krankmeldung",
-      hint: "Kind für einen oder mehrere Tage krankmelden",
       Icon: HeartPulse,
       enabled: features.sick_note_enabled,
       group: "direct",
     },
     {
       key: "pickup",
-      label: "Abholung für einen Tag",
-      shortLabel: "Abholung",
-      hint: "Abhol- oder Bringzeit an einem einzelnen Tag anpassen",
       Icon: CalendarClock,
       enabled: features.pickup_change_enabled,
       group: "direct",
     },
     {
       key: "care_schedule",
-      label: "Betreuungszeiten dauerhaft ändern",
-      shortLabel: "Betreuungszeiten",
-      hint: "Wochenplan (Mo–Fr) anpassen",
       Icon: CalendarRange,
       enabled: features.request_submit_enabled,
       group: "request",
     },
     {
       key: "student_master_data",
-      label: "Stammdaten ändern",
-      shortLabel: "Stammdaten",
-      hint: "Name, Geburtsdatum oder Kontaktdaten anpassen",
       Icon: IdCard,
       enabled: features.request_submit_enabled,
       group: "request",
@@ -1070,15 +1051,15 @@ export function RequestChooserModal({
   onPick: (key: OgsActionKey) => void;
   onClose: () => void;
 }>) {
+  const t = useTranslations("parentChildCare");
   const requests = getOgsActions(features).filter(
     (action) => action.group === "request" && action.enabled,
   );
   return (
-    <Modal isOpen onClose={onClose} title="Änderung anfragen">
+    <Modal isOpen onClose={onClose} title={t("request.chooserTitle")}>
       <div className="space-y-3">
         <p className="text-sm leading-6 text-gray-500">
-          Die OGS prüft Ihre Anfrage und übernimmt sie erst nach Bestätigung.
-          Bis dahin ändert sich nichts.
+          {t("request.chooserIntro")}
         </p>
         <div className="space-y-2">
           {requests.map((action) => (
@@ -1093,10 +1074,10 @@ export function RequestChooserModal({
               </span>
               <span className="min-w-0">
                 <span className="block text-sm font-semibold text-gray-900">
-                  {action.label}
+                  {t(`actions.${action.key}.label`)}
                 </span>
                 <span className="block text-xs text-gray-500">
-                  {action.hint}
+                  {t(`actions.${action.key}.hint`)}
                 </span>
               </span>
             </button>

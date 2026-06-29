@@ -273,6 +273,73 @@
       "existingHint": "Für den {date} ist bereits eine Änderung hinterlegt. Speichern überschreibt sie.",
       "reset": "Zurücksetzen",
       "submit": "Speichern"
+    },
+    "actions": {
+      "sick": {
+        "label": "Krankmeldung",
+        "shortLabel": "Krankmeldung",
+        "hint": "Kind für einen oder mehrere Tage krankmelden"
+      },
+      "pickup": {
+        "label": "Abholung für einen Tag",
+        "shortLabel": "Abholung",
+        "hint": "Abhol- oder Bringzeit an einem einzelnen Tag anpassen"
+      },
+      "care_schedule": {
+        "label": "Betreuungszeiten dauerhaft ändern",
+        "shortLabel": "Betreuungszeiten",
+        "hint": "Wochenplan (Mo–Fr) anpassen"
+      },
+      "student_master_data": {
+        "label": "Stammdaten ändern",
+        "shortLabel": "Stammdaten",
+        "hint": "Name, Geburtsdatum oder Kontaktdaten anpassen"
+      }
+    },
+    "request": {
+      "submit": "Anfrage senden",
+      "entryLabel": "Dauerhafte Änderung",
+      "entryHint": "Dauerhafte Änderung anfragen. Die OGS bestätigt sie.",
+      "chooserTitle": "Änderung anfragen",
+      "chooserIntro": "Die OGS prüft Ihre Anfrage und übernimmt sie erst nach Bestätigung. Bis dahin ändert sich nichts.",
+      "sendError": "Die Anfrage konnte nicht gesendet werden.",
+      "careSchedule": {
+        "title": "Betreuungszeiten ändern",
+        "intro": "Wochenplan Mo–Fr als Anfrage an die OGS. Nur ausgefüllte Angaben werden geändert, leere Felder bleiben wie bisher.",
+        "noChange": "Bitte mindestens einen Tag anpassen.",
+        "arrival": "Bringzeit",
+        "pickup": "Abholzeit",
+        "modeAria": "Abholart {day}"
+      },
+      "masterData": {
+        "title": "Stammdaten ändern",
+        "intro": "Die OGS prüft die Änderung und übernimmt sie nach Bestätigung. Nur ausgefüllte Felder werden geändert.",
+        "noField": "Bitte mindestens ein Feld ausfüllen.",
+        "firstName": "Vorname",
+        "firstNamePlaceholder": "Vorname des Kindes",
+        "lastName": "Nachname",
+        "lastNamePlaceholder": "Nachname des Kindes",
+        "birthday": "Geburtsdatum",
+        "email": "E-Mail",
+        "emailPlaceholder": "neue.adresse@example.de",
+        "phone": "Telefon",
+        "phonePlaceholder": "0151 23456789",
+        "note": "Weitere Hinweise",
+        "notePlaceholder": "z. B. neue Anschrift, Notfallkontakt"
+      },
+      "weekday": {
+        "1": "Montag",
+        "2": "Dienstag",
+        "3": "Mittwoch",
+        "4": "Donnerstag",
+        "5": "Freitag"
+      },
+      "careMode": {
+        "unchanged": "Unverändert",
+        "alone": "Geht alleine",
+        "bus": "Fährt Bus",
+        "pickup": "Wird abgeholt"
+      }
     }
   },
   "parentLogin": {
