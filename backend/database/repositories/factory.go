@@ -155,6 +155,7 @@ type Factory struct {
 	AnnouncementView         platformModels.AnnouncementViewRepository
 	OperatorAuditLog         platformModels.OperatorAuditLogRepository
 	OperatorEmailChangeToken platformModels.OperatorEmailChangeTokenRepository
+	OperatorRefreshToken     platformModels.OperatorRefreshTokenRepository
 	OperatorInvitationToken  platformModels.OperatorInvitationTokenRepository
 	OperatorSummaries        platformModels.OperatorSummariesRepository
 	School                   platformModels.SchoolRepository
@@ -174,6 +175,8 @@ type Factory struct {
 	RequestGuardian      enrollmentModels.RequestGuardianRepository
 	CareOffering         enrollmentModels.CareOfferingRepository
 	RequestChildOffering enrollmentModels.RequestChildOfferingRepository
+	ChangeRequest        enrollmentModels.ChangeRequestRepository
+	ChangeRequestMessage enrollmentModels.ChangeRequestMessageRepository
 	SubmissionRateLimit  enrollmentModels.SubmissionRateLimitRepository
 	Phase                enrollmentModels.PhaseRepository
 
@@ -182,11 +185,13 @@ type Factory struct {
 	ParentEnrollablePhase   parentModels.EnrollablePhaseRepository
 	ParentEnrollmentRequest parentModels.EnrollmentRequestRepository
 
-	// Parent-submitted notes (tenant-scoped; read by parents + staff)
-	StudentParentNote userModels.StudentParentNoteRepository
-
 	// Parent Stammdaten direct-edit audit + change-request review
 	StudentDataChangeRequest userModels.StudentDataChangeRequestRepository
+
+	// Parent-OGS messaging (tenant-scoped two-way conversation per child)
+	ParentMessageThread userModels.ParentMessageThreadRepository
+	ParentMessage       userModels.ParentMessageRepository
+	ParentMessageRead   userModels.ParentMessageReadRepository
 }
 
 // NewFactory creates a new repository factory with all repositories
@@ -309,6 +314,7 @@ func NewFactory(db *bun.DB) *Factory {
 		AnnouncementView:         platformRepo.NewAnnouncementViewRepository(db),
 		OperatorAuditLog:         platformRepo.NewOperatorAuditLogRepository(db),
 		OperatorEmailChangeToken: platformRepo.NewOperatorEmailChangeTokenRepository(db),
+		OperatorRefreshToken:     platformRepo.NewOperatorRefreshTokenRepository(db),
 		OperatorInvitationToken:  platformRepo.NewOperatorInvitationTokenRepository(db),
 		OperatorSummaries:        platformRepo.NewOperatorSummariesRepository(db),
 		School:                   platformRepo.NewSchoolRepository(db),
@@ -327,6 +333,8 @@ func NewFactory(db *bun.DB) *Factory {
 		RequestGuardian:      enrollment.NewRequestGuardianRepository(db),
 		CareOffering:         enrollment.NewCareOfferingRepository(db),
 		RequestChildOffering: enrollment.NewRequestChildOfferingRepository(db),
+		ChangeRequest:        enrollment.NewChangeRequestRepository(db),
+		ChangeRequestMessage: enrollment.NewChangeRequestMessageRepository(db),
 		SubmissionRateLimit:  enrollment.NewSubmissionRateLimitRepository(db),
 		Phase:                enrollment.NewPhaseRepository(db),
 
@@ -335,10 +343,12 @@ func NewFactory(db *bun.DB) *Factory {
 		ParentEnrollablePhase:   parentRepo.NewEnrollablePhaseRepository(db),
 		ParentEnrollmentRequest: parentRepo.NewEnrollmentRequestRepository(db),
 
-		// Parent-submitted notes (tenant-scoped; read by parents + staff)
-		StudentParentNote: users.NewStudentParentNoteRepository(db),
-
 		// Parent Stammdaten direct-edit audit + change-request review
 		StudentDataChangeRequest: users.NewStudentDataChangeRequestRepository(db),
+
+		// Parent-OGS messaging (tenant-scoped two-way conversation per child)
+		ParentMessageThread: users.NewParentMessageThreadRepository(db),
+		ParentMessage:       users.NewParentMessageRepository(db),
+		ParentMessageRead:   users.NewParentMessageReadRepository(db),
 	}
 }

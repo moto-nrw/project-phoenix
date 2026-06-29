@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   CalendarClock,
@@ -13,13 +14,16 @@ import {
   Users,
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import { type Child, type ParentNote, listMyChildren } from "~/lib/parent-api";
+import {
+  type Child,
+  type ThreadSummary,
+  listChildThreads,
+  listMyChildren,
+} from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import {
   type ChildCare,
-  NotesModal,
-  ParentNotesList,
   PickupTimeModal,
   SickNoteModal,
   SickStatusSummary,
@@ -28,12 +32,16 @@ import {
 import RelatedAccountsPanel from "~/components/parent/related-accounts-panel";
 import GuardiansPanel from "~/components/parent/guardians-panel";
 import { Button } from "~/components/ui/button";
+import { UnreadBadge } from "~/components/messaging/unread-badge";
+import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
+import { formatChatDateTime } from "~/lib/date-helpers";
 
 // Quick-actions that are wired to real backend flows. The rest remain
 // "coming soon" stubs until their features ship.
-const SUPPORTED_ACTIONS: Record<string, "sick" | "notes" | "pickup"> = {
+// Modal-backed quick actions. "message" is handled separately — it opens the
+// new-conversation modal rather than a per-action modal.
+const SUPPORTED_ACTIONS: Record<string, "sick" | "pickup"> = {
   sick: "sick",
-  message: "notes",
   pickupTime: "pickup",
 };
 
@@ -42,9 +50,10 @@ const SUPPORTED_ACTIONS: Record<string, "sick" | "notes" | "pickup"> = {
 // Pickup changes are the exception: existing guardian-authored rows must stay
 // clearable even after the school disables new parent changes.
 function isActionEnabled(actionKey: string, care: ChildCare): boolean {
+  // Messaging shares the operations.parent_notes_enabled gate.
+  if (actionKey === "message") return care.features.notes_enabled;
   const target = SUPPORTED_ACTIONS[actionKey];
   if (target === "sick") return care.features.sick_note_enabled;
-  if (target === "notes") return care.features.notes_enabled;
   if (target === "pickup") {
     return (
       care.features.pickup_change_enabled ||
@@ -180,15 +189,83 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
   const fullName = `${child.first_name} ${child.last_name}`;
   useSetBreadcrumb({ pageTitle: fullName });
   const care = useChildCare(child.student_id);
-  const [modal, setModal] = useState<null | "sick" | "notes" | "pickup">(null);
+  const router = useRouter();
+  const [modal, setModal] = useState<null | "sick" | "pickup">(null);
+  const [threads, setThreads] = useState<ThreadSummary[]>([]);
+
+  // Monotonic request counter so only the latest in-flight thread fetch may
+  // write state. Navigating between children reuses this component (the route
+  // param changes), so without this guard a late response for child A — or a
+  // failed request for child B after viewing A — could leave A's conversation
+  // preview/unread count rendered on B's page.
+  const threadsRequestRef = useRef(0);
+
+  // The child's conversation (this child only), fetched via the per-child
+  // endpoint so we don't pull the guardian's whole cross-tenant inbox just to
+  // render one child. Chat model: at most one conversation per child.
+  const reloadThreads = useCallback(() => {
+    const requestStudentId = child.student_id;
+    const seq = ++threadsRequestRef.current;
+    listChildThreads(requestStudentId)
+      .then((result) => {
+        // Drop a response that lost the race to a newer request (child switch or
+        // a concurrent SSE-triggered reload) so stale data never renders.
+        if (threadsRequestRef.current !== seq) return;
+        setThreads(result);
+      })
+      .catch((err) => {
+        if (threadsRequestRef.current !== seq) return;
+        logger.warn("child_threads_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          student_id: requestStudentId,
+        });
+      });
+  }, [child.student_id]);
+
+  useEffect(() => {
+    // Reset on child change so child A's preview never shows on child B while B's
+    // request is in flight; the seq guard then keeps a late A response from
+    // overwriting B.
+    setThreads([]);
+    reloadThreads();
+  }, [reloadThreads]);
+
+  // Real-time: the portal-wide ParentRealtimeBridge owns the single parents-app
+  // SSE connection and dispatches `parent-conversation-refresh` (carrying the
+  // affected studentId) on every parent_message. Subscribe via the shared hook,
+  // like OgsConversation and the parent messages list, so this card refreshes its
+  // unread count + last-message preview without a remount. Listen ONLY to the
+  // filtered per-conversation event (not the unfiltered `parent-threads-refresh`
+  // the bridge also fires for the same message): the bridge dispatches both on
+  // every event, so the filtered one already covers all cases — and listening to
+  // both reloaded this child twice per own-child message and once per other-child
+  // message. The hook skips a refetch when the event names a DIFFERENT child.
+  // marksRead: false — reloadThreads only re-reads thread summaries; it never
+  // advances a read cursor (that happens when the conversation itself is opened),
+  // so it should refresh even in a background tab rather than deferring to focus.
+  useMessagesActivity({
+    eventName: "parent-conversation-refresh",
+    studentId: child.student_id,
+    onMatch: reloadThreads,
+    marksRead: false,
+  });
 
   const openAction = useCallback(
     (actionKey: string) => {
+      if (!isActionEnabled(actionKey, care)) return;
+      if (actionKey === "message") {
+        router.push(`/parents/messages/${child.student_id}`);
+        return;
+      }
       const target = SUPPORTED_ACTIONS[actionKey];
-      if (target && isActionEnabled(actionKey, care)) setModal(target);
+      if (target) setModal(target);
     },
-    [care],
+    [care, router, child.student_id],
   );
+
+  const openConversation = useCallback(() => {
+    router.push(`/parents/messages/${child.student_id}`);
+  }, [router, child.student_id]);
 
   const summaryItems = useMemo(
     () => [
@@ -205,6 +282,7 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
         child={child}
         fullName={fullName}
         care={care}
+        threads={threads}
         onAction={openAction}
       />
 
@@ -248,13 +326,13 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
             </div>
           </div>
           <div className="moto-dotted-background moto-dotted-background--split border-t border-gray-200 p-5 sm:p-6 lg:border-t-0 lg:border-l">
-            <TodayPanel care={care} />
+            <TodayPanel care={care} threads={threads} />
           </div>
         </div>
       </section>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(24rem,0.8fr)]">
-        <section className="rounded-2xl border border-gray-200 bg-white shadow-sm max-lg:hidden">
+        <section className="min-w-0 rounded-2xl border border-gray-200 bg-white shadow-sm max-lg:hidden">
           <div className="p-5 sm:p-6">
             <PanelHeader
               eyebrow={t("masterDataEyebrow")}
@@ -277,11 +355,12 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
           </div>
         </section>
 
-        <div className="grid gap-6 max-lg:hidden">
-          <MessagesPanel
-            notes={care.notes}
+        <div className="grid min-w-0 gap-6 max-lg:hidden">
+          <ChildMessagesPanel
+            studentId={child.student_id}
+            threads={threads}
             composeDisabled={!care.features.notes_enabled}
-            onCompose={() => setModal("notes")}
+            onCompose={openConversation}
           />
           <GuardiansPanel studentId={child.student_id} />
           <RelatedAccountsPanel
@@ -297,13 +376,6 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
         <SickNoteModal
           onClose={() => setModal(null)}
           onSubmit={care.reportSick}
-        />
-      )}
-      {modal === "notes" && (
-        <NotesModal
-          notes={care.notes}
-          onClose={() => setModal(null)}
-          onSubmit={care.postNote}
         />
       )}
       {modal === "pickup" && (
@@ -324,11 +396,13 @@ function MobileChildAppView({
   child,
   fullName,
   care,
+  threads,
   onAction,
 }: Readonly<{
   child: Child;
   fullName: string;
   care: ChildCare;
+  threads: ThreadSummary[];
   onAction: (actionKey: string) => void;
 }>) {
   const t = useTranslations("parentChildDetail");
@@ -338,7 +412,7 @@ function MobileChildAppView({
 
   return (
     <div className="space-y-5 lg:hidden">
-      <div className="overflow-hidden rounded-[1.75rem] border border-gray-200 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <BackBar />
         <div className="p-5">
           <div className="flex min-w-0 items-center gap-4">
@@ -377,7 +451,7 @@ function MobileChildAppView({
         ))}
       </div>
 
-      <section className="rounded-[1.75rem] border border-gray-200 bg-white p-5 shadow-sm">
+      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
         <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
           {t("today.sickLabel")}
         </p>
@@ -386,8 +460,9 @@ function MobileChildAppView({
         </div>
       </section>
 
-      <MessagesPanel
-        notes={care.notes}
+      <ChildMessagesPanel
+        studentId={child.student_id}
+        threads={threads}
         composeDisabled={!care.features.notes_enabled}
         onCompose={() => onAction("message")}
         mobile
@@ -404,7 +479,7 @@ function MobileChildAppView({
 
       <NewsPanel mobile />
 
-      <section className="rounded-[1.75rem] border border-gray-200 bg-white p-5 shadow-sm">
+      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-semibold text-gray-900">
           {t("careLabel")}
         </h2>
@@ -492,9 +567,12 @@ function DesktopQuickAction({
   );
 }
 
-function TodayPanel({ care }: Readonly<{ care: ChildCare }>) {
+function TodayPanel({
+  care,
+  threads,
+}: Readonly<{ care: ChildCare; threads: ThreadSummary[] }>) {
   const t = useTranslations("parentChildDetail");
-  const noteCount = care.notes.length;
+  const unread = threads.reduce((sum, thread) => sum + thread.unread, 0);
   return (
     <div className="relative z-10 space-y-4">
       <div>
@@ -541,9 +619,11 @@ function TodayPanel({ care }: Readonly<{ care: ChildCare }>) {
               {t("today.messagesLabel")}
             </p>
             <p className="mt-0.5 text-sm font-semibold text-gray-900">
-              {noteCount === 0
-                ? t("today.noMessagesSent")
-                : t("today.messagesSent", { count: noteCount })}
+              {threads.length === 0
+                ? t("today.noConversations")
+                : unread > 0
+                  ? t("today.unreadCount", { count: unread })
+                  : t("today.conversationsCount", { count: threads.length })}
             </p>
           </div>
         </div>
@@ -552,27 +632,36 @@ function TodayPanel({ care }: Readonly<{ care: ChildCare }>) {
   );
 }
 
-function MessagesPanel({
-  notes,
+// Shows this child's OGS conversations (filtered to the child) with an unread
+// pill and last activity. Each row opens the thread; "Neue Nachricht" starts a
+// new conversation pre-selected to this child. Mirrors the staff-side
+// ParentMessagesCard.
+function ChildMessagesPanel({
+  studentId,
+  threads,
   onCompose,
   composeDisabled = false,
   mobile = false,
 }: Readonly<{
-  notes: ParentNote[];
+  studentId: string;
+  threads: ThreadSummary[];
   onCompose: () => void;
   composeDisabled?: boolean;
   mobile?: boolean;
 }>) {
   const t = useTranslations("parentChildDetail");
+  const router = useRouter();
+  // Chat model: at most one conversation per child.
+  const conversation = threads[0];
   return (
     <section
       className={
         mobile
-          ? "rounded-[1.75rem] border border-gray-200 bg-white p-5 shadow-sm"
-          : "rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6"
+          ? "min-w-0 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+          : "min-w-0 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6"
       }
     >
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex min-w-0 items-start justify-between gap-4">
         <PanelHeader
           eyebrow={t("messages.eyebrow")}
           title={t("messages.title")}
@@ -581,17 +670,45 @@ function MessagesPanel({
         {!composeDisabled && (
           <Button
             type="button"
+            variant="primary"
             size="md"
-            className="shrink-0 gap-2"
             onClick={onCompose}
+            className="shrink-0"
           >
-            <MessageCircle className="h-4 w-4" aria-hidden="true" />
+            <MessageCircle className="mr-1.5 h-4 w-4" aria-hidden="true" />
             {t("messages.compose")}
           </Button>
         )}
       </div>
       <div className="mt-4">
-        <ParentNotesList notes={notes} />
+        {!conversation || !conversation.last_message_at ? (
+          <p className="text-sm leading-6 text-gray-600">
+            {t("messages.empty")}
+          </p>
+        ) : (
+          <button
+            type="button"
+            onClick={() => router.push(`/parents/messages/${studentId}`)}
+            className="flex w-full items-start justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2 text-left transition-colors hover:bg-gray-100"
+          >
+            <span className="min-w-0 flex-1">
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="truncate text-sm font-medium text-gray-900">
+                  {conversation.counterpart_name}
+                </span>
+                <UnreadBadge count={conversation.unread} />
+              </span>
+              {conversation.last_message_body && (
+                <span className="mt-0.5 block truncate text-sm text-gray-600">
+                  {conversation.last_message_body}
+                </span>
+              )}
+            </span>
+            <span className="flex-shrink-0 text-xs whitespace-nowrap text-gray-400">
+              {formatChatDateTime(conversation.last_message_at)}
+            </span>
+          </button>
+        )}
       </div>
     </section>
   );
@@ -603,7 +720,7 @@ function NewsPanel({ mobile = false }: Readonly<{ mobile?: boolean }>) {
     <section
       className={
         mobile
-          ? "rounded-[1.75rem] border border-gray-200 bg-white p-5 shadow-sm"
+          ? "rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
           : "rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6"
       }
     >

@@ -476,8 +476,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyParentNotesEnabled,
-		Label:           "Elternnachrichten über Elternportal",
-		Description:     "Wenn aktiviert, können Eltern dem Team über das Elternportal kurze Nachrichten zu ihrem Kind hinterlassen. Die neuesten Nachrichten erscheinen in der Kinderdetailansicht.",
+		Label:           "Eltern-OGS-Nachrichten",
+		Description:     "Wenn aktiviert, können Eltern dem Team über das Elternportal Nachrichten zu ihrem Kind schreiben und das Team kann direkt antworten. Die Unterhaltungen erscheinen im zentralen Nachrichten-Posteingang und in der Kinderdetailansicht.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",

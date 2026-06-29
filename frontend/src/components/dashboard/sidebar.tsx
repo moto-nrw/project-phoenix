@@ -19,8 +19,11 @@ import { hasRole, isCaregiver } from "~/lib/auth-utils";
 import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useSuggestionsUnread } from "~/lib/hooks/use-suggestions-unread";
+import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
+import { useParentMessagesUnread } from "~/lib/hooks/use-parent-messages-unread";
 import { useOperatorSuggestionsUnread } from "~/lib/hooks/use-operator-suggestions-unread";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
+import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { SidebarAccordionSection } from "~/components/dashboard/sidebar-accordion-section";
 import { SidebarSubItem } from "~/components/dashboard/sidebar-sub-item";
 import { navigationIcons } from "~/lib/navigation-icons";
@@ -115,14 +118,14 @@ const NAV_ITEMS: NavItem[] = [
     activeColor: "text-sky-500",
     alwaysShow: true,
   },
-  // Coming soon features - shown to all users
   {
-    href: "#",
+    href: "/messages",
     label: "Nachrichten",
     icon: "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z",
+    activeColor: "text-[#5080D8]",
     alwaysShow: true,
-    comingSoon: true,
   },
+  // Coming soon features - shown to all users
   {
     href: "#",
     label: "Mittagessen",
@@ -298,6 +301,7 @@ const NFC_ONLY_HREFS = new Set<string>([
 // Static sub-pages for Anmeldungen accordion (admin only).
 const ENROLLMENTS_SUB_PAGES = [
   { href: "/admin/enrollments", label: "Überblick" },
+  { href: "/admin/enrollments/change-requests", label: "Änderungsanfragen" },
   { href: "/enrollment-phases", label: "Anmeldephasen" },
   { href: "/care-offerings", label: "Betreuungsangebote" },
   { href: "/enrollment-form", label: "Anmeldeformulare" },
@@ -325,13 +329,6 @@ const PARENT_PREVIEW_ITEMS: readonly (NavItem & { tKey: string })[] = [
     label: "Kalender",
     tKey: "calendar",
     icon: navigationIcons.calendar,
-    comingSoon: true,
-  },
-  {
-    href: "#",
-    label: "Nachrichten",
-    tKey: "messages",
-    icon: navigationIcons.chat,
     comingSoon: true,
   },
   {
@@ -416,6 +413,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const { unreadCount: suggestionsUnreadCount } = useSuggestionsUnread();
   // Get unread suggestions count for badge (operator mode)
   const { unreadCount: operatorUnreadCount } = useOperatorSuggestionsUnread();
+  // Unread parent-OGS messages badge (staff/teacher mode)
+  const { unreadCount: messagesUnreadCount } = useMessagesUnread();
+  // Unread OGS messages badge (parents portal) — only fetches in parent mode.
+  const { unreadCount: parentMessagesUnread } = useParentMessagesUnread(
+    mode === "parent",
+  );
 
   // Accordion state passes `from` param so child pages (e.g. student detail)
   // keep the originating accordion section open
@@ -627,10 +630,11 @@ function SidebarContent({ className = "" }: SidebarProps) {
           </svg>
           <span className="flex flex-1 items-center justify-between">
             {item.label}
-            {item.href === "/suggestions" && suggestionsUnreadCount > 0 && (
-              <span className="ml-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-semibold text-white">
-                {suggestionsUnreadCount > 99 ? "99+" : suggestionsUnreadCount}
-              </span>
+            {item.href === "/suggestions" && (
+              <UnreadBadge count={suggestionsUnreadCount} className="ml-2" />
+            )}
+            {item.href === "/messages" && (
+              <UnreadBadge count={messagesUnreadCount} className="ml-2" />
             )}
           </span>
         </Link>
@@ -832,10 +836,8 @@ function SidebarContent({ className = "" }: SidebarProps) {
         </svg>
         <span className="flex flex-1 items-center justify-between">
           {item.label}
-          {item.href === operatorSuggestionsHref && operatorUnreadCount > 0 && (
-            <span className="ml-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-semibold text-white">
-              {operatorUnreadCount > 99 ? "99+" : operatorUnreadCount}
-            </span>
+          {item.href === operatorSuggestionsHref && (
+            <UnreadBadge count={operatorUnreadCount} className="ml-2" />
           )}
         </span>
       </Link>
@@ -907,6 +909,26 @@ function SidebarContent({ className = "" }: SidebarProps) {
                 />
               </svg>
               <span>{tParentNav("children")}</span>
+            </Link>
+            <Link
+              href="/parents/messages"
+              className={getLinkClasses("/parents/messages")}
+            >
+              <svg
+                className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d={navigationIcons.chat}
+                />
+              </svg>
+              <span>{tParentNav("messages")}</span>
+              <UnreadBadge count={parentMessagesUnread} className="ml-auto" />
             </Link>
             <div className="mt-5">
               <p className="mb-1.5 px-3 text-[10px] font-semibold tracking-wider text-gray-400 uppercase lg:px-4 xl:px-3">

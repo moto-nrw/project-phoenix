@@ -4,6 +4,7 @@ package facilities
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -334,6 +335,18 @@ func (s *schulhofService) GetOrCreateActiveGroup(ctx context.Context, createdBy 
 	}
 
 	if err := s.activeService.CreateActiveGroup(ctx, newActiveGroup); err != nil {
+		if errors.Is(err, activeSvc.ErrRoomConflict) {
+			existingGroup, findErr := s.findTodayActiveGroup(ctx, room.ID, activityGroup.ID)
+			if findErr != nil {
+				return nil, fmt.Errorf("failed to refetch Schulhof active group after room conflict: %w", findErr)
+			}
+			if existingGroup != nil {
+				s.getLogger().Info("reused concurrently created schulhof active group",
+					slog.String("component", "schulhof"),
+					slog.Int64("active_group_id", existingGroup.ID))
+				return existingGroup, nil
+			}
+		}
 		return nil, fmt.Errorf("failed to create Schulhof active group: %w", err)
 	}
 

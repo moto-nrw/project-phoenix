@@ -185,6 +185,16 @@ func (s *service) CheckOutStudent(ctx context.Context, studentID, staffID int64,
 	return s.performCheckOut(ctx, studentID, authorizedStaffID, time.Now())
 }
 
+// CheckOutStudentFromDevice applies "out" for an IoT device after resolving
+// the device's active session supervisor as the auditable checkout principal.
+func (s *service) CheckOutStudentFromDevice(ctx context.Context, studentID, deviceID int64) (*AttendanceResult, error) {
+	authorizedStaffID, err := s.authorizeIoTDeviceToggle(ctx, deviceID)
+	if err != nil {
+		return nil, err
+	}
+	return s.performCheckOut(ctx, studentID, authorizedStaffID, time.Now())
+}
+
 // authorizeAttendanceToggle handles authorization and returns the staff ID to use
 func (s *service) authorizeAttendanceToggle(ctx context.Context, studentID, staffID, deviceID int64, skipAuthCheck bool) (int64, error) {
 	if skipAuthCheck {

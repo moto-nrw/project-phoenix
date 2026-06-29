@@ -220,15 +220,16 @@
       "pickupLabel": "Marrja",
       "regularPickup": "Marrje e rregullt",
       "messagesLabel": "Mesazhe",
-      "noMessages": "Nuk ka mesazhe të reja",
-      "noMessagesSent": "Asnjë mesazh i dërguar",
-      "messagesSent": "{count, plural, one {# mesazh i dërguar} other {# mesazhe të dërguara}}"
+      "noConversations": "Asnjë bisedë",
+      "unreadCount": "{count, plural, one {# mesazh i palexuar} other {# mesazhe të palexuara}}",
+      "conversationsCount": "{count, plural, one {# bisedë} other {# biseda}}"
     },
     "messages": {
       "eyebrow": "Portali i prindërve",
-      "title": "Mesazhe për ekipin",
-      "description": "Njoftime të shkurtra për stafin e kujdesit.",
-      "compose": "Shkruaj"
+      "title": "Mesazhe me OGS-në",
+      "description": "Biseda rreth fëmijës suaj.",
+      "compose": "Mesazh i ri",
+      "empty": "Ende asnjë bisedë. Dërgoni OGS-së mesazhin e parë."
     }
   },
   "parentChildCare": {
@@ -248,16 +249,6 @@
       "invalidDate": "Ju lutemi zgjidhni një datë të vlefshme (data e mbarimit pas datës së fillimit).",
       "saveError": "Mungesa nuk u ruajt dot.",
       "submit": "Dërgo njoftimin e mungesës"
-    },
-    "notes": {
-      "title": "Mesazh për ekipin",
-      "newLabel": "Mesazh i ri",
-      "placeholder": "Njoftim i shkurtër për stafin e kujdesit …",
-      "empty": "Ju lutemi shkruani një mesazh.",
-      "sendError": "Mesazhi nuk u dërgua dot.",
-      "send": "Dërgo",
-      "lastSent": "Dërguar së fundmi",
-      "listEmpty": "Ende asnjë mesazh i dërguar."
     },
     "summary": {
       "none": "Asnjë mungesë",
@@ -295,13 +286,72 @@
     "loading": "Po ngarkohet...",
     "submitting": "Duke hyrë...",
     "submit": "Hyr",
-    "forgotPassword": "Keni harruar fjalëkalimin? Ju lutemi kontaktoni OGS-në.",
+    "forgotPassword": "Keni harruar fjalëkalimin?",
     "errors": {
       "accountInactive": "Llogaria juaj është çaktivizuar. Ju lutemi kontaktoni shkollën.",
       "rateLimited": "Shumë përpjekje hyrjeje. Ju lutemi provoni më vonë.",
       "invalidCredentials": "Hyrja nuk është e mundur. Kontrolloni të dhënat ose përdorni hyrjen e shkollës nëse jeni personel.",
       "invalid": "Të dhëna hyrjeje të pavlefshme",
       "generic": "Gabim gjatë hyrjes. Ju lutemi provoni përsëri."
+    }
+  },
+  "parentPasswordResetModal": {
+    "title": "Rivendos fjalëkalimin",
+    "description": "Shkruani adresën tuaj të e-mailit dhe ne do t'ju dërgojmë një lidhje për të rivendosur fjalëkalimin.",
+    "emailLabel": "Adresa e e-mailit",
+    "cancel": "Anulo",
+    "submit": "Dërgo lidhjen",
+    "submitting": "Duke dërguar...",
+    "successTitle": "E-maili u dërgua!",
+    "successMessage": "Ju kemi dërguar një e-mail me një lidhje për të rivendosur fjalëkalimin.",
+    "successHint": "Ju lutemi kontrolloni kutinë hyrëse dhe ndiqni udhëzimet në e-mail.",
+    "close": "Mbyll",
+    "errors": {
+      "rateLimited": "Shumë përpjekje. Ju lutemi provoni përsëri pas {countdown}.",
+      "generic": "Ndodhi një gabim. Ju lutemi provoni përsëri."
+    }
+  },
+  "parentPasswordResetPage": {
+    "backToLogin": "Kthehu te hyrja",
+    "errors": {
+      "missingToken": "Tokeni i rivendosjes është i pavlefshëm ose mungon. Ju lutemi kërkoni një lidhje të re.",
+      "invalidToken": "Token i pavlefshëm për rivendosje.",
+      "generic": "Ndodhi një gabim. Ju lutemi provoni përsëri.",
+      "invalidRequest": "Kontrolloni lidhjen dhe kërkesat e fjalëkalimit, pastaj provoni përsëri.",
+      "expired": "Kjo lidhje për rivendosjen e fjalëkalimit ka skaduar. Ju lutemi kërkoni një lidhje të re.",
+      "notFound": "Nuk mundëm ta gjenim këtë lidhje për rivendosjen e fjalëkalimit. Ju lutemi kërkoni një lidhje të re."
+    },
+    "validation": {
+      "tooShort": "Fjalëkalimi duhet të ketë të paktën 8 karaktere.",
+      "missingUppercase": "Fjalëkalimi duhet të përmbajë të paktën një shkronjë të madhe.",
+      "missingLowercase": "Fjalëkalimi duhet të përmbajë të paktën një shkronjë të vogël.",
+      "missingNumber": "Fjalëkalimi duhet të përmbajë të paktën një numër.",
+      "missingSpecial": "Fjalëkalimi duhet të përmbajë të paktën një karakter special.",
+      "passwordMismatch": "Fjalëkalimet nuk përputhen."
+    },
+    "success": {
+      "eyebrow": "Fjalëkalimi u ndryshua",
+      "title": "Fjalëkalimi u ndryshua me sukses",
+      "subtitle": "Do të ridrejtoheni automatikisht te faqja e hyrjes.",
+      "body": "Mund të hyni përsëri pas pak."
+    },
+    "form": {
+      "eyebrow": "Rivendos fjalëkalimin",
+      "title": "Vendosni një fjalëkalim të ri",
+      "subtitle": "Zgjidhni një fjalëkalim të fortë për llogarinë tuaj.",
+      "passwordLabel": "Fjalëkalim i ri",
+      "confirmPasswordLabel": "Konfirmo fjalëkalimin",
+      "showPassword": "Shfaq fjalëkalimin",
+      "hidePassword": "Fshih fjalëkalimin",
+      "submitting": "Duke ruajtur...",
+      "submit": "Ndrysho fjalëkalimin"
+    },
+    "requirements": {
+      "title": "Kërkesat e fjalëkalimit:",
+      "minLength": "Të paktën 8 karaktere",
+      "mixedCase": "Shkronja të mëdha dhe të vogla",
+      "number": "Të paktën një numër",
+      "special": "Të paktën një karakter special"
     }
   },
   "guardianInvite": {
@@ -655,6 +705,28 @@
     "editLoadError": "Regjistrimi nuk mund të ndryshohet",
     "editSaveError": "Ndryshimet nuk mund të ruheshin",
     "editSubmit": "Ruaj ndryshimet",
+    "changeRequestTitle": "Kërko ndryshim",
+    "changeRequestDescription": "Ky regjistrim është shqyrtuar tashmë. Ndryshimet tuaja do t'i dërgohen OGS-së si kërkesë dhe do të zbatohen vetëm pas miratimit.",
+    "changeRequestEyebrow": "Për shqyrtim",
+    "changeRequestReasonLabel": "Shënim për ndryshimin, opsional",
+    "changeRequestReasonPlaceholder": "Çfarë ka ndryshuar?",
+    "changeRequestSubmit": "Dërgo kërkesën për ndryshim",
+    "changeRequestSaveError": "Kërkesa për ndryshim nuk mund të ruhej",
+    "requestChange": "Kërko ndryshim",
+    "changeRequestReplySaved": "Përgjigjja u dërgua.",
+    "changeRequestsEyebrow": "Ndryshime",
+    "changeRequestsTitle": "Kërkesa për ndryshim",
+    "changeRequestsDescription": "Këtu shihni kërkesat që janë ende në shqyrtim, pyetjet nga OGS dhe vendimet e përfunduara.",
+    "changeRequestsEmpty": "Ende nuk është dërguar asnjë kërkesë për ndryshim.",
+    "changeRequestCreated": "Dërguar më {date}",
+    "changeRequestDiffTitle": "Ndryshimet e kërkuara",
+    "changeRequestDiffEmpty": "Nuk ka ndryshime të dallueshme në fusha.",
+    "changeRequestBefore": "Më parë",
+    "changeRequestRequested": "Kërkuar",
+    "changeRequestDecisionNote": "Vendimi:",
+    "changeRequestReplyLabel": "Përgjigje",
+    "changeRequestReplySending": "Duke dërguar…",
+    "changeRequestReplySubmit": "Dërgo përgjigje",
     "backToStatus": "Kthehu te statusi",
     "nameLabel": "Emri",
     "emailLabel": "E-mail",
@@ -669,6 +741,7 @@
     "save": "Ruaj",
     "cancel": "Anulo",
     "editLocked": "Ndryshimet janë të mundshme vetëm derisa ende nuk ka vendim. Për ndryshime kontaktoni OGS-në.",
+    "editLockedWithChangeRequest": "Ndryshimet direkte nuk janë më të mundshme. Mund të dërgoni një kërkesë për ndryshim te OGS.",
     "manageEyebrow": "Menaxho regjistrimin",
     "withdrawAllTitle": "Tërhiq të gjithë regjistrimin",
     "withdrawTitle": "Tërhiq regjistrimin",
@@ -683,6 +756,72 @@
       "pending_renewal": "Kërkohet konfirmim",
       "auto_renewed": "Pararegjistruar",
       "pending_admin_review": "Në shqyrtim"
+    },
+    "changeRequestStatus": {
+      "pending_review": "Në pritje të shqyrtimit",
+      "needs_parent_response": "Pyetje e hapur",
+      "approved": "Miratuar",
+      "rejected": "Refuzuar",
+      "cancelled": "Anuluar"
+    },
+    "changeRequestAuthor": {
+      "parent": "Ju",
+      "staff": "OGS",
+      "system": "Sistemi"
+    },
+    "diff": {
+      "yes": "Po",
+      "no": "Jo",
+      "childEntry": "Fëmija",
+      "additionalGuardianEntry": "Person shtesë",
+      "snapshot": {
+        "additional_guardians": "Kujdestarë shtesë",
+        "children": "Fëmijët",
+        "consent_flags": "Pëlqimet",
+        "custom_data": "Të dhëna shtesë",
+        "guardian_email": "E-mail",
+        "guardian_first_name": "Emri",
+        "guardian_last_name": "Mbiemri",
+        "guardian_phone": "Telefoni",
+        "phase_id": "Faza e regjistrimit"
+      },
+      "child": {
+        "custom_data": "Të dhëna shtesë",
+        "date_of_birth": "Data e lindjes",
+        "first_name": "Emri",
+        "last_name": "Mbiemri",
+        "offering_days": "Ditët e kujdesit",
+        "offering_ids": "Ofertat e kujdesit",
+        "target_grade_level": "Klasa e synuar"
+      },
+      "guardian": {
+        "email": "E-mail",
+        "first_name": "Emri",
+        "last_name": "Mbiemri",
+        "phone": "Telefoni"
+      },
+      "record": {
+        "automatic_selected_days": "Automatikisht",
+        "available_days": "Ditët e disponueshme",
+        "days_of_week_mode": "Modaliteti",
+        "email": "E-mail",
+        "first_name": "Emri",
+        "last_name": "Mbiemri",
+        "manual_selected_days": "Manualisht",
+        "offering_id": "Ofertë kujdesi",
+        "offering_ids": "Oferta kujdesi",
+        "phone": "Telefoni",
+        "selected_days": "Ditët"
+      },
+      "weekday": {
+        "mon": "Hën",
+        "tue": "Mar",
+        "wed": "Mër",
+        "thu": "Enj",
+        "fri": "Pre",
+        "sat": "Sht",
+        "sun": "Die"
+      }
     }
   },
   "parentMasterData": {
@@ -782,5 +921,8 @@
     "approved": "Änderung übernommen",
     "rejected": "Änderung abgelehnt",
     "decideError": "Die Entscheidung konnte nicht gespeichert werden."
+  },
+  "parentOgsMessaging": {
+    "readByStaff": "Lexuar"
   }
 }

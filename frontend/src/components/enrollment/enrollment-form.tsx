@@ -62,6 +62,7 @@ interface ChildDraft {
   // (uniform toggle, expanded days) onto a different child when a slot is
   // removed from the middle of the list.
   clientId: string;
+  id?: string;
   first_name: string;
   last_name: string;
   date_of_birth: string;
@@ -128,6 +129,7 @@ interface Props {
   readonly localizedCopy?: boolean;
   readonly initialDraft?: EnrollmentEditDraft;
   readonly lockedGuardianEmail?: boolean;
+  readonly lockChildStructure?: boolean;
   readonly submitLabel?: string;
 }
 
@@ -171,6 +173,7 @@ export function EnrollmentForm({
   localizedCopy = false,
   initialDraft,
   lockedGuardianEmail = false,
+  lockChildStructure = false,
   submitLabel,
 }: Props) {
   const intl = useTranslations("enrollmentForm");
@@ -934,6 +937,7 @@ export function EnrollmentForm({
         }
       }
       return {
+        ...(c.id ? { id: c.id } : {}),
         first_name: c.first_name.trim(),
         last_name: c.last_name.trim(),
         date_of_birth: c.date_of_birth,
@@ -1266,17 +1270,19 @@ export function EnrollmentForm({
             title={tr("sections.childrenTitle")}
             description={tr("sections.childrenDescription")}
           />
-          <button
-            type="button"
-            onClick={addChild}
-            className="moto-content-surface inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border px-3 text-sm font-semibold whitespace-nowrap text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:w-auto sm:shrink-0"
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            {tr("actions.addChild")}
-          </button>
+          {!lockChildStructure ? (
+            <button
+              type="button"
+              onClick={addChild}
+              className="moto-content-surface inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border px-3 text-sm font-semibold whitespace-nowrap text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:w-auto sm:shrink-0"
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              {tr("actions.addChild")}
+            </button>
+          ) : null}
         </div>
 
-        {profile && profile.children.length > 0 && (
+        {profile && profile.children.length > 0 && !lockChildStructure && (
           <ExistingChildrenPanel
             existing={profile.children}
             usedIDs={usedExistingChildIDs}
@@ -1319,7 +1325,7 @@ export function EnrollmentForm({
                 <h3 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
                   {tr("structured.child")} {i + 1}
                 </h3>
-                {children.length > 1 && (
+                {children.length > 1 && !lockChildStructure && (
                   <button
                     type="button"
                     onClick={() => removeChild(i)}
@@ -1795,6 +1801,7 @@ function draftChildren(
     }
     return {
       clientId: savedChildClientId(child.id),
+      id: child.id,
       first_name: child.first_name,
       last_name: child.last_name,
       date_of_birth: child.date_of_birth,

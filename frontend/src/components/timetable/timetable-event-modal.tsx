@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Search } from "lucide-react";
+import { ChevronDown, Search, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useModal } from "~/components/dashboard/modal-context";
@@ -9,6 +9,7 @@ import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceModal } from "~/components/ui/choice-modal";
 import { Input } from "~/components/ui/input";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { renderModalErrorAlert } from "~/components/ui/modal-utils";
 import {
   SlideOver,
@@ -123,6 +124,10 @@ interface TimetableEventModalProps {
   initialInstance?: EnrichedInstance | null;
   initialSeries?: TimetableTemplate | null;
   convertInstance?: EnrichedInstance | null;
+  onDeleteSeries?: (
+    template: TimetableTemplate,
+    effectiveDate: string,
+  ) => Promise<void>;
   defaultRepeat?: RepeatMode;
   /**
    * "quick" starts collapsed with only Titel, Datum/Zeiten, Raum and a
@@ -305,6 +310,7 @@ export function TimetableEventModal({
   initialInstance = null,
   initialSeries = null,
   convertInstance = null,
+  onDeleteSeries,
   defaultRepeat = "none",
   variant = "full",
   defaultStartTime,
@@ -334,6 +340,10 @@ export function TimetableEventModal({
   const [submitting, setSubmitting] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteEffectiveDate, setDeleteEffectiveDate] = useState("");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deletingSeries, setDeletingSeries] = useState(false);
   const [expanded, setExpanded] = useState(variant === "full");
   const [moreOpen, setMoreOpen] = useState(false);
   // Validated room id stashed while the Dreifach-Frage dialog (US-5) is open.
@@ -351,6 +361,7 @@ export function TimetableEventModal({
   const isConverting = convertInstance !== null;
   const isSeriesFlow = form.repeat !== "none" || isEditingSeries;
   const choiceDialogOpen = pendingSeriesEdit !== null;
+  const canDeleteSeries = isEditingSeries && initialSeries && onDeleteSeries;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -371,6 +382,10 @@ export function TimetableEventModal({
     );
     setValidationError(null);
     setFieldErrors({});
+    setDeleteConfirmOpen(false);
+    setDeleteEffectiveDate(todayISO());
+    setDeleteError(null);
+    setDeletingSeries(false);
     setExpanded(variant === "full");
     setMoreOpen(false);
     setPendingSeriesEdit(null);
@@ -1091,6 +1106,41 @@ export function TimetableEventModal({
     }
   };
 
+  const openSeriesDeleteConfirm = () => {
+    setDeleteEffectiveDate(todayISO());
+    setDeleteError(null);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmSeriesDelete = async () => {
+    if (!initialSeries || !onDeleteSeries || deletingSeries) return;
+    const minDate = todayISO();
+    if (!deleteEffectiveDate) {
+      setDeleteError("Bitte ein Datum auswählen.");
+      return;
+    }
+    if (deleteEffectiveDate < minDate) {
+      setDeleteError("Das Datum darf nicht in der Vergangenheit liegen.");
+      return;
+    }
+
+    setDeletingSeries(true);
+    setDeleteError(null);
+    try {
+      await onDeleteSeries(initialSeries, deleteEffectiveDate);
+      setDeleteConfirmOpen(false);
+      onClose();
+    } catch (err) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Regeltermin konnte nicht gelöscht werden";
+      setDeleteError(msg);
+    } finally {
+      setDeletingSeries(false);
+    }
+  };
+
   // Bulk-add entries for the Kinder field: every distinct class and group
   // present in the loaded students, each carrying its member ids.
   const studentBulkOptions = useMemo(() => {
@@ -1643,31 +1693,94 @@ export function TimetableEventModal({
           </div>
         )}
 
-        <SlideOverFooter className="flex-row items-center justify-end">
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            onClick={onClose}
-            disabled={submitting}
-          >
-            Abbrechen
-          </Button>
-          <Button
-            type="submit"
-            form="timetable-event-form"
-            variant="primary"
-            size="md"
-            isLoading={submitting}
-            loadingText="Speichere …"
-            disabled={
-              submitting ||
-              (isEditingInstance && initialInstance?.status !== "planned")
-            }
-          >
-            Speichern
-          </Button>
+        <SlideOverFooter className="items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="order-2 sm:order-1">
+            {canDeleteSeries && (
+              <Button
+                type="button"
+                variant="outline_danger"
+                size="md"
+                onClick={openSeriesDeleteConfirm}
+                disabled={submitting || deletingSeries}
+                className="w-full sm:w-auto"
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Trash2 className="h-4 w-4" aria-hidden />
+                  Löschen
+                </span>
+              </Button>
+            )}
+          </div>
+          <div className="order-1 flex items-center justify-end gap-3 sm:order-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={onClose}
+              disabled={submitting || deletingSeries}
+            >
+              Abbrechen
+            </Button>
+            <Button
+              type="submit"
+              form="timetable-event-form"
+              variant="primary"
+              size="md"
+              isLoading={submitting}
+              loadingText="Speichere …"
+              disabled={
+                submitting ||
+                deletingSeries ||
+                (isEditingInstance && initialInstance?.status !== "planned")
+              }
+            >
+              Speichern
+            </Button>
+          </div>
         </SlideOverFooter>
+
+        {initialSeries && (
+          <ConfirmationModal
+            isOpen={deleteConfirmOpen}
+            onClose={() => {
+              if (!deletingSeries) setDeleteConfirmOpen(false);
+            }}
+            onConfirm={() => void handleConfirmSeriesDelete()}
+            title="Regeltermin löschen?"
+            confirmText="Löschen"
+            cancelText="Abbrechen"
+            isConfirmLoading={deletingSeries}
+            confirmButtonClass="bg-red-600 hover:bg-red-700"
+          >
+            <div className="flex flex-col gap-4">
+              <p className="text-sm leading-relaxed text-gray-600">
+                Der Regeltermin wird ab dem gewählten Datum gelöscht. Frühere
+                Termine bleiben erhalten.
+              </p>
+              <Field
+                label="Ab Datum"
+                htmlFor="series_delete_effective_date"
+                required
+                error={deleteError ?? undefined}
+              >
+                <Input
+                  id="series_delete_effective_date"
+                  type="date"
+                  value={deleteEffectiveDate}
+                  min={todayISO()}
+                  controlSize="compact"
+                  aria-invalid={deleteError ? true : undefined}
+                  disabled={deletingSeries}
+                  onChange={(event) => {
+                    setDeleteEffectiveDate(event.target.value);
+                    setDeleteError(null);
+                  }}
+                  required
+                />
+              </Field>
+            </div>
+          </ConfirmationModal>
+        )}
 
         {initialInstance && (
           <ChoiceModal

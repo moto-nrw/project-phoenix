@@ -10,6 +10,7 @@
 
 import { createLogger } from "~/lib/logger";
 import type { AppLocale } from "~/i18n/locales";
+import type { ChatMessage } from "~/lib/messaging-status";
 import type {
   MeProfileResponse,
   SubmitEnrollmentPayload,
@@ -85,14 +86,6 @@ export interface StatusDay {
   readonly reported_at: string; // ISO timestamp
   readonly source: string;
   readonly note?: string;
-}
-
-// One parent note. Mirrors api/parent.ParentNoteResponse, newest-first.
-export interface ParentNote {
-  readonly id: string;
-  readonly student_id: string;
-  readonly body: string;
-  readonly created_at: string; // ISO timestamp
 }
 
 // Resolved per-tenant parent-portal feature toggles for a child.
@@ -466,20 +459,97 @@ export async function listSickDays(studentId: string): Promise<StatusDay[]> {
   );
 }
 
-/** Fetches the newest notes the parent left for the team (newest first). */
-export async function listChildNotes(studentId: string): Promise<ParentNote[]> {
-  return getJson<ParentNote[]>(
-    `/api/parent/me/children/${encodeURIComponent(studentId)}/notes`,
+// --- Parent <-> OGS messaging (chat model) ---
+//
+// One continuous conversation per child between the guardian and the OGS (no
+// subject). The guardian always talks to "the OGS [Schulname]", never an
+// individual staff member — the backend masks staff names accordingly.
+
+// One message in a conversation. `sender_kind` is "guardian" for the parent's
+// own messages, "staff" for replies from the OGS. For staff messages
+// `sender_name` is the "OGS [Schulname]" label.
+// The wire message shape is shared with the staff client; see ChatMessage.
+type ParentMessage = ChatMessage;
+
+// One row on the messages landing page: a child's conversation, with the
+// guardian's unread (staff-sent) count and last-activity metadata.
+export interface ThreadSummary {
+  readonly thread_id: string;
+  readonly student_id: string;
+  readonly student_name: string;
+  readonly school_name: string;
+  readonly counterpart_name: string; // "OGS [Schulname]"
+  readonly last_message_at?: string; // ISO timestamp
+  readonly last_sender_kind?: "guardian" | "staff";
+  readonly last_message_body?: string;
+  readonly unread: number;
+}
+
+// A child's full conversation (messages oldest-first). `thread_id` is empty
+// when the guardian has not written about this child yet.
+export interface ThreadView {
+  readonly thread_id: string;
+  readonly student_id: string;
+  readonly student_name: string;
+  readonly school_name: string;
+  readonly counterpart_name: string; // "OGS [Schulname]"
+  readonly messages: ParentMessage[];
+}
+
+/** Lists the guardian's conversations (one per child written about). */
+export async function listMessageThreads(): Promise<ThreadSummary[]> {
+  return getJson<ThreadSummary[]>("/api/parent/me/messages");
+}
+
+/**
+ * Lists the guardian's conversation(s) about ONE child (at most one per the chat
+ * model). The child detail page uses this instead of fetching the whole
+ * cross-tenant inbox and filtering client-side. Reading it does NOT mark the
+ * thread read.
+ */
+export async function listChildThreads(
+  studentId: string,
+): Promise<ThreadSummary[]> {
+  return getJson<ThreadSummary[]>(
+    `/api/parent/me/messages/children/${encodeURIComponent(studentId)}/threads`,
   );
 }
 
-/** Appends a note and returns the newest few (newest first). */
-export async function addChildNote(
+/**
+ * Total number of conversations with unread staff-side activity, across all the
+ * guardian's children's schools — the sidebar badge. A light COUNT endpoint, so
+ * the badge does not fetch every thread's full projection just to sum unreads.
+ */
+export async function fetchMessagesUnreadCount(): Promise<number> {
+  const result = await getJson<{ unread_count: number }>(
+    "/api/parent/me/messages/unread-count",
+  );
+  return result.unread_count ?? 0;
+}
+
+/**
+ * Fetches the guardian's conversation about one child (oldest-first), creating
+ * nothing — an empty conversation comes back with an empty `thread_id`. Reading
+ * marks it read server-side.
+ */
+export async function getChildConversation(
+  studentId: string,
+): Promise<ThreadView> {
+  return getJson<ThreadView>(
+    `/api/parent/me/messages/children/${encodeURIComponent(studentId)}`,
+  );
+}
+
+/**
+ * Appends a guardian message to the child's conversation (created on the first
+ * message) and returns the full updated conversation.
+ */
+export async function postChildMessage(
   studentId: string,
   body: string,
-): Promise<ParentNote[]> {
-  return postJson<ParentNote[]>(
-    `/api/parent/me/children/${encodeURIComponent(studentId)}/notes`,
+): Promise<ThreadView> {
+  return postJson<ThreadView>(
+    `/api/parent/me/messages/children/${encodeURIComponent(studentId)}`,
     { body },
   );
 }

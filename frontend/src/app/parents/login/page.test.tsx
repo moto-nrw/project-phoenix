@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
@@ -104,6 +104,9 @@ describe("ParentLoginPage i18n", () => {
     expect(
       screen.getByRole("button", { name: "Show testimonial 1" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Forgot your password?" }),
+    ).toBeEnabled();
 
     expect(
       screen.queryByText("Für den Ganztag gemacht"),
@@ -131,5 +134,27 @@ describe("ParentLoginPage i18n", () => {
     expect(screen.getByLabelText("Email address")).toBeDisabled();
     expect(screen.getByLabelText("Password")).toBeDisabled();
     expect(screen.getByRole("button", { name: "Sign in" })).toBeDisabled();
+  });
+
+  it("opens the password reset modal with localized parent copy", () => {
+    render(<ParentLoginPage />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Forgot your password?" }),
+    );
+
+    const resetDialog = within(screen.getByRole("dialog"));
+
+    expect(resetDialog.getByText("Reset password")).toBeVisible();
+    expect(
+      resetDialog.getByText(
+        "Enter your email address and we will send you a link to reset your password.",
+      ),
+    ).toBeVisible();
+    expect(resetDialog.getByLabelText("Email address")).toBeVisible();
+    expect(
+      resetDialog.getByRole("button", { name: "Send link" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Passwort zurücksetzen")).not.toBeInTheDocument();
   });
 });

@@ -1,13 +1,18 @@
 package enrollment
 
 import (
+	"context"
 	"testing"
+	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	baseModels "github.com/moto-nrw/project-phoenix/models/base"
+	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 func TestCareUsageRowCountsEffectiveDaysAsUnion(t *testing.T) {
@@ -50,6 +55,326 @@ func TestCareUsageRowCountsEffectiveDaysAsUnion(t *testing.T) {
 	assert.Equal(t, "available", row.Offerings[0].DaysSource)
 	assert.Equal(t, []string{"mon", "tue"}, row.Offerings[1].Days)
 	assert.Equal(t, "selected", row.Offerings[1].DaysSource)
+}
+
+func TestClassRosterRowUsesPhaseEnrollmentData(t *testing.T) {
+	schemaID := int64(88)
+	req := &enrollmentModels.Request{
+		Model:       baseModels.Model{ID: 10},
+		SchemaID:    &schemaID,
+		SubmittedAt: time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC),
+	}
+	child := &enrollmentModels.RequestChild{
+		Model:       baseModels.Model{ID: 20},
+		RequestID:   10,
+		FirstName:   "Lina",
+		LastName:    "Muster",
+		DateOfBirth: timezone.NewDate(2018, 5, 4),
+		Status:      enrollmentModels.ChildStatusApproved,
+		CustomData: map[string]any{
+			"arrival": map[string]any{"mon": "11:30"},
+			"pickup":  map[string]any{"mon": "14:30"},
+			"departure": map[string]any{
+				"mon": []any{"pickup", "accompanied"},
+			},
+			enrollmentModels.TargetStudentDepartureCompanionNote: "Mia",
+		},
+	}
+	student := &userModels.Student{
+		Model:       baseModels.Model{ID: 100},
+		PersonID:    200,
+		SchoolClass: "1a",
+	}
+	person := &userModels.Person{
+		FirstName: "Lina",
+		LastName:  "Muster",
+	}
+	enrollment := &classRosterApprovedEnrollment{
+		request: req,
+		child:   child,
+		links: []*enrollmentModels.RequestChildOffering{
+			{RequestChildID: 20, CareOfferingID: 1, SelectedDays: []string{"mon"}},
+		},
+	}
+	offerings := map[int64]*enrollmentModels.CareOffering{
+		1: {Name: "Randstunde", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice},
+	}
+	schemas := map[int64]*enrollmentModels.FormSchema{
+		schemaID: {
+			Fields: []enrollmentModels.FormField{
+				{Key: "arrival", Target: enrollmentModels.TargetScheduleArrival, Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: true},
+				{Key: "pickup", Target: enrollmentModels.TargetSchedulePickup, Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: true},
+				{Key: "departure", Target: enrollmentModels.TargetStudentAllowedDepartureModes, Type: enrollmentModels.FormFieldWeekdayMultiMode, AppliesToCh: true},
+			},
+		},
+	}
+
+	row, err := classRosterRow(student, person, "Eulen", enrollment, offerings, schemas)
+
+	require.NoError(t, err)
+	assert.Equal(t, "Eulen", row.GroupName)
+	assert.True(t, row.Registered)
+	assert.Equal(t, "Angemeldet: Randstunde", row.EnrollmentSummary)
+	assert.Equal(t, []string{"mon"}, row.CareDays)
+	assert.Equal(t, "11:30", row.ArrivalByDay["mon"])
+	assert.Equal(t, "14:30", row.PickupByDay["mon"])
+	assert.Contains(t, row.Departure, "Mo: Abholung, Mit anderem Kind")
+	assert.Contains(t, row.Departure, "(mit: Mia)")
+}
+
+func TestCareUsageScheduleReadsGuardianLevelFields(t *testing.T) {
+	schemaID := int64(89)
+	req := &enrollmentModels.Request{
+		Model: baseModels.Model{ID: 11},
+		CustomData: map[string]any{
+			"guardian_pickup":  map[string]any{"mon": "15:30"},
+			"guardian_arrival": map[string]any{"mon": "11:15"},
+		},
+		GuardianFirstName: "Eva",
+		GuardianLastName:  "Muster",
+		SchemaID:          &schemaID,
+	}
+	child := &enrollmentModels.RequestChild{
+		Model:      baseModels.Model{ID: 21},
+		RequestID:  11,
+		FirstName:  "Lina",
+		LastName:   "Muster",
+		Status:     enrollmentModels.ChildStatusApproved,
+		CustomData: map[string]any{},
+	}
+	schemas := map[int64]*enrollmentModels.FormSchema{
+		schemaID: {
+			Fields: []enrollmentModels.FormField{
+				{Key: "guardian_pickup", Target: enrollmentModels.TargetSchedulePickup, Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: false},
+				{Key: "guardian_arrival", Target: enrollmentModels.TargetScheduleArrival, Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: false},
+			},
+		},
+	}
+
+	pickupByDay, err := careUsagePickupByDay(req, child, schemas)
+	require.NoError(t, err)
+	arrivalByDay, err := careUsageScheduleByTarget(req, child, schemas, enrollmentModels.TargetScheduleArrival)
+	require.NoError(t, err)
+	links := []*enrollmentModels.RequestChildOffering{
+		{RequestChildID: 21, CareOfferingID: 1, SelectedDays: []string{"mon"}},
+	}
+	offerings := map[int64]*enrollmentModels.CareOffering{
+		1: {Name: "Randstunde", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice},
+	}
+	row := careUsageRow(req, child, links, offerings, map[int64]bool{1: true}, pickupByDay)
+
+	assert.Equal(t, "15:30", pickupByDay["mon"])
+	assert.Equal(t, "11:15", arrivalByDay["mon"])
+	assert.True(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", PickupTime: "15:30"}))
+	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", PickupTime: "14:30"}))
+}
+
+func TestClassRosterRowReadsGuardianLevelSchedules(t *testing.T) {
+	schemaID := int64(90)
+	req := &enrollmentModels.Request{
+		Model:       baseModels.Model{ID: 12},
+		SchemaID:    &schemaID,
+		SubmittedAt: time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC),
+		CustomData: map[string]any{
+			"guardian_arrival": map[string]any{"mon": "11:15"},
+			"guardian_pickup":  map[string]any{"mon": "15:30"},
+		},
+	}
+	child := &enrollmentModels.RequestChild{
+		Model:      baseModels.Model{ID: 22},
+		RequestID:  12,
+		FirstName:  "Lina",
+		LastName:   "Muster",
+		Status:     enrollmentModels.ChildStatusApproved,
+		CustomData: map[string]any{},
+	}
+	student := &userModels.Student{
+		Model:       baseModels.Model{ID: 102},
+		PersonID:    202,
+		SchoolClass: "1a",
+	}
+	person := &userModels.Person{FirstName: "Lina", LastName: "Muster"}
+	enrollment := &classRosterApprovedEnrollment{
+		request: req,
+		child:   child,
+	}
+	schemas := map[int64]*enrollmentModels.FormSchema{
+		schemaID: {
+			Fields: []enrollmentModels.FormField{
+				{Key: "guardian_arrival", Target: enrollmentModels.TargetScheduleArrival, Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: false},
+				{Key: "guardian_pickup", Target: enrollmentModels.TargetSchedulePickup, Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: false},
+			},
+		},
+	}
+
+	row, err := classRosterRow(student, person, "Eulen", enrollment, nil, schemas)
+
+	require.NoError(t, err)
+	assert.Equal(t, "11:15", row.ArrivalByDay["mon"])
+	assert.Equal(t, "15:30", row.PickupByDay["mon"])
+}
+
+func TestClassRosterRowMarksMissingEnrollmentAsNoRegistration(t *testing.T) {
+	student := &userModels.Student{
+		Model:       baseModels.Model{ID: 101},
+		PersonID:    201,
+		SchoolClass: "1a",
+	}
+	person := &userModels.Person{FirstName: "Tom", LastName: "Ohne"}
+
+	row, err := classRosterRow(student, person, "", nil, nil, nil)
+
+	require.NoError(t, err)
+	assert.False(t, row.Registered)
+	assert.Equal(t, "Keine Anmeldung", row.EnrollmentSummary)
+	assert.Equal(t, []string{}, row.CareDays)
+	assert.Equal(t, "Geht alleine", row.Departure)
+}
+
+func TestClassRosterApprovedEnrollmentsOnlyUsesApprovedChildrenInClass(t *testing.T) {
+	studentID := int64(100)
+	otherStudentID := int64(200)
+	requestByID := map[int64]*enrollmentModels.Request{
+		1: {Model: baseModels.Model{ID: 1}, SubmittedAt: time.Date(2026, 1, 1, 8, 0, 0, 0, time.UTC)},
+		2: {Model: baseModels.Model{ID: 2}, SubmittedAt: time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC)},
+	}
+	studentByID := map[int64]*userModels.Student{
+		studentID: {Model: baseModels.Model{ID: studentID}},
+	}
+	children := []*enrollmentModels.RequestChild{
+		{Model: baseModels.Model{ID: 10}, RequestID: 1, Status: enrollmentModels.ChildStatusApproved, CreatedStudentID: &studentID},
+		{Model: baseModels.Model{ID: 11}, RequestID: 2, Status: enrollmentModels.ChildStatusRejected, CreatedStudentID: &studentID},
+		{Model: baseModels.Model{ID: 12}, RequestID: 2, Status: enrollmentModels.ChildStatusApproved, CreatedStudentID: &otherStudentID},
+	}
+
+	got, childIDs := classRosterApprovedEnrollments(children, requestByID, studentByID)
+
+	require.Len(t, got, 1)
+	assert.Equal(t, int64(10), got[studentID].child.ID)
+	assert.Equal(t, []int64{10}, childIDs)
+}
+
+func TestClassRosterApprovedEnrollmentsUsesOnlyNewestChildLinks(t *testing.T) {
+	studentID := int64(100)
+	newestOfferingID := int64(20)
+	requestByID := map[int64]*enrollmentModels.Request{
+		1: {Model: baseModels.Model{ID: 1}, SubmittedAt: time.Date(2026, 1, 1, 8, 0, 0, 0, time.UTC)},
+		2: {Model: baseModels.Model{ID: 2}, SubmittedAt: time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC)},
+	}
+	studentByID := map[int64]*userModels.Student{
+		studentID: {Model: baseModels.Model{ID: studentID}},
+	}
+	children := []*enrollmentModels.RequestChild{
+		{Model: baseModels.Model{ID: 10}, RequestID: 1, Status: enrollmentModels.ChildStatusApproved, CreatedStudentID: &studentID},
+		{Model: baseModels.Model{ID: 20}, RequestID: 2, Status: enrollmentModels.ChildStatusApproved, CreatedStudentID: &studentID},
+	}
+
+	got, childIDs := classRosterApprovedEnrollments(children, requestByID, studentByID)
+	classRosterAttachOfferingLinks(got, []*enrollmentModels.RequestChildOffering{
+		{RequestChildID: 10, CareOfferingID: 1},
+		{RequestChildID: 20, CareOfferingID: newestOfferingID},
+	})
+
+	require.Len(t, got, 1)
+	assert.Equal(t, int64(20), got[studentID].child.ID)
+	assert.Equal(t, []int64{20}, childIDs)
+	require.Len(t, got[studentID].links, 1)
+	assert.Equal(t, newestOfferingID, got[studentID].links[0].CareOfferingID)
+}
+
+func TestClassRosterScopesRequestLimitToSelectedClass(t *testing.T) {
+	studentID := int64(100)
+	personID := int64(200)
+	requestID := int64(300)
+	childID := int64(400)
+	repo := &fakeClassRosterRequestRepo{
+		requests: []*enrollmentModels.Request{
+			{Model: baseModels.Model{ID: requestID}, SubmittedAt: time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC)},
+		},
+	}
+	svc := classRosterTestService(
+		[]*userModels.Student{{Model: baseModels.Model{ID: studentID}, PersonID: personID, SchoolClass: "1a"}},
+		map[int64]*userModels.Person{personID: {FirstName: "Lina", LastName: "Muster"}},
+		repo,
+		&fakeClassRosterChildRepo{children: []*enrollmentModels.RequestChild{
+			{Model: baseModels.Model{ID: childID}, RequestID: requestID, Status: enrollmentModels.ChildStatusApproved, CreatedStudentID: &studentID},
+		}},
+	)
+
+	report, err := svc.ClassRoster(context.Background(), ClassRosterFilters{PhaseID: 55, SchoolClass: "1a"})
+
+	require.NoError(t, err)
+	require.Len(t, report.Rows, 1)
+	assert.Equal(t, []int64{studentID}, repo.seenFilters.CreatedStudentIDs)
+	assert.Equal(t, 1, report.Totals.Registered)
+}
+
+func TestClassRosterAppliesChildLimitAfterClassFiltering(t *testing.T) {
+	studentID := int64(100)
+	otherStudentID := int64(200)
+	personID := int64(300)
+	requestID := int64(400)
+	childID := int64(500)
+	children := make([]*enrollmentModels.RequestChild, 0, maxReportRows+2)
+	for i := 0; i <= maxReportRows; i++ {
+		children = append(children, &enrollmentModels.RequestChild{
+			Model:            baseModels.Model{ID: int64(1000 + i)},
+			RequestID:        requestID,
+			Status:           enrollmentModels.ChildStatusApproved,
+			CreatedStudentID: &otherStudentID,
+		})
+	}
+	children = append(children, &enrollmentModels.RequestChild{
+		Model:            baseModels.Model{ID: childID},
+		RequestID:        requestID,
+		Status:           enrollmentModels.ChildStatusApproved,
+		CreatedStudentID: &studentID,
+	})
+	svc := classRosterTestService(
+		[]*userModels.Student{{Model: baseModels.Model{ID: studentID}, PersonID: personID, SchoolClass: "1a"}},
+		map[int64]*userModels.Person{personID: {FirstName: "Lina", LastName: "Muster"}},
+		&fakeClassRosterRequestRepo{requests: []*enrollmentModels.Request{
+			{Model: baseModels.Model{ID: requestID}, SubmittedAt: time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC)},
+		}},
+		&fakeClassRosterChildRepo{children: children},
+	)
+
+	report, err := svc.ClassRoster(context.Background(), ClassRosterFilters{PhaseID: 55, SchoolClass: "1a"})
+
+	require.NoError(t, err)
+	require.Len(t, report.Rows, 1)
+	assert.True(t, report.Rows[0].Registered)
+}
+
+func TestClassRosterGroupNameResolvesAssignedGroup(t *testing.T) {
+	groupID := int64(12)
+	student := &userModels.Student{GroupID: &groupID}
+	groups := map[int64]*educationModels.Group{
+		groupID: {Name: "Klasse 2a"},
+	}
+
+	assert.Equal(t, "Klasse 2a", classRosterGroupName(student, groups))
+}
+
+func TestReportServiceClassRosterGroupNamesLoadsUniqueGroups(t *testing.T) {
+	groupID := int64(12)
+	otherGroupID := int64(13)
+	repo := &fakeEducationGroupRepo{groups: map[int64]*educationModels.Group{
+		groupID:      {Name: "Klasse 2a"},
+		otherGroupID: {Name: "Klasse 3b"},
+	}}
+	svc := &reportService{educationGroupRepo: repo}
+
+	groups, err := svc.classRosterGroupNames(context.Background(), []*userModels.Student{
+		{GroupID: &groupID},
+		{GroupID: &groupID},
+		{GroupID: &otherGroupID},
+		{},
+	})
+
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []int64{groupID, otherGroupID}, repo.seenIDs)
+	assert.Equal(t, "Klasse 2a", groups[groupID].Name)
 }
 
 func TestCareUsageRowDoesNotInflateMissingParentChoiceDays(t *testing.T) {
@@ -112,6 +437,7 @@ func TestCareUsageRowMatchesFilters(t *testing.T) {
 		},
 		EffectiveDays:     []string{"mon", "wed", "fri"},
 		DayCount:          3,
+		PickupByDay:       map[string]string{"mon": "14:30", "wed": "16:00", "fri": "14:30"},
 		GuardianFirstName: "Eva",
 		GuardianLastName:  "Muster",
 		GuardianEmail:     "eva@example.test",
@@ -127,6 +453,12 @@ func TestCareUsageRowMatchesFilters(t *testing.T) {
 	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: enrollmentModels.ChildStatusRejected}))
 	otherDayCount := 4
 	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", DayCount: &otherDayCount}))
+	assert.True(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", Weekday: "mon"}))
+	assert.True(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", Weekday: "wed", PickupTime: "16:00"}))
+	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", Weekday: "wed", PickupTime: "16:00", Search: "unbekannt"}))
+	assert.True(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", PickupTime: "14:30"}))
+	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", Weekday: "tue"}))
+	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", Weekday: "wed", PickupTime: "14:30"}))
 
 	otherGrade := int16(3)
 	assert.False(t, careUsageRowMatches(row, CareUsageFilters{Status: "all", GradeLevel: &otherGrade}))
@@ -273,4 +605,105 @@ func TestCareUsageRowCarriesManualAndAutomaticDays(t *testing.T) {
 	assert.Equal(t, []string{"fri"}, row.Offerings[0].ManualSelectedDays)
 	assert.Equal(t, []string{"mon", "tue", "wed", "thu"}, row.Offerings[0].AutomaticSelectedDays)
 	assert.Equal(t, []string{"mon", "tue", "wed", "thu", "fri"}, row.Offerings[0].Days)
+}
+
+type fakeEducationGroupRepo struct {
+	educationModels.GroupRepository
+	groups  map[int64]*educationModels.Group
+	seenIDs []int64
+}
+
+func (r *fakeEducationGroupRepo) FindByIDs(_ context.Context, ids []int64) (map[int64]*educationModels.Group, error) {
+	r.seenIDs = append([]int64(nil), ids...)
+	out := make(map[int64]*educationModels.Group, len(ids))
+	for _, id := range ids {
+		if group := r.groups[id]; group != nil {
+			out[id] = group
+		}
+	}
+	return out, nil
+}
+
+func classRosterTestService(students []*userModels.Student, persons map[int64]*userModels.Person, requestRepo *fakeClassRosterRequestRepo, childRepo *fakeClassRosterChildRepo) *reportService {
+	return &reportService{
+		requestRepo:              requestRepo,
+		requestChildRepo:         childRepo,
+		requestChildOfferingRepo: &fakeClassRosterChildOfferingRepo{},
+		careOfferingRepo:         &fakeClassRosterCareOfferingRepo{},
+		phaseRepo:                &fakeClassRosterPhaseRepo{},
+		studentRepo:              &fakeClassRosterStudentRepo{students: students},
+		personRepo:               &fakeClassRosterPersonRepo{persons: persons},
+		educationGroupRepo:       &fakeEducationGroupRepo{},
+	}
+}
+
+type fakeClassRosterStudentRepo struct {
+	userModels.StudentRepository
+	students []*userModels.Student
+}
+
+func (r *fakeClassRosterStudentRepo) FindBySchoolClass(_ context.Context, _ string) ([]*userModels.Student, error) {
+	return r.students, nil
+}
+
+type fakeClassRosterPersonRepo struct {
+	userModels.PersonRepository
+	persons map[int64]*userModels.Person
+}
+
+func (r *fakeClassRosterPersonRepo) FindByIDs(_ context.Context, ids []int64) (map[int64]*userModels.Person, error) {
+	out := make(map[int64]*userModels.Person, len(ids))
+	for _, id := range ids {
+		if person := r.persons[id]; person != nil {
+			out[id] = person
+		}
+	}
+	return out, nil
+}
+
+type fakeClassRosterRequestRepo struct {
+	enrollmentModels.RequestRepository
+	requests    []*enrollmentModels.Request
+	seenFilters enrollmentModels.RequestListFilters
+}
+
+func (r *fakeClassRosterRequestRepo) ListAdmin(_ context.Context, filters enrollmentModels.RequestListFilters) ([]*enrollmentModels.Request, error) {
+	r.seenFilters = filters
+	if len(filters.CreatedStudentIDs) == 0 {
+		return make([]*enrollmentModels.Request, maxExportRequests+1), nil
+	}
+	return r.requests, nil
+}
+
+type fakeClassRosterChildRepo struct {
+	enrollmentModels.RequestChildRepository
+	children []*enrollmentModels.RequestChild
+}
+
+func (r *fakeClassRosterChildRepo) ListByRequestIDs(_ context.Context, _ []int64) ([]*enrollmentModels.RequestChild, error) {
+	return r.children, nil
+}
+
+type fakeClassRosterChildOfferingRepo struct {
+	enrollmentModels.RequestChildOfferingRepository
+}
+
+func (r *fakeClassRosterChildOfferingRepo) ListByRequestChildIDs(_ context.Context, _ []int64) ([]*enrollmentModels.RequestChildOffering, error) {
+	return nil, nil
+}
+
+type fakeClassRosterCareOfferingRepo struct {
+	enrollmentModels.CareOfferingRepository
+}
+
+func (r *fakeClassRosterCareOfferingRepo) ListByPhase(_ context.Context, _ int64) ([]*enrollmentModels.CareOffering, error) {
+	return nil, nil
+}
+
+type fakeClassRosterPhaseRepo struct {
+	enrollmentModels.PhaseRepository
+}
+
+func (r *fakeClassRosterPhaseRepo) FindByID(_ context.Context, id int64) (*enrollmentModels.Phase, error) {
+	return &enrollmentModels.Phase{Model: baseModels.Model{ID: id}, Name: "Schuljahr 2026"}, nil
 }

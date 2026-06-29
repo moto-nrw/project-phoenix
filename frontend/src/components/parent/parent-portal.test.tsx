@@ -12,13 +12,13 @@ import type React from "react";
 const mocks = vi.hoisted(() => ({
   listMyChildren: vi.fn(),
   listMyEnrollments: vi.fn(),
-  // child-detail now pulls in the child-care hook, which calls these on
-  // mount; stub them so the rendered detail view loads cleanly.
+  // child-detail now pulls in the child-care hook + the per-child message
+  // thread list, which call these on mount; stub them so the rendered detail
+  // view loads cleanly.
   listSickDays: vi.fn().mockResolvedValue([]),
-  listChildNotes: vi.fn().mockResolvedValue([]),
   listCareExceptions: vi.fn().mockResolvedValue([]),
+  listChildThreads: vi.fn().mockResolvedValue([]),
   submitSickNote: vi.fn().mockResolvedValue([]),
-  addChildNote: vi.fn().mockResolvedValue([]),
   submitCareException: vi.fn(),
   deleteCareException: vi.fn(),
   getChildFeatures: vi.fn().mockResolvedValue({
@@ -32,6 +32,10 @@ const mocks = vi.hoisted(() => ({
     master_data_request_enabled: false,
   }),
   setBreadcrumb: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
 }));
 
 vi.mock("next/link", () => ({
@@ -50,10 +54,9 @@ vi.mock("~/lib/parent-api", () => ({
   listMyChildren: mocks.listMyChildren,
   listMyEnrollments: mocks.listMyEnrollments,
   listSickDays: mocks.listSickDays,
-  listChildNotes: mocks.listChildNotes,
   listCareExceptions: mocks.listCareExceptions,
+  listChildThreads: mocks.listChildThreads,
   submitSickNote: mocks.submitSickNote,
-  addChildNote: mocks.addChildNote,
   submitCareException: mocks.submitCareException,
   deleteCareException: mocks.deleteCareException,
   getChildFeatures: mocks.getChildFeatures,
@@ -116,8 +119,8 @@ describe("Parent portal components", () => {
     mocks.listMyChildren.mockReset();
     mocks.listMyEnrollments.mockReset();
     mocks.listSickDays.mockResolvedValue([]);
-    mocks.listChildNotes.mockResolvedValue([]);
     mocks.listCareExceptions.mockResolvedValue([]);
+    mocks.listChildThreads.mockResolvedValue([]);
     mocks.getChildFeatures.mockResolvedValue({
       sick_note_enabled: true,
       notes_enabled: true,

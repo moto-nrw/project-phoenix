@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import {
   type AdminRequestChild,
+  type AdminRequestDetail,
   type AdminOfferingAdjustment,
   type AdminRequestChildOffering,
   type AdminRequestGuardian,
@@ -95,7 +96,7 @@ interface Props {
 
 export function AdminEnrollmentDetail({ requestId }: Props) {
   const tenantPath = useTenantAwarePath();
-  const [data, setData] = useState<AdminRequestSummary | null>(null);
+  const [data, setData] = useState<AdminRequestDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);

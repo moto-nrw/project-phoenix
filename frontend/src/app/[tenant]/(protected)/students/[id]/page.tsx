@@ -42,7 +42,7 @@ import {
   StudentHistorySection,
 } from "~/components/students/student-detail-components";
 import { PersonalInfoFormModal } from "~/components/students/personal-info-form-modal";
-import { ParentNotesCard } from "~/components/students/parent-notes-card";
+import { ParentMessagesCard } from "~/components/students/parent-messages-card";
 import { StudentEnrollmentsTab } from "~/components/students/student-enrollments-tab";
 import {
   StudentCheckoutSection,
@@ -88,6 +88,7 @@ const logger = createLogger({ component: "StudentDetailPage" });
 // criterion: "navigate directly to the relevant section").
 type StudentTabId =
   | "stammdaten"
+  | "nachrichten"
   | "erziehungsberechtigte"
   | "betreuungszeiten"
   | "anmeldungen"
@@ -95,6 +96,7 @@ type StudentTabId =
 
 const TAB_LABELS: Record<StudentTabId, string> = {
   stammdaten: "Stammdaten",
+  nachrichten: "Nachrichten",
   erziehungsberechtigte: "Erziehungsberechtigte",
   betreuungszeiten: "Betreuungszeiten",
   anmeldungen: "Anmeldungen",
@@ -102,8 +104,11 @@ const TAB_LABELS: Record<StudentTabId, string> = {
 };
 
 // Limited access has no care-schedule data access, so it skips Betreuungszeiten.
+// The Nachrichten tab is full-access only — limited-access staff don't see the
+// parent-message overview (the backend gates per-child read access anyway).
 const FULL_ACCESS_BASE_TABS: StudentTabId[] = [
   "stammdaten",
+  "nachrichten",
   "erziehungsberechtigte",
   "betreuungszeiten",
   "historie",
@@ -115,6 +120,7 @@ const LIMITED_ACCESS_BASE_TABS: StudentTabId[] = [
 ];
 const FULL_ACCESS_TABS_WITH_ENROLLMENTS: StudentTabId[] = [
   "stammdaten",
+  "nachrichten",
   "erziehungsberechtigte",
   "betreuungszeiten",
   "anmeldungen",
@@ -1307,6 +1313,17 @@ function FullAccessView({
     studentId,
     true,
   );
+  // Lazy-mount the Nachrichten tab: ParentMessagesCard runs the inbox-projection
+  // query (two correlated COUNT subqueries) on mount, and forceMount would fire
+  // it for every student-detail load even when staff never open the tab — paging
+  // 40 profiles = 40 such queries. Defer until the tab is first opened, then keep
+  // it mounted (forceMount) so revisits don't refetch.
+  const [messagesTabSeen, setMessagesTabSeen] = useState(
+    activeTab === "nachrichten",
+  );
+  useEffect(() => {
+    if (activeTab === "nachrichten") setMessagesTabSeen(true);
+  }, [activeTab]);
   return (
     <>
       {(showCheckout || showCheckin || hasWriteAccess) && (
@@ -1358,10 +1375,18 @@ function FullAccessView({
             showEditButton={hasWriteAccess}
             onEditClick={hasWriteAccess ? onOpenPersonalInfoModal : undefined}
           />
-          {studentId && (
-            <div className="mt-4">
-              <ParentNotesCard studentId={studentId} />
-            </div>
+        </TabsContent>
+
+        <TabsContent
+          value="nachrichten"
+          forceMount
+          className={TAB_CONTENT_CLASS}
+        >
+          {studentId && messagesTabSeen && (
+            <ParentMessagesCard
+              studentId={studentId}
+              studentName={student?.name}
+            />
           )}
         </TabsContent>
 

@@ -28,6 +28,8 @@ export async function GET(request: NextRequest) {
       "care_offering_id",
       "grade_level",
       "day_count",
+      "weekday",
+      "pickup_time",
       "search",
     ]) {
       const value = request.nextUrl.searchParams.get(key);

@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/feedback"
 	"github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -68,6 +69,9 @@ var (
 
 	// iot package
 	_ base.Entity = (*iot.Device)(nil)
+
+	// platform package
+	_ base.Entity = (*platform.OperatorRefreshToken)(nil)
 
 	// schedule package
 	_ base.Entity = (*schedule.Dateframe)(nil)

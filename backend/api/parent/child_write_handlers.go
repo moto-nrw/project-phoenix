@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 )
@@ -206,83 +205,6 @@ func (rs *Resource) getChildFeatures(w http.ResponseWriter, r *http.Request) {
 		MasterDataContactEditEnabled: flags.MasterDataContactEditEnabled,
 		MasterDataRequestEnabled:     flags.MasterDataRequestEnabled,
 	}, "Child features retrieved")
-}
-
-// --- Parent notes ---
-
-// AddNoteRequest is the wire shape for POST
-// /parent/me/children/{studentId}/notes.
-type AddNoteRequest struct {
-	Body string `json:"body"`
-}
-
-// ParentNoteResponse is one note row, newest-first in lists.
-type ParentNoteResponse struct {
-	ID        string    `json:"id"`
-	StudentID string    `json:"student_id"`
-	Body      string    `json:"body"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
-func toParentNoteResponse(n *usersModels.StudentParentNote) ParentNoteResponse {
-	return ParentNoteResponse{
-		ID:        strconv.FormatInt(n.ID, 10),
-		StudentID: strconv.FormatInt(n.StudentID, 10),
-		Body:      n.Body,
-		CreatedAt: n.CreatedAt,
-	}
-}
-
-func toParentNoteResponses(notes []*usersModels.StudentParentNote) []ParentNoteResponse {
-	out := make([]ParentNoteResponse, 0, len(notes))
-	for _, n := range notes {
-		out = append(out, toParentNoteResponse(n))
-	}
-	return out
-}
-
-// listNotes returns the newest notes for the child.
-func (rs *Resource) listNotes(w http.ResponseWriter, r *http.Request) {
-	accountID, ok := rs.parentAccountID(w, r)
-	if !ok {
-		return
-	}
-	studentID, ok := parsePathStudentID(w, r)
-	if !ok {
-		return
-	}
-
-	notes, err := rs.ParentService.ListParentNotes(r.Context(), accountID, studentID, parentService.ParentNoteDisplayLimit)
-	if err != nil {
-		renderParentWriteError(w, r, err)
-		return
-	}
-	common.Respond(w, r, http.StatusOK, toParentNoteResponses(notes), "Notes retrieved")
-}
-
-// addNote appends a free-text note and returns the newest few.
-func (rs *Resource) addNote(w http.ResponseWriter, r *http.Request) {
-	accountID, ok := rs.parentAccountID(w, r)
-	if !ok {
-		return
-	}
-	studentID, ok := parsePathStudentID(w, r)
-	if !ok {
-		return
-	}
-
-	var req AddNoteRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
-		return
-	}
-
-	notes, err := rs.ParentService.AddParentNote(r.Context(), accountID, studentID, req.Body)
-	if err != nil {
-		renderParentWriteError(w, r, err)
-		return
-	}
-	common.Respond(w, r, http.StatusCreated, toParentNoteResponses(notes), "Note added")
 }
 
 // --- shared helpers ---

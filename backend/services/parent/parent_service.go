@@ -31,10 +31,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// ParentNoteDisplayLimit is how many of the newest parent notes the
-// portal and the staff view surface by default.
-const ParentNoteDisplayLimit = 3
-
 // Service is the public contract consumed by HTTP handlers.
 type Service interface {
 	// ListChildrenForAccount returns every child linked to any
@@ -75,16 +71,6 @@ type Service interface {
 	// the setting so previously-reported days stay visible if a school later
 	// disables the feature.
 	ListSickDays(ctx context.Context, accountID, studentID int64, from, to timezone.Date) ([]*activeModels.StudentStatusDay, error)
-
-	// AddParentNote appends a free-text note the parent left for the
-	// team and returns the newest ParentNoteDisplayLimit notes. Gated by
-	// operations.parent_notes_enabled for the child's tenant.
-	AddParentNote(ctx context.Context, accountID, studentID int64, body string) ([]*usersModels.StudentParentNote, error)
-
-	// ListParentNotes returns the newest notes for the child (limit <= 0
-	// uses ParentNoteDisplayLimit). Authorization only — reads are not
-	// gated by the setting so previously-left notes stay visible.
-	ListParentNotes(ctx context.Context, accountID, studentID int64, limit int) ([]*usersModels.StudentParentNote, error)
 
 	// ChildFeatures resolves which parent-portal write features are enabled
 	// for the child's tenant, so the UI can hide/disable actions the backend
@@ -161,6 +147,32 @@ type Service interface {
 	// can_pickup / is_emergency_contact flags additionally require
 	// parent_portal.pickup.manage.
 	UpdateGuardianRelationship(ctx context.Context, accountID, studentID, guardianProfileID int64, input GuardianRelationshipInput) (*ChildGuardian, error)
+
+	// ListMessageThreads returns every conversation the guardian owns across
+	// all their children's schools (newest activity first), with the unread
+	// staff-message count. Cross-tenant.
+	ListMessageThreads(ctx context.Context, accountID int64) ([]*usersModels.InboxThread, error)
+
+	// ListChildThreads returns the guardian's conversation(s) about ONE owned
+	// child (at most one per the chat model), newest activity first, with the
+	// unread staff-message count. Does NOT mark the thread read. Authorization
+	// resolves ownership + tenant first.
+	ListChildThreads(ctx context.Context, accountID, studentID int64) ([]*usersModels.InboxThread, error)
+
+	// UnreadMessageCount returns the guardian's total count of conversations
+	// with unread staff-side activity across all their children's schools — the
+	// parent-portal sidebar badge. Cross-tenant; a light COUNT, not a projection.
+	UnreadMessageCount(ctx context.Context, accountID int64) (int, error)
+
+	// GetChildConversation returns the guardian's conversation about one owned
+	// child (oldest-first) and marks it read. Returns an empty view (ThreadID
+	// 0) when no conversation exists yet. Authorization only.
+	GetChildConversation(ctx context.Context, accountID, studentID int64) (*MessageThreadView, error)
+
+	// PostChildMessage appends a guardian message to the child's conversation,
+	// creating it on the first message, and notifies the OGS. Gated by
+	// operations.parent_notes_enabled.
+	PostChildMessage(ctx context.Context, accountID, studentID int64, body string) (*MessageThreadView, error)
 }
 
 // ChildFeatureFlags reports the resolved per-tenant parent-portal feature
@@ -217,14 +229,18 @@ type ServiceConfig struct {
 	EnrollmentRequestRepo parentModels.EnrollmentRequestRepository
 	GuardianProfileRepo   usersModels.GuardianProfileRepository
 
-	// Per-child write features (sick notes + parent notes + care exceptions).
+	// Per-child write features (sick notes + care exceptions).
 	StatusDayRepo        activeModels.StudentStatusDayRepository
 	StudentRepo          usersModels.StudentRepository
-	NoteRepo             usersModels.StudentParentNoteRepository
 	PickupExceptionRepo  scheduleModels.StudentPickupExceptionRepository
 	ArrivalExceptionRepo scheduleModels.StudentArrivalExceptionRepository
 	Settings             configService.SettingsService
 	Broadcaster          realtime.Broadcaster
+
+	// Parent-OGS messaging.
+	MessageThreadRepo usersModels.ParentMessageThreadRepository
+	MessageRepo       usersModels.ParentMessageRepository
+	MessageReadRepo   usersModels.ParentMessageReadRepository
 
 	// Related-accounts management (invite/remove further guardians from the
 	// parents portal). The invitation service runs the shared resolve logic.
@@ -255,11 +271,14 @@ type service struct {
 
 	statusDayRepo        activeModels.StudentStatusDayRepository
 	studentRepo          usersModels.StudentRepository
-	noteRepo             usersModels.StudentParentNoteRepository
 	pickupExceptionRepo  scheduleModels.StudentPickupExceptionRepository
 	arrivalExceptionRepo scheduleModels.StudentArrivalExceptionRepository
 	settings             configService.SettingsService
 	broadcaster          realtime.Broadcaster
+
+	messageThreadRepo usersModels.ParentMessageThreadRepository
+	messageRepo       usersModels.ParentMessageRepository
+	messageReadRepo   usersModels.ParentMessageReadRepository
 
 	guardianInvites     authService.GuardianInvitationService
 	guardianInviteRepo  authModels.GuardianInvitationRepository
@@ -287,13 +306,15 @@ func NewService(cfg ServiceConfig) Service {
 		guardianProfileRepo:     cfg.GuardianProfileRepo,
 		statusDayRepo:           cfg.StatusDayRepo,
 		studentRepo:             cfg.StudentRepo,
-		noteRepo:                cfg.NoteRepo,
 		pickupExceptionRepo:     cfg.PickupExceptionRepo,
 		arrivalExceptionRepo:    cfg.ArrivalExceptionRepo,
 		settings:                cfg.Settings,
 		broadcaster:             cfg.Broadcaster,
 		personRepo:              cfg.PersonRepo,
 		changeRequestRepo:       cfg.ChangeRequestRepo,
+		messageThreadRepo:       cfg.MessageThreadRepo,
+		messageRepo:             cfg.MessageRepo,
+		messageReadRepo:         cfg.MessageReadRepo,
 		guardianInvites:         cfg.GuardianInvites,
 		guardianInviteRepo:      cfg.GuardianInviteRepo,
 		studentGuardianRepo:     cfg.StudentGuardianRepo,

@@ -303,6 +303,21 @@ describe("proxy", () => {
         "/parents/login",
       );
     });
+
+    it("rewrites clean parent password reset links to the parents app", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${PARENTS_HOSTNAME}/reset-password?token=abc`,
+          PARENTS_HOSTNAME,
+        ),
+      );
+
+      expect(res.headers.get("location")).toBeNull();
+      const rewrite = res.headers.get("x-middleware-rewrite");
+      expect(rewrite).toContain("/parents/reset-password");
+      expect(rewrite).toContain("token=abc");
+      expect(getForwardedRequestHeader(res, LOCALE_SCOPE_HEADER)).toBe("1");
+    });
   });
 
   describe("tenant subdomain", () => {

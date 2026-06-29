@@ -108,6 +108,9 @@ type StudentRepository interface {
 	// FindBySchoolClass retrieves students by their school class
 	FindBySchoolClass(ctx context.Context, schoolClass string) ([]*Student, error)
 
+	// ListSchoolClasses retrieves all distinct non-empty school classes.
+	ListSchoolClasses(ctx context.Context) ([]string, error)
+
 	// Update updates an existing student
 	Update(ctx context.Context, student *Student) error
 

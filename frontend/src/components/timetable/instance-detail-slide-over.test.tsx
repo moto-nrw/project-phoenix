@@ -268,6 +268,67 @@ describe("InstanceDetailSlideOver", () => {
     );
   });
 
+  it("asks for delete scope on recurring planned instances", async () => {
+    const onDeleteCancelled = vi.fn().mockResolvedValue(undefined);
+    const onDeleteFollowing = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <InstanceDetailSlideOver
+        instance={instance({ activityGroupId: "7", isSpontaneous: false })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        onDeleteCancelled={onDeleteCancelled}
+        onDeleteFollowing={onDeleteFollowing}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Löschen/ }));
+    expect(
+      screen.getByRole("dialog", { name: "Wiederholenden Termin löschen" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Dieser und alle folgenden"));
+    await waitFor(() =>
+      expect(onDeleteFollowing).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "42", activityGroupId: "7" }),
+      ),
+    );
+    expect(onDeleteCancelled).not.toHaveBeenCalled();
+  });
+
+  it("uses single delete for spontaneous instances even when they have an activity group", async () => {
+    const onDeleteCancelled = vi.fn().mockResolvedValue(undefined);
+    const onDeleteFollowing = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <InstanceDetailSlideOver
+        instance={instance({ activityGroupId: "7", isSpontaneous: true })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        onDeleteCancelled={onDeleteCancelled}
+        onDeleteFollowing={onDeleteFollowing}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Löschen/ }));
+    expect(
+      screen.queryByRole("dialog", { name: "Wiederholenden Termin löschen" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Termin löschen?")).toBeInTheDocument();
+
+    fireEvent.click(confirmDialogButton("Löschen"));
+    await waitFor(() =>
+      expect(onDeleteCancelled).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "42",
+          activityGroupId: "7",
+          isSpontaneous: true,
+        }),
+      ),
+    );
+    expect(onDeleteFollowing).not.toHaveBeenCalled();
+  });
+
   it("renders completed, empty, and detailed attendance states", () => {
     const onClose = vi.fn();
     const { rerender } = render(

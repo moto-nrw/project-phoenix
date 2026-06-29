@@ -36,6 +36,7 @@ import (
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/services/messaging"
 	"github.com/moto-nrw/project-phoenix/services/parent"
 	"github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
@@ -120,17 +121,21 @@ type Factory struct {
 	EmailTemplateRegistry *platform.TemplateRegistry
 
 	// Enrollment domain (parent-enrollment PR 5+).
-	EnrollmentFormSchema   enrollment.FormSchemaService
-	EnrollmentCareOffering enrollment.CareOfferingService
-	EnrollmentCaptcha      enrollment.CaptchaService
-	EnrollmentRequest      enrollment.RequestService
-	EnrollmentPhase        enrollment.PhaseService
-	EnrollmentDecision     enrollment.DecisionService
-	EnrollmentReport       enrollment.ReportService
-	EnrollmentRollover     enrollment.RolloverService
+	EnrollmentFormSchema    enrollment.FormSchemaService
+	EnrollmentCareOffering  enrollment.CareOfferingService
+	EnrollmentCaptcha       enrollment.CaptchaService
+	EnrollmentRequest       enrollment.RequestService
+	EnrollmentPhase         enrollment.PhaseService
+	EnrollmentDecision      enrollment.DecisionService
+	EnrollmentReport        enrollment.ReportService
+	EnrollmentRollover      enrollment.RolloverService
+	EnrollmentChangeRequest enrollment.ChangeRequestService
 
 	// Parent (cross-tenant guardian portal - PR 9)
 	Parent parent.Service
+
+	// Messaging (staff-side parent-OGS inbox / threads)
+	Messaging messaging.Service
 
 	// SettingsSideEffects is the per-key handler registry the API binds to
 	// SettingsResource.OnValueSet. Domain packages register handlers here
@@ -551,6 +556,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	if err != nil {
 		return nil, fmt.Errorf("invalid auth service config: %w", err)
 	}
+	authConfig.ParentsURL = parentsURL
 	authConfig.Settings = settingsService
 	authService, err := auth.NewService(repos, authConfig, db, authLogger)
 	if err != nil {
@@ -693,6 +699,36 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	emailTemplateRegistry.Register(
 		platformModels.EmailKindEnrollmentRejected,
 		platform.RendererFunc(enrollment.NewEnrollmentRejectedRenderer(enrollment.EmailRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindEnrollmentChangeRequestSubmitted,
+		platform.RendererFunc(enrollment.NewEnrollmentChangeRequestSubmittedRenderer(enrollment.EmailRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindEnrollmentChangeRequestQuestion,
+		platform.RendererFunc(enrollment.NewEnrollmentChangeRequestQuestionRenderer(enrollment.EmailRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindEnrollmentChangeRequestParentReply,
+		platform.RendererFunc(enrollment.NewEnrollmentChangeRequestParentReplyRenderer(enrollment.EmailRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindEnrollmentChangeRequestApproved,
+		platform.RendererFunc(enrollment.NewEnrollmentChangeRequestApprovedRenderer(enrollment.EmailRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindEnrollmentChangeRequestRejected,
+		platform.RendererFunc(enrollment.NewEnrollmentChangeRequestRejectedRenderer(enrollment.EmailRendererConfig{
 			DefaultFrom: defaultFrom,
 		})),
 	)
@@ -869,6 +905,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		OperatorRepo:         repos.Operator,
 		AuditLogRepo:         repos.OperatorAuditLog,
 		EmailChangeTokenRepo: repos.OperatorEmailChangeToken,
+		RefreshTokenRepo:     repos.OperatorRefreshToken,
 		InvitationTokenRepo:  repos.OperatorInvitationToken,
 		DB:                   db,
 		Logger:               platformLogger,
@@ -1002,6 +1039,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		OfferingAdjustmentRepo:   repos.EnrollmentOfferingAdjustment,
 		SchoolRepo:               repos.School,
 		PersonRepo:               repos.Person,
+		StaffRepo:                repos.Staff,
 		StudentRepo:              repos.Student,
 		StudentGuardianRepo:      repos.StudentGuardian,
 		GuardianProfileRepo:      repos.GuardianProfile,
@@ -1028,8 +1066,35 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		RequestChildRepo:         repos.RequestChild,
 		RequestChildOfferingRepo: repos.RequestChildOffering,
 		CareOfferingRepo:         repos.CareOffering,
+		FormSchemaRepo:           repos.FormSchema,
 		PhaseRepo:                repos.Phase,
 		DataAccessLogRepo:        repos.DataAccessLog,
+		StudentRepo:              repos.Student,
+		PersonRepo:               repos.Person,
+		EducationGroupRepo:       repos.Group,
+	})
+	enrollmentDecisionApplier, _ := enrollmentDecisionService.(enrollment.ChangeRequestDecisionApplier)
+
+	enrollmentChangeRequestService := enrollment.NewChangeRequestService(enrollment.ChangeRequestServiceConfig{
+		ChangeRequestRepo:        repos.ChangeRequest,
+		MessageRepo:              repos.ChangeRequestMessage,
+		RequestRepo:              repos.Request,
+		RequestChildRepo:         repos.RequestChild,
+		RequestGuardianRepo:      repos.RequestGuardian,
+		RequestChildOfferingRepo: repos.RequestChildOffering,
+		CareOfferingRepo:         repos.CareOffering,
+		FormSchemaRepo:           repos.FormSchema,
+		PhaseRepo:                repos.Phase,
+		SchoolRepo:               repos.School,
+		GuardianProfileRepo:      repos.GuardianProfile,
+		GuardianPhoneRepo:        repos.GuardianPhoneNumber,
+		DecisionService:          enrollmentDecisionApplier,
+		Settings:                 settingsService,
+		OutboxEnqueuer:           platform.NewEnrollmentOutboxAdapter(emailOutboxService),
+		FrontendURL:              frontendURL,
+		ParentsURL:               parentsURL,
+		DB:                       db,
+		Logger:                   logger.With("service", "enrollment-change-request"),
 	})
 
 	// Rollover service depends on DecisionService for the
@@ -1048,6 +1113,20 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:                   logger.With("service", "enrollment-rollover"),
 	})
 
+	studentService := users.NewStudentService(repos.Student, repos.PrivacyConsent)
+
+	messagingService := messaging.NewService(messaging.Config{
+		ThreadRepo:  repos.ParentMessageThread,
+		MessageRepo: repos.ParentMessage,
+		ReadRepo:    repos.ParentMessageRead,
+		Persons:     usersService,
+		UserContext: userContextService,
+		Settings:    settingsService,
+		Broadcaster: realtimeHub,
+		DB:          db,
+		Logger:      logger.With("service", "messaging"),
+	})
+
 	parentService := parent.NewService(parent.ServiceConfig{
 		ChildRepo:               repos.ParentChild,
 		EnrollablePhaseRepo:     repos.ParentEnrollablePhase,
@@ -1055,13 +1134,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		GuardianProfileRepo:     repos.GuardianProfile,
 		StatusDayRepo:           repos.StudentStatusDay,
 		StudentRepo:             repos.Student,
-		NoteRepo:                repos.StudentParentNote,
 		PickupExceptionRepo:     repos.StudentPickupException,
 		ArrivalExceptionRepo:    repos.StudentArrivalException,
 		Settings:                settingsService,
 		Broadcaster:             realtimeHub,
 		PersonRepo:              repos.Person,
 		ChangeRequestRepo:       repos.StudentDataChangeRequest,
+		MessageThreadRepo:       repos.ParentMessageThread,
+		MessageRepo:             repos.ParentMessage,
+		MessageReadRepo:         repos.ParentMessageRead,
 		GuardianInvites:         guardianInvitationService,
 		GuardianInviteRepo:      repos.GuardianInvitation,
 		StudentGuardianRepo:     repos.StudentGuardian,
@@ -1162,7 +1243,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Announcement:         announcementService,
 		Schools:              platform.NewSchoolService(repos.School),
 		WorkTimeModels:       config.NewWorkTimeModelService(repos.WorkTimeModel),
-		Students:             users.NewStudentService(repos.Student, repos.PrivacyConsent, repos.StudentParentNote),
+		Students:             studentService,
 		MasterDataReview:     users.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, logger.With("service", "master-data-review"), realtimeHub),
 		StudentStatusDays:    active.NewStudentStatusDayService(repos.StudentStatusDay),
 		StudentHistory:       active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog),
@@ -1197,16 +1278,18 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		EmailOutboxWorker:     emailOutboxWorker,
 		EmailTemplateRegistry: emailTemplateRegistry,
 
-		EnrollmentFormSchema:   enrollmentFormSchemaService,
-		EnrollmentCareOffering: enrollmentCareOfferingService,
-		EnrollmentCaptcha:      enrollmentCaptchaService,
-		EnrollmentRequest:      enrollmentRequestService,
-		EnrollmentPhase:        enrollmentPhaseService,
-		EnrollmentDecision:     enrollmentDecisionService,
-		EnrollmentReport:       enrollmentReportService,
-		EnrollmentRollover:     enrollmentRolloverService,
+		EnrollmentFormSchema:    enrollmentFormSchemaService,
+		EnrollmentCareOffering:  enrollmentCareOfferingService,
+		EnrollmentCaptcha:       enrollmentCaptchaService,
+		EnrollmentRequest:       enrollmentRequestService,
+		EnrollmentPhase:         enrollmentPhaseService,
+		EnrollmentDecision:      enrollmentDecisionService,
+		EnrollmentReport:        enrollmentReportService,
+		EnrollmentRollover:      enrollmentRolloverService,
+		EnrollmentChangeRequest: enrollmentChangeRequestService,
 
-		Parent: parentService,
+		Parent:    parentService,
+		Messaging: messagingService,
 	}
 
 	factory.SettingsSideEffects = sideeffects.NewRegistry()

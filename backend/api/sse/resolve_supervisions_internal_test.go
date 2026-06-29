@@ -317,6 +317,9 @@ func (m *mockActiveSvcForSSE) CheckInStudent(_ context.Context, _, _, _ int64, _
 func (m *mockActiveSvcForSSE) CheckOutStudent(_ context.Context, _, _ int64, _ bool) (*activeSvc.AttendanceResult, error) {
 	return nil, nil
 }
+func (m *mockActiveSvcForSSE) CheckOutStudentFromDevice(_ context.Context, _, _ int64) (*activeSvc.AttendanceResult, error) {
+	return nil, nil
+}
 func (m *mockActiveSvcForSSE) CheckTeacherStudentAccess(_ context.Context, _, _ int64) (bool, error) {
 	return false, nil
 }

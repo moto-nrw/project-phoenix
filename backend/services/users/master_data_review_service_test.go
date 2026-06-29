@@ -37,6 +37,10 @@ func (b *reviewRecordingBroadcaster) BroadcastToAll(_ realtime.Event) error {
 	return nil
 }
 
+func (b *reviewRecordingBroadcaster) BroadcastParentMessage(_ int64, _ int64, _ realtime.Event) error {
+	return nil
+}
+
 func insertPendingChange(t *testing.T, db *bun.DB, repos *repositories.Factory, c testpkg.ParentChain, target, field string, oldVal, newVal string) *userModels.StudentDataChangeRequest {
 	t.Helper()
 	row := &userModels.StudentDataChangeRequest{

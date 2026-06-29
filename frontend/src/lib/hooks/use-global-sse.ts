@@ -396,6 +396,35 @@ export function useGlobalSSE(): SSEHookState {
           scheduleFlush();
           break;
         }
+
+        // A counterpart read a conversation. Handled identically to a new
+        // message on the staff side: the sidebar badge must refresh (a staff
+        // member reading in another tab dropped the count) and any open
+        // thread/card refetches to pick up the guardian "Gelesen" receipt. The
+        // backend only emits this when a read cursor actually advanced, so the
+        // refetch it triggers cannot loop back into another read event.
+        case "parent_message_read":
+        case "parent_message": {
+          // A parent sent a message (or staff replied elsewhere). This single
+          // app-wide connection fans the trigger out to the messaging surfaces
+          // via window events, so the inbox/thread/student-card pages do NOT each
+          // open their own EventSource to the same endpoint (mirrors the parents
+          // portal's ParentRealtimeBridge). `messages-unread-refresh` refreshes
+          // the sidebar badge; `messages-activity` carries thread_id/student_id so
+          // an open inbox/thread/card can refetch (or skip) selectively.
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("messages-unread-refresh"));
+            window.dispatchEvent(
+              new CustomEvent("messages-activity", {
+                detail: {
+                  threadId: event.data?.thread_id ?? null,
+                  studentId: event.data?.student_id ?? null,
+                },
+              }),
+            );
+          }
+          break;
+        }
       }
     },
     [scheduleFlush],
