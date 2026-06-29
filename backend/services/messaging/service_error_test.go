@@ -204,7 +204,7 @@ func TestPostMessage_NoBroadcastOnAppendFailure(t *testing.T) {
 		ThreadRepo: tr, MessageRepo: &fakeMessageRepo{createErr: errBoom}, ReadRepo: &fakeReadRepo{},
 		Persons: fakePersons{}, Settings: stubSettings{messagingEnabled: true}, Broadcaster: bc, Logger: slog.Default(),
 	})
-	_, err := svc.PostMessage(errCtx(), 5, "Hallo")
+	_, _, err := svc.PostMessage(errCtx(), 5, "Hallo")
 	require.Error(t, err)
 	assert.Equal(t, 0, bc.countOf(realtime.EventParentMessage), "a failed append must not broadcast")
 }

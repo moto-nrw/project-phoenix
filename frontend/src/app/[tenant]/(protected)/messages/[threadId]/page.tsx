@@ -179,12 +179,11 @@ function MessageThreadContent() {
     setSendError(null);
     try {
       const updated = await postMessage(threadId, body);
-      // Show the sent message immediately, then revalidate. The postMessage
-      // response is a plain []Message with no diff map, so in a thread that holds
-      // an open change request, replacing the cache WITHOUT revalidating would
-      // strip the server-computed "current → requested" diff from the review card
-      // until some later refetch — staff could then confirm without the preview.
-      // Mirror the request-action path and revalidate so the diff comes back.
+      // Show the sent message immediately. The postMessage response now carries
+      // the rebuilt "current → requested" diff inline on every still-open request
+      // (like the GET path), so the optimistic replace keeps the review card's
+      // comparison intact even before the revalidate lands — staff can't end up
+      // confirming without the preview. Revalidate stays as a freshness backstop.
       await mutate((prev) => (prev ? { ...prev, messages: updated } : prev), {
         revalidate: true,
       });
@@ -217,8 +216,10 @@ function MessageThreadContent() {
         action === "confirm"
           ? await confirmRequest(requestId)
           : await rejectRequest(requestId, rejectReason);
-      // Revalidate so an open request gets its fresh server-computed diff (and
-      // read state) back after the action, not just the diff-less action reply.
+      // The action response carries the rebuilt diff inline for any OTHER request
+      // left open in the thread (the one just decided is now closed), so the
+      // optimistic replace keeps those review cards intact. Revalidate refreshes
+      // read state and acts as a freshness backstop.
       await mutate((prev) => (prev ? { ...prev, messages: updated } : prev), {
         revalidate: true,
       });

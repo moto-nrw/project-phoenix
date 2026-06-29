@@ -91,7 +91,14 @@ type Service interface {
 	ListInbox(ctx context.Context, onlyUnread bool, onlyOpenRequests bool) ([]*usersModels.InboxThread, error)
 	UnreadMessageCount(ctx context.Context) (int, error)
 	GetThread(ctx context.Context, threadID int64) (*ThreadDetail, error)
-	PostMessage(ctx context.Context, threadID int64, body string) ([]*usersModels.ParentMessage, error)
+	// PostMessage appends a staff reply, returns the refreshed thread messages
+	// AND the rebuilt "current → requested" diff map for every still-open request
+	// in that snapshot (keyed by request message ID, like the GET path). The
+	// client applies this response optimistically (revalidate:false), so without
+	// the diffs an open request card would lose its comparison view until the
+	// follow-up refetch — letting staff confirm without the preview this feature
+	// depends on.
+	PostMessage(ctx context.Context, threadID int64, body string) ([]*usersModels.ParentMessage, map[int64][]RequestDiffEntry, error)
 	StartThread(ctx context.Context, studentID, guardianAccountID int64, body string) (*ThreadDetail, error)
 	// OpenThread get-or-creates the conversation for a (student, guardian) pair
 	// and returns it (with history if any), without sending a message — the
@@ -106,12 +113,16 @@ type Service interface {
 	ListStudentThreads(ctx context.Context, studentID int64) ([]*usersModels.InboxThread, error)
 	// ConfirmRequest applies a still-open parent change request (care schedule or
 	// student master data) inside a transaction, marks it 'erledigt', posts the
-	// decision event into the thread, and returns the refreshed thread messages.
-	ConfirmRequest(ctx context.Context, requestID int64) ([]*usersModels.ParentMessage, error)
+	// decision event into the thread, and returns the refreshed thread messages
+	// plus the rebuilt diff map for any OTHER request left open in the thread (the
+	// confirmed one is now closed and carries no diff). The client applies this
+	// optimistically, so a nil map would strip a second open request's comparison.
+	ConfirmRequest(ctx context.Context, requestID int64) ([]*usersModels.ParentMessage, map[int64][]RequestDiffEntry, error)
 	// RejectRequest declines a still-open request with a reason, marks it
 	// 'abgelehnt', posts the parent-visible decision event, and returns the
-	// refreshed thread messages.
-	RejectRequest(ctx context.Context, requestID int64, reason string) ([]*usersModels.ParentMessage, error)
+	// refreshed thread messages plus the rebuilt diff map for any OTHER request
+	// left open in the thread (same optimistic-apply reasoning as ConfirmRequest).
+	RejectRequest(ctx context.Context, requestID int64, reason string) ([]*usersModels.ParentMessage, map[int64][]RequestDiffEntry, error)
 	// BuildRequestDiffs returns the "current → requested" comparison for every
 	// still-open request in the message list, keyed by request message ID. Must
 	// run inside a tenant transaction.
@@ -438,36 +449,36 @@ func (s *service) GetThread(ctx context.Context, threadID int64) (*ThreadDetail,
 	return detail, nil
 }
 
-func (s *service) PostMessage(ctx context.Context, threadID int64, body string) ([]*usersModels.ParentMessage, error) {
+func (s *service) PostMessage(ctx context.Context, threadID int64, body string) ([]*usersModels.ParentMessage, map[int64][]RequestDiffEntry, error) {
 	body = strings.TrimSpace(body)
 	if body == "" {
-		return nil, ErrEmptyBody
+		return nil, nil, ErrEmptyBody
 	}
 	if utf8.RuneCountInString(body) > maxMessageLen {
-		return nil, ErrBodyTooLong
+		return nil, nil, ErrBodyTooLong
 	}
 	thread, err := s.loadAuthorizedThread(ctx, threadID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := s.requireEnabled(ctx); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// Refuse to send to a guardian who has been unlinked / lost parent_portal.access
 	// since the thread was created — the parent APIs hide such threads, so a reply
 	// would be unreadable and the SSE wake-up would leak activity to a revoked account.
 	if err := s.requireLinkedGuardian(ctx, thread); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	accountID := accountIDFromCtx(ctx)
 	if err := s.appendStaffMessage(ctx, thread, accountID, body); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	messages, err := s.messageRepo.ListByThread(ctx, thread.ID, 0)
 	if err != nil {
-		return nil, fmt.Errorf("messaging: list messages: %w", err)
+		return nil, nil, fmt.Errorf("messaging: list messages: %w", err)
 	}
 	// Advance the staff reader's cursor over this returned snapshot, exactly as the
 	// GET path (markReadAndBuild) does. The client applies this list with
@@ -478,7 +489,7 @@ func (s *service) PostMessage(ctx context.Context, threadID int64, body string) 
 	// message), so it can't leap the cursor to ~now and swallow a guardian message
 	// committing concurrently in a still-open tx. See parentmessaging.MarkReadToNewest.
 	if _, err := parentmessaging.MarkReadToNewest(ctx, s.readRepo, thread.TenantID, thread.ID, accountID, true, messages); err != nil {
-		return nil, fmt.Errorf("messaging: mark read: %w", err)
+		return nil, nil, fmt.Errorf("messaging: mark read: %w", err)
 	}
 	// Re-stamp the "Gelesen" receipts on the returned snapshot: the client applies
 	// this list optimistically (revalidate:false), so without it the staff's older,
@@ -487,7 +498,10 @@ func (s *service) PostMessage(ctx context.Context, threadID int64, body string) 
 	// so it correctly stays unstamped.
 	parentmessaging.DecorateGuardianReadReceipts(ctx, s.readRepo, s.logger, thread.ID, messages)
 	s.broadcastAfterCommit(ctx, thread)
-	return messages, nil
+	// Rebuild the open-request diff map over this snapshot, exactly as the GET path
+	// (markReadAndBuild) does, so the client's optimistic apply keeps the
+	// "current → requested" comparison on any request still open in the thread.
+	return messages, s.BuildRequestDiffs(ctx, thread.StudentID, messages), nil
 }
 
 // authorizeThreadParticipants enforces the shared precondition for opening or

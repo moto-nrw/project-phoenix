@@ -28,6 +28,7 @@ import (
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/services"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/messaging"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
@@ -147,12 +148,19 @@ func buildMessaging(t *testing.T, enabled bool) (messaging.Service, *captureBroa
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
+	// Wire the schedule services (Arrival/Pickup) like production does, so the
+	// fixture can build request diffs over an open care-schedule request — the
+	// reply/decision paths return that diff map and a missing dep would nil-panic.
+	serviceFactory, err := services.NewFactory(repos, db, slog.Default())
+	require.NoError(t, err)
 	bc := &captureBroadcaster{}
 	svc := messaging.NewService(messaging.Config{
 		ThreadRepo:  repos.ParentMessageThread,
 		MessageRepo: repos.ParentMessage,
 		ReadRepo:    repos.ParentMessageRead,
 		Persons:     newPersons(repos, db),
+		Arrival:     serviceFactory.ArrivalSchedule,
+		Pickup:      serviceFactory.PickupSchedule,
 		Settings:    stubSettings{messagingEnabled: enabled},
 		Broadcaster: bc,
 		DB:          db,
@@ -277,11 +285,35 @@ func TestPostMessage_AppendsAndBroadcasts(t *testing.T) {
 	require.NoError(t, err)
 	f.bc.parent = nil // reset to isolate the reply's broadcast
 
-	msgs, err := f.svc.PostMessage(ctx, started.ThreadID, "Noch eine Info")
+	msgs, _, err := f.svc.PostMessage(ctx, started.ThreadID, "Noch eine Info")
 	require.NoError(t, err)
 	require.Len(t, msgs, 2)
 	assert.Equal(t, "Noch eine Info", msgs[1].Body)
 	assert.Equal(t, 1, f.bc.countOf(realtime.EventParentMessage))
+}
+
+// TestPostMessage_PreservesOpenRequestDiffs pins that a staff reply in a thread
+// holding a still-open request returns the rebuilt "current → requested" diff map
+// (keyed by request message ID), not a nil one. The client applies this response
+// optimistically (revalidate:false), so a nil map would momentarily strip the
+// review card's comparison and let staff confirm without the preview the feature
+// depends on. The reply's diffs must also match what a fresh GetThread computes,
+// so the optimistic apply agrees with the follow-up refetch.
+func TestPostMessage_PreservesOpenRequestDiffs(t *testing.T) {
+	f := newFixture(t, true)
+	ctx := adminCtx(f.staffAccount)
+
+	started, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Hallo")
+	require.NoError(t, err)
+	reqID := createOpenRequest(t, f.db, f.chain, started.ThreadID)
+
+	_, diffs, err := f.svc.PostMessage(ctx, started.ThreadID, "Kurze Rückfrage")
+	require.NoError(t, err)
+	require.NotEmpty(t, diffs[reqID], "reply must carry the open request's current→requested diff")
+
+	detail, err := f.svc.GetThread(ctx, started.ThreadID)
+	require.NoError(t, err)
+	assert.Equal(t, detail.Diffs, diffs, "reply diff map must mirror the GET path")
 }
 
 // TestPostMessage_EmptyAndTooLong pins the body guards: blank → ErrEmptyBody,
@@ -292,10 +324,10 @@ func TestPostMessage_EmptyAndTooLong(t *testing.T) {
 	started, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Hallo")
 	require.NoError(t, err)
 
-	_, err = f.svc.PostMessage(ctx, started.ThreadID, "   \n\t ")
+	_, _, err = f.svc.PostMessage(ctx, started.ThreadID, "   \n\t ")
 	require.ErrorIs(t, err, messaging.ErrEmptyBody)
 
-	_, err = f.svc.PostMessage(ctx, started.ThreadID, strings.Repeat("x", 2001))
+	_, _, err = f.svc.PostMessage(ctx, started.ThreadID, strings.Repeat("x", 2001))
 	require.ErrorIs(t, err, messaging.ErrBodyTooLong)
 }
 
@@ -536,9 +568,9 @@ func TestDecideRequest_WriteDeniedIsForbidden(t *testing.T) {
 	confirmReqID := createOpenRequest(t, db, chain, thread.ThreadID)
 	ctx := claimsCtx(staffAccount.ID, []string{"users:update"})
 
-	_, err = svc.RejectRequest(ctx, rejectReqID, "Bitte erneut einreichen")
+	_, _, err = svc.RejectRequest(ctx, rejectReqID, "Bitte erneut einreichen")
 	require.ErrorIs(t, err, messaging.ErrForbidden)
-	_, err = svc.ConfirmRequest(ctx, confirmReqID)
+	_, _, err = svc.ConfirmRequest(ctx, confirmReqID)
 	require.ErrorIs(t, err, messaging.ErrForbidden)
 }
 
@@ -559,7 +591,7 @@ func TestPostMessage_GuardianAccessRevoked(t *testing.T) {
 	`, f.chain.TenantID, f.chain.StudentID, f.chain.GuardianProfileID)
 	require.NoError(t, err)
 
-	_, err = f.svc.PostMessage(ctx, started.ThreadID, "Reply")
+	_, _, err = f.svc.PostMessage(ctx, started.ThreadID, "Reply")
 	require.ErrorIs(t, err, messaging.ErrGuardianAccessRevoked)
 
 	// Read still works — history stays visible.
@@ -587,7 +619,7 @@ func TestMessaging_DisabledFeature(t *testing.T) {
 		Broadcaster: f.bc, DB: f.db, Logger: slog.Default(),
 	})
 
-	_, err = disabled.PostMessage(ctx, started.ThreadID, "Reply")
+	_, _, err = disabled.PostMessage(ctx, started.ThreadID, "Reply")
 	require.ErrorIs(t, err, messaging.ErrMessagingDisabled)
 
 	count, err := disabled.UnreadMessageCount(ctx)

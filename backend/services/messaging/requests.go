@@ -159,18 +159,18 @@ func decodePayload[T any](payload map[string]any) (T, error) {
 	return out, nil
 }
 
-func (s *service) ConfirmRequest(ctx context.Context, requestID int64) ([]*usersModels.ParentMessage, error) {
+func (s *service) ConfirmRequest(ctx context.Context, requestID int64) ([]*usersModels.ParentMessage, map[int64][]RequestDiffEntry, error) {
 	request, thread, err := s.loadAuthorizedRequest(ctx, requestID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := s.requireEnabled(ctx); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	handler, ok := parentMessageRequestRegistry[request.RequestType]
 	if !ok {
-		return nil, ErrInvalidRequestType
+		return nil, nil, ErrInvalidRequestType
 	}
 
 	// Confirming applies the requested change AND writes a parent-visible
@@ -178,12 +178,12 @@ func (s *service) ConfirmRequest(ctx context.Context, requestID int64) ([]*users
 	// parent_portal.access. A staffer who wants to dispose of a revoked
 	// guardian's request rejects it instead (see loadAuthorizedRequest).
 	if err := s.requireLinkedGuardian(ctx, thread); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	accountID := accountIDFromCtx(ctx)
 	if err := s.requireStudentWrite(ctx, request.StudentID); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Lock the request row for the rest of the request transaction and re-read
@@ -193,7 +193,7 @@ func (s *service) ConfirmRequest(ctx context.Context, requestID int64) ([]*users
 	// schedule/master-data change a second time.
 	request, err = s.lockOpenRequest(ctx, requestID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// apply, the status update and the system event all run in the ambient
@@ -202,7 +202,7 @@ func (s *service) ConfirmRequest(ctx context.Context, requestID int64) ([]*users
 	// the WHOLE transaction rolls back — masking it as ErrRequestNoLongerPossible
 	// (409) would COMMIT a half-applied change and leave the child inconsistent.
 	if err := handler.apply(ctx, s, request, accountID); err != nil {
-		return nil, fmt.Errorf("messaging: apply request %d: %w", requestID, err)
+		return nil, nil, fmt.Errorf("messaging: apply request %d: %w", requestID, err)
 	}
 
 	now := time.Now()
@@ -210,13 +210,13 @@ func (s *service) ConfirmRequest(ctx context.Context, requestID int64) ([]*users
 	request.AppliedAt = &now
 	request.AppliedBy = &accountID
 	if err := s.messageRepo.Update(ctx, request); err != nil {
-		return nil, fmt.Errorf("messaging: update request: %w", err)
+		return nil, nil, fmt.Errorf("messaging: update request: %w", err)
 	}
 	if err := s.appendSystemEvent(ctx, thread, accountID, "request_status", confirmEventBody(request.RequestType), requestDecisionMeta{
 		requestType:   request.RequestType,
 		requestStatus: usersModels.ParentMessageRequestStatusDone,
 	}); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// Emit the "applied" audit line only AFTER the tenant transaction actually
 	// commits. The ListByThread below (and any later statement) can still fail —
@@ -235,26 +235,26 @@ func (s *service) ConfirmRequest(ctx context.Context, requestID int64) ([]*users
 		handler.broadcastChanges(s, ctx, request)
 	}
 	s.broadcastAfterCommit(ctx, thread)
-	return s.messageRepo.ListByThread(ctx, thread.ID, 0)
+	return s.listThreadWithDiffs(ctx, thread)
 }
 
-func (s *service) RejectRequest(ctx context.Context, requestID int64, reason string) ([]*usersModels.ParentMessage, error) {
+func (s *service) RejectRequest(ctx context.Context, requestID int64, reason string) ([]*usersModels.ParentMessage, map[int64][]RequestDiffEntry, error) {
 	reason = strings.TrimSpace(reason)
 	if reason == "" {
-		return nil, ErrRejectReasonRequired
+		return nil, nil, ErrRejectReasonRequired
 	}
 	// Bound the reason like every other free-text field: staff/API clients reach
 	// this directly, so an unbounded reason would be persisted as decision_reason
 	// AND duplicated into the system-event body, making every later thread load
 	// carry the payload. Count runes so German umlauts are not penalized.
 	if utf8.RuneCountInString(reason) > maxFreeTextLen {
-		return nil, ErrRejectReasonTooLong
+		return nil, nil, ErrRejectReasonTooLong
 	}
 	// The request row is re-read under the lock below; the initial load is used
 	// for authorization (thread read access + the student write check).
 	authRequest, thread, err := s.loadAuthorizedRequest(ctx, requestID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// NOTE: deliberately no requireEnabled() gate here — and, for the same
 	// reason, no requireLinkedGuardian() gate. Rejecting (and the parent-side
@@ -269,26 +269,26 @@ func (s *service) RejectRequest(ctx context.Context, requestID int64, reason str
 	// (the accept side). Without this, under gdpr.student_data_scope='all_staff'
 	// any read-only staffer could terminally reject another supervisor's request.
 	if err := s.requireStudentWrite(ctx, authRequest.StudentID); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// Lock + re-read under the lock so a reject racing a concurrent confirm
 	// cannot flip an already-applied request to "rejected" (which would leave
 	// the schedule/master-data change applied but the request marked rejected).
 	request, err := s.lockOpenRequest(ctx, requestID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	request.RequestStatus = usersModels.ParentMessageRequestStatusRejected
 	request.DecisionReason = reason
 	if err := s.messageRepo.Update(ctx, request); err != nil {
-		return nil, fmt.Errorf("messaging: update request: %w", err)
+		return nil, nil, fmt.Errorf("messaging: update request: %w", err)
 	}
 	if err := s.appendSystemEvent(ctx, thread, accountIDFromCtx(ctx), "request_status", "Anfrage abgelehnt: "+reason, requestDecisionMeta{
 		requestType:    request.RequestType,
 		requestStatus:  usersModels.ParentMessageRequestStatusRejected,
 		decisionReason: reason,
 	}); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// Reject deliberately skips requireLinkedGuardian (so staff can wind down a
 	// revoked guardian's stuck request — see loadAuthorizedRequest), but the SSE
@@ -302,7 +302,22 @@ func (s *service) RejectRequest(ctx context.Context, requestID int64, reason str
 	if s.requireLinkedGuardian(ctx, thread) == nil {
 		s.broadcastAfterCommit(ctx, thread)
 	}
-	return s.messageRepo.ListByThread(ctx, thread.ID, 0)
+	return s.listThreadWithDiffs(ctx, thread)
+}
+
+// listThreadWithDiffs reloads a thread's messages and rebuilds the open-request
+// diff map over that snapshot, mirroring the GET path (markReadAndBuild). The
+// confirm/reject responses are applied optimistically (revalidate:false) by the
+// client, so returning the diffs keeps the "current → requested" comparison on
+// any request still open in the thread after the decision — the request just
+// acted on is closed and carries no diff, but a sibling request would otherwise
+// lose its review card until the follow-up refetch.
+func (s *service) listThreadWithDiffs(ctx context.Context, thread *usersModels.ParentMessageThread) ([]*usersModels.ParentMessage, map[int64][]RequestDiffEntry, error) {
+	messages, err := s.messageRepo.ListByThread(ctx, thread.ID, 0)
+	if err != nil {
+		return nil, nil, err
+	}
+	return messages, s.BuildRequestDiffs(ctx, thread.StudentID, messages), nil
 }
 
 func (s *service) loadAuthorizedRequest(ctx context.Context, requestID int64) (*usersModels.ParentMessage, *usersModels.ParentMessageThread, error) {

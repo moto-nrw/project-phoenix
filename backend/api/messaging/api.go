@@ -282,12 +282,12 @@ func (rs *Resource) confirmRequest(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	messages, err := rs.Service.ConfirmRequest(r.Context(), requestID)
+	messages, diffs, err := rs.Service.ConfirmRequest(r.Context(), requestID)
 	if err != nil {
 		renderMessagingError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toMessageResponses(messages, nil), "Request confirmed")
+	common.Respond(w, r, http.StatusOK, toMessageResponses(messages, diffs), "Request confirmed")
 }
 
 func (rs *Resource) rejectRequest(w http.ResponseWriter, r *http.Request) {
@@ -300,12 +300,12 @@ func (rs *Resource) rejectRequest(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
 		return
 	}
-	messages, err := rs.Service.RejectRequest(r.Context(), requestID, req.Reason)
+	messages, diffs, err := rs.Service.RejectRequest(r.Context(), requestID, req.Reason)
 	if err != nil {
 		renderMessagingError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toMessageResponses(messages, nil), "Request rejected")
+	common.Respond(w, r, http.StatusOK, toMessageResponses(messages, diffs), "Request rejected")
 }
 
 func (rs *Resource) postMessage(w http.ResponseWriter, r *http.Request) {
@@ -318,12 +318,12 @@ func (rs *Resource) postMessage(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
 		return
 	}
-	messages, err := rs.Service.PostMessage(r.Context(), threadID, req.Body)
+	messages, diffs, err := rs.Service.PostMessage(r.Context(), threadID, req.Body)
 	if err != nil {
 		renderMessagingError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusCreated, toMessageResponses(messages, nil), "Message sent")
+	common.Respond(w, r, http.StatusCreated, toMessageResponses(messages, diffs), "Message sent")
 }
 
 func (rs *Resource) startThread(w http.ResponseWriter, r *http.Request) {
