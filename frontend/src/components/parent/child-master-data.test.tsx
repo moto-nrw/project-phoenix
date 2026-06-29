@@ -139,6 +139,69 @@ describe("ChildMasterDataView", () => {
     expect(await screen.findByText("Gespeichert")).toBeInTheDocument();
   });
 
+  it("gives editable fields accessible names", async () => {
+    render(<ChildMasterDataView studentId="42" />);
+
+    expect(
+      await screen.findByLabelText("Gesundheitshinweise / Allergien"),
+    ).toHaveValue("Allergie");
+    expect(screen.getByLabelText("E-Mail-Adresse")).toHaveValue(
+      "parent@example.test",
+    );
+    expect(screen.getByLabelText("Vorname")).toHaveValue("Lara");
+    expect(screen.getByLabelText("Geburtsdatum")).toHaveValue("2018-03-04");
+  });
+
+  it("merges direct-save snapshots without rolling back other saved fields", async () => {
+    const resolvers: Array<{
+      field: string;
+      resolve: (value: ChildMasterData) => void;
+    }> = [];
+    mockUpdateField.mockImplementation(
+      (_studentId, _target, field) =>
+        new Promise<ChildMasterData>((resolve) => {
+          resolvers.push({ field, resolve });
+        }),
+    );
+
+    render(<ChildMasterDataView studentId="42" />);
+
+    const health = await screen.findByLabelText(
+      "Gesundheitshinweise / Allergien",
+    );
+    const email = screen.getByLabelText("E-Mail-Adresse");
+
+    fireEvent.change(health, { target: { value: "Neue Info" } });
+    fireEvent.blur(health);
+    fireEvent.change(email, { target: { value: "neu@example.test" } });
+    fireEvent.blur(email);
+
+    await waitFor(() => expect(mockUpdateField).toHaveBeenCalledTimes(2));
+    expect(resolvers.map((r) => r.field)).toEqual(["health_info", "email"]);
+
+    await act(async () => {
+      resolvers[1]!.resolve(
+        masterData({
+          health_info: "Allergie",
+          email: "neu@example.test",
+        }),
+      );
+    });
+    expect(email).toHaveValue("neu@example.test");
+
+    await act(async () => {
+      resolvers[0]!.resolve(
+        masterData({
+          health_info: "Neue Info",
+          email: "parent@example.test",
+        }),
+      );
+    });
+
+    expect(health).toHaveValue("Neue Info");
+    expect(email).toHaveValue("neu@example.test");
+  });
+
   it("does not duplicate a blur save while the debounced save is in flight", async () => {
     let resolveSave: ((value: ChildMasterData) => void) | undefined;
     mockUpdateField.mockImplementation(
@@ -277,6 +340,52 @@ describe("ChildMasterDataView", () => {
     expect(mockSubmit).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps identity request success when the pending refresh fails", async () => {
+    mockSubmit.mockResolvedValueOnce([
+      {
+        id: "900",
+        target: "person",
+        field_key: "first_name",
+        old_value: "Lara",
+        new_value: "Lea",
+        status: "pending",
+        created_at: "2026-06-24T12:00:00Z",
+      },
+    ]);
+    mockGetMasterData
+      .mockResolvedValueOnce(masterData())
+      .mockRejectedValueOnce(new Error("refresh failed"));
+
+    render(<ChildMasterDataView studentId="42" />);
+
+    const firstName = await screen.findByLabelText("Vorname");
+    const identityHeading = screen.getByRole("heading", {
+      name: "Angaben zum Kind",
+    });
+    const identitySection = identityHeading.closest("section");
+    if (!identitySection) {
+      throw new Error("identity section not found");
+    }
+
+    fireEvent.change(firstName, { target: { value: "Lea" } });
+    fireEvent.click(
+      within(identitySection).getByRole("button", {
+        name: "Änderung anfragen",
+      }),
+    );
+
+    expect(
+      await screen.findByText(
+        "Anfrage gesendet. Das Team prüft Ihre Änderung.",
+      ),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("In Prüfung")).toBeInTheDocument();
+    expect(screen.getByLabelText("Vorname")).toBeDisabled();
+    expect(
+      screen.queryByText("Die Anfrage konnte nicht gesendet werden."),
+    ).not.toBeInTheDocument();
+  });
+
   it("submits departure mode changes for review", async () => {
     mockGetMasterData.mockResolvedValueOnce(masterData()).mockResolvedValueOnce(
       masterData({
@@ -326,6 +435,51 @@ describe("ChildMasterDataView", () => {
         },
       ]),
     );
+  });
+
+  it("keeps departure request success when the pending refresh fails", async () => {
+    mockSubmit.mockResolvedValueOnce([
+      {
+        id: "901",
+        target: "departure",
+        field_key: "allowed_departure_modes",
+        old_value: { mon: ["pickup"] },
+        new_value: { mon: ["pickup"], wed: ["pickup"] },
+        status: "pending",
+        created_at: "2026-06-24T12:00:00Z",
+      },
+    ]);
+    mockGetMasterData
+      .mockResolvedValueOnce(masterData())
+      .mockRejectedValueOnce(new Error("refresh failed"));
+
+    render(<ChildMasterDataView studentId="42" />);
+
+    const departureSection = await screen.findByRole("heading", {
+      name: "Dauerhafte Gehzeiten",
+    });
+    const section = departureSection.closest("section");
+    if (!section) {
+      throw new Error("departure section not found");
+    }
+
+    fireEvent.click(screen.getByLabelText("Mi Wird abgeholt"));
+    fireEvent.click(
+      within(section).getByRole("button", { name: "Änderung anfragen" }),
+    );
+
+    expect(
+      await screen.findByText(
+        "Anfrage gesendet. Das Team prüft Ihre Änderung.",
+      ),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("In Prüfung")).toBeInTheDocument();
+    expect(
+      within(section).getByRole("button", { name: "Änderung anfragen" }),
+    ).toBeDisabled();
+    expect(
+      screen.queryByText("Die Anfrage konnte nicht gesendet werden."),
+    ).not.toBeInTheDocument();
   });
 
   it("preserves dirty request drafts across unrelated direct-edit refreshes", async () => {

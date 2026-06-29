@@ -160,12 +160,13 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/parent-notes", rs.getStudentParentNotes)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/enrollment-extra-fields", rs.getStudentEnrollmentExtraFields)
 
-		// Parent Stammdaten change-request review queue (Track B). Listing is
-		// users:read; applying a decision writes to the student/person record,
-		// so it requires users:update. Static paths take precedence over the
-		// /{id} param route in chi.
-		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/master-data-change-requests", rs.listMasterDataChangeRequests)
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/master-data-change-requests/{requestId}/decide", rs.decideMasterDataChangeRequest)
+		// Parent Stammdaten change-request review queue (Track B). Requests can
+		// contain parent-submitted name, birthday, and departure-plan changes,
+		// so both listing and terminal decisions require admin-level user
+		// management access. Static paths take precedence over the /{id} param
+		// route in chi.
+		r.With(authorize.RequiresPermission(permissions.UsersManage), withTx).Get("/master-data-change-requests", rs.listMasterDataChangeRequests)
+		r.With(authorize.RequiresPermission(permissions.UsersManage), withTx).Post("/master-data-change-requests/{requestId}/decide", rs.decideMasterDataChangeRequest)
 
 		// Routes requiring users:create permission
 		r.With(authorize.RequiresPermission(permissions.UsersCreate), withTx).Post("/", rs.createStudent)

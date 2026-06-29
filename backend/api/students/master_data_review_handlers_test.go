@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -79,6 +81,29 @@ func TestListMasterDataChangeRequests_ReturnsPendingItems(t *testing.T) {
 	assert.Contains(t, body, `"student_id":"42"`)
 	assert.Contains(t, body, `"first_name":"Lara"`)
 	assert.Contains(t, body, `"field_key":"first_name"`)
+}
+
+func TestMasterDataChangeRequestRoutesRequireUsersManage(t *testing.T) {
+	testutil.SeedTestJWTConfig()
+	router := (&Resource{MasterDataReviewService: &fakeMasterDataReviewService{}}).Router()
+	claims := testutil.DefaultTestClaims()
+	claims.Permissions = []string{permissions.UsersRead, permissions.UsersUpdate}
+	claims.IsAdmin = false
+	token := testutil.MintTestJWT(t, claims)
+
+	for _, tc := range []struct {
+		method string
+		path   string
+		body   string
+	}{
+		{method: http.MethodGet, path: "/master-data-change-requests"},
+		{method: http.MethodPost, path: "/master-data-change-requests/100/decide", body: `{"approve":true}`},
+	} {
+		req := testutil.NewAuthenticatedRequest(t, tc.method, tc.path, strings.NewReader(tc.body), testutil.WithJWTBearer(token))
+		rr := testutil.ExecuteRequest(router, req)
+
+		require.Equal(t, http.StatusForbidden, rr.Code)
+	}
 }
 
 func TestListMasterDataChangeRequests_RequiresConfiguredService(t *testing.T) {

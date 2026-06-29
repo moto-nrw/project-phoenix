@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/mail"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/uptrace/bun"
 
@@ -55,6 +57,8 @@ var trackAEditableFields = map[string]bool{
 	usersModels.DataChangeTargetGuardianProfile + "/language_preference":      true,
 	usersModels.DataChangeTargetGuardianPhone + "/primary":                    true,
 }
+
+const maxMasterDataHealthInfoLen = 2000
 
 // ChildMasterData is the structured Stammdaten view a parent sees for one child.
 // It blends the child's own person/student record with the calling guardian's
@@ -150,6 +154,9 @@ func (s *service) UpdateMasterDataField(ctx context.Context, accountID, studentI
 	if err != nil {
 		return nil, err
 	}
+	if err := validateTrackAFieldSize(target, fieldKey, newStr); err != nil {
+		return nil, err
+	}
 
 	var out *ChildMasterData
 	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
@@ -209,6 +216,31 @@ func isTrackAGuardianTarget(target string) bool {
 	return target == usersModels.DataChangeTargetGuardianProfile || target == usersModels.DataChangeTargetGuardianPhone
 }
 
+func validateTrackAFieldSize(target, fieldKey, value string) error {
+	limit := 0
+	switch target + "/" + fieldKey {
+	case usersModels.DataChangeTargetStudent + "/health_info":
+		limit = maxMasterDataHealthInfoLen
+	case usersModels.DataChangeTargetGuardianProfile + "/email":
+		limit = maxGuardianEmailLen
+	case usersModels.DataChangeTargetGuardianProfile + "/address_street",
+		usersModels.DataChangeTargetGuardianProfile + "/address_city",
+		usersModels.DataChangeTargetGuardianProfile + "/address_postal_code":
+		limit = maxGuardianAddrLen
+	case usersModels.DataChangeTargetGuardianProfile + "/preferred_contact_method",
+		usersModels.DataChangeTargetGuardianProfile + "/language_preference":
+		limit = maxGuardianLabelLen
+	case usersModels.DataChangeTargetGuardianPhone + "/primary":
+		limit = maxGuardianPhoneLen
+	default:
+		return ErrMasterDataFieldNotEditable
+	}
+	if utf8.RuneCountInString(value) > limit {
+		return fmt.Errorf("%w: field exceeds %d characters", ErrMasterDataInvalidValue, limit)
+	}
+	return nil
+}
+
 func (s *service) applyStudentEdit(ctx context.Context, studentID int64, fieldKey, newStr string) (json.RawMessage, json.RawMessage, *int64, bool, error) {
 	student, err := s.studentRepo.FindByIDForUpdate(ctx, studentID)
 	if err != nil {
@@ -248,7 +280,16 @@ func (s *service) applyGuardianProfileEdit(ctx context.Context, accountID int64,
 	switch fieldKey {
 	case "email":
 		oldRaw = jsonStringPtr(profile.Email)
-		profile.Email = strPtrOrNil(newStr)
+		next := strPtrOrNil(newStr)
+		if next != nil {
+			addr, parseErr := mail.ParseAddress(*next)
+			if parseErr != nil {
+				return nil, nil, nil, false, ErrMasterDataInvalidValue
+			}
+			normalized := addr.Address
+			next = &normalized
+		}
+		profile.Email = next
 	case "address_street":
 		oldRaw = jsonStringPtr(profile.AddressStreet)
 		profile.AddressStreet = strPtrOrNil(newStr)
@@ -340,10 +381,11 @@ func (s *service) applyGuardianPhoneEdit(ctx context.Context, accountID, tenantI
 	// Clear: empty value removes the existing primary phone.
 	if newStr == "" {
 		if existing != nil {
+			ref := existing.ID
 			if err := s.guardianPhoneRepo.Delete(ctx, existing.ID); err != nil {
 				return nil, nil, nil, false, err
 			}
-			return oldRaw, json.RawMessage("null"), nil, true, nil
+			return oldRaw, json.RawMessage("null"), &ref, true, nil
 		}
 		return oldRaw, json.RawMessage("null"), nil, false, nil
 	}

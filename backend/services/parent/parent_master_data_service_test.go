@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -236,6 +237,26 @@ func TestUpdateMasterDataField_GuardianProfile_AppliesAndAudits(t *testing.T) {
 	assert.Equal(t, chain.GuardianProfileID, *rows[0].TargetRefID)
 }
 
+func TestUpdateMasterDataField_GuardianProfile_NormalizesDisplayNameEmail(t *testing.T) {
+	svc, db := buildMasterDataService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	data, err := svc.UpdateMasterDataField(
+		context.Background(), chain.AccountID, chain.StudentID,
+		usersModels.DataChangeTargetGuardianProfile, "email",
+		json.RawMessage(`"Mom <MOM@EXAMPLE.TEST>"`),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, data.Email)
+	assert.Equal(t, "mom@example.test", *data.Email)
+
+	profile, err := repositories.NewFactory(db).GuardianProfile.FindByID(context.Background(), chain.GuardianProfileID)
+	require.NoError(t, err)
+	require.NotNil(t, profile.Email)
+	assert.Equal(t, "mom@example.test", *profile.Email)
+}
+
 func TestUpdateMasterDataField_GuardianProfile_DuplicateEmailConflict(t *testing.T) {
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -343,6 +364,22 @@ func TestUpdateMasterDataField_GuardianPhone_CreateUpdateClear(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, data.PrimaryPhone)
 	assert.Nil(t, data.PrimaryPhoneID)
+
+	var clearRef *int64
+	err = db.NewRaw(
+		`SELECT target_ref_id
+		   FROM users.student_data_change_requests
+		  WHERE student_id = ? AND target = ? AND field_key = ? AND status = ?
+		  ORDER BY id DESC
+		  LIMIT 1`,
+		chain.StudentID,
+		usersModels.DataChangeTargetGuardianPhone,
+		"primary",
+		usersModels.DataChangeStatusAutoApplied,
+	).Scan(context.Background(), &clearRef)
+	require.NoError(t, err)
+	require.NotNil(t, clearRef)
+	assert.Equal(t, firstPhoneID, *clearRef)
 }
 
 func TestUpdateMasterDataField_InvalidDirectValues(t *testing.T) {
@@ -370,6 +407,55 @@ func TestUpdateMasterDataField_InvalidDirectValues(t *testing.T) {
 		json.RawMessage(`"zz"`),
 	)
 	assert.ErrorIs(t, err, parentService.ErrMasterDataInvalidValue)
+}
+
+func TestUpdateMasterDataField_RejectsOversizedDirectValues(t *testing.T) {
+	svc, db := buildMasterDataService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	tests := []struct {
+		name   string
+		target string
+		field  string
+		value  string
+	}{
+		{
+			name:   "health info",
+			target: usersModels.DataChangeTargetStudent,
+			field:  "health_info",
+			value:  strings.Repeat("x", 2001),
+		},
+		{
+			name:   "email",
+			target: usersModels.DataChangeTargetGuardianProfile,
+			field:  "email",
+			value:  strings.Repeat("a", 255) + "@example.test",
+		},
+		{
+			name:   "address",
+			target: usersModels.DataChangeTargetGuardianProfile,
+			field:  "address_street",
+			value:  strings.Repeat("x", 201),
+		},
+		{
+			name:   "phone",
+			target: usersModels.DataChangeTargetGuardianPhone,
+			field:  "primary",
+			value:  strings.Repeat("1", 41),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := svc.UpdateMasterDataField(
+				context.Background(), chain.AccountID, chain.StudentID,
+				tt.target, tt.field,
+				json.RawMessage(strconv.Quote(tt.value)),
+			)
+			assert.ErrorIs(t, err, parentService.ErrMasterDataInvalidValue)
+		})
+	}
 }
 
 func TestMasterDataField_InvalidOwnerAndPayloadRejected(t *testing.T) {

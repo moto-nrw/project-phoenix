@@ -93,6 +93,13 @@ export function ChildMasterDataView({ studentId }: Props) {
       data={data}
       features={features}
       onApplied={setData}
+      onDirectApplied={(target, field, next) =>
+        setData((current) =>
+          current
+            ? mergeDirectMasterDataField(current, next, target, field)
+            : next,
+        )
+      }
     />
   );
 }
@@ -102,11 +109,17 @@ function ChildMasterDataContent({
   data,
   features,
   onApplied,
+  onDirectApplied,
 }: Readonly<{
   studentId: string;
   data: ChildMasterData;
   features: ChildFeatures;
   onApplied: (next: ChildMasterData) => void;
+  onDirectApplied: (
+    target: string,
+    field: string,
+    next: ChildMasterData,
+  ) => void;
 }>) {
   const t = useTranslations("parentMasterData");
 
@@ -122,9 +135,9 @@ function ChildMasterDataContent({
   const saveField = useCallback(
     async (target: string, field: string, value: string) => {
       const next = await updateMasterDataField(studentId, target, field, value);
-      onApplied(next);
+      onDirectApplied(target, field, next);
     },
-    [studentId, onApplied],
+    [studentId, onDirectApplied],
   );
 
   return (
@@ -306,12 +319,24 @@ function IdentitySection({
     setStatus("saving");
     setMessage(null);
     try {
-      await submitMasterDataRequest(studentId, changes);
+      const submitted = await submitMasterDataRequest(studentId, changes);
       setStatus("saved");
       setMessage(t("requestSubmitted"));
-      // Refresh so the new pending rows show their badges.
-      const next = await getChildMasterData(studentId);
-      onApplied(next);
+      onApplied({
+        ...data,
+        pending_changes: mergePendingChanges(data.pending_changes, submitted),
+      });
+      try {
+        const next = await getChildMasterData(studentId);
+        onApplied(next);
+      } catch (refreshErr) {
+        const refreshText =
+          refreshErr instanceof Error ? refreshErr.message : String(refreshErr);
+        logger.warn("master_data_request_refresh_failed", {
+          error: refreshText,
+          student_id: studentId,
+        });
+      }
     } catch (err) {
       const text = err instanceof Error ? err.message : String(err);
       logger.warn("master_data_request_failed", {
@@ -321,7 +346,7 @@ function IdentitySection({
       setStatus("error");
       setMessage(t("requestError"));
     }
-  }, [changes, studentId, onApplied, t]);
+  }, [changes, data, studentId, onApplied, t]);
 
   return (
     <Section title={t("sections.child")} hint={t("requestHint")}>
@@ -458,7 +483,7 @@ function DepartureSection({
     setStatus("saving");
     setMessage(null);
     try {
-      await submitMasterDataRequest(studentId, [
+      const submitted = await submitMasterDataRequest(studentId, [
         {
           target: "departure",
           field_key: "allowed_departure_modes",
@@ -467,8 +492,21 @@ function DepartureSection({
       ]);
       setStatus("saved");
       setMessage(t("requestSubmitted"));
-      const next = await getChildMasterData(studentId);
-      onApplied(next);
+      onApplied({
+        ...data,
+        pending_changes: mergePendingChanges(data.pending_changes, submitted),
+      });
+      try {
+        const next = await getChildMasterData(studentId);
+        onApplied(next);
+      } catch (refreshErr) {
+        const refreshText =
+          refreshErr instanceof Error ? refreshErr.message : String(refreshErr);
+        logger.warn("master_data_departure_request_refresh_failed", {
+          error: refreshText,
+          student_id: studentId,
+        });
+      }
     } catch (err) {
       const text = err instanceof Error ? err.message : String(err);
       logger.warn("master_data_departure_request_failed", {
@@ -672,6 +710,7 @@ function AutoSaveField({
       </div>
       <div className="mt-1">
         <Input
+          aria-label={label}
           type={type}
           value={local}
           disabled={disabled}
@@ -714,6 +753,7 @@ function RequestField({
       </div>
       <div className="mt-1">
         <Input
+          aria-label={label}
           type={type}
           value={value}
           disabled={disabled}
@@ -770,6 +810,57 @@ function DepartureSummary({
       })}
     </dl>
   );
+}
+
+function mergeDirectMasterDataField(
+  current: ChildMasterData,
+  next: ChildMasterData,
+  target: string,
+  field: string,
+): ChildMasterData {
+  if (target === "student" && field === "health_info") {
+    return { ...current, health_info: next.health_info };
+  }
+  if (target === "guardian_phone" && field === "primary") {
+    return { ...current, primary_phone: next.primary_phone };
+  }
+  if (target !== "guardian_profile") {
+    return current;
+  }
+  switch (field) {
+    case "email":
+      return { ...current, email: next.email };
+    case "address_street":
+      return { ...current, address_street: next.address_street };
+    case "address_city":
+      return { ...current, address_city: next.address_city };
+    case "address_postal_code":
+      return { ...current, address_postal_code: next.address_postal_code };
+    case "preferred_contact_method":
+      return {
+        ...current,
+        preferred_contact_method: next.preferred_contact_method,
+      };
+    case "language_preference":
+      return { ...current, language_preference: next.language_preference };
+    default:
+      return current;
+  }
+}
+
+function mergePendingChanges(
+  current: readonly MasterDataChange[],
+  submitted: readonly MasterDataChange[],
+): MasterDataChange[] {
+  if (submitted.length === 0) return [...current];
+  const byKey = new Map<string, MasterDataChange>();
+  for (const change of current) {
+    byKey.set(`${change.target}/${change.field_key}`, change);
+  }
+  for (const change of submitted) {
+    byKey.set(`${change.target}/${change.field_key}`, change);
+  }
+  return Array.from(byKey.values());
 }
 
 function normalizeDepartureModes(
