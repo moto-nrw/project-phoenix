@@ -96,9 +96,11 @@ func (req *SetDayRequest) Bind(_ *http.Request) error {
 }
 
 // featureEnabled reports whether the meal plan is enabled for the current
-// tenant, rendering a 403 and returning false when it is not.
+// tenant, rendering a 403 and returning false when it is not. The meal plan is
+// opt-out, so the fallback when a tenant has set no override is ON — matching
+// the registry default and the parent-side ResolveBool path.
 func (rs *Resource) featureEnabled(w http.ResponseWriter, r *http.Request) bool {
-	if configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyMealPlanEnabled, false, slog.Default()) {
+	if configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyMealPlanEnabled, true, slog.Default()) {
 		return true
 	}
 	common.RenderError(w, r, common.ErrorForbidden(errors.New("feature_disabled")))
