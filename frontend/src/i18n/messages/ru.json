@@ -82,7 +82,14 @@
       "rejected": "Отклонено",
       "withdrawn": "Отозвано"
     },
-    "dateRangeConnector": "до"
+    "dateRangeConnector": "до",
+    "newsNew": "Новое",
+    "newsImportant": "Важно",
+    "newsMarkRead": "Отметить как прочитанное",
+    "newsAcknowledge": "Прочитано и подтверждено",
+    "newsAcknowledged": "Подтверждено",
+    "newsRead": "Прочитано",
+    "newsActionError": "Не удалось выполнить действие. Повторите попытку."
   },
   "parentChildren": {
     "eyebrow": "Мои дети",

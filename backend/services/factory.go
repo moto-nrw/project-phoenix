@@ -22,6 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/activities"
+	"github.com/moto-nrw/project-phoenix/services/announcement"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/config"
@@ -136,6 +137,9 @@ type Factory struct {
 
 	// Messaging (staff-side parent-OGS inbox / threads)
 	Messaging messaging.Service
+
+	// ParentAnnouncement (staff-side parent broadcast news authoring, #1669)
+	ParentAnnouncement announcement.Service
 
 	// SettingsSideEffects is the per-key handler registry the API binds to
 	// SettingsResource.OnValueSet. Domain packages register handlers here
@@ -670,6 +674,12 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		})),
 	)
 	emailTemplateRegistry.Register(
+		platformModels.EmailKindParentAnnouncement,
+		platform.RendererFunc(announcement.NewAnnouncementRenderer(announcement.EmailConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
+	emailTemplateRegistry.Register(
 		platformModels.EmailKindEnrollmentSubmitted,
 		platform.RendererFunc(enrollment.NewEnrollmentSubmittedRenderer(enrollment.EmailRendererConfig{
 			DefaultFrom: defaultFrom,
@@ -1146,6 +1156,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		MessageThreadRepo:       repos.ParentMessageThread,
 		MessageRepo:             repos.ParentMessage,
 		MessageReadRepo:         repos.ParentMessageRead,
+		AnnouncementRepo:        repos.ParentAnnouncement,
 		GuardianInvites:         guardianInvitationService,
 		GuardianInviteRepo:      repos.GuardianInvitation,
 		StudentGuardianRepo:     repos.StudentGuardian,
@@ -1153,6 +1164,14 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		GuardianChangeAuditRepo: repos.GuardianChange,
 		DB:                      db,
 		Logger:                  logger.With("service", "parent"),
+	})
+
+	parentAnnouncementService := announcement.NewService(announcement.ServiceConfig{
+		Repo:       repos.ParentAnnouncement,
+		Settings:   settingsService,
+		Outbox:     emailOutboxService,
+		ParentsURL: parentsURL,
+		Logger:     logger.With("service", "announcement"),
 	})
 
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
@@ -1291,8 +1310,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		EnrollmentRollover:      enrollmentRolloverService,
 		EnrollmentChangeRequest: enrollmentChangeRequestService,
 
-		Parent:    parentService,
-		Messaging: messagingService,
+		Parent:             parentService,
+		Messaging:          messagingService,
+		ParentAnnouncement: parentAnnouncementService,
 	}
 
 	factory.SettingsSideEffects = sideeffects.NewRegistry()

@@ -1,0 +1,501 @@
+package users
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/uptrace/bun"
+)
+
+// ParentAnnouncementRepository is the tenant-scoped data-access layer for
+// parent announcements, targets and read/ack state. The CRUD surface uses the
+// generic base.Repository; the audience-resolution and feed queries are raw SQL
+// because they fan out across users/activities/enrollment to map a target
+// selector to the guardian accounts it reaches.
+type ParentAnnouncementRepository struct {
+	*base.Repository[*users.ParentAnnouncement]
+}
+
+// NewParentAnnouncementRepository wires a fresh repository.
+func NewParentAnnouncementRepository(db *bun.DB) users.ParentAnnouncementRepository {
+	repo := base.NewRepository[*users.ParentAnnouncement](db, "users.parent_announcements", "ParentAnnouncement")
+	repo.TenantScoped = true
+	return &ParentAnnouncementRepository{Repository: repo}
+}
+
+// pendingEnrollmentStatuses are the request-child states that count as an "open
+// enrollment" for the pending_enrollment target: submitted or in some stage of
+// review/renewal, never a decided (approved/rejected/withdrawn) or waitlisted
+// outcome.
+var pendingEnrollmentStatuses = []string{
+	enrollment.ChildStatusSubmitted,
+	enrollment.ChildStatusUnderReview,
+	enrollment.ChildStatusPendingRenewal,
+	enrollment.ChildStatusAutoRenewed,
+	enrollment.ChildStatusPendingAdminReview,
+}
+
+// pendingStatusList renders the pending-enrollment statuses as a quoted SQL CSV.
+// The values are package constants (never user input), so building the IN list
+// by string concat is injection-safe and keeps the only runtime `?` args in the
+// audience SQL as the int ids — which makes their positional order easy to keep
+// correct.
+func pendingStatusList() string {
+	quoted := make([]string, len(pendingEnrollmentStatuses))
+	for i, s := range pendingEnrollmentStatuses {
+		quoted[i] = "'" + s + "'"
+	}
+	return strings.Join(quoted, ",")
+}
+
+// reachedPredicate builds the SQL boolean "guardian account :acc is reached by
+// the announcement identified by (annExpr, tenantExpr) right now". annExpr and
+// tenantExpr are SQL expressions (a column reference like `a.id`/`a.tenant_id`
+// in the feed query, or a bound `?` in the per-announcement check). accPlace is
+// the placeholder/expression for the account id. It is the OR-union of the
+// student-based targets (school/class/group/AG/student, gated on a live
+// students_guardians link granting parent_portal.access) and the
+// guardian-based pending_enrollment target.
+func reachedPredicate(annExpr, tenantExpr, accPlace string) string {
+	return fmt.Sprintf(`(
+		EXISTS (
+			SELECT 1
+			FROM users.parent_announcement_targets pt
+			JOIN users.students s ON s.tenant_id = %[2]s AND (
+				pt.target_type = 'school_all'
+				OR (pt.target_type = 'class' AND s.school_class = pt.target_ref_text)
+				OR (pt.target_type = 'group' AND s.group_id = pt.target_ref_id)
+				OR (pt.target_type = 'student' AND s.id = pt.target_ref_id)
+				OR (pt.target_type = 'activity_group' AND EXISTS (
+					SELECT 1 FROM activities.student_enrollments se
+					WHERE se.student_id = s.id AND se.tenant_id = %[2]s
+						AND se.activity_group_id = pt.target_ref_id
+						AND (se.valid_until IS NULL OR se.valid_until >= CURRENT_DATE)
+				))
+			)
+			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = %[2]s
+				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
+			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = %[2]s
+				AND gp.account_id = %[3]s
+			WHERE pt.announcement_id = %[1]s AND pt.tenant_id = %[2]s
+		)
+		OR EXISTS (
+			SELECT 1
+			FROM users.parent_announcement_targets pt
+			JOIN enrollment.requests req ON req.tenant_id = %[2]s
+				AND req.guardian_account_id = %[3]s AND req.withdrawn_at IS NULL
+			JOIN enrollment.request_children rc ON rc.request_id = req.id AND rc.tenant_id = %[2]s
+				AND rc.status IN (%[4]s)
+			WHERE pt.announcement_id = %[1]s AND pt.tenant_id = %[2]s
+				AND pt.target_type = 'pending_enrollment'
+		)
+	)`, annExpr, tenantExpr, accPlace, pendingStatusList())
+}
+
+// FindByID returns the announcement by id (tenant-scoped), or nil when absent.
+func (r *ParentAnnouncementRepository) FindByID(ctx context.Context, id int64) (*users.ParentAnnouncement, error) {
+	return r.FindByIDOrNil(ctx, id)
+}
+
+// Delete removes the announcement by id (targets + reads cascade in the DB).
+func (r *ParentAnnouncementRepository) Delete(ctx context.Context, id int64) error {
+	return r.Repository.Delete(ctx, id)
+}
+
+// ListForTenant returns the tenant's announcements newest-first. includeInactive
+// controls whether soft-disabled (active=false) rows appear.
+func (r *ParentAnnouncementRepository) ListForTenant(ctx context.Context, includeInactive bool) ([]*users.ParentAnnouncement, error) {
+	var rows []*users.ParentAnnouncement
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(&rows).
+		ModelTableExpr(`users.parent_announcements AS "parent_announcement"`).
+		OrderExpr(`"parent_announcement".created_at DESC`)
+	if !includeInactive {
+		query = query.Where(`"parent_announcement".active`)
+	}
+	if where, val, ok := base.TenantWhere(ctx, "parent_announcement"); ok {
+		query = query.Where(where, val)
+	}
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list parent announcements for tenant", Err: err}
+	}
+	return rows, nil
+}
+
+// SetPublished sets (or clears, when publishedAt is nil) the publication
+// timestamp. RLS pins the update to the current tenant.
+func (r *ParentAnnouncementRepository) SetPublished(ctx context.Context, id int64, publishedAt *time.Time) error {
+	_, err := base.GetDB(ctx, r.DB).NewUpdate().
+		Model((*users.ParentAnnouncement)(nil)).
+		ModelTableExpr("users.parent_announcements").
+		Set("published_at = ?", publishedAt).
+		Where("id = ?", id).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "set parent announcement published_at", Err: err}
+	}
+	return nil
+}
+
+// ReplaceTargets swaps an announcement's target rows wholesale: delete the
+// existing ones, insert the supplied set. Runs inside the caller's tenant tx.
+func (r *ParentAnnouncementRepository) ReplaceTargets(ctx context.Context, tenantID, announcementID int64, targets []*users.ParentAnnouncementTarget) error {
+	db := base.GetDB(ctx, r.DB)
+	if _, err := db.NewDelete().
+		Model((*users.ParentAnnouncementTarget)(nil)).
+		ModelTableExpr("users.parent_announcement_targets").
+		Where("announcement_id = ?", announcementID).
+		Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: "clear parent announcement targets", Err: err}
+	}
+	if len(targets) == 0 {
+		return nil
+	}
+	for _, t := range targets {
+		t.AnnouncementID = announcementID
+		t.SetTenantID(tenantID)
+	}
+	if _, err := db.NewInsert().
+		Model(&targets).
+		ModelTableExpr("users.parent_announcement_targets").
+		Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: "insert parent announcement targets", Err: err}
+	}
+	return nil
+}
+
+// ListTargets returns an announcement's target rows.
+func (r *ParentAnnouncementRepository) ListTargets(ctx context.Context, announcementID int64) ([]*users.ParentAnnouncementTarget, error) {
+	var rows []*users.ParentAnnouncementTarget
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(&rows).
+		ModelTableExpr("users.parent_announcement_targets AS pat").
+		Where("pat.announcement_id = ?", announcementID).
+		OrderExpr("pat.id ASC")
+	if where, val, ok := base.TenantWhere(ctx, "pat"); ok {
+		query = query.Where(where, val)
+	}
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list parent announcement targets", Err: err}
+	}
+	return rows, nil
+}
+
+// CountAudience returns the number of distinct guardian accounts an
+// announcement's targets currently reach within its tenant.
+func (r *ParentAnnouncementRepository) CountAudience(ctx context.Context, tenantID, announcementID int64) (int, error) {
+	var count int
+	sqlStr := fmt.Sprintf(`
+		SELECT COUNT(*) FROM (
+			SELECT DISTINCT gp.account_id AS account_id
+			FROM users.parent_announcement_targets pt
+			JOIN users.students s ON s.tenant_id = ? AND (
+				pt.target_type = 'school_all'
+				OR (pt.target_type = 'class' AND s.school_class = pt.target_ref_text)
+				OR (pt.target_type = 'group' AND s.group_id = pt.target_ref_id)
+				OR (pt.target_type = 'student' AND s.id = pt.target_ref_id)
+				OR (pt.target_type = 'activity_group' AND EXISTS (
+					SELECT 1 FROM activities.student_enrollments se
+					WHERE se.student_id = s.id AND se.tenant_id = ?
+						AND se.activity_group_id = pt.target_ref_id
+						AND (se.valid_until IS NULL OR se.valid_until >= CURRENT_DATE)
+				))
+			)
+			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
+				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
+			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
+				AND gp.account_id IS NOT NULL
+			WHERE pt.announcement_id = ? AND pt.tenant_id = ?
+
+			UNION
+
+			SELECT DISTINCT req.guardian_account_id AS account_id
+			FROM users.parent_announcement_targets pt
+			JOIN enrollment.requests req ON req.tenant_id = ?
+				AND req.guardian_account_id IS NOT NULL AND req.withdrawn_at IS NULL
+			JOIN enrollment.request_children rc ON rc.request_id = req.id AND rc.tenant_id = ?
+				AND rc.status IN (%s)
+			WHERE pt.announcement_id = ? AND pt.tenant_id = ? AND pt.target_type = 'pending_enrollment'
+		) reached`, pendingStatusList())
+	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
+		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID, // student path
+		tenantID, tenantID, announcementID, tenantID, // pending path
+	).Scan(ctx, &count); err != nil {
+		return 0, &modelBase.DatabaseError{Op: "count parent announcement audience", Err: err}
+	}
+	return count, nil
+}
+
+// AccountMatchesAnnouncement reports whether a guardian account is in an
+// announcement's audience right now.
+func (r *ParentAnnouncementRepository) AccountMatchesAnnouncement(ctx context.Context, tenantID, announcementID, accountID int64) (bool, error) {
+	var matched bool
+	predicate := reachedPredicate("?", "?", "?")
+	sqlStr := "SELECT " + predicate
+	// reachedPredicate references, in order: ann (student), tenant (student x4
+	// inside the fragment), acc (student); ann (pending), tenant (pending), acc
+	// (pending). The fmt placeholders are positional %[1]s=ann %[2]s=tenant
+	// %[3]s=acc, but each `?` in the rendered SQL still binds left-to-right, so
+	// the args below follow the textual `?` order of the rendered string.
+	args := reachedArgs(announcementID, tenantID, accountID)
+	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr, args...).Scan(ctx, &matched); err != nil {
+		return false, &modelBase.DatabaseError{Op: "check parent announcement audience match", Err: err}
+	}
+	return matched, nil
+}
+
+// reachedArgs returns the bind args for reachedPredicate("?","?","?") in the
+// exact textual order the `?` placeholders appear in the rendered SQL. Keeping
+// this next to reachedPredicate is deliberate: the two MUST change together.
+//
+// Student EXISTS, in order of appearance:
+//
+//	s.tenant_id = ?                 -> tenant
+//	se.tenant_id = ?                -> tenant   (inside the activity_group sub-EXISTS)
+//	sg.tenant_id = ?                -> tenant
+//	gp.tenant_id = ?                -> tenant
+//	gp.account_id = ?               -> acc
+//	pt.announcement_id = ?          -> ann
+//	pt.tenant_id = ?                -> tenant
+//
+// Pending EXISTS, in order:
+//
+//	req.tenant_id = ?               -> tenant
+//	req.guardian_account_id = ?     -> acc
+//	rc.tenant_id = ?                -> tenant
+//	pt.announcement_id = ?          -> ann
+//	pt.tenant_id = ?                -> tenant
+func reachedArgs(announcementID, tenantID, accountID int64) []any {
+	return []any{
+		tenantID, tenantID, tenantID, tenantID, accountID, announcementID, tenantID, // student EXISTS
+		tenantID, accountID, tenantID, announcementID, tenantID, // pending EXISTS
+	}
+}
+
+// ResolveAudienceEmails returns the distinct guardian recipients (non-empty
+// e-mail) an announcement currently reaches. Student-based targets read the
+// guardian profile's e-mail/name; the pending_enrollment target reads the
+// e-mail/name captured on the enrollment request (those guardians may not have
+// a profile yet). UNION de-duplicates by the full (email, name) row.
+func (r *ParentAnnouncementRepository) ResolveAudienceEmails(ctx context.Context, tenantID, announcementID int64) ([]*users.AnnouncementRecipient, error) {
+	var rows []*users.AnnouncementRecipient
+	sqlStr := fmt.Sprintf(`
+		SELECT DISTINCT lower(gp.email) AS email,
+			COALESCE(gp.first_name, '') AS first_name, COALESCE(gp.last_name, '') AS last_name
+		FROM users.parent_announcement_targets pt
+		JOIN users.students s ON s.tenant_id = ? AND (
+			pt.target_type = 'school_all'
+			OR (pt.target_type = 'class' AND s.school_class = pt.target_ref_text)
+			OR (pt.target_type = 'group' AND s.group_id = pt.target_ref_id)
+			OR (pt.target_type = 'student' AND s.id = pt.target_ref_id)
+			OR (pt.target_type = 'activity_group' AND EXISTS (
+				SELECT 1 FROM activities.student_enrollments se
+				WHERE se.student_id = s.id AND se.tenant_id = ?
+					AND se.activity_group_id = pt.target_ref_id
+					AND (se.valid_until IS NULL OR se.valid_until >= CURRENT_DATE)
+			))
+		)
+		JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
+			AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
+		JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
+			AND gp.email IS NOT NULL AND length(btrim(gp.email)) > 0
+		WHERE pt.announcement_id = ? AND pt.tenant_id = ?
+
+		UNION
+
+		SELECT DISTINCT lower(req.guardian_email) AS email,
+			COALESCE(req.guardian_first_name, '') AS first_name, COALESCE(req.guardian_last_name, '') AS last_name
+		FROM users.parent_announcement_targets pt
+		JOIN enrollment.requests req ON req.tenant_id = ?
+			AND req.withdrawn_at IS NULL AND length(btrim(req.guardian_email)) > 0
+		JOIN enrollment.request_children rc ON rc.request_id = req.id AND rc.tenant_id = ?
+			AND rc.status IN (%s)
+		WHERE pt.announcement_id = ? AND pt.tenant_id = ? AND pt.target_type = 'pending_enrollment'`,
+		pendingStatusList())
+	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
+		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID, // student path
+		tenantID, tenantID, announcementID, tenantID, // pending path
+	).Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "resolve parent announcement audience emails", Err: err}
+	}
+	return rows, nil
+}
+
+// SchoolName returns the tenant's school name (empty when unknown).
+func (r *ParentAnnouncementRepository) SchoolName(ctx context.Context, tenantID int64) (string, error) {
+	var name string
+	if err := base.GetDB(ctx, r.DB).NewRaw(
+		`SELECT COALESCE(name, '') FROM platform.schools WHERE id = ?`, tenantID,
+	).Scan(ctx, &name); err != nil {
+		return "", &modelBase.DatabaseError{Op: "resolve school name", Err: err}
+	}
+	return name, nil
+}
+
+// ListFeedForAccount returns published, active, unexpired announcements the
+// account is targeted by across the given tenants, newest-published first, each
+// with the account's read/ack state. Cross-tenant: run under WithAdminTx with
+// the explicit tenant set.
+func (r *ParentAnnouncementRepository) ListFeedForAccount(ctx context.Context, accountID int64, tenantIDs []int64) ([]*users.AnnouncementFeedItem, error) {
+	if len(tenantIDs) == 0 {
+		return []*users.AnnouncementFeedItem{}, nil
+	}
+	var rows []*users.AnnouncementFeedItem
+	reached := reachedPredicate("a.id", "a.tenant_id", "?")
+	sqlStr := `
+		SELECT a.id, a.tenant_id, a.title, a.body, a.priority,
+			a.requires_acknowledgement, a.published_at, a.expires_at,
+			COALESCE(sch.name, '') AS school_name,
+			par.read_at AS read_at,
+			par.acknowledged_at AS acknowledged_at
+		FROM users.parent_announcements a
+		LEFT JOIN platform.schools sch ON sch.id = a.tenant_id
+		LEFT JOIN users.parent_announcement_reads par
+			ON par.announcement_id = a.id AND par.account_id = ?
+		WHERE a.tenant_id IN (?)
+			AND a.active
+			AND a.published_at IS NOT NULL
+			AND a.published_at <= NOW()
+			AND (a.expires_at IS NULL OR a.expires_at > NOW())
+			AND ` + reached + `
+		ORDER BY a.published_at DESC, a.id DESC`
+	// Arg order: read-state join (acc), tenant set, then reachedPredicate's acc
+	// appears twice (student + pending EXISTS) since ann/tenant are column refs.
+	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
+		accountID, bun.In(tenantIDs), accountID, accountID,
+	).Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list parent announcement feed", Err: err}
+	}
+	return rows, nil
+}
+
+// CountUnreadForAccount counts the published, active, unexpired announcements
+// the account is targeted by but has not yet read, across the given tenants.
+func (r *ParentAnnouncementRepository) CountUnreadForAccount(ctx context.Context, accountID int64, tenantIDs []int64) (int, error) {
+	if len(tenantIDs) == 0 {
+		return 0, nil
+	}
+	var count int
+	reached := reachedPredicate("a.id", "a.tenant_id", "?")
+	sqlStr := `
+		SELECT COUNT(*)
+		FROM users.parent_announcements a
+		LEFT JOIN users.parent_announcement_reads par
+			ON par.announcement_id = a.id AND par.account_id = ?
+		WHERE a.tenant_id IN (?)
+			AND a.active
+			AND a.published_at IS NOT NULL
+			AND a.published_at <= NOW()
+			AND (a.expires_at IS NULL OR a.expires_at > NOW())
+			AND par.read_at IS NULL
+			AND ` + reached
+	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
+		accountID, bun.In(tenantIDs), accountID, accountID,
+	).Scan(ctx, &count); err != nil {
+		return 0, &modelBase.DatabaseError{Op: "count unread parent announcements", Err: err}
+	}
+	return count, nil
+}
+
+// MarkRead upserts the account's read row for an announcement (idempotent: a
+// repeat read leaves read_at and any acknowledgement untouched).
+func (r *ParentAnnouncementRepository) MarkRead(ctx context.Context, tenantID, announcementID, accountID int64) error {
+	row := &users.ParentAnnouncementRead{
+		AnnouncementID: announcementID,
+		AccountID:      accountID,
+		ReadAt:         time.Now(),
+	}
+	row.SetTenantID(tenantID)
+	if _, err := base.GetDB(ctx, r.DB).NewInsert().
+		Model(row).
+		ModelTableExpr("users.parent_announcement_reads").
+		On("CONFLICT (announcement_id, account_id) DO NOTHING").
+		Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: "mark parent announcement read", Err: err}
+	}
+	return nil
+}
+
+// MarkAcknowledged upserts the account's read row and stamps acknowledged_at
+// (clearing nothing on a repeat ack). A read row is created if the guardian
+// acknowledges without a prior explicit read.
+func (r *ParentAnnouncementRepository) MarkAcknowledged(ctx context.Context, tenantID, announcementID, accountID int64) error {
+	now := time.Now()
+	row := &users.ParentAnnouncementRead{
+		AnnouncementID: announcementID,
+		AccountID:      accountID,
+		ReadAt:         now,
+		AcknowledgedAt: &now,
+	}
+	row.SetTenantID(tenantID)
+	if _, err := base.GetDB(ctx, r.DB).NewInsert().
+		Model(row).
+		ModelTableExpr("users.parent_announcement_reads").
+		On("CONFLICT (announcement_id, account_id) DO UPDATE").
+		Set("acknowledged_at = COALESCE(parent_announcement_reads.acknowledged_at, EXCLUDED.acknowledged_at)").
+		Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: "mark parent announcement acknowledged", Err: err}
+	}
+	return nil
+}
+
+// Stats returns the reach/read/ack counts for an announcement. read/ack are
+// intersected with the CURRENT audience so the staff "X von Y" never shows more
+// readers than the live target count when the audience has since shrunk.
+func (r *ParentAnnouncementRepository) Stats(ctx context.Context, tenantID, announcementID int64) (*users.AnnouncementStats, error) {
+	stats := &users.AnnouncementStats{}
+	audienceCTE := fmt.Sprintf(`
+		WITH audience AS (
+			SELECT DISTINCT gp.account_id AS account_id
+			FROM users.parent_announcement_targets pt
+			JOIN users.students s ON s.tenant_id = ? AND (
+				pt.target_type = 'school_all'
+				OR (pt.target_type = 'class' AND s.school_class = pt.target_ref_text)
+				OR (pt.target_type = 'group' AND s.group_id = pt.target_ref_id)
+				OR (pt.target_type = 'student' AND s.id = pt.target_ref_id)
+				OR (pt.target_type = 'activity_group' AND EXISTS (
+					SELECT 1 FROM activities.student_enrollments se
+					WHERE se.student_id = s.id AND se.tenant_id = ?
+						AND se.activity_group_id = pt.target_ref_id
+						AND (se.valid_until IS NULL OR se.valid_until >= CURRENT_DATE)
+				))
+			)
+			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
+				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
+			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
+				AND gp.account_id IS NOT NULL
+			WHERE pt.announcement_id = ? AND pt.tenant_id = ?
+			UNION
+			SELECT DISTINCT req.guardian_account_id AS account_id
+			FROM users.parent_announcement_targets pt
+			JOIN enrollment.requests req ON req.tenant_id = ?
+				AND req.guardian_account_id IS NOT NULL AND req.withdrawn_at IS NULL
+			JOIN enrollment.request_children rc ON rc.request_id = req.id AND rc.tenant_id = ?
+				AND rc.status IN (%s)
+			WHERE pt.announcement_id = ? AND pt.tenant_id = ? AND pt.target_type = 'pending_enrollment'
+		)
+		SELECT
+			(SELECT COUNT(*) FROM audience) AS target_count,
+			(SELECT COUNT(*) FROM users.parent_announcement_reads par
+				WHERE par.announcement_id = ? AND par.tenant_id = ?
+					AND par.account_id IN (SELECT account_id FROM audience)) AS read_count,
+			(SELECT COUNT(*) FROM users.parent_announcement_reads par
+				WHERE par.announcement_id = ? AND par.tenant_id = ? AND par.acknowledged_at IS NOT NULL
+					AND par.account_id IN (SELECT account_id FROM audience)) AS acknowledged_count`,
+		pendingStatusList())
+	if err := base.GetDB(ctx, r.DB).NewRaw(audienceCTE,
+		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID, // student path
+		tenantID, tenantID, announcementID, tenantID, // pending path
+		announcementID, tenantID, // read_count
+		announcementID, tenantID, // acknowledged_count
+	).Scan(ctx, &stats.TargetCount, &stats.ReadCount, &stats.AcknowledgedCount); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "parent announcement stats", Err: err}
+	}
+	return stats, nil
+}

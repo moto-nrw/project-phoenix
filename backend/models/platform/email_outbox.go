@@ -23,6 +23,7 @@ const (
 // stay typo-safe.
 const (
 	EmailKindGuardianInvitation                 = "guardian_invitation"
+	EmailKindParentAnnouncement                 = "parent_announcement"
 	EmailKindEnrollmentSubmitted                = "enrollment_submitted"
 	EmailKindEnrollmentAdminNotify              = "enrollment_admin_notification"
 	EmailKindEnrollmentDecisionDigest           = "enrollment_decision_digest"

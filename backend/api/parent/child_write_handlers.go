@@ -319,6 +319,10 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "guardian_contact_invalid"))
 	case errors.Is(err, parentService.ErrGuardianRelationshipInvalid):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "guardian_relationship_invalid"))
+	case errors.Is(err, parentService.ErrAnnouncementNotFound):
+		common.RenderError(w, r, common.ErrorNotFound(err))
+	case errors.Is(err, parentService.ErrAnnouncementAckNotRequired):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "announcement_ack_not_required"))
 	case errors.Is(err, parentService.ErrNoDates),
 		errors.Is(err, parentService.ErrInvalidStatus),
 		errors.Is(err, parentService.ErrEmptyNote),

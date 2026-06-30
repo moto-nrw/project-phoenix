@@ -82,7 +82,14 @@
       "rejected": "Rejected",
       "withdrawn": "Withdrawn"
     },
-    "dateRangeConnector": "to"
+    "dateRangeConnector": "to",
+    "newsNew": "New",
+    "newsImportant": "Important",
+    "newsMarkRead": "Mark as read",
+    "newsAcknowledge": "Read and confirmed",
+    "newsAcknowledged": "Confirmed",
+    "newsRead": "Read",
+    "newsActionError": "Action failed. Please try again."
   },
   "parentChildren": {
     "eyebrow": "My children",

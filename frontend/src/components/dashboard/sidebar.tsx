@@ -15,7 +15,7 @@ import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { hasRole, isCaregiver } from "~/lib/auth-utils";
+import { hasRole, hasPermission, isCaregiver } from "~/lib/auth-utils";
 import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useSuggestionsUnread } from "~/lib/hooks/use-suggestions-unread";
@@ -122,6 +122,17 @@ const NAV_ITEMS: NavItem[] = [
     href: "/messages",
     label: "Nachrichten",
     icon: "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z",
+    activeColor: "text-[#5080D8]",
+    alwaysShow: true,
+  },
+  {
+    // Elternmitteilungen (#1669). Gated below on the
+    // operations.parent_news_enabled setting AND the communications:announce
+    // permission (admins hold it via the admin:* wildcard). alwaysShow lets
+    // it pass the generic role filter once the gate is satisfied.
+    href: "/parent-announcements",
+    label: "Elternmitteilungen",
+    icon: "M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 01-2.25 2.25M16.5 7.5V18a2.25 2.25 0 002.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 002.25 2.25h13.5M6 7.5h3v3H6v-3z",
     activeColor: "text-[#5080D8]",
     alwaysShow: true,
   },
@@ -427,25 +438,39 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
   const userIsAdmin = hasRole(session, "admin");
   const userIsCaregiver = isCaregiver(session);
+  // Elternmitteilungen (#1669) is gated on this permission. Admins hold it via
+  // the admin:* wildcard; it can also be granted to non-admin staff.
+  const canAnnounce = hasPermission(session, "communications:announce");
   const presenceMode = usePresenceMode();
   const isBinaryMode = presenceMode === "binary";
   const nfcEnabled = useNFCEnabled();
   const { counts: groupAttendanceCounts } = useGroupAttendanceCounts();
   const canShowGroupAttendanceCounts = pathname.startsWith("/ogs-groups");
+  // Fetch the settings schema for admins (timetable gate) and for any staff
+  // who can announce (Elternmitteilungen gate). shouldRetryOnError avoids a
+  // 403 retry storm for non-admin announcers without config:read — the gate
+  // then simply falls closed (item hidden), which is the safe default.
   const { data: settingsSchema } = useSWR(
-    userIsAdmin ? SETTINGS_SCHEMA_SWR_KEY : null,
+    userIsAdmin || canAnnounce ? SETTINGS_SCHEMA_SWR_KEY : null,
     fetchSettingsSchema,
     {
       revalidateOnFocus: false,
       revalidateOnReconnect: false,
+      shouldRetryOnError: false,
     },
   );
 
+  const settingsItems = settingsSchema?.tabs
+    .flatMap((tab) => tab.categories)
+    .flatMap((category) => category.items);
+
   const timetableEnabled =
-    settingsSchema?.tabs
-      .flatMap((tab) => tab.categories)
-      .flatMap((category) => category.items)
-      .find((item) => item.key === "timetable.enabled")?.value === true;
+    settingsItems?.find((item) => item.key === "timetable.enabled")?.value ===
+    true;
+
+  const parentNewsEnabled =
+    settingsItems?.find((item) => item.key === "operations.parent_news_enabled")
+      ?.value === true;
 
   const formatGroupAttendanceCount = (groupId: string | number) => {
     if (!canShowGroupAttendanceCounts) return undefined;
@@ -473,6 +498,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
     if (!nfcEnabled && NFC_ONLY_HREFS.has(item.href)) return false;
     if (isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) return false;
     if (item.href === "/timetables" && !timetableEnabled) {
+      return false;
+    }
+    if (
+      item.href === "/parent-announcements" &&
+      !(parentNewsEnabled && canAnnounce)
+    ) {
       return false;
     }
     if (item.alwaysShow) return true;

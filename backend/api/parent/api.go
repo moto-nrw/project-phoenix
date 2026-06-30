@@ -148,6 +148,17 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/me/messages/children/{studentId}/threads", rs.listChildThreads)
 		r.Get("/me/messages/children/{studentId}", rs.getChildConversation)
 		r.Post("/me/messages/children/{studentId}", rs.postChildMessage)
+
+		// Parent-news feed (#1669) — read-only broadcast announcements the
+		// guardian is targeted by across all their children's (news-enabled)
+		// schools. The guardian can mark one read, or acknowledge one that
+		// requires confirmation. Audience + visibility are enforced server-side
+		// from the JWT account; no tenant or audience selector is trusted from
+		// the client.
+		r.Get("/me/news", rs.listAnnouncements)
+		r.Get("/me/news/unread-count", rs.unreadAnnouncementCount)
+		r.Post("/me/news/{announcementId}/read", rs.markAnnouncementRead)
+		r.Post("/me/news/{announcementId}/acknowledge", rs.acknowledgeAnnouncement)
 		r.Get("/me/children/{studentId}/care-exception", rs.listCareExceptions)
 		r.Post("/me/children/{studentId}/care-exception", rs.submitCareException)
 		r.Delete("/me/children/{studentId}/care-exception", rs.deleteCareException)

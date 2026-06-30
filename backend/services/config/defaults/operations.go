@@ -589,4 +589,22 @@ func init() {
 		Category:        "elternportal",
 		SortOrder:       67,
 	})
+
+	// Parent broadcast announcements (#1669). When on, staff with the
+	// communications:announce permission can publish news to guardians, and
+	// guardians see the Neuigkeiten feed in the parents portal. Defaults ON
+	// (opt-out), like the other parents-portal features: schools get it
+	// immediately and can disable per school.
+	config.Register(config.Definition{
+		Key:             config.KeyParentNewsEnabled,
+		Label:           "Elternmitteilungen (Neuigkeiten)",
+		Description:     "Wenn aktiviert, kann das Team über das Elternportal Mitteilungen an ausgewählte Elterngruppen senden (ganze Schule, Klassen, Gruppen, AGs, einzelne Kinder oder offene Anmeldungen). Eltern sehen die Mitteilungen als Neuigkeiten im Elternportal; optional kann eine Lesebestätigung verlangt werden.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       68,
+	})
 }

@@ -13,6 +13,7 @@ import {
   FileText,
   KeyRound,
   LayoutDashboard,
+  Megaphone,
   MessageSquare,
   Nfc,
   PlayCircle,
@@ -886,6 +887,27 @@ export const appChapters: readonly GuideChapter[] = [
         screenshot:
           "Nachrichten-Posteingang als Unterhaltungs-Liste mit Bezugsperson, Beziehung, letzter Nachricht und Ungelesen-Abzeichen.",
         image: "/help/screens/nachrichten.webp",
+      },
+      {
+        id: "elternmitteilungen",
+        title: "Elternmitteilungen",
+        icon: Megaphone,
+        summary:
+          "Mitteilungen an ausgewählte Elterngruppen senden (Rundinformationen statt Einzelnachrichten). Eltern sehen sie als Neuigkeiten im Elternportal. Anders als die Nachrichten ist das eine Einbahn-Information ohne Antwortmöglichkeit; für Rückfragen nutzen Eltern den normalen Nachrichten-Chat.",
+        steps: [
+          "In der Seitenleiste `Elternmitteilungen` öffnen und auf `Neue Elternmitteilung` tippen.",
+          "Titel und Text eingeben. Optional: Priorität `Wichtig` setzen, einen Link ergänzen, ein Ablaufdatum wählen (danach wird die Mitteilung ausgeblendet) und `Lesebestätigung erforderlich` aktivieren.",
+          "Zielgruppe wählen: ganze Schule, einzelne Klassen, Gruppen, AGs/Betreuungsangebote, einzelne Kinder oder Eltern mit offener Anmeldung. Mehrere Zielgruppen lassen sich kombinieren; ein Elternteil erhält die Mitteilung höchstens einmal.",
+          "Als Entwurf speichern oder direkt veröffentlichen. Veröffentlichte Mitteilungen erscheinen sofort im Elternportal der erreichten Eltern.",
+          "Über die Statistik einer Mitteilung sehen, wie viele der erreichten Eltern sie gelesen und (falls verlangt) bestätigt haben.",
+        ],
+        callout: {
+          title: "Voraussetzung",
+          body: "Die Funktion muss unter `Einstellungen` > `Betrieb` > `Elternmitteilungen (Neuigkeiten)` aktiviert sein. Eltern sehen nur Mitteilungen, die für ihre eigenen Kinder bestimmt sind.",
+          tone: "blue",
+        },
+        screenshot:
+          "Übersicht der Elternmitteilungen mit Status (Entwurf, veröffentlicht, abgelaufen) und der Aktion „Neue Elternmitteilung“.",
       },
       {
         id: "feedback",

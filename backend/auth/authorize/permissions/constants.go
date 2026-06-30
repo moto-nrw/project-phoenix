@@ -167,6 +167,17 @@ const (
 	VacationApprove = ResourceVacation + ":approve" // Approve or deny vacation requests (admin)
 )
 
+// Communications permissions (parent-facing broadcast announcements, #1669)
+const (
+	ResourceCommunications = "communications"
+
+	// CommunicationsAnnounce allows creating, editing, publishing and deleting
+	// parent announcements (Elternmitteilungen) and viewing their read/ack
+	// stats. Admins match via AdminWildcard; other roles must be granted it
+	// explicitly (e.g. a group lead who may send to their own group).
+	CommunicationsAnnounce = ResourceCommunications + ":announce"
+)
+
 // Grade Transition permissions (admin only)
 const (
 	GradeTransitionsRead   = "grade_transitions:read"

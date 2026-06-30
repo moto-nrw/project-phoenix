@@ -2,16 +2,21 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Newspaper, Users } from "lucide-react";
+import { ArrowRight, Check, Newspaper, Users } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import {
   type Child,
   type ChildStatus,
   type EnrollmentChildStatus,
   type EnrollmentRequest,
+  type ParentAnnouncement,
+  acknowledgeAnnouncement,
   listMyChildren,
   listMyEnrollments,
+  listAnnouncements,
+  markAnnouncementRead,
 } from "~/lib/parent-api";
+import { formatDate as formatGermanDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "ParentDashboard" });
@@ -316,6 +321,77 @@ function HeroChildItem({ item }: Readonly<{ item: ChildOverviewItem }>) {
 
 function StartNewsPanel() {
   const t = useTranslations("parentDashboard");
+  const [items, setItems] = useState<ParentAnnouncement[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [pendingId, setPendingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void listAnnouncements()
+      .then((list) => {
+        if (active) setItems(list);
+      })
+      .catch((err: unknown) => {
+        logger.error("parent_news_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      })
+      .finally(() => {
+        if (active) setLoaded(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const applyState = useCallback(
+    (id: string, patch: Partial<ParentAnnouncement>) => {
+      setItems((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+      );
+    },
+    [],
+  );
+
+  const handleMarkRead = useCallback(
+    async (id: string) => {
+      setPendingId(id);
+      setActionError(null);
+      try {
+        await markAnnouncementRead(id);
+        applyState(id, { read: true });
+      } catch (err: unknown) {
+        logger.error("parent_news_mark_read_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        setActionError(t("newsActionError"));
+      } finally {
+        setPendingId(null);
+      }
+    },
+    [applyState, t],
+  );
+
+  const handleAcknowledge = useCallback(
+    async (id: string) => {
+      setPendingId(id);
+      setActionError(null);
+      try {
+        await acknowledgeAnnouncement(id);
+        applyState(id, { read: true, acknowledged: true });
+      } catch (err: unknown) {
+        logger.error("parent_news_acknowledge_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        setActionError(t("newsActionError"));
+      } finally {
+        setPendingId(null);
+      }
+    },
+    [applyState, t],
+  );
+
   return (
     <section
       id="news"
@@ -327,22 +403,121 @@ function StartNewsPanel() {
         description={t("newsDescription")}
       />
 
-      <div className="mt-5 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-6">
-        <div className="flex items-start gap-3">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm ring-1 ring-gray-200">
-            <Newspaper className="h-5 w-5" aria-hidden="true" />
-          </span>
-          <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-gray-900">
-              {t("noNewsTitle")}
-            </h3>
-            <p className="mt-1 text-sm leading-6 text-gray-600">
-              {t("noNewsDescription")}
-            </p>
+      {actionError && (
+        <p className="mt-4 rounded-lg bg-[#FF31301A] px-3 py-2 text-sm text-[#CC2626]">
+          {actionError}
+        </p>
+      )}
+
+      {loaded && items.length === 0 ? (
+        <div className="mt-5 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-6">
+          <div className="flex items-start gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm ring-1 ring-gray-200">
+              <Newspaper className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <h3 className="text-sm font-semibold text-gray-900">
+                {t("noNewsTitle")}
+              </h3>
+              <p className="mt-1 text-sm leading-6 text-gray-600">
+                {t("noNewsDescription")}
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <ul className="mt-5 space-y-3">
+          {items.map((item) => (
+            <AnnouncementCard
+              key={item.id}
+              item={item}
+              busy={pendingId === item.id}
+              onMarkRead={handleMarkRead}
+              onAcknowledge={handleAcknowledge}
+            />
+          ))}
+        </ul>
+      )}
     </section>
+  );
+}
+
+function AnnouncementCard({
+  item,
+  busy,
+  onMarkRead,
+  onAcknowledge,
+}: Readonly<{
+  item: ParentAnnouncement;
+  busy: boolean;
+  onMarkRead: (id: string) => void;
+  onAcknowledge: (id: string) => void;
+}>) {
+  const t = useTranslations("parentDashboard");
+  const unread = !item.read;
+  const needsAck = item.requires_acknowledgement && !item.acknowledged;
+
+  return (
+    <li
+      className={`rounded-xl border bg-white p-4 shadow-sm ${
+        unread ? "border-gray-300" : "border-gray-200"
+      }`}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        {unread && (
+          <span className="inline-flex items-center rounded-full bg-gray-900 px-2 py-0.5 text-xs font-semibold text-white">
+            {t("newsNew")}
+          </span>
+        )}
+        {item.priority === "important" && (
+          <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
+            {t("newsImportant")}
+          </span>
+        )}
+        {item.acknowledged && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">
+            <Check className="h-3 w-3" aria-hidden="true" />
+            {t("newsAcknowledged")}
+          </span>
+        )}
+      </div>
+
+      <h3 className="mt-2 text-sm font-semibold text-gray-900">{item.title}</h3>
+      <p className="mt-0.5 text-xs text-gray-500">
+        {item.school_name}
+        {item.published_at ? ` · ${formatGermanDate(item.published_at)}` : ""}
+      </p>
+      <p className="mt-2 text-sm leading-6 whitespace-pre-line text-gray-700">
+        {item.body}
+      </p>
+
+      {(needsAck || unread) && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {needsAck ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onAcknowledge(item.id)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-gray-800 disabled:opacity-60"
+            >
+              <Check className="h-4 w-4" aria-hidden="true" />
+              {t("newsAcknowledge")}
+            </button>
+          ) : (
+            unread && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => onMarkRead(item.id)}
+                className="inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-60"
+              >
+                {t("newsMarkRead")}
+              </button>
+            )
+          )}
+        </div>
+      )}
+    </li>
   );
 }
 

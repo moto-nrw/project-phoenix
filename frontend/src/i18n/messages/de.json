@@ -82,7 +82,14 @@
       "rejected": "Abgelehnt",
       "withdrawn": "Zurückgezogen"
     },
-    "dateRangeConnector": "bis"
+    "dateRangeConnector": "bis",
+    "newsNew": "Neu",
+    "newsImportant": "Wichtig",
+    "newsMarkRead": "Als gelesen markieren",
+    "newsAcknowledge": "Gelesen und bestätigt",
+    "newsAcknowledged": "Bestätigt",
+    "newsRead": "Gelesen",
+    "newsActionError": "Aktion fehlgeschlagen. Bitte erneut versuchen."
   },
   "parentChildren": {
     "eyebrow": "Meine Kinder",

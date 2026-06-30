@@ -82,7 +82,14 @@
       "rejected": "Refuzuar",
       "withdrawn": "Tërhequr"
     },
-    "dateRangeConnector": "deri"
+    "dateRangeConnector": "deri",
+    "newsNew": "E re",
+    "newsImportant": "E rëndësishme",
+    "newsMarkRead": "Shëno si të lexuar",
+    "newsAcknowledge": "Lexuar dhe konfirmuar",
+    "newsAcknowledged": "Konfirmuar",
+    "newsRead": "Lexuar",
+    "newsActionError": "Veprimi dështoi. Provoni përsëri."
   },
   "parentChildren": {
     "eyebrow": "Fëmijët e mi",

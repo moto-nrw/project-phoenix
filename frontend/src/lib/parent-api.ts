@@ -479,6 +479,22 @@ export interface ThreadSummary {
   readonly unread: number;
 }
 
+// One parent-news feed entry (#1669). read/acknowledged are THIS guardian's
+// state; requires_acknowledgement tells the app whether to offer the
+// "gelesen und bestätigt" action.
+export interface ParentAnnouncement {
+  readonly id: string;
+  readonly title: string;
+  readonly body: string;
+  readonly priority: "info" | "important";
+  readonly requires_acknowledgement: boolean;
+  readonly school_name: string;
+  readonly published_at?: string; // ISO timestamp
+  readonly expires_at?: string; // ISO timestamp
+  readonly read: boolean;
+  readonly acknowledged: boolean;
+}
+
 // A child's full conversation (messages oldest-first). `thread_id` is empty
 // when the guardian has not written about this child yet.
 export interface ThreadView {
@@ -519,6 +535,46 @@ export async function fetchMessagesUnreadCount(): Promise<number> {
     "/api/parent/me/messages/unread-count",
   );
   return result.unread_count ?? 0;
+}
+
+/**
+ * The guardian's parent-news feed across all their (news-enabled) children's
+ * schools, newest-published first. Visibility + audience are enforced
+ * server-side from the JWT account.
+ */
+export async function listAnnouncements(): Promise<ParentAnnouncement[]> {
+  return getJson<ParentAnnouncement[]>("/api/parent/me/news");
+}
+
+/**
+ * Unread parent-news count for the parents-portal Neuigkeiten badge. A light
+ * COUNT endpoint, mirroring the messages badge.
+ */
+export async function fetchAnnouncementsUnreadCount(): Promise<number> {
+  const result = await getJson<{ unread_count: number }>(
+    "/api/parent/me/news/unread-count",
+  );
+  return result.unread_count ?? 0;
+}
+
+/** Marks an announcement read for this guardian (idempotent). */
+export async function markAnnouncementRead(
+  announcementId: string,
+): Promise<void> {
+  await postJson<{ read: boolean }>(
+    `/api/parent/me/news/${encodeURIComponent(announcementId)}/read`,
+    {},
+  );
+}
+
+/** Records an explicit "gelesen und bestätigt" for an announcement. */
+export async function acknowledgeAnnouncement(
+  announcementId: string,
+): Promise<void> {
+  await postJson<{ acknowledged: boolean }>(
+    `/api/parent/me/news/${encodeURIComponent(announcementId)}/acknowledge`,
+    {},
+  );
 }
 
 /**

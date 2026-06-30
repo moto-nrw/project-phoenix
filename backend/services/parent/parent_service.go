@@ -173,6 +173,23 @@ type Service interface {
 	// creating it on the first message, and notifies the OGS. Gated by
 	// operations.parent_notes_enabled.
 	PostChildMessage(ctx context.Context, accountID, studentID int64, body string) (*MessageThreadView, error)
+
+	// ListAnnouncements returns the guardian's parent-news feed across all their
+	// (news-enabled) children's schools, newest-published first, each with the
+	// guardian's read/ack state. Cross-tenant; broadcast (#1669).
+	ListAnnouncements(ctx context.Context, accountID int64) ([]*usersModels.AnnouncementFeedItem, error)
+
+	// UnreadAnnouncementCount returns how many feed announcements the guardian
+	// has not read — the parent-portal Neuigkeiten badge. Cross-tenant.
+	UnreadAnnouncementCount(ctx context.Context, accountID int64) (int, error)
+
+	// MarkAnnouncementRead records that the guardian opened an announcement.
+	// Refuses one that is not live or outside the guardian's audience.
+	MarkAnnouncementRead(ctx context.Context, accountID, announcementID int64) error
+
+	// AcknowledgeAnnouncement records an explicit "gelesen und bestätigt"; valid
+	// only for an announcement that requires acknowledgement.
+	AcknowledgeAnnouncement(ctx context.Context, accountID, announcementID int64) error
 }
 
 // ChildFeatureFlags reports the resolved per-tenant parent-portal feature
@@ -242,6 +259,9 @@ type ServiceConfig struct {
 	MessageRepo       usersModels.ParentMessageRepository
 	MessageReadRepo   usersModels.ParentMessageReadRepository
 
+	// Parent announcements (broadcast news feed).
+	AnnouncementRepo usersModels.ParentAnnouncementRepository
+
 	// Related-accounts management (invite/remove further guardians from the
 	// parents portal). The invitation service runs the shared resolve logic.
 	GuardianInvites     authService.GuardianInvitationService
@@ -280,6 +300,8 @@ type service struct {
 	messageRepo       usersModels.ParentMessageRepository
 	messageReadRepo   usersModels.ParentMessageReadRepository
 
+	announcementRepo usersModels.ParentAnnouncementRepository
+
 	guardianInvites     authService.GuardianInvitationService
 	guardianInviteRepo  authModels.GuardianInvitationRepository
 	studentGuardianRepo usersModels.StudentGuardianRepository
@@ -315,6 +337,7 @@ func NewService(cfg ServiceConfig) Service {
 		messageThreadRepo:       cfg.MessageThreadRepo,
 		messageRepo:             cfg.MessageRepo,
 		messageReadRepo:         cfg.MessageReadRepo,
+		announcementRepo:        cfg.AnnouncementRepo,
 		guardianInvites:         cfg.GuardianInvites,
 		guardianInviteRepo:      cfg.GuardianInviteRepo,
 		studentGuardianRepo:     cfg.StudentGuardianRepo,
