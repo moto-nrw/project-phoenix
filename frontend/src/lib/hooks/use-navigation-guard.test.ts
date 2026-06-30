@@ -3,10 +3,13 @@ import { renderHook, act } from "@testing-library/react";
 
 import { useNavigationGuard } from "./use-navigation-guard";
 
-const { mockPush } = vi.hoisted(() => ({ mockPush: vi.fn() }));
+const { mockPush, mockReplace } = vi.hoisted(() => ({
+  mockPush: vi.fn(),
+  mockReplace: vi.fn(),
+}));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, replace: mockReplace }),
 }));
 
 function mountAnchor(href: string, attrs: Record<string, string> = {}) {
@@ -26,6 +29,7 @@ function clickAnchor(anchor: HTMLAnchorElement) {
 describe("useNavigationGuard", () => {
   beforeEach(() => {
     mockPush.mockReset();
+    mockReplace.mockReset();
   });
 
   afterEach(() => {
@@ -57,7 +61,10 @@ describe("useNavigationGuard", () => {
       result.current.confirmNavigation();
     });
 
-    expect(mockPush).toHaveBeenCalledWith("/database");
+    // router.replace, not push: it collapses the same-URL sentinel into the
+    // target so Back from the destination lands on this page, not a duplicate.
+    expect(mockReplace).toHaveBeenCalledWith("/database");
+    expect(mockPush).not.toHaveBeenCalled();
     expect(result.current.pendingHref).toBeNull();
   });
 
@@ -266,12 +273,13 @@ describe("useNavigationGuard", () => {
         result.current.confirmNavigation();
       });
       // The destination page unmounts the guard; cleanup must not pop, because
-      // router.push already left a new entry on top of the sentinel.
+      // router.replace already consumed the sentinel (the target now sits where
+      // the sentinel was), so there is no leftover entry for cleanup to own.
       act(() => {
         rerender({ block: false });
       });
 
-      expect(mockPush).toHaveBeenCalledWith("/database");
+      expect(mockReplace).toHaveBeenCalledWith("/database");
       expect(goSpy).not.toHaveBeenCalled();
       goSpy.mockRestore();
     });

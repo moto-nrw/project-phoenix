@@ -139,11 +139,16 @@ export function useNavigationGuard(shouldBlock: boolean): NavigationGuard {
       window.history.go(-2);
       return;
     }
-    // router.push appends a new entry above the sentinel; we no longer own the
-    // top of the stack, so disarm to keep the cleanup from popping the new page.
+    // We are still sitting on the same-URL sentinel we pushed when blocking
+    // started. router.replace collapses it into the target instead of stacking
+    // a new entry on top, so history lands on [previous, this-page, target] —
+    // what an unguarded link click would produce. A plain router.push would
+    // leave a duplicate this-page entry under the target, making the second
+    // Back press from the target look dead. Disarm first so the effect cleanup
+    // doesn't pop an entry the navigation now owns.
     armedRef.current = false;
     setPendingHref((href) => {
-      if (href) router.push(href);
+      if (href) router.replace(href);
       return null;
     });
   }, [router]);

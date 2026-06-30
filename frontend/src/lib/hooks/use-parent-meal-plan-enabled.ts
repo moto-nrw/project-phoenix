@@ -18,12 +18,14 @@ async function fetchAnyMealPlanEnabled(): Promise<boolean> {
       repByTenant.set(child.tenant_id, child.student_id);
     }
   }
+  // Let a failed feature lookup reject the whole fetch rather than swallowing
+  // it: SWR then surfaces the error and retries with backoff. Catching here
+  // would cache a transient 500/network/session failure as `false`, hiding the
+  // nav entry for an eligible parent until a full reload.
   const features = await Promise.all(
-    [...repByTenant.values()].map((studentId) =>
-      getChildFeatures(studentId).catch(() => null),
-    ),
+    [...repByTenant.values()].map((studentId) => getChildFeatures(studentId)),
   );
-  return features.some((f) => f?.meal_plan_enabled === true);
+  return features.some((f) => f.meal_plan_enabled === true);
 }
 
 /**
