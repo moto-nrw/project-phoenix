@@ -80,6 +80,11 @@ export function ParentMealPlanPage() {
   const [entries, setEntries] = useState<MealPlanEntry[]>([]);
   const [loadingSchools, setLoadingSchools] = useState(true);
   const [loadingWeek, setLoadingWeek] = useState(false);
+  // Distinguish operational failures (backend/network/session errors) from a
+  // genuinely empty result. Without these flags a failed request would render
+  // as "no meal plan available" / "no plan entered" — false information.
+  const [schoolsError, setSchoolsError] = useState(false);
+  const [weekError, setWeekError] = useState(false);
   // True once the first week loaded. Week switches then keep the current week
   // on screen (dimmed) instead of flashing the skeleton each time.
   const [hasLoadedWeek, setHasLoadedWeek] = useState(false);
@@ -96,6 +101,7 @@ export function ParentMealPlanPage() {
     let cancelled = false;
     void (async () => {
       setLoadingSchools(true);
+      setSchoolsError(false);
       try {
         const children = await listMyChildren();
         // One representative child per school (tenant).
@@ -105,8 +111,11 @@ export function ParentMealPlanPage() {
             byTenant.set(child.tenant_id, child);
         }
         const reps = [...byTenant.values()];
+        // Let a failed feature lookup reject the whole resolution. A transient
+        // 500/session/proxy error must surface as an error, never be treated
+        // as meal_plan_enabled: false (which silently removes the school).
         const features = await Promise.all(
-          reps.map((c) => getChildFeatures(c.student_id).catch(() => null)),
+          reps.map((c) => getChildFeatures(c.student_id)),
         );
         const enabled: SchoolOption[] = [];
         reps.forEach((c, i) => {
@@ -122,9 +131,11 @@ export function ParentMealPlanPage() {
         setSchools(enabled);
         setSelectedTenant(enabled[0]?.tenantId ?? null);
       } catch (err) {
+        if (cancelled) return;
         logger.error("parent_meal_plan_schools_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
+        setSchoolsError(true);
       } finally {
         if (!cancelled) setLoadingSchools(false);
       }
@@ -147,6 +158,7 @@ export function ParentMealPlanPage() {
     let cancelled = false;
     const { studentId } = selectedSchool;
     setLoadingWeek(true);
+    setWeekError(false);
     void (async () => {
       try {
         const rows = await getChildMealPlan(studentId, mondayISO);
@@ -157,7 +169,10 @@ export function ParentMealPlanPage() {
         logger.error("parent_meal_plan_week_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
+        // Operational failure — show the load-error copy, not an empty week
+        // (which would falsely tell parents no plan was entered).
         setEntries([]);
+        setWeekError(true);
       } finally {
         if (!cancelled) {
           setLoadingWeek(false);
@@ -210,7 +225,11 @@ export function ParentMealPlanPage() {
         <p className="mt-1 text-sm text-gray-500">{t("subtitle")}</p>
       </section>
 
-      {schools.length === 0 ? (
+      {schoolsError ? (
+        <section className="rounded-2xl border border-gray-200 bg-white p-6 text-sm text-gray-500 shadow-sm">
+          {t("loadError")}
+        </section>
+      ) : schools.length === 0 ? (
         <section className="rounded-2xl border border-gray-200 bg-white p-6 text-sm text-gray-500 shadow-sm">
           {t("empty")}
         </section>
@@ -252,6 +271,10 @@ export function ParentMealPlanPage() {
 
           {loadingWeek && !hasLoadedWeek ? (
             <Loading fullPage={false} />
+          ) : weekError ? (
+            <section className="rounded-2xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500 shadow-sm">
+              {t("loadError")}
+            </section>
           ) : weekIsEmpty ? (
             <section className="rounded-2xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-400 shadow-sm">
               {t("emptyWeek")}
