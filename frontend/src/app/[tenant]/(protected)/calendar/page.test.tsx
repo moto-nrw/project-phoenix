@@ -1,0 +1,177 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const {
+  mockUseSWRAuth,
+  mockCreateStaffAppointment,
+  mockRespondStaffCalendar,
+  mockToastSuccess,
+  mockToastError,
+  mockToastWarning,
+  mockMutate,
+} = vi.hoisted(() => ({
+  mockUseSWRAuth: vi.fn(),
+  mockCreateStaffAppointment: vi.fn(),
+  mockRespondStaffCalendar: vi.fn(),
+  mockToastSuccess: vi.fn(),
+  mockToastError: vi.fn(),
+  mockToastWarning: vi.fn(),
+  mockMutate: vi.fn(),
+}));
+
+vi.mock("~/lib/swr", () => ({
+  useSWRAuth: mockUseSWRAuth,
+}));
+
+vi.mock("~/contexts/ToastContext", () => ({
+  useToast: () => ({
+    success: mockToastSuccess,
+    error: mockToastError,
+    warning: mockToastWarning,
+  }),
+}));
+
+vi.mock("~/lib/personal-calendar-api", async () => {
+  const actual = await vi.importActual<
+    typeof import("~/lib/personal-calendar-api")
+  >("~/lib/personal-calendar-api");
+  return {
+    ...actual,
+    getStaffCalendar: vi.fn(),
+    getCalendarRecipientOptions: vi.fn(),
+    createStaffAppointment: mockCreateStaffAppointment,
+    respondStaffCalendar: mockRespondStaffCalendar,
+  };
+});
+
+import StaffCalendarPage from "./page";
+import type {
+  CalendarRecipientOptions,
+  CalendarResponse,
+} from "~/lib/personal-calendar-api";
+
+const calendarResponse: CalendarResponse = {
+  from: "2026-01-05",
+  to: "2026-01-11",
+  events: [
+    {
+      id: "appointment:1:2026-01-05",
+      source: "appointment",
+      title: "Teamplanung",
+      start_date: "2026-01-05",
+      end_date: "2026-01-05",
+      start_time: "09:00",
+      end_time: "10:00",
+      all_day: false,
+      response_status: "pending",
+      recipient_id: 42,
+      can_respond: true,
+      can_edit: false,
+    },
+  ],
+};
+
+const recipientOptions: CalendarRecipientOptions = {
+  staff: [{ id: 7, name: "Anna Mitarbeiterin" }],
+  parents: [{ id: 8, name: "Sabine Elternteil" }],
+  groups: [{ id: 9, name: "Gruppe A" }],
+  classes: ["1a"],
+  students: [{ id: 10, name: "Lara Beispiel", school_class: "1a" }],
+};
+
+function mockCalendarSWR() {
+  mockUseSWRAuth.mockImplementation((key: unknown) => {
+    const cacheKey = typeof key === "string" ? key : "";
+    if (cacheKey.startsWith("calendar-recipient-options")) {
+      return { data: recipientOptions, isLoading: false };
+    }
+    if (cacheKey.startsWith("staff-calendar")) {
+      return {
+        data: calendarResponse,
+        error: null,
+        isLoading: false,
+        mutate: mockMutate,
+      };
+    }
+    return { data: undefined, error: null, isLoading: false, mutate: vi.fn() };
+  });
+}
+
+describe("StaffCalendarPage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockCalendarSWR();
+    mockRespondStaffCalendar.mockResolvedValue(undefined);
+    mockCreateStaffAppointment.mockResolvedValue({ appointment: { id: 1 } });
+    mockMutate.mockResolvedValue(undefined);
+  });
+
+  it("renders events and stores RSVP responses", async () => {
+    render(<StaffCalendarPage />);
+
+    expect(screen.getAllByText("Teamplanung").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getAllByRole("button", { name: "Zusagen" })[0]!);
+
+    await waitFor(() =>
+      expect(mockRespondStaffCalendar).toHaveBeenCalledWith(42, "accepted"),
+    );
+    expect(mockMutate).toHaveBeenCalledOnce();
+    expect(mockToastSuccess).toHaveBeenCalledWith("Termin zugesagt.");
+  });
+
+  it("creates a weekly recurring appointment for selected staff", async () => {
+    render(<StaffCalendarPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Neuer Termin" }));
+    fireEvent.change(screen.getByLabelText("Titel"), {
+      target: { value: "Elterngespräch" },
+    });
+    fireEvent.change(screen.getByLabelText("Ziel"), {
+      target: { value: "7" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Ziel hinzufügen" }));
+    expect(
+      screen.getByText("Mitarbeiter: Anna Mitarbeiterin"),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Wiederholung"), {
+      target: { value: "weekly" },
+    });
+    fireEvent.click(screen.getByLabelText("Mo"));
+    fireEvent.click(screen.getByRole("button", { name: "Termin speichern" }));
+
+    await waitFor(() =>
+      expect(mockCreateStaffAppointment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Elterngespräch",
+          start_date: expect.any(String),
+          end_date: expect.any(String),
+          delivery_mode: "rsvp_required",
+          targets: [{ type: "staff", id: 7 }],
+          recurrence: expect.objectContaining({
+            frequency: "weekly",
+            interval_count: 1,
+            weekdays: ["monday"],
+          }),
+        }),
+      ),
+    );
+    expect(mockToastSuccess).toHaveBeenCalledWith("Termin wurde erstellt.");
+    expect(mockMutate).toHaveBeenCalled();
+  });
+
+  it("requires a target before creating an appointment", async () => {
+    render(<StaffCalendarPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Neuer Termin" }));
+    fireEvent.change(screen.getByLabelText("Titel"), {
+      target: { value: "Ohne Ziel" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Termin speichern" }));
+
+    expect(mockCreateStaffAppointment).not.toHaveBeenCalled();
+    expect(mockToastWarning).toHaveBeenCalledWith(
+      "Bitte mindestens ein Ziel hinzufügen.",
+    );
+  });
+});
