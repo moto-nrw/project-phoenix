@@ -150,6 +150,16 @@ export function ParentMealPlanPage() {
     [schools, selectedTenant],
   );
 
+  // Switching schools must drop the previous school's menu immediately, or it
+  // would show (dimmed) under the new school's label until the new request
+  // returns — wrong information. Resetting hasLoadedWeek forces the loading
+  // skeleton for the new school. Week switches within one school keep the grid
+  // (this effect doesn't run) and rely on the loader's dimming instead.
+  useEffect(() => {
+    setEntries([]);
+    setHasLoadedWeek(false);
+  }, [selectedTenant]);
+
   // Load the selected school's week. A slower response from a previous
   // school/week selection must never overwrite the current one, so each run
   // captures a `cancelled` flag the cleanup flips when the inputs change.

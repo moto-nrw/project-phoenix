@@ -132,6 +132,10 @@ export default function MealPlanPage() {
   // True once the first week has loaded. Subsequent week switches keep the
   // current grid on screen (dimmed) instead of flashing the skeleton.
   const [hasLoaded, setHasLoaded] = useState(false);
+  // True when the displayed week failed to load. The grid is then NOT shown:
+  // editing/saving against an unknown persisted state could overwrite real
+  // meals based on a failed load, so we surface an error + retry instead.
+  const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [copyingPrev, setCopyingPrev] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, DishDraft[]>>({});
@@ -157,6 +161,7 @@ export default function MealPlanPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const entries = await getMealPlanWeek(mondayISO);
       const built = draftsFromEntries(entries, weekDates);
@@ -169,6 +174,11 @@ export default function MealPlanPage() {
       logger.error("meal_plan_load_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
+      // Operational failure: drop any stale week so nothing editable is shown
+      // against an unknown persisted state, and surface an error instead.
+      setDrafts({});
+      setOriginals({});
+      setLoadError(true);
       toast.error("Essensplan konnte nicht geladen werden.");
     } finally {
       setLoading(false);
@@ -436,7 +446,7 @@ export default function MealPlanPage() {
               variant="outline"
               size="md"
               onClick={requestCopyPreviousWeek}
-              disabled={loading || saving || copyingPrev}
+              disabled={loading || saving || copyingPrev || loadError}
               isLoading={copyingPrev}
               loadingText="Übernehmen…"
             >
@@ -449,6 +459,21 @@ export default function MealPlanPage() {
 
       {loading && !hasLoaded ? (
         <Loading fullPage={false} />
+      ) : loadError ? (
+        <section className="moto-content-surface flex flex-col items-center gap-4 rounded-2xl border p-8 text-center shadow-sm">
+          <p className="text-sm text-gray-500">
+            Essensplan konnte nicht geladen werden.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={() => void load()}
+            disabled={loading}
+          >
+            Erneut versuchen
+          </Button>
+        </section>
       ) : (
         <div
           className={`overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-opacity duration-200 ${
@@ -575,7 +600,7 @@ export default function MealPlanPage() {
       )}
 
       {/* Sticky save bar — only while there are unsaved changes. */}
-      {canEdit && isDirty && !loading && (
+      {canEdit && isDirty && !loading && !loadError && (
         <div className="sticky bottom-4 z-20">
           <div className="moto-content-surface flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 shadow-lg">
             <span className="text-sm font-medium text-gray-700">
