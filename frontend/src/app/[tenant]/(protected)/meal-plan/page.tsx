@@ -297,6 +297,12 @@ export default function MealPlanPage() {
   // --- Week navigation (guarded against unsaved changes) ----------------
   const attemptWeekChange = (next: number) => {
     if (next === weekOffset) return;
+    // Block week switches while a save (or prev-week copy) is in flight. The
+    // post-save reload is bound to the week that was on screen when Save was
+    // clicked; switching mid-save would let that stale reload win the
+    // latest-wins token race and write the old week's data over the new week,
+    // leaving an unloaded/blank grid that the next edit could overwrite.
+    if (saving || copyingPrev) return;
     if (isDirty) {
       setPendingOffset(next);
     } else {
@@ -441,7 +447,7 @@ export default function MealPlanPage() {
               size="icon"
               aria-label="Vorherige Woche"
               onClick={() => attemptWeekChange(weekOffset - 1)}
-              disabled={loading}
+              disabled={loading || saving || copyingPrev}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -460,7 +466,7 @@ export default function MealPlanPage() {
               size="icon"
               aria-label="Nächste Woche"
               onClick={() => attemptWeekChange(weekOffset + 1)}
-              disabled={loading}
+              disabled={loading || saving || copyingPrev}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -470,7 +476,7 @@ export default function MealPlanPage() {
                 variant="outline"
                 size="md"
                 onClick={() => attemptWeekChange(0)}
-                disabled={loading}
+                disabled={loading || saving || copyingPrev}
               >
                 Heute
               </Button>
