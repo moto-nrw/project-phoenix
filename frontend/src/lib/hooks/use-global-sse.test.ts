@@ -336,6 +336,52 @@ describe("useGlobalSSE — SWR invalidation debounce", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Reminders revalidation (issue #1457)
+// ---------------------------------------------------------------------------
+
+// True when any mutate() call was made with a key-matcher that matches `key`.
+function someMutateMatches(key: string): boolean {
+  return mockMutate.mock.calls.some(
+    ([matcher]) => typeof matcher === "function" && matcher(key) === true,
+  );
+}
+
+describe("useGlobalSSE — reminders revalidation", () => {
+  it("revalidates the reminders cache on student_checkout", () => {
+    renderHook(() => useGlobalSSE());
+
+    fireSSE(makeEvent("student_checkout", { student_id: "s1" }, "grp1"));
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(someMutateMatches("tenant-slug:reminders")).toBe(true);
+  });
+
+  it("revalidates the reminders cache on instance_overdue", () => {
+    renderHook(() => useGlobalSSE());
+
+    fireSSE(makeEvent("instance_overdue"));
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(someMutateMatches("tenant-slug:reminders")).toBe(true);
+  });
+
+  it("does not revalidate reminders for tenant_settings_changed", () => {
+    renderHook(() => useGlobalSSE());
+
+    fireSSE(makeEvent("tenant_settings_changed", { source: "operator" }));
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(someMutateMatches("tenant-slug:reminders")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Return value
 // ---------------------------------------------------------------------------
 
