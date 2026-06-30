@@ -133,4 +133,101 @@ describe("useNavigationGuard", () => {
     expect(event.defaultPrevented).toBe(false);
     expect(result.current.pendingHref).toBeNull();
   });
+
+  describe("browser Back/Forward (popstate)", () => {
+    function dispatchPopState() {
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    }
+
+    it("arms a history sentinel when blocking begins", () => {
+      const pushSpy = vi.spyOn(window.history, "pushState");
+      renderHook(() => useNavigationGuard(true));
+
+      expect(pushSpy).toHaveBeenCalledTimes(1);
+      pushSpy.mockRestore();
+    });
+
+    it("does not arm or listen when not blocking", () => {
+      const pushSpy = vi.spyOn(window.history, "pushState");
+      const { result } = renderHook(() => useNavigationGuard(false));
+
+      act(() => {
+        dispatchPopState();
+      });
+
+      expect(pushSpy).not.toHaveBeenCalled();
+      expect(result.current.pendingHref).toBeNull();
+      pushSpy.mockRestore();
+    });
+
+    it("intercepts a Back press and re-arms the sentinel", () => {
+      const { result } = renderHook(() => useNavigationGuard(true));
+      const pushSpy = vi.spyOn(window.history, "pushState");
+
+      act(() => {
+        dispatchPopState();
+      });
+
+      // The modal opens and the trap is re-armed so a second Back press is
+      // still caught while the modal is open.
+      expect(result.current.pendingHref).not.toBeNull();
+      expect(pushSpy).toHaveBeenCalledTimes(1);
+      pushSpy.mockRestore();
+    });
+
+    it("replays the history traversal on confirm", () => {
+      const goSpy = vi.spyOn(window.history, "go").mockImplementation(() => {});
+      const { result } = renderHook(() => useNavigationGuard(true));
+
+      act(() => {
+        dispatchPopState();
+      });
+      act(() => {
+        result.current.confirmNavigation();
+      });
+
+      // Back/Forward has no target URL, so we traverse history rather than
+      // router.push: sentinel → this page → the page the user wanted.
+      expect(goSpy).toHaveBeenCalledWith(-2);
+      expect(mockPush).not.toHaveBeenCalled();
+      expect(result.current.pendingHref).toBeNull();
+      goSpy.mockRestore();
+    });
+
+    it("stays on the page on cancel without traversing history", () => {
+      const goSpy = vi.spyOn(window.history, "go").mockImplementation(() => {});
+      const { result } = renderHook(() => useNavigationGuard(true));
+
+      act(() => {
+        dispatchPopState();
+      });
+      act(() => {
+        result.current.cancelNavigation();
+      });
+
+      expect(goSpy).not.toHaveBeenCalled();
+      expect(result.current.pendingHref).toBeNull();
+      goSpy.mockRestore();
+    });
+
+    it("ignores the popstate it triggers itself on confirm", () => {
+      vi.spyOn(window.history, "go").mockImplementation(() => {});
+      const { result } = renderHook(() => useNavigationGuard(true));
+
+      act(() => {
+        dispatchPopState();
+      });
+      act(() => {
+        result.current.confirmNavigation();
+      });
+      // The go(-2) above lands on the target page and fires one popstate; it
+      // must not re-open the guard.
+      act(() => {
+        dispatchPopState();
+      });
+
+      expect(result.current.pendingHref).toBeNull();
+      vi.restoreAllMocks();
+    });
+  });
 });

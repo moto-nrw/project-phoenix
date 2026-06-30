@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 interface NavigationGuard {
@@ -12,16 +12,30 @@ interface NavigationGuard {
   cancelNavigation: () => void;
 }
 
-// Guards against losing unsaved work. `beforeunload` only fires for hard
-// unloads (tab close / reload); Next.js client-side route changes never trigger
-// it, so a sidebar/header <Link> click would silently discard the draft. We
-// intercept those anchor clicks in the document capture phase before Next's
-// router handles them: next/link bails when the click's default is already
-// prevented (see next/dist/client/link.js), so preventDefault here stops the
-// SPA navigation and lets the caller confirm first.
+// Guards against losing unsaved work across the three ways a user can leave a
+// page, none of which Next.js surfaces through a single hook:
+//
+//  1. Hard unload (tab close / reload) — `beforeunload`. Next.js client-side
+//     route changes never trigger it.
+//  2. In-app <Link>/anchor click — intercepted in the document capture phase
+//     before Next's router handles it: next/link bails when the click's
+//     default is already prevented (see next/dist/client/link.js), so
+//     preventDefault here stops the SPA navigation and lets the caller confirm.
+//  3. Browser Back/Forward — `popstate`. No anchor click occurs and Next
+//     handles the history change without a page unload, so neither (1) nor (2)
+//     fires. We push a same-URL sentinel history entry while blocking so the
+//     first Back press pops back onto this same URL: the URL is unchanged, so
+//     Next.js does not navigate away and the drafts stay mounted. The popstate
+//     handler then re-arms the sentinel and opens the confirmation modal.
 export function useNavigationGuard(shouldBlock: boolean): NavigationGuard {
   const router = useRouter();
   const [pendingHref, setPendingHref] = useState<string | null>(null);
+  // True when the pending navigation is a Back/Forward (history traversal with
+  // no target URL) rather than a link click (router.push to a known href).
+  const pendingPopRef = useRef(false);
+  // Set right before we programmatically traverse history on confirm, so our
+  // own popstate handler ignores the resulting event instead of re-trapping.
+  const bypassPopRef = useRef(false);
 
   useEffect(() => {
     if (!shouldBlock) return;
@@ -62,25 +76,62 @@ export function useNavigationGuard(shouldBlock: boolean): NavigationGuard {
       if (target === current) return;
 
       e.preventDefault();
+      pendingPopRef.current = false;
       setPendingHref(target);
+    };
+
+    // Arm the Back/Forward trap: a same-URL entry on top of this page.
+    window.history.pushState(null, "", window.location.href);
+
+    const onPopState = () => {
+      // Ignore the popstate we triggered ourselves on confirm.
+      if (bypassPopRef.current) {
+        bypassPopRef.current = false;
+        return;
+      }
+      // The Back press popped our sentinel; re-arm it so we stay on this URL
+      // (and remain protected against a second Back press while the modal is
+      // open), then ask the user to confirm.
+      window.history.pushState(null, "", window.location.href);
+      pendingPopRef.current = true;
+      setPendingHref(
+        window.location.pathname +
+          window.location.search +
+          window.location.hash,
+      );
     };
 
     window.addEventListener("beforeunload", onBeforeUnload);
     document.addEventListener("click", onClick, true);
+    window.addEventListener("popstate", onPopState);
     return () => {
       window.removeEventListener("beforeunload", onBeforeUnload);
       document.removeEventListener("click", onClick, true);
+      window.removeEventListener("popstate", onPopState);
     };
   }, [shouldBlock]);
 
   const confirmNavigation = useCallback(() => {
+    if (pendingPopRef.current) {
+      pendingPopRef.current = false;
+      setPendingHref(null);
+      // We are sitting on the re-armed sentinel, so the page the user wanted
+      // is two entries back (sentinel → this page → previous page). Suppress
+      // the resulting popstate so the handler doesn't re-trap the traversal.
+      bypassPopRef.current = true;
+      window.history.go(-2);
+      return;
+    }
     setPendingHref((href) => {
       if (href) router.push(href);
       return null;
     });
   }, [router]);
 
-  const cancelNavigation = useCallback(() => setPendingHref(null), []);
+  const cancelNavigation = useCallback(() => {
+    pendingPopRef.current = false;
+    setPendingHref(null);
+  }, []);
 
   return { pendingHref, confirmNavigation, cancelNavigation };
 }
