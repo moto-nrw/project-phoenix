@@ -22,6 +22,7 @@ const (
 	ResourceAuth          = "auth"
 	ResourceIOT           = "iot"
 	ResourceSchedules     = "schedules"
+	ResourceCalendar      = "calendar"
 )
 
 // Admin permissions
@@ -118,6 +119,12 @@ const (
 	SchedulesDelete = ResourceSchedules + ":" + ActionDelete
 	SchedulesList   = ResourceSchedules + ":" + ActionList
 	SchedulesManage = ResourceSchedules + ":" + ActionManage
+)
+
+// Calendar permissions
+const (
+	CalendarOwn    = ResourceCalendar + ":own"    // Personal calendar access and own invitation responses
+	CalendarManage = ResourceCalendar + ":manage" // Create and manage appointments/invitations
 )
 
 // Substitution permissions
