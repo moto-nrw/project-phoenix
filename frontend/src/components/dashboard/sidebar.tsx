@@ -15,7 +15,7 @@ import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { hasRole, isCaregiver } from "~/lib/auth-utils";
+import { hasPermission, hasRole, isCaregiver } from "~/lib/auth-utils";
 import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useSuggestionsUnread } from "~/lib/hooks/use-suggestions-unread";
@@ -125,13 +125,13 @@ const NAV_ITEMS: NavItem[] = [
     activeColor: "text-[#5080D8]",
     alwaysShow: true,
   },
-  // Coming soon features - shown to all users
+  // Essensplan — visible only when the meal_plan.enabled setting is on
+  // (gated in filteredNavItems below).
   {
-    href: "#",
-    label: "Mittagessen",
+    href: "/meal-plan",
+    label: "Essensplan",
     icon: "M8.5 3v18M7 3v3.5M10 3v3.5M7 10h3M15.5 3v3c0 1-2 2-2 2v13",
-    alwaysShow: true,
-    comingSoon: true,
+    activeColor: "text-[#83CD2D]",
   },
   // Coming soon features - caregivers only
   {
@@ -447,6 +447,13 @@ function SidebarContent({ className = "" }: SidebarProps) {
       .flatMap((category) => category.items)
       .find((item) => item.key === "timetable.enabled")?.value === true;
 
+  const mealPlanEnabled =
+    settingsSchema?.tabs
+      .flatMap((tab) => tab.categories)
+      .flatMap((category) => category.items)
+      .find((item) => item.key === "operations.meal_plan_enabled")?.value ===
+    true;
+
   const formatGroupAttendanceCount = (groupId: string | number) => {
     if (!canShowGroupAttendanceCounts) return undefined;
     const count = groupAttendanceCounts[groupId.toString()];
@@ -475,6 +482,13 @@ function SidebarContent({ className = "" }: SidebarProps) {
     if (item.href === "/timetables" && !timetableEnabled) {
       return false;
     }
+    // The meal plan page requires config:read (admin / config-managers). Gate
+    // the nav on the same permission the backend enforces — using hasPermission
+    // (not hasRole) so it stays in lockstep with the API: anyone the backend
+    // would 403 never sees the entry, and anyone with config access (incl.
+    // wildcard grants) does. Feature flag still applies.
+    if (item.href === "/meal-plan")
+      return mealPlanEnabled === true && hasPermission(session, "config:read");
     if (item.alwaysShow) return true;
     if (item.requiresAdmin && !userIsAdmin) return false;
     return true;
@@ -929,6 +943,25 @@ function SidebarContent({ className = "" }: SidebarProps) {
               </svg>
               <span>{tParentNav("messages")}</span>
               <UnreadBadge count={parentMessagesUnread} className="ml-auto" />
+            </Link>
+            <Link
+              href="/parents/meal-plan"
+              className={getLinkClasses("/parents/meal-plan")}
+            >
+              <svg
+                className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M8.5 3v18M7 3v3.5M10 3v3.5M7 10h3M15.5 3v3c0 1-2 2-2 2v13"
+                />
+              </svg>
+              <span>{tParentNav("mealPlan")}</span>
             </Link>
             <div className="mt-5">
               <p className="mb-1.5 px-3 text-[10px] font-semibold tracking-wider text-gray-400 uppercase lg:px-4 xl:px-3">

@@ -176,6 +176,7 @@ type ChildFeaturesResponse struct {
 	MasterDataEditEnabled        bool `json:"master_data_edit_enabled"`
 	MasterDataContactEditEnabled bool `json:"master_data_contact_edit_enabled"`
 	MasterDataRequestEnabled     bool `json:"master_data_request_enabled"`
+	MealPlanEnabled              bool `json:"meal_plan_enabled"`
 }
 
 // getChildFeatures returns the resolved parent-portal feature flags for the
@@ -204,7 +205,55 @@ func (rs *Resource) getChildFeatures(w http.ResponseWriter, r *http.Request) {
 		MasterDataEditEnabled:        flags.MasterDataEditEnabled,
 		MasterDataContactEditEnabled: flags.MasterDataContactEditEnabled,
 		MasterDataRequestEnabled:     flags.MasterDataRequestEnabled,
+		MealPlanEnabled:              flags.MealPlanEnabled,
 	}, "Child features retrieved")
+}
+
+// --- Meal plan (Essensplan) ---
+
+// MealPlanEntryResponse is one dish of the read-only meal plan shown to parents.
+type MealPlanEntryResponse struct {
+	Date     string  `json:"date"` // YYYY-MM-DD
+	Position int     `json:"position"`
+	Dish     string  `json:"dish"`
+	Note     *string `json:"note,omitempty"`
+}
+
+// getChildMealPlan returns the Monday-Friday meal plan for the child's school
+// for the week containing week_start. Gated by operations.meal_plan_enabled for
+// that tenant (404-like "disabled" is mapped to 403 meal_plan_disabled).
+func (rs *Resource) getChildMealPlan(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := rs.parentAccountID(w, r)
+	if !ok {
+		return
+	}
+	studentID, ok := parsePathStudentID(w, r)
+	if !ok {
+		return
+	}
+
+	weekStart, err := timezone.ParseDate(r.URL.Query().Get("week_start"))
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("week_start must be in YYYY-MM-DD format")))
+		return
+	}
+
+	rows, err := rs.ParentService.MealPlanWeek(r.Context(), accountID, studentID, weekStart)
+	if err != nil {
+		renderParentWriteError(w, r, err)
+		return
+	}
+
+	out := make([]MealPlanEntryResponse, 0, len(rows))
+	for _, entry := range rows {
+		out = append(out, MealPlanEntryResponse{
+			Date:     entry.Date.String(),
+			Position: entry.Position,
+			Dish:     entry.Dish,
+			Note:     entry.Note,
+		})
+	}
+	common.Respond(w, r, http.StatusOK, out, "Meal plan retrieved")
 }
 
 // --- shared helpers ---
@@ -265,6 +314,8 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "sick_note_disabled"))
 	case errors.Is(err, parentService.ErrNotesDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "notes_disabled"))
+	case errors.Is(err, parentService.ErrMealPlanDisabled):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "meal_plan_disabled"))
 	case errors.Is(err, parentService.ErrPickupChangeDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "pickup_change_disabled"))
 	case errors.Is(err, parentService.ErrMasterDataEditDisabled):

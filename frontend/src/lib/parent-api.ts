@@ -99,6 +99,16 @@ export interface ChildFeatures {
   readonly master_data_edit_enabled: boolean;
   readonly master_data_contact_edit_enabled: boolean;
   readonly master_data_request_enabled: boolean;
+  readonly meal_plan_enabled: boolean;
+}
+
+// One dish of the read-only meal plan (Essensplan) for a child's school.
+// Mirrors api/parent.MealPlanEntryResponse. A day can carry several dishes.
+export interface MealPlanEntry {
+  readonly date: string; // YYYY-MM-DD
+  readonly position: number;
+  readonly dish: string;
+  readonly note?: string | null;
 }
 
 // One day's pickup/arrival override. Mirrors api/parent.CareExceptionResponse.
@@ -440,6 +450,22 @@ export async function getChildFeatures(
 ): Promise<ChildFeatures> {
   return getJson<ChildFeatures>(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/features`,
+  );
+}
+
+/**
+ * Fetches the Monday-Friday meal plan for the child's school for the week
+ * containing weekStart (YYYY-MM-DD). Returns 403 (meal_plan_disabled) when the
+ * school does not run a meal plan; callers gate on meal_plan_enabled first.
+ */
+export async function getChildMealPlan(
+  studentId: string,
+  weekStart: string,
+): Promise<MealPlanEntry[]> {
+  return getJson<MealPlanEntry[]>(
+    `/api/parent/me/children/${encodeURIComponent(
+      studentId,
+    )}/meal-plan?week_start=${encodeURIComponent(weekStart)}`,
   );
 }
 

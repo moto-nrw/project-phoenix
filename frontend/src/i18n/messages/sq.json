@@ -39,6 +39,7 @@
   "parentNav": {
     "start": "Fillimi",
     "children": "Fëmijët e mi",
+    "mealPlan": "Plani i ushqimit",
     "comingSoon": "Së shpejti në portalin e prindërve",
     "calendar": "Kalendari",
     "messages": "Mesazhe",
@@ -52,6 +53,18 @@
     "role": "Prind",
     "childProfile": "Profili i fëmijës",
     "loading": "Po ngarkohet..."
+  },
+  "parentMealPlan": {
+    "title": "Plani i ushqimit",
+    "subtitle": "Çfarë shërbehet në kujdesin ditor.",
+    "thisWeek": "Këtë javë",
+    "nextWeek": "Javën tjetër",
+    "today": "Sot",
+    "noMeal": "Asnjë vakt i regjistruar",
+    "empty": "Aktualisht nuk ka plan ushqimi për shkollën tuaj.",
+    "loadError": "Plani i ushqimit nuk mund të ngarkohej.",
+    "emptyWeek": "Për këtë javë ende nuk është futur asnjë plan ushqimi.",
+    "weekHeading": "Këtë javë"
   },
   "parentDashboard": {
     "eyebrow": "Portali i prindërve",

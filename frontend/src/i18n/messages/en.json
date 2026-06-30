@@ -39,6 +39,7 @@
   "parentNav": {
     "start": "Home",
     "children": "My children",
+    "mealPlan": "Meal plan",
     "comingSoon": "Coming soon",
     "calendar": "Calendar",
     "messages": "Messages",
@@ -52,6 +53,18 @@
     "role": "Parent",
     "childProfile": "Child profile",
     "loading": "Loading..."
+  },
+  "parentMealPlan": {
+    "title": "Meal plan",
+    "subtitle": "What's being served at care.",
+    "thisWeek": "This week",
+    "nextWeek": "Next week",
+    "today": "Today",
+    "noMeal": "No meal entered",
+    "empty": "There is currently no meal plan available for your school.",
+    "loadError": "The meal plan could not be loaded.",
+    "emptyWeek": "No meal plan has been entered for this week yet.",
+    "weekHeading": "This week"
   },
   "parentDashboard": {
     "eyebrow": "Parent portal",

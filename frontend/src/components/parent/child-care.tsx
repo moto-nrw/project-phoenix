@@ -84,6 +84,7 @@ const DEFAULT_FEATURES: ChildFeatures = {
   master_data_edit_enabled: false,
   master_data_contact_edit_enabled: false,
   master_data_request_enabled: false,
+  meal_plan_enabled: false,
 };
 
 export interface ChildCare {

@@ -589,4 +589,21 @@ func init() {
 		Category:        "elternportal",
 		SortOrder:       67,
 	})
+
+	// Essensplan. Unlike the other parents-portal features this one is
+	// opt-in (default OFF): a school only sees it once it decides to maintain
+	// a meal plan. When on, staff maintain a per-day dish + optional note and
+	// parents can view the current and next week in the parents portal.
+	config.Register(config.Definition{
+		Key:             config.KeyMealPlanEnabled,
+		Label:           "Essensplan",
+		Description:     "Wenn aktiviert, kann das Team pro Tag ein Gericht mit optionalem Hinweis hinterlegen. Eltern sehen den Essensplan für die aktuelle und nächste Woche im Elternportal.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       68,
+	})
 }
