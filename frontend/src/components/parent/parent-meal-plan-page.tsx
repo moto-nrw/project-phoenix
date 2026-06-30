@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -139,26 +139,36 @@ export function ParentMealPlanPage() {
     [schools, selectedTenant],
   );
 
-  const loadWeek = useCallback(async () => {
-    if (!selectedSchool) return;
-    setLoadingWeek(true);
-    try {
-      const rows = await getChildMealPlan(selectedSchool.studentId, mondayISO);
-      setEntries(rows);
-    } catch (err) {
-      logger.error("parent_meal_plan_week_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      setEntries([]);
-    } finally {
-      setLoadingWeek(false);
-      setHasLoadedWeek(true);
-    }
-  }, [selectedSchool, mondayISO]);
-
+  // Load the selected school's week. A slower response from a previous
+  // school/week selection must never overwrite the current one, so each run
+  // captures a `cancelled` flag the cleanup flips when the inputs change.
   useEffect(() => {
-    void loadWeek();
-  }, [loadWeek]);
+    if (!selectedSchool) return;
+    let cancelled = false;
+    const { studentId } = selectedSchool;
+    setLoadingWeek(true);
+    void (async () => {
+      try {
+        const rows = await getChildMealPlan(studentId, mondayISO);
+        if (cancelled) return;
+        setEntries(rows);
+      } catch (err) {
+        if (cancelled) return;
+        logger.error("parent_meal_plan_week_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        setEntries([]);
+      } finally {
+        if (!cancelled) {
+          setLoadingWeek(false);
+          setHasLoadedWeek(true);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSchool, mondayISO]);
 
   const dishesByDate = useMemo(() => {
     const map = new Map<string, MealPlanEntry[]>();
@@ -284,7 +294,7 @@ export function ParentMealPlanPage() {
 
                 <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
                   <div className="border-b border-gray-200 px-4 py-2.5 text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                    {t("weekHeading")}
+                    {weekOffset === 0 ? t("weekHeading") : t("nextWeek")}
                   </div>
                   <div className="divide-y divide-gray-100">
                     {weekDates

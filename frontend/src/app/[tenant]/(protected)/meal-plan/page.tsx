@@ -17,6 +17,7 @@ import { Button } from "~/components/ui/button";
 import { Loading } from "~/components/ui/loading";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { useToast } from "~/contexts/ToastContext";
 import { parseISODate, toISODate, todayISO } from "~/lib/date-helpers";
 import {
@@ -110,12 +111,19 @@ export default function MealPlanPage() {
   // "No authentication token available", and never retries — leaving the page
   // permanently empty. `required` redirects an absent/expired session to login
   // instead of hanging on the loading skeleton.
-  const { status } = useSession({
+  const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
       redirect("/");
     },
   });
+
+  // The page is reachable with config:read (admin / config-managers), but
+  // writing a day requires config:update (the backend PUT/DELETE routes 403
+  // otherwise). Read-only config users get a view-only plan: no edit, copy,
+  // paste, clear, add/remove, "Vorwoche übernehmen", or save controls — so they
+  // never hit a guaranteed 403. Mirror the nav's admin-OR-permission gate.
+  const canEdit = isAdmin(session) || hasPermission(session, "config:update");
 
   // weekOffset: number of weeks from the current week (0 = this week, can go
   // negative for past weeks or beyond +1 for planning ahead).
@@ -422,18 +430,20 @@ export default function MealPlanPage() {
             )}
           </div>
 
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            onClick={requestCopyPreviousWeek}
-            disabled={loading || saving || copyingPrev}
-            isLoading={copyingPrev}
-            loadingText="Übernehmen…"
-          >
-            <Copy className="mr-2 h-4 w-4" />
-            Vorwoche übernehmen
-          </Button>
+          {canEdit && (
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={requestCopyPreviousWeek}
+              disabled={loading || saving || copyingPrev}
+              isLoading={copyingPrev}
+              loadingText="Übernehmen…"
+            >
+              <Copy className="mr-2 h-4 w-4" />
+              Vorwoche übernehmen
+            </Button>
+          )}
         </div>
       </section>
 
@@ -474,31 +484,33 @@ export default function MealPlanPage() {
                           Heute
                         </span>
                       )}
-                      <OverflowMenu
-                        ariaLabel={`Aktionen für ${weekdayLabel(date)}`}
-                        triggerClassName="!size-7"
-                        items={[
-                          {
-                            label: "Tag kopieren",
-                            icon: <Copy className="h-4 w-4" />,
-                            onClick: () => copyDay(date),
-                            disabled: !hasContent,
-                          },
-                          {
-                            label: "Einfügen",
-                            icon: <ClipboardPaste className="h-4 w-4" />,
-                            onClick: () => pasteDay(date),
-                            disabled: clipboard === null,
-                          },
-                          {
-                            label: "Tag leeren",
-                            icon: <Trash2 className="h-4 w-4" />,
-                            onClick: () => clearDay(date),
-                            destructive: true,
-                            disabled: !hasContent,
-                          },
-                        ]}
-                      />
+                      {canEdit && (
+                        <OverflowMenu
+                          ariaLabel={`Aktionen für ${weekdayLabel(date)}`}
+                          triggerClassName="!size-7"
+                          items={[
+                            {
+                              label: "Tag kopieren",
+                              icon: <Copy className="h-4 w-4" />,
+                              onClick: () => copyDay(date),
+                              disabled: !hasContent,
+                            },
+                            {
+                              label: "Einfügen",
+                              icon: <ClipboardPaste className="h-4 w-4" />,
+                              onClick: () => pasteDay(date),
+                              disabled: clipboard === null,
+                            },
+                            {
+                              label: "Tag leeren",
+                              icon: <Trash2 className="h-4 w-4" />,
+                              onClick: () => clearDay(date),
+                              destructive: true,
+                              disabled: !hasContent,
+                            },
+                          ]}
+                        />
+                      )}
                     </div>
                   </div>
 
@@ -513,6 +525,7 @@ export default function MealPlanPage() {
                           className={dishFieldClass}
                           value={row.dish}
                           placeholder="Gericht eintragen…"
+                          readOnly={!canEdit}
                           onChange={(e) =>
                             updateDish(date, idx, "dish", e.target.value)
                           }
@@ -522,33 +535,37 @@ export default function MealPlanPage() {
                           className={noteFieldClass}
                           value={row.note}
                           placeholder="Hinweis (optional)"
+                          readOnly={!canEdit}
                           onChange={(e) =>
                             updateDish(date, idx, "note", e.target.value)
                           }
                         />
-                        {(rows.length > 1 ||
-                          row.dish.trim() !== "" ||
-                          row.note.trim() !== "") && (
-                          <button
-                            type="button"
-                            aria-label="Gericht entfernen"
-                            onClick={() => requestRemove(date, idx)}
-                            className="absolute top-2 right-2 rounded p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        )}
+                        {canEdit &&
+                          (rows.length > 1 ||
+                            row.dish.trim() !== "" ||
+                            row.note.trim() !== "") && (
+                            <button
+                              type="button"
+                              aria-label="Gericht entfernen"
+                              onClick={() => requestRemove(date, idx)}
+                              className="absolute top-2 right-2 rounded p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          )}
                       </div>
                     ))}
 
-                    <button
-                      type="button"
-                      onClick={() => addRow(date)}
-                      className="flex items-center justify-center gap-1 rounded-lg border border-dashed border-gray-300 py-2 text-sm font-medium text-gray-500 transition hover:border-gray-400 hover:bg-gray-50 hover:text-gray-700"
-                    >
-                      <Plus className="h-4 w-4" />
-                      Gericht
-                    </button>
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => addRow(date)}
+                        className="flex items-center justify-center gap-1 rounded-lg border border-dashed border-gray-300 py-2 text-sm font-medium text-gray-500 transition hover:border-gray-400 hover:bg-gray-50 hover:text-gray-700"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Gericht
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -558,7 +575,7 @@ export default function MealPlanPage() {
       )}
 
       {/* Sticky save bar — only while there are unsaved changes. */}
-      {isDirty && !loading && (
+      {canEdit && isDirty && !loading && (
         <div className="sticky bottom-4 z-20">
           <div className="moto-content-surface flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 shadow-lg">
             <span className="text-sm font-medium text-gray-700">
