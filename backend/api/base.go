@@ -22,6 +22,7 @@ import (
 	activitiesAPI "github.com/moto-nrw/project-phoenix/api/activities"
 	adminAPI "github.com/moto-nrw/project-phoenix/api/admin"
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
+	calendarAPI "github.com/moto-nrw/project-phoenix/api/calendar"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	databaseAPI "github.com/moto-nrw/project-phoenix/api/database"
@@ -94,6 +95,7 @@ type API struct {
 	Timetable        *timetableAPI.Resource
 	Emergency        *emergencyAPI.Resource
 	Messaging        *messagingAPI.Resource
+	Calendar         *calendarAPI.Resource
 
 	// Operator Dashboard (platform domain)
 	Operator *operatorAPI.Resource
@@ -395,6 +397,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		DB:                      db,
 	})
 	api.Messaging = messagingAPI.NewResource(api.Services.Messaging, db)
+	api.Calendar = calendarAPI.NewResource(api.Services.Calendar, db, logger.With("handler", "calendar"))
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, db)
 	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.GuardianInvitation, api.Services.Users, api.Services.Education, api.Services.UserContext, db)
 	api.Import = importAPI.NewResource(api.Services.Import, api.Services.StaffImport, api.Services.Users, db)
@@ -598,6 +601,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 		// Mount staff resources
 		r.Mount("/staff", a.Staff.Router())
 		r.Mount("/work-time-models", a.WorkTimeModels.Router())
+
+		// Mount personal calendar resources
+		r.Mount("/calendar", a.Calendar.Router())
 
 		// Mount feedback resources
 		r.Mount("/feedback", a.Feedback.Router())

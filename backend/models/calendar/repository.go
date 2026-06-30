@@ -25,6 +25,7 @@ type RecurrenceRuleRepository interface {
 
 type AppointmentRecipientRepository interface {
 	CreateMany(ctx context.Context, recipients []*AppointmentRecipient) error
+	FindByID(ctx context.Context, id int64) (*AppointmentRecipient, error)
 	ReplaceForAppointment(ctx context.Context, appointmentID int64, recipients []*AppointmentRecipient) error
 	FindByAppointmentID(ctx context.Context, appointmentID int64) ([]*AppointmentRecipient, error)
 	UpdateResponse(ctx context.Context, recipientID int64, status string) error

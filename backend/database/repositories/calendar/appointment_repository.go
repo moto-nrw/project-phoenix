@@ -223,6 +223,24 @@ func (r *AppointmentRecipientRepository) CreateMany(ctx context.Context, recipie
 	return nil
 }
 
+func (r *AppointmentRecipientRepository) FindByID(ctx context.Context, id int64) (*calModels.AppointmentRecipient, error) {
+	row := new(calModels.AppointmentRecipient)
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(row).
+		ModelTableExpr(`calendar.appointment_recipients AS "appointment_recipient"`).
+		Where(`"appointment_recipient".id = ?`, id)
+	if where, val, ok := base.TenantWhere(ctx, "appointment_recipient"); ok {
+		query = query.Where(where, val)
+	}
+	if err := query.Scan(ctx); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("find calendar recipient: %w", err)
+	}
+	return row, nil
+}
+
 func (r *AppointmentRecipientRepository) ReplaceForAppointment(ctx context.Context, appointmentID int64, recipients []*calModels.AppointmentRecipient) error {
 	deleteQuery := base.GetDB(ctx, r.db).NewDelete().
 		Model((*calModels.AppointmentRecipient)(nil)).
