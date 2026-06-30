@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { redirect } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
@@ -159,11 +159,20 @@ export default function MealPlanPage() {
 
   const weekDates = useMemo(() => workWeekDates(mondayISO), [mondayISO]);
 
+  // Latest-wins guard: every load() captures a token; a slower earlier load
+  // (e.g. a previous week on a slow connection) bails instead of overwriting
+  // the newer week's drafts/originals after it resolves. A counter rather than
+  // a per-effect cancelled flag because load() is also called by the retry
+  // button and after save, not only from the week-switch effect.
+  const loadTokenRef = useRef(0);
+
   const load = useCallback(async () => {
+    const token = ++loadTokenRef.current;
     setLoading(true);
     setLoadError(false);
     try {
       const entries = await getMealPlanWeek(mondayISO);
+      if (loadTokenRef.current !== token) return;
       const built = draftsFromEntries(entries, weekDates);
       setDrafts(built);
       // Originals store only the persisted (non-empty) rows for dirty checks.
@@ -171,6 +180,7 @@ export default function MealPlanPage() {
       for (const date of weekDates) orig[date] = normalizeDay(built[date]!);
       setOriginals(orig);
     } catch (err) {
+      if (loadTokenRef.current !== token) return;
       logger.error("meal_plan_load_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
@@ -181,8 +191,11 @@ export default function MealPlanPage() {
       setLoadError(true);
       toast.error("Essensplan konnte nicht geladen werden.");
     } finally {
-      setLoading(false);
-      setHasLoaded(true);
+      // Only the most recent load owns the shared loading/loaded flags.
+      if (loadTokenRef.current === token) {
+        setLoading(false);
+        setHasLoaded(true);
+      }
     }
   }, [mondayISO, weekDates, toast]);
 
@@ -352,6 +365,11 @@ export default function MealPlanPage() {
 
   const handleSave = async () => {
     setSaving(true);
+    // Each setDay is its own backend transaction, so a mid-loop failure leaves
+    // the already-sent days committed. Track what actually persisted and fold
+    // it into originals on failure, so the dirty indicator and Verwerfen reflect
+    // what is really stored rather than the pre-save snapshot.
+    const persisted: Record<string, DishDraft[]> = {};
     try {
       for (const date of weekDates) {
         const draft = normalizeDay(drafts[date] ?? []);
@@ -364,6 +382,7 @@ export default function MealPlanPage() {
             note: d.note === "" ? null : d.note,
           })),
         );
+        persisted[date] = draft;
       }
       toast.success("Essensplan gespeichert.");
       await load();
@@ -371,6 +390,10 @@ export default function MealPlanPage() {
       logger.error("meal_plan_save_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
+      // Commit the days that did persist; the still-unsaved days stay dirty.
+      if (Object.keys(persisted).length > 0) {
+        setOriginals((prev) => ({ ...prev, ...persisted }));
+      }
       toast.error("Speichern fehlgeschlagen.");
     } finally {
       setSaving(false);
