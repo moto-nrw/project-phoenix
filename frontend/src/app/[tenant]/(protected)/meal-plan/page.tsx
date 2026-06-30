@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { redirect } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   ChevronLeft,
@@ -28,6 +27,7 @@ import {
   type MealPlanEntry,
 } from "~/lib/meal-plan-api";
 import { createLogger } from "~/lib/logger";
+import { useTenantRouter } from "~/lib/tenant-router";
 
 const logger = createLogger({ component: "MealPlanPage" });
 
@@ -105,16 +105,19 @@ function draftsFromEntries(
 
 export default function MealPlanPage() {
   const toast = useToast();
+  const router = useTenantRouter();
   // Gate the initial fetch on session readiness: sessionFetch needs the
   // client-side token, which isn't available for a tick on a hard reload /
   // direct navigation. Without this gate the one-shot load races auth, throws
   // "No authentication token available", and never retries — leaving the page
   // permanently empty. `required` redirects an absent/expired session to login
-  // instead of hanging on the loading skeleton.
+  // instead of hanging on the loading skeleton. Navigate via the tenant router
+  // rather than next/navigation's redirect(), which isn't supported from this
+  // client hook callback (it throws NEXT_REDIRECT instead of navigating).
   const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
-      redirect("/");
+      router.push("/");
     },
   });
 
