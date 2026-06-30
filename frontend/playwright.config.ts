@@ -1,5 +1,20 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const webServerEnv = {
+  API_URL: process.env.API_URL ?? "http://localhost:8080",
+  NEXT_PUBLIC_API_URL:
+    process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080",
+  NEXT_PUBLIC_OPERATOR_HOSTNAME:
+    process.env.NEXT_PUBLIC_OPERATOR_HOSTNAME ?? "operator.localhost:3000",
+  NEXT_PUBLIC_PARENTS_HOSTNAME:
+    process.env.NEXT_PUBLIC_PARENTS_HOSTNAME ?? "parents.localhost:3000",
+  TENANT_DOMAIN: process.env.TENANT_DOMAIN ?? "localhost:3000",
+};
+
+const webServerEnvPrefix = Object.entries(webServerEnv)
+  .map(([key, value]) => `${key}=${value}`)
+  .join(" ");
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
@@ -19,8 +34,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "pnpm run dev",
-    url: "http://localhost:3000",
+    command: `${webServerEnvPrefix} pnpm run dev`,
+    port: 3000,
+    timeout: 120_000,
     reuseExistingServer: !process.env.CI,
   },
 });
