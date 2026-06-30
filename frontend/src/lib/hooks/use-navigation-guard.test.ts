@@ -210,6 +210,72 @@ describe("useNavigationGuard", () => {
       goSpy.mockRestore();
     });
 
+    it("collapses the sentinel when blocking is disarmed in place", () => {
+      const goSpy = vi.spyOn(window.history, "go").mockImplementation(() => {});
+      const { rerender } = renderHook(
+        ({ block }) => useNavigationGuard(block),
+        { initialProps: { block: true } },
+      );
+
+      // Save/Discard clears the dirty state without leaving the page.
+      act(() => {
+        rerender({ block: false });
+      });
+
+      // The same-URL sentinel pushed on arm must be popped, otherwise the next
+      // Back press lands on a leftover duplicate of the current URL.
+      expect(goSpy).toHaveBeenCalledWith(-1);
+      goSpy.mockRestore();
+    });
+
+    it("does not accumulate sentinels across edit/save/edit cycles", () => {
+      const goSpy = vi.spyOn(window.history, "go").mockImplementation(() => {});
+      const pushSpy = vi.spyOn(window.history, "pushState");
+      const { rerender } = renderHook(
+        ({ block }) => useNavigationGuard(block),
+        { initialProps: { block: true } },
+      );
+
+      act(() => {
+        rerender({ block: false }); // save: pop the sentinel
+      });
+      act(() => {
+        rerender({ block: true }); // edit again: arm a fresh sentinel
+      });
+
+      // One sentinel pushed per arm (initial + re-arm), one popped on disarm —
+      // never a growing stack.
+      expect(pushSpy).toHaveBeenCalledTimes(2);
+      expect(goSpy).toHaveBeenCalledWith(-1);
+      pushSpy.mockRestore();
+      goSpy.mockRestore();
+    });
+
+    it("does not pop a sentinel after a link-click confirm navigates away", () => {
+      const goSpy = vi.spyOn(window.history, "go").mockImplementation(() => {});
+      const { result, rerender } = renderHook(
+        ({ block }) => useNavigationGuard(block),
+        { initialProps: { block: true } },
+      );
+      const anchor = mountAnchor("/database");
+
+      act(() => {
+        clickAnchor(anchor);
+      });
+      act(() => {
+        result.current.confirmNavigation();
+      });
+      // The destination page unmounts the guard; cleanup must not pop, because
+      // router.push already left a new entry on top of the sentinel.
+      act(() => {
+        rerender({ block: false });
+      });
+
+      expect(mockPush).toHaveBeenCalledWith("/database");
+      expect(goSpy).not.toHaveBeenCalled();
+      goSpy.mockRestore();
+    });
+
     it("ignores the popstate it triggers itself on confirm", () => {
       vi.spyOn(window.history, "go").mockImplementation(() => {});
       const { result } = renderHook(() => useNavigationGuard(true));

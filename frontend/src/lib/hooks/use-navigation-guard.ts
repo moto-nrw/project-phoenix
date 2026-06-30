@@ -36,6 +36,10 @@ export function useNavigationGuard(shouldBlock: boolean): NavigationGuard {
   // Set right before we programmatically traverse history on confirm, so our
   // own popstate handler ignores the resulting event instead of re-trapping.
   const bypassPopRef = useRef(false);
+  // True while our same-URL sentinel sits on top of the history stack. Cleared
+  // by confirmNavigation (which leaves the stack in a navigated state), so the
+  // effect cleanup knows whether it still has a sentinel to collapse.
+  const armedRef = useRef(false);
 
   useEffect(() => {
     if (!shouldBlock) return;
@@ -82,6 +86,7 @@ export function useNavigationGuard(shouldBlock: boolean): NavigationGuard {
 
     // Arm the Back/Forward trap: a same-URL entry on top of this page.
     window.history.pushState(null, "", window.location.href);
+    armedRef.current = true;
 
     const onPopState = () => {
       // Ignore the popstate we triggered ourselves on confirm.
@@ -108,6 +113,16 @@ export function useNavigationGuard(shouldBlock: boolean): NavigationGuard {
       window.removeEventListener("beforeunload", onBeforeUnload);
       document.removeEventListener("click", onClick, true);
       window.removeEventListener("popstate", onPopState);
+      // Disarming in place (Save/Discard cleared the dirty state, or the page
+      // unmounts) leaves our same-URL sentinel on top of the stack. Collapse it
+      // so it doesn't pile up across edit→save→edit cycles — left in place it
+      // makes the next Back press look dead and throws off the go(-2) on a
+      // later popstate confirm. confirmNavigation clears armedRef before it
+      // pushes/traverses, so we never pop an entry a navigation already owns.
+      if (armedRef.current) {
+        armedRef.current = false;
+        window.history.go(-1);
+      }
     };
   }, [shouldBlock]);
 
@@ -118,10 +133,15 @@ export function useNavigationGuard(shouldBlock: boolean): NavigationGuard {
       // We are sitting on the re-armed sentinel, so the page the user wanted
       // is two entries back (sentinel → this page → previous page). Suppress
       // the resulting popstate so the handler doesn't re-trap the traversal.
+      // go(-2) consumes the sentinel, so the cleanup must not pop it again.
+      armedRef.current = false;
       bypassPopRef.current = true;
       window.history.go(-2);
       return;
     }
+    // router.push appends a new entry above the sentinel; we no longer own the
+    // top of the stack, so disarm to keep the cleanup from popping the new page.
+    armedRef.current = false;
     setPendingHref((href) => {
       if (href) router.push(href);
       return null;
