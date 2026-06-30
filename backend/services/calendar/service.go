@@ -12,9 +12,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
+	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -33,8 +35,10 @@ var (
 
 type Service interface {
 	ListMyStaffEvents(ctx context.Context, from, to timezone.Date) ([]Event, error)
+	ListMyParentEvents(ctx context.Context, accountID int64, from, to timezone.Date) ([]Event, error)
 	CreateStaffAppointment(ctx context.Context, req CreateAppointmentRequest) (*AppointmentDetail, error)
 	RespondToStaffInvitation(ctx context.Context, recipientID int64, status string) error
+	RespondToParentInvitation(ctx context.Context, accountID, recipientID int64, status string) error
 	RecipientOptions(ctx context.Context, query string, limit int) (*RecipientOptions, error)
 }
 
@@ -49,8 +53,10 @@ type Config struct {
 	StudentRepo          userModels.StudentRepository
 	GuardianProfileRepo  userModels.GuardianProfileRepository
 	StudentGuardianRepo  userModels.StudentGuardianRepository
+	ChildRepo            parentModels.ChildRepository
 	GroupRepo            educationModels.GroupRepository
 	InstanceStaffRepo    scheduleModels.InstanceStaffRepository
+	InstanceStudentRepo  scheduleModels.InstanceStudentRepository
 	ActivityInstanceRepo scheduleModels.ActivityInstanceRepository
 	UserContext          usercontext.UserContextService
 	DB                   *bun.DB
@@ -70,6 +76,10 @@ type Event struct {
 	AppointmentID    *int64  `json:"appointment_id,omitempty"`
 	OccurrenceDate   *string `json:"occurrence_date,omitempty"`
 	TimetableID      *int64  `json:"timetable_id,omitempty"`
+	StudentID        *int64  `json:"student_id,omitempty"`
+	StudentName      *string `json:"student_name,omitempty"`
+	TenantID         *int64  `json:"tenant_id,omitempty"`
+	SchoolName       *string `json:"school_name,omitempty"`
 	Title            string  `json:"title"`
 	Description      *string `json:"description,omitempty"`
 	Location         *string `json:"location,omitempty"`
@@ -175,6 +185,58 @@ func (s *service) ListMyStaffEvents(ctx context.Context, from, to timezone.Date)
 	}
 
 	events := append(appointmentEvents, timetableEvents...)
+	sortEvents(events)
+	return events, nil
+}
+
+func (s *service) ListMyParentEvents(ctx context.Context, accountID int64, from, to timezone.Date) ([]Event, error) {
+	if accountID <= 0 {
+		return nil, fmt.Errorf("%w: account id is required", ErrForbidden)
+	}
+	if err := validateWindow(from, to); err != nil {
+		return nil, err
+	}
+
+	children, err := s.parentChildren(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	childrenByTenant := groupChildrenByTenant(children)
+	events := []Event{}
+	for tenantID, tenantChildren := range childrenByTenant {
+		tenantID := tenantID
+		tenantChildren := tenantChildren
+		if err := tenant.WithTenantTx(ctx, s.cfg.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+			guardianProfileIDs := distinctGuardianProfileIDs(tenantChildren)
+			appointments, err := s.cfg.AppointmentRepo.ListVisibleForGuardianProfiles(txCtx, guardianProfileIDs, from, to)
+			if err != nil {
+				return err
+			}
+			appointmentEvents, err := s.expandGuardianAppointmentEvents(txCtx, appointments, guardianProfileIDs, from, to)
+			if err != nil {
+				return err
+			}
+			schoolName := ""
+			if len(tenantChildren) > 0 {
+				schoolName = tenantChildren[0].SchoolName
+			}
+			for i := range appointmentEvents {
+				appointmentEvents[i].TenantID = &tenantID
+				if schoolName != "" {
+					appointmentEvents[i].SchoolName = &schoolName
+				}
+			}
+			timetableEvents, err := s.parentTimetableEvents(txCtx, tenantChildren, from, to)
+			if err != nil {
+				return err
+			}
+			events = append(events, appointmentEvents...)
+			events = append(events, timetableEvents...)
+			return nil
+		}); err != nil {
+			return nil, err
+		}
+	}
 	sortEvents(events)
 	return events, nil
 }
@@ -293,6 +355,50 @@ func (s *service) RespondToStaffInvitation(ctx context.Context, recipientID int6
 		return fmt.Errorf("%w: informational appointments cannot be answered", ErrInvalidRequest)
 	}
 	return s.cfg.RecipientRepo.UpdateResponse(ctx, recipientID, status)
+}
+
+func (s *service) RespondToParentInvitation(ctx context.Context, accountID, recipientID int64, status string) error {
+	if accountID <= 0 {
+		return fmt.Errorf("%w: account id is required", ErrForbidden)
+	}
+	if status != calModels.ResponseStatusAccepted && status != calModels.ResponseStatusDeclined {
+		return fmt.Errorf("%w: response status must be accepted or declined", ErrInvalidRequest)
+	}
+
+	children, err := s.parentChildren(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	for tenantID, tenantChildren := range groupChildrenByTenant(children) {
+		allowedProfiles := int64Set(distinctGuardianProfileIDs(tenantChildren))
+		var updated bool
+		if err := tenant.WithTenantTx(ctx, s.cfg.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+			recipient, err := s.cfg.RecipientRepo.FindByID(txCtx, recipientID)
+			if err != nil {
+				return err
+			}
+			if recipient == nil || recipient.GuardianProfileID == nil {
+				return nil
+			}
+			if _, ok := allowedProfiles[*recipient.GuardianProfileID]; !ok {
+				return nil
+			}
+			if recipient.Status == calModels.ResponseStatusInfo {
+				return fmt.Errorf("%w: informational appointments cannot be answered", ErrInvalidRequest)
+			}
+			if err := s.cfg.RecipientRepo.UpdateResponse(txCtx, recipientID, status); err != nil {
+				return err
+			}
+			updated = true
+			return nil
+		}); err != nil {
+			return err
+		}
+		if updated {
+			return nil
+		}
+	}
+	return ErrNotFound
 }
 
 func (s *service) RecipientOptions(ctx context.Context, query string, limit int) (*RecipientOptions, error) {
@@ -446,6 +552,56 @@ func (s *service) expandAppointmentEvents(ctx context.Context, appointments []*c
 	return events, nil
 }
 
+func (s *service) expandGuardianAppointmentEvents(ctx context.Context, appointments []*calModels.Appointment, guardianProfileIDs []int64, from, to timezone.Date) ([]Event, error) {
+	ids := make([]int64, 0, len(appointments))
+	for _, appointment := range appointments {
+		ids = append(ids, appointment.ID)
+	}
+	recurrences, err := s.cfg.RecurrenceRepo.FindByAppointmentIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	recurrenceByAppointment := make(map[int64]*calModels.RecurrenceRule, len(recurrences))
+	for _, recurrence := range recurrences {
+		recurrenceByAppointment[recurrence.AppointmentID] = recurrence
+	}
+	overrides, err := s.cfg.OverrideRepo.FindByAppointmentIDsInRange(ctx, ids, from, to)
+	if err != nil {
+		return nil, err
+	}
+	overrideByAppointmentDate := make(map[string]*calModels.AppointmentOccurrenceOverride, len(overrides))
+	for _, override := range overrides {
+		overrideByAppointmentDate[fmt.Sprintf("%d:%s", override.AppointmentID, override.OccurrenceDate.String())] = override
+	}
+
+	events := make([]Event, 0, len(appointments))
+	for _, appointment := range appointments {
+		recipients, err := s.cfg.RecipientRepo.FindByAppointmentID(ctx, appointment.ID)
+		if err != nil {
+			return nil, err
+		}
+		status, recipientID := guardianRecipientStatus(recipients, guardianProfileIDs)
+		recurrence := recurrenceByAppointment[appointment.ID]
+		if recurrence == nil {
+			if !dateRangesOverlap(appointment.StartDate, appointment.EndDate, from, to) {
+				continue
+			}
+			events = append(events, appointmentEvent(appointment, appointment.StartDate, status, recipientID, 0))
+			continue
+		}
+		for _, occurrence := range expandOccurrences(appointment, recurrence, from, to) {
+			override := overrideByAppointmentDate[fmt.Sprintf("%d:%s", appointment.ID, occurrence.String())]
+			if override != nil && override.Cancelled {
+				continue
+			}
+			event := appointmentEvent(appointment, occurrence, status, recipientID, 0)
+			applyOverride(&event, override)
+			events = append(events, event)
+		}
+	}
+	return events, nil
+}
+
 func (s *service) staffTimetableEvents(ctx context.Context, staffID int64, from, to timezone.Date) ([]Event, error) {
 	events := []Event{}
 	seen := make(map[int64]struct{})
@@ -468,6 +624,50 @@ func (s *service) staffTimetableEvents(ctx context.Context, staffID int64, from,
 				ID:          fmt.Sprintf("timetable:%d", instance.ID),
 				Source:      EventSourceTimetable,
 				TimetableID: &id,
+				Title:       instance.Title,
+				Description: instance.Description,
+				StartDate:   instance.Date.String(),
+				EndDate:     instance.Date.String(),
+				StartTime:   formatClock(instance.StartTime),
+				EndTime:     formatClock(instance.EndTime),
+				AllDay:      false,
+			})
+		}
+	}
+	return events, nil
+}
+
+func (s *service) parentTimetableEvents(ctx context.Context, children []*parentModels.ChildSummary, from, to timezone.Date) ([]Event, error) {
+	events := []Event{}
+	seen := make(map[string]struct{})
+	for _, child := range children {
+		rows, err := s.cfg.InstanceStudentRepo.FindByStudentAndDateRange(ctx, child.StudentID, from, to)
+		if err != nil {
+			return nil, err
+		}
+		for _, row := range rows {
+			key := fmt.Sprintf("%d:%d", child.StudentID, row.InstanceID)
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			instance, err := s.cfg.ActivityInstanceRepo.FindByID(ctx, row.InstanceID)
+			if err != nil {
+				return nil, err
+			}
+			timetableID := instance.ID
+			studentID := child.StudentID
+			tenantID := child.TenantID
+			studentName := strings.TrimSpace(child.FirstName + " " + child.LastName)
+			schoolName := child.SchoolName
+			events = append(events, Event{
+				ID:          fmt.Sprintf("timetable:%d:%d", child.StudentID, instance.ID),
+				Source:      EventSourceTimetable,
+				TimetableID: &timetableID,
+				StudentID:   &studentID,
+				StudentName: &studentName,
+				TenantID:    &tenantID,
+				SchoolName:  &schoolName,
 				Title:       instance.Title,
 				Description: instance.Description,
 				StartDate:   instance.Date.String(),
@@ -670,6 +870,65 @@ func staffRecipientStatus(recipients []*calModels.AppointmentRecipient, staffID 
 		}
 	}
 	return nil, nil
+}
+
+func guardianRecipientStatus(recipients []*calModels.AppointmentRecipient, guardianProfileIDs []int64) (*string, *int64) {
+	allowed := int64Set(guardianProfileIDs)
+	for _, recipient := range recipients {
+		if recipient.GuardianProfileID == nil {
+			continue
+		}
+		if _, ok := allowed[*recipient.GuardianProfileID]; ok {
+			status := recipient.Status
+			id := recipient.ID
+			return &status, &id
+		}
+	}
+	return nil, nil
+}
+
+func (s *service) parentChildren(ctx context.Context, accountID int64) ([]*parentModels.ChildSummary, error) {
+	var children []*parentModels.ChildSummary
+	if err := tenant.WithAdminTx(ctx, s.cfg.DB, func(adminCtx context.Context, _ bun.Tx) error {
+		rows, err := s.cfg.ChildRepo.ListByAccount(adminCtx, accountID)
+		if err != nil {
+			return err
+		}
+		children = rows
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return children, nil
+}
+
+func groupChildrenByTenant(children []*parentModels.ChildSummary) map[int64][]*parentModels.ChildSummary {
+	out := make(map[int64][]*parentModels.ChildSummary)
+	for _, child := range children {
+		out[child.TenantID] = append(out[child.TenantID], child)
+	}
+	return out
+}
+
+func distinctGuardianProfileIDs(children []*parentModels.ChildSummary) []int64 {
+	seen := map[int64]struct{}{}
+	out := []int64{}
+	for _, child := range children {
+		if _, ok := seen[child.GuardianProfileID]; ok {
+			continue
+		}
+		seen[child.GuardianProfileID] = struct{}{}
+		out = append(out, child.GuardianProfileID)
+	}
+	return out
+}
+
+func int64Set(values []int64) map[int64]struct{} {
+	out := make(map[int64]struct{}, len(values))
+	for _, value := range values {
+		out[value] = struct{}{}
+	}
+	return out
 }
 
 func expandOccurrences(appointment *calModels.Appointment, rule *calModels.RecurrenceRule, from, to timezone.Date) []timezone.Date {

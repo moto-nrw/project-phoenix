@@ -498,6 +498,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		api.Services.Schools,
 		db,
 	)
+	api.Parent.SetCalendarService(api.Services.Calendar)
 	api.Platform = platformAPI.NewResource(platformAPI.ResourceConfig{
 		AnnouncementsService: api.Services.Announcement,
 		TokenAuth:            nil, // Uses tenant auth middleware
