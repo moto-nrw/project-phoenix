@@ -68,6 +68,28 @@ func (rs *Resource) respondToCalendarInvitation(w http.ResponseWriter, r *http.R
 	common.Respond(w, r, http.StatusOK, map[string]string{"status": req.Status}, "Invitation response updated")
 }
 
+func (rs *Resource) calendarAppointmentOverview(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := rs.parentAccountID(w, r)
+	if !ok {
+		return
+	}
+	if rs.CalendarService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("calendar service is not configured")))
+		return
+	}
+	appointmentID, err := strconv.ParseInt(chi.URLParam(r, "appointmentId"), 10, 64)
+	if err != nil || appointmentID <= 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid appointment ID")))
+		return
+	}
+	overview, err := rs.CalendarService.GetParentAppointmentOverview(r.Context(), accountID, appointmentID)
+	if err != nil {
+		renderParentCalendarError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, overview, "Appointment overview retrieved")
+}
+
 func parseParentCalendarRange(w http.ResponseWriter, r *http.Request) (timezone.Date, timezone.Date, bool) {
 	fromRaw := r.URL.Query().Get("from")
 	toRaw := r.URL.Query().Get("to")

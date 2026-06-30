@@ -7,6 +7,7 @@ interface ApiEnvelope<T> {
 
 export type CalendarSource = "appointment" | "timetable";
 export type CalendarDeliveryMode = "rsvp_required" | "informational";
+export type CalendarOverviewVisibility = "organizer" | "staff" | "all";
 export type CalendarResponseStatus =
   | "pending"
   | "accepted"
@@ -16,7 +17,7 @@ export type CalendarResponseStatus =
 export interface CalendarEvent {
   readonly id: string;
   readonly source: CalendarSource;
-  readonly appointment_id?: string;
+  readonly appointment_id?: string | number;
   readonly occurrence_date?: string;
   readonly timetable_id?: string;
   readonly student_id?: string;
@@ -37,6 +38,7 @@ export interface CalendarEvent {
   readonly organizer_staff_id?: number;
   readonly can_respond: boolean;
   readonly can_edit: boolean;
+  readonly can_view_overview?: boolean;
 }
 
 export interface CalendarResponse {
@@ -78,8 +80,24 @@ export interface CreateCalendarAppointmentRequest {
   readonly end_time: string;
   readonly all_day: boolean;
   readonly delivery_mode: CalendarDeliveryMode;
+  readonly overview_visibility?: CalendarOverviewVisibility;
   readonly recurrence?: CalendarRecurrenceRequest;
   readonly targets: CalendarTarget[];
+}
+
+export interface CalendarAttendee {
+  readonly recipient_id: number;
+  readonly recipient_type: "staff" | "guardian_profile";
+  readonly name: string;
+  readonly status: CalendarResponseStatus;
+  readonly responded_at?: string;
+}
+
+export interface CalendarAppointmentOverview {
+  readonly appointment_id: number;
+  readonly delivery_mode: CalendarDeliveryMode;
+  readonly overview_visibility: CalendarOverviewVisibility;
+  readonly attendees: CalendarAttendee[];
 }
 
 export interface CalendarRecipientOptions {
@@ -168,6 +186,18 @@ export function respondParentCalendar(
       method: "POST",
       body: JSON.stringify({ status }),
     },
+  );
+}
+
+export function getStaffAppointmentOverview(appointmentId: string | number) {
+  return fetchJSON<CalendarAppointmentOverview>(
+    `/api/calendar/appointments/${encodeURIComponent(appointmentId)}/overview`,
+  );
+}
+
+export function getParentAppointmentOverview(appointmentId: string | number) {
+  return fetchJSON<CalendarAppointmentOverview>(
+    `/api/parent/calendar/appointments/${encodeURIComponent(appointmentId)}/overview`,
   );
 }
 

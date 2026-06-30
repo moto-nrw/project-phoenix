@@ -37,6 +37,8 @@ type Service interface {
 	ListMyStaffEvents(ctx context.Context, from, to timezone.Date) ([]Event, error)
 	ListMyParentEvents(ctx context.Context, accountID int64, from, to timezone.Date) ([]Event, error)
 	CreateStaffAppointment(ctx context.Context, req CreateAppointmentRequest) (*AppointmentDetail, error)
+	GetStaffAppointmentOverview(ctx context.Context, appointmentID int64) (*AppointmentOverview, error)
+	GetParentAppointmentOverview(ctx context.Context, accountID, appointmentID int64) (*AppointmentOverview, error)
 	RespondToStaffInvitation(ctx context.Context, recipientID int64, status string) error
 	RespondToParentInvitation(ctx context.Context, accountID, recipientID int64, status string) error
 	RecipientOptions(ctx context.Context, query string, limit int) (*RecipientOptions, error)
@@ -94,6 +96,7 @@ type Event struct {
 	OrganizerStaffID *int64  `json:"organizer_staff_id,omitempty"`
 	CanRespond       bool    `json:"can_respond"`
 	CanEdit          bool    `json:"can_edit"`
+	CanViewOverview  bool    `json:"can_view_overview"`
 }
 
 type AppointmentDetail struct {
@@ -104,17 +107,33 @@ type AppointmentDetail struct {
 }
 
 type CreateAppointmentRequest struct {
-	Title        string              `json:"title"`
-	Description  *string             `json:"description,omitempty"`
-	Location     *string             `json:"location,omitempty"`
-	StartDate    timezone.Date       `json:"start_date"`
-	EndDate      timezone.Date       `json:"end_date"`
-	StartTime    time.Time           `json:"start_time"`
-	EndTime      time.Time           `json:"end_time"`
-	AllDay       bool                `json:"all_day"`
-	DeliveryMode string              `json:"delivery_mode"`
-	Recurrence   *RecurrenceRequest  `json:"recurrence,omitempty"`
-	Targets      []AppointmentTarget `json:"targets"`
+	Title              string              `json:"title"`
+	Description        *string             `json:"description,omitempty"`
+	Location           *string             `json:"location,omitempty"`
+	StartDate          timezone.Date       `json:"start_date"`
+	EndDate            timezone.Date       `json:"end_date"`
+	StartTime          time.Time           `json:"start_time"`
+	EndTime            time.Time           `json:"end_time"`
+	AllDay             bool                `json:"all_day"`
+	DeliveryMode       string              `json:"delivery_mode"`
+	OverviewVisibility string              `json:"overview_visibility"`
+	Recurrence         *RecurrenceRequest  `json:"recurrence,omitempty"`
+	Targets            []AppointmentTarget `json:"targets"`
+}
+
+type AppointmentOverview struct {
+	AppointmentID      int64                 `json:"appointment_id"`
+	DeliveryMode       string                `json:"delivery_mode"`
+	OverviewVisibility string                `json:"overview_visibility"`
+	Attendees          []AppointmentAttendee `json:"attendees"`
+}
+
+type AppointmentAttendee struct {
+	RecipientID   int64      `json:"recipient_id"`
+	RecipientType string     `json:"recipient_type"`
+	Name          string     `json:"name"`
+	Status        string     `json:"status"`
+	RespondedAt   *time.Time `json:"responded_at,omitempty"`
 }
 
 type RecurrenceRequest struct {
@@ -249,21 +268,25 @@ func (s *service) CreateStaffAppointment(ctx context.Context, req CreateAppointm
 	if req.DeliveryMode == "" {
 		req.DeliveryMode = calModels.DeliveryModeRSVPRequired
 	}
+	if req.OverviewVisibility == "" {
+		req.OverviewVisibility = calModels.OverviewVisibilityOrganizer
+	}
 	if req.EndDate.IsZero() {
 		req.EndDate = req.StartDate
 	}
 
 	appointment := &calModels.Appointment{
-		OrganizerStaffID: staff.ID,
-		Title:            req.Title,
-		Description:      req.Description,
-		Location:         req.Location,
-		StartDate:        req.StartDate,
-		EndDate:          req.EndDate,
-		StartTime:        timezone.WallClock(req.StartTime),
-		EndTime:          timezone.WallClock(req.EndTime),
-		AllDay:           req.AllDay,
-		DeliveryMode:     req.DeliveryMode,
+		OrganizerStaffID:   staff.ID,
+		Title:              req.Title,
+		Description:        req.Description,
+		Location:           req.Location,
+		StartDate:          req.StartDate,
+		EndDate:            req.EndDate,
+		StartTime:          timezone.WallClock(req.StartTime),
+		EndTime:            timezone.WallClock(req.EndTime),
+		AllDay:             req.AllDay,
+		DeliveryMode:       req.DeliveryMode,
+		OverviewVisibility: req.OverviewVisibility,
 	}
 	if err := appointment.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
@@ -333,6 +356,89 @@ func (s *service) CreateStaffAppointment(ctx context.Context, req CreateAppointm
 		Recipients:  recipients,
 		Targets:     targets,
 	}, nil
+}
+
+func (s *service) GetStaffAppointmentOverview(ctx context.Context, appointmentID int64) (*AppointmentOverview, error) {
+	if appointmentID <= 0 {
+		return nil, fmt.Errorf("%w: appointment id is required", ErrInvalidRequest)
+	}
+	staff, err := s.cfg.UserContext.GetCurrentStaff(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("%w: current staff required", ErrForbidden)
+	}
+	appointment, err := s.cfg.AppointmentRepo.FindByID(ctx, appointmentID)
+	if err != nil {
+		return nil, err
+	}
+	if appointment == nil {
+		return nil, ErrNotFound
+	}
+	recipients, err := s.cfg.RecipientRepo.FindByAppointmentID(ctx, appointment.ID)
+	if err != nil {
+		return nil, err
+	}
+	_, recipientID := staffRecipientStatus(recipients, staff.ID)
+	if appointment.OrganizerStaffID != staff.ID && recipientID == nil {
+		return nil, ErrNotFound
+	}
+	if !canStaffViewOverview(appointment, staff.ID, recipientID != nil) {
+		return nil, ErrForbidden
+	}
+	return s.buildAppointmentOverview(ctx, appointment, recipients)
+}
+
+func (s *service) GetParentAppointmentOverview(ctx context.Context, accountID, appointmentID int64) (*AppointmentOverview, error) {
+	if accountID <= 0 {
+		return nil, fmt.Errorf("%w: account id is required", ErrForbidden)
+	}
+	if appointmentID <= 0 {
+		return nil, fmt.Errorf("%w: appointment id is required", ErrInvalidRequest)
+	}
+	children, err := s.parentChildren(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	childrenByTenant := groupChildrenByTenant(children)
+	var foundForbidden bool
+	for tenantID, tenantChildren := range childrenByTenant {
+		tenantID := tenantID
+		tenantChildren := tenantChildren
+		var overview *AppointmentOverview
+		err := tenant.WithTenantTx(ctx, s.cfg.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+			appointment, err := s.cfg.AppointmentRepo.FindByID(txCtx, appointmentID)
+			if err != nil {
+				return err
+			}
+			if appointment == nil {
+				return nil
+			}
+			recipients, err := s.cfg.RecipientRepo.FindByAppointmentID(txCtx, appointment.ID)
+			if err != nil {
+				return err
+			}
+			guardianProfileIDs := distinctGuardianProfileIDs(tenantChildren)
+			_, recipientID := guardianRecipientStatus(recipients, guardianProfileIDs)
+			if recipientID == nil {
+				return nil
+			}
+			if !canParentViewOverview(appointment, true) {
+				foundForbidden = true
+				return nil
+			}
+			overview, err = s.buildAppointmentOverview(txCtx, appointment, recipients)
+			return err
+		})
+		if err != nil {
+			return nil, err
+		}
+		if overview != nil {
+			return overview, nil
+		}
+	}
+	if foundForbidden {
+		return nil, ErrForbidden
+	}
+	return nil, ErrNotFound
 }
 
 func (s *service) RespondToStaffInvitation(ctx context.Context, recipientID int64, status string) error {
@@ -586,7 +692,9 @@ func (s *service) expandGuardianAppointmentEvents(ctx context.Context, appointme
 			if !dateRangesOverlap(appointment.StartDate, appointment.EndDate, from, to) {
 				continue
 			}
-			events = append(events, appointmentEvent(appointment, appointment.StartDate, status, recipientID, 0))
+			event := appointmentEvent(appointment, appointment.StartDate, status, recipientID, 0)
+			event.CanViewOverview = canParentViewOverview(appointment, recipientID != nil)
+			events = append(events, event)
 			continue
 		}
 		for _, occurrence := range expandOccurrences(appointment, recurrence, from, to) {
@@ -595,6 +703,7 @@ func (s *service) expandGuardianAppointmentEvents(ctx context.Context, appointme
 				continue
 			}
 			event := appointmentEvent(appointment, occurrence, status, recipientID, 0)
+			event.CanViewOverview = canParentViewOverview(appointment, recipientID != nil)
 			applyOverride(&event, override)
 			events = append(events, event)
 		}
@@ -804,11 +913,87 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 	return recipients, recipientStudents, targetRows, nil
 }
 
+func (s *service) buildAppointmentOverview(ctx context.Context, appointment *calModels.Appointment, recipients []*calModels.AppointmentRecipient) (*AppointmentOverview, error) {
+	staffIDs := make([]int64, 0)
+	guardianIDs := make([]int64, 0)
+	for _, recipient := range recipients {
+		if recipient.StaffID != nil {
+			staffIDs = append(staffIDs, *recipient.StaffID)
+		}
+		if recipient.GuardianProfileID != nil {
+			guardianIDs = append(guardianIDs, *recipient.GuardianProfileID)
+		}
+	}
+
+	staffByID, err := s.cfg.StaffRepo.FindWithPersonByIDs(ctx, staffIDs)
+	if err != nil {
+		return nil, err
+	}
+	guardiansByID, err := s.cfg.GuardianProfileRepo.FindByIDs(ctx, guardianIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	attendees := make([]AppointmentAttendee, 0, len(recipients))
+	for _, recipient := range recipients {
+		name := ""
+		if recipient.StaffID != nil {
+			name = staffName(staffByID[*recipient.StaffID])
+		}
+		if recipient.GuardianProfileID != nil {
+			name = guardianName(guardiansByID[*recipient.GuardianProfileID])
+		}
+		if strings.TrimSpace(name) == "" {
+			name = fmt.Sprintf("Empfänger %d", recipient.ID)
+		}
+		attendees = append(attendees, AppointmentAttendee{
+			RecipientID:   recipient.ID,
+			RecipientType: recipient.RecipientType,
+			Name:          name,
+			Status:        recipient.Status,
+			RespondedAt:   recipient.RespondedAt,
+		})
+	}
+	sort.SliceStable(attendees, func(i, j int) bool {
+		if attendees[i].RecipientType != attendees[j].RecipientType {
+			return attendees[i].RecipientType < attendees[j].RecipientType
+		}
+		return strings.ToLower(attendees[i].Name) < strings.ToLower(attendees[j].Name)
+	})
+
+	return &AppointmentOverview{
+		AppointmentID:      appointment.ID,
+		DeliveryMode:       appointment.DeliveryMode,
+		OverviewVisibility: appointment.OverviewVisibility,
+		Attendees:          attendees,
+	}, nil
+}
+
+func canStaffViewOverview(appointment *calModels.Appointment, staffID int64, isRecipient bool) bool {
+	if appointment == nil {
+		return false
+	}
+	if appointment.OrganizerStaffID == staffID {
+		return true
+	}
+	switch appointment.OverviewVisibility {
+	case calModels.OverviewVisibilityStaff, calModels.OverviewVisibilityAll:
+		return isRecipient
+	default:
+		return false
+	}
+}
+
+func canParentViewOverview(appointment *calModels.Appointment, isRecipient bool) bool {
+	return appointment != nil && isRecipient && appointment.OverviewVisibility == calModels.OverviewVisibilityAll
+}
+
 func appointmentEvent(appointment *calModels.Appointment, occurrenceDate timezone.Date, responseStatus *string, recipientID *int64, staffID int64) Event {
 	appointmentID := appointment.ID
 	deliveryMode := appointment.DeliveryMode
 	occurrence := occurrenceDate.String()
 	endDate := occurrenceDate.AddDays(appointment.StartDate.DaysUntil(appointment.EndDate))
+	isStaffRecipient := recipientID != nil
 	return Event{
 		ID:               fmt.Sprintf("appointment:%d:%s", appointment.ID, occurrence),
 		Source:           EventSourceAppointment,
@@ -828,6 +1013,7 @@ func appointmentEvent(appointment *calModels.Appointment, occurrenceDate timezon
 		OrganizerStaffID: &appointment.OrganizerStaffID,
 		CanRespond:       recipientID != nil && responseStatus != nil && *responseStatus == calModels.ResponseStatusPending,
 		CanEdit:          appointment.OrganizerStaffID == staffID,
+		CanViewOverview:  canStaffViewOverview(appointment, staffID, isStaffRecipient),
 	}
 }
 

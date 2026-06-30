@@ -42,6 +42,7 @@ func (rs *Resource) Router() chi.Router {
 		own := authorize.RequiresPermission(permissions.CalendarOwn)
 		manage := authorize.RequiresPermission(permissions.CalendarManage)
 		r.With(own, withTx).Get("/my", rs.listMy)
+		r.With(own, withTx).Get("/appointments/{appointmentId}/overview", rs.appointmentOverview)
 		r.With(manage, withTx).Post("/appointments", rs.createAppointment)
 		r.With(own, withTx).Post("/recipients/{recipientId}/response", rs.respond)
 		r.With(manage, withTx).Get("/recipient-options", rs.recipientOptions)
@@ -50,17 +51,18 @@ func (rs *Resource) Router() chi.Router {
 }
 
 type createAppointmentRequest struct {
-	Title        string                              `json:"title"`
-	Description  *string                             `json:"description,omitempty"`
-	Location     *string                             `json:"location,omitempty"`
-	StartDate    timezone.Date                       `json:"start_date"`
-	EndDate      timezone.Date                       `json:"end_date"`
-	StartTime    string                              `json:"start_time"`
-	EndTime      string                              `json:"end_time"`
-	AllDay       bool                                `json:"all_day"`
-	DeliveryMode string                              `json:"delivery_mode"`
-	Recurrence   *calendarService.RecurrenceRequest  `json:"recurrence,omitempty"`
-	Targets      []calendarService.AppointmentTarget `json:"targets"`
+	Title              string                              `json:"title"`
+	Description        *string                             `json:"description,omitempty"`
+	Location           *string                             `json:"location,omitempty"`
+	StartDate          timezone.Date                       `json:"start_date"`
+	EndDate            timezone.Date                       `json:"end_date"`
+	StartTime          string                              `json:"start_time"`
+	EndTime            string                              `json:"end_time"`
+	AllDay             bool                                `json:"all_day"`
+	DeliveryMode       string                              `json:"delivery_mode"`
+	OverviewVisibility string                              `json:"overview_visibility"`
+	Recurrence         *calendarService.RecurrenceRequest  `json:"recurrence,omitempty"`
+	Targets            []calendarService.AppointmentTarget `json:"targets"`
 }
 
 type responseRequest struct {
@@ -101,23 +103,38 @@ func (rs *Resource) createAppointment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	detail, err := rs.service.CreateStaffAppointment(r.Context(), calendarService.CreateAppointmentRequest{
-		Title:        req.Title,
-		Description:  req.Description,
-		Location:     req.Location,
-		StartDate:    req.StartDate,
-		EndDate:      req.EndDate,
-		StartTime:    startTime,
-		EndTime:      endTime,
-		AllDay:       req.AllDay,
-		DeliveryMode: req.DeliveryMode,
-		Recurrence:   req.Recurrence,
-		Targets:      req.Targets,
+		Title:              req.Title,
+		Description:        req.Description,
+		Location:           req.Location,
+		StartDate:          req.StartDate,
+		EndDate:            req.EndDate,
+		StartTime:          startTime,
+		EndTime:            endTime,
+		AllDay:             req.AllDay,
+		DeliveryMode:       req.DeliveryMode,
+		OverviewVisibility: req.OverviewVisibility,
+		Recurrence:         req.Recurrence,
+		Targets:            req.Targets,
 	})
 	if err != nil {
 		renderCalendarError(w, r, err)
 		return
 	}
 	common.Respond(w, r, http.StatusCreated, detail, "Appointment created")
+}
+
+func (rs *Resource) appointmentOverview(w http.ResponseWriter, r *http.Request) {
+	appointmentID, err := strconv.ParseInt(chi.URLParam(r, "appointmentId"), 10, 64)
+	if err != nil || appointmentID <= 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid appointment ID")))
+		return
+	}
+	overview, err := rs.service.GetStaffAppointmentOverview(r.Context(), appointmentID)
+	if err != nil {
+		renderCalendarError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, overview, "Appointment overview retrieved")
 }
 
 func (rs *Resource) respond(w http.ResponseWriter, r *http.Request) {

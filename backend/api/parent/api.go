@@ -122,6 +122,7 @@ func (rs *Resource) Router() chi.Router {
 		// dashboard.
 		r.Get("/me/enrollments", rs.listMyEnrollments)
 		r.Get("/me/calendar", rs.listMyCalendar)
+		r.Get("/me/calendar/appointments/{appointmentId}/overview", rs.calendarAppointmentOverview)
 		r.Post("/me/calendar/recipients/{recipientId}/response", rs.respondToCalendarInvitation)
 
 		// Per-school autofill payload for the embedded enrollment

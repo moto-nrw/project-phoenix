@@ -4,17 +4,26 @@ import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { CalendarPlus, Trash2 } from "lucide-react";
 
-import { PersonalCalendar } from "~/components/calendar/personal-calendar";
+import {
+  CalendarOverviewList,
+  PersonalCalendar,
+  type CalendarViewMode,
+} from "~/components/calendar/personal-calendar";
 import { Button } from "~/components/ui/button";
+import { Checkbox } from "~/components/ui/checkbox";
 import { Input } from "~/components/ui/input";
+import { Modal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import { toISODate } from "~/lib/date-helpers";
 import {
   createStaffAppointment,
   getCalendarRecipientOptions,
+  getStaffAppointmentOverview,
   getStaffCalendar,
   respondStaffCalendar,
+  type CalendarAppointmentOverview,
   type CalendarDeliveryMode,
+  type CalendarOverviewVisibility,
   type CalendarRecipientOptions,
   type CalendarResponse,
   type CalendarTarget,
@@ -31,9 +40,12 @@ interface DraftTarget extends CalendarTarget {
 }
 
 interface Choice {
+  readonly key: string;
+  readonly type: CalendarTargetType;
   readonly id?: number;
   readonly value?: string;
   readonly label: string;
+  readonly covered?: boolean;
 }
 
 const emptyRecipientOptions: CalendarRecipientOptions = {
@@ -45,12 +57,12 @@ const emptyRecipientOptions: CalendarRecipientOptions = {
 };
 
 const targetTypeLabels: Record<CalendarTargetType, string> = {
-  staff: "Mitarbeiter",
-  guardian_profile: "Elternteil",
-  all_staff: "Alle Mitarbeiter",
-  parents_by_class: "Eltern einer Klasse",
-  parents_by_group: "Eltern einer Gruppe",
-  parents_by_student: "Eltern eines Kindes",
+  staff: "Mitarbeitende",
+  guardian_profile: "Einzelne Eltern",
+  all_staff: "Alle Mitarbeitenden",
+  parents_by_class: "Eltern nach Klasse",
+  parents_by_group: "Eltern nach Gruppe",
+  parents_by_student: "Eltern nach Kind",
 };
 
 const weekdays = [
@@ -76,56 +88,152 @@ function weekdayName(dateISO: string): string {
   return date.toLocaleDateString("en-US", { weekday: "long" }).toLowerCase();
 }
 
-function choicesForTarget(
-  type: CalendarTargetType,
-  options: CalendarRecipientOptions,
-): Choice[] {
-  switch (type) {
-    case "staff":
-      return options.staff.map((staff) => ({
-        id: staff.id,
-        label: staff.name,
-      }));
-    case "guardian_profile":
-      return options.parents.map((parent) => ({
-        id: parent.id,
-        label: parent.name,
-      }));
-    case "parents_by_group":
-      return options.groups.map((group) => ({
-        id: group.id,
-        label: group.name,
-      }));
-    case "parents_by_class":
-      return options.classes.map((schoolClass) => ({
-        value: schoolClass,
-        label: schoolClass,
-      }));
-    case "parents_by_student":
-      return options.students.map((student) => ({
-        id: student.id,
-        label: student.school_class
-          ? `${student.name} · ${student.school_class}`
-          : student.name,
-      }));
-    default:
-      return [];
+function calendarRange(referenceDate: Date, viewMode: CalendarViewMode) {
+  if (viewMode === "day") return { from: referenceDate, to: referenceDate };
+  if (viewMode === "month") {
+    const first = new Date(
+      referenceDate.getFullYear(),
+      referenceDate.getMonth(),
+      1,
+    );
+    const last = new Date(
+      referenceDate.getFullYear(),
+      referenceDate.getMonth() + 1,
+      0,
+    );
+    return { from: first, to: last };
   }
+  return getWeekRange(referenceDate);
+}
+
+function targetKey(
+  type: CalendarTargetType,
+  id?: number,
+  value?: string,
+): string {
+  if (type === "all_staff") return "all_staff";
+  return `${type}:${id ?? value ?? ""}`;
 }
 
 function serializeTarget(target: DraftTarget): CalendarTarget {
   if (target.type === "parents_by_class") {
     return { type: target.type, value: target.value };
   }
-  if (target.type === "all_staff") {
-    return { type: target.type };
-  }
+  if (target.type === "all_staff") return { type: target.type };
   return { type: target.type, id: target.id };
+}
+
+function isCoveredByAggregate(
+  choice: Choice,
+  targets: readonly DraftTarget[],
+  options: CalendarRecipientOptions,
+): boolean {
+  if (choice.type === "staff") {
+    return targets.some((target) => target.type === "all_staff");
+  }
+  if (choice.type === "parents_by_student") {
+    const student = options.students.find((item) => item.id === choice.id);
+    if (!student) return false;
+    return targets.some((target) => {
+      if (target.type === "parents_by_class") {
+        return target.value === student.school_class;
+      }
+      if (target.type === "parents_by_group") {
+        return target.id === student.group_id;
+      }
+      return false;
+    });
+  }
+  return false;
+}
+
+function buildTargetGroups(
+  options: CalendarRecipientOptions,
+  targets: readonly DraftTarget[],
+): Array<{ type: CalendarTargetType; label: string; choices: Choice[] }> {
+  const groups: Array<{
+    type: CalendarTargetType;
+    label: string;
+    choices: Choice[];
+  }> = [
+    {
+      type: "all_staff",
+      label: targetTypeLabels.all_staff,
+      choices: [
+        {
+          key: "all_staff",
+          type: "all_staff",
+          label: "Alle Mitarbeitenden",
+        },
+      ],
+    },
+    {
+      type: "staff",
+      label: targetTypeLabels.staff,
+      choices: options.staff.map((staff) => ({
+        key: targetKey("staff", staff.id),
+        type: "staff",
+        id: staff.id,
+        label: staff.name,
+      })),
+    },
+    {
+      type: "parents_by_class",
+      label: targetTypeLabels.parents_by_class,
+      choices: options.classes.map((schoolClass) => ({
+        key: targetKey("parents_by_class", undefined, schoolClass),
+        type: "parents_by_class",
+        value: schoolClass,
+        label: schoolClass,
+      })),
+    },
+    {
+      type: "parents_by_group",
+      label: targetTypeLabels.parents_by_group,
+      choices: options.groups.map((group) => ({
+        key: targetKey("parents_by_group", group.id),
+        type: "parents_by_group",
+        id: group.id,
+        label: group.name,
+      })),
+    },
+    {
+      type: "parents_by_student",
+      label: targetTypeLabels.parents_by_student,
+      choices: options.students.map((student) => ({
+        key: targetKey("parents_by_student", student.id),
+        type: "parents_by_student",
+        id: student.id,
+        label: student.school_class
+          ? `${student.name} · ${student.school_class}`
+          : student.name,
+      })),
+    },
+    {
+      type: "guardian_profile",
+      label: targetTypeLabels.guardian_profile,
+      choices: options.parents.map((parent) => ({
+        key: targetKey("guardian_profile", parent.id),
+        type: "guardian_profile",
+        id: parent.id,
+        label: parent.name,
+      })),
+    },
+  ];
+
+  return groups.map((group) => ({
+    ...group,
+    choices: group.choices.map((choice) => ({
+      ...choice,
+      covered: isCoveredByAggregate(choice, targets, options),
+    })),
+  }));
 }
 
 export default function StaffCalendarPage() {
   const toast = useToast();
-  const [weekStart, setWeekStart] = useState(startOfCurrentWeek);
+  const [referenceDate, setReferenceDate] = useState(startOfCurrentWeek);
+  const [viewMode, setViewMode] = useState<CalendarViewMode>("week");
   const [formOpen, setFormOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -137,10 +245,14 @@ export default function StaffCalendarPage() {
   const [allDay, setAllDay] = useState(false);
   const [deliveryMode, setDeliveryMode] =
     useState<CalendarDeliveryMode>("rsvp_required");
-  const [targetType, setTargetType] = useState<CalendarTargetType>("staff");
-  const [targetValue, setTargetValue] = useState("");
+  const [overviewVisibility, setOverviewVisibility] =
+    useState<CalendarOverviewVisibility>("organizer");
   const [targetSearch, setTargetSearch] = useState("");
   const [targets, setTargets] = useState<DraftTarget[]>([]);
+  const [overview, setOverview] = useState<CalendarAppointmentOverview | null>(
+    null,
+  );
+  const [overviewLoading, setOverviewLoading] = useState(false);
   const [frequency, setFrequency] = useState<RecurrenceFrequency>("none");
   const [intervalCount, setIntervalCount] = useState(1);
   const [weeklyDays, setWeeklyDays] = useState<string[]>([]);
@@ -150,8 +262,11 @@ export default function StaffCalendarPage() {
     number | null
   >(null);
 
-  const range = useMemo(() => getWeekRange(weekStart), [weekStart]);
-  const calendarKey = `staff-calendar-${toISODate(range.from)}-${toISODate(range.to)}`;
+  const range = useMemo(
+    () => calendarRange(referenceDate, viewMode),
+    [referenceDate, viewMode],
+  );
+  const calendarKey = `staff-calendar-${viewMode}-${toISODate(range.from)}-${toISODate(range.to)}`;
   const {
     data,
     error: calendarError,
@@ -167,55 +282,64 @@ export default function StaffCalendarPage() {
       () => getCalendarRecipientOptions(targetSearch),
     );
 
-  const targetChoices = useMemo(
-    () => choicesForTarget(targetType, recipientOptions),
-    [recipientOptions, targetType],
+  const targetGroups = useMemo(
+    () => buildTargetGroups(recipientOptions, targets),
+    [recipientOptions, targets],
+  );
+  const selectedKeys = useMemo(
+    () => new Set(targets.map((target) => target.key)),
+    [targets],
   );
 
-  const addTarget = () => {
-    if (targetType === "all_staff") {
-      if (targets.some((target) => target.type === "all_staff")) return;
-      setTargets((current) => [
-        ...current,
-        {
-          key: "all_staff",
-          type: "all_staff",
-          label: targetTypeLabels.all_staff,
-        },
-      ]);
+  const toggleTarget = (choice: Choice) => {
+    const selected = selectedKeys.has(choice.key);
+    if (selected) {
+      setTargets((current) =>
+        current.filter((target) => target.key !== choice.key),
+      );
       return;
     }
-
-    const selected = targetChoices.find((choice) =>
-      choice.id
-        ? String(choice.id) === targetValue
-        : choice.value === targetValue,
-    );
-    if (!selected) {
-      toast.warning("Bitte zuerst ein Ziel auswählen.");
-      return;
-    }
-
-    const key =
-      targetType === "parents_by_class"
-        ? `${targetType}:${selected.value}`
-        : `${targetType}:${selected.id}`;
-    if (targets.some((target) => target.key === key)) return;
+    if (choice.covered) return;
     setTargets((current) => [
       ...current,
       {
-        key,
-        type: targetType,
-        id: selected.id,
-        value: selected.value,
-        label: `${targetTypeLabels[targetType]}: ${selected.label}`,
+        key: choice.key,
+        type: choice.type,
+        id: choice.id,
+        value: choice.value,
+        label: `${targetTypeLabels[choice.type]}: ${choice.label}`,
       },
     ]);
-    setTargetValue("");
   };
 
   const removeTarget = (key: string) => {
     setTargets((current) => current.filter((target) => target.key !== key));
+  };
+
+  const resetForm = () => {
+    setTitle("");
+    setDescription("");
+    setLocation("");
+    setTargets([]);
+    setFrequency("none");
+    setEndsOn("");
+    setWeeklyDays([]);
+    setIntervalCount(1);
+    setOverviewVisibility("organizer");
+    setFormOpen(false);
+  };
+
+  const handleShowOverview = async (appointmentId: string | number) => {
+    setOverviewLoading(true);
+    try {
+      setOverview(await getStaffAppointmentOverview(appointmentId));
+    } catch (err) {
+      toast.error(
+        errorMessage(err, "Teilnehmerübersicht konnte nicht geladen werden."),
+      );
+    } finally {
+      setOverviewLoading(false);
+    }
   };
 
   const handleRespond = async (
@@ -245,7 +369,7 @@ export default function StaffCalendarPage() {
       return;
     }
     if (targets.length === 0) {
-      toast.warning("Bitte mindestens ein Ziel hinzufügen.");
+      toast.warning("Bitte mindestens ein Ziel auswählen.");
       return;
     }
 
@@ -276,17 +400,12 @@ export default function StaffCalendarPage() {
         end_time: allDay ? "23:59" : endTime,
         all_day: allDay,
         delivery_mode: deliveryMode,
+        overview_visibility: overviewVisibility,
         recurrence,
         targets: targets.map(serializeTarget),
       });
       toast.success("Termin wurde erstellt.");
-      setTitle("");
-      setDescription("");
-      setLocation("");
-      setTargets([]);
-      setFrequency("none");
-      setEndsOn("");
-      setFormOpen(false);
+      resetForm();
       await mutate();
     } catch (err) {
       toast.error(errorMessage(err, "Termin konnte nicht erstellt werden."));
@@ -301,7 +420,8 @@ export default function StaffCalendarPage() {
         title="Mein Kalender"
         subtitle="Deine Termine, Einladungen und zugewiesenen Betreuungsangebote."
         events={data?.events ?? []}
-        weekStart={range.from}
+        referenceDate={referenceDate}
+        viewMode={viewMode}
         loading={isLoading}
         error={
           calendarError
@@ -311,22 +431,28 @@ export default function StaffCalendarPage() {
               )
             : null
         }
-        onWeekChange={setWeekStart}
-        onCreate={() => setFormOpen((open) => !open)}
+        onDateChange={setReferenceDate}
+        onViewModeChange={setViewMode}
+        onCreate={() => setFormOpen(true)}
+        onShowOverview={handleShowOverview}
         onRespond={handleRespond}
         respondingRecipientId={respondingRecipientId}
       />
 
-      {formOpen ? (
-        <form
-          className="mt-6 space-y-5 rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
-          onSubmit={handleSubmit}
-        >
-          <div className="flex items-center gap-2 border-b border-gray-200 pb-3">
+      <Modal
+        isOpen={formOpen}
+        onClose={() => {
+          if (!submitting) setFormOpen(false);
+        }}
+        title="Termin erstellen"
+        widthClass="mx-4 w-[calc(100%-2rem)] max-w-5xl"
+      >
+        <form className="space-y-5" onSubmit={handleSubmit}>
+          <div className="flex items-center gap-2">
             <CalendarPlus className="h-5 w-5 text-gray-600" aria-hidden />
-            <h2 className="text-lg font-semibold text-gray-900">
-              Termin erstellen
-            </h2>
+            <p className="text-sm text-gray-600">
+              Lege Zeitpunkt, Antwortregel und Empfängergruppen fest.
+            </p>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
@@ -388,10 +514,12 @@ export default function StaffCalendarPage() {
             />
           </div>
 
-          <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-            <input
-              type="checkbox"
-              className="h-4 w-4 rounded border-gray-300"
+          <label
+            htmlFor="calendar-all-day"
+            className="flex items-center gap-2 text-sm font-medium text-gray-700"
+          >
+            <Checkbox
+              id="calendar-all-day"
               checked={allDay}
               onChange={(event) => setAllDay(event.target.checked)}
               disabled={submitting}
@@ -411,10 +539,10 @@ export default function StaffCalendarPage() {
             />
           </label>
 
-          <div className="grid gap-4 lg:grid-cols-[1fr_1fr_auto]">
+          <div className="grid gap-4 md:grid-cols-2">
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-gray-700">
-                Versandart
+                Antwortregel
               </span>
               <select
                 className="block h-10 w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 ring-inset focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
@@ -425,15 +553,34 @@ export default function StaffCalendarPage() {
                 disabled={submitting}
               >
                 <option value="rsvp_required">
-                  Einladung mit Zusage/Absage
+                  Antwort erforderlich: Zusage oder Absage
                 </option>
                 <option value="informational">
-                  Direkt eintragen ohne Antwort
+                  Nur informieren: ohne Rückmeldung eintragen
                 </option>
               </select>
             </label>
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-gray-700">
+                Teilnehmerübersicht
+              </span>
+              <select
+                className="block h-10 w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 ring-inset focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
+                value={overviewVisibility}
+                onChange={(event) =>
+                  setOverviewVisibility(
+                    event.target.value as CalendarOverviewVisibility,
+                  )
+                }
+                disabled={submitting}
+              >
+                <option value="organizer">Nur ich</option>
+                <option value="staff">Mitarbeitende mit Termin</option>
+                <option value="all">Alle Eingeladenen</option>
+              </select>
+            </label>
             <Input
-              label="Ziel suchen"
+              label="Ziele suchen"
               name="calendar-target-search"
               controlSize="compact"
               value={targetSearch}
@@ -441,69 +588,72 @@ export default function StaffCalendarPage() {
               disabled={submitting}
               placeholder="Name, Klasse oder Gruppe"
             />
-            <div className="flex items-end">
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                className="w-full"
-                onClick={addTarget}
-                disabled={submitting}
-              >
-                Ziel hinzufügen
-              </Button>
-            </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="block">
-              <span className="mb-2 block text-sm font-medium text-gray-700">
-                Zieltyp
+          <div className="rounded-lg border border-gray-200 bg-white p-3">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold text-gray-900">
+                Empfänger auswählen
+              </h3>
+              <span className="text-xs text-gray-500">
+                {targets.length} Ziel{targets.length === 1 ? "" : "e"}{" "}
+                ausgewählt
               </span>
-              <select
-                className="block h-10 w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 ring-inset focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
-                value={targetType}
-                onChange={(event) => {
-                  setTargetType(event.target.value as CalendarTargetType);
-                  setTargetValue("");
-                }}
-                disabled={submitting}
-              >
-                {Object.entries(targetTypeLabels).map(([type, label]) => (
-                  <option key={type} value={type}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            {targetType !== "all_staff" ? (
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-gray-700">
-                  Ziel
-                </span>
-                <select
-                  className="block h-10 w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 ring-inset focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
-                  value={targetValue}
-                  onChange={(event) => setTargetValue(event.target.value)}
-                  disabled={submitting || targetChoices.length === 0}
+            </div>
+            <div className="grid gap-3 lg:grid-cols-2">
+              {targetGroups.map((group) => (
+                <section
+                  key={group.type}
+                  className="rounded-lg border border-gray-200 bg-gray-50/70 p-3"
                 >
-                  <option value="">
-                    {targetChoices.length === 0
-                      ? "Keine Treffer"
-                      : "Bitte auswählen"}
-                  </option>
-                  {targetChoices.map((choice) => {
-                    const value = choice.id ? String(choice.id) : choice.value;
-                    return (
-                      <option key={value} value={value}>
-                        {choice.label}
-                      </option>
-                    );
-                  })}
-                </select>
-              </label>
-            ) : null}
+                  <h4 className="text-xs font-semibold tracking-wide text-gray-700 uppercase">
+                    {group.label}
+                  </h4>
+                  <div className="mt-2 max-h-48 space-y-1 overflow-y-auto pr-1">
+                    {group.choices.length === 0 ? (
+                      <p className="py-2 text-xs text-gray-500">
+                        Keine Treffer
+                      </p>
+                    ) : (
+                      group.choices.map((choice) => {
+                        const selected = selectedKeys.has(choice.key);
+                        const disabled =
+                          submitting || (!selected && choice.covered);
+                        const checkboxId = `calendar-target-${choice.key.replace(/[^a-z0-9_-]/gi, "-")}`;
+                        return (
+                          <label
+                            key={choice.key}
+                            htmlFor={checkboxId}
+                            className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-sm transition-colors ${
+                              selected
+                                ? "border-gray-900 bg-white text-gray-950"
+                                : choice.covered
+                                  ? "border-gray-200 bg-[#ECF7DA] text-gray-500"
+                                  : "border-transparent bg-white text-gray-700 hover:border-gray-200"
+                            } ${disabled ? "cursor-not-allowed opacity-75" : "cursor-pointer"}`}
+                          >
+                            <Checkbox
+                              id={checkboxId}
+                              checked={selected}
+                              disabled={disabled}
+                              onChange={() => toggleTarget(choice)}
+                            />
+                            <span className="min-w-0 flex-1 truncate">
+                              {choice.label}
+                            </span>
+                            {choice.covered && !selected ? (
+                              <span className="text-[11px] font-medium text-gray-500">
+                                bereits enthalten
+                              </span>
+                            ) : null}
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
+                </section>
+              ))}
+            </div>
           </div>
 
           {targets.length > 0 ? (
@@ -575,11 +725,11 @@ export default function StaffCalendarPage() {
               {weekdays.map((day) => (
                 <label
                   key={day.value}
+                  htmlFor={`calendar-weekday-${day.value}`}
                   className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-sm text-gray-700"
                 >
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-gray-300"
+                  <Checkbox
+                    id={`calendar-weekday-${day.value}`}
                     checked={weeklyDays.includes(day.value)}
                     onChange={(event) => {
                       setWeeklyDays((current) =>
@@ -616,7 +766,24 @@ export default function StaffCalendarPage() {
             </Button>
           </div>
         </form>
-      ) : null}
+      </Modal>
+
+      <Modal
+        isOpen={overview !== null || overviewLoading}
+        onClose={() => {
+          if (!overviewLoading) setOverview(null);
+        }}
+        title="Teilnehmer"
+        widthClass="mx-4 w-[calc(100%-2rem)] max-w-xl"
+      >
+        {overviewLoading ? (
+          <div className="py-8 text-center text-sm text-gray-500">
+            Teilnehmer werden geladen...
+          </div>
+        ) : overview ? (
+          <CalendarOverviewList overview={overview} />
+        ) : null}
+      </Modal>
     </main>
   );
 }

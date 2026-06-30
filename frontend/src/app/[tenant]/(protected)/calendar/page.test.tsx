@@ -126,12 +126,9 @@ describe("StaffCalendarPage", () => {
     fireEvent.change(screen.getByLabelText("Titel"), {
       target: { value: "Elterngespräch" },
     });
-    fireEvent.change(screen.getByLabelText("Ziel"), {
-      target: { value: "7" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Ziel hinzufügen" }));
+    fireEvent.click(screen.getByLabelText("Anna Mitarbeiterin"));
     expect(
-      screen.getByText("Mitarbeiter: Anna Mitarbeiterin"),
+      screen.getByText("Mitarbeitende: Anna Mitarbeiterin"),
     ).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Wiederholung"), {
@@ -171,7 +168,7 @@ describe("StaffCalendarPage", () => {
 
     expect(mockCreateStaffAppointment).not.toHaveBeenCalled();
     expect(mockToastWarning).toHaveBeenCalledWith(
-      "Bitte mindestens ein Ziel hinzufügen.",
+      "Bitte mindestens ein Ziel auswählen.",
     );
   });
 });

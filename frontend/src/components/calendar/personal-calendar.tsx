@@ -9,10 +9,15 @@ import {
   Loader2,
   MapPin,
   Plus,
+  Users,
   X,
 } from "lucide-react";
 import { Button } from "~/components/ui/button";
-import type { CalendarEvent } from "~/lib/personal-calendar-api";
+import type {
+  CalendarAppointmentOverview,
+  CalendarEvent,
+  CalendarResponseStatus,
+} from "~/lib/personal-calendar-api";
 import { toISODate } from "~/lib/date-helpers";
 import {
   formatDayHeader,
@@ -22,15 +27,22 @@ import {
 } from "~/lib/timetable-helpers";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 
+export type CalendarViewMode = "day" | "week" | "month";
+
 interface PersonalCalendarProps {
   readonly title: string;
   readonly subtitle?: string;
   readonly events: readonly CalendarEvent[];
-  readonly weekStart: Date;
+  readonly referenceDate?: Date;
+  readonly weekStart?: Date;
+  readonly viewMode?: CalendarViewMode;
   readonly loading?: boolean;
   readonly error?: string | null;
-  readonly onWeekChange: (nextWeekStart: Date) => void;
+  readonly onDateChange?: (nextDate: Date) => void;
+  readonly onWeekChange?: (nextWeekStart: Date) => void;
+  readonly onViewModeChange?: (mode: CalendarViewMode) => void;
   readonly onCreate?: () => void;
+  readonly onShowOverview?: (appointmentId: string | number) => void;
   readonly onRespond?: (
     recipientId: number,
     status: "accepted" | "declined",
@@ -61,6 +73,13 @@ const responseLabel: Record<string, string> = {
   info: "Info",
 };
 
+const responseTone: Record<CalendarResponseStatus, string> = {
+  pending: "bg-gray-100 text-gray-700",
+  accepted: "bg-[#ECF7DA] text-gray-800",
+  declined: "bg-[#FF3130]/10 text-[#CC2626]",
+  info: "bg-[#EBF0FB] text-gray-800",
+};
+
 function eventTime(event: CalendarEvent): string {
   if (event.all_day) return "Ganztägig";
   return `${event.start_time}–${event.end_time}`;
@@ -80,29 +99,114 @@ function eventsForDay(
     .sort((a, b) => eventSortValue(a).localeCompare(eventSortValue(b)));
 }
 
-function shiftWeek(weekStart: Date, offset: number): Date {
-  const next = new Date(weekStart);
+function shiftDate(
+  date: Date,
+  viewMode: CalendarViewMode,
+  offset: number,
+): Date {
+  const next = new Date(date);
+  if (viewMode === "day") {
+    next.setDate(next.getDate() + offset);
+    return next;
+  }
+  if (viewMode === "month") {
+    next.setMonth(next.getMonth() + offset, 1);
+    return next;
+  }
   next.setDate(next.getDate() + offset * 7);
   return getWeekRange(next).from;
+}
+
+function monthGridDays(referenceDate: Date): Date[] {
+  const firstOfMonth = new Date(
+    referenceDate.getFullYear(),
+    referenceDate.getMonth(),
+    1,
+  );
+  const start = getWeekRange(firstOfMonth).from;
+  const days: Date[] = [];
+  for (let index = 0; index < 42; index += 1) {
+    const day = new Date(start);
+    day.setDate(start.getDate() + index);
+    days.push(day);
+  }
+  return days;
+}
+
+function periodLabel(
+  referenceDate: Date,
+  viewMode: CalendarViewMode,
+  from: Date,
+  to: Date,
+): string {
+  if (viewMode === "day") {
+    return referenceDate.toLocaleDateString("de-DE", {
+      weekday: "long",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  }
+  if (viewMode === "month") {
+    return referenceDate.toLocaleDateString("de-DE", {
+      month: "long",
+      year: "numeric",
+    });
+  }
+  return formatWeekLabel(from, to);
+}
+
+const viewOptions = [
+  { mode: "day", label: "Tag" },
+  { mode: "week", label: "Woche" },
+  { mode: "month", label: "Monat" },
+] satisfies Array<{ mode: CalendarViewMode; label: string }>;
+
+function emptyLabel(viewMode: CalendarViewMode): string {
+  if (viewMode === "day") return "Keine Einträge an diesem Tag.";
+  if (viewMode === "month") return "Keine Einträge in diesem Monat.";
+  return "Keine Einträge in dieser Woche.";
+}
+
+function previousLabel(viewMode: CalendarViewMode): string {
+  if (viewMode === "day") return "Vorheriger Tag";
+  if (viewMode === "month") return "Vorheriger Monat";
+  return "Vorherige Woche";
+}
+
+function nextLabel(viewMode: CalendarViewMode): string {
+  if (viewMode === "day") return "Nächster Tag";
+  if (viewMode === "month") return "Nächster Monat";
+  return "Nächste Woche";
 }
 
 export function PersonalCalendar({
   title,
   subtitle,
   events,
+  referenceDate: rawReferenceDate,
   weekStart,
+  viewMode = "week",
   loading,
   error,
+  onDateChange,
   onWeekChange,
+  onViewModeChange,
   onCreate,
+  onShowOverview,
   onRespond,
   respondingRecipientId,
 }: PersonalCalendarProps) {
-  const { from, to } = getWeekRange(weekStart);
+  const referenceDate = rawReferenceDate ?? weekStart ?? new Date();
+  const handleDateChange = onDateChange ?? onWeekChange ?? (() => undefined);
+  const handleViewModeChange = onViewModeChange ?? (() => undefined);
+  const { from, to } = getWeekRange(referenceDate);
   const days = getWeekdays(from);
+  const monthDays = monthGridDays(referenceDate);
   const sortedEvents = [...events].sort((a, b) =>
     eventSortValue(a).localeCompare(eventSortValue(b)),
   );
+  const label = periodLabel(referenceDate, viewMode, from, to);
 
   return (
     <div className="space-y-4">
@@ -119,24 +223,45 @@ export function PersonalCalendar({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
+            {viewOptions.map((option) => {
+              const selected = option.mode === viewMode;
+              return (
+                <Button
+                  key={option.mode}
+                  type="button"
+                  variant={selected ? "primary" : "ghost"}
+                  size="compact"
+                  aria-pressed={selected}
+                  onClick={() => handleViewModeChange(option.mode)}
+                >
+                  {option.label}
+                </Button>
+              );
+            })}
+          </div>
+          <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              aria-label="Vorherige Woche"
-              onClick={() => onWeekChange(shiftWeek(from, -1))}
+              aria-label={previousLabel(viewMode)}
+              onClick={() =>
+                handleDateChange(shiftDate(referenceDate, viewMode, -1))
+              }
             >
               <ChevronLeft className="h-4 w-4" aria-hidden />
             </Button>
             <div className="min-w-52 px-2 text-center text-sm font-semibold text-gray-900">
-              {formatWeekLabel(from, to)}
+              {label}
             </div>
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              aria-label="Nächste Woche"
-              onClick={() => onWeekChange(shiftWeek(from, 1))}
+              aria-label={nextLabel(viewMode)}
+              onClick={() =>
+                handleDateChange(shiftDate(referenceDate, viewMode, 1))
+              }
             >
               <ChevronRight className="h-4 w-4" aria-hidden />
             </Button>
@@ -145,7 +270,7 @@ export function PersonalCalendar({
             type="button"
             variant="outline"
             size="compact"
-            onClick={() => onWeekChange(getWeekRange(new Date()).from)}
+            onClick={() => handleDateChange(new Date())}
           >
             Heute
           </Button>
@@ -170,47 +295,65 @@ export function PersonalCalendar({
             <Loader2 className="h-6 w-6 animate-spin text-gray-500" />
           </div>
         ) : null}
-        <div className="hidden overflow-hidden rounded-lg border border-gray-200 bg-white lg:grid lg:grid-cols-7">
-          {days.map((day) => {
-            const dayEvents = eventsForDay(events, day);
-            return (
-              <section
+        {viewMode === "day" ? (
+          <div className="hidden overflow-hidden rounded-lg border border-gray-200 bg-white lg:block">
+            <CalendarDayColumn
+              day={referenceDate}
+              events={eventsForDay(events, referenceDate)}
+              onShowOverview={onShowOverview}
+              onRespond={onRespond}
+              respondingRecipientId={respondingRecipientId}
+              className="min-h-96"
+            />
+          </div>
+        ) : null}
+
+        {viewMode === "week" ? (
+          <div className="hidden overflow-hidden rounded-lg border border-gray-200 bg-white lg:grid lg:grid-cols-7">
+            {days.map((day) => (
+              <CalendarDayColumn
                 key={toISODate(day)}
+                day={day}
+                events={eventsForDay(events, day)}
+                onShowOverview={onShowOverview}
+                onRespond={onRespond}
+                respondingRecipientId={respondingRecipientId}
                 className="min-h-96 border-r border-gray-200 last:border-r-0"
-              >
-                <div className="border-b border-gray-200 bg-gray-50 px-3 py-2">
-                  <div className="text-sm font-semibold text-gray-900">
-                    {formatDayHeader(day)}
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    {dayEvents.length === 1
-                      ? "1 Eintrag"
-                      : `${dayEvents.length} Einträge`}
-                  </div>
-                </div>
-                <div className="space-y-2 p-2">
-                  {dayEvents.map((event) => (
-                    <CalendarEventItem
-                      key={`${event.id}-${toISODate(day)}`}
-                      event={event}
-                      onRespond={onRespond}
-                      respondingRecipientId={respondingRecipientId}
-                    />
-                  ))}
-                </div>
-              </section>
-            );
-          })}
-        </div>
+              />
+            ))}
+          </div>
+        ) : null}
+
+        {viewMode === "month" ? (
+          <div className="hidden overflow-hidden rounded-lg border border-gray-200 bg-white lg:grid lg:grid-cols-7">
+            {monthDays.map((day) => {
+              const inMonth = day.getMonth() === referenceDate.getMonth();
+              return (
+                <CalendarDayColumn
+                  key={toISODate(day)}
+                  day={day}
+                  events={eventsForDay(events, day)}
+                  onShowOverview={onShowOverview}
+                  onRespond={onRespond}
+                  respondingRecipientId={respondingRecipientId}
+                  compact
+                  muted={!inMonth}
+                  className="min-h-44 border-r border-b border-gray-200 last:border-r-0"
+                />
+              );
+            })}
+          </div>
+        ) : null}
 
         <div className="space-y-3 lg:hidden">
           {sortedEvents.length === 0 ? (
-            <EmptyCalendarState />
+            <EmptyCalendarState viewMode={viewMode} />
           ) : (
             sortedEvents.map((event) => (
               <CalendarEventItem
                 key={event.id}
                 event={event}
+                onShowOverview={onShowOverview}
                 onRespond={onRespond}
                 respondingRecipientId={respondingRecipientId}
               />
@@ -220,7 +363,7 @@ export function PersonalCalendar({
 
         {!loading && sortedEvents.length === 0 ? (
           <div className="hidden lg:block">
-            <EmptyCalendarState />
+            <EmptyCalendarState viewMode={viewMode} />
           </div>
         ) : null}
       </div>
@@ -228,12 +371,67 @@ export function PersonalCalendar({
   );
 }
 
+function CalendarDayColumn({
+  day,
+  events,
+  onShowOverview,
+  onRespond,
+  respondingRecipientId,
+  compact = false,
+  muted = false,
+  className = "",
+}: Readonly<{
+  day: Date;
+  events: readonly CalendarEvent[];
+  onShowOverview?: (appointmentId: string | number) => void;
+  onRespond?: (recipientId: number, status: "accepted" | "declined") => void;
+  respondingRecipientId?: number | null;
+  compact?: boolean;
+  muted?: boolean;
+  className?: string;
+}>) {
+  return (
+    <section className={className}>
+      <div
+        className={`border-b border-gray-200 px-3 py-2 ${
+          muted ? "bg-gray-50/60 text-gray-400" : "bg-gray-50"
+        }`}
+      >
+        <div className="text-sm font-semibold text-gray-900">
+          {compact
+            ? day.toLocaleDateString("de-DE", {
+                weekday: "short",
+                day: "2-digit",
+              })
+            : formatDayHeader(day)}
+        </div>
+        <div className="text-xs text-gray-500">
+          {events.length === 1 ? "1 Eintrag" : `${events.length} Einträge`}
+        </div>
+      </div>
+      <div className={`space-y-2 ${compact ? "p-1.5" : "p-2"}`}>
+        {events.map((event) => (
+          <CalendarEventItem
+            key={`${event.id}-${toISODate(day)}`}
+            event={event}
+            onShowOverview={onShowOverview}
+            onRespond={onRespond}
+            respondingRecipientId={respondingRecipientId}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function CalendarEventItem({
   event,
+  onShowOverview,
   onRespond,
   respondingRecipientId,
 }: Readonly<{
   event: CalendarEvent;
+  onShowOverview?: (appointmentId: string | number) => void;
   onRespond?: (recipientId: number, status: "accepted" | "declined") => void;
   respondingRecipientId?: number | null;
 }>) {
@@ -287,26 +485,40 @@ function CalendarEventItem({
           {event.description}
         </p>
       ) : null}
+      {event.can_view_overview && event.appointment_id && onShowOverview ? (
+        <Button
+          type="button"
+          size="compact"
+          variant="ghost"
+          className="mt-3 w-full bg-white/50"
+          onClick={() => onShowOverview(event.appointment_id!)}
+        >
+          <Users className="h-4 w-4" aria-hidden />
+          Teilnehmer
+        </Button>
+      ) : null}
       {event.can_respond && recipientId && onRespond ? (
-        <div className="mt-3 flex gap-2">
+        <div className="mt-3 grid gap-1.5">
           <Button
             type="button"
             size="compact"
             variant="outline"
+            className="w-full"
             disabled={responding}
             onClick={() => onRespond(recipientId, "accepted")}
           >
-            <Check className="mr-1 h-4 w-4" aria-hidden />
+            <Check className="h-4 w-4" aria-hidden />
             Zusagen
           </Button>
           <Button
             type="button"
             size="compact"
             variant="outline_danger"
+            className="w-full"
             disabled={responding}
             onClick={() => onRespond(recipientId, "declined")}
           >
-            <X className="mr-1 h-4 w-4" aria-hidden />
+            <X className="h-4 w-4" aria-hidden />
             Absagen
           </Button>
         </div>
@@ -315,10 +527,73 @@ function CalendarEventItem({
   );
 }
 
-function EmptyCalendarState() {
+export function CalendarOverviewList({
+  overview,
+}: Readonly<{ overview: CalendarAppointmentOverview }>) {
+  const accepted = overview.attendees.filter(
+    (attendee) => attendee.status === "accepted",
+  ).length;
+  const declined = overview.attendees.filter(
+    (attendee) => attendee.status === "declined",
+  ).length;
+  const pending = overview.attendees.filter(
+    (attendee) => attendee.status === "pending",
+  ).length;
+
+  return (
+    <div className="space-y-4">
+      {overview.delivery_mode === "rsvp_required" ? (
+        <div className="grid grid-cols-3 gap-2 text-center text-xs">
+          <div className="rounded-lg bg-[#ECF7DA] px-2 py-2 text-gray-800">
+            <div className="font-semibold">{accepted}</div>
+            <div>Zugesagt</div>
+          </div>
+          <div className="rounded-lg bg-[#FF3130]/10 px-2 py-2 text-[#CC2626]">
+            <div className="font-semibold">{declined}</div>
+            <div>Abgesagt</div>
+          </div>
+          <div className="rounded-lg bg-gray-100 px-2 py-2 text-gray-700">
+            <div className="font-semibold">{pending}</div>
+            <div>Offen</div>
+          </div>
+        </div>
+      ) : null}
+      <div className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
+        {overview.attendees.map((attendee) => (
+          <div
+            key={attendee.recipient_id}
+            className="flex items-center justify-between gap-3 px-3 py-2"
+          >
+            <div className="min-w-0">
+              <div className="truncate text-sm font-medium text-gray-900">
+                {attendee.name}
+              </div>
+              <div className="text-xs text-gray-500">
+                {attendee.recipient_type === "staff"
+                  ? "Mitarbeitende"
+                  : "Eltern"}
+              </div>
+            </div>
+            <span
+              className={`shrink-0 rounded-md px-2 py-1 text-xs font-semibold ${
+                responseTone[attendee.status]
+              }`}
+            >
+              {responseLabel[attendee.status] ?? attendee.status}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function EmptyCalendarState({
+  viewMode,
+}: Readonly<{ viewMode: CalendarViewMode }>) {
   return (
     <div className="rounded-lg border border-dashed border-gray-300 bg-white p-8 text-center text-sm text-gray-500">
-      Keine Einträge in dieser Woche.
+      {emptyLabel(viewMode)}
     </div>
   );
 }

@@ -42,6 +42,14 @@ func (f *fakeParentCalendarService) CreateStaffAppointment(context.Context, cale
 	return nil, nil
 }
 
+func (f *fakeParentCalendarService) GetStaffAppointmentOverview(context.Context, int64) (*calendarSvc.AppointmentOverview, error) {
+	return nil, nil
+}
+
+func (f *fakeParentCalendarService) GetParentAppointmentOverview(context.Context, int64, int64) (*calendarSvc.AppointmentOverview, error) {
+	return nil, nil
+}
+
 func (f *fakeParentCalendarService) RespondToStaffInvitation(context.Context, int64, string) error {
 	return nil
 }

@@ -14,6 +14,10 @@ const (
 	DeliveryModeRSVPRequired  = "rsvp_required"
 	DeliveryModeInformational = "informational"
 
+	OverviewVisibilityOrganizer = "organizer"
+	OverviewVisibilityStaff     = "staff"
+	OverviewVisibilityAll       = "all"
+
 	RecipientTypeStaff           = "staff"
 	RecipientTypeGuardianProfile = "guardian_profile"
 
@@ -42,17 +46,18 @@ type Appointment struct {
 	base.Model `bun:"schema:calendar,table:appointments"`
 	base.TenantModel
 
-	OrganizerStaffID int64         `bun:"organizer_staff_id,notnull" json:"organizer_staff_id"`
-	Title            string        `bun:"title,notnull" json:"title"`
-	Description      *string       `bun:"description" json:"description,omitempty"`
-	Location         *string       `bun:"location" json:"location,omitempty"`
-	StartDate        timezone.Date `bun:"start_date,notnull" json:"start_date"`
-	EndDate          timezone.Date `bun:"end_date,notnull" json:"end_date"`
-	StartTime        time.Time     `bun:"start_time,notnull" json:"start_time"`
-	EndTime          time.Time     `bun:"end_time,notnull" json:"end_time"`
-	AllDay           bool          `bun:"all_day,notnull,default:false" json:"all_day"`
-	DeliveryMode     string        `bun:"delivery_mode,notnull" json:"delivery_mode"`
-	CancelledAt      *time.Time    `bun:"cancelled_at" json:"cancelled_at,omitempty"`
+	OrganizerStaffID   int64         `bun:"organizer_staff_id,notnull" json:"organizer_staff_id"`
+	Title              string        `bun:"title,notnull" json:"title"`
+	Description        *string       `bun:"description" json:"description,omitempty"`
+	Location           *string       `bun:"location" json:"location,omitempty"`
+	StartDate          timezone.Date `bun:"start_date,notnull" json:"start_date"`
+	EndDate            timezone.Date `bun:"end_date,notnull" json:"end_date"`
+	StartTime          time.Time     `bun:"start_time,notnull" json:"start_time"`
+	EndTime            time.Time     `bun:"end_time,notnull" json:"end_time"`
+	AllDay             bool          `bun:"all_day,notnull,default:false" json:"all_day"`
+	DeliveryMode       string        `bun:"delivery_mode,notnull" json:"delivery_mode"`
+	OverviewVisibility string        `bun:"overview_visibility,notnull,default:'organizer'" json:"overview_visibility"`
+	CancelledAt        *time.Time    `bun:"cancelled_at" json:"cancelled_at,omitempty"`
 }
 
 func (a *Appointment) BeforeAppendModel(query any) error {
@@ -87,9 +92,17 @@ func (a *Appointment) Validate() error {
 	}
 	switch a.DeliveryMode {
 	case DeliveryModeRSVPRequired, DeliveryModeInformational:
-		return nil
 	default:
 		return errors.New("delivery_mode must be rsvp_required or informational")
+	}
+	if a.OverviewVisibility == "" {
+		a.OverviewVisibility = OverviewVisibilityOrganizer
+	}
+	switch a.OverviewVisibility {
+	case OverviewVisibilityOrganizer, OverviewVisibilityStaff, OverviewVisibilityAll:
+		return nil
+	default:
+		return errors.New("overview_visibility must be organizer, staff, or all")
 	}
 }
 
