@@ -264,6 +264,28 @@ export function useGlobalSSE(): SSEHookState {
       });
     }
 
+    // Reminders (issue #1457): the header bell + /reminders page are computed
+    // live from attendance, pickups and activity instances. Check-ins/outs and
+    // activity-instance lifecycle events change what's due, so revalidate the
+    // shared "reminders" cache here — the 60s poll only catches the time-based
+    // threshold crossings ("in 10 Min" → "überfällig"), not these events.
+    if (
+      pendingGroupIds.current.size > 0 ||
+      pendingStudentIds.current.size > 0 ||
+      hasPendingActivityEvent.current ||
+      hasPendingTimetableEvent.current ||
+      hasPendingDailyCheckoutDashboardEvent.current
+    ) {
+      mutate(
+        (key) => typeof key === "string" && key.includes("reminders"),
+      ).catch((err) => {
+        logger.debug("swr_revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          scope: "reminders",
+        });
+      });
+    }
+
     // Reset pending state
     pendingGroupIds.current.clear();
     pendingStudentIds.current.clear();

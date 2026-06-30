@@ -22,9 +22,10 @@ import (
 
 // Reminder event types.
 const (
-	TypePickupUpcoming = "pickup_upcoming"
-	TypePickupOverdue  = "pickup_overdue"
-	TypeActivityStart  = "activity_start"
+	TypePickupUpcoming  = "pickup_upcoming"
+	TypePickupOverdue   = "pickup_overdue"
+	TypeActivityStart   = "activity_start"
+	TypeActivityOverdue = "activity_overdue"
 )
 
 // Reminder is a single visual reminder shown to staff.
@@ -142,9 +143,10 @@ func (s *service) Compute(ctx context.Context, scope Scope) (*Result, error) {
 	pickupUpcoming, _ := s.settings.ResolveBool(ctx, configModel.KeyRemindersPickupUpcomingEnabled)
 	pickupOverdue, _ := s.settings.ResolveBool(ctx, configModel.KeyRemindersPickupOverdueEnabled)
 	activityStart, _ := s.settings.ResolveBool(ctx, configModel.KeyRemindersActivityStartEnabled)
+	activityOverdue, _ := s.settings.ResolveBool(ctx, configModel.KeyRemindersActivityOverdueEnabled)
 
 	// Default-off: nothing enabled means no work and no data exposure.
-	if !pickupUpcoming && !pickupOverdue && !activityStart {
+	if !pickupUpcoming && !pickupOverdue && !activityStart && !activityOverdue {
 		return empty, nil
 	}
 
@@ -167,9 +169,10 @@ func (s *service) Compute(ctx context.Context, scope Scope) (*Result, error) {
 		reminders = append(reminders, pickupReminders...)
 	}
 
-	if activityStart {
+	if activityStart || activityOverdue {
 		lead := s.leadMinutes(ctx, configModel.KeyRemindersActivityStartLeadMinutes)
-		activityReminders, aerr := s.activityReminders(ctx, scope, roomIDs, today, nowMin, lead)
+		overdueThreshold := s.overdueThresholdMinutes(ctx)
+		activityReminders, aerr := s.activityReminders(ctx, scope, roomIDs, today, nowMin, lead, overdueThreshold, activityStart, activityOverdue)
 		if aerr != nil {
 			return nil, aerr
 		}
@@ -287,7 +290,7 @@ func (s *service) pickupReminders(ctx context.Context, studentIDs []int64, today
 	return out, nil
 }
 
-func (s *service) activityReminders(ctx context.Context, scope Scope, roomIDs []int64, today timezone.Date, nowMin, lead int) ([]Reminder, error) {
+func (s *service) activityReminders(ctx context.Context, scope Scope, roomIDs []int64, today timezone.Date, nowMin, lead, overdueThreshold int, upcoming, overdue bool) ([]Reminder, error) {
 	if s.instance == nil {
 		return nil, nil
 	}
@@ -306,6 +309,8 @@ func (s *service) activityReminders(ctx context.Context, scope Scope, roomIDs []
 
 	out := make([]Reminder, 0)
 	for _, inst := range instances {
+		// Only planned instances are relevant: started/completed/cancelled rows
+		// are neither "starting soon" nor "not started in time".
 		if inst == nil || inst.Status != scheduleModel.InstanceStatusPlanned {
 			continue
 		}
@@ -315,10 +320,22 @@ func (s *service) activityReminders(ctx context.Context, scope Scope, roomIDs []
 			}
 		}
 		startMin := minutesOfDay(inst.StartTime)
+		endMin := minutesOfDay(inst.EndTime)
 		diff := startMin - nowMin
-		if diff >= 0 && diff <= lead {
+
+		switch {
+		case upcoming && diff >= 0 && diff <= lead:
 			out = append(out, Reminder{
 				Type:        TypeActivityStart,
+				Title:       inst.Title,
+				DueTime:     formatMinutes(startMin),
+				MinutesAway: diff,
+			})
+		// Overdue: planned, started late by at least the threshold, and the
+		// slot is not over yet (after end_time a reminder is pointless).
+		case overdue && diff < 0 && -diff >= overdueThreshold && nowMin < endMin:
+			out = append(out, Reminder{
+				Type:        TypeActivityOverdue,
 				Title:       inst.Title,
 				DueTime:     formatMinutes(startMin),
 				MinutesAway: diff,
@@ -368,6 +385,18 @@ func (s *service) studentNames(ctx context.Context, ids []int64) map[int64]stude
 func (s *service) leadMinutes(ctx context.Context, key string) int {
 	const fallback = 10
 	v, err := s.settings.ResolveInt(ctx, key)
+	if err != nil || v <= 0 {
+		return fallback
+	}
+	return v
+}
+
+// overdueThresholdMinutes is how many minutes an activity's start may be
+// exceeded before it counts as "not started in time". It reuses the timetable
+// setting that already drives the "Überfällig" badge, so both surfaces agree.
+func (s *service) overdueThresholdMinutes(ctx context.Context) int {
+	const fallback = 5
+	v, err := s.settings.ResolveInt(ctx, configModel.KeyTimetableOverdueThresholdMinutes)
 	if err != nil || v <= 0 {
 		return fallback
 	}

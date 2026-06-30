@@ -126,6 +126,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"reminders.pickup_overdue_enabled",
 		"reminders.activity_start_enabled",
 		"reminders.activity_start_lead_minutes",
+		"reminders.activity_overdue_enabled",
 	}
 
 	for _, key := range expectedKeys {

@@ -13,8 +13,9 @@ const REFRESH_INTERVAL_MS = 60 * 1000;
 
 /**
  * useReminders fetches the current visual reminders for the authenticated user.
- * The page renders the full list; the sidebar reads only the count for its
- * badge. Both share the same SWR key, so SWR dedupes to a single request.
+ * The /reminders page renders the full list; the header bell reads the count
+ * for its badge and previews the most urgent few. Both share the same SWR key,
+ * so SWR dedupes to a single request.
  */
 export function useReminders() {
   const { data, error, isLoading } = useSWRAuth<RemindersResult>(

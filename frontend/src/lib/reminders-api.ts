@@ -7,7 +7,8 @@ import { authFetch } from "./api-helpers";
 export type ReminderType =
   | "pickup_upcoming"
   | "pickup_overdue"
-  | "activity_start";
+  | "activity_start"
+  | "activity_overdue";
 
 export interface Reminder {
   type: ReminderType;

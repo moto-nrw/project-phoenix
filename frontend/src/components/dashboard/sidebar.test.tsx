@@ -776,23 +776,6 @@ describe("Sidebar", () => {
     });
   });
 
-  describe("hideForAdmin items", () => {
-    it("shows Erinnerungen for non-admin users", () => {
-      mockIsAdmin.mockReturnValue(false);
-      render(<Sidebar />);
-
-      expect(screen.getByText("Erinnerungen")).toBeInTheDocument();
-    });
-
-    it("hides Erinnerungen for admin users", () => {
-      mockIsAdmin.mockReturnValue(true);
-      mockUseSession.mockReturnValue(createMockSession(true));
-      render(<Sidebar />);
-
-      expect(screen.queryByText("Erinnerungen")).not.toBeInTheDocument();
-    });
-  });
-
   describe("groups label pluralization", () => {
     it("shows 'Meine Gruppe' for single group", () => {
       mockUseSupervision.mockReturnValue({

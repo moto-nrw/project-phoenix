@@ -521,12 +521,12 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Erinnerungen",
         icon: Clock3,
         summary:
-          "Eine Übersicht, die rein visuell an anstehende und überfällige Abholungen sowie startende Aktivitäten erinnert. Kein Ton.",
+          "Eine Übersicht, die rein visuell an Abholungen und Aktivitäten erinnert, die anstehen oder überfällig sind. Kein Ton.",
         steps: [
-          "In der Seitenleiste `Erinnerungen` öffnen.",
-          "Die Liste ist nach Art gruppiert: `Überfällige Abholung`, `Anstehende Abholung` und `AG-Beginn`.",
+          "Oben rechts auf die Glocke tippen (auf jedem Gerät sichtbar, auch am Tablet).",
+          "Die Vorschau ist nach Art gruppiert: `Überfällige Abholung`, `Überfällige Aktivität` (geplante AG nicht rechtzeitig gestartet), `Anstehende Abholung` und `Aktivitätsbeginn`.",
           "Je Eintrag stehen rechts die Uhrzeit und der Abstand (z. B. `in 10 Min` oder `8 Min überfällig`).",
-          "Die Zahl am Seitenleisten-Eintrag `Erinnerungen` zeigt jederzeit, wie viele Erinnerungen gerade offen sind.",
+          "Die rote Zahl an der Glocke zeigt jederzeit, wie viele Erinnerungen gerade offen sind. `Alle ansehen` öffnet die vollständige Liste.",
           "Als Betreuer siehst du die Kinder deiner aktuellen Aufsicht; als Admin alle anwesenden Kinder.",
         ],
         callout: {
@@ -535,7 +535,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Seite Erinnerungen mit den Abschnitten Überfällige Abholung, Anstehende Abholung und AG-Beginn, je Eintrag Name, Uhrzeit und Abstand; am Seitenleisten-Eintrag eine Zähler-Markierung.",
+          "Glocke oben rechts mit roter Zähler-Markierung; geöffnetes Vorschau-Dropdown mit den Abschnitten Überfällige Abholung, Überfällige Aktivität, Anstehende Abholung und Aktivitätsbeginn, je Eintrag Name, Uhrzeit und Abstand, plus `Alle ansehen`.",
       },
     ],
   },

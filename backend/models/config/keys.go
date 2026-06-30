@@ -272,4 +272,5 @@ const (
 	KeyRemindersPickupOverdueEnabled      = "reminders.pickup_overdue_enabled"
 	KeyRemindersActivityStartEnabled      = "reminders.activity_start_enabled"
 	KeyRemindersActivityStartLeadMinutes  = "reminders.activity_start_lead_minutes"
+	KeyRemindersActivityOverdueEnabled    = "reminders.activity_overdue_enabled"
 )

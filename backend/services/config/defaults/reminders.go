@@ -58,11 +58,11 @@ func init() {
 		SortOrder:       3,
 	})
 
-	// --- AG-Beginn / Aktivität startet ---
+	// --- Aktivitätsbeginn (jede geplante Aktivität, nicht nur AGs) ---
 
 	config.Register(config.Definition{
 		Key:             config.KeyRemindersActivityStartEnabled,
-		Label:           "AG-Beginn",
+		Label:           "Aktivitätsbeginn",
 		Description:     "Zeigt eine Erinnerung an, wenn eine geplante Aktivität bald startet.",
 		Type:            config.FieldBoolean,
 		Default:         false,
@@ -75,7 +75,7 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyRemindersActivityStartLeadMinutes,
-		Label:           "Vorlaufzeit AG-Beginn (Minuten)",
+		Label:           "Vorlaufzeit Aktivitätsbeginn (Minuten)",
 		Description:     "Wie viele Minuten vor dem Start einer Aktivität die Erinnerung erscheint.",
 		Type:            config.FieldNumber,
 		Default:         10,
@@ -90,5 +90,18 @@ func init() {
 			Condition: "eq",
 			Value:     true,
 		},
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyRemindersActivityOverdueEnabled,
+		Label:           "Überfällige Aktivität",
+		Description:     "Zeigt eine Erinnerung an, wenn eine geplante Aktivität nicht rechtzeitig gestartet wurde. Die Schwelle richtet sich nach der Überfälligkeits-Einstellung im Betreuungsplan.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "reminders",
+		Category:        "aktivitaeten",
+		SortOrder:       12,
 	})
 }

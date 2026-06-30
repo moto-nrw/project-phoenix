@@ -333,15 +333,8 @@ const additionalNavItems: AdditionalNavItem[] = [
     alwaysShow: true,
     comingSoon: true,
   },
-  // Coming soon features - caregivers only
-  {
-    href: "#",
-    label: "Erinnerungen",
-    iconKey: "bell",
-    alwaysShow: true,
-    hideForAdmin: true,
-    comingSoon: true,
-  },
+  // Reminders live in the header bell (always visible on desktop + mobile),
+  // so the bottom nav no longer carries a coming-soon "Erinnerungen" entry.
   {
     href: "#",
     label: "Berichte",
