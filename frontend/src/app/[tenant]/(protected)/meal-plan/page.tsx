@@ -18,7 +18,7 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { useToast } from "~/contexts/ToastContext";
-import { parseISODate, toISODate, todayISO } from "~/lib/date-helpers";
+import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
 import {
   getMealPlanWeek,
   mondayOf,
@@ -152,7 +152,11 @@ export default function MealPlanPage() {
   const [pendingOffset, setPendingOffset] = useState<number | null>(null);
   const [confirmCopyPrev, setConfirmCopyPrev] = useState(false);
 
-  const today = todayISO();
+  // Berlin-anchored: meal-plan rows are stored as school calendar DATEs the
+  // backend derives from timezone.TodayDate(). A browser in another timezone
+  // (or around the Berlin/local midnight boundary) would otherwise open and
+  // save the wrong school week. Matches the parent meal-plan page.
+  const today = berlinTodayISO();
 
   const mondayISO = useMemo(() => {
     const base = parseISODate(today);
