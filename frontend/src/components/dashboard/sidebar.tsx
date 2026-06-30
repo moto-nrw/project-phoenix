@@ -333,13 +333,6 @@ function getActiveEnrollmentSubPageHref(pathname: string): string | null {
 const PARENT_PREVIEW_ITEMS: readonly (NavItem & { tKey: string })[] = [
   {
     href: "#",
-    label: "Kalender",
-    tKey: "calendar",
-    icon: navigationIcons.calendar,
-    comingSoon: true,
-  },
-  {
-    href: "#",
     label: "Kontaktdaten",
     tKey: "contactData",
     icon: navigationIcons.profile,
@@ -936,6 +929,25 @@ function SidebarContent({ className = "" }: SidebarProps) {
               </svg>
               <span>{tParentNav("messages")}</span>
               <UnreadBadge count={parentMessagesUnread} className="ml-auto" />
+            </Link>
+            <Link
+              href="/parents/calendar"
+              className={getLinkClasses("/parents/calendar")}
+            >
+              <svg
+                className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d={navigationIcons.calendar}
+                />
+              </svg>
+              <span>{tParentNav("calendar")}</span>
             </Link>
             <div className="mt-5">
               <p className="mb-1.5 px-3 text-[10px] font-semibold tracking-wider text-gray-400 uppercase lg:px-4 xl:px-3">

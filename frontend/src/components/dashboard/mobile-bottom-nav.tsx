@@ -220,12 +220,11 @@ const PARENT_MAIN_ITEMS: readonly (NavItem & { tKey: string })[] = [
     alwaysShow: true,
   },
   {
-    href: "#",
+    href: "/parents/calendar",
     label: "Kalender",
     tKey: "calendar",
     iconKey: "calendar",
     alwaysShow: true,
-    comingSoon: true,
   },
 ];
 
