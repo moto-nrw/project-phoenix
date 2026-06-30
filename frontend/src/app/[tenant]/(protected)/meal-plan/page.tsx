@@ -27,6 +27,7 @@ import {
   type MealPlanEntry,
 } from "~/lib/meal-plan-api";
 import { createLogger } from "~/lib/logger";
+import { useNavigationGuard } from "~/lib/hooks/use-navigation-guard";
 import { useTenantRouter } from "~/lib/tenant-router";
 
 const logger = createLogger({ component: "MealPlanPage" });
@@ -222,16 +223,11 @@ export default function MealPlanPage() {
   );
   const isDirty = changedDays.length > 0;
 
-  // Warn before leaving the page (tab close / reload) with unsaved changes.
-  useEffect(() => {
-    if (!isDirty) return;
-    const handler = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = "";
-    };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
-  }, [isDirty]);
+  // Warn before discarding unsaved changes — both on hard unloads (tab close /
+  // reload) and on in-app navigation (clicking a sidebar/header link), which
+  // does a client-side route change that beforeunload never sees.
+  const { pendingHref, confirmNavigation, cancelNavigation } =
+    useNavigationGuard(isDirty);
 
   const updateDish = (
     date: string,
@@ -706,6 +702,21 @@ export default function MealPlanPage() {
         <p className="text-sm text-gray-600">
           Du hast Änderungen in dieser Woche, die noch nicht gespeichert sind.
           Beim Wochenwechsel gehen sie verloren.
+        </p>
+      </ConfirmationModal>
+
+      <ConfirmationModal
+        isOpen={pendingHref !== null}
+        onClose={cancelNavigation}
+        onConfirm={confirmNavigation}
+        title="Ungespeicherte Änderungen"
+        confirmText="Verwerfen & verlassen"
+        cancelText="Hierbleiben"
+        confirmButtonClass="bg-[#FF3130] hover:bg-[#e02020]"
+      >
+        <p className="text-sm text-gray-600">
+          Du hast Änderungen, die noch nicht gespeichert sind. Beim Verlassen
+          der Seite gehen sie verloren.
         </p>
       </ConfirmationModal>
 
