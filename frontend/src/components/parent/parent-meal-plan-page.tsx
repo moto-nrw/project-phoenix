@@ -5,7 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Loading } from "~/components/ui/loading";
-import { parseISODate, toISODate, todayISO } from "~/lib/date-helpers";
+import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
 import {
   getChildFeatures,
   getChildMealPlan,
@@ -26,7 +26,7 @@ interface SchoolOption {
 }
 
 function mondayISOFromOffset(weekOffset: number): string {
-  const base = parseISODate(todayISO());
+  const base = parseISODate(berlinTodayISO());
   base.setDate(base.getDate() + weekOffset * 7);
   const offset = (base.getDay() + 6) % 7; // Mon=0 .. Sun=6
   base.setDate(base.getDate() - offset);
@@ -89,7 +89,7 @@ export function ParentMealPlanPage() {
   // on screen (dimmed) instead of flashing the skeleton each time.
   const [hasLoadedWeek, setHasLoadedWeek] = useState(false);
 
-  const today = todayISO();
+  const today = berlinTodayISO();
   const mondayISO = useMemo(
     () => mondayISOFromOffset(weekOffset),
     [weekOffset],
