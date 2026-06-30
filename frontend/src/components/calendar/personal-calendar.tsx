@@ -32,10 +32,10 @@ interface PersonalCalendarProps {
   readonly onWeekChange: (nextWeekStart: Date) => void;
   readonly onCreate?: () => void;
   readonly onRespond?: (
-    recipientId: string,
+    recipientId: number,
     status: "accepted" | "declined",
   ) => void;
-  readonly respondingRecipientId?: string | null;
+  readonly respondingRecipientId?: number | null;
 }
 
 const sourceTone = {
@@ -234,8 +234,8 @@ function CalendarEventItem({
   respondingRecipientId,
 }: Readonly<{
   event: CalendarEvent;
-  onRespond?: (recipientId: string, status: "accepted" | "declined") => void;
-  respondingRecipientId?: string | null;
+  onRespond?: (recipientId: number, status: "accepted" | "declined") => void;
+  respondingRecipientId?: number | null;
 }>) {
   const tone = sourceTone[event.source];
   const recipientId = event.recipient_id;

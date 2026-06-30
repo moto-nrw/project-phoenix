@@ -33,8 +33,8 @@ export interface CalendarEvent {
   readonly all_day: boolean;
   readonly delivery_mode?: CalendarDeliveryMode;
   readonly response_status?: CalendarResponseStatus;
-  readonly recipient_id?: string;
-  readonly organizer_staff_id?: string;
+  readonly recipient_id?: number;
+  readonly organizer_staff_id?: number;
   readonly can_respond: boolean;
   readonly can_edit: boolean;
 }
@@ -55,7 +55,7 @@ export type CalendarTargetType =
 
 export interface CalendarTarget {
   readonly type: CalendarTargetType;
-  readonly id?: string;
+  readonly id?: number;
   readonly value?: string;
 }
 
@@ -146,7 +146,7 @@ export function getParentCalendar(from: Date, to: Date) {
 }
 
 export function respondStaffCalendar(
-  recipientId: string,
+  recipientId: number,
   status: "accepted" | "declined",
 ) {
   return fetchJSON(
@@ -159,7 +159,7 @@ export function respondStaffCalendar(
 }
 
 export function respondParentCalendar(
-  recipientId: string,
+  recipientId: number,
   status: "accepted" | "declined",
 ) {
   return fetchJSON(
