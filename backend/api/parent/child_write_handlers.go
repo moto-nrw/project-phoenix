@@ -316,6 +316,8 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "notes_disabled"))
 	case errors.Is(err, parentService.ErrMealPlanDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "meal_plan_disabled"))
+	case errors.Is(err, parentService.ErrMealPlanWeekOutOfRange):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "meal_plan_week_out_of_range"))
 	case errors.Is(err, parentService.ErrPickupChangeDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "pickup_change_disabled"))
 	case errors.Is(err, parentService.ErrMasterDataEditDisabled):

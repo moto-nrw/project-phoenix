@@ -51,6 +51,12 @@ var (
 	// ErrMealPlanDisabled means operations.meal_plan_enabled is off for the
 	// child's tenant, so the parents portal must hide the meal plan section.
 	ErrMealPlanDisabled = errors.New("parent: meal plan disabled for this school")
+	// ErrMealPlanWeekOutOfRange means the requested week is outside the window
+	// parents may view (the current and next work week). Staff may plan
+	// arbitrary future weeks on the staff page, but those are drafts; the
+	// parents portal only ever exposes this week and next, so a request for any
+	// other week is refused rather than leaking an unpublished menu.
+	ErrMealPlanWeekOutOfRange = errors.New("parent: meal plan week is outside the viewable range")
 	// ErrNoDates means the sick-note request carried no dates.
 	ErrNoDates = errors.New("parent: at least one date is required")
 	// ErrInvalidStatus means the absence status was neither sick nor excused.
@@ -385,6 +391,15 @@ func (s *service) MealPlanWeek(ctx context.Context, accountID, studentID int64, 
 	}
 
 	monday, friday := mealplanService.WeekRange(weekStart)
+	// Parents may only read the current and next work week. Staff can plan
+	// arbitrary future (and past) weeks on the staff page; those are drafts and
+	// must not be reachable through the parent proxy by supplying a crafted
+	// week_start. Compare on the normalized Monday so any day within an allowed
+	// week resolves the same.
+	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
+	if monday != currentMonday && monday != currentMonday.AddDays(7) {
+		return nil, ErrMealPlanWeekOutOfRange
+	}
 
 	var out []*mealplanModels.MealPlanEntry
 	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {

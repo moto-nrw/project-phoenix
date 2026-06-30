@@ -401,10 +401,17 @@ export default function MealPlanPage() {
   };
 
   const weekNumber = isoWeek(mondayISO);
-  const year = parseISODate(weekDates[0]!).getFullYear();
-  const rangeLabel = `${shortDate(weekDates[0]!)} – ${shortDate(
-    weekDates[4]!,
-  )} ${year}`;
+  // A work week can straddle New Year (e.g. 28.12.2026 – 01.01.2027). Only
+  // append a single trailing year when both endpoints share it; otherwise label
+  // each endpoint with its own year so the range is unambiguous.
+  const startYear = parseISODate(weekDates[0]!).getFullYear();
+  const endYear = parseISODate(weekDates[4]!).getFullYear();
+  const rangeLabel =
+    startYear === endYear
+      ? `${shortDate(weekDates[0]!)} – ${shortDate(weekDates[4]!)} ${startYear}`
+      : `${shortDate(weekDates[0]!)}.${startYear} – ${shortDate(
+          weekDates[4]!,
+        )}.${endYear}`;
   const isCurrentWeek = weekOffset === 0;
 
   return (
