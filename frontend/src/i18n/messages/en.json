@@ -64,7 +64,9 @@
     "empty": "There is currently no meal plan available for your school.",
     "loadError": "The meal plan could not be loaded.",
     "emptyWeek": "No meal plan has been entered for this week yet.",
-    "weekHeading": "This week"
+    "weekHeading": "This week",
+    "school": "School",
+    "week": "Week"
   },
   "parentDashboard": {
     "eyebrow": "Parent portal",

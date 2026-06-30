@@ -64,7 +64,9 @@
     "empty": "Für Ihre Schule ist derzeit kein Essensplan verfügbar.",
     "loadError": "Essensplan konnte nicht geladen werden.",
     "emptyWeek": "Für diese Woche ist noch kein Essensplan eingetragen.",
-    "weekHeading": "Diese Woche"
+    "weekHeading": "Diese Woche",
+    "school": "Schule",
+    "week": "Woche"
   },
   "parentDashboard": {
     "eyebrow": "Elternportal",

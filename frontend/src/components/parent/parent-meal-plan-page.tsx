@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
+import { CustomSelect } from "~/components/ui/custom-select";
 import { Loading } from "~/components/ui/loading";
 import { parseISODate, toISODate, todayISO } from "~/lib/date-helpers";
 import {
@@ -42,8 +43,8 @@ function workWeekDates(mondayISO: string): string[] {
 }
 
 // One dish tile as shown in the today card and the desktop grid. On the
-// highlighted "today" column the tile is white with a green ring so it pops
-// against the tinted column instead of blending into it.
+// highlighted "today" column the tile is solid white (neutral ring) so it stays
+// opaque against the faint tint instead of looking washed out.
 function DishCard({
   entry,
   highlight = false,
@@ -55,7 +56,7 @@ function DishCard({
     <div
       className={`rounded-lg px-3 py-2.5 ring-1 ${
         highlight
-          ? "bg-white shadow-sm ring-[#83CD2D]/30"
+          ? "bg-white shadow-sm ring-gray-200"
           : "bg-gray-50 ring-gray-100"
       }`}
     >
@@ -184,10 +185,6 @@ export function ParentMealPlanPage() {
   // Today only counts when it falls inside the displayed (work) week.
   const todayInWeek = weekDates.includes(today);
 
-  const weekRangeLabel = `${shortDate(weekDates[0]!)} – ${shortDate(
-    weekDates[4]!,
-  )} ${parseISODate(weekDates[0]!).getFullYear()}`;
-
   if (loadingSchools) {
     return (
       <div className="mx-auto w-full max-w-3xl">
@@ -209,49 +206,39 @@ export function ParentMealPlanPage() {
         </section>
       ) : (
         <>
-          {schools.length > 1 && (
-            <div className="flex flex-wrap gap-2">
-              {schools.map((s) => (
-                <button
-                  key={s.tenantId}
-                  type="button"
-                  onClick={() => setSelectedTenant(s.tenantId)}
-                  className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
-                    s.tenantId === selectedTenant
-                      ? "bg-gray-900 text-white"
-                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                  }`}
-                >
-                  {s.schoolName}
-                </button>
-              ))}
-            </div>
-          )}
+          <section className="moto-content-surface flex flex-col gap-4 rounded-2xl border p-4 shadow-sm sm:flex-row sm:flex-wrap sm:items-start">
+            {schools.length > 1 && (
+              <div className="flex w-full flex-col gap-1.5 sm:w-64">
+                <span className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                  {t("school")}
+                </span>
+                <CustomSelect
+                  value={selectedTenant ?? ""}
+                  options={schools.map((s) => ({
+                    value: s.tenantId,
+                    label: s.schoolName,
+                  }))}
+                  onChange={(v) => setSelectedTenant(v)}
+                  ariaLabel={t("school")}
+                />
+              </div>
+            )}
 
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="inline-flex rounded-lg bg-gray-100 p-1">
-              {(
-                [
-                  { value: 0, label: t("thisWeek") },
-                  { value: 1, label: t("nextWeek") },
-                ] as const
-              ).map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => setWeekOffset(opt.value)}
-                  className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
-                    weekOffset === opt.value
-                      ? "bg-white text-gray-900 shadow"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
+            <div className="flex w-full flex-col gap-1.5 sm:w-56">
+              <span className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                {t("week")}
+              </span>
+              <CustomSelect
+                value={String(weekOffset)}
+                options={[
+                  { value: "0", label: t("thisWeek") },
+                  { value: "1", label: t("nextWeek") },
+                ]}
+                onChange={(v) => setWeekOffset(Number(v) as 0 | 1)}
+                ariaLabel={t("week")}
+              />
             </div>
-            <span className="text-sm text-gray-500">{weekRangeLabel}</span>
-          </div>
+          </section>
 
           {loadingWeek && !hasLoadedWeek ? (
             <Loading fullPage={false} />
@@ -271,23 +258,19 @@ export function ParentMealPlanPage() {
                   (() => {
                     const dishes = dishesByDate.get(today) ?? [];
                     return (
-                      <div className="overflow-hidden rounded-2xl border border-[#83CD2D]/40 bg-[#83CD2D]/[0.04] shadow-sm">
-                        <div className="flex items-center justify-between gap-2 border-b border-[#83CD2D]/20 px-4 py-3">
+                      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+                        <div className="flex items-center justify-between gap-2 border-b border-gray-200 px-4 py-3">
                           <div className="text-sm font-semibold text-gray-900">
                             {weekdayLabel(today)}
                           </div>
-                          <span className="rounded-full bg-[#83CD2D] px-2 py-0.5 text-[11px] font-semibold text-white">
+                          <span className="rounded-full bg-[#83CD2D]/15 px-2 py-0.5 text-[11px] font-semibold text-[#5A8E1F]">
                             {t("today")}
                           </span>
                         </div>
                         <div className="flex flex-col gap-2.5 p-3">
                           {dishes.length > 0 ? (
                             dishes.map((entry) => (
-                              <DishCard
-                                key={entry.position}
-                                entry={entry}
-                                highlight
-                              />
+                              <DishCard key={entry.position} entry={entry} />
                             ))
                           ) : (
                             <p className="py-3 text-center text-sm text-gray-300">
@@ -355,20 +338,12 @@ export function ParentMealPlanPage() {
                       <div
                         key={date}
                         className={`flex flex-col ${
-                          isToday ? "bg-[#83CD2D]/[0.06]" : ""
+                          isToday ? "bg-[#83CD2D]/[0.04]" : ""
                         }`}
                       >
-                        <div
-                          className={`flex items-center justify-between gap-2 border-b px-4 py-3 ${
-                            isToday ? "border-[#83CD2D]/30" : "border-gray-200"
-                          }`}
-                        >
+                        <div className="flex items-center justify-between gap-2 border-b border-gray-200 px-4 py-3">
                           <div>
-                            <div
-                              className={`text-sm font-semibold ${
-                                isToday ? "text-[#5a9420]" : "text-gray-900"
-                              }`}
-                            >
+                            <div className="text-sm font-semibold text-gray-900">
                               {weekdayLabel(date)}
                             </div>
                             <div className="text-xs text-gray-500">
@@ -376,7 +351,7 @@ export function ParentMealPlanPage() {
                             </div>
                           </div>
                           {isToday && (
-                            <span className="rounded-full bg-[#83CD2D] px-2 py-0.5 text-[11px] font-semibold text-white">
+                            <span className="rounded-full bg-[#83CD2D]/15 px-2 py-0.5 text-[11px] font-semibold text-[#5A8E1F]">
                               {t("today")}
                             </span>
                           )}

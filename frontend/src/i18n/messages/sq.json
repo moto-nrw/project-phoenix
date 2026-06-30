@@ -64,7 +64,9 @@
     "empty": "Aktualisht nuk ka plan ushqimi për shkollën tuaj.",
     "loadError": "Plani i ushqimit nuk mund të ngarkohej.",
     "emptyWeek": "Për këtë javë ende nuk është futur asnjë plan ushqimi.",
-    "weekHeading": "Këtë javë"
+    "weekHeading": "Këtë javë",
+    "school": "Shkolla",
+    "week": "Java"
   },
   "parentDashboard": {
     "eyebrow": "Portali i prindërve",
