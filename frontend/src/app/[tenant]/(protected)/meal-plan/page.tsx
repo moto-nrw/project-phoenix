@@ -488,6 +488,7 @@ export default function MealPlanPage() {
               return (
                 <div
                   key={date}
+                  data-meal-day-column
                   className={`flex flex-col ${isToday ? "bg-[#83CD2D]/[0.04]" : ""}`}
                 >
                   <div
@@ -513,6 +514,7 @@ export default function MealPlanPage() {
                         <OverflowMenu
                           ariaLabel={`Aktionen für ${weekdayLabel(date)}`}
                           triggerClassName="!size-7"
+                          matchContainerSelector="[data-meal-day-column]"
                           items={[
                             {
                               label: "Tag kopieren",

@@ -34,6 +34,14 @@ interface OverflowMenuProps {
   readonly ariaLabel?: string;
   /** Optional class for the trigger button (size/spacing tweaks). */
   readonly triggerClassName?: string;
+  /**
+   * Optional CSS selector for an ancestor of the trigger. When set, the menu
+   * stretches to that ancestor's width and sits inside it (8px inset), instead
+   * of the default 220px popover anchored to the trigger. Use this when the
+   * trigger lives in a narrow container (e.g. a meal-plan day column) where a
+   * fixed-width popover would poke out the side and read as misaligned.
+   */
+  readonly matchContainerSelector?: string;
 }
 
 /**
@@ -48,6 +56,7 @@ export function OverflowMenu({
   items,
   ariaLabel = "Weitere Aktionen",
   triggerClassName = "",
+  matchContainerSelector,
 }: OverflowMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   // The menu renders in a portal on <body> with fixed positioning so it can
@@ -105,14 +114,31 @@ export function OverflowMenu({
     if (rect != null) {
       // 4px gap below the trigger (matches the old mt-1).
       const top = rect.bottom + 4;
-      // Default to right-anchored (menu extends LEFT from the trigger's right
-      // edge); flip to left-anchored only when the trigger sits too close to
-      // the left edge for the menu to extend leftward.
-      const style: CSSProperties =
-        rect.left >= 220
-          ? { top, right: window.innerWidth - rect.right }
-          : { top, left: rect.left };
-      setMenuStyle(style);
+      // Container-stretch mode: when an ancestor selector is given, size the
+      // menu to that ancestor (8px inset both sides) so it sits cleanly INSIDE
+      // a narrow container instead of poking out the side. The trigger only
+      // contributes the vertical position here.
+      const container = matchContainerSelector
+        ? triggerRef.current?.closest(matchContainerSelector)
+        : null;
+      if (container != null) {
+        const cr = container.getBoundingClientRect();
+        const inset = 8;
+        setMenuStyle({
+          top,
+          left: cr.left + inset,
+          width: cr.width - inset * 2,
+        });
+      } else {
+        // Default to right-anchored (menu extends LEFT from the trigger's right
+        // edge); flip to left-anchored only when the trigger sits too close to
+        // the left edge for the menu to extend leftward.
+        const style: CSSProperties =
+          rect.left >= 220
+            ? { top, right: window.innerWidth - rect.right }
+            : { top, left: rect.left };
+        setMenuStyle(style);
+      }
     }
     setIsOpen((prev) => !prev);
   };
@@ -155,8 +181,12 @@ export function OverflowMenu({
               // Surface mirrors DesktopFilters dropdown so menu / filter
               // popovers read as one component family — same border, radius,
               // and shadow elevation across the page. Fixed + portaled so it
-              // escapes any clipping `overflow-hidden` ancestor.
-              className="fixed z-50 min-w-[220px] overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg"
+              // escapes any clipping `overflow-hidden` ancestor. In
+              // container-stretch mode the width comes from `menuStyle`, so the
+              // 220px floor is dropped to let the menu match a narrow column.
+              className={`fixed z-50 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg ${
+                matchContainerSelector ? "" : "min-w-[220px]"
+              }`}
             >
               {items.map((item, index) => {
                 const colorClass = item.destructive
