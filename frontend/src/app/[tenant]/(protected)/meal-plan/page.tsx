@@ -223,6 +223,15 @@ export default function MealPlanPage() {
   );
   const isDirty = changedDays.length > 0;
 
+  // Freeze all edit controls while a save, week-load, or "Vorwoche übernehmen"
+  // is in flight. handleSave() captures the pre-click draft snapshot and load()
+  // then replaces drafts/originals from the backend; an edit made after the
+  // request started would otherwise be silently overwritten when it resolves
+  // (same for an edit made while a new week is still loading). canEdit gates
+  // *who* may edit; editingLocked gates *when*.
+  const editingLocked = saving || copyingPrev || loading;
+  const canEditNow = canEdit && !editingLocked;
+
   // Warn before discarding unsaved changes — both on hard unloads (tab close /
   // reload) and on in-app navigation (clicking a sidebar/header link), which
   // does a client-side route change that beforeunload never sees.
@@ -559,20 +568,20 @@ export default function MealPlanPage() {
                               label: "Tag kopieren",
                               icon: <Copy className="h-4 w-4" />,
                               onClick: () => copyDay(date),
-                              disabled: !hasContent,
+                              disabled: !hasContent || editingLocked,
                             },
                             {
                               label: "Einfügen",
                               icon: <ClipboardPaste className="h-4 w-4" />,
                               onClick: () => pasteDay(date),
-                              disabled: clipboard === null,
+                              disabled: clipboard === null || editingLocked,
                             },
                             {
                               label: "Tag leeren",
                               icon: <Trash2 className="h-4 w-4" />,
                               onClick: () => clearDay(date),
                               destructive: true,
-                              disabled: !hasContent,
+                              disabled: !hasContent || editingLocked,
                             },
                           ]}
                         />
@@ -591,7 +600,7 @@ export default function MealPlanPage() {
                           className={dishFieldClass}
                           value={row.dish}
                           placeholder="Gericht eintragen…"
-                          readOnly={!canEdit}
+                          readOnly={!canEditNow}
                           onChange={(e) =>
                             updateDish(date, idx, "dish", e.target.value)
                           }
@@ -601,7 +610,7 @@ export default function MealPlanPage() {
                           className={noteFieldClass}
                           value={row.note}
                           placeholder="Hinweis (optional)"
-                          readOnly={!canEdit}
+                          readOnly={!canEditNow}
                           onChange={(e) =>
                             updateDish(date, idx, "note", e.target.value)
                           }
@@ -614,7 +623,8 @@ export default function MealPlanPage() {
                               type="button"
                               aria-label="Gericht entfernen"
                               onClick={() => requestRemove(date, idx)}
-                              className="absolute top-2 right-2 rounded p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+                              disabled={editingLocked}
+                              className="absolute top-2 right-2 rounded p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-gray-400"
                             >
                               <X className="h-4 w-4" />
                             </button>
@@ -626,7 +636,8 @@ export default function MealPlanPage() {
                       <button
                         type="button"
                         onClick={() => addRow(date)}
-                        className="flex items-center justify-center gap-1 rounded-lg border border-dashed border-gray-300 py-2 text-sm font-medium text-gray-500 transition hover:border-gray-400 hover:bg-gray-50 hover:text-gray-700"
+                        disabled={editingLocked}
+                        className="flex items-center justify-center gap-1 rounded-lg border border-dashed border-gray-300 py-2 text-sm font-medium text-gray-500 transition hover:border-gray-400 hover:bg-gray-50 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-gray-300 disabled:hover:bg-transparent disabled:hover:text-gray-500"
                       >
                         <Plus className="h-4 w-4" />
                         Gericht
