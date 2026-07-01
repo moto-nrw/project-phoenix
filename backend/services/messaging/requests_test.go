@@ -4,12 +4,15 @@ import (
 	"context"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/messaging"
@@ -268,4 +271,99 @@ func TestCanonicalizeRequestPayload_KeepsMode(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, float64(2), tue["weekday"])
 	assert.Equal(t, "bus", tue["mode"], "the departure mode is preserved in the canonical payload")
+}
+
+// TestValidateRequestPayload_RejectsMidnight pins that 00:00 is rejected at
+// create time for both arrival and pickup. parseWallClock normalizes midnight to
+// the zero time.Time, which the arrival/pickup schedule validators treat as "no
+// time set" — so accepting 00:00 here would let a stored request pass validation
+// yet fail on confirm with a 500 staff could not clear.
+func TestValidateRequestPayload_RejectsMidnight(t *testing.T) {
+	cs := usersModels.ParentMessageRequestCareSchedule
+
+	require.ErrorIs(t, messaging.ValidateRequestPayload(cs,
+		map[string]any{"weekdays": []any{map[string]any{"weekday": 1, "arrival": "00:00"}}}),
+		messaging.ErrInvalidRequestPayload)
+	require.ErrorIs(t, messaging.ValidateRequestPayload(cs,
+		map[string]any{"weekdays": []any{map[string]any{"weekday": 1, "pickup": "00:00"}}}),
+		messaging.ErrInvalidRequestPayload)
+
+	// One minute past midnight is a real wall-clock time and stays accepted.
+	require.NoError(t, messaging.ValidateRequestPayload(cs,
+		map[string]any{"weekdays": []any{map[string]any{"weekday": 1, "arrival": "00:01"}}}))
+}
+
+// stubNoStaffContext models an account with no users.staff row (e.g. a wildcard
+// admin): GetCurrentStaff returns the not-linked sentinel the confirm path must
+// map to a clean 403 rather than a generic 500.
+type stubNoStaffContext struct {
+	usercontext.UserContextService
+}
+
+func (stubNoStaffContext) GetCurrentStaff(context.Context) (*usersModels.Staff, error) {
+	return nil, usercontext.ErrUserNotLinkedToStaff
+}
+
+// TestApplyCareScheduleRequest_MissingStaffProfileForbidden pins that confirming
+// a request as an account without a staff profile returns ErrForbidden (→403,
+// "staff profile required") instead of wrapping the linkage error into a 500 that
+// rolls the whole request back.
+func TestApplyCareScheduleRequest_MissingStaffProfileForbidden(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	serviceFactory, err := services.NewFactory(repositories.NewFactory(db), db, slog.Default())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	student := testpkg.CreateTestStudent(t, db, "NoStaff", "Confirm", "1a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	svc := messaging.NewTestApplyService(
+		serviceFactory.Students,
+		serviceFactory.Users,
+		serviceFactory.ArrivalSchedule,
+		serviceFactory.PickupSchedule,
+		stubNoStaffContext{},
+		db,
+	)
+
+	req := careRequest(student.ID, []any{
+		map[string]any{"weekday": 1, "arrival": "08:00"},
+	})
+	err = svc.ApplyCareSchedule(testpkg.TenantContext(1), req)
+	require.ErrorIs(t, err, messaging.ErrForbidden)
+}
+
+// TestApplyCareScheduleRequest_PreservesUnrelatedWeekday pins the concurrent-edit
+// fix: applying a request that only touches Monday must NOT delete a Tuesday
+// arrival saved through the direct schedule path. The apply now upserts only the
+// requested weekdays instead of the old delete-all + reinsert-all bulk replace,
+// which clobbered any weekday missing from its snapshot.
+func TestApplyCareScheduleRequest_PreservesUnrelatedWeekday(t *testing.T) {
+	svc, sf, db, ctx := newApplyService(t)
+	editor := testpkg.CreateTestStaff(t, db, "Direct", "Editor")
+	defer testpkg.CleanupActivityFixtures(t, db, editor.ID)
+	student := testpkg.CreateTestStudent(t, db, "Concurrent", "Edit", "1a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	// A DIRECT schedule edit (not via a request) seeds Tuesday.
+	require.NoError(t, sf.ArrivalSchedule.UpsertStudentArrivalSchedule(ctx,
+		&scheduleModels.StudentArrivalSchedule{
+			StudentID:       student.ID,
+			Weekday:         2,
+			ExpectedArrival: timezone.WallClock(time.Date(1, 1, 1, 7, 45, 0, 0, time.UTC)),
+			CreatedBy:       editor.ID,
+		}))
+
+	// Confirming a request that only touches Monday must leave Tuesday intact.
+	require.NoError(t, svc.ApplyCareSchedule(ctx, careRequest(student.ID,
+		[]any{map[string]any{"weekday": 1, "arrival": "08:15"}})))
+
+	arrivals, err := sf.ArrivalSchedule.GetStudentArrivalSchedules(ctx, student.ID)
+	require.NoError(t, err)
+	byDay := map[int]string{}
+	for _, a := range arrivals {
+		byDay[a.Weekday] = a.ExpectedArrival.Format("15:04")
+	}
+	assert.Equal(t, "07:45", byDay[2], "an unrelated direct Tuesday edit must survive a Monday request confirm")
+	assert.Equal(t, "08:15", byDay[1], "the requested Monday arrival is applied")
 }

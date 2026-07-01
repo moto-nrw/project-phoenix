@@ -227,13 +227,6 @@ export function OgsConversation({
     [studentId, applyThread],
   );
 
-  // Self-service actions (sick note, pickup change) emit a system event into
-  // this thread server-side; refetch so the new event card appears at once
-  // instead of waiting on the SSE round-trip.
-  const refreshAfterSelfService = useCallback(() => {
-    void refresh().then(nudgeUnreadBadge);
-  }, [refresh]);
-
   const withdrawRequest = useCallback(
     async (requestId: string) => {
       setSendError(null);
@@ -388,12 +381,18 @@ export function OgsConversation({
           }}
         />
       )}
+      {/* Self-service actions (sick note, pickup change) apply IMMEDIATELY and are
+          NOT chat messages — the write endpoints update status/exception rows and
+          fire only a student-updated cache SSE, they create no parent_messages
+          event. So they deliberately leave no card in this thread (the change is
+          visible in the attendance/status views, and stays editable/removable,
+          which a permanent event card could not reflect). The child-care hook
+          updates its own local state, so no conversation refetch is needed. */}
       {activeModal === "sick" && (
         <SickNoteModal
           onClose={() => setActiveModal(null)}
           onSubmit={async (dates, reason, status) => {
             await care.reportSick(dates, reason, status);
-            refreshAfterSelfService();
           }}
         />
       )}
@@ -405,11 +404,9 @@ export function OgsConversation({
           onClose={() => setActiveModal(null)}
           onSubmit={async (params) => {
             await care.saveCareException(params);
-            refreshAfterSelfService();
           }}
           onRemove={async (date) => {
             await care.removeCareException(date);
-            refreshAfterSelfService();
           }}
         />
       )}

@@ -18,6 +18,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -479,18 +480,35 @@ func applyCareScheduleRequest(ctx context.Context, s *service, request *usersMod
 	}
 
 	staff, err := s.userContext.GetCurrentStaff(ctx)
-	if err != nil || staff == nil {
+	if err != nil {
+		// An account with no staff identity — e.g. a wildcard-admin account that
+		// cleared requireStudentWrite via admin:* but has no users.staff row —
+		// cannot be stamped as the confirming staff member. That is an
+		// authorization outcome (staff profile required), not a transient failure,
+		// so surface it as ErrForbidden (→403) instead of wrapping it generic
+		// (→500, which also rolls the whole request back). Departure-mode-only
+		// requests hit this lookup too, so they get the same clean 403. Any OTHER
+		// lookup error stays a 500.
+		if errors.Is(err, userContextService.ErrUserNotLinkedToStaff) ||
+			errors.Is(err, userContextService.ErrUserNotLinkedToPerson) {
+			return ErrForbidden
+		}
 		return fmt.Errorf("resolve acting staff: %w", err)
+	}
+	if staff == nil {
+		return ErrForbidden
 	}
 	staffID := staff.ID
 	studentID := request.StudentID
 
 	// Lock the student row up front (held until the request tx commits) so two
-	// staff confirming two DIFFERENT requests for the same child serialize: the
-	// arrival/pickup applies below are delete-all-then-reinsert read-modify-
-	// writes that the per-request row lock does not cover, so without this lock
-	// the second confirm would read the same pre-change snapshot and overwrite
-	// the first. The locked student is reused for the departure-mode merge.
+	// staff confirming DIFFERENT requests for the same child serialize. The
+	// departure-mode merge below is a read-modify-write on this row
+	// (AllowedDepartureModes), so without the lock the second confirm would read
+	// the same pre-change snapshot and drop the first confirm's mode change. The
+	// arrival/pickup applies are now per-weekday upserts (not read-modify-write),
+	// so they no longer depend on this lock; reusing the locked student just keeps
+	// the whole confirm serialized per child.
 	student, err := s.students.GetByIDForUpdate(ctx, studentID)
 	if err != nil {
 		return err
@@ -536,74 +554,59 @@ func (s *service) applyDepartureModeChanges(ctx context.Context, student *usersM
 	return s.students.Update(ctx, student)
 }
 
+// applyArrivalChanges upserts ONLY the weekdays this request changes, each via
+// the per-(tenant, student, weekday) single-row upsert. The earlier read-all +
+// delete-all + reinsert-all bulk replace would clobber a concurrent DIRECT edit
+// to an UNTOUCHED weekday: the confirm applied a snapshot taken before that edit,
+// and reinserting the whole snapshot dropped the concurrently-saved row (the
+// student lock this apply holds does not cover the direct schedule endpoints).
+// Touching only the requested weekdays leaves every other day — including a
+// Tuesday edit saved at the same time — intact.
 func (s *service) applyArrivalChanges(ctx context.Context, studentID, staffID int64, changes map[int]string) error {
-	if len(changes) == 0 {
-		return nil
-	}
-	current, err := s.arrival.GetStudentArrivalSchedules(ctx, studentID)
-	if err != nil {
-		return err
-	}
-	byDay := map[int]*scheduleModels.StudentArrivalSchedule{}
-	for _, sc := range current {
-		byDay[sc.Weekday] = sc
-	}
 	for weekday, hhmm := range changes {
 		// Do NOT discard the parse error: buildCareScheduleChanges validates the
-		// same string on the create path, but if any future caller reaches apply
-		// without that pre-validation, an unparseable time would otherwise become
-		// the zero time.Time and silently overwrite the real arrival with 00:00.
+		// same string on the create path (and rejects 00:00, which normalizes to
+		// the zero time the schedule validator treats as "unset"), but a future
+		// caller reaching apply without that pre-validation must still fail loudly
+		// rather than silently overwrite the real arrival. parseWallClock already
+		// returns the normalized wall-clock TIME value.
 		t, err := parseWallClock(hhmm)
 		if err != nil {
 			return fmt.Errorf("apply arrival weekday %d: %w", weekday, err)
 		}
-		byDay[weekday] = &scheduleModels.StudentArrivalSchedule{
+		sched := &scheduleModels.StudentArrivalSchedule{
 			StudentID:       studentID,
 			Weekday:         weekday,
 			ExpectedArrival: t,
 			CreatedBy:       staffID,
 		}
+		if err := s.arrival.UpsertStudentArrivalSchedule(ctx, sched); err != nil {
+			return fmt.Errorf("apply arrival weekday %d: %w", weekday, err)
+		}
 	}
-	merged := make([]*scheduleModels.StudentArrivalSchedule, 0, len(byDay))
-	for _, sc := range byDay {
-		sc.ExpectedArrival = timezone.WallClock(sc.ExpectedArrival)
-		merged = append(merged, sc)
-	}
-	return s.arrival.UpsertBulkStudentArrivalSchedules(ctx, studentID, merged)
+	return nil
 }
 
+// applyPickupChanges mirrors applyArrivalChanges: it upserts only the requested
+// weekdays so a concurrent direct edit to another day is never clobbered by a
+// delete-all reinsert.
 func (s *service) applyPickupChanges(ctx context.Context, studentID, staffID int64, changes map[int]string) error {
-	if len(changes) == 0 {
-		return nil
-	}
-	current, err := s.pickup.GetStudentPickupSchedules(ctx, studentID)
-	if err != nil {
-		return err
-	}
-	byDay := map[int]*scheduleModels.StudentPickupSchedule{}
-	for _, sc := range current {
-		byDay[sc.Weekday] = sc
-	}
 	for weekday, hhmm := range changes {
-		// See applyArrivalChanges: propagate the parse error rather than letting an
-		// unparseable time silently become 00:00 on the child's pickup schedule.
 		t, err := parseWallClock(hhmm)
 		if err != nil {
 			return fmt.Errorf("apply pickup weekday %d: %w", weekday, err)
 		}
-		byDay[weekday] = &scheduleModels.StudentPickupSchedule{
+		sched := &scheduleModels.StudentPickupSchedule{
 			StudentID:  studentID,
 			Weekday:    weekday,
 			PickupTime: t,
 			CreatedBy:  staffID,
 		}
+		if err := s.pickup.UpsertStudentPickupSchedule(ctx, sched); err != nil {
+			return fmt.Errorf("apply pickup weekday %d: %w", weekday, err)
+		}
 	}
-	merged := make([]*scheduleModels.StudentPickupSchedule, 0, len(byDay))
-	for _, sc := range byDay {
-		sc.PickupTime = timezone.WallClock(sc.PickupTime)
-		merged = append(merged, sc)
-	}
-	return s.pickup.UpsertBulkStudentPickupSchedules(ctx, studentID, merged)
+	return nil
 }
 
 // broadcastCareScheduleChanges invalidates the staff-side caches a confirmed
@@ -927,13 +930,19 @@ func buildCareScheduleChanges(payload map[string]any) (careScheduleChanges, erro
 			}
 		}
 		if wd.Arrival != "" {
-			if _, err := parseWallClock(wd.Arrival); err != nil {
+			// Reject 00:00 as well as malformed times. parseWallClock normalizes
+			// midnight to the zero time.Time, which StudentArrivalSchedule/
+			// StudentPickupSchedule validation treats as "no time set" — so a
+			// stored 00:00 request would pass create-time validation but fail on
+			// confirm with a 500 staff cannot clear. Reject it here, on the single
+			// validator shared by the create and apply paths.
+			if t, err := parseWallClock(wd.Arrival); err != nil || t.IsZero() {
 				return careScheduleChanges{}, fmt.Errorf("%w: arrival %q", ErrInvalidRequestPayload, wd.Arrival)
 			}
 			out.arrivals[wd.Weekday] = wd.Arrival
 		}
 		if wd.Pickup != "" {
-			if _, err := parseWallClock(wd.Pickup); err != nil {
+			if t, err := parseWallClock(wd.Pickup); err != nil || t.IsZero() {
 				return careScheduleChanges{}, fmt.Errorf("%w: pickup %q", ErrInvalidRequestPayload, wd.Pickup)
 			}
 			out.pickups[wd.Weekday] = wd.Pickup
