@@ -107,6 +107,14 @@ func (f *fakeParentService) PostChildMessage(context.Context, int64, int64, stri
 	return nil, nil
 }
 
+func (f *fakeParentService) CreateChildRequest(context.Context, int64, int64, string, map[string]any) (*parentService.MessageThreadView, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) WithdrawChildRequest(context.Context, int64, int64, int64) (*parentService.MessageThreadView, error) {
+	return nil, nil
+}
+
 func (f *fakeParentService) SubmitCareException(context.Context, int64, int64, timezone.Date, *time.Time, *time.Time) (*parentService.CareException, error) {
 	return nil, nil
 }

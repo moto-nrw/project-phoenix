@@ -43,3 +43,18 @@ export function ChatBubble({
     </div>
   );
 }
+
+/** A centered system-event line (a `kind === "event"` message). */
+export function ChatEventCard({
+  body,
+  createdAt,
+}: Readonly<{ body: string; createdAt: string }>) {
+  return (
+    <div className="mx-auto max-w-[90%] rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+      {body}
+      <span className="ml-2 text-xs text-gray-400">
+        {formatChatTime(createdAt)}
+      </span>
+    </div>
+  );
+}

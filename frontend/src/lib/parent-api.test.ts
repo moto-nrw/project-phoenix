@@ -18,6 +18,8 @@ import {
   fetchMessagesUnreadCount,
   getChildConversation,
   postChildMessage,
+  createChildRequest,
+  withdrawChildRequest,
   type Child,
   type EnrollmentRequest,
   type StatusDay,
@@ -799,6 +801,84 @@ describe("postChildMessage", () => {
     );
     await expect(postChildMessage("42", "test")).rejects.toThrow(
       /Messaging deaktiviert/,
+    );
+  });
+});
+
+describe("createChildRequest", () => {
+  it("POSTs request_type + payload to the child's requests endpoint", async () => {
+    let seenURL = "";
+    let seenBody = "";
+    let seenMethod = "";
+    mockFetch(async (input, init) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      seenBody = (init?.body as string) ?? "";
+      seenMethod = init?.method ?? "";
+      return jsonResponse(mkThreadView({ thread_id: "t77" }), { status: 201 });
+    });
+    const payload = { weekdays: [{ weekday: 1, arrival: "08:00" }] };
+    const view = await createChildRequest("42", "care_schedule", payload);
+    expect(view.thread_id).toBe("t77");
+    expect(seenMethod).toBe("POST");
+    expect(seenURL).toBe("/api/parent/me/messages/children/42/requests");
+    expect(seenBody).toContain('"request_type":"care_schedule"');
+    expect(seenBody).toContain('"weekday":1');
+  });
+
+  it("URL-encodes the studentId", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse(mkThreadView(), { status: 201 });
+    });
+    await createChildRequest("x/y", "care_schedule", {});
+    expect(seenURL).toContain("x%2Fy");
+  });
+
+  it("throws the backend error on non-OK", async () => {
+    mockFetch(async () =>
+      jsonResponse({ error: "Keine Berechtigung" }, { status: 403 }),
+    );
+    await expect(createChildRequest("42", "care_schedule", {})).rejects.toThrow(
+      /Keine Berechtigung/,
+    );
+  });
+});
+
+describe("withdrawChildRequest", () => {
+  it("POSTs to the request's withdraw endpoint and returns the updated view", async () => {
+    let seenURL = "";
+    let seenMethod = "";
+    mockFetch(async (input, init) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      seenMethod = init?.method ?? "";
+      return jsonResponse(mkThreadView({ thread_id: "t5" }));
+    });
+    const view = await withdrawChildRequest("42", "req3");
+    expect(view.thread_id).toBe("t5");
+    expect(seenMethod).toBe("POST");
+    expect(seenURL).toBe(
+      "/api/parent/me/messages/children/42/requests/req3/withdraw",
+    );
+  });
+
+  it("URL-encodes both studentId and requestId", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse(mkThreadView());
+    });
+    await withdrawChildRequest("a/b", "r/9");
+    expect(seenURL).toContain("a%2Fb");
+    expect(seenURL).toContain("r%2F9");
+  });
+
+  it("throws the backend error on non-OK", async () => {
+    mockFetch(async () =>
+      jsonResponse({ error: "Anfrage nicht offen" }, { status: 409 }),
+    );
+    await expect(withdrawChildRequest("42", "req3")).rejects.toThrow(
+      /Anfrage nicht offen/,
     );
   });
 });

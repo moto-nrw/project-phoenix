@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	messagingService "github.com/moto-nrw/project-phoenix/services/messaging"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 )
 
@@ -170,6 +171,7 @@ func parseSickDayRange(r *http.Request) (timezone.Date, timezone.Date, error) {
 type ChildFeaturesResponse struct {
 	SickNoteEnabled              bool `json:"sick_note_enabled"`
 	NotesEnabled                 bool `json:"notes_enabled"`
+	RequestSubmitEnabled         bool `json:"request_submit_enabled"`
 	PickupChangeEnabled          bool `json:"pickup_change_enabled"`
 	RelatedAccountsInviteEnabled bool `json:"related_accounts_invite_enabled"`
 	RelatedAccountsRemoveEnabled bool `json:"related_accounts_remove_enabled"`
@@ -198,6 +200,7 @@ func (rs *Resource) getChildFeatures(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, ChildFeaturesResponse{
 		SickNoteEnabled:              flags.SickNoteEnabled,
 		NotesEnabled:                 flags.NotesEnabled,
+		RequestSubmitEnabled:         flags.RequestSubmitEnabled,
 		PickupChangeEnabled:          flags.PickupChangeEnabled,
 		RelatedAccountsInviteEnabled: flags.RelatedAccountsInviteEnabled,
 		RelatedAccountsRemoveEnabled: flags.RelatedAccountsRemoveEnabled,
@@ -283,6 +286,10 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "care_exception_conflict"))
 	case errors.Is(err, parentService.ErrCareExceptionRaced):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "care_exception_raced"))
+	case errors.Is(err, parentService.ErrParentRequestNotOpen):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "request_not_open"))
+	case errors.Is(err, parentService.ErrParentRequestNotFound):
+		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, parentService.ErrNoCareException):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "care_exception_no_time"))
 	case errors.Is(err, parentService.ErrPastCareDate):
@@ -323,6 +330,8 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		errors.Is(err, parentService.ErrInvalidStatus),
 		errors.Is(err, parentService.ErrEmptyNote),
 		errors.Is(err, parentService.ErrNoteTooLong),
+		errors.Is(err, parentService.ErrInvalidParentRequestType),
+		errors.Is(err, messagingService.ErrInvalidRequestPayload),
 		errors.Is(err, parentService.ErrEmailRequired),
 		errors.Is(err, parentService.ErrInvalidInviteInput):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))

@@ -21,6 +21,8 @@ import {
   postMessage,
   openThread,
   fetchGuardians,
+  confirmRequest,
+  rejectRequest,
   type InboxThread,
   type ThreadDetail,
   type Guardian,
@@ -52,6 +54,7 @@ function mkThread(overrides: Partial<InboxThread> = {}): InboxThread {
     student_name: "Max M.",
     guardian_name: "Anna M.",
     unread_count: 0,
+    open_request_count: 0,
     ...overrides,
   };
 }
@@ -448,5 +451,83 @@ describe("fetchGuardians", () => {
     const out = await fetchGuardians("42");
     expect(out[0]!.relationship_type).toBe("parent");
     expect(out[0]!.is_primary).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fetchInboxWithFilters — open-requests filter
+// ---------------------------------------------------------------------------
+
+describe("fetchInboxWithFilters open-requests filter", () => {
+  it("appends ?open_requests=true when onlyOpenRequests is set", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonOk({ data: [] });
+    });
+    await fetchInboxWithFilters({ onlyOpenRequests: true });
+    expect(seenURL).toBe("/api/messages?open_requests=true");
+  });
+
+  it("carries open_request_count through on inbox rows", async () => {
+    mockFetch(async () =>
+      jsonOk({ data: [mkThread({ open_request_count: 2 })] }),
+    );
+    const out = await fetchInboxWithFilters({});
+    expect(out[0]!.open_request_count).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// confirmRequest / rejectRequest (staff decision)
+// ---------------------------------------------------------------------------
+
+describe("confirmRequest", () => {
+  it("POSTs to /api/messages/requests/{id}/confirm and returns the message list", async () => {
+    let seenURL = "";
+    let seenMethod = "";
+    mockFetch(async (input, init) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      seenMethod = init?.method ?? "";
+      return jsonOk({
+        data: [{ id: "m1", sender_kind: "system", body: "ok" }],
+      });
+    });
+    const msgs = await confirmRequest("req9");
+    expect(seenURL).toBe("/api/messages/requests/req9/confirm");
+    expect(seenMethod).toBe("POST");
+    expect(msgs).toHaveLength(1);
+  });
+
+  it("returns empty array when data is missing", async () => {
+    mockFetch(async () => jsonOk({}));
+    expect(await confirmRequest("req9")).toEqual([]);
+  });
+
+  it("throws with the backend error on non-OK", async () => {
+    mockFetch(async () => jsonOk({ error: "Anfrage nicht offen" }, 409));
+    await expect(confirmRequest("req9")).rejects.toThrow(/Anfrage nicht offen/);
+  });
+});
+
+describe("rejectRequest", () => {
+  it("POSTs the reason to /api/messages/requests/{id}/reject", async () => {
+    let seenURL = "";
+    let seenBody = "";
+    mockFetch(async (input, init) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      seenBody = (init?.body as string) ?? "";
+      return jsonOk({ data: [] });
+    });
+    await rejectRequest("req9", "Bitte mit Datum erneut einreichen");
+    expect(seenURL).toBe("/api/messages/requests/req9/reject");
+    expect(seenBody).toContain('"reason":"Bitte mit Datum erneut einreichen"');
+  });
+
+  it("throws with German fallback on a non-JSON error", async () => {
+    mockFetch(async () => new Response("", { status: 500 }));
+    await expect(rejectRequest("req9", "x")).rejects.toThrow(
+      /Anfrage konnte nicht aktualisiert werden/,
+    );
   });
 });
