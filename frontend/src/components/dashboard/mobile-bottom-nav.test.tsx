@@ -451,6 +451,10 @@ describe("MobileBottomNav", () => {
     };
 
     it("displays coming soon badge for upcoming features", () => {
+      // "Berichte" is the remaining coming soon item and is admin-only.
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+
       render(<MobileBottomNav />);
 
       // Open overflow menu

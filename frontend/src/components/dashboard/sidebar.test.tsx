@@ -414,25 +414,35 @@ describe("Sidebar", () => {
 
   describe("coming soon items", () => {
     it("displays coming soon items with badge", () => {
+      // "Berichte" is the remaining coming soon item and is admin-only.
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+
       render(<Sidebar />);
 
       // Coming soon items should have "Bald" badge
-      expect(screen.getByText("Erinnerungen")).toBeInTheDocument();
+      expect(screen.getByText("Berichte")).toBeInTheDocument();
       expect(screen.getAllByText("Bald").length).toBeGreaterThan(0);
     });
 
     it("coming soon items are not clickable", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+
       render(<Sidebar />);
 
-      // Erinnerungen is still a coming soon feature
-      const comingSoonElement = screen.getByText("Erinnerungen");
+      // Berichte is still a coming soon feature
+      const comingSoonElement = screen.getByText("Berichte");
       expect(comingSoonElement.closest("a")).toBeNull();
     });
 
     it("coming soon items have disabled styling", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+
       render(<Sidebar />);
 
-      const comingSoonElement = screen.getByText("Erinnerungen");
+      const comingSoonElement = screen.getByText("Berichte");
       const container = comingSoonElement.closest("div");
       expect(container).toHaveClass("text-gray-400");
       expect(container).toHaveClass("cursor-not-allowed");
