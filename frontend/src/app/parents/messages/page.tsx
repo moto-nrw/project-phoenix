@@ -337,7 +337,7 @@ function EmptyMessages() {
 
 function ParentMessagesSkeleton() {
   return (
-    <div className="mx-auto w-full max-w-5xl">
+    <div className="mx-auto w-full max-w-7xl">
       <Skeleton className="h-[calc(100dvh-13rem)] min-h-[20rem] rounded-2xl border border-gray-200 bg-white shadow-sm lg:h-[calc(100dvh-8.5rem)]" />
     </div>
   );

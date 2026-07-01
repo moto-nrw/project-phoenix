@@ -234,7 +234,7 @@ export function ParentMealPlanPage() {
 
   if (loadingSchools) {
     return (
-      <div className="mx-auto w-full max-w-3xl">
+      <div className="mx-auto w-full max-w-7xl">
         <Loading fullPage={false} />
       </div>
     );
