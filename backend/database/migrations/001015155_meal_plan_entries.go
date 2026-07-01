@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	mealPlanEntriesVersion     = "1.15.154"
+	mealPlanEntriesVersion     = "1.15.155"
 	mealPlanEntriesDescription = "Create schedule.meal_plan_entries for the per-day meal plan (Essensplan)"
 )
 
@@ -18,6 +18,7 @@ func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     mealPlanEntriesVersion,
 		Description: mealPlanEntriesDescription,
+		DependsOn:   []string{lateInvitesAndRequestSourcesVersion}, // 1.15.153 — latest development migration before this branch
 	})
 
 	Migrations.MustRegister(
@@ -31,7 +32,7 @@ func init() {
 }
 
 func mealPlanEntriesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.154: Creating schedule.meal_plan_entries...")
+	fmt.Println("Migration 1.15.155: Creating schedule.meal_plan_entries...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -88,7 +89,7 @@ func mealPlanEntriesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func mealPlanEntriesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.154: Dropping schedule.meal_plan_entries...")
+	fmt.Println("Rolling back migration 1.15.155: Dropping schedule.meal_plan_entries...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
