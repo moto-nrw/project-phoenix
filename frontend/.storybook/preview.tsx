@@ -2,6 +2,7 @@ import type { Preview } from "@storybook/nextjs-vite";
 import { SessionProvider } from "next-auth/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { AbstractIntlMessages } from "next-intl";
+import { Providers } from "~/app/providers";
 import { TenantProvider } from "~/components/tenant/tenant-provider";
 import { mockSessionData } from "./fixtures/session";
 import type { TenantInfo } from "~/lib/tenant-api";
@@ -37,6 +38,9 @@ const preview: Preview = {
         date: /Date$/i,
       },
     },
+    nextjs: {
+      appDirectory: true,
+    },
   },
   decorators: [
     (Story) => (
@@ -50,7 +54,9 @@ const preview: Preview = {
             tenant={storybookTenant}
             routingMode="path"
           >
-            <Story />
+            <Providers>
+              <Story />
+            </Providers>
           </TenantProvider>
         </NextIntlClientProvider>
       </SessionProvider>

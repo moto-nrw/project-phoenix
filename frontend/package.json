@@ -133,7 +133,8 @@
       "src/**/*.test.{ts,tsx}",
       "src/test/mocks/*.ts",
       "src/test/fixtures/*.ts",
-      "src/test/helpers/*.ts"
+      "src/test/helpers/*.ts",
+      ".storybook/mocks/next-auth-react.tsx"
     ],
     "project": [
       "src/**/*.{ts,tsx,js}"

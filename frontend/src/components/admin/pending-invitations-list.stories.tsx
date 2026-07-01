@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import type { ReactNode } from "react";
-import { useEffect } from "react";
+import { installStorybookFetch, jsonResponse } from "~storybook/mocks/fetch";
 import { PendingInvitationsList } from "~/components/admin/pending-invitations-list";
 import type { BackendInvitation } from "~/lib/invitation-helpers";
 
@@ -26,58 +25,20 @@ const manyInvitations: BackendInvitation[] = [
   },
 ];
 
-/**
- * Installs a `globalThis.fetch` stub for the story's lifetime, answering the
- * component's own `/api/invitations` GET/POST/DELETE calls. Any other request
- * falls through to the original fetch. Restored on unmount so it never leaks
- * into other stories.
- */
-function FetchMockProvider({
-  invitations,
-  shouldFail,
-  children,
-}: {
-  invitations: BackendInvitation[];
-  shouldFail?: boolean;
-  children: ReactNode;
-}) {
-  useEffect(() => {
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
-      const url = typeof input === "string" ? input : input.toString();
-      const method = init?.method ?? "GET";
+function mockInvitations(invitations: BackendInvitation[], shouldFail = false) {
+  return installStorybookFetch(({ url, method }) => {
+    if (!url.includes("/api/invitations")) return undefined;
 
-      if (url.includes("/api/invitations")) {
-        if (shouldFail) {
-          return Promise.resolve(
-            new Response(JSON.stringify({ error: "Interner Serverfehler" }), {
-              status: 500,
-              headers: { "Content-Type": "application/json" },
-            }),
-          );
-        }
+    if (shouldFail) {
+      return jsonResponse({ error: "Interner Serverfehler" }, { status: 500 });
+    }
 
-        if (method === "GET") {
-          return Promise.resolve(
-            new Response(JSON.stringify({ data: invitations }), {
-              status: 200,
-              headers: { "Content-Type": "application/json" },
-            }),
-          );
-        }
+    if (method === "GET") {
+      return jsonResponse({ data: invitations });
+    }
 
-        return Promise.resolve(new Response(null, { status: 204 }));
-      }
-
-      return originalFetch(input, init);
-    }) as typeof fetch;
-
-    return () => {
-      globalThis.fetch = originalFetch;
-    };
-  }, [invitations, shouldFail]);
-
-  return <>{children}</>;
+    return new Response(null, { status: 204 });
+  });
 }
 
 const meta = {
@@ -98,33 +59,15 @@ type Story = StoryObj<typeof meta>;
 
 export const WithInvitations: Story = {
   args: { refreshKey: 0 },
-  decorators: [
-    (Story) => (
-      <FetchMockProvider invitations={manyInvitations}>
-        <Story />
-      </FetchMockProvider>
-    ),
-  ],
+  beforeEach: () => mockInvitations(manyInvitations),
 };
 
 export const Empty: Story = {
   args: { refreshKey: 0 },
-  decorators: [
-    (Story) => (
-      <FetchMockProvider invitations={[]}>
-        <Story />
-      </FetchMockProvider>
-    ),
-  ],
+  beforeEach: () => mockInvitations([]),
 };
 
 export const LoadError: Story = {
   args: { refreshKey: 0 },
-  decorators: [
-    (Story) => (
-      <FetchMockProvider invitations={[]} shouldFail>
-        <Story />
-      </FetchMockProvider>
-    ),
-  ],
+  beforeEach: () => mockInvitations([], true),
 };

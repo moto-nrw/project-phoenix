@@ -1,27 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import { useEffect } from "react";
 
 import { MobileBackButton } from "./mobile-back-button";
-
-/**
- * `useIsMobile` reads `globalThis.innerWidth` on mount and on resize.
- * This wrapper forces a narrow width before the component mounts so the
- * story renders the mobile-only button in Storybook's desktop preview iframe.
- */
-function ForceMobileViewport({
-  children,
-}: Readonly<{ children: React.ReactNode }>) {
-  useEffect(() => {
-    Object.defineProperty(globalThis, "innerWidth", {
-      writable: true,
-      configurable: true,
-      value: 375,
-    });
-    globalThis.dispatchEvent(new Event("resize"));
-  }, []);
-
-  return <>{children}</>;
-}
 
 const meta: Meta<typeof MobileBackButton> = {
   title: "components/ui/MobileBackButton",
@@ -31,13 +10,28 @@ const meta: Meta<typeof MobileBackButton> = {
       defaultViewport: "mobile1",
     },
   },
-  decorators: [
-    (Story) => (
-      <ForceMobileViewport>
-        <Story />
-      </ForceMobileViewport>
-    ),
-  ],
+  beforeEach: () => {
+    const originalDescriptor = Object.getOwnPropertyDescriptor(
+      globalThis,
+      "innerWidth",
+    );
+
+    Object.defineProperty(globalThis, "innerWidth", {
+      writable: true,
+      configurable: true,
+      value: 375,
+    });
+    globalThis.dispatchEvent(new Event("resize"));
+
+    return () => {
+      if (originalDescriptor) {
+        Object.defineProperty(globalThis, "innerWidth", originalDescriptor);
+      } else {
+        Reflect.deleteProperty(globalThis, "innerWidth");
+      }
+      globalThis.dispatchEvent(new Event("resize"));
+    };
+  },
 };
 
 export default meta;

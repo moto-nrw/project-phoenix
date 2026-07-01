@@ -1,4 +1,5 @@
-import type { Meta, StoryObj, Decorator } from "@storybook/nextjs-vite";
+import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import { installStorybookFetch, jsonResponse } from "~storybook/mocks/fetch";
 import { PrivacyConsentSection } from "./privacy-consent-section";
 
 interface MockBackendPrivacyConsent {
@@ -15,32 +16,14 @@ interface MockBackendPrivacyConsent {
   updated_at: string;
 }
 
-// The component fetches its own data (via fetchStudentPrivacyConsent ->
-// sessionFetch -> global fetch). Stub `fetch` locally per story so it has
-// data to render, without touching the global preview decorators.
-function withMockedPrivacyConsent(
-  consent: MockBackendPrivacyConsent | null,
-): Decorator {
-  return (Story) => {
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
-      const url = typeof input === "string" ? input : input.toString();
-      if (url.includes("/privacy-consent")) {
-        if (consent === null) {
-          return Promise.resolve(new Response(null, { status: 404 }));
-        }
-        return Promise.resolve(
-          new Response(JSON.stringify({ data: consent }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          }),
-        );
-      }
-      return originalFetch(input, init);
-    }) as typeof fetch;
-
-    return <Story />;
-  };
+function withMockedPrivacyConsent(consent: MockBackendPrivacyConsent | null) {
+  return installStorybookFetch(({ url }) => {
+    if (!url.includes("/privacy-consent")) return undefined;
+    if (consent === null) {
+      return new Response(null, { status: 404 });
+    }
+    return jsonResponse({ data: consent });
+  });
 }
 
 const meta = {
@@ -56,7 +39,7 @@ export const Accepted: Story = {
   args: {
     studentId: "1",
   },
-  decorators: [
+  beforeEach: () =>
     withMockedPrivacyConsent({
       id: 1,
       student_id: 1,
@@ -70,14 +53,13 @@ export const Accepted: Story = {
       created_at: "2026-01-15T08:00:00Z",
       updated_at: "2026-01-15T08:00:00Z",
     }),
-  ],
 };
 
 export const NotAccepted: Story = {
   args: {
     studentId: "2",
   },
-  decorators: [
+  beforeEach: () =>
     withMockedPrivacyConsent({
       id: 2,
       student_id: 2,
@@ -88,14 +70,13 @@ export const NotAccepted: Story = {
       created_at: "2026-01-15T08:00:00Z",
       updated_at: "2026-01-15T08:00:00Z",
     }),
-  ],
 };
 
 export const RenewalRequired: Story = {
   args: {
     studentId: "3",
   },
-  decorators: [
+  beforeEach: () =>
     withMockedPrivacyConsent({
       id: 3,
       student_id: 3,
@@ -109,12 +90,11 @@ export const RenewalRequired: Story = {
       created_at: "2025-01-15T08:00:00Z",
       updated_at: "2025-01-15T08:00:00Z",
     }),
-  ],
 };
 
 export const NoConsent: Story = {
   args: {
     studentId: "4",
   },
-  decorators: [withMockedPrivacyConsent(null)],
+  beforeEach: () => withMockedPrivacyConsent(null),
 };

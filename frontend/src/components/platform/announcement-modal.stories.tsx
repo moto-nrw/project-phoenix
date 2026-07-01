@@ -1,4 +1,5 @@
-import type { Meta, StoryObj, Decorator } from "@storybook/nextjs-vite";
+import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import { installStorybookFetch, jsonResponse } from "~storybook/mocks/fetch";
 import { AnnouncementModal } from "./announcement-modal";
 
 interface MockAnnouncement {
@@ -11,32 +12,16 @@ interface MockAnnouncement {
   published_at: string;
 }
 
-// The component fetches unread announcements itself (via useAnnouncements ->
-// SWR -> authFetch -> global fetch). Stub `fetch` locally per story so the
-// modal has data to render, without touching the global preview decorators.
-function withMockedUnreadAnnouncements(
-  announcements: MockAnnouncement[],
-): Decorator {
-  return (Story) => {
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
-      const url = typeof input === "string" ? input : input.toString();
-      if (url.includes("/api/platform/announcements/unread")) {
-        return Promise.resolve(
-          new Response(JSON.stringify({ data: announcements }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          }),
-        );
-      }
-      if (url.includes("/dismiss")) {
-        return Promise.resolve(new Response(null, { status: 204 }));
-      }
-      return originalFetch(input, init);
-    }) as typeof fetch;
-
-    return <Story />;
-  };
+function withMockedUnreadAnnouncements(announcements: MockAnnouncement[]) {
+  return installStorybookFetch(({ url }) => {
+    if (url.includes("/api/platform/announcements/unread")) {
+      return jsonResponse({ data: announcements });
+    }
+    if (url.includes("/dismiss")) {
+      return new Response(null, { status: 204 });
+    }
+    return undefined;
+  });
 }
 
 const meta = {
@@ -49,7 +34,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Release: Story = {
-  decorators: [
+  beforeEach: () =>
     withMockedUnreadAnnouncements([
       {
         id: 1,
@@ -62,11 +47,10 @@ export const Release: Story = {
         published_at: "2026-06-01T08:00:00Z",
       },
     ]),
-  ],
 };
 
 export const Maintenance: Story = {
-  decorators: [
+  beforeEach: () =>
     withMockedUnreadAnnouncements([
       {
         id: 2,
@@ -78,11 +62,10 @@ export const Maintenance: Story = {
         published_at: "2026-06-05T08:00:00Z",
       },
     ]),
-  ],
 };
 
 export const MultipleQueued: Story = {
-  decorators: [
+  beforeEach: () =>
     withMockedUnreadAnnouncements([
       {
         id: 3,
@@ -101,5 +84,4 @@ export const MultipleQueued: Story = {
         published_at: "2026-06-02T08:00:00Z",
       },
     ]),
-  ],
 };

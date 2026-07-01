@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import type { ReactNode } from "react";
-import { useEffect } from "react";
+import { installStorybookFetch, jsonResponse } from "~storybook/mocks/fetch";
 import { CareScheduleManager } from "~/components/students/care-schedule-manager";
 import type { ArrivalData } from "~/lib/student-arrival-api";
 import type { BackendPickupData } from "~/lib/pickup-schedule-helpers";
@@ -10,51 +9,22 @@ interface MockResponses {
   pickup: { status: number; body: unknown };
 }
 
-/**
- * Installs a `globalThis.fetch` stub for the story's lifetime, answering the
- * component's `/api/students/{id}/arrival-schedules` and
- * `/api/students/{id}/pickup-schedules` GET calls (mutation endpoints are
- * left untouched since these stories are read-only demos).
- */
-function FetchMockProvider({
-  responses,
-  children,
-}: {
-  responses: MockResponses;
-  children: ReactNode;
-}) {
-  useEffect(() => {
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
-      const url = typeof input === "string" ? input : input.toString();
+function mockCareSchedule(responses: MockResponses) {
+  return installStorybookFetch(({ url }) => {
+    if (url.includes("/arrival-schedules")) {
+      return jsonResponse(responses.arrival.body, {
+        status: responses.arrival.status,
+      });
+    }
 
-      if (url.includes("/arrival-schedules")) {
-        return Promise.resolve(
-          new Response(JSON.stringify(responses.arrival.body), {
-            status: responses.arrival.status,
-            headers: { "Content-Type": "application/json" },
-          }),
-        );
-      }
+    if (url.includes("/pickup-schedules")) {
+      return jsonResponse(responses.pickup.body, {
+        status: responses.pickup.status,
+      });
+    }
 
-      if (url.includes("/pickup-schedules")) {
-        return Promise.resolve(
-          new Response(JSON.stringify(responses.pickup.body), {
-            status: responses.pickup.status,
-            headers: { "Content-Type": "application/json" },
-          }),
-        );
-      }
-
-      return originalFetch(input, init);
-    }) as typeof fetch;
-
-    return () => {
-      globalThis.fetch = originalFetch;
-    };
-  }, [responses]);
-
-  return <>{children}</>;
+    return undefined;
+  });
 }
 
 const filledArrival: ArrivalData = {
@@ -136,73 +106,45 @@ type Story = StoryObj<typeof meta>;
 
 export const WithSchedule: Story = {
   args: { studentId: "1" },
-  decorators: [
-    (Story) => (
-      <FetchMockProvider
-        responses={{
-          arrival: { status: 200, body: { data: filledArrival } },
-          pickup: { status: 200, body: { status: "ok", data: filledPickup } },
-        }}
-      >
-        <Story />
-      </FetchMockProvider>
-    ),
-  ],
+  beforeEach: () =>
+    mockCareSchedule({
+      arrival: { status: 200, body: { data: filledArrival } },
+      pickup: { status: 200, body: { status: "ok", data: filledPickup } },
+    }),
 };
 
 export const Empty: Story = {
   args: { studentId: "1" },
-  decorators: [
-    (Story) => (
-      <FetchMockProvider
-        responses={{
-          arrival: {
-            status: 200,
-            body: { data: { schedules: [], exceptions: [], notes: [] } },
-          },
-          pickup: { status: 200, body: { status: "ok", data: emptyPickup } },
-        }}
-      >
-        <Story />
-      </FetchMockProvider>
-    ),
-  ],
+  beforeEach: () =>
+    mockCareSchedule({
+      arrival: {
+        status: 200,
+        body: { data: { schedules: [], exceptions: [], notes: [] } },
+      },
+      pickup: { status: 200, body: { status: "ok", data: emptyPickup } },
+    }),
 };
 
 export const ReadOnly: Story = {
   args: { studentId: "1", readOnly: true },
-  decorators: [
-    (Story) => (
-      <FetchMockProvider
-        responses={{
-          arrival: { status: 200, body: { data: filledArrival } },
-          pickup: { status: 200, body: { status: "ok", data: filledPickup } },
-        }}
-      >
-        <Story />
-      </FetchMockProvider>
-    ),
-  ],
+  beforeEach: () =>
+    mockCareSchedule({
+      arrival: { status: 200, body: { data: filledArrival } },
+      pickup: { status: 200, body: { status: "ok", data: filledPickup } },
+    }),
 };
 
 export const LoadError: Story = {
   args: { studentId: "1" },
-  decorators: [
-    (Story) => (
-      <FetchMockProvider
-        responses={{
-          arrival: {
-            status: 500,
-            body: { error: "Interner Serverfehler" },
-          },
-          pickup: {
-            status: 500,
-            body: { status: "error", error: "Interner Serverfehler" },
-          },
-        }}
-      >
-        <Story />
-      </FetchMockProvider>
-    ),
-  ],
+  beforeEach: () =>
+    mockCareSchedule({
+      arrival: {
+        status: 500,
+        body: { error: "Interner Serverfehler" },
+      },
+      pickup: {
+        status: 500,
+        body: { status: "error", error: "Interner Serverfehler" },
+      },
+    }),
 };

@@ -1,5 +1,5 @@
-import type { Meta, StoryObj, Decorator } from "@storybook/nextjs-vite";
-import { ToastProvider } from "~/contexts/ToastContext";
+import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import { installStorybookFetch, jsonResponse } from "~storybook/mocks/fetch";
 import { AbwesenheitenTab } from "./abwesenheiten-tab";
 import type {
   StaffAbsenceRow,
@@ -54,45 +54,24 @@ const historyAbsence: StaffAbsenceRow = {
   working_days: 2,
 };
 
-// The component fetches its own data (via staffAbsenceService -> sessionFetch
-// -> global fetch). Stub `fetch` locally per story so it has data to render,
-// without touching the global preview decorators.
 function withMockedAbsences(
   absences: readonly StaffAbsenceRow[],
   quotaOverride: StaffVacationQuotaSummary | null = quota,
-): Decorator {
-  return (Story) => {
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
-      const url = typeof input === "string" ? input : input.toString();
-      if (url.includes("/vacation/quota")) {
-        if (quotaOverride === null) {
-          return Promise.resolve(new Response(null, { status: 404 }));
-        }
-        return Promise.resolve(
-          new Response(JSON.stringify({ data: quotaOverride }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          }),
-        );
+) {
+  return installStorybookFetch(({ url }) => {
+    if (url.includes("/vacation/quota")) {
+      if (quotaOverride === null) {
+        return new Response(null, { status: 404 });
       }
-      if (url.includes("/absences")) {
-        return Promise.resolve(
-          new Response(JSON.stringify({ data: absences }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          }),
-        );
-      }
-      return originalFetch(input, init);
-    }) as typeof fetch;
+      return jsonResponse({ data: quotaOverride });
+    }
 
-    return (
-      <ToastProvider>
-        <Story />
-      </ToastProvider>
-    );
-  };
+    if (url.includes("/absences")) {
+      return jsonResponse({ data: absences });
+    }
+
+    return undefined;
+  });
 }
 
 const meta = {
@@ -109,9 +88,8 @@ export const WithPendingAndHistory: Story = {
     staffId: "1",
     canEdit: true,
   },
-  decorators: [
+  beforeEach: () =>
     withMockedAbsences([pendingAbsence, upcomingAbsence, historyAbsence]),
-  ],
 };
 
 export const ReadOnly: Story = {
@@ -119,9 +97,8 @@ export const ReadOnly: Story = {
     staffId: "1",
     canEdit: false,
   },
-  decorators: [
+  beforeEach: () =>
     withMockedAbsences([pendingAbsence, upcomingAbsence, historyAbsence]),
-  ],
 };
 
 export const Empty: Story = {
@@ -129,5 +106,5 @@ export const Empty: Story = {
     staffId: "1",
     canEdit: true,
   },
-  decorators: [withMockedAbsences([])],
+  beforeEach: () => withMockedAbsences([]),
 };

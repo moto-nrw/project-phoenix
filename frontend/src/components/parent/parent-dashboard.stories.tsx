@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import type { ReactNode } from "react";
-import { useEffect } from "react";
+import { installStorybookFetch, jsonResponse } from "~storybook/mocks/fetch";
 import { ParentDashboard } from "~/components/parent/parent-dashboard";
 import type { Child, EnrollmentRequest } from "~/lib/parent-api";
 
@@ -50,79 +49,50 @@ const manyEnrollments: EnrollmentRequest[] = [
   },
 ];
 
-/**
- * Installs a `globalThis.fetch` stub for the story's lifetime, answering the
- * component's own `/api/parent/me/children` and `/api/parent/me/enrollments`
- * GET calls. Any other request falls through to the original fetch. Restored
- * on unmount so it never leaks into other stories.
- */
-function FetchMockProvider({
+function mockParentDashboard({
   childData,
   enrollments,
   shouldFail,
   pending,
-  children,
 }: {
   childData: Child[];
   enrollments: EnrollmentRequest[];
   shouldFail?: boolean;
   pending?: boolean;
-  children: ReactNode;
 }) {
-  useEffect(() => {
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
-      const url = typeof input === "string" ? input : input.toString();
+  return installStorybookFetch(({ url }) => {
+    if (
+      pending &&
+      (url.includes("/api/parent/me/children") ||
+        url.includes("/api/parent/me/enrollments"))
+    ) {
+      return new Promise<Response>(() => {
+        // Keep the component in its loading state.
+      });
+    }
 
-      if (pending) {
-        return new Promise<Response>(() => {
-          // Never resolves — keeps the component in its loading state.
-        });
-      }
-
-      if (url.includes("/api/parent/me/children")) {
-        if (shouldFail) {
-          return Promise.resolve(
-            new Response(JSON.stringify({ error: "Interner Serverfehler" }), {
-              status: 500,
-              headers: { "Content-Type": "application/json" },
-            }),
-          );
-        }
-        return Promise.resolve(
-          new Response(JSON.stringify({ data: childData }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          }),
+    if (url.includes("/api/parent/me/children")) {
+      if (shouldFail) {
+        return jsonResponse(
+          { error: "Interner Serverfehler" },
+          { status: 500 },
         );
       }
+      return jsonResponse({ data: childData });
+    }
 
-      if (url.includes("/api/parent/me/enrollments")) {
-        if (shouldFail) {
-          return Promise.resolve(
-            new Response(JSON.stringify({ error: "Interner Serverfehler" }), {
-              status: 500,
-              headers: { "Content-Type": "application/json" },
-            }),
-          );
-        }
-        return Promise.resolve(
-          new Response(JSON.stringify({ data: enrollments }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          }),
+    if (url.includes("/api/parent/me/enrollments")) {
+      if (shouldFail) {
+        return jsonResponse(
+          { error: "Interner Serverfehler" },
+          { status: 500 },
         );
       }
+      return jsonResponse({ data: enrollments });
+    }
 
-      return originalFetch(input, init);
-    }) as typeof fetch;
-
-    return () => {
-      globalThis.fetch = originalFetch;
-    };
-  }, [childData, enrollments, shouldFail, pending]);
-
-  return <>{children}</>;
+    return undefined;
+  });
 }
 
 const meta = {
@@ -142,41 +112,23 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const WithChildrenAndEnrollments: Story = {
-  decorators: [
-    (Story) => (
-      <FetchMockProvider childData={manyChildren} enrollments={manyEnrollments}>
-        <Story />
-      </FetchMockProvider>
-    ),
-  ],
+  beforeEach: () =>
+    mockParentDashboard({
+      childData: manyChildren,
+      enrollments: manyEnrollments,
+    }),
 };
 
 export const Empty: Story = {
-  decorators: [
-    (Story) => (
-      <FetchMockProvider childData={[]} enrollments={[]}>
-        <Story />
-      </FetchMockProvider>
-    ),
-  ],
+  beforeEach: () => mockParentDashboard({ childData: [], enrollments: [] }),
 };
 
 export const Loading: Story = {
-  decorators: [
-    (Story) => (
-      <FetchMockProvider childData={[]} enrollments={[]} pending>
-        <Story />
-      </FetchMockProvider>
-    ),
-  ],
+  beforeEach: () =>
+    mockParentDashboard({ childData: [], enrollments: [], pending: true }),
 };
 
 export const LoadError: Story = {
-  decorators: [
-    (Story) => (
-      <FetchMockProvider childData={[]} enrollments={[]} shouldFail>
-        <Story />
-      </FetchMockProvider>
-    ),
-  ],
+  beforeEach: () =>
+    mockParentDashboard({ childData: [], enrollments: [], shouldFail: true }),
 };

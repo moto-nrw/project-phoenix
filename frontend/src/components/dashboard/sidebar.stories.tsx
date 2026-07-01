@@ -39,7 +39,9 @@ export const StaffMode: Story = {
 export const AdminMode: Story = {
   decorators: [
     (Story) => (
-      <SessionProvider session={mockSessionData({ user: { role: "admin" } })}>
+      <SessionProvider
+        session={mockSessionData({ user: { roles: ["admin"] } })}
+      >
         <ProfileProvider>
           <TeacherShellProvider>
             <Story />
