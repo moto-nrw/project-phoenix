@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	grantGuardianRequestSubmitPermissionVersion     = "1.15.155"
+	grantGuardianRequestSubmitPermissionVersion     = "1.15.156"
 	grantGuardianRequestSubmitPermissionDescription = "Grant parent_portal.request.submit to guardians that already hold full parent-portal access (#1672 review finding #4)."
 )
 
@@ -21,7 +21,7 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.154: Granting parent_portal.request.submit to full-access guardians...")
+			fmt.Println("Migration 1.15.156: Granting parent_portal.request.submit to full-access guardians...")
 			// #1672 review finding #4 split structured change-requests off plain chat:
 			// they now require parent_portal.request.submit instead of
 			// parent_portal.notes.write. New full-guardian relationships receive the key
@@ -43,7 +43,7 @@ func init() {
 			return err
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.154: removing parent_portal.request.submit key...")
+			fmt.Println("Rolling back migration 1.15.156: removing parent_portal.request.submit key...")
 			// Mirror the up's WHERE clause so the rollback is the inverse of the
 			// grant, not a broader revoke. The original down stripped the key from
 			// EVERY row, which also de-authorized full-guardian relationships that
