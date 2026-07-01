@@ -207,6 +207,18 @@ describe("TransitStudentsSection", () => {
     );
   });
 
+  it("uses an explicit referrer when embedded outside rooms", () => {
+    render(<TransitStudentsSection fromReferrer="/active-supervisions" />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Mila Sommer Profil öffnen" }),
+    );
+
+    expect(mockPush).toHaveBeenCalledWith(
+      `/students/11?from=${encodeURIComponent("/active-supervisions")}`,
+    );
+  });
+
   it("reports active selection state to the drawer wrapper", async () => {
     const onSelectionActiveChange = vi.fn();
 

@@ -296,7 +296,7 @@ describe("MeinRaumPage (Active Supervisions) (2/5)", () => {
     cleanup();
   });
 
-  it("keeps a sick checked-in room student out of the overdue pickup row", async () => {
+  it("shows time rows instead of absence rows for a checked-in sick room student", async () => {
     vi.mocked(useSWRAuth)
       .mockReturnValueOnce({
         data: {
@@ -347,11 +347,10 @@ describe("MeinRaumPage (Active Supervisions) (2/5)", () => {
     render(<MeinRaumPage />);
 
     await waitFor(() => {
-      expect(
-        screen.getByText("Kommt heute nicht (krank gemeldet)"),
-      ).toBeInTheDocument();
+      expect(screen.getByTestId("arrival-time-row")).toBeInTheDocument();
     });
-    expect(screen.queryByTestId("pickup-time-row")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("student-absence-row")).not.toBeInTheDocument();
+    expect(screen.getByTestId("pickup-time-row")).toBeInTheDocument();
   });
 
   it("shows no access state when user has no active supervision", async () => {

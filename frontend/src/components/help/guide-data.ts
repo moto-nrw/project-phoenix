@@ -511,7 +511,6 @@ export const appChapters: readonly GuideChapter[] = [
           "Falsche Markierung mit `Zurück auf erwartet` korrigieren.",
           "Ungeplantes Kind über `Weiteres Kind suchen...` hinzufügen.",
           "Mit `Kind nach ... bewegen` heute anwesende Kinder aus anderen Räumen, dem Schulhof oder `Unterwegs` in die aktuelle Aufsicht holen.",
-          "`Aus Raum entfernen` oder `Aus Schulhof entfernen` beendet nur den Raumaufenthalt; das Kind bleibt für den Tag anwesend und steht danach auf `Unterwegs`.",
           "Den Schulhof über den Schulhof-Tab und `Aufsicht übernehmen` führen; für spontane Aktivitäten bitte einen normalen Raum wählen.",
           "Für ein neues Angebot `Spontane Aktivität starten`.",
         ],

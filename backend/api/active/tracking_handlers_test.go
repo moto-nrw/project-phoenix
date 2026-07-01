@@ -88,6 +88,10 @@ type trackingMockActiveService struct {
 	assignTransitStudentsToActiveGroupFunc func(ctx context.Context, studentIDs []int64, activeGroupID int64) (*activeSvc.TransitAssignResult, error)
 	moveStudentsToActiveGroupFunc          func(ctx context.Context, studentIDs []int64, activeGroupID int64) (*activeSvc.StudentMoveResult, error)
 	moveStudentsToTransitFunc              func(ctx context.Context, studentIDs []int64) (*activeSvc.StudentMoveResult, error)
+	getActiveGroupFunc                     func(ctx context.Context, id int64) (*activeModel.Group, error)
+	getStudentCurrentVisitFunc             func(ctx context.Context, studentID int64) (*activeModel.Visit, error)
+	getStaffActiveSupervisionsFunc         func(ctx context.Context, staffID int64) ([]*activeModel.GroupSupervisor, error)
+	checkTeacherStudentAccessFunc          func(ctx context.Context, teacherID, studentID int64) (bool, error)
 }
 
 // The only method used by the tracking handler:
@@ -119,6 +123,9 @@ func (m *trackingMockActiveService) GetAllActiveSupervisions(_ context.Context) 
 	return nil, nil
 }
 func (m *trackingMockActiveService) GetActiveGroup(ctx context.Context, id int64) (*activeModel.Group, error) {
+	if m.getActiveGroupFunc != nil {
+		return m.getActiveGroupFunc(ctx, id)
+	}
 	return nil, nil
 }
 func (m *trackingMockActiveService) CreateActiveGroup(ctx context.Context, group *activeModel.Group) error {
@@ -178,6 +185,9 @@ func (m *trackingMockActiveService) FindVisitsByTimeRange(ctx context.Context, s
 }
 func (m *trackingMockActiveService) EndVisit(ctx context.Context, id int64) error { return nil }
 func (m *trackingMockActiveService) GetStudentCurrentVisit(ctx context.Context, studentID int64) (*activeModel.Visit, error) {
+	if m.getStudentCurrentVisitFunc != nil {
+		return m.getStudentCurrentVisitFunc(ctx, studentID)
+	}
 	return nil, nil
 }
 func (m *trackingMockActiveService) GetStudentCurrentVisitWithRoom(ctx context.Context, studentID int64) (*activeModel.Visit, error) {
@@ -245,6 +255,9 @@ func (m *trackingMockActiveService) FindSupervisorsByActiveGroupIDs(ctx context.
 }
 func (m *trackingMockActiveService) EndSupervision(ctx context.Context, id int64) error { return nil }
 func (m *trackingMockActiveService) GetStaffActiveSupervisions(ctx context.Context, staffID int64) ([]*activeModel.GroupSupervisor, error) {
+	if m.getStaffActiveSupervisionsFunc != nil {
+		return m.getStaffActiveSupervisionsFunc(ctx, staffID)
+	}
 	return nil, nil
 }
 func (m *trackingMockActiveService) GetCombinedGroup(ctx context.Context, id int64) (*activeModel.CombinedGroup, error) {
@@ -356,6 +369,9 @@ func (m *trackingMockActiveService) CheckOutStudentFromDevice(ctx context.Contex
 	return nil, nil
 }
 func (m *trackingMockActiveService) CheckTeacherStudentAccess(ctx context.Context, teacherID, studentID int64) (bool, error) {
+	if m.checkTeacherStudentAccessFunc != nil {
+		return m.checkTeacherStudentAccessFunc(ctx, teacherID, studentID)
+	}
 	return false, nil
 }
 func (m *trackingMockActiveService) BroadcastDailyCheckout(ctx context.Context, studentID int64) {}

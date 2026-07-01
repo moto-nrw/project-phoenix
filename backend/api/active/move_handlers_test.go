@@ -8,10 +8,41 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	activeModel "github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/models/base"
+	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	userSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type moveAuthPersonService struct {
+	userSvc.PersonService
+	person *userModel.Person
+	staff  *userModel.Staff
+}
+
+func (s moveAuthPersonService) FindByAccountID(_ context.Context, _ int64) (*userModel.Person, error) {
+	return s.person, nil
+}
+
+func (s moveAuthPersonService) GetStaffByPersonID(_ context.Context, _ int64) (*userModel.Staff, error) {
+	return s.staff, nil
+}
+
+func withAdminMoveContext(req *http.Request) *http.Request {
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 1, IsAdmin: true})
+	ctx = context.WithValue(ctx, jwt.CtxPermissions, []string{"admin:*"})
+	return req.WithContext(ctx)
+}
+
+func withStaffMoveContext(req *http.Request) *http.Request {
+	ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 2})
+	ctx = context.WithValue(ctx, jwt.CtxPermissions, []string{"visits:update"})
+	return req.WithContext(ctx)
+}
 
 func TestMoveStudentsToActiveGroup(t *testing.T) {
 	t.Run("moves selected students", func(t *testing.T) {
@@ -40,6 +71,7 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 			"/api/active/visits/move-to-group",
 			bytes.NewBufferString(`{"student_ids":[42,84],"target_active_group_id":99}`),
 		)
+		req = withAdminMoveContext(req)
 		w := httptest.NewRecorder()
 
 		rs.moveStudentsToActiveGroup(w, req)
@@ -79,6 +111,7 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 			"/api/active/visits/move-to-group",
 			bytes.NewBufferString(`{"student_ids":[42],"target_active_group_id":99}`),
 		)
+		req = withAdminMoveContext(req)
 		w := httptest.NewRecorder()
 
 		rs.moveStudentsToActiveGroup(w, req)
@@ -87,6 +120,46 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 		var body map[string]any
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 		assert.Equal(t, "Students Not Present", body["status"])
+	})
+
+	t.Run("rejects regular staff outside source student scope", func(t *testing.T) {
+		calledMove := false
+		rs := &Resource{
+			PersonService: moveAuthPersonService{
+				person: &userModel.Person{Model: base.Model{ID: 10}},
+				staff:  &userModel.Staff{Model: base.Model{ID: 20}},
+			},
+			ActiveService: &trackingMockActiveService{
+				getActiveGroupFunc: func(_ context.Context, id int64) (*activeModel.Group, error) {
+					return &activeModel.Group{Model: base.Model{ID: id}, RoomID: 77}, nil
+				},
+				getStaffActiveSupervisionsFunc: func(_ context.Context, _ int64) ([]*activeModel.GroupSupervisor, error) {
+					return []*activeModel.GroupSupervisor{{GroupID: 99}}, nil
+				},
+				checkTeacherStudentAccessFunc: func(_ context.Context, _, _ int64) (bool, error) {
+					return false, nil
+				},
+				getStudentCurrentVisitFunc: func(_ context.Context, _ int64) (*activeModel.Visit, error) {
+					return &activeModel.Visit{ActiveGroupID: 123}, nil
+				},
+				moveStudentsToActiveGroupFunc: func(_ context.Context, _ []int64, _ int64) (*activeSvc.StudentMoveResult, error) {
+					calledMove = true
+					return nil, nil
+				},
+			},
+		}
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/active/visits/move-to-group",
+			bytes.NewBufferString(`{"student_ids":[42],"target_active_group_id":99}`),
+		)
+		req = withStaffMoveContext(req)
+		w := httptest.NewRecorder()
+
+		rs.moveStudentsToActiveGroup(w, req)
+
+		require.Equal(t, http.StatusForbidden, w.Code)
+		assert.False(t, calledMove)
 	})
 }
 
@@ -111,6 +184,7 @@ func TestMoveStudentsToTransit(t *testing.T) {
 			"/api/active/visits/move-to-transit",
 			bytes.NewBufferString(`{"student_ids":[42,84]}`),
 		)
+		req = withAdminMoveContext(req)
 		w := httptest.NewRecorder()
 
 		rs.moveStudentsToTransit(w, req)
@@ -149,6 +223,7 @@ func TestMoveStudentsToTransit(t *testing.T) {
 			"/api/active/visits/move-to-transit",
 			bytes.NewBufferString(`{"student_ids":[42]}`),
 		)
+		req = withAdminMoveContext(req)
 		w := httptest.NewRecorder()
 
 		rs.moveStudentsToTransit(w, req)

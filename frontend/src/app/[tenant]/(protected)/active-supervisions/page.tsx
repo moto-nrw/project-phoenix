@@ -1815,18 +1815,18 @@ function MeinRaumPageContent() {
                       )}
                       {(() => {
                         const absence = getStudentAbsence({
-                          sick: student.sick,
-                          classTrip: student.class_trip,
-                          excused: student.excused,
+                          sick: presentStudent.sick,
+                          classTrip: presentStudent.class_trip,
+                          excused: presentStudent.excused,
                         });
-                        if (absence && !student.actual_pickup_time) {
+                        if (absence && !presentStudent.actual_pickup_time) {
                           return <StudentAbsenceRow label={absence.label} />;
                         }
                         const dayPlanningNotComingLabel =
-                          getDayPlanningNotComingLabel(student);
+                          getDayPlanningNotComingLabel(presentStudent);
                         if (
                           dayPlanningNotComingLabel &&
-                          !student.actual_pickup_time
+                          !presentStudent.actual_pickup_time
                         ) {
                           return (
                             <StudentAbsenceRow
@@ -2139,7 +2139,7 @@ function MeinRaumPageContent() {
       {currentRoom &&
       (!isSchulhofActive || schulhofStatus?.isUserSupervising) ? (
         <div className="mb-4">
-          <TransitStudentsSection />
+          <TransitStudentsSection fromReferrer="/active-supervisions" />
         </div>
       ) : null}
 

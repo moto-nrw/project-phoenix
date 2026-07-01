@@ -2,9 +2,11 @@ package active
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"time"
 
+	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -15,6 +17,7 @@ const (
 	TransitSkipCreateFailed = "create_failed"
 
 	StudentMoveSkipNotPresent = "not_present"
+	StudentMoveSkipConflict   = "conflict"
 )
 
 // ListStudentsInTransit returns students who are checked in today but do not
@@ -64,12 +67,9 @@ func (s *service) AssignTransitStudentsToActiveGroup(ctx context.Context, studen
 		return nil, &ActiveError{Op: "AssignTransitStudentsToActiveGroup", Err: ErrInvalidData}
 	}
 
-	targetGroup, err := s.GetActiveGroup(ctx, activeGroupID)
+	targetGroup, err := s.lockActiveGroupForMove(ctx, activeGroupID, "AssignTransitStudentsToActiveGroup")
 	if err != nil {
 		return nil, err
-	}
-	if targetGroup == nil || !targetGroup.IsActive() {
-		return nil, &ActiveError{Op: "AssignTransitStudentsToActiveGroup", Err: ErrActiveGroupAlreadyEnded}
 	}
 
 	uniqueIDs := uniquePositiveInt64s(studentIDs)
@@ -77,7 +77,7 @@ func (s *service) AssignTransitStudentsToActiveGroup(ctx context.Context, studen
 		return nil, &ActiveError{Op: "AssignTransitStudentsToActiveGroup", Err: ErrInvalidData}
 	}
 
-	openAttendance, err := s.attendanceRepo.GetTodayByStudentIDs(ctx, uniqueIDs)
+	openAttendance, err := s.attendanceRepo.GetOpenTodayByStudentIDsForUpdate(ctx, uniqueIDs)
 	if err != nil {
 		return nil, &ActiveError{Op: "AssignTransitStudentsToActiveGroup", Err: ErrDatabaseOperation}
 	}
@@ -94,9 +94,9 @@ func (s *service) AssignTransitStudentsToActiveGroup(ctx context.Context, studen
 	}
 
 	for _, studentID := range uniqueIDs {
-		attendance, hasAttendance := openAttendance[studentID]
+		_, hasAttendance := openAttendance[studentID]
 		_, hasVisit := currentVisits[studentID]
-		if !hasAttendance || attendance == nil || attendance.CheckOutTime != nil || hasVisit {
+		if !hasAttendance || hasVisit {
 			result.Skipped = append(result.Skipped, TransitAssignSkipped{StudentID: studentID, Reason: TransitSkipNotInTransit})
 			continue
 		}
@@ -136,12 +136,9 @@ func (s *service) MoveStudentsToActiveGroup(ctx context.Context, studentIDs []in
 		return nil, &ActiveError{Op: "MoveStudentsToActiveGroup", Err: ErrInvalidData}
 	}
 
-	targetGroup, err := s.GetActiveGroup(ctx, activeGroupID)
+	targetGroup, err := s.lockActiveGroupForMove(ctx, activeGroupID, "MoveStudentsToActiveGroup")
 	if err != nil {
 		return nil, err
-	}
-	if targetGroup == nil || !targetGroup.IsActive() {
-		return nil, &ActiveError{Op: "MoveStudentsToActiveGroup", Err: ErrActiveGroupAlreadyEnded}
 	}
 
 	uniqueIDs := uniquePositiveInt64s(studentIDs)
@@ -174,7 +171,9 @@ func (s *service) MoveStudentsToActiveGroup(ctx context.Context, studentIDs []in
 
 		if currentVisit != nil {
 			if err := s.EndVisit(ctx, currentVisit.ID); err != nil {
-				return nil, err
+				if !errors.Is(err, ErrVisitAlreadyEnded) && !errors.Is(err, ErrVisitNotFound) {
+					return nil, err
+				}
 			}
 		}
 
@@ -184,6 +183,10 @@ func (s *service) MoveStudentsToActiveGroup(ctx context.Context, studentIDs []in
 			EntryTime:     time.Now(),
 		}
 		if err := s.createVisitWithoutAttendanceMutation(ctx, visit); err != nil {
+			if errors.Is(err, ErrStudentAlreadyActive) {
+				result.Skipped = append(result.Skipped, StudentMoveSkipped{StudentID: studentID, Reason: StudentMoveSkipConflict})
+				continue
+			}
 			return nil, err
 		}
 		result.Moved = append(result.Moved, studentID)
@@ -237,7 +240,9 @@ func (s *service) MoveStudentsToTransit(ctx context.Context, studentIDs []int64)
 		}
 
 		if err := s.EndVisit(ctx, currentVisit.ID); err != nil {
-			return nil, err
+			if !errors.Is(err, ErrVisitAlreadyEnded) && !errors.Is(err, ErrVisitNotFound) {
+				return nil, err
+			}
 		}
 		result.Moved = append(result.Moved, studentID)
 	}
@@ -271,7 +276,7 @@ func newStudentMoveResult(activeGroupID, roomID *int64) *StudentMoveResult {
 }
 
 func (s *service) loadMoveState(ctx context.Context, studentIDs []int64, op string) (map[int64]*active.Attendance, map[int64]*active.Visit, error) {
-	openAttendance, err := s.attendanceRepo.GetTodayByStudentIDs(ctx, studentIDs)
+	openAttendance, err := s.attendanceRepo.GetOpenTodayByStudentIDsForUpdate(ctx, studentIDs)
 	if err != nil {
 		return nil, nil, &ActiveError{Op: op, Err: ErrDatabaseOperation}
 	}
@@ -290,6 +295,30 @@ func (s *service) loadMoveState(ctx context.Context, studentIDs []int64, op stri
 func studentHasOpenAttendance(attendances map[int64]*active.Attendance, studentID int64) bool {
 	attendance := attendances[studentID]
 	return attendance != nil && attendance.CheckOutTime == nil
+}
+
+func (s *service) lockActiveGroupForMove(ctx context.Context, activeGroupID int64, op string) (*active.Group, error) {
+	group := new(active.Group)
+	query := repoBase.GetDB(ctx, s.db).NewSelect().
+		Model(group).
+		ModelTableExpr(`active.groups AS "group"`).
+		Where(`"group".id = ?`, activeGroupID).
+		For("UPDATE")
+
+	if where, val, ok := repoBase.TenantWhere(ctx, "group"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, &ActiveError{Op: op, Err: ErrActiveGroupNotFound}
+		}
+		return nil, &ActiveError{Op: op, Err: ErrDatabaseOperation}
+	}
+	if group == nil || !group.IsActive() {
+		return nil, &ActiveError{Op: op, Err: ErrActiveGroupAlreadyEnded}
+	}
+	return group, nil
 }
 
 func (s *service) createVisitWithoutAttendanceMutation(ctx context.Context, visit *active.Visit) error {

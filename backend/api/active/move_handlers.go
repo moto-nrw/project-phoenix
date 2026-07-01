@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 type moveStudentsToActiveGroupRequest struct {
@@ -28,8 +29,13 @@ func (rs *Resource) moveStudentsToActiveGroup(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	if !rs.authorizeBulkStudentMove(w, r, req.StudentIDs, &req.TargetActiveGroupID) {
+		return
+	}
+
 	result, err := rs.ActiveService.MoveStudentsToActiveGroup(r.Context(), req.StudentIDs, req.TargetActiveGroupID)
 	if err != nil {
+		tenant.MarkRollback(r.Context())
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}
@@ -48,8 +54,13 @@ func (rs *Resource) moveStudentsToTransit(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	if !rs.authorizeBulkStudentMove(w, r, req.StudentIDs, nil) {
+		return
+	}
+
 	result, err := rs.ActiveService.MoveStudentsToTransit(r.Context(), req.StudentIDs)
 	if err != nil {
+		tenant.MarkRollback(r.Context())
 		common.RenderError(w, r, ErrorRenderer(err))
 		return
 	}

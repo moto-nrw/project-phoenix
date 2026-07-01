@@ -8,6 +8,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	activeModel "github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/models/base"
+	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,6 +40,7 @@ func TestAssignTransitStudents(t *testing.T) {
 			"/api/active/visits/transit/assign",
 			bytes.NewBufferString(`{"student_ids":[42,84],"active_group_id":99}`),
 		)
+		req = withAdminMoveContext(req)
 		w := httptest.NewRecorder()
 
 		rs.assignTransitStudents(w, req)
@@ -93,10 +97,45 @@ func TestAssignTransitStudents(t *testing.T) {
 			"/api/active/visits/transit/assign",
 			bytes.NewBufferString(`{"student_ids":[42],"active_group_id":99}`),
 		)
+		req = withAdminMoveContext(req)
 		w := httptest.NewRecorder()
 
 		rs.assignTransitStudents(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("rejects regular staff outside target room scope", func(t *testing.T) {
+		calledAssign := false
+		rs := &Resource{
+			PersonService: moveAuthPersonService{
+				person: &userModel.Person{Model: base.Model{ID: 10}},
+				staff:  &userModel.Staff{Model: base.Model{ID: 20}},
+			},
+			ActiveService: &trackingMockActiveService{
+				getActiveGroupFunc: func(_ context.Context, id int64) (*activeModel.Group, error) {
+					return &activeModel.Group{Model: base.Model{ID: id}, RoomID: 77}, nil
+				},
+				getStaffActiveSupervisionsFunc: func(_ context.Context, _ int64) ([]*activeModel.GroupSupervisor, error) {
+					return []*activeModel.GroupSupervisor{{GroupID: 123}}, nil
+				},
+				assignTransitStudentsToActiveGroupFunc: func(_ context.Context, _ []int64, _ int64) (*activeSvc.TransitAssignResult, error) {
+					calledAssign = true
+					return nil, nil
+				},
+			},
+		}
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/active/visits/transit/assign",
+			bytes.NewBufferString(`{"student_ids":[42],"active_group_id":99}`),
+		)
+		req = withStaffMoveContext(req)
+		w := httptest.NewRecorder()
+
+		rs.assignTransitStudents(w, req)
+
+		require.Equal(t, http.StatusForbidden, w.Code)
+		assert.False(t, calledAssign)
 	})
 }

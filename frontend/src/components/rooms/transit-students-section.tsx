@@ -31,10 +31,12 @@ function buildSessionLabel(group: ActiveGroup): string {
 
 interface TransitStudentsSectionProps {
   readonly onSelectionActiveChange?: (active: boolean) => void;
+  readonly fromReferrer?: string;
 }
 
 export function TransitStudentsSection({
   onSelectionActiveChange,
+  fromReferrer: fromReferrerOverride,
 }: TransitStudentsSectionProps) {
   const router = useTenantRouter();
   const sectionSearchParams = useSearchParams();
@@ -92,10 +94,11 @@ export function TransitStudentsSection({
   const totalCount = studentsData?.pagination?.total_records ?? students.length;
   const allSelected =
     students.length > 0 && selectedVisibleCount === students.length;
-  const fromReferrer = (() => {
+  const defaultFromReferrer = (() => {
     const qs = sectionSearchParams?.toString() ?? "";
     return qs ? `/rooms?${qs}` : "/rooms?room=__transit__";
   })();
+  const fromReferrer = fromReferrerOverride ?? defaultFromReferrer;
 
   useEffect(() => {
     onSelectionActiveChange?.(selectedVisibleCount > 0);
