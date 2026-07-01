@@ -179,7 +179,10 @@ func (s *service) Compute(ctx context.Context, scope Scope) (*Result, error) {
 	reminders := make([]Reminder, 0)
 
 	if pickupUpcoming || pickupOverdue {
-		lead := s.leadMinutes(ctx, configModel.KeyRemindersPickupUpcomingLeadMinutes)
+		lead, lerr := s.leadMinutes(ctx, configModel.KeyRemindersPickupUpcomingLeadMinutes)
+		if lerr != nil {
+			return nil, lerr
+		}
 		pickupReminders, perr := s.pickupReminders(ctx, studentIDs, today, nowMin, lead, pickupUpcoming, pickupOverdue)
 		if perr != nil {
 			return nil, perr
@@ -188,8 +191,14 @@ func (s *service) Compute(ctx context.Context, scope Scope) (*Result, error) {
 	}
 
 	if activityStart || activityOverdue {
-		lead := s.leadMinutes(ctx, configModel.KeyRemindersActivityStartLeadMinutes)
-		overdueThreshold := s.overdueThresholdMinutes(ctx)
+		lead, lerr := s.leadMinutes(ctx, configModel.KeyRemindersActivityStartLeadMinutes)
+		if lerr != nil {
+			return nil, lerr
+		}
+		overdueThreshold, oerr := s.overdueThresholdMinutes(ctx)
+		if oerr != nil {
+			return nil, oerr
+		}
 		activityReminders, aerr := s.activityReminders(ctx, scope, roomIDs, today, nowMin, lead, overdueThreshold, activityStart, activityOverdue)
 		if aerr != nil {
 			return nil, aerr
@@ -272,7 +281,10 @@ func (s *service) pickupReminders(ctx context.Context, studentIDs []int64, today
 	if err != nil {
 		return nil, err
 	}
-	names := s.studentNames(ctx, studentIDs)
+	names, err := s.studentNames(ctx, studentIDs)
+	if err != nil {
+		return nil, err
+	}
 
 	out := make([]Reminder, 0)
 	for _, id := range studentIDs {
@@ -368,15 +380,18 @@ type studentNameInfo struct {
 	class string
 }
 
-func (s *service) studentNames(ctx context.Context, ids []int64) map[int64]studentNameInfo {
+// studentNames resolves the display name + school class for each student ID.
+// A lookup failure is propagated: the pickup-reminder API contract promises a
+// student name as the title, so a DB/RLS error must fail the request rather
+// than emit unusable reminders with empty titles.
+func (s *service) studentNames(ctx context.Context, ids []int64) (map[int64]studentNameInfo, error) {
 	result := make(map[int64]studentNameInfo, len(ids))
 	if s.student == nil {
-		return result
+		return result, nil
 	}
 	students, err := s.student.FindByIDs(ctx, ids)
 	if err != nil {
-		s.logger.WarnContext(ctx, "reminders: failed to load student names", "error", err.Error())
-		return result
+		return nil, fmt.Errorf("load student names: %w", err)
 	}
 	personIDs := make([]int64, 0, len(students))
 	for _, st := range students {
@@ -384,7 +399,10 @@ func (s *service) studentNames(ctx context.Context, ids []int64) map[int64]stude
 	}
 	var persons map[int64]*userModel.Person
 	if s.person != nil {
-		persons, _ = s.person.FindByIDs(ctx, personIDs)
+		persons, err = s.person.FindByIDs(ctx, personIDs)
+		if err != nil {
+			return nil, fmt.Errorf("load persons for student names: %w", err)
+		}
 	}
 	for id, st := range students {
 		info := studentNameInfo{class: st.SchoolClass}
@@ -395,30 +413,39 @@ func (s *service) studentNames(ctx context.Context, ids []int64) map[int64]stude
 		}
 		result[id] = info
 	}
-	return result
+	return result, nil
 }
 
-// leadMinutes resolves a lead-time setting, falling back to the registry
-// default when the lookup errors or returns a non-positive value.
-func (s *service) leadMinutes(ctx context.Context, key string) int {
+// leadMinutes resolves a lead-time setting. A resolution failure is surfaced —
+// like the boolean toggle reads, a broken numeric read must fail the request
+// rather than silently compute reminders at the wrong time. A non-positive
+// configured value is a valid input that normalizes to the registry default.
+func (s *service) leadMinutes(ctx context.Context, key string) (int, error) {
 	const fallback = 10
 	v, err := s.settings.ResolveInt(ctx, key)
-	if err != nil || v <= 0 {
-		return fallback
+	if err != nil {
+		return 0, fmt.Errorf("resolve %s: %w", key, err)
 	}
-	return v
+	if v <= 0 {
+		return fallback, nil
+	}
+	return v, nil
 }
 
 // overdueThresholdMinutes is how many minutes an activity's start may be
 // exceeded before it counts as "not started in time". It reuses the timetable
 // setting that already drives the "Überfällig" badge, so both surfaces agree.
-func (s *service) overdueThresholdMinutes(ctx context.Context) int {
+// As with leadMinutes, a resolution error is surfaced rather than defaulted.
+func (s *service) overdueThresholdMinutes(ctx context.Context) (int, error) {
 	const fallback = 5
 	v, err := s.settings.ResolveInt(ctx, configModel.KeyTimetableOverdueThresholdMinutes)
-	if err != nil || v <= 0 {
-		return fallback
+	if err != nil {
+		return 0, fmt.Errorf("resolve %s: %w", configModel.KeyTimetableOverdueThresholdMinutes, err)
 	}
-	return v
+	if v <= 0 {
+		return fallback, nil
+	}
+	return v, nil
 }
 
 // minutesOfDay returns the wall-clock minute of t. TIME columns are stored as a

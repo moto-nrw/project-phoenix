@@ -215,6 +215,25 @@ func TestPickupReminders(t *testing.T) {
 		_, err := svc.pickupReminders(context.Background(), []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
 		require.Error(t, err)
 	})
+
+	t.Run("propagates a student name lookup error", func(t *testing.T) {
+		svc := &service{
+			pickup:  fakePickup{times: map[int64]*scheduleService.EffectivePickupTime{1: pickupAt(605)}},
+			student: fakeStudent{err: errors.New("boom")},
+		}
+		_, err := svc.pickupReminders(context.Background(), []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
+		require.Error(t, err)
+	})
+
+	t.Run("propagates a person name lookup error", func(t *testing.T) {
+		svc := &service{
+			pickup:  fakePickup{times: map[int64]*scheduleService.EffectivePickupTime{1: pickupAt(605)}},
+			student: fakeStudent{students: students},
+			person:  fakePerson{err: errors.New("boom")},
+		}
+		_, err := svc.pickupReminders(context.Background(), []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
+		require.Error(t, err)
+	})
 }
 
 // --- activityReminders -------------------------------------------------------
@@ -345,8 +364,12 @@ func TestLeadAndThresholdFallbacks(t *testing.T) {
 			configModel.KeyRemindersPickupUpcomingLeadMinutes: 25,
 			configModel.KeyTimetableOverdueThresholdMinutes:   7,
 		}}}
-		assert.Equal(t, 25, svc.leadMinutes(ctx, configModel.KeyRemindersPickupUpcomingLeadMinutes))
-		assert.Equal(t, 7, svc.overdueThresholdMinutes(ctx))
+		lead, err := svc.leadMinutes(ctx, configModel.KeyRemindersPickupUpcomingLeadMinutes)
+		require.NoError(t, err)
+		assert.Equal(t, 25, lead)
+		threshold, err := svc.overdueThresholdMinutes(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 7, threshold)
 	})
 
 	t.Run("non-positive value falls back", func(t *testing.T) {
@@ -354,14 +377,21 @@ func TestLeadAndThresholdFallbacks(t *testing.T) {
 			configModel.KeyRemindersPickupUpcomingLeadMinutes: 0,
 			configModel.KeyTimetableOverdueThresholdMinutes:   0,
 		}}}
-		assert.Equal(t, 10, svc.leadMinutes(ctx, configModel.KeyRemindersPickupUpcomingLeadMinutes))
-		assert.Equal(t, 5, svc.overdueThresholdMinutes(ctx))
+		lead, err := svc.leadMinutes(ctx, configModel.KeyRemindersPickupUpcomingLeadMinutes)
+		require.NoError(t, err)
+		assert.Equal(t, 10, lead)
+		threshold, err := svc.overdueThresholdMinutes(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 5, threshold)
 	})
 
-	t.Run("lookup error falls back", func(t *testing.T) {
-		svc := &service{settings: fakeSettings{intErr: errors.New("boom")}}
-		assert.Equal(t, 10, svc.leadMinutes(ctx, configModel.KeyRemindersPickupUpcomingLeadMinutes))
-		assert.Equal(t, 5, svc.overdueThresholdMinutes(ctx))
+	t.Run("lookup error is propagated, not silently defaulted", func(t *testing.T) {
+		resolveErr := errors.New("boom")
+		svc := &service{settings: fakeSettings{intErr: resolveErr}}
+		_, err := svc.leadMinutes(ctx, configModel.KeyRemindersPickupUpcomingLeadMinutes)
+		require.ErrorIs(t, err, resolveErr)
+		_, err = svc.overdueThresholdMinutes(ctx)
+		require.ErrorIs(t, err, resolveErr)
 	})
 }
 
