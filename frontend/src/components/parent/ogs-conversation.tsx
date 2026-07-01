@@ -314,6 +314,10 @@ export function OgsConversation({
                   own={message.sender_kind === "guardian"}
                   senderName={message.sender_name}
                   createdAt={message.created_at}
+                  // The parent's own bubbles are always the logged-in guardian
+                  // (one guardian account per thread), so drop the redundant name
+                  // and keep just the time. Staff bubbles still show "Vorname N.".
+                  showOwnSenderName={false}
                   readReceiptLabel={
                     message.sender_kind === "guardian" && message.read_by_staff
                       ? t("readByStaff")
