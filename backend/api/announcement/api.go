@@ -75,6 +75,7 @@ type announcementRequest struct {
 	Title                   string          `json:"title"`
 	Body                    string          `json:"body"`
 	Priority                string          `json:"priority"`
+	LinkURL                 *string         `json:"link_url,omitempty"`
 	RequiresAcknowledgement bool            `json:"requires_acknowledgement"`
 	SendEmail               bool            `json:"send_email"`
 	ExpiresAt               *time.Time      `json:"expires_at,omitempty"`
@@ -92,6 +93,7 @@ type announcementResponse struct {
 	Title                   string           `json:"title"`
 	Body                    string           `json:"body"`
 	Priority                string           `json:"priority"`
+	LinkURL                 *string          `json:"link_url,omitempty"`
 	RequiresAcknowledgement bool             `json:"requires_acknowledgement"`
 	SendEmail               bool             `json:"send_email"`
 	Status                  string           `json:"status"`
@@ -138,6 +140,7 @@ func toAnnouncementResponse(a *usersModels.ParentAnnouncement) announcementRespo
 		Title:                   a.Title,
 		Body:                    a.Body,
 		Priority:                a.Priority,
+		LinkURL:                 a.LinkURL,
 		RequiresAcknowledgement: a.RequiresAcknowledgement,
 		SendEmail:               a.SendEmail,
 		Status:                  announcementStatus(a),
@@ -157,6 +160,7 @@ func toInput(req announcementRequest) (announcementService.Input, error) {
 		Title:                   req.Title,
 		Body:                    req.Body,
 		Priority:                req.Priority,
+		LinkURL:                 req.LinkURL,
 		RequiresAcknowledgement: req.RequiresAcknowledgement,
 		SendEmail:               req.SendEmail,
 		ExpiresAt:               req.ExpiresAt,
@@ -319,6 +323,8 @@ func renderAnnouncementError(w http.ResponseWriter, r *http.Request, err error) 
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, announcementService.ErrNewsDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "parent_news_disabled"))
+	case errors.Is(err, announcementService.ErrPublishedImmutable):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "announcement_published_immutable"))
 	case errors.Is(err, announcementService.ErrValidation):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:

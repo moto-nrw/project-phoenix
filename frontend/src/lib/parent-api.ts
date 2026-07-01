@@ -525,6 +525,7 @@ export interface ParentAnnouncement {
   readonly title: string;
   readonly body: string;
   readonly priority: "info" | "important";
+  readonly link_url?: string;
   readonly requires_acknowledgement: boolean;
   readonly school_name: string;
   readonly published_at?: string; // ISO timestamp

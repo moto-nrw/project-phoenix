@@ -27,6 +27,7 @@ export interface Announcement {
   title: string;
   body: string;
   priority: AnnouncementPriority;
+  link_url?: string;
   requires_acknowledgement: boolean;
   send_email: boolean;
   status: AnnouncementStatus;
@@ -48,6 +49,7 @@ export interface AnnouncementInput {
   title: string;
   body: string;
   priority: AnnouncementPriority;
+  link_url?: string | null;
   requires_acknowledgement: boolean;
   send_email: boolean;
   expires_at?: string | null;

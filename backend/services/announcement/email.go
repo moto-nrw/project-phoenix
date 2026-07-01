@@ -8,13 +8,14 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 )
 
-// Outbox payload keys for the parent_announcement e-mail.
+// Outbox payload keys for the parent_announcement e-mail. The announcement
+// BODY is deliberately not part of the payload: the mail is only a pointer
+// (title + portal link) — the content lives in the parent portal.
 const (
 	emailPayloadRecipient  = "recipient_email"
 	emailPayloadFirstName  = "first_name"
 	emailPayloadLastName   = "last_name"
 	emailPayloadTitle      = "title"
-	emailPayloadBody       = "body"
 	emailPayloadSchoolName = "school_name"
 	emailPayloadPortalURL  = "portal_url"
 )
@@ -34,7 +35,6 @@ func NewAnnouncementRenderer(cfg EmailConfig) func(context.Context, *platformMod
 			return nil, fmt.Errorf("%s payload missing recipient_email", row.Kind)
 		}
 		title, _ := row.Payload[emailPayloadTitle].(string)
-		body, _ := row.Payload[emailPayloadBody].(string)
 		schoolName, _ := row.Payload[emailPayloadSchoolName].(string)
 		first, _ := row.Payload[emailPayloadFirstName].(string)
 		last, _ := row.Payload[emailPayloadLastName].(string)
@@ -52,7 +52,6 @@ func NewAnnouncementRenderer(cfg EmailConfig) func(context.Context, *platformMod
 			Template: "announcement-published.html",
 			Content: map[string]any{
 				"Title":             title,
-				"Body":              body,
 				"SchoolName":        schoolName,
 				"GuardianFirstName": first,
 				"GuardianLastName":  last,

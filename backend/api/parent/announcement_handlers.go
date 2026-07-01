@@ -21,6 +21,7 @@ type AnnouncementResponse struct {
 	Title                   string     `json:"title"`
 	Body                    string     `json:"body"`
 	Priority                string     `json:"priority"`
+	LinkURL                 *string    `json:"link_url,omitempty"`
 	RequiresAcknowledgement bool       `json:"requires_acknowledgement"`
 	SchoolName              string     `json:"school_name"`
 	PublishedAt             *time.Time `json:"published_at,omitempty"`
@@ -35,6 +36,7 @@ func toAnnouncementResponse(item *usersModels.AnnouncementFeedItem) Announcement
 		Title:                   item.Title,
 		Body:                    item.Body,
 		Priority:                item.Priority,
+		LinkURL:                 item.LinkURL,
 		RequiresAcknowledgement: item.RequiresAcknowledgement,
 		SchoolName:              item.SchoolName,
 		PublishedAt:             item.PublishedAt,

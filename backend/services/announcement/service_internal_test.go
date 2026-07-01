@@ -10,6 +10,49 @@ import (
 func strptr(s string) *string { return &s }
 func i64ptr(v int64) *int64   { return &v }
 
+func TestNormalizeLinkURL(t *testing.T) {
+	valid := map[string]string{
+		"https://schule.example.de/ausflug":   "https://schule.example.de/ausflug",
+		"  https://schule.example.de/a  ":     "https://schule.example.de/a",
+		"http://schule.example.de":            "http://schule.example.de",
+		"https://example.de/pfad?x=1&y=2#top": "https://example.de/pfad?x=1&y=2#top",
+	}
+	for raw, want := range valid {
+		got, err := normalizeLinkURL(strptr(raw))
+		if err != nil {
+			t.Fatalf("expected %q valid, got %v", raw, err)
+		}
+		if got == nil || *got != want {
+			t.Fatalf("expected %q normalized to %q, got %v", raw, want, got)
+		}
+	}
+
+	for _, empty := range []*string{nil, strptr(""), strptr("   ")} {
+		got, err := normalizeLinkURL(empty)
+		if err != nil || got != nil {
+			t.Fatalf("expected empty link to collapse to nil, got %v / %v", got, err)
+		}
+	}
+
+	invalid := []string{
+		"javascript:alert(1)",
+		"ftp://example.de/datei",
+		"/relativer/pfad",
+		"schule.example.de", // no scheme
+		"https://",          // no host
+	}
+	for _, raw := range invalid {
+		if _, err := normalizeLinkURL(strptr(raw)); !errors.Is(err, ErrValidation) {
+			t.Fatalf("expected %q to fail validation, got %v", raw, err)
+		}
+	}
+
+	long := "https://example.de/" + string(make([]byte, maxLinkURLLen))
+	if _, err := normalizeLinkURL(&long); !errors.Is(err, ErrValidation) {
+		t.Fatalf("expected over-long link to fail validation, got %v", err)
+	}
+}
+
 func TestNormalizeInput_Valid(t *testing.T) {
 	in := Input{
 		Title:    "  Ausflug am Freitag  ",

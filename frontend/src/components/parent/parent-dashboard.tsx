@@ -2,7 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Check, Newspaper, Users } from "lucide-react";
+import {
+  ArrowRight,
+  Check,
+  ExternalLink,
+  Newspaper,
+  Users,
+} from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import {
   type Child,
@@ -17,6 +23,7 @@ import {
   markAnnouncementRead,
 } from "~/lib/parent-api";
 import { formatDate as formatGermanDate } from "~/lib/date-helpers";
+import { LinkifiedText } from "~/components/ui/linkified-text";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "ParentDashboard" });
@@ -488,8 +495,19 @@ function AnnouncementCard({
         {item.published_at ? ` · ${formatGermanDate(item.published_at)}` : ""}
       </p>
       <p className="mt-2 text-sm leading-6 whitespace-pre-line text-gray-700">
-        {item.body}
+        <LinkifiedText text={item.body} />
       </p>
+      {item.link_url && (
+        <a
+          href={item.link_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2 inline-flex max-w-full items-center gap-1.5 text-sm font-medium text-[#5080D8] underline underline-offset-2 hover:text-[#3f68b5]"
+        >
+          <ExternalLink className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="truncate">{item.link_url}</span>
+        </a>
+      )}
 
       {(needsAck || unread) && (
         <div className="mt-3 flex flex-wrap gap-2">

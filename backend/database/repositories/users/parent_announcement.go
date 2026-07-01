@@ -349,7 +349,7 @@ func (r *ParentAnnouncementRepository) ListFeedForAccount(ctx context.Context, a
 	var rows []*users.AnnouncementFeedItem
 	reached := reachedPredicate("a.id", "a.tenant_id", "?")
 	sqlStr := `
-		SELECT a.id, a.tenant_id, a.title, a.body, a.priority,
+		SELECT a.id, a.tenant_id, a.title, a.body, a.priority, a.link_url,
 			a.requires_acknowledgement, a.published_at, a.expires_at,
 			COALESCE(sch.name, '') AS school_name,
 			par.read_at AS read_at,

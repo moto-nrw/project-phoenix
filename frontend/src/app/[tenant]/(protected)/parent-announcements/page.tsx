@@ -1,7 +1,6 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
 import {
   BarChart3,
   Check,
@@ -15,10 +14,12 @@ import {
 
 import { PageHeaderWithSearch } from "~/components/ui/page-header";
 import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import type { OverflowMenuItem } from "~/components/ui/page-header/OverflowMenu";
 import { DataTable } from "~/components/ui/data-table";
 import type { DataTableColumn } from "~/components/ui/data-table";
 import { FormModal } from "~/components/ui/form-modal";
-import { Modal } from "~/components/ui/modal";
+import { Modal, ConfirmationModal } from "~/components/ui/modal";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -26,6 +27,9 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { DatePicker } from "~/components/ui/date-picker";
 import { Loading } from "~/components/ui/loading";
 import { InfoCard, InfoItem } from "~/components/ui/info-card";
+import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
+import { WizardStepper } from "~/components/ui/wizard-stepper";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth } from "~/lib/swr";
@@ -62,10 +66,13 @@ const PRIORITY_OPTIONS: ReadonlyArray<{
   { value: "important", label: "Wichtig" },
 ];
 
-const STATUS_META: Record<AnnouncementStatus, { label: string }> = {
-  draft: { label: "Entwurf" },
-  published: { label: "Veröffentlicht" },
-  expired: { label: "Abgelaufen" },
+const STATUS_META: Record<
+  AnnouncementStatus,
+  { label: string; color: string }
+> = {
+  draft: { label: "Entwurf", color: LOCATION_COLORS.UNKNOWN },
+  published: { label: "Veröffentlicht", color: LOCATION_COLORS.GROUP_ROOM },
+  expired: { label: "Abgelaufen", color: LOCATION_COLORS.SCHOOLYARD },
 };
 
 const TARGET_TYPE_PLURAL: Record<AnnouncementTargetType, string> = {
@@ -114,10 +121,31 @@ function endOfDayISO(date: Date): string {
   ).toISOString();
 }
 
-function Pill({ label }: { label: string }) {
+/** Returns a German validation error for a non-empty link, or null when ok. */
+function linkError(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return "Der Link muss mit https:// (oder http://) beginnen.";
+    }
+    return null;
+  } catch {
+    return "Bitte einen vollständigen Link angeben (z. B. https://...).";
+  }
+}
+
+function StatusPill({ status }: { status: AnnouncementStatus }) {
+  const meta = STATUS_META[status];
   return (
-    <span className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
-      {label}
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-3 py-1 text-xs font-medium">
+      <span
+        aria-hidden
+        className="inline-block h-1.5 w-1.5 rounded-full"
+        style={{ backgroundColor: meta.color }}
+      />
+      <span style={{ color: meta.color }}>{meta.label}</span>
     </span>
   );
 }
@@ -142,6 +170,8 @@ function ParentAnnouncementsContent() {
   const [deleteTarget, setDeleteTarget] = useState<Announcement | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [publishTarget, setPublishTarget] = useState<Announcement | null>(null);
+  const [publishError, setPublishError] = useState("");
   const [pendingActionId, setPendingActionId] = useState<string | null>(null);
 
   const {
@@ -249,21 +279,33 @@ function ParentAnnouncementsContent() {
     setEditing(null);
   };
 
-  const runStatusAction = async (
-    announcement: Announcement,
-    action: "publish" | "unpublish",
-  ) => {
+  const confirmPublish = async () => {
+    if (!publishTarget) return;
+    setPendingActionId(publishTarget.id);
+    setPublishError("");
+    try {
+      await publishAnnouncement(publishTarget.id);
+      await mutate();
+      setPublishTarget(null);
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Elternmitteilung konnte nicht veröffentlicht werden";
+      setPublishError(message);
+      logger.error("announcement_publish_failed", { error: message });
+    } finally {
+      setPendingActionId(null);
+    }
+  };
+
+  const runUnpublish = async (announcement: Announcement) => {
     setPendingActionId(announcement.id);
     try {
-      if (action === "publish") {
-        await publishAnnouncement(announcement.id);
-      } else {
-        await unpublishAnnouncement(announcement.id);
-      }
+      await unpublishAnnouncement(announcement.id);
       await mutate();
     } catch (err) {
-      logger.error("announcement_status_action_failed", {
-        action,
+      logger.error("announcement_unpublish_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
     } finally {
@@ -298,7 +340,14 @@ function ParentAnnouncementsContent() {
       sortValue: (row) => row.title.toLowerCase(),
       render: (row) => (
         <div className="min-w-0">
-          <p className="truncate font-semibold text-gray-900">{row.title}</p>
+          <div className="flex min-w-0 items-center gap-2">
+            <p className="truncate font-semibold text-gray-900">{row.title}</p>
+            {row.priority === "important" && (
+              <span className="inline-flex shrink-0 items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
+                Wichtig
+              </span>
+            )}
+          </div>
           <p className="mt-0.5 line-clamp-1 text-xs text-gray-500">
             {row.body}
           </p>
@@ -306,20 +355,10 @@ function ParentAnnouncementsContent() {
       ),
     },
     {
-      key: "priority",
-      header: "Priorität",
-      render: (row) =>
-        row.priority === "important" ? (
-          <Pill label="Wichtig" />
-        ) : (
-          <span className="text-xs text-gray-400">Info</span>
-        ),
-    },
-    {
       key: "status",
       header: "Status",
       sortValue: (row) => row.status,
-      render: (row) => <Pill label={STATUS_META[row.status].label} />,
+      render: (row) => <StatusPill status={row.status} />,
     },
     {
       key: "targets",
@@ -348,70 +387,66 @@ function ParentAnnouncementsContent() {
       key: "actions",
       header: "",
       align: "right",
-      render: (row) => (
-        <div className="flex justify-end gap-1">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => openEdit(row)}
-            aria-label="Bearbeiten"
-            title="Bearbeiten"
-          >
-            <Pencil className="size-4" aria-hidden />
-          </Button>
-          {row.status === "draft" && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              disabled={pendingActionId === row.id}
-              onClick={() => void runStatusAction(row, "publish")}
-              aria-label="Veröffentlichen"
-              title="Veröffentlichen"
-            >
-              <Send className="size-4" aria-hidden />
-            </Button>
-          )}
-          {row.status === "published" && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              disabled={pendingActionId === row.id}
-              onClick={() => void runStatusAction(row, "unpublish")}
-              aria-label="Zurückziehen"
-              title="Zurückziehen"
-            >
-              <Undo2 className="size-4" aria-hidden />
-            </Button>
-          )}
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => setStatsFor(row)}
-            aria-label="Statistik"
-            title="Statistik"
-          >
-            <BarChart3 className="size-4" aria-hidden />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => {
-              setDeleteError("");
-              setDeleteTarget(row);
-            }}
-            aria-label="Löschen"
-            title="Löschen"
-            className="hover:text-[#FF3130]"
-          >
-            <Trash2 className="size-4" aria-hidden />
-          </Button>
-        </div>
-      ),
+      render: (row) => {
+        // One clear inline action per row (publish a draft), everything else
+        // behind the kebab. Editing is draft-only — published announcements
+        // are immutable (Zurückziehen first, then edit the draft).
+        const menuItems: OverflowMenuItem[] = [];
+        if (row.status === "draft") {
+          menuItems.push({
+            label: "Bearbeiten",
+            icon: <Pencil className="size-4" aria-hidden />,
+            onClick: () => openEdit(row),
+          });
+        }
+        menuItems.push({
+          label: "Statistik",
+          icon: <BarChart3 className="size-4" aria-hidden />,
+          onClick: () => setStatsFor(row),
+        });
+        if (row.status === "published") {
+          menuItems.push({
+            label: "Zurückziehen",
+            icon: <Undo2 className="size-4" aria-hidden />,
+            onClick: () => void runUnpublish(row),
+            disabled: pendingActionId === row.id,
+          });
+        }
+        menuItems.push({
+          label: "Löschen",
+          icon: <Trash2 className="size-4" aria-hidden />,
+          destructive: true,
+          onClick: () => {
+            setDeleteError("");
+            setDeleteTarget(row);
+          },
+        });
+
+        return (
+          <div className="flex items-center justify-end gap-1">
+            {row.status === "draft" && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="compact"
+                disabled={pendingActionId === row.id}
+                onClick={() => {
+                  setPublishError("");
+                  setPublishTarget(row);
+                }}
+                className="gap-1.5 text-[#669f21] hover:text-[#4d7719]"
+              >
+                <Send className="size-4" aria-hidden />
+                Veröffentlichen
+              </Button>
+            )}
+            <OverflowMenu
+              items={menuItems}
+              ariaLabel={`Aktionen für ${row.title}`}
+            />
+          </div>
+        );
+      },
     },
   ];
 
@@ -498,6 +533,47 @@ function ParentAnnouncementsContent() {
         <StatsModal announcement={statsFor} onClose={() => setStatsFor(null)} />
       )}
 
+      {publishTarget && (
+        <ConfirmationModal
+          isOpen={Boolean(publishTarget)}
+          onClose={() => {
+            setPublishTarget(null);
+            setPublishError("");
+          }}
+          onConfirm={() => void confirmPublish()}
+          title="Elternmitteilung veröffentlichen"
+          confirmText="Jetzt veröffentlichen"
+          cancelText="Abbrechen"
+          isConfirmLoading={pendingActionId === publishTarget.id}
+          confirmButtonClass="bg-[#83CD2D] text-white hover:bg-[#74b827]"
+        >
+          <div className="space-y-2 text-sm text-gray-700">
+            <p>
+              „{publishTarget.title}“ wird für{" "}
+              <span className="font-medium">
+                {summarizeTargets(publishTarget.targets)}
+              </span>{" "}
+              sichtbar.
+            </p>
+            {publishTarget.send_email && (
+              <p>
+                Die erreichten Eltern werden zusätzlich per E-Mail
+                benachrichtigt.
+              </p>
+            )}
+            <p className="text-xs text-gray-500">
+              Nach dem Veröffentlichen kann die Mitteilung nicht mehr bearbeitet
+              werden.
+            </p>
+            {publishError && (
+              <p role="alert" className="text-sm text-[#CC2626]">
+                {publishError}
+              </p>
+            )}
+          </div>
+        </ConfirmationModal>
+      )}
+
       {deleteTarget && (
         <ConfirmDeleteModal
           isOpen={Boolean(deleteTarget)}
@@ -535,6 +611,14 @@ interface AnnouncementFormModalProps {
   readonly onSaved: () => Promise<void> | void;
 }
 
+const WIZARD_STEPS = ["Inhalt", "Empfänger"] as const;
+
+/**
+ * Two-step wizard, like writing an e-mail: first the content, then who
+ * receives it — with "Als Entwurf speichern" and "Veröffentlichen" as the
+ * final, explicit choices. Only drafts ever reach this modal (published
+ * announcements are immutable).
+ */
 function AnnouncementFormModal({
   announcement,
   groups,
@@ -544,9 +628,11 @@ function AnnouncementFormModal({
   onSaved,
 }: AnnouncementFormModalProps) {
   const isEdit = announcement !== null;
+  const [step, setStep] = useState(0);
 
   const [title, setTitle] = useState(announcement?.title ?? "");
   const [body, setBody] = useState(announcement?.body ?? "");
+  const [linkUrl, setLinkUrl] = useState(announcement?.link_url ?? "");
   const [priority, setPriority] = useState<AnnouncementPriority>(
     announcement?.priority ?? "info",
   );
@@ -562,16 +648,36 @@ function AnnouncementFormModal({
   );
   const [studentNames, setStudentNames] = useState<Record<string, string>>({});
 
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useState<"draft" | "publish" | null>(
+    null,
+  );
   const [formError, setFormError] = useState("");
 
-  const handleSubmit = async () => {
+  const validateContent = (): boolean => {
     if (!title.trim()) {
       setFormError("Bitte einen Titel eingeben.");
-      return;
+      return false;
     }
     if (!body.trim()) {
       setFormError("Bitte einen Text eingeben.");
+      return false;
+    }
+    const linkProblem = linkError(linkUrl);
+    if (linkProblem) {
+      setFormError(linkProblem);
+      return false;
+    }
+    setFormError("");
+    return true;
+  };
+
+  const goNext = () => {
+    if (validateContent()) setStep(1);
+  };
+
+  const handleSubmit = async (publish: boolean) => {
+    if (!validateContent()) {
+      setStep(0);
       return;
     }
     if (targets.length === 0) {
@@ -579,23 +685,42 @@ function AnnouncementFormModal({
       return;
     }
 
+    const trimmedLink = linkUrl.trim();
     const input: AnnouncementInput = {
       title: title.trim(),
       body: body.trim(),
       priority,
+      link_url: trimmedLink ? trimmedLink : null,
       requires_acknowledgement: requiresAck,
       send_email: sendEmail,
       expires_at: expiresAt ? endOfDayISO(expiresAt) : null,
       targets,
     };
 
-    setSubmitting(true);
+    setSubmitting(publish ? "publish" : "draft");
     setFormError("");
     try {
-      if (isEdit && announcement) {
-        await updateAnnouncement(announcement.id, input);
-      } else {
-        await createAnnouncement(input);
+      const saved =
+        isEdit && announcement
+          ? await updateAnnouncement(announcement.id, input)
+          : await createAnnouncement(input);
+      if (publish) {
+        try {
+          await publishAnnouncement(saved.id);
+        } catch (err) {
+          // The draft is saved — surface only the publish failure so nothing
+          // is lost and the user can retry from the list.
+          const message =
+            err instanceof Error
+              ? err.message
+              : "Elternmitteilung konnte nicht veröffentlicht werden";
+          setFormError(
+            `Als Entwurf gespeichert, aber das Veröffentlichen ist fehlgeschlagen: ${message}`,
+          );
+          logger.error("announcement_publish_failed", { error: message });
+          await onSaved();
+          return;
+        }
       }
       await onSaved();
     } catch (err) {
@@ -609,32 +734,56 @@ function AnnouncementFormModal({
         error: message,
       });
     } finally {
-      setSubmitting(false);
+      setSubmitting(null);
     }
   };
 
-  const footer = (
-    <>
-      <Button
-        type="button"
-        variant="outline"
-        size="md"
-        onClick={onClose}
-        disabled={submitting}
-      >
-        Abbrechen
-      </Button>
-      <Button
-        type="button"
-        size="md"
-        onClick={() => void handleSubmit()}
-        isLoading={submitting}
-        loadingText="Wird gespeichert..."
-      >
-        {isEdit ? "Speichern" : "Erstellen"}
-      </Button>
-    </>
-  );
+  const footer =
+    step === 0 ? (
+      <>
+        <Button type="button" variant="outline" size="md" onClick={onClose}>
+          Abbrechen
+        </Button>
+        <Button type="button" size="md" onClick={goNext}>
+          Weiter
+        </Button>
+      </>
+    ) : (
+      <>
+        <Button
+          type="button"
+          variant="outline"
+          size="md"
+          onClick={() => setStep(0)}
+          disabled={submitting !== null}
+        >
+          Zurück
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          size="md"
+          onClick={() => void handleSubmit(false)}
+          isLoading={submitting === "draft"}
+          loadingText="Wird gespeichert..."
+          disabled={submitting === "publish"}
+        >
+          Als Entwurf speichern
+        </Button>
+        <Button
+          type="button"
+          size="md"
+          onClick={() => void handleSubmit(true)}
+          isLoading={submitting === "publish"}
+          loadingText="Wird veröffentlicht..."
+          disabled={submitting === "draft"}
+          className="gap-1.5 border-transparent bg-[#83CD2D] text-white hover:bg-[#74b827] active:bg-[#669f21]"
+        >
+          <Send className="size-4" aria-hidden />
+          Veröffentlichen
+        </Button>
+      </>
+    );
 
   return (
     <FormModal
@@ -645,126 +794,143 @@ function AnnouncementFormModal({
       size="xl"
     >
       <div className="space-y-5">
-        <Input
-          label="Titel"
-          name="announcement-title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="z. B. Sommerfest am Freitag"
-        />
+        <WizardStepper steps={WIZARD_STEPS} current={step} />
 
-        <div>
-          <label
-            htmlFor="announcement-body"
-            className="mb-2 block text-sm font-medium text-gray-700"
-          >
-            Text
-          </label>
-          <textarea
-            id="announcement-body"
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            rows={4}
-            maxLength={4000}
-            placeholder="Inhalt der Mitteilung..."
-            className="block w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
-          />
-        </div>
+        {step === 0 ? (
+          <div className="space-y-5">
+            <Input
+              label="Titel"
+              name="announcement-title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="z. B. Sommerfest am Freitag"
+            />
 
-        <div>
-          <span
-            id="announcement-priority-label"
-            className="mb-1.5 block text-sm font-medium text-gray-700"
-          >
-            Priorität
-          </span>
-          <div
-            className="flex flex-wrap gap-2"
-            role="group"
-            aria-labelledby="announcement-priority-label"
-          >
-            {PRIORITY_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setPriority(opt.value)}
-                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                  priority === opt.value
-                    ? "bg-gray-900 text-white"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
+            <div>
+              <label
+                htmlFor="announcement-body"
+                className="mb-2 block text-sm font-medium text-gray-700"
               >
-                {opt.label}
-              </button>
-            ))}
+                Text
+              </label>
+              <textarea
+                id="announcement-body"
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                rows={5}
+                maxLength={4000}
+                placeholder="Inhalt der Mitteilung... Links im Text werden für Eltern klickbar."
+                className="block w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
+              />
+            </div>
+
+            <Input
+              label="Link (optional)"
+              name="announcement-link"
+              type="url"
+              value={linkUrl}
+              onChange={(e) => setLinkUrl(e.target.value)}
+              placeholder="https://..."
+            />
+
+            <div className="grid gap-5 sm:grid-cols-2">
+              <div>
+                <span
+                  id="announcement-priority-label"
+                  className="mb-1.5 block text-sm font-medium text-gray-700"
+                >
+                  Priorität
+                </span>
+                <div
+                  className="flex flex-wrap gap-2"
+                  role="group"
+                  aria-labelledby="announcement-priority-label"
+                >
+                  {PRIORITY_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setPriority(opt.value)}
+                      className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                        priority === opt.value
+                          ? "bg-gray-900 text-white"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <span className="mb-1.5 block text-sm font-medium text-gray-700">
+                  Ablaufdatum (optional)
+                </span>
+                <DatePicker
+                  value={expiresAt}
+                  onChange={setExpiresAt}
+                  placeholder="Kein Ablaufdatum"
+                  dropdownPlacement="down"
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label
+                htmlFor="announcement-ack"
+                className="flex cursor-pointer items-start gap-3"
+              >
+                <Checkbox
+                  id="announcement-ack"
+                  checked={requiresAck}
+                  onChange={(e) => setRequiresAck(e.target.checked)}
+                />
+                <span>
+                  <span className="block text-sm font-medium text-gray-700">
+                    Lesebestätigung erforderlich
+                  </span>
+                  <span className="block text-xs text-gray-500">
+                    Eltern bestätigen ausdrücklich, dass sie die Mitteilung
+                    gelesen haben.
+                  </span>
+                </span>
+              </label>
+
+              <label
+                htmlFor="announcement-email"
+                className="flex cursor-pointer items-start gap-3"
+              >
+                <Checkbox
+                  id="announcement-email"
+                  checked={sendEmail}
+                  onChange={(e) => setSendEmail(e.target.checked)}
+                />
+                <span>
+                  <span className="block text-sm font-medium text-gray-700">
+                    Eltern zusätzlich per E-Mail benachrichtigen
+                  </span>
+                  <span className="block text-xs text-gray-500">
+                    Beim Veröffentlichen erhalten die erreichten Eltern eine
+                    E-Mail mit Titel und Link ins Elternportal.
+                  </span>
+                </span>
+              </label>
+            </div>
           </div>
-        </div>
-
-        <div>
-          <span className="mb-1.5 block text-sm font-medium text-gray-700">
-            Ablaufdatum (optional)
-          </span>
-          <DatePicker
-            value={expiresAt}
-            onChange={setExpiresAt}
-            placeholder="Kein Ablaufdatum"
-            dropdownPlacement="down"
+        ) : (
+          <TargetingStep
+            targets={targets}
+            groups={groups}
+            activities={activities}
+            schoolClasses={schoolClasses}
+            studentNames={studentNames}
+            onChange={setTargets}
+            onSetStudentName={(id, name) =>
+              setStudentNames((prev) => ({ ...prev, [id]: name }))
+            }
           />
-        </div>
-
-        <div className="space-y-3">
-          <label
-            htmlFor="announcement-ack"
-            className="flex cursor-pointer items-start gap-3"
-          >
-            <Checkbox
-              id="announcement-ack"
-              checked={requiresAck}
-              onChange={(e) => setRequiresAck(e.target.checked)}
-            />
-            <span>
-              <span className="block text-sm font-medium text-gray-700">
-                Lesebestätigung erforderlich
-              </span>
-              <span className="block text-xs text-gray-500">
-                Eltern bestätigen ausdrücklich, dass sie die Mitteilung gelesen
-                haben.
-              </span>
-            </span>
-          </label>
-
-          <label
-            htmlFor="announcement-email"
-            className="flex cursor-pointer items-start gap-3"
-          >
-            <Checkbox
-              id="announcement-email"
-              checked={sendEmail}
-              onChange={(e) => setSendEmail(e.target.checked)}
-            />
-            <span>
-              <span className="block text-sm font-medium text-gray-700">
-                Eltern zusätzlich per E-Mail benachrichtigen
-              </span>
-              <span className="block text-xs text-gray-500">
-                Beim Veröffentlichen erhalten die erreichten Eltern eine E-Mail.
-                Die Mitteilung erscheint immer auch im Elternportal.
-              </span>
-            </span>
-          </label>
-        </div>
-
-        <TargetingSection
-          targets={targets}
-          groups={groups}
-          activities={activities}
-          schoolClasses={schoolClasses}
-          studentNames={studentNames}
-          onChange={setTargets}
-          onSetStudentName={(id, name) =>
-            setStudentNames((prev) => ({ ...prev, [id]: name }))
-          }
-        />
+        )}
 
         {formError && (
           <p role="alert" className="text-sm text-[#CC2626]">
@@ -776,16 +942,9 @@ function AnnouncementFormModal({
   );
 }
 
-/** Toggle a value in/out of a string list (used by the targeting pills). */
-function toggleValue(values: string[], v: string): string[] {
-  return values.includes(v) ? values.filter((x) => x !== v) : [...values, v];
-}
-
 /**
- * Multi-select toggle pill, mirroring the operator announcement modal's target
- * selector (a bordered button with an inline check-box; active = brand green).
- * The whole targeting UX uses this so it reads identically to the sibling
- * operator feature.
+ * Broad-audience toggle pill (mirrors the operator announcement modal's
+ * selector): a bordered button with an inline check-box.
  */
 function CheckPill({
   label,
@@ -818,25 +977,7 @@ function CheckPill({
   );
 }
 
-/** A labelled group of targeting pills (label + wrapping pill row). */
-function PillCategory({
-  label,
-  children,
-}: {
-  readonly label: string;
-  readonly children: ReactNode;
-}) {
-  return (
-    <div>
-      <span className="mb-1.5 block text-sm font-medium text-gray-700">
-        {label}
-      </span>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{children}</div>
-    </div>
-  );
-}
-
-interface TargetingSectionProps {
+interface TargetingStepProps {
   readonly targets: AnnouncementTarget[];
   readonly groups: Group[];
   readonly activities: Activity[];
@@ -846,7 +987,7 @@ interface TargetingSectionProps {
   readonly onSetStudentName: (id: string, name: string) => void;
 }
 
-function TargetingSection({
+function TargetingStep({
   targets,
   groups,
   activities,
@@ -854,7 +995,7 @@ function TargetingSection({
   studentNames,
   onChange,
   onSetStudentName,
-}: TargetingSectionProps) {
+}: TargetingStepProps) {
   // Single source of truth is `targets`; each control derives its selection
   // from it and rebuilds it on change.
   const schoolAll = targets.some((t) => t.target_type === "school_all");
@@ -940,133 +1081,137 @@ function TargetingSection({
   const fieldLabel = "mb-1.5 block text-sm font-medium text-gray-700";
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4">
-      <h4 className="text-sm font-semibold text-gray-900">Zielgruppen</h4>
-      <p className="mt-0.5 text-xs text-gray-500">
-        Wählen Sie aus, wer diese Mitteilung erhält. Mindestens eine Zielgruppe
-        ist erforderlich.
-      </p>
-
-      <div className="mt-3 space-y-4">
-        <PillCategory label="Allgemein">
-          <CheckPill
-            label="Ganze Schule"
-            active={schoolAll}
-            onClick={() => toggleSimple("school_all", !schoolAll)}
-          />
-          <CheckPill
-            label="Offene Anmeldungen"
-            active={pendingEnrollment}
-            onClick={() =>
-              toggleSimple("pending_enrollment", !pendingEnrollment)
-            }
-          />
-        </PillCategory>
-
-        {!schoolAll && (
-          <>
-            {schoolClasses.length > 0 && (
-              <PillCategory label="Klassen">
-                {schoolClasses.map((c) => (
-                  <CheckPill
-                    key={c}
-                    label={c}
-                    active={selectedClasses.includes(c)}
-                    onClick={() =>
-                      setCategory("class", toggleValue(selectedClasses, c))
-                    }
-                  />
-                ))}
-              </PillCategory>
-            )}
-            {groups.length > 0 && (
-              <PillCategory label="Gruppen">
-                {groups.map((g) => (
-                  <CheckPill
-                    key={g.id}
-                    label={g.name}
-                    active={selectedGroups.includes(g.id)}
-                    onClick={() =>
-                      setCategory("group", toggleValue(selectedGroups, g.id))
-                    }
-                  />
-                ))}
-              </PillCategory>
-            )}
-            {activities.length > 0 && (
-              <PillCategory label="AGs / Betreuung">
-                {activities.map((a) => (
-                  <CheckPill
-                    key={a.id}
-                    label={a.name}
-                    active={selectedActivities.includes(a.id)}
-                    onClick={() =>
-                      setCategory(
-                        "activity_group",
-                        toggleValue(selectedActivities, a.id),
-                      )
-                    }
-                  />
-                ))}
-              </PillCategory>
-            )}
-
-            <div>
-              <span className={fieldLabel}>Einzelne Kinder</span>
-              {selectedStudents.length > 0 && (
-                <div className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {selectedStudents.map((t) => (
-                    <CheckPill
-                      key={targetKey(t)}
-                      label={
-                        t.ref_id ? (studentNames[t.ref_id] ?? "Kind") : "Kind"
-                      }
-                      active
-                      onClick={() => t.ref_id && removeStudent(t.ref_id)}
-                    />
-                  ))}
-                </div>
-              )}
-              <Input
-                name="announcement-student-search"
-                controlSize="compact"
-                value={studentSearch}
-                onChange={(e) => setStudentSearch(e.target.value)}
-                placeholder="Kind suchen (mind. 2 Zeichen)..."
-              />
-              {debouncedSearch.length >= 2 && (
-                <div className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-gray-200">
-                  {studentsLoading ? (
-                    <p className="px-3 py-2 text-sm text-gray-500">
-                      Wird gesucht...
-                    </p>
-                  ) : (studentResults?.length ?? 0) === 0 ? (
-                    <p className="px-3 py-2 text-sm text-gray-500">
-                      Keine Kinder gefunden.
-                    </p>
-                  ) : (
-                    studentResults?.map((student) => (
-                      <button
-                        key={student.id}
-                        type="button"
-                        onClick={() => addStudent(student)}
-                        className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50"
-                      >
-                        <span className="truncate">{student.name}</span>
-                        {student.school_class && (
-                          <span className="ml-2 shrink-0 text-xs text-gray-400">
-                            {student.school_class}
-                          </span>
-                        )}
-                      </button>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-          </>
-        )}
+    <div className="space-y-4">
+      <div>
+        <h4 className="text-sm font-semibold text-gray-900">
+          Wer soll diese Mitteilung erhalten?
+        </h4>
+        <p className="mt-0.5 text-xs text-gray-500">
+          Mehrere Zielgruppen lassen sich kombinieren; jedes Elternteil erhält
+          die Mitteilung höchstens einmal.
+        </p>
       </div>
+
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <CheckPill
+          label="Ganze Schule"
+          active={schoolAll}
+          onClick={() => toggleSimple("school_all", !schoolAll)}
+        />
+        <CheckPill
+          label="Offene Anmeldungen"
+          active={pendingEnrollment}
+          onClick={() => toggleSimple("pending_enrollment", !pendingEnrollment)}
+        />
+      </div>
+
+      {!schoolAll && (
+        <>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div>
+              <span className={fieldLabel}>Klassen</span>
+              <MultiCheckboxSelect
+                ariaLabel="Klassen auswählen"
+                value={selectedClasses}
+                options={schoolClasses.map((c) => ({ value: c, label: c }))}
+                onChange={(values) => setCategory("class", values)}
+                emptyLabel="Keine ausgewählt"
+                unavailableLabel="Keine Klassen"
+              />
+            </div>
+            <div>
+              <span className={fieldLabel}>Gruppen</span>
+              <MultiCheckboxSelect
+                ariaLabel="Gruppen auswählen"
+                value={selectedGroups}
+                options={groups.map((g) => ({ value: g.id, label: g.name }))}
+                onChange={(values) => setCategory("group", values)}
+                emptyLabel="Keine ausgewählt"
+                unavailableLabel="Keine Gruppen"
+              />
+            </div>
+            <div>
+              <span className={fieldLabel}>AGs / Betreuung</span>
+              <MultiCheckboxSelect
+                ariaLabel="AGs auswählen"
+                value={selectedActivities}
+                options={activities.map((a) => ({
+                  value: a.id,
+                  label: a.name,
+                }))}
+                onChange={(values) => setCategory("activity_group", values)}
+                emptyLabel="Keine ausgewählt"
+                unavailableLabel="Keine AGs"
+              />
+            </div>
+          </div>
+
+          <div>
+            <span className={fieldLabel}>Einzelne Kinder</span>
+            {selectedStudents.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-2">
+                {selectedStudents.map((t) => (
+                  <button
+                    key={targetKey(t)}
+                    type="button"
+                    onClick={() => t.ref_id && removeStudent(t.ref_id)}
+                    title="Entfernen"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-gray-300 bg-gray-50 px-3 py-1 text-sm text-gray-800 transition-colors hover:border-gray-400 hover:bg-gray-100"
+                  >
+                    <span className="max-w-48 truncate">
+                      {t.ref_id ? (studentNames[t.ref_id] ?? "Kind") : "Kind"}
+                    </span>
+                    <span aria-hidden className="text-gray-400">
+                      ×
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <Input
+              name="announcement-student-search"
+              controlSize="compact"
+              value={studentSearch}
+              onChange={(e) => setStudentSearch(e.target.value)}
+              placeholder="Kind suchen (mind. 2 Zeichen)..."
+            />
+            {debouncedSearch.length >= 2 && (
+              <div className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-gray-200">
+                {studentsLoading ? (
+                  <p className="px-3 py-2 text-sm text-gray-500">
+                    Wird gesucht...
+                  </p>
+                ) : (studentResults?.length ?? 0) === 0 ? (
+                  <p className="px-3 py-2 text-sm text-gray-500">
+                    Keine Kinder gefunden.
+                  </p>
+                ) : (
+                  studentResults?.map((student) => (
+                    <button
+                      key={student.id}
+                      type="button"
+                      onClick={() => addStudent(student)}
+                      className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50"
+                    >
+                      <span className="truncate">{student.name}</span>
+                      {student.school_class && (
+                        <span className="ml-2 shrink-0 text-xs text-gray-400">
+                          {student.school_class}
+                        </span>
+                      )}
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      <p className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700">
+        Ausgewählt:{" "}
+        <span className="font-medium">{summarizeTargets(targets)}</span>
+      </p>
     </div>
   );
 }

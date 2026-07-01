@@ -65,6 +65,7 @@ func parentAnnouncementsUp(ctx context.Context, db *bun.DB) error {
 			title                    TEXT NOT NULL,
 			body                     TEXT NOT NULL,
 			priority                 TEXT NOT NULL DEFAULT 'info',
+			link_url                 TEXT,
 			requires_acknowledgement BOOLEAN NOT NULL DEFAULT false,
 			send_email               BOOLEAN NOT NULL DEFAULT false,
 			published_at             TIMESTAMPTZ,

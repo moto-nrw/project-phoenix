@@ -7,14 +7,10 @@
 
     <p>Guten Tag{{if .GuardianFirstName}} {{.GuardianFirstName}} {{.GuardianLastName}}{{end}},</p>
 
-    <p>{{if .SchoolName}}die {{.SchoolName}} hat{{else}}wir haben{{end}} eine neue Mitteilung für Sie:</p>
-
-    <div class="highlight-box">
-        <p style="margin: 0; font-size: 14px; white-space: pre-line;">{{.Body}}</p>
-    </div>
+    <p>{{if .SchoolName}}die {{.SchoolName}} hat{{else}}wir haben{{end}} eine neue Mitteilung für Sie. Den vollständigen Inhalt lesen Sie im Eltern-Portal.</p>
 
     {{if .PortalURL}}
-    <p style="margin-top: 24px;">Diese und weitere Mitteilungen finden Sie jederzeit im Eltern-Portal:</p>
+    <p style="margin-top: 24px;">Zur Mitteilung:</p>
 
     <div class="button-wrapper" style="text-align: center;">
         <a class="button" href="{{.PortalURL}}">Zum Eltern-Portal</a>

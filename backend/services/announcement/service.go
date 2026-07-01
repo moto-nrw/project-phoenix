@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"strings"
 	"time"
 
@@ -27,13 +28,21 @@ type OutboxEnqueuer interface {
 	Enqueue(ctx context.Context, req platformService.EnqueueRequest) (*platformModels.EmailOutbox, error)
 }
 
-const maxTitleLen = 200
+const (
+	maxTitleLen   = 200
+	maxLinkURLLen = 2000
+)
 
 // Sentinel errors mapped to HTTP status by the handler.
 var (
 	ErrNotFound     = errors.New("announcement: not found")
 	ErrValidation   = errors.New("announcement: invalid input")
 	ErrNewsDisabled = errors.New("announcement: parent news is disabled for this school")
+	// ErrPublishedImmutable: a published announcement is frozen — parents may
+	// already have read (or been e-mailed) the exact wording, so silent edits
+	// are forbidden. Correcting means unpublish (retract) → edit → republish,
+	// which is visible to parents and re-triggers the opted-in e-mail.
+	ErrPublishedImmutable = errors.New("announcement: published announcements cannot be edited")
 )
 
 // TargetInput is one audience selector supplied by the staff author.
@@ -45,11 +54,13 @@ type TargetInput struct {
 
 // Input is the create/update payload. ExpiresAt is optional (nil = never).
 // SendEmail opts the announcement into an additional e-mail to the targeted
-// guardians when it is published.
+// guardians when it is published. LinkURL is an optional http(s) link shown
+// with the announcement in the parent portal.
 type Input struct {
 	Title                   string        `json:"title"`
 	Body                    string        `json:"body"`
 	Priority                string        `json:"priority"`
+	LinkURL                 *string       `json:"link_url,omitempty"`
 	RequiresAcknowledgement bool          `json:"requires_acknowledgement"`
 	SendEmail               bool          `json:"send_email"`
 	ExpiresAt               *time.Time    `json:"expires_at,omitempty"`
@@ -151,6 +162,7 @@ func (s *service) Create(ctx context.Context, createdBy int64, in Input) (*users
 		Title:                   in.Title,
 		Body:                    in.Body,
 		Priority:                in.Priority,
+		LinkURL:                 in.LinkURL,
 		RequiresAcknowledgement: in.RequiresAcknowledgement,
 		SendEmail:               in.SendEmail,
 		ExpiresAt:               in.ExpiresAt,
@@ -180,6 +192,12 @@ func (s *service) Update(ctx context.Context, id int64, in Input) (*usersModels.
 	if a == nil {
 		return nil, ErrNotFound
 	}
+	// Published announcements are immutable (user decision, #1669): parents may
+	// already have read or been e-mailed this exact wording. The correction
+	// path is unpublish (retract) → edit the then-draft → republish.
+	if a.IsPublished() {
+		return nil, ErrPublishedImmutable
+	}
 	targets, err := normalizeInput(&in)
 	if err != nil {
 		return nil, err
@@ -188,6 +206,7 @@ func (s *service) Update(ctx context.Context, id int64, in Input) (*usersModels.
 	a.Title = in.Title
 	a.Body = in.Body
 	a.Priority = in.Priority
+	a.LinkURL = in.LinkURL
 	a.RequiresAcknowledgement = in.RequiresAcknowledgement
 	a.SendEmail = in.SendEmail
 	a.ExpiresAt = in.ExpiresAt
@@ -274,6 +293,9 @@ func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.
 	}
 	queued := 0
 	for _, rcpt := range recipients {
+		// Deliberately NO announcement body here: e-mail is the least trusted
+		// channel, so the mail carries only the title plus a link into the
+		// parent portal, where reading also counts for the read stats.
 		if _, err := s.outbox.Enqueue(ctx, platformService.EnqueueRequest{
 			Kind: platformModels.EmailKindParentAnnouncement,
 			Payload: map[string]any{
@@ -281,7 +303,6 @@ func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.
 				emailPayloadFirstName:  rcpt.FirstName,
 				emailPayloadLastName:   rcpt.LastName,
 				emailPayloadTitle:      a.Title,
-				emailPayloadBody:       a.Body,
 				emailPayloadSchoolName: schoolName,
 				emailPayloadPortalURL:  s.parentsURL,
 			},
@@ -332,10 +353,10 @@ func (s *service) Stats(ctx context.Context, id int64) (*usersModels.Announcemen
 }
 
 // normalizeInput validates and trims the payload and returns the target rows to
-// persist. It enforces: non-empty title (<=200)/body, a known priority, at
-// least one target, and per-type ref consistency (class -> text, group/AG/
-// student -> id, school_all/pending_enrollment -> neither). Duplicate targets
-// are collapsed.
+// persist. It enforces: non-empty title (<=200)/body, a known priority, an
+// optional absolute http(s) link, at least one target, and per-type ref
+// consistency (class -> text, group/AG/student -> id, school_all/
+// pending_enrollment -> neither). Duplicate targets are collapsed.
 func normalizeInput(in *Input) ([]*usersModels.ParentAnnouncementTarget, error) {
 	in.Title = strings.TrimSpace(in.Title)
 	in.Body = strings.TrimSpace(in.Body)
@@ -345,6 +366,11 @@ func normalizeInput(in *Input) ([]*usersModels.ParentAnnouncementTarget, error) 
 	if in.Body == "" {
 		return nil, fmt.Errorf("%w: body", ErrValidation)
 	}
+	link, err := normalizeLinkURL(in.LinkURL)
+	if err != nil {
+		return nil, err
+	}
+	in.LinkURL = link
 	if in.Priority == "" {
 		in.Priority = usersModels.ParentAnnouncementPriorityInfo
 	}
@@ -387,6 +413,27 @@ func normalizeInput(in *Input) ([]*usersModels.ParentAnnouncementTarget, error) 
 		out = append(out, target)
 	}
 	return out, nil
+}
+
+// normalizeLinkURL trims the optional announcement link and requires an
+// absolute http(s) URL — parents tap this in their portal, so a relative or
+// javascript: value must never be stored. Empty (after trim) collapses to nil.
+func normalizeLinkURL(raw *string) (*string, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	trimmed := strings.TrimSpace(*raw)
+	if trimmed == "" {
+		return nil, nil
+	}
+	if len(trimmed) > maxLinkURLLen {
+		return nil, fmt.Errorf("%w: link_url too long", ErrValidation)
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+		return nil, fmt.Errorf("%w: link_url must be an absolute http(s) URL", ErrValidation)
+	}
+	return &trimmed, nil
 }
 
 func dedupeKey(t *usersModels.ParentAnnouncementTarget) string {

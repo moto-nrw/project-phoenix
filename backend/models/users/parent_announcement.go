@@ -60,6 +60,7 @@ type ParentAnnouncement struct {
 	Title                   string     `bun:"title,notnull" json:"title"`
 	Body                    string     `bun:"body,notnull" json:"body"`
 	Priority                string     `bun:"priority,notnull" json:"priority"`
+	LinkURL                 *string    `bun:"link_url" json:"link_url,omitempty"`
 	RequiresAcknowledgement bool       `bun:"requires_acknowledgement,notnull" json:"requires_acknowledgement"`
 	SendEmail               bool       `bun:"send_email,notnull" json:"send_email"`
 	PublishedAt             *time.Time `bun:"published_at" json:"published_at,omitempty"`
@@ -142,6 +143,7 @@ type AnnouncementFeedItem struct {
 	Title                   string     `bun:"title" json:"title"`
 	Body                    string     `bun:"body" json:"body"`
 	Priority                string     `bun:"priority" json:"priority"`
+	LinkURL                 *string    `bun:"link_url" json:"link_url,omitempty"`
 	RequiresAcknowledgement bool       `bun:"requires_acknowledgement" json:"requires_acknowledgement"`
 	PublishedAt             *time.Time `bun:"published_at" json:"published_at,omitempty"`
 	ExpiresAt               *time.Time `bun:"expires_at" json:"expires_at,omitempty"`
