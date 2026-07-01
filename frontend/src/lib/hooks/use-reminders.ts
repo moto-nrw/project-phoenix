@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useSWRAuth } from "~/lib/swr/hooks";
 import {
   fetchReminders,
@@ -27,7 +28,7 @@ const IDLE_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
  * so SWR dedupes to a single request.
  */
 export function useReminders() {
-  const { data, error, isLoading } = useSWRAuth<RemindersResult>(
+  const { data, error, isLoading, mutate } = useSWRAuth<RemindersResult>(
     REMINDERS_SWR_KEY,
     fetchReminders,
     {
@@ -36,10 +37,28 @@ export function useReminders() {
     },
   );
 
+  const enabled = data?.enabled ?? false;
+
+  // Event-driven refresh. useGlobalSSE() runs above TenantProvider and cannot
+  // build the tenant-prefixed reminders SWR key, so it dispatches
+  // "phoenix:reminders-stale" whenever an attendance / activity / student-data
+  // change may alter what's due (or who may see it). Revalidate here, where the
+  // SWR key is correctly tenant-scoped via useSWRAuth. Gate on `enabled`: a
+  // disabled tenant has nothing to recompute, so keep its cheap 5-min idle poll
+  // rather than react to every attendance burst.
+  useEffect(() => {
+    if (!enabled) return;
+    const handler = () => {
+      void mutate();
+    };
+    window.addEventListener("phoenix:reminders-stale", handler);
+    return () => window.removeEventListener("phoenix:reminders-stale", handler);
+  }, [enabled, mutate]);
+
   return {
     reminders: data?.reminders ?? [],
     count: data?.count ?? 0,
-    enabled: data?.enabled ?? false,
+    enabled,
     // Raw payload so consumers can distinguish "loaded and disabled"
     // (data.enabled === false) from "not loaded yet" (data undefined) — the
     // /reminders route guard needs that to avoid redirecting during the initial

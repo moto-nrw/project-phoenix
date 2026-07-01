@@ -465,6 +465,48 @@ func TestPickupScopeStudentIDs(t *testing.T) {
 		_, err := svc.pickupScopeStudentIDs(context.Background(), Scope{IsAdmin: false, StaffID: 7}, timezone.TodayDate())
 		require.Error(t, err)
 	})
+
+	t.Run("binary mode caregiver reads presence from attendance, not visits", func(t *testing.T) {
+		// Binary-mode tenants no-op CreateVisit, so there are no active.visits
+		// rows: the room path would return empty. The scope must fall back to
+		// open attendance (the read predicate in pickupReminders then locks it
+		// down to the caregiver's own groups).
+		svc := &service{
+			settings: fakeSettings{strings: map[string]string{
+				configModel.KeyPresenceMode: configModel.PresenceModeBinary,
+			}},
+			attendance: fakeAttendance{ids: []int64{1, 2, 3}},
+			// Supervision would return nothing (no visits) — proving attendance won.
+			supervision: fakeSupervision{presentByRoom: map[int64][]int64{}},
+		}
+		ids, err := svc.pickupScopeStudentIDs(context.Background(), Scope{IsAdmin: false, StaffID: 7}, timezone.TodayDate())
+		require.NoError(t, err)
+		assert.Equal(t, []int64{1, 2, 3}, ids)
+	})
+
+	t.Run("detailed mode caregiver still reads presence from supervised rooms", func(t *testing.T) {
+		// Explicit detailed mode must keep the room/visit path, not attendance.
+		svc := &service{
+			settings: fakeSettings{strings: map[string]string{
+				configModel.KeyPresenceMode: configModel.PresenceModeDetailed,
+			}},
+			attendance: fakeAttendance{ids: []int64{99}}, // must be ignored
+			supervision: fakeSupervision{
+				supervisions:  []*activeModel.GroupSupervisor{{GroupID: 100}},
+				groups:        map[int64]*activeModel.Group{100: {RoomID: 10}},
+				presentByRoom: map[int64][]int64{10: {1, 2}},
+			},
+		}
+		ids, err := svc.pickupScopeStudentIDs(context.Background(), Scope{IsAdmin: false, StaffID: 7}, timezone.TodayDate())
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []int64{1, 2}, ids)
+	})
+
+	t.Run("surfaces a presence-mode resolution error", func(t *testing.T) {
+		svc := &service{settings: fakeSettings{strErr: errors.New("boom")}}
+		_, err := svc.pickupScopeStudentIDs(context.Background(), Scope{IsAdmin: false, StaffID: 7}, timezone.TodayDate())
+		require.Error(t, err)
+	})
 }
 
 func TestSupervisedRoomIDs(t *testing.T) {

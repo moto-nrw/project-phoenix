@@ -23,10 +23,9 @@
 "use client";
 
 import { useCallback, useRef } from "react";
-import { mutate, useSWRConfig } from "swr";
+import { mutate } from "swr";
 import { useSession } from "next-auth/react";
 import { useSSE } from "~/lib/hooks/use-sse";
-import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
 import { ROOM_LIST_CACHE_KEYS } from "~/lib/swr/room-derived-caches";
 import type { SSEEvent, SSEHookState } from "~/lib/sse-types";
 import { createLogger } from "~/lib/logger";
@@ -49,10 +48,6 @@ const DEBOUNCE_MS = 500;
  */
 export function useGlobalSSE(): SSEHookState {
   const { data: session, status: sessionStatus } = useSession();
-  // Tenant slug + SWR cache: used to keep reminder revalidation scoped to the
-  // active tenant and gated on whether the feature is actually enabled.
-  const tenantSlug = useTenantSlugSafe();
-  const { cache } = useSWRConfig();
 
   // Enable SSE for staff (has "user" role) and admins.
   // Pure admins without a staff record connect with zero supervised groups
@@ -270,42 +265,37 @@ export function useGlobalSSE(): SSEHookState {
     }
 
     // Reminders (issue #1457): the header bell + /reminders page are computed
-    // live from attendance, pickups and activity instances. Check-ins/outs and
-    // activity-instance lifecycle events change what's due, so revalidate the
-    // reminders cache here — the 60s poll only catches the time-based threshold
-    // crossings ("in 10 Min" → "überfällig"), not these events.
+    // live from attendance, pickups, activity instances and student data.
+    // Check-ins/outs, activity/instance lifecycle and student edits change
+    // what's due — and student edits also change the name/class each row shows
+    // and which rows fall inside the caller's readable scope — so the reminders
+    // view must revalidate on these events. The 60s poll only catches the
+    // time-based threshold crossings ("in 10 Min" → "überfällig"), not these.
     // Zero-topic admins (no supervised group / admin_supervision_overview off)
     // receive check-ins only as the dashboard_counts_changed broadcast, so
     // include hasPendingDashboardEvent or their bell/list stays stale until poll.
     //
-    // Two guards:
-    //   1. Scope to THIS tenant's exact "{slug}:reminders" key so a different
-    //      tenant's cache held in another tab is never revalidated with this
-    //      session's cookie (cross-tenant leak / wasted request).
-    //   2. Skip entirely unless the feature is enabled for this tenant. The
-    //      default is all-types-off, yet a mounted RemindersBell still creates a
-    //      "{slug}:reminders" cache entry with enabled=false; revalidating it on
-    //      every attendance-burst event would defeat the idle-poll throttle and
-    //      add backend load for a feature nobody switched on.
-    const remindersKey = tenantSlug ? `${tenantSlug}:reminders` : "reminders";
-    const remindersEnabled =
-      (cache.get(remindersKey)?.data as { enabled?: boolean } | undefined)
-        ?.enabled === true;
+    // This hook runs in TenantAuthWrapper, ABOVE TenantProvider, so
+    // useTenantSlugSafe() is null here and it cannot build the real
+    // "{slug}:reminders" SWR key that useReminders() writes under. Rather than
+    // mutate the wrong (unprefixed) key, dispatch a window event and let
+    // useReminders() — which runs under TenantProvider, owns the correctly
+    // tenant-prefixed key, and knows whether the feature is enabled — perform
+    // the revalidation. This mirrors the tenant_settings_changed / parent_message
+    // decoupling above and keeps the idle-poll throttle intact for disabled
+    // tenants (the consumer skips the mutate when the feature is off).
     if (
-      remindersEnabled &&
-      (pendingGroupIds.current.size > 0 ||
-        pendingStudentIds.current.size > 0 ||
-        hasPendingActivityEvent.current ||
-        hasPendingTimetableEvent.current ||
-        hasPendingDashboardEvent.current ||
-        hasPendingDailyCheckoutDashboardEvent.current)
+      pendingGroupIds.current.size > 0 ||
+      pendingStudentIds.current.size > 0 ||
+      hasPendingActivityEvent.current ||
+      hasPendingTimetableEvent.current ||
+      hasPendingDashboardEvent.current ||
+      hasPendingDailyCheckoutDashboardEvent.current ||
+      hasPendingStudentUpdateEvent.current
     ) {
-      mutate(remindersKey).catch((err) => {
-        logger.debug("swr_revalidation_failed", {
-          error: err instanceof Error ? err.message : String(err),
-          scope: "reminders",
-        });
-      });
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("phoenix:reminders-stale"));
+      }
     }
 
     // Reset pending state
@@ -318,7 +308,7 @@ export function useGlobalSSE(): SSEHookState {
     hasPendingArrivalScheduleEvent.current = false;
     hasPendingStudentUpdateEvent.current = false;
     hasPendingTimetableEvent.current = false;
-  }, [tenantSlug, cache]);
+  }, []);
 
   const scheduleFlush = useCallback(() => {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);

@@ -240,16 +240,30 @@ func (s *service) Compute(ctx context.Context, scope Scope) (*Result, error) {
 }
 
 // pickupScopeStudentIDs returns the IDs of currently present students whose
-// pickups are in scope: all present students for admins, the students present
-// in supervised rooms for caregivers. This is presence scope only — read
-// access (gdpr.student_data_scope) is enforced later in pickupReminders, once
-// the much smaller "actually due" set is known.
+// pickups are in scope. This is presence scope only — read access
+// (gdpr.student_data_scope) is enforced later in pickupReminders, once the much
+// smaller "actually due" set is known.
+//
+//   - Admins: all present students (open attendance rows), regardless of mode.
+//   - Caregivers, detailed mode: students currently present in a supervised
+//     room, read from active.visits.
+//   - Caregivers, binary mode: binary-mode tenants intentionally no-op
+//     CreateVisit and track presence only in active.attendance, so there are no
+//     room-scoped visit rows to read (the room-based path would silently return
+//     empty even when checked-in students have due pickups). Fall back to all
+//     present students from attendance and let the read predicate in
+//     pickupReminders lock the set down to the caregiver's own education groups.
 func (s *service) pickupScopeStudentIDs(ctx context.Context, scope Scope, today timezone.Date) ([]int64, error) {
 	if scope.IsAdmin {
-		if s.attendance == nil {
-			return nil, nil
-		}
-		return s.attendance.ListOpenStudentIDsForDate(ctx, today)
+		return s.presentStudentIDsFromAttendance(ctx, today)
+	}
+
+	binary, err := s.binaryMode(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if binary {
+		return s.presentStudentIDsFromAttendance(ctx, today)
 	}
 
 	roomIDs, err := s.supervisedRoomIDs(ctx, scope)
@@ -257,6 +271,31 @@ func (s *service) pickupScopeStudentIDs(ctx context.Context, scope Scope, today 
 		return nil, err
 	}
 	return s.presentStudentsInRooms(ctx, roomIDs)
+}
+
+// presentStudentIDsFromAttendance lists all students with an open attendance
+// row today. Used for admins (all present children) and for caregivers in
+// binary mode, where room-scoped visit rows do not exist.
+func (s *service) presentStudentIDsFromAttendance(ctx context.Context, today timezone.Date) ([]int64, error) {
+	if s.attendance == nil {
+		return nil, nil
+	}
+	return s.attendance.ListOpenStudentIDsForDate(ctx, today)
+}
+
+// binaryMode reports whether the tenant runs the binary presence mode, in which
+// CreateVisit is a no-op and presence lives in active.attendance rather than
+// active.visits. A settings resolution error is surfaced, consistent with the
+// rest of the service — a broken read must not silently pick a presence source.
+func (s *service) binaryMode(ctx context.Context) (bool, error) {
+	if s.settings == nil {
+		return false, nil
+	}
+	v, err := s.settings.ResolveString(ctx, configModel.KeyPresenceMode)
+	if err != nil {
+		return false, fmt.Errorf("resolve %s: %w", configModel.KeyPresenceMode, err)
+	}
+	return v == configModel.PresenceModeBinary, nil
 }
 
 // supervisedRoomIDs returns the room IDs the caregiver currently supervises.
