@@ -22,6 +22,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
@@ -624,13 +625,14 @@ func (s *service) ListStudentThreads(ctx context.Context, studentID int64) ([]*u
 // created_at" rule).
 func (s *service) appendStaffMessage(ctx context.Context, thread *usersModels.ParentMessageThread, accountID int64, body string) error {
 	msg := &usersModels.ParentMessage{
-		ThreadID:        thread.ID,
-		StudentID:       thread.StudentID,
-		SenderAccountID: accountID,
-		SenderKind:      usersModels.ParentMessageSenderStaff,
-		SenderName:      s.resolveStaffName(ctx, accountID),
-		Body:            body,
-		Kind:            usersModels.ParentMessageKindMessage,
+		ThreadID:         thread.ID,
+		StudentID:        thread.StudentID,
+		SenderAccountID:  accountID,
+		SenderKind:       usersModels.ParentMessageSenderStaff,
+		SenderName:       s.resolveStaffName(ctx, accountID),
+		StaffNameVisible: s.staffNameVisibleToParents(ctx),
+		Body:             body,
+		Kind:             usersModels.ParentMessageKindMessage,
 	}
 	msg.SetTenantID(thread.TenantID)
 	if err := parentmessaging.AppendMessage(ctx, s.messageRepo, s.threadRepo, msg); err != nil {
@@ -666,6 +668,27 @@ func (s *service) resolveStaffName(ctx context.Context, accountID int64) string 
 		name = full
 	}
 	return name
+}
+
+// staffNameVisibleToParents resolves whether team replies should attribute the
+// individual staff member to guardians, to be FROZEN onto the message at send
+// time (users.parent_messages.staff_name_visible). It is read only here, on the
+// write path: the parent-facing read path trusts the stamped column, so a later
+// toggle never rewrites history. Fails to the registry default direction (true)
+// on a transient config-DB error, mirroring MessagingEnabled's fail-open — a
+// blip must not silently strip attribution the school opted into by default.
+func (s *service) staffNameVisibleToParents(ctx context.Context) bool {
+	if s.settings == nil {
+		return true
+	}
+	visible, err := s.settings.ResolveBool(ctx, configModels.KeyParentMessageStaffNameVisible)
+	if err != nil {
+		s.logger.Warn("messaging: resolve staff-name visibility failed, defaulting to visible",
+			slog.String("error", err.Error()),
+		)
+		return true
+	}
+	return visible
 }
 
 // broadcastAfterCommit queues the SSE wake-up to fire only AFTER the request

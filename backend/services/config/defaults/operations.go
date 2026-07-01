@@ -487,6 +487,32 @@ func init() {
 		SortOrder:       61,
 	})
 
+	// Whether a guardian sees the individual staff member's name (first name +
+	// last initial, e.g. "Anna M.") on team replies instead of the neutral
+	// "OGS [Schulname]" label. Defaults ON so a messaging-active school attributes
+	// replies to a person by default. Only messages SENT while this is on are
+	// revealed: the per-message visibility is frozen at send time on
+	// users.parent_messages.staff_name_visible, so enabling it never retroactively
+	// exposes older replies written under anonymity. Hidden in the UI unless
+	// messaging (parent_notes_enabled) is on, since it only affects those messages.
+	config.Register(config.Definition{
+		Key:             config.KeyParentMessageStaffNameVisible,
+		Label:           "Name des Teammitglieds in Nachrichten anzeigen",
+		Description:     "Wenn aktiviert, sehen Eltern bei Antworten des Teams den Vornamen und den ersten Buchstaben des Nachnamens der antwortenden Person (z. B. „Anna M.“) statt nur „OGS [Schulname]“. Gilt nur für Nachrichten, die ab der Aktivierung geschrieben werden; ältere Nachrichten bleiben anonym. Bereits mit Namen gesendete Nachrichten bleiben sichtbar, wenn die Funktion später wieder deaktiviert wird.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       62,
+		DependsOn: &config.Dependency{
+			Key:       config.KeyParentNotesEnabled,
+			Condition: "eq",
+			Value:     true,
+		},
+	})
+
 	// Related-accounts management. Whether a parent may invite further
 	// guardians to their own child, and whether they may revoke another
 	// account's access. Sensitive (controls access to child data) -> manage.
@@ -500,7 +526,7 @@ func init() {
 		WritePermission: "config:manage",
 		Tab:             "operations",
 		Category:        "elternportal",
-		SortOrder:       62,
+		SortOrder:       63,
 		Options: &config.SelectOptions{
 			Static: []config.SelectOption{
 				{Label: "Deaktiviert", Value: config.ParentInviteModeDisabled},
@@ -520,7 +546,7 @@ func init() {
 		WritePermission: "config:manage",
 		Tab:             "operations",
 		Category:        "elternportal",
-		SortOrder:       63,
+		SortOrder:       64,
 		DependsOn: &config.Dependency{
 			Key:       config.KeyGuardianParentInviteMode,
 			Condition: "neq",
@@ -538,7 +564,7 @@ func init() {
 		WritePermission: "config:update",
 		Tab:             "operations",
 		Category:        "elternportal",
-		SortOrder:       64,
+		SortOrder:       65,
 	})
 
 	config.Register(config.Definition{
@@ -551,7 +577,7 @@ func init() {
 		WritePermission: "config:manage",
 		Tab:             "operations",
 		Category:        "elternportal",
-		SortOrder:       65,
+		SortOrder:       66,
 	})
 
 	// Defaults ON, like the other parents-portal write features. The
@@ -574,7 +600,7 @@ func init() {
 		WritePermission: "config:manage",
 		Tab:             "operations",
 		Category:        "elternportal",
-		SortOrder:       66,
+		SortOrder:       67,
 	})
 
 	config.Register(config.Definition{
@@ -587,6 +613,6 @@ func init() {
 		WritePermission: "config:update",
 		Tab:             "operations",
 		Category:        "elternportal",
-		SortOrder:       67,
+		SortOrder:       68,
 	})
 }

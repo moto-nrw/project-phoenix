@@ -18,8 +18,10 @@ import (
 
 // MessageResponse is one message in a conversation. IDs stringified per the
 // int64 -> string frontend convention. sender_kind is "guardian" or "staff".
-// For staff messages sender_name is the OGS/school label, never an individual
-// staff member's name — the parent talks to "the OGS", not to a person.
+// For staff messages sender_name is either the neutral OGS/school label or the
+// individual staff member as "first name + last initial", depending on whether
+// the message froze staff-name visibility on at send time (see toMessageResponses
+// and operations.parent_message_staff_name_visible).
 type MessageResponse struct {
 	ID             string         `json:"id"`
 	SenderKind     string         `json:"sender_kind"`
@@ -130,15 +132,45 @@ func ogsLabel(schoolName string) string {
 	return strings.TrimSpace("OGS " + schoolName)
 }
 
-// toMessageResponses maps messages for the parent portal, replacing staff
-// sender names with the OGS/school label so individual staff names never leave
-// the backend.
+// staffShortName renders a staff member's stored full name as first name + last
+// initial (e.g. "Anna Müller" -> "Anna M.") for the guardian view: enough to
+// attribute a reply to a person without exposing the full surname. A single-token
+// name (or the "OGS-Team" fallback resolveStaffName stamps when no person is
+// linked) is returned unchanged. Rune-based so a non-ASCII surname initial (Ö, Ü)
+// is taken as one character, not a broken byte.
+func staffShortName(full string) string {
+	parts := strings.Fields(full)
+	if len(parts) < 2 {
+		return full
+	}
+	last := []rune(parts[len(parts)-1])
+	if len(last) == 0 {
+		return parts[0]
+	}
+	return parts[0] + " " + string(last[0]) + "."
+}
+
+// toMessageResponses maps messages for the parent portal. A staff sender is
+// shown as the individual person (first name + last initial) only when that
+// message froze StaffNameVisible=true at send time; otherwise it collapses to
+// the neutral "OGS [Schulname]" label. Guardian/system rows pass through
+// unchanged.
 func toMessageResponses(messages []*usersModels.ParentMessage, counterpart string, diffs map[int64][]messagingService.RequestDiffEntry) []MessageResponse {
 	out := make([]MessageResponse, 0, len(messages))
 	for _, m := range messages {
 		senderName := m.SenderName
 		if m.SenderKind == usersModels.ParentMessageSenderStaff {
-			senderName = counterpart
+			// StaffNameVisible is frozen per message at send time (see the model +
+			// the operations.parent_message_staff_name_visible setting): true only
+			// on replies written while the school had staff-name attribution on. So
+			// older replies (and every reply when the school keeps it off) still
+			// collapse to the neutral "OGS [Schulname]" label, while opted-in
+			// replies show the person as "Vorname N.".
+			if m.StaffNameVisible {
+				senderName = staffShortName(m.SenderName)
+			} else {
+				senderName = counterpart
+			}
 		}
 		refID := ""
 		if m.RefID != nil {
