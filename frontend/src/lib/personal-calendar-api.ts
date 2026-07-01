@@ -5,7 +5,7 @@ interface ApiEnvelope<T> {
   readonly data?: T;
 }
 
-export type CalendarSource = "appointment" | "timetable";
+type CalendarSource = "appointment" | "timetable";
 export type CalendarDeliveryMode = "rsvp_required" | "informational";
 export type CalendarOverviewVisibility = "organizer" | "staff" | "all";
 export type CalendarResponseStatus =
@@ -61,7 +61,7 @@ export interface CalendarTarget {
   readonly value?: string;
 }
 
-export interface CalendarRecurrenceRequest {
+interface CalendarRecurrenceRequest {
   readonly frequency: "daily" | "weekly" | "monthly" | "yearly";
   readonly interval_count: number;
   readonly weekdays?: string[];
@@ -85,7 +85,7 @@ export interface CreateCalendarAppointmentRequest {
   readonly targets: CalendarTarget[];
 }
 
-export interface CalendarAttendee {
+interface CalendarAttendee {
   readonly recipient_id: number;
   readonly recipient_type: "staff" | "guardian_profile";
   readonly name: string;
@@ -144,7 +144,7 @@ async function fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
   return unwrap<T>((await response.json()) as ApiEnvelope<T>);
 }
 
-export function buildCalendarQuery(from: Date, to: Date): string {
+function buildCalendarQuery(from: Date, to: Date): string {
   return new URLSearchParams({
     from: toISODate(from),
     to: toISODate(to),

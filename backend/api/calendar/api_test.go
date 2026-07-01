@@ -108,6 +108,7 @@ func TestListMyRejectsMissingRange(t *testing.T) {
 }
 
 func TestCreateAppointmentParsesPayload(t *testing.T) {
+	targetID := int64(42)
 	service := &fakeCalendarService{
 		createDetail: &calendarSvc.AppointmentDetail{
 			Appointment: &calModels.Appointment{Title: "Planning"},
@@ -124,7 +125,7 @@ func TestCreateAppointmentParsesPayload(t *testing.T) {
 		"end_time":"10:30",
 		"delivery_mode":"rsvp_required",
 		"recurrence":{"frequency":"weekly","interval_count":2,"weekdays":["monday"]},
-		"targets":[{"type":"staff","id":7}]
+		"targets":[{"type":"staff","id":42}]
 	}`
 	req := httptest.NewRequest(http.MethodPost, "/appointments", strings.NewReader(body))
 	w := httptest.NewRecorder()
@@ -140,7 +141,7 @@ func TestCreateAppointmentParsesPayload(t *testing.T) {
 	assert.Equal(t, calModels.RecurrenceFrequencyWeekly, service.gotCreate.Recurrence.Frequency)
 	require.Len(t, service.gotCreate.Targets, 1)
 	require.NotNil(t, service.gotCreate.Targets[0].ID)
-	assert.Equal(t, int64(7), *service.gotCreate.Targets[0].ID)
+	assert.Equal(t, targetID, *service.gotCreate.Targets[0].ID)
 }
 
 func TestCreateAppointmentRejectsBadClock(t *testing.T) {
