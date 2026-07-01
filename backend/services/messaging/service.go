@@ -22,10 +22,12 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
+	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -52,6 +54,21 @@ var (
 	ErrGuardianAccessRevoked = errors.New("messaging: recipient no longer has access to this child")
 	// ErrMessagingDisabled means the feature flag is off for the tenant.
 	ErrMessagingDisabled = errors.New("messaging: messaging disabled for this school")
+	// ErrRequestNotFound means a structured request row does not exist.
+	ErrRequestNotFound = errors.New("messaging: request not found")
+	// ErrInvalidRequestStatus means the request cannot transition that way.
+	ErrInvalidRequestStatus = errors.New("messaging: invalid request status transition")
+	// ErrRejectReasonRequired means staff rejected without a reason.
+	ErrRejectReasonRequired = errors.New("messaging: reject reason is required")
+	// ErrRejectReasonTooLong means the reject reason exceeded maxFreeTextLen.
+	ErrRejectReasonTooLong = errors.New("messaging: reject reason too long")
+	// ErrRequestNoLongerPossible means confirm revalidation/apply failed.
+	ErrRequestNoLongerPossible = errors.New("messaging: request is no longer possible")
+	// ErrInvalidRequestType means the request_type is not registered.
+	ErrInvalidRequestType = errors.New("messaging: invalid request type")
+	// ErrInvalidRequestPayload means a request payload failed shape/policy
+	// validation at create time (bad field, weekday, mode, or time).
+	ErrInvalidRequestPayload = errors.New("messaging: invalid request payload")
 )
 
 // ThreadDetail is the chat-window payload: conversation header (child,
@@ -64,14 +81,25 @@ type ThreadDetail struct {
 	GuardianName      string
 	RelationshipType  string
 	Messages          []*usersModels.ParentMessage
+	// Diffs maps an open request message ID to its current→requested field
+	// comparison, so staff can decide on a clear "alt → neu" view instead of the
+	// raw requested values. Only computed for still-open requests.
+	Diffs map[int64][]RequestDiffEntry
 }
 
 // Service is the staff-side messaging contract.
 type Service interface {
-	ListInbox(ctx context.Context, onlyUnread bool) ([]*usersModels.InboxThread, error)
+	ListInbox(ctx context.Context, onlyUnread bool, onlyOpenRequests bool) ([]*usersModels.InboxThread, error)
 	UnreadMessageCount(ctx context.Context) (int, error)
 	GetThread(ctx context.Context, threadID int64) (*ThreadDetail, error)
-	PostMessage(ctx context.Context, threadID int64, body string) ([]*usersModels.ParentMessage, error)
+	// PostMessage appends a staff reply, returns the refreshed thread messages
+	// AND the rebuilt "current → requested" diff map for every still-open request
+	// in that snapshot (keyed by request message ID, like the GET path). The
+	// client applies this response optimistically (revalidate:false), so without
+	// the diffs an open request card would lose its comparison view until the
+	// follow-up refetch — letting staff confirm without the preview this feature
+	// depends on.
+	PostMessage(ctx context.Context, threadID int64, body string) ([]*usersModels.ParentMessage, map[int64][]RequestDiffEntry, error)
 	StartThread(ctx context.Context, studentID, guardianAccountID int64, body string) (*ThreadDetail, error)
 	// OpenThread get-or-creates the conversation for a (student, guardian) pair
 	// and returns it (with history if any), without sending a message — the
@@ -84,6 +112,54 @@ type Service interface {
 	// access to the child, then filters server-side instead of having the card
 	// fetch the whole tenant inbox.
 	ListStudentThreads(ctx context.Context, studentID int64) ([]*usersModels.InboxThread, error)
+	// ConfirmRequest applies a still-open parent change request (care schedule or
+	// student master data) inside a transaction, marks it 'erledigt', posts the
+	// decision event into the thread, and returns the refreshed thread messages
+	// plus the rebuilt diff map for any OTHER request left open in the thread (the
+	// confirmed one is now closed and carries no diff). The client applies this
+	// optimistically, so a nil map would strip a second open request's comparison.
+	ConfirmRequest(ctx context.Context, requestID int64) ([]*usersModels.ParentMessage, map[int64][]RequestDiffEntry, error)
+	// RejectRequest declines a still-open request with a reason, marks it
+	// 'abgelehnt', posts the parent-visible decision event, and returns the
+	// refreshed thread messages plus the rebuilt diff map for any OTHER request
+	// left open in the thread (same optimistic-apply reasoning as ConfirmRequest).
+	RejectRequest(ctx context.Context, requestID int64, reason string) ([]*usersModels.ParentMessage, map[int64][]RequestDiffEntry, error)
+	// BuildRequestDiffs returns the "current → requested" comparison for every
+	// still-open request in the message list, keyed by request message ID. Must
+	// run inside a tenant transaction.
+	BuildRequestDiffs(ctx context.Context, studentID int64, messages []*usersModels.ParentMessage) map[int64][]RequestDiffEntry
+}
+
+// Diff care-kind discriminators (see RequestDiffEntry.CareKind). Stable wire
+// tokens — the localized parents portal maps them to its own labels.
+const (
+	DiffCareKindArrival       = "arrival"
+	DiffCareKindPickup        = "pickup"
+	DiffCareKindDepartureMode = "departure_mode"
+)
+
+// RequestDiffEntry is one field-level "current → requested" comparison row in a
+// change request's diff (staff- and parent-visible).
+type RequestDiffEntry struct {
+	Label string
+	Old   string
+	New   string
+	// Structured discriminators that let a localized client (the parents portal)
+	// render the label in its own language instead of the German Label, which is
+	// authoritative only for the German-only staff portal. Weekday (1-5) +
+	// CareKind identify a care-schedule row. Older clients ignore them and keep
+	// showing Label.
+	Weekday  int
+	CareKind string
+	// OldModes / NewMode carry the raw departure-mode keys (alone|bus|pickup|
+	// accompanied) behind Old/New for DiffCareKindDepartureMode rows, so the
+	// localized parents portal renders the mode names in the guardian's language
+	// instead of the German Old/New strings. OldModes is the day's allowed set
+	// (always non-empty; an "alone" entry stands in for an empty set); NewMode is
+	// the single requested mode. Empty for non-departure-mode rows (arrival/pickup
+	// times are language-neutral) and ignored by older/staff clients.
+	OldModes []string
+	NewMode  string
 }
 
 type service struct {
@@ -92,6 +168,9 @@ type service struct {
 	readRepo    usersModels.ParentMessageReadRepository
 
 	persons     userService.PersonService
+	students    userService.StudentService
+	arrival     scheduleService.ArrivalScheduleService
+	pickup      scheduleService.PickupScheduleService
 	userContext userContextService.UserContextService
 	settings    configService.SettingsService
 	broadcaster realtime.Broadcaster
@@ -106,6 +185,9 @@ type Config struct {
 	MessageRepo usersModels.ParentMessageRepository
 	ReadRepo    usersModels.ParentMessageReadRepository
 	Persons     userService.PersonService
+	Students    userService.StudentService
+	Arrival     scheduleService.ArrivalScheduleService
+	Pickup      scheduleService.PickupScheduleService
 	UserContext userContextService.UserContextService
 	Settings    configService.SettingsService
 	Broadcaster realtime.Broadcaster
@@ -124,6 +206,9 @@ func NewService(cfg Config) Service {
 		messageRepo: cfg.MessageRepo,
 		readRepo:    cfg.ReadRepo,
 		persons:     cfg.Persons,
+		students:    cfg.Students,
+		arrival:     cfg.Arrival,
+		pickup:      cfg.Pickup,
 		userContext: cfg.UserContext,
 		settings:    cfg.Settings,
 		broadcaster: cfg.Broadcaster,
@@ -141,10 +226,10 @@ func accountIDFromCtx(ctx context.Context) int64 {
 	return int64(jwt.ClaimsFromCtx(ctx).ID)
 }
 
-func (s *service) ListInbox(ctx context.Context, onlyUnread bool) ([]*usersModels.InboxThread, error) {
+func (s *service) ListInbox(ctx context.Context, onlyUnread bool, onlyOpenRequests bool) ([]*usersModels.InboxThread, error) {
 	accountID := accountIDFromCtx(ctx)
 	allStudents, groupIDs := s.scope(ctx)
-	rows, err := s.readRepo.ListInboxForStaff(ctx, accountID, allStudents, groupIDs, onlyUnread)
+	rows, err := s.readRepo.ListInboxForStaff(ctx, accountID, allStudents, groupIDs, onlyUnread, onlyOpenRequests)
 	if err != nil {
 		return nil, fmt.Errorf("messaging: list inbox: %w", err)
 	}
@@ -314,6 +399,11 @@ func (s *service) buildDetailFromMessages(ctx context.Context, thread *usersMode
 		detail.GuardianName = header.GuardianName
 		detail.RelationshipType = header.RelationshipType
 	}
+	// Attach the current→requested diffs for every still-open request in the
+	// thread so staff decide on a clear "alt → neu" view. Computed from the same
+	// message snapshot (and the child's live schedule/master data) inside the
+	// tenant tx this runs in.
+	detail.Diffs = s.BuildRequestDiffs(ctx, thread.StudentID, messages)
 	return detail, nil
 }
 
@@ -332,7 +422,7 @@ func (s *service) markReadAndBuild(ctx context.Context, thread *usersModels.Pare
 	if err != nil {
 		return nil, false, fmt.Errorf("messaging: list messages: %w", err)
 	}
-	advanced, err := parentmessaging.MarkReadToNewest(ctx, s.readRepo, thread.TenantID, thread.ID, accountIDFromCtx(ctx), messages)
+	advanced, err := parentmessaging.MarkReadToNewest(ctx, s.readRepo, thread.TenantID, thread.ID, accountIDFromCtx(ctx), true, messages)
 	if err != nil {
 		return nil, false, fmt.Errorf("messaging: mark read: %w", err)
 	}
@@ -360,36 +450,36 @@ func (s *service) GetThread(ctx context.Context, threadID int64) (*ThreadDetail,
 	return detail, nil
 }
 
-func (s *service) PostMessage(ctx context.Context, threadID int64, body string) ([]*usersModels.ParentMessage, error) {
+func (s *service) PostMessage(ctx context.Context, threadID int64, body string) ([]*usersModels.ParentMessage, map[int64][]RequestDiffEntry, error) {
 	body = strings.TrimSpace(body)
 	if body == "" {
-		return nil, ErrEmptyBody
+		return nil, nil, ErrEmptyBody
 	}
 	if utf8.RuneCountInString(body) > maxMessageLen {
-		return nil, ErrBodyTooLong
+		return nil, nil, ErrBodyTooLong
 	}
 	thread, err := s.loadAuthorizedThread(ctx, threadID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := s.requireEnabled(ctx); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// Refuse to send to a guardian who has been unlinked / lost parent_portal.access
 	// since the thread was created — the parent APIs hide such threads, so a reply
 	// would be unreadable and the SSE wake-up would leak activity to a revoked account.
 	if err := s.requireLinkedGuardian(ctx, thread); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	accountID := accountIDFromCtx(ctx)
 	if err := s.appendStaffMessage(ctx, thread, accountID, body); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	messages, err := s.messageRepo.ListByThread(ctx, thread.ID, 0)
 	if err != nil {
-		return nil, fmt.Errorf("messaging: list messages: %w", err)
+		return nil, nil, fmt.Errorf("messaging: list messages: %w", err)
 	}
 	// Advance the staff reader's cursor over this returned snapshot, exactly as the
 	// GET path (markReadAndBuild) does. The client applies this list with
@@ -399,8 +489,8 @@ func (s *service) PostMessage(ctx context.Context, threadID int64, body string) 
 	// newest GUARDIAN row in the snapshot (never NOW(), never our own just-sent
 	// message), so it can't leap the cursor to ~now and swallow a guardian message
 	// committing concurrently in a still-open tx. See parentmessaging.MarkReadToNewest.
-	if _, err := parentmessaging.MarkReadToNewest(ctx, s.readRepo, thread.TenantID, thread.ID, accountID, messages); err != nil {
-		return nil, fmt.Errorf("messaging: mark read: %w", err)
+	if _, err := parentmessaging.MarkReadToNewest(ctx, s.readRepo, thread.TenantID, thread.ID, accountID, true, messages); err != nil {
+		return nil, nil, fmt.Errorf("messaging: mark read: %w", err)
 	}
 	// Re-stamp the "Gelesen" receipts on the returned snapshot: the client applies
 	// this list optimistically (revalidate:false), so without it the staff's older,
@@ -409,7 +499,10 @@ func (s *service) PostMessage(ctx context.Context, threadID int64, body string) 
 	// so it correctly stays unstamped.
 	parentmessaging.DecorateGuardianReadReceipts(ctx, s.readRepo, s.logger, thread.ID, messages)
 	s.broadcastAfterCommit(ctx, thread)
-	return messages, nil
+	// Rebuild the open-request diff map over this snapshot, exactly as the GET path
+	// (markReadAndBuild) does, so the client's optimistic apply keeps the
+	// "current → requested" comparison on any request still open in the thread.
+	return messages, s.BuildRequestDiffs(ctx, thread.StudentID, messages), nil
 }
 
 // authorizeThreadParticipants enforces the shared precondition for opening or
@@ -532,12 +625,14 @@ func (s *service) ListStudentThreads(ctx context.Context, studentID int64) ([]*u
 // created_at" rule).
 func (s *service) appendStaffMessage(ctx context.Context, thread *usersModels.ParentMessageThread, accountID int64, body string) error {
 	msg := &usersModels.ParentMessage{
-		ThreadID:        thread.ID,
-		StudentID:       thread.StudentID,
-		SenderAccountID: accountID,
-		SenderKind:      usersModels.ParentMessageSenderStaff,
-		SenderName:      s.resolveStaffName(ctx, accountID),
-		Body:            body,
+		ThreadID:         thread.ID,
+		StudentID:        thread.StudentID,
+		SenderAccountID:  accountID,
+		SenderKind:       usersModels.ParentMessageSenderStaff,
+		SenderName:       s.resolveStaffName(ctx, accountID),
+		StaffNameVisible: s.staffNameVisibleToParents(ctx),
+		Body:             body,
+		Kind:             usersModels.ParentMessageKindMessage,
 	}
 	msg.SetTenantID(thread.TenantID)
 	if err := parentmessaging.AppendMessage(ctx, s.messageRepo, s.threadRepo, msg); err != nil {
@@ -573,6 +668,29 @@ func (s *service) resolveStaffName(ctx context.Context, accountID int64) string 
 		name = full
 	}
 	return name
+}
+
+// staffNameVisibleToParents resolves whether team replies should attribute the
+// individual staff member to guardians, to be FROZEN onto the message at send
+// time (users.parent_messages.staff_name_visible). It is read only here, on the
+// write path: the parent-facing read path trusts the stamped column, so a later
+// toggle never rewrites history. Unlike MessagingEnabled it fails CLOSED (false,
+// anonymous) on a transient config-DB error: the flag exposes staff personal
+// data and is frozen per message, so a blip must not permanently reveal a name
+// for a school that explicitly opted out. Anonymizing one message is
+// recoverable and privacy-safe; a wrongful disclosure is neither.
+func (s *service) staffNameVisibleToParents(ctx context.Context) bool {
+	if s.settings == nil {
+		return false
+	}
+	visible, err := s.settings.ResolveBool(ctx, configModels.KeyParentMessageStaffNameVisible)
+	if err != nil {
+		s.logger.Warn("messaging: resolve staff-name visibility failed, defaulting to anonymous",
+			slog.String("error", err.Error()),
+		)
+		return false
+	}
+	return visible
 }
 
 // broadcastAfterCommit queues the SSE wake-up to fire only AFTER the request

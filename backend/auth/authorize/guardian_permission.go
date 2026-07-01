@@ -13,6 +13,13 @@ const (
 	GuardianPermissionNotesWrite       = "parent_portal.notes.write"
 	GuardianPermissionEnrollmentsView  = "parent_portal.enrollments.view"
 	GuardianPermissionEnrollmentSubmit = "parent_portal.enrollment.submit"
+	// GuardianPermissionRequestSubmit allows a parent to submit (and withdraw)
+	// structured change-requests — care-schedule changes that OVERWRITE the
+	// child's permanent weekday schedule once staff confirm them. It is
+	// deliberately separate from notes.write (plain chat): a guardian must not
+	// gain authority to mutate the schedule just because they may send a
+	// message. See .claude/rules/guardian-parent-permissions.md.
+	GuardianPermissionRequestSubmit = "parent_portal.request.submit"
 	// GuardianPermissionMasterDataEdit gates Track A direct Stammdaten edits
 	// (health info, contact data) that apply immediately.
 	GuardianPermissionMasterDataEdit = "parent_portal.master_data.edit"
@@ -46,6 +53,7 @@ var fullParentPortalPermissions = []string{
 	GuardianPermissionPortalAccess,
 	GuardianPermissionSickNoteSubmit,
 	GuardianPermissionNotesWrite,
+	GuardianPermissionRequestSubmit,
 	GuardianPermissionEnrollmentsView,
 	GuardianPermissionEnrollmentSubmit,
 	GuardianPermissionMasterDataEdit,

@@ -135,6 +135,7 @@ func (rs *Resource) Router() chi.Router {
 		//   - sick-note: report the child sick for one or more dates
 		//   - care-exception: set/clear a one-day pickup & arrival time
 		r.Get("/me/children/{studentId}/features", rs.getChildFeatures)
+		r.Get("/me/children/{studentId}/meal-plan", rs.getChildMealPlan)
 		r.Get("/me/children/{studentId}/sick-note", rs.listSickDays)
 		r.Post("/me/children/{studentId}/sick-note", rs.submitSickNote)
 
@@ -148,6 +149,8 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/me/messages/children/{studentId}/threads", rs.listChildThreads)
 		r.Get("/me/messages/children/{studentId}", rs.getChildConversation)
 		r.Post("/me/messages/children/{studentId}", rs.postChildMessage)
+		r.Post("/me/messages/children/{studentId}/requests", rs.createChildRequest)
+		r.Post("/me/messages/children/{studentId}/requests/{requestId}/withdraw", rs.withdrawChildRequest)
 		r.Get("/me/children/{studentId}/care-exception", rs.listCareExceptions)
 		r.Post("/me/children/{studentId}/care-exception", rs.submitCareException)
 		r.Delete("/me/children/{studentId}/care-exception", rs.deleteCareException)

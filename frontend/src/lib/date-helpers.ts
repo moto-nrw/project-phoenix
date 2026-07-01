@@ -36,6 +36,26 @@ export function todayISO(): string {
 }
 
 /**
+ * Today's calendar date in the school's timezone (Europe/Berlin) as
+ * "YYYY-MM-DD". Use this — not todayISO() — whenever the value is compared
+ * against a backend DATE the server derives from `timezone.TodayDate()`
+ * (always Berlin). A browser in another timezone can be a calendar day off
+ * around midnight, which would otherwise send a week the backend rejects as
+ * out of range. Built from Intl parts (not toISOString) so the date-safety
+ * lint stays satisfied.
+ */
+export function berlinTodayISO(): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Berlin",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+/**
  * Groups items by date, sorted in descending order (newest first)
  * @param items Array of items with timestamp properties
  * @param timestampKey The key to access the timestamp property

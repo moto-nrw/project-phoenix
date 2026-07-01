@@ -4,8 +4,9 @@ import { createGetHandler } from "~/lib/route-wrapper.server";
 
 /**
  * Proxy GET /api/messages → backend. Returns the staff inbox of parent-OGS
- * message threads, optionally filtered to unread threads (`?unread=true`).
- * Backend scopes the threads to the staff member's tenant.
+ * message threads, optionally filtered to unread threads (`?unread=true`) or to
+ * threads with a still-open change request (`?open_requests=true`). Backend
+ * scopes the threads to the staff member's tenant.
  */
 export const GET = createGetHandler(
   async (request: NextRequest, token: string) => {
@@ -13,6 +14,8 @@ export const GET = createGetHandler(
     const params = new URLSearchParams();
     const unread = incoming.get("unread");
     if (unread !== null) params.set("unread", unread);
+    const openRequests = incoming.get("open_requests");
+    if (openRequests !== null) params.set("open_requests", openRequests);
     const query = params.toString();
     const endpoint = query ? `/api/messages?${query}` : "/api/messages";
     const response = await apiGet<{ data: unknown }>(endpoint, token);
