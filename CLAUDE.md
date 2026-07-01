@@ -248,6 +248,19 @@ Key rules:
 
 **CRITICAL**: Never include "Co-Authored-By: Claude" in commits.
 
+### PR Screenshots and QA Evidence
+
+Never create GitHub Releases, prereleases, tags, Gists, branches, or commits
+only to host screenshots or QA images for a pull request.
+
+For PR screenshots, use GitHub's native attachment upload in the PR
+description or PR comment. The resulting URLs should look like
+`https://github.com/user-attachments/assets/...`.
+
+If native upload is not available from the current tool context, provide the
+local screenshot paths and ask the user to attach them manually. Do not use
+releases, prereleases, tags, or Gists as an asset host.
+
 ## Database Schemas
 
 `platform` · `auth` · `users` · `education` · `facilities` · `activities` · `active` · `schedule` · `iot` · `feedback` · `config` · `enrollment` · `suggestions` · `meta` · `audit`

@@ -934,40 +934,6 @@
       "fri": "Fri"
     }
   },
-  "staffMasterDataReview": {
-    "title": "Change requests",
-    "subtitle": "Master-data changes submitted by parents that need approval.",
-    "loadError": "The change requests could not be loaded.",
-    "empty": "No open change requests.",
-    "columns": {
-      "child": "Child",
-      "field": "Field",
-      "change": "Change",
-      "submitted": "Submitted",
-      "actions": "Action"
-    },
-    "fields": {
-      "first_name": "First name",
-      "last_name": "Last name",
-      "birthday": "Date of birth",
-      "health_info": "Health notes",
-      "email": "Email",
-      "primary": "Phone number",
-      "address_street": "Street",
-      "address_city": "City",
-      "address_postal_code": "Postal code",
-      "preferred_contact_method": "Contact method",
-      "language_preference": "Language",
-      "allowed_departure_modes": "Permanent ways home"
-    },
-    "empty_value": "—",
-    "approve": "Approve",
-    "reject": "Reject",
-    "reason": "Reason (optional)",
-    "approved": "Change applied",
-    "rejected": "Change rejected",
-    "decideError": "The decision could not be saved."
-  },
   "parentOgsMessaging": {
     "readByStaff": "Read",
     "requestWithdraw": "Withdraw",
