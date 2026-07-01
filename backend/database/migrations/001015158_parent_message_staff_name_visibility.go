@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	parentMessageStaffNameVisibilityVersion     = "1.15.157"
+	parentMessageStaffNameVisibilityVersion     = "1.15.158"
 	parentMessageStaffNameVisibilityDescription = "Per-message frozen flag for showing the staff sender's name to guardians (#1672)"
 )
 
@@ -32,7 +32,7 @@ func init() {
 }
 
 func parentMessageStaffNameVisibilityUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.157: Adding staff_name_visible to parent messages...")
+	fmt.Println("Migration 1.15.158: Adding staff_name_visible to parent messages...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -62,7 +62,7 @@ func parentMessageStaffNameVisibilityUp(ctx context.Context, db *bun.DB) error {
 }
 
 func parentMessageStaffNameVisibilityDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.157: Removing parent_messages.staff_name_visible...")
+	fmt.Println("Rolling back migration 1.15.158: Removing parent_messages.staff_name_visible...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
