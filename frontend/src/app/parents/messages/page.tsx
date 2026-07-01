@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { ArrowRight, MessageSquare } from "lucide-react";
 import { OgsConversation } from "~/components/parent/ogs-conversation";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
@@ -14,6 +15,7 @@ import {
   listMessageThreads,
   listMyChildren,
 } from "~/lib/parent-api";
+import { parentThreadPreviewI18nDescriptor } from "~/lib/messaging-status";
 import { createLogger } from "~/lib/logger";
 import { formatChatDateTime } from "~/lib/date-helpers";
 
@@ -28,18 +30,27 @@ interface ChildConversation {
   readonly lastMessageAt?: string;
   readonly lastSenderKind?: "guardian" | "staff";
   readonly lastMessageBody?: string;
+  // Structured last-message fields so a request title / decision / withdrawal
+  // preview is localized from fields instead of the German lastMessageBody.
+  readonly lastMessageKind?: "message" | "event" | "request";
+  readonly lastEventType?: string;
+  readonly lastRequestType?: string;
+  readonly lastRequestStatus?: string;
   readonly unread: number;
 }
 
-function previewLine(row: ChildConversation): string {
-  if (!row.lastMessageBody) return "";
+// previewLine prefixes the (already-localized) last-message body with who sent
+// it. `body` is the localized preview the caller resolved from the structured
+// fields, falling back to the raw lastMessageBody for plain messages.
+function previewLine(row: ChildConversation, body: string): string {
+  if (!body) return "";
   const prefix =
     row.lastSenderKind === "staff"
       ? "OGS: "
       : row.lastSenderKind === "guardian"
         ? "Sie: "
         : "";
-  return `${prefix}${row.lastMessageBody}`;
+  return `${prefix}${body}`;
 }
 
 function buildRows(
@@ -59,6 +70,10 @@ function buildRows(
       lastMessageAt: thread?.last_message_at,
       lastSenderKind: thread?.last_sender_kind,
       lastMessageBody: thread?.last_message_body,
+      lastMessageKind: thread?.last_message_kind,
+      lastEventType: thread?.last_event_type,
+      lastRequestType: thread?.last_request_type,
+      lastRequestStatus: thread?.last_request_status,
       unread: thread?.unread ?? 0,
     };
   });
@@ -240,8 +255,21 @@ function Hero() {
 }
 
 function ChildRow({ row }: Readonly<{ row: ChildConversation }>) {
+  const t = useTranslations("parentOgsMessaging");
   const timestamp = formatChatDateTime(row.lastMessageAt);
-  const preview = previewLine(row);
+  // System-generated bodies (request titles, decision/withdrawal events) are
+  // German on the wire; render them localized from the structured fields,
+  // falling back to the language-neutral body for plain messages.
+  const previewDescriptor = parentThreadPreviewI18nDescriptor({
+    last_message_kind: row.lastMessageKind,
+    last_event_type: row.lastEventType,
+    last_request_type: row.lastRequestType,
+    last_request_status: row.lastRequestStatus,
+  });
+  const previewBody = previewDescriptor
+    ? t(previewDescriptor.key, previewDescriptor.values)
+    : (row.lastMessageBody ?? "");
+  const preview = previewLine(row, previewBody);
   const unread = row.unread > 0;
   return (
     <li>
@@ -309,7 +337,7 @@ function EmptyMessages() {
 
 function ParentMessagesSkeleton() {
   return (
-    <div className="mx-auto w-full max-w-5xl">
+    <div className="mx-auto w-full max-w-7xl">
       <Skeleton className="h-[calc(100dvh-13rem)] min-h-[20rem] rounded-2xl border border-gray-200 bg-white shadow-sm lg:h-[calc(100dvh-8.5rem)]" />
     </div>
   );

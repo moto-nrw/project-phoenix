@@ -16,9 +16,10 @@ import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { hasRole, isCaregiver } from "~/lib/auth-utils";
+import { hasPermission, hasRole, isCaregiver } from "~/lib/auth-utils";
 import { navigationIcons } from "~/lib/navigation-icons";
 import { operatorPath } from "~/lib/operator-url";
+import { useParentMealPlanEnabled } from "~/lib/hooks/use-parent-meal-plan-enabled";
 import {
   useNFCEnabled,
   usePresenceMode,
@@ -238,6 +239,14 @@ const PARENT_ADDITIONAL_ITEMS: readonly (AdditionalNavItem & {
     iconKey: "chat",
     alwaysShow: true,
   },
+  // Essensplan — only shown once a linked school runs a meal plan (gated via
+  // useParentMealPlanEnabled in the parent display filter below).
+  {
+    href: "/parents/meal-plan",
+    label: "Essensplan",
+    tKey: "mealPlan",
+    iconKey: "utensils",
+  },
   {
     href: "#",
     label: "Kontaktdaten",
@@ -330,13 +339,12 @@ const additionalNavItems: AdditionalNavItem[] = [
     iconKey: "chat",
     alwaysShow: true,
   },
-  // Coming soon features - shown to all users
+  // Essensplan — gated on the meal_plan_enabled feature flag + config:read
+  // (same as the desktop sidebar). Filtered in filteredAdditionalItems.
   {
-    href: "#",
-    label: "Mittagessen",
+    href: "/meal-plan",
+    label: "Essensplan",
     iconKey: "utensils",
-    alwaysShow: true,
-    comingSoon: true,
   },
   // Coming soon features - caregivers only
   {
@@ -502,8 +510,12 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const nfcEnabled = useNFCEnabled();
   const presenceMode = usePresenceMode();
   const showActivityNav = nfcEnabled && presenceMode !== "binary";
+  // Fetch the settings schema for anyone the backend lets read config, not just
+  // admins — the meal-plan GET route is guarded by config:read, so a non-admin
+  // config reader must also resolve the feature flags. Admins stay in.
+  const canReadConfig = userIsAdmin || hasPermission(session, "config:read");
   const { data: settingsSchema } = useSWR(
-    userIsAdmin && mode !== "operator" && mode !== "parent"
+    canReadConfig && mode !== "operator" && mode !== "parent"
       ? SETTINGS_SCHEMA_SWR_KEY
       : null,
     fetchSettingsSchema,
@@ -512,11 +524,19 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       revalidateOnReconnect: false,
     },
   );
-  const timetableEnabled =
+  const settingsItems =
     settingsSchema?.tabs
       .flatMap((tab) => tab.categories)
-      .flatMap((category) => category.items)
-      .find((item) => item.key === "timetable.enabled")?.value === true;
+      .flatMap((category) => category.items) ?? [];
+  const timetableEnabled =
+    settingsItems.find((item) => item.key === "timetable.enabled")?.value ===
+    true;
+  const mealPlanEnabled =
+    settingsItems.find((item) => item.key === "operations.meal_plan_enabled")
+      ?.value === true;
+  // Only advertise Essensplan in the parents portal once a linked school runs
+  // a meal plan; otherwise the overflow link leads to an empty page.
+  const parentMealPlanEnabled = useParentMealPlanEnabled(mode === "parent");
   const hasGroupSupervision = !isLoadingGroups && hasGroups;
   const hasRoomSupervision = !isLoadingSupervision && isSupervising;
 
@@ -531,6 +551,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       return false;
     }
     if (!showActivityNav && NFC_ONLY_HREFS.has(item.href)) return false;
+    if (item.href === "/meal-plan") {
+      return mealPlanEnabled && hasPermission(session, "config:read");
+    }
     if (item.alwaysShow) return true;
     if (item.href === "/timetables" && !timetableEnabled) {
       return false;
@@ -556,7 +579,11 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   );
   const displayAdditionalItems =
     mode === "parent"
-      ? parentAdditionalItems.filter((i) => !mainHrefs.has(i.href))
+      ? parentAdditionalItems.filter(
+          (i) =>
+            !mainHrefs.has(i.href) &&
+            (i.href !== "/parents/meal-plan" || parentMealPlanEnabled),
+        )
       : mode === "operator"
         ? resolvedOperatorAdditionalItems.filter((i) => !mainHrefs.has(i.href))
         : filteredAdditionalItems.filter((i) => !mainHrefs.has(i.href));

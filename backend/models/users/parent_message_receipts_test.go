@@ -76,3 +76,26 @@ func TestStampGuardianReadReceipts_NilCutoffStampsNothing(t *testing.T) {
 	StampGuardianReadReceipts(msgs, nil)
 	assert.False(t, msgs[0].ReadByGuardian)
 }
+
+func TestIsCounterpartMessage(t *testing.T) {
+	now := time.Now()
+	guardianMsg := receiptMsg(1, now, ParentMessageSenderGuardian)
+	staffMsg := receiptMsg(2, now, ParentMessageSenderStaff)
+	staffEvent := receiptMsg(3, now, ParentMessageSenderSystem)
+	staffEvent.EventActorKind = ParentMessageSenderStaff
+	guardianEvent := receiptMsg(4, now, ParentMessageSenderSystem)
+	guardianEvent.EventActorKind = ParentMessageSenderGuardian
+
+	// Staff reader: the guardian side is the counterpart (system events attributed
+	// via EventActorKind, never SenderKind='system').
+	assert.True(t, IsCounterpartMessage(guardianMsg, true), "guardian message is the staff reader's counterpart")
+	assert.False(t, IsCounterpartMessage(staffMsg, true), "a staff message is not the staff reader's counterpart")
+	assert.True(t, IsCounterpartMessage(guardianEvent, true), "a guardian-triggered system event is the staff reader's counterpart")
+	assert.False(t, IsCounterpartMessage(staffEvent, true), "a staff-triggered system event is not the staff reader's counterpart")
+
+	// Guardian reader: the staff side is the counterpart — exact mirror.
+	assert.True(t, IsCounterpartMessage(staffMsg, false), "staff message is the guardian reader's counterpart")
+	assert.False(t, IsCounterpartMessage(guardianMsg, false), "a guardian message is not the guardian reader's counterpart")
+	assert.True(t, IsCounterpartMessage(staffEvent, false), "a staff-triggered system event is the guardian reader's counterpart")
+	assert.False(t, IsCounterpartMessage(guardianEvent, false), "a guardian-triggered system event is not the guardian reader's counterpart")
+}

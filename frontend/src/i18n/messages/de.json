@@ -39,6 +39,7 @@
   "parentNav": {
     "start": "Start",
     "children": "Meine Kinder",
+    "mealPlan": "Essensplan",
     "comingSoon": "Bald im Elternportal",
     "calendar": "Kalender",
     "messages": "Nachrichten",
@@ -52,6 +53,20 @@
     "role": "Eltern",
     "childProfile": "Kinderprofil",
     "loading": "Lädt..."
+  },
+  "parentMealPlan": {
+    "title": "Essensplan",
+    "subtitle": "Was es in der Betreuung zu essen gibt.",
+    "thisWeek": "Diese Woche",
+    "nextWeek": "Nächste Woche",
+    "today": "Heute",
+    "noMeal": "Kein Essen eingetragen",
+    "empty": "Für Ihre Schule ist derzeit kein Essensplan verfügbar.",
+    "loadError": "Essensplan konnte nicht geladen werden.",
+    "emptyWeek": "Für diese Woche ist noch kein Essensplan eingetragen.",
+    "weekHeading": "Diese Woche",
+    "school": "Schule",
+    "week": "Woche"
   },
   "parentDashboard": {
     "eyebrow": "Elternportal",
@@ -273,6 +288,52 @@
       "existingHint": "Für den {date} ist bereits eine Änderung hinterlegt. Speichern überschreibt sie.",
       "reset": "Zurücksetzen",
       "submit": "Speichern"
+    },
+    "actions": {
+      "sick": {
+        "label": "Krankmeldung",
+        "shortLabel": "Krankmeldung",
+        "hint": "Kind für einen oder mehrere Tage krankmelden"
+      },
+      "pickup": {
+        "label": "Abholung für einen Tag",
+        "shortLabel": "Abholung",
+        "hint": "Abhol- oder Bringzeit an einem einzelnen Tag anpassen"
+      },
+      "care_schedule": {
+        "label": "Betreuungszeiten dauerhaft ändern",
+        "shortLabel": "Betreuungszeiten",
+        "hint": "Wochenplan (Mo–Fr) anpassen"
+      }
+    },
+    "request": {
+      "submit": "Anfrage senden",
+      "entryLabel": "Dauerhafte Änderung",
+      "entryHint": "Dauerhafte Änderung anfragen. Die OGS bestätigt sie.",
+      "chooserTitle": "Änderung anfragen",
+      "chooserIntro": "Die OGS prüft Ihre Anfrage und übernimmt sie erst nach Bestätigung. Bis dahin ändert sich nichts.",
+      "sendError": "Die Anfrage konnte nicht gesendet werden.",
+      "careSchedule": {
+        "title": "Betreuungszeiten ändern",
+        "intro": "Wochenplan Mo–Fr als Anfrage an die OGS. Nur ausgefüllte Angaben werden geändert, leere Felder bleiben wie bisher.",
+        "noChange": "Bitte mindestens einen Tag anpassen.",
+        "arrival": "Bringzeit",
+        "pickup": "Abholzeit",
+        "modeAria": "Abholart {day}"
+      },
+      "weekday": {
+        "1": "Montag",
+        "2": "Dienstag",
+        "3": "Mittwoch",
+        "4": "Donnerstag",
+        "5": "Freitag"
+      },
+      "careMode": {
+        "unchanged": "Unverändert",
+        "alone": "Geht alleine",
+        "bus": "Fährt Bus",
+        "pickup": "Wird abgeholt"
+      }
     }
   },
   "parentLogin": {
@@ -888,41 +949,32 @@
       "fri": "Fr"
     }
   },
-  "staffMasterDataReview": {
-    "title": "Änderungsanfragen",
-    "subtitle": "Von Eltern eingereichte Änderungen an Stammdaten, die eine Freigabe benötigen.",
-    "loadError": "Die Änderungsanfragen konnten nicht geladen werden.",
-    "empty": "Keine offenen Änderungsanfragen.",
-    "columns": {
-      "child": "Kind",
-      "field": "Feld",
-      "change": "Änderung",
-      "submitted": "Eingereicht",
-      "actions": "Aktion"
-    },
-    "fields": {
-      "first_name": "Vorname",
-      "last_name": "Nachname",
-      "birthday": "Geburtsdatum",
-      "health_info": "Gesundheitshinweise",
-      "email": "E-Mail",
-      "primary": "Telefonnummer",
-      "address_street": "Straße",
-      "address_city": "Ort",
-      "address_postal_code": "PLZ",
-      "preferred_contact_method": "Kontaktweg",
-      "language_preference": "Sprache",
-      "allowed_departure_modes": "Dauerhafte Gehzeiten"
-    },
-    "empty_value": "—",
-    "approve": "Freigeben",
-    "reject": "Ablehnen",
-    "reason": "Begründung (optional)",
-    "approved": "Änderung übernommen",
-    "rejected": "Änderung abgelehnt",
-    "decideError": "Die Entscheidung konnte nicht gespeichert werden."
-  },
   "parentOgsMessaging": {
-    "readByStaff": "Gelesen"
+    "readByStaff": "Gelesen",
+    "requestWithdraw": "Zurückziehen",
+    "requestTypeCareSchedule": "Anfrage: Dauerhafte Betreuungszeiten ändern",
+    "requestTitleFallback": "Anfrage",
+    "statusOpen": "Offen",
+    "statusDone": "Erledigt",
+    "statusRejected": "Abgelehnt",
+    "statusWithdrawn": "Zurückgezogen",
+    "eventRequestConfirmed": "Anfrage bestätigt",
+    "eventRequestConfirmedCareSchedule": "Anfrage bestätigt, Betreuungszeiten übernommen",
+    "eventRequestRejected": "Anfrage abgelehnt",
+    "eventRequestRejectedReason": "Anfrage abgelehnt: {reason}",
+    "eventRequestWithdrawn": "Anfrage zurückgezogen",
+    "diffHeading": "Ihre Änderungswünsche",
+    "diffCareArrival": "Bringzeit",
+    "diffCarePickup": "Abholzeit",
+    "diffCareDepartureMode": "Abholart",
+    "diffWeekday1": "Montag",
+    "diffWeekday2": "Dienstag",
+    "diffWeekday3": "Mittwoch",
+    "diffWeekday4": "Donnerstag",
+    "diffWeekday5": "Freitag",
+    "diffModeAlone": "Geht alleine",
+    "diffModeBus": "Fährt Bus",
+    "diffModePickup": "Wird abgeholt",
+    "diffModeAccompanied": "Geht mit anderem Kind/Person"
   }
 }
