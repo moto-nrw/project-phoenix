@@ -18,6 +18,7 @@ export function ChatBubble({
   senderName,
   createdAt,
   readReceiptLabel,
+  showOwnSenderName = true,
 }: Readonly<{
   body: string;
   own: boolean;
@@ -26,7 +27,15 @@ export function ChatBubble({
   // Shown after the timestamp on an own message the other side has read, e.g.
   // "Gelesen". Omit to show no read receipt.
   readReceiptLabel?: string;
+  // Whether to print the sender's name on the viewer's OWN bubbles. The parent
+  // view sets this false: a thread has a single guardian account, so every own
+  // (guardian) bubble is the logged-in parent — the name is pure noise there.
+  // The staff view keeps it true: several colleagues share a thread, so the
+  // name disambiguates which one replied. Only affects own bubbles; the other
+  // side's name always shows.
+  showOwnSenderName?: boolean;
 }>) {
+  const hideName = own && !showOwnSenderName;
   return (
     <div className={`flex flex-col ${own ? "items-end" : "items-start"}`}>
       <div
@@ -37,7 +46,8 @@ export function ChatBubble({
         {body}
       </div>
       <p className="mt-1 px-1 text-xs text-gray-400">
-        {senderName} · {formatChatTime(createdAt)}
+        {hideName ? "" : `${senderName} · `}
+        {formatChatTime(createdAt)}
         {readReceiptLabel ? ` · ${readReceiptLabel}` : ""}
       </p>
     </div>

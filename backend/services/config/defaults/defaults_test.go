@@ -113,6 +113,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		// Parents-portal write features.
 		"operations.parent_sick_note_enabled",
 		"operations.parent_notes_enabled",
+		"operations.parent_message_staff_name_visible",
 		"operations.parent_pickup_change_enabled",
 		"operations.parent_guardian_management_enabled",
 		"operations.parent_master_data_edit_enabled",
@@ -177,6 +178,23 @@ func TestGuardianRelatedAccountsSettings(t *testing.T) {
 	assert.Equal(t, config.KeyGuardianParentInviteMode, removeDef.DependsOn.Key)
 	assert.Equal(t, "neq", removeDef.DependsOn.Condition)
 	assert.Equal(t, config.ParentInviteModeDisabled, removeDef.DependsOn.Value)
+}
+
+func TestParentMessageStaffNameVisibleSetting(t *testing.T) {
+	def := config.GetDefinition(config.KeyParentMessageStaffNameVisible)
+	require.NotNil(t, def, "operations.parent_message_staff_name_visible should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	// Default ON: a messaging-active school attributes team replies to a person
+	// by default. "Only from activation" is enforced per-message at send time
+	// (staff_name_visible column), not by a restrictive default here.
+	assert.Equal(t, true, def.Default, "staff-name visibility must default on")
+	assert.Equal(t, "config:update", def.WritePermission)
+	assert.Equal(t, "operations", def.Tab)
+	// Hidden unless messaging itself is on — it only affects those messages.
+	require.NotNil(t, def.DependsOn, "should be hidden when parent messaging is off")
+	assert.Equal(t, config.KeyParentNotesEnabled, def.DependsOn.Key)
+	assert.Equal(t, "eq", def.DependsOn.Condition)
+	assert.Equal(t, true, def.DependsOn.Value)
 }
 
 func TestWebCheckinAccessSetting(t *testing.T) {
