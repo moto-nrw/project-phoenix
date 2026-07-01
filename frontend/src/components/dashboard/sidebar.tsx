@@ -131,7 +131,7 @@ const NAV_ITEMS: NavItem[] = [
   {
     href: "/meal-plan",
     label: "Essensplan",
-    icon: "M8.5 3v18M7 3v3.5M10 3v3.5M7 10h3M15.5 3v3c0 1-2 2-2 2v13",
+    icon: navigationIcons.utensils,
     activeColor: "text-[#83CD2D]",
   },
   // Coming soon features - caregivers only
@@ -969,7 +969,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth={2}
-                    d="M8.5 3v18M7 3v3.5M10 3v3.5M7 10h3M15.5 3v3c0 1-2 2-2 2v13"
+                    d={navigationIcons.utensils}
                   />
                 </svg>
                 <span>{tParentNav("mealPlan")}</span>
