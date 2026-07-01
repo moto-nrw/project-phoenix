@@ -674,19 +674,21 @@ func (s *service) resolveStaffName(ctx context.Context, accountID int64) string 
 // individual staff member to guardians, to be FROZEN onto the message at send
 // time (users.parent_messages.staff_name_visible). It is read only here, on the
 // write path: the parent-facing read path trusts the stamped column, so a later
-// toggle never rewrites history. Fails to the registry default direction (true)
-// on a transient config-DB error, mirroring MessagingEnabled's fail-open — a
-// blip must not silently strip attribution the school opted into by default.
+// toggle never rewrites history. Unlike MessagingEnabled it fails CLOSED (false,
+// anonymous) on a transient config-DB error: the flag exposes staff personal
+// data and is frozen per message, so a blip must not permanently reveal a name
+// for a school that explicitly opted out. Anonymizing one message is
+// recoverable and privacy-safe; a wrongful disclosure is neither.
 func (s *service) staffNameVisibleToParents(ctx context.Context) bool {
 	if s.settings == nil {
-		return true
+		return false
 	}
 	visible, err := s.settings.ResolveBool(ctx, configModels.KeyParentMessageStaffNameVisible)
 	if err != nil {
-		s.logger.Warn("messaging: resolve staff-name visibility failed, defaulting to visible",
+		s.logger.Warn("messaging: resolve staff-name visibility failed, defaulting to anonymous",
 			slog.String("error", err.Error()),
 		)
-		return true
+		return false
 	}
 	return visible
 }
