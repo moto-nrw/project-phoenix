@@ -12,7 +12,7 @@ export type ReminderType =
 
 export interface Reminder {
   type: ReminderType;
-  student_id?: number;
+  student_id?: string;
   title: string;
   subtitle?: string;
   due_time: string; // "HH:MM"

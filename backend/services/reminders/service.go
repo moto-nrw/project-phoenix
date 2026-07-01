@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -30,12 +31,14 @@ const (
 
 // Reminder is a single visual reminder shown to staff.
 type Reminder struct {
-	Type        string `json:"type"`
-	StudentID   *int64 `json:"student_id,omitempty"`
-	Title       string `json:"title"`              // student name OR activity title
-	Subtitle    string `json:"subtitle,omitempty"` // school class or room — optional
-	DueTime     string `json:"due_time"`           // "HH:MM" of the relevant time
-	MinutesAway int    `json:"minutes_away"`       // negative when overdue
+	Type string `json:"type"`
+	// StudentID is serialized as a string to honor the repo's int64→string API
+	// contract (JS loses precision on int64 as a JSON number).
+	StudentID   *string `json:"student_id,omitempty"`
+	Title       string  `json:"title"`              // student name OR activity title
+	Subtitle    string  `json:"subtitle,omitempty"` // school class or room — optional
+	DueTime     string  `json:"due_time"`           // "HH:MM" of the relevant time
+	MinutesAway int     `json:"minutes_away"`       // negative when overdue
 }
 
 // Result is the computed reminder list plus a convenience count for the badge.
@@ -140,10 +143,25 @@ func (s *service) Compute(ctx context.Context, scope Scope) (*Result, error) {
 		return empty, nil
 	}
 
-	pickupUpcoming, _ := s.settings.ResolveBool(ctx, configModel.KeyRemindersPickupUpcomingEnabled)
-	pickupOverdue, _ := s.settings.ResolveBool(ctx, configModel.KeyRemindersPickupOverdueEnabled)
-	activityStart, _ := s.settings.ResolveBool(ctx, configModel.KeyRemindersActivityStartEnabled)
-	activityOverdue, _ := s.settings.ResolveBool(ctx, configModel.KeyRemindersActivityOverdueEnabled)
+	// A resolution failure (DB/RLS/tenant-tx error) must surface, not be treated
+	// as "disabled" — otherwise a broken config read looks like a healthy empty
+	// result and silently hides reminders the tenant switched on.
+	pickupUpcoming, err := s.settings.ResolveBool(ctx, configModel.KeyRemindersPickupUpcomingEnabled)
+	if err != nil {
+		return nil, fmt.Errorf("resolve %s: %w", configModel.KeyRemindersPickupUpcomingEnabled, err)
+	}
+	pickupOverdue, err := s.settings.ResolveBool(ctx, configModel.KeyRemindersPickupOverdueEnabled)
+	if err != nil {
+		return nil, fmt.Errorf("resolve %s: %w", configModel.KeyRemindersPickupOverdueEnabled, err)
+	}
+	activityStart, err := s.settings.ResolveBool(ctx, configModel.KeyRemindersActivityStartEnabled)
+	if err != nil {
+		return nil, fmt.Errorf("resolve %s: %w", configModel.KeyRemindersActivityStartEnabled, err)
+	}
+	activityOverdue, err := s.settings.ResolveBool(ctx, configModel.KeyRemindersActivityOverdueEnabled)
+	if err != nil {
+		return nil, fmt.Errorf("resolve %s: %w", configModel.KeyRemindersActivityOverdueEnabled, err)
+	}
 
 	// Default-off: nothing enabled means no work and no data exposure.
 	if !pickupUpcoming && !pickupOverdue && !activityStart && !activityOverdue {
@@ -270,7 +288,7 @@ func (s *service) pickupReminders(ctx context.Context, studentIDs []int64, today
 		case diff < 0 && overdue:
 			out = append(out, Reminder{
 				Type:        TypePickupOverdue,
-				StudentID:   ptrInt64(id),
+				StudentID:   studentIDString(id),
 				Title:       info.name,
 				Subtitle:    info.class,
 				DueTime:     formatMinutes(pickupMin),
@@ -279,7 +297,7 @@ func (s *service) pickupReminders(ctx context.Context, studentIDs []int64, today
 		case diff >= 0 && diff <= lead && upcoming:
 			out = append(out, Reminder{
 				Type:        TypePickupUpcoming,
-				StudentID:   ptrInt64(id),
+				StudentID:   studentIDString(id),
 				Title:       info.name,
 				Subtitle:    info.class,
 				DueTime:     formatMinutes(pickupMin),
@@ -415,6 +433,9 @@ func formatMinutes(m int) string {
 	return fmt.Sprintf("%02d:%02d", m/60, m%60)
 }
 
-func ptrInt64(v int64) *int64 {
-	return &v
+// studentIDString renders an int64 student ID as a *string for JSON, matching
+// the repo-wide int64→string API contract.
+func studentIDString(v int64) *string {
+	s := strconv.FormatInt(v, 10)
+	return &s
 }

@@ -161,7 +161,7 @@ func TestPickupReminders(t *testing.T) {
 		assert.Equal(t, "Anna Müller", out[0].Title)
 		assert.Equal(t, "1a", out[0].Subtitle)
 		require.NotNil(t, out[0].StudentID)
-		assert.Equal(t, int64(1), *out[0].StudentID)
+		assert.Equal(t, "1", *out[0].StudentID)
 	})
 
 	t.Run("overdue is reported with negative minutes", func(t *testing.T) {
@@ -398,6 +398,15 @@ func TestComputeGating(t *testing.T) {
 		assert.Empty(t, res.Reminders)
 		assert.Equal(t, 0, res.Count)
 	})
+
+	t.Run("a setting resolution error is surfaced, not swallowed as disabled", func(t *testing.T) {
+		resolveErr := errors.New("config read failed")
+		svc := &service{settings: fakeSettings{boolErr: resolveErr}}
+		res, err := svc.Compute(ctx, Scope{IsAdmin: true})
+		require.Error(t, err, "a broken config read must not look like a healthy empty result")
+		assert.ErrorIs(t, err, resolveErr)
+		assert.Nil(t, res)
+	})
 }
 
 func TestComputeSortsMostUrgentFirst(t *testing.T) {
@@ -446,5 +455,5 @@ func TestPureHelpers(t *testing.T) {
 	assert.Equal(t, "00:00", formatMinutes(0))
 	assert.Equal(t, "09:55", formatMinutes(595))
 	assert.Equal(t, 605, minutesOfDay(wallClock(605)))
-	assert.Equal(t, int64(7), *ptrInt64(7))
+	assert.Equal(t, "7", *studentIDString(7))
 }
