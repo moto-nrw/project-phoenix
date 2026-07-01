@@ -32,45 +32,51 @@ function DateRangePickerDemo() {
   );
 }
 
+function DateRangePickerSelectedDemo() {
+  const today = new Date();
+  const [value, setValue] = useState<DateRange | undefined>({
+    from: today,
+    to: today,
+  });
+  return (
+    <div className="p-10">
+      <DateRangePicker value={value} onChange={setValue} />
+    </div>
+  );
+}
+
+function DateRangePickerNoPresetsDemo() {
+  const [value, setValue] = useState<DateRange | undefined>(undefined);
+  return (
+    <div className="p-10">
+      <DateRangePicker value={value} onChange={setValue} />
+    </div>
+  );
+}
+
+function RangeCalendarInlineDemo() {
+  const [value, setValue] = useState<DateRange | undefined>(undefined);
+  return (
+    <div className="relative p-10">
+      <RangeCalendarInline value={value} onChange={setValue} />
+    </div>
+  );
+}
+
 export const Default: Story = {
   render: () => <DateRangePickerDemo />,
 };
 
 export const WithSelectedRange: Story = {
-  render: () => {
-    const today = new Date();
-    const [value, setValue] = useState<DateRange | undefined>({
-      from: today,
-      to: today,
-    });
-    return (
-      <div className="p-10">
-        <DateRangePicker value={value} onChange={setValue} />
-      </div>
-    );
-  },
+  render: () => <DateRangePickerSelectedDemo />,
 };
 
 export const NoPresets: Story = {
-  render: () => {
-    const [value, setValue] = useState<DateRange | undefined>(undefined);
-    return (
-      <div className="p-10">
-        <DateRangePicker value={value} onChange={setValue} />
-      </div>
-    );
-  },
+  render: () => <DateRangePickerNoPresetsDemo />,
 };
 
 export const RangeCalendarInlineStandalone: StoryObj<
   typeof RangeCalendarInline
 > = {
-  render: () => {
-    const [value, setValue] = useState<DateRange | undefined>(undefined);
-    return (
-      <div className="relative p-10">
-        <RangeCalendarInline value={value} onChange={setValue} />
-      </div>
-    );
-  },
+  render: () => <RangeCalendarInlineDemo />,
 };

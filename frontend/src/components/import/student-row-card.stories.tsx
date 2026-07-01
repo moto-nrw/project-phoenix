@@ -61,7 +61,7 @@ export const Warning: Story = {
   },
 };
 
-export const Error: Story = {
+export const ErrorState: Story = {
   args: {
     index: 3,
     student: {

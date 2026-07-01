@@ -7,11 +7,13 @@ import { RoomColorField } from "./room-color-field";
  * story wraps it in a tiny stateful shell to make the color picker and the
  * "Zurücksetzen" button interactive in the Storybook canvas.
  */
-function ControlledRoomColorField(props: {
-  initialValue: unknown;
-  label: string;
-  required?: boolean;
-}) {
+function ControlledRoomColorField(
+  props: Readonly<{
+    initialValue: unknown;
+    label: string;
+    required?: boolean;
+  }>,
+) {
   const { initialValue, label, required } = props;
   const [value, setValue] = useState<unknown>(initialValue);
 

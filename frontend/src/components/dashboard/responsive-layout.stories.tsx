@@ -1,11 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
-import ResponsiveLayout from "./responsive-layout";
+import ResponsiveLayout from "./responsive-layout"; // NOSONAR - deprecated component kept for compatibility story coverage.
 
 const meta = {
   title: "components/dashboard/ResponsiveLayout",
-  component: ResponsiveLayout,
-} satisfies Meta<typeof ResponsiveLayout>;
+  // The component is explicitly deprecated but still tested for compatibility.
+  component: ResponsiveLayout, // NOSONAR
+} satisfies Meta<typeof ResponsiveLayout>; // NOSONAR
 
 export default meta;
 

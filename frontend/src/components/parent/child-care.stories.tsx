@@ -18,6 +18,7 @@ const ALL_FEATURES: ChildFeatures = {
   master_data_edit_enabled: true,
   master_data_contact_edit_enabled: true,
   master_data_request_enabled: true,
+  meal_plan_enabled: true,
 };
 
 const CARE_EXCEPTIONS: CareException[] = [

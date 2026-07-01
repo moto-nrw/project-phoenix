@@ -21,7 +21,7 @@ export const Success: Story = {
   },
 };
 
-export const Error: Story = {
+export const ErrorAlert: Story = {
   args: {
     type: "error",
     message: "Ein Fehler ist aufgetreten.",

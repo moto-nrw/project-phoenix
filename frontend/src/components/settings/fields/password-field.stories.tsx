@@ -41,7 +41,7 @@ export const PinPattern: Story = {
     hasValue: true,
     settingKey: "devices.ogs_device_pin",
     onChange: noopOnChange,
-    pattern: "^\\d{4}$",
+    pattern: String.raw`^\d{4}$`,
     revealFn: mockRevealFn,
   },
 };

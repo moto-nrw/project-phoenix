@@ -103,6 +103,7 @@ export interface ChildFeatures {
   readonly master_data_edit_enabled: boolean;
   readonly master_data_contact_edit_enabled: boolean;
   readonly master_data_request_enabled: boolean;
+  readonly meal_plan_enabled: boolean;
 }
 
 // One day's pickup/arrival override. Mirrors api/parent.CareExceptionResponse.

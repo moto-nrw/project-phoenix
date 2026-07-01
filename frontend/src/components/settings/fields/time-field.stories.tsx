@@ -7,11 +7,11 @@ function TimeFieldDemo({
   initialValue,
   emptyLabel,
   disabled,
-}: {
+}: Readonly<{
   initialValue: string;
   emptyLabel?: string;
   disabled?: boolean;
-}) {
+}>) {
   const [value, setValue] = useState(initialValue);
   return (
     <TimeField
