@@ -118,8 +118,11 @@ describe("RemindersBell", () => {
     setReminders({ enabled: true, count: 1, reminders: [reminder()] });
     render(<RemindersBell />);
 
+    // Tenant-aware href: in path-based routing mode the link must keep the
+    // tenant segment (the global test mock resolves slug "test-tenant" / path
+    // mode), otherwise the CTA drops the tenant and 404s on the bare host.
     const link = screen.getByRole("link", { name: "Alle ansehen" });
-    expect(link).toHaveAttribute("href", "/reminders");
+    expect(link).toHaveAttribute("href", "/test-tenant/reminders");
 
     const button = screen.getByRole("button", { name: "Erinnerungen (1)" });
     expect(button).toHaveAttribute("aria-expanded", "false");

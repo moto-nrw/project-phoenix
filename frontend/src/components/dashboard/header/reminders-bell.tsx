@@ -16,6 +16,7 @@ import {
   reminderRelativeLabel,
   reminderToneClass,
 } from "~/lib/reminders-display";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 
 // How many reminders to preview inline before linking out to the full page.
 const PREVIEW_LIMIT = 5;
@@ -45,6 +46,7 @@ function BellRow({ reminder }: { readonly reminder: Reminder }) {
 
 export function RemindersBell() {
   const { reminders, count, enabled } = useReminders();
+  const tenantPath = useTenantAwarePath();
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -135,7 +137,7 @@ export function RemindersBell() {
 
         <div className="p-2">
           <Link
-            href="/reminders"
+            href={tenantPath("/reminders")}
             onClick={() => setIsOpen(false)}
             className="flex items-center justify-center rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors duration-200 hover:bg-gray-100 hover:text-gray-900"
           >
