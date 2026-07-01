@@ -5,7 +5,8 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Loading } from "~/components/ui/loading";
-import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
+import { parseISODate, toISODate } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import {
   getChildFeatures,
   getChildMealPlan,
@@ -90,7 +91,9 @@ export function ParentMealPlanPage() {
   const [schoolsError, setSchoolsError] = useState(false);
   const [weekError, setWeekError] = useState(false);
 
-  const today = berlinTodayISO();
+  // useBerlinToday re-renders on the Berlin midnight rollover, so a page left
+  // mounted overnight follows the date instead of freezing on yesterday.
+  const today = useBerlinToday();
   // Anchor the week on the Berlin `today`, not just weekOffset: if the page
   // stays mounted across Berlin midnight, the selected week must roll forward
   // with the date. Keying the memo on `today` also keeps it aligned with the
