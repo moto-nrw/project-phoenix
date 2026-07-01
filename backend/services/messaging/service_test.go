@@ -48,6 +48,10 @@ import (
 type stubSettings struct {
 	configService.SettingsService
 	messagingEnabled bool
+	// staffNameVisible answers operations.parent_message_staff_name_visible, the
+	// flag the send path freezes onto each staff message. Defaults false so
+	// existing tests exercise the masked ("OGS") path unchanged.
+	staffNameVisible bool
 	// dataScope, when set, makes the gdpr.student_data_scope lookups report an
 	// override of this value so CanReadStudent relaxes reads (e.g. "all_staff").
 	// Empty (the default) keeps the restrictive group-supervisors-only behavior.
@@ -55,10 +59,14 @@ type stubSettings struct {
 }
 
 func (s stubSettings) ResolveBool(_ context.Context, key string) (bool, error) {
-	if key == configModels.KeyParentNotesEnabled {
+	switch key {
+	case configModels.KeyParentNotesEnabled:
 		return s.messagingEnabled, nil
+	case configModels.KeyParentMessageStaffNameVisible:
+		return s.staffNameVisible, nil
+	default:
+		return false, nil
 	}
-	return false, nil
 }
 
 func (s stubSettings) HasTenantOverride(_ context.Context, key string) (bool, error) {
@@ -143,7 +151,7 @@ func newPersons(repos *repositories.Factory, db *bun.DB) usersService.PersonServ
 	})
 }
 
-func buildMessaging(t *testing.T, enabled bool) (messaging.Service, *captureBroadcaster, *repositories.Factory, *bun.DB) {
+func buildMessagingWithSettings(t *testing.T, settings stubSettings) (messaging.Service, *captureBroadcaster, *repositories.Factory, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
@@ -161,7 +169,7 @@ func buildMessaging(t *testing.T, enabled bool) (messaging.Service, *captureBroa
 		Persons:     newPersons(repos, db),
 		Arrival:     serviceFactory.ArrivalSchedule,
 		Pickup:      serviceFactory.PickupSchedule,
-		Settings:    stubSettings{messagingEnabled: enabled},
+		Settings:    settings,
 		Broadcaster: bc,
 		DB:          db,
 		Logger:      slog.Default(),
@@ -185,8 +193,12 @@ func claimsCtx(accountID int64, perms []string) context.Context {
 // newFixture wires the full messaging stack plus a parent→child chain and a
 // distinct staff reader account, with cleanup registered.
 func newFixture(t *testing.T, enabled bool) *fixture {
+	return newFixtureWithSettings(t, stubSettings{messagingEnabled: enabled})
+}
+
+func newFixtureWithSettings(t *testing.T, settings stubSettings) *fixture {
 	t.Helper()
-	svc, bc, _, db := buildMessaging(t, enabled)
+	svc, bc, _, db := buildMessagingWithSettings(t, settings)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
@@ -258,6 +270,29 @@ func TestStartThread_CreatesConversationAndBroadcasts(t *testing.T) {
 	assert.Equal(t, "Guten Tag, bitte um Rückruf", detail.Messages[0].Body)
 
 	assert.Equal(t, 1, f.bc.countOf(realtime.EventParentMessage), "a staff send wakes the guardian with a new-message event")
+}
+
+// TestStartThread_StampsStaffNameVisibleFromSetting proves the send path FREEZES
+// the operations.parent_message_staff_name_visible setting onto each staff
+// message at write time (users.parent_messages.staff_name_visible). That frozen
+// column — not a live re-read — is what the parent view later uses, so a message
+// keeps the visibility it was sent with even if the school toggles the setting.
+func TestStartThread_StampsStaffNameVisibleFromSetting(t *testing.T) {
+	t.Run("setting on -> stamped visible", func(t *testing.T) {
+		f := newFixtureWithSettings(t, stubSettings{messagingEnabled: true, staffNameVisible: true})
+		detail, err := f.svc.StartThread(adminCtx(f.staffAccount), f.chain.StudentID, f.chain.AccountID, "Hallo")
+		require.NoError(t, err)
+		require.Len(t, detail.Messages, 1)
+		assert.True(t, detail.Messages[0].StaffNameVisible, "reply sent while the setting is on must be stamped visible")
+	})
+
+	t.Run("setting off -> stamped hidden", func(t *testing.T) {
+		f := newFixtureWithSettings(t, stubSettings{messagingEnabled: true, staffNameVisible: false})
+		detail, err := f.svc.StartThread(adminCtx(f.staffAccount), f.chain.StudentID, f.chain.AccountID, "Hallo")
+		require.NoError(t, err)
+		require.Len(t, detail.Messages, 1)
+		assert.False(t, detail.Messages[0].StaffNameVisible, "reply sent while the setting is off stays anonymous")
+	})
 }
 
 // TestStartThread_IsGetOrCreate verifies the chat model: a second StartThread for

@@ -27,6 +27,7 @@ vi.mock("~/lib/auth-utils", () => {
       if (role === "user") return !isAdminFn();
       return false;
     }),
+    hasPermission: vi.fn(() => false),
   };
 });
 

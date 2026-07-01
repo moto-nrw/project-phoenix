@@ -22,6 +22,7 @@ import {
   Search,
   SlidersHorizontal,
   TabletSmartphone,
+  UtensilsCrossed,
   Users,
   Wrench,
 } from "lucide-react";
@@ -909,6 +910,29 @@ export const appChapters: readonly GuideChapter[] = [
         screenshot:
           "Geöffnete Unterhaltung mit Anfrage-Karte: Vergleich der Betreuungszeiten aktuell zu gewünscht und den Schaltflächen Bestätigen und Ablehnen.",
         image: "/help/screens/offene-anfragen.webp",
+      },
+      {
+        id: "essensplan",
+        title: "Essensplan",
+        icon: UtensilsCrossed,
+        summary:
+          "Die Woche als Plan: Montag bis Freitag nebeneinander, pro Tag ein oder mehrere Gerichte mit optionalem Hinweis. Eltern sehen den Plan für die aktuelle und nächste Woche im Elternportal.",
+        steps: [
+          "In der Seitenleiste `Essensplan` öffnen.",
+          "Mit den Pfeilen `‹` und `›` zwischen den Kalenderwochen blättern; die laufende Woche ist mit `Diese Woche` markiert, mit `Heute` springst du dorthin zurück.",
+          "Pro Tag das `Gericht` eintragen; bei Bedarf einen kurzen `Hinweis` ergänzen (z. B. vegetarisch).",
+          "Mehrere Gerichte pro Tag über `+ Gericht` hinzufügen (z. B. Menü 1 und Menü 2); überflüssige Zeilen mit dem `×` entfernen.",
+          "Über das Tagesmenü (`⋯`) einen Tag `kopieren`, in einen anderen Tag `einfügen` oder `leeren`; mit `Vorwoche übernehmen` den kompletten Plan der Vorwoche übernehmen.",
+          "Änderungen unten mit `Speichern` sichern (ungespeicherte Änderungen werden angezeigt und beim Verlassen abgefragt).",
+        ],
+        callout: {
+          title: "Voraussetzung",
+          body: "Die Funktion muss unter `Einstellungen` > `Betrieb` > `Essensplan` aktiviert sein. Ist sie aus, erscheint der Punkt weder im Team- noch im Elternportal.",
+          tone: "blue",
+        },
+        screenshot:
+          "Essensplan als Wochen-Board (Mo–Fr nebeneinander), oben Wochennavigation mit Pfeilen und „Heute“, je Tag eine Liste von Gerichten mit Hinweis.",
+        image: "/help/screens/essensplan.webp",
       },
       {
         id: "feedback",

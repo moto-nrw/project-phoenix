@@ -22,6 +22,7 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	mealplanModels "github.com/moto-nrw/project-phoenix/models/mealplan"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -76,6 +77,13 @@ type Service interface {
 	// for the child's tenant, so the UI can hide/disable actions the backend
 	// would reject with 403. Authorization only.
 	ChildFeatures(ctx context.Context, accountID, studentID int64) (ChildFeatureFlags, error)
+
+	// MealPlanWeek returns the Monday-Friday meal plan entries for the school
+	// of the given child, for the week containing weekStart. Authorization
+	// (parent_portal.access) plus the operations.meal_plan_enabled toggle for
+	// the child's tenant: when the feature is off it returns
+	// ErrMealPlanDisabled so the portal can hide the section.
+	MealPlanWeek(ctx context.Context, accountID, studentID int64, weekStart timezone.Date) ([]*mealplanModels.MealPlanEntry, error)
 
 	// SubmitCareException sets a guardian-authored, date-specific pickup and/or
 	// arrival time for one day. At least one of pickupTime/arrivalTime must be
@@ -214,6 +222,10 @@ type ChildFeatureFlags struct {
 	// MasterDataRequestEnabled is true when parents may submit Track B
 	// change requests for approval (setting AND the relationship permission).
 	MasterDataRequestEnabled bool
+	// MealPlanEnabled is true when the school maintains a meal plan
+	// (operations.meal_plan_enabled), so the portal can show the read-only
+	// Essensplan section for this child's school.
+	MealPlanEnabled bool
 }
 
 // CareException is the parent-facing projection of a single day's pickup and/or
@@ -252,6 +264,9 @@ type ServiceConfig struct {
 	ArrivalExceptionRepo scheduleModels.StudentArrivalExceptionRepository
 	Settings             configService.SettingsService
 	Broadcaster          realtime.Broadcaster
+
+	// Meal plan (Essensplan) read access for the child's school.
+	MealPlanRepo mealplanModels.MealPlanEntryRepository
 
 	// Parent-OGS messaging.
 	MessageThreadRepo usersModels.ParentMessageThreadRepository
@@ -296,6 +311,8 @@ type service struct {
 	settings             configService.SettingsService
 	broadcaster          realtime.Broadcaster
 
+	mealPlanRepo mealplanModels.MealPlanEntryRepository
+
 	messageThreadRepo usersModels.ParentMessageThreadRepository
 	messageRepo       usersModels.ParentMessageRepository
 	messageReadRepo   usersModels.ParentMessageReadRepository
@@ -326,6 +343,7 @@ func NewService(cfg ServiceConfig) Service {
 		enrollmentRequestRepo:   cfg.EnrollmentRequestRepo,
 		guardianProfileRepo:     cfg.GuardianProfileRepo,
 		statusDayRepo:           cfg.StatusDayRepo,
+		mealPlanRepo:            cfg.MealPlanRepo,
 		studentRepo:             cfg.StudentRepo,
 		pickupExceptionRepo:     cfg.PickupExceptionRepo,
 		arrivalExceptionRepo:    cfg.ArrivalExceptionRepo,

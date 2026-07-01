@@ -9,6 +9,7 @@ import {
   toISODate,
   parseISODate,
   todayISO,
+  berlinTodayISO,
   formatChatTime,
   formatChatDateTime,
 } from "./date-helpers";
@@ -53,6 +54,22 @@ describe("todayISO", () => {
   it("returns today's local calendar date as YYYY-MM-DD", () => {
     expect(todayISO()).toBe(toISODate(new Date()));
     expect(todayISO()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
+describe("berlinTodayISO", () => {
+  it("returns a well-formed YYYY-MM-DD string", () => {
+    expect(berlinTodayISO()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it("matches today's date computed directly in the Europe/Berlin timezone", () => {
+    const expected = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Berlin",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date()); // en-CA formats as YYYY-MM-DD
+    expect(berlinTodayISO()).toBe(expected);
   });
 });
 

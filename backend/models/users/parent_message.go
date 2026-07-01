@@ -34,7 +34,17 @@ type ParentMessage struct {
 	SenderAccountID int64  `bun:"sender_account_id,notnull" json:"sender_account_id"`
 	SenderKind      string `bun:"sender_kind,notnull" json:"sender_kind"`
 	SenderName      string `bun:"sender_name,notnull" json:"sender_name"`
-	Body            string `bun:"body,notnull" json:"body"`
+	// StaffNameVisible freezes, at send time, whether this staff message may show
+	// the individual sender's name to guardians (the value of the
+	// operations.parent_message_staff_name_visible setting when the row was
+	// written). Frozen per-row — exactly like SenderName — so toggling the setting
+	// later never retroactively reveals or re-hides already-sent replies: only
+	// messages written while the setting was on carry true. Meaningful only for
+	// sender_kind='staff'; always false on guardian/system rows. The parent-facing
+	// serializer shows the person's name only when this is true, else the neutral
+	// "OGS [Schulname]" label.
+	StaffNameVisible bool   `bun:"staff_name_visible,notnull,default:false" json:"staff_name_visible"`
+	Body             string `bun:"body,notnull" json:"body"`
 	// Kind discriminates a plain chat message ('message') from a system event
 	// ('event', e.g. a quick-action pill posting a Raumwechsel/Abholung notice
 	// into the thread) and a structured change request ('request'). Defaults to
