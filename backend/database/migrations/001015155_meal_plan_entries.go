@@ -73,6 +73,7 @@ func mealPlanEntriesUp(ctx context.Context, db *bun.DB) error {
 		ALTER TABLE schedule.meal_plan_entries ENABLE ROW LEVEL SECURITY;
 		ALTER TABLE schedule.meal_plan_entries FORCE ROW LEVEL SECURITY;
 
+		DROP POLICY IF EXISTS tenant_isolation_schedule_meal_plan_entries ON schedule.meal_plan_entries;
 		CREATE POLICY tenant_isolation_schedule_meal_plan_entries ON schedule.meal_plan_entries
 			FOR ALL
 			USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint)

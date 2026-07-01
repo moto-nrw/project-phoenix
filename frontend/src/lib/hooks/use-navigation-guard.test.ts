@@ -50,6 +50,30 @@ describe("useNavigationGuard", () => {
     expect(mockPush).not.toHaveBeenCalled();
   });
 
+  it("warns on hard unload (tab close / reload) while blocking", () => {
+    renderHook(() => useNavigationGuard(true));
+
+    const event = new Event("beforeunload", { cancelable: true });
+    act(() => {
+      window.dispatchEvent(event);
+    });
+
+    // preventDefault + a returnValue is what triggers the browser's native
+    // "unsaved changes" confirmation dialog.
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it("does not warn on unload when not blocking", () => {
+    renderHook(() => useNavigationGuard(false));
+
+    const event = new Event("beforeunload", { cancelable: true });
+    act(() => {
+      window.dispatchEvent(event);
+    });
+
+    expect(event.defaultPrevented).toBe(false);
+  });
+
   it("navigates on confirm and clears the pending destination", () => {
     const { result } = renderHook(() => useNavigationGuard(true));
     const anchor = mountAnchor("/database");
