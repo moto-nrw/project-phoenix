@@ -424,7 +424,7 @@ func TestComputeGating(t *testing.T) {
 		}
 		res, err := svc.Compute(ctx, Scope{IsAdmin: true})
 		require.NoError(t, err)
-		assert.True(t, res.Enabled, "the sidebar/bell shows the entry whenever a type is enabled, even with nothing due")
+		assert.True(t, res.Enabled, "the header bell shows whenever a type is enabled, even with nothing due")
 		assert.Empty(t, res.Reminders)
 		assert.Equal(t, 0, res.Count)
 	})

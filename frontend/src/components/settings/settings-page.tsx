@@ -29,10 +29,10 @@ const SUPERVISION_AFFECTING_KEYS = new Set<string>([
   "operations.admin_supervision_overview",
 ]);
 
-// Reminders settings decide whether the "Erinnerungen" sidebar entry shows.
+// Reminders settings decide whether the header reminders bell shows at all.
 // After saving/resetting one, revalidate the /api/reminders cache so the
-// sidebar's `enabled` flag flips immediately instead of waiting for the 60s
-// poll. The reminders SWR key is tenant-prefixed ("{slug}:reminders").
+// bell's `enabled` flag flips immediately instead of waiting for the poll.
+// The reminders SWR key is tenant-prefixed ("{slug}:reminders").
 function revalidateRemindersIfNeeded(key: string) {
   if (!key.startsWith("reminders.")) return;
   void mutate(

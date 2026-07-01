@@ -23,7 +23,7 @@ export interface RemindersResult {
   reminders: Reminder[];
   count: number;
   // True when the tenant has enabled at least one reminder type. Drives
-  // whether the sidebar shows the "Erinnerungen" entry at all.
+  // whether the header bell (the only entry point to /reminders) renders at all.
   enabled: boolean;
 }
 
@@ -33,7 +33,7 @@ interface ProxyResponse {
   data: RemindersResult;
 }
 
-// Shared SWR key so the page and the sidebar badge dedupe to one request.
+// Shared SWR key so the page and the header bell badge dedupe to one request.
 export const REMINDERS_SWR_KEY = "reminders";
 
 export async function fetchReminders(): Promise<RemindersResult> {

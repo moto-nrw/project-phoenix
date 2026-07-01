@@ -43,8 +43,8 @@ type Reminder struct {
 
 // Result is the computed reminder list plus a convenience count for the badge.
 // Enabled reports whether the tenant has switched on at least one reminder
-// type — the sidebar uses it to show/hide the "Erinnerungen" entry regardless
-// of whether anything is currently due.
+// type — the header bell uses it to show/hide itself (and the /reminders page
+// link it exposes) regardless of whether anything is currently due.
 type Result struct {
 	Reminders []Reminder `json:"reminders"`
 	Count     int        `json:"count"`

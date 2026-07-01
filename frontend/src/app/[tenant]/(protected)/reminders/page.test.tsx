@@ -1,10 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import type { Reminder } from "~/lib/reminders-api";
+import type { Reminder, RemindersResult } from "~/lib/reminders-api";
 
 const mockUseReminders = vi.fn();
 vi.mock("~/lib/hooks/use-reminders", () => ({
   useReminders: () => mockUseReminders(),
+}));
+
+const mockReplace = vi.fn();
+vi.mock("~/lib/tenant-router", () => ({
+  useTenantRouter: () => ({ replace: mockReplace }),
 }));
 
 import RemindersPage from "./page";
@@ -14,12 +19,14 @@ function set(value: {
   count?: number;
   error?: unknown;
   isLoading?: boolean;
+  data?: RemindersResult;
 }) {
   mockUseReminders.mockReturnValue({
     reminders: value.reminders ?? [],
     count: value.count ?? value.reminders?.length ?? 0,
     error: value.error,
     isLoading: value.isLoading ?? false,
+    data: value.data,
   });
 }
 
@@ -82,5 +89,35 @@ describe("RemindersPage", () => {
     expect(
       screen.getByLabelText("Erinnerungen werden geladen…"),
     ).toBeInTheDocument();
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it("does not redirect while data has not loaded yet (no data)", () => {
+    set({ reminders: [], count: 0 });
+    render(<RemindersPage />);
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it("redirects to the dashboard when the feature is disabled", () => {
+    set({
+      reminders: [],
+      count: 0,
+      data: { reminders: [], count: 0, enabled: false },
+    });
+    const { container } = render(<RemindersPage />);
+    expect(mockReplace).toHaveBeenCalledWith("/");
+    // Nothing rendered while the redirect is in flight.
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("renders the page when the feature is enabled", () => {
+    set({
+      reminders: [],
+      count: 0,
+      data: { reminders: [], count: 0, enabled: true },
+    });
+    render(<RemindersPage />);
+    expect(screen.getByText("Keine aktiven Erinnerungen")).toBeInTheDocument();
+    expect(mockReplace).not.toHaveBeenCalled();
   });
 });

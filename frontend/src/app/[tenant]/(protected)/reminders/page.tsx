@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Loading } from "~/components/ui/loading";
 import { useReminders } from "~/lib/hooks/use-reminders";
+import { useTenantRouter } from "~/lib/tenant-router";
 import type { Reminder } from "~/lib/reminders-api";
 import {
   REMINDER_SECTIONS,
@@ -32,7 +34,28 @@ function ReminderRow({ reminder }: { reminder: Reminder }) {
 }
 
 export default function RemindersPage() {
-  const { reminders, count, error, isLoading } = useReminders();
+  const { reminders, count, error, isLoading, data } = useReminders();
+  const router = useTenantRouter();
+
+  // Feature gate for direct URL entry. The header bell is the only discoverable
+  // way here and it hides when the tenant has no reminder type enabled, so the
+  // only way to land on this page with the feature off is a bookmark or typed
+  // URL. Send those to the dashboard once we have a definitive answer.
+  //
+  // Key off the raw `data` (loaded and enabled === false), NOT the derived
+  // `enabled`: during the initial load / no-token window `enabled` is falsy too,
+  // and redirecting then would bounce users off a page whose feature is on.
+  const featureDisabled = data?.enabled === false;
+  useEffect(() => {
+    if (featureDisabled) {
+      router.replace("/");
+    }
+  }, [featureDisabled, router]);
+
+  // Don't flash the empty state while the redirect is in flight.
+  if (featureDisabled) {
+    return null;
+  }
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-6">
