@@ -32,6 +32,7 @@ import (
 	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
 	importAPI "github.com/moto-nrw/project-phoenix/api/import"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
+	mealplanAPI "github.com/moto-nrw/project-phoenix/api/mealplan"
 	roomsAPI "github.com/moto-nrw/project-phoenix/api/rooms"
 	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
 	sseAPI "github.com/moto-nrw/project-phoenix/api/sse"
@@ -78,6 +79,7 @@ type API struct {
 	Staff            *staffAPI.Resource
 	WorkTimeModels   *worktimemodelsAPI.Resource
 	Feedback         *feedbackAPI.Resource
+	MealPlan         *mealplanAPI.Resource
 	Suggestions      *suggestionsAPI.Resource
 	Enrollment       *enrollmentAPI.Resource
 	Schedules        *schedulesAPI.Resource
@@ -402,6 +404,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.StaffOffboarding, api.Services.Education, api.Services.Auth, api.Services.WorkSession, api.Services.StaffAbsence, db, logger.With("handler", "staff"))
 	api.WorkTimeModels = worktimemodelsAPI.NewResource(api.Services.WorkTimeModels, db, logger.With("handler", "work-time-models"))
 	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback, api.Services.Settings, db)
+	api.MealPlan = mealplanAPI.NewResource(api.Services.MealPlan, api.Services.Settings, db)
 	api.Enrollment = enrollmentAPI.NewResource(
 		api.Services.EnrollmentFormSchema,
 		api.Services.EnrollmentCareOffering,
@@ -601,6 +604,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 		// Mount feedback resources
 		r.Mount("/feedback", a.Feedback.Router())
+
+		// Mount meal plan resources
+		r.Mount("/meal-plan", a.MealPlan.Router())
 
 		// Mount enrollment resources (parent-enrollment PR 5+)
 		r.Mount("/enrollment", a.Enrollment.Router())

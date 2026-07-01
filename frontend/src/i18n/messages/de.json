@@ -39,6 +39,7 @@
   "parentNav": {
     "start": "Start",
     "children": "Meine Kinder",
+    "mealPlan": "Essensplan",
     "comingSoon": "Bald im Elternportal",
     "calendar": "Kalender",
     "messages": "Nachrichten",
@@ -52,6 +53,20 @@
     "role": "Eltern",
     "childProfile": "Kinderprofil",
     "loading": "Lädt..."
+  },
+  "parentMealPlan": {
+    "title": "Essensplan",
+    "subtitle": "Was es in der Betreuung zu essen gibt.",
+    "thisWeek": "Diese Woche",
+    "nextWeek": "Nächste Woche",
+    "today": "Heute",
+    "noMeal": "Kein Essen eingetragen",
+    "empty": "Für Ihre Schule ist derzeit kein Essensplan verfügbar.",
+    "loadError": "Essensplan konnte nicht geladen werden.",
+    "emptyWeek": "Für diese Woche ist noch kein Essensplan eingetragen.",
+    "weekHeading": "Diese Woche",
+    "school": "Schule",
+    "week": "Woche"
   },
   "parentDashboard": {
     "eyebrow": "Elternportal",

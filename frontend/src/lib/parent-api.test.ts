@@ -10,6 +10,7 @@ import {
   submitSickNote,
   listSickDays,
   getChildFeatures,
+  getChildMealPlan,
   getChildMasterData,
   updateMasterDataField,
   submitMasterDataRequest,
@@ -604,6 +605,49 @@ describe("getChildFeatures", () => {
     mockFetch(async () => new Response("nope", { status: 500 }));
     await expect(getChildFeatures("84")).rejects.toThrow(
       /Request failed \(500\)/,
+    );
+  });
+});
+
+describe("getChildMealPlan", () => {
+  it("GETs the child meal-plan route with the week_start query and returns entries", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({
+        data: [
+          { date: "2026-07-06", position: 0, dish: "Spaghetti", note: null },
+          {
+            date: "2026-07-06",
+            position: 1,
+            dish: "Salat",
+            note: "vegetarisch",
+          },
+        ],
+      });
+    });
+    const out = await getChildMealPlan("84", "2026-07-06");
+    expect(out).toHaveLength(2);
+    expect(out[0]?.dish).toBe("Spaghetti");
+    expect(out[1]?.note).toBe("vegetarisch");
+    expect(seenURL).toContain("/api/parent/me/children/84/meal-plan");
+    expect(seenURL).toContain("week_start=2026-07-06");
+  });
+
+  it("URL-encodes the student id and week start", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({ data: [] });
+    });
+    await getChildMealPlan("a/b", "2026-07-06");
+    expect(seenURL).toContain("/api/parent/me/children/a%2Fb/meal-plan");
+  });
+
+  it("propagates a 403 (meal_plan_disabled) so the caller can hide the section", async () => {
+    mockFetch(async () => new Response("nope", { status: 403 }));
+    await expect(getChildMealPlan("84", "2026-07-06")).rejects.toThrow(
+      /Request failed \(403\)/,
     );
   });
 });

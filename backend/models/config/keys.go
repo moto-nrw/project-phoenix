@@ -130,6 +130,7 @@ const (
 	KeyParentMasterDataEditEnabled     = "operations.parent_master_data_edit_enabled"
 	KeyParentMasterDataRequestEnabled  = "operations.parent_master_data_request_enabled"
 	KeyTimeTrackingAccountStartDate    = "operations.time_tracking_account_start_date"
+	KeyMealPlanEnabled                 = "operations.meal_plan_enabled"
 )
 
 // PresenceMode option values for KeyPresenceMode.

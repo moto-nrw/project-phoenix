@@ -36,6 +36,7 @@ import (
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/services/mealplan"
 	"github.com/moto-nrw/project-phoenix/services/messaging"
 	"github.com/moto-nrw/project-phoenix/services/parent"
 	"github.com/moto-nrw/project-phoenix/services/platform"
@@ -63,6 +64,7 @@ type Factory struct {
 	Invitation               auth.InvitationService
 	GuardianInvitation       auth.GuardianInvitationService
 	Feedback                 feedback.Service
+	MealPlan                 mealplan.Service
 	Suggestions              suggestions.Service
 	IoT                      iot.Service
 	Settings                 config.SettingsService
@@ -334,6 +336,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	feedbackService := feedback.NewService(
 		repos.FeedbackEntry,
 	)
+
+	// Initialize meal plan service
+	mealPlanService := mealplan.NewService(repos.MealPlanEntry)
 
 	// Initialize suggestions service
 	suggestionsNotifyEmail := viper.GetString("suggestion_notify_email")
@@ -1139,6 +1144,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		EnrollmentRequestRepo:   repos.ParentEnrollmentRequest,
 		GuardianProfileRepo:     repos.GuardianProfile,
 		StatusDayRepo:           repos.StudentStatusDay,
+		MealPlanRepo:            repos.MealPlanEntry,
 		StudentRepo:             repos.Student,
 		PickupExceptionRepo:     repos.StudentPickupException,
 		ArrivalExceptionRepo:    repos.StudentArrivalException,
@@ -1205,6 +1211,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Schulhof:                 schulhofService,
 		WC:                       wcService,
 		Feedback:                 feedbackService,
+		MealPlan:                 mealPlanService,
 		Suggestions:              suggestionsService,
 		IoT:                      iotService,
 		Settings:                 settingsService,
