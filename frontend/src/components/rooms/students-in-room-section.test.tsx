@@ -15,7 +15,9 @@ const {
   mockUpdateVisit,
   mockMoveStudentsToActiveGroup,
   mockGetActiveGroups,
+  mockGetStaffActiveSupervisions,
   mockToastSuccess,
+  mockUseSession,
 } = vi.hoisted(() => ({
   mockPush: vi.fn(),
   mockUseSearchParams: vi.fn(() => ({
@@ -28,7 +30,9 @@ const {
   mockUpdateVisit: vi.fn(),
   mockMoveStudentsToActiveGroup: vi.fn(),
   mockGetActiveGroups: vi.fn(),
+  mockGetStaffActiveSupervisions: vi.fn(),
   mockToastSuccess: vi.fn(),
+  mockUseSession: vi.fn(),
 }));
 
 vi.mock("~/lib/tenant-router", () => ({
@@ -37,6 +41,10 @@ vi.mock("~/lib/tenant-router", () => ({
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => mockUseSearchParams(),
+}));
+
+vi.mock("next-auth/react", () => ({
+  useSession: () => mockUseSession(),
 }));
 
 vi.mock("~/lib/swr", () => ({
@@ -56,6 +64,8 @@ vi.mock("~/lib/active-service", async (importOriginal) => {
       updateVisit: (...args: unknown[]) => mockUpdateVisit(...args),
       moveStudentsToActiveGroup: (...args: unknown[]) =>
         mockMoveStudentsToActiveGroup(...args),
+      getStaffActiveSupervisions: (...args: unknown[]) =>
+        mockGetStaffActiveSupervisions(...args),
     },
   };
 });
@@ -155,6 +165,16 @@ interface MockRoom {
   name: string;
 }
 
+interface MockSupervisor {
+  id: string;
+  staffId: string;
+  activeGroupId: string;
+  startTime: Date;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 const makeStudent = (overrides: Partial<MockStudent> = {}): MockStudent => ({
   id: "1",
   first_name: "Anna",
@@ -163,6 +183,19 @@ const makeStudent = (overrides: Partial<MockStudent> = {}): MockStudent => ({
   group_name: "Bären",
   ...overrides,
 });
+
+const makeSupervisions = (
+  activeGroups: readonly MockActiveGroup[],
+): MockSupervisor[] =>
+  activeGroups.map((group, index) => ({
+    id: String(index + 1),
+    staffId: "20",
+    activeGroupId: group.id,
+    startTime: new Date("2026-05-14T08:00:00.000Z"),
+    isActive: true,
+    createdAt: new Date("2026-05-14T08:00:00.000Z"),
+    updatedAt: new Date("2026-05-14T08:00:00.000Z"),
+  }));
 
 let roomStudentsState: {
   data?: {
@@ -174,6 +207,8 @@ let roomStudentsState: {
 };
 let activeGroupsState: { data: MockActiveGroup[] };
 let roomsState: { data: MockRoom[] };
+let currentStaffState: { data?: { id: string }; error?: unknown };
+let activeSupervisionsState: { data: MockSupervisor[]; error?: unknown };
 
 const setSWR = (state: typeof roomStudentsState) => {
   roomStudentsState = state;
@@ -188,12 +223,18 @@ const setBulkData = ({
     { id: "9000", name: "Raum 6" },
     { id: "9001", name: "Atelier" },
   ],
+  currentStaff = { id: "20" },
+  activeSupervisions = makeSupervisions(activeGroups),
 }: {
   activeGroups?: MockActiveGroup[];
   rooms?: MockRoom[];
+  currentStaff?: { id: string } | undefined;
+  activeSupervisions?: MockSupervisor[];
 } = {}) => {
   activeGroupsState = { data: activeGroups };
   roomsState = { data: rooms };
+  currentStaffState = { data: currentStaff };
+  activeSupervisionsState = { data: activeSupervisions };
 };
 
 beforeEach(() => {
@@ -204,7 +245,21 @@ beforeEach(() => {
   mockUpdateVisit.mockReset();
   mockMoveStudentsToActiveGroup.mockReset();
   mockGetActiveGroups.mockReset();
+  mockGetStaffActiveSupervisions.mockReset();
   mockToastSuccess.mockReset();
+  mockUseSession.mockReset();
+  mockUseSession.mockReturnValue({
+    data: {
+      user: {
+        token: "staff-token",
+        roles: ["user"],
+        permissions: ["visits:update"],
+        isAdmin: false,
+      },
+    },
+    status: "authenticated",
+    update: vi.fn(),
+  });
   mockUseSearchParams.mockReset();
   mockUseSearchParams.mockReturnValue({
     get: vi.fn(() => null),
@@ -213,7 +268,10 @@ beforeEach(() => {
   mockUseTenantMutateMatching.mockReturnValue(vi.fn());
   setSWR({ data: { students: [] } });
   setBulkData();
-  mockUseSWRAuth.mockImplementation((key: string) => {
+  mockUseSWRAuth.mockImplementation((key: string | null) => {
+    if (key === null) {
+      return { data: undefined, error: null, isLoading: false };
+    }
     if (key.startsWith("room-students-")) {
       return {
         data: roomStudentsState.data,
@@ -225,6 +283,20 @@ beforeEach(() => {
       return {
         data: activeGroupsState.data,
         error: null,
+        isLoading: false,
+      };
+    }
+    if (key === "room-bulk-current-staff") {
+      return {
+        data: currentStaffState.data,
+        error: currentStaffState.error ?? null,
+        isLoading: false,
+      };
+    }
+    if (key === "room-bulk-active-supervisions-20") {
+      return {
+        data: activeSupervisionsState.data,
+        error: activeSupervisionsState.error ?? null,
         isLoading: false,
       };
     }
@@ -640,6 +712,74 @@ describe("StudentsInRoomSection", () => {
       expect(screen.queryByRole("option", { name: "OGS-Raum 1" })).toBeNull();
       expect(
         screen.getByRole("option", { name: "Raum 6" }),
+      ).toBeInTheDocument();
+    });
+
+    it("filters target rooms to the current staff member's active supervisions", () => {
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+      setBulkData({
+        activeGroups: [
+          { id: "unsupervised", roomId: "9000", isActive: true },
+          { id: "supervised", roomId: "9001", isActive: true },
+        ],
+        rooms: [
+          { id: "9000", name: "Aula" },
+          { id: "9001", name: "Raum 6" },
+        ],
+        activeSupervisions: [
+          {
+            id: "1",
+            staffId: "20",
+            activeGroupId: "supervised",
+            startTime: new Date("2026-05-14T08:00:00.000Z"),
+            isActive: true,
+            createdAt: new Date("2026-05-14T08:00:00.000Z"),
+            updatedAt: new Date("2026-05-14T08:00:00.000Z"),
+          },
+        ],
+      });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      expect(screen.queryByRole("option", { name: "Aula" })).toBeNull();
+      expect(
+        screen.getByRole("option", { name: "Raum 6" }),
+      ).toBeInTheDocument();
+    });
+
+    it("keeps all active target rooms visible for admins", () => {
+      mockUseSession.mockReturnValue({
+        data: {
+          user: {
+            token: "admin-token",
+            roles: ["admin"],
+            permissions: ["admin:*"],
+            isAdmin: true,
+          },
+        },
+        status: "authenticated",
+        update: vi.fn(),
+      });
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+      setBulkData({
+        activeGroups: [
+          { id: "900", roomId: "9000", isActive: true },
+          { id: "901", roomId: "9001", isActive: true },
+        ],
+        rooms: [
+          { id: "9000", name: "Raum 6" },
+          { id: "9001", name: "Atelier" },
+        ],
+        activeSupervisions: [],
+      });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      expect(
+        screen.getByRole("option", { name: "Raum 6" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("option", { name: "Atelier" }),
       ).toBeInTheDocument();
     });
 

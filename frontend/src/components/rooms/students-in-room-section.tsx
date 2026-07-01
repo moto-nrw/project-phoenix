@@ -17,6 +17,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, ExternalLink } from "lucide-react";
 import { useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
+import type { Session } from "next-auth";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { ROOM_LIST_CACHE_KEYS } from "~/lib/swr/room-derived-caches";
@@ -30,8 +32,10 @@ import {
   activeService,
   summarizeStudentMoveResult,
 } from "~/lib/active-service";
-import type { ActiveGroup } from "~/lib/active-helpers";
+import type { ActiveGroup, Supervisor } from "~/lib/active-helpers";
 import type { Room } from "~/lib/room-helpers";
+import { userContextService } from "~/lib/usercontext-api";
+import type { Staff } from "~/lib/usercontext-helpers";
 import { CompactStudentCard } from "~/components/students/compact-student-card";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { createLogger } from "~/lib/logger";
@@ -40,6 +44,16 @@ const logger = createLogger({ component: "StudentsInRoomSection" });
 const EMPTY_STUDENTS: Student[] = [];
 const DETAIL_CARD_CLASS =
   "rounded-3xl moto-content-surface border p-5 shadow-sm sm:p-6";
+
+function canUseAllMoveTargets(session: Session | null): boolean {
+  const permissions = session?.user?.permissions ?? [];
+  return (
+    session?.user?.isAdmin === true ||
+    session?.user?.roles?.includes("admin") === true ||
+    permissions.includes("admin:*") ||
+    permissions.includes("*:*")
+  );
+}
 
 interface StudentsInRoomSectionProps {
   readonly roomId: string;
@@ -53,6 +67,8 @@ export function StudentsInRoomSection({
   onSelectionActiveChange,
 }: StudentsInRoomSectionProps) {
   const router = useTenantRouter();
+  const { data: session } = useSession();
+  const showAllTargets = canUseAllMoveTargets(session);
   const { success: toastSuccess } = useToast();
   const refreshRoomConsumers = useTenantMutateMatching([
     "room-students-",
@@ -95,6 +111,16 @@ export function StudentsInRoomSection({
     "room-bulk-active-groups",
     () => activeService.getActiveGroups({ active: true }),
   );
+  const { data: currentStaff } = useSWRAuth<Staff>(
+    showAllTargets ? null : "room-bulk-current-staff",
+    () => userContextService.getCurrentStaff(),
+  );
+  const { data: activeSupervisions = [] } = useSWRAuth<Supervisor[]>(
+    showAllTargets || !currentStaff?.id
+      ? null
+      : `room-bulk-active-supervisions-${currentStaff.id}`,
+    () => activeService.getStaffActiveSupervisions(currentStaff?.id ?? ""),
+  );
   const { data: rooms = [] } = useSWRAuth<Room[]>("room-bulk-rooms", () =>
     roomService.getRooms(),
   );
@@ -114,9 +140,24 @@ export function StudentsInRoomSection({
   const selectedVisibleCount = [...selectedStudentIds].filter((studentId) =>
     visibleStudentIds.has(studentId),
   ).length;
+  const supervisedTargetGroupIds = useMemo(
+    () =>
+      new Set(
+        activeSupervisions
+          .filter((supervision) => supervision.isActive)
+          .map((supervision) => supervision.activeGroupId),
+      ),
+    [activeSupervisions],
+  );
   const targetOptions = useMemo(
-    () => buildTargetRoomOptions(activeGroups, rooms, roomId),
-    [activeGroups, rooms, roomId],
+    () =>
+      buildTargetRoomOptions(
+        activeGroups,
+        rooms,
+        roomId,
+        showAllTargets ? undefined : supervisedTargetGroupIds,
+      ),
+    [activeGroups, rooms, roomId, showAllTargets, supervisedTargetGroupIds],
   );
   const selectedTarget = targetOptions.find(
     (option) => option.activeGroupId === targetActiveGroupId,
@@ -141,6 +182,17 @@ export function StudentsInRoomSection({
   useEffect(() => {
     onSelectionActiveChange?.(selectedVisibleCount > 0);
   }, [onSelectionActiveChange, selectedVisibleCount]);
+
+  useEffect(() => {
+    if (
+      targetActiveGroupId &&
+      !targetOptions.some(
+        (option) => option.activeGroupId === targetActiveGroupId,
+      )
+    ) {
+      setTargetActiveGroupId("");
+    }
+  }, [targetActiveGroupId, targetOptions]);
 
   const openInSearch = () => {
     const qs = new URLSearchParams({
@@ -328,12 +380,14 @@ function buildTargetRoomOptions(
   activeGroups: readonly ActiveGroup[],
   rooms: readonly Room[],
   currentRoomId: string,
+  allowedActiveGroupIds?: ReadonlySet<string>,
 ): TargetRoomOption[] {
   const roomsById = new Map(rooms.map((room) => [room.id, room]));
   const groupsByRoomId = new Map<string, ActiveGroup[]>();
 
   activeGroups.forEach((group) => {
     if (!group.isActive || group.roomId === currentRoomId) return;
+    if (allowedActiveGroupIds && !allowedActiveGroupIds.has(group.id)) return;
     const groupsInRoom = groupsByRoomId.get(group.roomId) ?? [];
     groupsInRoom.push(group);
     groupsByRoomId.set(group.roomId, groupsInRoom);

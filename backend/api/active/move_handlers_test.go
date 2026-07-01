@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -159,6 +160,94 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 		rs.moveStudentsToActiveGroup(w, req)
 
 		require.Equal(t, http.StatusForbidden, w.Code)
+		assert.False(t, calledMove)
+	})
+
+	t.Run("allows target supervisor to move open transit students into supervised target", func(t *testing.T) {
+		calledMove := false
+		targetGroupID := int64(99)
+		targetRoomID := int64(77)
+		rs := &Resource{
+			PersonService: moveAuthPersonService{
+				person: &userModel.Person{Model: base.Model{ID: 10}},
+				staff:  &userModel.Staff{Model: base.Model{ID: 20}},
+			},
+			ActiveService: &trackingMockActiveService{
+				getActiveGroupFunc: func(_ context.Context, id int64) (*activeModel.Group, error) {
+					return &activeModel.Group{Model: base.Model{ID: id}, RoomID: targetRoomID}, nil
+				},
+				getStaffActiveSupervisionsFunc: func(_ context.Context, _ int64) ([]*activeModel.GroupSupervisor, error) {
+					return []*activeModel.GroupSupervisor{{GroupID: targetGroupID}}, nil
+				},
+				getStudentsAttendanceStatusesFunc: func(_ context.Context, studentIDs []int64) (map[int64]*activeSvc.AttendanceStatus, error) {
+					assert.Equal(t, []int64{42}, studentIDs)
+					return map[int64]*activeSvc.AttendanceStatus{
+						42: {StudentID: 42, Status: "on_yard"},
+					}, nil
+				},
+				checkTeacherStudentAccessFunc: func(_ context.Context, _, _ int64) (bool, error) {
+					return false, nil
+				},
+				getStudentCurrentVisitFunc: func(_ context.Context, _ int64) (*activeModel.Visit, error) {
+					return nil, &activeSvc.ActiveError{Op: "GetStudentCurrentVisit", Err: activeSvc.ErrVisitNotFound}
+				},
+				moveStudentsToActiveGroupFunc: func(_ context.Context, studentIDs []int64, activeGroupID int64) (*activeSvc.StudentMoveResult, error) {
+					calledMove = true
+					return &activeSvc.StudentMoveResult{
+						Moved:         studentIDs,
+						Unchanged:     []int64{},
+						Skipped:       []activeSvc.StudentMoveSkipped{},
+						ActiveGroupID: &activeGroupID,
+						RoomID:        &targetRoomID,
+					}, nil
+				},
+			},
+		}
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/active/visits/move-to-group",
+			bytes.NewBufferString(`{"student_ids":[42],"target_active_group_id":99}`),
+		)
+		req = withStaffMoveContext(req)
+		w := httptest.NewRecorder()
+
+		rs.moveStudentsToActiveGroup(w, req)
+
+		require.Equal(t, http.StatusOK, w.Code)
+		assert.True(t, calledMove)
+	})
+
+	t.Run("propagates target lookup failures", func(t *testing.T) {
+		calledMove := false
+		rs := &Resource{
+			PersonService: moveAuthPersonService{
+				person: &userModel.Person{Model: base.Model{ID: 10}},
+				staff:  &userModel.Staff{Model: base.Model{ID: 20}},
+			},
+			ActiveService: &trackingMockActiveService{
+				getActiveGroupFunc: func(_ context.Context, _ int64) (*activeModel.Group, error) {
+					return nil, errors.New("active group lookup failed")
+				},
+				getStaffActiveSupervisionsFunc: func(_ context.Context, _ int64) ([]*activeModel.GroupSupervisor, error) {
+					return []*activeModel.GroupSupervisor{{GroupID: 99}}, nil
+				},
+				moveStudentsToActiveGroupFunc: func(_ context.Context, _ []int64, _ int64) (*activeSvc.StudentMoveResult, error) {
+					calledMove = true
+					return nil, nil
+				},
+			},
+		}
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/active/visits/move-to-group",
+			bytes.NewBufferString(`{"student_ids":[42],"target_active_group_id":99}`),
+		)
+		req = withStaffMoveContext(req)
+		w := httptest.NewRecorder()
+
+		rs.moveStudentsToActiveGroup(w, req)
+
+		require.Equal(t, http.StatusInternalServerError, w.Code)
 		assert.False(t, calledMove)
 	})
 }

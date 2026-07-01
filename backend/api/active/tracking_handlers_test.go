@@ -90,6 +90,7 @@ type trackingMockActiveService struct {
 	moveStudentsToTransitFunc              func(ctx context.Context, studentIDs []int64) (*activeSvc.StudentMoveResult, error)
 	getActiveGroupFunc                     func(ctx context.Context, id int64) (*activeModel.Group, error)
 	getStudentCurrentVisitFunc             func(ctx context.Context, studentID int64) (*activeModel.Visit, error)
+	getStudentsAttendanceStatusesFunc      func(ctx context.Context, studentIDs []int64) (map[int64]*activeSvc.AttendanceStatus, error)
 	getStaffActiveSupervisionsFunc         func(ctx context.Context, staffID int64) ([]*activeModel.GroupSupervisor, error)
 	checkTeacherStudentAccessFunc          func(ctx context.Context, teacherID, studentID int64) (bool, error)
 }
@@ -354,6 +355,9 @@ func (m *trackingMockActiveService) GetStudentAttendanceStatus(ctx context.Conte
 	return nil, nil
 }
 func (m *trackingMockActiveService) GetStudentsAttendanceStatuses(ctx context.Context, studentIDs []int64) (map[int64]*activeSvc.AttendanceStatus, error) {
+	if m.getStudentsAttendanceStatusesFunc != nil {
+		return m.getStudentsAttendanceStatusesFunc(ctx, studentIDs)
+	}
 	return nil, nil
 }
 func (m *trackingMockActiveService) ToggleStudentAttendance(ctx context.Context, studentID, staffID, deviceID int64, skipAuthCheck bool) (*activeSvc.AttendanceResult, error) {

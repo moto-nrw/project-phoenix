@@ -14,11 +14,18 @@ const { mockPush, mockSearchParamsToString } = vi.hoisted(() => ({
   mockPush: vi.fn(),
   mockSearchParamsToString: vi.fn(() => "room=__transit__"),
 }));
+const { mockUseSession } = vi.hoisted(() => ({
+  mockUseSession: vi.fn(),
+}));
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => ({
     toString: mockSearchParamsToString,
   }),
+}));
+
+vi.mock("next-auth/react", () => ({
+  useSession: () => mockUseSession(),
 }));
 
 vi.mock("~/lib/tenant-router", () => ({
@@ -36,6 +43,7 @@ vi.mock("~/lib/swr", () => ({
 vi.mock("~/lib/active-service", () => ({
   activeService: {
     getActiveGroups: vi.fn(),
+    getStaffActiveSupervisions: vi.fn(),
     assignTransitStudents: vi.fn(),
   },
 }));
@@ -99,6 +107,18 @@ const mockGroups: ActiveGroup[] = [
   },
 ];
 
+const mockSupervisions = [
+  {
+    id: "1",
+    staffId: "20",
+    activeGroupId: "101",
+    startTime: new Date("2026-05-14T08:00:00.000Z"),
+    isActive: true,
+    createdAt: new Date("2026-05-14T08:00:00.000Z"),
+    updatedAt: new Date("2026-05-14T08:00:00.000Z"),
+  },
+];
+
 const mutateStudents = vi.fn();
 const mutateKey = vi.fn();
 const mutateMatching = vi.fn();
@@ -108,17 +128,33 @@ function mockTransitData({
   activeGroups = mockGroups,
   studentsError = null,
   groupsError = null,
+  staffError = null,
+  supervisionsError = null,
   studentsLoading = false,
   groupsLoading = false,
+  staffLoading = false,
+  supervisionsLoading = false,
+  currentStaff = { id: "20" },
+  activeSupervisions = mockSupervisions,
 }: {
   students?: Student[];
   activeGroups?: ActiveGroup[];
+  activeSupervisions?: typeof mockSupervisions;
+  currentStaff?: { id: string } | undefined;
   studentsError?: Error | null;
   groupsError?: Error | null;
+  staffError?: Error | null;
+  supervisionsError?: Error | null;
   studentsLoading?: boolean;
   groupsLoading?: boolean;
+  staffLoading?: boolean;
+  supervisionsLoading?: boolean;
 } = {}) {
   vi.mocked(useSWRAuth).mockImplementation((key: unknown) => {
+    if (key === null) {
+      return { data: undefined, error: null, isLoading: false } as never;
+    }
+
     if (key === "transit-students") {
       return {
         data: { students, pagination: { total_records: students.length } },
@@ -136,6 +172,22 @@ function mockTransitData({
       } as never;
     }
 
+    if (key === "transit-target-current-staff") {
+      return {
+        data: currentStaff,
+        error: staffError,
+        isLoading: staffLoading,
+      } as never;
+    }
+
+    if (key === "transit-target-supervisions-20") {
+      return {
+        data: activeSupervisions,
+        error: supervisionsError,
+        isLoading: supervisionsLoading,
+      } as never;
+    }
+
     throw new Error(`Unexpected SWR key: ${String(key)}`);
   });
 }
@@ -144,6 +196,18 @@ describe("TransitStudentsSection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSearchParamsToString.mockReturnValue("room=__transit__");
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          token: "staff-token",
+          roles: ["user"],
+          permissions: ["visits:update"],
+          isAdmin: false,
+        },
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
     mutateStudents.mockResolvedValue(undefined);
     mutateKey.mockResolvedValue(undefined);
     mutateMatching.mockResolvedValue(undefined);
@@ -172,6 +236,81 @@ describe("TransitStudentsSection", () => {
     expect(
       screen.queryByRole("option", { name: "Musikraum · Gruppe B" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("filters active target rooms to the current staff member's supervisions", () => {
+    mockTransitData({
+      activeGroups: [
+        mockGroups[0]!,
+        {
+          id: "103",
+          groupId: "203",
+          roomId: "303",
+          startTime: new Date("2026-05-14T08:00:00.000Z"),
+          isActive: true,
+          room: { id: 303, name: "Werkraum" },
+          actualGroup: { id: 203, name: "Gruppe C" },
+          createdAt: new Date("2026-05-14T08:00:00.000Z"),
+          updatedAt: new Date("2026-05-14T08:00:00.000Z"),
+        },
+      ],
+      activeSupervisions: [
+        {
+          ...mockSupervisions[0]!,
+          activeGroupId: "103",
+        },
+      ],
+    });
+
+    render(<TransitStudentsSection />);
+
+    expect(
+      screen.queryByRole("option", { name: "Aula · Gruppe A" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Werkraum · Gruppe C" }),
+    ).toHaveValue("103");
+  });
+
+  it("keeps all active target rooms visible for admins", () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          token: "admin-token",
+          roles: ["admin"],
+          permissions: ["admin:*"],
+          isAdmin: true,
+        },
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+    mockTransitData({
+      activeGroups: [
+        mockGroups[0]!,
+        {
+          id: "103",
+          groupId: "203",
+          roomId: "303",
+          startTime: new Date("2026-05-14T08:00:00.000Z"),
+          isActive: true,
+          room: { id: 303, name: "Werkraum" },
+          actualGroup: { id: 203, name: "Gruppe C" },
+          createdAt: new Date("2026-05-14T08:00:00.000Z"),
+          updatedAt: new Date("2026-05-14T08:00:00.000Z"),
+        },
+      ],
+      activeSupervisions: [],
+    });
+
+    render(<TransitStudentsSection />);
+
+    expect(screen.getByRole("option", { name: "Aula · Gruppe A" })).toHaveValue(
+      "101",
+    );
+    expect(
+      screen.getByRole("option", { name: "Werkraum · Gruppe C" }),
+    ).toHaveValue("103");
   });
 
   it("assigns selected transit students to the selected active room", async () => {

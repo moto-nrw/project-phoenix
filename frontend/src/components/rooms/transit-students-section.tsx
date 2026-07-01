@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, ExternalLink } from "lucide-react";
 import { useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
+import type { Session } from "next-auth";
 import {
   useSWRAuth,
   useTenantMutate,
@@ -13,9 +15,11 @@ import { Button } from "~/components/ui/button";
 import { DatabaseSelect } from "~/components/ui/database/database-select";
 import { useToast } from "~/contexts/ToastContext";
 import { activeService } from "~/lib/active-service";
-import type { ActiveGroup } from "~/lib/active-helpers";
+import type { ActiveGroup, Supervisor } from "~/lib/active-helpers";
 import { studentService } from "~/lib/api";
 import type { Student } from "~/lib/api";
+import { userContextService } from "~/lib/usercontext-api";
+import type { Staff } from "~/lib/usercontext-helpers";
 import { CompactStudentCard } from "~/components/students/compact-student-card";
 import { useTenantRouter } from "~/lib/tenant-router";
 
@@ -29,6 +33,16 @@ function buildSessionLabel(group: ActiveGroup): string {
   return activityName ? `${roomName} · ${activityName}` : roomName;
 }
 
+function canUseAllMoveTargets(session: Session | null): boolean {
+  const permissions = session?.user?.permissions ?? [];
+  return (
+    session?.user?.isAdmin === true ||
+    session?.user?.roles?.includes("admin") === true ||
+    permissions.includes("admin:*") ||
+    permissions.includes("*:*")
+  );
+}
+
 interface TransitStudentsSectionProps {
   readonly onSelectionActiveChange?: (active: boolean) => void;
   readonly fromReferrer?: string;
@@ -39,6 +53,8 @@ export function TransitStudentsSection({
   fromReferrer: fromReferrerOverride,
 }: TransitStudentsSectionProps) {
   const router = useTenantRouter();
+  const { data: session } = useSession();
+  const showAllTargets = canUseAllMoveTargets(session);
   const sectionSearchParams = useSearchParams();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [targetGroupId, setTargetGroupId] = useState("");
@@ -72,15 +88,47 @@ export function TransitStudentsSection({
   } = useSWRAuth<ActiveGroup[]>("active-groups-for-transit", () =>
     activeService.getActiveGroups({ active: true }),
   );
+  const {
+    data: currentStaff,
+    error: staffError,
+    isLoading: staffLoading,
+  } = useSWRAuth<Staff>(
+    showAllTargets ? null : "transit-target-current-staff",
+    () => userContextService.getCurrentStaff(),
+  );
+  const {
+    data: activeSupervisions = [],
+    error: supervisionsError,
+    isLoading: supervisionsLoading,
+  } = useSWRAuth<Supervisor[]>(
+    showAllTargets || !currentStaff?.id
+      ? null
+      : `transit-target-supervisions-${currentStaff.id}`,
+    () => activeService.getStaffActiveSupervisions(currentStaff?.id ?? ""),
+  );
+
+  const supervisedTargetGroupIds = useMemo(
+    () =>
+      new Set(
+        activeSupervisions
+          .filter((supervision) => supervision.isActive)
+          .map((supervision) => supervision.activeGroupId),
+      ),
+    [activeSupervisions],
+  );
 
   const targetOptions = useMemo(
     () =>
       [...activeGroups]
-        .filter((group) => group.isActive)
+        .filter(
+          (group) =>
+            group.isActive &&
+            (showAllTargets || supervisedTargetGroupIds.has(group.id)),
+        )
         .sort((a, b) =>
           buildSessionLabel(a).localeCompare(buildSessionLabel(b), "de"),
         ),
-    [activeGroups],
+    [activeGroups, showAllTargets, supervisedTargetGroupIds],
   );
 
   const students = studentsData?.students ?? EMPTY_STUDENTS;
@@ -103,6 +151,15 @@ export function TransitStudentsSection({
   useEffect(() => {
     onSelectionActiveChange?.(selectedVisibleCount > 0);
   }, [onSelectionActiveChange, selectedVisibleCount]);
+
+  useEffect(() => {
+    if (
+      targetGroupId &&
+      !targetOptions.some((group) => group.id === targetGroupId)
+    ) {
+      setTargetGroupId("");
+    }
+  }, [targetGroupId, targetOptions]);
 
   const toggleSelected = (studentId: string) => {
     setSelectedIds((current) => {
@@ -169,7 +226,7 @@ export function TransitStudentsSection({
         </p>
       </div>
 
-      {studentsError || groupsError ? (
+      {studentsError || groupsError || staffError || supervisionsError ? (
         <div className="mt-4">
           <Alert
             type="error"
@@ -224,9 +281,15 @@ export function TransitStudentsSection({
               setTargetGroupId(value);
               setSubmitError(null);
             }}
-            disabled={groupsLoading || targetOptions.length === 0 || submitting}
+            disabled={
+              groupsLoading ||
+              staffLoading ||
+              supervisionsLoading ||
+              targetOptions.length === 0 ||
+              submitting
+            }
             placeholder={
-              groupsLoading
+              groupsLoading || staffLoading || supervisionsLoading
                 ? "Aktive Räume werden geladen..."
                 : targetOptions.length === 0
                   ? "Keine aktiven Räume"
