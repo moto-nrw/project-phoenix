@@ -2,11 +2,9 @@ package active
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"time"
 
-	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -298,24 +296,14 @@ func studentHasOpenAttendance(attendances map[int64]*active.Attendance, studentI
 }
 
 func (s *service) lockActiveGroupForMove(ctx context.Context, activeGroupID int64, op string) (*active.Group, error) {
-	group := new(active.Group)
-	query := repoBase.GetDB(ctx, s.db).NewSelect().
-		Model(group).
-		ModelTableExpr(`active.groups AS "group"`).
-		Where(`"group".id = ?`, activeGroupID).
-		For("UPDATE")
-
-	if where, val, ok := repoBase.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
-
-	if err := query.Scan(ctx); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &ActiveError{Op: op, Err: ErrActiveGroupNotFound}
-		}
+	group, err := s.groupRepo.FindByIDForUpdate(ctx, activeGroupID)
+	if err != nil {
 		return nil, &ActiveError{Op: op, Err: ErrDatabaseOperation}
 	}
 	if group == nil || !group.IsActive() {
+		if group == nil {
+			return nil, &ActiveError{Op: op, Err: ErrActiveGroupNotFound}
+		}
 		return nil, &ActiveError{Op: op, Err: ErrActiveGroupAlreadyEnded}
 	}
 	return group, nil

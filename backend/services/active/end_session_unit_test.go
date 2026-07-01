@@ -19,6 +19,7 @@ import (
 type mockGroupRepository struct {
 	createFunc                      func(ctx context.Context, entity *active.Group) error
 	findByIDFunc                    func(ctx context.Context, id interface{}) (*active.Group, error)
+	findByIDForUpdateFunc           func(ctx context.Context, id int64) (*active.Group, error)
 	listFunc                        func(ctx context.Context, options *base.QueryOptions) ([]*active.Group, error)
 	findActiveByDeviceIDFunc        func(ctx context.Context, deviceID int64) (*active.Group, error)
 	findActiveByGroupIDFunc         func(ctx context.Context, groupID int64) ([]*active.Group, error)
@@ -42,6 +43,18 @@ func (m *mockGroupRepository) FindByID(ctx context.Context, id interface{}) (*ac
 	}
 	return &active.Group{
 		Model: base.Model{ID: 1},
+	}, nil
+}
+
+func (m *mockGroupRepository) FindByIDForUpdate(ctx context.Context, id int64) (*active.Group, error) {
+	if m.findByIDForUpdateFunc != nil {
+		return m.findByIDForUpdateFunc(ctx, id)
+	}
+	if m.findByIDFunc != nil {
+		return m.FindByID(ctx, id)
+	}
+	return &active.Group{
+		Model: base.Model{ID: id},
 	}, nil
 }
 

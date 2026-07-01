@@ -63,6 +63,10 @@ type GroupRepository interface {
 	// FindByIDs finds active groups by their IDs
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*Group, error)
 
+	// FindByIDForUpdate finds an active group by ID and locks the row for
+	// the current transaction.
+	FindByIDForUpdate(ctx context.Context, id int64) (*Group, error)
+
 	// GetOccupiedRoomIDs returns a set of room IDs that currently have active groups
 	GetOccupiedRoomIDs(ctx context.Context, roomIDs []int64) (map[int64]bool, error)
 
