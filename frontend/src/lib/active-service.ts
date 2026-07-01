@@ -71,6 +71,25 @@ export interface StudentMoveResult {
   room_id?: number | null;
 }
 
+export interface StudentMoveSummary {
+  successCount: number;
+  notPresentCount: number;
+  otherSkippedCount: number;
+}
+
+export function summarizeStudentMoveResult(
+  result: StudentMoveResult,
+): StudentMoveSummary {
+  const notPresentCount = result.skipped.filter(
+    (item) => item.reason === "not_present",
+  ).length;
+  return {
+    successCount: result.moved.length + result.unchanged.length,
+    notPresentCount,
+    otherSkippedCount: result.skipped.length - notPresentCount,
+  };
+}
+
 interface BackendResponseEnvelope<T> {
   data: T;
   message?: string;

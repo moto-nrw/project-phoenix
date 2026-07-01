@@ -45,16 +45,20 @@ vi.mock("~/lib/swr", () => ({
     mockUseTenantMutateMatching(...args),
 }));
 
-vi.mock("~/lib/active-service", () => ({
-  activeService: {
-    getActiveGroups: (...args: unknown[]) => mockGetActiveGroups(...args),
-    getStudentCurrentVisit: (...args: unknown[]) =>
-      mockGetStudentCurrentVisit(...args),
-    updateVisit: (...args: unknown[]) => mockUpdateVisit(...args),
-    moveStudentsToActiveGroup: (...args: unknown[]) =>
-      mockMoveStudentsToActiveGroup(...args),
-  },
-}));
+vi.mock("~/lib/active-service", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/lib/active-service")>();
+  return {
+    ...actual,
+    activeService: {
+      getActiveGroups: (...args: unknown[]) => mockGetActiveGroups(...args),
+      getStudentCurrentVisit: (...args: unknown[]) =>
+        mockGetStudentCurrentVisit(...args),
+      updateVisit: (...args: unknown[]) => mockUpdateVisit(...args),
+      moveStudentsToActiveGroup: (...args: unknown[]) =>
+        mockMoveStudentsToActiveGroup(...args),
+    },
+  };
+});
 
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => ({

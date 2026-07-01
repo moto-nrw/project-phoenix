@@ -7,9 +7,9 @@
 // noise here. Just the identifiers staff need to recognise the child:
 // name, class, group.
 //
-// Used by `students-in-room-section.tsx` only. Kindersuche / database
-// list views keep the rich `StudentCard` because the badge + times
-// carry real information there.
+// Used by `students-in-room-section.tsx` and `student-move-panel.tsx`.
+// Kindersuche / database list views keep the rich `StudentCard` because
+// the badge + times carry real information there.
 
 "use client";
 

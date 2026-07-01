@@ -26,7 +26,10 @@ import { DatabaseSelect } from "~/components/ui/database/database-select";
 import { useToast } from "~/contexts/ToastContext";
 import { roomService, studentService } from "~/lib/api";
 import type { Student } from "~/lib/api";
-import { activeService } from "~/lib/active-service";
+import {
+  activeService,
+  summarizeStudentMoveResult,
+} from "~/lib/active-service";
 import type { ActiveGroup } from "~/lib/active-helpers";
 import type { Room } from "~/lib/room-helpers";
 import { CompactStudentCard } from "~/components/students/compact-student-card";
@@ -218,7 +221,7 @@ export function StudentsInRoomSection({
       setSelectedStudentIds(new Set());
       setTargetActiveGroupId("");
       setBulkMoveState({ type: "idle" });
-      const successCount = result.moved.length + result.unchanged.length;
+      const successCount = summarizeStudentMoveResult(result).successCount;
       toastSuccess(
         `${successCount} ${
           successCount === 1 ? "Kind" : "Kinder"

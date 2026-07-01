@@ -41,6 +41,7 @@ import { useMinuteClock } from "~/lib/pickup-helpers";
 import { toISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { activeService } from "~/lib/active-api";
+import { summarizeStudentMoveResult } from "~/lib/active-service";
 import { fetchStudents } from "~/lib/student-api";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import type {
@@ -1277,12 +1278,11 @@ function MeinRaumPageContent() {
 
       try {
         const result = await activeService.moveStudentsToTransit(uniqueIds);
-        const notPresentCount = result.skipped.filter(
-          (item) => item.reason === "not_present",
-        ).length;
+        const { notPresentCount, otherSkippedCount } =
+          summarizeStudentMoveResult(result);
         if (result.skipped.length > 0) {
           setError(
-            notPresentCount === result.skipped.length
+            otherSkippedCount === 0
               ? notPresentCount === 1
                 ? "Kind ist noch nicht anwesend."
                 : `${notPresentCount} Kinder sind noch nicht anwesend.`

@@ -7,9 +7,13 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Input } from "~/components/ui/input";
+import { CompactStudentCard } from "~/components/students/compact-student-card";
 import { fetchStudents } from "~/lib/student-api";
 import type { Student } from "~/lib/student-helpers";
-import type { StudentMoveResult } from "~/lib/active-service";
+import {
+  summarizeStudentMoveResult,
+  type StudentMoveResult,
+} from "~/lib/active-service";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StudentMovePanel" });
@@ -21,18 +25,6 @@ interface StudentMovePanelProps {
   readonly onMove: (studentIds: string[]) => Promise<StudentMoveResult>;
 }
 
-function studentDisplayName(student: Student): string {
-  return (
-    student.name ||
-    [student.first_name, student.second_name].filter(Boolean).join(" ") ||
-    `Kind ${student.id}`
-  );
-}
-
-function studentMeta(student: Student): string {
-  return [student.school_class, student.group_name].filter(Boolean).join(" · ");
-}
-
 function locationLabel(location?: string | null): string {
   if (!location) return "Unterwegs";
   const withoutPresencePrefix = location.replace(/^Anwesend\s*[-–]\s*/i, "");
@@ -42,13 +34,12 @@ function locationLabel(location?: string | null): string {
 
 function skippedMessage(result: StudentMoveResult): string | null {
   if (result.skipped.length === 0) return null;
-  const notPresent = result.skipped.filter(
-    (item) => item.reason === "not_present",
-  ).length;
-  if (notPresent === result.skipped.length) {
-    return notPresent === 1
+  const { notPresentCount, otherSkippedCount } =
+    summarizeStudentMoveResult(result);
+  if (otherSkippedCount === 0) {
+    return notPresentCount === 1
       ? "Kind ist noch nicht anwesend."
-      : `${notPresent} Kinder sind noch nicht anwesend.`;
+      : `${notPresentCount} Kinder sind noch nicht anwesend.`;
   }
   return `${result.skipped.length} ${
     result.skipped.length === 1 ? "Kind konnte" : "Kinder konnten"
@@ -152,7 +143,7 @@ export function StudentMovePanel({
       if (skipped) {
         setError(skipped);
       } else {
-        const count = result.moved.length + result.unchanged.length;
+        const count = summarizeStudentMoveResult(result).successCount;
         setMessage(
           `${count} ${count === 1 ? "Kind" : "Kinder"} nach ${targetLabel} bewegt.`,
         );
@@ -177,7 +168,7 @@ export function StudentMovePanel({
   ).length;
 
   return (
-    <section className="mb-4 rounded-lg border border-gray-200 bg-white p-3 shadow-sm sm:p-4">
+    <section className="mb-4 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm sm:p-4">
       <div className="mb-3 flex items-center gap-2">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-700">
           <UserPlus className="h-4 w-4" aria-hidden="true" />
@@ -243,22 +234,22 @@ export function StudentMovePanel({
                   disabled={alreadyHere || isSubmitting}
                   onChange={() => toggleStudent(studentId)}
                 />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium text-gray-900">
-                    {studentDisplayName(student)}
+                <div className="min-w-0 flex-1">
+                  <CompactStudentCard
+                    studentId={student.id}
+                    firstName={student.first_name}
+                    lastName={student.second_name}
+                    schoolClass={student.school_class}
+                    groupName={student.group_name}
+                    chrome="plain"
+                  />
+                  <span className="mt-0.5 flex items-center gap-1 text-xs text-gray-500">
+                    <MapPin className="h-3 w-3" aria-hidden="true" />
+                    {alreadyHere
+                      ? "Bereits hier"
+                      : locationLabel(student.current_location)}
                   </span>
-                  <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
-                    {studentMeta(student) ? (
-                      <span>{studentMeta(student)}</span>
-                    ) : null}
-                    <span className="inline-flex items-center gap-1">
-                      <MapPin className="h-3 w-3" aria-hidden="true" />
-                      {alreadyHere
-                        ? "Bereits hier"
-                        : locationLabel(student.current_location)}
-                    </span>
-                  </span>
-                </span>
+                </div>
               </label>
             );
           })}
