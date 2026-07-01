@@ -56,6 +56,17 @@ function shortDate(iso: string): string {
   });
 }
 
+// Day.month.year in German (e.g. "28.12.2026"). Used for the cross-year range
+// label where each endpoint needs its own year; appending a year to shortDate()
+// would double the trailing dot ("28.12." + ".2026" → "28.12..2026").
+function shortDateWithYear(iso: string): string {
+  return parseISODate(iso).toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
 // ISO-8601 calendar week number (Mon-based, week 1 contains the first Thursday).
 function isoWeek(iso: string): number {
   const date = parseISODate(iso);
@@ -427,9 +438,7 @@ export default function MealPlanPage() {
   const rangeLabel =
     startYear === endYear
       ? `${shortDate(weekDates[0]!)} – ${shortDate(weekDates[4]!)} ${startYear}`
-      : `${shortDate(weekDates[0]!)}.${startYear} – ${shortDate(
-          weekDates[4]!,
-        )}.${endYear}`;
+      : `${shortDateWithYear(weekDates[0]!)} – ${shortDateWithYear(weekDates[4]!)}`;
   const isCurrentWeek = weekOffset === 0;
 
   return (

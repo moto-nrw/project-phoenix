@@ -84,13 +84,22 @@ type DishRequest struct {
 	Note *string `json:"note"`
 }
 
-// SetDayRequest is the body for replacing a day's dishes.
+// SetDayRequest is the body for replacing a day's dishes. Dishes is a pointer so
+// a missing field or an explicit null ("{}" / {"dishes":null}) is rejected,
+// while an explicit empty array ({"dishes":[]}) is a valid clear-the-day
+// operation. Without this distinction a malformed body would silently wipe the
+// day's stored dishes.
 type SetDayRequest struct {
-	Dishes []DishRequest `json:"dishes"`
+	Dishes *[]DishRequest `json:"dishes"`
 }
 
-// Bind validates the set-day request.
+// Bind validates the set-day request: the dishes array must be present (use an
+// empty array to clear the day). A missing/null array is a malformed request,
+// not an intentional clear.
 func (req *SetDayRequest) Bind(_ *http.Request) error {
+	if req.Dishes == nil {
+		return errors.New("dishes is required (use an empty array to clear the day)")
+	}
 	return nil
 }
 
@@ -160,8 +169,8 @@ func (rs *Resource) setDay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dishes := make([]mealplanSvc.DishInput, 0, len(req.Dishes))
-	for _, d := range req.Dishes {
+	dishes := make([]mealplanSvc.DishInput, 0, len(*req.Dishes))
+	for _, d := range *req.Dishes {
 		dishes = append(dishes, mealplanSvc.DishInput{Dish: d.Dish, Note: d.Note})
 	}
 
@@ -170,6 +179,11 @@ func (rs *Resource) setDay(w http.ResponseWriter, r *http.Request) {
 		return rs.MealPlanService.SetDay(ctx, date, dishes)
 	})
 	if err != nil {
+		// A weekend/invalid-date rejection is a client error, not a 500.
+		if errors.Is(err, mealplanSvc.ErrInvalidMealDate) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
 		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to save meal", err))
 		return
 	}

@@ -9,10 +9,24 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/mealplan"
 )
+
+// ErrInvalidMealDate means a write targeted a date the meal plan does not cover
+// (a Saturday or Sunday). The plan is a Monday-Friday work week: GetWeek only
+// ever reads Mon-Fri and neither the staff nor the parent UI has a weekend
+// column, so a persisted weekend row would be invisible. Handlers map this to a
+// 400 rather than a 500.
+var ErrInvalidMealDate = errors.New("meal plan covers weekdays only (Monday-Friday)")
+
+// isWeekend reports whether d falls on a Saturday or Sunday.
+func isWeekend(d timezone.Date) bool {
+	wd := d.Weekday()
+	return wd == time.Saturday || wd == time.Sunday
+}
 
 // DishInput is one dish supplied for a day, in display order.
 type DishInput struct {
@@ -27,7 +41,8 @@ type Service interface {
 	// weekStart, ordered by date then position. Days without a dish are absent.
 	GetWeek(ctx context.Context, weekStart timezone.Date) ([]*mealplan.MealPlanEntry, error)
 	// SetDay replaces all dishes for one day. Blank dishes are dropped; an
-	// all-blank/empty list clears the day.
+	// all-blank/empty list clears the day. Weekend dates are rejected with
+	// ErrInvalidMealDate — the plan is a Monday-Friday work week.
 	SetDay(ctx context.Context, date timezone.Date, dishes []DishInput) error
 	// Delete removes all dishes for one day. Deleting a missing day is a no-op.
 	Delete(ctx context.Context, date timezone.Date) error
@@ -62,6 +77,12 @@ func (s *service) GetWeek(ctx context.Context, weekStart timezone.Date) ([]*meal
 func (s *service) SetDay(ctx context.Context, date timezone.Date, dishes []DishInput) error {
 	if date.IsZero() {
 		return errors.New("date is required")
+	}
+	// Reject weekend dates before persisting: a Saturday/Sunday row would never
+	// be read back (GetWeek normalizes to Mon-Fri) and has no UI column, so it
+	// would silently vanish. See ErrInvalidMealDate.
+	if isWeekend(date) {
+		return ErrInvalidMealDate
 	}
 
 	entries := make([]*mealplan.MealPlanEntry, 0, len(dishes))

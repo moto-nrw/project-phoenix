@@ -10,7 +10,12 @@ import (
 )
 
 const (
-	mealPlanEntriesVersion     = "1.15.155"
+	// 1.15.157 sits above development's latest (1.15.156,
+	// grant_guardian_request_submit_permission). Renumbered off 1.15.155, which
+	// development took for parent_messaging_requests — a duplicate version panics
+	// the registry at init, and reusing an already-applied file prefix would make
+	// bun skip this migration on deployed DBs.
+	mealPlanEntriesVersion     = "1.15.157"
 	mealPlanEntriesDescription = "Create schedule.meal_plan_entries for the per-day meal plan (Essensplan)"
 )
 
@@ -32,7 +37,7 @@ func init() {
 }
 
 func mealPlanEntriesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.155: Creating schedule.meal_plan_entries...")
+	fmt.Println("Migration 1.15.157: Creating schedule.meal_plan_entries...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -90,7 +95,7 @@ func mealPlanEntriesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func mealPlanEntriesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.155: Dropping schedule.meal_plan_entries...")
+	fmt.Println("Rolling back migration 1.15.157: Dropping schedule.meal_plan_entries...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {

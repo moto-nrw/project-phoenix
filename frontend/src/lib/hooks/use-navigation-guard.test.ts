@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 
 import { useNavigationGuard } from "./use-navigation-guard";
+import { attemptNavigation } from "./navigation-guard-store";
 
 const { mockPush, mockReplace } = vi.hoisted(() => ({
   mockPush: vi.fn(),
@@ -326,6 +327,74 @@ describe("useNavigationGuard", () => {
 
       expect(result.current.pendingHref).toBeNull();
       vi.restoreAllMocks();
+    });
+  });
+
+  describe("programmatic navigation (useTenantRouter)", () => {
+    it("intercepts a router.push and defers it without navigating", () => {
+      const { result } = renderHook(() => useNavigationGuard(true));
+      const proceed = vi.fn();
+
+      let intercepted!: boolean;
+      act(() => {
+        intercepted = attemptNavigation(proceed, "/database");
+      });
+
+      // The registry reports the navigation was intercepted; the deferred
+      // router call must not run until the user confirms.
+      expect(intercepted).toBe(true);
+      expect(result.current.pendingHref).toBe("/database");
+      expect(proceed).not.toHaveBeenCalled();
+    });
+
+    it("runs the deferred navigation on confirm after collapsing the sentinel", () => {
+      const goSpy = vi.spyOn(window.history, "go").mockImplementation(() => {});
+      const { result } = renderHook(() => useNavigationGuard(true));
+      const proceed = vi.fn();
+
+      act(() => {
+        attemptNavigation(proceed, "/database");
+      });
+      act(() => {
+        result.current.confirmNavigation();
+      });
+
+      // Sentinel is popped (go(-1)); the deferred push runs from the bypassed
+      // popstate the traversal fires, landing on a clean history stack.
+      expect(goSpy).toHaveBeenCalledWith(-1);
+      expect(result.current.pendingHref).toBeNull();
+      expect(proceed).not.toHaveBeenCalled();
+
+      act(() => {
+        window.dispatchEvent(new PopStateEvent("popstate"));
+      });
+      expect(proceed).toHaveBeenCalledTimes(1);
+      goSpy.mockRestore();
+    });
+
+    it("does not run the deferred navigation on cancel", () => {
+      const { result } = renderHook(() => useNavigationGuard(true));
+      const proceed = vi.fn();
+
+      act(() => {
+        attemptNavigation(proceed, "/database");
+      });
+      act(() => {
+        result.current.cancelNavigation();
+      });
+
+      expect(result.current.pendingHref).toBeNull();
+      expect(proceed).not.toHaveBeenCalled();
+    });
+
+    it("does not intercept programmatic navigation when not blocking", () => {
+      renderHook(() => useNavigationGuard(false));
+      const proceed = vi.fn();
+
+      const intercepted = attemptNavigation(proceed, "/database");
+
+      expect(intercepted).toBe(false);
+      expect(proceed).not.toHaveBeenCalled();
     });
   });
 });

@@ -896,11 +896,11 @@ export const appChapters: readonly GuideChapter[] = [
           "Die Woche als Plan: Montag bis Freitag nebeneinander, pro Tag ein oder mehrere Gerichte mit optionalem Hinweis. Eltern sehen den Plan für die aktuelle und nächste Woche im Elternportal.",
         steps: [
           "In der Seitenleiste `Essensplan` öffnen.",
-          "Oben zwischen `Diese Woche` und `Nächste Woche` umschalten.",
+          "Mit den Pfeilen `‹` und `›` zwischen den Kalenderwochen blättern; die laufende Woche ist mit `Diese Woche` markiert, mit `Heute` springst du dorthin zurück.",
           "Pro Tag das `Gericht` eintragen; bei Bedarf einen kurzen `Hinweis` ergänzen (z. B. vegetarisch).",
           "Mehrere Gerichte pro Tag über `+ Gericht` hinzufügen (z. B. Menü 1 und Menü 2); überflüssige Zeilen mit dem `×` entfernen.",
-          "Einen kompletten Wochenplan vom Caterer einfach in die Spalten eintippen und einmal auf `Speichern` tippen.",
-          "Einen Tag wieder leeren: alle Gerichte des Tages entfernen und `Speichern`.",
+          "Über das Tagesmenü (`⋯`) einen Tag `kopieren`, in einen anderen Tag `einfügen` oder `leeren`; mit `Vorwoche übernehmen` den kompletten Plan der Vorwoche übernehmen.",
+          "Änderungen unten mit `Speichern` sichern (ungespeicherte Änderungen werden angezeigt und beim Verlassen abgefragt).",
         ],
         callout: {
           title: "Voraussetzung",
@@ -908,7 +908,8 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Essensplan als Wochen-Board (Mo–Fr nebeneinander) mit Umschalter Diese/Nächste Woche und je Tag einer Liste von Gerichten mit Hinweis.",
+          "Essensplan als Wochen-Board (Mo–Fr nebeneinander), oben Wochennavigation mit Pfeilen und „Heute“, je Tag eine Liste von Gerichten mit Hinweis.",
+        image: "/help/screens/essensplan.webp",
       },
       {
         id: "feedback",

@@ -189,6 +189,56 @@ func TestSetDay_ZeroDateRejected(t *testing.T) {
 	}
 }
 
+// TestSetDay_WeekendRejected verifies Saturday/Sunday writes fail with
+// ErrInvalidMealDate and never reach the repository: a weekend row would be
+// invisible (GetWeek only reads Mon-Fri) so it must not be persisted.
+func TestSetDay_WeekendRejected(t *testing.T) {
+	cases := []struct {
+		name string
+		date timezone.Date
+	}{
+		{"saturday", timezone.NewDate(2026, time.July, 4)},
+		{"sunday", timezone.NewDate(2026, time.July, 5)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &fakeRepo{}
+			svc := NewService(repo)
+			err := svc.SetDay(context.Background(), tc.date, []DishInput{{Dish: "Nudeln"}})
+			if !errors.Is(err, ErrInvalidMealDate) {
+				t.Fatalf("expected ErrInvalidMealDate, got %v", err)
+			}
+			if repo.replaceCalls != 0 {
+				t.Errorf("ReplaceDay must not run for a weekend date, got %d calls", repo.replaceCalls)
+			}
+		})
+	}
+}
+
+// TestSetDay_WeekdaysAccepted guards the boundary the weekend check must not
+// over-reach: Monday and Friday are valid work-week days.
+func TestSetDay_WeekdaysAccepted(t *testing.T) {
+	cases := []struct {
+		name string
+		date timezone.Date
+	}{
+		{"monday", timezone.NewDate(2026, time.June, 29)},
+		{"friday", timezone.NewDate(2026, time.July, 3)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &fakeRepo{}
+			svc := NewService(repo)
+			if err := svc.SetDay(context.Background(), tc.date, []DishInput{{Dish: "Nudeln"}}); err != nil {
+				t.Fatalf("SetDay rejected a weekday: %v", err)
+			}
+			if repo.replaceCalls != 1 {
+				t.Errorf("expected ReplaceDay to run for a weekday, got %d calls", repo.replaceCalls)
+			}
+		})
+	}
+}
+
 func TestSetDay_PropagatesRepoError(t *testing.T) {
 	repo := &fakeRepo{replaceErr: errors.New("insert failed")}
 	svc := NewService(repo)

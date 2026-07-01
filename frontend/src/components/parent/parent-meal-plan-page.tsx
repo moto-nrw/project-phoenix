@@ -25,8 +25,8 @@ interface SchoolOption {
   studentId: string;
 }
 
-function mondayISOFromOffset(weekOffset: number): string {
-  const base = parseISODate(berlinTodayISO());
+function mondayISOFromOffset(todayISO: string, weekOffset: number): string {
+  const base = parseISODate(todayISO);
   base.setDate(base.getDate() + weekOffset * 7);
   const offset = (base.getDay() + 6) % 7; // Mon=0 .. Sun=6
   base.setDate(base.getDate() - offset);
@@ -78,21 +78,26 @@ export function ParentMealPlanPage() {
   const [selectedTenant, setSelectedTenant] = useState<string | null>(null);
   const [weekOffset, setWeekOffset] = useState<0 | 1>(0);
   const [entries, setEntries] = useState<MealPlanEntry[]>([]);
+  // The Monday the current `entries` were loaded for. Used to detect when
+  // `entries` belongs to a previous week (a slower request still in flight, or
+  // a week switch not yet resolved) so we never map stale dishes onto the newly
+  // selected week's dates.
+  const [loadedMonday, setLoadedMonday] = useState<string | null>(null);
   const [loadingSchools, setLoadingSchools] = useState(true);
-  const [loadingWeek, setLoadingWeek] = useState(false);
   // Distinguish operational failures (backend/network/session errors) from a
   // genuinely empty result. Without these flags a failed request would render
   // as "no meal plan available" / "no plan entered" — false information.
   const [schoolsError, setSchoolsError] = useState(false);
   const [weekError, setWeekError] = useState(false);
-  // True once the first week loaded. Week switches then keep the current week
-  // on screen (dimmed) instead of flashing the skeleton each time.
-  const [hasLoadedWeek, setHasLoadedWeek] = useState(false);
 
   const today = berlinTodayISO();
+  // Anchor the week on the Berlin `today`, not just weekOffset: if the page
+  // stays mounted across Berlin midnight, the selected week must roll forward
+  // with the date. Keying the memo on `today` also keeps it aligned with the
+  // backend's current/next-week guard, which is computed from today's Monday.
   const mondayISO = useMemo(
-    () => mondayISOFromOffset(weekOffset),
-    [weekOffset],
+    () => mondayISOFromOffset(today, weekOffset),
+    [today, weekOffset],
   );
   const weekDates = useMemo(() => workWeekDates(mondayISO), [mondayISO]);
 
@@ -151,13 +156,12 @@ export function ParentMealPlanPage() {
   );
 
   // Switching schools must drop the previous school's menu immediately, or it
-  // would show (dimmed) under the new school's label until the new request
-  // returns — wrong information. Resetting hasLoadedWeek forces the loading
-  // skeleton for the new school. Week switches within one school keep the grid
-  // (this effect doesn't run) and rely on the loader's dimming instead.
+  // would show under the new school's label until the new request returns —
+  // wrong information. Clearing loadedMonday makes the week "not ready" so the
+  // loading skeleton shows until the new school's week resolves.
   useEffect(() => {
     setEntries([]);
-    setHasLoadedWeek(false);
+    setLoadedMonday(null);
   }, [selectedTenant]);
 
   // Load the selected school's week. A slower response from a previous
@@ -167,7 +171,6 @@ export function ParentMealPlanPage() {
     if (!selectedSchool) return;
     let cancelled = false;
     const { studentId } = selectedSchool;
-    setLoadingWeek(true);
     setWeekError(false);
     void (async () => {
       try {
@@ -185,8 +188,9 @@ export function ParentMealPlanPage() {
         setWeekError(true);
       } finally {
         if (!cancelled) {
-          setLoadingWeek(false);
-          setHasLoadedWeek(true);
+          // Mark which week `entries` now reflects (success or error) so the
+          // render can tell a resolved week from stale/in-flight data.
+          setLoadedMonday(mondayISO);
         }
       }
     })();
@@ -207,6 +211,11 @@ export function ParentMealPlanPage() {
     return map;
   }, [entries]);
 
+  // `entries` only describes the selected week once the load for that exact
+  // Monday has resolved. Until then (first load, a week switch, a slow request
+  // still returning the previous week) the data is stale: rendering it would
+  // map old dishes onto the new dates — a false-empty or wrong week.
+  const weekReady = loadedMonday === mondayISO;
   const weekIsEmpty = entries.length === 0;
 
   const weekdayLabel = (iso: string) =>
@@ -279,7 +288,7 @@ export function ParentMealPlanPage() {
             </div>
           </section>
 
-          {loadingWeek && !hasLoadedWeek ? (
+          {!weekReady ? (
             <Loading fullPage={false} />
           ) : weekError ? (
             <section className="rounded-2xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500 shadow-sm">
@@ -290,11 +299,7 @@ export function ParentMealPlanPage() {
               {t("emptyWeek")}
             </section>
           ) : (
-            <div
-              className={`transition-opacity duration-200 ${
-                loadingWeek ? "opacity-50" : "opacity-100"
-              }`}
-            >
+            <div>
               {/* Mobile: today first, then the rest of the week as a list. */}
               <div className="space-y-4 md:hidden">
                 {todayInWeek &&
