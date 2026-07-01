@@ -602,36 +602,6 @@ describe("active-service", () => {
         );
         expect(result.moved).toEqual([50, 51]);
       });
-
-      it("moves students to transit through the batch move endpoint", async () => {
-        const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
-        mockFetch.mockResolvedValueOnce({
-          ok: true,
-          json: () =>
-            Promise.resolve({
-              data: {
-                moved: [50],
-                unchanged: [51],
-                skipped: [],
-                active_group_id: null,
-                room_id: null,
-              },
-            }),
-        } as Response);
-
-        const result = await activeService.moveStudentsToTransit(["50", "51"]);
-
-        expect(mockFetch).toHaveBeenCalledWith(
-          "/api/active/visits/move-to-transit",
-          expect.objectContaining({
-            method: "POST",
-            body: JSON.stringify({
-              student_ids: [50, 51],
-            }),
-          }),
-        );
-        expect(result.unchanged).toEqual([51]);
-      });
     });
 
     describe("updateVisit", () => {

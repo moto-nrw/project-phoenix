@@ -1096,20 +1096,6 @@ export const activeService = {
     );
   },
 
-  moveStudentsToTransit: async (
-    studentIds: string[],
-  ): Promise<StudentMoveResult> => {
-    return coreFetch<StudentMoveResult>(
-      "POST",
-      "/api/active/visits/move-to-transit",
-      "/active/visits/move-to-transit",
-      "Move students to transit",
-      {
-        student_ids: studentIds.map((id) => Number.parseInt(id, 10)),
-      },
-    );
-  },
-
   // Schulhof (Schoolyard) - Permanent Tab Functions
 
   /**
