@@ -84,7 +84,7 @@ func (r *AppointmentRepository) ListVisibleForGuardianProfiles(ctx context.Conte
 			  AND ar.tenant_id = "appointment".tenant_id
 			  AND ar.recipient_type = ?
 			  AND ar.guardian_profile_id IN (?)
-		)`, calModels.RecipientTypeGuardianProfile, bun.In(guardianProfileIDs)).
+			)`, calModels.RecipientTypeGuardianProfile, bun.List(guardianProfileIDs)).
 		OrderExpr(`"appointment".start_date ASC, "appointment".start_time ASC, "appointment".id ASC`)
 
 	query = applyAppointmentWindow(query, from, to)
@@ -170,7 +170,7 @@ func (r *RecurrenceRuleRepository) FindByAppointmentIDs(ctx context.Context, app
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(&rows).
 		ModelTableExpr(`calendar.recurrence_rules AS "recurrence_rule"`).
-		Where(`"recurrence_rule".appointment_id IN (?)`, bun.In(appointmentIDs))
+		Where(`"recurrence_rule".appointment_id IN (?)`, bun.List(appointmentIDs))
 	if where, val, ok := base.TenantWhere(ctx, "recurrence_rule"); ok {
 		query = query.Where(where, val)
 	}
@@ -335,7 +335,7 @@ func (r *AppointmentRecipientStudentRepository) FindByRecipientIDs(ctx context.C
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&rows).
 		ModelTableExpr(`calendar.appointment_recipient_students AS "appointment_recipient_student"`).
-		Where(`"appointment_recipient_student".recipient_id IN (?)`, bun.In(recipientIDs)).
+		Where(`"appointment_recipient_student".recipient_id IN (?)`, bun.List(recipientIDs)).
 		OrderExpr(`"appointment_recipient_student".recipient_id ASC, "appointment_recipient_student".student_id ASC`)
 	if where, val, ok := base.TenantWhere(ctx, "appointment_recipient_student"); ok {
 		query = query.Where(where, val)
@@ -417,7 +417,7 @@ func (r *AppointmentOccurrenceOverrideRepository) FindByAppointmentIDsInRange(ct
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(&rows).
 		ModelTableExpr(`calendar.appointment_occurrence_overrides AS "appointment_occurrence_override"`).
-		Where(`"appointment_occurrence_override".appointment_id IN (?)`, bun.In(appointmentIDs)).
+		Where(`"appointment_occurrence_override".appointment_id IN (?)`, bun.List(appointmentIDs)).
 		Where(`"appointment_occurrence_override".occurrence_date >= ?`, from).
 		Where(`"appointment_occurrence_override".occurrence_date <= ?`, to).
 		OrderExpr(`"appointment_occurrence_override".occurrence_date ASC, "appointment_occurrence_override".id ASC`)
