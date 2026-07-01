@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -22,8 +23,10 @@ import (
 type fakeSettings struct {
 	bools   map[string]bool
 	ints    map[string]int
+	strings map[string]string
 	boolErr error
 	intErr  error
+	strErr  error
 }
 
 func (f fakeSettings) ResolveBool(_ context.Context, key string) (bool, error) {
@@ -42,6 +45,22 @@ func (f fakeSettings) ResolveInt(_ context.Context, key string) (int, error) {
 		return 0, nil
 	}
 	return v, nil
+}
+
+func (f fakeSettings) ResolveString(_ context.Context, key string) (string, error) {
+	if f.strErr != nil {
+		return "", f.strErr
+	}
+	return f.strings[key], nil
+}
+
+type fakeGroups struct {
+	groups []*educationModel.Group
+	err    error
+}
+
+func (f fakeGroups) GetMyGroups(_ context.Context) ([]*educationModel.Group, error) {
+	return f.groups, f.err
 }
 
 type fakeAttendance struct {
@@ -119,6 +138,14 @@ func pickupAt(minuteOfDay int) *scheduleService.EffectivePickupTime {
 	return &scheduleService.EffectivePickupTime{PickupTime: &t}
 }
 
+// eduGroup builds an education group with the given ID (embedded in base.Model),
+// used to stand in for a caregiver's supervised groups in read-access tests.
+func eduGroup(id int64) *educationModel.Group {
+	g := &educationModel.Group{}
+	g.ID = id
+	return g
+}
+
 func plannedInstance(title string, roomID int64, startMin, endMin int) *scheduleModel.ActivityInstance {
 	return &scheduleModel.ActivityInstance{
 		Title:     title,
@@ -152,7 +179,7 @@ func TestPickupReminders(t *testing.T) {
 
 	t.Run("upcoming within lead is reported", func(t *testing.T) {
 		svc := newSvc(map[int64]*scheduleService.EffectivePickupTime{1: pickupAt(605)})
-		out, err := svc.pickupReminders(context.Background(), []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
+		out, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
 		require.NoError(t, err)
 		require.Len(t, out, 1)
 		assert.Equal(t, TypePickupUpcoming, out[0].Type)
@@ -166,7 +193,7 @@ func TestPickupReminders(t *testing.T) {
 
 	t.Run("overdue is reported with negative minutes", func(t *testing.T) {
 		svc := newSvc(map[int64]*scheduleService.EffectivePickupTime{1: pickupAt(595)})
-		out, err := svc.pickupReminders(context.Background(), []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
+		out, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
 		require.NoError(t, err)
 		require.Len(t, out, 1)
 		assert.Equal(t, TypePickupOverdue, out[0].Type)
@@ -176,21 +203,34 @@ func TestPickupReminders(t *testing.T) {
 
 	t.Run("beyond lead window is ignored", func(t *testing.T) {
 		svc := newSvc(map[int64]*scheduleService.EffectivePickupTime{1: pickupAt(615)}) // +15 > lead 10
-		out, err := svc.pickupReminders(context.Background(), []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
+		out, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
 		require.NoError(t, err)
 		assert.Empty(t, out)
 	})
 
 	t.Run("toggles suppress the disabled type", func(t *testing.T) {
 		times := map[int64]*scheduleService.EffectivePickupTime{1: pickupAt(605), 2: pickupAt(595)}
-		svc := newSvc(times)
+		// Both students need a record: the read path is fail-closed, so a due
+		// student without a resolvable record emits nothing (which would mask the
+		// toggle behavior this test exercises).
+		svc := &service{
+			pickup: fakePickup{times: times},
+			student: fakeStudent{students: map[int64]*userModel.Student{
+				1: {PersonID: 11, SchoolClass: "1a"},
+				2: {PersonID: 12, SchoolClass: "1b"},
+			}},
+			person: fakePerson{persons: map[int64]*userModel.Person{
+				11: {FirstName: "Anna", LastName: "Müller"},
+				12: {FirstName: "Ben", LastName: "Bauer"},
+			}},
+		}
 
-		upcomingOnly, err := svc.pickupReminders(context.Background(), []int64{1, 2}, timezone.TodayDate(), nowMin, lead, true, false)
+		upcomingOnly, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1, 2}, timezone.TodayDate(), nowMin, lead, true, false)
 		require.NoError(t, err)
 		require.Len(t, upcomingOnly, 1)
 		assert.Equal(t, TypePickupUpcoming, upcomingOnly[0].Type)
 
-		overdueOnly, err := svc.pickupReminders(context.Background(), []int64{1, 2}, timezone.TodayDate(), nowMin, lead, false, true)
+		overdueOnly, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1, 2}, timezone.TodayDate(), nowMin, lead, false, true)
 		require.NoError(t, err)
 		require.Len(t, overdueOnly, 1)
 		assert.Equal(t, TypePickupOverdue, overdueOnly[0].Type)
@@ -198,21 +238,21 @@ func TestPickupReminders(t *testing.T) {
 
 	t.Run("student without an effective pickup time is skipped", func(t *testing.T) {
 		svc := newSvc(map[int64]*scheduleService.EffectivePickupTime{1: nil})
-		out, err := svc.pickupReminders(context.Background(), []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
+		out, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
 		require.NoError(t, err)
 		assert.Empty(t, out)
 	})
 
 	t.Run("empty student list returns nothing", func(t *testing.T) {
 		svc := newSvc(map[int64]*scheduleService.EffectivePickupTime{1: pickupAt(605)})
-		out, err := svc.pickupReminders(context.Background(), nil, timezone.TodayDate(), nowMin, lead, true, true)
+		out, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, nil, timezone.TodayDate(), nowMin, lead, true, true)
 		require.NoError(t, err)
 		assert.Empty(t, out)
 	})
 
 	t.Run("propagates a pickup lookup error", func(t *testing.T) {
 		svc := &service{pickup: fakePickup{err: errors.New("boom")}}
-		_, err := svc.pickupReminders(context.Background(), []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
+		_, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
 		require.Error(t, err)
 	})
 
@@ -221,7 +261,7 @@ func TestPickupReminders(t *testing.T) {
 			pickup:  fakePickup{times: map[int64]*scheduleService.EffectivePickupTime{1: pickupAt(605)}},
 			student: fakeStudent{err: errors.New("boom")},
 		}
-		_, err := svc.pickupReminders(context.Background(), []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
+		_, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
 		require.Error(t, err)
 	})
 
@@ -231,8 +271,84 @@ func TestPickupReminders(t *testing.T) {
 			student: fakeStudent{students: students},
 			person:  fakePerson{err: errors.New("boom")},
 		}
-		_, err := svc.pickupReminders(context.Background(), []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
+		_, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
 		require.Error(t, err)
+	})
+
+	// --- read-access gate (gdpr.student_data_scope) --------------------------
+	// Room presence alone must not expose a child's pickup time: under the
+	// default group_supervisors_only scope a caregiver only sees children in an
+	// education group they supervise, even when a non-supervised child sits in
+	// the same supervised room.
+
+	g100 := int64(100)
+	g200 := int64(200)
+	twoDueStudents := map[int64]*userModel.Student{
+		1: {PersonID: 11, SchoolClass: "1a", GroupID: &g100},
+		2: {PersonID: 12, SchoolClass: "1b", GroupID: &g200},
+	}
+	twoPersons := map[int64]*userModel.Person{
+		11: {FirstName: "Anna", LastName: "A"},
+		12: {FirstName: "Ben", LastName: "B"},
+	}
+	twoDueTimes := map[int64]*scheduleService.EffectivePickupTime{1: pickupAt(605), 2: pickupAt(605)}
+	caregiver := Scope{IsAdmin: false, StaffID: 7}
+
+	t.Run("caregiver sees only students in supervised education groups", func(t *testing.T) {
+		svc := &service{
+			pickup:   fakePickup{times: twoDueTimes},
+			student:  fakeStudent{students: twoDueStudents},
+			person:   fakePerson{persons: twoPersons},
+			settings: fakeSettings{}, // no override → group_supervisors_only
+			groups:   fakeGroups{groups: []*educationModel.Group{eduGroup(100)}},
+		}
+		out, err := svc.pickupReminders(context.Background(), caregiver, []int64{1, 2}, timezone.TodayDate(), nowMin, lead, true, true)
+		require.NoError(t, err)
+		require.Len(t, out, 1)
+		require.NotNil(t, out[0].StudentID)
+		assert.Equal(t, "1", *out[0].StudentID)
+		assert.Equal(t, "Anna A", out[0].Title)
+	})
+
+	t.Run("all_staff scope lets a caregiver see every present student", func(t *testing.T) {
+		svc := &service{
+			pickup:  fakePickup{times: twoDueTimes},
+			student: fakeStudent{students: twoDueStudents},
+			person:  fakePerson{persons: twoPersons},
+			settings: fakeSettings{strings: map[string]string{
+				configModel.KeyStudentDataScope: configModel.StudentDataScopeAllStaff,
+			}},
+			groups: fakeGroups{}, // supervised groups irrelevant under all_staff
+		}
+		out, err := svc.pickupReminders(context.Background(), caregiver, []int64{1, 2}, timezone.TodayDate(), nowMin, lead, true, true)
+		require.NoError(t, err)
+		require.Len(t, out, 2)
+	})
+
+	t.Run("caregiver supervising no groups sees nothing under group_supervisors_only", func(t *testing.T) {
+		svc := &service{
+			pickup:   fakePickup{times: twoDueTimes},
+			student:  fakeStudent{students: twoDueStudents},
+			person:   fakePerson{persons: twoPersons},
+			settings: fakeSettings{},
+			groups:   fakeGroups{groups: nil},
+		}
+		out, err := svc.pickupReminders(context.Background(), caregiver, []int64{1, 2}, timezone.TodayDate(), nowMin, lead, true, true)
+		require.NoError(t, err)
+		assert.Empty(t, out)
+	})
+
+	t.Run("a scope resolution error is surfaced, not treated as no-access", func(t *testing.T) {
+		resolveErr := errors.New("scope read failed")
+		svc := &service{
+			pickup:   fakePickup{times: twoDueTimes},
+			student:  fakeStudent{students: twoDueStudents},
+			person:   fakePerson{persons: twoPersons},
+			settings: fakeSettings{strErr: resolveErr},
+			groups:   fakeGroups{groups: []*educationModel.Group{eduGroup(100)}},
+		}
+		_, err := svc.pickupReminders(context.Background(), caregiver, []int64{1, 2}, timezone.TodayDate(), nowMin, lead, true, true)
+		require.ErrorIs(t, err, resolveErr)
 	})
 }
 
@@ -313,15 +429,14 @@ func TestActivityReminders(t *testing.T) {
 	})
 }
 
-// --- resolveScope ------------------------------------------------------------
+// --- pickup / activity scope resolution --------------------------------------
 
-func TestResolveScope(t *testing.T) {
-	t.Run("admin sees all present students and no room filter", func(t *testing.T) {
+func TestPickupScopeStudentIDs(t *testing.T) {
+	t.Run("admin sees all present students", func(t *testing.T) {
 		svc := &service{attendance: fakeAttendance{ids: []int64{1, 2, 3}}}
-		students, rooms, err := svc.resolveScope(context.Background(), Scope{IsAdmin: true}, timezone.TodayDate())
+		ids, err := svc.pickupScopeStudentIDs(context.Background(), Scope{IsAdmin: true}, timezone.TodayDate())
 		require.NoError(t, err)
-		assert.Equal(t, []int64{1, 2, 3}, students)
-		assert.Nil(t, rooms)
+		assert.Equal(t, []int64{1, 2, 3}, ids)
 	})
 
 	t.Run("caregiver sees students present in supervised rooms", func(t *testing.T) {
@@ -333,23 +448,49 @@ func TestResolveScope(t *testing.T) {
 			},
 			presentByRoom: map[int64][]int64{10: {1, 2}, 20: {2, 3}},
 		}}
-		students, rooms, err := svc.resolveScope(context.Background(), Scope{IsAdmin: false, StaffID: 7}, timezone.TodayDate())
+		ids, err := svc.pickupScopeStudentIDs(context.Background(), Scope{IsAdmin: false, StaffID: 7}, timezone.TodayDate())
 		require.NoError(t, err)
-		assert.ElementsMatch(t, []int64{1, 2, 3}, students)
-		assert.ElementsMatch(t, []int64{10, 20}, rooms)
+		assert.ElementsMatch(t, []int64{1, 2, 3}, ids)
 	})
 
 	t.Run("caregiver with no supervision sees nothing", func(t *testing.T) {
 		svc := &service{supervision: fakeSupervision{supervisions: nil}}
-		students, rooms, err := svc.resolveScope(context.Background(), Scope{IsAdmin: false, StaffID: 7}, timezone.TodayDate())
+		ids, err := svc.pickupScopeStudentIDs(context.Background(), Scope{IsAdmin: false, StaffID: 7}, timezone.TodayDate())
 		require.NoError(t, err)
-		assert.Empty(t, students)
+		assert.Empty(t, ids)
+	})
+
+	t.Run("propagates a supervision error", func(t *testing.T) {
+		svc := &service{supervision: fakeSupervision{supervisionErr: errors.New("boom")}}
+		_, err := svc.pickupScopeStudentIDs(context.Background(), Scope{IsAdmin: false, StaffID: 7}, timezone.TodayDate())
+		require.Error(t, err)
+	})
+}
+
+func TestSupervisedRoomIDs(t *testing.T) {
+	t.Run("returns the deduplicated supervised rooms", func(t *testing.T) {
+		svc := &service{supervision: fakeSupervision{
+			supervisions: []*activeModel.GroupSupervisor{{GroupID: 100}, {GroupID: 200}},
+			groups: map[int64]*activeModel.Group{
+				100: {RoomID: 10},
+				200: {RoomID: 20},
+			},
+		}}
+		rooms, err := svc.supervisedRoomIDs(context.Background(), Scope{IsAdmin: false, StaffID: 7})
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []int64{10, 20}, rooms)
+	})
+
+	t.Run("no supervision yields no rooms", func(t *testing.T) {
+		svc := &service{supervision: fakeSupervision{supervisions: nil}}
+		rooms, err := svc.supervisedRoomIDs(context.Background(), Scope{IsAdmin: false, StaffID: 7})
+		require.NoError(t, err)
 		assert.Empty(t, rooms)
 	})
 
 	t.Run("propagates a supervision error", func(t *testing.T) {
 		svc := &service{supervision: fakeSupervision{supervisionErr: errors.New("boom")}}
-		_, _, err := svc.resolveScope(context.Background(), Scope{IsAdmin: false, StaffID: 7}, timezone.TodayDate())
+		_, err := svc.supervisedRoomIDs(context.Background(), Scope{IsAdmin: false, StaffID: 7})
 		require.Error(t, err)
 	})
 }

@@ -5,8 +5,8 @@ import { renderHook, act } from "@testing-library/react";
 // Mocks (vi.hoisted so they are available inside vi.mock factories)
 // ---------------------------------------------------------------------------
 
-const { mockUseSession, mockUseSSE, mockMutate, capturedOptions } = vi.hoisted(
-  () => {
+const { mockUseSession, mockUseSSE, mockMutate, mockCache, capturedOptions } =
+  vi.hoisted(() => {
     const capturedOptions: {
       onMessage?: (event: unknown) => void;
       enabled?: boolean;
@@ -31,13 +31,21 @@ const { mockUseSession, mockUseSSE, mockMutate, capturedOptions } = vi.hoisted(
         };
       }),
       mockMutate: vi.fn().mockResolvedValue(undefined),
+      // Shared SWR cache the reminders-gating logic reads. Tests seed a
+      // "tenant-slug:reminders" entry to model the feature being on/off.
+      mockCache: new Map<string, { data?: { enabled?: boolean } }>(),
       capturedOptions,
     };
-  },
-);
+  });
 
 vi.mock("next-auth/react", () => ({
   useSession: () => mockUseSession(),
+}));
+
+// The reminders revalidation path scopes to the active tenant's SWR key, so the
+// hook needs a slug. Provide a stable one for the "tenant-slug:reminders" key.
+vi.mock("~/components/tenant/tenant-provider", () => ({
+  useTenantSlugSafe: () => "tenant-slug",
 }));
 
 vi.mock("~/lib/hooks/use-sse", () => ({
@@ -54,7 +62,7 @@ vi.mock("swr", () => ({
     mutate: vi.fn(),
   })),
   mutate: mockMutate,
-  useSWRConfig: vi.fn(() => ({ mutate: mockMutate, cache: new Map() })),
+  useSWRConfig: vi.fn(() => ({ mutate: mockMutate, cache: mockCache })),
 }));
 
 vi.mock("~/lib/swr/room-derived-caches", () => ({
@@ -104,6 +112,7 @@ function fireSSE(event: SSEEvent) {
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
   vi.clearAllMocks();
+  mockCache.clear();
   mockUseSession.mockReturnValue(authenticatedSession());
   // Re-wire the useSSE mock after clearAllMocks
   mockUseSSE.mockImplementation(
@@ -339,15 +348,24 @@ describe("useGlobalSSE — SWR invalidation debounce", () => {
 // Reminders revalidation (issue #1457)
 // ---------------------------------------------------------------------------
 
-// True when any mutate() call was made with a key-matcher that matches `key`.
-function someMutateMatches(key: string): boolean {
-  return mockMutate.mock.calls.some(
-    ([matcher]) => typeof matcher === "function" && matcher(key) === true,
-  );
+const REMINDERS_KEY = "tenant-slug:reminders";
+
+// True when mutate() was called with the exact reminders key. The reminders
+// path now targets the active tenant's key directly (not a substring matcher),
+// so a cross-tenant cache in another tab is never revalidated.
+function mutateCalledWithRemindersKey(): boolean {
+  return mockMutate.mock.calls.some(([arg]) => arg === REMINDERS_KEY);
+}
+
+// Model the reminders feature being switched on for this tenant: the bell's
+// SWR entry exists with enabled=true.
+function seedRemindersEnabled(enabled: boolean) {
+  mockCache.set(REMINDERS_KEY, { data: { enabled } });
 }
 
 describe("useGlobalSSE — reminders revalidation", () => {
-  it("revalidates the reminders cache on student_checkout", () => {
+  it("revalidates the reminders cache on student_checkout when the feature is enabled", () => {
+    seedRemindersEnabled(true);
     renderHook(() => useGlobalSSE());
 
     fireSSE(makeEvent("student_checkout", { student_id: "s1" }, "grp1"));
@@ -355,10 +373,11 @@ describe("useGlobalSSE — reminders revalidation", () => {
       vi.advanceTimersByTime(500);
     });
 
-    expect(someMutateMatches("tenant-slug:reminders")).toBe(true);
+    expect(mutateCalledWithRemindersKey()).toBe(true);
   });
 
-  it("revalidates the reminders cache on instance_overdue", () => {
+  it("revalidates the reminders cache on instance_overdue when the feature is enabled", () => {
+    seedRemindersEnabled(true);
     renderHook(() => useGlobalSSE());
 
     fireSSE(makeEvent("instance_overdue"));
@@ -366,10 +385,25 @@ describe("useGlobalSSE — reminders revalidation", () => {
       vi.advanceTimersByTime(500);
     });
 
-    expect(someMutateMatches("tenant-slug:reminders")).toBe(true);
+    expect(mutateCalledWithRemindersKey()).toBe(true);
+  });
+
+  it("does NOT revalidate reminders when the feature is disabled", () => {
+    // The default: all reminder types off. The bell still creates a cache entry
+    // with enabled=false; a check-in burst must not revalidate it.
+    seedRemindersEnabled(false);
+    renderHook(() => useGlobalSSE());
+
+    fireSSE(makeEvent("student_checkout", { student_id: "s1" }, "grp1"));
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(mutateCalledWithRemindersKey()).toBe(false);
   });
 
   it("does not revalidate reminders for tenant_settings_changed", () => {
+    seedRemindersEnabled(true);
     renderHook(() => useGlobalSSE());
 
     fireSSE(makeEvent("tenant_settings_changed", { source: "operator" }));
@@ -377,7 +411,7 @@ describe("useGlobalSSE — reminders revalidation", () => {
       vi.advanceTimersByTime(500);
     });
 
-    expect(someMutateMatches("tenant-slug:reminders")).toBe(false);
+    expect(mutateCalledWithRemindersKey()).toBe(false);
   });
 });
 

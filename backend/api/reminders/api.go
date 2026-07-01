@@ -71,10 +71,13 @@ func (rs *Resource) listReminders(w http.ResponseWriter, r *http.Request) {
 		}
 		staff, err := rs.UserContext.GetCurrentStaff(ctx)
 		switch {
-		case errors.Is(err, usercontext.ErrUserNotLinkedToStaff):
-			// A tenant account with users:read but no staff row is an
-			// authorization miss for this staff-only endpoint, not a server
-			// fault — deny it so the header poll doesn't spam 500s.
+		case errors.Is(err, usercontext.ErrUserNotLinkedToStaff),
+			errors.Is(err, usercontext.ErrUserNotLinkedToPerson):
+			// A tenant account with users:read but no staff (or even no person)
+			// row is an authorization miss for this staff-only endpoint, not a
+			// server fault. GetCurrentStaff returns ErrUserNotLinkedToPerson
+			// first for a personless account, so both must map to 403 — otherwise
+			// the globally mounted header poll spams 500s.
 			common.RenderError(w, r, common.ErrorForbidden(errors.New("not linked to staff")))
 			return
 		case err != nil:

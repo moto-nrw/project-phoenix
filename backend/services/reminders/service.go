@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -67,6 +68,7 @@ type Service interface {
 type settingsResolver interface {
 	ResolveBool(ctx context.Context, key string) (bool, error)
 	ResolveInt(ctx context.Context, key string) (int, error)
+	ResolveString(ctx context.Context, key string) (string, error)
 }
 
 type attendanceReader interface {
@@ -95,6 +97,14 @@ type supervisionReader interface {
 	ListStudentsPresentInRoom(ctx context.Context, roomID int64) ([]int64, error)
 }
 
+// groupReader lists the education groups the current caller supervises. It
+// mirrors usercontext.UserContextService.GetMyGroups so the pickup read-access
+// gate (gdpr.student_data_scope) can be enforced without importing the handler
+// layer.
+type groupReader interface {
+	GetMyGroups(ctx context.Context) ([]*educationModel.Group, error)
+}
+
 // Dependencies wires the readers the service needs. They mirror existing
 // services/repositories so no new query construction lives here.
 type Dependencies struct {
@@ -105,6 +115,7 @@ type Dependencies struct {
 	Student     studentReader
 	Person      personReader
 	Supervision supervisionReader
+	Groups      groupReader
 	Logger      *slog.Logger
 }
 
@@ -116,6 +127,7 @@ type service struct {
 	student     studentReader
 	person      personReader
 	supervision supervisionReader
+	groups      groupReader
 	logger      *slog.Logger
 }
 
@@ -133,6 +145,7 @@ func NewService(deps Dependencies) Service {
 		student:     deps.Student,
 		person:      deps.Person,
 		supervision: deps.Supervision,
+		groups:      deps.Groups,
 		logger:      logger,
 	}
 }
@@ -171,19 +184,21 @@ func (s *service) Compute(ctx context.Context, scope Scope) (*Result, error) {
 	today := timezone.TodayDate()
 	nowMin := minutesOfDay(timezone.Now())
 
-	studentIDs, roomIDs, err := s.resolveScope(ctx, scope, today)
-	if err != nil {
-		return nil, err
-	}
-
 	reminders := make([]Reminder, 0)
 
+	// Pickup and activity scopes are resolved independently so an activity-only
+	// tenant never pays for (or fails on) student-presence resolution, and a
+	// pickup-only tenant never resolves the room filter.
 	if pickupUpcoming || pickupOverdue {
+		studentIDs, serr := s.pickupScopeStudentIDs(ctx, scope, today)
+		if serr != nil {
+			return nil, serr
+		}
 		lead, lerr := s.leadMinutes(ctx, configModel.KeyRemindersPickupUpcomingLeadMinutes)
 		if lerr != nil {
 			return nil, lerr
 		}
-		pickupReminders, perr := s.pickupReminders(ctx, studentIDs, today, nowMin, lead, pickupUpcoming, pickupOverdue)
+		pickupReminders, perr := s.pickupReminders(ctx, scope, studentIDs, today, nowMin, lead, pickupUpcoming, pickupOverdue)
 		if perr != nil {
 			return nil, perr
 		}
@@ -191,6 +206,16 @@ func (s *service) Compute(ctx context.Context, scope Scope) (*Result, error) {
 	}
 
 	if activityStart || activityOverdue {
+		// Admins see all activities (nil filter); caregivers are limited to the
+		// rooms they supervise.
+		var roomIDs []int64
+		if !scope.IsAdmin {
+			rooms, rerr := s.supervisedRoomIDs(ctx, scope)
+			if rerr != nil {
+				return nil, rerr
+			}
+			roomIDs = rooms
+		}
 		lead, lerr := s.leadMinutes(ctx, configModel.KeyRemindersActivityStartLeadMinutes)
 		if lerr != nil {
 			return nil, lerr
@@ -214,24 +239,35 @@ func (s *service) Compute(ctx context.Context, scope Scope) (*Result, error) {
 	return &Result{Reminders: reminders, Count: len(reminders), Enabled: true}, nil
 }
 
-// resolveScope returns the present student IDs in scope and, for caregivers,
-// the room IDs they supervise (nil for admins, who see all activities).
-func (s *service) resolveScope(ctx context.Context, scope Scope, today timezone.Date) ([]int64, []int64, error) {
+// pickupScopeStudentIDs returns the IDs of currently present students whose
+// pickups are in scope: all present students for admins, the students present
+// in supervised rooms for caregivers. This is presence scope only — read
+// access (gdpr.student_data_scope) is enforced later in pickupReminders, once
+// the much smaller "actually due" set is known.
+func (s *service) pickupScopeStudentIDs(ctx context.Context, scope Scope, today timezone.Date) ([]int64, error) {
 	if scope.IsAdmin {
 		if s.attendance == nil {
-			return []int64{}, nil, nil
+			return nil, nil
 		}
-		ids, err := s.attendance.ListOpenStudentIDsForDate(ctx, today)
-		return ids, nil, err
+		return s.attendance.ListOpenStudentIDsForDate(ctx, today)
 	}
 
+	roomIDs, err := s.supervisedRoomIDs(ctx, scope)
+	if err != nil {
+		return nil, err
+	}
+	return s.presentStudentsInRooms(ctx, roomIDs)
+}
+
+// supervisedRoomIDs returns the room IDs the caregiver currently supervises.
+func (s *service) supervisedRoomIDs(ctx context.Context, scope Scope) ([]int64, error) {
 	if s.supervision == nil {
-		return []int64{}, []int64{}, nil
+		return nil, nil
 	}
 
 	supervisions, err := s.supervision.GetStaffActiveSupervisions(ctx, scope.StaffID)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	groupIDs := make([]int64, 0, len(supervisions))
 	for _, sup := range supervisions {
@@ -240,12 +276,12 @@ func (s *service) resolveScope(ctx context.Context, scope Scope, today timezone.
 		}
 	}
 	if len(groupIDs) == 0 {
-		return []int64{}, []int64{}, nil
+		return nil, nil
 	}
 
 	groups, err := s.supervision.GetActiveGroupsByIDs(ctx, groupIDs)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	roomSet := make(map[int64]struct{}, len(groups))
 	for _, g := range groups {
@@ -253,14 +289,24 @@ func (s *service) resolveScope(ctx context.Context, scope Scope, today timezone.
 			roomSet[g.RoomID] = struct{}{}
 		}
 	}
-
-	studentSet := make(map[int64]struct{})
 	roomIDs := make([]int64, 0, len(roomSet))
 	for roomID := range roomSet {
 		roomIDs = append(roomIDs, roomID)
-		present, perr := s.supervision.ListStudentsPresentInRoom(ctx, roomID)
-		if perr != nil {
-			return nil, nil, perr
+	}
+	return roomIDs, nil
+}
+
+// presentStudentsInRooms returns the deduplicated IDs of students currently
+// present in any of the given rooms.
+func (s *service) presentStudentsInRooms(ctx context.Context, roomIDs []int64) ([]int64, error) {
+	if s.supervision == nil || len(roomIDs) == 0 {
+		return nil, nil
+	}
+	studentSet := make(map[int64]struct{})
+	for _, roomID := range roomIDs {
+		present, err := s.supervision.ListStudentsPresentInRoom(ctx, roomID)
+		if err != nil {
+			return nil, err
 		}
 		for _, id := range present {
 			studentSet[id] = struct{}{}
@@ -270,10 +316,10 @@ func (s *service) resolveScope(ctx context.Context, scope Scope, today timezone.
 	for id := range studentSet {
 		studentIDs = append(studentIDs, id)
 	}
-	return studentIDs, roomIDs, nil
+	return studentIDs, nil
 }
 
-func (s *service) pickupReminders(ctx context.Context, studentIDs []int64, today timezone.Date, nowMin, lead int, upcoming, overdue bool) ([]Reminder, error) {
+func (s *service) pickupReminders(ctx context.Context, scope Scope, studentIDs []int64, today timezone.Date, nowMin, lead int, upcoming, overdue bool) ([]Reminder, error) {
 	if len(studentIDs) == 0 || s.pickup == nil {
 		return nil, nil
 	}
@@ -281,12 +327,18 @@ func (s *service) pickupReminders(ctx context.Context, studentIDs []int64, today
 	if err != nil {
 		return nil, err
 	}
-	names, err := s.studentNames(ctx, studentIDs)
-	if err != nil {
-		return nil, err
-	}
 
-	out := make([]Reminder, 0)
+	// Compute the due set (upcoming/overdue) BEFORE hydrating names or checking
+	// read access. A large school may have hundreds of students present but only
+	// a handful whose pickup is actually within the window, and the header polls
+	// every 60s — hydrating every present student would be wasteful.
+	type duePickup struct {
+		id        int64
+		pickupMin int
+		diff      int
+		isOverdue bool
+	}
+	dues := make([]duePickup, 0)
 	for _, id := range studentIDs {
 		effective := times[id]
 		if effective == nil || effective.PickupTime == nil {
@@ -294,28 +346,48 @@ func (s *service) pickupReminders(ctx context.Context, studentIDs []int64, today
 		}
 		pickupMin := minutesOfDay(*effective.PickupTime)
 		diff := pickupMin - nowMin
-		info := names[id]
-
 		switch {
 		case diff < 0 && overdue:
-			out = append(out, Reminder{
-				Type:        TypePickupOverdue,
-				StudentID:   studentIDString(id),
-				Title:       info.name,
-				Subtitle:    info.class,
-				DueTime:     formatMinutes(pickupMin),
-				MinutesAway: diff,
-			})
+			dues = append(dues, duePickup{id: id, pickupMin: pickupMin, diff: diff, isOverdue: true})
 		case diff >= 0 && diff <= lead && upcoming:
-			out = append(out, Reminder{
-				Type:        TypePickupUpcoming,
-				StudentID:   studentIDString(id),
-				Title:       info.name,
-				Subtitle:    info.class,
-				DueTime:     formatMinutes(pickupMin),
-				MinutesAway: diff,
-			})
+			dues = append(dues, duePickup{id: id, pickupMin: pickupMin, diff: diff, isOverdue: false})
 		}
+	}
+	if len(dues) == 0 {
+		return nil, nil
+	}
+
+	dueIDs := make([]int64, len(dues))
+	for i, d := range dues {
+		dueIDs[i] = d.id
+	}
+
+	// Hydrate names + apply the read-access gate for the due students only.
+	infos, err := s.readableStudentInfo(ctx, scope, dueIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]Reminder, 0, len(dues))
+	for _, d := range dues {
+		info, ok := infos[d.id]
+		if !ok {
+			// Not readable under gdpr.student_data_scope, or the record is
+			// missing — skip silently rather than leak an unauthorized pickup.
+			continue
+		}
+		reminderType := TypePickupUpcoming
+		if d.isOverdue {
+			reminderType = TypePickupOverdue
+		}
+		out = append(out, Reminder{
+			Type:        reminderType,
+			StudentID:   studentIDString(d.id),
+			Title:       info.name,
+			Subtitle:    info.class,
+			DueTime:     formatMinutes(d.pickupMin),
+			MinutesAway: d.diff,
+		})
 	}
 	return out, nil
 }
@@ -380,31 +452,52 @@ type studentNameInfo struct {
 	class string
 }
 
-// studentNames resolves the display name + school class for each student ID.
-// A lookup failure is propagated: the pickup-reminder API contract promises a
-// student name as the title, so a DB/RLS error must fail the request rather
-// than emit unusable reminders with empty titles.
-func (s *service) studentNames(ctx context.Context, ids []int64) (map[int64]studentNameInfo, error) {
+// readableStudentInfo hydrates the display name + school class for each due
+// student the caller is allowed to read. It enforces the same
+// gdpr.student_data_scope gate the pickup-schedule endpoints use: room presence
+// alone does not grant visibility of a student's pickup data — a caregiver must
+// supervise the student's education group (unless the tenant runs the all_staff
+// scope, or the caller is an admin).
+//
+// A DB/RLS lookup error is propagated: the pickup-reminder API contract
+// promises a student name as the title, so a failed read must fail the request
+// rather than emit unusable reminders with empty titles.
+func (s *service) readableStudentInfo(ctx context.Context, scope Scope, ids []int64) (map[int64]studentNameInfo, error) {
 	result := make(map[int64]studentNameInfo, len(ids))
 	if s.student == nil {
+		// Without a student reader we can neither verify read access nor build a
+		// title. Fail closed (return nothing) rather than expose unverified data.
 		return result, nil
 	}
+
 	students, err := s.student.FindByIDs(ctx, ids)
 	if err != nil {
 		return nil, fmt.Errorf("load student names: %w", err)
 	}
+
+	allowed, err := s.pickupReadPredicate(ctx, scope)
+	if err != nil {
+		return nil, err
+	}
+
+	readable := make(map[int64]*userModel.Student, len(students))
 	personIDs := make([]int64, 0, len(students))
-	for _, st := range students {
+	for id, st := range students {
+		if st == nil || !allowed(st) {
+			continue
+		}
+		readable[id] = st
 		personIDs = append(personIDs, st.PersonID)
 	}
+
 	var persons map[int64]*userModel.Person
-	if s.person != nil {
+	if s.person != nil && len(personIDs) > 0 {
 		persons, err = s.person.FindByIDs(ctx, personIDs)
 		if err != nil {
 			return nil, fmt.Errorf("load persons for student names: %w", err)
 		}
 	}
-	for id, st := range students {
+	for id, st := range readable {
 		info := studentNameInfo{class: st.SchoolClass}
 		if persons != nil {
 			if p := persons[st.PersonID]; p != nil {
@@ -414,6 +507,58 @@ func (s *service) studentNames(ctx context.Context, ids []int64) (map[int64]stud
 		result[id] = info
 	}
 	return result, nil
+}
+
+// pickupReadPredicate returns a per-student read-access test mirroring
+// authorize.CanReadStudent for the pickup read path:
+//   - Admins and the gdpr.student_data_scope=all_staff scope may read every
+//     present student.
+//   - Otherwise (group_supervisors_only), only students in an education group
+//     the caregiver supervises are readable. Room presence alone is not enough.
+//
+// A settings resolution error is surfaced, consistent with the rest of the
+// service — a broken config read must not silently widen or narrow visibility.
+func (s *service) pickupReadPredicate(ctx context.Context, scope Scope) (func(*userModel.Student) bool, error) {
+	if scope.IsAdmin {
+		return func(*userModel.Student) bool { return true }, nil
+	}
+
+	scopeVal := configModel.StudentDataScopeGroupSupervisorsOnly
+	if s.settings != nil {
+		// ResolveString returns the registry default (group_supervisors_only)
+		// when the tenant has no override, so there is no env-var fallback to
+		// consider here.
+		v, err := s.settings.ResolveString(ctx, configModel.KeyStudentDataScope)
+		if err != nil {
+			return nil, fmt.Errorf("resolve %s: %w", configModel.KeyStudentDataScope, err)
+		}
+		if v != "" {
+			scopeVal = v
+		}
+	}
+	if scopeVal == configModel.StudentDataScopeAllStaff {
+		return func(*userModel.Student) bool { return true }, nil
+	}
+
+	groupSet := make(map[int64]struct{})
+	if s.groups != nil {
+		eduGroups, err := s.groups.GetMyGroups(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("load supervised groups: %w", err)
+		}
+		for _, g := range eduGroups {
+			if g != nil {
+				groupSet[g.ID] = struct{}{}
+			}
+		}
+	}
+	return func(st *userModel.Student) bool {
+		if st == nil || st.GroupID == nil {
+			return false
+		}
+		_, ok := groupSet[*st.GroupID]
+		return ok
+	}, nil
 }
 
 // leadMinutes resolves a lead-time setting. A resolution failure is surfaced —

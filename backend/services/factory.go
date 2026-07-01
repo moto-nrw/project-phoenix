@@ -1196,6 +1196,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Student:     repos.Student,
 		Person:      repos.Person,
 		Supervision: activeService,
+		Groups:      userContextService,
 		Logger:      logger.With("service", "reminders"),
 	})
 

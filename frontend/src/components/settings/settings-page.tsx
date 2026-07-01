@@ -21,6 +21,7 @@ import { SettingsCategory } from "./settings-category";
 import { PersonalizationTab } from "./personalization-tab";
 import { EnrollmentLinkPanel } from "./enrollment-link-panel";
 import { useOptionalSupervision } from "~/lib/supervision-context";
+import { useTenantMutate } from "~/lib/swr/hooks";
 
 // Settings whose value affects the supervision context (sidebar / mobile nav)
 // and therefore require an immediate re-fetch after save/reset instead of
@@ -28,18 +29,6 @@ import { useOptionalSupervision } from "~/lib/supervision-context";
 const SUPERVISION_AFFECTING_KEYS = new Set<string>([
   "operations.admin_supervision_overview",
 ]);
-
-// Reminders settings decide whether the header reminders bell shows at all.
-// After saving/resetting one, revalidate the /api/reminders cache so the
-// bell's `enabled` flag flips immediately instead of waiting for the poll.
-// The reminders SWR key is tenant-prefixed ("{slug}:reminders").
-function revalidateRemindersIfNeeded(key: string) {
-  if (!key.startsWith("reminders.")) return;
-  void mutate(
-    (k) =>
-      typeof k === "string" && (k === "reminders" || k.endsWith(":reminders")),
-  );
-}
 
 const logger = createLogger({ component: "SettingsPage" });
 
@@ -125,6 +114,7 @@ function useSettingsSchemaSWR() {
 function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
   const { refresh: refreshSupervision } = useOptionalSupervision();
   const router = useRouter();
+  const tenantMutate = useTenantMutate();
   const {
     data: schema,
     error: fetchError,
@@ -132,6 +122,20 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
     mutate: revalidate,
   } = useSettingsSchemaSWR();
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Reminders settings decide whether the header reminders bell shows at all.
+  // After saving/resetting one, revalidate THIS tenant's /api/reminders cache
+  // so the bell's `enabled` flag flips immediately instead of waiting for the
+  // poll. The reminders SWR key is tenant-prefixed ("{slug}:reminders");
+  // useTenantMutate applies that prefix, so a different tenant's cache held in
+  // another tab is left untouched (no cross-tenant revalidation).
+  const revalidateRemindersIfNeeded = useCallback(
+    (key: string) => {
+      if (!key.startsWith("reminders.")) return;
+      void tenantMutate("reminders");
+    },
+    [tenantMutate],
+  );
 
   const applyOptimistic = useCallback((key: string, value: unknown) => {
     void mutate(
@@ -170,7 +174,7 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
       revalidateRemindersIfNeeded(key);
       return null;
     },
-    [applyOptimistic, refreshSupervision, router],
+    [applyOptimistic, refreshSupervision, revalidateRemindersIfNeeded, router],
   );
 
   const handleReset = useCallback(
@@ -195,7 +199,7 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
       revalidateRemindersIfNeeded(key);
       return null;
     },
-    [refreshSupervision, router],
+    [refreshSupervision, revalidateRemindersIfNeeded, router],
   );
 
   const handleSchemaRefresh = useCallback(() => {

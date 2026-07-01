@@ -23,9 +23,10 @@
 "use client";
 
 import { useCallback, useRef } from "react";
-import { mutate } from "swr";
+import { mutate, useSWRConfig } from "swr";
 import { useSession } from "next-auth/react";
 import { useSSE } from "~/lib/hooks/use-sse";
+import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
 import { ROOM_LIST_CACHE_KEYS } from "~/lib/swr/room-derived-caches";
 import type { SSEEvent, SSEHookState } from "~/lib/sse-types";
 import { createLogger } from "~/lib/logger";
@@ -48,6 +49,10 @@ const DEBOUNCE_MS = 500;
  */
 export function useGlobalSSE(): SSEHookState {
   const { data: session, status: sessionStatus } = useSession();
+  // Tenant slug + SWR cache: used to keep reminder revalidation scoped to the
+  // active tenant and gated on whether the feature is actually enabled.
+  const tenantSlug = useTenantSlugSafe();
+  const { cache } = useSWRConfig();
 
   // Enable SSE for staff (has "user" role) and admins.
   // Pure admins without a staff record connect with zero supervised groups
@@ -267,22 +272,35 @@ export function useGlobalSSE(): SSEHookState {
     // Reminders (issue #1457): the header bell + /reminders page are computed
     // live from attendance, pickups and activity instances. Check-ins/outs and
     // activity-instance lifecycle events change what's due, so revalidate the
-    // shared "reminders" cache here — the 60s poll only catches the time-based
-    // threshold crossings ("in 10 Min" → "überfällig"), not these events.
+    // reminders cache here — the 60s poll only catches the time-based threshold
+    // crossings ("in 10 Min" → "überfällig"), not these events.
     // Zero-topic admins (no supervised group / admin_supervision_overview off)
     // receive check-ins only as the dashboard_counts_changed broadcast, so
     // include hasPendingDashboardEvent or their bell/list stays stale until poll.
+    //
+    // Two guards:
+    //   1. Scope to THIS tenant's exact "{slug}:reminders" key so a different
+    //      tenant's cache held in another tab is never revalidated with this
+    //      session's cookie (cross-tenant leak / wasted request).
+    //   2. Skip entirely unless the feature is enabled for this tenant. The
+    //      default is all-types-off, yet a mounted RemindersBell still creates a
+    //      "{slug}:reminders" cache entry with enabled=false; revalidating it on
+    //      every attendance-burst event would defeat the idle-poll throttle and
+    //      add backend load for a feature nobody switched on.
+    const remindersKey = tenantSlug ? `${tenantSlug}:reminders` : "reminders";
+    const remindersEnabled =
+      (cache.get(remindersKey)?.data as { enabled?: boolean } | undefined)
+        ?.enabled === true;
     if (
-      pendingGroupIds.current.size > 0 ||
-      pendingStudentIds.current.size > 0 ||
-      hasPendingActivityEvent.current ||
-      hasPendingTimetableEvent.current ||
-      hasPendingDashboardEvent.current ||
-      hasPendingDailyCheckoutDashboardEvent.current
+      remindersEnabled &&
+      (pendingGroupIds.current.size > 0 ||
+        pendingStudentIds.current.size > 0 ||
+        hasPendingActivityEvent.current ||
+        hasPendingTimetableEvent.current ||
+        hasPendingDashboardEvent.current ||
+        hasPendingDailyCheckoutDashboardEvent.current)
     ) {
-      mutate(
-        (key) => typeof key === "string" && key.includes("reminders"),
-      ).catch((err) => {
+      mutate(remindersKey).catch((err) => {
         logger.debug("swr_revalidation_failed", {
           error: err instanceof Error ? err.message : String(err),
           scope: "reminders",
@@ -300,7 +318,7 @@ export function useGlobalSSE(): SSEHookState {
     hasPendingArrivalScheduleEvent.current = false;
     hasPendingStudentUpdateEvent.current = false;
     hasPendingTimetableEvent.current = false;
-  }, []);
+  }, [tenantSlug, cache]);
 
   const scheduleFlush = useCallback(() => {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
