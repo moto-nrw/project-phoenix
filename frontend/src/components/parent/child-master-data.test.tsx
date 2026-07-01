@@ -58,6 +58,7 @@ function features(overrides: Partial<ChildFeatures> = {}): ChildFeatures {
   return {
     sick_note_enabled: true,
     notes_enabled: true,
+    request_submit_enabled: true,
     pickup_change_enabled: true,
     related_accounts_invite_enabled: true,
     related_accounts_remove_enabled: true,

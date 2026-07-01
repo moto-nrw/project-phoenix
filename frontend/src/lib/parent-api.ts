@@ -93,6 +93,10 @@ export interface StatusDay {
 export interface ChildFeatures {
   readonly sick_note_enabled: boolean;
   readonly notes_enabled: boolean;
+  // Whether the guardian may submit structured change-requests (care schedule /
+  // master data). Separate from notes_enabled (chat) so the UI hides the request
+  // actions for a chat-only guardian instead of dead-ending on a backend 403.
+  readonly request_submit_enabled: boolean;
   readonly pickup_change_enabled: boolean;
   readonly related_accounts_invite_enabled: boolean;
   readonly related_accounts_remove_enabled: boolean;
@@ -489,7 +493,7 @@ export async function listSickDays(studentId: string): Promise<StatusDay[]> {
 // own messages, "staff" for replies from the OGS. For staff messages
 // `sender_name` is the "OGS [Schulname]" label.
 // The wire message shape is shared with the staff client; see ChatMessage.
-type ParentMessage = ChatMessage;
+export type ParentMessage = ChatMessage;
 
 // One row on the messages landing page: a child's conversation, with the
 // guardian's unread (staff-sent) count and last-activity metadata.
@@ -502,6 +506,14 @@ export interface ThreadSummary {
   readonly last_message_at?: string; // ISO timestamp
   readonly last_sender_kind?: "guardian" | "staff";
   readonly last_message_body?: string;
+  // Structured fields of the last message so the localized portal previews a
+  // request title / decision / withdrawal from fields instead of the German
+  // last_message_body (see parentThreadPreviewI18nDescriptor). Empty for plain
+  // messages, where last_message_body is the language-neutral written text.
+  readonly last_message_kind?: "message" | "event" | "request";
+  readonly last_event_type?: string;
+  readonly last_request_type?: string;
+  readonly last_request_status?: string;
   readonly unread: number;
 }
 
@@ -571,6 +583,36 @@ export async function postChildMessage(
   return postJson<ThreadView>(
     `/api/parent/me/messages/children/${encodeURIComponent(studentId)}`,
     { body },
+  );
+}
+
+/**
+ * Submits a structured change-request (care schedule / master data) for the
+ * child and returns the full updated conversation (the request appears as a
+ * "request" timeline entry awaiting OGS confirmation).
+ */
+export async function createChildRequest(
+  studentId: string,
+  requestType: "care_schedule",
+  payload: Record<string, unknown>,
+): Promise<ThreadView> {
+  return postJson<ThreadView>(
+    `/api/parent/me/messages/children/${encodeURIComponent(studentId)}/requests`,
+    { request_type: requestType, payload },
+  );
+}
+
+/**
+ * Withdraws a still-open change-request and returns the full updated
+ * conversation (the request flips to "zurueckgezogen").
+ */
+export async function withdrawChildRequest(
+  studentId: string,
+  requestId: string,
+): Promise<ThreadView> {
+  return postJson<ThreadView>(
+    `/api/parent/me/messages/children/${encodeURIComponent(studentId)}/requests/${encodeURIComponent(requestId)}/withdraw`,
+    {},
   );
 }
 

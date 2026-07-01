@@ -23,11 +23,15 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/services"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/messaging"
+	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -44,6 +48,10 @@ import (
 type stubSettings struct {
 	configService.SettingsService
 	messagingEnabled bool
+	// dataScope, when set, makes the gdpr.student_data_scope lookups report an
+	// override of this value so CanReadStudent relaxes reads (e.g. "all_staff").
+	// Empty (the default) keeps the restrictive group-supervisors-only behavior.
+	dataScope string
 }
 
 func (s stubSettings) ResolveBool(_ context.Context, key string) (bool, error) {
@@ -53,8 +61,41 @@ func (s stubSettings) ResolveBool(_ context.Context, key string) (bool, error) {
 	return false, nil
 }
 
-func (s stubSettings) HasTenantOverride(_ context.Context, _ string) (bool, error) { return false, nil }
-func (s stubSettings) ResolveString(_ context.Context, _ string) (string, error)   { return "", nil }
+func (s stubSettings) HasTenantOverride(_ context.Context, key string) (bool, error) {
+	if key == configModels.KeyStudentDataScope && s.dataScope != "" {
+		return true, nil
+	}
+	return false, nil
+}
+
+func (s stubSettings) ResolveString(_ context.Context, key string) (string, error) {
+	if key == configModels.KeyStudentDataScope {
+		return s.dataScope, nil
+	}
+	return "", nil
+}
+
+// stubUserContext stands in for the user-context service so the per-child
+// authorization checks resolve: GetCurrentStaff returns a staff record (lets an
+// "all_staff"-scope reader pass CanReadStudent) while GetMyGroups /
+// GetMyActiveGroups report NO supervised groups (so the stricter write check
+// CanUpdateStudent denies — the caller supervises nothing).
+type stubUserContext struct {
+	userContextService.UserContextService
+	staff *usersModels.Staff
+}
+
+func (s stubUserContext) GetCurrentStaff(context.Context) (*usersModels.Staff, error) {
+	return s.staff, nil
+}
+
+func (s stubUserContext) GetMyGroups(context.Context) ([]*educationModels.Group, error) {
+	return nil, nil
+}
+
+func (s stubUserContext) GetMyActiveGroups(context.Context) ([]*activeModels.Group, error) {
+	return nil, nil
+}
 
 // captureBroadcaster records every parent-message fan-out with its event type so
 // the tests can assert a send fired EventParentMessage and a pure read fired
@@ -107,12 +148,19 @@ func buildMessaging(t *testing.T, enabled bool) (messaging.Service, *captureBroa
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
+	// Wire the schedule services (Arrival/Pickup) like production does, so the
+	// fixture can build request diffs over an open care-schedule request — the
+	// reply/decision paths return that diff map and a missing dep would nil-panic.
+	serviceFactory, err := services.NewFactory(repos, db, slog.Default())
+	require.NoError(t, err)
 	bc := &captureBroadcaster{}
 	svc := messaging.NewService(messaging.Config{
 		ThreadRepo:  repos.ParentMessageThread,
 		MessageRepo: repos.ParentMessage,
 		ReadRepo:    repos.ParentMessageRead,
 		Persons:     newPersons(repos, db),
+		Arrival:     serviceFactory.ArrivalSchedule,
+		Pickup:      serviceFactory.PickupSchedule,
 		Settings:    stubSettings{messagingEnabled: enabled},
 		Broadcaster: bc,
 		DB:          db,
@@ -162,6 +210,27 @@ func createGuardianMessage(t *testing.T, db *bun.DB, chain testpkg.ParentChain, 
 	}
 	gm.SetTenantID(chain.TenantID)
 	require.NoError(t, repositories.NewFactory(db).ParentMessage.Create(tenant.WithTenantID(context.Background(), 1), gm))
+}
+
+// createOpenRequest inserts a still-open guardian change request straight through
+// the repo, so the staff decision paths (confirm/reject) have something decidable.
+func createOpenRequest(t *testing.T, db *bun.DB, chain testpkg.ParentChain, threadID int64) int64 {
+	t.Helper()
+	req := &usersModels.ParentMessage{
+		ThreadID:        threadID,
+		StudentID:       chain.StudentID,
+		SenderAccountID: chain.AccountID,
+		SenderKind:      usersModels.ParentMessageSenderGuardian,
+		SenderName:      "Sabine Schneider",
+		Body:            messaging.RequestBody(usersModels.ParentMessageRequestCareSchedule),
+		Kind:            usersModels.ParentMessageKindRequest,
+		RequestType:     usersModels.ParentMessageRequestCareSchedule,
+		RequestStatus:   usersModels.ParentMessageRequestStatusOpen,
+		Payload:         map[string]any{"weekdays": []any{map[string]any{"weekday": 1, "arrival": "08:00"}}},
+	}
+	req.SetTenantID(chain.TenantID)
+	require.NoError(t, repositories.NewFactory(db).ParentMessage.Create(tenant.WithTenantID(context.Background(), 1), req))
+	return req.ID
 }
 
 // --- StartThread / PostMessage / GetThread ------------------------------
@@ -216,11 +285,35 @@ func TestPostMessage_AppendsAndBroadcasts(t *testing.T) {
 	require.NoError(t, err)
 	f.bc.parent = nil // reset to isolate the reply's broadcast
 
-	msgs, err := f.svc.PostMessage(ctx, started.ThreadID, "Noch eine Info")
+	msgs, _, err := f.svc.PostMessage(ctx, started.ThreadID, "Noch eine Info")
 	require.NoError(t, err)
 	require.Len(t, msgs, 2)
 	assert.Equal(t, "Noch eine Info", msgs[1].Body)
 	assert.Equal(t, 1, f.bc.countOf(realtime.EventParentMessage))
+}
+
+// TestPostMessage_PreservesOpenRequestDiffs pins that a staff reply in a thread
+// holding a still-open request returns the rebuilt "current → requested" diff map
+// (keyed by request message ID), not a nil one. The client applies this response
+// optimistically (revalidate:false), so a nil map would momentarily strip the
+// review card's comparison and let staff confirm without the preview the feature
+// depends on. The reply's diffs must also match what a fresh GetThread computes,
+// so the optimistic apply agrees with the follow-up refetch.
+func TestPostMessage_PreservesOpenRequestDiffs(t *testing.T) {
+	f := newFixture(t, true)
+	ctx := adminCtx(f.staffAccount)
+
+	started, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Hallo")
+	require.NoError(t, err)
+	reqID := createOpenRequest(t, f.db, f.chain, started.ThreadID)
+
+	_, diffs, err := f.svc.PostMessage(ctx, started.ThreadID, "Kurze Rückfrage")
+	require.NoError(t, err)
+	require.NotEmpty(t, diffs[reqID], "reply must carry the open request's current→requested diff")
+
+	detail, err := f.svc.GetThread(ctx, started.ThreadID)
+	require.NoError(t, err)
+	assert.Equal(t, detail.Diffs, diffs, "reply diff map must mirror the GET path")
 }
 
 // TestPostMessage_EmptyAndTooLong pins the body guards: blank → ErrEmptyBody,
@@ -231,10 +324,10 @@ func TestPostMessage_EmptyAndTooLong(t *testing.T) {
 	started, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Hallo")
 	require.NoError(t, err)
 
-	_, err = f.svc.PostMessage(ctx, started.ThreadID, "   \n\t ")
+	_, _, err = f.svc.PostMessage(ctx, started.ThreadID, "   \n\t ")
 	require.ErrorIs(t, err, messaging.ErrEmptyBody)
 
-	_, err = f.svc.PostMessage(ctx, started.ThreadID, strings.Repeat("x", 2001))
+	_, _, err = f.svc.PostMessage(ctx, started.ThreadID, strings.Repeat("x", 2001))
 	require.ErrorIs(t, err, messaging.ErrBodyTooLong)
 }
 
@@ -295,7 +388,7 @@ func TestOpenThread_EmptyConversationStaysHiddenFromInbox(t *testing.T) {
 	assert.Positive(t, detail.ThreadID)
 	assert.Empty(t, detail.Messages)
 
-	inbox, err := f.svc.ListInbox(ctx, false)
+	inbox, err := f.svc.ListInbox(ctx, false, false)
 	require.NoError(t, err)
 	assert.Empty(t, inbox, "an opened-but-unwritten conversation must stay out of the inbox")
 }
@@ -336,21 +429,21 @@ func TestListInbox_ShowsConversationWithUnread(t *testing.T) {
 	createGuardianMessage(t, f.db, f.chain, started.ThreadID, "Frage eins")
 	createGuardianMessage(t, f.db, f.chain, started.ThreadID, "Frage zwei")
 
-	inbox, err := f.svc.ListInbox(ctx, false)
+	inbox, err := f.svc.ListInbox(ctx, false, false)
 	require.NoError(t, err)
 	require.Len(t, inbox, 1)
 	assert.Equal(t, "Felix Schneider", inbox[0].StudentName)
 	assert.Equal(t, "Sabine Schneider", inbox[0].GuardianName)
 	assert.Equal(t, 2, inbox[0].UnreadCount, "badge counts unread messages, not threads")
 
-	onlyUnread, err := f.svc.ListInbox(ctx, true)
+	onlyUnread, err := f.svc.ListInbox(ctx, true, false)
 	require.NoError(t, err)
 	require.Len(t, onlyUnread, 1)
 
 	// Read it: onlyUnread now drops the row.
 	_, err = f.svc.GetThread(ctx, started.ThreadID)
 	require.NoError(t, err)
-	onlyUnread, err = f.svc.ListInbox(ctx, true)
+	onlyUnread, err = f.svc.ListInbox(ctx, true, false)
 	require.NoError(t, err)
 	assert.Empty(t, onlyUnread, "a fully-read conversation leaves the onlyUnread filter")
 }
@@ -431,6 +524,56 @@ func TestMessaging_MissingStudentIsForbidden(t *testing.T) {
 	require.ErrorIs(t, err, messaging.ErrForbidden)
 }
 
+// TestDecideRequest_WriteDeniedIsForbidden: a staffer who passes the coarse
+// users:update route gate AND can READ the child (gdpr.student_data_scope =
+// all_staff, verified staff) but does NOT supervise the child's group fails the
+// per-child write check on confirm/reject. CanUpdateStudent returns its denial as
+// an error; the service must map that to ErrForbidden (→ 403), not wrap it into a
+// generic error the handler reports as a 500.
+func TestDecideRequest_WriteDeniedIsForbidden(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	repos := repositories.NewFactory(db)
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
+	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Read", "Only")
+	t.Cleanup(func() { testpkg.CleanupStaffFixtures(t, db, staff.ID) })
+	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, staffAccount.ID) })
+	t.Cleanup(func() { testpkg.CleanupParentMessagingForAccount(t, db, staffAccount.ID) })
+
+	svc := messaging.NewService(messaging.Config{
+		ThreadRepo:  repos.ParentMessageThread,
+		MessageRepo: repos.ParentMessage,
+		ReadRepo:    repos.ParentMessageRead,
+		Persons:     newPersons(repos, db),
+		// Staff present (read passes under all_staff) but supervising no group
+		// (write denied).
+		UserContext: stubUserContext{staff: &usersModels.Staff{}},
+		Settings: stubSettings{
+			messagingEnabled: true,
+			dataScope:        configModels.StudentDataScopeAllStaff,
+		},
+		Broadcaster: &captureBroadcaster{},
+		DB:          db,
+		Logger:      slog.Default(),
+	})
+
+	thread, err := svc.StartThread(adminCtx(staffAccount.ID), chain.StudentID, chain.AccountID, "Hallo")
+	require.NoError(t, err)
+
+	// Reject and confirm both run requireStudentWrite after the read gate; both
+	// must surface the per-child denial as ErrForbidden.
+	rejectReqID := createOpenRequest(t, db, chain, thread.ThreadID)
+	confirmReqID := createOpenRequest(t, db, chain, thread.ThreadID)
+	ctx := claimsCtx(staffAccount.ID, []string{"users:update"})
+
+	_, _, err = svc.RejectRequest(ctx, rejectReqID, "Bitte erneut einreichen")
+	require.ErrorIs(t, err, messaging.ErrForbidden)
+	_, _, err = svc.ConfirmRequest(ctx, confirmReqID)
+	require.ErrorIs(t, err, messaging.ErrForbidden)
+}
+
 // TestPostMessage_GuardianAccessRevoked: staff keep READ access to a historical
 // thread after the guardian loses parent_portal.access, but may not WRITE to it
 // (the parent APIs now hide it, so a reply would be unreadable and the SSE would
@@ -448,7 +591,7 @@ func TestPostMessage_GuardianAccessRevoked(t *testing.T) {
 	`, f.chain.TenantID, f.chain.StudentID, f.chain.GuardianProfileID)
 	require.NoError(t, err)
 
-	_, err = f.svc.PostMessage(ctx, started.ThreadID, "Reply")
+	_, _, err = f.svc.PostMessage(ctx, started.ThreadID, "Reply")
 	require.ErrorIs(t, err, messaging.ErrGuardianAccessRevoked)
 
 	// Read still works — history stays visible.
@@ -476,19 +619,19 @@ func TestMessaging_DisabledFeature(t *testing.T) {
 		Broadcaster: f.bc, DB: f.db, Logger: slog.Default(),
 	})
 
-	_, err = disabled.PostMessage(ctx, started.ThreadID, "Reply")
+	_, _, err = disabled.PostMessage(ctx, started.ThreadID, "Reply")
 	require.ErrorIs(t, err, messaging.ErrMessagingDisabled)
 
 	count, err := disabled.UnreadMessageCount(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 0, count, "disabled feature darkens the staff badge")
 
-	inbox, err := disabled.ListInbox(ctx, false)
+	inbox, err := disabled.ListInbox(ctx, false, false)
 	require.NoError(t, err)
 	require.Len(t, inbox, 1)
 	assert.Equal(t, 0, inbox[0].UnreadCount, "disabled feature suppresses the row unread pill")
 
-	onlyUnread, err := disabled.ListInbox(ctx, true)
+	onlyUnread, err := disabled.ListInbox(ctx, true, false)
 	require.NoError(t, err)
 	assert.Empty(t, onlyUnread)
 }

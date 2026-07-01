@@ -149,6 +149,8 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/me/messages/children/{studentId}/threads", rs.listChildThreads)
 		r.Get("/me/messages/children/{studentId}", rs.getChildConversation)
 		r.Post("/me/messages/children/{studentId}", rs.postChildMessage)
+		r.Post("/me/messages/children/{studentId}/requests", rs.createChildRequest)
+		r.Post("/me/messages/children/{studentId}/requests/{requestId}/withdraw", rs.withdrawChildRequest)
 		r.Get("/me/children/{studentId}/care-exception", rs.listCareExceptions)
 		r.Post("/me/children/{studentId}/care-exception", rs.submitCareException)
 		r.Delete("/me/children/{studentId}/care-exception", rs.deleteCareException)

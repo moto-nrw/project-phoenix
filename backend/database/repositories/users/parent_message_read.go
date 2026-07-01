@@ -75,12 +75,26 @@ func (r *ParentMessageReadRepository) MarkReadUpTo(ctx context.Context, tenantID
 
 // counterpartUnread builds the SQL boolean for "a message from the OTHER party
 // relative to the reader", on the given message alias: a staff reader counts
-// unread guardian messages, a guardian reader counts unread staff messages.
+// unread guardian-side activity, a guardian reader counts unread staff-side
+// activity.
+//
+// A system event (request decision / withdrawal) carries sender_kind='system'
+// and records the side that TRIGGERED it in event_actor_kind, so the counterpart
+// side cannot be read from sender_kind for those rows — it must come from
+// event_actor_kind. A staff confirm/reject (event_actor_kind='staff') is unread
+// to the guardian; a parent withdrawal (event_actor_kind='guardian') is unread to
+// staff. Plain messages match on sender_kind directly. Centralizing both cases
+// here keeps every unread number (inbox COUNT column, sidebar badges, unread
+// EXISTS filter) consistent — see the callers of this helper.
 func counterpartUnread(alias string, staffReader bool) string {
+	side := "staff"
 	if staffReader {
-		return fmt.Sprintf(`%s.sender_kind = 'guardian'`, alias)
+		side = "guardian"
 	}
-	return fmt.Sprintf(`%s.sender_kind = 'staff'`, alias)
+	return fmt.Sprintf(
+		`(%[1]s.sender_kind = '%[2]s' OR (%[1]s.sender_kind = 'system' AND %[1]s.event_actor_kind = '%[2]s'))`,
+		alias, side,
+	)
 }
 
 // afterReadCursor builds the load-bearing composite tie-break "message <alias>
@@ -97,10 +111,10 @@ func afterReadCursor(alias string) string {
 	)
 }
 
-// notReaderAuthored excludes the reader's OWN messages from their unread set,
-// keyed on sender_account_id (a real column) regardless of sender_kind. It is the
-// third leg of every unread predicate, and carries a single `?` bound to the
-// reader's account id at the call site.
+// notReaderAuthored excludes the reader's OWN plain messages from their unread
+// set, keyed on sender_account_id (a real column). It is the third leg of every
+// unread predicate, and carries a single `?` bound to the reader's account id at
+// the call site.
 //
 // This is what keeps a dual-role (staff+guardian) account from counting its own
 // just-sent message as unread to itself: that account is the counterpart of
@@ -112,8 +126,19 @@ func afterReadCursor(alias string) string {
 // longer moves the cursor: a cursor leap to the just-sent message also skips an
 // earlier counterpart message that committed after the send (lower created_at,
 // later commit), silently marking an unseen message read.
+//
+// System events (request decisions / withdrawals) are DELIBERATELY exempt from
+// the account exclusion: they carry the triggering side in event_actor_kind and
+// are attributed by SIDE, not account — counterpartUnread already decides which
+// portal they are unread to. appendSystemEvent stores the ACTOR in
+// sender_account_id, so for a dual-role account a confirm/reject it triggers as
+// staff (or a withdrawal as guardian) would match its own account and be filtered
+// back out of the OPPOSITE side's unread set — silently cancelling exactly the
+// event_actor_kind attribution that exists to light the other portal's badge. So
+// the self-exclusion applies to plain messages only; for system events
+// counterpartUnread is the sole, side-correct gate.
 func notReaderAuthored(alias string) string {
-	return fmt.Sprintf(`%s.sender_account_id <> ?`, alias)
+	return fmt.Sprintf(`(%[1]s.sender_kind = 'system' OR %[1]s.sender_account_id <> ?)`, alias)
 }
 
 // inboxSelect builds the InboxThread projection. staffReader switches the
@@ -154,10 +179,30 @@ func inboxSelect(q *bun.SelectQuery, accountID int64, staffReader bool) *bun.Sel
 		// last_message_at is set), so the inbox preview no longer needs a
 		// correlated subquery that re-scans parent_messages per thread row.
 		ColumnExpr("COALESCE(t.last_message_body,'') AS last_message_body").
+		// Structured fields of the last message (joined as lm on last_message_id
+		// below), so the LOCALIZED parents portal renders a request title or a
+		// decision/withdrawal system-event preview from fields instead of the
+		// German last_message_body. Empty for a fresh thread (no last message) and
+		// for plain messages, where the body is already language-neutral. The
+		// German-only staff inbox ignores these.
+		ColumnExpr("COALESCE(lm.kind,'') AS last_message_kind").
+		ColumnExpr("COALESCE(lm.event_type,'') AS last_event_type").
+		ColumnExpr("COALESCE(lm.request_type,'') AS last_request_type").
+		ColumnExpr("COALESCE(lm.request_status,'') AS last_request_status").
 		// accountID binds the notReaderAuthored `?` in unreadSub (cm.sender_account_id
 		// <> ?). bun renders args in SQL-fragment order, so this select-list arg
 		// precedes the read-cursor join's account-id arg below; both are the same id.
 		ColumnExpr(unreadSub, accountID).
+		// open_request_count: still-open ('offen') structured change requests in the
+		// thread. tenant_id = t.tenant_id mirrors unreadSub — binds the leading index
+		// column so the correlated subquery is an index scan, and stays RLS-correct
+		// under the cross-tenant guardian path.
+		ColumnExpr(`(
+			SELECT COUNT(*) FROM users.parent_messages om
+			WHERE om.thread_id = t.id AND om.tenant_id = t.tenant_id
+			  AND om.kind = 'request'
+			  AND om.request_status = 'offen'
+		) AS open_request_count`).
 		Join("JOIN users.students AS s ON s.id = t.student_id").
 		Join("JOIN users.persons AS pn ON pn.id = s.person_id AND pn.deleted_at IS NULL").
 		Join("LEFT JOIN platform.schools AS sch ON sch.id = t.tenant_id").
@@ -169,6 +214,12 @@ func inboxSelect(q *bun.SelectQuery, accountID int64, staffReader bool) *bun.Sel
 		Join("LEFT JOIN users.guardian_profiles AS gp ON gp.account_id = t.guardian_account_id AND gp.tenant_id = t.tenant_id").
 		Join("LEFT JOIN users.students_guardians AS sg ON sg.guardian_profile_id = gp.id AND sg.student_id = t.student_id").
 		Join("LEFT JOIN users.parent_message_reads AS r ON r.thread_id = t.id AND r.account_id = ? AND r.tenant_id = t.tenant_id", accountID).
+		// The thread's last message, for the structured preview columns above. PK
+		// lookup (one row per thread), so it stays an index scan; tenant_id = t.tenant_id
+		// mirrors the other correlated reads (RLS-correct and index-leading under the
+		// cross-tenant guardian path). NULL last_message_id (fresh thread) -> no row,
+		// columns COALESCE to ''.
+		Join("LEFT JOIN users.parent_messages AS lm ON lm.id = t.last_message_id AND lm.tenant_id = t.tenant_id").
 		OrderExpr("t.last_message_at DESC NULLS LAST")
 }
 
@@ -271,9 +322,23 @@ func applyStaffScope(q *bun.SelectQuery, allStudents bool, groupIDs []int64) *bu
 	return q.Where("s.group_id IN (?)", bun.List(groupIDs))
 }
 
+// openRequestExists drives the inbox "Offene Anfragen" filter. A request thread
+// is "open" only while it still has at least one request_status='offen' row
+// (confirm/reject pending), keeping the filter consistent with the
+// open_request_count column and BuildRequestDiffs.
+const openRequestExists = `EXISTS (
+	SELECT 1 FROM users.parent_messages orm
+	WHERE orm.thread_id = t.id AND orm.tenant_id = t.tenant_id
+	  AND orm.kind = 'request'
+	  AND orm.request_status = 'offen'
+)`
+
 // ListInboxForStaff returns the staff member's readable threads, newest
-// activity first. onlyUnread keeps only threads with an unread guardian message.
-func (r *ParentMessageReadRepository) ListInboxForStaff(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64, onlyUnread bool) ([]*users.InboxThread, error) {
+// activity first. onlyUnread keeps only threads with an unread guardian message;
+// onlyOpenRequests (variadic, default false) keeps only threads with a still-open
+// structured change request.
+func (r *ParentMessageReadRepository) ListInboxForStaff(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64, onlyUnread bool, onlyOpenRequests ...bool) ([]*users.InboxThread, error) {
+	openRequestsOnly := len(onlyOpenRequests) > 0 && onlyOpenRequests[0]
 	var rows []*users.InboxThread
 	query := inboxSelect(base.GetDB(ctx, r.db).NewSelect(), accountID, true)
 	query = applyStaffScope(query, allStudents, groupIDs)
@@ -283,6 +348,9 @@ func (r *ParentMessageReadRepository) ListInboxForStaff(ctx context.Context, acc
 	}
 	if onlyUnread {
 		query = query.Where(guardianUnreadExists, accountID)
+	}
+	if openRequestsOnly {
+		query = query.Where(openRequestExists)
 	}
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list parent message inbox", Err: err}

@@ -181,14 +181,30 @@ type Service interface {
 	// creating it on the first message, and notifies the OGS. Gated by
 	// operations.parent_notes_enabled.
 	PostChildMessage(ctx context.Context, accountID, studentID int64, body string) (*MessageThreadView, error)
+
+	// CreateChildRequest appends a structured parent change request (care
+	// schedule or student master data) to the child's conversation and notifies
+	// the OGS. Requires parent_portal.request.submit; gated by
+	// operations.parent_notes_enabled.
+	CreateChildRequest(ctx context.Context, accountID, studentID int64, requestType string, payload map[string]any) (*MessageThreadView, error)
+
+	// WithdrawChildRequest flips an open guardian request to withdrawn and posts
+	// a parent-visible system event. Requires parent_portal.request.submit;
+	// deliberately stays available after messaging is disabled so outstanding
+	// requests can still be wound down.
+	WithdrawChildRequest(ctx context.Context, accountID, studentID, requestID int64) (*MessageThreadView, error)
 }
 
 // ChildFeatureFlags reports the resolved per-tenant parent-portal feature
 // toggles for a single child.
 type ChildFeatureFlags struct {
-	SickNoteEnabled     bool
-	NotesEnabled        bool
-	PickupChangeEnabled bool
+	SickNoteEnabled bool
+	NotesEnabled    bool
+	// RequestSubmitEnabled is true when messaging is on AND the guardian holds
+	// parent_portal.request.submit for this child — gates the change-request
+	// quick actions (care schedule / master data) in the parent UI.
+	RequestSubmitEnabled bool
+	PickupChangeEnabled  bool
 	// RelatedAccountsInviteEnabled is true when parents may invite further
 	// guardians (guardians.parent_invite_mode != disabled).
 	RelatedAccountsInviteEnabled bool
@@ -256,6 +272,10 @@ type ServiceConfig struct {
 	MessageThreadRepo usersModels.ParentMessageThreadRepository
 	MessageRepo       usersModels.ParentMessageRepository
 	MessageReadRepo   usersModels.ParentMessageReadRepository
+	// DiffBuilder reuses the staff messaging service's request-diff logic so the
+	// guardian's own request card shows the same "current → requested" view staff
+	// see. Satisfied by services/messaging.Service.
+	DiffBuilder requestDiffBuilder
 
 	// Related-accounts management (invite/remove further guardians from the
 	// parents portal). The invitation service runs the shared resolve logic.
@@ -296,6 +316,7 @@ type service struct {
 	messageThreadRepo usersModels.ParentMessageThreadRepository
 	messageRepo       usersModels.ParentMessageRepository
 	messageReadRepo   usersModels.ParentMessageReadRepository
+	diffBuilder       requestDiffBuilder
 
 	guardianInvites     authService.GuardianInvitationService
 	guardianInviteRepo  authModels.GuardianInvitationRepository
@@ -333,6 +354,7 @@ func NewService(cfg ServiceConfig) Service {
 		messageThreadRepo:       cfg.MessageThreadRepo,
 		messageRepo:             cfg.MessageRepo,
 		messageReadRepo:         cfg.MessageReadRepo,
+		diffBuilder:             cfg.DiffBuilder,
 		guardianInvites:         cfg.GuardianInvites,
 		guardianInviteRepo:      cfg.GuardianInviteRepo,
 		studentGuardianRepo:     cfg.StudentGuardianRepo,
