@@ -269,11 +269,15 @@ export function useGlobalSSE(): SSEHookState {
     // activity-instance lifecycle events change what's due, so revalidate the
     // shared "reminders" cache here — the 60s poll only catches the time-based
     // threshold crossings ("in 10 Min" → "überfällig"), not these events.
+    // Zero-topic admins (no supervised group / admin_supervision_overview off)
+    // receive check-ins only as the dashboard_counts_changed broadcast, so
+    // include hasPendingDashboardEvent or their bell/list stays stale until poll.
     if (
       pendingGroupIds.current.size > 0 ||
       pendingStudentIds.current.size > 0 ||
       hasPendingActivityEvent.current ||
       hasPendingTimetableEvent.current ||
+      hasPendingDashboardEvent.current ||
       hasPendingDailyCheckoutDashboardEvent.current
     ) {
       mutate(
