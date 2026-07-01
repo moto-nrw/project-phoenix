@@ -9,9 +9,10 @@
 
 import type { Reminder, ReminderType } from "~/lib/reminders-api";
 
-// Brand red (LOCATION_COLORS.HOME) via arbitrary-value hex — not generic
-// Tailwind red. Used for the overdue label and the bell count badge.
-export const REMINDER_ALERT_HEX = "#FF3130";
+// Color discipline: the only accent is brand red (LOCATION_COLORS.HOME,
+// #FF3130) and only for "überfällig" — applied via arbitrary-value Tailwind
+// classes (text-[#FF3130] below, bg-[#FF3130] on the bell badge), never a
+// generic Tailwind red.
 
 // Order = display order, most urgent first (overdue → upcoming → activities).
 export const REMINDER_SECTIONS: {
