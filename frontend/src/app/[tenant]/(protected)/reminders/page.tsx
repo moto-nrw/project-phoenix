@@ -48,7 +48,7 @@ export default function RemindersPage() {
   const featureDisabled = data?.enabled === false;
   useEffect(() => {
     if (featureDisabled) {
-      router.replace("/");
+      router.replace("/dashboard");
     }
   }, [featureDisabled, router]);
 

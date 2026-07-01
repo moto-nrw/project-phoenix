@@ -105,7 +105,7 @@ describe("RemindersPage", () => {
       data: { reminders: [], count: 0, enabled: false },
     });
     const { container } = render(<RemindersPage />);
-    expect(mockReplace).toHaveBeenCalledWith("/");
+    expect(mockReplace).toHaveBeenCalledWith("/dashboard");
     // Nothing rendered while the redirect is in flight.
     expect(container).toBeEmptyDOMElement();
   });
