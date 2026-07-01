@@ -3,7 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createStaffAppointment,
   getCalendarRecipientOptions,
+  getParentAppointmentOverview,
   getParentCalendar,
+  getStaffAppointmentOverview,
   getStaffCalendar,
   respondParentCalendar,
   respondStaffCalendar,
@@ -131,6 +133,88 @@ describe("personal calendar API", () => {
     );
   });
 
+  it("loads staff and parent attendee overviews with encoded appointment ids", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            appointment_id: 12,
+            delivery_mode: "rsvp_required",
+            overview_visibility: "all",
+            attendees: [
+              {
+                recipient_id: 1,
+                recipient_type: "staff",
+                name: "Ada",
+                status: "accepted",
+              },
+            ],
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            appointment_id: 13,
+            delivery_mode: "informational",
+            overview_visibility: "all",
+            attendees: [],
+          },
+        }),
+      );
+
+    await expect(getStaffAppointmentOverview("12/next")).resolves.toMatchObject(
+      {
+        appointment_id: 12,
+        attendees: [{ name: "Ada", status: "accepted" }],
+      },
+    );
+    await expect(getParentAppointmentOverview(13)).resolves.toMatchObject({
+      appointment_id: 13,
+      attendees: [],
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/calendar/appointments/12%2Fnext/overview",
+      expect.objectContaining({ credentials: "include" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/parent/calendar/appointments/13/overview",
+      expect.objectContaining({ credentials: "include" }),
+    );
+  });
+
+  it("returns unwrapped plain responses and 204 responses", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          staff: [],
+          parents: [],
+          groups: [],
+          classes: [],
+          students: [],
+        }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    await expect(getCalendarRecipientOptions("")).resolves.toEqual({
+      staff: [],
+      parents: [],
+      groups: [],
+      classes: [],
+      students: [],
+    });
+    await expect(respondStaffCalendar(5, "accepted")).resolves.toBeUndefined();
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/calendar/recipient-options?limit=30",
+      expect.any(Object),
+    );
+  });
+
   it("surfaces backend error messages", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({ error: "calendar access forbidden" }, { status: 403 }),
@@ -139,5 +223,13 @@ describe("personal calendar API", () => {
     await expect(
       getStaffCalendar(new Date(2026, 0, 5), new Date(2026, 0, 11)),
     ).rejects.toThrow("calendar access forbidden");
+  });
+
+  it("uses generic error messages when error responses are not json", async () => {
+    fetchMock.mockResolvedValueOnce(new Response("nope", { status: 500 }));
+
+    await expect(getStaffAppointmentOverview(9)).rejects.toThrow(
+      "Anfrage fehlgeschlagen (HTTP 500)",
+    );
   });
 });
