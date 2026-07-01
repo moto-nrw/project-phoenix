@@ -7,7 +7,6 @@ package mealplan
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -97,10 +96,21 @@ func (req *SetDayRequest) Bind(_ *http.Request) error {
 
 // featureEnabled reports whether the meal plan is enabled for the current
 // tenant, rendering a 403 and returning false when it is not. The meal plan is
-// opt-out, so the fallback when a tenant has set no override is ON — matching
-// the registry default and the parent-side ResolveBool path.
+// opt-out, so ResolveBool returns the registry default (ON) when a tenant has
+// set no override — matching the parent-side ResolveBool path.
+//
+// It fails CLOSED on a settings lookup error: a transient/RLS/config-table
+// failure while reading the override must NOT silently open the endpoints of a
+// tenant that explicitly disabled the feature, so the error is rendered (500)
+// rather than defaulted to ON. The routes run inside TenantTxMiddleware, so
+// ResolveBool resolves against the current tenant.
 func (rs *Resource) featureEnabled(w http.ResponseWriter, r *http.Request) bool {
-	if configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyMealPlanEnabled, true, slog.Default()) {
+	enabled, err := rs.SettingsService.ResolveBool(r.Context(), configModel.KeyMealPlanEnabled)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to resolve meal plan setting", err))
+		return false
+	}
+	if enabled {
 		return true
 	}
 	common.RenderError(w, r, common.ErrorForbidden(errors.New("feature_disabled")))
