@@ -10,15 +10,17 @@ interface RouteContext {
   params: Promise<{ tenantSlug: string; phaseId: string }>;
 }
 
-export async function GET(_request: NextRequest, context: RouteContext) {
+export async function GET(request: NextRequest, context: RouteContext) {
   const { tenantSlug, phaseId } = await context.params;
   try {
-    const response = await fetch(
+    const lateInvite = request.nextUrl.searchParams.get("late_invite")?.trim();
+    const backendUrl = new URL(
       `${getServerApiUrl()}/api/enrollment/form-bootstrap/public/${encodeURIComponent(
         tenantSlug,
       )}/${encodeURIComponent(phaseId)}`,
-      { cache: "no-store" },
     );
+    if (lateInvite) backendUrl.searchParams.set("late_invite", lateInvite);
+    const response = await fetch(backendUrl, { cache: "no-store" });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       return NextResponse.json(payload, { status: response.status });

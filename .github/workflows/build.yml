@@ -1,5 +1,5 @@
 name: Build and Push Docker Images
-run-name: Build ${{ github.event_name == 'release' && github.event.release.tag_name || github.sha }}
+run-name: Build ${{ github.sha }}
 
 on:
   # Production: Build and deploy on push to main
@@ -29,10 +29,6 @@ on:
           - staging
           - production
 
-  # Build on release for version tags
-  release:
-    types: [published]
-
 permissions: {}
 
 env:
@@ -53,31 +49,29 @@ jobs:
         run: |
           # Production: Push to main
           if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
-            echo "should_deploy=true" >> $GITHUB_OUTPUT
-            echo "is_staging=false" >> $GITHUB_OUTPUT
+            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+            echo "is_staging=false" >> "$GITHUB_OUTPUT"
             echo "✅ Push to main - will build and deploy to production"
 
           # Staging: Push to development
           elif [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/development" ]]; then
-            echo "should_deploy=true" >> $GITHUB_OUTPUT
-            echo "is_staging=true" >> $GITHUB_OUTPUT
+            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+            echo "is_staging=true" >> "$GITHUB_OUTPUT"
             echo "✅ Push to development - will build and deploy to staging"
 
           # Manual dispatch
           elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "should_deploy=true" >> $GITHUB_OUTPUT
+            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
             if [[ "${{ github.event.inputs.environment }}" == "staging" ]]; then
-              echo "is_staging=true" >> $GITHUB_OUTPUT
+              echo "is_staging=true" >> "$GITHUB_OUTPUT"
             else
-              echo "is_staging=false" >> $GITHUB_OUTPUT
+              if [[ "${{ github.ref }}" != "refs/heads/main" ]]; then
+                echo "❌ Production manual deploys must run from main (current ref: ${{ github.ref }})"
+                exit 1
+              fi
+              echo "is_staging=false" >> "$GITHUB_OUTPUT"
             fi
             echo "✅ Manual trigger for ${{ github.event.inputs.environment }}"
-
-          # Release: Deploy to production
-          elif [[ "${{ github.event_name }}" == "release" ]]; then
-            echo "should_deploy=true" >> $GITHUB_OUTPUT
-            echo "is_staging=false" >> $GITHUB_OUTPUT
-            echo "✅ Release - will build and deploy to production"
           fi
 
   validate-migrations:
@@ -91,7 +85,7 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Setup Go with cache
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: backend/go.mod
           cache: true
@@ -147,9 +141,6 @@ jobs:
             type=raw,value=staging,enable=${{ needs.check-environment.outputs.is_staging == 'true' }}
             # 'latest' tag for production (main branch)
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-            # Semantic version from release tags
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
 
       - name: Build and push backend
         uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2.2.0
@@ -208,9 +199,6 @@ jobs:
             type=raw,value=staging,enable=${{ needs.check-environment.outputs.is_staging == 'true' }}
             # 'latest' tag for production (main branch)
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-            # Semantic version from release tags
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
 
       - name: Determine API URL
         id: api_url
@@ -281,7 +269,7 @@ jobs:
       # the binary download is skipped on a cache hit.
       - name: Cache Playwright browsers
         id: playwright-cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
@@ -444,6 +432,8 @@ jobs:
       group: deploy-production
       cancel-in-progress: false
     runs-on: ubuntu-latest
+    environment:
+      name: production
     permissions:
       contents: read
       pull-requests: read
@@ -452,6 +442,20 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.ref }}
+
+      - name: Guard production source
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref }}
+        run: |
+          if [[ "$REF_NAME" != "refs/heads/main" ]]; then
+            echo "Production deploys must run from refs/heads/main, got $REF_NAME"
+            exit 1
+          fi
+          if [[ "$EVENT_NAME" != "push" && "$EVENT_NAME" != "workflow_dispatch" ]]; then
+            echo "Production deploys only allow push or workflow_dispatch, got $EVENT_NAME"
+            exit 1
+          fi
 
       - name: Install SOPS
         run: |

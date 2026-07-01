@@ -59,6 +59,8 @@ func (r *recordingBroadcaster) BroadcastToAll(event realtime.Event) error {
 	return nil
 }
 
+func (r *recordingBroadcaster) BroadcastParentMessage(_, _ int64, _ realtime.Event) error { return nil }
+
 func (r *recordingBroadcaster) BroadcastToTenant(_ int64, event realtime.Event) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

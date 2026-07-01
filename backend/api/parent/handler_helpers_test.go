@@ -62,6 +62,7 @@ func TestBuildParentServiceRequest_StampsTenantAndAccount(t *testing.T) {
 		GuardianEmail:     "anna@example.test",
 		ConsentFlags:      map[string]any{"photo": true},
 		CustomData:        map[string]any{"notes": "n"},
+		LateInviteToken:   "late-token-123",
 		Children: []submitParentChildRequest{
 			{FirstName: "Lara", LastName: "Beispiel", DateOfBirth: "2018-03-04"},
 		},
@@ -77,6 +78,8 @@ func TestBuildParentServiceRequest_StampsTenantAndAccount(t *testing.T) {
 	assert.True(t, out.ConsentFlags["photo"].(bool))
 	assert.Equal(t, "203.0.113.42", out.RemoteIP,
 		"RemoteIP is forwarded so per-IP rate limiting applies even on authenticated parent submits")
+	assert.Equal(t, "late-token-123", out.LateInviteToken,
+		"late invite token must survive the parent-authenticated submit path")
 	require.Len(t, out.Children, 1)
 	assert.Equal(t, timezone.NewDate(2018, 3, 4), out.Children[0].DateOfBirth)
 }
@@ -197,6 +200,7 @@ func TestSubmitParentEnrollment_AllowsMappedAccountWithoutExistingGuardianPermis
 		GuardianFirstName: "Anna",
 		GuardianLastName:  "Beispiel",
 		GuardianEmail:     "anna@example.test",
+		LateInviteToken:   "parent-late-token",
 		Children: []submitParentChildRequest{
 			{FirstName: "Lara", LastName: "Beispiel", DateOfBirth: "2018-03-04"},
 		},
@@ -218,6 +222,7 @@ func TestSubmitParentEnrollment_AllowsMappedAccountWithoutExistingGuardianPermis
 	require.NotNil(t, requestSvc.got.GuardianAccountID)
 	assert.Equal(t, int64(7777), *requestSvc.got.GuardianAccountID)
 	assert.Equal(t, tenantID, requestSvc.got.TenantID)
+	assert.Equal(t, "parent-late-token", requestSvc.got.LateInviteToken)
 }
 
 // --- mapParentSubmitError ------------------------------------------------
@@ -234,6 +239,14 @@ func TestMapParentSubmitError_EnrollmentWindowClosed403(t *testing.T) {
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
 	mapParentSubmitError(w, r, enrollmentService.ErrEnrollmentWindowClosed)
 	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestMapParentSubmitError_LateInviteInvalid403WithCode(t *testing.T) {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/x", nil)
+	mapParentSubmitError(w, r, enrollmentService.ErrLateInviteInvalid)
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Contains(t, w.Body.String(), "enrollment.late_invite_invalid")
 }
 
 func TestMapParentSubmitError_CareOfferingClosed400(t *testing.T) {

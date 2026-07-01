@@ -97,6 +97,33 @@ func TestUpdatePlanned_DateMove_WritesExceptionAndBlocksRematerialization(t *tes
 	assert.Empty(t, listInstancesForDate(t, s.db, s.template.ID, origDate))
 }
 
+func TestDeletePlanned_WritesExceptionAndBlocksRematerialization(t *testing.T) {
+	origDate := timezone.NewDate(2026, time.April, 20) // Mon
+	s := makeScenario(t, activitiesModels.WeekdayMonday, origDate)
+	defer s.runCleanup(t)
+
+	r0, err := s.svc.MaterializeForTenant(s.ctx, origDate, origDate, scheduleSvc.MaterializationSourceManual)
+	require.NoError(t, err)
+	require.Equal(t, 1, r0.InstancesCreated)
+	rows := listInstancesForDate(t, s.db, s.template.ID, origDate)
+	require.Len(t, rows, 1)
+	inst := rows[0]
+	s.registerCleanup("schedule.activity_instances", inst.ID)
+
+	require.NoError(t, s.factory.Instance.DeleteCancelled(s.ctx, inst.ID))
+
+	excs := loadExceptions(t, s, s.template.ID)
+	require.Len(t, excs, 1, "delete must consume the original slot")
+	assert.Equal(t, origDate, excs[0].ExceptionDate)
+	assert.Equal(t, scheduleModels.ActivityExceptionCancelled, excs[0].ExceptionType)
+
+	r1, err := s.svc.MaterializeForTenant(s.ctx, origDate, origDate, scheduleSvc.MaterializationSourceManual)
+	require.NoError(t, err)
+	assert.Zero(t, r1.InstancesCreated, "deleted slot must stay consumed")
+	assert.Equal(t, 1, r1.CandidatesSkippedException)
+	assert.Empty(t, listInstancesForDate(t, s.db, s.template.ID, origDate))
+}
+
 func TestUpdatePlanned_StartTimeOnlyMove_WritesException(t *testing.T) {
 	origDate := timezone.NewDate(2026, time.April, 20)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, origDate)

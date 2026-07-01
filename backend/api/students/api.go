@@ -23,6 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	activityService "github.com/moto-nrw/project-phoenix/services/activities"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -57,8 +58,10 @@ type Resource struct {
 	SchoolService           platformSvc.SchoolService
 	SettingsService         configService.SettingsService
 	StudentService          userService.StudentService
+	MasterDataReviewService userService.MasterDataReviewService
 	StudentStatusDayService activeService.StudentStatusDayService
 	StudentHistoryService   activeService.StudentHistoryService
+	ActivityService         activityService.ActivityService
 	EnrollmentDecision      enrollmentService.DecisionService
 	EnrollmentFormSchema    enrollmentService.FormSchemaService
 	Broadcaster             realtime.Broadcaster
@@ -84,8 +87,10 @@ type ResourceConfig struct {
 	SchoolService           platformSvc.SchoolService
 	SettingsService         configService.SettingsService
 	StudentService          userService.StudentService
+	MasterDataReviewService userService.MasterDataReviewService
 	StudentStatusDayService activeService.StudentStatusDayService
 	StudentHistoryService   activeService.StudentHistoryService
+	ActivityService         activityService.ActivityService
 	EnrollmentDecision      enrollmentService.DecisionService
 	EnrollmentFormSchema    enrollmentService.FormSchemaService
 	Broadcaster             realtime.Broadcaster
@@ -116,8 +121,10 @@ func NewResource(cfg ResourceConfig) *Resource {
 		SchoolService:           cfg.SchoolService,
 		SettingsService:         cfg.SettingsService,
 		StudentService:          cfg.StudentService,
+		MasterDataReviewService: cfg.MasterDataReviewService,
 		StudentStatusDayService: cfg.StudentStatusDayService,
 		StudentHistoryService:   cfg.StudentHistoryService,
+		ActivityService:         cfg.ActivityService,
 		EnrollmentDecision:      cfg.EnrollmentDecision,
 		EnrollmentFormSchema:    cfg.EnrollmentFormSchema,
 		Broadcaster:             cfg.Broadcaster,
@@ -146,6 +153,7 @@ func (rs *Resource) Router() chi.Router {
 
 		// Routes requiring users:read permission
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listStudents)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/school-classes", rs.listSchoolClasses)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Post("/export", rs.exportStudents)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}", rs.getStudent)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/in-group-room", rs.getStudentInGroupRoom)
@@ -154,8 +162,15 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/visit-history", rs.getStudentVisitHistory)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/attendance-history", rs.getStudentAttendanceHistory)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/status-days", rs.getStudentStatusDays)
-		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/parent-notes", rs.getStudentParentNotes)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/enrollment-extra-fields", rs.getStudentEnrollmentExtraFields)
+
+		// Parent Stammdaten change-request review queue (Track B). Requests can
+		// contain parent-submitted name, birthday, and departure-plan changes,
+		// so both listing and terminal decisions require admin-level user
+		// management access. Static paths take precedence over the /{id} param
+		// route in chi.
+		r.With(authorize.RequiresPermission(permissions.UsersManage), withTx).Get("/master-data-change-requests", rs.listMasterDataChangeRequests)
+		r.With(authorize.RequiresPermission(permissions.UsersManage), withTx).Post("/master-data-change-requests/{requestId}/decide", rs.decideMasterDataChangeRequest)
 
 		// Routes requiring users:create permission
 		r.With(authorize.RequiresPermission(permissions.UsersCreate), withTx).Post("/", rs.createStudent)
@@ -508,13 +523,31 @@ func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListPar
 		// intentionally NOT cleared here even though buildBaseFilter ignores it
 		// because the room and group intersection was already computed via FindByIDs
 		// above, so re-applying group_id downstream would be redundant.
-	} else if params.groupID > 0 && params.locationState == "" {
-		// group-only branch keeps existing behavior
+	} else if params.groupID > 0 && params.locationState == "" && params.canUseGroupOnlyShortcut() {
+		// Fast path for true group-only requests keeps existing behavior.
 		students, err := rs.PersonService.GetStudentsByGroupIDs(ctx, []int64{params.groupID})
 		if err != nil {
 			return nil, 0, err
 		}
 		return students, len(students), nil
+	} else if params.groupID > 0 && params.locationState == "" {
+		students, err := rs.PersonService.GetStudentsByGroupIDs(ctx, []int64{params.groupID})
+		if err != nil {
+			return nil, 0, err
+		}
+		if len(students) == 0 {
+			return []*users.Student{}, 0, nil
+		}
+		ids := make([]int64, 0, len(students))
+		for _, student := range students {
+			if student != nil {
+				ids = append(ids, student.ID)
+			}
+		}
+		if len(ids) == 0 {
+			return []*users.Student{}, 0, nil
+		}
+		params.studentIDs = ids
 	}
 
 	// Standard path. buildBaseFilter picks up params.studentIDs (if set by
@@ -534,6 +567,15 @@ func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListPar
 	}
 
 	return students, totalCount, nil
+}
+
+func (rs *Resource) listSchoolClasses(w http.ResponseWriter, r *http.Request) {
+	classes, err := rs.StudentService.ListSchoolClasses(r.Context())
+	if err != nil {
+		renderError(w, r, ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, classes, "School classes retrieved successfully")
 }
 
 func (rs *Resource) filterStudentIDsByGroup(ctx context.Context, studentIDs []int64, groupID int64) ([]int64, error) {
@@ -1549,6 +1591,9 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 
 // ListStudentsHandler returns the handler for listing students.
 func (rs *Resource) ListStudentsHandler() http.HandlerFunc { return rs.listStudents }
+
+// ListSchoolClassesHandler returns the handler for listing distinct school classes.
+func (rs *Resource) ListSchoolClassesHandler() http.HandlerFunc { return rs.listSchoolClasses }
 
 // SchoolCheckinHandler returns the handler for POST /api/students/{id}/school-checkin.
 // Exposed for integration tests that bypass the router's middleware chain.

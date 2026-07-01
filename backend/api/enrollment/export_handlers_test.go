@@ -14,6 +14,9 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -655,7 +658,7 @@ func TestParseCareUsageExportRequestSupportsDOCX(t *testing.T) {
 }
 
 func TestParseCareUsageFiltersFromQueryAllowsZeroDayCount(t *testing.T) {
-	req := httptest.NewRequest("GET", "/care-usage?phase_id=42&day_count=0", nil)
+	req := httptest.NewRequest("GET", "/care-usage?phase_id=42&day_count=0&weekday=mon&pickup_time=14:30", nil)
 
 	filters, err := parseCareUsageFiltersFromQuery(req)
 	if err != nil {
@@ -663,6 +666,9 @@ func TestParseCareUsageFiltersFromQueryAllowsZeroDayCount(t *testing.T) {
 	}
 	if filters.DayCount == nil || *filters.DayCount != 0 {
 		t.Fatalf("day_count = %#v, want pointer to 0", filters.DayCount)
+	}
+	if filters.Weekday != "mon" || filters.PickupTime != "14:30" {
+		t.Fatalf("weekday/pickup_time = %q/%q, want mon/14:30", filters.Weekday, filters.PickupTime)
 	}
 }
 
@@ -684,7 +690,7 @@ func TestParseCareUsageFiltersFromQueryTreatsEmptyCareOfferingIDsAsExplicit(t *t
 func TestParseCareUsageExportRequestAllowsZeroDayCount(t *testing.T) {
 	req := httptest.NewRequest("POST", "/care-usage/export", strings.NewReader(`{
 		"format": "xlsx",
-		"filters": {"phase_id": "42", "status": "all", "day_count": 0}
+		"filters": {"phase_id": "42", "status": "all", "day_count": 0, "weekday": "fri", "pickup_time": "16:00"}
 	}`))
 
 	_, filters, err := parseCareUsageExportRequest(req)
@@ -693,6 +699,9 @@ func TestParseCareUsageExportRequestAllowsZeroDayCount(t *testing.T) {
 	}
 	if filters.DayCount == nil || *filters.DayCount != 0 {
 		t.Fatalf("day_count = %#v, want pointer to 0", filters.DayCount)
+	}
+	if filters.Weekday != "fri" || filters.PickupTime != "16:00" {
+		t.Fatalf("weekday/pickup_time = %q/%q, want fri/16:00", filters.Weekday, filters.PickupTime)
 	}
 }
 
@@ -721,10 +730,13 @@ func TestCareUsageReportResponseStringifiesIDs(t *testing.T) {
 			PhaseID:         9007199254740993,
 			Status:          "all",
 			CareOfferingIDs: []int64{9007199254740995},
+			Weekday:         "mon",
+			PickupTime:      "14:30",
 		},
 		Totals: enrollmentService.CareUsageTotals{
-			Children:   1,
-			ByDayCount: map[string]int{"1": 1},
+			Children:            1,
+			ByDayCount:          map[string]int{"1": 1},
+			ByWeekdayPickupTime: map[string]map[string]int{"mon": {"14:30": 1}},
 		},
 		ByOffering: []enrollmentService.CareUsageOfferingStat{
 			{OfferingID: 9007199254740995, OfferingName: "OGS", Children: 1, ByDayCount: map[string]int{"1": 1}},
@@ -744,6 +756,7 @@ func TestCareUsageReportResponseStringifiesIDs(t *testing.T) {
 				Status:            enrollmentModels.ChildStatusApproved,
 				EffectiveDays:     []string{"mon"},
 				DayCount:          1,
+				PickupByDay:       map[string]string{"mon": "14:30"},
 				GuardianFirstName: "Eva",
 				GuardianLastName:  "Muster",
 				GuardianEmail:     "eva@example.test",
@@ -764,6 +777,9 @@ func TestCareUsageReportResponseStringifiesIDs(t *testing.T) {
 		`"id":"9007199254740993"`,
 		`"phase_id":"9007199254740993"`,
 		`"care_offering_ids":["9007199254740995"]`,
+		`"weekday":"mon"`,
+		`"pickup_time":"14:30"`,
+		`"pickup_by_day":{"mon":"14:30"}`,
 		`"offering_id":"9007199254740995"`,
 		`"request_id":"9007199254740997"`,
 		`"child_id":"9007199254740999"`,
@@ -893,28 +909,34 @@ func TestCareUsageOfferingDayDetailsIncludesDayProvenance(t *testing.T) {
 	}
 }
 
-func TestBuildCareUsageRecordDocumentUsesDynamicDayCountBuckets(t *testing.T) {
+func TestBuildCareUsageRecordDocumentUsesPickupPlanningBuckets(t *testing.T) {
 	report := &enrollmentService.CareUsageReport{
 		Phase:   enrollmentService.CareUsagePhase{ID: 42, Name: "Demo"},
 		Filters: enrollmentService.CareUsageAppliedFilters{PhaseID: 42, Status: "all"},
 		Totals: enrollmentService.CareUsageTotals{
-			Children:   3,
-			ByDayCount: map[string]int{"0": 1, "6": 1, "7": 1},
+			Children: 3,
+			ByWeekdayPickupTime: map[string]map[string]int{
+				"mon": {"15:30": 2, "16:00": 1},
+				"tue": {"14:45": 1},
+				"fri": {"16:00": 3},
+			},
+		},
+		FilterOptions: enrollmentService.CareUsageFilterOptions{
+			PickupTimes: []string{"14:45", "15:30"},
 		},
 	}
 
 	doc := buildCareUsageRecordDocument(report)
-	if len(doc.Records) == 0 {
-		t.Fatal("expected stats record")
-	}
+	require.NotEmpty(t, doc.Records)
+	assert.Equal(t, "Einsatzplanung nach Gehzeit", doc.Records[0].Title)
 	fields := doc.Records[0].Fields
 	got := make([]string, 0, len(fields))
 	for _, field := range fields {
 		got = append(got, field.Label+"="+field.Value)
 	}
-	for _, want := range []string{"Kinder=3", "0 Tage=1", "6 Tage=1", "7 Tage=1"} {
+	for _, want := range []string{"Mo bis 14:45=0", "Mo bis 15:30=2", "Mo bis 16:00=1", "Di bis 14:45=1", "Fr bis 16:00=3"} {
 		if !strings.Contains(strings.Join(got, ";"), want) {
-			t.Fatalf("stats fields = %#v, missing %s", got, want)
+			t.Fatalf("pickup planning fields = %#v, missing %s", got, want)
 		}
 	}
 }

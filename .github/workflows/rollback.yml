@@ -31,6 +31,8 @@ env:
 jobs:
   rollback:
     runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment }}
     permissions:
       contents: read
       packages: read
@@ -42,10 +44,15 @@ jobs:
         id: env
         env:
           ENVIRONMENT: ${{ inputs.environment }}
+          REF_NAME: ${{ github.ref }}
         run: |
+          if [ "$ENVIRONMENT" = "production" ] && [ "$REF_NAME" != "refs/heads/main" ]; then
+            echo "Production rollbacks must run from refs/heads/main, got $REF_NAME"
+            exit 1
+          fi
           case "$ENVIRONMENT" in
-            staging)    echo "dir=staging" >> $GITHUB_OUTPUT ;;
-            production) echo "dir=production" >> $GITHUB_OUTPUT ;;
+            staging)    echo "dir=staging" >> "$GITHUB_OUTPUT" ;;
+            production) echo "dir=production" >> "$GITHUB_OUTPUT" ;;
           esac
 
       - name: Setup SSH

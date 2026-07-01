@@ -870,6 +870,59 @@ func TestSanitizeVisibleAnswers_NilSchemaReturnsEmpty(t *testing.T) {
 	assert.Empty(t, out)
 }
 
+func TestMergeEditableCustomData_PreservesLegacyKeysAndReplacesSchemaFields(t *testing.T) {
+	schema := &enrollmentModels.FormSchema{
+		Fields: []enrollmentModels.FormField{
+			{Key: "visible", Type: enrollmentModels.FormFieldText},
+			{Key: "hidden", Type: enrollmentModels.FormFieldText},
+			{Key: "info", Type: enrollmentModels.FormFieldInfo},
+		},
+	}
+	out := mergeEditableCustomData(
+		map[string]any{
+			"legacy":  "keep",
+			"visible": "old",
+			"hidden":  "old hidden answer",
+			"info":    "stored before this became an info block",
+		},
+		map[string]any{"visible": "new"},
+		schema,
+		false,
+	)
+
+	assert.Equal(t, "keep", out["legacy"], "legacy keys outside the editable schema survive")
+	assert.Equal(t, "new", out["visible"], "submitted visible fields replace stored values")
+	assert.Equal(t, "stored before this became an info block", out["info"], "non-answer schema keys are preserved")
+	_, hasHidden := out["hidden"]
+	assert.False(t, hasHidden, "omitted schema answer fields are cleared")
+}
+
+func TestMergeEditableCustomData_TreatsCompanionNoteAsEditableWithDepartureField(t *testing.T) {
+	schema := &enrollmentModels.FormSchema{
+		Fields: []enrollmentModels.FormField{
+			{
+				Key:         "departure",
+				Type:        enrollmentModels.FormFieldWeekdayMultiMode,
+				AppliesToCh: true,
+				Target:      enrollmentModels.TargetStudentAllowedDepartureModes,
+			},
+		},
+	}
+	out := mergeEditableCustomData(
+		map[string]any{
+			enrollmentModels.TargetStudentDepartureCompanionNote: "Mia",
+			"legacy_child_note": "keep",
+		},
+		map[string]any{"departure": map[string]any{"mon": []any{"alone"}}},
+		schema,
+		true,
+	)
+
+	_, hasCompanion := out[enrollmentModels.TargetStudentDepartureCompanionNote]
+	assert.False(t, hasCompanion, "stale companion notes are cleared with departure answers")
+	assert.Equal(t, "keep", out["legacy_child_note"])
+}
+
 // ---- validateConstrainedSchedules ---------------------------------------
 
 func pickupSchedField() enrollmentModels.FormField {

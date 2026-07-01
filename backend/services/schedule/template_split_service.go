@@ -84,7 +84,25 @@ type TemplateSplitResult struct {
 	Materialization  *MaterializationResult
 }
 
-// TemplateSplitService performs the "Dieser und alle folgenden" template split.
+// TemplateEndInput describes the destructive "delete this and following"
+// recurrence action. EffectiveDate is inclusive for planned instance deletes
+// and exclusive for schedule/roster valid_until caps.
+type TemplateEndInput struct {
+	TemplateID    int64
+	EffectiveDate timezone.Date
+}
+
+// TemplateEndResult summarises one EndFromDate call.
+type TemplateEndResult struct {
+	TemplateID        int64
+	EffectiveDate     timezone.Date
+	DeletedInstances  int
+	CappedSchedules   int64
+	CappedEnrollments int64
+	CappedSupervisors int64
+}
+
+// TemplateSplitService performs recurring-template scope operations.
 type TemplateSplitService interface {
 	// Split caps the old template at in.EffectiveDate (exclusive), creates a
 	// successor template from the updated fields, deletes the old template's
@@ -92,6 +110,11 @@ type TemplateSplitService interface {
 	// The caller is expected to have established tenant context and a
 	// transaction.
 	Split(ctx context.Context, in TemplateSplitInput) (*TemplateSplitResult, error)
+
+	// EndFromDate caps a template from the effective date onward without
+	// creating a successor. Planned non-spontaneous future instances are
+	// deleted; active/completed/cancelled/spontaneous rows remain as history.
+	EndFromDate(ctx context.Context, in TemplateEndInput) (*TemplateEndResult, error)
 }
 
 // TemplateSplitDependencies aggregates wiring. All fields are required;
@@ -220,6 +243,61 @@ func (s *templateSplitService) Split(ctx context.Context, in TemplateSplitInput)
 	}, nil
 }
 
+// EndFromDate implements the "Dieser und alle folgenden löschen" flow. It is
+// intentionally the destructive half of Split without a successor template.
+func (s *templateSplitService) EndFromDate(ctx context.Context, in TemplateEndInput) (*TemplateEndResult, error) {
+	if err := validateTemplateEndInput(in); err != nil {
+		return nil, err
+	}
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return nil, &ScheduleError{Op: "end template", Err: errors.New("no tenant in context")}
+	}
+
+	old, err := s.loadTemplate(ctx, in.TemplateID)
+	if err != nil {
+		return nil, err
+	}
+
+	cappedSchedules, err := s.deps.ScheduleRepo.CapValidUntil(ctx, old.ID, in.EffectiveDate)
+	if err != nil {
+		return nil, &ScheduleError{Op: "end template: cap schedules", Err: err}
+	}
+	cappedEnrollments, err := s.deps.EnrollmentRepo.CapActiveByGroup(ctx, old.ID, in.EffectiveDate)
+	if err != nil {
+		return nil, &ScheduleError{Op: "end template: cap enrollments", Err: err}
+	}
+	cappedSupervisors, err := s.deps.SupervisorRepo.CapActiveByGroup(ctx, old.ID, in.EffectiveDate)
+	if err != nil {
+		return nil, &ScheduleError{Op: "end template: cap supervisors", Err: err}
+	}
+
+	templateID := old.ID
+	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, in.EffectiveDate, nil, &templateID)
+	if err != nil {
+		return nil, &ScheduleError{Op: "end template: delete planned instances", Err: err}
+	}
+
+	s.getLogger().Info("template ended from date",
+		slog.Int64("tenant_id", tenantID),
+		slog.Int64("template_id", old.ID),
+		slog.String("effective_date", in.EffectiveDate.String()),
+		slog.Int64("deleted_instances", deleted),
+		slog.Int64("capped_schedules", cappedSchedules),
+		slog.Int64("capped_enrollments", cappedEnrollments),
+		slog.Int64("capped_supervisors", cappedSupervisors),
+	)
+
+	return &TemplateEndResult{
+		TemplateID:        old.ID,
+		EffectiveDate:     in.EffectiveDate,
+		DeletedInstances:  int(deleted),
+		CappedSchedules:   cappedSchedules,
+		CappedEnrollments: cappedEnrollments,
+		CappedSupervisors: cappedSupervisors,
+	}, nil
+}
+
 // validateSplitInput checks the semantic rules the handler's Bind cannot:
 // dates, weekday range, week pattern, time order, activity type.
 func validateSplitInput(in TemplateSplitInput) error {
@@ -261,6 +339,19 @@ func validateSplitInput(in TemplateSplitInput) error {
 		return fmt.Errorf("%w: effective_date must not be in the past", ErrSplitInvalidInput)
 	}
 	return validateSplitMaterializationWindow(in)
+}
+
+func validateTemplateEndInput(in TemplateEndInput) error {
+	if in.TemplateID <= 0 {
+		return fmt.Errorf("%w: template id is required", ErrSplitInvalidInput)
+	}
+	if in.EffectiveDate.IsZero() {
+		return fmt.Errorf("%w: effective_date is required", ErrSplitInvalidInput)
+	}
+	if in.EffectiveDate.Before(timezone.TodayDate()) {
+		return fmt.Errorf("%w: effective_date must not be in the past", ErrSplitInvalidInput)
+	}
+	return nil
 }
 
 // validateSplitMaterializationWindow rejects self-inconsistent materialization

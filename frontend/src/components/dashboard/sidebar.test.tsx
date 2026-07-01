@@ -416,8 +416,6 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       // Coming soon items should have "Bald" badge
-      expect(screen.getByText("Zeiterfassung")).toBeInTheDocument();
-      expect(screen.getByText("Nachrichten")).toBeInTheDocument();
       expect(screen.getByText("Mittagessen")).toBeInTheDocument();
       expect(screen.getAllByText("Bald").length).toBeGreaterThan(0);
     });
@@ -425,16 +423,16 @@ describe("Sidebar", () => {
     it("coming soon items are not clickable", () => {
       render(<Sidebar />);
 
-      // Nachrichten is still a coming soon feature
-      const nachrichtenElement = screen.getByText("Nachrichten");
-      expect(nachrichtenElement.closest("a")).toBeNull();
+      // Mittagessen is still a coming soon feature
+      const mittagessenElement = screen.getByText("Mittagessen");
+      expect(mittagessenElement.closest("a")).toBeNull();
     });
 
     it("coming soon items have disabled styling", () => {
       render(<Sidebar />);
 
-      const nachrichtenElement = screen.getByText("Nachrichten");
-      const container = nachrichtenElement.closest("div");
+      const mittagessenElement = screen.getByText("Mittagessen");
+      const container = mittagessenElement.closest("div");
       expect(container).toHaveClass("text-gray-400");
       expect(container).toHaveClass("cursor-not-allowed");
     });
@@ -446,6 +444,15 @@ describe("Sidebar", () => {
       const link = zeiterfassungElement.closest("a");
       expect(link).not.toBeNull();
       expect(link).toHaveAttribute("href", "/time-tracking");
+    });
+
+    it("Nachrichten is an active navigation link", () => {
+      render(<Sidebar />);
+
+      const nachrichtenElement = screen.getByText("Nachrichten");
+      const link = nachrichtenElement.closest("a");
+      expect(link).not.toBeNull();
+      expect(link).toHaveAttribute("href", "/messages");
     });
 
     it("does not show the old Dienstpläne placeholder for admins", () => {

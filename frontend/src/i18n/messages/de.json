@@ -220,15 +220,16 @@
       "pickupLabel": "Abholung",
       "regularPickup": "Reguläre Abholung",
       "messagesLabel": "Nachrichten",
-      "noMessages": "Keine neuen Nachrichten",
-      "noMessagesSent": "Keine Nachrichten gesendet",
-      "messagesSent": "{count, plural, one {# Nachricht gesendet} other {# Nachrichten gesendet}}"
+      "noConversations": "Keine Unterhaltungen",
+      "unreadCount": "{count, plural, one {# ungelesene Nachricht} other {# ungelesene Nachrichten}}",
+      "conversationsCount": "{count, plural, one {# Unterhaltung} other {# Unterhaltungen}}"
     },
     "messages": {
       "eyebrow": "Elternportal",
-      "title": "Nachrichten an das Team",
-      "description": "Kurze Mitteilungen an die Betreuung.",
-      "compose": "Schreiben"
+      "title": "Nachrichten mit der OGS",
+      "description": "Unterhaltungen rund um Ihr Kind.",
+      "compose": "Neue Nachricht",
+      "empty": "Noch keine Unterhaltungen. Schreiben Sie der OGS die erste Nachricht."
     }
   },
   "parentChildCare": {
@@ -248,16 +249,6 @@
       "invalidDate": "Bitte ein gültiges Datum wählen (Bis-Datum nach Von-Datum).",
       "saveError": "Die Abmeldung konnte nicht gespeichert werden.",
       "submit": "Abmeldung senden"
-    },
-    "notes": {
-      "title": "Nachricht an das Team",
-      "newLabel": "Neue Nachricht",
-      "placeholder": "Kurze Mitteilung an die Betreuung …",
-      "empty": "Bitte eine Nachricht eingeben.",
-      "sendError": "Die Nachricht konnte nicht gesendet werden.",
-      "send": "Senden",
-      "lastSent": "Zuletzt gesendet",
-      "listEmpty": "Noch keine Nachrichten gesendet."
     },
     "summary": {
       "none": "Keine Abmeldung",
@@ -282,6 +273,52 @@
       "existingHint": "Für den {date} ist bereits eine Änderung hinterlegt. Speichern überschreibt sie.",
       "reset": "Zurücksetzen",
       "submit": "Speichern"
+    },
+    "actions": {
+      "sick": {
+        "label": "Krankmeldung",
+        "shortLabel": "Krankmeldung",
+        "hint": "Kind für einen oder mehrere Tage krankmelden"
+      },
+      "pickup": {
+        "label": "Abholung für einen Tag",
+        "shortLabel": "Abholung",
+        "hint": "Abhol- oder Bringzeit an einem einzelnen Tag anpassen"
+      },
+      "care_schedule": {
+        "label": "Betreuungszeiten dauerhaft ändern",
+        "shortLabel": "Betreuungszeiten",
+        "hint": "Wochenplan (Mo–Fr) anpassen"
+      }
+    },
+    "request": {
+      "submit": "Anfrage senden",
+      "entryLabel": "Dauerhafte Änderung",
+      "entryHint": "Dauerhafte Änderung anfragen. Die OGS bestätigt sie.",
+      "chooserTitle": "Änderung anfragen",
+      "chooserIntro": "Die OGS prüft Ihre Anfrage und übernimmt sie erst nach Bestätigung. Bis dahin ändert sich nichts.",
+      "sendError": "Die Anfrage konnte nicht gesendet werden.",
+      "careSchedule": {
+        "title": "Betreuungszeiten ändern",
+        "intro": "Wochenplan Mo–Fr als Anfrage an die OGS. Nur ausgefüllte Angaben werden geändert, leere Felder bleiben wie bisher.",
+        "noChange": "Bitte mindestens einen Tag anpassen.",
+        "arrival": "Bringzeit",
+        "pickup": "Abholzeit",
+        "modeAria": "Abholart {day}"
+      },
+      "weekday": {
+        "1": "Montag",
+        "2": "Dienstag",
+        "3": "Mittwoch",
+        "4": "Donnerstag",
+        "5": "Freitag"
+      },
+      "careMode": {
+        "unchanged": "Unverändert",
+        "alone": "Geht alleine",
+        "bus": "Fährt Bus",
+        "pickup": "Wird abgeholt"
+      }
     }
   },
   "parentLogin": {
@@ -714,6 +751,28 @@
     "editLoadError": "Anmeldung kann nicht bearbeitet werden",
     "editSaveError": "Änderungen konnten nicht gespeichert werden",
     "editSubmit": "Änderungen speichern",
+    "changeRequestTitle": "Änderung anfragen",
+    "changeRequestDescription": "Die Anmeldung wurde bereits bearbeitet. Ihre Änderungen werden deshalb als Anfrage an die OGS gesendet und erst nach Freigabe übernommen.",
+    "changeRequestEyebrow": "Für die Prüfung",
+    "changeRequestReasonLabel": "Hinweis zur Änderung, optional",
+    "changeRequestReasonPlaceholder": "Was hat sich geändert?",
+    "changeRequestSubmit": "Änderungsanfrage senden",
+    "changeRequestSaveError": "Änderungsanfrage konnte nicht gespeichert werden",
+    "requestChange": "Änderung anfragen",
+    "changeRequestReplySaved": "Antwort gesendet.",
+    "changeRequestsEyebrow": "Änderungen",
+    "changeRequestsTitle": "Änderungsanfragen",
+    "changeRequestsDescription": "Hier sehen Sie Anfragen, die noch geprüft werden, Rückfragen der OGS und abgeschlossene Entscheidungen.",
+    "changeRequestsEmpty": "Noch keine Änderungsanfrage gesendet.",
+    "changeRequestCreated": "Gesendet am {date}",
+    "changeRequestDiffTitle": "Angefragte Änderungen",
+    "changeRequestDiffEmpty": "Keine erkennbaren Feldänderungen.",
+    "changeRequestBefore": "Bisher",
+    "changeRequestRequested": "Angefragt",
+    "changeRequestDecisionNote": "Entscheidung:",
+    "changeRequestReplyLabel": "Antwort",
+    "changeRequestReplySending": "Wird gesendet…",
+    "changeRequestReplySubmit": "Antwort senden",
     "backToStatus": "Zurück zum Status",
     "nameLabel": "Name",
     "emailLabel": "E-Mail",
@@ -728,6 +787,7 @@
     "save": "Speichern",
     "cancel": "Abbrechen",
     "editLocked": "Änderungen sind nur möglich, solange noch keine Entscheidung getroffen wurde. Für Änderungen wenden Sie sich bitte an die OGS.",
+    "editLockedWithChangeRequest": "Direkte Änderungen sind nicht mehr möglich. Sie können stattdessen eine Änderungsanfrage an die OGS senden.",
     "manageEyebrow": "Anmeldung verwalten",
     "withdrawAllTitle": "Gesamte Anmeldung zurückziehen",
     "withdrawTitle": "Anmeldung zurückziehen",
@@ -742,6 +802,164 @@
       "pending_renewal": "Bestätigung erforderlich",
       "auto_renewed": "Vorgemerkt",
       "pending_admin_review": "In Prüfung"
+    },
+    "changeRequestStatus": {
+      "pending_review": "Wartet auf Prüfung",
+      "needs_parent_response": "Rückfrage offen",
+      "approved": "Freigegeben",
+      "rejected": "Abgelehnt",
+      "cancelled": "Abgebrochen"
+    },
+    "changeRequestAuthor": {
+      "parent": "Sie",
+      "staff": "OGS",
+      "system": "System"
+    },
+    "diff": {
+      "yes": "Ja",
+      "no": "Nein",
+      "childEntry": "Kind",
+      "additionalGuardianEntry": "Weitere Person",
+      "snapshot": {
+        "additional_guardians": "Weitere erziehungsberechtigte Personen",
+        "children": "Kinder",
+        "consent_flags": "Zustimmungen",
+        "custom_data": "Zusatzangaben",
+        "guardian_email": "E-Mail",
+        "guardian_first_name": "Vorname",
+        "guardian_last_name": "Nachname",
+        "guardian_phone": "Telefon",
+        "phase_id": "Anmeldephase"
+      },
+      "child": {
+        "custom_data": "Zusatzangaben",
+        "date_of_birth": "Geburtsdatum",
+        "first_name": "Vorname",
+        "last_name": "Nachname",
+        "offering_days": "Betreuungstage",
+        "offering_ids": "Betreuungsangebote",
+        "target_grade_level": "Zielklasse"
+      },
+      "guardian": {
+        "email": "E-Mail",
+        "first_name": "Vorname",
+        "last_name": "Nachname",
+        "phone": "Telefon"
+      },
+      "record": {
+        "automatic_selected_days": "Automatisch",
+        "available_days": "Verfügbare Tage",
+        "days_of_week_mode": "Modus",
+        "email": "E-Mail",
+        "first_name": "Vorname",
+        "last_name": "Nachname",
+        "manual_selected_days": "Manuell",
+        "offering_id": "Betreuungsangebot",
+        "offering_ids": "Betreuungsangebote",
+        "phone": "Telefon",
+        "selected_days": "Tage"
+      },
+      "weekday": {
+        "mon": "Mo",
+        "tue": "Di",
+        "wed": "Mi",
+        "thu": "Do",
+        "fri": "Fr",
+        "sat": "Sa",
+        "sun": "So"
+      }
     }
+  },
+  "parentMasterData": {
+    "title": "Stammdaten",
+    "subtitle": "Hier sehen Sie die zu Ihrem Kind gespeicherten Angaben. Die meisten Felder können Sie direkt ändern; einige Änderungen prüft das Team vorab.",
+    "back": "Zurück",
+    "loadError": "Die Stammdaten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
+    "saved": "Gespeichert",
+    "saveError": "Die Änderung konnte nicht gespeichert werden.",
+    "openLink": "Stammdaten ansehen & ändern",
+    "editableHint": "Änderungen werden automatisch gespeichert.",
+    "readonlyHint": "Diese Angaben pflegt die OGS.",
+    "requestHint": "Diese Änderungen prüft das Team, bevor sie übernommen werden.",
+    "requestButton": "Änderung anfragen",
+    "requestSubmitted": "Anfrage gesendet. Das Team prüft Ihre Änderung.",
+    "requestError": "Die Anfrage konnte nicht gesendet werden.",
+    "noChanges": "Es gibt keine Änderungen zum Senden.",
+    "pendingBadge": "In Prüfung",
+    "pendingNotice": "Eine Änderung an diesem Feld wartet auf Bestätigung durch das Team.",
+    "editDisabled": "Das Bearbeiten der Stammdaten ist bei dieser OGS deaktiviert.",
+    "requestDisabled": "Änderungsanfragen sind bei dieser OGS deaktiviert.",
+    "notSet": "Nicht angegeben",
+    "sections": {
+      "child": "Angaben zum Kind",
+      "health": "Gesundheit",
+      "contact": "Ihre Kontaktdaten",
+      "departure": "Dauerhafte Gehzeiten"
+    },
+    "fields": {
+      "firstName": "Vorname",
+      "lastName": "Nachname",
+      "birthday": "Geburtsdatum",
+      "schoolClass": "Klasse",
+      "status": "Status",
+      "carePeriod": "Betreuungszeitraum",
+      "healthInfo": "Gesundheitshinweise / Allergien",
+      "email": "E-Mail-Adresse",
+      "addressStreet": "Straße und Hausnummer",
+      "addressCity": "Ort",
+      "addressPostalCode": "PLZ",
+      "contactMethod": "Bevorzugter Kontaktweg",
+      "language": "Sprache",
+      "phone": "Telefonnummer",
+      "day": "Tag"
+    },
+    "contactMethods": {
+      "email": "E-Mail",
+      "phone": "Telefon",
+      "mobile": "Mobil",
+      "sms": "SMS"
+    },
+    "departureModes": {
+      "pickup": "Wird abgeholt",
+      "bus": "Bus",
+      "alone": "Geht allein",
+      "accompanied": "Geht mit anderem Kind",
+      "none": "Keine Angabe"
+    },
+    "departureDays": {
+      "mon": "Mo",
+      "tue": "Di",
+      "wed": "Mi",
+      "thu": "Do",
+      "fri": "Fr"
+    }
+  },
+  "parentOgsMessaging": {
+    "readByStaff": "Gelesen",
+    "requestWithdraw": "Zurückziehen",
+    "requestTypeCareSchedule": "Anfrage: Dauerhafte Betreuungszeiten ändern",
+    "requestTitleFallback": "Anfrage",
+    "statusOpen": "Offen",
+    "statusDone": "Erledigt",
+    "statusRejected": "Abgelehnt",
+    "statusWithdrawn": "Zurückgezogen",
+    "eventRequestConfirmed": "Anfrage bestätigt",
+    "eventRequestConfirmedCareSchedule": "Anfrage bestätigt, Betreuungszeiten übernommen",
+    "eventRequestRejected": "Anfrage abgelehnt",
+    "eventRequestRejectedReason": "Anfrage abgelehnt: {reason}",
+    "eventRequestWithdrawn": "Anfrage zurückgezogen",
+    "diffHeading": "Ihre Änderungswünsche",
+    "diffCareArrival": "Bringzeit",
+    "diffCarePickup": "Abholzeit",
+    "diffCareDepartureMode": "Abholart",
+    "diffWeekday1": "Montag",
+    "diffWeekday2": "Dienstag",
+    "diffWeekday3": "Mittwoch",
+    "diffWeekday4": "Donnerstag",
+    "diffWeekday5": "Freitag",
+    "diffModeAlone": "Geht alleine",
+    "diffModeBus": "Fährt Bus",
+    "diffModePickup": "Wird abgeholt",
+    "diffModeAccompanied": "Geht mit anderem Kind/Person"
   }
 }

@@ -468,7 +468,7 @@ func init() {
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
-		WritePermission: "config:update",
+		WritePermission: "config:manage",
 		Tab:             "operations",
 		Category:        "elternportal",
 		SortOrder:       60,
@@ -476,8 +476,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyParentNotesEnabled,
-		Label:           "Elternnachrichten über Elternportal",
-		Description:     "Wenn aktiviert, können Eltern dem Team über das Elternportal kurze Nachrichten zu ihrem Kind hinterlassen. Die neuesten Nachrichten erscheinen in der Kinderdetailansicht.",
+		Label:           "Eltern-OGS-Nachrichten",
+		Description:     "Wenn aktiviert, können Eltern dem Team über das Elternportal Nachrichten zu ihrem Kind schreiben und das Team kann direkt antworten. Die Unterhaltungen erscheinen im zentralen Nachrichten-Posteingang und in der Kinderdetailansicht.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
@@ -541,6 +541,19 @@ func init() {
 		SortOrder:       64,
 	})
 
+	config.Register(config.Definition{
+		Key:             config.KeyParentMasterDataEditEnabled,
+		Label:           "Stammdaten über Elternportal bearbeiten",
+		Description:     "Wenn aktiviert, können Eltern die von ihnen gepflegten Stammdaten ihres Kindes (Gesundheitsangaben, eigene Kontaktdaten) direkt über das Elternportal ändern. Die Änderungen werden sofort übernommen und protokolliert.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       65,
+	})
+
 	// Defaults ON, like the other parents-portal write features. The
 	// safety-critical part (granting/revoking pickup authority) is constrained
 	// structurally, not by this toggle: the can_pickup / is_emergency_contact
@@ -561,6 +574,19 @@ func init() {
 		WritePermission: "config:manage",
 		Tab:             "operations",
 		Category:        "elternportal",
-		SortOrder:       65,
+		SortOrder:       66,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyParentMasterDataRequestEnabled,
+		Label:           "Stammdaten-Änderungen zur Freigabe einreichen",
+		Description:     "Wenn aktiviert, können Eltern für besonders sensible Angaben (Name, Geburtsdatum, dauerhafte Gehzeiten) über das Elternportal Änderungen vorschlagen. Diese werden dem Team zur Prüfung und Freigabe vorgelegt und erst nach Bestätigung übernommen.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       67,
 	})
 }

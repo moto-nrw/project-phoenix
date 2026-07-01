@@ -1,22 +1,27 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { Loader2, Send, Trash2 } from "lucide-react";
+import {
+  CalendarClock,
+  CalendarRange,
+  HeartPulse,
+  Loader2,
+  type LucideIcon,
+  Trash2,
+} from "lucide-react";
 import { Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
+import { Alert } from "~/components/ui/alert";
 import {
   type CareException,
   type ChildFeatures,
-  type ParentNote,
   ParentApiError,
   type StatusDay,
   type StudentStatusKind,
-  addChildNote,
   deleteCareException,
   getChildFeatures,
   listCareExceptions,
-  listChildNotes,
   listSickDays,
   submitCareException,
   submitSickNote,
@@ -63,20 +68,6 @@ function formatLocaleDate(iso: string, locale: string): string {
   }
 }
 
-function formatLocaleDateTime(iso: string, locale: string): string {
-  try {
-    return new Intl.DateTimeFormat(locale, {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(iso));
-  } catch {
-    return iso;
-  }
-}
-
 // --- data hook ---
 
 // Sick notes and team messages default ON so a transient features-fetch
@@ -86,18 +77,29 @@ function formatLocaleDateTime(iso: string, locale: string): string {
 // error beats showing one the backend might reject with 403.
 const DEFAULT_FEATURES: ChildFeatures = {
   sick_note_enabled: true,
-  notes_enabled: true,
+  // Default false on fetch failure (least privilege), consistent with the other
+  // consequential flags below: the features fetch .catch returns DEFAULT_FEATURES,
+  // and a school with messaging turned OFF would otherwise show an enabled
+  // composer on a transient hiccup → send → 403. The backend enforces the gate
+  // regardless; this just keeps the UI from dead-ending on an action it can see.
+  notes_enabled: false,
+  // Consequential capability: default false on fetch failure (least privilege),
+  // so a transient hiccup hides the request actions rather than dead-ending on
+  // a 403; the backend enforces the gate regardless.
+  request_submit_enabled: false,
   pickup_change_enabled: false,
   // Capability flags default to false on fetch failure (least privilege —
   // hide invite/remove if we can't confirm they're enabled; the backend
   // enforces the gate regardless).
   related_accounts_invite_enabled: false,
   related_accounts_remove_enabled: false,
+  master_data_edit_enabled: false,
+  master_data_contact_edit_enabled: false,
+  master_data_request_enabled: false,
 };
 
 export interface ChildCare {
   readonly sickDays: StatusDay[];
-  readonly notes: ParentNote[];
   readonly careExceptions: CareException[];
   // Whether the care-exception list actually loaded. A failed fetch leaves
   // careExceptions empty, which is indistinguishable from "no overrides exist"
@@ -112,7 +114,6 @@ export interface ChildCare {
     reason: string,
     status: StudentStatusKind,
   ): Promise<void>;
-  postNote(body: string): Promise<ParentNote[]>;
   saveCareException(params: {
     date: string;
     pickupTime?: string;
@@ -123,30 +124,43 @@ export interface ChildCare {
 
 export function useChildCare(studentId: string): ChildCare {
   const [sickDays, setSickDays] = useState<StatusDay[]>([]);
-  const [notes, setNotes] = useState<ParentNote[]>([]);
   const [careExceptions, setCareExceptions] = useState<CareException[]>([]);
   const [careExceptionsLoaded, setCareExceptionsLoaded] = useState(false);
   const [features, setFeatures] = useState<ChildFeatures>(DEFAULT_FEATURES);
   const [loading, setLoading] = useState(true);
+  // Stale-response guard: load re-runs on every studentId change, and on a fast
+  // child A→B switch (same hook instance reused) a late-resolving load(A) must
+  // not overwrite B's data — one child's sick days / care exceptions / feature
+  // flags shown under another would mis-set the pickup-modal safety gate. Each
+  // run claims the next token; only the most-recently-started run may setState.
+  // Mirrors OgsConversation.refresh. mountedRef additionally blocks post-unmount.
+  const loadSeqRef = useRef(0);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const load = useCallback(async () => {
+    const seq = ++loadSeqRef.current;
     setLoading(true);
     // Track the care-exception fetch separately: an empty list from a failed
     // fetch must NOT be treated as "no overrides", or the pickup modal could
     // clear a leg it never prefilled (see careExceptionsLoaded above).
     let exceptionsOk = true;
     try {
-      const [days, noteList, exceptions, flags] = await Promise.all([
+      const [days, exceptions, flags] = await Promise.all([
         listSickDays(studentId).catch(() => [] as StatusDay[]),
-        listChildNotes(studentId).catch(() => [] as ParentNote[]),
         listCareExceptions(studentId).catch(() => {
           exceptionsOk = false;
           return [] as CareException[];
         }),
         getChildFeatures(studentId).catch(() => DEFAULT_FEATURES),
       ]);
+      if (!mountedRef.current || seq !== loadSeqRef.current) return;
       setSickDays(days);
-      setNotes(noteList);
       setCareExceptions(exceptions);
       setCareExceptionsLoaded(exceptionsOk);
       setFeatures(flags);
@@ -156,7 +170,9 @@ export function useChildCare(studentId: string): ChildCare {
         student_id: studentId,
       });
     } finally {
-      setLoading(false);
+      // Only the latest run owns the loading flag, so a stale load resolving
+      // after a newer one can't flip it back off prematurely.
+      if (mountedRef.current && seq === loadSeqRef.current) setLoading(false);
     }
   }, [studentId]);
 
@@ -177,15 +193,6 @@ export function useChildCare(studentId: string): ChildCare {
           ...updated,
         ].sort((a, b) => a.date.localeCompare(b.date));
       });
-    },
-    [studentId],
-  );
-
-  const postNote = useCallback(
-    async (body: string) => {
-      const updated = await addChildNote(studentId, body);
-      setNotes(updated);
-      return updated;
     },
     [studentId],
   );
@@ -217,13 +224,11 @@ export function useChildCare(studentId: string): ChildCare {
 
   return {
     sickDays,
-    notes,
     careExceptions,
     careExceptionsLoaded,
     features,
     loading,
     reportSick,
-    postNote,
     saveCareException,
     removeCareException,
   };
@@ -360,115 +365,6 @@ export function SickNoteModal({
             {t("sick.submit")}
           </Button>
         </div>
-      </div>
-    </Modal>
-  );
-}
-
-// --- notes modal ---
-
-export function NotesModal({
-  notes,
-  onClose,
-  onSubmit,
-}: Readonly<{
-  notes: ParentNote[];
-  onClose: () => void;
-  onSubmit: (body: string) => Promise<ParentNote[]>;
-}>) {
-  const t = useTranslations("parentChildCare");
-  const locale = useLocale();
-  const [body, setBody] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [list, setList] = useState<ParentNote[]>(notes);
-
-  const handleSubmit = async () => {
-    const trimmed = body.trim();
-    if (trimmed.length === 0) {
-      setError(t("notes.empty"));
-      return;
-    }
-    setSubmitting(true);
-    setError(null);
-    try {
-      const updated = await onSubmit(trimmed);
-      setList(updated);
-      setBody("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("notes.sendError"));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <Modal
-      isOpen
-      onClose={onClose}
-      title={t("notes.title")}
-      closeLabel={t("close")}
-    >
-      <div className="space-y-4">
-        <label className="block">
-          <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            {t("notes.newLabel")}
-          </span>
-          <textarea
-            value={body}
-            maxLength={MAX_NOTE_LEN}
-            onChange={(e) => setBody(e.target.value)}
-            rows={3}
-            placeholder={t("notes.placeholder")}
-            className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400/40 focus-visible:outline-none"
-          />
-          <span className="mt-1 block text-right text-xs text-gray-400">
-            {body.length}/{MAX_NOTE_LEN}
-          </span>
-        </label>
-        {error && (
-          <p className="rounded-lg bg-[#FF3130]/10 px-3 py-2 text-sm text-[#CC2626]">
-            {error}
-          </p>
-        )}
-        <div className="flex justify-end">
-          <Button
-            type="button"
-            size="md"
-            className="gap-2"
-            onClick={() => void handleSubmit()}
-            disabled={submitting}
-          >
-            {submitting ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            ) : (
-              <Send className="h-4 w-4" aria-hidden="true" />
-            )}
-            {t("notes.send")}
-          </Button>
-        </div>
-        {list.length > 0 && (
-          <div className="border-t border-gray-100 pt-4">
-            <p className="mb-2 text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              {t("notes.lastSent")}
-            </p>
-            <ul className="space-y-2">
-              {list.map((note) => (
-                <li
-                  key={note.id}
-                  className="rounded-xl border border-gray-200 bg-gray-50/70 p-3"
-                >
-                  <p className="text-sm whitespace-pre-wrap text-gray-900">
-                    {note.body}
-                  </p>
-                  <p className="mt-1 text-xs text-gray-500">
-                    {formatLocaleDateTime(note.created_at, locale)}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
       </div>
     </Modal>
   );
@@ -739,29 +635,306 @@ export function SickStatusSummary({
   return <span className="text-sm font-semibold text-gray-900">{label}</span>;
 }
 
-export function ParentNotesList({ notes }: Readonly<{ notes: ParentNote[] }>) {
+// --- OGS request modals (parent -> OGS structured requests) ---------------
+//
+// These mirror the sick/pickup self-service modals above (same Modal, same
+// field/footer markup) so the whole parent action surface looks identical: calm
+// neutral palette, no brand colour — the "Anfrage senden" wording and the
+// chooser carry the request meaning, not colour. They own form state and call
+// onSubmit(payload); the caller performs the API request and closes on success
+// (throwing surfaces the error here).
+
+// Weekday numbers match the backend (ISO: Monday=1 .. Friday=5). Labels are
+// localized per-locale via t(`request.weekday.${num}`).
+const REQUEST_WEEKDAYS = [1, 2, 3, 4, 5] as const;
+
+// Empty value = "leave this weekday's departure mode unchanged". Labels are
+// localized per-locale via t(`request.careMode.${key}`).
+const REQUEST_CARE_MODES = [
+  { value: "", key: "unchanged" },
+  { value: "alone", key: "alone" },
+  { value: "bus", key: "bus" },
+  { value: "pickup", key: "pickup" },
+] as const;
+
+interface CareWeekdayDraft {
+  mode: string;
+  arrival: string;
+  pickup: string;
+}
+
+// RequestModalFooter renders the shared cancel/submit buttons for the request
+// modals using the kit Button (so disabled/loading states and brand styling
+// come from the kit, not a hand-rolled button). It is passed to the Modal's
+// `footer` slot — a sticky bar OUTSIDE the scrollable content — so "Anfrage
+// senden" stays visible on short viewports instead of being clipped below the
+// modal's scroll area.
+function RequestModalFooter({
+  submitting,
+  onCancel,
+  onSubmit,
+}: Readonly<{
+  submitting: boolean;
+  onCancel: () => void;
+  onSubmit: () => void;
+}>) {
   const t = useTranslations("parentChildCare");
-  const locale = useLocale();
-  if (notes.length === 0) {
-    return (
-      <p className="text-sm leading-6 text-gray-600">{t("notes.listEmpty")}</p>
-    );
-  }
   return (
-    <ul className="space-y-2">
-      {notes.map((note) => (
-        <li
-          key={note.id}
-          className="rounded-xl border border-gray-200 bg-gray-50/70 p-3"
-        >
-          <p className="text-sm whitespace-pre-wrap text-gray-900">
-            {note.body}
-          </p>
-          <p className="mt-1 text-xs text-gray-500">
-            {formatLocaleDateTime(note.created_at, locale)}
-          </p>
-        </li>
-      ))}
-    </ul>
+    <>
+      <Button type="button" variant="outline" size="md" onClick={onCancel}>
+        {t("cancel")}
+      </Button>
+      <Button
+        type="button"
+        size="md"
+        className="gap-2"
+        onClick={onSubmit}
+        disabled={submitting}
+      >
+        {submitting && (
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+        )}
+        {t("request.submit")}
+      </Button>
+    </>
+  );
+}
+
+export function CareScheduleRequestModal({
+  onClose,
+  onSubmit,
+}: Readonly<{
+  onClose: () => void;
+  onSubmit: (payload: Record<string, unknown>) => Promise<void>;
+}>) {
+  const t = useTranslations("parentChildCare");
+  const [rows, setRows] = useState<Record<number, CareWeekdayDraft>>(() =>
+    Object.fromEntries(
+      REQUEST_WEEKDAYS.map((num) => [
+        num,
+        { mode: "", arrival: "", pickup: "" },
+      ]),
+    ),
+  );
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const careModeOptions = REQUEST_CARE_MODES.map((m) => ({
+    value: m.value,
+    label: t(`request.careMode.${m.key}`),
+  }));
+
+  const setField = (
+    num: number,
+    field: keyof CareWeekdayDraft,
+    value: string,
+  ) =>
+    setRows((prev) => ({ ...prev, [num]: { ...prev[num]!, [field]: value } }));
+
+  const handleSubmit = async () => {
+    const weekdays = REQUEST_WEEKDAYS.flatMap((num) => {
+      const row = rows[num]!;
+      if (!row.mode && !row.arrival && !row.pickup) return [];
+      const entry: {
+        weekday: number;
+        mode?: string;
+        arrival?: string;
+        pickup?: string;
+      } = { weekday: num };
+      if (row.mode) entry.mode = row.mode;
+      if (row.arrival) entry.arrival = row.arrival;
+      if (row.pickup) entry.pickup = row.pickup;
+      return [entry];
+    });
+    if (weekdays.length === 0) {
+      setError(t("request.careSchedule.noChange"));
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await onSubmit({ weekdays });
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("request.sendError"));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const timeClass =
+    "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none";
+
+  return (
+    <Modal
+      isOpen
+      onClose={onClose}
+      title={t("request.careSchedule.title")}
+      footer={
+        <RequestModalFooter
+          submitting={submitting}
+          onCancel={onClose}
+          onSubmit={() => void handleSubmit()}
+        />
+      }
+    >
+      <div className="space-y-4">
+        <p className="text-sm leading-6 text-gray-600">
+          {t("request.careSchedule.intro")}
+        </p>
+        <div className="space-y-3">
+          {REQUEST_WEEKDAYS.map((num) => {
+            const row = rows[num]!;
+            const weekdayLabel = t(`request.weekday.${num}`);
+            return (
+              <div key={num} className="rounded-xl border border-gray-200 p-3">
+                <p className="mb-2 text-sm font-semibold text-gray-900">
+                  {weekdayLabel}
+                </p>
+                <div className="space-y-2">
+                  <CustomSelect
+                    value={row.mode}
+                    options={careModeOptions}
+                    onChange={(v) => setField(num, "mode", v)}
+                    ariaLabel={t("request.careSchedule.modeAria", {
+                      day: weekdayLabel,
+                    })}
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-medium text-gray-500">
+                        {t("request.careSchedule.arrival")}
+                      </span>
+                      <input
+                        type="time"
+                        value={row.arrival}
+                        onChange={(e) =>
+                          setField(num, "arrival", e.target.value)
+                        }
+                        className={timeClass}
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-medium text-gray-500">
+                        {t("request.careSchedule.pickup")}
+                      </span>
+                      <input
+                        type="time"
+                        value={row.pickup}
+                        onChange={(e) =>
+                          setField(num, "pickup", e.target.value)
+                        }
+                        className={timeClass}
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {error && <Alert type="error" message={error} />}
+      </div>
+    </Modal>
+  );
+}
+
+export type OgsActionKey = "sick" | "pickup" | "care_schedule";
+
+// A single parent action available from the OGS chat. Two deliberately separate
+// groups so a parent never confuses a one-off exception with a permanent change:
+// the "direct" group is self-service and takes effect immediately for a single
+// day; the "request" group is an Anfrage the OGS must confirm before it changes
+// anything permanently.
+export interface OgsAction {
+  readonly key: OgsActionKey;
+  readonly Icon: LucideIcon;
+  readonly enabled: boolean;
+  readonly group: "direct" | "request";
+}
+
+// The SINGLE source of truth for the actions a parent can take from the OGS
+// chat. Consumed by the always-visible quick-action chips above the composer
+// (OgsConversation) — keep it here so the chips and any future menu can never
+// drift apart. The self-service actions are gated on the school's feature flags;
+// the two change-requests are gated on request_submit_enabled (the guardian's
+// parent_portal.request.submit permission) so a chat-only guardian never sees an
+// action the backend would reject with a 403. Display strings (label /
+// shortLabel / hint) are NOT carried here — this function is not a hook, so
+// consumers localize each key via t(`actions.${key}.{label,shortLabel,hint}`)
+// in the "parentChildCare" namespace (mirrors the child-detail action pattern).
+export function getOgsActions(features: ChildFeatures): OgsAction[] {
+  return [
+    {
+      key: "sick",
+      Icon: HeartPulse,
+      enabled: features.sick_note_enabled,
+      group: "direct",
+    },
+    {
+      key: "pickup",
+      Icon: CalendarClock,
+      enabled: features.pickup_change_enabled,
+      group: "direct",
+    },
+    {
+      key: "care_schedule",
+      Icon: CalendarRange,
+      enabled: features.request_submit_enabled,
+      group: "request",
+    },
+  ];
+}
+
+// The chooser behind the calm "Anfrage" link in the OGS chat. Self-service
+// (immediate) actions live as pills next to the composer; the change requests
+// are deliberately one step removed because they are rarer and consequential.
+// This is where the "the OGS confirms before it takes effect" expectation is set
+// in full — there is room here, unlike the cramped composer strip — so the
+// distinction can never be misread. Lists the request actions from the shared
+// getOgsActions source and hands the chosen key back to open the matching form.
+export function RequestChooserModal({
+  features,
+  onPick,
+  onClose,
+}: Readonly<{
+  features: ChildFeatures;
+  onPick: (key: OgsActionKey) => void;
+  onClose: () => void;
+}>) {
+  const t = useTranslations("parentChildCare");
+  const requests = getOgsActions(features).filter(
+    (action) => action.group === "request" && action.enabled,
+  );
+  return (
+    <Modal isOpen onClose={onClose} title={t("request.chooserTitle")}>
+      <div className="space-y-3">
+        <p className="text-sm leading-6 text-gray-500">
+          {t("request.chooserIntro")}
+        </p>
+        <div className="space-y-2">
+          {requests.map((action) => (
+            <button
+              key={action.key}
+              type="button"
+              onClick={() => onPick(action.key)}
+              className="flex w-full items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 text-left transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-500">
+                <action.Icon className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-gray-900">
+                  {t(`actions.${action.key}.label`)}
+                </span>
+                <span className="block text-xs text-gray-500">
+                  {t(`actions.${action.key}.hint`)}
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </Modal>
   );
 }

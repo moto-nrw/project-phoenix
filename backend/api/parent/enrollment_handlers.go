@@ -213,6 +213,7 @@ type submitParentEnrollmentRequest struct {
 	ConsentFlags        map[string]any              `json:"consent_flags,omitempty"`
 	CustomData          map[string]any              `json:"custom_data,omitempty"`
 	Children            []submitParentChildRequest  `json:"children"`
+	LateInviteToken     string                      `json:"late_invite_token,omitempty"`
 }
 
 // submitParentResponse is what the embedded form receives after a
@@ -267,6 +268,9 @@ func (rs *Resource) submitParentEnrollment(w http.ResponseWriter, r *http.Reques
 	}
 	if wireReq.Children == nil {
 		wireReq.Children = []submitParentChildRequest{}
+	}
+	if wireReq.LateInviteToken == "" {
+		wireReq.LateInviteToken = strings.TrimSpace(r.URL.Query().Get("late_invite"))
 	}
 
 	var (
@@ -345,6 +349,7 @@ func buildParentServiceRequest(wireReq *submitParentEnrollmentRequest, tenantID,
 		CustomData:        wireReq.CustomData,
 		GuardianAccountID: &accountID,
 		RemoteIP:          remoteIP,
+		LateInviteToken:   wireReq.LateInviteToken,
 	}
 	for _, g := range wireReq.AdditionalGuardians {
 		out.AdditionalGuardians = append(out.AdditionalGuardians, enrollmentService.SubmitGuardian{
@@ -386,6 +391,8 @@ func mapParentSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, enrollmentService.ErrEnrollmentDisabled),
 		errors.Is(err, enrollmentService.ErrEnrollmentWindowClosed):
 		common.RenderError(w, r, common.ErrorForbidden(err))
+	case errors.Is(err, enrollmentService.ErrLateInviteInvalid):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "enrollment.late_invite_invalid"))
 	// Phone/email validation must precede the generic ErrInvalidSubmission
 	// branch below: ErrInvalidGuardianEmail wraps ErrInvalidSubmission, and
 	// ErrInvalidGuardianPhone does NOT wrap it at all — without these cases an

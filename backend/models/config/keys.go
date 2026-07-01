@@ -127,6 +127,8 @@ const (
 	KeyParentNotesEnabled              = "operations.parent_notes_enabled"
 	KeyParentPickupChangeEnabled       = "operations.parent_pickup_change_enabled"
 	KeyParentGuardianManagementEnabled = "operations.parent_guardian_management_enabled"
+	KeyParentMasterDataEditEnabled     = "operations.parent_master_data_edit_enabled"
+	KeyParentMasterDataRequestEnabled  = "operations.parent_master_data_request_enabled"
 	KeyTimeTrackingAccountStartDate    = "operations.time_tracking_account_start_date"
 )
 
@@ -186,24 +188,25 @@ const (
 // overflow mode, status-reason visibility) live on enrollment.phases
 // columns.
 const (
-	KeyEnrollmentEnabled                     = "enrollment.enabled"
-	KeyEnrollmentCollectGradeLevel           = "enrollment.collect_grade_level"
-	KeyEnrollmentCareOfferingsEnabled        = "enrollment.care_offerings_enabled"
-	KeyEnrollmentDefaultActivationMode       = "enrollment.default_activation_mode"
-	KeyEnrollmentNotificationEmails          = "enrollment.notification_emails"
-	KeyEnrollmentAutoInviteGuardianOnApprove = "enrollment.auto_invite_guardian_on_approval"
-	KeyEnrollmentDuplicateHandling           = "enrollment.duplicate_handling"
-	KeyEnrollmentAllowSubmissionEdit         = "enrollment.allow_submission_edit"
-	KeyEnrollmentRequireCaptcha              = "enrollment.require_captcha"
-	KeyEnrollmentRejectedRetentionDays       = "enrollment.rejected_retention_days"
-	KeyEnrollmentWaitlistEnabled             = "enrollment.waitlist_enabled"
-	KeyEnrollmentNotifyPerDecision           = "enrollment.notify_per_decision"
-	KeyEnrollmentOutboxMaxAttempts           = "enrollment.outbox_max_attempts"
-	KeyEnrollmentOutboxWorkerIntervalSeconds = "enrollment.outbox_worker_interval_seconds"
-	KeyEnrollmentStatusTokenTTLDays          = "enrollment.status_token_ttl_days"
-	KeyEnrollmentCaptchaSiteKey              = "enrollment.captcha_site_key"
-	KeyEnrollmentCaptchaSecretKey            = "enrollment.captcha_secret_key"
-	KeyEnrollmentGradeLevelMax               = "enrollment.grade_level_max"
+	KeyEnrollmentEnabled                                = "enrollment.enabled"
+	KeyEnrollmentCollectGradeLevel                      = "enrollment.collect_grade_level"
+	KeyEnrollmentCareOfferingsEnabled                   = "enrollment.care_offerings_enabled"
+	KeyEnrollmentDefaultActivationMode                  = "enrollment.default_activation_mode"
+	KeyEnrollmentNotificationEmails                     = "enrollment.notification_emails"
+	KeyEnrollmentChangeRequestEmailNotificationsEnabled = "enrollment.change_request_email_notifications_enabled"
+	KeyEnrollmentAutoInviteGuardianOnApprove            = "enrollment.auto_invite_guardian_on_approval"
+	KeyEnrollmentDuplicateHandling                      = "enrollment.duplicate_handling"
+	KeyEnrollmentAllowSubmissionEdit                    = "enrollment.allow_submission_edit"
+	KeyEnrollmentRequireCaptcha                         = "enrollment.require_captcha"
+	KeyEnrollmentRejectedRetentionDays                  = "enrollment.rejected_retention_days"
+	KeyEnrollmentWaitlistEnabled                        = "enrollment.waitlist_enabled"
+	KeyEnrollmentNotifyPerDecision                      = "enrollment.notify_per_decision"
+	KeyEnrollmentOutboxMaxAttempts                      = "enrollment.outbox_max_attempts"
+	KeyEnrollmentOutboxWorkerIntervalSeconds            = "enrollment.outbox_worker_interval_seconds"
+	KeyEnrollmentStatusTokenTTLDays                     = "enrollment.status_token_ttl_days"
+	KeyEnrollmentCaptchaSiteKey                         = "enrollment.captcha_site_key"
+	KeyEnrollmentCaptchaSecretKey                       = "enrollment.captcha_secret_key"
+	KeyEnrollmentGradeLevelMax                          = "enrollment.grade_level_max"
 	// Per-tenant info texts (Markdown) shown behind each consent
 	// checkbox on the public enrollment form. A block is shown only when
 	// its matching enable setting is true and its text is non-empty.

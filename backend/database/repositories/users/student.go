@@ -194,7 +194,7 @@ func (r *StudentRepository) FindBySchoolClass(ctx context.Context, schoolClass s
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&students).
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
-		Where("LOWER(school_class) = LOWER(?)", schoolClass)
+		Where("LOWER(TRIM(school_class)) = LOWER(TRIM(?))", schoolClass)
 
 	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
 		query = query.Where(where, val)
@@ -214,6 +214,29 @@ func (r *StudentRepository) FindBySchoolClass(ctx context.Context, schoolClass s
 	}
 
 	return students, nil
+}
+
+// ListSchoolClasses retrieves all distinct non-empty school_class values.
+func (r *StudentRepository) ListSchoolClasses(ctx context.Context) ([]string, error) {
+	var classes []string
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`users.students AS "student"`).
+		ColumnExpr(`DISTINCT TRIM("student".school_class)`).
+		Where(`TRIM("student".school_class) != ''`).
+		OrderExpr(`TRIM("student".school_class) ASC`)
+
+	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx, &classes); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list school classes",
+			Err: err,
+		}
+	}
+
+	return classes, nil
 }
 
 // AssignToGroup assigns a student to a group

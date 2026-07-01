@@ -15,15 +15,17 @@ import (
 func TestExportRequestToListParamsPreservesRoomFilter(t *testing.T) {
 	params := exportRequestToListParams(studentExportRequest{
 		Filters: studentExportFilters{
-			Search:  "  mila  ",
-			GroupID: "17",
-			RoomID:  "42",
+			Search:      "  mila  ",
+			GroupID:     "17",
+			RoomID:      "42",
+			SchoolClass: "3a",
 		},
 	})
 
 	assert.Equal(t, "mila", params.search)
 	assert.Equal(t, int64(17), params.groupID)
 	assert.Equal(t, int64(42), params.roomID)
+	assert.Equal(t, "3a", params.schoolClass)
 	assert.Equal(t, studentExportPageSize, params.pageSize)
 	assert.True(t, params.includePickupTimes)
 	assert.True(t, params.includeArrivalTimes)
@@ -247,8 +249,10 @@ func TestExportFilterLabelsCombinesDayStatusAndAdministrative(t *testing.T) {
 		PickupStatus: "self",
 		Status:       "klassenfahrt",
 		DayStatus:    DayPlanningStatusNotComingToday,
+		SchoolClass:  "3a",
 	})
 
+	assert.Contains(t, labels, "Klasse: 3a")
 	assert.Contains(t, labels, "Buskind")
 	assert.Contains(t, labels, "Keine Fotoerlaubnis")
 	assert.Contains(t, labels, "Abholregelung: Geht alleine nach Hause")
@@ -346,9 +350,12 @@ func TestBuildExportRowsIncludesDailyStatus(t *testing.T) {
 		},
 	}
 
-	rows := buildExportRows(students, map[int64]weeklySchedule{})
+	rows := buildExportRows(students, map[int64]weeklySchedule{}, map[int64]string{
+		101: "Angemeldet: OGS",
+	})
 
 	require.Len(t, rows, len(students))
+	assert.Equal(t, "Angemeldet: OGS", rows[0].Values[listexport.ColumnEnrollmentSummary])
 	assert.Equal(t, "Kommt heute", rows[0].Values[listexport.ColumnDailyStatus])
 	assert.Equal(t, "Krank", rows[1].Values[listexport.ColumnDailyStatus])
 	assert.Equal(t, "Entschuldigt", rows[2].Values[listexport.ColumnDailyStatus])

@@ -4,6 +4,7 @@ import "@testing-library/jest-dom/vitest";
 
 const mocks = vi.hoisted(() => ({
   fetchSettingsSchema: vi.fn(),
+  listAdminEnrollmentChangeRequests: vi.fn(),
   listAdminRequests: vi.fn(),
   listCareOfferings: vi.fn(),
   listPhases: vi.fn(),
@@ -11,6 +12,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("~/lib/enrollment-admin-api", () => ({
+  listAdminEnrollmentChangeRequests: mocks.listAdminEnrollmentChangeRequests,
   listAdminRequests: mocks.listAdminRequests,
 }));
 
@@ -87,12 +89,14 @@ function settingsSchema(enrollmentEnabled: boolean) {
 
 beforeEach(() => {
   mocks.fetchSettingsSchema.mockReset();
+  mocks.listAdminEnrollmentChangeRequests.mockReset();
   mocks.listAdminRequests.mockReset();
   mocks.listCareOfferings.mockReset();
   mocks.listPhases.mockReset();
   mocks.listSchemas.mockReset();
 
   mocks.fetchSettingsSchema.mockResolvedValue(settingsSchema(false));
+  mocks.listAdminEnrollmentChangeRequests.mockResolvedValue([]);
   mocks.listAdminRequests.mockResolvedValue([]);
   mocks.listCareOfferings.mockResolvedValue([]);
   mocks.listPhases.mockResolvedValue([]);
@@ -134,5 +138,37 @@ describe("AdminEnrollmentsList setup guide", () => {
       name: "Anmeldungen ansehen",
     });
     expect(link).toHaveAttribute("href", "/demo/admin/enrollments/phases/12");
+    expect(
+      screen.queryByRole("button", { name: /Nachzügler/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Manuell/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows an unknown state when change requests fail to load", async () => {
+    mocks.listAdminEnrollmentChangeRequests.mockRejectedValue(
+      new Error("Nicht angemeldet"),
+    );
+
+    render(<AdminEnrollmentsList />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Online-Anmeldung vorbereiten")).toBeVisible();
+    });
+
+    expect(
+      screen.getByText(
+        "Änderungsanfragen konnten nicht geladen werden. Die Zahlen sind unbekannt.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.queryByText(
+        "Aktuell wartet keine Änderungsanfrage auf Bearbeitung.",
+      ),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Anfragen prüfen/ }),
+    ).toHaveAttribute("href", "/demo/admin/enrollments/change-requests");
   });
 });

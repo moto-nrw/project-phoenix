@@ -30,6 +30,30 @@ var validDepartureModes = map[DepartureMode]bool{
 	DepartureAccompanied: true,
 }
 
+// GermanLabel renders the mode as a standalone, capitalized German label for
+// chat/diff and other parent-facing surfaces ("Fährt Bus" / "Wird abgeholt" /
+// "Geht alleine"). It is the single source of truth for this wording so the
+// parent messaging diff and any other consumer cannot drift. (Staff CSV exports
+// use their own mid-sentence lowercase phrasing in api/enrollment, which is a
+// deliberately different register.)
+func (m DepartureMode) GermanLabel() string {
+	switch m {
+	case DepartureBus:
+		return "Fährt Bus"
+	case DeparturePickup:
+		return "Wird abgeholt"
+	case DepartureAccompanied:
+		// MUST be explicit: an accompanied child leaves WITH another child/person
+		// and must never fall through to "Geht alleine" (safety-sensitive, #1694).
+		// Letting it hit the default mislabels the child as a self-goer on the
+		// staff confirm diff, so staff would approve a schedule change believing
+		// the wrong current state.
+		return "Geht mit anderem Kind/Person"
+	default:
+		return "Geht alleine"
+	}
+}
+
 // DepartureDays stores, per weekday, how the child leaves. A weekday not
 // present (or explicitly DepartureAlone) means the child goes home alone that
 // day, so the map only ever needs to carry the bus/pickup days and stays small.

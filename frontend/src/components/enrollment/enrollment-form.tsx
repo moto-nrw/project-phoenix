@@ -62,6 +62,7 @@ interface ChildDraft {
   // (uniform toggle, expanded days) onto a different child when a slot is
   // removed from the middle of the list.
   clientId: string;
+  id?: string;
   first_name: string;
   last_name: string;
   date_of_birth: string;
@@ -103,6 +104,7 @@ interface Props {
   readonly gradeLevelMax: number;
   readonly onSubmitted: (statusURL: string) => void;
   readonly prefetchedData?: EnrollmentFormPrefetchedData;
+  readonly lateInviteToken?: string;
   readonly previewMode?: boolean;
   readonly previewSchema?: PublicFormSchema | null;
   /**
@@ -128,6 +130,7 @@ interface Props {
   readonly localizedCopy?: boolean;
   readonly initialDraft?: EnrollmentEditDraft;
   readonly lockedGuardianEmail?: boolean;
+  readonly lockChildStructure?: boolean;
   readonly submitLabel?: string;
 }
 
@@ -163,6 +166,7 @@ export function EnrollmentForm({
   gradeLevelMax,
   onSubmitted,
   prefetchedData,
+  lateInviteToken,
   previewMode = false,
   previewSchema,
   profileFetcher,
@@ -171,6 +175,7 @@ export function EnrollmentForm({
   localizedCopy = false,
   initialDraft,
   lockedGuardianEmail = false,
+  lockChildStructure = false,
   submitLabel,
 }: Props) {
   const intl = useTranslations("enrollmentForm");
@@ -223,6 +228,10 @@ export function EnrollmentForm({
   // submit with the *same* unchanged message still scrolls back to it; on a
   // successful submit nothing is marked invalid so it's a no-op.
   const { formRef, errorRef, scrollToError } = useScrollToFirstError();
+  const lateInviteFetchOptions = useMemo(
+    () => ({ lateInviteToken }),
+    [lateInviteToken],
+  );
 
   const [guardianFirstName, setGuardianFirstName] = useState(
     initialDraft?.guardian_first_name ??
@@ -344,10 +353,18 @@ export function EnrollmentForm({
           previewSchema !== undefined
             ? Promise.resolve(previewSchema)
             : phaseID
-              ? fetchPublicActiveSchema(tenantSlug, phaseID).catch(() => null)
+              ? fetchPublicActiveSchema(
+                  tenantSlug,
+                  phaseID,
+                  lateInviteFetchOptions,
+                ).catch(() => null)
               : Promise.resolve(null),
           phaseID
-            ? fetchPublicCareOfferings(tenantSlug, phaseID)
+            ? fetchPublicCareOfferings(
+                tenantSlug,
+                phaseID,
+                lateInviteFetchOptions,
+              )
             : Promise.resolve({
                 offerings: [],
                 careOfferingSelectionMode: "optional" as const,
@@ -369,7 +386,11 @@ export function EnrollmentForm({
           previewSchema !== undefined
             ? resolvePreviewLegalTexts(tenantSlug, previewSchema)
             : phaseID
-              ? fetchPublicLegalTexts(tenantSlug, phaseID)
+              ? fetchPublicLegalTexts(
+                  tenantSlug,
+                  phaseID,
+                  lateInviteFetchOptions,
+                )
               : fetchPublicLegalTexts(tenantSlug),
         ]);
         if (cancelled) return;
@@ -421,6 +442,7 @@ export function EnrollmentForm({
     phaseID,
     prefetchedData,
     previewSchema,
+    lateInviteFetchOptions,
     profileFetcher,
     skipCaptcha,
     tr,
@@ -934,6 +956,7 @@ export function EnrollmentForm({
         }
       }
       return {
+        ...(c.id ? { id: c.id } : {}),
         first_name: c.first_name.trim(),
         last_name: c.last_name.trim(),
         date_of_birth: c.date_of_birth,
@@ -987,6 +1010,9 @@ export function EnrollmentForm({
         ),
         children: payloadChildren,
         captcha_token: skipCaptcha ? undefined : captchaToken || undefined,
+        late_invite_token: lateInviteToken?.trim()
+          ? lateInviteToken.trim()
+          : undefined,
       };
       const result = submitter
         ? await submitter(payload)
@@ -1266,17 +1292,19 @@ export function EnrollmentForm({
             title={tr("sections.childrenTitle")}
             description={tr("sections.childrenDescription")}
           />
-          <button
-            type="button"
-            onClick={addChild}
-            className="moto-content-surface inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border px-3 text-sm font-semibold whitespace-nowrap text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:w-auto sm:shrink-0"
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            {tr("actions.addChild")}
-          </button>
+          {!lockChildStructure ? (
+            <button
+              type="button"
+              onClick={addChild}
+              className="moto-content-surface inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border px-3 text-sm font-semibold whitespace-nowrap text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:w-auto sm:shrink-0"
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              {tr("actions.addChild")}
+            </button>
+          ) : null}
         </div>
 
-        {profile && profile.children.length > 0 && (
+        {profile && profile.children.length > 0 && !lockChildStructure && (
           <ExistingChildrenPanel
             existing={profile.children}
             usedIDs={usedExistingChildIDs}
@@ -1319,7 +1347,7 @@ export function EnrollmentForm({
                 <h3 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
                   {tr("structured.child")} {i + 1}
                 </h3>
-                {children.length > 1 && (
+                {children.length > 1 && !lockChildStructure && (
                   <button
                     type="button"
                     onClick={() => removeChild(i)}
@@ -1795,6 +1823,7 @@ function draftChildren(
     }
     return {
       clientId: savedChildClientId(child.id),
+      id: child.id,
       first_name: child.first_name,
       last_name: child.last_name,
       date_of_birth: child.date_of_birth,

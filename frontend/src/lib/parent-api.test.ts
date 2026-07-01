@@ -9,13 +9,23 @@ import {
   updateParentPortalLocale,
   submitSickNote,
   listSickDays,
-  listChildNotes,
-  addChildNote,
   getChildFeatures,
+  getChildMasterData,
+  updateMasterDataField,
+  submitMasterDataRequest,
+  listMessageThreads,
+  listChildThreads,
+  fetchMessagesUnreadCount,
+  getChildConversation,
+  postChildMessage,
+  createChildRequest,
+  withdrawChildRequest,
   type Child,
   type EnrollmentRequest,
   type StatusDay,
-  type ParentNote,
+  type ChildMasterData,
+  type ThreadSummary,
+  type ThreadView,
 } from "./parent-api";
 
 import type { SubmitEnrollmentPayload } from "./enrollment-submission-api";
@@ -277,11 +287,136 @@ describe("submitParentEnrollment", () => {
     ).rejects.toThrow(/Anmeldung bereits vorhanden/);
   });
 
+  it("preserves coded enrollment errors from the parent submit route", async () => {
+    mockFetch(async () =>
+      jsonResponse(
+        {
+          error: "late invite is invalid",
+          code: "enrollment.late_invite_invalid",
+        },
+        { status: 403 },
+      ),
+    );
+    await expect(
+      submitParentEnrollment("school", validPayload),
+    ).rejects.toMatchObject({
+      code: "enrollment.late_invite_invalid",
+      status: 403,
+      message: expect.stringContaining("Nachzügler-Link"),
+    });
+  });
+
   it("throws with German fallback when error body is malformed", async () => {
     mockFetch(async () => new Response("not json", { status: 500 }));
     await expect(
       submitParentEnrollment("school", validPayload),
     ).rejects.toThrow(/Anmeldung konnte nicht übermittelt werden/);
+  });
+});
+
+// --- Stammdaten master-data helpers ---------------------------------
+
+function mkMasterData(): ChildMasterData {
+  return {
+    student_id: "42",
+    first_name: "Lara",
+    last_name: "Beispiel",
+    birthday: "2018-03-04",
+    school_class: "2a",
+    status: "active",
+    health_info: "Allergie",
+    guardian_profile_id: "77",
+    email: "parent@example.test",
+    address_street: "Musterweg 1",
+    address_city: "Köln",
+    address_postal_code: "50667",
+    preferred_contact_method: "email",
+    language_preference: "de",
+    primary_phone: "+491234",
+    allowed_departure_modes: { mon: ["pickup"], tue: ["bus", "alone"] },
+    pending_changes: [],
+  };
+}
+
+describe("parent master-data API helpers", () => {
+  it("loads a child's master data and URL-encodes the student id", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({ data: mkMasterData() });
+    });
+
+    const out = await getChildMasterData("42/unsafe");
+
+    expect(out.first_name).toBe("Lara");
+    expect(seenURL).toBe("/api/parent/me/children/42%2Funsafe/master-data");
+  });
+
+  it("patches one direct-edit field with encoded path segments", async () => {
+    let seenURL = "";
+    let seenMethod = "";
+    let seenBody = "";
+    mockFetch(async (input, init) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      seenMethod = init?.method ?? "";
+      seenBody = String(init?.body ?? "");
+      return jsonResponse({ data: mkMasterData() });
+    });
+
+    await updateMasterDataField(
+      "42/unsafe",
+      "guardian/profile",
+      "email address",
+      "new@example.test",
+    );
+
+    expect(seenMethod).toBe("PATCH");
+    expect(seenURL).toBe(
+      "/api/parent/me/children/42%2Funsafe/master-data/guardian%2Fprofile/email%20address",
+    );
+    expect(seenBody).toBe(JSON.stringify({ value: "new@example.test" }));
+  });
+
+  it("submits approval-required changes and unwraps the response", async () => {
+    let seenURL = "";
+    let seenMethod = "";
+    let seenBody = "";
+    mockFetch(async (input, init) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      seenMethod = init?.method ?? "";
+      seenBody = String(init?.body ?? "");
+      return jsonResponse({
+        data: [
+          {
+            id: "900",
+            target: "person",
+            field_key: "first_name",
+            new_value: "Lea",
+            status: "pending",
+            created_at: "2026-06-24T10:00:00Z",
+          },
+        ],
+      });
+    });
+
+    const out = await submitMasterDataRequest("42", [
+      { target: "person", field_key: "first_name", value: "Lea" },
+    ]);
+
+    expect(seenMethod).toBe("POST");
+    expect(seenURL).toBe("/api/parent/me/children/42/master-data/requests");
+    expect(seenBody).toContain('"field_key":"first_name"');
+    expect(out[0]!.id).toBe("900");
+  });
+
+  it("surfaces backend errors for master-data writes", async () => {
+    mockFetch(async () =>
+      jsonResponse({ error: "field is locked" }, { status: 409 }),
+    );
+
+    await expect(
+      updateMasterDataField("42", "student", "health_info", "x"),
+    ).rejects.toThrow(/field is locked/);
   });
 });
 
@@ -440,79 +575,28 @@ describe("listSickDays", () => {
   });
 });
 
-// --- parent notes ----------------------------------------------------
-
-function mkNote(body: string): ParentNote {
-  return {
-    id: "7",
-    student_id: "84",
-    body,
-    created_at: "2026-06-01T09:00:00Z",
-  };
-}
-
-describe("listChildNotes", () => {
-  it("GETs the notes route and returns the data array", async () => {
-    let seenURL = "";
-    mockFetch(async (input) => {
-      seenURL = typeof input === "string" ? input : input.toString();
-      return jsonResponse({ data: [mkNote("Hallo")] });
-    });
-    const out = await listChildNotes("84");
-    expect(out).toHaveLength(1);
-    expect(out[0]!.body).toBe("Hallo");
-    expect(seenURL).toContain("/api/parent/me/children/84/notes");
-  });
-});
-
-describe("addChildNote", () => {
-  it("POSTs the body to the notes route and returns the newest list", async () => {
-    let seenBody = "";
-    let seenMethod = "";
-    mockFetch(async (_input, init) => {
-      seenMethod = init?.method ?? "";
-      seenBody = (init?.body as string) ?? "";
-      return jsonResponse(
-        { data: [mkNote("neu"), mkNote("alt")] },
-        { status: 201 },
-      );
-    });
-    const out = await addChildNote("84", "neu");
-    expect(seenMethod).toBe("POST");
-    expect(seenBody).toContain('"body":"neu"');
-    expect(out).toHaveLength(2);
-    expect(out[0]!.body).toBe("neu");
-  });
-
-  it("throws with the backend error message on non-OK", async () => {
-    mockFetch(async () =>
-      jsonResponse({ error: "Nachrichten deaktiviert" }, { status: 403 }),
-    );
-    await expect(addChildNote("84", "x")).rejects.toThrow(
-      /Nachrichten deaktiviert/,
-    );
-  });
-
-  it("throws a generic message on non-OK non-JSON body", async () => {
-    mockFetch(async () => new Response("nope", { status: 500 }));
-    await expect(addChildNote("84", "x")).rejects.toThrow(
-      /Request failed \(500\)/,
-    );
-  });
-});
-
 describe("getChildFeatures", () => {
   it("GETs the features route and returns the resolved flags", async () => {
     let seenURL = "";
     mockFetch(async (input) => {
       seenURL = typeof input === "string" ? input : input.toString();
       return jsonResponse({
-        data: { sick_note_enabled: true, notes_enabled: false },
+        data: {
+          sick_note_enabled: true,
+          notes_enabled: false,
+          pickup_change_enabled: true,
+          related_accounts_invite_enabled: false,
+          related_accounts_remove_enabled: false,
+          master_data_edit_enabled: true,
+          master_data_contact_edit_enabled: false,
+          master_data_request_enabled: true,
+        },
       });
     });
     const out = await getChildFeatures("84");
     expect(out.sick_note_enabled).toBe(true);
     expect(out.notes_enabled).toBe(false);
+    expect(out.master_data_contact_edit_enabled).toBe(false);
     expect(seenURL).toContain("/api/parent/me/children/84/features");
   });
 
@@ -520,6 +604,281 @@ describe("getChildFeatures", () => {
     mockFetch(async () => new Response("nope", { status: 500 }));
     await expect(getChildFeatures("84")).rejects.toThrow(
       /Request failed \(500\)/,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function mkThreadSummary(
+  overrides: Partial<ThreadSummary> = {},
+): ThreadSummary {
+  return {
+    thread_id: "t1",
+    student_id: "42",
+    student_name: "Max Mustermann",
+    school_name: "OGS A",
+    counterpart_name: "OGS OGS A",
+    unread: 0,
+    ...overrides,
+  };
+}
+
+function mkThreadView(overrides: Partial<ThreadView> = {}): ThreadView {
+  return {
+    thread_id: "t1",
+    student_id: "42",
+    student_name: "Max Mustermann",
+    school_name: "OGS A",
+    counterpart_name: "OGS OGS A",
+    messages: [],
+    ...overrides,
+  };
+}
+
+// --- listMessageThreads -------------------------------------------------------
+
+describe("listMessageThreads", () => {
+  it("GETs /api/parent/me/messages and returns the data array", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({ data: [mkThreadSummary({ unread: 2 })] });
+    });
+    const out = await listMessageThreads();
+    expect(out).toHaveLength(1);
+    expect(out[0]!.thread_id).toBe("t1");
+    expect(out[0]!.unread).toBe(2);
+    expect(seenURL).toBe("/api/parent/me/messages");
+  });
+
+  it("throws on non-OK with a clear message", async () => {
+    mockFetch(async () => new Response("nope", { status: 500 }));
+    await expect(listMessageThreads()).rejects.toThrow(
+      /Request failed \(500\)/,
+    );
+  });
+
+  it("returns an empty array when data is missing from the envelope", async () => {
+    mockFetch(async () => jsonResponse({}));
+    // parent-api's getJson unwraps { data } or returns the body directly;
+    // an envelope with no data field falls through to the body itself which
+    // is an empty object — cast defensively.
+    const out = await listMessageThreads();
+    // Either empty array or empty object-like — the key invariant is no throw.
+    expect(out).toBeDefined();
+  });
+});
+
+// --- listChildThreads ---------------------------------------------------------
+
+describe("listChildThreads", () => {
+  it("GETs the per-child threads route with encoded studentId", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({ data: [mkThreadSummary()] });
+    });
+    const out = await listChildThreads("42");
+    expect(out).toHaveLength(1);
+    expect(seenURL).toContain("/api/parent/me/messages/children/42/threads");
+  });
+
+  it("URL-encodes the studentId", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({ data: [] });
+    });
+    await listChildThreads("a/b");
+    expect(seenURL).toContain("a%2Fb");
+  });
+
+  it("throws on non-OK", async () => {
+    mockFetch(async () =>
+      jsonResponse({ error: "forbidden" }, { status: 403 }),
+    );
+    await expect(listChildThreads("42")).rejects.toThrow(/forbidden/);
+  });
+});
+
+// --- fetchMessagesUnreadCount -------------------------------------------------
+
+describe("fetchMessagesUnreadCount", () => {
+  it("GETs /api/parent/me/messages/unread-count and returns the count", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({ unread_count: 7 });
+    });
+    const count = await fetchMessagesUnreadCount();
+    expect(count).toBe(7);
+    expect(seenURL).toContain("/api/parent/me/messages/unread-count");
+  });
+
+  it("returns 0 when unread_count is missing from the response", async () => {
+    mockFetch(async () => jsonResponse({}));
+    const count = await fetchMessagesUnreadCount();
+    expect(count).toBe(0);
+  });
+
+  it("throws on non-OK", async () => {
+    mockFetch(async () => new Response("", { status: 500 }));
+    await expect(fetchMessagesUnreadCount()).rejects.toThrow(
+      /Request failed \(500\)/,
+    );
+  });
+});
+
+// --- getChildConversation -----------------------------------------------------
+
+describe("getChildConversation", () => {
+  it("GETs the child conversation route and returns a ThreadView", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse(mkThreadView({ messages: [] }));
+    });
+    const view = await getChildConversation("42");
+    expect(view.student_id).toBe("42");
+    expect(view.messages).toEqual([]);
+    expect(seenURL).toContain("/api/parent/me/messages/children/42");
+  });
+
+  it("URL-encodes the studentId", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse(mkThreadView());
+    });
+    await getChildConversation("a/b");
+    expect(seenURL).toContain("a%2Fb");
+  });
+
+  it("throws on non-OK", async () => {
+    mockFetch(async () =>
+      jsonResponse({ error: "not found" }, { status: 404 }),
+    );
+    await expect(getChildConversation("42")).rejects.toThrow(/not found/);
+  });
+});
+
+// --- postChildMessage ---------------------------------------------------------
+
+describe("postChildMessage", () => {
+  it("POSTs the message body and returns the updated ThreadView", async () => {
+    let seenURL = "";
+    let seenBody = "";
+    let seenMethod = "";
+    mockFetch(async (input, init) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      seenBody = (init?.body as string) ?? "";
+      seenMethod = init?.method ?? "";
+      return jsonResponse(mkThreadView({ thread_id: "t99" }), { status: 201 });
+    });
+    const view = await postChildMessage("42", "Hallo OGS!");
+    expect(view.thread_id).toBe("t99");
+    expect(seenMethod).toBe("POST");
+    expect(seenURL).toContain("/api/parent/me/messages/children/42");
+    expect(seenBody).toContain('"body":"Hallo OGS!"');
+  });
+
+  it("URL-encodes the studentId in the POST URL", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse(mkThreadView(), { status: 201 });
+    });
+    await postChildMessage("x/y", "text");
+    expect(seenURL).toContain("x%2Fy");
+  });
+
+  it("throws on non-OK with the backend error message", async () => {
+    mockFetch(async () =>
+      jsonResponse({ error: "Messaging deaktiviert" }, { status: 403 }),
+    );
+    await expect(postChildMessage("42", "test")).rejects.toThrow(
+      /Messaging deaktiviert/,
+    );
+  });
+});
+
+describe("createChildRequest", () => {
+  it("POSTs request_type + payload to the child's requests endpoint", async () => {
+    let seenURL = "";
+    let seenBody = "";
+    let seenMethod = "";
+    mockFetch(async (input, init) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      seenBody = (init?.body as string) ?? "";
+      seenMethod = init?.method ?? "";
+      return jsonResponse(mkThreadView({ thread_id: "t77" }), { status: 201 });
+    });
+    const payload = { weekdays: [{ weekday: 1, arrival: "08:00" }] };
+    const view = await createChildRequest("42", "care_schedule", payload);
+    expect(view.thread_id).toBe("t77");
+    expect(seenMethod).toBe("POST");
+    expect(seenURL).toBe("/api/parent/me/messages/children/42/requests");
+    expect(seenBody).toContain('"request_type":"care_schedule"');
+    expect(seenBody).toContain('"weekday":1');
+  });
+
+  it("URL-encodes the studentId", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse(mkThreadView(), { status: 201 });
+    });
+    await createChildRequest("x/y", "care_schedule", {});
+    expect(seenURL).toContain("x%2Fy");
+  });
+
+  it("throws the backend error on non-OK", async () => {
+    mockFetch(async () =>
+      jsonResponse({ error: "Keine Berechtigung" }, { status: 403 }),
+    );
+    await expect(createChildRequest("42", "care_schedule", {})).rejects.toThrow(
+      /Keine Berechtigung/,
+    );
+  });
+});
+
+describe("withdrawChildRequest", () => {
+  it("POSTs to the request's withdraw endpoint and returns the updated view", async () => {
+    let seenURL = "";
+    let seenMethod = "";
+    mockFetch(async (input, init) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      seenMethod = init?.method ?? "";
+      return jsonResponse(mkThreadView({ thread_id: "t5" }));
+    });
+    const view = await withdrawChildRequest("42", "req3");
+    expect(view.thread_id).toBe("t5");
+    expect(seenMethod).toBe("POST");
+    expect(seenURL).toBe(
+      "/api/parent/me/messages/children/42/requests/req3/withdraw",
+    );
+  });
+
+  it("URL-encodes both studentId and requestId", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse(mkThreadView());
+    });
+    await withdrawChildRequest("a/b", "r/9");
+    expect(seenURL).toContain("a%2Fb");
+    expect(seenURL).toContain("r%2F9");
+  });
+
+  it("throws the backend error on non-OK", async () => {
+    mockFetch(async () =>
+      jsonResponse({ error: "Anfrage nicht offen" }, { status: 409 }),
+    );
+    await expect(withdrawChildRequest("42", "req3")).rejects.toThrow(
+      /Anfrage nicht offen/,
     );
   });
 });

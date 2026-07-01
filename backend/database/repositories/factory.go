@@ -173,8 +173,11 @@ type Factory struct {
 	Request              enrollmentModels.RequestRepository
 	RequestChild         enrollmentModels.RequestChildRepository
 	RequestGuardian      enrollmentModels.RequestGuardianRepository
+	LateInvite           enrollmentModels.LateInviteRepository
 	CareOffering         enrollmentModels.CareOfferingRepository
 	RequestChildOffering enrollmentModels.RequestChildOfferingRepository
+	ChangeRequest        enrollmentModels.ChangeRequestRepository
+	ChangeRequestMessage enrollmentModels.ChangeRequestMessageRepository
 	SubmissionRateLimit  enrollmentModels.SubmissionRateLimitRepository
 	Phase                enrollmentModels.PhaseRepository
 
@@ -183,8 +186,13 @@ type Factory struct {
 	ParentEnrollablePhase   parentModels.EnrollablePhaseRepository
 	ParentEnrollmentRequest parentModels.EnrollmentRequestRepository
 
-	// Parent-submitted notes (tenant-scoped; read by parents + staff)
-	StudentParentNote userModels.StudentParentNoteRepository
+	// Parent Stammdaten direct-edit audit + change-request review
+	StudentDataChangeRequest userModels.StudentDataChangeRequestRepository
+
+	// Parent-OGS messaging (tenant-scoped two-way conversation per child)
+	ParentMessageThread userModels.ParentMessageThreadRepository
+	ParentMessage       userModels.ParentMessageRepository
+	ParentMessageRead   userModels.ParentMessageReadRepository
 }
 
 // NewFactory creates a new repository factory with all repositories
@@ -324,8 +332,11 @@ func NewFactory(db *bun.DB) *Factory {
 		Request:              enrollment.NewRequestRepository(db),
 		RequestChild:         enrollment.NewRequestChildRepository(db),
 		RequestGuardian:      enrollment.NewRequestGuardianRepository(db),
+		LateInvite:           enrollment.NewLateInviteRepository(db),
 		CareOffering:         enrollment.NewCareOfferingRepository(db),
 		RequestChildOffering: enrollment.NewRequestChildOfferingRepository(db),
+		ChangeRequest:        enrollment.NewChangeRequestRepository(db),
+		ChangeRequestMessage: enrollment.NewChangeRequestMessageRepository(db),
 		SubmissionRateLimit:  enrollment.NewSubmissionRateLimitRepository(db),
 		Phase:                enrollment.NewPhaseRepository(db),
 
@@ -334,7 +345,12 @@ func NewFactory(db *bun.DB) *Factory {
 		ParentEnrollablePhase:   parentRepo.NewEnrollablePhaseRepository(db),
 		ParentEnrollmentRequest: parentRepo.NewEnrollmentRequestRepository(db),
 
-		// Parent-submitted notes (tenant-scoped; read by parents + staff)
-		StudentParentNote: users.NewStudentParentNoteRepository(db),
+		// Parent Stammdaten direct-edit audit + change-request review
+		StudentDataChangeRequest: users.NewStudentDataChangeRequestRepository(db),
+
+		// Parent-OGS messaging (tenant-scoped two-way conversation per child)
+		ParentMessageThread: users.NewParentMessageThreadRepository(db),
+		ParentMessage:       users.NewParentMessageRepository(db),
+		ParentMessageRead:   users.NewParentMessageReadRepository(db),
 	}
 }
