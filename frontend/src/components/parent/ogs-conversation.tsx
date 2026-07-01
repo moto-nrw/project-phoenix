@@ -255,7 +255,7 @@ export function OgsConversation({
   return (
     <div
       ref={containerRef}
-      className="mx-auto flex min-h-[20rem] w-full max-w-5xl flex-col gap-3 overflow-hidden"
+      className="mx-auto flex min-h-[20rem] w-full max-w-7xl flex-col gap-3 overflow-hidden"
     >
       {showBack ? <BackBar /> : null}
 
