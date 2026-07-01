@@ -23,6 +23,7 @@ import {
   Search,
   SlidersHorizontal,
   TabletSmartphone,
+  UtensilsCrossed,
   Users,
   Wrench,
 } from "lucide-react";
@@ -873,11 +874,12 @@ export const appChapters: readonly GuideChapter[] = [
           "Der zentrale Posteingang für die Kommunikation mit den Eltern, wie ein Chat. Mit jeder Bezugsperson läuft pro Kind genau eine fortlaufende Unterhaltung (ohne Betreff); so wird die E-Mail-Kommunikation überflüssig.",
         steps: [
           "In der Seitenleiste `Nachrichten` öffnen. Ein rotes Abzeichen zeigt ungelesene Eltern-Nachrichten an.",
-          "Der Posteingang listet alle Unterhaltungen, die du sehen darfst (als Admin alle, sonst die Kinder deiner Gruppen), neueste zuerst. Jede Zeile zeigt die Bezugsperson mit Beziehung zum Kind und die letzte Nachricht. Über `Nur ungelesen` lässt sich die Liste eingrenzen.",
+          "Der Posteingang listet alle Unterhaltungen, die du sehen darfst (als Admin alle, sonst die Kinder deiner Gruppen), neueste zuerst. Jede Zeile zeigt die Bezugsperson mit Beziehung zum Kind und die letzte Nachricht. Über `Nur ungelesen` und `Offene Anfragen` lässt sich die Liste eingrenzen.",
           "Eine Zeile öffnet das Chat-Fenster mit dem kompletten Verlauf. Über `Zum Kinderprofil` gelangst du von dort zur Kinderdetailansicht.",
           "Im Chat direkt antworten: Text eingeben und auf `Senden` tippen.",
           "Über `Neue Nachricht` selbst eine Unterhaltung starten: Kind suchen und Bezugsperson wählen. Damit öffnet sich das Chat-Fenster; den eigentlichen Text schreibst du dort und tippst auf `Senden`. Gibt es mit der Person schon eine Unterhaltung, wird sie fortgesetzt.",
           "Antworten erscheinen sofort in der Eltern-App der jeweiligen Bezugsperson; dort als `OGS` der Schule, ohne einzelnen Mitarbeitenden-Namen.",
+          "Schickt eine Bezugsperson eine strukturierte Anfrage (etwa zu den dauerhaften Betreuungszeiten), trägt die Zeile ein Abzeichen `offene Anfrage`. Wie du sie bearbeitest, steht im nächsten Abschnitt.",
         ],
         callout: {
           title: "Voraussetzung",
@@ -887,6 +889,28 @@ export const appChapters: readonly GuideChapter[] = [
         screenshot:
           "Nachrichten-Posteingang als Unterhaltungs-Liste mit Bezugsperson, Beziehung, letzter Nachricht und Ungelesen-Abzeichen.",
         image: "/help/screens/nachrichten.webp",
+      },
+      {
+        id: "eltern-anfragen",
+        title: "Anfragen der Eltern bearbeiten",
+        icon: ClipboardCheck,
+        summary:
+          "Bezugspersonen können über die Eltern-App nicht nur schreiben, sondern auch strukturierte Anfragen stellen, etwa eine dauerhafte Änderung der Betreuungszeiten. Solche Anfragen laufen im selben Nachrichten-Verlauf auf und werden von dir bestätigt oder abgelehnt.",
+        steps: [
+          "Im Posteingang auf `Offene Anfragen` tippen, um nur Unterhaltungen mit einer noch offenen Anfrage zu sehen. Betroffene Zeilen tragen zusätzlich das Abzeichen `offene Anfrage`.",
+          "Die Unterhaltung öffnen. Die Anfrage erscheint als eigene Karte im Verlauf und zeigt unter `Änderungen` die gewünschten Werte im Vergleich `aktuell -> gewünscht`, damit du genau siehst, was sich ändern würde.",
+          "Mit `Bestätigen` wird die Änderung übernommen: Die Betreuungszeiten des Kindes werden direkt aktualisiert, und die Bezugsperson sieht den Status `Erledigt`.",
+          "Passt die Anfrage nicht, auf `Ablehnen` tippen, im Feld `Grund für die Ablehnung` einen kurzen Grund eintragen und erneut `Ablehnen` bestätigen. Der Grund wird der Bezugsperson angezeigt.",
+          "Nach der Entscheidung ist die Anfrage abgeschlossen und verschwindet aus dem Filter `Offene Anfragen`. Die Bezugsperson wird in ihrer App über das Ergebnis informiert.",
+        ],
+        callout: {
+          title: "Wer darf entscheiden",
+          body: "`Bestätigen` und `Ablehnen` erscheinen nur, wenn du Schreibrechte für das Kind hast. `Bestätigen` setzt zusätzlich voraus, dass die Eltern-OGS-Nachrichten aktiviert sind; `Ablehnen` bleibt auch danach möglich, damit offene Anfragen abgeschlossen werden können.",
+          tone: "orange",
+        },
+        screenshot:
+          "Geöffnete Unterhaltung mit Anfrage-Karte: Vergleich der Betreuungszeiten aktuell zu gewünscht und den Schaltflächen Bestätigen und Ablehnen.",
+        image: "/help/screens/offene-anfragen.webp",
       },
       {
         id: "elternmitteilungen",
@@ -908,6 +932,29 @@ export const appChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Übersicht der Elternmitteilungen mit Status (Entwurf, veröffentlicht, abgelaufen) und der Aktion „Neue Elternmitteilung“.",
+      },
+      {
+        id: "essensplan",
+        title: "Essensplan",
+        icon: UtensilsCrossed,
+        summary:
+          "Die Woche als Plan: Montag bis Freitag nebeneinander, pro Tag ein oder mehrere Gerichte mit optionalem Hinweis. Eltern sehen den Plan für die aktuelle und nächste Woche im Elternportal.",
+        steps: [
+          "In der Seitenleiste `Essensplan` öffnen.",
+          "Mit den Pfeilen `‹` und `›` zwischen den Kalenderwochen blättern; die laufende Woche ist mit `Diese Woche` markiert, mit `Heute` springst du dorthin zurück.",
+          "Pro Tag das `Gericht` eintragen; bei Bedarf einen kurzen `Hinweis` ergänzen (z. B. vegetarisch).",
+          "Mehrere Gerichte pro Tag über `+ Gericht` hinzufügen (z. B. Menü 1 und Menü 2); überflüssige Zeilen mit dem `×` entfernen.",
+          "Über das Tagesmenü (`⋯`) einen Tag `kopieren`, in einen anderen Tag `einfügen` oder `leeren`; mit `Vorwoche übernehmen` den kompletten Plan der Vorwoche übernehmen.",
+          "Änderungen unten mit `Speichern` sichern (ungespeicherte Änderungen werden angezeigt und beim Verlassen abgefragt).",
+        ],
+        callout: {
+          title: "Voraussetzung",
+          body: "Die Funktion muss unter `Einstellungen` > `Betrieb` > `Essensplan` aktiviert sein. Ist sie aus, erscheint der Punkt weder im Team- noch im Elternportal.",
+          tone: "blue",
+        },
+        screenshot:
+          "Essensplan als Wochen-Board (Mo–Fr nebeneinander), oben Wochennavigation mit Pfeilen und „Heute“, je Tag eine Liste von Gerichten mit Hinweis.",
+        image: "/help/screens/essensplan.webp",
       },
       {
         id: "feedback",

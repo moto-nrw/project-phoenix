@@ -72,7 +72,7 @@ export function ChildMasterDataView({ studentId }: Props) {
 
   if (loading) {
     return (
-      <div className="mx-auto w-full max-w-3xl space-y-4">
+      <div className="mx-auto w-full max-w-7xl space-y-4">
         <div className="h-40 animate-pulse rounded-2xl border border-gray-200 bg-white shadow-sm" />
         <div className="h-64 animate-pulse rounded-2xl border border-gray-200 bg-white shadow-sm" />
       </div>
@@ -81,7 +81,7 @@ export function ChildMasterDataView({ studentId }: Props) {
 
   if (error || !data || !features) {
     return (
-      <div className="mx-auto w-full max-w-3xl">
+      <div className="mx-auto w-full max-w-7xl">
         <BackBar studentId={studentId} />
         <div className="mt-4 rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-5 text-sm text-[#CC2626] shadow-sm">
           {t("loadError")}
@@ -144,7 +144,7 @@ function ChildMasterDataContent({
   );
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-6">
+    <div className="mx-auto w-full max-w-7xl space-y-6">
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <BackBar studentId={studentId} />
         <div className="p-5 sm:p-6">

@@ -335,6 +335,7 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 			"test/architecture_ratchet_test.go",                 // Source-scanning ratchet; regex literals look like DB ops but no DB is used
 			"test/handler_layer_ratchet_test.go",                // Source-scanning ratchet (issue #584); same as above, no DB is used
 			"api/timetable/timetable_data_test_helpers_test.go", // Shared fixture helper; caller tests own DB setup (mirrors created_by_test.go)
+			"services/messaging/apply_export_internal_test.go",  // Test-support wrappers exposing unexported apply funcs; the *bun.DB is injected, caller (requests_test.go) owns SetupTestDB
 		}
 		skip := false
 		for _, sf := range skipFiles {

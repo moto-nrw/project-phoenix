@@ -111,13 +111,17 @@ func AppendMessage(
 	return threadRepo.TouchLastMessage(ctx, msg.ThreadID, msg.CreatedAt, msg.ID, msg.SenderKind, msg.Body)
 }
 
-// MarkReadToNewest advances the reader's read cursor to the newest message in
-// the supplied snapshot that the reader did NOT author — and ONLY to that
-// message, never to NOW() and never to one of the reader's OWN rows. Both portals
-// call this off the SAME slice they return to the client.
+// MarkReadToNewest advances the reader's read cursor to the newest COUNTERPART
+// message in the supplied snapshot that the reader did NOT author — and ONLY to
+// that message, never to NOW(), never to one of the reader's OWN rows, and never
+// to a later non-counterpart row. staffReader selects which side counts as the
+// counterpart (true: the guardian side is the counterpart; false: the staff
+// side), matching usersModels.IsCounterpartMessage / the unread SQL's
+// counterpartUnread. Both portals call this off the SAME slice they return to the
+// client.
 //
-// Two hazards make the "not authored by the reader" bound load-bearing, not a
-// nicety:
+// Three hazards make the "newest non-authored COUNTERPART" bound load-bearing,
+// not a nicety:
 //
 //  1. Never NOW(): a counterpart message that committed between the caller's
 //     ListByThread snapshot and this mark is absent from `messages`, so a NOW()
@@ -131,19 +135,27 @@ func AppendMessage(
 //     path the snapshot's newest element is the reader's just-inserted message at
 //     ~now; advancing the cursor onto it would leap past that still-in-flight
 //     counterpart and mark it read once it commits, even though the sender never
-//     saw it. The reader's own messages are never unread to them anyway
-//     (notReaderAuthored excludes them by sender_account_id), so the cursor never
-//     needs to cover them — bounding to the newest counterpart message is both
-//     sufficient and the only safe choice. This is the same reason
-//     AppendMessage deliberately does not move the sender's cursor on insert.
+//     saw it. This is the same reason AppendMessage deliberately does not move the
+//     sender's cursor on insert.
 //
-// A snapshot with no counterpart message (empty thread, or only the reader's own
-// rows) leaves the cursor untouched: there is nothing the reader needs to mark
-// seen. Messages are ordered oldest-first, so the last non-authored element is the
-// newest counterpart. MarkReadUpTo itself is monotonic, so a stale snapshot never
-// rolls the cursor back. This rule used to be hand-mirrored in services/messaging
-// (staff) and services/parent (guardian); keeping it here is what stops the two
-// portals' unread counts from drifting.
+//  3. Never a later NON-counterpart row: the unread query only counts
+//     counterpart-authored rows (counterpartUnread), so the cursor must be bounded
+//     to those. A snapshot can contain a later staff/system row from ANOTHER
+//     account — not the reader's, but also not a counterpart — and binding the
+//     cursor to it (as a bare "not authored by me" test did) leaps past an earlier
+//     counterpart message that can still commit with a lower created_at in a
+//     concurrent send/read race. That guardian message would then never surface as
+//     unread for this reader. Bounding to the newest counterpart row the reader did
+//     not author is exactly the membership of the unread set, so it is both
+//     sufficient and the only safe choice.
+//
+// A snapshot with no qualifying counterpart message (empty thread, or only the
+// reader's own / same-side rows) leaves the cursor untouched: there is nothing the
+// reader needs to mark seen. Messages are ordered oldest-first, so the last
+// qualifying element is the newest counterpart. MarkReadUpTo itself is monotonic,
+// so a stale snapshot never rolls the cursor back. This rule used to be
+// hand-mirrored in services/messaging (staff) and services/parent (guardian);
+// keeping it here is what stops the two portals' unread counts from drifting.
 // It returns whether the cursor actually ADVANCED (false when there was nothing
 // to mark, or the snapshot was already read). The read-receipt SSE push gates on
 // this so a refetch that marks nothing new does not emit an event — the bound that
@@ -153,13 +165,25 @@ func MarkReadToNewest(
 	ctx context.Context,
 	readRepo usersModels.ParentMessageReadRepository,
 	tenantID, threadID, accountID int64,
+	staffReader bool,
 	messages []*usersModels.ParentMessage,
 ) (bool, error) {
 	var newest *usersModels.ParentMessage
 	for _, msg := range messages {
-		// Oldest-first order: keep overwriting so newest ends up last. Skip the
-		// reader's own rows (see hazard 2 above).
-		if msg != nil && msg.SenderAccountID != accountID {
+		if msg == nil {
+			continue
+		}
+		// Oldest-first order: keep overwriting so newest ends up last. Bound to the
+		// reader's unread set exactly — a COUNTERPART row (hazard 3) the reader did
+		// NOT author (hazard 2). Both legs mirror the unread SQL (counterpartUnread
+		// ∧ notReaderAuthored) via their model helpers; the author skip still matters
+		// for a dual-role staff+guardian account, whose own counterpart-side PLAIN
+		// message must not move the cursor. IsReaderAuthored exempts system events
+		// from that skip exactly as notReaderAuthored does — a confirm/reject/
+		// withdrawal that account triggered is attributed by side, so on the opposite
+		// portal it is genuinely unread and MUST be allowed to advance the cursor;
+		// the bare account check stranded it as permanently unread once viewed.
+		if usersModels.IsCounterpartMessage(msg, staffReader) && !usersModels.IsReaderAuthored(msg, accountID) {
 			newest = msg
 		}
 	}

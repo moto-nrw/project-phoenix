@@ -58,12 +58,14 @@ function features(overrides: Partial<ChildFeatures> = {}): ChildFeatures {
   return {
     sick_note_enabled: true,
     notes_enabled: true,
+    request_submit_enabled: true,
     pickup_change_enabled: true,
     related_accounts_invite_enabled: true,
     related_accounts_remove_enabled: true,
     master_data_edit_enabled: true,
     master_data_contact_edit_enabled: true,
     master_data_request_enabled: true,
+    meal_plan_enabled: true,
     ...overrides,
   };
 }

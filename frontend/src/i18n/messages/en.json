@@ -39,6 +39,7 @@
   "parentNav": {
     "start": "Home",
     "children": "My children",
+    "mealPlan": "Meal plan",
     "comingSoon": "Coming soon",
     "calendar": "Calendar",
     "messages": "Messages",
@@ -52,6 +53,20 @@
     "role": "Parent",
     "childProfile": "Child profile",
     "loading": "Loading..."
+  },
+  "parentMealPlan": {
+    "title": "Meal plan",
+    "subtitle": "What's being served at care.",
+    "thisWeek": "This week",
+    "nextWeek": "Next week",
+    "today": "Today",
+    "noMeal": "No meal entered",
+    "empty": "There is currently no meal plan available for your school.",
+    "loadError": "The meal plan could not be loaded.",
+    "emptyWeek": "No meal plan has been entered for this week yet.",
+    "weekHeading": "This week",
+    "school": "School",
+    "week": "Week"
   },
   "parentDashboard": {
     "eyebrow": "Parent portal",
@@ -280,6 +295,52 @@
       "existingHint": "A change is already set for {date}. Saving overwrites it.",
       "reset": "Reset",
       "submit": "Save"
+    },
+    "actions": {
+      "sick": {
+        "label": "Report absence",
+        "shortLabel": "Absence",
+        "hint": "Report your child absent for one or more days"
+      },
+      "pickup": {
+        "label": "Pickup for one day",
+        "shortLabel": "Pickup",
+        "hint": "Adjust the pickup or arrival time for a single day"
+      },
+      "care_schedule": {
+        "label": "Change care times permanently",
+        "shortLabel": "Care times",
+        "hint": "Adjust the weekly schedule (Mon–Fri)"
+      }
+    },
+    "request": {
+      "submit": "Send request",
+      "entryLabel": "Permanent change",
+      "entryHint": "Request a permanent change. The school confirms it.",
+      "chooserTitle": "Request a change",
+      "chooserIntro": "The school reviews your request and only applies it after confirmation. Nothing changes until then.",
+      "sendError": "The request could not be sent.",
+      "careSchedule": {
+        "title": "Change care times",
+        "intro": "Weekly schedule Mon–Fri as a request to the school. Only filled-in entries are changed, empty fields stay as before.",
+        "noChange": "Please adjust at least one day.",
+        "arrival": "Arrival time",
+        "pickup": "Pickup time",
+        "modeAria": "Departure mode {day}"
+      },
+      "weekday": {
+        "1": "Monday",
+        "2": "Tuesday",
+        "3": "Wednesday",
+        "4": "Thursday",
+        "5": "Friday"
+      },
+      "careMode": {
+        "unchanged": "Unchanged",
+        "alone": "Goes alone",
+        "bus": "Takes the bus",
+        "pickup": "Is picked up"
+      }
     }
   },
   "parentLogin": {
@@ -895,41 +956,32 @@
       "fri": "Fri"
     }
   },
-  "staffMasterDataReview": {
-    "title": "Change requests",
-    "subtitle": "Master-data changes submitted by parents that need approval.",
-    "loadError": "The change requests could not be loaded.",
-    "empty": "No open change requests.",
-    "columns": {
-      "child": "Child",
-      "field": "Field",
-      "change": "Change",
-      "submitted": "Submitted",
-      "actions": "Action"
-    },
-    "fields": {
-      "first_name": "First name",
-      "last_name": "Last name",
-      "birthday": "Date of birth",
-      "health_info": "Health notes",
-      "email": "Email",
-      "primary": "Phone number",
-      "address_street": "Street",
-      "address_city": "City",
-      "address_postal_code": "Postal code",
-      "preferred_contact_method": "Contact method",
-      "language_preference": "Language",
-      "allowed_departure_modes": "Permanent ways home"
-    },
-    "empty_value": "—",
-    "approve": "Approve",
-    "reject": "Reject",
-    "reason": "Reason (optional)",
-    "approved": "Change applied",
-    "rejected": "Change rejected",
-    "decideError": "The decision could not be saved."
-  },
   "parentOgsMessaging": {
-    "readByStaff": "Read"
+    "readByStaff": "Read",
+    "requestWithdraw": "Withdraw",
+    "requestTypeCareSchedule": "Request: Change recurring care times",
+    "requestTitleFallback": "Request",
+    "statusOpen": "Open",
+    "statusDone": "Done",
+    "statusRejected": "Rejected",
+    "statusWithdrawn": "Withdrawn",
+    "eventRequestConfirmed": "Request confirmed",
+    "eventRequestConfirmedCareSchedule": "Request confirmed, care times applied",
+    "eventRequestRejected": "Request rejected",
+    "eventRequestRejectedReason": "Request rejected: {reason}",
+    "eventRequestWithdrawn": "Request withdrawn",
+    "diffHeading": "Your requested changes",
+    "diffCareArrival": "Arrival time",
+    "diffCarePickup": "Pickup time",
+    "diffCareDepartureMode": "Departure type",
+    "diffWeekday1": "Monday",
+    "diffWeekday2": "Tuesday",
+    "diffWeekday3": "Wednesday",
+    "diffWeekday4": "Thursday",
+    "diffWeekday5": "Friday",
+    "diffModeAlone": "Goes alone",
+    "diffModeBus": "Takes the bus",
+    "diffModePickup": "Is picked up",
+    "diffModeAccompanied": "With another child"
   }
 }

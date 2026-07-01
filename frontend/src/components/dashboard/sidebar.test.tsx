@@ -422,23 +422,23 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       // Coming soon items should have "Bald" badge
-      expect(screen.getByText("Mittagessen")).toBeInTheDocument();
+      expect(screen.getByText("Erinnerungen")).toBeInTheDocument();
       expect(screen.getAllByText("Bald").length).toBeGreaterThan(0);
     });
 
     it("coming soon items are not clickable", () => {
       render(<Sidebar />);
 
-      // Mittagessen is still a coming soon feature
-      const mittagessenElement = screen.getByText("Mittagessen");
-      expect(mittagessenElement.closest("a")).toBeNull();
+      // Erinnerungen is still a coming soon feature
+      const comingSoonElement = screen.getByText("Erinnerungen");
+      expect(comingSoonElement.closest("a")).toBeNull();
     });
 
     it("coming soon items have disabled styling", () => {
       render(<Sidebar />);
 
-      const mittagessenElement = screen.getByText("Mittagessen");
-      const container = mittagessenElement.closest("div");
+      const comingSoonElement = screen.getByText("Erinnerungen");
+      const container = comingSoonElement.closest("div");
       expect(container).toHaveClass("text-gray-400");
       expect(container).toHaveClass("cursor-not-allowed");
     });

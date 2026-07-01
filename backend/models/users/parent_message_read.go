@@ -58,7 +58,24 @@ type InboxThread struct {
 	LastMessageAt     *time.Time `bun:"last_message_at" json:"last_message_at,omitempty"`
 	LastSenderKind    string     `bun:"last_sender_kind" json:"last_sender_kind,omitempty"`
 	LastMessageBody   string     `bun:"last_message_body" json:"last_message_body,omitempty"`
-	UnreadCount       int        `bun:"unread_count" json:"unread_count"`
+	// Structured fields of the thread's last message (kind / event_type /
+	// request_type / request_status), projected from a join on last_message_id.
+	// Internal only (json:"-"): the German-only staff inbox renders
+	// LastMessageBody directly, but the LOCALIZED parents portal cannot — a
+	// request title or a decision/withdrawal system-event body is German on the
+	// wire. The parent handler exposes these on its own DTO so the parents portal
+	// localizes the preview from fields (the same way the full conversation
+	// localizes each card) instead of showing the German body until the next
+	// plain message arrives.
+	LastMessageKind   string `bun:"last_message_kind" json:"-"`
+	LastEventType     string `bun:"last_event_type" json:"-"`
+	LastRequestType   string `bun:"last_request_type" json:"-"`
+	LastRequestStatus string `bun:"last_request_status" json:"-"`
+	UnreadCount       int    `bun:"unread_count" json:"unread_count"`
+	// OpenRequestCount is the number of still-open ('offen') structured change
+	// requests in the thread — drives the inbox "offene Anfrage" badge and the
+	// onlyOpenRequests filter.
+	OpenRequestCount int `bun:"open_request_count" json:"open_request_count"`
 }
 
 // ReadCursor is the composite position of a read cursor: the read instant and
@@ -102,8 +119,11 @@ type ParentMessageReadRepository interface {
 	// groupIDs.
 	UnreadMessageCountForStaff(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64) (int, error)
 	// ListInboxForStaff returns the staff member's readable threads,
-	// newest-activity first; unread counts guardian messages.
-	ListInboxForStaff(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64, onlyUnread bool) ([]*InboxThread, error)
+	// newest-activity first; unread counts guardian messages. When
+	// onlyOpenRequests is passed true, only threads with at least one still-open
+	// ('offen') structured change request are returned (the central
+	// open-requests inbox filter).
+	ListInboxForStaff(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64, onlyUnread bool, onlyOpenRequests ...bool) ([]*InboxThread, error)
 	// ListThreadsForGuardianStudent returns the guardian's own threads about one
 	// of their children in the current tenant; unread counts staff messages. Runs
 	// under the child's tenant tx (the caller resolves ownership first).
