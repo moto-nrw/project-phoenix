@@ -16,6 +16,15 @@ vi.mock("~/lib/master-data-review-api", () => ({
 const mockList = vi.mocked(listMasterDataChangeRequests);
 const mockDecide = vi.mocked(decideMasterDataChangeRequest);
 
+// Cards are collapsed by default (compact queue); expand every card so the diff
+// and the Freigeben/Ablehnen actions render. The header button's accessible
+// name contains the child name.
+function expandAll() {
+  for (const btn of screen.getAllByRole("button", { name: /Lara Beispiel/ })) {
+    fireEvent.click(btn);
+  }
+}
+
 function row(
   overrides: Partial<StaffMasterDataChange> = {},
 ): StaffMasterDataChange {
@@ -56,6 +65,7 @@ describe("MasterDataReviewList", () => {
     render(<MasterDataReviewList />);
 
     expect(await screen.findAllByText("Lara Beispiel")).toHaveLength(2);
+    expandAll();
     expect(screen.getByText("Vorname")).toBeInTheDocument();
     expect(screen.getByText("mon: pickup")).toBeInTheDocument();
     expect(screen.getByText("mon: bus/alone")).toBeInTheDocument();
@@ -82,6 +92,7 @@ describe("MasterDataReviewList", () => {
     render(<MasterDataReviewList />);
 
     expect(await screen.findByText("unknown_field")).toBeInTheDocument();
+    expandAll();
     fireEvent.click(screen.getByRole("button", { name: "Ablehnen" }));
 
     await waitFor(() =>
@@ -103,6 +114,7 @@ describe("MasterDataReviewList", () => {
     render(<MasterDataReviewList />);
 
     expect(await screen.findByText("Lara Beispiel")).toBeInTheDocument();
+    expandAll();
     fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
 
     expect(

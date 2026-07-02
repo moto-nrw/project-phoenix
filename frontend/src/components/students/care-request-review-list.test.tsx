@@ -16,6 +16,15 @@ vi.mock("~/lib/care-request-review-api", () => ({
 const mockList = vi.mocked(listCareScheduleChangeRequests);
 const mockDecide = vi.mocked(decideCareScheduleChangeRequest);
 
+// Cards are collapsed by default (compact queue); expand every card so the diff
+// and the Freigeben/Ablehnen actions render. The header button's accessible
+// name contains the child name.
+function expandAll() {
+  for (const btn of screen.getAllByRole("button", { name: /Lara Beispiel/ })) {
+    fireEvent.click(btn);
+  }
+}
+
 function row(overrides: Partial<StaffCareRequest> = {}): StaffCareRequest {
   return {
     id: "200",
@@ -60,6 +69,7 @@ describe("CareRequestReviewList", () => {
     render(<CareRequestReviewList />);
 
     expect(await screen.findByText("Lara Beispiel")).toBeInTheDocument();
+    expandAll();
     expect(screen.getByText("Montag · Abholzeit:")).toBeInTheDocument();
     expect(screen.getByText("15:00")).toBeInTheDocument();
     expect(screen.getByText("Geht alleine")).toBeInTheDocument();
@@ -82,6 +92,7 @@ describe("CareRequestReviewList", () => {
     render(<CareRequestReviewList />);
 
     expect(await screen.findByText("Lara Beispiel")).toBeInTheDocument();
+    expandAll();
     fireEvent.click(screen.getByRole("button", { name: "Ablehnen" }));
 
     expect(
@@ -118,6 +129,7 @@ describe("CareRequestReviewList", () => {
     render(<CareRequestReviewList />);
 
     expect(await screen.findByText("Lara Beispiel")).toBeInTheDocument();
+    expandAll();
     fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
 
     expect(
