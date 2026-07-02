@@ -332,6 +332,17 @@ describe("TransitStudentsSection", () => {
     expect(mutateStudents).toHaveBeenCalledTimes(1);
     expect(mutateKey).toHaveBeenCalledWith("rooms-list");
     expect(mutateMatching).toHaveBeenCalledTimes(1);
+    // The needle list must cover the /active-supervisions caches too:
+    // when this section is embedded there, the room grid
+    // (supervision-visits-*) and roster (timetable-roster-*) would
+    // otherwise only refresh via SSE.
+    expect(vi.mocked(useTenantMutateMatching)).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        "room-students-",
+        "supervision-visits-",
+        "timetable-roster-",
+      ]),
+    );
   });
 
   it("opens a transit child profile from the dedicated profile button", () => {
