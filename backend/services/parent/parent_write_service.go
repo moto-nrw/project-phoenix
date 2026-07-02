@@ -323,7 +323,7 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 	}
 	canEditMasterData := masterEdit && child.hasPermission(authorize.GuardianPermissionMasterDataEdit)
 	return ChildFeatureFlags{
-		HasOpenChangeRequest:         s.hasOpenChangeRequest(ctx, studentID),
+		HasOpenChangeRequest:         s.hasOpenChangeRequest(ctx, child.tenantID, studentID),
 		SickNoteEnabled:              sick && child.hasPermission(authorize.GuardianPermissionSickNoteSubmit),
 		NotesEnabled:                 notes && child.hasPermission(authorize.GuardianPermissionNotesWrite),
 		RequestSubmitEnabled:         notes && child.hasPermission(authorize.GuardianPermissionRequestSubmit),
@@ -339,31 +339,46 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 
 // hasOpenChangeRequest reports whether the child has a pending change request
 // (care schedule OR master data) awaiting an OGS decision, so the parent
-// overview can badge the Stammdaten entry. Best-effort: a query error logs and
-// yields false so a transient failure never shows a phantom badge.
-func (s *service) hasOpenChangeRequest(ctx context.Context, studentID int64) bool {
-	if s.careRequests != nil {
-		if req, _, err := s.careRequests.GetPendingForStudent(ctx, studentID); err != nil {
-			s.logger.Warn("parent: pending care-request check failed",
-				slog.Int64("student_id", studentID),
-				slog.String("error", err.Error()),
-			)
-		} else if req != nil {
-			return true
+// overview can badge the Stammdaten entry. The lookups hit tenant-scoped/RLS
+// tables, so they must run inside a tenant transaction — ChildFeatures is only
+// parent-authenticated and carries no tenant context otherwise. Best-effort: a
+// query error logs and yields false so a transient failure never shows a
+// phantom badge.
+func (s *service) hasOpenChangeRequest(ctx context.Context, tenantID, studentID int64) bool {
+	open := false
+	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if s.careRequests != nil {
+			if req, _, err := s.careRequests.GetPendingForStudent(txCtx, studentID); err != nil {
+				s.logger.Warn("parent: pending care-request check failed",
+					slog.Int64("student_id", studentID),
+					slog.String("error", err.Error()),
+				)
+			} else if req != nil {
+				open = true
+				return nil
+			}
 		}
-	}
-	if s.changeRequestRepo != nil {
-		pending, err := s.changeRequestRepo.ListByStudent(ctx, studentID, []string{usersModels.DataChangeStatusPending}, 0)
-		if err != nil {
-			s.logger.Warn("parent: pending master-data check failed",
-				slog.Int64("student_id", studentID),
-				slog.String("error", err.Error()),
-			)
-		} else if len(pending) > 0 {
-			return true
+		if s.changeRequestRepo != nil {
+			pending, err := s.changeRequestRepo.ListByStudent(txCtx, studentID, []string{usersModels.DataChangeStatusPending}, 0)
+			if err != nil {
+				s.logger.Warn("parent: pending master-data check failed",
+					slog.Int64("student_id", studentID),
+					slog.String("error", err.Error()),
+				)
+			} else if len(pending) > 0 {
+				open = true
+			}
 		}
+		return nil
+	})
+	if err != nil {
+		s.logger.Warn("parent: open change-request check failed",
+			slog.Int64("student_id", studentID),
+			slog.String("error", err.Error()),
+		)
+		return false
 	}
-	return false
+	return open
 }
 
 // ListSickDays returns the child's active parent-facing absences in [from, to]:
