@@ -1277,32 +1277,36 @@ function AnnouncementCard({
   readonly onPublish: () => void;
 }) {
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm">
+    <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
       <button
         type="button"
         onClick={onOpen}
-        className="block w-full min-w-0 text-left"
+        className="block w-full min-w-0 p-4 pb-3 text-left transition-colors active:bg-gray-50"
       >
-        <div className="flex items-start justify-between gap-2">
-          <p className="min-w-0 truncate font-semibold text-gray-900">
-            {announcement.title}
-          </p>
+        <div className="flex flex-wrap items-center gap-1.5">
           <StatusPill status={announcement.status} />
+          {announcement.priority === "important" && (
+            <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
+              Wichtig
+            </span>
+          )}
         </div>
-        <p className="mt-1 line-clamp-2 text-sm text-gray-600">
+        <p className="mt-2 line-clamp-2 leading-snug font-semibold text-gray-900">
+          {announcement.title}
+        </p>
+        <p className="mt-1 line-clamp-2 text-sm leading-5 text-gray-600">
           {announcement.body}
         </p>
         <p className="mt-2 text-xs text-gray-500">
           {summarizeTargets(announcement.targets)}
-          {announcement.priority === "important" && " · Wichtig"}
           {announcement.published_at
-            ? ` · Veröffentlicht ${formatDate(announcement.published_at)}`
-            : " · Noch nicht veröffentlicht"}
+            ? ` · ${formatDate(announcement.published_at)}`
+            : " · Entwurf"}
           {announcement.expires_at &&
-            ` · Läuft ab ${formatDate(announcement.expires_at)}`}
+            ` · bis ${formatDate(announcement.expires_at)}`}
         </p>
       </button>
-      <div className="mt-3 flex items-center justify-between gap-2 border-t border-gray-100 pt-2">
+      <div className="flex items-center justify-between gap-2 border-t border-gray-100 bg-gray-50/60 px-2 py-1.5">
         {announcement.status === "draft" ? (
           <Button
             type="button"
@@ -1316,7 +1320,16 @@ function AnnouncementCard({
             Veröffentlichen
           </Button>
         ) : (
-          <span />
+          <Button
+            type="button"
+            variant="ghost"
+            size="compact"
+            onClick={onOpen}
+            className="gap-1.5 text-gray-600"
+          >
+            <BarChart3 className="size-4" aria-hidden />
+            Details
+          </Button>
         )}
         <OverflowMenu
           items={menuItems}
@@ -1385,6 +1398,126 @@ const RECIPIENT_SORT: Record<AnnouncementRecipient["status"], number> = {
   acknowledged: 2,
 };
 
+interface RecipientListProps {
+  readonly recipients: AnnouncementRecipient[];
+  readonly showStatus: boolean;
+  readonly statusFilter: "all" | AnnouncementRecipient["status"];
+  readonly onStatusFilter: (
+    value: "all" | AnnouncementRecipient["status"],
+  ) => void;
+  readonly nameFilter: string;
+  readonly onNameFilter: (value: string) => void;
+}
+
+/**
+ * The per-guardian read/ack list, built to stay usable at big-school scale:
+ * status chips with counts (the "Ausstehend" chip is the chase list), a name
+ * search, and a capped, scrolling list.
+ */
+function RecipientList({
+  recipients,
+  showStatus,
+  statusFilter,
+  onStatusFilter,
+  nameFilter,
+  onNameFilter,
+}: RecipientListProps) {
+  const counts = {
+    all: recipients.length,
+    pending: 0,
+    read: 0,
+    acknowledged: 0,
+  };
+  for (const rcpt of recipients) counts[rcpt.status]++;
+
+  const term = nameFilter.trim().toLowerCase();
+  const filtered = recipients.filter((rcpt) => {
+    if (showStatus && statusFilter !== "all" && rcpt.status !== statusFilter)
+      return false;
+    if (
+      term &&
+      !`${rcpt.first_name} ${rcpt.last_name}`.toLowerCase().includes(term)
+    )
+      return false;
+    return true;
+  });
+
+  const chips: ReadonlyArray<{
+    value: "all" | AnnouncementRecipient["status"];
+    label: string;
+  }> = [
+    { value: "all", label: `Alle (${counts.all})` },
+    { value: "pending", label: `Ausstehend (${counts.pending})` },
+    { value: "read", label: `Gelesen (${counts.read})` },
+    { value: "acknowledged", label: `Bestätigt (${counts.acknowledged})` },
+  ];
+
+  return (
+    <div className="mt-2 space-y-2">
+      {showStatus && (
+        <div className="flex flex-wrap gap-1.5">
+          {chips.map((chip) => (
+            <button
+              key={chip.value}
+              type="button"
+              onClick={() => onStatusFilter(chip.value)}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                statusFilter === chip.value
+                  ? "bg-gray-900 text-white"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+            >
+              {chip.label}
+            </button>
+          ))}
+        </div>
+      )}
+      {recipients.length > 8 && (
+        <Input
+          name="recipient-search"
+          controlSize="compact"
+          value={nameFilter}
+          onChange={(e) => onNameFilter(e.target.value)}
+          placeholder="Name suchen..."
+        />
+      )}
+      {filtered.length === 0 ? (
+        <p className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-500">
+          Keine Treffer.
+        </p>
+      ) : (
+        <ul className="max-h-56 divide-y divide-gray-100 overflow-y-auto rounded-lg border border-gray-200">
+          {filtered.map((rcpt) => (
+            <li
+              key={rcpt.account_id}
+              className="flex items-center justify-between gap-2 px-3 py-2"
+            >
+              <span className="min-w-0 truncate text-sm text-gray-800">
+                {`${rcpt.first_name} ${rcpt.last_name}`.trim() || "Ohne Namen"}
+              </span>
+              {showStatus && (
+                <span
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-gray-50 px-2.5 py-0.5 text-xs font-medium"
+                  style={{ color: RECIPIENT_STATUS_META[rcpt.status].color }}
+                >
+                  <span
+                    aria-hidden
+                    className="inline-block h-1.5 w-1.5 rounded-full"
+                    style={{
+                      backgroundColor: RECIPIENT_STATUS_META[rcpt.status].color,
+                    }}
+                  />
+                  {RECIPIENT_STATUS_META[rcpt.status].label}
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 interface DetailModalProps {
   readonly announcement: Announcement;
   readonly groups: Group[];
@@ -1408,6 +1541,10 @@ function DetailModal({
     null,
   );
   const [error, setError] = useState("");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | AnnouncementRecipient["status"]
+  >("all");
+  const [nameFilter, setNameFilter] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -1536,37 +1673,14 @@ function DetailModal({
                 )}
               </p>
               {recipients.length > 0 && (
-                <ul className="mt-2 max-h-56 divide-y divide-gray-100 overflow-y-auto rounded-lg border border-gray-200">
-                  {recipients.map((rcpt) => (
-                    <li
-                      key={rcpt.account_id}
-                      className="flex items-center justify-between gap-2 px-3 py-2"
-                    >
-                      <span className="min-w-0 truncate text-sm text-gray-800">
-                        {`${rcpt.first_name} ${rcpt.last_name}`.trim() ||
-                          "Ohne Namen"}
-                      </span>
-                      {isPublished && (
-                        <span
-                          className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-gray-50 px-2.5 py-0.5 text-xs font-medium"
-                          style={{
-                            color: RECIPIENT_STATUS_META[rcpt.status].color,
-                          }}
-                        >
-                          <span
-                            aria-hidden
-                            className="inline-block h-1.5 w-1.5 rounded-full"
-                            style={{
-                              backgroundColor:
-                                RECIPIENT_STATUS_META[rcpt.status].color,
-                            }}
-                          />
-                          {RECIPIENT_STATUS_META[rcpt.status].label}
-                        </span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
+                <RecipientList
+                  recipients={recipients}
+                  showStatus={isPublished}
+                  statusFilter={statusFilter}
+                  onStatusFilter={setStatusFilter}
+                  nameFilter={nameFilter}
+                  onNameFilter={setNameFilter}
+                />
               )}
             </>
           )}

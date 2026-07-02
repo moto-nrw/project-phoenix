@@ -21,6 +21,7 @@ import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useSuggestionsUnread } from "~/lib/hooks/use-suggestions-unread";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import { useParentMessagesUnread } from "~/lib/hooks/use-parent-messages-unread";
+import { useParentNewsUnread } from "~/lib/hooks/use-parent-news-unread";
 import { useParentMealPlanEnabled } from "~/lib/hooks/use-parent-meal-plan-enabled";
 import { useOperatorSuggestionsUnread } from "~/lib/hooks/use-operator-suggestions-unread";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
@@ -431,6 +432,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const { unreadCount: parentMessagesUnread } = useParentMessagesUnread(
     mode === "parent",
   );
+  // Unread announcements badge for the parents-portal Neuigkeiten item (#1669).
+  const { unreadCount: parentNewsUnread } = useParentNewsUnread(
+    mode === "parent",
+  );
   // Only advertise Essensplan in the parents portal once a linked school runs
   // a meal plan; otherwise the link leads to an empty/unavailable page.
   const parentMealPlanEnabled = useParentMealPlanEnabled(mode === "parent");
@@ -586,6 +591,15 @@ function SidebarContent({ className = "" }: SidebarProps) {
     }
     if (href === "/dashboard") return pathname === "/dashboard";
     if (href === "/parents") return pathname === "/parents" || pathname === "/";
+    if (href.startsWith("/parents/")) {
+      // On the parents host the proxy rewrites /parents/* internally while the
+      // browser (and usePathname) shows the external path without the prefix —
+      // /parents/news is visited as /news. Match both spellings.
+      return (
+        pathname.startsWith(href) ||
+        pathname.startsWith(href.slice("/parents".length))
+      );
+    }
     return pathname.startsWith(href);
   };
 
@@ -983,6 +997,26 @@ function SidebarContent({ className = "" }: SidebarProps) {
               </svg>
               <span>{tParentNav("messages")}</span>
               <UnreadBadge count={parentMessagesUnread} className="ml-auto" />
+            </Link>
+            <Link
+              href="/parents/news"
+              className={getLinkClasses("/parents/news")}
+            >
+              <svg
+                className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d={navigationIcons.newspaper}
+                />
+              </svg>
+              <span>{tParentNav("news")}</span>
+              <UnreadBadge count={parentNewsUnread} className="ml-auto" />
             </Link>
             {parentMealPlanEnabled && (
               <Link

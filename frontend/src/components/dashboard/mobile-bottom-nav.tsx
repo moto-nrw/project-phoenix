@@ -240,6 +240,13 @@ const PARENT_ADDITIONAL_ITEMS: readonly (AdditionalNavItem & {
     iconKey: "chat",
     alwaysShow: true,
   },
+  {
+    href: "/parents/news",
+    label: "Neuigkeiten",
+    tKey: "news",
+    iconKey: "newspaper",
+    alwaysShow: true,
+  },
   // Essensplan — only shown once a linked school runs a meal plan (gated via
   // useParentMealPlanEnabled in the parent display filter below).
   {
