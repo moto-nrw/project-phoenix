@@ -2139,7 +2139,10 @@ function MeinRaumPageContent() {
       {currentRoom &&
       (!isSchulhofActive || schulhofStatus?.isUserSupervising) ? (
         <div className="mb-4">
-          <TransitStudentsSection fromReferrer="/active-supervisions" />
+          <TransitStudentsSection
+            fromReferrer="/active-supervisions"
+            collapsible
+          />
         </div>
       ) : null}
 

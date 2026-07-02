@@ -394,4 +394,44 @@ describe("TransitStudentsSection", () => {
       screen.getByRole("option", { name: "Keine aktiven Räume" }),
     ).toBeInTheDocument();
   });
+
+  it("starts collapsed with a summary header when collapsible", () => {
+    render(<TransitStudentsSection collapsible />);
+
+    const toggle = screen.getByRole("button", {
+      name: /Kinder unterwegs/,
+    });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByText("2")).toBeInTheDocument();
+    expect(screen.getByText("Kinder ohne Raum")).toBeInTheDocument();
+    expect(screen.queryByText("Mila Sommer")).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  });
+
+  it("expands and collapses the collapsible section via the header", () => {
+    render(<TransitStudentsSection collapsible />);
+
+    const toggle = screen.getByRole("button", {
+      name: /Kinder unterwegs/,
+    });
+    fireEvent.click(toggle);
+
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Mila Sommer")).toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toBeInTheDocument();
+
+    fireEvent.click(toggle);
+
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Mila Sommer")).not.toBeInTheDocument();
+  });
+
+  it("renders fully expanded without a toggle when not collapsible", () => {
+    render(<TransitStudentsSection />);
+
+    expect(
+      screen.queryByRole("button", { name: /Kinder unterwegs/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Mila Sommer")).toBeInTheDocument();
+  });
 });
