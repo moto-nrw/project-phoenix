@@ -108,8 +108,10 @@ func (r *ParentAnnouncementRepository) Delete(ctx context.Context, id int64) err
 	return r.Repository.Delete(ctx, id)
 }
 
-// ListForTenant returns the tenant's announcements newest-first. includeInactive
-// controls whether soft-disabled (active=false) rows appear.
+// ListForTenant returns the tenant's announcements newest-first, each with its
+// target rows attached (one batched IN query — the staff list renders the
+// audience per row). includeInactive controls whether soft-disabled
+// (active=false) rows appear.
 func (r *ParentAnnouncementRepository) ListForTenant(ctx context.Context, includeInactive bool) ([]*users.ParentAnnouncement, error) {
 	var rows []*users.ParentAnnouncement
 	query := base.GetDB(ctx, r.DB).NewSelect().
@@ -124,6 +126,34 @@ func (r *ParentAnnouncementRepository) ListForTenant(ctx context.Context, includ
 	}
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list parent announcements for tenant", Err: err}
+	}
+	if len(rows) == 0 {
+		return rows, nil
+	}
+
+	ids := make([]int64, 0, len(rows))
+	byID := make(map[int64]*users.ParentAnnouncement, len(rows))
+	for _, a := range rows {
+		ids = append(ids, a.ID)
+		byID[a.ID] = a
+		a.Targets = []*users.ParentAnnouncementTarget{}
+	}
+	var targets []*users.ParentAnnouncementTarget
+	tq := base.GetDB(ctx, r.DB).NewSelect().
+		Model(&targets).
+		ModelTableExpr("users.parent_announcement_targets AS pat").
+		Where("pat.announcement_id IN (?)", bun.List(ids)).
+		OrderExpr("pat.id ASC")
+	if where, val, ok := base.TenantWhere(ctx, "pat"); ok {
+		tq = tq.Where(where, val)
+	}
+	if err := tq.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list parent announcement targets for tenant", Err: err}
+	}
+	for _, t := range targets {
+		if a, ok := byID[t.AnnouncementID]; ok {
+			a.Targets = append(a.Targets, t)
+		}
 	}
 	return rows, nil
 }
@@ -284,6 +314,10 @@ func reachedArgs(announcementID, tenantID, accountID int64) []any {
 // e-mail/name captured on the enrollment request (those guardians may not have
 // a profile yet). UNION de-duplicates by the full (email, name) row.
 func (r *ParentAnnouncementRepository) ResolveAudienceEmails(ctx context.Context, tenantID, announcementID int64) ([]*users.AnnouncementRecipient, error) {
+	// Only guardians WITH a linked account receive the e-mail: the mail is a
+	// pointer into the parent portal (title + link, no body), which is useless
+	// without an account — and it keeps recipients consistent with the feed
+	// audience and the staff reach stats.
 	var rows []*users.AnnouncementRecipient
 	sqlStr := fmt.Sprintf(`
 		SELECT DISTINCT lower(gp.email) AS email,
@@ -304,6 +338,7 @@ func (r *ParentAnnouncementRepository) ResolveAudienceEmails(ctx context.Context
 		JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
 			AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
 		JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
+			AND gp.account_id IS NOT NULL
 			AND gp.email IS NOT NULL AND length(btrim(gp.email)) > 0
 		WHERE pt.announcement_id = ? AND pt.tenant_id = ?
 
@@ -313,7 +348,8 @@ func (r *ParentAnnouncementRepository) ResolveAudienceEmails(ctx context.Context
 			COALESCE(req.guardian_first_name, '') AS first_name, COALESCE(req.guardian_last_name, '') AS last_name
 		FROM users.parent_announcement_targets pt
 		JOIN enrollment.requests req ON req.tenant_id = ?
-			AND req.withdrawn_at IS NULL AND length(btrim(req.guardian_email)) > 0
+			AND req.withdrawn_at IS NULL AND req.guardian_account_id IS NOT NULL
+			AND length(btrim(req.guardian_email)) > 0
 		JOIN enrollment.request_children rc ON rc.request_id = req.id AND rc.tenant_id = ?
 			AND rc.status IN (%s)
 		WHERE pt.announcement_id = ? AND pt.tenant_id = ? AND pt.target_type = 'pending_enrollment'`,
@@ -368,7 +404,7 @@ func (r *ParentAnnouncementRepository) ListFeedForAccount(ctx context.Context, a
 	// Arg order: read-state join (acc), tenant set, then reachedPredicate's acc
 	// appears twice (student + pending EXISTS) since ann/tenant are column refs.
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
-		accountID, bun.In(tenantIDs), accountID, accountID,
+		accountID, bun.List(tenantIDs), accountID, accountID,
 	).Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list parent announcement feed", Err: err}
 	}
@@ -396,7 +432,7 @@ func (r *ParentAnnouncementRepository) CountUnreadForAccount(ctx context.Context
 			AND par.read_at IS NULL
 			AND ` + reached
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
-		accountID, bun.In(tenantIDs), accountID, accountID,
+		accountID, bun.List(tenantIDs), accountID, accountID,
 	).Scan(ctx, &count); err != nil {
 		return 0, &modelBase.DatabaseError{Op: "count unread parent announcements", Err: err}
 	}

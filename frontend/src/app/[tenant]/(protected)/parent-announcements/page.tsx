@@ -545,7 +545,6 @@ function ParentAnnouncementsContent() {
           confirmText="Jetzt veröffentlichen"
           cancelText="Abbrechen"
           isConfirmLoading={pendingActionId === publishTarget.id}
-          confirmButtonClass="bg-[#83CD2D] text-white hover:bg-[#74b827]"
         >
           <div className="space-y-2 text-sm text-gray-700">
             <p>
@@ -777,7 +776,7 @@ function AnnouncementFormModal({
           isLoading={submitting === "publish"}
           loadingText="Wird veröffentlicht..."
           disabled={submitting === "draft"}
-          className="gap-1.5 border-transparent bg-[#83CD2D] text-white hover:bg-[#74b827] active:bg-[#669f21]"
+          className="gap-1.5"
         >
           <Send className="size-4" aria-hidden />
           Veröffentlichen

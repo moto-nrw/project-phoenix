@@ -280,7 +280,9 @@ func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.
 	recipients, err := s.repo.ResolveAudienceEmails(ctx, tenantID, a.ID)
 	if err != nil {
 		s.logger.Error("parent announcement: resolve audience e-mails failed",
-			slog.Int64("announcement_id", a.ID), slog.String("error", err.Error()))
+			slog.Int64("announcement_id", a.ID),
+			slog.String("error", err.Error()),
+		)
 		return
 	}
 	if len(recipients) == 0 {
@@ -289,7 +291,9 @@ func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.
 	schoolName, err := s.repo.SchoolName(ctx, tenantID)
 	if err != nil {
 		s.logger.Warn("parent announcement: school name lookup failed, sending without it",
-			slog.Int64("announcement_id", a.ID), slog.String("error", err.Error()))
+			slog.Int64("announcement_id", a.ID),
+			slog.String("error", err.Error()),
+		)
 	}
 	queued := 0
 	for _, rcpt := range recipients {
@@ -310,13 +314,17 @@ func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.
 			RelatedEntityID:   a.ID,
 		}); err != nil {
 			s.logger.Error("parent announcement: enqueue e-mail failed",
-				slog.Int64("announcement_id", a.ID), slog.String("error", err.Error()))
+				slog.Int64("announcement_id", a.ID),
+				slog.String("error", err.Error()),
+			)
 			continue
 		}
 		queued++
 	}
 	s.logger.Info("parent announcement e-mails queued",
-		slog.Int64("announcement_id", a.ID), slog.Int("queued", queued))
+		slog.Int64("announcement_id", a.ID),
+		slog.Int("queued", queued),
+	)
 }
 
 func (s *service) Unpublish(ctx context.Context, id int64) (*usersModels.ParentAnnouncement, error) {

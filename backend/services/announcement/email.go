@@ -52,6 +52,7 @@ func NewAnnouncementRenderer(cfg EmailConfig) func(context.Context, *platformMod
 			Template: "announcement-published.html",
 			Content: map[string]any{
 				"Title":             title,
+				"BrandKicker":       "Elternmitteilung",
 				"SchoolName":        schoolName,
 				"GuardianFirstName": first,
 				"GuardianLastName":  last,
