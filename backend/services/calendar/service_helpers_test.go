@@ -1,6 +1,7 @@
 package calendar
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -212,6 +213,7 @@ func TestCalendarSortEvents(t *testing.T) {
 func TestCalendarServiceValidatesInputsBeforeDependencies(t *testing.T) {
 	svc := &service{}
 	start := timezone.NewDate(2026, 1, 5)
+	ctx := context.TODO()
 
 	err := validateWindow(timezone.Date{}, start)
 	assert.True(t, errors.Is(err, ErrInvalidRequest))
@@ -227,18 +229,18 @@ func TestCalendarServiceValidatesInputsBeforeDependencies(t *testing.T) {
 
 	assert.NoError(t, validateWindow(start, start.AddDays(maxCalendarWindowDays-1)))
 
-	_, err = svc.ListMyStaffEvents(nil, start, start.AddDays(-1))
+	_, err = svc.ListMyStaffEvents(ctx, start, start.AddDays(-1))
 	assert.True(t, errors.Is(err, ErrInvalidRequest))
 
-	_, err = svc.ListMyParentEvents(nil, 0, start, start)
+	_, err = svc.ListMyParentEvents(ctx, 0, start, start)
 	assert.True(t, errors.Is(err, ErrForbidden))
 
-	_, err = svc.GetStaffAppointmentOverview(nil, 0)
+	_, err = svc.GetStaffAppointmentOverview(ctx, 0)
 	assert.True(t, errors.Is(err, ErrInvalidRequest))
 
-	_, err = svc.GetParentAppointmentOverview(nil, 0, 1)
+	_, err = svc.GetParentAppointmentOverview(ctx, 0, 1)
 	assert.True(t, errors.Is(err, ErrForbidden))
 
-	_, err = svc.GetParentAppointmentOverview(nil, 1, 0)
+	_, err = svc.GetParentAppointmentOverview(ctx, 1, 0)
 	assert.True(t, errors.Is(err, ErrInvalidRequest))
 }
