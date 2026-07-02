@@ -77,6 +77,7 @@ type Service interface {
 	Publish(ctx context.Context, id int64) (*usersModels.ParentAnnouncement, error)
 	Unpublish(ctx context.Context, id int64) (*usersModels.ParentAnnouncement, error)
 	Stats(ctx context.Context, id int64) (*usersModels.AnnouncementStats, error)
+	Recipients(ctx context.Context, id int64) ([]*usersModels.AnnouncementRecipientStatus, error)
 }
 
 // ServiceConfig is the dependency bundle. Outbox + ParentsURL are optional: a
@@ -358,6 +359,24 @@ func (s *service) Stats(ctx context.Context, id int64) (*usersModels.Announcemen
 		return nil, fmt.Errorf("announcement: stats: %w", err)
 	}
 	return stats, nil
+}
+
+// Recipients returns the announcement's live audience as named guardian
+// accounts with their read/ack state — the per-person view behind Stats, so
+// staff can see who still has to acknowledge.
+func (s *service) Recipients(ctx context.Context, id int64) ([]*usersModels.AnnouncementRecipientStatus, error) {
+	a, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("announcement: load for recipients: %w", err)
+	}
+	if a == nil {
+		return nil, ErrNotFound
+	}
+	recipients, err := s.repo.AudienceRecipients(ctx, a.GetTenantID(), id)
+	if err != nil {
+		return nil, fmt.Errorf("announcement: recipients: %w", err)
+	}
+	return recipients, nil
 }
 
 // normalizeInput validates and trims the payload and returns the target rows to

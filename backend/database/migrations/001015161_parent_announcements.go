@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	parentAnnouncementsVersion     = "1.15.159"
+	parentAnnouncementsVersion     = "1.15.161"
 	parentAnnouncementsDescription = "Create parent announcement tables (announcements, targets, reads) for tenant-authored broadcast news to guardians"
 )
 
@@ -36,7 +36,7 @@ func init() {
 }
 
 func parentAnnouncementsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.159: Creating parent announcement tables...")
+	fmt.Println("Migration 1.15.161: Creating parent announcement tables...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -211,7 +211,7 @@ func parentAnnouncementsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func parentAnnouncementsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.159: Dropping parent announcement tables...")
+	fmt.Println("Rolling back migration 1.15.161: Dropping parent announcement tables...")
 
 	if _, err := db.NewRaw(`
 		DELETE FROM auth.permissions WHERE name = 'communications:announce';

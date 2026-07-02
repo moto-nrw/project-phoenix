@@ -58,6 +58,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(announce, withTx).Post("/{announcementId}/publish", rs.publish)
 		r.With(announce, withTx).Post("/{announcementId}/unpublish", rs.unpublish)
 		r.With(announce, withTx).Get("/{announcementId}/stats", rs.stats)
+		r.With(announce, withTx).Get("/{announcementId}/recipients", rs.recipients)
 	})
 
 	return r
@@ -291,6 +292,49 @@ func (rs *Resource) stats(w http.ResponseWriter, r *http.Request) {
 		ReadCount:         s.ReadCount,
 		AcknowledgedCount: s.AcknowledgedCount,
 	}, "Stats retrieved")
+}
+
+// recipientResponse is one guardian account in the live audience with their
+// read/ack state. status is derived server-side so the client never has to
+// re-implement the precedence (acknowledged > read > pending).
+type recipientResponse struct {
+	AccountID      string     `json:"account_id"`
+	FirstName      string     `json:"first_name"`
+	LastName       string     `json:"last_name"`
+	Status         string     `json:"status"`
+	ReadAt         *time.Time `json:"read_at,omitempty"`
+	AcknowledgedAt *time.Time `json:"acknowledged_at,omitempty"`
+}
+
+func (rs *Resource) recipients(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseAnnouncementID(w, r)
+	if !ok {
+		return
+	}
+	list, err := rs.Service.Recipients(r.Context(), id)
+	if err != nil {
+		renderAnnouncementError(w, r, err)
+		return
+	}
+	out := make([]recipientResponse, 0, len(list))
+	for _, rcpt := range list {
+		status := "pending"
+		switch {
+		case rcpt.AcknowledgedAt != nil:
+			status = "acknowledged"
+		case rcpt.ReadAt != nil:
+			status = "read"
+		}
+		out = append(out, recipientResponse{
+			AccountID:      strconv.FormatInt(rcpt.AccountID, 10),
+			FirstName:      rcpt.FirstName,
+			LastName:       rcpt.LastName,
+			Status:         status,
+			ReadAt:         rcpt.ReadAt,
+			AcknowledgedAt: rcpt.AcknowledgedAt,
+		})
+	}
+	common.Respond(w, r, http.StatusOK, out, "Recipients retrieved")
 }
 
 func decodeInput(w http.ResponseWriter, r *http.Request) (announcementService.Input, bool) {

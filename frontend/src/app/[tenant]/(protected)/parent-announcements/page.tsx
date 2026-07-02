@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart3,
   Check,
+  ExternalLink,
   Megaphone,
   Pencil,
   Plus,
@@ -26,9 +27,9 @@ import { Input } from "~/components/ui/input";
 import { Checkbox } from "~/components/ui/checkbox";
 import { DatePicker } from "~/components/ui/date-picker";
 import { Loading } from "~/components/ui/loading";
-import { InfoCard, InfoItem } from "~/components/ui/info-card";
 import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
 import { WizardStepper } from "~/components/ui/wizard-stepper";
+import { LinkifiedText } from "~/components/ui/linkified-text";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -41,6 +42,7 @@ import {
   createAnnouncement,
   deleteAnnouncement,
   fetchAnnouncements,
+  fetchAnnouncementRecipients,
   fetchAnnouncementStats,
   publishAnnouncement,
   unpublishAnnouncement,
@@ -50,6 +52,7 @@ import type {
   Announcement,
   AnnouncementInput,
   AnnouncementPriority,
+  AnnouncementRecipient,
   AnnouncementStats,
   AnnouncementStatus,
   AnnouncementTarget,
@@ -166,7 +169,7 @@ function ParentAnnouncementsContent() {
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editing, setEditing] = useState<Announcement | null>(null);
-  const [statsFor, setStatsFor] = useState<Announcement | null>(null);
+  const [detailFor, setDetailFor] = useState<Announcement | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Announcement | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
@@ -185,14 +188,16 @@ function ParentAnnouncementsContent() {
     { keepPreviousData: true, revalidateOnFocus: false },
   );
 
-  // Targeting data sources — fetched only while the form is open.
+  // Targeting data sources — fetched while the form is open (pickers) or a
+  // detail view is open (to label target chips with real names).
+  const needsLookups = isFormOpen || detailFor !== null;
   const { data: groups } = useSWRAuth<Group[]>(
-    isFormOpen ? "parent-announcements-groups" : null,
+    needsLookups ? "parent-announcements-groups" : null,
     () => groupService.getGroups(),
     { revalidateOnFocus: false },
   );
   const { data: activities } = useSWRAuth<Activity[]>(
-    isFormOpen ? "parent-announcements-activities" : null,
+    needsLookups ? "parent-announcements-activities" : null,
     () => fetchActivities(),
     { revalidateOnFocus: false },
   );
@@ -387,68 +392,77 @@ function ParentAnnouncementsContent() {
       key: "actions",
       header: "",
       align: "right",
-      render: (row) => {
-        // One clear inline action per row (publish a draft), everything else
-        // behind the kebab. Editing is draft-only — published announcements
-        // are immutable (Zurückziehen first, then edit the draft).
-        const menuItems: OverflowMenuItem[] = [];
-        if (row.status === "draft") {
-          menuItems.push({
-            label: "Bearbeiten",
-            icon: <Pencil className="size-4" aria-hidden />,
-            onClick: () => openEdit(row),
-          });
-        }
-        menuItems.push({
-          label: "Statistik",
-          icon: <BarChart3 className="size-4" aria-hidden />,
-          onClick: () => setStatsFor(row),
-        });
-        if (row.status === "published") {
-          menuItems.push({
-            label: "Zurückziehen",
-            icon: <Undo2 className="size-4" aria-hidden />,
-            onClick: () => void runUnpublish(row),
-            disabled: pendingActionId === row.id,
-          });
-        }
-        menuItems.push({
-          label: "Löschen",
-          icon: <Trash2 className="size-4" aria-hidden />,
-          destructive: true,
-          onClick: () => {
-            setDeleteError("");
-            setDeleteTarget(row);
-          },
-        });
-
-        return (
-          <div className="flex items-center justify-end gap-1">
-            {row.status === "draft" && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="compact"
-                disabled={pendingActionId === row.id}
-                onClick={() => {
-                  setPublishError("");
-                  setPublishTarget(row);
-                }}
-                className="gap-1.5 text-[#669f21] hover:text-[#4d7719]"
-              >
-                <Send className="size-4" aria-hidden />
-                Veröffentlichen
-              </Button>
-            )}
-            <OverflowMenu
-              items={menuItems}
-              ariaLabel={`Aktionen für ${row.title}`}
-            />
-          </div>
-        );
-      },
+      render: (row) => (
+        // stopPropagation keeps button/menu clicks from also triggering the
+        // row click (which opens the detail view).
+        <div
+          className="flex items-center justify-end gap-1"
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+          role="presentation"
+        >
+          {row.status === "draft" && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="compact"
+              disabled={pendingActionId === row.id}
+              onClick={() => {
+                setPublishError("");
+                setPublishTarget(row);
+              }}
+              className="gap-1.5 text-[#669f21] hover:text-[#4d7719]"
+            >
+              <Send className="size-4" aria-hidden />
+              Veröffentlichen
+            </Button>
+          )}
+          <OverflowMenu
+            items={buildMenuItems(row)}
+            ariaLabel={`Aktionen für ${row.title}`}
+          />
+        </div>
+      ),
     },
   ];
+
+  // One clear inline action per row (publish a draft); details open via row/
+  // card click. Editing is draft-only — published announcements are immutable
+  // (Zurückziehen first, then edit the draft).
+  function buildMenuItems(row: Announcement): OverflowMenuItem[] {
+    const menuItems: OverflowMenuItem[] = [
+      {
+        label: "Anzeigen",
+        icon: <BarChart3 className="size-4" aria-hidden />,
+        onClick: () => setDetailFor(row),
+      },
+    ];
+    if (row.status === "draft") {
+      menuItems.push({
+        label: "Bearbeiten",
+        icon: <Pencil className="size-4" aria-hidden />,
+        onClick: () => openEdit(row),
+      });
+    }
+    if (row.status === "published") {
+      menuItems.push({
+        label: "Zurückziehen",
+        icon: <Undo2 className="size-4" aria-hidden />,
+        onClick: () => void runUnpublish(row),
+        disabled: pendingActionId === row.id,
+      });
+    }
+    menuItems.push({
+      label: "Löschen",
+      icon: <Trash2 className="size-4" aria-hidden />,
+      destructive: true,
+      onClick: () => {
+        setDeleteError("");
+        setDeleteTarget(row);
+      },
+    });
+    return menuItems;
+  }
 
   return (
     <div className="-mt-1.5 w-full">
@@ -507,12 +521,34 @@ function ParentAnnouncementsContent() {
           </div>
         </div>
       ) : (
-        <DataTable
-          columns={columns}
-          rows={filtered}
-          getRowKey={(row) => row.id}
-          defaultSortKey="title"
-        />
+        <>
+          {/* Mobile: card list (the DataTable would only scroll sideways). */}
+          <ul className="space-y-3 md:hidden">
+            {filtered.map((row) => (
+              <li key={row.id}>
+                <AnnouncementCard
+                  announcement={row}
+                  pending={pendingActionId === row.id}
+                  menuItems={buildMenuItems(row)}
+                  onOpen={() => setDetailFor(row)}
+                  onPublish={() => {
+                    setPublishError("");
+                    setPublishTarget(row);
+                  }}
+                />
+              </li>
+            ))}
+          </ul>
+          <div className="hidden md:block">
+            <DataTable
+              columns={columns}
+              rows={filtered}
+              getRowKey={(row) => row.id}
+              defaultSortKey="title"
+              onRowClick={(row) => setDetailFor(row)}
+            />
+          </div>
+        </>
       )}
 
       {isFormOpen && (
@@ -529,8 +565,13 @@ function ParentAnnouncementsContent() {
         />
       )}
 
-      {statsFor && (
-        <StatsModal announcement={statsFor} onClose={() => setStatsFor(null)} />
+      {detailFor && (
+        <DetailModal
+          announcement={detailFor}
+          groups={groups ?? []}
+          activities={activities ?? []}
+          onClose={() => setDetailFor(null)}
+        />
       )}
 
       {publishTarget && (
@@ -1116,6 +1157,8 @@ function TargetingStep({
                 onChange={(values) => setCategory("class", values)}
                 emptyLabel="Keine ausgewählt"
                 unavailableLabel="Keine Klassen"
+                searchable
+                searchPlaceholder="Klasse suchen..."
               />
             </div>
             <div>
@@ -1127,6 +1170,8 @@ function TargetingStep({
                 onChange={(values) => setCategory("group", values)}
                 emptyLabel="Keine ausgewählt"
                 unavailableLabel="Keine Gruppen"
+                searchable
+                searchPlaceholder="Gruppe suchen..."
               />
             </div>
             <div>
@@ -1141,6 +1186,8 @@ function TargetingStep({
                 onChange={(values) => setCategory("activity_group", values)}
                 emptyLabel="Keine ausgewählt"
                 unavailableLabel="Keine AGs"
+                searchable
+                searchPlaceholder="AG suchen..."
               />
             </div>
           </div>
@@ -1215,23 +1262,171 @@ function TargetingStep({
   );
 }
 
-interface StatsModalProps {
+/** Mobile list card: same data as a table row, tap opens the detail view. */
+function AnnouncementCard({
+  announcement,
+  pending,
+  menuItems,
+  onOpen,
+  onPublish,
+}: {
   readonly announcement: Announcement;
+  readonly pending: boolean;
+  readonly menuItems: OverflowMenuItem[];
+  readonly onOpen: () => void;
+  readonly onPublish: () => void;
+}) {
+  return (
+    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="block w-full min-w-0 text-left"
+      >
+        <div className="flex items-start justify-between gap-2">
+          <p className="min-w-0 truncate font-semibold text-gray-900">
+            {announcement.title}
+          </p>
+          <StatusPill status={announcement.status} />
+        </div>
+        <p className="mt-1 line-clamp-2 text-sm text-gray-600">
+          {announcement.body}
+        </p>
+        <p className="mt-2 text-xs text-gray-500">
+          {summarizeTargets(announcement.targets)}
+          {announcement.priority === "important" && " · Wichtig"}
+          {announcement.published_at
+            ? ` · Veröffentlicht ${formatDate(announcement.published_at)}`
+            : " · Noch nicht veröffentlicht"}
+          {announcement.expires_at &&
+            ` · Läuft ab ${formatDate(announcement.expires_at)}`}
+        </p>
+      </button>
+      <div className="mt-3 flex items-center justify-between gap-2 border-t border-gray-100 pt-2">
+        {announcement.status === "draft" ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="compact"
+            disabled={pending}
+            onClick={onPublish}
+            className="gap-1.5 text-[#669f21] hover:text-[#4d7719]"
+          >
+            <Send className="size-4" aria-hidden />
+            Veröffentlichen
+          </Button>
+        ) : (
+          <span />
+        )}
+        <OverflowMenu
+          items={menuItems}
+          ariaLabel={`Aktionen für ${announcement.title}`}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** Chips describing the audience, with real names where the lookups know them. */
+function targetChips(
+  targets: AnnouncementTarget[],
+  groups: Group[],
+  activities: Activity[],
+): string[] {
+  if (targets.some((t) => t.target_type === "school_all"))
+    return ["Ganze Schule"];
+  const groupNames = new Map(groups.map((g) => [g.id, g.name]));
+  const activityNames = new Map(activities.map((a) => [a.id, a.name]));
+  const chips: string[] = [];
+  let studentCount = 0;
+  for (const t of targets) {
+    switch (t.target_type) {
+      case "pending_enrollment":
+        chips.push("Offene Anmeldungen");
+        break;
+      case "class":
+        chips.push(`Klasse ${t.ref_text ?? "?"}`);
+        break;
+      case "group":
+        chips.push(groupNames.get(t.ref_id ?? "") ?? "Gruppe");
+        break;
+      case "activity_group":
+        chips.push(activityNames.get(t.ref_id ?? "") ?? "AG");
+        break;
+      case "student":
+        studentCount++;
+        break;
+      case "school_all":
+        break;
+    }
+  }
+  if (studentCount > 0) {
+    chips.push(
+      studentCount === 1
+        ? "1 einzelnes Kind"
+        : `${studentCount} einzelne Kinder`,
+    );
+  }
+  return chips;
+}
+
+const RECIPIENT_STATUS_META: Record<
+  AnnouncementRecipient["status"],
+  { label: string; color: string }
+> = {
+  acknowledged: { label: "Bestätigt", color: LOCATION_COLORS.GROUP_ROOM },
+  read: { label: "Gelesen", color: LOCATION_COLORS.OTHER_ROOM },
+  pending: { label: "Ausstehend", color: LOCATION_COLORS.UNKNOWN },
+};
+
+const RECIPIENT_SORT: Record<AnnouncementRecipient["status"], number> = {
+  pending: 0,
+  read: 1,
+  acknowledged: 2,
+};
+
+interface DetailModalProps {
+  readonly announcement: Announcement;
+  readonly groups: Group[];
+  readonly activities: Activity[];
   readonly onClose: () => void;
 }
 
-function StatsModal({ announcement, onClose }: StatsModalProps) {
+/**
+ * Read-only detail view: since published announcements are immutable, this is
+ * the only place staff can re-read the full text. Includes reach stats and the
+ * per-guardian read/ack list (pending first — the people to chase).
+ */
+function DetailModal({
+  announcement,
+  groups,
+  activities,
+  onClose,
+}: DetailModalProps) {
   const [stats, setStats] = useState<AnnouncementStats | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [recipients, setRecipients] = useState<AnnouncementRecipient[] | null>(
+    null,
+  );
   const [error, setError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     setError("");
-    fetchAnnouncementStats(announcement.id)
-      .then((result) => {
-        if (!cancelled) setStats(result);
+    Promise.all([
+      fetchAnnouncementStats(announcement.id),
+      fetchAnnouncementRecipients(announcement.id),
+    ])
+      .then(([statsResult, recipientsResult]) => {
+        if (cancelled) return;
+        setStats(statsResult);
+        setRecipients(
+          [...recipientsResult].sort(
+            (a, b) =>
+              RECIPIENT_SORT[a.status] - RECIPIENT_SORT[b.status] ||
+              a.last_name.localeCompare(b.last_name) ||
+              a.first_name.localeCompare(b.first_name),
+          ),
+        );
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -1240,39 +1435,143 @@ function StatsModal({ announcement, onClose }: StatsModalProps) {
             ? err.message
             : "Statistik konnte nicht geladen werden";
         setError(message);
-        logger.error("announcement_stats_failed", { error: message });
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+        logger.error("announcement_detail_failed", { error: message });
       });
     return () => {
       cancelled = true;
     };
   }, [announcement.id]);
 
+  const isPublished = announcement.status !== "draft";
+  const chips = targetChips(announcement.targets, groups, activities);
+
   return (
-    <Modal isOpen onClose={onClose} title="Statistik">
-      {loading ? (
-        <Loading fullPage={false} />
-      ) : error ? (
-        <p className="text-sm text-[#CC2626]">{error}</p>
-      ) : stats ? (
-        <InfoCard
-          title={announcement.title}
-          icon={<BarChart3 className="h-5 w-5" aria-hidden />}
-        >
-          <InfoItem
-            label="Gelesen"
-            value={`${stats.read_count} von ${stats.target_count} gelesen`}
-          />
-          {announcement.requires_acknowledgement && (
-            <InfoItem
-              label="Lesebestätigungen"
-              value={`${stats.acknowledged_count} von ${stats.target_count} bestätigt`}
-            />
+    <Modal
+      isOpen
+      onClose={onClose}
+      title={announcement.title}
+      widthClass="mx-4 w-[calc(100%-2rem)] max-w-2xl"
+    >
+      <div className="space-y-5">
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusPill status={announcement.status} />
+          {announcement.priority === "important" && (
+            <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
+              Wichtig
+            </span>
           )}
-        </InfoCard>
-      ) : null}
+          <span className="text-xs text-gray-500">
+            {announcement.published_at
+              ? `Veröffentlicht ${formatDate(announcement.published_at)}`
+              : "Noch nicht veröffentlicht"}
+            {announcement.expires_at &&
+              ` · Läuft ab ${formatDate(announcement.expires_at)}`}
+          </span>
+        </div>
+
+        <p className="text-sm leading-6 whitespace-pre-line text-gray-800">
+          <LinkifiedText text={announcement.body} />
+        </p>
+
+        {announcement.link_url && (
+          <a
+            href={announcement.link_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex max-w-full items-center gap-1.5 text-sm font-medium text-[#5080D8] underline underline-offset-2 hover:text-[#3f68b5]"
+          >
+            <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
+            <span className="truncate">{announcement.link_url}</span>
+          </a>
+        )}
+
+        <div>
+          <h4 className="mb-1.5 text-sm font-semibold text-gray-900">
+            Zielgruppen
+          </h4>
+          <div className="flex flex-wrap gap-1.5">
+            {chips.map((chip) => (
+              <span
+                key={chip}
+                className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700"
+              >
+                {chip}
+              </span>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-gray-500">
+            {announcement.requires_acknowledgement
+              ? "Lesebestätigung erforderlich"
+              : "Keine Lesebestätigung erforderlich"}
+            {" · "}
+            {announcement.send_email
+              ? "E-Mail-Benachrichtigung aktiviert"
+              : "Keine E-Mail-Benachrichtigung"}
+          </p>
+        </div>
+
+        <div>
+          <h4 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-gray-900">
+            <BarChart3 className="h-4 w-4 text-gray-500" aria-hidden />
+            {isPublished ? "Statistik" : "Aktuelle Reichweite"}
+          </h4>
+          {error ? (
+            <p className="text-sm text-[#CC2626]">{error}</p>
+          ) : stats === null || recipients === null ? (
+            <Loading fullPage={false} />
+          ) : (
+            <>
+              <p className="text-sm text-gray-700">
+                {isPublished ? (
+                  <>
+                    {stats.read_count} von {stats.target_count} gelesen
+                    {announcement.requires_acknowledgement &&
+                      ` · ${stats.acknowledged_count} von ${stats.target_count} bestätigt`}
+                  </>
+                ) : (
+                  <>
+                    Erreicht aktuell {stats.target_count}{" "}
+                    {stats.target_count === 1 ? "Elternteil" : "Eltern"}.
+                  </>
+                )}
+              </p>
+              {recipients.length > 0 && (
+                <ul className="mt-2 max-h-56 divide-y divide-gray-100 overflow-y-auto rounded-lg border border-gray-200">
+                  {recipients.map((rcpt) => (
+                    <li
+                      key={rcpt.account_id}
+                      className="flex items-center justify-between gap-2 px-3 py-2"
+                    >
+                      <span className="min-w-0 truncate text-sm text-gray-800">
+                        {`${rcpt.first_name} ${rcpt.last_name}`.trim() ||
+                          "Ohne Namen"}
+                      </span>
+                      {isPublished && (
+                        <span
+                          className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-gray-50 px-2.5 py-0.5 text-xs font-medium"
+                          style={{
+                            color: RECIPIENT_STATUS_META[rcpt.status].color,
+                          }}
+                        >
+                          <span
+                            aria-hidden
+                            className="inline-block h-1.5 w-1.5 rounded-full"
+                            style={{
+                              backgroundColor:
+                                RECIPIENT_STATUS_META[rcpt.status].color,
+                            }}
+                          />
+                          {RECIPIENT_STATUS_META[rcpt.status].label}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
+        </div>
+      </div>
     </Modal>
   );
 }

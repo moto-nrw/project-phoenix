@@ -160,6 +160,18 @@ type AnnouncementRecipient struct {
 	LastName  string `bun:"last_name"`
 }
 
+// AnnouncementRecipientStatus is one guardian account in an announcement's
+// live audience together with that account's read/ack state — the staff-facing
+// "wer hat gelesen/bestätigt" list behind the reach counts. Resolved live, so
+// the list always reflects the current relationships.
+type AnnouncementRecipientStatus struct {
+	AccountID      int64      `bun:"account_id" json:"account_id"`
+	FirstName      string     `bun:"first_name" json:"first_name"`
+	LastName       string     `bun:"last_name" json:"last_name"`
+	ReadAt         *time.Time `bun:"read_at" json:"read_at,omitempty"`
+	AcknowledgedAt *time.Time `bun:"acknowledged_at" json:"acknowledged_at,omitempty"`
+}
+
 // AnnouncementStats is the staff-facing reach/engagement summary for one
 // announcement: how many guardian accounts it currently targets, how many have
 // read it, and how many have acknowledged it. Reach is resolved live against
@@ -204,6 +216,10 @@ type ParentAnnouncementRepository interface {
 	ResolveAudienceEmails(ctx context.Context, tenantID, announcementID int64) ([]*AnnouncementRecipient, error)
 	// SchoolName returns the tenant's school name (for e-mail greetings/subject).
 	SchoolName(ctx context.Context, tenantID int64) (string, error)
+	// AudienceRecipients returns the guardian accounts an announcement currently
+	// reaches, each with name and read/ack state (nil = not read / not
+	// acknowledged), ordered by name.
+	AudienceRecipients(ctx context.Context, tenantID, announcementID int64) ([]*AnnouncementRecipientStatus, error)
 
 	// --- parent feed (admin tx, cross-tenant) ---
 	// ListFeedForAccount returns published, active, unexpired announcements the

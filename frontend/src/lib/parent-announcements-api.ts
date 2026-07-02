@@ -45,6 +45,18 @@ export interface AnnouncementStats {
   acknowledged_count: number;
 }
 
+export type AnnouncementRecipientStatus = "pending" | "read" | "acknowledged";
+
+/** One guardian account in the live audience with their read/ack state. */
+export interface AnnouncementRecipient {
+  account_id: string;
+  first_name: string;
+  last_name: string;
+  status: AnnouncementRecipientStatus;
+  read_at?: string;
+  acknowledged_at?: string;
+}
+
 export interface AnnouncementInput {
   title: string;
   body: string;
@@ -192,4 +204,15 @@ export async function fetchAnnouncementStats(
     "Statistik konnte nicht geladen werden",
   );
   return data ?? { target_count: 0, read_count: 0, acknowledged_count: 0 };
+}
+
+export async function fetchAnnouncementRecipients(
+  id: string,
+): Promise<AnnouncementRecipient[]> {
+  const data = await request<AnnouncementRecipient[]>(
+    `${BASE}/${encodeURIComponent(id)}/recipients`,
+    undefined,
+    "Empfängerliste konnte nicht geladen werden",
+  );
+  return data ?? [];
 }

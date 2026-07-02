@@ -374,6 +374,68 @@ func (r *ParentAnnouncementRepository) SchoolName(ctx context.Context, tenantID 
 	return name, nil
 }
 
+// AudienceRecipients returns the guardian ACCOUNTS an announcement currently
+// reaches — same audience as CountAudience/Stats — each with a display name
+// and the account's read/ack state (LEFT JOIN, nil = pending). The inner UNION
+// mirrors ResolveAudienceEmails (guardians with a linked account via the
+// student targets, applicants with an account via pending_enrollment); an
+// account reachable through several children/paths collapses to one row.
+func (r *ParentAnnouncementRepository) AudienceRecipients(ctx context.Context, tenantID, announcementID int64) ([]*users.AnnouncementRecipientStatus, error) {
+	var rows []*users.AnnouncementRecipientStatus
+	sqlStr := fmt.Sprintf(`
+		SELECT acc.account_id,
+			min(acc.first_name) AS first_name,
+			min(acc.last_name) AS last_name,
+			par.read_at AS read_at,
+			par.acknowledged_at AS acknowledged_at
+		FROM (
+			SELECT gp.account_id,
+				COALESCE(gp.first_name, '') AS first_name, COALESCE(gp.last_name, '') AS last_name
+			FROM users.parent_announcement_targets pt
+			JOIN users.students s ON s.tenant_id = ? AND (
+				pt.target_type = 'school_all'
+				OR (pt.target_type = 'class' AND s.school_class = pt.target_ref_text)
+				OR (pt.target_type = 'group' AND s.group_id = pt.target_ref_id)
+				OR (pt.target_type = 'student' AND s.id = pt.target_ref_id)
+				OR (pt.target_type = 'activity_group' AND EXISTS (
+					SELECT 1 FROM activities.student_enrollments se
+					WHERE se.student_id = s.id AND se.tenant_id = ?
+						AND se.activity_group_id = pt.target_ref_id
+						AND (se.valid_until IS NULL OR se.valid_until >= CURRENT_DATE)
+				))
+			)
+			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
+				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
+			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
+				AND gp.account_id IS NOT NULL
+			WHERE pt.announcement_id = ? AND pt.tenant_id = ?
+
+			UNION
+
+			SELECT req.guardian_account_id,
+				COALESCE(req.guardian_first_name, '') AS first_name, COALESCE(req.guardian_last_name, '') AS last_name
+			FROM users.parent_announcement_targets pt
+			JOIN enrollment.requests req ON req.tenant_id = ?
+				AND req.withdrawn_at IS NULL AND req.guardian_account_id IS NOT NULL
+			JOIN enrollment.request_children rc ON rc.request_id = req.id AND rc.tenant_id = ?
+				AND rc.status IN (%s)
+			WHERE pt.announcement_id = ? AND pt.tenant_id = ? AND pt.target_type = 'pending_enrollment'
+		) acc
+		LEFT JOIN users.parent_announcement_reads par
+			ON par.announcement_id = ? AND par.account_id = acc.account_id
+		GROUP BY acc.account_id, par.read_at, par.acknowledged_at
+		ORDER BY last_name ASC, first_name ASC, acc.account_id ASC`,
+		pendingStatusList())
+	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
+		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID, // student path
+		tenantID, tenantID, announcementID, tenantID, // pending path
+		announcementID, // reads join
+	).Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "resolve parent announcement audience recipients", Err: err}
+	}
+	return rows, nil
+}
+
 // ListFeedForAccount returns published, active, unexpired announcements the
 // account is targeted by across the given tenants, newest-published first, each
 // with the account's read/ack state. Cross-tenant: run under WithAdminTx with

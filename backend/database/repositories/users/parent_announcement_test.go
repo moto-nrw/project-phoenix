@@ -133,4 +133,65 @@ func TestParentAnnouncementAudience(t *testing.T) {
 	assert.GreaterOrEqual(t, stats.AcknowledgedCount, 1)
 }
 
+// TestParentAnnouncementAudienceRecipients exercises the per-person recipient
+// list: the linked guardian appears with pending state, transitions to
+// read/acknowledged as the read row is stamped, and a non-matching target
+// yields no recipients.
+func TestParentAnnouncementAudienceRecipients(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	repo := usersRepo.NewParentAnnouncementRepository(db)
+	ctx := tenantCtx()
+
+	schoolWide := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+		"Schulweit Empfänger", []*usersModels.ParentAnnouncementTarget{
+			{TargetType: usersModels.AnnouncementTargetSchoolAll},
+		})
+	classMiss := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+		"Klasse 9z Empfänger", []*usersModels.ParentAnnouncementTarget{
+			{TargetType: usersModels.AnnouncementTargetClass, TargetRefText: strp("9z")},
+		})
+
+	findRecipient := func(list []*usersModels.AnnouncementRecipientStatus) *usersModels.AnnouncementRecipientStatus {
+		for _, r := range list {
+			if r.AccountID == chain.AccountID {
+				return r
+			}
+		}
+		return nil
+	}
+
+	// Pending before any read.
+	recipients, err := repo.AudienceRecipients(ctx, chain.TenantID, schoolWide.ID)
+	require.NoError(t, err)
+	rcpt := findRecipient(recipients)
+	require.NotNil(t, rcpt, "school-wide recipients include the linked guardian account")
+	assert.Nil(t, rcpt.ReadAt)
+	assert.Nil(t, rcpt.AcknowledgedAt)
+
+	// Read stamps read_at, acknowledge stamps acknowledged_at.
+	require.NoError(t, repo.MarkRead(ctx, chain.TenantID, schoolWide.ID, chain.AccountID))
+	recipients, err = repo.AudienceRecipients(ctx, chain.TenantID, schoolWide.ID)
+	require.NoError(t, err)
+	rcpt = findRecipient(recipients)
+	require.NotNil(t, rcpt)
+	assert.NotNil(t, rcpt.ReadAt)
+	assert.Nil(t, rcpt.AcknowledgedAt)
+
+	require.NoError(t, repo.MarkAcknowledged(ctx, chain.TenantID, schoolWide.ID, chain.AccountID))
+	recipients, err = repo.AudienceRecipients(ctx, chain.TenantID, schoolWide.ID)
+	require.NoError(t, err)
+	rcpt = findRecipient(recipients)
+	require.NotNil(t, rcpt)
+	assert.NotNil(t, rcpt.AcknowledgedAt)
+
+	// A target that reaches nobody yields no row for this account.
+	missRecipients, err := repo.AudienceRecipients(ctx, chain.TenantID, classMiss.ID)
+	require.NoError(t, err)
+	assert.Nil(t, findRecipient(missRecipients), "class 9z reaches no recipient in this fixture")
+}
+
 func strp(s string) *string { return &s }
