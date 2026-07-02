@@ -299,19 +299,10 @@
         "label": "Забрать в определённый день",
         "shortLabel": "Уход",
         "hint": "Изменить время ухода или прихода на один день"
-      },
-      "care_schedule": {
-        "label": "Изменить время пребывания навсегда",
-        "shortLabel": "Время пребывания",
-        "hint": "Изменить расписание на неделю (Пн–Пт)"
       }
     },
     "request": {
       "submit": "Отправить запрос",
-      "entryLabel": "Постоянное изменение",
-      "entryHint": "Запросить постоянное изменение. Учреждение его подтвердит.",
-      "chooserTitle": "Запросить изменение",
-      "chooserIntro": "Учреждение рассмотрит ваш запрос и применит его только после подтверждения. До этого ничего не изменится.",
       "sendError": "Не удалось отправить запрос.",
       "careSchedule": {
         "title": "Изменить время пребывания",
@@ -909,7 +900,8 @@
       "child": "Angaben zum Kind",
       "health": "Gesundheit",
       "contact": "Ihre Kontaktdaten",
-      "departure": "Dauerhafte Gehzeiten"
+      "departure": "Dauerhafte Gehzeiten",
+      "careSchedule": "Betreuungszeiten"
     },
     "fields": {
       "firstName": "Vorname",
@@ -947,11 +939,24 @@
       "wed": "Mi",
       "thu": "Do",
       "fri": "Fr"
+    },
+    "careSchedule": {
+      "hint": "Ihr aktueller Wochenplan. Dauerhafte Änderungen prüft das Team, bevor sie gelten.",
+      "arrival": "Bringzeit",
+      "pickup": "Abholzeit",
+      "modes": "Abholart",
+      "loadError": "Die Betreuungszeiten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
+      "pendingBadge": "Anfrage offen",
+      "pendingNotice": "Ihre Anfrage wird vom Team geprüft. Bis zur Bestätigung gilt der bisherige Plan.",
+      "requestedAt": "Angefragt am {date}",
+      "withdraw": "Zurückziehen",
+      "withdrawError": "Die Anfrage konnte nicht zurückgezogen werden.",
+      "withdrawConfirmTitle": "Anfrage zurückziehen?",
+      "withdrawConfirmBody": "Möchten Sie Ihre Änderungsanfrage wirklich zurückziehen? Der bisherige Plan bleibt unverändert."
     }
   },
   "parentOgsMessaging": {
     "readByStaff": "Прочитано",
-    "requestWithdraw": "Отозвать",
     "requestTypeCareSchedule": "Запрос: изменить регулярное время присмотра",
     "requestTitleFallback": "Запрос",
     "statusOpen": "Открыто",
@@ -960,6 +965,9 @@
     "statusWithdrawn": "Отозвано",
     "eventRequestConfirmed": "Запрос подтверждён",
     "eventRequestConfirmedCareSchedule": "Запрос подтверждён, время присмотра применено",
+    "eventRequestCreatedCareSchedule": "Отправлен запрос на изменение времени присмотра",
+    "eventRequestCreatedMasterData": "Отправлен запрос на изменение Stammdaten",
+    "eventRequestConfirmedMasterData": "Запрос подтверждён, Stammdaten применены",
     "eventRequestRejected": "Запрос отклонён",
     "eventRequestRejectedReason": "Запрос отклонён: {reason}",
     "eventRequestWithdrawn": "Запрос отозван",

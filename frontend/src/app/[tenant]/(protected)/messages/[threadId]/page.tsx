@@ -11,11 +11,9 @@ import { Loading } from "~/components/ui/loading";
 import { BackButton } from "~/components/ui/back-button";
 import { MessageComposer } from "~/components/messaging/message-composer";
 import { ChatBubble, ChatEventCard } from "~/components/messaging/chat-bubble";
-import { RequestDiffPanel } from "~/components/messaging/request-diff-panel";
 import { RequestStatusBadge } from "~/components/messaging/request-status-badge";
 import { useChatViewportLock } from "~/lib/hooks/use-chat-viewport-lock";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
-import { hasPermission } from "~/lib/auth-utils";
 import {
   useTenant,
   useTenantSlugSafe,
@@ -25,14 +23,13 @@ import {
   type InboxThread,
   type Message,
   type ThreadDetail,
-  confirmRequest,
   fetchThread,
   postMessage,
-  rejectRequest,
   relationshipLabel,
 } from "~/lib/parent-messages-api";
 import { getApiErrorMessage } from "~/components/ui/modal-utils";
 import { staffRequestStatusLabel } from "~/lib/messaging-status";
+import { isAdmin } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
 import { formatChatDateTime } from "~/lib/date-helpers";
 
@@ -42,6 +39,11 @@ function MessageThreadContent() {
   const params = useParams();
   const threadId = params.threadId as string;
   const router = useTenantRouter();
+  const { data: session } = useSession();
+  // Only admins may open the Änderungsanfragen queue (useRequireAdmin +
+  // backend UsersManage), so the deep-link on a "request created" pill is
+  // admin-only — a non-admin supervisor sees the plain info pill.
+  const canReviewRequests = isAdmin(session ?? null);
   const { tenant } = useTenant();
   // Tenant-prefix every SWR key on this page so a tenant switch (multi-tab /
   // switch-tenant) can never render the previous school's cached thread under
@@ -56,45 +58,28 @@ function MessageThreadContent() {
   // stays visible.
   const messagingEnabled = tenant?.messagingEnabled === true;
 
-  // Deciding a parent request (Bestätigen / Ablehnen) hits the confirm/reject
-  // endpoints, which the backend gates on users:update (route middleware) PLUS
-  // CanUpdateStudent (service). A staffer with only users:read — e.g. under
-  // gdpr.student_data_scope='all_staff', which grants read on every child but no
-  // write — would otherwise see both buttons and get a generic 403 on click.
-  // Gate the buttons on the same coarse write permission so we never offer an
-  // action that cannot succeed. (Per-child CanUpdateStudent still applies
-  // server-side; this just removes the obvious read-only case.)
-  const { data: session } = useSession();
-  const canDecideRequests = hasPermission(session, "users:update");
-
   const { cache } = useSWRConfig();
 
   // Seed the header instantly from the inbox SWR cache (subject, guardian,
   // child) so opening a chat shows its structure immediately instead of a
   // full-page skeleton; the messages then fill in.
   const seed = useMemo<ThreadDetail | undefined>(() => {
-    // The inbox is keyed ["messages-inbox", onlyUnread, onlyOpenRequests], so the
-    // seed must search every filter combination that may be cached.
+    // The inbox is keyed ["messages-inbox", onlyUnread], so the seed must search
+    // every filter combination that may be cached.
     for (const unread of [false, true]) {
-      for (const openRequests of [false, true]) {
-        const entry = cache.get(
-          unstable_serialize([
-            `${tenantSlug ?? ""}:messages-inbox`,
-            unread,
-            openRequests,
-          ]),
-        ) as { data?: InboxThread[] } | undefined;
-        const row = entry?.data?.find((t) => t.thread_id === threadId);
-        if (row) {
-          return {
-            thread_id: row.thread_id,
-            student_id: row.student_id,
-            student_name: row.student_name,
-            guardian_name: row.guardian_name,
-            relationship_type: row.relationship_type,
-            messages: [],
-          };
-        }
+      const entry = cache.get(
+        unstable_serialize([`${tenantSlug ?? ""}:messages-inbox`, unread]),
+      ) as { data?: InboxThread[] } | undefined;
+      const row = entry?.data?.find((t) => t.thread_id === threadId);
+      if (row) {
+        return {
+          thread_id: row.thread_id,
+          student_id: row.student_id,
+          student_name: row.student_name,
+          guardian_name: row.guardian_name,
+          relationship_type: row.relationship_type,
+          messages: [],
+        };
       }
     }
     return undefined;
@@ -131,10 +116,6 @@ function MessageThreadContent() {
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
-  const [rejectingRequestId, setRejectingRequestId] = useState<string | null>(
-    null,
-  );
-  const [rejectReason, setRejectReason] = useState("");
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   // Parent sent a message or staff replied → revalidate this thread. The fan-out
@@ -203,42 +184,6 @@ function MessageThreadContent() {
       );
     } finally {
       setIsSending(false);
-    }
-  };
-
-  const applyRequestAction = async (
-    requestId: string,
-    action: "confirm" | "reject",
-  ) => {
-    setSendError(null);
-    try {
-      const updated =
-        action === "confirm"
-          ? await confirmRequest(requestId)
-          : await rejectRequest(requestId, rejectReason);
-      // The action response carries the rebuilt diff inline for any OTHER request
-      // left open in the thread (the one just decided is now closed), so the
-      // optimistic replace keeps those review cards intact. Revalidate refreshes
-      // read state and acts as a freshness backstop.
-      await mutate((prev) => (prev ? { ...prev, messages: updated } : prev), {
-        revalidate: true,
-      });
-      setRejectingRequestId(null);
-      setRejectReason("");
-    } catch (err) {
-      logger.error("thread_request_action_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        thread_id: threadId,
-        action,
-      });
-      setSendError(
-        getApiErrorMessage(
-          err,
-          "aktualisieren",
-          "Anfrage",
-          "Anfrage konnte nicht aktualisiert werden.",
-        ),
-      );
     }
   };
 
@@ -311,34 +256,21 @@ function MessageThreadContent() {
           ) : messages.length > 0 ? (
             messages.map((message) =>
               message.kind === "request" ? (
-                <RequestReviewCard
-                  key={message.id}
-                  message={message}
-                  messagingEnabled={messagingEnabled}
-                  canDecide={canDecideRequests}
-                  rejecting={rejectingRequestId === message.id}
-                  rejectReason={rejectReason}
-                  onRejectReasonChange={setRejectReason}
-                  onConfirm={() =>
-                    void applyRequestAction(message.id, "confirm")
-                  }
-                  onRejectStart={() => {
-                    setRejectingRequestId(message.id);
-                    setRejectReason("");
-                  }}
-                  onRejectCancel={() => {
-                    setRejectingRequestId(null);
-                    setRejectReason("");
-                  }}
-                  onRejectSubmit={() =>
-                    void applyRequestAction(message.id, "reject")
-                  }
-                />
+                <RequestHistoryCard key={message.id} message={message} />
               ) : message.kind === "event" ? (
                 <ChatEventCard
                   key={message.id}
                   body={message.body}
                   createdAt={message.created_at}
+                  action={
+                    canReviewRequests &&
+                    message.event_type === "request_created"
+                      ? {
+                          label: "Zu den Änderungsanfragen",
+                          onClick: () => router.push("/admin/change-requests"),
+                        }
+                      : undefined
+                  }
                 />
               ) : (
                 <ChatBubble
@@ -398,30 +330,13 @@ function MessageThreadContent() {
   );
 }
 
-function RequestReviewCard({
-  message,
-  messagingEnabled,
-  canDecide,
-  rejecting,
-  rejectReason,
-  onRejectReasonChange,
-  onConfirm,
-  onRejectStart,
-  onRejectCancel,
-  onRejectSubmit,
-}: Readonly<{
-  message: Message;
-  messagingEnabled: boolean;
-  canDecide: boolean;
-  rejecting: boolean;
-  rejectReason: string;
-  onRejectReasonChange: (value: string) => void;
-  onConfirm: () => void;
-  onRejectStart: () => void;
-  onRejectCancel: () => void;
-  onRejectSubmit: () => void;
-}>) {
-  const open = message.request_status === "offen";
+// Historical change-request card (read-only). Since #1803 care-schedule change
+// requests are decided on the Änderungsanfragen (change-requests) admin page,
+// not inline in the chat — so past kind="request" rows render as a plain card
+// (title/body + status + timestamp) with no confirm/reject buttons and no diff
+// (messages no longer carry one). Live request activity now arrives as
+// non-interactive "event" pills (ChatEventCard) with a German body.
+function RequestHistoryCard({ message }: Readonly<{ message: Message }>) {
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
@@ -435,66 +350,6 @@ function RequestReviewCard({
           label={staffRequestStatusLabel(message.request_status)}
         />
       </div>
-      <RequestDiffPanel diff={message.diff} heading="Änderungen" />
-      {/* Both decisions require users:update + per-child write server-side, so
-          hide them entirely from staff who lack that write capability (canDecide)
-          — otherwise a read-only staffer clicks and gets a generic 403.
-          Bestätigen additionally calls ConfirmRequest, which the backend gates on
-          requireEnabled() and 403s once parent messaging is disabled, so it is
-          also hidden when messaging is off. Ablehnen is NOT gated on
-          requireEnabled (the backend keeps reject available so an outstanding
-          request can still be wound down after messaging is turned off), only on
-          write — so it stays visible whenever canDecide. */}
-      {open && canDecide ? (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {messagingEnabled ? (
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              onClick={onConfirm}
-            >
-              Bestätigen
-            </Button>
-          ) : null}
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            onClick={onRejectStart}
-          >
-            Ablehnen
-          </Button>
-        </div>
-      ) : null}
-      {rejecting ? (
-        <div className="mt-3 space-y-2">
-          <textarea
-            value={rejectReason}
-            onChange={(event) => onRejectReasonChange(event.target.value)}
-            className="min-h-20 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none"
-            placeholder="Grund für die Ablehnung"
-          />
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="md"
-              onClick={onRejectCancel}
-            >
-              Abbrechen
-            </Button>
-            <Button
-              type="button"
-              variant="danger"
-              size="md"
-              onClick={onRejectSubmit}
-            >
-              Ablehnen
-            </Button>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

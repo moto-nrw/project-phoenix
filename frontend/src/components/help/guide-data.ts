@@ -461,16 +461,17 @@ export const appChapters: readonly GuideChapter[] = [
       },
       {
         id: "stammdaten-aenderungen-pruefen",
-        title: "Stammdaten-Änderungen prüfen",
+        title: "Änderungsanfragen der Eltern prüfen",
         icon: ClipboardCheck,
         summary:
-          "Eltern pflegen viele Stammdaten ihres Kindes im Elternportal selbst. Sensible Angaben (Name, Geburtsdatum, dauerhafte Gehzeiten) ändern sie nur auf Anfrage – diese geben Sie hier frei.",
+          "Eltern pflegen viele Stammdaten ihres Kindes im Elternportal selbst. Sensible Angaben (Name, Geburtsdatum, Gehzeiten) und die dauerhaften Betreuungszeiten ändern sie nur auf Anfrage – diese geben Sie hier zentral frei.",
         steps: [
           "Die meisten Felder (z. B. Gesundheitshinweise, eigene Kontaktdaten der Eltern) ändern Eltern direkt; die Änderung wird sofort übernommen und protokolliert.",
-          "Für Name, Geburtsdatum und dauerhafte Gehzeiten reichen Eltern über `Änderung anfragen` einen Vorschlag ein, statt direkt zu ändern.",
-          "Offene Anfragen finden Sie als Admin unter `Änderungsanfragen` in der Seitenleiste.",
-          "Pro Anfrage sehen Sie das Kind, das betroffene Feld und die Änderung (alter → neuer Wert).",
-          "Mit `Freigeben` wird der neue Wert in den Datensatz übernommen, mit `Ablehnen` bleibt der bisherige Wert erhalten. Eine Begründung können Sie optional ergänzen.",
+          "Für Name, Geburtsdatum und Gehzeiten sowie für die dauerhaften Bring- und Abholzeiten reichen Eltern über `Änderung anfragen` einen Vorschlag ein, statt direkt zu ändern.",
+          "Offene Anfragen finden Sie als Admin unter `Änderungsanfragen` in der Seitenleiste, getrennt nach `Stammdaten` und `Betreuungszeiten`.",
+          "Pro Anfrage sehen Sie das Kind und die Änderung (alter → neuer Wert); bei Betreuungszeiten den Wochenplan-Vergleich je Wochentag (Bringzeit, Abholzeit, Abholart).",
+          "Mit `Freigeben` wird der neue Wert übernommen – bei Betreuungszeiten direkt in den Wochenplan des Kindes. Mit `Ablehnen` bleibt der bisherige Stand erhalten; bei Betreuungszeiten ist dafür eine Begründung erforderlich, bei Stammdaten optional.",
+          "Die Eltern sehen die Entscheidung als Hinweis in ihrem Nachrichten-Verlauf.",
           "Ob Eltern Stammdaten direkt ändern bzw. Änderungen anfragen dürfen, steuern Sie unter `Einstellungen` im Bereich `Elternportal`.",
         ],
         callout: {
@@ -479,7 +480,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Admin-Seite „Änderungsanfragen“ mit Kind, geändertem Feld, altem und neuem Wert sowie Freigeben- und Ablehnen-Schaltflächen.",
+          "Admin-Seite „Änderungsanfragen“ mit den Bereichen Stammdaten und Betreuungszeiten, je mit Kind, Änderung (alt → neu) sowie Freigeben- und Ablehnen-Schaltflächen.",
       },
       {
         id: "meine-gruppen",
@@ -873,12 +874,12 @@ export const appChapters: readonly GuideChapter[] = [
           "Der zentrale Posteingang für die Kommunikation mit den Eltern, wie ein Chat. Mit jeder Bezugsperson läuft pro Kind genau eine fortlaufende Unterhaltung (ohne Betreff); so wird die E-Mail-Kommunikation überflüssig.",
         steps: [
           "In der Seitenleiste `Nachrichten` öffnen. Ein rotes Abzeichen zeigt ungelesene Eltern-Nachrichten an.",
-          "Der Posteingang listet alle Unterhaltungen, die du sehen darfst (als Admin alle, sonst die Kinder deiner Gruppen), neueste zuerst. Jede Zeile zeigt die Bezugsperson mit Beziehung zum Kind und die letzte Nachricht. Über `Nur ungelesen` und `Offene Anfragen` lässt sich die Liste eingrenzen.",
+          "Der Posteingang listet alle Unterhaltungen, die du sehen darfst (als Admin alle, sonst die Kinder deiner Gruppen), neueste zuerst. Jede Zeile zeigt die Bezugsperson mit Beziehung zum Kind und die letzte Nachricht. Über `Nur ungelesen` lässt sich die Liste eingrenzen.",
           "Eine Zeile öffnet das Chat-Fenster mit dem kompletten Verlauf. Über `Zum Kinderprofil` gelangst du von dort zur Kinderdetailansicht.",
           "Im Chat direkt antworten: Text eingeben und auf `Senden` tippen.",
           "Über `Neue Nachricht` selbst eine Unterhaltung starten: Kind suchen und Bezugsperson wählen. Damit öffnet sich das Chat-Fenster; den eigentlichen Text schreibst du dort und tippst auf `Senden`. Gibt es mit der Person schon eine Unterhaltung, wird sie fortgesetzt.",
           "Antworten erscheinen sofort in der Eltern-App der jeweiligen Bezugsperson; dort als `OGS` der Schule, ohne einzelnen Mitarbeitenden-Namen.",
-          "Schickt eine Bezugsperson eine strukturierte Anfrage (etwa zu den dauerhaften Betreuungszeiten), trägt die Zeile ein Abzeichen `offene Anfrage`. Wie du sie bearbeitest, steht im nächsten Abschnitt.",
+          "Neben Nachrichten erscheinen im Verlauf auch automatische Hinweise, etwa wenn Eltern eine Krankmeldung abgeben, eine Abholzeit für einen Tag ändern oder eine Änderungsanfrage stellen. Diese Einträge sind reine Information ohne Schaltflächen; Anfragen bearbeitest du als Admin unter `Änderungsanfragen` (siehe nächster Abschnitt).",
         ],
         callout: {
           title: "Voraussetzung",
@@ -894,21 +895,22 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Anfragen der Eltern bearbeiten",
         icon: ClipboardCheck,
         summary:
-          "Bezugspersonen können über die Eltern-App nicht nur schreiben, sondern auch strukturierte Anfragen stellen, etwa eine dauerhafte Änderung der Betreuungszeiten. Solche Anfragen laufen im selben Nachrichten-Verlauf auf und werden von dir bestätigt oder abgelehnt.",
+          "Bezugspersonen können über die Eltern-App strukturierte Anfragen stellen: Änderungen an den Stammdaten (Name, Geburtsdatum, Gehzeiten) und an den dauerhaften Betreuungszeiten. Anfragen entstehen im Elternportal auf der Stammdaten-Seite des Kindes und werden zentral auf der Seite `Änderungsanfragen` entschieden.",
         steps: [
-          "Im Posteingang auf `Offene Anfragen` tippen, um nur Unterhaltungen mit einer noch offenen Anfrage zu sehen. Betroffene Zeilen tragen zusätzlich das Abzeichen `offene Anfrage`.",
-          "Die Unterhaltung öffnen. Die Anfrage erscheint als eigene Karte im Verlauf und zeigt unter `Änderungen` die gewünschten Werte im Vergleich `aktuell -> gewünscht`, damit du genau siehst, was sich ändern würde.",
-          "Mit `Bestätigen` wird die Änderung übernommen: Die Betreuungszeiten des Kindes werden direkt aktualisiert, und die Bezugsperson sieht den Status `Erledigt`.",
-          "Passt die Anfrage nicht, auf `Ablehnen` tippen, im Feld `Grund für die Ablehnung` einen kurzen Grund eintragen und erneut `Ablehnen` bestätigen. Der Grund wird der Bezugsperson angezeigt.",
-          "Nach der Entscheidung ist die Anfrage abgeschlossen und verschwindet aus dem Filter `Offene Anfragen`. Die Bezugsperson wird in ihrer App über das Ergebnis informiert.",
+          "Eltern sehen im Elternportal die aktuellen Betreuungszeiten ihres Kindes (Bringzeit, Abholzeit, Abholart je Wochentag) und reichen dort über `Änderung anfragen` einen Vorschlag ein.",
+          "Neue Anfragen erscheinen im Nachrichten-Verlauf des Kindes als Hinweis, sind dort aber nicht bedienbar.",
+          "Als Admin in der Seitenleiste `Änderungsanfragen` öffnen. Dort stehen alle offenen Anfragen, getrennt nach `Stammdaten` und `Betreuungszeiten`, jeweils mit dem Vergleich `aktuell -> gewünscht`.",
+          "Mit `Freigeben` wird die Änderung übernommen: Bei Betreuungszeiten wird der Wochenplan des Kindes direkt aktualisiert.",
+          "Passt die Anfrage nicht, eine kurze `Begründung` eintragen und auf `Ablehnen` tippen. Der Grund wird der Bezugsperson angezeigt.",
+          "Nach der Entscheidung wird die Bezugsperson in ihrer App über das Ergebnis informiert (Hinweis im Nachrichten-Verlauf und Status auf der Stammdaten-Seite).",
         ],
         callout: {
           title: "Wer darf entscheiden",
-          body: "`Bestätigen` und `Ablehnen` erscheinen nur, wenn du Schreibrechte für das Kind hast. `Bestätigen` setzt zusätzlich voraus, dass die Eltern-OGS-Nachrichten aktiviert sind; `Ablehnen` bleibt auch danach möglich, damit offene Anfragen abgeschlossen werden können.",
+          body: "Die Seite `Änderungsanfragen` steht nur Admins zur Verfügung. Solange eine Anfrage offen ist, können Eltern sie auf der Stammdaten-Seite zurückziehen.",
           tone: "orange",
         },
         screenshot:
-          "Geöffnete Unterhaltung mit Anfrage-Karte: Vergleich der Betreuungszeiten aktuell zu gewünscht und den Schaltflächen Bestätigen und Ablehnen.",
+          "Admin-Seite Änderungsanfragen, Bereich Betreuungszeiten: Wochenplan-Vergleich aktuell zu gewünscht mit den Schaltflächen Freigeben und Ablehnen.",
         image: "/help/screens/offene-anfragen.webp",
       },
       {

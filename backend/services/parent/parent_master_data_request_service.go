@@ -16,6 +16,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -107,6 +108,27 @@ func (s *service) SubmitMasterDataChangeRequest(ctx context.Context, accountID, 
 				return createErr
 			}
 			created = append(created, row)
+		}
+		if len(created) > 0 {
+			// One "Anfrage erstellt" pill per submit action (not per field),
+			// referencing the first created row. Best-effort, after commit.
+			capturedTenant := child.tenantID
+			refID := created[0].ID
+			tenant.RegisterAfterCommit(txCtx, func() {
+				if s.emitter == nil {
+					return
+				}
+				s.emitter.EmitChildEvent(capturedTenant, studentID, accountID, parentmessaging.ChildEvent{
+					EventType:      "request_created",
+					ActorKind:      usersModels.ParentMessageSenderGuardian,
+					ActorAccountID: accountID,
+					Body:           "Anfrage: Stammdaten ändern",
+					RequestType:    usersModels.ParentMessageRequestMasterData,
+					RequestStatus:  usersModels.ParentMessageRequestStatusOpen,
+					RefTable:       "users.student_data_change_requests",
+					RefID:          &refID,
+				})
+			})
 		}
 		return nil
 	})

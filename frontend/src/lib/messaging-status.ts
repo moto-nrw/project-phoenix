@@ -75,9 +75,6 @@ export interface ChatMessage {
   // side has read.
   readonly read_by_staff?: boolean;
   readonly read_by_guardian?: boolean;
-  // Server-computed "current → requested" comparison for a still-open request.
-  // Absent once the request is decided (confirmed/rejected/withdrawn).
-  readonly diff?: RequestDiffEntry[];
 }
 
 const STAFF_STATUS_LABELS: Record<RequestStatus, string> = {
@@ -169,17 +166,36 @@ export function parentEventI18nDescriptor(message: {
   readonly request_type?: string;
   readonly decision_reason?: string;
 }): { key: string; values?: { reason: string } } | null {
-  if (
-    message.kind !== "event" ||
-    message.event_type !== "request_status" ||
-    !message.request_status
-  ) {
+  if (message.kind !== "event") {
+    return null;
+  }
+  // A new request was just submitted from the Stammdaten page (#1803). The pill
+  // announces it in the chat; the text differs per request_type so a guardian
+  // reads which domain the request touches.
+  if (message.event_type === "request_created") {
+    switch (message.request_type) {
+      case "care_schedule":
+        return { key: "eventRequestCreatedCareSchedule" };
+      case "master_data":
+        return { key: "eventRequestCreatedMasterData" };
+      default:
+        return null;
+    }
+  }
+  // sick_note / care_exception / care_exception_correction pills carry a
+  // German-only body with dates and times embedded, so there is nothing
+  // structured to localize — return null and let the caller render the raw
+  // body verbatim. (Same fallback used for any unrecognized event below.)
+  if (message.event_type !== "request_status" || !message.request_status) {
     return null;
   }
   switch (message.request_status) {
     case "erledigt":
       if (message.request_type === "care_schedule") {
         return { key: "eventRequestConfirmedCareSchedule" };
+      }
+      if (message.request_type === "master_data") {
+        return { key: "eventRequestConfirmedMasterData" };
       }
       return { key: "eventRequestConfirmed" };
     case "abgelehnt":

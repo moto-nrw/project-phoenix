@@ -81,7 +81,7 @@ type fakeReadRepo struct {
 	studentErr  error
 }
 
-func (f *fakeReadRepo) ListInboxForStaff(context.Context, int64, bool, []int64, bool, ...bool) ([]*usersModels.InboxThread, error) {
+func (f *fakeReadRepo) ListInboxForStaff(context.Context, int64, bool, []int64, bool) ([]*usersModels.InboxThread, error) {
 	return f.inbox, f.inboxErr
 }
 
@@ -126,7 +126,7 @@ func errCtx() context.Context { return adminCtx(1) }
 
 func TestListInbox_RepoErrorPropagates(t *testing.T) {
 	svc := errSvc(&fakeThreadRepo{}, &fakeMessageRepo{}, &fakeReadRepo{inboxErr: errBoom})
-	_, err := svc.ListInbox(errCtx(), false, false)
+	_, err := svc.ListInbox(errCtx(), false)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "list inbox")
 }
@@ -204,7 +204,7 @@ func TestPostMessage_NoBroadcastOnAppendFailure(t *testing.T) {
 		ThreadRepo: tr, MessageRepo: &fakeMessageRepo{createErr: errBoom}, ReadRepo: &fakeReadRepo{},
 		Persons: fakePersons{}, Settings: stubSettings{messagingEnabled: true}, Broadcaster: bc, Logger: slog.Default(),
 	})
-	_, _, err := svc.PostMessage(errCtx(), 5, "Hallo")
+	_, err := svc.PostMessage(errCtx(), 5, "Hallo")
 	require.Error(t, err)
 	assert.Equal(t, 0, bc.countOf(realtime.EventParentMessage), "a failed append must not broadcast")
 }

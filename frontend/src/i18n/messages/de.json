@@ -299,19 +299,10 @@
         "label": "Abholung für einen Tag",
         "shortLabel": "Abholung",
         "hint": "Abhol- oder Bringzeit an einem einzelnen Tag anpassen"
-      },
-      "care_schedule": {
-        "label": "Betreuungszeiten dauerhaft ändern",
-        "shortLabel": "Betreuungszeiten",
-        "hint": "Wochenplan (Mo–Fr) anpassen"
       }
     },
     "request": {
       "submit": "Anfrage senden",
-      "entryLabel": "Dauerhafte Änderung",
-      "entryHint": "Dauerhafte Änderung anfragen. Die OGS bestätigt sie.",
-      "chooserTitle": "Änderung anfragen",
-      "chooserIntro": "Die OGS prüft Ihre Anfrage und übernimmt sie erst nach Bestätigung. Bis dahin ändert sich nichts.",
       "sendError": "Die Anfrage konnte nicht gesendet werden.",
       "careSchedule": {
         "title": "Betreuungszeiten ändern",
@@ -909,7 +900,8 @@
       "child": "Angaben zum Kind",
       "health": "Gesundheit",
       "contact": "Ihre Kontaktdaten",
-      "departure": "Dauerhafte Gehzeiten"
+      "departure": "Dauerhafte Gehzeiten",
+      "careSchedule": "Betreuungszeiten"
     },
     "fields": {
       "firstName": "Vorname",
@@ -947,11 +939,24 @@
       "wed": "Mi",
       "thu": "Do",
       "fri": "Fr"
+    },
+    "careSchedule": {
+      "hint": "Ihr aktueller Wochenplan. Dauerhafte Änderungen prüft das Team, bevor sie gelten.",
+      "arrival": "Bringzeit",
+      "pickup": "Abholzeit",
+      "modes": "Abholart",
+      "loadError": "Die Betreuungszeiten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
+      "pendingBadge": "Anfrage offen",
+      "pendingNotice": "Ihre Anfrage wird vom Team geprüft. Bis zur Bestätigung gilt der bisherige Plan.",
+      "requestedAt": "Angefragt am {date}",
+      "withdraw": "Zurückziehen",
+      "withdrawError": "Die Anfrage konnte nicht zurückgezogen werden.",
+      "withdrawConfirmTitle": "Anfrage zurückziehen?",
+      "withdrawConfirmBody": "Möchten Sie Ihre Änderungsanfrage wirklich zurückziehen? Der bisherige Plan bleibt unverändert."
     }
   },
   "parentOgsMessaging": {
     "readByStaff": "Gelesen",
-    "requestWithdraw": "Zurückziehen",
     "requestTypeCareSchedule": "Anfrage: Dauerhafte Betreuungszeiten ändern",
     "requestTitleFallback": "Anfrage",
     "statusOpen": "Offen",
@@ -960,6 +965,9 @@
     "statusWithdrawn": "Zurückgezogen",
     "eventRequestConfirmed": "Anfrage bestätigt",
     "eventRequestConfirmedCareSchedule": "Anfrage bestätigt, Betreuungszeiten übernommen",
+    "eventRequestCreatedCareSchedule": "Anfrage zu Betreuungszeiten gestellt",
+    "eventRequestCreatedMasterData": "Anfrage zu Stammdaten gestellt",
+    "eventRequestConfirmedMasterData": "Anfrage bestätigt, Stammdaten übernommen",
     "eventRequestRejected": "Anfrage abgelehnt",
     "eventRequestRejectedReason": "Anfrage abgelehnt: {reason}",
     "eventRequestWithdrawn": "Anfrage zurückgezogen",

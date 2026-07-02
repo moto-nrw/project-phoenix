@@ -21,6 +21,7 @@ import {
   submitMasterDataRequest,
   updateMasterDataField,
 } from "~/lib/parent-api";
+import { ChildCareScheduleSection } from "~/components/parent/child-care-schedule";
 
 const logger = createLogger({ component: "ChildMasterData" });
 
@@ -249,6 +250,8 @@ function ChildMasterDataContent({
         pending={pendingByField.get("departure/allowed_departure_modes")}
         onApplied={onApplied}
       />
+
+      <ChildCareScheduleSection studentId={studentId} />
     </div>
   );
 }
@@ -436,7 +439,7 @@ function IdentitySection({
   );
 }
 
-function Section({
+export function Section({
   title,
   hint,
   children,

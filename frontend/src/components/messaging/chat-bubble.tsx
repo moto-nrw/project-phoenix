@@ -54,17 +54,36 @@ export function ChatBubble({
   );
 }
 
-/** A centered system-event line (a `kind === "event"` message). */
+/**
+ * A centered system-event line (a `kind === "event"` message). An optional
+ * `action` renders a call-to-action button below the text — used by the staff
+ * thread to deep-link a "request created" pill to the Änderungsanfragen queue
+ * (admin-only; the parent view never passes it).
+ */
 export function ChatEventCard({
   body,
   createdAt,
-}: Readonly<{ body: string; createdAt: string }>) {
+  action,
+}: Readonly<{
+  body: string;
+  createdAt: string;
+  action?: { label: string; onClick: () => void };
+}>) {
   return (
     <div className="mx-auto max-w-[90%] rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
       {body}
       <span className="ml-2 text-xs text-gray-400">
         {formatChatTime(createdAt)}
       </span>
+      {action && (
+        <button
+          type="button"
+          onClick={action.onClick}
+          className="mt-1.5 block text-sm font-semibold text-[#5A8E1F] transition-colors hover:text-[#4A7A15]"
+        >
+          {action.label} →
+        </button>
+      )}
     </div>
   );
 }

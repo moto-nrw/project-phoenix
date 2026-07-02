@@ -59,6 +59,38 @@ func (r *ParentMessageRepository) FindByIDForUpdate(ctx context.Context, id int6
 	return message, nil
 }
 
+// FindEventByRef returns the system-event message in a thread that references a
+// specific record (event_type + ref_table + ref_id), or nil when none exists.
+// Used to locate the "request created" pill for a change request so a staff
+// decision can advance the deciding admin's read cursor exactly up to it,
+// without opening the thread. Oldest match wins (there is at most one).
+func (r *ParentMessageRepository) FindEventByRef(ctx context.Context, threadID int64, eventType, refTable string, refID int64) (*users.ParentMessage, error) {
+	message := new(users.ParentMessage)
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(message).
+		ModelTableExpr(tableExprParentMessagesAsMessage).
+		Where(`"parent_message".thread_id = ?`, threadID).
+		Where(`"parent_message".kind = ?`, users.ParentMessageKindEvent).
+		Where(`"parent_message".event_type = ?`, eventType).
+		Where(`"parent_message".ref_table = ?`, refTable).
+		Where(`"parent_message".ref_id = ?`, refID).
+		OrderExpr(`"parent_message".id ASC`).
+		Limit(1)
+
+	if where, val, ok := base.TenantWhere(ctx, "parent_message"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, &modelBase.DatabaseError{Op: "find parent message event by ref", Err: err}
+	}
+	return message, nil
+}
+
 // ListByThread returns a thread's messages oldest-first (chat order). A positive
 // limit returns the most recent `limit` messages (the conversation tail, reversed
 // back into chat order); limit <= 0 returns the FULL thread.

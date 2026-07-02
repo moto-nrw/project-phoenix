@@ -1,0 +1,231 @@
+// Parent-portal read view + request lifecycle for the child's permanent
+// weekly care plan (#1803). The read view lives on the Stammdaten page; a
+// change request is created and withdrawn THERE (not in the chat) and decided
+// by staff on the central Änderungsanfragen page. The chat only receives
+// notification pills, emitted by the schedule-domain request service.
+package parent
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
+	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
+)
+
+var (
+	// ErrCareRequestNotFound means no pending request matched under this child.
+	ErrCareRequestNotFound = errors.New("parent: care schedule request not found")
+	// ErrCareRequestNotPending means the request was already decided/withdrawn.
+	ErrCareRequestNotPending = errors.New("parent: care schedule request is not pending")
+	// ErrCareRequestAlreadyPending means the child already has an open request.
+	ErrCareRequestAlreadyPending = errors.New("parent: care schedule request already pending")
+	// ErrInvalidCareRequestPayload means the payload failed validation.
+	ErrInvalidCareRequestPayload = errors.New("parent: invalid care schedule request payload")
+)
+
+// CareScheduleWeekday is one weekday (1=Mon..5=Fri) of the child's current
+// permanent weekly plan: arrival/pickup wall-clock times (empty = not set) and
+// the allowed departure-mode keys (an "alone" entry stands in for an empty
+// configured set, matching the diff convention).
+type CareScheduleWeekday struct {
+	Weekday int
+	Arrival string
+	Pickup  string
+	Modes   []string
+}
+
+// PendingCareRequest is the child's open change request as shown on the
+// Stammdaten read view: the live "current → requested" diff plus whether the
+// CALLING guardian submitted it (only the submitter may withdraw).
+type PendingCareRequest struct {
+	ID              int64
+	CreatedAt       time.Time
+	Diff            []scheduleService.RequestDiffEntry
+	SubmittedBySelf bool
+}
+
+// ChildCareSchedule is the parent-facing weekly care plan view.
+type ChildCareSchedule struct {
+	Weekdays       []CareScheduleWeekday
+	PendingRequest *PendingCareRequest
+	// CanRequest gates the "Änderung anfragen" button: messaging enabled for
+	// the school AND the calling guardian holds parent_portal.request.submit.
+	CanRequest bool
+}
+
+// GetChildCareSchedule returns the child's current weekly care plan with any
+// pending change request. Authorization only (parent_portal.access) — the
+// read view stays available regardless of the request feature gates.
+func (s *service) GetChildCareSchedule(ctx context.Context, accountID, studentID int64) (*ChildCareSchedule, error) {
+	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
+	if err != nil {
+		return nil, err
+	}
+	view := &ChildCareSchedule{}
+	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		return s.buildCareScheduleView(txCtx, view, accountID, studentID)
+	})
+	if txErr != nil {
+		return nil, fmt.Errorf("parent: get child care schedule: %w", txErr)
+	}
+	view.CanRequest = child.hasPermission(authorize.GuardianPermissionRequestSubmit) &&
+		parentmessaging.MessagingEnabledForTenant(ctx, s.settings, child.tenantID, s.logger)
+	return view, nil
+}
+
+// CreateCareScheduleRequest stores a pending change request for the child's
+// weekly plan and returns the refreshed view. Requires
+// parent_portal.request.submit; gated by operations.parent_notes_enabled
+// (the chat pills are the request's feedback channel).
+func (s *service) CreateCareScheduleRequest(ctx context.Context, accountID, studentID int64, payload map[string]any) (*ChildCareSchedule, error) {
+	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionRequestSubmit)
+	if err != nil {
+		return nil, err
+	}
+	// Fail OPEN on a transient resolve error (via the shared helper) so a
+	// config-DB blip does not 500 a guardian's request; a genuine disabled
+	// flag still returns ErrNotesDisabled.
+	if !parentmessaging.MessagingEnabledForTenant(ctx, s.settings, child.tenantID, s.logger) {
+		return nil, ErrNotesDisabled
+	}
+	view := &ChildCareSchedule{CanRequest: true}
+	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if _, err := s.careRequests.CreateRequest(txCtx, studentID, accountID, payload); err != nil {
+			return err
+		}
+		return s.buildCareScheduleView(txCtx, view, accountID, studentID)
+	})
+	if txErr != nil {
+		return nil, mapCareRequestError(txErr, "create care schedule request")
+	}
+	s.logger.Info("parent created care schedule request",
+		slog.Int64("account_id", accountID),
+		slog.Int64("student_id", studentID),
+		slog.Int64("tenant_id", child.tenantID),
+	)
+	return view, nil
+}
+
+// WithdrawCareScheduleRequest flips the caller's own pending request to
+// withdrawn and returns the refreshed view. Deliberately NOT gated on the
+// messaging flag: a parent must be able to wind down an outstanding request
+// even after the school disables the feature.
+func (s *service) WithdrawCareScheduleRequest(ctx context.Context, accountID, studentID, requestID int64) (*ChildCareSchedule, error) {
+	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionRequestSubmit)
+	if err != nil {
+		return nil, err
+	}
+	view := &ChildCareSchedule{
+		CanRequest: child.hasPermission(authorize.GuardianPermissionRequestSubmit) &&
+			parentmessaging.MessagingEnabledForTenant(ctx, s.settings, child.tenantID, s.logger),
+	}
+	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if _, err := s.careRequests.WithdrawRequest(txCtx, requestID, studentID, accountID); err != nil {
+			return err
+		}
+		return s.buildCareScheduleView(txCtx, view, accountID, studentID)
+	})
+	if txErr != nil {
+		return nil, mapCareRequestError(txErr, "withdraw care schedule request")
+	}
+	s.logger.Info("parent withdrew care schedule request",
+		slog.Int64("account_id", accountID),
+		slog.Int64("student_id", studentID),
+		slog.Int64("request_id", requestID),
+		slog.Int64("tenant_id", child.tenantID),
+	)
+	return view, nil
+}
+
+// buildCareScheduleView loads the weekly plan + pending request inside the
+// caller's tenant transaction.
+func (s *service) buildCareScheduleView(ctx context.Context, view *ChildCareSchedule, accountID, studentID int64) error {
+	if s.studentRepo == nil || s.arrivalSchedules == nil || s.pickupSchedules == nil || s.careRequests == nil {
+		return errors.New("parent: care schedule dependencies not wired")
+	}
+	student, err := s.studentRepo.FindByID(ctx, studentID)
+	if err != nil {
+		return err
+	}
+	arrivals, err := s.arrivalSchedules.GetStudentArrivalSchedules(ctx, studentID)
+	if err != nil {
+		return err
+	}
+	pickups, err := s.pickupSchedules.GetStudentPickupSchedules(ctx, studentID)
+	if err != nil {
+		return err
+	}
+
+	arrivalByDay := map[int]string{}
+	for _, a := range arrivals {
+		arrivalByDay[a.Weekday] = a.ExpectedArrival.Format("15:04")
+	}
+	pickupByDay := map[int]string{}
+	for _, p := range pickups {
+		pickupByDay[p.Weekday] = p.PickupTime.Format("15:04")
+	}
+
+	weekdays := make([]CareScheduleWeekday, 0, len(usersModels.PickupDayOrder))
+	for i, abbrev := range usersModels.PickupDayOrder {
+		wd := i + 1
+		modes := student.AllowedDepartureModes[abbrev]
+		keys := make([]string, 0, len(modes))
+		for _, m := range modes {
+			keys = append(keys, string(m))
+		}
+		if len(keys) == 0 {
+			// An empty configured set means the child goes home alone — surface
+			// that explicitly instead of an ambiguous empty list (matches the
+			// request-diff convention).
+			keys = []string{string(usersModels.DepartureAlone)}
+		}
+		weekdays = append(weekdays, CareScheduleWeekday{
+			Weekday: wd,
+			Arrival: arrivalByDay[wd],
+			Pickup:  pickupByDay[wd],
+			Modes:   keys,
+		})
+	}
+	view.Weekdays = weekdays
+
+	pending, diff, err := s.careRequests.GetPendingForStudent(ctx, studentID)
+	if err != nil {
+		return err
+	}
+	if pending != nil {
+		view.PendingRequest = &PendingCareRequest{
+			ID:              pending.ID,
+			CreatedAt:       pending.CreatedAt,
+			Diff:            diff,
+			SubmittedBySelf: pending.SubmittedBy == accountID,
+		}
+	}
+	return nil
+}
+
+// mapCareRequestError translates the schedule-domain sentinels into this
+// package's parent-facing sentinels (which the handler maps to HTTP codes);
+// anything else is wrapped as an internal error.
+func mapCareRequestError(err error, op string) error {
+	switch {
+	case errors.Is(err, scheduleModels.ErrCareRequestNotFound):
+		return ErrCareRequestNotFound
+	case errors.Is(err, scheduleModels.ErrCareRequestNotPending):
+		return ErrCareRequestNotPending
+	case errors.Is(err, scheduleService.ErrCareRequestAlreadyPending):
+		return ErrCareRequestAlreadyPending
+	case errors.Is(err, scheduleService.ErrInvalidCareRequestPayload):
+		return ErrInvalidCareRequestPayload
+	default:
+		return fmt.Errorf("parent: %s: %w", op, err)
+	}
+}

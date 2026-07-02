@@ -20,6 +20,11 @@ const (
 	ParentMessageRequestStatusRejected  = "abgelehnt"
 	ParentMessageRequestStatusWithdrawn = "zurueckgezogen"
 	ParentMessageRequestCareSchedule    = "care_schedule"
+	// ParentMessageRequestMasterData tags notification pills for Stammdaten
+	// change requests (users.student_data_change_requests). Unlike
+	// care_schedule it was never a chat-request kind — it only ever appears on
+	// kind='event' rows.
+	ParentMessageRequestMasterData = "master_data"
 )
 
 // ParentMessage is a single message in a child's parent-OGS thread.
@@ -201,4 +206,9 @@ type ParentMessageRepository interface {
 	// ListByThread returns a thread's messages oldest-first (chat order).
 	// limit <= 0 returns all.
 	ListByThread(ctx context.Context, threadID int64, limit int) ([]*ParentMessage, error)
+	// FindEventByRef returns the system-event message referencing a specific
+	// record (event_type + ref_table + ref_id) in a thread, or nil when none
+	// exists. Locates a change request's "request created" pill so a decision
+	// can mark it read for the deciding admin.
+	FindEventByRef(ctx context.Context, threadID int64, eventType, refTable string, refID int64) (*ParentMessage, error)
 }

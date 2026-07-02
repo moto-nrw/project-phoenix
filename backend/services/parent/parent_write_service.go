@@ -83,14 +83,6 @@ var (
 	// on the unique index (e.g. a double-click); the change was not saved and
 	// the caller should reload and retry.
 	ErrCareExceptionRaced = errors.New("parent: this day was just changed, please reload and try again")
-	// ErrInvalidParentRequestType means the change-request type is not registered.
-	ErrInvalidParentRequestType = errors.New("parent: invalid request type")
-	// ErrParentRequestNotFound means the request row does not exist in the
-	// guardian's conversation for this child.
-	ErrParentRequestNotFound = errors.New("parent: request not found")
-	// ErrParentRequestNotOpen means the request was already decided/withdrawn and
-	// can no longer be withdrawn.
-	ErrParentRequestNotOpen = errors.New("parent: request is not open")
 )
 
 // resolveOwnedChild validates the account is a guardian of the student
@@ -263,7 +255,10 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 		result = filtered
 
 		capturedTenant := child.tenantID
+		pillBody := sickNoteEventBody(status, dates)
+		pillRefID := firstStatusID(filtered)
 		tenant.RegisterAfterCommit(txCtx, func() {
+			s.emitSelfServicePill(capturedTenant, studentID, accountID, "sick_note", pillBody, "active.student_status_days", pillRefID)
 			s.broadcastStudentUpdated(capturedTenant, studentID)
 		})
 		return nil
@@ -328,6 +323,7 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 	}
 	canEditMasterData := masterEdit && child.hasPermission(authorize.GuardianPermissionMasterDataEdit)
 	return ChildFeatureFlags{
+		HasOpenChangeRequest:         s.hasOpenChangeRequest(ctx, studentID),
 		SickNoteEnabled:              sick && child.hasPermission(authorize.GuardianPermissionSickNoteSubmit),
 		NotesEnabled:                 notes && child.hasPermission(authorize.GuardianPermissionNotesWrite),
 		RequestSubmitEnabled:         notes && child.hasPermission(authorize.GuardianPermissionRequestSubmit),
@@ -339,6 +335,35 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 		MasterDataRequestEnabled:     masterRequest && child.hasPermission(authorize.GuardianPermissionMasterDataRequest),
 		MealPlanEnabled:              mealPlan,
 	}, nil
+}
+
+// hasOpenChangeRequest reports whether the child has a pending change request
+// (care schedule OR master data) awaiting an OGS decision, so the parent
+// overview can badge the Stammdaten entry. Best-effort: a query error logs and
+// yields false so a transient failure never shows a phantom badge.
+func (s *service) hasOpenChangeRequest(ctx context.Context, studentID int64) bool {
+	if s.careRequests != nil {
+		if req, _, err := s.careRequests.GetPendingForStudent(ctx, studentID); err != nil {
+			s.logger.Warn("parent: pending care-request check failed",
+				slog.Int64("student_id", studentID),
+				slog.String("error", err.Error()),
+			)
+		} else if req != nil {
+			return true
+		}
+	}
+	if s.changeRequestRepo != nil {
+		pending, err := s.changeRequestRepo.ListByStudent(ctx, studentID, []string{usersModels.DataChangeStatusPending}, 0)
+		if err != nil {
+			s.logger.Warn("parent: pending master-data check failed",
+				slog.Int64("student_id", studentID),
+				slog.String("error", err.Error()),
+			)
+		} else if len(pending) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // ListSickDays returns the child's active parent-facing absences in [from, to]:
@@ -502,7 +527,10 @@ func (s *service) SubmitCareException(ctx context.Context, accountID, studentID 
 		result = merged
 
 		capturedTenant := child.tenantID
+		pillBody := careExceptionEventBody(date, pickupTime, arrivalTime)
+		pillRefTable, pillRefID := s.careExceptionRef(txCtx, studentID, date)
 		tenant.RegisterAfterCommit(txCtx, func() {
+			s.emitSelfServicePill(capturedTenant, studentID, accountID, "care_exception", pillBody, pillRefTable, pillRefID)
 			s.broadcastStudentUpdated(capturedTenant, studentID)
 		})
 		return nil
@@ -757,7 +785,9 @@ func (s *service) DeleteCareException(ctx context.Context, accountID, studentID 
 		}
 		if deleted {
 			capturedTenant := child.tenantID
+			pillBody := "Korrektur: Abholung " + date.Format("02.01.") + " zurückgezogen"
 			tenant.RegisterAfterCommit(txCtx, func() {
+				s.emitSelfServicePill(capturedTenant, studentID, accountID, "care_exception_correction", pillBody, "", nil)
 				s.broadcastStudentUpdated(capturedTenant, studentID)
 			})
 		}

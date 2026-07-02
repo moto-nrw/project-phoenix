@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   CalendarClock,
+  Clock,
   HeartPulse,
   MessageCircle,
   Newspaper,
@@ -340,6 +341,11 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
               title={t("masterDataTitle")}
               description={t("masterDataDescription")}
             />
+            {care.features.has_open_change_request && (
+              <div className="mt-3">
+                <OpenRequestBadge />
+              </div>
+            )}
           </div>
           <dl className="divide-y divide-gray-100 border-t border-gray-100">
             {summaryItems.map((item) => (
@@ -481,9 +487,12 @@ function MobileChildAppView({
       <NewsPanel mobile />
 
       <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-gray-900">
-          {t("careLabel")}
-        </h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-lg font-semibold text-gray-900">
+            {t("careLabel")}
+          </h2>
+          {care.features.has_open_change_request && <OpenRequestBadge />}
+        </div>
         <dl className="mt-4 space-y-3">
           <CompactInfoRow
             label={t("periodLabel")}
@@ -781,6 +790,20 @@ function CompactInfoRow({
         {value}
       </dd>
     </div>
+  );
+}
+
+// "Anfrage offen" pill for the child overview's Stammdaten entry: a pending
+// change request (master data or care schedule) is awaiting an OGS decision.
+// The details live on the Stammdaten page; this only signals that one exists so
+// the parent knows to look without opening it.
+function OpenRequestBadge() {
+  const tMd = useTranslations("parentMasterData");
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-semibold text-[#92710b]">
+      <Clock className="h-3 w-3" aria-hidden="true" />
+      {tMd("careSchedule.pendingBadge")}
+    </span>
   );
 }
 

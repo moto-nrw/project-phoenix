@@ -59,6 +59,7 @@ type Resource struct {
 	SettingsService         configService.SettingsService
 	StudentService          userService.StudentService
 	MasterDataReviewService userService.MasterDataReviewService
+	CareRequestService      scheduleService.CareScheduleRequestService
 	StudentStatusDayService activeService.StudentStatusDayService
 	StudentHistoryService   activeService.StudentHistoryService
 	ActivityService         activityService.ActivityService
@@ -88,6 +89,7 @@ type ResourceConfig struct {
 	SettingsService         configService.SettingsService
 	StudentService          userService.StudentService
 	MasterDataReviewService userService.MasterDataReviewService
+	CareRequestService      scheduleService.CareScheduleRequestService
 	StudentStatusDayService activeService.StudentStatusDayService
 	StudentHistoryService   activeService.StudentHistoryService
 	ActivityService         activityService.ActivityService
@@ -122,6 +124,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		SettingsService:         cfg.SettingsService,
 		StudentService:          cfg.StudentService,
 		MasterDataReviewService: cfg.MasterDataReviewService,
+		CareRequestService:      cfg.CareRequestService,
 		StudentStatusDayService: cfg.StudentStatusDayService,
 		StudentHistoryService:   cfg.StudentHistoryService,
 		ActivityService:         cfg.ActivityService,
@@ -171,6 +174,13 @@ func (rs *Resource) Router() chi.Router {
 		// route in chi.
 		r.With(authorize.RequiresPermission(permissions.UsersManage), withTx).Get("/master-data-change-requests", rs.listMasterDataChangeRequests)
 		r.With(authorize.RequiresPermission(permissions.UsersManage), withTx).Post("/master-data-change-requests/{requestId}/decide", rs.decideMasterDataChangeRequest)
+
+		// Parent care-schedule change-request review queue (#1803). Decisions
+		// rewrite the child's permanent weekly plan, so they share the
+		// admin-level gate of the master-data queue — both are decided on the
+		// same Änderungsanfragen page.
+		r.With(authorize.RequiresPermission(permissions.UsersManage), withTx).Get("/care-schedule-change-requests", rs.listCareScheduleChangeRequests)
+		r.With(authorize.RequiresPermission(permissions.UsersManage), withTx).Post("/care-schedule-change-requests/{requestId}/decide", rs.decideCareScheduleChangeRequest)
 
 		// Routes requiring users:create permission
 		r.With(authorize.RequiresPermission(permissions.UsersCreate), withTx).Post("/", rs.createStudent)

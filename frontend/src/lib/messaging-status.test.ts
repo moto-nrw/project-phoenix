@@ -152,6 +152,48 @@ describe("parentEventI18nDescriptor", () => {
     ).toEqual({ key: "eventRequestWithdrawn" });
   });
 
+  it("maps a confirmed master-data request to its own localized key (#1803)", () => {
+    expect(
+      parentEventI18nDescriptor({
+        kind: "event",
+        event_type: "request_status",
+        request_status: "erledigt",
+        request_type: "master_data",
+      }),
+    ).toEqual({ key: "eventRequestConfirmedMasterData" });
+  });
+
+  it("maps a request_created pill to a per-type localized key (#1803)", () => {
+    expect(
+      parentEventI18nDescriptor({
+        kind: "event",
+        event_type: "request_created",
+        request_status: "offen",
+        request_type: "care_schedule",
+      }),
+    ).toEqual({ key: "eventRequestCreatedCareSchedule" });
+    expect(
+      parentEventI18nDescriptor({
+        kind: "event",
+        event_type: "request_created",
+        request_status: "offen",
+        request_type: "master_data",
+      }),
+    ).toEqual({ key: "eventRequestCreatedMasterData" });
+  });
+
+  it("returns null for sick_note / care_exception pills so the raw German body renders (#1803)", () => {
+    for (const eventType of [
+      "sick_note",
+      "care_exception",
+      "care_exception_correction",
+    ]) {
+      expect(
+        parentEventI18nDescriptor({ kind: "event", event_type: eventType }),
+      ).toBeNull();
+    }
+  });
+
   it("returns null for non-request events so the caller keeps the raw body", () => {
     expect(
       parentEventI18nDescriptor({

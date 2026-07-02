@@ -60,6 +60,59 @@ func TestParentMessage_FindByIDAndTail(t *testing.T) {
 	assert.Equal(t, "drei", tail[1].Body)
 }
 
+// TestParentMessage_FindEventByRef covers the lookup a staff decision uses to
+// mark exactly the "request created" pill read: it must match on
+// (event_type, ref_table, ref_id) and ignore a same-ref decision pill, a plain
+// chat message, and a non-matching ref (nil, not an error).
+func TestParentMessage_FindEventByRef(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
+	msgRepo := usersRepo.NewParentMessageRepository(db)
+	ctx := tenantCtx()
+
+	thread := newThread(chain.StudentID, chain.AccountID)
+	require.NoError(t, threadRepo.Create(ctx, thread))
+
+	const refTable = "schedule.care_schedule_change_requests"
+	refID := int64(4242)
+
+	pill := newMessage(thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderSystem, "Anfrage gestellt")
+	pill.Kind = usersModels.ParentMessageKindEvent
+	pill.EventType = "request_created"
+	pill.EventActorKind = usersModels.ParentMessageSenderGuardian
+	pill.RefTable = refTable
+	pill.RefID = &refID
+	require.NoError(t, msgRepo.Create(ctx, pill))
+
+	// Same ref, but a decision pill (different event_type) — must NOT match.
+	decision := newMessage(thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderSystem, "Anfrage bestätigt")
+	decision.Kind = usersModels.ParentMessageKindEvent
+	decision.EventType = "request_status"
+	decision.RefTable = refTable
+	decision.RefID = &refID
+	require.NoError(t, msgRepo.Create(ctx, decision))
+	require.NoError(t, msgRepo.Create(ctx, newMessage(thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, "Frage")))
+
+	found, err := msgRepo.FindEventByRef(ctx, thread.ID, "request_created", refTable, refID)
+	require.NoError(t, err)
+	require.NotNil(t, found)
+	assert.Equal(t, pill.ID, found.ID)
+
+	// Wrong ref_id → nil, no error.
+	other, err := msgRepo.FindEventByRef(ctx, thread.ID, "request_created", refTable, refID+1)
+	require.NoError(t, err)
+	assert.Nil(t, other)
+
+	// Wrong ref_table (a master-data request) → nil.
+	none, err := msgRepo.FindEventByRef(ctx, thread.ID, "request_created", "users.student_data_change_requests", refID)
+	require.NoError(t, err)
+	assert.Nil(t, none)
+}
+
 // TestListInboxForStaff_GroupScoped pins the non-admin staff scoping branches of
 // applyStaffScope: a staffer who supervises the child's education group sees the
 // conversation, a staffer scoped to a DIFFERENT group does not, and a staffer who

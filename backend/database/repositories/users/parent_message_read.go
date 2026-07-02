@@ -193,16 +193,6 @@ func inboxSelect(q *bun.SelectQuery, accountID int64, staffReader bool) *bun.Sel
 		// <> ?). bun renders args in SQL-fragment order, so this select-list arg
 		// precedes the read-cursor join's account-id arg below; both are the same id.
 		ColumnExpr(unreadSub, accountID).
-		// open_request_count: still-open ('offen') structured change requests in the
-		// thread. tenant_id = t.tenant_id mirrors unreadSub — binds the leading index
-		// column so the correlated subquery is an index scan, and stays RLS-correct
-		// under the cross-tenant guardian path.
-		ColumnExpr(`(
-			SELECT COUNT(*) FROM users.parent_messages om
-			WHERE om.thread_id = t.id AND om.tenant_id = t.tenant_id
-			  AND om.kind = 'request'
-			  AND om.request_status = 'offen'
-		) AS open_request_count`).
 		Join("JOIN users.students AS s ON s.id = t.student_id").
 		Join("JOIN users.persons AS pn ON pn.id = s.person_id AND pn.deleted_at IS NULL").
 		Join("LEFT JOIN platform.schools AS sch ON sch.id = t.tenant_id").
@@ -322,23 +312,9 @@ func applyStaffScope(q *bun.SelectQuery, allStudents bool, groupIDs []int64) *bu
 	return q.Where("s.group_id IN (?)", bun.List(groupIDs))
 }
 
-// openRequestExists drives the inbox "Offene Anfragen" filter. A request thread
-// is "open" only while it still has at least one request_status='offen' row
-// (confirm/reject pending), keeping the filter consistent with the
-// open_request_count column and BuildRequestDiffs.
-const openRequestExists = `EXISTS (
-	SELECT 1 FROM users.parent_messages orm
-	WHERE orm.thread_id = t.id AND orm.tenant_id = t.tenant_id
-	  AND orm.kind = 'request'
-	  AND orm.request_status = 'offen'
-)`
-
 // ListInboxForStaff returns the staff member's readable threads, newest
-// activity first. onlyUnread keeps only threads with an unread guardian message;
-// onlyOpenRequests (variadic, default false) keeps only threads with a still-open
-// structured change request.
-func (r *ParentMessageReadRepository) ListInboxForStaff(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64, onlyUnread bool, onlyOpenRequests ...bool) ([]*users.InboxThread, error) {
-	openRequestsOnly := len(onlyOpenRequests) > 0 && onlyOpenRequests[0]
+// activity first. onlyUnread keeps only threads with an unread guardian message.
+func (r *ParentMessageReadRepository) ListInboxForStaff(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64, onlyUnread bool) ([]*users.InboxThread, error) {
 	var rows []*users.InboxThread
 	query := inboxSelect(base.GetDB(ctx, r.db).NewSelect(), accountID, true)
 	query = applyStaffScope(query, allStudents, groupIDs)
@@ -348,9 +324,6 @@ func (r *ParentMessageReadRepository) ListInboxForStaff(ctx context.Context, acc
 	}
 	if onlyUnread {
 		query = query.Where(guardianUnreadExists, accountID)
-	}
-	if openRequestsOnly {
-		query = query.Where(openRequestExists)
 	}
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list parent message inbox", Err: err}

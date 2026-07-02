@@ -12,7 +12,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	messagingService "github.com/moto-nrw/project-phoenix/services/messaging"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 )
 
@@ -38,25 +37,6 @@ type MessageResponse struct {
 	AppliedAt      *time.Time     `json:"applied_at,omitempty"`
 	DecisionReason string         `json:"decision_reason,omitempty"`
 	ReadByStaff    bool           `json:"read_by_staff,omitempty"`
-	Diff           []DiffEntry    `json:"diff,omitempty"`
-}
-
-// DiffEntry is one field an open request would change, shown to the guardian as
-// "current → requested" so they see what they asked to change, not just a
-// status. Absent for closed/applied requests. The structured discriminators
-// (weekday / care_kind) let the localized parents portal render the label in
-// the guardian's language instead of the German Label.
-type DiffEntry struct {
-	Label    string `json:"label"`
-	Old      string `json:"old"`
-	New      string `json:"new"`
-	Weekday  int    `json:"weekday,omitempty"`
-	CareKind string `json:"care_kind,omitempty"`
-	// Raw departure-mode keys behind Old/New for departure_mode rows, so the
-	// localized parents portal renders mode names in the guardian's language
-	// instead of the German Old/New strings. Empty for arrival/pickup rows.
-	OldModes []string `json:"old_modes,omitempty"`
-	NewMode  string   `json:"new_mode,omitempty"`
 }
 
 // ThreadSummaryResponse is one row on the parent thread list. counterpart_name
@@ -120,13 +100,6 @@ type PostMessageRequest struct {
 	Body string `json:"body"`
 }
 
-// CreateChildRequestRequest is the wire shape for POST
-// .../children/{studentId}/requests.
-type CreateChildRequestRequest struct {
-	RequestType string         `json:"request_type"`
-	Payload     map[string]any `json:"payload"`
-}
-
 // ogsLabel is the parent-facing name of the OGS counterpart for a school.
 func ogsLabel(schoolName string) string {
 	return strings.TrimSpace("OGS " + schoolName)
@@ -155,7 +128,7 @@ func staffShortName(full string) string {
 // message froze StaffNameVisible=true at send time; otherwise it collapses to
 // the neutral "OGS [Schulname]" label. Guardian/system rows pass through
 // unchanged.
-func toMessageResponses(messages []*usersModels.ParentMessage, counterpart string, diffs map[int64][]messagingService.RequestDiffEntry) []MessageResponse {
+func toMessageResponses(messages []*usersModels.ParentMessage, counterpart string) []MessageResponse {
 	out := make([]MessageResponse, 0, len(messages))
 	for _, m := range messages {
 		senderName := m.SenderName
@@ -176,18 +149,6 @@ func toMessageResponses(messages []*usersModels.ParentMessage, counterpart strin
 		if m.RefID != nil {
 			refID = strconv.FormatInt(*m.RefID, 10)
 		}
-		var diff []DiffEntry
-		for _, d := range diffs[m.ID] {
-			diff = append(diff, DiffEntry{
-				Label:    d.Label,
-				Old:      d.Old,
-				New:      d.New,
-				Weekday:  d.Weekday,
-				CareKind: d.CareKind,
-				OldModes: d.OldModes,
-				NewMode:  d.NewMode,
-			})
-		}
 		out = append(out, MessageResponse{
 			ID:             strconv.FormatInt(m.ID, 10),
 			SenderKind:     m.SenderKind,
@@ -204,7 +165,6 @@ func toMessageResponses(messages []*usersModels.ParentMessage, counterpart strin
 			AppliedAt:      m.AppliedAt,
 			DecisionReason: m.DecisionReason,
 			ReadByStaff:    m.ReadByStaff,
-			Diff:           diff,
 		})
 	}
 	return out
@@ -222,55 +182,8 @@ func toThreadView(v *parentService.MessageThreadView) ThreadViewResponse {
 		StudentName:     v.StudentName,
 		SchoolName:      v.SchoolName,
 		CounterpartName: counterpart,
-		Messages:        toMessageResponses(v.Messages, counterpart, v.Diffs),
+		Messages:        toMessageResponses(v.Messages, counterpart),
 	}
-}
-
-// createChildRequest appends a structured parent change request to the child's
-// conversation, creating the conversation on the first message.
-func (rs *Resource) createChildRequest(w http.ResponseWriter, r *http.Request) {
-	accountID, ok := rs.parentAccountID(w, r)
-	if !ok {
-		return
-	}
-	studentID, ok := parseStudentID(w, r)
-	if !ok {
-		return
-	}
-	var req CreateChildRequestRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
-		return
-	}
-	view, err := rs.ParentService.CreateChildRequest(r.Context(), accountID, studentID, req.RequestType, req.Payload)
-	if err != nil {
-		renderParentWriteError(w, r, err)
-		return
-	}
-	common.Respond(w, r, http.StatusCreated, toThreadView(view), "Request created")
-}
-
-// withdrawChildRequest flips an open guardian request to withdrawn.
-func (rs *Resource) withdrawChildRequest(w http.ResponseWriter, r *http.Request) {
-	accountID, ok := rs.parentAccountID(w, r)
-	if !ok {
-		return
-	}
-	studentID, ok := parseStudentID(w, r)
-	if !ok {
-		return
-	}
-	requestID, err := strconv.ParseInt(chi.URLParam(r, "requestId"), 10, 64)
-	if err != nil || requestID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request ID")))
-		return
-	}
-	view, err := rs.ParentService.WithdrawChildRequest(r.Context(), accountID, studentID, requestID)
-	if err != nil {
-		renderParentWriteError(w, r, err)
-		return
-	}
-	common.Respond(w, r, http.StatusOK, toThreadView(view), "Request withdrawn")
 }
 
 func parseStudentID(w http.ResponseWriter, r *http.Request) (int64, bool) {

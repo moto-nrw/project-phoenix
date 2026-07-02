@@ -66,7 +66,7 @@ func TestMasterDataReview_ApproveAppliesNameChange(t *testing.T) {
 		require.NoError(t, db.Close())
 	}()
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -96,7 +96,7 @@ func TestMasterDataReview_ApproveAppliesOtherPersonFields(t *testing.T) {
 		require.NoError(t, db.Close())
 	}()
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -126,7 +126,7 @@ func TestMasterDataReview_ConcurrentPersonFieldApprovalsDoNotOverwrite(t *testin
 		require.NoError(t, db.Close())
 	}()
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -162,7 +162,7 @@ func TestMasterDataReview_ConcurrentDecisionsKeepStatusAndRecordConsistent(t *te
 		require.NoError(t, db.Close())
 	}()
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -220,7 +220,7 @@ func TestMasterDataReview_ListPendingEnrichesStudentNames(t *testing.T) {
 		require.NoError(t, db.Close())
 	}()
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil)
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -248,7 +248,7 @@ func TestMasterDataReview_ListPendingEmptyAndInvalidRequestID(t *testing.T) {
 		require.NoError(t, db.Close())
 	}()
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -276,7 +276,7 @@ func TestMasterDataReview_ApproveAppliesDepartureModes(t *testing.T) {
 		require.NoError(t, db.Close())
 	}()
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -300,7 +300,7 @@ func TestMasterDataReview_StalePersonApprovalConflicts(t *testing.T) {
 		require.NoError(t, db.Close())
 	}()
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -328,7 +328,7 @@ func TestMasterDataReview_StaleDepartureApprovalConflicts(t *testing.T) {
 		require.NoError(t, db.Close())
 	}()
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -360,7 +360,7 @@ func TestMasterDataReview_ApprovalBroadcastsStudentUpdatedAfterCommit(t *testing
 	}()
 	repos := repositories.NewFactory(db)
 	broadcaster := &reviewRecordingBroadcaster{}
-	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default(), broadcaster)
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, slog.Default(), broadcaster)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -382,7 +382,7 @@ func TestMasterDataReview_RejectLeavesRecordUnchanged(t *testing.T) {
 		require.NoError(t, db.Close())
 	}()
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -406,7 +406,7 @@ func TestMasterDataReview_DecideNonPendingRejected(t *testing.T) {
 		require.NoError(t, db.Close())
 	}()
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -433,7 +433,7 @@ func TestMasterDataReview_ApproveInvalidRowsRejected(t *testing.T) {
 		require.NoError(t, db.Close())
 	}()
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, slog.Default())
 
 	tests := []struct {
 		name   string

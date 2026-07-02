@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"log/slog"
 	"reflect"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -65,14 +67,18 @@ type masterDataReviewService struct {
 	studentRepo       userModels.StudentRepository
 	personRepo        userModels.PersonRepository
 	broadcaster       realtime.Broadcaster
+	emitter           *parentmessaging.Emitter
 	logger            *slog.Logger
 }
 
-// NewMasterDataReviewService wires the staff review service.
+// NewMasterDataReviewService wires the staff review service. emitter posts the
+// parent-visible decision pill into the child's chat thread (nil = no pills,
+// e.g. in tests).
 func NewMasterDataReviewService(
 	changeRequestRepo userModels.StudentDataChangeRequestRepository,
 	studentRepo userModels.StudentRepository,
 	personRepo userModels.PersonRepository,
+	emitter *parentmessaging.Emitter,
 	logger *slog.Logger,
 	broadcasters ...realtime.Broadcaster,
 ) MasterDataReviewService {
@@ -88,6 +94,7 @@ func NewMasterDataReviewService(
 		studentRepo:       studentRepo,
 		personRepo:        personRepo,
 		broadcaster:       broadcaster,
+		emitter:           emitter,
 		logger:            logger,
 	}
 }
@@ -168,6 +175,7 @@ func (s *masterDataReviewService) Decide(ctx context.Context, input MasterDataRe
 			slog.Int64("student_id", req.StudentID),
 			slog.Int64("reviewed_by", input.ReviewedBy),
 		)
+		s.deferDecisionPill(ctx, req, input, false)
 		row, findErr := s.changeRequestRepo.FindByID(ctx, req.ID)
 		if findErr != nil {
 			return nil, fmt.Errorf("review: reload rejected request: %w", findErr)
@@ -191,6 +199,7 @@ func (s *masterDataReviewService) Decide(ctx context.Context, input MasterDataRe
 		slog.String("field", req.FieldKey),
 		slog.Int64("reviewed_by", input.ReviewedBy),
 	)
+	s.deferDecisionPill(ctx, req, input, true)
 	s.deferStudentUpdated(ctx, req.StudentID)
 	row, findErr := s.changeRequestRepo.FindByID(ctx, req.ID)
 	if findErr != nil {
@@ -215,6 +224,44 @@ func (s *masterDataReviewService) enrichReviewItem(ctx context.Context, row *use
 	item.FirstName = person.FirstName
 	item.LastName = person.LastName
 	return item, nil
+}
+
+// deferDecisionPill posts the parent-visible decision pill into the child's
+// chat thread after the decision commits. Best-effort: the emitter self-gates
+// on the messaging setting and opens its own detached tenant transaction, so
+// a pill failure never affects the decision.
+func (s *masterDataReviewService) deferDecisionPill(ctx context.Context, req *userModels.StudentDataChangeRequest, input MasterDataReviewDecideInput, approved bool) {
+	if s.emitter == nil {
+		return
+	}
+	tenantID := tenant.FromContext(ctx)
+	body := "Anfrage bestätigt, Stammdaten übernommen"
+	status := userModels.ParentMessageRequestStatusDone
+	reason := strings.TrimSpace(input.Reason)
+	if !approved {
+		status = userModels.ParentMessageRequestStatusRejected
+		body = "Anfrage abgelehnt"
+		if reason != "" {
+			body = "Anfrage abgelehnt: " + reason
+		}
+	}
+	refID := req.ID
+	studentID := req.StudentID
+	guardianAccountID := req.SubmittedBy
+	actorAccountID := input.ReviewedBy
+	tenant.RegisterAfterCommit(ctx, func() {
+		s.emitter.EmitChildEvent(tenantID, studentID, guardianAccountID, parentmessaging.ChildEvent{
+			EventType:      "request_status",
+			ActorKind:      userModels.ParentMessageSenderStaff,
+			ActorAccountID: actorAccountID,
+			Body:           body,
+			RequestType:    userModels.ParentMessageRequestMasterData,
+			RequestStatus:  status,
+			DecisionReason: reason,
+			RefTable:       "users.student_data_change_requests",
+			RefID:          &refID,
+		})
+	})
 }
 
 func (s *masterDataReviewService) deferStudentUpdated(ctx context.Context, studentID int64) {

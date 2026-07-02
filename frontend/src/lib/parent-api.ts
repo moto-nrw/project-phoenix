@@ -10,7 +10,7 @@
 
 import { createLogger } from "~/lib/logger";
 import type { AppLocale } from "~/i18n/locales";
-import type { ChatMessage } from "~/lib/messaging-status";
+import type { ChatMessage, RequestDiffEntry } from "~/lib/messaging-status";
 import { readEnrollmentError } from "~/lib/enrollment-error-messages";
 import type {
   MeProfileResponse,
@@ -104,6 +104,10 @@ export interface ChildFeatures {
   readonly master_data_contact_edit_enabled: boolean;
   readonly master_data_request_enabled: boolean;
   readonly meal_plan_enabled: boolean;
+  // STATE, not a capability: the child has a pending change request (master data
+  // or care schedule) awaiting an OGS decision. Lets the overview badge the
+  // Stammdaten entry without fetching the full request payloads.
+  readonly has_open_change_request: boolean;
 }
 
 // One dish of the read-only meal plan (Essensplan) for a child's school.
@@ -587,36 +591,6 @@ export async function postChildMessage(
 }
 
 /**
- * Submits a structured change-request (care schedule / master data) for the
- * child and returns the full updated conversation (the request appears as a
- * "request" timeline entry awaiting OGS confirmation).
- */
-export async function createChildRequest(
-  studentId: string,
-  requestType: "care_schedule",
-  payload: Record<string, unknown>,
-): Promise<ThreadView> {
-  return postJson<ThreadView>(
-    `/api/parent/me/messages/children/${encodeURIComponent(studentId)}/requests`,
-    { request_type: requestType, payload },
-  );
-}
-
-/**
- * Withdraws a still-open change-request and returns the full updated
- * conversation (the request flips to "zurueckgezogen").
- */
-export async function withdrawChildRequest(
-  studentId: string,
-  requestId: string,
-): Promise<ThreadView> {
-  return postJson<ThreadView>(
-    `/api/parent/me/messages/children/${encodeURIComponent(studentId)}/requests/${encodeURIComponent(requestId)}/withdraw`,
-    {},
-  );
-}
-
-/**
  * Sets a one-day pickup and/or arrival override for the child. The two times
  * are the COMPLETE override for the day: a "HH:MM" string sets that leg, an
  * omitted leg (sent as null) clears it. At least one must be present — clearing
@@ -725,6 +699,82 @@ export async function deleteCareException(
 ): Promise<void> {
   await deleteJson<null>(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/care-exception?date=${encodeURIComponent(date)}`,
+  );
+}
+
+// --- Care schedule (standard weekly plan + permanent change requests, #1803) ---
+
+// One weekday of the child's standard weekly care plan. Mirrors
+// api/parent.CareScheduleWeekdayResponse. `weekday` is ISO (Monday=1 .. Friday=5).
+// `arrival`/`pickup` are "HH:MM" wall-clock strings, absent/empty when unset.
+// `modes` are the allowed departure-mode keys for the day (e.g. ["bus","pickup"]).
+export interface CareScheduleWeekday {
+  readonly weekday: number;
+  readonly arrival?: string;
+  readonly pickup?: string;
+  readonly modes: string[];
+}
+
+// The guardian's still-open permanent change request for the care schedule.
+// Mirrors api/parent.PendingCareRequestResponse. `diff` reuses the shared
+// RequestDiffEntry wire shape (label/old/new + structured discriminators), so
+// the localized parents portal can render each row in the guardian's language.
+// `submitted_by_self` is true only for the calling guardian's own request —
+// withdraw is offered only then.
+export interface PendingCareRequest {
+  readonly id: string;
+  readonly created_at: string; // ISO timestamp
+  readonly diff: RequestDiffEntry[];
+  readonly submitted_by_self: boolean;
+}
+
+// The read view of a child's care schedule. Mirrors api/parent.CareScheduleResponse.
+export interface ChildCareSchedule {
+  readonly weekdays: CareScheduleWeekday[];
+  readonly pending_request?: PendingCareRequest;
+  readonly can_request: boolean;
+}
+
+/**
+ * Fetches the child's standard weekly care plan (Mon-Fr), the guardian's own
+ * still-open change request (if any), and whether a new request may be
+ * submitted. Powers the care-schedule section on the Stammdaten page.
+ */
+export async function getChildCareSchedule(
+  studentId: string,
+): Promise<ChildCareSchedule> {
+  return getJson<ChildCareSchedule>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-schedule`,
+  );
+}
+
+/**
+ * Submits a permanent weekly-plan change request. `payload` carries only the
+ * aspects that differ from the current plan (empty string = unchanged); it is
+ * wrapped in the backend's `{ payload }` envelope. Returns the refreshed view
+ * (now carrying the pending request).
+ */
+export async function submitCareScheduleRequest(
+  studentId: string,
+  payload: Record<string, unknown>,
+): Promise<ChildCareSchedule> {
+  return postJson<ChildCareSchedule>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-schedule/requests`,
+    { payload },
+  );
+}
+
+/**
+ * Withdraws the guardian's own still-open change request and returns the
+ * refreshed view (pending request cleared).
+ */
+export async function withdrawCareScheduleRequest(
+  studentId: string,
+  requestId: string,
+): Promise<ChildCareSchedule> {
+  return postJson<ChildCareSchedule>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-schedule/requests/${encodeURIComponent(requestId)}/withdraw`,
+    {},
   );
 }
 
