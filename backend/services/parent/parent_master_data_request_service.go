@@ -113,14 +113,10 @@ func (s *service) SubmitMasterDataChangeRequest(ctx context.Context, accountID, 
 			// One "Anfrage erstellt" pill PER created row, each referencing its
 			// OWN row. A multi-field submit is decided field-by-field
 			// (master_data_review.Decide runs per row and emits a decision pill
-			// keyed on THAT row's id), and the emitter clears the deciding admin's
-			// unread badge by matching the decision pill's ref to the
-			// request_created pill's ref (markStaffReadUpToRequestPill). A single
-			// shared pill tied to created[0] could only be cleared by deciding
-			// that one row — deciding any other field left the badge lit, while
-			// deciding the first cleared it even with siblings still pending.
-			// Per-row pills keep every created↔decision ref paired so any field's
-			// decision clears deterministically. Best-effort, after commit.
+			// keyed on THAT row's id), so per-row created pills keep every
+			// created↔decision ref paired: the thread timeline and the deep-link
+			// into the Änderungsanfragen queue resolve the exact row for any
+			// field, not just created[0]. Best-effort, after commit.
 			capturedTenant := child.tenantID
 			refIDs := make([]int64, len(created))
 			for i, row := range created {

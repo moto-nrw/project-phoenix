@@ -20,6 +20,7 @@ import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useSuggestionsUnread } from "~/lib/hooks/use-suggestions-unread";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
+import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
 import { useParentMessagesUnread } from "~/lib/hooks/use-parent-messages-unread";
 import { useParentMealPlanEnabled } from "~/lib/hooks/use-parent-meal-plan-enabled";
 import { useOperatorSuggestionsUnread } from "~/lib/hooks/use-operator-suggestions-unread";
@@ -416,6 +417,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const { unreadCount: operatorUnreadCount } = useOperatorSuggestionsUnread();
   // Unread parent-OGS messages badge (staff/teacher mode)
   const { unreadCount: messagesUnreadCount } = useMessagesUnread();
+  // Pending parent change-requests badge (Änderungsanfragen, admin-only)
+  const { unreadCount: changeRequestsPendingCount } =
+    useChangeRequestsPending();
   // Unread OGS messages badge (parents portal) — only fetches in parent mode.
   const { unreadCount: parentMessagesUnread } = useParentMessagesUnread(
     mode === "parent",
@@ -659,6 +663,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
             )}
             {item.href === "/messages" && (
               <UnreadBadge count={messagesUnreadCount} className="ml-2" />
+            )}
+            {item.href === "/admin/change-requests" && (
+              <UnreadBadge
+                count={changeRequestsPendingCount}
+                className="ml-2"
+              />
             )}
           </span>
         </Link>

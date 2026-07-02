@@ -94,6 +94,9 @@ export function MasterDataReviewList() {
           reasons[row.id]?.trim() || undefined,
         );
         setRows((prev) => prev.filter((r) => r.id !== row.id));
+        // Clear/decrement the Änderungsanfragen sidebar badge without waiting
+        // for the 60s cache or an SSE round-trip.
+        window.dispatchEvent(new Event("change-requests-refresh"));
         setNotice(approve ? "Änderung übernommen" : "Änderung abgelehnt");
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

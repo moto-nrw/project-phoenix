@@ -223,7 +223,7 @@ func TestDecide_ApproveRefusedWhenGuardianAccessRevoked(t *testing.T) {
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
 		f.sf.UserContext,
-		parentmessaging.NewEmitter(f.db, f.repos.ParentMessageThread, nil, nil, nil, nil, slog.Default()),
+		parentmessaging.NewEmitter(f.db, f.repos.ParentMessageThread, nil, nil, nil, slog.Default()),
 		nil,
 		slog.Default(),
 	)
@@ -282,7 +282,7 @@ func TestDecide_ApproveRefusedWhenMessagingDisabled(t *testing.T) {
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
 		f.sf.UserContext,
-		parentmessaging.NewEmitter(f.db, f.repos.ParentMessageThread, f.repos.ParentMessage, f.repos.ParentMessageRead, fakeDisabledSettings{}, nil, slog.Default()),
+		parentmessaging.NewEmitter(f.db, f.repos.ParentMessageThread, f.repos.ParentMessage, fakeDisabledSettings{}, nil, slog.Default()),
 		nil,
 		slog.Default(),
 	)

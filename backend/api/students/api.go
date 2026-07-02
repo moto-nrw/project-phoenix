@@ -182,6 +182,11 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersManage), withTx).Get("/care-schedule-change-requests", rs.listCareScheduleChangeRequests)
 		r.With(authorize.RequiresPermission(permissions.UsersManage), withTx).Post("/care-schedule-change-requests/{requestId}/decide", rs.decideCareScheduleChangeRequest)
 
+		// Combined pending count across both review queues, driving the
+		// Änderungsanfragen sidebar badge. Same admin gate as the queues it
+		// summarizes.
+		r.With(authorize.RequiresPermission(permissions.UsersManage), withTx).Get("/change-requests/pending-count", rs.pendingChangeRequestCount)
+
 		// Routes requiring users:create permission
 		r.With(authorize.RequiresPermission(permissions.UsersCreate), withTx).Post("/", rs.createStudent)
 

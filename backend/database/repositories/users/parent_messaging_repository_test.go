@@ -229,14 +229,13 @@ func newRequestCreatedPill(threadID, studentID, actorAccountID int64, at time.Ti
 	return m
 }
 
-// TestParentMessaging_HasEarlierUnreadRequestPill guards the decide→mark-read
-// regression (#1803 review follow-up): a guardian who submits several master-data
-// fields at once creates one request_created pill per field in ONE thread, each
-// decided separately. markStaffReadUpToRequestPill uses this predicate before
-// advancing the positional read cursor so deciding a LATER request cannot mark an
-// EARLIER still-pending sibling pill read (which would blank the Nachrichten badge
-// while an earlier request still needs a decision).
-func TestParentMessaging_HasEarlierUnreadRequestPill(t *testing.T) {
+// TestParentMessaging_RequestCreatedPillNotCounted pins the #1803 duplicate-signal
+// fix: a request_created pill is a queue notice surfaced on the Änderungsanfragen
+// badge, not an unread chat message, so it must NOT inflate the staff Nachrichten
+// unread count — while a plain guardian message in the SAME thread still does. It
+// also asserts the per-thread unread_count column agrees with the aggregate badge,
+// the invariant the exclusion is baked into counterpartUnread to preserve.
+func TestParentMessaging_RequestCreatedPillNotCounted(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -251,58 +250,39 @@ func TestParentMessaging_HasEarlierUnreadRequestPill(t *testing.T) {
 	msgRepo := usersRepo.NewParentMessageRepository(db)
 	readRepo := usersRepo.NewParentMessageReadRepository(db)
 	ctx := tenantCtx()
-	admin := staffAccount.ID
 
 	thread := newThread(chain.StudentID, chain.AccountID)
 	require.NoError(t, threadRepo.Create(ctx, thread))
 
-	// Three request_created pills from the same batch submission, oldest first,
-	// with strictly increasing timestamps so ordering is deterministic.
 	base := time.Now().Truncate(time.Microsecond)
-	p1 := newRequestCreatedPill(thread.ID, chain.StudentID, chain.AccountID, base)
-	require.NoError(t, msgRepo.Create(ctx, p1))
-	p2 := newRequestCreatedPill(thread.ID, chain.StudentID, chain.AccountID, base.Add(time.Second))
-	require.NoError(t, msgRepo.Create(ctx, p2))
-	p3 := newRequestCreatedPill(thread.ID, chain.StudentID, chain.AccountID, base.Add(2*time.Second))
-	require.NoError(t, msgRepo.Create(ctx, p3))
+	// A request_created pill (guardian-side system event) alone must leave the
+	// staff badge at zero — it belongs on the Änderungsanfragen queue count.
+	pill := newRequestCreatedPill(thread.ID, chain.StudentID, chain.AccountID, base)
+	require.NoError(t, msgRepo.Create(ctx, pill))
 
-	// Nothing read yet: deciding p3 (the latest) must be blocked from advancing —
-	// p1 and p2 are earlier unread siblings.
-	has, err := readRepo.HasEarlierUnreadRequestPill(ctx, thread.ID, admin, "request_created", p3.CreatedAt, p3.ID)
+	count, err := readRepo.UnreadMessageCountForStaff(ctx, staffAccount.ID, true, nil)
 	require.NoError(t, err)
-	assert.True(t, has, "p1/p2 are earlier unread request pills before p3")
+	assert.Equal(t, 0, count, "a request_created pill must not count toward the staff Nachrichten badge")
 
-	// Deciding p1 (the oldest) is safe — nothing earlier exists.
-	has, err = readRepo.HasEarlierUnreadRequestPill(ctx, thread.ID, admin, "request_created", p1.CreatedAt, p1.ID)
+	inbox, err := readRepo.ListInboxForStaff(ctx, staffAccount.ID, true, nil, false)
 	require.NoError(t, err)
-	assert.False(t, has, "no request pill precedes the oldest")
+	require.Len(t, inbox, 1, "the thread is still listed — it has a message")
+	assert.Equal(t, 0, inbox[0].UnreadCount, "per-thread unread_count agrees with the badge: pill excluded")
 
-	// After the cursor advances past p1 (as deciding p1 would do), deciding p2 is
-	// safe: p1 is now behind the cursor, so it is no longer an EARLIER UNREAD pill.
-	advanced, err := readRepo.MarkReadUpTo(ctx, 1, thread.ID, admin, p1.CreatedAt, p1.ID)
-	require.NoError(t, err)
-	require.True(t, advanced)
-	has, err = readRepo.HasEarlierUnreadRequestPill(ctx, thread.ID, admin, "request_created", p2.CreatedAt, p2.ID)
-	require.NoError(t, err)
-	assert.False(t, has, "a read (behind-cursor) earlier pill must not block")
-	// p3 is still blocked while p2 stays unread.
-	has, err = readRepo.HasEarlierUnreadRequestPill(ctx, thread.ID, admin, "request_created", p3.CreatedAt, p3.ID)
-	require.NoError(t, err)
-	assert.True(t, has, "p2 is still an earlier unread sibling before p3")
-
-	// A plain guardian chat message earlier than a pill is NOT a request pill, so
-	// it must not block the decide auto-clear (only pending REQUESTS should).
-	chat := newMessage(thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, "danke")
-	chat.CreatedAt, chat.UpdatedAt = base.Add(3*time.Second), base.Add(3*time.Second)
+	// A plain guardian chat message in the same thread DOES count — the exclusion
+	// is specific to request_created, not a blanket mute of the thread.
+	chat := newMessage(thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, "Frage")
+	chat.CreatedAt, chat.UpdatedAt = base.Add(time.Second), base.Add(time.Second)
 	require.NoError(t, msgRepo.Create(ctx, chat))
-	p4 := newRequestCreatedPill(thread.ID, chain.StudentID, chain.AccountID, base.Add(4*time.Second))
-	require.NoError(t, msgRepo.Create(ctx, p4))
-	// Advance the cursor past p2 and p3 so only the chat + p4 remain unread.
-	_, err = readRepo.MarkReadUpTo(ctx, 1, thread.ID, admin, p3.CreatedAt, p3.ID)
+
+	count, err = readRepo.UnreadMessageCountForStaff(ctx, staffAccount.ID, true, nil)
 	require.NoError(t, err)
-	has, err = readRepo.HasEarlierUnreadRequestPill(ctx, thread.ID, admin, "request_created", p4.CreatedAt, p4.ID)
+	assert.Equal(t, 1, count, "a plain guardian message still counts; only the pill is excluded")
+
+	inbox, err = readRepo.ListInboxForStaff(ctx, staffAccount.ID, true, nil, false)
 	require.NoError(t, err)
-	assert.False(t, has, "an earlier plain chat message is not a request pill and must not block")
+	require.Len(t, inbox, 1)
+	assert.Equal(t, 1, inbox[0].UnreadCount, "per-thread count still matches the badge")
 }
 
 // TestParentMessaging_OneThreadPerGuardian verifies the chat model: exactly one

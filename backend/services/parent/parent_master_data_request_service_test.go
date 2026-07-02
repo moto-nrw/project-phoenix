@@ -240,18 +240,16 @@ func (allSettingsOn) ResolveBoolForTenant(context.Context, int64, string) (bool,
 // TestSubmitMasterDataChangeRequest_PerRowCreatedPills pins the P3 fix (#1803
 // review follow-up): a multi-field submit emits ONE "Anfrage erstellt" pill PER
 // created row, each referencing its own row — not a single pill tied to the
-// first row. A single shared pill could only be cleared (staff-decision unread
-// badge, via markStaffReadUpToRequestPill → FindEventByRef on the decided row's
-// id) by deciding the first field; every other field's decision would leave the
-// badge lit. Per-row pills keep created↔decision refs paired so any field's
-// decision clears deterministically.
+// first row. Per-row pills keep each field's created↔decision refs paired, so
+// the thread timeline and the deep-link into the Änderungsanfragen queue can
+// resolve the exact row for any field, not just the first.
 func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	settings := allSettingsOn{}
 	emitter := parentmessaging.NewEmitter(
-		db, repos.ParentMessageThread, repos.ParentMessage, repos.ParentMessageRead,
+		db, repos.ParentMessageThread, repos.ParentMessage,
 		settings, nil, slog.Default(),
 	)
 	svc := parentService.NewService(parentService.ServiceConfig{

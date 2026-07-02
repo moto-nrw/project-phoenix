@@ -53,30 +53,22 @@ type ChildEvent struct {
 // committed (from a tenant.RegisterAfterCommit callback) and opens its OWN
 // tenant transaction on a background context, so a pill failure can never
 // roll back — or be rolled back by — the action it mirrors.
-// eventTypeRequestCreated is the pill appended when a change request is first
-// submitted. A staff decision marks exactly this pill read for the deciding
-// admin (see markStaffReadUpToRequestPill).
-const eventTypeRequestCreated = "request_created"
-
 type Emitter struct {
 	db          *bun.DB
 	threadRepo  usersModels.ParentMessageThreadRepository
 	messageRepo usersModels.ParentMessageRepository
-	readRepo    usersModels.ParentMessageReadRepository
 	settings    TenantSettingsResolver
 	broadcaster realtime.Broadcaster
 	logger      *slog.Logger
 }
 
-// NewEmitter wires an emitter. Any nil dependency (except readRepo/broadcaster/
-// logger) turns EmitChildEvent into a no-op, so partially-wired test factories
-// stay safe. A nil readRepo only disables the decide→mark-read step; pills
-// still emit.
+// NewEmitter wires an emitter. Any nil dependency (except broadcaster/logger)
+// turns EmitChildEvent into a no-op, so partially-wired test factories stay
+// safe.
 func NewEmitter(
 	db *bun.DB,
 	threadRepo usersModels.ParentMessageThreadRepository,
 	messageRepo usersModels.ParentMessageRepository,
-	readRepo usersModels.ParentMessageReadRepository,
 	settings TenantSettingsResolver,
 	broadcaster realtime.Broadcaster,
 	logger *slog.Logger,
@@ -85,7 +77,6 @@ func NewEmitter(
 		db:          db,
 		threadRepo:  threadRepo,
 		messageRepo: messageRepo,
-		readRepo:    readRepo,
 		settings:    settings,
 		broadcaster: broadcaster,
 		logger:      logger,
@@ -187,14 +178,6 @@ func (e *Emitter) EmitChildEvent(tenantID, studentID, guardianAccountID int64, e
 		)
 		return
 	}
-	// A staff decision clears the deciding admin's unread badge for this thread:
-	// deciding happens on the Änderungsanfragen page, not by opening the chat, so
-	// without this the "Anfrage gestellt" pill would stay unread and keep the
-	// Nachrichten badge lit. Marks read only UP TO the request-created pill, so a
-	// parent chat message sent after the request stays unread. Runs before the
-	// broadcast so the staff inbox refetch sees the advanced cursor. Best-effort.
-	e.markStaffReadUpToRequestPill(bgCtx, tenantID, threadID, ev)
-
 	// The staff inbox and open threads refetch only on a parent_message SSE
 	// event — not student_updated — so without this the pill stays invisible
 	// until a manual reload.
@@ -248,55 +231,4 @@ func (e *Emitter) GuardianHasChildAccess(ctx context.Context, studentID, guardia
 		return false, errors.New("parentmessaging: emitter not configured for guardian access check")
 	}
 	return e.guardianHasChildAccess(ctx, studentID, guardianAccountID)
-}
-
-// markStaffReadUpToRequestPill advances the deciding admin's read cursor to the
-// change request's "request created" pill after a staff decision, so the
-// Nachrichten badge clears without opening the thread. No-op unless the event is
-// a staff-triggered request decision with a resolvable reference. Best-effort:
-// a failure here never affects the already-emitted decision pill.
-func (e *Emitter) markStaffReadUpToRequestPill(bgCtx context.Context, tenantID, threadID int64, ev ChildEvent) {
-	if e.readRepo == nil || threadID <= 0 {
-		return
-	}
-	if ev.EventType != "request_status" ||
-		ev.ActorKind != usersModels.ParentMessageSenderStaff ||
-		ev.ActorAccountID <= 0 || ev.RefID == nil || ev.RefTable == "" {
-		return
-	}
-	err := tenant.WithTenantTx(bgCtx, e.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		pill, err := e.messageRepo.FindEventByRef(txCtx, threadID, eventTypeRequestCreated, ev.RefTable, *ev.RefID)
-		if err != nil {
-			return err
-		}
-		if pill == nil {
-			return nil
-		}
-		// A guardian who submits several fields at once creates one
-		// request_created pill per field in THIS thread, each decided separately.
-		// MarkReadUpTo is a positional cursor, so advancing it to a later
-		// request's pill would also mark every earlier sibling pill read —
-		// dropping the Nachrichten badge while an earlier request is still
-		// pending. Skip the auto-clear when an earlier still-unread request pill
-		// exists: the badge stays lit (correct — there is pending work) and clears
-		// when the admin decides that earlier request or opens the thread.
-		earlier, err := e.readRepo.HasEarlierUnreadRequestPill(
-			txCtx, threadID, ev.ActorAccountID, eventTypeRequestCreated, pill.CreatedAt, pill.ID)
-		if err != nil {
-			return err
-		}
-		if earlier {
-			return nil
-		}
-		_, err = e.readRepo.MarkReadUpTo(txCtx, tenantID, threadID, ev.ActorAccountID, pill.CreatedAt, pill.ID)
-		return err
-	})
-	if err != nil {
-		loggerOr(e.logger).Warn("parent messaging: mark request pill read failed",
-			slog.Int64("tenant_id", tenantID),
-			slog.Int64("thread_id", threadID),
-			slog.Int64("account_id", ev.ActorAccountID),
-			slog.String("error", err.Error()),
-		)
-	}
 }

@@ -73,40 +73,6 @@ func (r *ParentMessageReadRepository) MarkReadUpTo(ctx context.Context, tenantID
 	return affected > 0, nil
 }
 
-// HasEarlierUnreadRequestPill reports whether the staff reader still has an
-// unread pill of eventType in the thread positioned strictly before
-// (beforeCreatedAt, beforeMessageID) — an earlier, still-unread sibling request
-// from the same batch submission. markStaffReadUpToRequestPill consults it so
-// deciding a LATER request does not advance the positional read cursor past an
-// earlier pending sibling's pill (which would silently drop the Nachrichten
-// badge while that earlier request still needs a decision). Reuses the same
-// three unread predicates as the badge counts — counterpartUnread (guardian-side
-// pills are unread to staff), afterReadCursor (strictly after the reader's
-// cursor via the LEFT-joined r row), notReaderAuthored — so "unread" is
-// identical to the sidebar badge; the (created_at, id) upper bound is the
-// composite tie-break MarkReadUpTo advances on.
-func (r *ParentMessageReadRepository) HasEarlierUnreadRequestPill(
-	ctx context.Context, threadID, accountID int64, eventType string, beforeCreatedAt time.Time, beforeMessageID int64,
-) (bool, error) {
-	query := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr("users.parent_messages AS um").
-		Join("LEFT JOIN users.parent_message_reads AS r ON r.thread_id = um.thread_id AND r.account_id = ? AND r.tenant_id = um.tenant_id", accountID).
-		Where("um.thread_id = ?", threadID).
-		Where("um.event_type = ?", eventType).
-		Where(counterpartUnread("um", true)).
-		Where(afterReadCursor("um")).
-		Where(notReaderAuthored("um"), accountID).
-		Where("(um.created_at, um.id) < (?, ?)", beforeCreatedAt, beforeMessageID)
-	if where, val, ok := base.TenantWhere(ctx, "um"); ok {
-		query = query.Where(where, val)
-	}
-	exists, err := query.Exists(ctx)
-	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "check earlier unread request pill", Err: err}
-	}
-	return exists, nil
-}
-
 // counterpartUnread builds the SQL boolean for "a message from the OTHER party
 // relative to the reader", on the given message alias: a staff reader counts
 // unread guardian-side activity, a guardian reader counts unread staff-side
@@ -125,8 +91,19 @@ func counterpartUnread(alias string, staffReader bool) string {
 	if staffReader {
 		side = "guardian"
 	}
+	// request_created pills are excluded from EVERY unread number here: a
+	// submitted change request is surfaced as a count on the Änderungsanfragen
+	// queue badge (its own actionable signal), never as an unread chat message on
+	// the Nachrichten badge (#1803 — kills the double-signal). The pill still
+	// lives in the thread timeline as a non-interactive notice. IS DISTINCT FROM
+	// keeps plain messages (NULL event_type) and every OTHER pill counted; only
+	// this one event_type drops out. Baking it into the shared predicate is what
+	// keeps the aggregate badge count, the per-thread unread_count column, and the
+	// unread-EXISTS filter from ever disagreeing. For guardian readers it is a
+	// no-op — a guardian-side pill is already not their counterpart — so the
+	// exclusion only affects the staff side, by design.
 	return fmt.Sprintf(
-		`(%[1]s.sender_kind = '%[2]s' OR (%[1]s.sender_kind = 'system' AND %[1]s.event_actor_kind = '%[2]s'))`,
+		`((%[1]s.sender_kind = '%[2]s' OR (%[1]s.sender_kind = 'system' AND %[1]s.event_actor_kind = '%[2]s')) AND %[1]s.event_type IS DISTINCT FROM 'request_created')`,
 		alias, side,
 	)
 }

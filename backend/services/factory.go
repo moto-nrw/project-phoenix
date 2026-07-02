@@ -1132,7 +1132,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		db,
 		repos.ParentMessageThread,
 		repos.ParentMessage,
-		repos.ParentMessageRead,
 		settingsService,
 		realtimeHub,
 		logger.With("service", "parent-events"),

@@ -78,6 +78,9 @@ export function CareRequestReviewList() {
           reason || undefined,
         );
         setRows((prev) => prev.filter((r) => r.id !== row.id));
+        // Clear/decrement the Änderungsanfragen sidebar badge without waiting
+        // for the 60s cache or an SSE round-trip.
+        window.dispatchEvent(new Event("change-requests-refresh"));
         setNotice(
           approve
             ? "Betreuungszeiten übernommen"
