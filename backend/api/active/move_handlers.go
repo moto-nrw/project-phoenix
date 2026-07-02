@@ -29,11 +29,12 @@ func (rs *Resource) moveStudentsToActiveGroup(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	if !rs.authorizeBulkStudentMove(w, r, req.StudentIDs, &req.TargetActiveGroupID) {
+	auth, ok := rs.bulkStudentMoveAuthorization(w, r)
+	if !ok {
 		return
 	}
 
-	result, err := rs.ActiveService.MoveStudentsToActiveGroup(r.Context(), req.StudentIDs, req.TargetActiveGroupID)
+	result, err := rs.ActiveService.MoveStudentsToActiveGroupAuthorized(r.Context(), req.StudentIDs, req.TargetActiveGroupID, *auth)
 	if err != nil {
 		tenant.MarkRollback(r.Context())
 		common.RenderError(w, r, ErrorRenderer(err))
@@ -54,11 +55,12 @@ func (rs *Resource) moveStudentsToTransit(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if !rs.authorizeBulkStudentMove(w, r, req.StudentIDs, nil) {
+	auth, ok := rs.bulkStudentMoveAuthorization(w, r)
+	if !ok {
 		return
 	}
 
-	result, err := rs.ActiveService.MoveStudentsToTransit(r.Context(), req.StudentIDs)
+	result, err := rs.ActiveService.MoveStudentsToTransitAuthorized(r.Context(), req.StudentIDs, *auth)
 	if err != nil {
 		tenant.MarkRollback(r.Context())
 		common.RenderError(w, r, ErrorRenderer(err))

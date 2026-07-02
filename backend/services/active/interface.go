@@ -46,7 +46,9 @@ type Service interface {
 	ListStudentsPresentToday(ctx context.Context) ([]int64, error)
 	AssignTransitStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64) (*TransitAssignResult, error)
 	MoveStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64) (*StudentMoveResult, error)
+	MoveStudentsToActiveGroupAuthorized(ctx context.Context, studentIDs []int64, activeGroupID int64, auth StudentMoveAuthorization) (*StudentMoveResult, error)
 	MoveStudentsToTransit(ctx context.Context, studentIDs []int64) (*StudentMoveResult, error)
+	MoveStudentsToTransitAuthorized(ctx context.Context, studentIDs []int64, auth StudentMoveAuthorization) (*StudentMoveResult, error)
 
 	// Group Supervisor operations
 	GetGroupSupervisor(ctx context.Context, id int64) (*active.GroupSupervisor, error)
@@ -197,6 +199,13 @@ type StudentMoveResult struct {
 	Skipped       []StudentMoveSkipped `json:"skipped"`
 	ActiveGroupID *int64               `json:"active_group_id,omitempty"`
 	RoomID        *int64               `json:"room_id,omitempty"`
+}
+
+// StudentMoveAuthorization carries the caller context needed to authorize
+// bulk move requests against the locked move state inside the service.
+type StudentMoveAuthorization struct {
+	StaffID              int64
+	BypassResourceChecks bool
 }
 
 // DashboardAnalytics represents aggregated analytics for dashboard

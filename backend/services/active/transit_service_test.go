@@ -246,6 +246,158 @@ func TestActiveService_MoveStudentsToActiveGroup_EndedTargetFails(t *testing.T) 
 	assert.ErrorIs(t, err, activeSvc.ErrActiveGroupAlreadyEnded)
 }
 
+func TestActiveService_MoveStudentsToActiveGroupAuthorized_RejectsUnsupervisedLockedSource(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+	now := time.Now()
+
+	sourceActivity := testpkg.CreateTestActivityGroup(t, db, "move-auth-source")
+	targetActivity := testpkg.CreateTestActivityGroup(t, db, "move-auth-target")
+	sourceRoom := testpkg.CreateTestRoom(t, db, "Move Auth Source Room")
+	targetRoom := testpkg.CreateTestRoom(t, db, "Move Auth Target Room")
+	sourceGroup := testpkg.CreateTestActiveGroup(t, db, sourceActivity.ID, sourceRoom.ID)
+	targetGroup := testpkg.CreateTestActiveGroup(t, db, targetActivity.ID, targetRoom.ID)
+	staff := testpkg.CreateTestStaff(t, db, "MoveAuth", "TargetOnly")
+	device := testpkg.CreateTestDevice(t, db, "move-auth-reject-device")
+	student := testpkg.CreateTestStudent(t, db, "MoveAuth", "Rejected", "MAR1")
+	attendance := testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, now.Add(-30*time.Minute), nil)
+	sourceVisit := testpkg.CreateTestVisit(t, db, student.ID, sourceGroup.ID, now.Add(-25*time.Minute), nil)
+	targetSupervisor := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, targetGroup.ID, "supervisor")
+
+	defer testpkg.CleanupActivityFixtures(
+		t, db,
+		sourceActivity.ID, targetActivity.ID, sourceRoom.ID, targetRoom.ID,
+		sourceGroup.ID, targetGroup.ID, staff.ID, device.ID, student.ID, sourceVisit.ID,
+	)
+	defer testpkg.CleanupTableRecords(t, db, "active.attendance", attendance.ID)
+	defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", targetSupervisor.ID)
+
+	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{student.ID}, targetGroup.ID, activeSvc.StudentMoveAuthorization{StaffID: staff.ID})
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, activeSvc.ErrStudentMoveForbidden)
+
+	reloadedSourceVisit, err := service.GetVisit(ctx, sourceVisit.ID)
+	require.NoError(t, err)
+	assert.Nil(t, reloadedSourceVisit.ExitTime, "forbidden moves must not close the source visit")
+
+	currentVisit, err := service.GetStudentCurrentVisit(ctx, student.ID)
+	require.NoError(t, err)
+	assert.Equal(t, sourceVisit.ID, currentVisit.ID)
+}
+
+func TestActiveService_MoveStudentsToActiveGroupAuthorized_AllowsSupervisedSourceAndTarget(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+	now := time.Now()
+
+	sourceActivity := testpkg.CreateTestActivityGroup(t, db, "move-auth-allowed-source")
+	targetActivity := testpkg.CreateTestActivityGroup(t, db, "move-auth-allowed-target")
+	sourceRoom := testpkg.CreateTestRoom(t, db, "Move Auth Allowed Source Room")
+	targetRoom := testpkg.CreateTestRoom(t, db, "Move Auth Allowed Target Room")
+	sourceGroup := testpkg.CreateTestActiveGroup(t, db, sourceActivity.ID, sourceRoom.ID)
+	targetGroup := testpkg.CreateTestActiveGroup(t, db, targetActivity.ID, targetRoom.ID)
+	staff := testpkg.CreateTestStaff(t, db, "MoveAuth", "BothRooms")
+	device := testpkg.CreateTestDevice(t, db, "move-auth-allow-device")
+	student := testpkg.CreateTestStudent(t, db, "MoveAuth", "Allowed", "MAA1")
+	attendance := testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, now.Add(-30*time.Minute), nil)
+	sourceVisit := testpkg.CreateTestVisit(t, db, student.ID, sourceGroup.ID, now.Add(-25*time.Minute), nil)
+	sourceSupervisor := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, sourceGroup.ID, "supervisor")
+	targetSupervisor := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, targetGroup.ID, "supervisor")
+
+	defer testpkg.CleanupActivityFixtures(
+		t, db,
+		sourceActivity.ID, targetActivity.ID, sourceRoom.ID, targetRoom.ID,
+		sourceGroup.ID, targetGroup.ID, staff.ID, device.ID, student.ID, sourceVisit.ID,
+	)
+	defer testpkg.CleanupTableRecords(t, db, "active.attendance", attendance.ID)
+	defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", sourceSupervisor.ID, targetSupervisor.ID)
+
+	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{student.ID}, targetGroup.ID, activeSvc.StudentMoveAuthorization{StaffID: staff.ID})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, []int64{student.ID}, result.Moved)
+
+	endedSourceVisit, err := service.GetVisit(ctx, sourceVisit.ID)
+	require.NoError(t, err)
+	require.NotNil(t, endedSourceVisit.ExitTime)
+
+	currentVisit, err := service.GetStudentCurrentVisit(ctx, student.ID)
+	require.NoError(t, err)
+	assert.Equal(t, targetGroup.ID, currentVisit.ActiveGroupID)
+}
+
+func TestActiveService_MoveStudentsToActiveGroupAuthorized_AllowsOpenTransitIntoSupervisedTarget(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+	now := time.Now()
+
+	targetActivity := testpkg.CreateTestActivityGroup(t, db, "move-auth-transit-target")
+	targetRoom := testpkg.CreateTestRoom(t, db, "Move Auth Transit Target Room")
+	targetGroup := testpkg.CreateTestActiveGroup(t, db, targetActivity.ID, targetRoom.ID)
+	staff := testpkg.CreateTestStaff(t, db, "MoveAuth", "Transit")
+	device := testpkg.CreateTestDevice(t, db, "move-auth-transit-device")
+	student := testpkg.CreateTestStudent(t, db, "MoveAuth", "Transit", "MAT1")
+	attendance := testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, now.Add(-30*time.Minute), nil)
+	targetSupervisor := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, targetGroup.ID, "supervisor")
+
+	defer testpkg.CleanupActivityFixtures(t, db, targetActivity.ID, targetRoom.ID, targetGroup.ID, staff.ID, device.ID, student.ID)
+	defer testpkg.CleanupTableRecords(t, db, "active.attendance", attendance.ID)
+	defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", targetSupervisor.ID)
+
+	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{student.ID}, targetGroup.ID, activeSvc.StudentMoveAuthorization{StaffID: staff.ID})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, []int64{student.ID}, result.Moved)
+
+	currentVisit, err := service.GetStudentCurrentVisit(ctx, student.ID)
+	require.NoError(t, err)
+	assert.Equal(t, targetGroup.ID, currentVisit.ActiveGroupID)
+}
+
+func TestActiveService_MoveStudentsToTransitAuthorized_RejectsUnsupervisedSource(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+	now := time.Now()
+
+	activity := testpkg.CreateTestActivityGroup(t, db, "move-transit-auth-source")
+	room := testpkg.CreateTestRoom(t, db, "Move Transit Auth Source Room")
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	staff := testpkg.CreateTestStaff(t, db, "MoveTransitAuth", "Staff")
+	device := testpkg.CreateTestDevice(t, db, "move-transit-auth-device")
+	student := testpkg.CreateTestStudent(t, db, "MoveTransitAuth", "Rejected", "MTAR1")
+	attendance := testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, now.Add(-30*time.Minute), nil)
+	visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, now.Add(-20*time.Minute), nil)
+
+	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID, device.ID, student.ID, visit.ID)
+	defer testpkg.CleanupTableRecords(t, db, "active.attendance", attendance.ID)
+
+	result, err := service.MoveStudentsToTransitAuthorized(ctx, []int64{student.ID}, activeSvc.StudentMoveAuthorization{StaffID: staff.ID})
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorIs(t, err, activeSvc.ErrStudentMoveForbidden)
+
+	reloadedVisit, err := service.GetVisit(ctx, visit.ID)
+	require.NoError(t, err)
+	assert.Nil(t, reloadedVisit.ExitTime, "forbidden transit moves must not close the source visit")
+}
+
 func TestActiveService_MoveStudentsToActiveGroup_BinaryModeReturnsUnchanged(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

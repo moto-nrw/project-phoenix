@@ -182,7 +182,13 @@ func (s *stubActiveService) AssignTransitStudentsToActiveGroup(_ context.Context
 func (s *stubActiveService) MoveStudentsToActiveGroup(_ context.Context, _ []int64, _ int64) (*activeSvc.StudentMoveResult, error) {
 	return nil, nil
 }
+func (s *stubActiveService) MoveStudentsToActiveGroupAuthorized(_ context.Context, _ []int64, _ int64, _ activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
+	return nil, nil
+}
 func (s *stubActiveService) MoveStudentsToTransit(_ context.Context, _ []int64) (*activeSvc.StudentMoveResult, error) {
+	return nil, nil
+}
+func (s *stubActiveService) MoveStudentsToTransitAuthorized(_ context.Context, _ []int64, _ activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
 	return nil, nil
 }
 func (s *stubActiveService) CountActiveVisitsByRoomID(_ context.Context, _ int64) (int, error) {

@@ -131,21 +131,13 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 				staff:  &userModel.Staff{Model: base.Model{ID: 20}},
 			},
 			ActiveService: &trackingMockActiveService{
-				getActiveGroupFunc: func(_ context.Context, id int64) (*activeModel.Group, error) {
-					return &activeModel.Group{Model: base.Model{ID: id}, RoomID: 77}, nil
-				},
-				getStaffActiveSupervisionsFunc: func(_ context.Context, _ int64) ([]*activeModel.GroupSupervisor, error) {
-					return []*activeModel.GroupSupervisor{{GroupID: 99}}, nil
-				},
-				checkTeacherStudentAccessFunc: func(_ context.Context, _, _ int64) (bool, error) {
-					return false, nil
-				},
-				getStudentCurrentVisitFunc: func(_ context.Context, _ int64) (*activeModel.Visit, error) {
-					return &activeModel.Visit{ActiveGroupID: 123}, nil
-				},
-				moveStudentsToActiveGroupFunc: func(_ context.Context, _ []int64, _ int64) (*activeSvc.StudentMoveResult, error) {
+				moveStudentsToActiveGroupAuthorizedFunc: func(_ context.Context, studentIDs []int64, activeGroupID int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
 					calledMove = true
-					return nil, nil
+					assert.Equal(t, []int64{42}, studentIDs)
+					assert.Equal(t, int64(99), activeGroupID)
+					assert.Equal(t, int64(20), auth.StaffID)
+					assert.False(t, auth.BypassResourceChecks)
+					return nil, &activeSvc.ActiveError{Op: "MoveStudentsToActiveGroup", Err: activeSvc.ErrStudentMoveForbidden}
 				},
 			},
 		}
@@ -160,7 +152,7 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 		rs.moveStudentsToActiveGroup(w, req)
 
 		require.Equal(t, http.StatusForbidden, w.Code)
-		assert.False(t, calledMove)
+		assert.True(t, calledMove)
 	})
 
 	t.Run("allows target supervisor to move open transit students into supervised target", func(t *testing.T) {
@@ -225,15 +217,9 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 				staff:  &userModel.Staff{Model: base.Model{ID: 20}},
 			},
 			ActiveService: &trackingMockActiveService{
-				getActiveGroupFunc: func(_ context.Context, _ int64) (*activeModel.Group, error) {
-					return nil, errors.New("active group lookup failed")
-				},
-				getStaffActiveSupervisionsFunc: func(_ context.Context, _ int64) ([]*activeModel.GroupSupervisor, error) {
-					return []*activeModel.GroupSupervisor{{GroupID: 99}}, nil
-				},
-				moveStudentsToActiveGroupFunc: func(_ context.Context, _ []int64, _ int64) (*activeSvc.StudentMoveResult, error) {
+				moveStudentsToActiveGroupAuthorizedFunc: func(_ context.Context, _ []int64, _ int64, _ activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
 					calledMove = true
-					return nil, nil
+					return nil, errors.New("active group lookup failed")
 				},
 			},
 		}
@@ -248,7 +234,7 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 		rs.moveStudentsToActiveGroup(w, req)
 
 		require.Equal(t, http.StatusInternalServerError, w.Code)
-		assert.False(t, calledMove)
+		assert.True(t, calledMove)
 	})
 }
 

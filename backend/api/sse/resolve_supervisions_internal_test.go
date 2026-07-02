@@ -205,7 +205,13 @@ func (m *mockActiveSvcForSSE) AssignTransitStudentsToActiveGroup(_ context.Conte
 func (m *mockActiveSvcForSSE) MoveStudentsToActiveGroup(_ context.Context, _ []int64, _ int64) (*activeSvc.StudentMoveResult, error) {
 	return nil, nil
 }
+func (m *mockActiveSvcForSSE) MoveStudentsToActiveGroupAuthorized(_ context.Context, _ []int64, _ int64, _ activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
+	return nil, nil
+}
 func (m *mockActiveSvcForSSE) MoveStudentsToTransit(_ context.Context, _ []int64) (*activeSvc.StudentMoveResult, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) MoveStudentsToTransitAuthorized(_ context.Context, _ []int64, _ activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
 	return nil, nil
 }
 func (m *mockActiveSvcForSSE) GetGroupSupervisor(_ context.Context, _ int64) (*activeModel.GroupSupervisor, error) {

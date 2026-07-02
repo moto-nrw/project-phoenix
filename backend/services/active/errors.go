@@ -25,6 +25,7 @@ var (
 	ErrStudentAlreadyActive      = errors.New("student already has an active visit")
 	ErrStaffAlreadySupervising   = errors.New("staff member already supervising this group")
 	ErrStudentsNotPresent        = errors.New("no requested students are currently present")
+	ErrStudentMoveForbidden      = errors.New("not authorized to move the selected students")
 	ErrInvalidData               = errors.New("invalid data provided")
 	ErrDatabaseOperation         = errors.New("database operation failed")
 	// Activity session management errors

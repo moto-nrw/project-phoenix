@@ -84,15 +84,17 @@ func (m *trackingMockSettingsService) ClearLoginImageURL(ctx context.Context, te
 // --- Mock ActiveService (stub all methods, only GetTrackingIndicators functional) ---
 
 type trackingMockActiveService struct {
-	getTrackingIndicatorsFunc              func(ctx context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error)
-	assignTransitStudentsToActiveGroupFunc func(ctx context.Context, studentIDs []int64, activeGroupID int64) (*activeSvc.TransitAssignResult, error)
-	moveStudentsToActiveGroupFunc          func(ctx context.Context, studentIDs []int64, activeGroupID int64) (*activeSvc.StudentMoveResult, error)
-	moveStudentsToTransitFunc              func(ctx context.Context, studentIDs []int64) (*activeSvc.StudentMoveResult, error)
-	getActiveGroupFunc                     func(ctx context.Context, id int64) (*activeModel.Group, error)
-	getStudentCurrentVisitFunc             func(ctx context.Context, studentID int64) (*activeModel.Visit, error)
-	getStudentsAttendanceStatusesFunc      func(ctx context.Context, studentIDs []int64) (map[int64]*activeSvc.AttendanceStatus, error)
-	getStaffActiveSupervisionsFunc         func(ctx context.Context, staffID int64) ([]*activeModel.GroupSupervisor, error)
-	checkTeacherStudentAccessFunc          func(ctx context.Context, teacherID, studentID int64) (bool, error)
+	getTrackingIndicatorsFunc               func(ctx context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error)
+	assignTransitStudentsToActiveGroupFunc  func(ctx context.Context, studentIDs []int64, activeGroupID int64) (*activeSvc.TransitAssignResult, error)
+	moveStudentsToActiveGroupFunc           func(ctx context.Context, studentIDs []int64, activeGroupID int64) (*activeSvc.StudentMoveResult, error)
+	moveStudentsToActiveGroupAuthorizedFunc func(ctx context.Context, studentIDs []int64, activeGroupID int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error)
+	moveStudentsToTransitFunc               func(ctx context.Context, studentIDs []int64) (*activeSvc.StudentMoveResult, error)
+	moveStudentsToTransitAuthorizedFunc     func(ctx context.Context, studentIDs []int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error)
+	getActiveGroupFunc                      func(ctx context.Context, id int64) (*activeModel.Group, error)
+	getStudentCurrentVisitFunc              func(ctx context.Context, studentID int64) (*activeModel.Visit, error)
+	getStudentsAttendanceStatusesFunc       func(ctx context.Context, studentIDs []int64) (map[int64]*activeSvc.AttendanceStatus, error)
+	getStaffActiveSupervisionsFunc          func(ctx context.Context, staffID int64) ([]*activeModel.GroupSupervisor, error)
+	checkTeacherStudentAccessFunc           func(ctx context.Context, teacherID, studentID int64) (bool, error)
 }
 
 // The only method used by the tracking handler:
@@ -224,11 +226,23 @@ func (m *trackingMockActiveService) MoveStudentsToActiveGroup(ctx context.Contex
 	}
 	return nil, nil
 }
+func (m *trackingMockActiveService) MoveStudentsToActiveGroupAuthorized(ctx context.Context, studentIDs []int64, activeGroupID int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
+	if m.moveStudentsToActiveGroupAuthorizedFunc != nil {
+		return m.moveStudentsToActiveGroupAuthorizedFunc(ctx, studentIDs, activeGroupID, auth)
+	}
+	return m.MoveStudentsToActiveGroup(ctx, studentIDs, activeGroupID)
+}
 func (m *trackingMockActiveService) MoveStudentsToTransit(ctx context.Context, studentIDs []int64) (*activeSvc.StudentMoveResult, error) {
 	if m.moveStudentsToTransitFunc != nil {
 		return m.moveStudentsToTransitFunc(ctx, studentIDs)
 	}
 	return nil, nil
+}
+func (m *trackingMockActiveService) MoveStudentsToTransitAuthorized(ctx context.Context, studentIDs []int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
+	if m.moveStudentsToTransitAuthorizedFunc != nil {
+		return m.moveStudentsToTransitAuthorizedFunc(ctx, studentIDs, auth)
+	}
+	return m.MoveStudentsToTransit(ctx, studentIDs)
 }
 func (m *trackingMockActiveService) GetGroupSupervisor(ctx context.Context, id int64) (*activeModel.GroupSupervisor, error) {
 	return nil, nil

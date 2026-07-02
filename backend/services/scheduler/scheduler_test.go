@@ -1173,7 +1173,13 @@ func (m *mockActiveService) AssignTransitStudentsToActiveGroup(_ context.Context
 func (m *mockActiveService) MoveStudentsToActiveGroup(_ context.Context, _ []int64, _ int64) (*activeService.StudentMoveResult, error) {
 	return nil, nil
 }
+func (m *mockActiveService) MoveStudentsToActiveGroupAuthorized(_ context.Context, _ []int64, _ int64, _ activeService.StudentMoveAuthorization) (*activeService.StudentMoveResult, error) {
+	return nil, nil
+}
 func (m *mockActiveService) MoveStudentsToTransit(_ context.Context, _ []int64) (*activeService.StudentMoveResult, error) {
+	return nil, nil
+}
+func (m *mockActiveService) MoveStudentsToTransitAuthorized(_ context.Context, _ []int64, _ activeService.StudentMoveAuthorization) (*activeService.StudentMoveResult, error) {
 	return nil, nil
 }
 func (m *mockActiveService) GetDashboardAnalytics(_ context.Context) (*activeService.DashboardAnalytics, error) {

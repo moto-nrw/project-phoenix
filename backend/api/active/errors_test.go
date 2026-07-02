@@ -100,6 +100,14 @@ func TestErrorRenderer_StudentsNotPresentConflict(t *testing.T) {
 	assert.Equal(t, "Students Not Present", resp.StatusText)
 }
 
+func TestErrorRenderer_StudentMoveForbidden(t *testing.T) {
+	renderer := active.ErrorRenderer(activeSvc.ErrStudentMoveForbidden)
+	resp, ok := renderer.(*active.ErrResponse)
+	assert.True(t, ok)
+	assert.Equal(t, http.StatusForbidden, resp.HTTPStatusCode)
+	assert.Equal(t, "Forbidden", resp.StatusText)
+}
+
 func TestErrorRenderer_UnknownError(t *testing.T) {
 	unknownErr := errors.New("unknown error")
 	renderer := active.ErrorRenderer(unknownErr)
