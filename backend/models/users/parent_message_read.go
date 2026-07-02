@@ -108,6 +108,18 @@ type ParentMessageReadRepository interface {
 	// advanced, so the read-receipt SSE push can fire only on a real move and not
 	// ping-pong with the refetch it triggers on the counterpart.
 	MarkReadUpTo(ctx context.Context, tenantID, threadID, accountID int64, readAt time.Time, readMessageID int64) (bool, error)
+	// HasEarlierUnreadRequestPill reports whether the STAFF reader still has an
+	// unread pill of the given event_type in the thread positioned STRICTLY
+	// BEFORE (beforeCreatedAt, beforeMessageID) — i.e. an earlier, still-unread
+	// sibling request from the same batch submission. The decide→mark-read step
+	// consults it before advancing the positional read cursor: a guardian who
+	// submits several fields at once creates one request-created pill per field
+	// in one thread, so MarkReadUpTo'ing to a LATER request's pill would also
+	// mark every earlier pending sibling pill read and drop the staff Nachrichten
+	// badge while an earlier request still needs a decision. Uses the same
+	// counterpart/after-cursor unread predicates as the badge counts, so "unread"
+	// here means exactly what the badge means.
+	HasEarlierUnreadRequestPill(ctx context.Context, threadID, accountID int64, eventType string, beforeCreatedAt time.Time, beforeMessageID int64) (bool, error)
 	// UnreadMessageCountForStaff counts unread guardian MESSAGES the staff reader
 	// has not seen (sent by the other side), within the given student scope — the
 	// sidebar badge source. Counts messages, not threads, so the badge matches the

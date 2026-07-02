@@ -24,8 +24,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -367,12 +365,15 @@ func (s *careScheduleRequestService) Decide(ctx context.Context, input CareReque
 		return nil, err
 	}
 
-	// Route-level permission (users:manage) has already passed; this adds the
-	// per-child write check so the decision surface matches the student
-	// mutation endpoints.
-	if err := s.requireStudentWrite(ctx, req.StudentID); err != nil {
-		return nil, err
-	}
+	// Authorization is the route-level users:manage gate, exactly like the
+	// sibling master-data review queue this surface sits next to — both queues
+	// are the tenant-wide admin "Änderungsanfragen" page, not a per-child staff
+	// edit. No extra per-child write check here: it would make this queue reject
+	// a users:manage staffer who is neither an admin:* wildcard nor the child's
+	// group supervisor, i.e. stricter than its own route contract and than the
+	// master-data queue decided on the same page. Approving still requires a
+	// staff identity to stamp as confirmer (resolved in applyCareScheduleRequest,
+	// 403 when absent).
 
 	if input.Approve {
 		// Two apply-only gates, both mirroring the chat's ConfirmRequest path this
@@ -493,25 +494,6 @@ func (s *careScheduleRequestService) emitRequestPillAfterCommit(ctx context.Cont
 	tenant.RegisterAfterCommit(ctx, func() {
 		s.emitter.EmitChildEvent(tenantID, studentID, guardianAccountID, ev)
 	})
-}
-
-func (s *careScheduleRequestService) requireStudentWrite(ctx context.Context, studentID int64) error {
-	student, err := s.studentRepo.FindByID(ctx, studentID)
-	if err != nil {
-		// Transient lookup failure → server error (500, retryable), not a
-		// permanent 403. Only a missing student is an authorization failure.
-		return fmt.Errorf("schedule: load student for write check: %w", err)
-	}
-	if student == nil {
-		return ErrCareRequestForbidden
-	}
-	// CanUpdateStudent returns (false, reason) for EVERY per-child denial; the
-	// returned error IS that authorization reason, so map it to 403 like the
-	// student mutation endpoints.
-	if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.userContext); !ok {
-		return ErrCareRequestForbidden
-	}
-	return nil
 }
 
 // --- apply (moved from services/messaging/requests.go) ---

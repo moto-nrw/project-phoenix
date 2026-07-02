@@ -272,6 +272,22 @@ func (e *Emitter) markStaffReadUpToRequestPill(bgCtx context.Context, tenantID, 
 		if pill == nil {
 			return nil
 		}
+		// A guardian who submits several fields at once creates one
+		// request_created pill per field in THIS thread, each decided separately.
+		// MarkReadUpTo is a positional cursor, so advancing it to a later
+		// request's pill would also mark every earlier sibling pill read —
+		// dropping the Nachrichten badge while an earlier request is still
+		// pending. Skip the auto-clear when an earlier still-unread request pill
+		// exists: the badge stays lit (correct — there is pending work) and clears
+		// when the admin decides that earlier request or opens the thread.
+		earlier, err := e.readRepo.HasEarlierUnreadRequestPill(
+			txCtx, threadID, ev.ActorAccountID, eventTypeRequestCreated, pill.CreatedAt, pill.ID)
+		if err != nil {
+			return err
+		}
+		if earlier {
+			return nil
+		}
 		_, err = e.readRepo.MarkReadUpTo(txCtx, tenantID, threadID, ev.ActorAccountID, pill.CreatedAt, pill.ID)
 		return err
 	})
