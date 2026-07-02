@@ -97,7 +97,13 @@ describe("GET /api/active/supervisors/staff/[staffId]/active", () => {
       { id: 1, staff_id: 10, active_group_id: 5, is_active: true },
       { id: 2, staff_id: 10, active_group_id: 6, is_active: true },
     ];
-    mockApiGet.mockResolvedValueOnce(mockActiveSupervisions);
+    // The real backend wraps lists in { status, data, message }; the route
+    // must unwrap it so clients receive the plain array.
+    mockApiGet.mockResolvedValueOnce({
+      status: "success",
+      data: mockActiveSupervisions,
+      message: "Staff active supervisions retrieved successfully",
+    });
 
     const request = createMockRequest(
       "/api/active/supervisors/staff/10/active",
