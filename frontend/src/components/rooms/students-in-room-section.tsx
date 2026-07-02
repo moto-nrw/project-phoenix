@@ -149,6 +149,21 @@ export function StudentsInRoomSection({
       ),
     [activeSupervisions],
   );
+  // The backend (MoveStudentsToActiveGroupAuthorized) rejects the whole
+  // request with 403 unless the caller supervises each student's CURRENT
+  // active group too (admins bypass). Mirror that contract here: without
+  // supervision of every active group in this room, offering the bulk
+  // move would only produce a guaranteed error.
+  const canBulkMove = useMemo(() => {
+    if (showAllTargets) return true;
+    const sourceGroups = activeGroups.filter(
+      (group) => group.isActive && group.roomId === roomId,
+    );
+    return (
+      sourceGroups.length > 0 &&
+      sourceGroups.every((group) => supervisedTargetGroupIds.has(group.id))
+    );
+  }, [showAllTargets, activeGroups, roomId, supervisedTargetGroupIds]);
   const targetOptions = useMemo(
     () =>
       buildTargetRoomOptions(
@@ -340,7 +355,7 @@ export function StudentsInRoomSection({
           the first student card. Without it the button bottom edge sits
           flush with the first card border. Review feedback (#1323). */}
       <div className="mt-4">
-        {students.length > 0 ? (
+        {canBulkMove && students.length > 0 ? (
           <BulkMoveToolbar
             selectedCount={selectedVisibleCount}
             totalCount={students.length}
@@ -361,6 +376,7 @@ export function StudentsInRoomSection({
           loading={isLoading}
           hasError={!!error}
           students={students}
+          selectable={canBulkMove}
           selectedStudentIds={selectedStudentIds}
           onToggleStudentSelection={toggleStudentSelection}
           router={router}
@@ -415,9 +431,7 @@ interface BulkMoveToolbarProps {
   readonly targetActiveGroupId: string;
   readonly targetOptions: readonly TargetRoomOption[];
   readonly state:
-    | { type: "idle" }
-    | { type: "loading" }
-    | { type: "error"; message: string };
+    { type: "idle" } | { type: "loading" } | { type: "error"; message: string };
   readonly onSelectAll: () => void;
   readonly onClearSelection: () => void;
   readonly onTargetChange: (value: string) => void;
@@ -519,6 +533,7 @@ interface StudentsInRoomBodyProps {
   readonly loading: boolean;
   readonly hasError: boolean;
   readonly students: readonly Student[];
+  readonly selectable: boolean;
   readonly selectedStudentIds: ReadonlySet<string>;
   readonly onToggleStudentSelection: (studentId: string) => void;
   readonly router: ReturnType<typeof useTenantRouter>;
@@ -551,6 +566,7 @@ function StudentsInRoomBody({
   loading,
   hasError,
   students,
+  selectable,
   selectedStudentIds,
   onToggleStudentSelection,
   router,
@@ -609,6 +625,7 @@ function StudentsInRoomBody({
         <SelectableStudentRow
           key={student.id}
           student={student}
+          selectable={selectable}
           isSelected={selectedStudentIds.has(String(student.id))}
           onToggleSelection={() => onToggleStudentSelection(String(student.id))}
           onOpen={() =>
@@ -624,17 +641,31 @@ function StudentsInRoomBody({
 
 function SelectableStudentRow({
   student,
+  selectable,
   isSelected,
   onToggleSelection,
   onOpen,
 }: {
   readonly student: Student;
+  readonly selectable: boolean;
   readonly isSelected: boolean;
   readonly onToggleSelection: () => void;
   readonly onOpen: () => void;
 }) {
   const fullName =
     `${student.first_name ?? ""} ${student.second_name ?? ""}`.trim() || "Kind";
+
+  const studentCard = (
+    <CompactStudentCard
+      studentId={student.id}
+      firstName={student.first_name}
+      lastName={student.second_name}
+      schoolClass={student.school_class}
+      groupName={student.group_name ?? undefined}
+      photoUrl={student.photo_url ?? null}
+      chrome="plain"
+    />
+  );
 
   return (
     <div
@@ -644,38 +675,36 @@ function SelectableStudentRow({
           : "border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50"
       }`}
     >
-      <button
-        type="button"
-        role="checkbox"
-        aria-checked={isSelected}
-        aria-label={`${fullName} auswählen`}
-        onClick={onToggleSelection}
-        className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
-      >
-        <span
-          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border shadow-sm transition-all ${
-            isSelected
-              ? "border-gray-900 bg-gray-900"
-              : "border-gray-300 bg-white"
-          }`}
-          aria-hidden="true"
+      {selectable ? (
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={isSelected}
+          aria-label={`${fullName} auswählen`}
+          onClick={onToggleSelection}
+          className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
         >
-          <Check
-            className={`h-3.5 w-3.5 text-white transition-opacity ${
-              isSelected ? "opacity-100" : "opacity-0"
+          <span
+            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border shadow-sm transition-all ${
+              isSelected
+                ? "border-gray-900 bg-gray-900"
+                : "border-gray-300 bg-white"
             }`}
-          />
-        </span>
-        <CompactStudentCard
-          studentId={student.id}
-          firstName={student.first_name}
-          lastName={student.second_name}
-          schoolClass={student.school_class}
-          groupName={student.group_name ?? undefined}
-          photoUrl={student.photo_url ?? null}
-          chrome="plain"
-        />
-      </button>
+            aria-hidden="true"
+          >
+            <Check
+              className={`h-3.5 w-3.5 text-white transition-opacity ${
+                isSelected ? "opacity-100" : "opacity-0"
+              }`}
+            />
+          </span>
+          {studentCard}
+        </button>
+      ) : (
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          {studentCard}
+        </div>
+      )}
       <Button
         type="button"
         variant="outline"
