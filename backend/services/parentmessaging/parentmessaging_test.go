@@ -67,8 +67,14 @@ type touchCall struct {
 
 type fakeThreadRepo struct {
 	usersModels.ParentMessageThreadRepository
-	touchErr error
-	touched  *touchCall
+	touchErr     error
+	touched      *touchCall
+	guardians    []*usersModels.MessageableGuardian
+	guardiansErr error
+}
+
+func (f *fakeThreadRepo) ListGuardiansForStudent(context.Context, int64) ([]*usersModels.MessageableGuardian, error) {
+	return f.guardians, f.guardiansErr
 }
 
 func (f *fakeThreadRepo) TouchLastMessage(_ context.Context, threadID int64, at time.Time, messageID int64, kind, body string) error {
@@ -144,6 +150,37 @@ func TestMessagingEnabledForTenant(t *testing.T) {
 	assert.False(t, MessagingEnabledForTenant(ctx, fakeTenantSettings{val: false}, 5, nil))
 	assert.True(t, MessagingEnabledForTenant(ctx, fakeTenantSettings{err: errors.New("down")}, 5, nil),
 		"a per-tenant resolve error must fail open")
+}
+
+// --- GuardianHasChildAccess ---------------------------------------------
+
+// TestGuardianHasChildAccess pins the linked-guardian / parent_portal.access
+// gate shared by the emitter's staff-decision-pill suppression and the
+// care-schedule request approve gate: an account still present in the
+// messageable-guardian list has access; an unlinked/revoked account (absent
+// from the list) does not; a repo error propagates; and an unwired emitter
+// returns a configuration error rather than silently granting access.
+func TestGuardianHasChildAccess(t *testing.T) {
+	ctx := context.Background()
+
+	linked := &Emitter{threadRepo: &fakeThreadRepo{
+		guardians: []*usersModels.MessageableGuardian{{AccountID: 7}, {AccountID: 9}},
+	}}
+	ok, err := linked.GuardianHasChildAccess(ctx, 1, 7)
+	require.NoError(t, err)
+	assert.True(t, ok, "an account in the messageable-guardian list has access")
+
+	ok, err = linked.GuardianHasChildAccess(ctx, 1, 42)
+	require.NoError(t, err)
+	assert.False(t, ok, "a revoked/unlinked account is absent from the list → no access")
+
+	failing := &Emitter{threadRepo: &fakeThreadRepo{guardiansErr: errors.New("db down")}}
+	_, err = failing.GuardianHasChildAccess(ctx, 1, 7)
+	require.Error(t, err, "a repo error must propagate, not be read as revoked")
+
+	var unwired *Emitter
+	_, err = unwired.GuardianHasChildAccess(ctx, 1, 7)
+	require.Error(t, err, "an unwired emitter must error, never silently grant access")
 }
 
 // --- AppendMessage ------------------------------------------------------

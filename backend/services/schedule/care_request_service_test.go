@@ -29,6 +29,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -201,6 +202,55 @@ func TestDecide_NonStaffConfirmerForbidden(t *testing.T) {
 		RequestID: req.ID, Approve: true, ReviewedBy: f.chain.AccountID,
 	})
 	require.ErrorIs(t, err, schedule.ErrCareRequestForbidden)
+}
+
+// TestDecide_ApproveRefusedWhenGuardianAccessRevoked pins the P1 guardian-link
+// gate (#1803 review follow-up): if the submitting guardian loses
+// parent_portal.access after filing the request but before staff review,
+// APPROVING is refused (it would overwrite the child's permanent weekly plan and
+// notify an account the parent APIs now hide) and the request stays pending;
+// REJECTING stays available so staff can wind it down. Mirrors the chat's
+// ConfirmRequest/requireLinkedGuardian split this flow replaced.
+func TestDecide_ApproveRefusedWhenGuardianAccessRevoked(t *testing.T) {
+	f := newCareFixture(t)
+	// The default fixture passes a nil emitter; wire one so the link gate is
+	// live. Only the thread repo is consulted for the access check — the pill
+	// path self-no-ops with the remaining deps nil.
+	svc := schedule.NewCareScheduleRequestService(
+		f.repos.CareScheduleChangeRequest,
+		f.repos.Student,
+		f.repos.Person,
+		f.sf.ArrivalSchedule,
+		f.sf.PickupSchedule,
+		f.sf.UserContext,
+		parentmessaging.NewEmitter(f.db, f.repos.ParentMessageThread, nil, nil, nil, nil, slog.Default()),
+		nil,
+		slog.Default(),
+	)
+
+	req, err := svc.CreateRequest(staffCtx(f.chain.AccountID), f.chain.StudentID, f.chain.AccountID,
+		careWeekdays(map[string]any{"weekday": 1, "mode": "pickup", "arrival": "08:00", "pickup": "16:00"}))
+	require.NoError(t, err)
+
+	// Revoke the guardian's portal access to the child (unlink / downgrade).
+	_, err = f.db.ExecContext(context.Background(), `
+		UPDATE users.students_guardians SET permissions = '{}'::jsonb
+		WHERE tenant_id = ? AND student_id = ? AND guardian_profile_id = ?
+	`, f.chain.TenantID, f.chain.StudentID, f.chain.GuardianProfileID)
+	require.NoError(t, err)
+
+	ctx := staffCtx(f.staffAccount)
+
+	_, err = svc.Decide(ctx, schedule.CareRequestDecideInput{RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount})
+	require.ErrorIs(t, err, schedule.ErrCareRequestGuardianAccessRevoked, "a revoked guardian's request must not be applied")
+
+	still, err := f.repos.CareScheduleChangeRequest.FindByID(ctx, req.ID)
+	require.NoError(t, err)
+	assert.Equal(t, scheduleModels.CareRequestStatusPending, still.Status, "a refused approval leaves the request pending")
+
+	item, err := svc.Decide(ctx, schedule.CareRequestDecideInput{RequestID: req.ID, Approve: false, Reason: "Elternteil nicht mehr berechtigt", ReviewedBy: f.staffAccount})
+	require.NoError(t, err, "reject must stay available after access is revoked")
+	assert.Equal(t, scheduleModels.CareRequestStatusRejected, item.Request.Status)
 }
 
 // TestDecide_SecondDecideNotPending pins the idempotency/race guard: once a

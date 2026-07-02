@@ -2,6 +2,7 @@ package parentmessaging
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
@@ -117,7 +118,27 @@ func (e *Emitter) EmitChildEvent(tenantID, studentID, guardianAccountID int64, e
 	}
 
 	var threadID int64
+	var suppressed bool
 	err = tenant.WithTenantTx(bgCtx, e.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		// Staff-triggered decision pills must not resurrect a thread for a
+		// guardian whose child link (or parent_portal.access) was revoked after
+		// the request was submitted: GetOrCreate would leave a permanent orphan
+		// thread and the broadcast below would push parent-message activity to an
+		// account that can no longer read it. The chat's reject path suppressed
+		// the same broadcast in this case; here the whole pill is suppressed
+		// because this path also CREATES the thread. Guardian-triggered pills
+		// (submit / withdraw) are the guardian acting live under their own
+		// permission, so they are not gated.
+		if ev.ActorKind == usersModels.ParentMessageSenderStaff {
+			hasAccess, err := e.guardianHasChildAccess(txCtx, studentID, guardianAccountID)
+			if err != nil {
+				return err
+			}
+			if !hasAccess {
+				suppressed = true
+				return nil
+			}
+		}
 		thread, err := e.threadRepo.GetOrCreate(txCtx, tenantID, studentID, guardianAccountID)
 		if err != nil {
 			return err
@@ -158,6 +179,14 @@ func (e *Emitter) EmitChildEvent(tenantID, studentID, guardianAccountID int64, e
 		)
 		return
 	}
+	if suppressed {
+		loggerOr(e.logger).Info("parent messaging: staff decision pill suppressed for revoked guardian",
+			slog.Int64("tenant_id", tenantID),
+			slog.Int64("student_id", studentID),
+			slog.String("event_type", ev.EventType),
+		)
+		return
+	}
 	// A staff decision clears the deciding admin's unread badge for this thread:
 	// deciding happens on the Änderungsanfragen page, not by opening the chat, so
 	// without this the "Anfrage gestellt" pill would stay unread and keep the
@@ -170,6 +199,39 @@ func (e *Emitter) EmitChildEvent(tenantID, studentID, guardianAccountID int64, e
 	// event — not student_updated — so without this the pill stays invisible
 	// until a manual reload.
 	Broadcast(e.broadcaster, e.logger, tenantID, guardianAccountID, threadID, studentID)
+}
+
+// guardianHasChildAccess reports whether guardianAccountID is STILL a linked
+// guardian of the child with parent_portal.access — the identical JSONB
+// containment / active-account-tenant filter the parent read paths and the
+// chat's requireLinkedGuardian gate apply, so a staff write never targets an
+// account the parent APIs already hide. Must run inside a tenant transaction
+// (it is RLS-scoped via the ambient tenant tx).
+func (e *Emitter) guardianHasChildAccess(ctx context.Context, studentID, guardianAccountID int64) (bool, error) {
+	guardians, err := e.threadRepo.ListGuardiansForStudent(ctx, studentID)
+	if err != nil {
+		return false, err
+	}
+	for _, g := range guardians {
+		if g != nil && g.AccountID == guardianAccountID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// GuardianHasChildAccess exposes the linked-guardian / parent_portal.access
+// check to sibling services that must decide whether to APPLY (and notify a
+// parent about) a change request — the care-schedule request flow refuses to
+// approve a request whose submitting guardian has since lost access. It runs on
+// the CALLER's context, so the caller's ambient tenant transaction and RLS
+// scope apply; call it from inside a tenant transaction. Returns an error when
+// the emitter is not wired with a thread repository.
+func (e *Emitter) GuardianHasChildAccess(ctx context.Context, studentID, guardianAccountID int64) (bool, error) {
+	if e == nil || e.threadRepo == nil {
+		return false, errors.New("parentmessaging: emitter not configured for guardian access check")
+	}
+	return e.guardianHasChildAccess(ctx, studentID, guardianAccountID)
 }
 
 // markStaffReadUpToRequestPill advances the deciding admin's read cursor to the

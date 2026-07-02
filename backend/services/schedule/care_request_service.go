@@ -65,6 +65,14 @@ var (
 	// ErrInvalidCareRequestPayload means the payload failed shape/policy
 	// validation (bad weekday, mode, or time).
 	ErrInvalidCareRequestPayload = errors.New("schedule: invalid care request payload")
+	// ErrCareRequestGuardianAccessRevoked means the submitting guardian is no
+	// longer a linked guardian of the child with parent_portal.access, so
+	// approving (which OVERWRITES the child's permanent weekly plan and posts a
+	// parent-visible "bestätigt" pill for a recipient who can no longer read it)
+	// is refused. Staff wind such a request down by REJECTING it — the reject
+	// path is deliberately not gated on the guardian link, mirroring the chat's
+	// old ConfirmRequest/requireLinkedGuardian split this flow replaced.
+	ErrCareRequestGuardianAccessRevoked = errors.New("schedule: care request guardian access revoked")
 	// ErrCareRequestRejectReasonRequired means staff rejected without a reason.
 	ErrCareRequestRejectReasonRequired = errors.New("schedule: reject reason is required")
 	// ErrCareRequestRejectReasonTooLong means the reason exceeded the bound.
@@ -358,6 +366,22 @@ func (s *careScheduleRequestService) Decide(ctx context.Context, input CareReque
 	}
 
 	if input.Approve {
+		// Refuse to APPLY when the submitting guardian has lost access to the
+		// child (unlinked or parent_portal.access revoked) since the request was
+		// filed. Approving overwrites the child's permanent weekly plan and posts
+		// a parent-visible pill for a recipient the parent APIs now hide; the
+		// chat's ConfirmRequest gated exactly this via requireLinkedGuardian.
+		// Staff dispose of the stuck request by rejecting it (reject is not
+		// gated). Runs in the ambient tenant tx, on the locked-still-pending row.
+		if s.emitter != nil {
+			hasAccess, err := s.emitter.GuardianHasChildAccess(ctx, req.StudentID, req.SubmittedBy)
+			if err != nil {
+				return nil, fmt.Errorf("schedule: care request guardian link check: %w", err)
+			}
+			if !hasAccess {
+				return nil, ErrCareRequestGuardianAccessRevoked
+			}
+		}
 		// The apply, the status update and the after-commit hooks all run in the
 		// ambient tenant transaction. A mid-apply failure must propagate as a
 		// plain error (→ 500) so the WHOLE transaction rolls back — masking it
