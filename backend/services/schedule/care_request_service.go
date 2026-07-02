@@ -73,6 +73,15 @@ var (
 	// path is deliberately not gated on the guardian link, mirroring the chat's
 	// old ConfirmRequest/requireLinkedGuardian split this flow replaced.
 	ErrCareRequestGuardianAccessRevoked = errors.New("schedule: care request guardian access revoked")
+	// ErrCareRequestMessagingDisabled means the school turned parent-OGS
+	// messaging (operations.parent_notes_enabled) OFF after the request was
+	// filed. Approving APPLIES the permanent weekly-plan change AND the
+	// guardian's "bestätigt" pill is the only notification channel — the emitter
+	// drops that pill while messaging is off, so approving would silently change
+	// the child's plan with no parent notice. Approval is therefore refused;
+	// staff wind the request down by REJECTING it (reject is deliberately not
+	// gated). Mirrors the chat's requireEnabled gate this flow replaced.
+	ErrCareRequestMessagingDisabled = errors.New("schedule: care request messaging disabled")
 	// ErrCareRequestRejectReasonRequired means staff rejected without a reason.
 	ErrCareRequestRejectReasonRequired = errors.New("schedule: reject reason is required")
 	// ErrCareRequestRejectReasonTooLong means the reason exceeded the bound.
@@ -366,14 +375,31 @@ func (s *careScheduleRequestService) Decide(ctx context.Context, input CareReque
 	}
 
 	if input.Approve {
-		// Refuse to APPLY when the submitting guardian has lost access to the
-		// child (unlinked or parent_portal.access revoked) since the request was
-		// filed. Approving overwrites the child's permanent weekly plan and posts
-		// a parent-visible pill for a recipient the parent APIs now hide; the
-		// chat's ConfirmRequest gated exactly this via requireLinkedGuardian.
-		// Staff dispose of the stuck request by rejecting it (reject is not
-		// gated). Runs in the ambient tenant tx, on the locked-still-pending row.
+		// Two apply-only gates, both mirroring the chat's ConfirmRequest path this
+		// flow replaced. Both run in the ambient tenant tx, on the
+		// locked-still-pending row; reject skips both so staff can always wind a
+		// stuck request down.
 		if s.emitter != nil {
+			// (1) Refuse to APPLY when messaging is OFF for the school. Approving
+			// posts the guardian's "bestätigt" pill as its only notification, and
+			// the emitter drops that pill while operations.parent_notes_enabled is
+			// off — so approving would change the child's permanent plan with no
+			// parent notice. The chat's ConfirmRequest gated exactly this via
+			// requireEnabled. Fail-open on a transient settings blip (see the
+			// emitter helper).
+			tenantID := req.TenantID
+			if tenantID <= 0 {
+				tenantID = tenant.FromContext(ctx)
+			}
+			if !s.emitter.MessagingEnabledForTenant(ctx, tenantID) {
+				return nil, ErrCareRequestMessagingDisabled
+			}
+			// (2) Refuse to APPLY when the submitting guardian has lost access to
+			// the child (unlinked or parent_portal.access revoked) since the
+			// request was filed. Approving overwrites the child's permanent weekly
+			// plan and posts a parent-visible pill for a recipient the parent APIs
+			// now hide; the chat's ConfirmRequest gated this via
+			// requireLinkedGuardian.
 			hasAccess, err := s.emitter.GuardianHasChildAccess(ctx, req.StudentID, req.SubmittedBy)
 			if err != nil {
 				return nil, fmt.Errorf("schedule: care request guardian link check: %w", err)

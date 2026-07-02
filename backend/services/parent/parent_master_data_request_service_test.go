@@ -15,6 +15,7 @@ import (
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
+	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -225,4 +226,74 @@ func TestSubmitMasterDataChangeRequest_InvalidInputs(t *testing.T) {
 		{Target: usersModels.DataChangeTargetDeparture, FieldKey: "allowed_departure_modes", Value: json.RawMessage(`{"mon":["accompanied"]}`)},
 	})
 	assert.ErrorIs(t, err, parentService.ErrMasterDataInvalidValue)
+}
+
+// allSettingsOn reports every bool setting as ON so BOTH the master-data request
+// gate (KeyParentMasterDataRequestEnabled) and the emitter's messaging gate
+// (KeyParentNotesEnabled) pass and the created pills actually emit.
+type allSettingsOn struct{ masterDataStubSettings }
+
+func (allSettingsOn) ResolveBoolForTenant(context.Context, int64, string) (bool, error) {
+	return true, nil
+}
+
+// TestSubmitMasterDataChangeRequest_PerRowCreatedPills pins the P3 fix (#1803
+// review follow-up): a multi-field submit emits ONE "Anfrage erstellt" pill PER
+// created row, each referencing its own row — not a single pill tied to the
+// first row. A single shared pill could only be cleared (staff-decision unread
+// badge, via markStaffReadUpToRequestPill → FindEventByRef on the decided row's
+// id) by deciding the first field; every other field's decision would leave the
+// badge lit. Per-row pills keep created↔decision refs paired so any field's
+// decision clears deterministically.
+func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	repos := repositories.NewFactory(db)
+	settings := allSettingsOn{}
+	emitter := parentmessaging.NewEmitter(
+		db, repos.ParentMessageThread, repos.ParentMessage, repos.ParentMessageRead,
+		settings, nil, slog.Default(),
+	)
+	svc := parentService.NewService(parentService.ServiceConfig{
+		ChildRepo:           repos.ParentChild,
+		StudentRepo:         repos.Student,
+		GuardianProfileRepo: repos.GuardianProfile,
+		PersonRepo:          repos.Person,
+		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
+		ChangeRequestRepo:   repos.StudentDataChangeRequest,
+		Settings:            settings,
+		Broadcaster:         &captureBroadcaster{},
+		Emitter:             emitter,
+		DB:                  db,
+		Logger:              slog.Default(),
+	})
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	// Two changed fields (current person is Felix Schneider) -> two rows.
+	rows, err := svc.SubmitMasterDataChangeRequest(context.Background(), chain.AccountID, chain.StudentID, []parentService.MasterDataFieldChange{
+		{Target: usersModels.DataChangeTargetPerson, FieldKey: "first_name", Value: json.RawMessage(`"Maximilian"`)},
+		{Target: usersModels.DataChangeTargetPerson, FieldKey: "last_name", Value: json.RawMessage(`"Neumann"`)},
+	})
+	require.NoError(t, err)
+	require.Len(t, rows, 2, "two distinct field changes create two request rows")
+
+	// Every created row must have its OWN request_created pill (found by its id),
+	// so the decision path (keyed on the decided row's id) can always resolve it.
+	err = tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		thread, gErr := repos.ParentMessageThread.GetOrCreate(txCtx, chain.TenantID, chain.StudentID, chain.AccountID)
+		if gErr != nil {
+			return gErr
+		}
+		for _, row := range rows {
+			pill, fErr := repos.ParentMessage.FindEventByRef(txCtx, thread.ID, "request_created", "users.student_data_change_requests", row.ID)
+			if fErr != nil {
+				return fErr
+			}
+			require.NotNilf(t, pill, "row %d must have its own request_created pill", row.ID)
+		}
+		return nil
+	})
+	require.NoError(t, err)
 }

@@ -220,6 +220,22 @@ func (e *Emitter) guardianHasChildAccess(ctx context.Context, studentID, guardia
 	return false, nil
 }
 
+// MessagingEnabledForTenant reports whether parent-OGS messaging
+// (operations.parent_notes_enabled) is ON for the tenant, so a sibling service
+// can refuse to APPLY a change request whose only notification channel — the
+// decision pill this emitter drops while messaging is off — would silently go
+// nowhere. It mirrors the read-path fail-OPEN direction (a transient
+// settings-resolve blip counts as enabled), the same contract the chat's
+// requireEnabled gate used before this flow was decoupled. A nil emitter or nil
+// settings resolver (partially-wired test emitter) also counts as enabled, so
+// the gate never blocks a flow whose emitter carries no settings dependency.
+func (e *Emitter) MessagingEnabledForTenant(ctx context.Context, tenantID int64) bool {
+	if e == nil || e.settings == nil {
+		return true
+	}
+	return MessagingEnabledForTenant(ctx, e.settings, tenantID, e.logger)
+}
+
 // GuardianHasChildAccess exposes the linked-guardian / parent_portal.access
 // check to sibling services that must decide whether to APPLY (and notify a
 // parent about) a change request — the care-schedule request flow refuses to

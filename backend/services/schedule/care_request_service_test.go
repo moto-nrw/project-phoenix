@@ -253,6 +253,62 @@ func TestDecide_ApproveRefusedWhenGuardianAccessRevoked(t *testing.T) {
 	assert.Equal(t, scheduleModels.CareRequestStatusRejected, item.Request.Status)
 }
 
+// fakeDisabledSettings reports parent-OGS messaging as OFF for every tenant, so
+// the approve-time messaging gate can be exercised without touching the settings
+// store. Returns a nil error, so the gate sees a genuine disabled flag (not the
+// fail-open transient-error path).
+type fakeDisabledSettings struct{}
+
+func (fakeDisabledSettings) ResolveBoolForTenant(context.Context, int64, string) (bool, error) {
+	return false, nil
+}
+
+// TestDecide_ApproveRefusedWhenMessagingDisabled pins the P2 messaging gate
+// (#1803 review follow-up): if the school turns operations.parent_notes_enabled
+// OFF after a request is filed, APPROVING is refused — the guardian's "bestätigt"
+// pill is the only notification channel and the emitter drops it while messaging
+// is off, so approving would change the child's permanent plan with no parent
+// notice. The request stays pending, the plan is untouched, and REJECTING stays
+// available. Mirrors the chat's ConfirmRequest/requireEnabled gate this flow
+// replaced.
+func TestDecide_ApproveRefusedWhenMessagingDisabled(t *testing.T) {
+	f := newCareFixture(t)
+	// Wire an emitter whose settings report messaging OFF. The messaging gate
+	// runs before the guardian-link check, so the guardian is left linked.
+	svc := schedule.NewCareScheduleRequestService(
+		f.repos.CareScheduleChangeRequest,
+		f.repos.Student,
+		f.repos.Person,
+		f.sf.ArrivalSchedule,
+		f.sf.PickupSchedule,
+		f.sf.UserContext,
+		parentmessaging.NewEmitter(f.db, f.repos.ParentMessageThread, f.repos.ParentMessage, f.repos.ParentMessageRead, fakeDisabledSettings{}, nil, slog.Default()),
+		nil,
+		slog.Default(),
+	)
+
+	req, err := svc.CreateRequest(staffCtx(f.chain.AccountID), f.chain.StudentID, f.chain.AccountID,
+		careWeekdays(map[string]any{"weekday": 1, "mode": "pickup", "arrival": "08:00", "pickup": "16:00"}))
+	require.NoError(t, err)
+
+	ctx := staffCtx(f.staffAccount)
+
+	_, err = svc.Decide(ctx, schedule.CareRequestDecideInput{RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount})
+	require.ErrorIs(t, err, schedule.ErrCareRequestMessagingDisabled, "approving with messaging disabled must be refused")
+
+	still, err := f.repos.CareScheduleChangeRequest.FindByID(ctx, req.ID)
+	require.NoError(t, err)
+	assert.Equal(t, scheduleModels.CareRequestStatusPending, still.Status, "a refused approval leaves the request pending")
+
+	arrivals, err := f.sf.ArrivalSchedule.GetStudentArrivalSchedules(ctx, f.chain.StudentID)
+	require.NoError(t, err)
+	assert.Empty(t, arrivals, "a refused approval must not apply the requested plan")
+
+	item, err := svc.Decide(ctx, schedule.CareRequestDecideInput{RequestID: req.ID, Approve: false, Reason: "Nachrichten deaktiviert, bitte telefonisch klären", ReviewedBy: f.staffAccount})
+	require.NoError(t, err, "reject must stay available while messaging is disabled")
+	assert.Equal(t, scheduleModels.CareRequestStatusRejected, item.Request.Status)
+}
+
 // TestDecide_SecondDecideNotPending pins the idempotency/race guard: once a
 // request is approved, a second decide (or a reject racing it) sees the terminal
 // status under the FOR UPDATE re-read and returns ErrCareRequestNotPending.
