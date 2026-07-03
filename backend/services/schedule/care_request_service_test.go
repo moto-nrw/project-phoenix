@@ -364,6 +364,66 @@ func TestDecide_RejectClosesRequestPillEvenWhenMessagingDisabled(t *testing.T) {
 	assert.Equal(t, usersModels.ParentMessageRequestStatusRejected, status.RequestStatus)
 }
 
+// TestCreateRequest_RequestCreatedPillDoesNotAdvanceThreadPreview pins the #1803
+// preview/badge alignment fix: a request_created pill is a QUEUE signal, not a
+// chat message, so it must NOT become the thread's denormalized last-activity
+// preview (last_message_*) — exactly as counterpartUnread excludes it from every
+// unread count. Otherwise the Nachrichten badge (which flags an earlier staff
+// decision) and the thread preview (the parent's own "Anfrage gestellt") point at
+// different messages, so a parent's OWN submission reads as an unread message to
+// themselves. A subsequent non-request_created pill (the reject decision) MUST
+// advance the preview as before.
+func TestCreateRequest_RequestCreatedPillDoesNotAdvanceThreadPreview(t *testing.T) {
+	f := newCareFixture(t)
+	// Created pill (guardian) + status pill (staff) both reference auth.accounts
+	// without cascade; clear them LIFO-first, ahead of the staff auth cleanup.
+	t.Cleanup(func() { testpkg.CleanupParentMessagingForAccount(t, f.db, f.staffAccount) })
+	svc := schedule.NewCareScheduleRequestService(
+		f.repos.CareScheduleChangeRequest,
+		f.repos.Student,
+		f.repos.Person,
+		f.sf.ArrivalSchedule,
+		f.sf.PickupSchedule,
+		f.sf.UserContext,
+		parentmessaging.NewEmitter(f.db, f.repos.ParentMessageThread, f.repos.ParentMessage, &toggleSettings{enabled: true}, nil, slog.Default()),
+		nil,
+		slog.Default(),
+	)
+
+	// Filing a request opens the thread and writes the request_created pill.
+	req, err := svc.CreateRequest(f.staffCtx(f.chain.AccountID), f.chain.StudentID, f.chain.AccountID,
+		careWeekdays(map[string]any{"weekday": 1, "mode": "pickup", "arrival": "08:00", "pickup": "16:00"}))
+	require.NoError(t, err)
+
+	ctx := f.staffCtx(f.staffAccount)
+	thread, err := f.repos.ParentMessageThread.FindByStudentGuardian(ctx, f.chain.StudentID, f.chain.AccountID)
+	require.NoError(t, err)
+	require.NotNil(t, thread, "the request_created pill opens the thread")
+	created, err := f.repos.ParentMessage.FindEventByRef(ctx, thread.ID, usersModels.ParentMessageEventRequestCreated, "schedule.care_schedule_change_requests", req.ID)
+	require.NoError(t, err)
+	require.NotNil(t, created, "request_created pill exists")
+
+	// The request_created pill must NOT have advanced the thread preview/sort.
+	assert.Nil(t, thread.LastMessageAt, "a request_created pill must not set the thread's last_message_at")
+	assert.Nil(t, thread.LastMessageID, "a request_created pill must not become the thread's last_message")
+	assert.Empty(t, thread.LastMessageBody, "a request_created pill must not become the thread preview body")
+
+	// A non-request_created pill (the reject decision) DOES advance the preview.
+	_, err = svc.Decide(ctx, schedule.CareRequestDecideInput{RequestID: req.ID, Approve: false, Reason: "telefonisch geklärt", ReviewedBy: f.staffAccount})
+	require.NoError(t, err)
+
+	status, err := f.repos.ParentMessage.FindEventByRef(ctx, thread.ID, usersModels.ParentMessageEventRequestStatus, "schedule.care_schedule_change_requests", req.ID)
+	require.NoError(t, err)
+	require.NotNil(t, status, "the reject decision writes a request_status pill")
+
+	decided, err := f.repos.ParentMessageThread.FindByStudentGuardian(ctx, f.chain.StudentID, f.chain.AccountID)
+	require.NoError(t, err)
+	require.NotNil(t, decided)
+	require.NotNil(t, decided.LastMessageID, "a request_status decision advances the thread preview")
+	assert.Equal(t, status.ID, *decided.LastMessageID, "the decision pill owns the preview")
+	assert.NotEmpty(t, decided.LastMessageBody, "the decision pill sets the preview body")
+}
+
 // TestDecide_NoReconcilePillWhenRequestFiledWhileDisabled pins the other half of
 // the reconcile gate: if the request was filed while messaging was already OFF,
 // no thread / request_created pill was ever emitted, so REJECTING must NOT

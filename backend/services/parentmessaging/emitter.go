@@ -229,6 +229,20 @@ func (e *Emitter) EmitChildEvent(tenantID, studentID, guardianAccountID int64, e
 		if err := e.messageRepo.Create(txCtx, msg); err != nil {
 			return err
 		}
+		// request_created pills are a QUEUE signal, not a chat message (#1803): keep
+		// them out of the thread's denormalized last-activity preview/ordering
+		// (last_message_*) exactly as counterpartUnread keeps them out of every unread
+		// count. Otherwise the two disagree — the Nachrichten badge (counterpart-side,
+		// non-request_created) flags an earlier staff decision while the preview shows
+		// the parent's OWN newest "Anfrage gestellt", which reads as "my own submission
+		// is unread". The pill still lives in the timeline (ListByThread) and still
+		// fires the SSE wake below; only the preview/sort skips it. A brand-new thread
+		// whose only pill is request_created keeps NULL last_message_at and renders the
+		// empty-preview fallback (never a broken row). Every OTHER pill (decision,
+		// withdrawal, self-service mirror) advances the preview as before.
+		if ev.EventType == usersModels.ParentMessageEventRequestCreated {
+			return nil
+		}
 		// Touch the thread with the row's own DB-stamped created_at (one clock —
 		// see AppendMessage) and attribute it to the TRIGGERING side so the staff
 		// inbox's awaiting-reply signal and the guardian's unread badge both fire
