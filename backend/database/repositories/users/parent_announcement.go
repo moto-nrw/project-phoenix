@@ -59,12 +59,13 @@ func pendingStatusList() string {
 // tenantExpr are SQL expressions (a column reference like `a.id`/`a.tenant_id`
 // in the feed query, or a bound `?` in the per-announcement check). accPlace is
 // the placeholder/expression for the account id. It is the OR-union of the
-// student-based targets (school/class/group/AG/student, gated on a live
-// students_guardians link granting parent_portal.access AND an ACTIVE
-// auth.account_tenants membership for the school — a guardian whose mapping
-// went pending/inactive keeps the relationship rows but has lost portal access,
-// so they drop out; mirrors parent messaging + parent.ChildRepository) and the
-// guardian-based pending_enrollment target.
+// student-based targets (school/class/group/AG/student, gated on a
+// non-soft-deleted student/person, a live students_guardians link granting
+// parent_portal.access AND an ACTIVE auth.account_tenants membership for the
+// school — a guardian whose mapping went pending/inactive keeps the
+// relationship rows but has lost portal access, so they drop out; mirrors
+// parent messaging + parent.ChildRepository) and the guardian-based
+// pending_enrollment target.
 func reachedPredicate(annExpr, tenantExpr, accPlace string) string {
 	return fmt.Sprintf(`(
 		EXISTS (
@@ -83,6 +84,7 @@ func reachedPredicate(annExpr, tenantExpr, accPlace string) string {
 						AND (se.valid_until IS NULL OR se.valid_until >= CURRENT_DATE)
 				))
 			)
+			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
 			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = %[2]s
 				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
 			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = %[2]s
@@ -336,6 +338,7 @@ func (r *ParentAnnouncementRepository) CountAudience(ctx context.Context, tenant
 						AND (se.valid_until IS NULL OR se.valid_until >= CURRENT_DATE)
 				))
 			)
+			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
 			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
 				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
 			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
@@ -413,7 +416,11 @@ func reachedArgs(announcementID, tenantID, accountID int64) []any {
 // e-mail) an announcement currently reaches. Student-based targets read the
 // guardian profile's e-mail/name; the pending_enrollment target reads the
 // e-mail/name captured on the enrollment request (those guardians may not have
-// a profile yet). UNION de-duplicates by the full (email, name) row.
+// a profile yet). An outer GROUP BY collapses the UNION to one row per
+// normalized e-mail, so a guardian reached through BOTH a student target and
+// pending_enrollment — possibly with different captured vs profile names — is
+// enqueued (and e-mailed) only once; the retained name prefers a non-empty
+// value across the merged rows.
 func (r *ParentAnnouncementRepository) ResolveAudienceEmails(ctx context.Context, tenantID, announcementID int64) ([]*users.AnnouncementRecipient, error) {
 	// Only guardians WITH a linked account receive the e-mail: the mail is a
 	// pointer into the parent portal (title + link, no body), which is useless
@@ -421,6 +428,10 @@ func (r *ParentAnnouncementRepository) ResolveAudienceEmails(ctx context.Context
 	// audience and the staff reach stats.
 	var rows []*users.AnnouncementRecipient
 	sqlStr := fmt.Sprintf(`
+		SELECT email,
+			COALESCE(min(NULLIF(first_name, '')), '') AS first_name,
+			COALESCE(min(NULLIF(last_name, '')), '') AS last_name
+		FROM (
 		SELECT DISTINCT lower(gp.email) AS email,
 			COALESCE(gp.first_name, '') AS first_name, COALESCE(gp.last_name, '') AS last_name
 		FROM users.parent_announcement_targets pt
@@ -437,6 +448,7 @@ func (r *ParentAnnouncementRepository) ResolveAudienceEmails(ctx context.Context
 					AND (se.valid_until IS NULL OR se.valid_until >= CURRENT_DATE)
 			))
 		)
+		JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
 		JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
 			AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
 		JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
@@ -456,7 +468,9 @@ func (r *ParentAnnouncementRepository) ResolveAudienceEmails(ctx context.Context
 			AND length(btrim(req.guardian_email)) > 0
 		JOIN enrollment.request_children rc ON rc.request_id = req.id AND rc.tenant_id = ?
 			AND rc.status IN (%s)
-		WHERE pt.announcement_id = ? AND pt.tenant_id = ? AND pt.target_type = 'pending_enrollment'`,
+		WHERE pt.announcement_id = ? AND pt.tenant_id = ? AND pt.target_type = 'pending_enrollment'
+		) recips
+		GROUP BY email`,
 		pendingStatusList())
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
 		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID, // student path
@@ -509,6 +523,7 @@ func (r *ParentAnnouncementRepository) AudienceRecipients(ctx context.Context, t
 						AND (se.valid_until IS NULL OR se.valid_until >= CURRENT_DATE)
 				))
 			)
+			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
 			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
 				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
 			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
@@ -672,6 +687,7 @@ func (r *ParentAnnouncementRepository) Stats(ctx context.Context, tenantID, anno
 						AND (se.valid_until IS NULL OR se.valid_until >= CURRENT_DATE)
 				))
 			)
+			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
 			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
 				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
 			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?

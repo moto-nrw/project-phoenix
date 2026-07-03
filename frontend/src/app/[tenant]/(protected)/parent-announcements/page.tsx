@@ -95,8 +95,14 @@ function targetKey(target: AnnouncementTarget): string {
 /** Compact, name-free summary for the list table (e.g. "2 Gruppen, 1 Klasse"). */
 function summarizeTargets(targets: AnnouncementTarget[]): string {
   if (targets.length === 0) return "—";
-  if (targets.some((t) => t.target_type === "school_all"))
-    return "Ganze Schule";
+  if (targets.some((t) => t.target_type === "school_all")) {
+    // Whole-school subsumes the class/group/student targets, but pending
+    // enrollments are separate applicants the backend still notifies — so
+    // surface that combination instead of collapsing it to "Ganze Schule".
+    return targets.some((t) => t.target_type === "pending_enrollment")
+      ? "Ganze Schule, Offene Anmeldungen"
+      : "Ganze Schule";
+  }
 
   const counts = new Map<AnnouncementTargetType, number>();
   for (const t of targets) {
@@ -1364,8 +1370,14 @@ function targetChips(
   groups: Group[],
   activities: Activity[],
 ): string[] {
-  if (targets.some((t) => t.target_type === "school_all"))
-    return ["Ganze Schule"];
+  if (targets.some((t) => t.target_type === "school_all")) {
+    // Whole-school subsumes class/group/student targets; pending enrollments
+    // are additional recipients the backend still reaches, so keep that chip.
+    const schoolChips = ["Ganze Schule"];
+    if (targets.some((t) => t.target_type === "pending_enrollment"))
+      schoolChips.push("Offene Anmeldungen");
+    return schoolChips;
+  }
   const groupNames = new Map(groups.map((g) => [g.id, g.name]));
   const activityNames = new Map(activities.map((a) => [a.id, a.name]));
   const chips: string[] = [];
