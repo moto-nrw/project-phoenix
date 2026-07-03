@@ -6,7 +6,6 @@ import type { TenantInfo } from "~/lib/tenant-api";
 
 // Override the global mock from test/setup.ts to use the REAL implementation
 vi.unmock("~/lib/tenant-context");
-vi.unmock("~/components/tenant/tenant-provider");
 
 // Hoisted shared state for the cross-tab subscription test below.
 const { broadcastHandlers, mockResolveTenant } = vi.hoisted(() => ({
@@ -37,7 +36,7 @@ import {
   useTenantRoutingModeSafe,
   useTenantSafe,
   useTenantSlugSafe,
-} from "./tenant-provider";
+} from "~/lib/tenant-context";
 
 // ============================================================================
 // Test Data

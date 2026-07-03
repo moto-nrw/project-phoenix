@@ -175,11 +175,8 @@ const tenantProviderMock = vi.hoisted(() => ({
 }));
 
 // Mock tenant context globally so tenant-scoped components can render in tests.
-// The component compatibility module and the lib module share the same mock
-// functions, so tests overriding one path also affect code importing the other.
-// Tests that need the real context must unmock both module paths.
+// Tests that need the real context must unmock this module path.
 vi.mock("~/lib/tenant-context", () => tenantProviderMock);
-vi.mock("~/components/tenant/tenant-provider", () => tenantProviderMock);
 
 // Mock SWR globally - individual tests can override with vi.mocked()
 vi.mock("swr", () => ({

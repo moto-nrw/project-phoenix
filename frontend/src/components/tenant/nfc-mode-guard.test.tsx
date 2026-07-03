@@ -4,9 +4,8 @@ import { describe, it, expect, vi } from "vitest";
 // Opt out of the global tenant-provider mock so the guard sees the real
 // TenantContext wired up by its wrapping TenantProvider.
 vi.unmock("~/lib/tenant-context");
-vi.unmock("~/components/tenant/tenant-provider");
 
-import { TenantProvider } from "./tenant-provider";
+import { TenantProvider } from "~/lib/tenant-context";
 import { NfcModeGuard } from "./nfc-mode-guard";
 import type { TenantInfo } from "~/lib/tenant-api";
 

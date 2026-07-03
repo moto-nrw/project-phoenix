@@ -413,11 +413,9 @@ function DevicesPageContent() {
       <DatabaseFormModal<Device>
         isOpen={showCreateModal}
         onClose={handleCloseCreateModal}
-        title={devicesConfig.labels.createModalTitle}
+        mode="create"
         config={devicesConfig}
         onSubmit={handleCreateDevice}
-        submitLabel="Erstellen"
-        stickyActions
       />
 
       {selectedDevice && (
@@ -444,13 +442,11 @@ function DevicesPageContent() {
         <DatabaseFormModal<Device>
           isOpen={showEditModal}
           onClose={handleCloseEditModal}
-          title={devicesConfig.labels.editModalTitle}
+          mode="edit"
           config={devicesConfig}
           initialData={selectedDevice}
           onSubmit={handleUpdateDevice}
           isLoading={savingDevice}
-          submitLabel="Speichern"
-          stickyActions
         />
       )}
     </DatabasePageLayout>

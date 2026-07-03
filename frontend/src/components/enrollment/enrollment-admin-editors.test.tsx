@@ -43,15 +43,10 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => mocks.searchParams,
 }));
 
-vi.mock("~/components/tenant/tenant-provider", () => ({
-  useTenantSlugSafe: () => "demo",
-  useTenantRoutingModeSafe: () => "path",
-  useNFCEnabled: vi.fn(() => true),
-}));
-
 vi.mock("~/lib/tenant-context", () => ({
   useTenantSlugSafe: () => "demo",
   useTenantRoutingModeSafe: () => "path",
+  useNFCEnabled: vi.fn(() => true),
 }));
 
 vi.mock("~/contexts/ToastContext", () => ({

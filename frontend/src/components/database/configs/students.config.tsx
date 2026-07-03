@@ -487,8 +487,6 @@ export const studentsConfig = defineEntityConfig<Student>({
 
   labels: {
     createButton: "Neues Kind erstellen",
-    createModalTitle: "Neues Kind",
-    editModalTitle: "Kind bearbeiten",
     detailModalTitle: "Kinddetails",
     deleteConfirmation:
       "Sind Sie sicher, dass Sie dieses Kind löschen möchten?",

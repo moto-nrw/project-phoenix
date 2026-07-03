@@ -563,7 +563,7 @@ describe("StudentStammdatenTab — photo orchestration", () => {
     fetchStudentPrivacyConsentMock.mockResolvedValue(null);
     validateStudentFormMock.mockReturnValue({});
     // Override useTenantSafe so photosEnabled is true for this suite.
-    const tenantProvider = await import("~/components/tenant/tenant-provider");
+    const tenantProvider = await import("~/lib/tenant-context");
     vi.mocked(tenantProvider.useTenantSafe).mockReturnValue({
       tenantSlug: "test-tenant",
       tenant: { studentPhotosEnabled: true },
@@ -796,7 +796,7 @@ describe("StudentStammdatenTab — photo orchestration", () => {
     // the draft so the checkbox renders the right initial value. This test
     // first renders with the feature OFF (consent omitted from draft) then
     // flips it ON (server has consent recorded → draft picks up `true`).
-    const tenantProvider = await import("~/components/tenant/tenant-provider");
+    const tenantProvider = await import("~/lib/tenant-context");
     // Start with feature off.
     vi.mocked(tenantProvider.useTenantSafe).mockReturnValue({
       tenantSlug: "test-tenant",

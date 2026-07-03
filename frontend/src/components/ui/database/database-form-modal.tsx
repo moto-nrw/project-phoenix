@@ -5,34 +5,29 @@ import { Modal } from "~/components/ui/modal";
 import { DatabaseForm } from "~/components/ui/database/database-form";
 import { configToFormSection, type EntityConfig } from "@/lib/database/types";
 
-type DatabaseFormModalConfig<T> = Pick<EntityConfig<T>, "form" | "theme">;
+type DatabaseFormModalConfig<T> = Pick<
+  EntityConfig<T>,
+  "form" | "theme" | "labels"
+>;
 
 interface DatabaseFormModalProps<T> {
   readonly isOpen: boolean;
   readonly onClose: () => void;
-  readonly title: string;
+  readonly mode: "create" | "edit";
   readonly config: DatabaseFormModalConfig<T>;
   readonly onSubmit: (data: Partial<T>) => Promise<void>;
   readonly initialData?: Partial<T>;
   readonly isLoading?: boolean;
-  readonly error?: string | null;
-  readonly submitLabel: string;
-  readonly submitButtonGradient?: string;
-  readonly stickyActions?: boolean;
 }
 
 export function DatabaseFormModal<T>({
   isOpen,
   onClose,
-  title,
+  mode,
   config,
   onSubmit,
   initialData,
   isLoading,
-  error,
-  submitLabel,
-  submitButtonGradient,
-  stickyActions,
 }: DatabaseFormModalProps<T>) {
   // Stable identity: DatabaseForm resets its form state whenever the sections
   // array identity changes, which would wipe in-progress edits on every
@@ -41,6 +36,16 @@ export function DatabaseFormModal<T>({
     () => config.form.sections.map(configToFormSection),
     [config.form.sections],
   );
+
+  const title =
+    mode === "create"
+      ? config.labels.createModalTitle
+      : config.labels.editModalTitle;
+  if (!title) {
+    // defineEntityConfig erases literal types, so a missing label can't be
+    // excluded statically; fail loudly instead of rendering empty copy.
+    throw new Error(`Entity config is missing the ${mode} modal title label`);
+  }
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title}>
@@ -51,10 +56,8 @@ export function DatabaseFormModal<T>({
         onSubmit={onSubmit}
         onCancel={onClose}
         isLoading={isLoading}
-        error={error}
-        submitLabel={submitLabel}
-        submitButtonGradient={submitButtonGradient}
-        stickyActions={stickyActions}
+        submitLabel={mode === "create" ? "Erstellen" : "Speichern"}
+        stickyActions
       />
     </Modal>
   );

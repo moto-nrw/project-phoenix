@@ -20,10 +20,7 @@ import { hasPermission, hasRole, isCaregiver } from "~/lib/auth-utils";
 import { navigationIcons } from "~/lib/navigation-icons";
 import { operatorPath } from "~/lib/operator-url";
 import { useParentMealPlanEnabled } from "~/lib/hooks/use-parent-meal-plan-enabled";
-import {
-  useNFCEnabled,
-  usePresenceMode,
-} from "~/components/tenant/tenant-provider";
+import { useNFCEnabled, usePresenceMode } from "~/lib/tenant-context";
 import {
   SETTINGS_SCHEMA_SWR_KEY,
   fetchSettingsSchema,

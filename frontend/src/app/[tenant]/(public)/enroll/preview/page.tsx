@@ -12,7 +12,7 @@ import {
   PublicEnrollmentSteps,
   PublicInfoCard,
 } from "~/components/enrollment/public-enrollment-shell";
-import { useTenant } from "~/components/tenant/tenant-provider";
+import { useTenant } from "~/lib/tenant-context";
 import {
   fetchEnrollmentPreviewBootstrap,
   schemaToPublicFormSchema,

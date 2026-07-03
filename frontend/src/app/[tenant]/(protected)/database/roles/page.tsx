@@ -428,11 +428,9 @@ export default function RolesPage() {
       <DatabaseFormModal<Role>
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        title={rolesConfig.labels.createModalTitle}
+        mode="create"
         config={rolesConfig}
         onSubmit={handleCreateRole}
-        submitLabel="Erstellen"
-        stickyActions
       />
 
       {selectedRole && (
@@ -459,12 +457,10 @@ export default function RolesPage() {
         <DatabaseFormModal<Role>
           isOpen={showEditModal}
           onClose={handleCloseEditModal}
-          title={rolesConfig.labels.editModalTitle}
+          mode="edit"
           config={rolesConfig}
           initialData={selectedRole}
           onSubmit={handleUpdateRole}
-          submitLabel="Speichern"
-          stickyActions
         />
       )}
 

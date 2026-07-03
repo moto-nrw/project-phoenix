@@ -242,7 +242,6 @@ export const roomsConfig = defineEntityConfig<Room>({
   labels: {
     createButton: "Neuen Raum erstellen",
     createModalTitle: "Neuer Raum",
-    editModalTitle: "Raum bearbeiten",
     detailModalTitle: "Raumdetails",
     deleteConfirmation:
       "Sind Sie sicher, dass Sie diesen Raum löschen möchten?",

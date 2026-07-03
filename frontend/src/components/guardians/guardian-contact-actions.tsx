@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { ChevronDown, Mail, Phone } from "lucide-react";
 import { Button } from "~/components/ui/button";
+import { useClickOutside } from "~/lib/hooks/use-click-outside";
 
 interface GuardianContactPhoneOption {
   readonly number: string;
@@ -41,24 +42,11 @@ export function GuardianContactActions({
   const [isPhoneDropdownOpen, setIsPhoneDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!isPhoneDropdownOpen) {
-      return;
-    }
-
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        event.target instanceof Node &&
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target)
-      ) {
-        setIsPhoneDropdownOpen(false);
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isPhoneDropdownOpen]);
+  useClickOutside(
+    dropdownRef,
+    () => setIsPhoneDropdownOpen(false),
+    isPhoneDropdownOpen,
+  );
 
   const handleEmailClick = () => {
     if (!email) {

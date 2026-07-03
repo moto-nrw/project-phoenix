@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import { TenantProvider, useTenant } from "./tenant-provider";
+import { TenantProvider, useTenant } from "~/lib/tenant-context";
 import type { TenantInfo } from "~/lib/tenant-api";
 
 const fakeTenant: TenantInfo = {

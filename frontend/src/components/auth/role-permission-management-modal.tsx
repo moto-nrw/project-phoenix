@@ -13,6 +13,7 @@ import {
 } from "~/lib/permission-labels";
 import type { Role, Permission } from "~/lib/auth-helpers";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
+import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "RolePermissionManagementModal" });
@@ -34,6 +35,7 @@ export function RolePermissionManagementModal({
     formatPermissionDisplay(p.resource, p.action);
   const { success: toastSuccess } = useToast();
   const [errorMessage, setErrorMessage] = useState("");
+  const errorRef = useScrollToError(errorMessage);
   // Warning alert disabled for now to reduce noise in UI
   const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
   const [assignedMap, setAssignedMap] = useState<Record<string, boolean>>({});
@@ -239,7 +241,11 @@ export function RolePermissionManagementModal({
         footer={footer}
       >
         <div className="space-y-4 md:space-y-6">
-          <Alert type="error" message={errorMessage} />
+          {errorMessage && (
+            <div ref={errorRef}>
+              <Alert type="error" message={errorMessage} />
+            </div>
+          )}
 
           {/* Stats */}
           <div className="rounded-xl border border-gray-100 bg-purple-50/30 p-3 md:p-4">

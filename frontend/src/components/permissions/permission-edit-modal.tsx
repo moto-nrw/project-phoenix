@@ -39,13 +39,11 @@ export function PermissionEditModal({
     <DatabaseFormModal<Permission>
       isOpen={isOpen}
       onClose={onClose}
-      title={permissionsConfig.labels.editModalTitle}
+      mode="edit"
       config={permissionsConfig}
       initialData={formData}
       onSubmit={onSave}
       isLoading={loading}
-      submitLabel="Speichern"
-      stickyActions
     />
   );
 }

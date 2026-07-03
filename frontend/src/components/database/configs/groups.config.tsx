@@ -298,7 +298,6 @@ export const groupsConfig = defineEntityConfig<Group>({
   labels: {
     createButton: "Neue Gruppe erstellen",
     createModalTitle: "Neue Gruppe",
-    editModalTitle: "Gruppe bearbeiten",
     detailModalTitle: "Gruppendetails",
     deleteConfirmation:
       "Sind Sie sicher, dass Sie diese Gruppe löschen möchten?",

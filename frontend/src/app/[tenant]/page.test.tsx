@@ -94,7 +94,7 @@ vi.mock("next/image", () => ({
 }));
 
 import { useSession } from "next-auth/react";
-import { useTenant } from "~/components/tenant/tenant-provider";
+import { useTenant } from "~/lib/tenant-context";
 import { refreshToken } from "~/lib/auth-api";
 import HomePage from "./page";
 

@@ -18,7 +18,7 @@ import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
 import { MFAEnrollmentScreen } from "~/components/auth/mfa-enrollment-screen";
 import { PasswordResetModal } from "~/components/ui/password-reset-modal";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
-import { useTenant } from "~/components/tenant/tenant-provider";
+import { useTenant } from "~/lib/tenant-context";
 import { loginImageSrc } from "~/lib/tenant-api";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";

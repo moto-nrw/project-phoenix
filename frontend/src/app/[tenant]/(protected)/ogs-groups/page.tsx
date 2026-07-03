@@ -62,7 +62,7 @@ import {
   useSchoolCheckinMode,
 } from "~/lib/hooks/use-school-checkin-mode";
 import { buildGroupOverflowItems } from "./components/group-overflow-items";
-import { usePresenceMode } from "~/components/tenant/tenant-provider";
+import { usePresenceMode } from "~/lib/tenant-context";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";

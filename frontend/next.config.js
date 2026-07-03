@@ -21,6 +21,18 @@ const config = {
         destination: "/:tenant/students/:id/feedback-history",
         permanent: true,
       },
+      // Legacy deep-link target: activity management now happens from the
+      // canonical /activities list/modal flow.
+      {
+        source: "/activities/:id",
+        destination: "/activities",
+        permanent: true,
+      },
+      {
+        source: "/:tenant/activities/:id",
+        destination: "/:tenant/activities",
+        permanent: true,
+      },
     ];
   },
 };

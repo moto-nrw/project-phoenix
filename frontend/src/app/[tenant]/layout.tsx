@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import { TenantProvider } from "~/components/tenant/tenant-provider";
+import { TenantProvider } from "~/lib/tenant-context";
 import { TenantGuard } from "~/components/tenant/tenant-guard";
 import { TenantProviders } from "./providers";
 import type { TenantInfo, TenantSettings } from "~/lib/tenant-api";

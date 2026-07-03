@@ -10,7 +10,7 @@ import {
   useNFCEnabled,
   usePresenceMode,
   useTenantSlugSafe,
-} from "~/components/tenant/tenant-provider";
+} from "~/lib/tenant-context";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { useOptionalSupervision } from "~/lib/supervision-context";

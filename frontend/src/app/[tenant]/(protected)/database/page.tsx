@@ -12,7 +12,7 @@ import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 
 import { Loading } from "~/components/ui/loading";
-import { useNFCEnabled } from "~/components/tenant/tenant-provider";
+import { useNFCEnabled } from "~/lib/tenant-context";
 // Icon component
 const Icon: React.FC<{ path: string; className?: string }> = ({
   path,

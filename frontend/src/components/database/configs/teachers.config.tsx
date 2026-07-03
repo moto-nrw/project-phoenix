@@ -453,8 +453,6 @@ export const teachersConfig = defineEntityConfig<Teacher>({
 
   labels: {
     createButton: "Neues Personal anlegen",
-    createModalTitle: "Neues Personal",
-    editModalTitle: "Personal bearbeiten",
     deleteConfirmation:
       "Sind Sie sicher, dass Sie dieses Personal löschen möchten?",
     emptyState: "Kein Personal gefunden",

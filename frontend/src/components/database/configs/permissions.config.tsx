@@ -111,8 +111,7 @@ export const permissionsConfig = defineEntityConfig<Permission>({
       // Cast to access custom form fields (permissionSelector is not part of Permission type)
       const formData = data as unknown as Record<string, unknown>;
       const selector = formData.permissionSelector as
-        | PermissionSelectorValue
-        | undefined;
+        PermissionSelectorValue | undefined;
       const resource = selector?.resource ?? "";
       const action = selector?.action ?? "";
 

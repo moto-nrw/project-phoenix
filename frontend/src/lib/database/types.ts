@@ -279,12 +279,13 @@ export interface EntityConfig<T = Record<string, unknown>> {
     afterDelete?: (id: string) => Promise<void>;
   };
 
-  // Labels and messages. The modal titles are required so the create/edit
-  // modals never need hardcoded fallback copy at their call sites.
+  // Labels and messages. The modal titles are optional because not every
+  // entity renders DatabaseFormModal; the modal itself fails loudly when the
+  // title for its mode is missing.
   labels: {
     createButton?: string;
-    createModalTitle: string;
-    editModalTitle: string;
+    createModalTitle?: string;
+    editModalTitle?: string;
     detailModalTitle?: string;
     deleteConfirmation?: string;
     emptyState?: string;

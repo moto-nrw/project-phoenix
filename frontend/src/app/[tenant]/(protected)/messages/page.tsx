@@ -8,10 +8,7 @@ import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { Loading } from "~/components/ui/loading";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
-import {
-  useTenant,
-  useTenantSlugSafe,
-} from "~/components/tenant/tenant-provider";
+import { useTenant, useTenantSlugSafe } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
 import {
   type InboxThread,

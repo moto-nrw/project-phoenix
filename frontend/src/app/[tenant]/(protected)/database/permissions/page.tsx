@@ -374,11 +374,9 @@ export default function PermissionsPage() {
       <DatabaseFormModal<Permission>
         isOpen={showCreateModal}
         onClose={handleCloseCreateModal}
-        title={permissionsConfig.labels.createModalTitle}
+        mode="create"
         config={permissionsConfig}
         onSubmit={handleCreatePermission}
-        submitLabel="Erstellen"
-        stickyActions
       />
 
       {selectedPermission && (

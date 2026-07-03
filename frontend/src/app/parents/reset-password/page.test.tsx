@@ -17,7 +17,7 @@ vi.mock("~/lib/tenant-router", () => ({
   useTenantRouter: () => ({ push: mocks.push }),
 }));
 
-vi.mock("~/components/tenant/tenant-provider", () => ({
+vi.mock("~/lib/tenant-context", () => ({
   useTenantSafe: () => null,
 }));
 

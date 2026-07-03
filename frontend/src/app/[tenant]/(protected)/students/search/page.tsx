@@ -54,7 +54,7 @@ import {
   deriveCheckinState,
   useSchoolCheckinMode,
 } from "~/lib/hooks/use-school-checkin-mode";
-import { usePresenceMode } from "~/components/tenant/tenant-provider";
+import { usePresenceMode } from "~/lib/tenant-context";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
 import { SEARCH_ROOMS_LIST_CACHE_KEY } from "~/lib/swr/room-derived-caches";

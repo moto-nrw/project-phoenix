@@ -334,11 +334,9 @@ export default function GroupsPage() {
       <DatabaseFormModal<Group>
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        title={groupsConfig.labels.createModalTitle}
+        mode="create"
         config={groupsConfig}
         onSubmit={handleCreateGroup}
-        submitLabel="Erstellen"
-        stickyActions
       />
 
       {selectedGroup && (

@@ -16,10 +16,7 @@ import { RequestStatusBadge } from "~/components/messaging/request-status-badge"
 import { useChatViewportLock } from "~/lib/hooks/use-chat-viewport-lock";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { hasPermission } from "~/lib/auth-utils";
-import {
-  useTenant,
-  useTenantSlugSafe,
-} from "~/components/tenant/tenant-provider";
+import { useTenant, useTenantSlugSafe } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
 import {
   type InboxThread,

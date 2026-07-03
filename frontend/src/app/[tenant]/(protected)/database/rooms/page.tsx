@@ -438,11 +438,9 @@ export default function RoomsPage() {
       <DatabaseFormModal<Room>
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        title={roomsConfig.labels.createModalTitle}
+        mode="create"
         config={roomsConfig}
         onSubmit={handleCreateRoom}
-        submitLabel="Erstellen"
-        stickyActions
       />
 
       {selectedRoom && (

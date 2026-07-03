@@ -427,7 +427,6 @@ export const activitiesConfig = defineEntityConfig<Activity>({
   labels: {
     createButton: "Neue Aktivität erstellen",
     createModalTitle: "Neue Aktivität",
-    editModalTitle: "Aktivität bearbeiten",
     detailModalTitle: "Aktivitätsdetails",
     deleteConfirmation:
       "Sind Sie sicher, dass Sie diese Aktivität löschen möchten?",

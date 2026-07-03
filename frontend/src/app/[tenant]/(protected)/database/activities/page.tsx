@@ -409,11 +409,9 @@ function ActivitiesPageContent() {
       <DatabaseFormModal<Activity>
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        title={activitiesConfig.labels.createModalTitle}
+        mode="create"
         config={activitiesConfig}
         onSubmit={handleCreateActivity}
-        submitLabel="Erstellen"
-        stickyActions
       />
 
       {selectedActivity && (
