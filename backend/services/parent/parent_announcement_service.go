@@ -31,7 +31,9 @@ var (
 	// stale client that loaded the RETRACTED wording must not record a read/ack
 	// against the corrected wording it never saw. Handler maps it to 409 so the
 	// portal can refetch and show the current text. Checked only AFTER audience
-	// authorization, so it never reveals an announcement to a non-audience caller.
+	// authorization AND the school's parent-news flag (both collapse to 404
+	// first), so it never reveals an announcement to a non-audience caller or one
+	// whose school disabled the feature.
 	ErrAnnouncementStale = errors.New("parent: announcement changed since it was loaded")
 )
 
@@ -126,6 +128,7 @@ func (s *service) stampAnnouncement(ctx context.Context, accountID, announcement
 	// needs (tenant + ack requirement).
 	var announcementTenantID int64
 	var requiresAck bool
+	var announcementPublishedAt time.Time
 	if err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
 		a, err := s.announcementRepo.FindByID(adminCtx, announcementID)
 		if err != nil {
@@ -145,18 +148,13 @@ func (s *service) stampAnnouncement(ctx context.Context, accountID, announcement
 		if !matched {
 			return ErrAnnouncementNotFound
 		}
-		// Version check AFTER audience authorization (so a non-audience caller
-		// still gets 404, never a stale hint): the client echoes the published_at
-		// it loaded. On the unpublish -> edit -> republish correction path the id
-		// is reused but published_at is re-stamped, so a mismatch means the client
-		// is acting on retracted wording — reject it rather than count a read/ack
-		// for text the guardian never saw. announcementIsLive guarantees
-		// a.PublishedAt is non-nil here.
-		if !a.PublishedAt.Equal(expectedPublishedAt) {
-			return ErrAnnouncementStale
-		}
 		announcementTenantID = a.GetTenantID()
 		requiresAck = a.RequiresAcknowledgement
+		// Capture published_at for the stale-version check, which is deferred
+		// until AFTER the parent-news flag check below so a disabled school
+		// collapses to 404 before a mismatch could surface a 409.
+		// announcementIsLive guarantees a.PublishedAt is non-nil here.
+		announcementPublishedAt = *a.PublishedAt
 		return nil
 	}); err != nil {
 		return err
@@ -183,6 +181,16 @@ func (s *service) stampAnnouncement(ctx context.Context, accountID, announcement
 	}
 	if !on {
 		return ErrAnnouncementNotFound
+	}
+	// Version check AFTER audience authorization AND the parent-news flag (both
+	// return 404 first) so a stale request can never reveal a hidden or
+	// disabled-school announcement via a 409: the client echoes the published_at
+	// it loaded. On the unpublish -> edit -> republish correction path the id is
+	// reused but published_at is re-stamped, so a mismatch means the client is
+	// acting on retracted wording — reject it rather than count a read/ack for
+	// text the guardian never saw.
+	if !announcementPublishedAt.Equal(expectedPublishedAt) {
+		return ErrAnnouncementStale
 	}
 	if ack && !requiresAck {
 		return ErrAnnouncementAckNotRequired

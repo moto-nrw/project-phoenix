@@ -2,16 +2,36 @@
 
 import useSWR from "swr";
 
-import { getChildFeatures, listMyChildren } from "~/lib/parent-api";
+import {
+  getChildFeatures,
+  listAnnouncements,
+  listMyChildren,
+} from "~/lib/parent-api";
 
-// Resolve whether any school the parent has a child at broadcasts parent
-// announcements. Mirrors useParentMealPlanEnabled (list children, one
+// Resolve whether the parent has any discoverable parent-news. Mirrors
+// useParentMealPlanEnabled for the linked-child case (list children, one
 // representative child per tenant, read per-child features) so the
-// parents-portal Neuigkeiten nav/panel only appear when at least one linked
-// school has operations.parent_news_enabled turned on — matching the backend
-// feed, which excludes disabled tenants entirely.
+// parents-portal Neuigkeiten nav/panel appear when at least one linked school
+// has operations.parent_news_enabled turned on — matching the backend feed,
+// which excludes disabled tenants entirely.
+//
+// A guardian can also be targeted via the pending_enrollment audience with NO
+// linked child yet: the backend feed (newsEnabledTenants) unions enrollment
+// requests, so a probe built from children alone would hide the entry from an
+// applicant who already has a targeted announcement. There is no per-tenant
+// feature endpoint to probe those enrollment-only tenants, so we fall back to
+// the feed itself — any item means the parent has news to open, even with no
+// child to read features on.
 async function fetchAnyNewsEnabled(): Promise<boolean> {
-  const children = await listMyChildren();
+  const [children, announcements] = await Promise.all([
+    listMyChildren(),
+    listAnnouncements(),
+  ]);
+  // Any live feed item (linked-child OR pending-enrollment) is discoverable
+  // news — show the entry rather than dead-ending the applicant on a hidden nav.
+  if (announcements.length > 0) {
+    return true;
+  }
   // One representative student per tenant — features are school-scoped.
   const repByTenant = new Map<string, string>();
   for (const child of children) {

@@ -14,15 +14,21 @@ vi.mock("swr");
 vi.mock("~/lib/parent-api", () => ({
   listMyChildren: vi.fn(),
   getChildFeatures: vi.fn(),
+  listAnnouncements: vi.fn(),
 }));
 
 import useSWR, { type SWRResponse } from "swr";
 import { useParentNewsEnabled } from "./use-parent-news-enabled";
-import { getChildFeatures, listMyChildren } from "~/lib/parent-api";
+import {
+  getChildFeatures,
+  listAnnouncements,
+  listMyChildren,
+} from "~/lib/parent-api";
 
 const mockedUseSWR = useSWR as unknown as Mock;
 const mockedListChildren = listMyChildren as unknown as Mock;
 const mockedGetFeatures = getChildFeatures as unknown as Mock;
+const mockedListAnnouncements = listAnnouncements as unknown as Mock;
 
 function swrResult(data: boolean | undefined): SWRResponse<boolean> {
   return {
@@ -50,7 +56,11 @@ beforeEach(() => {
   mockedUseSWR.mockReset();
   mockedListChildren.mockReset();
   mockedGetFeatures.mockReset();
+  mockedListAnnouncements.mockReset();
   mockedUseSWR.mockReturnValue(swrResult(undefined));
+  // Default to an empty feed so the per-child feature probe is exercised; the
+  // feed-short-circuit cases override this explicitly.
+  mockedListAnnouncements.mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -116,6 +126,35 @@ describe("fetchAnyNewsEnabled (via the captured SWR fetcher)", () => {
     renderHook(() => useParentNewsEnabled(true));
     mockedListChildren.mockResolvedValue([child("1", "10")]);
     mockedGetFeatures.mockResolvedValue({ parent_news_enabled: false });
+
+    await expect(capturedFetcher()()).resolves.toBe(false);
+  });
+
+  it("resolves true from the feed alone for an enrollment-only parent (no linked child)", async () => {
+    renderHook(() => useParentNewsEnabled(true));
+    // Pending-enrollment applicant: no linked child yet, but the backend feed
+    // targets them via pending_enrollment and returns an item.
+    mockedListChildren.mockResolvedValue([]);
+    mockedListAnnouncements.mockResolvedValue([{ id: "1" }]);
+
+    await expect(capturedFetcher()()).resolves.toBe(true);
+    // No child to probe → the per-child feature endpoint is never called.
+    expect(mockedGetFeatures).not.toHaveBeenCalled();
+  });
+
+  it("short-circuits on a non-empty feed without probing per-child features", async () => {
+    renderHook(() => useParentNewsEnabled(true));
+    mockedListChildren.mockResolvedValue([child("1", "10")]);
+    mockedListAnnouncements.mockResolvedValue([{ id: "1" }]);
+
+    await expect(capturedFetcher()()).resolves.toBe(true);
+    expect(mockedGetFeatures).not.toHaveBeenCalled();
+  });
+
+  it("resolves false for an enrollment-only parent with an empty feed", async () => {
+    renderHook(() => useParentNewsEnabled(true));
+    mockedListChildren.mockResolvedValue([]);
+    mockedListAnnouncements.mockResolvedValue([]);
 
     await expect(capturedFetcher()()).resolves.toBe(false);
   });
