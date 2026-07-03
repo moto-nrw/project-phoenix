@@ -22,6 +22,10 @@ type fakeAnnouncementRepo struct {
 	recipients   []*usersModels.AnnouncementRecipient
 	updateCalls  int
 	publishCalls int
+	// editOnPublish, when set, replaces the stored row the instant PublishIfDraft
+	// runs — simulating a concurrent edit that committed while PublishIfDraft was
+	// blocked on the row lock. The pre-publish load still sees the original.
+	editOnPublish *usersModels.ParentAnnouncement
 }
 
 func (f *fakeAnnouncementRepo) FindByID(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) {
@@ -40,6 +44,9 @@ func (f *fakeAnnouncementRepo) SetPublished(_ context.Context, _ int64, publishe
 
 func (f *fakeAnnouncementRepo) PublishIfDraft(_ context.Context, _ int64, publishedAt time.Time) (bool, error) {
 	f.publishCalls++
+	if f.editOnPublish != nil {
+		f.announcement = f.editOnPublish
+	}
 	f.announcement.PublishedAt = &publishedAt
 	return true, nil
 }
@@ -215,6 +222,58 @@ func TestPublish_RepublishDoesNotReEnqueue(t *testing.T) {
 	}
 	if len(outbox.requests) != 1 {
 		t.Fatalf("expected no duplicate e-mails on re-publish, got %d", len(outbox.requests))
+	}
+}
+
+// TestPublish_ConcurrentEditWins_UsesFreshRow proves the publish path decides
+// from the post-flip row, not the pre-publish snapshot. A concurrent edit that
+// committed while PublishIfDraft held the row lock toggled send_email off and
+// changed the title; the winner must honour the fresh state (no e-mail here),
+// never re-send with the stale opt-in / old title.
+func TestPublish_ConcurrentEditWins_UsesFreshRow(t *testing.T) {
+	edited := draftAnnouncement(false) // send_email flipped OFF by the concurrent edit
+	edited.Title = "Sommerfest (verschoben)"
+	repo := &fakeAnnouncementRepo{
+		announcement:  draftAnnouncement(true), // pre-publish snapshot: opted INTO e-mail
+		editOnPublish: edited,
+		recipients: []*usersModels.AnnouncementRecipient{
+			{Email: "a@example.test", FirstName: "Anna", LastName: "A"},
+		},
+	}
+	outbox := &fakeOutbox{}
+	svc := newTestService(repo, outbox)
+
+	if _, err := svc.Publish(context.Background(), repo.announcement.ID); err != nil {
+		t.Fatalf("publish failed: %v", err)
+	}
+	if len(outbox.requests) != 0 {
+		t.Fatalf("expected no e-mails: the concurrent edit turned send_email off, got %d", len(outbox.requests))
+	}
+}
+
+// TestPublish_ConcurrentEditExpires_RollsBack proves that when a concurrent edit
+// moves expires_at into the past during the flip, the publish fails (so the
+// tenant tx rolls the flip back) instead of publishing an invisible, immutable,
+// already-expired announcement.
+func TestPublish_ConcurrentEditExpires_RollsBack(t *testing.T) {
+	past := time.Now().Add(-time.Hour)
+	edited := draftAnnouncement(true)
+	edited.ExpiresAt = &past // concurrent edit expired it
+	repo := &fakeAnnouncementRepo{
+		announcement:  draftAnnouncement(true), // pre-publish snapshot: no expiry, passes the pre-check
+		editOnPublish: edited,
+		recipients: []*usersModels.AnnouncementRecipient{
+			{Email: "a@example.test", FirstName: "Anna", LastName: "A"},
+		},
+	}
+	outbox := &fakeOutbox{}
+	svc := newTestService(repo, outbox)
+
+	if _, err := svc.Publish(context.Background(), repo.announcement.ID); err == nil {
+		t.Fatal("expected publish to fail when the row expired concurrently during the flip")
+	}
+	if len(outbox.requests) != 0 {
+		t.Fatalf("expected no e-mails for an expired-during-publish row, got %d", len(outbox.requests))
 	}
 }
 

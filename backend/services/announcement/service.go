@@ -278,10 +278,29 @@ func (s *service) Publish(ctx context.Context, id int64) (*usersModels.ParentAnn
 			return nil, fmt.Errorf("announcement: publish: %w", err)
 		}
 		if published {
-			a.PublishedAt = &now
+			// The `a` loaded above may be stale: PublishIfDraft blocks on the row
+			// lock behind a concurrent Update, then flips the POST-edit row. So an
+			// edit that changed the title, toggled send_email off, or moved
+			// expires_at into the past can commit in that window. Re-read the
+			// committed row (READ COMMITTED tenant tx → sees the concurrent commit)
+			// and decide from it, not from the pre-publish snapshot.
+			fresh, err := s.repo.FindByID(ctx, id)
+			if err != nil {
+				return nil, fmt.Errorf("announcement: reload after publish: %w", err)
+			}
+			if fresh == nil {
+				return nil, fmt.Errorf("announcement: reload after publish: row not found")
+			}
+			// A concurrent edit may have moved expires_at into the past between the
+			// pre-publish check and the atomic flip. Publishing an already-expired
+			// announcement is invalid (invisible to parents, immutable), so fail
+			// with a 5xx: the tenant tx rolls back the flip and staff can retry.
+			if fresh.ExpiresAt != nil && !fresh.ExpiresAt.After(now) {
+				return nil, fmt.Errorf("announcement: draft expired concurrently during publish; rolled back")
+			}
 			s.logger.Info("parent announcement published", slog.Int64("announcement_id", id))
-			if a.SendEmail {
-				if err := s.enqueueAnnouncementEmails(ctx, a); err != nil {
+			if fresh.SendEmail {
+				if err := s.enqueueAnnouncementEmails(ctx, fresh); err != nil {
 					return nil, fmt.Errorf("announcement: publish e-mails: %w", err)
 				}
 			}
