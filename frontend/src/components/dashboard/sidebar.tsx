@@ -521,11 +521,16 @@ function SidebarContent({ className = "" }: SidebarProps) {
     if (item.href === "/timetables" && !timetableEnabled) {
       return false;
     }
-    if (
-      item.href === "/parent-announcements" &&
-      !(parentNewsEnabled && canAnnounce)
-    ) {
-      return false;
+    if (item.href === "/parent-announcements") {
+      if (!canAnnounce) return false;
+      // parentNewsEnabled comes from the settings schema, which requires
+      // config:read. A config reader (admin / config-manager) gates precisely
+      // on the flag. A pure announcer (communications:announce WITHOUT
+      // config:read — grantable to a group lead) cannot load the schema, so the
+      // flag is unknowable for them; hiding the nav would lock an authorized
+      // user out of their own feature. Fall open on the announce permission —
+      // the backend route is the real authority and re-checks the flag on write.
+      return canReadConfig ? parentNewsEnabled : true;
     }
     // The meal plan page requires config:read (admin / config-managers). Gate
     // the nav on the same permission the backend enforces — using hasPermission

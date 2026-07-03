@@ -213,6 +213,37 @@ func TestPublish_RepublishDoesNotReEnqueue(t *testing.T) {
 	}
 }
 
+// failingOutbox always fails Enqueue, standing in for a DB error on the outbox
+// insert (which, inside the publish tenant tx, aborts the whole transaction).
+type failingOutbox struct{}
+
+func (failingOutbox) Enqueue(_ context.Context, _ platformService.EnqueueRequest) (*platformModels.EmailOutbox, error) {
+	return nil, errors.New("outbox insert failed")
+}
+
+// A failed e-mail enqueue must fail the publish rather than being swallowed: the
+// insert runs in the publish transaction, so a DB error aborts it and the commit
+// would fail anyway. Publish must surface the error, not report false success.
+func TestPublish_EmailEnqueueFailureIsFatal(t *testing.T) {
+	repo := &fakeAnnouncementRepo{
+		announcement: draftAnnouncement(true),
+		recipients: []*usersModels.AnnouncementRecipient{
+			{Email: "a@example.test", FirstName: "Anna", LastName: "A"},
+		},
+	}
+	svc := NewService(ServiceConfig{
+		Repo:       repo,
+		Settings:   &fakeSettings{enabled: true},
+		Outbox:     failingOutbox{},
+		ParentsURL: "https://parents.example.test",
+		Logger:     slog.Default(),
+	})
+
+	if _, err := svc.Publish(context.Background(), repo.announcement.ID); err == nil {
+		t.Fatal("expected publish to fail when the e-mail enqueue fails")
+	}
+}
+
 func TestAnnouncementRenderer_TitleAndLinkOnly(t *testing.T) {
 	render := NewAnnouncementRenderer(EmailConfig{})
 	msg, err := render(context.Background(), &platformModels.EmailOutbox{

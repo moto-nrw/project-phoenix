@@ -2,11 +2,20 @@ package users
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
+
+// ErrAnnouncementPublished is returned by the repository Update when the target
+// row is no longer an editable draft — it was published (or deleted) between
+// the service loading it and the write. The staff service maps it to its
+// published-immutable error so a lost race surfaces the same conflict as the
+// load-time check. Keeping it here (not in the service) lets the repository
+// signal the condition without importing the service package.
+var ErrAnnouncementPublished = errors.New("users: parent announcement is published (not editable)")
 
 const (
 	tableUsersParentAnnouncements       = "users.parent_announcements"

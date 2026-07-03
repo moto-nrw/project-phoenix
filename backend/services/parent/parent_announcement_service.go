@@ -35,7 +35,7 @@ func (s *service) ListAnnouncements(ctx context.Context, accountID int64) ([]*us
 	if accountID <= 0 {
 		return nil, fmt.Errorf("parent: account_id must be positive")
 	}
-	tenantIDs, err := s.newsEnabledChildTenants(ctx, accountID)
+	tenantIDs, err := s.newsEnabledTenants(ctx, accountID)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ func (s *service) UnreadAnnouncementCount(ctx context.Context, accountID int64) 
 	if accountID <= 0 {
 		return 0, fmt.Errorf("parent: account_id must be positive")
 	}
-	tenantIDs, err := s.newsEnabledChildTenants(ctx, accountID)
+	tenantIDs, err := s.newsEnabledTenants(ctx, accountID)
 	if err != nil {
 		return 0, err
 	}
@@ -140,22 +140,57 @@ func (s *service) stampAnnouncement(ctx context.Context, accountID, announcement
 	})
 }
 
-// newsEnabledChildTenants returns the distinct tenants the guardian has children
-// at, filtered to those with the parent-news feature enabled. ResolveBoolForTenant
-// opens its own tenant tx, so it runs OUTSIDE the children admin tx (mirrors the
-// messaging UnreadMessageCount pattern). Fails CLOSED: a school is included only
-// when its flag resolves to true, so a disabled school never leaks announcements.
-func (s *service) newsEnabledChildTenants(ctx context.Context, accountID int64) ([]int64, error) {
+// newsEnabledTenants returns the distinct tenants a guardian can receive news
+// from, filtered to those with the parent-news feature enabled. The tenant set
+// is the union of two sources:
+//
+//   - schools where the account has a linked child (childRepo), and
+//   - schools where the account has an open (non-withdrawn) enrollment request.
+//
+// The enrollment source is what makes the pending_enrollment target visible:
+// an applicant can be in an announcement's audience via
+// enrollment.requests.guardian_account_id BEFORE any child is linked at that
+// school, so deriving tenants from children alone hid those announcements from
+// the feed and unread badge while stats + e-mail still counted the applicant.
+// A widened tenant set never over-exposes anything: the per-announcement
+// audience predicate (reachedPredicate in the repository) still decides actual
+// membership, so tenants reached only through a decided/withdrawn request simply
+// yield no matching announcements.
+//
+// ResolveBoolForTenant opens its own tenant tx, so it runs OUTSIDE the admin tx
+// (mirrors the messaging UnreadMessageCount pattern). Fails CLOSED: a school is
+// included only when its flag resolves to true, so a disabled school never leaks
+// announcements.
+func (s *service) newsEnabledTenants(ctx context.Context, accountID int64) ([]int64, error) {
 	var allTenantIDs []int64
+	seen := make(map[int64]bool)
+	add := func(id int64) {
+		if id > 0 && !seen[id] {
+			seen[id] = true
+			allTenantIDs = append(allTenantIDs, id)
+		}
+	}
 	if txErr := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
 		children, err := s.childRepo.ListByAccount(adminCtx, accountID)
 		if err != nil {
 			return err
 		}
-		allTenantIDs = distinctTenantIDs(children)
+		for _, id := range distinctTenantIDs(children) {
+			add(id)
+		}
+		requests, err := s.enrollmentRequestRepo.ListByAccount(adminCtx, accountID)
+		if err != nil {
+			return err
+		}
+		for _, req := range requests {
+			if req == nil || req.WithdrawnAt != nil {
+				continue
+			}
+			add(req.TenantID)
+		}
 		return nil
 	}); txErr != nil {
-		return nil, fmt.Errorf("parent: resolve child tenants: %w", txErr)
+		return nil, fmt.Errorf("parent: resolve news tenants: %w", txErr)
 	}
 	if len(allTenantIDs) == 0 || s.settings == nil {
 		return nil, nil

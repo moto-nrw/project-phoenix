@@ -212,6 +212,12 @@ func (s *service) Update(ctx context.Context, id int64, in Input) (*usersModels.
 	a.SendEmail = in.SendEmail
 	a.ExpiresAt = in.ExpiresAt
 	if err := s.repo.Update(ctx, a); err != nil {
+		// The write is guarded by published_at IS NULL: if the draft was
+		// published between the load above and here, no row matched. Surface the
+		// same immutability conflict the load-time check would have.
+		if errors.Is(err, usersModels.ErrAnnouncementPublished) {
+			return nil, ErrPublishedImmutable
+		}
 		return nil, fmt.Errorf("announcement: update: %w", err)
 	}
 	if err := s.repo.ReplaceTargets(ctx, a.GetTenantID(), a.ID, targets); err != nil {
@@ -260,41 +266,42 @@ func (s *service) Publish(ctx context.Context, id int64) (*usersModels.ParentAnn
 		a.PublishedAt = &now
 		s.logger.Info("parent announcement published", slog.Int64("announcement_id", id))
 		if a.SendEmail {
-			s.enqueueAnnouncementEmails(ctx, a)
+			if err := s.enqueueAnnouncementEmails(ctx, a); err != nil {
+				return nil, fmt.Errorf("announcement: publish e-mails: %w", err)
+			}
 		}
 	}
 	return s.Get(ctx, id)
 }
 
 // enqueueAnnouncementEmails queues one outbox e-mail per targeted guardian with
-// an address. Runs inside the publish tenant tx (the outbox row is tenant
-// scoped). Failures are logged, never fatal: a publish must not roll back
-// because the optional e-mail fan-out hiccupped — the in-app feed is the
-// primary channel. The outbox worker handles the actual async send + retries.
-func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.ParentAnnouncement) {
+// an address. This is a transactional-outbox write: the rows are inserted inside
+// the publish tenant tx, so they commit atomically with published_at. The
+// earlier "log and continue" swallowed DB errors, but a failed statement
+// aborts the whole Postgres transaction — the subsequent read/commit then fails
+// and the publish rolls back anyway, only with a misleading "success" log. So a
+// genuine DB error is returned: the caller rolls back a clean, un-published
+// announcement that staff can retry, rather than half-publishing with no e-mail
+// and no signal. The outbox worker still handles the actual async send + retries
+// (that part remains fire-and-forget). A missing outbox binding or an empty
+// audience are not DB errors and stay non-fatal.
+func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.ParentAnnouncement) error {
 	if s.outbox == nil {
 		s.logger.Warn("parent announcement opted into e-mail but no outbox is wired",
 			slog.Int64("announcement_id", a.ID))
-		return
+		return nil
 	}
 	tenantID := a.GetTenantID()
 	recipients, err := s.repo.ResolveAudienceEmails(ctx, tenantID, a.ID)
 	if err != nil {
-		s.logger.Error("parent announcement: resolve audience e-mails failed",
-			slog.Int64("announcement_id", a.ID),
-			slog.String("error", err.Error()),
-		)
-		return
+		return fmt.Errorf("announcement: resolve audience e-mails: %w", err)
 	}
 	if len(recipients) == 0 {
-		return
+		return nil
 	}
 	schoolName, err := s.repo.SchoolName(ctx, tenantID)
 	if err != nil {
-		s.logger.Warn("parent announcement: school name lookup failed, sending without it",
-			slog.Int64("announcement_id", a.ID),
-			slog.String("error", err.Error()),
-		)
+		return fmt.Errorf("announcement: resolve school name: %w", err)
 	}
 	queued := 0
 	for _, rcpt := range recipients {
@@ -314,11 +321,7 @@ func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.
 			RelatedEntityType: "parent_announcement",
 			RelatedEntityID:   a.ID,
 		}); err != nil {
-			s.logger.Error("parent announcement: enqueue e-mail failed",
-				slog.Int64("announcement_id", a.ID),
-				slog.String("error", err.Error()),
-			)
-			continue
+			return fmt.Errorf("announcement: enqueue e-mail: %w", err)
 		}
 		queued++
 	}
@@ -326,6 +329,7 @@ func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.
 		slog.Int64("announcement_id", a.ID),
 		slog.Int("queued", queued),
 	)
+	return nil
 }
 
 func (s *service) Unpublish(ctx context.Context, id int64) (*usersModels.ParentAnnouncement, error) {

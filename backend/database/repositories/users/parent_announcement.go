@@ -158,6 +158,73 @@ func (r *ParentAnnouncementRepository) ListForTenant(ctx context.Context, includ
 	return rows, nil
 }
 
+// Update writes only the editable content columns of a DRAFT announcement, and
+// it is atomic against a concurrent publish. Two guarantees:
+//
+//  1. It never writes published_at (nor active/created_by), and its WHERE clause
+//     requires published_at IS NULL. So if another staff request publishes the
+//     row between the service loading it and this write, no row matches and the
+//     published wording is left untouched — a stale draft can never silently
+//     revert (or un-publish) a live announcement. A non-match returns
+//     users.ErrAnnouncementPublished, which the service maps to its
+//     published-immutable error.
+//
+//  2. Editing a draft invalidates any read/ack state left over from a previous
+//     publication. The correction path is unpublish -> edit -> republish, and
+//     the old read rows belong to the RETRACTED wording; leaving them would show
+//     a corrected announcement as already read/acknowledged and inflate the
+//     staff stats. It clears the announcement's read rows in the same tenant tx
+//     (a no-op for a never-published draft), so a corrected announcement
+//     re-appears as unread.
+//
+// RLS pins both statements to the current tenant (mirrors SetPublished).
+func (r *ParentAnnouncementRepository) Update(ctx context.Context, a *users.ParentAnnouncement) error {
+	now := time.Now()
+	res, err := base.GetDB(ctx, r.DB).NewUpdate().
+		Model((*users.ParentAnnouncement)(nil)).
+		ModelTableExpr("users.parent_announcements").
+		Set("title = ?", a.Title).
+		Set("body = ?", a.Body).
+		Set("priority = ?", a.Priority).
+		Set("link_url = ?", a.LinkURL).
+		Set("requires_acknowledgement = ?", a.RequiresAcknowledgement).
+		Set("send_email = ?", a.SendEmail).
+		Set("expires_at = ?", a.ExpiresAt).
+		Set("updated_at = ?", now).
+		Where("id = ?", a.ID).
+		Where("published_at IS NULL").
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "update parent announcement draft", Err: err}
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "update parent announcement draft rows affected", Err: err}
+	}
+	if n == 0 {
+		return users.ErrAnnouncementPublished
+	}
+	a.UpdatedAt = now
+	if err := r.clearReads(ctx, a.ID); err != nil {
+		return err
+	}
+	return nil
+}
+
+// clearReads deletes every read/ack row for an announcement (RLS-scoped to the
+// current tenant). Used when a draft is (re-)edited so stale reads from a prior
+// publication don't carry over to the corrected wording.
+func (r *ParentAnnouncementRepository) clearReads(ctx context.Context, announcementID int64) error {
+	if _, err := base.GetDB(ctx, r.DB).NewDelete().
+		Model((*users.ParentAnnouncementRead)(nil)).
+		ModelTableExpr("users.parent_announcement_reads").
+		Where("announcement_id = ?", announcementID).
+		Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: "clear parent announcement reads", Err: err}
+	}
+	return nil
+}
+
 // SetPublished sets (or clears, when publishedAt is nil) the publication
 // timestamp. RLS pins the update to the current tenant.
 func (r *ParentAnnouncementRepository) SetPublished(ctx context.Context, id int64, publishedAt *time.Time) error {

@@ -194,4 +194,59 @@ func TestParentAnnouncementAudienceRecipients(t *testing.T) {
 	assert.Nil(t, findRecipient(missRecipients), "class 9z reaches no recipient in this fixture")
 }
 
+// TestParentAnnouncementUpdate_AtomicAndClearsReads verifies the draft Update:
+// it refuses a published row (WHERE published_at IS NULL, so a concurrent
+// publish can never be silently reverted), and editing a draft clears any
+// read/ack state left over from a previous publication (the correction path).
+func TestParentAnnouncementUpdate_AtomicAndClearsReads(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	repo := usersRepo.NewParentAnnouncementRepository(db)
+	ctx := tenantCtx()
+
+	a := &usersModels.ParentAnnouncement{
+		Title: "Entwurf", Body: "x", Priority: usersModels.ParentAnnouncementPriorityInfo,
+		Active: true, CreatedBy: chain.AccountID,
+	}
+	a.SetTenantID(chain.TenantID)
+	require.NoError(t, repo.Create(ctx, a))
+	require.NoError(t, repo.ReplaceTargets(ctx, chain.TenantID, a.ID,
+		[]*usersModels.ParentAnnouncementTarget{{TargetType: usersModels.AnnouncementTargetSchoolAll}}))
+	t.Cleanup(func() { _ = repo.Delete(ctx, a.ID) })
+
+	// Publish, then the guardian reads + acknowledges.
+	now := time.Now()
+	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
+	require.NoError(t, repo.MarkRead(ctx, chain.TenantID, a.ID, chain.AccountID))
+	require.NoError(t, repo.MarkAcknowledged(ctx, chain.TenantID, a.ID, chain.AccountID))
+	stats, err := repo.Stats(ctx, chain.TenantID, a.ID)
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, stats.ReadCount, 1)
+	require.GreaterOrEqual(t, stats.AcknowledgedCount, 1)
+
+	// A published row is immutable at the write layer: Update matches no row.
+	a.Title = "Heimlich geaendert"
+	require.ErrorIs(t, repo.Update(ctx, a), usersModels.ErrAnnouncementPublished)
+	got, err := repo.FindByID(ctx, a.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Entwurf", got.Title, "published title must not be overwritten")
+
+	// Retract -> edit: the update succeeds and clears the stale reads/acks.
+	require.NoError(t, repo.SetPublished(ctx, a.ID, nil))
+	a.Title = "Korrigiert"
+	require.NoError(t, repo.Update(ctx, a))
+	got, err = repo.FindByID(ctx, a.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Korrigiert", got.Title)
+	assert.Nil(t, got.PublishedAt, "edit must not resurrect published_at")
+
+	stats, err = repo.Stats(ctx, chain.TenantID, a.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 0, stats.ReadCount, "editing a draft clears stale read state")
+	assert.Equal(t, 0, stats.AcknowledgedCount, "editing a draft clears stale ack state")
+}
+
 func strp(s string) *string { return &s }
