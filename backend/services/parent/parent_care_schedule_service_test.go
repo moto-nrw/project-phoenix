@@ -137,3 +137,94 @@ func TestWithdrawCareScheduleRequest_WorksWhenDisabled(t *testing.T) {
 	require.NoError(t, err, "withdraw must stay available even with messaging disabled")
 	assert.Nil(t, view.PendingRequest, "the withdrawn request no longer appears on the read view")
 }
+
+// TestGetChildCareSchedule_ReadViewReflectsPendingRequest drives the parent
+// read-view method (GetChildCareSchedule): it needs only parent_portal.access,
+// so it stays available regardless of the request feature gates, and it
+// surfaces an open request on the view once one exists.
+func TestGetChildCareSchedule_ReadViewReflectsPendingRequest(t *testing.T) {
+	svc, db, _ := buildCareScheduleService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	// Before any request: the view loads and, with messaging on + request.submit,
+	// invites the guardian to request a change.
+	view, err := svc.GetChildCareSchedule(context.Background(), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	require.NotNil(t, view)
+	assert.Nil(t, view.PendingRequest, "no request has been filed yet")
+	assert.True(t, view.CanRequest, "messaging on + request.submit enables the request action")
+
+	// After filing a request, the read view surfaces it with its diff.
+	_, err = svc.CreateCareScheduleRequest(context.Background(), chain.AccountID, chain.StudentID, carePayload())
+	require.NoError(t, err)
+
+	view, err = svc.GetChildCareSchedule(context.Background(), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	require.NotNil(t, view.PendingRequest, "the open request appears on the read view")
+	assert.True(t, view.PendingRequest.SubmittedBySelf)
+}
+
+// TestGetChildCareSchedule_RequiresAccess proves the read view is gated on
+// parent_portal.access: a guardian link without it cannot read the schedule.
+func TestGetChildCareSchedule_RequiresAccess(t *testing.T) {
+	svc, db, _ := buildCareScheduleService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	// Strip every parent_portal permission, including access.
+	_, err := db.ExecContext(context.Background(), `
+		UPDATE users.students_guardians
+		SET permissions = '{}'::jsonb
+		WHERE tenant_id = ? AND student_id = ? AND guardian_profile_id = ?
+	`, chain.TenantID, chain.StudentID, chain.GuardianProfileID)
+	require.NoError(t, err)
+
+	_, err = svc.GetChildCareSchedule(context.Background(), chain.AccountID, chain.StudentID)
+	require.Error(t, err, "reading the care schedule requires parent_portal.access")
+}
+
+// TestChildFeatures_ReflectsPermissionsAndOpenRequest drives the parent
+// overview feature-flag resolver (ChildFeatures) and, through it,
+// hasOpenChangeRequest. With messaging on and the default guardian permissions,
+// the request/notes features are enabled; and once a care-schedule request is
+// pending, HasOpenChangeRequest badges the Stammdaten entry.
+func TestChildFeatures_ReflectsPermissionsAndOpenRequest(t *testing.T) {
+	svc, db, _ := buildCareScheduleService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	// No request yet: the badge is clear, and request/notes features resolve
+	// enabled from the default guardian permissions + messaging on.
+	flags, err := svc.ChildFeatures(context.Background(), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	assert.False(t, flags.HasOpenChangeRequest, "no pending request → no badge")
+	assert.True(t, flags.RequestSubmitEnabled, "default guardian holds request.submit with messaging on")
+	assert.True(t, flags.NotesEnabled, "default guardian holds notes.write with messaging on")
+
+	// File a care-schedule request; the open-request badge now lights up.
+	_, err = svc.CreateCareScheduleRequest(context.Background(), chain.AccountID, chain.StudentID, carePayload())
+	require.NoError(t, err)
+
+	flags, err = svc.ChildFeatures(context.Background(), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	assert.True(t, flags.HasOpenChangeRequest, "a pending care request badges the Stammdaten entry")
+}
+
+// TestWithdrawCareScheduleRequest_NotFound covers the parent-side error mapping:
+// withdrawing a request id the guardian does not own (or that does not exist)
+// surfaces as the parent not-found sentinel, not a raw 500 — the id space must
+// not be probeable from the parents portal.
+func TestWithdrawCareScheduleRequest_NotFound(t *testing.T) {
+	svc, db, _ := buildCareScheduleService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	created, err := svc.CreateCareScheduleRequest(context.Background(), chain.AccountID, chain.StudentID, carePayload())
+	require.NoError(t, err)
+	bogusID := created.PendingRequest.ID + 1_000_000
+
+	_, err = svc.WithdrawCareScheduleRequest(context.Background(), chain.AccountID, chain.StudentID, bogusID)
+	require.ErrorIs(t, err, parentService.ErrCareRequestNotFound,
+		"withdrawing an unknown request id maps to the parent not-found sentinel")
+}

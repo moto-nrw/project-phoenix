@@ -28,6 +28,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
@@ -668,4 +669,104 @@ func TestGetPendingForStudent_ReturnsPendingWithDiff(t *testing.T) {
 	require.NotNil(t, req)
 	require.NotEmpty(t, diff, "an open request carries its current→requested diff")
 	assert.Equal(t, "08:00", diff[0].New)
+}
+
+// TestListPending_ReturnsEnrichedItemWithDiff drives the staff-queue success
+// path: a writable caller (admin) sees the open request enriched with the
+// child's name and a live current→requested diff. This is the counterpart to
+// the forbidden-scope test, which only exercises the empty-queue branch.
+func TestListPending_ReturnsEnrichedItemWithDiff(t *testing.T) {
+	f := newCareFixture(t)
+	f.createPending(t, careWeekdays(
+		map[string]any{"weekday": 1, "mode": "pickup", "arrival": "08:00", "pickup": "16:00"},
+	))
+
+	items, err := f.svc.ListPending(f.staffCtx(f.staffAccount))
+	require.NoError(t, err)
+	require.Len(t, items, 1, "the admin queue must surface the open request")
+
+	item := items[0]
+	assert.NotEmpty(t, item.FirstName, "the queue item is enriched with the child's name")
+	require.NotEmpty(t, item.Diff, "the queue item carries a current→requested diff")
+
+	// The requested Monday values must appear in the diff's "New" column.
+	news := make(map[string]bool)
+	for _, d := range item.Diff {
+		news[d.New] = true
+	}
+	assert.True(t, news["08:00"], "requested arrival should appear in the diff")
+	assert.True(t, news["16:00"], "requested pickup should appear in the diff")
+}
+
+// captureCareBroadcaster records the tenant-wide and global cache-invalidation
+// events the approve path fires so the test can assert both went out.
+type captureCareBroadcaster struct {
+	tenantEvents int
+	allEvents    int
+}
+
+func (b *captureCareBroadcaster) BroadcastToGroup(int64, string, realtime.Event) error { return nil }
+func (b *captureCareBroadcaster) BroadcastToTenant(int64, realtime.Event) error {
+	b.tenantEvents++
+	return nil
+}
+func (b *captureCareBroadcaster) BroadcastToAll(realtime.Event) error { b.allEvents++; return nil }
+func (b *captureCareBroadcaster) BroadcastParentMessage(int64, int64, realtime.Event) error {
+	return nil
+}
+
+// TestDecide_ApproveBroadcastsCacheInvalidation proves that applying a care
+// request fans out the cache-invalidation events (student_updated tenant-wide,
+// arrival_schedule_changed globally) so every open kiosk/dashboard refetches the
+// new plan. The shared fixture wires a nil broadcaster; this rebuilds the service
+// with a capturing one against the SAME db/repos.
+func TestDecide_ApproveBroadcastsCacheInvalidation(t *testing.T) {
+	f := newCareFixture(t)
+	req := f.createPending(t, careWeekdays(
+		map[string]any{"weekday": 1, "arrival": "08:00", "pickup": "16:00"},
+	))
+
+	bc := &captureCareBroadcaster{}
+	svc := schedule.NewCareScheduleRequestService(
+		f.repos.CareScheduleChangeRequest, f.repos.Student, f.repos.Person,
+		f.sf.ArrivalSchedule, f.sf.PickupSchedule, f.sf.UserContext,
+		nil, bc, slog.Default(),
+	)
+
+	_, err := svc.Decide(f.staffCtx(f.staffAccount), schedule.CareRequestDecideInput{
+		RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount,
+	})
+	require.NoError(t, err)
+
+	assert.Positive(t, bc.tenantEvents, "approve must broadcast student_updated to the tenant")
+	assert.Positive(t, bc.allEvents, "approve must broadcast arrival_schedule_changed globally")
+}
+
+// TestWithdrawRequest_BogusIDNotFound covers the repository's no-rows lock
+// branch: withdrawing an id that exists in no tenant returns not-found (never a
+// panic or a leak of another child's row). The id is derived from a real
+// fixture request, then offset past any real row, to stay hermetic.
+func TestWithdrawRequest_BogusIDNotFound(t *testing.T) {
+	f := newCareFixture(t)
+	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 1, "arrival": "08:00"}))
+	bogusID := req.ID + 1_000_000
+
+	_, err := f.svc.WithdrawRequest(f.staffCtx(f.chain.AccountID), bogusID, f.chain.StudentID, f.chain.AccountID)
+	require.ErrorIs(t, err, scheduleModels.ErrCareRequestNotFound,
+		"withdrawing a non-existent request must be not-found")
+}
+
+// TestDecide_BogusIDNotFound covers the staff-decision lock on a missing row:
+// the pending-row lookup returns not-found, so Decide surfaces it instead of
+// dereferencing a nil request.
+func TestDecide_BogusIDNotFound(t *testing.T) {
+	f := newCareFixture(t)
+	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 1, "arrival": "08:00"}))
+	bogusID := req.ID + 1_000_000
+
+	_, err := f.svc.Decide(f.staffCtx(f.staffAccount), schedule.CareRequestDecideInput{
+		RequestID: bogusID, Approve: true, ReviewedBy: f.staffAccount,
+	})
+	require.ErrorIs(t, err, scheduleModels.ErrCareRequestNotFound,
+		"deciding a non-existent request must be not-found")
 }

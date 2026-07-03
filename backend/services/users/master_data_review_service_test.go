@@ -16,10 +16,19 @@ import (
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
+
+// reviewNotesSettings stubs the parentmessaging settings resolver so the emitter
+// treats messaging as enabled (or not) for the decision-pill tests.
+type reviewNotesSettings struct{ enabled bool }
+
+func (s reviewNotesSettings) ResolveBoolForTenant(context.Context, int64, string) (bool, error) {
+	return s.enabled, nil
+}
 
 type reviewRecordingBroadcaster struct {
 	events []realtime.Event
@@ -509,4 +518,97 @@ func TestMasterDataReview_ApproveInvalidRowsRejected(t *testing.T) {
 			assert.ErrorIs(t, err, tt.want)
 		})
 	}
+}
+
+// findRequestStatusPill returns the request_status pill written into the
+// (student, guardian) thread by the emitter after a master-data decision, or
+// nil when none was written. Runs inside the tenant tx so RLS admits the rows.
+func findRequestStatusPill(t *testing.T, db *bun.DB, repos *repositories.Factory, c testpkg.ParentChain) *userModels.ParentMessage {
+	t.Helper()
+	var pill *userModels.ParentMessage
+	err := tenant.WithTenantTx(context.Background(), db, c.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		thread, ferr := repos.ParentMessageThread.FindByStudentGuardian(txCtx, c.StudentID, c.AccountID)
+		if ferr != nil || thread == nil {
+			return ferr
+		}
+		msgs, merr := repos.ParentMessage.ListByThread(txCtx, thread.ID, 50)
+		if merr != nil {
+			return merr
+		}
+		for _, m := range msgs {
+			if m.EventType == userModels.ParentMessageEventRequestStatus {
+				pill = m
+			}
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	return pill
+}
+
+// TestMasterDataReview_ApproveEmitsDecisionPill wires a REAL emitter (not the
+// nil the logic-only tests use) so the after-commit decision pill actually
+// lands: approving a master-data change must drop a "bestätigt" request_status
+// pill, stamped staff/master_data, into the submitting guardian's thread.
+func TestMasterDataReview_ApproveEmitsDecisionPill(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { require.NoError(t, db.Close()) }()
+	repos := repositories.NewFactory(db)
+
+	broadcaster := &reviewRecordingBroadcaster{}
+	emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
+		reviewNotesSettings{enabled: true}, broadcaster, slog.Default())
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, emitter, slog.Default(), broadcaster)
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Maximilian"`)
+
+	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true, ReviewedBy: chain.AccountID})
+		return e
+	})
+	require.NoError(t, err)
+
+	pill := findRequestStatusPill(t, db, repos, chain)
+	require.NotNil(t, pill, "an approved master-data request must drop a decision pill")
+	assert.Equal(t, userModels.ParentMessageRequestStatusDone, pill.RequestStatus)
+	assert.Equal(t, "Anfrage bestätigt, Stammdaten übernommen", pill.Body)
+	assert.Equal(t, userModels.ParentMessageSenderStaff, pill.EventActorKind)
+}
+
+// TestMasterDataReview_RejectEmitsPillWithReason covers the rejection branch of
+// the decision pill: a rejected request carries the "abgelehnt: <reason>" body
+// and the rejected status, never the applied one.
+func TestMasterDataReview_RejectEmitsPillWithReason(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { require.NoError(t, db.Close()) }()
+	repos := repositories.NewFactory(db)
+
+	broadcaster := &reviewRecordingBroadcaster{}
+	emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
+		reviewNotesSettings{enabled: true}, broadcaster, slog.Default())
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, emitter, slog.Default(), broadcaster)
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "last_name", `"Schneider"`, `"Müller"`)
+
+	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: false, Reason: "Nachweis fehlt", ReviewedBy: chain.AccountID})
+		return e
+	})
+	require.NoError(t, err)
+
+	pill := findRequestStatusPill(t, db, repos, chain)
+	require.NotNil(t, pill, "a rejected request must drop a decision pill")
+	assert.Equal(t, userModels.ParentMessageRequestStatusRejected, pill.RequestStatus)
+	assert.Equal(t, "Anfrage abgelehnt: Nachweis fehlt", pill.Body)
+
+	// The rejection must NOT have touched the live record.
+	person, err := repos.Person.FindByID(context.Background(), chain.PersonID)
+	require.NoError(t, err)
+	assert.Equal(t, "Schneider", person.LastName)
 }
