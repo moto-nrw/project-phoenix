@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -32,6 +34,10 @@ var (
 	// ErrReviewStaleValue means the live value no longer matches the request's
 	// old_value baseline, so approval would overwrite a newer staff/import edit.
 	ErrReviewStaleValue = errors.New("users: change request baseline changed")
+	// ErrReviewForbidden means the caller may not decide this request because they
+	// could not edit the child directly (not an admin and not the child's group
+	// supervisor). Same per-child write gate as the direct student edit.
+	ErrReviewForbidden = errors.New("users: change request forbidden")
 )
 
 // MasterDataReviewItem is one pending request enriched with the child's name for
@@ -66,6 +72,7 @@ type masterDataReviewService struct {
 	changeRequestRepo userModels.StudentDataChangeRequestRepository
 	studentRepo       userModels.StudentRepository
 	personRepo        userModels.PersonRepository
+	userCtx           authorize.StudentModifyUserContext
 	broadcaster       realtime.Broadcaster
 	emitter           *parentmessaging.Emitter
 	logger            *slog.Logger
@@ -73,11 +80,14 @@ type masterDataReviewService struct {
 
 // NewMasterDataReviewService wires the staff review service. emitter posts the
 // parent-visible decision pill into the child's chat thread (nil = no pills,
-// e.g. in tests).
+// e.g. in tests). userCtx resolves the caller's supervised groups for the
+// per-child write gate on ListPending/Decide (nil is treated as "no groups", so
+// only admins pass — keep it wired outside admin-only tests).
 func NewMasterDataReviewService(
 	changeRequestRepo userModels.StudentDataChangeRequestRepository,
 	studentRepo userModels.StudentRepository,
 	personRepo userModels.PersonRepository,
+	userCtx authorize.StudentModifyUserContext,
 	emitter *parentmessaging.Emitter,
 	logger *slog.Logger,
 	broadcasters ...realtime.Broadcaster,
@@ -93,6 +103,7 @@ func NewMasterDataReviewService(
 		changeRequestRepo: changeRequestRepo,
 		studentRepo:       studentRepo,
 		personRepo:        personRepo,
+		userCtx:           userCtx,
 		broadcaster:       broadcaster,
 		emitter:           emitter,
 		logger:            logger,
@@ -129,8 +140,16 @@ func (s *masterDataReviewService) ListPending(ctx context.Context) ([]*MasterDat
 		return nil, fmt.Errorf("review: load persons: %w", err)
 	}
 
+	// Scope the queue to children the caller may WRITE (admin, or the child's
+	// group supervisor) — the same gate as Decide, so a staffer only ever sees
+	// requests they can act on. Also scopes the sidebar badge (sums ListPending).
+	writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userCtx)
+
 	items := make([]*MasterDataReviewItem, 0, len(rows))
 	for _, r := range rows {
+		if !writable(students[r.StudentID]) {
+			continue
+		}
 		item := &MasterDataReviewItem{Request: r}
 		if st, ok := students[r.StudentID]; ok {
 			if p, ok := persons[st.PersonID]; ok {
@@ -156,6 +175,19 @@ func (s *masterDataReviewService) Decide(ctx context.Context, input MasterDataRe
 			return nil, ErrReviewNotPending
 		}
 		return nil, fmt.Errorf("review: find pending request: %w", err)
+	}
+
+	// Per-child write authorization: the caller may decide this request only if
+	// they could edit the child directly — admin, or the child's group supervisor
+	// (auth/authorize.CanUpdateStudent, the same gate the direct student edit
+	// uses). Both approve and reject are gated: a staffer who cannot edit the
+	// child has no business deciding its request either way.
+	student, err := s.studentRepo.FindByID(ctx, req.StudentID)
+	if err != nil {
+		return nil, fmt.Errorf("review: load student for decision: %w", err)
+	}
+	if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.userCtx); !ok {
+		return nil, ErrReviewForbidden
 	}
 
 	var reason *string

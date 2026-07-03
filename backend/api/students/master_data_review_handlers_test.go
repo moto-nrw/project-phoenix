@@ -91,11 +91,14 @@ func TestListMasterDataChangeRequests_ReturnsPendingItems(t *testing.T) {
 	assert.Contains(t, body, `"field_key":"first_name"`)
 }
 
-func TestMasterDataChangeRequestRoutesRequireUsersManage(t *testing.T) {
+func TestMasterDataChangeRequestRoutesRequireUsersUpdate(t *testing.T) {
 	testutil.SeedTestJWTConfig()
 	router := (&Resource{MasterDataReviewService: &fakeMasterDataReviewService{}}).Router()
+	// The queue + decide routes now gate on users:update (deciding a request is
+	// the same child write as editing the child directly), with per-child scope
+	// enforced in the service. A caller with only users:read cannot reach them.
 	claims := testutil.DefaultTestClaims()
-	claims.Permissions = []string{permissions.UsersRead, permissions.UsersUpdate}
+	claims.Permissions = []string{permissions.UsersRead}
 	claims.IsAdmin = false
 	token := testutil.MintTestJWT(t, claims)
 

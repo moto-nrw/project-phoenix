@@ -85,6 +85,17 @@ func staffCtx(accountID int64) context.Context {
 	return ctx
 }
 
+// nonAdminCtx carries a staff caller with users:update but NO admin wildcard and
+// no supervised group, so the per-child write gate (CanUpdateStudent) denies —
+// used to prove the queue/decide scope rejects a staffer who cannot edit the
+// child.
+func nonAdminCtx(accountID int64) context.Context {
+	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: int(accountID)})
+	ctx = context.WithValue(ctx, jwt.CtxPermissions, []string{"users:update"})
+	return ctx
+}
+
 func careWeekdays(entries ...map[string]any) map[string]any {
 	list := make([]any, 0, len(entries))
 	for _, e := range entries {
@@ -99,6 +110,33 @@ func (f *careFixture) createPending(t *testing.T, payload map[string]any) *sched
 	req, err := f.svc.CreateRequest(staffCtx(f.chain.AccountID), f.chain.StudentID, f.chain.AccountID, payload)
 	require.NoError(t, err)
 	return req
+}
+
+// TestDecide_ForbiddenWithoutWriteAccess proves the per-child write gate: a
+// staffer with users:update but neither admin nor supervision of the child's
+// group cannot see the request in the scoped queue and cannot decide it either
+// way — while the admin path still decides the same request, proving only the
+// scope blocked the non-admin.
+func TestDecide_ForbiddenWithoutWriteAccess(t *testing.T) {
+	f := newCareFixture(t)
+	req := f.createPending(t, careWeekdays(
+		map[string]any{"weekday": 1, "mode": "pickup", "arrival": "08:00", "pickup": "16:00"},
+	))
+
+	denyCtx := nonAdminCtx(f.staffAccount)
+
+	items, err := f.svc.ListPending(denyCtx)
+	require.NoError(t, err)
+	assert.Empty(t, items, "a non-writable child's request must not appear in the queue")
+
+	_, err = f.svc.Decide(denyCtx, schedule.CareRequestDecideInput{RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount})
+	assert.ErrorIs(t, err, schedule.ErrCareRequestForbidden)
+	_, err = f.svc.Decide(denyCtx, schedule.CareRequestDecideInput{RequestID: req.ID, Approve: false, Reason: "nope", ReviewedBy: f.staffAccount})
+	assert.ErrorIs(t, err, schedule.ErrCareRequestForbidden)
+
+	item, err := f.svc.Decide(staffCtx(f.staffAccount), schedule.CareRequestDecideInput{RequestID: req.ID, Approve: false, Reason: "closing out", ReviewedBy: f.staffAccount})
+	require.NoError(t, err)
+	assert.Equal(t, scheduleModels.CareRequestStatusRejected, item.Request.Status)
 }
 
 // --- Decide: approve applies the plan --------------------------------------

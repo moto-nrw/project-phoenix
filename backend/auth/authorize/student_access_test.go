@@ -341,6 +341,29 @@ func TestCanModifyStudent_NonSupervisorDenies(t *testing.T) {
 	assert.Contains(t, err.Error(), "delete")
 }
 
+func TestWritableStudentFilter(t *testing.T) {
+	// Admin: every student writable, including a groupless one.
+	admin := WritableStudentFilter(context.Background(), []string{"admin:*"}, nil)
+	assert.True(t, admin(studentInGroup(7)))
+	assert.True(t, admin(&users.Student{}))
+	assert.True(t, admin(nil))
+
+	// Nil user context (non-admin): nothing writable.
+	none := WritableStudentFilter(context.Background(), []string{"users:update"}, nil)
+	assert.False(t, none(studentInGroup(7)))
+
+	// Supervisor of group 7 (education group): only students in group 7.
+	sup := WritableStudentFilter(
+		context.Background(),
+		[]string{"users:update"},
+		&stubUserCtx{staff: &users.Staff{}, groups: []*education.Group{{Model: base.Model{ID: 7}}}},
+	)
+	assert.True(t, sup(studentInGroup(7)))
+	assert.False(t, sup(studentInGroup(8)))
+	assert.False(t, sup(&users.Student{}), "a groupless student is admin-only")
+	assert.False(t, sup(nil))
+}
+
 func TestCanUpdateStudent_Wrapper(t *testing.T) {
 	// Happy path: supervises group 5.
 	uc := &stubUserCtx{staff: &users.Staff{}, groups: []*education.Group{{Model: base.Model{ID: 5}}}}

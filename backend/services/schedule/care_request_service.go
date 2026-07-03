@@ -24,6 +24,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -308,11 +310,20 @@ func (s *careScheduleRequestService) ListPending(ctx context.Context) ([]*CareRe
 		return nil, fmt.Errorf("schedule: load persons for care requests: %w", err)
 	}
 
+	// Scope the queue to children the caller may WRITE (admin, or the child's
+	// group supervisor) — the same gate as Decide, so a staffer only ever sees
+	// requests they can actually act on. This also scopes the sidebar badge, which
+	// sums these ListPending results.
+	writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userContext)
+
 	items := make([]*CareRequestReviewItem, 0, len(rows))
 	// One diff source per student so several requests never re-read the same
 	// child (mirrors the per-call memoization the chat diff builder had).
 	sources := map[int64]*careDiffSource{}
 	for _, r := range rows {
+		if !writable(students[r.StudentID]) {
+			continue
+		}
 		item := &CareRequestReviewItem{Request: r}
 		if st, ok := students[r.StudentID]; ok {
 			if p, ok := persons[st.PersonID]; ok {
@@ -365,15 +376,21 @@ func (s *careScheduleRequestService) Decide(ctx context.Context, input CareReque
 		return nil, err
 	}
 
-	// Authorization is the route-level users:manage gate, exactly like the
-	// sibling master-data review queue this surface sits next to — both queues
-	// are the tenant-wide admin "Änderungsanfragen" page, not a per-child staff
-	// edit. No extra per-child write check here: it would make this queue reject
-	// a users:manage staffer who is neither an admin:* wildcard nor the child's
-	// group supervisor, i.e. stricter than its own route contract and than the
-	// master-data queue decided on the same page. Approving still requires a
-	// staff identity to stamp as confirmer (resolved in applyCareScheduleRequest,
-	// 403 when absent).
+	// Per-child write authorization: the caller may decide this request only if
+	// they could edit the child directly — admin, or the child's group supervisor
+	// (auth/authorize.CanUpdateStudent, the exact gate the direct student edit
+	// uses). The route now gates on users:update (not users:manage), so the
+	// deciding surface matches "who may change this child's data" instead of
+	// blanket admin, and a supervising staffer gets a signal + action for their
+	// own group's requests. Reject is gated identically to approve: a staffer who
+	// cannot edit the child has no business winding its request down either.
+	student, err := s.studentRepo.FindByID(ctx, req.StudentID)
+	if err != nil {
+		return nil, fmt.Errorf("schedule: load student for care request decision: %w", err)
+	}
+	if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.userContext); !ok {
+		return nil, ErrCareRequestForbidden
+	}
 
 	if input.Approve {
 		// Two apply-only gates, both mirroring the chat's ConfirmRequest path this
@@ -465,7 +482,7 @@ func (s *careScheduleRequestService) Decide(ctx context.Context, input CareReque
 		return nil, fmt.Errorf("schedule: reload decided care request: %w", err)
 	}
 	item := &CareRequestReviewItem{Request: row}
-	student, err := s.studentRepo.FindByID(ctx, row.StudentID)
+	student, err = s.studentRepo.FindByID(ctx, row.StudentID)
 	if err == nil && student != nil {
 		if person, perr := s.personRepo.FindByID(ctx, student.PersonID); perr == nil && person != nil {
 			item.FirstName = person.FirstName

@@ -191,6 +191,42 @@ func CanDeleteStudent(
 	return CanModifyStudent(ctx, userPermissions, student, userCtx, "delete")
 }
 
+// WritableStudentFilter returns a predicate reporting whether the caller may
+// WRITE a given student, precomputing the caller's supervised-group set once so
+// a caller-side loop (e.g. filtering a review queue) does not re-resolve it per
+// student. The predicate is the set form of CanModifyStudent: admin → every
+// student; otherwise only students in a group the caller supervises (persistent
+// education group or matching active-session template). A student with no group
+// is admin-only, exactly like CanModifyStudent.
+//
+// Deliberately does NOT consult gdpr.student_data_scope: that setting relaxes
+// READS only. Both this filter and CanModifyStudent are write gates, so an
+// "all_staff" read scope must never widen who can see/decide change requests.
+func WritableStudentFilter(ctx context.Context, userPermissions []string, userCtx StudentModifyUserContext) func(*users.Student) bool {
+	if hasAdminPermissions(userPermissions) {
+		return func(*users.Student) bool { return true }
+	}
+	if userCtx == nil {
+		return func(*users.Student) bool { return false }
+	}
+	allowed := make(map[int64]bool)
+	if educationGroups, err := userCtx.GetMyGroups(ctx); err == nil {
+		for _, g := range educationGroups {
+			allowed[g.ID] = true
+		}
+	}
+	if activeGroups, err := userCtx.GetMyActiveGroups(ctx); err == nil {
+		for _, ag := range activeGroups {
+			if templateID, ok := ag.TemplateID(); ok {
+				allowed[templateID] = true
+			}
+		}
+	}
+	return func(student *users.Student) bool {
+		return student != nil && student.GroupID != nil && allowed[*student.GroupID]
+	}
+}
+
 // IsGroupSupervisor reports whether the caller supervises the given
 // education group, counting both the persistent education-group assignment
 // and any active group whose template ID matches. Spontaneous active

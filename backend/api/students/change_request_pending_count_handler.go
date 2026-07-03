@@ -10,12 +10,12 @@ import (
 // pendingChangeRequestCount returns the combined number of pending parent
 // change requests (master-data + care-schedule) for the current tenant. It
 // backs the Änderungsanfragen sidebar badge, which reuses the same UnreadBadge
-// as the Nachrichten badge: a single number the deciding admin clears by
-// working the queue. Both sub-queues are already admin-gated (UsersManage) and
-// deliberately short (see the change-requests page), so summing the two
-// existing ListPending results is cheaper than it looks and keeps the count on
-// the exact same query path the review lists render — no second source that
-// could drift.
+// as the Nachrichten badge: a single number the deciding staffer clears by
+// working the queue. Both sub-queues are users:update-gated and per-child
+// write-scoped in the service (admin or the child's group supervisor), so
+// summing the two ListPending results yields a count scoped to exactly the
+// requests this caller can act on — and keeps the count on the same query path
+// the review lists render, with no second source that could drift.
 func (rs *Resource) pendingChangeRequestCount(w http.ResponseWriter, r *http.Request) {
 	if rs.MasterDataReviewService == nil || rs.CareRequestService == nil {
 		renderError(w, r, ErrorInternalServer(errors.New("change request services not configured")))
