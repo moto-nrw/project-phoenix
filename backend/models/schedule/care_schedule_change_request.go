@@ -102,6 +102,14 @@ type CareScheduleChangeRequestRepository interface {
 	// already decided or withdrawn.
 	FindPendingByIDForUpdate(ctx context.Context, id int64) (*CareScheduleChangeRequest, error)
 
+	// FindByIDForUpdate locks a request row for the current tenant regardless
+	// of status, returning ErrCareRequestNotFound when it is missing. The
+	// guardian withdraw path uses it to verify ownership BEFORE distinguishing
+	// a terminal status, so a stranger cannot probe a foreign child's decided
+	// request id via a not-pending 409 (FindPendingByIDForUpdate leaks that the
+	// row exists before ownership is checked).
+	FindByIDForUpdate(ctx context.Context, id int64) (*CareScheduleChangeRequest, error)
+
 	// Decide moves a pending row to approved/rejected/withdrawn, stamping
 	// decision_reason, reviewed_by, reviewed_at and (for approvals)
 	// applied_at. Withdrawals carry no reviewer stamp.

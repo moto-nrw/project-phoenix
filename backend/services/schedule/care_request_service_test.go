@@ -576,6 +576,12 @@ func TestWithdraw_BySubmitterAndGuards(t *testing.T) {
 	// A second withdraw of the terminal row fails.
 	_, err = f.svc.WithdrawRequest(ctx, req.ID, f.chain.StudentID, f.chain.AccountID)
 	require.ErrorIs(t, err, scheduleModels.ErrCareRequestNotPending)
+
+	// A foreign account probing the now-TERMINAL row must still get not-found,
+	// not the not-pending the submitter gets: ownership is checked before the
+	// pending-status distinction, so a decided request's id stays unprobeable.
+	_, err = f.svc.WithdrawRequest(ctx, req.ID, f.chain.StudentID, other.ID)
+	require.ErrorIs(t, err, scheduleModels.ErrCareRequestNotFound, "a foreign account cannot probe a decided request's id")
 }
 
 // --- GetPendingForStudent --------------------------------------------------

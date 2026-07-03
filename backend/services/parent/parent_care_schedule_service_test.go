@@ -35,9 +35,18 @@ func buildCareScheduleService(t *testing.T, notesEnabled bool) (parentService.Se
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
+	return careScheduleServiceOn(t, db, repos, notesEnabled), db, repos
+}
+
+// careScheduleServiceOn wires the same parent service against an EXISTING
+// db/repos, so a test can rebuild the service with a different messaging toggle
+// while keeping the seeded guardian chain and persisted requests. Allocating a
+// fresh SetupTestDB instead would point the rebuilt service at an empty schema.
+func careScheduleServiceOn(t *testing.T, db *bun.DB, repos *repositories.Factory, notesEnabled bool) parentService.Service {
+	t.Helper()
 	sf, err := services.NewFactory(repos, db, slog.Default())
 	require.NoError(t, err)
-	svc := parentService.NewService(parentService.ServiceConfig{
+	return parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
 		StudentRepo:         repos.Student,
 		GuardianProfileRepo: repos.GuardianProfile,
@@ -53,7 +62,6 @@ func buildCareScheduleService(t *testing.T, notesEnabled bool) (parentService.Se
 		DB:                  db,
 		Logger:              slog.Default(),
 	})
-	return svc, db, repos
 }
 
 func carePayload() map[string]any {
@@ -113,7 +121,7 @@ func TestCreateCareScheduleRequest_DisabledRefused(t *testing.T) {
 // must be able to wind down an outstanding request even after the school turns
 // messaging OFF, instead of leaving it frozen open forever.
 func TestWithdrawCareScheduleRequest_WorksWhenDisabled(t *testing.T) {
-	svc, db, _ := buildCareScheduleService(t, true)
+	svc, db, repos := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
@@ -121,8 +129,9 @@ func TestWithdrawCareScheduleRequest_WorksWhenDisabled(t *testing.T) {
 	require.NoError(t, err)
 	reqID := created.PendingRequest.ID
 
-	// Rebuild the service with messaging OFF, same DB.
-	disabled, _, _ := buildCareScheduleService(t, false)
+	// Rebuild the service with messaging OFF against the SAME db/repos, so the
+	// guardian chain and pending request created above are still visible.
+	disabled := careScheduleServiceOn(t, db, repos, false)
 
 	view, err := disabled.WithdrawCareScheduleRequest(context.Background(), chain.AccountID, chain.StudentID, reqID)
 	require.NoError(t, err, "withdraw must stay available even with messaging disabled")

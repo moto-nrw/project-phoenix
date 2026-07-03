@@ -233,7 +233,12 @@ func (s *careScheduleRequestService) CreateRequest(ctx context.Context, studentI
 }
 
 func (s *careScheduleRequestService) WithdrawRequest(ctx context.Context, requestID, studentID, guardianAccountID int64) (*scheduleModels.CareScheduleChangeRequest, error) {
-	req, err := s.requestRepo.FindPendingByIDForUpdate(ctx, requestID)
+	// Lock the row regardless of status so ownership is checked BEFORE the
+	// pending-status distinction — FindPendingByIDForUpdate would collapse a
+	// terminal (already decided/withdrawn) row into ErrCareRequestNotPending
+	// before the ownership check below runs, letting a stranger probe a foreign
+	// child's decided request id via a 409 instead of the intended 404.
+	req, err := s.requestRepo.FindByIDForUpdate(ctx, requestID)
 	if err != nil {
 		return nil, err
 	}
@@ -242,6 +247,12 @@ func (s *careScheduleRequestService) WithdrawRequest(ctx context.Context, reques
 	// not-found rather than forbidden so the id space is not probeable.
 	if req.SubmittedBy != guardianAccountID || req.StudentID != studentID {
 		return nil, scheduleModels.ErrCareRequestNotFound
+	}
+	// The caller owns a real request; only a still-pending one can be withdrawn.
+	// A caller's own already-terminal request surfaces as not-pending (409),
+	// distinct from the not-found (404) a foreign id gets above.
+	if req.Status != scheduleModels.CareRequestStatusPending {
+		return nil, scheduleModels.ErrCareRequestNotPending
 	}
 	if err := s.requestRepo.Decide(ctx, req.ID, scheduleModels.CareRequestStatusWithdrawn, nil, nil, false); err != nil {
 		return nil, err

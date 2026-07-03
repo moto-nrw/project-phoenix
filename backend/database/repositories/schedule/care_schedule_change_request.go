@@ -111,6 +111,33 @@ func (r *CareScheduleChangeRequestRepository) FindPendingByIDForUpdate(ctx conte
 	return row, nil
 }
 
+// FindByIDForUpdate locks a request row by id for the current tenant,
+// regardless of status, returning ErrCareRequestNotFound when it is absent.
+// Unlike FindPendingByIDForUpdate it does NOT collapse a terminal status into
+// ErrCareRequestNotPending, so the guardian withdraw path can verify ownership
+// on the locked row first and only then decide whether the (owned) request is
+// still pending — a foreign request's id stays reported as not-found.
+func (r *CareScheduleChangeRequestRepository) FindByIDForUpdate(ctx context.Context, id int64) (*schedule.CareScheduleChangeRequest, error) {
+	row := new(schedule.CareScheduleChangeRequest)
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(row).
+		ModelTableExpr(tableExprCareScheduleChangeRequestsAsReq).
+		Where(`"care_schedule_change_request".id = ?`, id).
+		For("UPDATE")
+
+	if where, val, ok := base.TenantWhere(ctx, "care_schedule_change_request"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrCareRequestNotFound
+		}
+		return nil, &modelBase.DatabaseError{Op: "find care schedule change request for update", Err: err}
+	}
+	return row, nil
+}
+
 // Decide transitions a pending row to its final state. reviewed_at is stamped
 // to now for staff decisions; applied_at only when the weekly plan was
 // actually written (approvals). Guardian withdrawals pass reviewedBy = nil
