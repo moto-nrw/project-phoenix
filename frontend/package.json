@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "next build",
-    "build-storybook": "storybook build",
+    "build-storybook": "node scripts/build-storybook.mjs",
     "check": "node scripts/verify-locales.mjs && oxlint . && tsc --noEmit",
     "check:fresh": "rm -f *.tsbuildinfo && node scripts/verify-locales.mjs && oxlint . && tsc --noEmit",
     "dev": "next dev",

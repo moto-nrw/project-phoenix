@@ -1,0 +1,42 @@
+#!/usr/bin/env node
+
+import { spawn } from "node:child_process";
+import { createRequire } from "node:module";
+import path from "node:path";
+
+const require = createRequire(import.meta.url);
+const storybookPackagePath = require.resolve("storybook/package.json");
+const storybookBin = path.join(
+  path.dirname(storybookPackagePath),
+  "dist/bin/dispatcher.js",
+);
+const forwardedArgs = process.argv.slice(2);
+if (forwardedArgs[0] === "--") {
+  forwardedArgs.shift();
+}
+
+const child = spawn(
+  process.execPath,
+  [
+    "--unhandled-rejections=strict",
+    storybookBin,
+    "build",
+    ...forwardedArgs,
+  ],
+  {
+    stdio: "inherit",
+    env: process.env,
+  },
+);
+
+child.on("error", (error) => {
+  console.error(error);
+  process.exit(1);
+});
+
+child.on("exit", (code, signal) => {
+  if (signal) {
+    process.exit(1);
+  }
+  process.exit(code ?? 1);
+});

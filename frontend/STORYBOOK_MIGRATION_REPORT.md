@@ -9,15 +9,16 @@ manual follow-ups, because a temporary server-side rate limit repeatedly
 interrupted the bulk parallel generation partway through — not a real
 classification problem. Each pass re-targeted exactly the files still missing
 a story, converging steadily: 73 → 136 → 198 → 255 → 287 real components
-covered, plus one manually-cleaned duplicate.
+covered, plus one manually-cleaned duplicate. A follow-up added the missing
+parent meal plan story, bringing coverage to 288 storyable components.
 
 **Final state, verified against the current tree:**
 
 | Metric | Count |
 |---|---|
-| Total component `.tsx` files under `src/components/` (excluding `*.test.tsx`/`*.stories.tsx`) | 289 |
-| Total `.stories.tsx` files under `src/components/` | 289 |
-| Components with a genuine story (directly or via a differently-named file for multi-export sources) | 287 |
+| Total component `.tsx` files under `src/components/` (excluding `*.test.tsx`/`*.stories.tsx`) | 290 |
+| Total `.stories.tsx` files under `src/components/` | 290 |
+| Components with a genuine story (directly or via a differently-named file for multi-export sources) | 288 |
 | Legitimately skipped — no renderable component | 2 |
 
 **End-to-end verification performed (not just per-file type-checking):**
@@ -25,7 +26,7 @@ covered, plus one manually-cleaned duplicate.
 | Check | Result |
 |---|---|
 | `pnpm run check` (verify-locales + oxlint + `tsc --noEmit`, the project's zero-warnings gate) | ✅ exit 0, clean |
-| `pnpm exec storybook build --quiet` (real production build of all 289 stories) | ✅ "Storybook build completed successfully" |
+| `pnpm run build-storybook -- --quiet` (real production build of all 290 story files) | ✅ "Storybook build completed successfully" |
 | `pnpm run knip` | ✅ clean — only a config hint (see below), zero unused files/exports flagged |
 
 ## Skipped Files (permanent, not a rate-limit artifact)
@@ -46,6 +47,11 @@ redundant combined file (`phase-enrollment-actions.stories.tsx`) duplicating
 both stories. This duplicate was found and deleted manually after the final
 verification pass — the two dedicated files remain as the canonical stories
 for this source.
+
+`src/components/parent/parent-meal-plan-page.tsx` now has a dedicated Storybook
+entry with mocked parent API responses for populated, empty, unavailable, and
+load-error states. It is a renderable component and is intentionally not listed
+as skipped.
 
 ## knip Configuration Hint
 

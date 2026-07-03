@@ -1,4 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import { BreadcrumbProvider } from "~/lib/breadcrumb-context";
+import { ProfileProvider } from "~/lib/profile-context";
+import { TeacherShellProvider } from "~/lib/shell-auth-context";
 
 import ResponsiveLayout from "./responsive-layout"; // NOSONAR - deprecated component kept for compatibility story coverage.
 
@@ -6,6 +9,20 @@ const meta = {
   title: "components/dashboard/ResponsiveLayout",
   // The component is explicitly deprecated but still tested for compatibility.
   component: ResponsiveLayout, // NOSONAR
+  parameters: {
+    layout: "fullscreen",
+  },
+  decorators: [
+    (Story) => (
+      <BreadcrumbProvider>
+        <ProfileProvider>
+          <TeacherShellProvider>
+            <Story />
+          </TeacherShellProvider>
+        </ProfileProvider>
+      </BreadcrumbProvider>
+    ),
+  ],
 } satisfies Meta<typeof ResponsiveLayout>; // NOSONAR
 
 export default meta;

@@ -2,14 +2,14 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { SessionProvider } from "next-auth/react";
 import { TenantGuard } from "~/components/tenant/tenant-guard";
 
+const stayInStorybook = () => undefined;
+
 const meta = {
   title: "tenant/TenantGuard",
   component: TenantGuard,
   parameters: {
-    // TenantGuard's effects call real next-auth functions (signOut, signIn)
-    // as side effects. The rendered output is driven directly by session
-    // state, not by effect completion, so this is safe to demo — but the
-    // network calls will 404 in Storybook, which is expected and harmless.
+    // Redirecting the iframe would hide the placeholder states these stories
+    // are meant to demonstrate, so redirecting states pass a no-op handler.
     docs: { description: { component: "" } },
   },
 } satisfies Meta<typeof TenantGuard>;
@@ -67,6 +67,7 @@ export const TenantMismatchSwitching: Story = {
  */
 export const OperatorSessionOnTenant: Story = {
   args: {
+    redirect: stayInStorybook,
     children: (
       <div className="p-6 text-sm text-gray-700">Geschützter Seiteninhalt</div>
     ),
@@ -99,6 +100,7 @@ export const OperatorSessionOnTenant: Story = {
  */
 export const ExpiredSession: Story = {
   args: {
+    redirect: stayInStorybook,
     children: (
       <div className="p-6 text-sm text-gray-700">Geschützter Seiteninhalt</div>
     ),
