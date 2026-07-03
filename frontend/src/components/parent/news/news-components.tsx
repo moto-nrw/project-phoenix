@@ -133,6 +133,19 @@ export function NewsDetailModal({
   const [stale, setStale] = useState(false);
   const markedRef = useRef(false);
 
+  // Reset the per-version local flags when the id or published_at (the version
+  // token) changes. On the stale-correction path the parent refetches the feed
+  // and passes the refreshed announcement — same id, new published_at — back into
+  // this same modal instance; without this the stale warning would linger and the
+  // acknowledge button stay hidden (and the read mark suppressed via markedRef)
+  // for the now-current announcement. Declared before the mark-read effect below
+  // so markedRef is cleared before that effect re-runs. A no-op on first mount.
+  useEffect(() => {
+    setStale(false);
+    setActionError(null);
+    markedRef.current = false;
+  }, [item.id, item.published_at]);
+
   useEffect(() => {
     // published_at is the version the backend verifies; feed items always carry
     // it, so a missing value just means there is nothing to mark yet.

@@ -253,8 +253,12 @@ type ParentAnnouncementRepository interface {
 	// closes the window between the service's resolve/authorize phase and this
 	// write: a correction (unpublish -> edit -> republish) re-stamps published_at
 	// and clears reads, so a stale request must not record a read/ack against the
-	// corrected wording the guardian never saw.
-	MarkRead(ctx context.Context, tenantID, announcementID, accountID int64, expectedPublishedAt time.Time) error
-	MarkAcknowledged(ctx context.Context, tenantID, announcementID, accountID int64, expectedPublishedAt time.Time) error
+	// corrected wording the guardian never saw. They return true when the
+	// announcement was still live at that version (the write applied, or a prior
+	// read/ack already existed) and false when the guard missed — the service maps
+	// false to ErrAnnouncementStale so the client gets a 409 and refetches rather
+	// than a silent 200 that diverges from the persisted state.
+	MarkRead(ctx context.Context, tenantID, announcementID, accountID int64, expectedPublishedAt time.Time) (bool, error)
+	MarkAcknowledged(ctx context.Context, tenantID, announcementID, accountID int64, expectedPublishedAt time.Time) (bool, error)
 	Stats(ctx context.Context, tenantID, announcementID int64) (*AnnouncementStats, error)
 }

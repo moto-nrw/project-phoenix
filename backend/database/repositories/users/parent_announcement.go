@@ -623,14 +623,21 @@ func (r *ParentAnnouncementRepository) CountUnreadForAccount(ctx context.Context
 	return count, nil
 }
 
-// liveAtVersion is the EXISTS guard shared by MarkRead/MarkAcknowledged: the
-// read/ack row is only written while the announcement is still live (active,
-// published, publish time reached, not expired) AND its published_at still
-// equals the version the client loaded. published_at = ? already implies NOT
-// NULL. Mirrors announcementIsLive in the service, but evaluated in the same
-// statement as the write so a concurrent correction cannot slip a stale read/ack
-// onto the corrected wording.
-const liveAtVersion = `EXISTS (
+// liveVersionGuardCTE is the leading CTE shared by MarkRead/MarkAcknowledged: it
+// yields a single row IFF the announcement is still live (active, published,
+// publish time reached, not expired) AND its published_at still equals the
+// version the client loaded. published_at = ? already implies NOT NULL. Mirrors
+// announcementIsLive in the service, but evaluated in the same statement as the
+// write so a concurrent correction cannot slip a stale read/ack onto the
+// corrected wording.
+//
+// Both methods gate the read/ack write on EXISTS(guard) AND return EXISTS(guard)
+// as their result, so the caller can tell a genuine no-op (guard missed — a
+// correction slipped in between the service's authorize phase and the write)
+// apart from an idempotent repeat (guard matched, ON CONFLICT skipped the row).
+// Rows-affected alone cannot distinguish those two for MarkRead's DO NOTHING.
+// Its three bind args are announcementID, tenantID, expectedPublishedAt.
+const liveVersionGuardCTE = `WITH guard AS (
 		SELECT 1 FROM users.parent_announcements a
 		WHERE a.id = ? AND a.tenant_id = ?
 			AND a.active
@@ -642,38 +649,51 @@ const liveAtVersion = `EXISTS (
 // MarkRead upserts the account's read row for an announcement (idempotent: a
 // repeat read leaves read_at and any acknowledgement untouched). The insert is
 // gated on the announcement still being live at expectedPublishedAt, so a
-// request that loaded a since-retracted/republished wording records nothing.
-func (r *ParentAnnouncementRepository) MarkRead(ctx context.Context, tenantID, announcementID, accountID int64, expectedPublishedAt time.Time) error {
-	if _, err := base.GetDB(ctx, r.DB).NewRaw(`
-		INSERT INTO users.parent_announcement_reads (tenant_id, announcement_id, account_id, read_at)
-		SELECT ?, ?, ?, ?
-		WHERE `+liveAtVersion+`
-		ON CONFLICT (announcement_id, account_id) DO NOTHING`,
-		tenantID, announcementID, accountID, time.Now(),
-		announcementID, tenantID, expectedPublishedAt,
-	).Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "mark parent announcement read", Err: err}
+// request that loaded a since-retracted/republished wording records nothing. It
+// returns true when the announcement was still live at that version (write
+// applied or a prior read already existed) and false when the version guard
+// missed — the caller maps false to a stale conflict rather than a silent 200.
+func (r *ParentAnnouncementRepository) MarkRead(ctx context.Context, tenantID, announcementID, accountID int64, expectedPublishedAt time.Time) (bool, error) {
+	var live bool
+	if err := base.GetDB(ctx, r.DB).NewRaw(liveVersionGuardCTE+`,
+		ins AS (
+			INSERT INTO users.parent_announcement_reads (tenant_id, announcement_id, account_id, read_at)
+			SELECT ?, ?, ?, ?
+			WHERE EXISTS (SELECT 1 FROM guard)
+			ON CONFLICT (announcement_id, account_id) DO NOTHING
+		)
+		SELECT EXISTS (SELECT 1 FROM guard)`,
+		announcementID, tenantID, expectedPublishedAt, // guard CTE
+		tenantID, announcementID, accountID, time.Now(), // insert values
+	).Scan(ctx, &live); err != nil {
+		return false, &modelBase.DatabaseError{Op: "mark parent announcement read", Err: err}
 	}
-	return nil
+	return live, nil
 }
 
 // MarkAcknowledged upserts the account's read row and stamps acknowledged_at
 // (clearing nothing on a repeat ack). A read row is created if the guardian
-// acknowledges without a prior explicit read. Same version guard as MarkRead.
-func (r *ParentAnnouncementRepository) MarkAcknowledged(ctx context.Context, tenantID, announcementID, accountID int64, expectedPublishedAt time.Time) error {
+// acknowledges without a prior explicit read. Same version guard and return
+// contract as MarkRead: true when the announcement was still live at
+// expectedPublishedAt, false when the guard missed (a since-slipped correction).
+func (r *ParentAnnouncementRepository) MarkAcknowledged(ctx context.Context, tenantID, announcementID, accountID int64, expectedPublishedAt time.Time) (bool, error) {
 	now := time.Now()
-	if _, err := base.GetDB(ctx, r.DB).NewRaw(`
-		INSERT INTO users.parent_announcement_reads (tenant_id, announcement_id, account_id, read_at, acknowledged_at)
-		SELECT ?, ?, ?, ?, ?
-		WHERE `+liveAtVersion+`
-		ON CONFLICT (announcement_id, account_id) DO UPDATE
-		SET acknowledged_at = COALESCE(parent_announcement_reads.acknowledged_at, EXCLUDED.acknowledged_at)`,
-		tenantID, announcementID, accountID, now, now,
-		announcementID, tenantID, expectedPublishedAt,
-	).Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "mark parent announcement acknowledged", Err: err}
+	var live bool
+	if err := base.GetDB(ctx, r.DB).NewRaw(liveVersionGuardCTE+`,
+		ups AS (
+			INSERT INTO users.parent_announcement_reads (tenant_id, announcement_id, account_id, read_at, acknowledged_at)
+			SELECT ?, ?, ?, ?, ?
+			WHERE EXISTS (SELECT 1 FROM guard)
+			ON CONFLICT (announcement_id, account_id) DO UPDATE
+			SET acknowledged_at = COALESCE(parent_announcement_reads.acknowledged_at, EXCLUDED.acknowledged_at)
+		)
+		SELECT EXISTS (SELECT 1 FROM guard)`,
+		announcementID, tenantID, expectedPublishedAt, // guard CTE
+		tenantID, announcementID, accountID, now, now, // upsert values
+	).Scan(ctx, &live); err != nil {
+		return false, &modelBase.DatabaseError{Op: "mark parent announcement acknowledged", Err: err}
 	}
-	return nil
+	return live, nil
 }
 
 // Stats returns the reach/read/ack counts for an announcement. read/ack are

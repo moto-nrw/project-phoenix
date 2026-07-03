@@ -199,12 +199,19 @@ func (s *service) stampAnnouncement(ctx context.Context, accountID, announcement
 	// earlier tx and the settings check opened its own, so the announcement may
 	// have been retracted/republished since. The repo write is guarded on the
 	// announcement still being live at expectedPublishedAt (the version verified
-	// in Phase 1), so a correction that slipped in cannot record a read/ack
-	// against wording the guardian never saw — the stamp is simply a no-op.
+	// in Phase 1), and reports whether it applied: a correction that slipped in
+	// between Phase 1 and here makes the guard miss and the stamp a no-op, which
+	// must surface as ErrAnnouncementStale (409) — not a silent 200 that would let
+	// the client mark the retracted wording read/acknowledged locally while the DB
+	// and staff stats stay unchanged.
 	return tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
 		if ack {
-			if err := s.announcementRepo.MarkAcknowledged(adminCtx, announcementTenantID, announcementID, accountID, expectedPublishedAt); err != nil {
+			applied, err := s.announcementRepo.MarkAcknowledged(adminCtx, announcementTenantID, announcementID, accountID, expectedPublishedAt)
+			if err != nil {
 				return err
+			}
+			if !applied {
+				return ErrAnnouncementStale
 			}
 			s.logger.Info("parent acknowledged announcement",
 				slog.Int64("account_id", accountID),
@@ -212,7 +219,14 @@ func (s *service) stampAnnouncement(ctx context.Context, accountID, announcement
 			)
 			return nil
 		}
-		return s.announcementRepo.MarkRead(adminCtx, announcementTenantID, announcementID, accountID, expectedPublishedAt)
+		applied, err := s.announcementRepo.MarkRead(adminCtx, announcementTenantID, announcementID, accountID, expectedPublishedAt)
+		if err != nil {
+			return err
+		}
+		if !applied {
+			return ErrAnnouncementStale
+		}
+		return nil
 	})
 }
 

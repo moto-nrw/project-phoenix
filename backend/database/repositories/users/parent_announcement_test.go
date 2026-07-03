@@ -123,13 +123,17 @@ func TestParentAnnouncementAudience(t *testing.T) {
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, unreadBefore, 2)
 
-	require.NoError(t, repo.MarkRead(ctx, chain.TenantID, schoolWide.ID, chain.AccountID, *schoolWide.PublishedAt))
+	readApplied, err := repo.MarkRead(ctx, chain.TenantID, schoolWide.ID, chain.AccountID, *schoolWide.PublishedAt)
+	require.NoError(t, err)
+	assert.True(t, readApplied, "reading at the live version applies")
 	unreadAfter, err := repo.CountUnreadForAccount(ctx, chain.AccountID, tenantIDs)
 	require.NoError(t, err)
 	assert.Equal(t, unreadBefore-1, unreadAfter, "reading one announcement drops unread by one")
 
 	// --- Acknowledge stamps the read row ---
-	require.NoError(t, repo.MarkAcknowledged(ctx, chain.TenantID, classMatch.ID, chain.AccountID, *classMatch.PublishedAt))
+	ackApplied, err := repo.MarkAcknowledged(ctx, chain.TenantID, classMatch.ID, chain.AccountID, *classMatch.PublishedAt)
+	require.NoError(t, err)
+	assert.True(t, ackApplied, "acknowledging at the live version applies")
 	stats, err := repo.Stats(ctx, chain.TenantID, classMatch.ID)
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, stats.TargetCount, 1)
@@ -177,7 +181,9 @@ func TestParentAnnouncementAudienceRecipients(t *testing.T) {
 	assert.Nil(t, rcpt.AcknowledgedAt)
 
 	// Read stamps read_at, acknowledge stamps acknowledged_at.
-	require.NoError(t, repo.MarkRead(ctx, chain.TenantID, schoolWide.ID, chain.AccountID, *schoolWide.PublishedAt))
+	readApplied, err := repo.MarkRead(ctx, chain.TenantID, schoolWide.ID, chain.AccountID, *schoolWide.PublishedAt)
+	require.NoError(t, err)
+	assert.True(t, readApplied)
 	recipients, err = repo.AudienceRecipients(ctx, chain.TenantID, schoolWide.ID)
 	require.NoError(t, err)
 	rcpt = findRecipient(recipients)
@@ -185,7 +191,9 @@ func TestParentAnnouncementAudienceRecipients(t *testing.T) {
 	assert.NotNil(t, rcpt.ReadAt)
 	assert.Nil(t, rcpt.AcknowledgedAt)
 
-	require.NoError(t, repo.MarkAcknowledged(ctx, chain.TenantID, schoolWide.ID, chain.AccountID, *schoolWide.PublishedAt))
+	ackApplied, err := repo.MarkAcknowledged(ctx, chain.TenantID, schoolWide.ID, chain.AccountID, *schoolWide.PublishedAt)
+	require.NoError(t, err)
+	assert.True(t, ackApplied)
 	recipients, err = repo.AudienceRecipients(ctx, chain.TenantID, schoolWide.ID)
 	require.NoError(t, err)
 	rcpt = findRecipient(recipients)
@@ -224,8 +232,12 @@ func TestParentAnnouncementUpdate_AtomicAndClearsReads(t *testing.T) {
 	// Publish, then the guardian reads + acknowledges.
 	now := time.Now()
 	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
-	require.NoError(t, repo.MarkRead(ctx, chain.TenantID, a.ID, chain.AccountID, now))
-	require.NoError(t, repo.MarkAcknowledged(ctx, chain.TenantID, a.ID, chain.AccountID, now))
+	readApplied, err := repo.MarkRead(ctx, chain.TenantID, a.ID, chain.AccountID, now)
+	require.NoError(t, err)
+	assert.True(t, readApplied)
+	ackApplied, err := repo.MarkAcknowledged(ctx, chain.TenantID, a.ID, chain.AccountID, now)
+	require.NoError(t, err)
+	assert.True(t, ackApplied)
 	stats, err := repo.Stats(ctx, chain.TenantID, a.ID)
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, stats.ReadCount, 1)
@@ -303,16 +315,24 @@ func TestParentAnnouncementMarkRead_VersionGuard(t *testing.T) {
 		})
 	stale := a.PublishedAt.Add(-time.Hour) // a version the announcement never had
 
-	// A stale published_at records nothing (no error — it is simply a no-op).
-	require.NoError(t, repo.MarkRead(ctx, chain.TenantID, a.ID, chain.AccountID, stale))
-	require.NoError(t, repo.MarkAcknowledged(ctx, chain.TenantID, a.ID, chain.AccountID, stale))
+	// A stale published_at records nothing (no error) and reports the guard miss
+	// as not-applied, so the service can surface it as a 409 instead of a silent
+	// success.
+	staleRead, err := repo.MarkRead(ctx, chain.TenantID, a.ID, chain.AccountID, stale)
+	require.NoError(t, err)
+	assert.False(t, staleRead, "stale-version read reports not applied")
+	staleAck, err := repo.MarkAcknowledged(ctx, chain.TenantID, a.ID, chain.AccountID, stale)
+	require.NoError(t, err)
+	assert.False(t, staleAck, "stale-version ack reports not applied")
 	stats, err := repo.Stats(ctx, chain.TenantID, a.ID)
 	require.NoError(t, err)
 	assert.Equal(t, 0, stats.ReadCount, "stale-version read must not stamp")
 	assert.Equal(t, 0, stats.AcknowledgedCount, "stale-version ack must not stamp")
 
-	// The current version still stamps.
-	require.NoError(t, repo.MarkRead(ctx, chain.TenantID, a.ID, chain.AccountID, *a.PublishedAt))
+	// The current version still stamps and reports applied.
+	liveRead, err := repo.MarkRead(ctx, chain.TenantID, a.ID, chain.AccountID, *a.PublishedAt)
+	require.NoError(t, err)
+	assert.True(t, liveRead, "current-version read applies")
 	stats, err = repo.Stats(ctx, chain.TenantID, a.ID)
 	require.NoError(t, err)
 	assert.Equal(t, 1, stats.ReadCount, "current-version read stamps")
