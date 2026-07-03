@@ -22,6 +22,11 @@ const child = spawn(
     "--unhandled-rejections=strict",
     storybookBin,
     "build",
+    // Make the default output dir explicit so the build lands in
+    // frontend/storybook-static regardless of how the script is invoked.
+    // Callers can still override it: a later --output-dir wins.
+    "--output-dir",
+    "./storybook-static",
     ...forwardedArgs,
   ],
   {

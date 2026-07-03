@@ -6,7 +6,10 @@ import {
   OperatorShellProvider,
   ParentShellProvider,
 } from "~/lib/shell-auth-context";
-import { mockSessionData } from "~storybook/fixtures/session";
+import {
+  mockSessionData,
+  mockTeacherSessionData,
+} from "~storybook/fixtures/session";
 import { Sidebar } from "./sidebar";
 
 const meta = {
@@ -25,7 +28,7 @@ type Story = StoryObj<typeof meta>;
 export const StaffMode: Story = {
   decorators: [
     (Story) => (
-      <SessionProvider session={mockSessionData()}>
+      <SessionProvider session={mockTeacherSessionData()}>
         <ProfileProvider>
           <TeacherShellProvider>
             <Story />
@@ -55,7 +58,11 @@ export const AdminMode: Story = {
 export const OperatorMode: Story = {
   decorators: [
     (Story) => (
-      <SessionProvider session={mockSessionData()}>
+      <SessionProvider
+        session={mockSessionData({
+          user: { roles: ["operator"], permissions: [], scope: "platform" },
+        })}
+      >
         <OperatorShellProvider>
           <Story />
         </OperatorShellProvider>
@@ -67,7 +74,11 @@ export const OperatorMode: Story = {
 export const ParentMode: Story = {
   decorators: [
     (Story) => (
-      <SessionProvider session={mockSessionData()}>
+      <SessionProvider
+        session={mockSessionData({
+          user: { roles: ["guardian"], permissions: [], scope: "parent" },
+        })}
+      >
         <ParentShellProvider>
           <Story />
         </ParentShellProvider>
