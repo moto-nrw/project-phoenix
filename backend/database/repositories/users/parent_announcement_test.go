@@ -2,6 +2,8 @@ package users_test
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -469,6 +472,144 @@ func TestParentAnnouncementAudience_FutureEnrollmentExcluded(t *testing.T) {
 	matched, err = repo.AccountMatchesAnnouncement(ctx, chain.TenantID, ann.ID, chain.AccountID)
 	require.NoError(t, err)
 	assert.True(t, matched, "a started enrollment reaches the guardian")
+}
+
+// TestParentAnnouncementAudience_PendingEnrollmentEmailFallback verifies a
+// pending_enrollment announcement reaches an applicant whose enrollment request
+// was never stamped with guardian_account_id but whose guardian_email matches
+// the account's e-mail — the same ownership fallback that
+// parent.EnrollmentRequestRepository.ListByAccount (and thus newsEnabledTenants)
+// applies. Without it the applicant saw the school in the feed's tenant set yet
+// no announcement, while staff stats + e-mail counted them symmetrically. All
+// four surfaces (feed/unread, count, recipients, e-mail, stats) must agree.
+func TestParentAnnouncementAudience_PendingEnrollmentEmailFallback(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db) // account with a real e-mail, tenant 1
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	bg := context.Background()
+	repo := usersRepo.NewParentAnnouncementRepository(db)
+	ctx := tenantCtx()
+	tenantIDs := []int64{chain.TenantID}
+
+	// A phase to anchor the enrollment request FK.
+	phase := &enrollmentModels.Phase{
+		Name:                      "Testphase",
+		ServiceStartDate:          timezone.NewDate(2026, time.September, 1),
+		ServiceEndDate:            timezone.NewDate(2027, time.July, 31),
+		CareOverflowMode:          "waitlist",
+		CareOfferingSelectionMode: "optional",
+	}
+	phase.SetTenantID(chain.TenantID)
+	_, err := db.NewInsert().Model(phase).ModelTableExpr("enrollment.phases").Exec(bg)
+	require.NoError(t, err)
+	// defer (not t.Cleanup) so the row is removed while db is still open — the
+	// LIFO order deletes child -> request -> phase before CleanupParentGuardianChain
+	// and db.Close, keeping tenant 1's open-enrollment set clean for other tests.
+	defer func() {
+		_, _ = db.NewDelete().Model((*enrollmentModels.Phase)(nil)).
+			ModelTableExpr("enrollment.phases").Where("id = ?", phase.ID).Exec(bg)
+	}()
+
+	// An UNSTAMPED request (guardian_account_id NULL) whose e-mail matches the
+	// chain account — the invite-accept-backfill-failed edge case.
+	req := &enrollmentModels.Request{
+		PhaseID:           phase.ID,
+		GuardianFirstName: "Sabine",
+		GuardianLastName:  "Schneider",
+		GuardianEmail:     chain.Email,
+		GuardianAccountID: nil,
+		StatusToken:       fmt.Sprintf("tok-%d", time.Now().UnixNano()),
+		SubmittedAt:       time.Now(),
+	}
+	req.SetTenantID(chain.TenantID)
+	_, err = db.NewInsert().Model(req).ModelTableExpr("enrollment.requests").Exec(bg)
+	require.NoError(t, err)
+	defer func() {
+		_, _ = db.NewDelete().Model((*enrollmentModels.Request)(nil)).
+			ModelTableExpr("enrollment.requests").Where("id = ?", req.ID).Exec(bg)
+	}()
+
+	child := &enrollmentModels.RequestChild{
+		RequestID:   req.ID,
+		FirstName:   "Felix",
+		LastName:    "Schneider",
+		DateOfBirth: timezone.NewDate(2019, time.March, 3),
+		Status:      enrollmentModels.ChildStatusSubmitted,
+	}
+	child.SetTenantID(chain.TenantID)
+	_, err = db.NewInsert().Model(child).ModelTableExpr("enrollment.request_children").Exec(bg)
+	require.NoError(t, err)
+	defer func() {
+		_, _ = db.NewDelete().Model((*enrollmentModels.RequestChild)(nil)).
+			ModelTableExpr("enrollment.request_children").Where("id = ?", child.ID).Exec(bg)
+	}()
+
+	ann := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+		"Offene Anmeldungen", []*usersModels.ParentAnnouncementTarget{
+			{TargetType: usersModels.AnnouncementTargetPendingEnrollment},
+		})
+	// Delete the announcement while db is still open (before CleanupParentGuardianChain
+	// runs), so the created_by FK does not block the chain account teardown.
+	defer func() { _ = repo.Delete(ctx, ann.ID) }()
+
+	// --- AccountMatchesAnnouncement: the e-mail-matched applicant is reached ---
+	matched, err := repo.AccountMatchesAnnouncement(ctx, chain.TenantID, ann.ID, chain.AccountID)
+	require.NoError(t, err)
+	assert.True(t, matched, "an unstamped request whose e-mail matches the account must be reached")
+
+	// A different account (no matching request e-mail) must NOT be reached — the
+	// fallback resolves the real account, it does not match everyone.
+	other := testpkg.CreateTestAccount(t, db, "other-parent")
+	defer testpkg.CleanupAccount(t, db, other.ID)
+	otherMatched, err := repo.AccountMatchesAnnouncement(ctx, chain.TenantID, ann.ID, other.ID)
+	require.NoError(t, err)
+	assert.False(t, otherMatched, "an account with no matching enrollment request must NOT be reached")
+
+	// --- Feed + unread badge include the announcement ---
+	feed, err := repo.ListFeedForAccount(ctx, chain.AccountID, tenantIDs)
+	require.NoError(t, err)
+	inFeed := false
+	for _, item := range feed {
+		if item.ID == ann.ID {
+			inFeed = true
+		}
+	}
+	assert.True(t, inFeed, "feed includes the pending_enrollment announcement for the e-mail-matched applicant")
+
+	unread, err := repo.CountUnreadForAccount(ctx, chain.AccountID, tenantIDs)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, unread, 1, "unread badge counts the announcement")
+
+	// --- Staff surfaces: audience count, recipients, e-mail, stats ---
+	count, err := repo.CountAudience(ctx, chain.TenantID, ann.ID)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, count, 1, "the e-mail-matched applicant counts toward the audience")
+
+	recipients, err := repo.AudienceRecipients(ctx, chain.TenantID, ann.ID)
+	require.NoError(t, err)
+	foundRcpt := false
+	for _, r := range recipients {
+		if r.AccountID == chain.AccountID {
+			foundRcpt = true
+		}
+	}
+	assert.True(t, foundRcpt, "recipients include the e-mail-matched applicant account")
+
+	emails, err := repo.ResolveAudienceEmails(ctx, chain.TenantID, ann.ID)
+	require.NoError(t, err)
+	foundEmail := false
+	for _, e := range emails {
+		if strings.EqualFold(e.Email, chain.Email) {
+			foundEmail = true
+		}
+	}
+	assert.True(t, foundEmail, "the e-mail send targets the applicant's address")
+
+	stats, err := repo.Stats(ctx, chain.TenantID, ann.ID)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, stats.TargetCount, 1, "stats count the e-mail-matched applicant")
 }
 
 func strp(s string) *string { return &s }

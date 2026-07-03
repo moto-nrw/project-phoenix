@@ -66,6 +66,18 @@ func pendingStatusList() string {
 // relationship rows but has lost portal access, so they drop out; mirrors
 // parent messaging + parent.ChildRepository) and the guardian-based
 // pending_enrollment target.
+//
+// The pending_enrollment branch matches an open enrollment request to the
+// account two ways, mirroring the parent.EnrollmentRequestRepository.ListByAccount
+// ownership rule that drives "Meine Anmeldungen" and newsEnabledTenants:
+//   - primary: req.guardian_account_id = acc (stamped on a parent-auth submit or
+//     backfilled by the invite-accept flow)
+//   - fallback: req.guardian_account_id IS NULL AND the request's guardian_email
+//     matches the account's e-mail (case/trim-insensitive)
+//
+// Without the fallback an applicant whose submission was never stamped (e.g. a
+// silently-failed invite-accept backfill) sees the school in the feed's tenant
+// set yet no announcement, while staff stats/e-mail counted them symmetrically.
 func reachedPredicate(annExpr, tenantExpr, accPlace string) string {
 	return fmt.Sprintf(`(
 		EXISTS (
@@ -97,7 +109,18 @@ func reachedPredicate(annExpr, tenantExpr, accPlace string) string {
 			SELECT 1
 			FROM users.parent_announcement_targets pt
 			JOIN enrollment.requests req ON req.tenant_id = %[2]s
-				AND req.guardian_account_id = %[3]s AND req.withdrawn_at IS NULL
+				AND req.withdrawn_at IS NULL
+				AND (
+					req.guardian_account_id = %[3]s
+					OR (
+						req.guardian_account_id IS NULL
+						AND EXISTS (
+							SELECT 1 FROM auth.accounts ea
+							WHERE ea.id = %[3]s AND ea.email IS NOT NULL
+								AND LOWER(TRIM(req.guardian_email)) = LOWER(TRIM(ea.email))
+						)
+					)
+				)
 			JOIN enrollment.request_children rc ON rc.request_id = req.id AND rc.tenant_id = %[2]s
 				AND rc.status IN (%[4]s)
 			WHERE pt.announcement_id = %[1]s AND pt.tenant_id = %[2]s
@@ -349,13 +372,17 @@ func (r *ParentAnnouncementRepository) CountAudience(ctx context.Context, tenant
 
 			UNION
 
-			SELECT DISTINCT req.guardian_account_id AS account_id
+			SELECT DISTINCT COALESCE(req.guardian_account_id, ea.id) AS account_id
 			FROM users.parent_announcement_targets pt
 			JOIN enrollment.requests req ON req.tenant_id = ?
-				AND req.guardian_account_id IS NOT NULL AND req.withdrawn_at IS NULL
+				AND req.withdrawn_at IS NULL
+			LEFT JOIN auth.accounts ea ON req.guardian_account_id IS NULL
+				AND ea.email IS NOT NULL
+				AND LOWER(TRIM(ea.email)) = LOWER(TRIM(req.guardian_email))
 			JOIN enrollment.request_children rc ON rc.request_id = req.id AND rc.tenant_id = ?
 				AND rc.status IN (%s)
 			WHERE pt.announcement_id = ? AND pt.tenant_id = ? AND pt.target_type = 'pending_enrollment'
+				AND COALESCE(req.guardian_account_id, ea.id) IS NOT NULL
 		) reached`, pendingStatusList())
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
 		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID, // student path
@@ -401,14 +428,15 @@ func (r *ParentAnnouncementRepository) AccountMatchesAnnouncement(ctx context.Co
 // Pending EXISTS, in order:
 //
 //	req.tenant_id = ?               -> tenant
-//	req.guardian_account_id = ?     -> acc
+//	req.guardian_account_id = ?     -> acc   (primary ownership match)
+//	ea.id = ?                       -> acc   (e-mail fallback: ea.id = account)
 //	rc.tenant_id = ?                -> tenant
 //	pt.announcement_id = ?          -> ann
 //	pt.tenant_id = ?                -> tenant
 func reachedArgs(announcementID, tenantID, accountID int64) []any {
 	return []any{
 		tenantID, tenantID, tenantID, tenantID, accountID, announcementID, tenantID, // student EXISTS
-		tenantID, accountID, tenantID, announcementID, tenantID, // pending EXISTS
+		tenantID, accountID, accountID, tenantID, announcementID, tenantID, // pending EXISTS
 	}
 }
 
@@ -425,7 +453,11 @@ func (r *ParentAnnouncementRepository) ResolveAudienceEmails(ctx context.Context
 	// Only guardians WITH a linked account receive the e-mail: the mail is a
 	// pointer into the parent portal (title + link, no body), which is useless
 	// without an account — and it keeps recipients consistent with the feed
-	// audience and the staff reach stats.
+	// audience and the staff reach stats. A pending_enrollment applicant counts
+	// as linked either way the feed audience does: a stamped guardian_account_id,
+	// or an unstamped request whose guardian_email resolves to an auth.accounts
+	// row (the ListByAccount e-mail fallback) — the ea.id IS NOT NULL guard drops
+	// requests with no account at all.
 	var rows []*users.AnnouncementRecipient
 	sqlStr := fmt.Sprintf(`
 		SELECT email,
@@ -464,11 +496,15 @@ func (r *ParentAnnouncementRepository) ResolveAudienceEmails(ctx context.Context
 			COALESCE(req.guardian_first_name, '') AS first_name, COALESCE(req.guardian_last_name, '') AS last_name
 		FROM users.parent_announcement_targets pt
 		JOIN enrollment.requests req ON req.tenant_id = ?
-			AND req.withdrawn_at IS NULL AND req.guardian_account_id IS NOT NULL
+			AND req.withdrawn_at IS NULL
 			AND length(btrim(req.guardian_email)) > 0
+		LEFT JOIN auth.accounts ea ON req.guardian_account_id IS NULL
+			AND ea.email IS NOT NULL
+			AND LOWER(TRIM(ea.email)) = LOWER(TRIM(req.guardian_email))
 		JOIN enrollment.request_children rc ON rc.request_id = req.id AND rc.tenant_id = ?
 			AND rc.status IN (%s)
 		WHERE pt.announcement_id = ? AND pt.tenant_id = ? AND pt.target_type = 'pending_enrollment'
+			AND (req.guardian_account_id IS NOT NULL OR ea.id IS NOT NULL)
 		) recips
 		GROUP BY email`,
 		pendingStatusList())
@@ -534,14 +570,18 @@ func (r *ParentAnnouncementRepository) AudienceRecipients(ctx context.Context, t
 
 			UNION
 
-			SELECT req.guardian_account_id,
+			SELECT COALESCE(req.guardian_account_id, ea.id) AS account_id,
 				COALESCE(req.guardian_first_name, '') AS first_name, COALESCE(req.guardian_last_name, '') AS last_name
 			FROM users.parent_announcement_targets pt
 			JOIN enrollment.requests req ON req.tenant_id = ?
-				AND req.withdrawn_at IS NULL AND req.guardian_account_id IS NOT NULL
+				AND req.withdrawn_at IS NULL
+			LEFT JOIN auth.accounts ea ON req.guardian_account_id IS NULL
+				AND ea.email IS NOT NULL
+				AND LOWER(TRIM(ea.email)) = LOWER(TRIM(req.guardian_email))
 			JOIN enrollment.request_children rc ON rc.request_id = req.id AND rc.tenant_id = ?
 				AND rc.status IN (%s)
 			WHERE pt.announcement_id = ? AND pt.tenant_id = ? AND pt.target_type = 'pending_enrollment'
+				AND COALESCE(req.guardian_account_id, ea.id) IS NOT NULL
 		) acc
 		LEFT JOIN users.parent_announcement_reads par
 			ON par.announcement_id = ? AND par.account_id = acc.account_id
@@ -586,9 +626,11 @@ func (r *ParentAnnouncementRepository) ListFeedForAccount(ctx context.Context, a
 			AND ` + reached + `
 		ORDER BY a.published_at DESC, a.id DESC`
 	// Arg order: read-state join (acc), tenant set, then reachedPredicate's acc
-	// appears twice (student + pending EXISTS) since ann/tenant are column refs.
+	// appears three times (student EXISTS once, pending EXISTS twice: the primary
+	// guardian_account_id match plus the e-mail-fallback acc.id) since ann/tenant
+	// are column refs.
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
-		accountID, bun.List(tenantIDs), accountID, accountID,
+		accountID, bun.List(tenantIDs), accountID, accountID, accountID,
 	).Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list parent announcement feed", Err: err}
 	}
@@ -615,8 +657,10 @@ func (r *ParentAnnouncementRepository) CountUnreadForAccount(ctx context.Context
 			AND (a.expires_at IS NULL OR a.expires_at > NOW())
 			AND par.read_at IS NULL
 			AND ` + reached
+	// Arg order mirrors ListFeedForAccount: read-state join (acc), tenant set,
+	// then reachedPredicate's acc three times (student once, pending twice).
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
-		accountID, bun.List(tenantIDs), accountID, accountID,
+		accountID, bun.List(tenantIDs), accountID, accountID, accountID,
 	).Scan(ctx, &count); err != nil {
 		return 0, &modelBase.DatabaseError{Op: "count unread parent announcements", Err: err}
 	}
@@ -727,13 +771,17 @@ func (r *ParentAnnouncementRepository) Stats(ctx context.Context, tenantID, anno
 				AND act.tenant_id = gp.tenant_id AND act.status = 'active'
 			WHERE pt.announcement_id = ? AND pt.tenant_id = ?
 			UNION
-			SELECT DISTINCT req.guardian_account_id AS account_id
+			SELECT DISTINCT COALESCE(req.guardian_account_id, ea.id) AS account_id
 			FROM users.parent_announcement_targets pt
 			JOIN enrollment.requests req ON req.tenant_id = ?
-				AND req.guardian_account_id IS NOT NULL AND req.withdrawn_at IS NULL
+				AND req.withdrawn_at IS NULL
+			LEFT JOIN auth.accounts ea ON req.guardian_account_id IS NULL
+				AND ea.email IS NOT NULL
+				AND LOWER(TRIM(ea.email)) = LOWER(TRIM(req.guardian_email))
 			JOIN enrollment.request_children rc ON rc.request_id = req.id AND rc.tenant_id = ?
 				AND rc.status IN (%s)
 			WHERE pt.announcement_id = ? AND pt.tenant_id = ? AND pt.target_type = 'pending_enrollment'
+				AND COALESCE(req.guardian_account_id, ea.id) IS NOT NULL
 		)
 		SELECT
 			(SELECT COUNT(*) FROM audience) AS target_count,
