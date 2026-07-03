@@ -116,15 +116,19 @@ func (s *service) stampAnnouncement(ctx context.Context, accountID, announcement
 		if a == nil || !announcementIsLive(a) {
 			return ErrAnnouncementNotFound
 		}
-		if ack && !a.RequiresAcknowledgement {
-			return ErrAnnouncementAckNotRequired
-		}
+		// Authorize audience membership BEFORE any other 4xx: an unmatched caller
+		// must always get 404 so a parent token cannot enumerate live announcement
+		// IDs (or their ack flags) by distinguishing ack-not-required (400) from
+		// not-found (404) responses across tenants.
 		matched, err := s.announcementRepo.AccountMatchesAnnouncement(adminCtx, a.GetTenantID(), announcementID, accountID)
 		if err != nil {
 			return fmt.Errorf("parent: match announcement audience: %w", err)
 		}
 		if !matched {
 			return ErrAnnouncementNotFound
+		}
+		if ack && !a.RequiresAcknowledgement {
+			return ErrAnnouncementAckNotRequired
 		}
 		if ack {
 			if err := s.announcementRepo.MarkAcknowledged(adminCtx, a.GetTenantID(), announcementID, accountID); err != nil {

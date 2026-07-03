@@ -558,6 +558,9 @@ function ParentAnnouncementsContent() {
           activities={activities ?? []}
           schoolClasses={schoolClasses ?? []}
           onClose={closeForm}
+          onRefresh={async () => {
+            await mutate();
+          }}
           onSaved={async () => {
             await mutate();
             closeForm();
@@ -649,6 +652,12 @@ interface AnnouncementFormModalProps {
   readonly schoolClasses: string[];
   readonly onClose: () => void;
   readonly onSaved: () => Promise<void> | void;
+  /**
+   * Refresh the list WITHOUT closing the modal — used when the draft was saved
+   * but publishing failed, so the new/updated draft appears in the list while
+   * the publish error stays visible for the user to retry.
+   */
+  readonly onRefresh: () => Promise<void> | void;
 }
 
 const WIZARD_STEPS = ["Inhalt", "Empfänger"] as const;
@@ -666,9 +675,17 @@ function AnnouncementFormModal({
   schoolClasses,
   onClose,
   onSaved,
+  onRefresh,
 }: AnnouncementFormModalProps) {
   const isEdit = announcement !== null;
   const [step, setStep] = useState(0);
+  // Tracks the id of the draft once it exists in the backend. Seeded from an
+  // existing draft when editing; set after a create so that a publish-retry
+  // (the modal stays open when publishing fails) updates that same draft
+  // instead of creating a duplicate.
+  const [persistedId, setPersistedId] = useState<string | null>(
+    announcement?.id ?? null,
+  );
 
   const [title, setTitle] = useState(announcement?.title ?? "");
   const [body, setBody] = useState(announcement?.body ?? "");
@@ -740,16 +757,17 @@ function AnnouncementFormModal({
     setSubmitting(publish ? "publish" : "draft");
     setFormError("");
     try {
-      const saved =
-        isEdit && announcement
-          ? await updateAnnouncement(announcement.id, input)
-          : await createAnnouncement(input);
+      const saved = persistedId
+        ? await updateAnnouncement(persistedId, input)
+        : await createAnnouncement(input);
+      setPersistedId(saved.id);
       if (publish) {
         try {
           await publishAnnouncement(saved.id);
         } catch (err) {
-          // The draft is saved — surface only the publish failure so nothing
-          // is lost and the user can retry from the list.
+          // The draft is saved — surface only the publish failure so nothing is
+          // lost. Refresh the list so the draft appears, but keep THIS modal
+          // open so the error stays visible and the user can retry publishing.
           const message =
             err instanceof Error
               ? err.message
@@ -758,7 +776,7 @@ function AnnouncementFormModal({
             `Als Entwurf gespeichert, aber das Veröffentlichen ist fehlgeschlagen: ${message}`,
           );
           logger.error("announcement_publish_failed", { error: message });
-          await onSaved();
+          await onRefresh();
           return;
         }
       }

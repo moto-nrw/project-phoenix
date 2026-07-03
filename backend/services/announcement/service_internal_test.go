@@ -95,6 +95,7 @@ func TestNormalizeInput_Errors(t *testing.T) {
 	}{
 		{"empty title", Input{Title: "  ", Body: "x", Targets: []TargetInput{{TargetType: usersModels.AnnouncementTargetSchoolAll}}}},
 		{"empty body", Input{Title: "t", Body: "  ", Targets: []TargetInput{{TargetType: usersModels.AnnouncementTargetSchoolAll}}}},
+		{"body too long", Input{Title: "t", Body: "x" + string(make([]byte, maxBodyLen)), Targets: []TargetInput{{TargetType: usersModels.AnnouncementTargetSchoolAll}}}},
 		{"bad priority", Input{Title: "t", Body: "b", Priority: "urgent", Targets: []TargetInput{{TargetType: usersModels.AnnouncementTargetSchoolAll}}}},
 		{"no targets", Input{Title: "t", Body: "b"}},
 		{"unknown target", Input{Title: "t", Body: "b", Targets: []TargetInput{{TargetType: "everyone"}}}},

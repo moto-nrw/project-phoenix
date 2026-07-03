@@ -30,6 +30,7 @@ type OutboxEnqueuer interface {
 
 const (
 	maxTitleLen   = 200
+	maxBodyLen    = 4000
 	maxLinkURLLen = 2000
 )
 
@@ -399,7 +400,7 @@ func (s *service) Recipients(ctx context.Context, id int64) ([]*usersModels.Anno
 }
 
 // normalizeInput validates and trims the payload and returns the target rows to
-// persist. It enforces: non-empty title (<=200)/body, a known priority, an
+// persist. It enforces: non-empty title (<=200)/body (<=4000), a known priority, an
 // optional absolute http(s) link, at least one target, and per-type ref
 // consistency (class -> text, group/AG/student -> id, school_all/
 // pending_enrollment -> neither). Duplicate targets are collapsed.
@@ -409,7 +410,7 @@ func normalizeInput(in *Input) ([]*usersModels.ParentAnnouncementTarget, error) 
 	if in.Title == "" || len([]rune(in.Title)) > maxTitleLen {
 		return nil, fmt.Errorf("%w: title", ErrValidation)
 	}
-	if in.Body == "" {
+	if in.Body == "" || len([]rune(in.Body)) > maxBodyLen {
 		return nil, fmt.Errorf("%w: body", ErrValidation)
 	}
 	link, err := normalizeLinkURL(in.LinkURL)
