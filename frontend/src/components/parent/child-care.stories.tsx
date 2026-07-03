@@ -1,25 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import type { CareException, ChildFeatures, StatusDay } from "~/lib/parent-api";
+import type { CareException, StatusDay } from "~/lib/parent-api";
+import { CareScheduleRequestModal } from "./care-schedule-request-modal";
 import {
-  CareScheduleRequestModal,
   PickupTimeModal,
-  RequestChooserModal,
   SickNoteModal,
   SickStatusSummary,
 } from "./child-care";
-
-const ALL_FEATURES: ChildFeatures = {
-  sick_note_enabled: true,
-  notes_enabled: true,
-  request_submit_enabled: true,
-  pickup_change_enabled: true,
-  related_accounts_invite_enabled: true,
-  related_accounts_remove_enabled: true,
-  master_data_edit_enabled: true,
-  master_data_contact_edit_enabled: true,
-  master_data_request_enabled: true,
-  meal_plan_enabled: true,
-};
 
 const CARE_EXCEPTIONS: CareException[] = [
   {
@@ -116,15 +102,5 @@ export const StatusSummaryRange: Story = {
 export const CareScheduleRequest: Story = {
   render: () => (
     <CareScheduleRequestModal onClose={() => undefined} onSubmit={noopSubmit} />
-  ),
-};
-
-export const RequestChooser: Story = {
-  render: () => (
-    <RequestChooserModal
-      features={ALL_FEATURES}
-      onPick={() => undefined}
-      onClose={() => undefined}
-    />
   ),
 };
