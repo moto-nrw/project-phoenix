@@ -9,6 +9,9 @@
  * decides which side a bubble sits on, not the component.
  */
 
+import { ArrowRight } from "lucide-react";
+
+import { Button } from "~/components/ui/button";
 import { formatChatTime } from "~/lib/date-helpers";
 
 /** One chat message bubble. */
@@ -70,19 +73,20 @@ export function ChatEventCard({
   action?: { label: string; onClick: () => void };
 }>) {
   return (
-    <div className="mx-auto max-w-[90%] rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
-      {body}
-      <span className="ml-2 text-xs text-gray-400">
-        {formatChatTime(createdAt)}
-      </span>
+    <div className="mx-auto flex max-w-[90%] flex-wrap items-center gap-x-2 gap-y-1.5 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+      <span>{body}</span>
+      <span className="text-xs text-gray-400">{formatChatTime(createdAt)}</span>
       {action && (
-        <button
+        <Button
           type="button"
+          variant="primary"
+          size="compact"
           onClick={action.onClick}
-          className="mt-1.5 block text-sm font-semibold text-[#5A8E1F] transition-colors hover:text-[#4A7A15]"
+          className="ml-auto gap-1"
         >
-          {action.label} →
-        </button>
+          {action.label}
+          <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+        </Button>
       )}
     </div>
   );

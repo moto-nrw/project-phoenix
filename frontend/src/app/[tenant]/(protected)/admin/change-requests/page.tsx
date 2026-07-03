@@ -4,10 +4,13 @@ import { CareRequestReviewList } from "~/components/students/care-request-review
 import { MasterDataReviewList } from "~/components/students/master-data-review-list";
 import { Loading } from "~/components/ui/loading";
 import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
-import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
+import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 
 export default function AdminChangeRequestsPage() {
-  const { isReady } = useRequireAdmin();
+  // Gated on users:update (not admin-only): the same permission as editing a
+  // child directly. The backend scopes both queues per child, so a supervisor
+  // sees only their own group's requests.
+  const { isReady } = useRequirePermission("users:update");
   if (!isReady) return <Loading fullPage={false} />;
 
   // Two stacked sections instead of tabs: both queues are short, and tabs

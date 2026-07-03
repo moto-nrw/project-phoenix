@@ -29,7 +29,7 @@ import {
 } from "~/lib/parent-messages-api";
 import { getApiErrorMessage } from "~/components/ui/modal-utils";
 import { staffRequestStatusLabel } from "~/lib/messaging-status";
-import { isAdmin } from "~/lib/auth-utils";
+import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
 import { formatChatDateTime } from "~/lib/date-helpers";
 
@@ -40,10 +40,12 @@ function MessageThreadContent() {
   const threadId = params.threadId as string;
   const router = useTenantRouter();
   const { data: session } = useSession();
-  // Only admins may open the Änderungsanfragen queue (useRequireAdmin +
-  // backend UsersManage), so the deep-link on a "request created" pill is
-  // admin-only — a non-admin supervisor sees the plain info pill.
-  const canReviewRequests = isAdmin(session ?? null);
+  // The Änderungsanfragen queue is gated on users:update (backend + page guard),
+  // scoped per child in the service. So the deep-link on a "request created" pill
+  // shows for any staffer who may edit children; one who lacks users:update sees
+  // the plain info pill.
+  const canReviewRequests =
+    isAdmin(session ?? null) || hasPermission(session ?? null, "users:update");
   const { tenant } = useTenant();
   // Tenant-prefix every SWR key on this page so a tenant switch (multi-tab /
   // switch-tenant) can never render the previous school's cached thread under
@@ -112,6 +114,34 @@ function MessageThreadContent() {
   // Nachrichten…" until the GET resolves. A background revalidation of a thread
   // that already has messages keeps messages.length > 0, so this stays false.
   const messagesLoading = (isLoading || isValidating) && messages.length === 0;
+
+  // Latest terminal-decision timestamp per request_type in this thread. A
+  // "request_created" pill offers the "Anfrage bearbeiten" action only while its
+  // request is still open; once decided (bestätigt / abgelehnt / zurückgezogen) a
+  // "request_status" event of the same type arrives. Because only one request per
+  // type may be open at a time, any request_status newer than a request_created of
+  // that type resolves exactly that request — so the button then disappears.
+  const latestDecisionAtByType: Record<string, string> = {};
+  for (const m of messages) {
+    if (
+      m.kind === "event" &&
+      m.event_type === "request_status" &&
+      m.request_type
+    ) {
+      const prev = latestDecisionAtByType[m.request_type];
+      if (!prev || m.created_at > prev) {
+        latestDecisionAtByType[m.request_type] = m.created_at;
+      }
+    }
+  }
+
+  const requestStillOpen = (message: Message): boolean => {
+    if (message.event_type !== "request_created" || !message.request_type) {
+      return false;
+    }
+    const decidedAt = latestDecisionAtByType[message.request_type];
+    return !decidedAt || decidedAt <= message.created_at;
+  };
 
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -263,10 +293,9 @@ function MessageThreadContent() {
                   body={message.body}
                   createdAt={message.created_at}
                   action={
-                    canReviewRequests &&
-                    message.event_type === "request_created"
+                    canReviewRequests && requestStillOpen(message)
                       ? {
-                          label: "Zu den Änderungsanfragen",
+                          label: "Anfrage bearbeiten",
                           onClick: () => router.push("/admin/change-requests"),
                         }
                       : undefined
