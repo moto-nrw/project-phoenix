@@ -101,7 +101,7 @@ describe("ChildCareScheduleSection", () => {
     mockGet.mockResolvedValue(schedule({ pending_request: pending }));
     render(<ChildCareScheduleSection studentId="42" />);
 
-    expect(await screen.findByText("Anfrage offen")).toBeInTheDocument();
+    expect(await screen.findByText("In Prüfung")).toBeInTheDocument();
     expect(screen.getByText("Ihre Änderungswünsche")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Zurückziehen" }),
@@ -118,7 +118,7 @@ describe("ChildCareScheduleSection", () => {
     );
     render(<ChildCareScheduleSection studentId="42" />);
 
-    expect(await screen.findByText("Anfrage offen")).toBeInTheDocument();
+    expect(await screen.findByText("In Prüfung")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Zurückziehen" }),
     ).not.toBeInTheDocument();

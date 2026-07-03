@@ -946,7 +946,7 @@
       "pickup": "Pick-up time",
       "modes": "Way home",
       "loadError": "The care times could not be loaded. Please refresh the page.",
-      "pendingBadge": "Request open",
+      "pendingBadge": "Under review",
       "pendingNotice": "Your request is being reviewed by the team. The current schedule applies until it is confirmed.",
       "requestedAt": "Requested on {date}",
       "withdraw": "Withdraw",

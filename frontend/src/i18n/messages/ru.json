@@ -946,7 +946,7 @@
       "pickup": "Abholzeit",
       "modes": "Abholart",
       "loadError": "Die Betreuungszeiten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
-      "pendingBadge": "Anfrage offen",
+      "pendingBadge": "In Prüfung",
       "pendingNotice": "Ihre Anfrage wird vom Team geprüft. Bis zur Bestätigung gilt der bisherige Plan.",
       "requestedAt": "Angefragt am {date}",
       "withdraw": "Zurückziehen",
