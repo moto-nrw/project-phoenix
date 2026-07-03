@@ -210,4 +210,29 @@ describe("CareRequestReviewList", () => {
     expect(await screen.findByText("Max Muster")).toBeInTheDocument();
     expect(screen.queryByText("Lara Beispiel")).not.toBeInTheDocument();
   });
+
+  it("refetches in place on the SSE-derived messages-unread-refresh event", async () => {
+    // A decision made in another tab or by another staffer never fires
+    // change-requests-refresh here; it only arrives as the parent-message pill
+    // use-global-sse fans out as messages-unread-refresh. The open queue must
+    // refetch so it drops a row the backend has already decided.
+    mockList
+      .mockResolvedValueOnce([row()])
+      .mockResolvedValueOnce([
+        row({ id: "201", first_name: "Max", last_name: "Muster" }),
+      ]);
+
+    render(<CareRequestReviewList />);
+
+    expect(await screen.findByText("Lara Beispiel")).toBeInTheDocument();
+    expect(mockList).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      window.dispatchEvent(new Event("messages-unread-refresh"));
+    });
+
+    await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("Max Muster")).toBeInTheDocument();
+    expect(screen.queryByText("Lara Beispiel")).not.toBeInTheDocument();
+  });
 });

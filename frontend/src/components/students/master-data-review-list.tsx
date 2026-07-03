@@ -102,13 +102,25 @@ export function MasterDataReviewList() {
     }
   }, []);
 
+  // change-requests-refresh covers decisions made in THIS window (both queues
+  // dispatch it). A decision made elsewhere (another tab, another staffer)
+  // never fires it here; it only reaches this window as the parent-message pill
+  // the backend emits, which use-global-sse fans out as messages-unread-refresh
+  // (the same SSE-derived path the sidebar badge listens to). Without this an
+  // already-open review page keeps showing pending rows the backend has already
+  // decided and would let the reviewer submit a now-conflicting decision until
+  // a manual reload. Listen to both and swap rows in place.
   useEffect(() => {
     const handler = () => {
       if (suppressSelfReloadRef.current) return;
       void reloadInPlace();
     };
     window.addEventListener("change-requests-refresh", handler);
-    return () => window.removeEventListener("change-requests-refresh", handler);
+    window.addEventListener("messages-unread-refresh", handler);
+    return () => {
+      window.removeEventListener("change-requests-refresh", handler);
+      window.removeEventListener("messages-unread-refresh", handler);
+    };
   }, [reloadInPlace]);
 
   const decide = useCallback(
