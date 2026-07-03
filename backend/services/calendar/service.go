@@ -528,7 +528,13 @@ func (s *service) RecipientOptions(ctx context.Context, query string, limit int)
 	}
 	parentOptions := make([]ParentOption, 0, len(parents))
 	for _, parent := range parents {
-		parentOptions = append(parentOptions, ParentOption{ID: parent.ID, Name: guardianName(parent)})
+		visible, err := s.guardianHasPortalVisibleStudent(ctx, parent.ID)
+		if err != nil {
+			return nil, err
+		}
+		if visible {
+			parentOptions = append(parentOptions, ParentOption{ID: parent.ID, Name: guardianName(parent)})
+		}
 	}
 
 	groups, err := s.cfg.GroupRepo.List(ctx, nil)
@@ -933,6 +939,19 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 		}
 	}
 	return recipients, recipientStudents, targetRows, nil
+}
+
+func (s *service) guardianHasPortalVisibleStudent(ctx context.Context, guardianProfileID int64) (bool, error) {
+	links, err := s.cfg.StudentGuardianRepo.FindByGuardianProfileID(ctx, guardianProfileID)
+	if err != nil {
+		return false, err
+	}
+	for _, link := range links {
+		if authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (s *service) buildAppointmentOverview(ctx context.Context, appointment *calModels.Appointment, recipients []*calModels.AppointmentRecipient) (*AppointmentOverview, error) {

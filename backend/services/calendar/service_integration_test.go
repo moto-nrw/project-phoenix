@@ -364,8 +364,18 @@ func TestCalendarServiceIntegration_RecipientOptionsAndGroupedTargets(t *testing
 	organizer, organizerAccount := testpkg.CreateTestStaffWithAccount(t, db, "Target", "Organizer")
 	invitedStaff, invitedAccount := testpkg.CreateTestStaffWithAccount(t, db, "Target", "Invitee")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
+	invisibleGuardian := &userModels.GuardianProfile{
+		FirstName:              "Hidden",
+		LastName:               "Target",
+		PreferredContactMethod: "email",
+		LanguagePreference:     "de",
+	}
+	invisibleGuardian.SetTenantID(1)
+	_, err := db.NewInsert().Model(invisibleGuardian).ModelTableExpr(`users.guardian_profiles`).Exec(context.Background())
+	require.NoError(t, err)
 
 	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", invisibleGuardian.ID)
 		testpkg.CleanupParentGuardianChain(t, db, parentChain)
 		testpkg.CleanupStaffFixtures(t, db, invitedStaff.ID, organizer.ID)
 		testpkg.CleanupAuthFixtures(t, db, invitedAccount.ID, organizerAccount.ID)
@@ -378,6 +388,11 @@ func TestCalendarServiceIntegration_RecipientOptionsAndGroupedTargets(t *testing
 	assert.NotNil(t, options.Groups)
 	assert.NotNil(t, options.Classes)
 	assert.NotNil(t, options.Students)
+	assert.NotContains(t, parentOptionIDs(options.Parents), invisibleGuardian.ID)
+
+	hiddenOptions, err := service.RecipientOptions(calendarContext(organizerAccount.ID), "hidden", 20)
+	require.NoError(t, err)
+	assert.NotContains(t, parentOptionIDs(hiddenOptions.Parents), invisibleGuardian.ID)
 
 	childOptions, err := service.RecipientOptions(calendarContext(organizerAccount.ID), "felix", 20)
 	require.NoError(t, err)
@@ -426,6 +441,14 @@ func TestCalendarServiceIntegration_RecipientOptionsAndGroupedTargets(t *testing
 	assert.False(t, parentEvents[0].CanRespond)
 	require.NotNil(t, parentEvents[0].ResponseStatus)
 	assert.Equal(t, calModels.ResponseStatusInfo, *parentEvents[0].ResponseStatus)
+}
+
+func parentOptionIDs(options []calendarSvc.ParentOption) []int64 {
+	ids := make([]int64, 0, len(options))
+	for _, option := range options {
+		ids = append(ids, option.ID)
+	}
+	return ids
 }
 
 func TestCalendarServiceIntegration_InvalidCreateTargets(t *testing.T) {
