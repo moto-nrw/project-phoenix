@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Loading } from "~/components/ui/loading";
 import {
@@ -40,6 +40,10 @@ export function CareRequestReviewList() {
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [reasonErrors, setReasonErrors] = useState<Record<string, boolean>>({});
   const [notice, setNotice] = useState<string | null>(null);
+  // Set while THIS list dispatches change-requests-refresh so its own listener
+  // (below) doesn't refetch — it already removed the decided row optimistically.
+  // dispatchEvent is synchronous, so the flag only has to cover that one call.
+  const suppressSelfReloadRef = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -58,6 +62,30 @@ export function CareRequestReviewList() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Refetch without the full-page spinner. A master-data
+  // `allowed_departure_modes` decision on the same child changes the very
+  // departure modes this queue's "current → requested" diffs are computed
+  // against, so a sibling decision can leave these diffs stale. Both queues
+  // emit change-requests-refresh after a decision; listen for it and swap rows
+  // in place (never blank the section) so reviewers act on fresh values.
+  const reloadInPlace = useCallback(async () => {
+    try {
+      setRows(await listCareScheduleChangeRequests());
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn("care_request_review_reload_failed", { error: message });
+    }
+  }, []);
+
+  useEffect(() => {
+    const handler = () => {
+      if (suppressSelfReloadRef.current) return;
+      void reloadInPlace();
+    };
+    window.addEventListener("change-requests-refresh", handler);
+    return () => window.removeEventListener("change-requests-refresh", handler);
+  }, [reloadInPlace]);
 
   const decide = useCallback(
     async (row: StaffCareRequest, approve: boolean) => {
@@ -79,8 +107,12 @@ export function CareRequestReviewList() {
         );
         setRows((prev) => prev.filter((r) => r.id !== row.id));
         // Clear/decrement the Änderungsanfragen sidebar badge without waiting
-        // for the 60s cache or an SSE round-trip.
+        // for the 60s cache or an SSE round-trip, and prompt the sibling
+        // Stammdaten queue to refetch its (possibly now-stale) diffs. Suppress
+        // our own listener: the decided row is already removed above.
+        suppressSelfReloadRef.current = true;
         window.dispatchEvent(new Event("change-requests-refresh"));
+        suppressSelfReloadRef.current = false;
         setNotice(
           approve
             ? "Betreuungszeiten übernommen"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Loading } from "~/components/ui/loading";
 import {
@@ -63,6 +63,10 @@ export function MasterDataReviewList() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [notice, setNotice] = useState<string | null>(null);
+  // Set while THIS list dispatches change-requests-refresh so its own listener
+  // (below) doesn't refetch — it already removed the decided row optimistically.
+  // dispatchEvent is synchronous, so the flag only has to cover that one call.
+  const suppressSelfReloadRef = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -82,6 +86,31 @@ export function MasterDataReviewList() {
     void load();
   }, [load]);
 
+  // Refetch without the full-page spinner. An `allowed_departure_modes`
+  // decision here changes the departure modes the sibling Betreuungszeiten
+  // queue computes its diffs against (and a care decision changes ours), so a
+  // sibling decision can leave these "current → requested" diffs stale. Both
+  // queues emit change-requests-refresh after a decision; listen for it and
+  // swap rows in place (never blank the section) so reviewers act on fresh
+  // values.
+  const reloadInPlace = useCallback(async () => {
+    try {
+      setRows(await listMasterDataChangeRequests());
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn("master_data_review_reload_failed", { error: message });
+    }
+  }, []);
+
+  useEffect(() => {
+    const handler = () => {
+      if (suppressSelfReloadRef.current) return;
+      void reloadInPlace();
+    };
+    window.addEventListener("change-requests-refresh", handler);
+    return () => window.removeEventListener("change-requests-refresh", handler);
+  }, [reloadInPlace]);
+
   const decide = useCallback(
     async (row: StaffMasterDataChange, approve: boolean) => {
       setBusyId(row.id);
@@ -95,8 +124,12 @@ export function MasterDataReviewList() {
         );
         setRows((prev) => prev.filter((r) => r.id !== row.id));
         // Clear/decrement the Änderungsanfragen sidebar badge without waiting
-        // for the 60s cache or an SSE round-trip.
+        // for the 60s cache or an SSE round-trip, and prompt the sibling
+        // Betreuungszeiten queue to refetch its (possibly now-stale) diffs.
+        // Suppress our own listener: the decided row is already removed above.
+        suppressSelfReloadRef.current = true;
         window.dispatchEvent(new Event("change-requests-refresh"));
+        suppressSelfReloadRef.current = false;
         setNotice(approve ? "Änderung übernommen" : "Änderung abgelehnt");
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

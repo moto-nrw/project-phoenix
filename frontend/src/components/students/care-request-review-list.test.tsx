@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CareRequestReviewList } from "./care-request-review-list";
@@ -148,5 +154,29 @@ describe("CareRequestReviewList", () => {
     expect(
       await screen.findByText("Keine offenen Betreuungszeit-Anfragen."),
     ).toBeInTheDocument();
+  });
+
+  it("refetches in place when the sibling queue dispatches change-requests-refresh", async () => {
+    // A master-data departure-mode decision changes what this queue's diffs are
+    // computed against; the sibling list emits change-requests-refresh, and this
+    // list must refetch so it doesn't show stale "current → requested" values.
+    mockList
+      .mockResolvedValueOnce([row()])
+      .mockResolvedValueOnce([
+        row({ id: "201", first_name: "Max", last_name: "Muster" }),
+      ]);
+
+    render(<CareRequestReviewList />);
+
+    expect(await screen.findByText("Lara Beispiel")).toBeInTheDocument();
+    expect(mockList).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      window.dispatchEvent(new Event("change-requests-refresh"));
+    });
+
+    await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("Max Muster")).toBeInTheDocument();
+    expect(screen.queryByText("Lara Beispiel")).not.toBeInTheDocument();
   });
 });
