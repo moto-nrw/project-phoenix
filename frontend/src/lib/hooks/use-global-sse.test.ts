@@ -54,7 +54,6 @@ vi.mock("swr", () => ({
     mutate: vi.fn(),
   })),
   mutate: mockMutate,
-  useSWRConfig: vi.fn(() => ({ mutate: mockMutate, cache: new Map() })),
 }));
 
 vi.mock("~/lib/swr/room-derived-caches", () => ({
@@ -332,6 +331,82 @@ describe("useGlobalSSE — SWR invalidation debounce", () => {
     });
 
     expect(mockMutate).toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Reminders revalidation (issue #1457)
+// ---------------------------------------------------------------------------
+
+// useGlobalSSE runs ABOVE TenantProvider, so it cannot build the tenant-prefixed
+// "{slug}:reminders" SWR key. Instead of mutating the wrong key it dispatches a
+// window event; useReminders() (which runs under TenantProvider and owns the
+// correctly-scoped key + the enabled gate) performs the actual revalidation.
+describe("useGlobalSSE — reminders revalidation", () => {
+  function listenForRemindersStale() {
+    const listener = vi.fn();
+    window.addEventListener("phoenix:reminders-stale", listener);
+    return {
+      listener,
+      cleanup: () =>
+        window.removeEventListener("phoenix:reminders-stale", listener),
+    };
+  }
+
+  it("dispatches phoenix:reminders-stale on student_checkout after debounce", () => {
+    renderHook(() => useGlobalSSE());
+    const { listener, cleanup } = listenForRemindersStale();
+
+    fireSSE(makeEvent("student_checkout", { student_id: "s1" }, "grp1"));
+    expect(listener).not.toHaveBeenCalled();
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    cleanup();
+  });
+
+  it("dispatches phoenix:reminders-stale on instance_overdue", () => {
+    renderHook(() => useGlobalSSE());
+    const { listener, cleanup } = listenForRemindersStale();
+
+    fireSSE(makeEvent("instance_overdue"));
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    cleanup();
+  });
+
+  it("dispatches phoenix:reminders-stale on student_updated", () => {
+    // Reminder rows carry student names/classes and are filtered by readable
+    // scope, so a student edit must refresh them — not wait for the 60s poll.
+    renderHook(() => useGlobalSSE());
+    const { listener, cleanup } = listenForRemindersStale();
+
+    fireSSE(makeEvent("student_updated", { student_id: "s1" }));
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    cleanup();
+  });
+
+  it("does not dispatch phoenix:reminders-stale for tenant_settings_changed", () => {
+    renderHook(() => useGlobalSSE());
+    const { listener, cleanup } = listenForRemindersStale();
+
+    fireSSE(makeEvent("tenant_settings_changed", { source: "operator" }));
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(listener).not.toHaveBeenCalled();
+    cleanup();
   });
 });
 

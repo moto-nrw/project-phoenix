@@ -8,6 +8,7 @@ import { SettingsField } from "./settings-field";
 const categoryLabelOverrides: Record<string, string> = {
   mfa: "Zwei-Faktor-Authentifizierung",
   pin: "PIN",
+  aktivitaeten: "Aktivitäten",
 };
 
 function displayCategoryLabel(category: SchemaCategory): string {
