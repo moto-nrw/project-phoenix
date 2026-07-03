@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "next build",
+    "build-storybook": "node scripts/build-storybook.mjs",
     "check": "node scripts/verify-locales.mjs && oxlint . && tsc --noEmit",
     "check:fresh": "rm -f *.tsbuildinfo && node scripts/verify-locales.mjs && oxlint . && tsc --noEmit",
     "dev": "next dev",
@@ -17,6 +18,7 @@
     "lint:fix": "oxlint --fix .",
     "preview": "next build && next start",
     "start": "next start",
+    "storybook": "storybook dev -p 6006",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
@@ -57,6 +59,8 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
+    "@storybook/addon-a11y": "^10.4.6",
+    "@storybook/nextjs-vite": "^10.4.6",
     "@tailwindcss/postcss": "^4.3.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
@@ -76,6 +80,7 @@
     "prettier": "^3.9.1",
     "prettier-plugin-tailwindcss": "^0.8.0",
     "sharp": "^0.35.2",
+    "storybook": "^10.4.6",
     "tailwindcss": "^4.3.1",
     "typescript": "^6.0.3",
     "vite": "^8.1.0",
@@ -128,10 +133,15 @@
       "src/**/*.test.{ts,tsx}",
       "src/test/mocks/*.ts",
       "src/test/fixtures/*.ts",
-      "src/test/helpers/*.ts"
+      "src/test/helpers/*.ts",
+      ".storybook/mocks/env.js",
+      ".storybook/mocks/next-auth-react.tsx"
     ],
     "project": [
       "src/**/*.{ts,tsx,js}"
+    ],
+    "ignore": [
+      "src/components/**/*.stories.tsx"
     ],
     "ignoreDependencies": [
       "sharp",
