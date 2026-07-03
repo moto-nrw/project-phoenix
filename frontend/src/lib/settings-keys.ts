@@ -15,4 +15,10 @@ export const TENANT_RESOLVE_AFFECTING_KEYS: ReadonlySet<string> = new Set([
   // nfc_enabled is also served through /auth/tenant/resolve so every staff
   // user can hide NFC-only navigation without config:read.
   "attendance.nfc_enabled",
+  // parent_notes_enabled rides on /auth/tenant/resolve too (as
+  // parent_messaging_enabled) so non-admin staff can hide the "Neue Nachricht"
+  // compose entry points without config:read. Without revalidation, toggling it
+  // leaves reloads/new tabs on the stale messagingEnabled value for up to the
+  // layout cache TTL (300s).
+  "operations.parent_notes_enabled",
 ]);

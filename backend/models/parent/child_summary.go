@@ -42,6 +42,7 @@ type ChildSummary struct {
 	// map for the calling account's guardian relationship. It is internal to the
 	// parent service; handlers must not serialize it.
 	GuardianPermissions map[string]interface{} `json:"-"`
+	GuardianProfileID   int64                  `json:"-"`
 }
 
 // ChildRepository is the contract for the cross-tenant lookup the

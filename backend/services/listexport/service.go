@@ -45,6 +45,8 @@ func DefaultColumnsForPreset(preset Preset) []ColumnID {
 	switch preset {
 	case PresetOGSCompact:
 		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnCareDays, ColumnDeparture, ColumnPlannedPickup}
+	case PresetClassRoster:
+		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnEnrollmentSummary, ColumnCareDays, ColumnWeeklyMonday, ColumnWeeklyTuesday, ColumnWeeklyWednesday, ColumnWeeklyThursday, ColumnWeeklyFriday, ColumnDeparture}
 	case PresetDailyPlanning:
 		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnDailyStatus, ColumnPlannedArrival, ColumnPlannedPickup, ColumnDailyNotes}
 	case PresetAttendanceSnapshot:
@@ -60,34 +62,36 @@ func DefaultColumnsForPreset(preset Preset) []ColumnID {
 
 func ColumnCatalog() map[ColumnID]Column {
 	return map[ColumnID]Column{
-		ColumnName:            {ID: ColumnName, Label: "Name"},
-		ColumnSchoolClass:     {ID: ColumnSchoolClass, Label: "Klasse"},
-		ColumnGroup:           {ID: ColumnGroup, Label: "Gruppe"},
-		ColumnCareDays:        {ID: ColumnCareDays, Label: "Betreuungstage"},
-		ColumnWeeklyMonday:    {ID: ColumnWeeklyMonday, Label: "Montag"},
-		ColumnWeeklyTuesday:   {ID: ColumnWeeklyTuesday, Label: "Dienstag"},
-		ColumnWeeklyWednesday: {ID: ColumnWeeklyWednesday, Label: "Mittwoch"},
-		ColumnWeeklyThursday:  {ID: ColumnWeeklyThursday, Label: "Donnerstag"},
-		ColumnWeeklyFriday:    {ID: ColumnWeeklyFriday, Label: "Freitag"},
-		ColumnPlannedArrival:  {ID: ColumnPlannedArrival, Label: "Geplante Ankunft"},
-		ColumnPlannedPickup:   {ID: ColumnPlannedPickup, Label: "Geplante Abholung"},
-		ColumnDailyStatus:     {ID: ColumnDailyStatus, Label: "Tagesstatus"},
-		ColumnDeparture:       {ID: ColumnDeparture, Label: "Geh-/Abholweise"},
-		ColumnDailyNotes:      {ID: ColumnDailyNotes, Label: "Tageshinweise"},
-		ColumnCurrentLocation: {ID: ColumnCurrentLocation, Label: "Aktueller Aufenthaltsort"},
-		ColumnRoomName:        {ID: ColumnRoomName, Label: "Raum"},
-		ColumnRoomStatus:      {ID: ColumnRoomStatus, Label: "Status"},
-		ColumnRoomBuilding:    {ID: ColumnRoomBuilding, Label: "Gebäude"},
-		ColumnRoomFloor:       {ID: ColumnRoomFloor, Label: "Etage"},
-		ColumnRoomActivity:    {ID: ColumnRoomActivity, Label: "Aktivität"},
-		ColumnRoomSupervision: {ID: ColumnRoomSupervision, Label: "Aufsicht"},
-		ColumnRoomChildCount:  {ID: ColumnRoomChildCount, Label: "Kinder"},
-		ColumnChecklist:       {ID: ColumnChecklist, Label: "Abhaken"},
-		ColumnStudentName:     {ID: ColumnStudentName, Label: "Kind"},
-		ColumnStudentClass:    {ID: ColumnStudentClass, Label: "Klasse"},
-		ColumnStudentGroup:    {ID: ColumnStudentGroup, Label: "Aufsichtsgruppe"},
-		ColumnContactName:     {ID: ColumnContactName, Label: "Kontakt"},
-		ColumnContactPhone:    {ID: ColumnContactPhone, Label: "Telefonnummer"},
+		ColumnName:              {ID: ColumnName, Label: "Name"},
+		ColumnSchoolClass:       {ID: ColumnSchoolClass, Label: "Klasse"},
+		ColumnGroup:             {ID: ColumnGroup, Label: "Gruppe"},
+		ColumnEnrollmentSummary: {ID: ColumnEnrollmentSummary, Label: "Betreuungs-/Anmeldestatus"},
+		ColumnCareDays:          {ID: ColumnCareDays, Label: "Betreuungstage"},
+		ColumnWeeklyMonday:      {ID: ColumnWeeklyMonday, Label: "Montag"},
+		ColumnWeeklyTuesday:     {ID: ColumnWeeklyTuesday, Label: "Dienstag"},
+		ColumnWeeklyWednesday:   {ID: ColumnWeeklyWednesday, Label: "Mittwoch"},
+		ColumnWeeklyThursday:    {ID: ColumnWeeklyThursday, Label: "Donnerstag"},
+		ColumnWeeklyFriday:      {ID: ColumnWeeklyFriday, Label: "Freitag"},
+		ColumnPlannedArrival:    {ID: ColumnPlannedArrival, Label: "Geplante Ankunft"},
+		ColumnPlannedPickup:     {ID: ColumnPlannedPickup, Label: "Geplante Abholung"},
+		ColumnDailyStatus:       {ID: ColumnDailyStatus, Label: "Tagesstatus"},
+		ColumnDeparture:         {ID: ColumnDeparture, Label: "Geh-/Abholweise"},
+		ColumnDailyNotes:        {ID: ColumnDailyNotes, Label: "Tageshinweise"},
+		ColumnCurrentLocation:   {ID: ColumnCurrentLocation, Label: "Aktueller Aufenthaltsort"},
+		ColumnRoomName:          {ID: ColumnRoomName, Label: "Raum"},
+		ColumnRoomStatus:        {ID: ColumnRoomStatus, Label: "Status"},
+		ColumnRoomBuilding:      {ID: ColumnRoomBuilding, Label: "Gebäude"},
+		ColumnRoomFloor:         {ID: ColumnRoomFloor, Label: "Etage"},
+		ColumnRoomActivity:      {ID: ColumnRoomActivity, Label: "Aktivität"},
+		ColumnRoomSupervision:   {ID: ColumnRoomSupervision, Label: "Aufsicht"},
+		ColumnRoomChildCount:    {ID: ColumnRoomChildCount, Label: "Kinder"},
+		ColumnChecklist:         {ID: ColumnChecklist, Label: "Abhaken"},
+		ColumnStudentName:       {ID: ColumnStudentName, Label: "Kind"},
+		ColumnStudentClass:      {ID: ColumnStudentClass, Label: "Klasse"},
+		ColumnStudentGroup:      {ID: ColumnStudentGroup, Label: "Aufsichtsgruppe"},
+		ColumnContactName:       {ID: ColumnContactName, Label: "Kontakt"},
+		ColumnContactPhone:      {ID: ColumnContactPhone, Label: "Telefonnummer"},
+		ColumnGuardianContacts:  {ID: ColumnGuardianContacts, Label: "Erziehungsberechtigte"},
 	}
 }
 

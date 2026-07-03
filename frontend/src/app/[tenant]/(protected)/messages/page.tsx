@@ -1,0 +1,251 @@
+"use client";
+
+import { Suspense, useMemo, useState } from "react";
+import useSWR from "swr";
+import { MessageCircle } from "lucide-react";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { Button } from "~/components/ui/button";
+import { Alert } from "~/components/ui/alert";
+import { Loading } from "~/components/ui/loading";
+import { UnreadBadge } from "~/components/messaging/unread-badge";
+import {
+  useTenant,
+  useTenantSlugSafe,
+} from "~/components/tenant/tenant-provider";
+import { useTenantRouter } from "~/lib/tenant-router";
+import {
+  type InboxThread,
+  fetchInboxWithFilters,
+  relationshipLabel,
+} from "~/lib/parent-messages-api";
+import { NewMessageModal } from "~/components/messaging/new-message-modal";
+import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
+import { createLogger } from "~/lib/logger";
+import { formatChatDateTime } from "~/lib/date-helpers";
+
+const logger = createLogger({ component: "MessagesInboxPage" });
+
+function MessagesInboxContent() {
+  const router = useTenantRouter();
+  const { tenant } = useTenant();
+  // Tenant-prefix the SWR key so a tenant switch (multi-tab / switch-tenant) can
+  // never render the previous school's cached threads from this key (frontend
+  // convention: useTenantSlugSafe is for SWR cache-key prefixing).
+  const tenantSlug = useTenantSlugSafe();
+  // Hide the compose entry points when the school has parent-OGS messaging
+  // turned off — composing would otherwise hit a backend 403 dead-end. Existing
+  // threads stay readable.
+  const messagingEnabled = tenant?.messagingEnabled === true;
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [onlyUnread, setOnlyUnread] = useState(false);
+  const [onlyOpenRequests, setOnlyOpenRequests] = useState(false);
+  const [composeOpen, setComposeOpen] = useState(false);
+
+  // SWR caches the inbox per filter across navigation, so returning from a
+  // chat shows the list instantly and revalidates in the background — no
+  // skeleton flash. keepPreviousData avoids a flash when toggling the filter.
+  const {
+    data: threads,
+    error,
+    isLoading,
+    mutate,
+  } = useSWR(
+    [`${tenantSlug ?? ""}:messages-inbox`, onlyUnread, onlyOpenRequests],
+    () => fetchInboxWithFilters({ onlyUnread, onlyOpenRequests }),
+    {
+      revalidateOnFocus: false,
+      keepPreviousData: true,
+      onError: (err: unknown) =>
+        logger.error("inbox_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        }),
+    },
+  );
+
+  // Parent sent a message or staff replied → revalidate the inbox. The backend
+  // wakes EVERY tenant staffer per message and this inbox query is heavy (joins
+  // + correlated unread subqueries), so debounce: a burst collapses into a
+  // single revalidation instead of one refetch per event.
+  // Refetch-only (revalidates the list, never advances a read cursor), so fire
+  // even in a background tab — marksRead: false skips the hidden-tab deferral.
+  useMessagesActivity({
+    onMatch: () => void mutate(),
+    debounceMs: 500,
+    marksRead: false,
+  });
+
+  const filteredThreads = useMemo(() => {
+    const list: InboxThread[] = threads ?? [];
+    if (!searchTerm) return list;
+    const term = searchTerm.toLowerCase();
+    return list.filter(
+      (thread) =>
+        thread.guardian_name.toLowerCase().includes(term) ||
+        thread.student_name.toLowerCase().includes(term),
+    );
+  }, [threads, searchTerm]);
+
+  // Skeleton only on the very first load (no cached data yet).
+  if (isLoading && !threads) {
+    return <Loading fullPage={false} />;
+  }
+
+  return (
+    <div className="-mt-1.5 w-full">
+      <PageHeaderWithSearch
+        title="Nachrichten"
+        badge={{
+          icon: <MessageCircle className="h-5 w-5 text-gray-600" />,
+          count: filteredThreads.length,
+        }}
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: "Person oder Kind suchen...",
+        }}
+      />
+
+      <div className="mb-4 flex items-center justify-end gap-2">
+        <Button
+          type="button"
+          variant={onlyUnread ? "primary" : "outline"}
+          size="md"
+          onClick={() => setOnlyUnread((prev) => !prev)}
+        >
+          Nur ungelesen
+        </Button>
+        <Button
+          type="button"
+          variant={onlyOpenRequests ? "primary" : "outline"}
+          size="md"
+          onClick={() => setOnlyOpenRequests((prev) => !prev)}
+        >
+          Offene Anfragen
+        </Button>
+        {messagingEnabled && (
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={() => setComposeOpen(true)}
+          >
+            Neue Nachricht
+          </Button>
+        )}
+      </div>
+
+      {error && (
+        <div className="mb-4">
+          <Alert
+            type="error"
+            message="Nachrichten konnten nicht geladen werden."
+          />
+        </div>
+      )}
+
+      {filteredThreads.length === 0 ? (
+        <div className="py-12 text-center">
+          <div className="flex flex-col items-center gap-4">
+            <MessageCircle className="h-12 w-12 text-gray-400" />
+            <div>
+              <h3 className="text-lg font-medium text-gray-900">
+                Noch keine Nachrichten
+              </h3>
+              <p className="text-gray-600">
+                {messagingEnabled ? (
+                  <>
+                    Hier erscheinen Unterhaltungen mit den Eltern. Über{" "}
+                    <span className="font-medium text-gray-700">
+                      Neue Nachricht
+                    </span>{" "}
+                    können Sie selbst eine beginnen.
+                  </>
+                ) : (
+                  "Der Nachrichtenaustausch mit den Eltern ist für diese Schule deaktiviert."
+                )}
+              </p>
+            </div>
+            {messagingEnabled && (
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                onClick={() => setComposeOpen(true)}
+              >
+                Neue Nachricht
+              </Button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <ul className="space-y-3">
+          {filteredThreads.map((thread) => {
+            const navigate = () => router.push(`/messages/${thread.thread_id}`);
+
+            return (
+              <li key={thread.thread_id}>
+                <button
+                  type="button"
+                  onClick={navigate}
+                  className="moto-content-surface moto-hover-elevated block w-full cursor-pointer rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none sm:p-5"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                        <h3 className="truncate text-base font-semibold text-gray-900">
+                          {thread.guardian_name}
+                        </h3>
+                        <span className="truncate text-sm text-gray-500">
+                          {relationshipLabel(thread.relationship_type)} von{" "}
+                          {thread.student_name}
+                        </span>
+                        <UnreadBadge count={thread.unread_count} />
+                        {thread.open_request_count > 0 && (
+                          <span className="inline-flex items-center rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs font-medium text-[#5080D8]">
+                            {thread.open_request_count}{" "}
+                            {thread.open_request_count === 1
+                              ? "offene Anfrage"
+                              : "offene Anfragen"}
+                          </span>
+                        )}
+                      </div>
+                      {thread.last_message_body && (
+                        <p className="mt-1 truncate text-sm text-gray-600">
+                          {thread.last_sender_kind === "staff" && (
+                            <span className="text-gray-500">Sie: </span>
+                          )}
+                          {thread.last_message_body}
+                        </p>
+                      )}
+                    </div>
+                    {thread.last_message_at && (
+                      <span className="flex-shrink-0 text-xs whitespace-nowrap text-gray-400">
+                        {formatChatDateTime(thread.last_message_at)}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {composeOpen && (
+        <NewMessageModal
+          onClose={() => setComposeOpen(false)}
+          onOpened={(thread) => router.push(`/messages/${thread.thread_id}`)}
+        />
+      )}
+    </div>
+  );
+}
+
+export default function MessagesPage() {
+  return (
+    <Suspense fallback={<Loading fullPage={false} />}>
+      <MessagesInboxContent />
+    </Suspense>
+  );
+}

@@ -558,9 +558,10 @@ func (r *GroupRepository) ListTemplateRows(ctx context.Context, templateID *int6
 				) AS active_supervisors
 				GROUP BY group_id
 			) AS supervisors ON supervisors.group_id = g.id
-		WHERE g.tenant_id = ?
-		  AND g.is_template = true
-		  AND g.archived_at IS NULL`
+	WHERE g.tenant_id = ?
+	  AND g.is_template = true
+	  AND g.archived_at IS NULL
+	  AND s.valid_until IS NULL`
 	args := []any{tenantID, tenantID, tenantID}
 	if templateID != nil {
 		query += ` AND g.id = ?`
@@ -607,9 +608,10 @@ func (r *GroupRepository) ListTemplateRowsForPeriod(ctx context.Context, periodI
 				) AS active_supervisors
 				GROUP BY group_id
 			) AS supervisors ON supervisors.group_id = g.id
-		WHERE g.tenant_id = ?
-		  AND g.is_template = true
-		  AND g.archived_at IS NULL`
+	WHERE g.tenant_id = ?
+	  AND g.is_template = true
+	  AND g.archived_at IS NULL
+	  AND s.valid_until IS NULL`
 
 	args := []any{tenantID}
 	args = append(args, tenantID)

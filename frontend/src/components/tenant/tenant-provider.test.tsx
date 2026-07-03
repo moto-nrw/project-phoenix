@@ -54,6 +54,7 @@ const mockTenant: TenantInfo = {
   presenceMode: "detailed",
   studentPhotosEnabled: false,
   nfcEnabled: false,
+  messagingEnabled: false,
 };
 
 // ============================================================================

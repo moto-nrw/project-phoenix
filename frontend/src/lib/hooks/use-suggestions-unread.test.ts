@@ -15,7 +15,16 @@ vi.mock("~/lib/suggestions-api", () => ({
   fetchUnreadCount: mockFetchUnreadCount,
 }));
 
+// The hook prefixes its cache key with the active tenant slug (per-tenant
+// metadata must not leak across a tenant switch). Pin the slug so the resolved
+// key is deterministic; CACHE_KEY mirrors what the hook builds.
+vi.mock("~/lib/tenant-context", () => ({
+  useTenantSlugSafe: (): string => "testschool",
+}));
+
 import { useSuggestionsUnread } from "./use-suggestions-unread";
+
+const CACHE_KEY = "suggestions_unread_count:testschool";
 
 interface CachedData {
   count: number;
@@ -69,10 +78,7 @@ describe("useSuggestionsUnread", () => {
       count: 3,
       timestamp: Date.now(),
     };
-    localStorage.setItem(
-      "suggestions_unread_count",
-      JSON.stringify(cachedData),
-    );
+    localStorage.setItem(CACHE_KEY, JSON.stringify(cachedData));
 
     const { result } = renderHook(() => useSuggestionsUnread());
 
@@ -98,10 +104,7 @@ describe("useSuggestionsUnread", () => {
       count: 3,
       timestamp: Date.now() - 61 * 1000,
     };
-    localStorage.setItem(
-      "suggestions_unread_count",
-      JSON.stringify(expiredData),
-    );
+    localStorage.setItem(CACHE_KEY, JSON.stringify(expiredData));
 
     const { result } = renderHook(() => useSuggestionsUnread());
 
@@ -144,11 +147,16 @@ describe("useSuggestionsUnread", () => {
 
   it("skipCache parameter forces fresh fetch", async () => {
     mockUseSession.mockReturnValue({ status: "authenticated" });
-    mockFetchUnreadCount.mockResolvedValueOnce(10);
+    // The shared useUnreadCount hook honors a forced refresh that lands while
+    // the mount fetch is still in flight by draining it into a second fetch
+    // (so a cache-busting event can't be dropped). Return the fresh value for
+    // every call so that queued second fetch yields the same count, not
+    // undefined; the assertion below still verifies the forced refresh wins.
+    mockFetchUnreadCount.mockResolvedValue(10);
 
     // Set cached data
     localStorage.setItem(
-      "suggestions_unread_count",
+      CACHE_KEY,
       JSON.stringify({ count: 3, timestamp: Date.now() }),
     );
 
@@ -158,6 +166,36 @@ describe("useSuggestionsUnread", () => {
 
     await waitFor(() => {
       expect(result.current.unreadCount).toBe(10);
+    });
+  });
+
+  it("drains a forced refresh that lands mid-flight into a second fetch", async () => {
+    // Documents an intentional behavior change from the old hand-rolled hook: the
+    // shared useUnreadCount honors a cache-busting refresh that arrives WHILE the
+    // mount fetch is still in flight by re-running the fetcher once it resolves,
+    // instead of dropping it. One extra request in a rare race is the price of the
+    // badge never sticking on a stale pre-event count.
+    mockUseSession.mockReturnValue({ status: "authenticated" });
+    let resolveMount: (n: number) => void = () => undefined;
+    const mountFetch = new Promise<number>((resolve) => {
+      resolveMount = resolve;
+    });
+    mockFetchUnreadCount
+      .mockReturnValueOnce(mountFetch) // mount fetch hangs until we release it
+      .mockResolvedValue(9); // the drained re-fetch
+
+    const { result } = renderHook(() => useSuggestionsUnread());
+
+    // The mount fetch is in flight; a forced refresh now queues (it can't run
+    // concurrently) and must be drained after the mount fetch resolves.
+    void result.current.refresh(true);
+    resolveMount(4);
+
+    await waitFor(() => {
+      expect(mockFetchUnreadCount.mock.calls.length).toBe(2);
+    });
+    await waitFor(() => {
+      expect(result.current.unreadCount).toBe(9);
     });
   });
 
@@ -209,7 +247,7 @@ describe("useSuggestionsUnread", () => {
 
     // Set cached data
     localStorage.setItem(
-      "suggestions_unread_count",
+      CACHE_KEY,
       JSON.stringify({ count: 3, timestamp: Date.now() }),
     );
 
@@ -219,7 +257,7 @@ describe("useSuggestionsUnread", () => {
     window.dispatchEvent(new Event("suggestions-unread-refresh"));
 
     await waitFor(() => {
-      expect(localStorage.getItem("suggestions_unread_count")).toBeNull();
+      expect(localStorage.getItem(CACHE_KEY)).toBeNull();
     });
   });
 
@@ -228,7 +266,7 @@ describe("useSuggestionsUnread", () => {
     mockFetchUnreadCount.mockResolvedValueOnce(5);
 
     // Set invalid JSON in cache
-    localStorage.setItem("suggestions_unread_count", "invalid-json");
+    localStorage.setItem(CACHE_KEY, "invalid-json");
 
     const { result } = renderHook(() => useSuggestionsUnread());
 
@@ -246,7 +284,7 @@ describe("useSuggestionsUnread", () => {
     renderHook(() => useSuggestionsUnread());
 
     await waitFor(() => {
-      const cached = localStorage.getItem("suggestions_unread_count");
+      const cached = localStorage.getItem(CACHE_KEY);
       expect(cached).not.toBeNull();
       if (cached) {
         const data = JSON.parse(cached) as CachedData;

@@ -518,6 +518,7 @@ describe("backend mappers", () => {
                 end_time: "15:00",
                 week_pattern: 2,
                 calendar_period_id: 5,
+                valid_until: "2026-06-01",
               },
             ],
           },
@@ -529,7 +530,7 @@ describe("backend mappers", () => {
       studentIds: ["21"],
       staffIds: ["11"],
       primaryStaffId: "11",
-      schedules: [{ id: "9", calendarPeriodId: "5" }],
+      schedules: [{ id: "9", calendarPeriodId: "5", validUntil: "2026-06-01" }],
     });
   });
 

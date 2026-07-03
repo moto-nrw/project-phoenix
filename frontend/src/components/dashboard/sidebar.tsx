@@ -15,12 +15,16 @@ import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { hasRole, isCaregiver } from "~/lib/auth-utils";
+import { hasPermission, hasRole, isCaregiver } from "~/lib/auth-utils";
 import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useSuggestionsUnread } from "~/lib/hooks/use-suggestions-unread";
+import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
+import { useParentMessagesUnread } from "~/lib/hooks/use-parent-messages-unread";
+import { useParentMealPlanEnabled } from "~/lib/hooks/use-parent-meal-plan-enabled";
 import { useOperatorSuggestionsUnread } from "~/lib/hooks/use-operator-suggestions-unread";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
+import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { SidebarAccordionSection } from "~/components/dashboard/sidebar-accordion-section";
 import { SidebarSubItem } from "~/components/dashboard/sidebar-sub-item";
 import { navigationIcons } from "~/lib/navigation-icons";
@@ -102,35 +106,33 @@ const NAV_ITEMS: NavItem[] = [
     requiresAdmin: true,
   },
   {
+    href: "/admin/change-requests",
+    label: "Änderungsanfragen",
+    icon: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z",
+    activeColor: "text-[#5080D8]",
+    requiresAdmin: true,
+  },
+  {
     href: "/time-tracking",
     label: "Zeiterfassung",
     icon: "M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0Z",
     activeColor: "text-sky-500",
     alwaysShow: true,
   },
-  // Coming soon features - shown to all users
   {
-    href: "#",
+    href: "/messages",
     label: "Nachrichten",
     icon: "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z",
+    activeColor: "text-[#5080D8]",
     alwaysShow: true,
-    comingSoon: true,
   },
+  // Essensplan — visible only when the meal_plan.enabled setting is on
+  // (gated in filteredNavItems below).
   {
-    href: "#",
-    label: "Mittagessen",
-    icon: "M8.5 3v18M7 3v3.5M10 3v3.5M7 10h3M15.5 3v3c0 1-2 2-2 2v13",
-    alwaysShow: true,
-    comingSoon: true,
-  },
-  // Coming soon features - caregivers only
-  {
-    href: "#",
-    label: "Erinnerungen",
-    icon: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9",
-    alwaysShow: true,
-    hideForAdmin: true,
-    comingSoon: true,
+    href: "/meal-plan",
+    label: "Essensplan",
+    icon: navigationIcons.utensils,
+    activeColor: "text-[#83CD2D]",
   },
   {
     href: "#",
@@ -291,6 +293,7 @@ const NFC_ONLY_HREFS = new Set<string>([
 // Static sub-pages for Anmeldungen accordion (admin only).
 const ENROLLMENTS_SUB_PAGES = [
   { href: "/admin/enrollments", label: "Überblick" },
+  { href: "/admin/enrollments/change-requests", label: "Änderungsanfragen" },
   { href: "/enrollment-phases", label: "Anmeldephasen" },
   { href: "/care-offerings", label: "Betreuungsangebote" },
   { href: "/enrollment-form", label: "Anmeldeformulare" },
@@ -318,13 +321,6 @@ const PARENT_PREVIEW_ITEMS: readonly (NavItem & { tKey: string })[] = [
     label: "Kalender",
     tKey: "calendar",
     icon: navigationIcons.calendar,
-    comingSoon: true,
-  },
-  {
-    href: "#",
-    label: "Nachrichten",
-    tKey: "messages",
-    icon: navigationIcons.chat,
     comingSoon: true,
   },
   {
@@ -409,6 +405,15 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const { unreadCount: suggestionsUnreadCount } = useSuggestionsUnread();
   // Get unread suggestions count for badge (operator mode)
   const { unreadCount: operatorUnreadCount } = useOperatorSuggestionsUnread();
+  // Unread parent-OGS messages badge (staff/teacher mode)
+  const { unreadCount: messagesUnreadCount } = useMessagesUnread();
+  // Unread OGS messages badge (parents portal) — only fetches in parent mode.
+  const { unreadCount: parentMessagesUnread } = useParentMessagesUnread(
+    mode === "parent",
+  );
+  // Only advertise Essensplan in the parents portal once a linked school runs
+  // a meal plan; otherwise the link leads to an empty/unavailable page.
+  const parentMealPlanEnabled = useParentMealPlanEnabled(mode === "parent");
 
   // Accordion state passes `from` param so child pages (e.g. student detail)
   // keep the originating accordion section open
@@ -422,8 +427,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const nfcEnabled = useNFCEnabled();
   const { counts: groupAttendanceCounts } = useGroupAttendanceCounts();
   const canShowGroupAttendanceCounts = pathname.startsWith("/ogs-groups");
+  // Fetch the settings schema for anyone the backend lets read config, not just
+  // admins. The meal-plan GET route is guarded by config:read, so a non-admin
+  // config reader (custom config-manager) must also see the feature flags;
+  // gating the fetch on userIsAdmin alone hid the Essensplan entry from them.
+  // Admins stay in (their other flag, timetable.enabled, depends on this too).
+  const canReadConfig = userIsAdmin || hasPermission(session, "config:read");
   const { data: settingsSchema } = useSWR(
-    userIsAdmin ? SETTINGS_SCHEMA_SWR_KEY : null,
+    canReadConfig ? SETTINGS_SCHEMA_SWR_KEY : null,
     fetchSettingsSchema,
     {
       revalidateOnFocus: false,
@@ -436,6 +447,13 @@ function SidebarContent({ className = "" }: SidebarProps) {
       .flatMap((tab) => tab.categories)
       .flatMap((category) => category.items)
       .find((item) => item.key === "timetable.enabled")?.value === true;
+
+  const mealPlanEnabled =
+    settingsSchema?.tabs
+      .flatMap((tab) => tab.categories)
+      .flatMap((category) => category.items)
+      .find((item) => item.key === "operations.meal_plan_enabled")?.value ===
+    true;
 
   const formatGroupAttendanceCount = (groupId: string | number) => {
     if (!canShowGroupAttendanceCounts) return undefined;
@@ -465,6 +483,13 @@ function SidebarContent({ className = "" }: SidebarProps) {
     if (item.href === "/timetables" && !timetableEnabled) {
       return false;
     }
+    // The meal plan page requires config:read (admin / config-managers). Gate
+    // the nav on the same permission the backend enforces — using hasPermission
+    // (not hasRole) so it stays in lockstep with the API: anyone the backend
+    // would 403 never sees the entry, and anyone with config access (incl.
+    // wildcard grants) does. Feature flag still applies.
+    if (item.href === "/meal-plan")
+      return mealPlanEnabled === true && hasPermission(session, "config:read");
     if (item.alwaysShow) return true;
     if (item.requiresAdmin && !userIsAdmin) return false;
     return true;
@@ -620,10 +645,11 @@ function SidebarContent({ className = "" }: SidebarProps) {
           </svg>
           <span className="flex flex-1 items-center justify-between">
             {item.label}
-            {item.href === "/suggestions" && suggestionsUnreadCount > 0 && (
-              <span className="ml-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-semibold text-white">
-                {suggestionsUnreadCount > 99 ? "99+" : suggestionsUnreadCount}
-              </span>
+            {item.href === "/suggestions" && (
+              <UnreadBadge count={suggestionsUnreadCount} className="ml-2" />
+            )}
+            {item.href === "/messages" && (
+              <UnreadBadge count={messagesUnreadCount} className="ml-2" />
             )}
           </span>
         </Link>
@@ -825,10 +851,8 @@ function SidebarContent({ className = "" }: SidebarProps) {
         </svg>
         <span className="flex flex-1 items-center justify-between">
           {item.label}
-          {item.href === operatorSuggestionsHref && operatorUnreadCount > 0 && (
-            <span className="ml-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-semibold text-white">
-              {operatorUnreadCount > 99 ? "99+" : operatorUnreadCount}
-            </span>
+          {item.href === operatorSuggestionsHref && (
+            <UnreadBadge count={operatorUnreadCount} className="ml-2" />
           )}
         </span>
       </Link>
@@ -901,6 +925,47 @@ function SidebarContent({ className = "" }: SidebarProps) {
               </svg>
               <span>{tParentNav("children")}</span>
             </Link>
+            <Link
+              href="/parents/messages"
+              className={getLinkClasses("/parents/messages")}
+            >
+              <svg
+                className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d={navigationIcons.chat}
+                />
+              </svg>
+              <span>{tParentNav("messages")}</span>
+              <UnreadBadge count={parentMessagesUnread} className="ml-auto" />
+            </Link>
+            {parentMealPlanEnabled && (
+              <Link
+                href="/parents/meal-plan"
+                className={getLinkClasses("/parents/meal-plan")}
+              >
+                <svg
+                  className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d={navigationIcons.utensils}
+                  />
+                </svg>
+                <span>{tParentNav("mealPlan")}</span>
+              </Link>
+            )}
             <div className="mt-5">
               <p className="mb-1.5 px-3 text-[10px] font-semibold tracking-wider text-gray-400 uppercase lg:px-4 xl:px-3">
                 {tParentNav("comingSoon")}

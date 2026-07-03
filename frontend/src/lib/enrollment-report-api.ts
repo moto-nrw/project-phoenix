@@ -13,6 +13,8 @@ export interface CareUsageFilters {
   care_offering_ids?: string[];
   day_count?: number;
   grade_level?: number;
+  weekday?: string;
+  pickup_time?: string;
   search?: string;
 }
 
@@ -27,16 +29,20 @@ export interface CareUsageReport {
     care_offering_ids: string[];
     day_count?: number;
     grade_level?: number;
+    weekday?: string;
+    pickup_time?: string;
     search?: string;
   };
   totals: {
     children: number;
     by_day_count: Record<string, number>;
+    by_weekday_pickup_time: Record<string, Record<string, number>>;
   };
   by_offering: CareUsageOfferingStat[];
   filter_options: {
     offerings: CareUsageOfferingOption[];
     grade_levels: number[];
+    pickup_times: string[];
   };
   rows: CareUsageRow[];
 }
@@ -65,6 +71,7 @@ export interface CareUsageRow {
   offerings: CareUsageRowOffering[];
   effective_days: string[];
   day_count: number;
+  pickup_by_day: Record<string, string>;
   guardian_first_name: string;
   guardian_last_name: string;
   guardian_email: string;
@@ -158,6 +165,42 @@ export async function exportCareUsageReport(
   URL.revokeObjectURL(url);
 }
 
+export async function exportPhaseClassRoster(
+  phaseId: string,
+  schoolClass: string,
+  format: EnrollmentReportFormat,
+): Promise<void> {
+  const response = await fetch(
+    "/api/enrollment/admin/reports/class-roster/export",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        format,
+        filters: {
+          phase_id: phaseId,
+          school_class: schoolClass,
+        },
+      }),
+    },
+  );
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Klassenliste konnte nicht exportiert werden",
+    );
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filenameFromDisposition(response) ?? `klassenliste.${format}`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 function appendCareUsageParams(url: URL, filters: CareUsageFilters) {
   url.searchParams.set("phase_id", String(filters.phase_id));
   if (filters.status) url.searchParams.set("status", filters.status);
@@ -175,6 +218,12 @@ function appendCareUsageParams(url: URL, filters: CareUsageFilters) {
   }
   if (filters.grade_level) {
     url.searchParams.set("grade_level", String(filters.grade_level));
+  }
+  if (filters.weekday) {
+    url.searchParams.set("weekday", filters.weekday);
+  }
+  if (filters.pickup_time) {
+    url.searchParams.set("pickup_time", filters.pickup_time);
   }
   if (filters.search?.trim()) {
     url.searchParams.set("search", filters.search.trim());

@@ -18,4 +18,11 @@ type Broadcaster interface {
 	// BroadcastToAll sends an event to every connected client regardless of group subscriptions.
 	// Used for global dashboard count refreshes. Fire-and-forget.
 	BroadcastToAll(event Event) error
+
+	// BroadcastParentMessage routes a parent-OGS messaging trigger precisely:
+	// the addressed guardian's portal client (matched on account id) receives
+	// it, while staff clients in the tenant receive it so their access-filtered
+	// inbox refreshes. This keeps one family's messages from waking another
+	// family's app. Fire-and-forget.
+	BroadcastParentMessage(tenantID, guardianAccountID int64, event Event) error
 }

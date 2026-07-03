@@ -419,9 +419,16 @@ export interface PublicLegalTexts {
 export async function fetchPublicLegalTexts(
   tenantSlug: string,
   phaseId?: string,
+  options: { lateInviteToken?: string } = {},
 ): Promise<PublicLegalTexts> {
   const path = `/api/enrollment/legal/${encodeURIComponent(tenantSlug)}`;
-  const url = phaseId ? `${path}?phaseId=${encodeURIComponent(phaseId)}` : path;
+  const params = new URLSearchParams();
+  if (phaseId) params.set("phaseId", phaseId);
+  if (options.lateInviteToken?.trim()) {
+    params.set("late_invite", options.lateInviteToken.trim());
+  }
+  const query = params.toString();
+  const url = query ? `${path}?${query}` : path;
   const response = await fetch(url, { cache: "no-store" });
   if (!response.ok) {
     throw await readEnrollmentError(
@@ -437,13 +444,16 @@ export async function fetchPublicLegalTexts(
 export async function fetchPublicActiveSchema(
   tenantSlug: string,
   phaseId: string,
+  options: { lateInviteToken?: string } = {},
 ): Promise<PublicFormSchema | null> {
-  const response = await fetch(
-    `/api/enrollment/schema/public/${encodeURIComponent(
-      tenantSlug,
-    )}/${encodeURIComponent(phaseId)}`,
-    { cache: "no-store" },
-  );
+  const path = `/api/enrollment/schema/public/${encodeURIComponent(
+    tenantSlug,
+  )}/${encodeURIComponent(phaseId)}`;
+  const trimmedToken = options.lateInviteToken?.trim();
+  const url = trimmedToken
+    ? `${path}?late_invite=${encodeURIComponent(trimmedToken)}`
+    : path;
+  const response = await fetch(url, { cache: "no-store" });
   if (response.status === 404) {
     return null;
   }

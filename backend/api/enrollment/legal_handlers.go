@@ -60,6 +60,7 @@ func (rs *Resource) publicLegalTexts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	out := PublicLegalTextsResponse{}
+	lateInviteToken := lateInviteTokenFromRequest(r)
 	// legalErr captures a genuine settings/DB/JSON resolve failure so we
 	// can return a 500 instead of the 404 path. These texts sit behind
 	// legally relevant blocks — on a real failure the endpoint must fail
@@ -77,14 +78,15 @@ func (rs *Resource) publicLegalTexts(w http.ResponseWriter, r *http.Request) {
 				err   error
 			)
 			if phaseID > 0 {
-				texts, err = rs.RequestService.LegalTextsForPhase(txCtx, phaseID)
+				texts, err = rs.RequestService.LegalTextsForPhaseWithLateInvite(txCtx, phaseID, lateInviteToken)
 			} else {
 				texts, err = rs.RequestService.LegalTexts(txCtx)
 			}
 			if err != nil {
 				if !errors.Is(err, enrollmentService.ErrInvalidSubmission) &&
 					!errors.Is(err, enrollmentService.ErrEnrollmentDisabled) &&
-					!errors.Is(err, enrollmentService.ErrEnrollmentWindowClosed) {
+					!errors.Is(err, enrollmentService.ErrEnrollmentWindowClosed) &&
+					!errors.Is(err, enrollmentService.ErrLateInviteInvalid) {
 					legalErr = err
 				}
 				return err

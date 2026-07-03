@@ -266,7 +266,7 @@ describe("timetableService", () => {
     );
   });
 
-  it("loads a single template and splits a template from an effective date", async () => {
+  it("loads a single template, splits a template, and ends it from an effective date", async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ data: backendTemplate }))
       .mockResolvedValueOnce(
@@ -277,6 +277,15 @@ describe("timetableService", () => {
             schedule_ids: [11, 12],
             deleted_instances: 4,
             instances_created: 6,
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            template_id: 7,
+            effective_date: "2026-06-01",
+            deleted_instances: 4,
           },
         }),
       );
@@ -309,6 +318,15 @@ describe("timetableService", () => {
       deletedInstances: 4,
       instancesCreated: 6,
     });
+    await expect(
+      timetableService.endTemplate("7", {
+        effective_date: "2026-06-01",
+      }),
+    ).resolves.toEqual({
+      templateId: "7",
+      effectiveDate: "2026-06-01",
+      deletedInstances: 4,
+    });
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
@@ -321,6 +339,14 @@ describe("timetableService", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify(splitBody),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "/api/timetable/templates/7/end",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ effective_date: "2026-06-01" }),
       }),
     );
   });

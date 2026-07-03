@@ -36,6 +36,26 @@ export function todayISO(): string {
 }
 
 /**
+ * Today's calendar date in the school's timezone (Europe/Berlin) as
+ * "YYYY-MM-DD". Use this — not todayISO() — whenever the value is compared
+ * against a backend DATE the server derives from `timezone.TodayDate()`
+ * (always Berlin). A browser in another timezone can be a calendar day off
+ * around midnight, which would otherwise send a week the backend rejects as
+ * out of range. Built from Intl parts (not toISOString) so the date-safety
+ * lint stays satisfied.
+ */
+export function berlinTodayISO(): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Berlin",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+/**
  * Groups items by date, sorted in descending order (newest first)
  * @param items Array of items with timestamp properties
  * @param timestampKey The key to access the timestamp property
@@ -110,6 +130,38 @@ export function formatTime(dateString: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+/**
+ * Compact chat timestamp ("12.03., 14:30") for message bubbles — day/month plus
+ * time, no year. Single source for the parent-OGS chat bubbles (chat-bubble,
+ * ogs-conversation). Invalid ISO falls back to the raw input rather than
+ * throwing, so a malformed timestamp never blanks a whole message list. The clock
+ * portion reuses formatTime so the hour cycle / locale can never drift from the
+ * rest of the app (the day/month part has no shared helper, hence the inline
+ * formatter).
+ */
+export function formatChatTime(iso: string): string {
+  const date = new Date(iso);
+  if (isNaN(date.getTime())) return iso;
+  const dayMonth = new Intl.DateTimeFormat("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+  }).format(date);
+  return `${dayMonth}, ${formatTime(iso)}`;
+}
+
+/**
+ * Full chat timestamp with year ("12.03.2026, 14:30") for the message list and
+ * thread headers. Returns "" for missing input; invalid ISO falls back to the
+ * raw input. Single source for the staff inbox/thread pages and the parents
+ * messages list. Composes the existing date + time formatters rather than
+ * spinning up a third Intl path that could drift from the rest of the app.
+ */
+export function formatChatDateTime(iso: string | undefined): string {
+  if (!iso) return "";
+  if (isNaN(new Date(iso).getTime())) return iso;
+  return `${formatDate(iso)}, ${formatTime(iso)}`;
 }
 
 /**

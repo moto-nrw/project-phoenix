@@ -9,6 +9,7 @@ package parent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -21,6 +22,7 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	mealplanModels "github.com/moto-nrw/project-phoenix/models/mealplan"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -29,10 +31,6 @@ import (
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
-
-// ParentNoteDisplayLimit is how many of the newest parent notes the
-// portal and the staff view surface by default.
-const ParentNoteDisplayLimit = 3
 
 // Service is the public contract consumed by HTTP handlers.
 type Service interface {
@@ -75,20 +73,17 @@ type Service interface {
 	// disables the feature.
 	ListSickDays(ctx context.Context, accountID, studentID int64, from, to timezone.Date) ([]*activeModels.StudentStatusDay, error)
 
-	// AddParentNote appends a free-text note the parent left for the
-	// team and returns the newest ParentNoteDisplayLimit notes. Gated by
-	// operations.parent_notes_enabled for the child's tenant.
-	AddParentNote(ctx context.Context, accountID, studentID int64, body string) ([]*usersModels.StudentParentNote, error)
-
-	// ListParentNotes returns the newest notes for the child (limit <= 0
-	// uses ParentNoteDisplayLimit). Authorization only — reads are not
-	// gated by the setting so previously-left notes stay visible.
-	ListParentNotes(ctx context.Context, accountID, studentID int64, limit int) ([]*usersModels.StudentParentNote, error)
-
 	// ChildFeatures resolves which parent-portal write features are enabled
 	// for the child's tenant, so the UI can hide/disable actions the backend
 	// would reject with 403. Authorization only.
 	ChildFeatures(ctx context.Context, accountID, studentID int64) (ChildFeatureFlags, error)
+
+	// MealPlanWeek returns the Monday-Friday meal plan entries for the school
+	// of the given child, for the week containing weekStart. Authorization
+	// (parent_portal.access) plus the operations.meal_plan_enabled toggle for
+	// the child's tenant: when the feature is off it returns
+	// ErrMealPlanDisabled so the portal can hide the section.
+	MealPlanWeek(ctx context.Context, accountID, studentID int64, weekStart timezone.Date) ([]*mealplanModels.MealPlanEntry, error)
 
 	// SubmitCareException sets a guardian-authored, date-specific pickup and/or
 	// arrival time for one day. At least one of pickupTime/arrivalTime must be
@@ -120,6 +115,30 @@ type Service interface {
 	// Gated by guardians.parent_can_remove; the primary guardian is protected.
 	RemoveRelatedAccount(ctx context.Context, accountID, studentID, guardianProfileID int64) error
 
+	// GetChildMasterData returns the structured Stammdaten view for the child:
+	// the child's person + student fields and the calling guardian's own
+	// contact data, plus any pending Track B change requests. Authorization
+	// only (GuardianPermissionPortalAccess).
+	GetChildMasterData(ctx context.Context, accountID, studentID int64) (*ChildMasterData, error)
+
+	// UpdateMasterDataField applies a Track A direct edit to a single field and
+	// returns the refreshed Stammdaten view. The edit is written to the live
+	// record immediately and recorded as an auto_applied audit row. Gated by
+	// operations.parent_master_data_edit_enabled and
+	// GuardianPermissionMasterDataEdit.
+	UpdateMasterDataField(ctx context.Context, accountID, studentID int64, target, fieldKey string, value json.RawMessage) (*ChildMasterData, error)
+
+	// SubmitMasterDataChangeRequest records pending Track B change requests
+	// (name, birthday, permanent Gehzeit) for staff approval. Unchanged or
+	// already-pending fields are skipped/rejected. Gated by
+	// operations.parent_master_data_request_enabled and
+	// GuardianPermissionMasterDataRequest.
+	SubmitMasterDataChangeRequest(ctx context.Context, accountID, studentID int64, changes []MasterDataFieldChange) ([]*usersModels.StudentDataChangeRequest, error)
+
+	// ListMyMasterDataRequests returns the child's change requests (any status),
+	// newest-first. Authorization only.
+	ListMyMasterDataRequests(ctx context.Context, accountID, studentID int64) ([]*usersModels.StudentDataChangeRequest, error)
+
 	// ListChildGuardians returns every guardian linked to the child with
 	// contact + pickup detail and the caller's per-guardian edit capabilities.
 	// Authorization only (parent_portal.access).
@@ -136,20 +155,77 @@ type Service interface {
 	// can_pickup / is_emergency_contact flags additionally require
 	// parent_portal.pickup.manage.
 	UpdateGuardianRelationship(ctx context.Context, accountID, studentID, guardianProfileID int64, input GuardianRelationshipInput) (*ChildGuardian, error)
+
+	// ListMessageThreads returns every conversation the guardian owns across
+	// all their children's schools (newest activity first), with the unread
+	// staff-message count. Cross-tenant.
+	ListMessageThreads(ctx context.Context, accountID int64) ([]*usersModels.InboxThread, error)
+
+	// ListChildThreads returns the guardian's conversation(s) about ONE owned
+	// child (at most one per the chat model), newest activity first, with the
+	// unread staff-message count. Does NOT mark the thread read. Authorization
+	// resolves ownership + tenant first.
+	ListChildThreads(ctx context.Context, accountID, studentID int64) ([]*usersModels.InboxThread, error)
+
+	// UnreadMessageCount returns the guardian's total count of conversations
+	// with unread staff-side activity across all their children's schools — the
+	// parent-portal sidebar badge. Cross-tenant; a light COUNT, not a projection.
+	UnreadMessageCount(ctx context.Context, accountID int64) (int, error)
+
+	// GetChildConversation returns the guardian's conversation about one owned
+	// child (oldest-first) and marks it read. Returns an empty view (ThreadID
+	// 0) when no conversation exists yet. Authorization only.
+	GetChildConversation(ctx context.Context, accountID, studentID int64) (*MessageThreadView, error)
+
+	// PostChildMessage appends a guardian message to the child's conversation,
+	// creating it on the first message, and notifies the OGS. Gated by
+	// operations.parent_notes_enabled.
+	PostChildMessage(ctx context.Context, accountID, studentID int64, body string) (*MessageThreadView, error)
+
+	// CreateChildRequest appends a structured parent change request (care
+	// schedule or student master data) to the child's conversation and notifies
+	// the OGS. Requires parent_portal.request.submit; gated by
+	// operations.parent_notes_enabled.
+	CreateChildRequest(ctx context.Context, accountID, studentID int64, requestType string, payload map[string]any) (*MessageThreadView, error)
+
+	// WithdrawChildRequest flips an open guardian request to withdrawn and posts
+	// a parent-visible system event. Requires parent_portal.request.submit;
+	// deliberately stays available after messaging is disabled so outstanding
+	// requests can still be wound down.
+	WithdrawChildRequest(ctx context.Context, accountID, studentID, requestID int64) (*MessageThreadView, error)
 }
 
 // ChildFeatureFlags reports the resolved per-tenant parent-portal feature
 // toggles for a single child.
 type ChildFeatureFlags struct {
-	SickNoteEnabled     bool
-	NotesEnabled        bool
-	PickupChangeEnabled bool
+	SickNoteEnabled bool
+	NotesEnabled    bool
+	// RequestSubmitEnabled is true when messaging is on AND the guardian holds
+	// parent_portal.request.submit for this child — gates the change-request
+	// quick actions (care schedule / master data) in the parent UI.
+	RequestSubmitEnabled bool
+	PickupChangeEnabled  bool
 	// RelatedAccountsInviteEnabled is true when parents may invite further
 	// guardians (guardians.parent_invite_mode != disabled).
 	RelatedAccountsInviteEnabled bool
 	// RelatedAccountsRemoveEnabled is true when parents may remove another
 	// account's access (guardians.parent_can_remove).
 	RelatedAccountsRemoveEnabled bool
+	// MasterDataEditEnabled is true when parents may directly edit the
+	// non-guardian Track A Stammdaten fields (setting AND the relationship
+	// permission).
+	MasterDataEditEnabled bool
+	// MasterDataContactEditEnabled is true when parents may directly edit their
+	// guardian profile/phone contact fields. These writes require both the
+	// master-data edit setting and guardian-management setting.
+	MasterDataContactEditEnabled bool
+	// MasterDataRequestEnabled is true when parents may submit Track B
+	// change requests for approval (setting AND the relationship permission).
+	MasterDataRequestEnabled bool
+	// MealPlanEnabled is true when the school maintains a meal plan
+	// (operations.meal_plan_enabled), so the portal can show the read-only
+	// Essensplan section for this child's school.
+	MealPlanEnabled bool
 }
 
 // CareException is the parent-facing projection of a single day's pickup and/or
@@ -181,14 +257,25 @@ type ServiceConfig struct {
 	EnrollmentRequestRepo parentModels.EnrollmentRequestRepository
 	GuardianProfileRepo   usersModels.GuardianProfileRepository
 
-	// Per-child write features (sick notes + parent notes + care exceptions).
+	// Per-child write features (sick notes + care exceptions).
 	StatusDayRepo        activeModels.StudentStatusDayRepository
 	StudentRepo          usersModels.StudentRepository
-	NoteRepo             usersModels.StudentParentNoteRepository
 	PickupExceptionRepo  scheduleModels.StudentPickupExceptionRepository
 	ArrivalExceptionRepo scheduleModels.StudentArrivalExceptionRepository
 	Settings             configService.SettingsService
 	Broadcaster          realtime.Broadcaster
+
+	// Meal plan (Essensplan) read access for the child's school.
+	MealPlanRepo mealplanModels.MealPlanEntryRepository
+
+	// Parent-OGS messaging.
+	MessageThreadRepo usersModels.ParentMessageThreadRepository
+	MessageRepo       usersModels.ParentMessageRepository
+	MessageReadRepo   usersModels.ParentMessageReadRepository
+	// DiffBuilder reuses the staff messaging service's request-diff logic so the
+	// guardian's own request card shows the same "current → requested" view staff
+	// see. Satisfied by services/messaging.Service.
+	DiffBuilder requestDiffBuilder
 
 	// Related-accounts management (invite/remove further guardians from the
 	// parents portal). The invitation service runs the shared resolve logic.
@@ -196,9 +283,14 @@ type ServiceConfig struct {
 	GuardianInviteRepo  authModels.GuardianInvitationRepository
 	StudentGuardianRepo usersModels.StudentGuardianRepository
 
-	// Guardian contact + pickup editing (#1667). The phone repo backs the
-	// wholesale phone-list replace on a contact edit; the audit repo records
-	// every contact-field and pickup/emergency flag change (append-only).
+	// Stammdaten view + change flow (Track A direct edit, Track B requests).
+	PersonRepo        usersModels.PersonRepository
+	ChangeRequestRepo usersModels.StudentDataChangeRequestRepository
+
+	// Guardian contact + pickup editing (#1667). The phone repo backs both the
+	// caller's primary-phone master-data edit and the wholesale phone-list replace
+	// on a contact edit; the audit repo records every contact-field and
+	// pickup/emergency flag change (append-only).
 	GuardianPhoneRepo       usersModels.GuardianPhoneNumberRepository
 	GuardianChangeAuditRepo auditModels.GuardianChangeRepository
 
@@ -214,16 +306,24 @@ type service struct {
 
 	statusDayRepo        activeModels.StudentStatusDayRepository
 	studentRepo          usersModels.StudentRepository
-	noteRepo             usersModels.StudentParentNoteRepository
 	pickupExceptionRepo  scheduleModels.StudentPickupExceptionRepository
 	arrivalExceptionRepo scheduleModels.StudentArrivalExceptionRepository
 	settings             configService.SettingsService
 	broadcaster          realtime.Broadcaster
 
+	mealPlanRepo mealplanModels.MealPlanEntryRepository
+
+	messageThreadRepo usersModels.ParentMessageThreadRepository
+	messageRepo       usersModels.ParentMessageRepository
+	messageReadRepo   usersModels.ParentMessageReadRepository
+	diffBuilder       requestDiffBuilder
+
 	guardianInvites     authService.GuardianInvitationService
 	guardianInviteRepo  authModels.GuardianInvitationRepository
 	studentGuardianRepo usersModels.StudentGuardianRepository
 
+	personRepo              usersModels.PersonRepository
+	changeRequestRepo       usersModels.StudentDataChangeRequestRepository
 	guardianPhoneRepo       usersModels.GuardianPhoneNumberRepository
 	guardianChangeAuditRepo auditModels.GuardianChangeRepository
 
@@ -243,12 +343,18 @@ func NewService(cfg ServiceConfig) Service {
 		enrollmentRequestRepo:   cfg.EnrollmentRequestRepo,
 		guardianProfileRepo:     cfg.GuardianProfileRepo,
 		statusDayRepo:           cfg.StatusDayRepo,
+		mealPlanRepo:            cfg.MealPlanRepo,
 		studentRepo:             cfg.StudentRepo,
-		noteRepo:                cfg.NoteRepo,
 		pickupExceptionRepo:     cfg.PickupExceptionRepo,
 		arrivalExceptionRepo:    cfg.ArrivalExceptionRepo,
 		settings:                cfg.Settings,
 		broadcaster:             cfg.Broadcaster,
+		personRepo:              cfg.PersonRepo,
+		changeRequestRepo:       cfg.ChangeRequestRepo,
+		messageThreadRepo:       cfg.MessageThreadRepo,
+		messageRepo:             cfg.MessageRepo,
+		messageReadRepo:         cfg.MessageReadRepo,
+		diffBuilder:             cfg.DiffBuilder,
 		guardianInvites:         cfg.GuardianInvites,
 		guardianInviteRepo:      cfg.GuardianInviteRepo,
 		studentGuardianRepo:     cfg.StudentGuardianRepo,

@@ -1348,6 +1348,8 @@ type fakeOpsBroadcaster struct {
 	}
 }
 
+func (b *fakeOpsBroadcaster) BroadcastParentMessage(_, _ int64, _ realtime.Event) error { return nil }
+
 func (b *fakeOpsBroadcaster) BroadcastToTenant(tenantID int64, event realtime.Event) error {
 	b.events = append(b.events, struct {
 		tenantID int64

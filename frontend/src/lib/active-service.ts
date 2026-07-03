@@ -49,6 +49,38 @@ interface TransitAssignResult {
   room_id: number;
 }
 
+interface StudentMoveSkipped {
+  student_id: number;
+  reason: string;
+}
+
+export interface StudentMoveResult {
+  moved: number[];
+  unchanged: number[];
+  skipped: StudentMoveSkipped[];
+  active_group_id?: number | null;
+  room_id?: number | null;
+}
+
+export interface StudentMoveSummary {
+  successCount: number;
+  notPresentCount: number;
+  otherSkippedCount: number;
+}
+
+export function summarizeStudentMoveResult(
+  result: StudentMoveResult,
+): StudentMoveSummary {
+  const notPresentCount = result.skipped.filter(
+    (item) => item.reason === "not_present",
+  ).length;
+  return {
+    successCount: result.moved.length + result.unchanged.length,
+    notPresentCount,
+    otherSkippedCount: result.skipped.length - notPresentCount,
+  };
+}
+
 interface BackendResponseEnvelope<T> {
   data: T;
   message?: string;
@@ -897,6 +929,22 @@ export const activeService = {
       {
         student_ids: studentIds.map((id) => Number.parseInt(id, 10)),
         active_group_id: Number.parseInt(activeGroupId, 10),
+      },
+    );
+  },
+
+  moveStudentsToActiveGroup: async (
+    studentIds: string[],
+    activeGroupId: string,
+  ): Promise<StudentMoveResult> => {
+    return coreFetch<StudentMoveResult>(
+      "POST",
+      "/api/active/visits/move-to-group",
+      "/active/visits/move-to-group",
+      "Move students to active group",
+      {
+        student_ids: studentIds.map((id) => Number.parseInt(id, 10)),
+        target_active_group_id: Number.parseInt(activeGroupId, 10),
       },
     );
   },

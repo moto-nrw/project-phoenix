@@ -145,6 +145,10 @@ vi.mock("~/components/active", () => ({
   UnclaimedRooms: () => <div data-testid="unclaimed-rooms" />,
 }));
 
+vi.mock("~/components/rooms/transit-students-section", () => ({
+  TransitStudentsSection: () => <div data-testid="transit-students-section" />,
+}));
+
 // Mock LocationBadge
 vi.mock("@/components/ui/location-badge", () => ({
   LocationBadge: () => <div data-testid="location-badge">Location</div>,
@@ -293,8 +297,7 @@ describe("Year filter (Klassenstufe) on active supervisions", () => {
     ).mockImplementation((props: Record<string, unknown>) => {
       const p = props;
       const search = p.search as
-        | { value: string; onChange: (v: string) => void }
-        | undefined;
+        { value: string; onChange: (v: string) => void } | undefined;
       const filters = p.filters as
         | Array<{
             id: string;
@@ -304,8 +307,7 @@ describe("Year filter (Klassenstufe) on active supervisions", () => {
           }>
         | undefined;
       const activeFilters = p.activeFilters as
-        | Array<{ id: string; label: string; onRemove?: () => void }>
-        | undefined;
+        Array<{ id: string; label: string; onRemove?: () => void }> | undefined;
       const onClearAllFilters = p.onClearAllFilters as (() => void) | undefined;
 
       return (

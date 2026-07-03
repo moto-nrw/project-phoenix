@@ -145,6 +145,10 @@ vi.mock("~/components/active", () => ({
   UnclaimedRooms: () => <div data-testid="unclaimed-rooms" />,
 }));
 
+vi.mock("~/components/rooms/transit-students-section", () => ({
+  TransitStudentsSection: () => <div data-testid="transit-students-section" />,
+}));
+
 // Mock LocationBadge
 vi.mock("@/components/ui/location-badge", () => ({
   LocationBadge: () => <div data-testid="location-badge">Location</div>,
@@ -3291,8 +3295,7 @@ describe("Enhanced rendering: action buttons and search/filter interaction", () 
       const actionButton = p.actionButton as React.ReactNode;
       const mobileActionButton = p.mobileActionButton as React.ReactNode;
       const search = p.search as
-        | { value: string; onChange: (v: string) => void }
-        | undefined;
+        { value: string; onChange: (v: string) => void } | undefined;
       const filters = p.filters as
         | Array<{
             id: string;

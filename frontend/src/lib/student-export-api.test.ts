@@ -78,6 +78,28 @@ describe("student export metadata", () => {
     );
     expect(dailyPreset?.columns).toContain("daily_status");
   });
+
+  it("offers a class roster preset with enrollment status", () => {
+    const ids = STUDENT_EXPORT_COLUMNS.map((column) => column.id);
+    expect(ids).toContain("enrollment_summary");
+
+    const classRoster = STUDENT_EXPORT_PRESETS.find(
+      (preset) => preset.id === "class_roster",
+    );
+    expect(classRoster?.columns).toEqual([
+      "name",
+      "school_class",
+      "group",
+      "enrollment_summary",
+      "care_days",
+      "weekly_monday",
+      "weekly_tuesday",
+      "weekly_wednesday",
+      "weekly_thursday",
+      "weekly_friday",
+      "departure",
+    ]);
+  });
 });
 
 describe("exportStudents", () => {

@@ -34,6 +34,7 @@ vi.mock("~/lib/auth-utils", () => {
       if (role === "user") return !isAdminFn();
       return false;
     }),
+    hasPermission: vi.fn(() => false),
   };
 });
 
@@ -413,28 +414,36 @@ describe("Sidebar", () => {
 
   describe("coming soon items", () => {
     it("displays coming soon items with badge", () => {
+      // "Berichte" is the remaining coming soon item and is admin-only.
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+
       render(<Sidebar />);
 
       // Coming soon items should have "Bald" badge
-      expect(screen.getByText("Zeiterfassung")).toBeInTheDocument();
-      expect(screen.getByText("Nachrichten")).toBeInTheDocument();
-      expect(screen.getByText("Mittagessen")).toBeInTheDocument();
+      expect(screen.getByText("Berichte")).toBeInTheDocument();
       expect(screen.getAllByText("Bald").length).toBeGreaterThan(0);
     });
 
     it("coming soon items are not clickable", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+
       render(<Sidebar />);
 
-      // Nachrichten is still a coming soon feature
-      const nachrichtenElement = screen.getByText("Nachrichten");
-      expect(nachrichtenElement.closest("a")).toBeNull();
+      // Berichte is still a coming soon feature
+      const comingSoonElement = screen.getByText("Berichte");
+      expect(comingSoonElement.closest("a")).toBeNull();
     });
 
     it("coming soon items have disabled styling", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+
       render(<Sidebar />);
 
-      const nachrichtenElement = screen.getByText("Nachrichten");
-      const container = nachrichtenElement.closest("div");
+      const comingSoonElement = screen.getByText("Berichte");
+      const container = comingSoonElement.closest("div");
       expect(container).toHaveClass("text-gray-400");
       expect(container).toHaveClass("cursor-not-allowed");
     });
@@ -446,6 +455,15 @@ describe("Sidebar", () => {
       const link = zeiterfassungElement.closest("a");
       expect(link).not.toBeNull();
       expect(link).toHaveAttribute("href", "/time-tracking");
+    });
+
+    it("Nachrichten is an active navigation link", () => {
+      render(<Sidebar />);
+
+      const nachrichtenElement = screen.getByText("Nachrichten");
+      const link = nachrichtenElement.closest("a");
+      expect(link).not.toBeNull();
+      expect(link).toHaveAttribute("href", "/messages");
     });
 
     it("does not show the old Dienstpläne placeholder for admins", () => {
@@ -766,23 +784,6 @@ describe("Sidebar", () => {
       const activitiesLink = screen.getByText("Aktivitäten").closest("a");
       const svg = activitiesLink?.querySelector("svg");
       expect(svg?.getAttribute("class")).toContain("text-[#FF3130]");
-    });
-  });
-
-  describe("hideForAdmin items", () => {
-    it("shows Erinnerungen for non-admin users", () => {
-      mockIsAdmin.mockReturnValue(false);
-      render(<Sidebar />);
-
-      expect(screen.getByText("Erinnerungen")).toBeInTheDocument();
-    });
-
-    it("hides Erinnerungen for admin users", () => {
-      mockIsAdmin.mockReturnValue(true);
-      mockUseSession.mockReturnValue(createMockSession(true));
-      render(<Sidebar />);
-
-      expect(screen.queryByText("Erinnerungen")).not.toBeInTheDocument();
     });
   });
 

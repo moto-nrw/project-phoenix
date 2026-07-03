@@ -74,6 +74,7 @@ function getMainRouteTitle(pathname: string): string {
     "/staff": "Mitarbeiter",
     "/rooms": "Räume",
     "/activities": "Aktivitäten",
+    "/reminders": "Erinnerungen",
     "/substitutions": "Vertretungen",
     "/timetables": "Betreuungsplan",
     "/database": "Datenverwaltung",
@@ -81,6 +82,7 @@ function getMainRouteTitle(pathname: string): string {
     "/settings": "Einstellungen",
     "/profile": "Profil",
     "/admin/enrollments": "Überblick",
+    "/admin/enrollments/change-requests": "Änderungsanfragen",
     "/enrollment-phases": "Anmeldephasen",
     "/care-offerings": "Betreuungsangebote",
     "/enrollment-form": "Anmeldeformulare",
@@ -198,6 +200,9 @@ function isEnrollmentPath(pathname: string): boolean {
 }
 
 function getEnrollmentPageTitle(pathname: string): string {
+  if (pathname.startsWith("/admin/enrollments/change-requests")) {
+    return "Änderungsanfragen";
+  }
   if (pathname.startsWith("/admin/enrollments/phases/")) {
     return "Anmeldephase";
   }

@@ -22,6 +22,7 @@ import {
   Search,
   SlidersHorizontal,
   TabletSmartphone,
+  UtensilsCrossed,
   Users,
   Wrench,
 } from "lucide-react";
@@ -385,8 +386,9 @@ export const appChapters: readonly GuideChapter[] = [
         steps: [
           "`Kindersuche` öffnen.",
           "Namen oder Namensbestandteil in das Suchfeld eingeben.",
-          "Bei Bedarf nach Gruppe, Stufe oder Status filtern.",
-          "Über `Exportieren` eine gefilterte Liste ausgeben. Die Vorlage `Tagesliste` enthält den `Tagesstatus`, damit `Krank`, `Entschuldigt` und `Klassenfahrt` direkt auf der Liste stehen.",
+          "Bei Bedarf nach Klasse, Gruppe, Stufe oder Status filtern.",
+          "Für aktuelle Klassenlisten im Filter `Klasse` den Klassenverband wählen und über `Exportieren` die Vorlage `Klassenliste` ausgeben. Phasebezogene Listen für Klassenlehrkräfte erstellst du in der jeweiligen `Anmeldephase`.",
+          "Die Vorlage `Tagesliste` enthält den `Tagesstatus`, damit `Krank`, `Entschuldigt` und `Klassenfahrt` direkt auf der Liste stehen.",
           "Auf jeder Karte rechts die `Aktivitäts-Indikatoren` ablesen: ein grüner Haken bedeutet, das Kind war heute schon im genannten Bereich (z. B. `Mensa`, `Hausaufgaben`), ein grauer Kreis steht für noch ausstehend.",
           "Ein Kind öffnen, um Details, Raum und Zeiten zu sehen.",
         ],
@@ -410,7 +412,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Im Kopfbereich den aktuellen Aufenthalt (z. B. `OGS-Raum 1 seit 12:00 Uhr`) sowie `Heutige Ankunft` und `Heutige Abholung` ablesen.",
           "Über `Krank melden` das Kind als krank und über `Entschuldigen` als entschuldigt markieren. Die seltene Aktion `Klassenfahrt` liegt im Drei-Punkte-Menü der Aktionsleiste; dort einen Zeitraum und optional einen Hinweis erfassen.",
           "Tab `Stammdaten`: Name, Klasse, Gruppe, Geburtstag, Gesundheitsinformationen, Notizen, Foto und Datenschutz ansehen und über `Bearbeiten` ändern. Wenn das Kind über eine Online-Anmeldung übernommen wurde, stehen dort auch kindbezogene Zusatzantworten aus dem Anmeldeformular zur Ansicht.",
-          "Im Tab `Stammdaten` erscheinen unter `Elternnachrichten` die neuesten Mitteilungen, die Eltern über das Elternportal hinterlassen haben (nur Ansicht).",
+          "Tab `Nachrichten`: die Unterhaltung mit einer Bezugsperson zu diesem Kind ansehen und über `Neue Nachricht` der Bezugsperson schreiben. Pro Kind und Bezugsperson gibt es eine fortlaufende Unterhaltung (wie ein Chat, ohne Betreff). Ungelesene Eltern-Nachrichten sind mit einem roten Abzeichen markiert; geschrieben und beantwortet wird im Chat-Fenster.",
           "Tab `Erziehungsberechtigte`: Bezugspersonen mit Kontaktdaten, Abholberechtigung und Notfallkontakten pflegen. Pro Person zeigt ein Status, ob sie ein Konto für das Elternportal hat (`Konto aktiv`, `Einladung offen` oder `Kein Konto`); mit `Einladen` laden Sie eine bereits hinterlegte Bezugsperson zum Elternportal ein, ohne die Daten erneut einzugeben.",
           "Tab `Betreuungszeiten`: die wöchentlichen Ankunfts- und Abholzeiten je Wochentag verwalten und einzelne Tage anpassen. Hat ein Elternteil über das Elternportal eine Ankunfts- oder Abholzeit für einen Tag geändert, ist dieser Tag mit `Von Eltern` markiert; beim Ändern oder Entfernen dieser Zeit fragt die App zur Sicherheit nach, damit die Angabe der Eltern nicht versehentlich überschrieben wird.",
           "Tab `Historie`: die Anwesenheits-Historie der letzten Tage mit Raum-Details nachvollziehen.",
@@ -422,7 +424,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Kinderdetailansicht mit Statuskopf, den Aktionen Krank melden, Entschuldigen und weiteren Statusaktionen im Drei-Punkte-Menü, dem Tab Stammdaten mit Bereich Elternnachrichten sowie den Tabs Erziehungsberechtigte, Betreuungszeiten, Historie und Anmeldungen.",
+          "Kinderdetailansicht mit Statuskopf, den Aktionen Krank melden, Entschuldigen und weiteren Statusaktionen im Drei-Punkte-Menü sowie den Tabs Stammdaten, Nachrichten, Erziehungsberechtigte, Betreuungszeiten, Historie und Anmeldungen.",
         image: "/help/screens/kinderdetailansicht.webp",
       },
       {
@@ -458,6 +460,28 @@ export const appChapters: readonly GuideChapter[] = [
         ],
       },
       {
+        id: "stammdaten-aenderungen-pruefen",
+        title: "Stammdaten-Änderungen prüfen",
+        icon: ClipboardCheck,
+        summary:
+          "Eltern pflegen viele Stammdaten ihres Kindes im Elternportal selbst. Sensible Angaben (Name, Geburtsdatum, dauerhafte Gehzeiten) ändern sie nur auf Anfrage – diese geben Sie hier frei.",
+        steps: [
+          "Die meisten Felder (z. B. Gesundheitshinweise, eigene Kontaktdaten der Eltern) ändern Eltern direkt; die Änderung wird sofort übernommen und protokolliert.",
+          "Für Name, Geburtsdatum und dauerhafte Gehzeiten reichen Eltern über `Änderung anfragen` einen Vorschlag ein, statt direkt zu ändern.",
+          "Offene Anfragen finden Sie als Admin unter `Änderungsanfragen` in der Seitenleiste.",
+          "Pro Anfrage sehen Sie das Kind, das betroffene Feld und die Änderung (alter → neuer Wert).",
+          "Mit `Freigeben` wird der neue Wert in den Datensatz übernommen, mit `Ablehnen` bleibt der bisherige Wert erhalten. Eine Begründung können Sie optional ergänzen.",
+          "Ob Eltern Stammdaten direkt ändern bzw. Änderungen anfragen dürfen, steuern Sie unter `Einstellungen` im Bereich `Elternportal`.",
+        ],
+        callout: {
+          title: "Was wird direkt übernommen?",
+          body: "Direkt geänderte Felder sind sofort wirksam und im Verlauf nachvollziehbar. Nur die freigabepflichtigen Felder warten auf Ihre Bestätigung – bis dahin bleibt der bisherige Wert gültig.",
+          tone: "blue",
+        },
+        screenshot:
+          "Admin-Seite „Änderungsanfragen“ mit Kind, geändertem Feld, altem und neuem Wert sowie Freigeben- und Ablehnen-Schaltflächen.",
+      },
+      {
         id: "meine-gruppen",
         title: "Meine Gruppen",
         icon: Users,
@@ -487,11 +511,34 @@ export const appChapters: readonly GuideChapter[] = [
           "Bei bekannter Abwesenheit `Entschuldigt` wählen.",
           "Falsche Markierung mit `Zurück auf erwartet` korrigieren.",
           "Ungeplantes Kind über `Weiteres Kind suchen...` hinzufügen.",
+          "Im Bereich `Kinder unterwegs` Kinder ohne Raum auswählen, einen Zielraum wählen und mit `In Raum setzen` zuweisen.",
+          "Den Schulhof über den Schulhof-Tab und `Aufsicht übernehmen` führen; für spontane Aktivitäten bitte einen normalen Raum wählen.",
           "Für ein neues Angebot `Spontane Aktivität starten`.",
         ],
         screenshot:
-          "Laufende Aufsicht mit Anwesend, Erwartet und Spontane Aktivität.",
+          "Laufende Aufsicht mit Anwesend, Kinder unterwegs und Spontane Aktivität.",
         image: "/help/screens/aktuelle-aufsicht.webp",
+      },
+      {
+        id: "erinnerungen",
+        title: "Erinnerungen",
+        icon: Clock3,
+        summary:
+          "Eine Übersicht, die rein visuell an Abholungen und Aktivitäten erinnert, die anstehen oder überfällig sind. Kein Ton.",
+        steps: [
+          "Oben rechts auf die Glocke tippen (auf jedem Gerät sichtbar, auch am Tablet).",
+          "Die Vorschau zeigt die dringendsten Einträge zuerst (überfällige vor anstehenden).",
+          "Je Eintrag stehen rechts die Uhrzeit und der Abstand (z. B. `in 10 Min` oder `8 Min überfällig`).",
+          "Die rote Zahl an der Glocke zeigt jederzeit, wie viele Erinnerungen gerade offen sind. `Alle ansehen` öffnet die vollständige Liste, dort nach Art gruppiert: `Überfällige Abholung`, `Überfällige Aktivität` (geplante AG nicht rechtzeitig gestartet), `Anstehende Abholung` und `Aktivitätsbeginn`.",
+          "Als Betreuer siehst du die Kinder deiner aktuellen Aufsicht; als Admin alle anwesenden Kinder.",
+        ],
+        callout: {
+          title: "Nichts zu sehen?",
+          body: "Erinnerungen sind im Auslieferungszustand komplett aus. Welche Arten erscheinen (und mit welcher Vorlaufzeit), schaltet ein Admin unter `Einstellungen` -> `Erinnerungen` ein. Solange keine Art aktiv ist oder gerade nichts ansteht, bleibt die Seite leer.",
+          tone: "blue",
+        },
+        screenshot:
+          "Glocke oben rechts mit roter Zähler-Markierung; geöffnetes Vorschau-Dropdown mit den dringendsten Einträgen zuerst (überfällige vor anstehenden), je Eintrag Name, Uhrzeit und Abstand, plus `Alle ansehen`.",
       },
     ],
   },
@@ -616,6 +663,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Über `Weitere Optionen` `Personal` und `Kinder` zuordnen. Mit `Klasse/Gruppe komplett hinzufügen …` kommt eine ganze Klasse oder Gruppe auf einmal in die Auswahl.",
           "Speichern. Wiederholte Termine trägt Phoenix automatisch für das gesamte Schuljahr ein. Hinweise zu doppelt belegten Räumen, Personal oder Kindern können beim Ausfüllen erscheinen, verhindern das Speichern aber nicht.",
           "Beim Bearbeiten eines Termins aus einer Serie fragt die App, wofür die Änderung gilt: `Nur dieser Termin`, `Dieser und alle folgenden` oder `Alle Termine der Serie`.",
+          "Beim Löschen eines Serientermins wählen Sie zwischen `Nur dieser Termin` und `Dieser und alle folgenden`; frühere Termine bleiben erhalten. Einen Regeltermin löschen Sie über `Bearbeiten` -> `Löschen` und wählen dort das `Ab Datum`.",
           "Geplante Termine erscheinen zur Startzeit in der `Aktuellen Aufsicht` unter `Als Nächstes` und werden dort mit `Starten` begonnen.",
         ],
         callout: {
@@ -703,15 +751,17 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Anmeldungen einrichten",
         icon: LayoutDashboard,
         summary:
-          "Der Admin-Bereich für die Online-Anmeldung: eingegangene Anmeldungen bearbeiten und in vier Unterseiten den Ablauf einrichten - `Überblick`, `Anmeldephasen`, `Betreuungsangebote` und `Anmeldeformulare`.",
+          "Der Admin-Bereich für die Online-Anmeldung: eingegangene Anmeldungen bearbeiten, Änderungsanfragen prüfen und in vier Unterseiten den Ablauf einrichten - `Überblick`, `Änderungsanfragen`, `Anmeldephasen`, `Betreuungsangebote` und `Anmeldeformulare`.",
         steps: [
-          "`Anmeldungen` öffnen. Du landest im `Überblick` mit allen Anmeldephasen und der Zahl der Eingänge (`Gesamt`, `Offen`, `Bestätigt`, `Abgelehnt`).",
+          "`Anmeldungen` öffnen. Du landest im `Überblick` mit allen Anmeldephasen, der Zahl der Eingänge (`Gesamt`, `Offen`, `Bestätigt`, `Abgelehnt`) und dem Einstieg zu offenen Änderungsanfragen.",
           "Beim ersten Einrichten führt dich der Bereich `Einrichtung` (`Online-Anmeldung vorbereiten`) Schritt für Schritt durch alles Nötige. Zuerst `Online-Anmeldung aktivieren`: schaltet den Elternlink frei (in den `Einstellungen` unter `Anmeldung`).",
           "Unter `Einstellungen` -> `Anmeldung` -> `Rechtstexte` aktivierst du nur die Blöcke, die eure Einrichtung tatsächlich nutzt. Jeder Block hat denselben Ablauf: `Im Anmeldeformular anzeigen` einschalten, den Pflichttext im Dialog eintragen und speichern. Bei `AGB / Teilnahmebedingungen` wählst du zuerst die Quelle: `Text eingeben` oder `PDF-Datei hochladen`. Nur die gewählte Quelle erscheint im Elternformular; die andere Quelle kann gespeichert bleiben, wird aber nicht angezeigt. Ausgeschaltete Blöcke bleiben im Hintergrund gespeichert, erscheinen aber nicht im Elternformular. Eigene Formularvorlagen können diese Standardblöcke unter `Rechtstexte und Einwilligungen` je Vorlage ein- oder ausblenden, abweichend bearbeiten oder um eigene Einwilligungen ergänzen.",
+          "Für Familien, die die Frist verpasst haben, `Anmeldephasen` öffnen und in der passenden Phase im Drei-Punkte-Menü `Nachzügler-Link erstellen` wählen. E-Mail-Adresse der erziehungsberechtigten Person eintragen, optional einen internen Grund notieren und den erzeugten Link an die Familie schicken. Der Link öffnet genau diese Phase trotz geschlossener Frist und kann nur einmal erfolgreich genutzt werden.",
+          "Als letzte Absicherung kann ein Admin unter `Anmeldephasen` in der passenden Phase im Drei-Punkte-Menü `Manuelle Anmeldung` wählen. Dort wird dieselbe Formularvorlage wie für Eltern geladen; nach interner Begründung und Bestätigung, dass die Einwilligung extern vorliegt, wird das Kind direkt angelegt und freigegeben.",
         ],
         callout: {
           title: "So hängt alles zusammen",
-          body: "Alles hängt an der `Anmeldephase`: Sie legt den Zeitraum und das Anmeldefenster fest. `Betreuungsangebote` gehören zu einer Phase, und jede Phase nutzt ein `Anmeldeformular`. Richte deshalb in dieser Reihenfolge ein: zuerst die `Online-Anmeldung` in den Einstellungen aktivieren (sonst ist der Elternlink nicht erreichbar), dann eine Anmeldephase anlegen, danach die Betreuungsangebote, bei Bedarf ein eigenes Formular - am Ende die Elternansicht testen. Der `Überblick` enthält dafür den Bereich `Einrichtung`, der dich Schritt für Schritt führt.",
+          body: "Alles hängt an der `Anmeldephase`: Sie legt den Zeitraum und das Anmeldefenster fest. `Betreuungsangebote` gehören zu einer Phase, und jede Phase nutzt ein `Anmeldeformular`. Richte deshalb in dieser Reihenfolge ein: zuerst die `Online-Anmeldung` in den Einstellungen aktivieren (sonst ist der Elternlink nicht erreichbar), dann eine Anmeldephase anlegen, danach die Betreuungsangebote, bei Bedarf ein eigenes Formular - am Ende die Elternansicht testen. Für Nachzügler bleibt die Phase geschlossen; du erzeugst nur einen einzelnen Sonderlink oder nutzt die manuelle Freigabe.",
           tone: "blue",
         },
         screenshot:
@@ -725,11 +775,14 @@ export const appChapters: readonly GuideChapter[] = [
           "Eingegangene Anmeldungen öffnen, Angaben prüfen, nach Betreuungsangeboten filtern und die passende Entscheidung setzen.",
         steps: [
           "Bei einer Phase auf `Anmeldungen ansehen` klicken, um die eingegangenen Anmeldungen zu prüfen.",
-          "Mit `Status`, den `Angeboten für die Auswertung`, der `Anzahl Betreuungstage`, `Zielklasse` oder der Suche die Tabelle auf die Kinder eingrenzen, die du brauchst.",
-          "Die Kennzahlen über der Tabelle zeigen, wie viele Kinder an einem, zwei, drei, vier oder fünf Tagen betreut werden.",
+          "Mit `Status`, den `Angeboten für die Auswertung`, der `Anzahl Betreuungstage`, `Zielklasse`, `Wochentag`, `Gehzeit` oder der Suche die Tabelle auf die Kinder eingrenzen, die du brauchst.",
+          "Die Kennzahlen über der Tabelle zeigen, wie viele Kinder an einem, zwei, drei, vier oder fünf Tagen betreut werden. Die Karte `Einsatzplanung` zeigt zusätzlich, wie viele Kinder je Wochentag bis zu welcher Gehzeit bleiben.",
+          "Für Klassenlehrkräfte unter `Klasse für Klassenliste` den Klassenverband wählen und `Klassenliste exportieren` nutzen. Die Liste enthält den gesamten Klassenverband, auch Kinder ohne bestätigte Anmeldung, und zeigt pro Wochentag die gebuchten Angebote, zum Beispiel `Randstunde` oder `Ganztag`, inklusive Abholzeit, Geh-/Abholweise und Kontaktdaten der Erziehungsberechtigten.",
           "Eine Anmeldung öffnen und Kind, erziehungsberechtigte Personen (Hauptkontakt und weitere erziehungsberechtigte Personen), gewähltes Betreuungsangebot und Formularangaben prüfen.",
+          "Wenn eine Familie nach der Frist nachgereicht hat, erscheint die Anmeldung nach Nutzung des Nachzügler-Links ganz normal in dieser Liste. Bei der manuellen Freigabe ist das Kind bereits bestätigt; prüfe anschließend bei Bedarf den Statuslink oder die Kinddetailseite.",
           "Mit `Bestätigen`, `Warteliste` oder `Ablehnen` entscheiden; mit `Zur Prüfung` für später vormerken.",
           "Bei bestätigten Kindern können Betreuungsangebote über `Betreuungsangebote bearbeiten` nachträglich korrigiert werden. Eine Begründung ist Pflicht; die Änderungshistorie zeigt danach, wer was wann angepasst hat.",
+          "Wenn Eltern nach einer Entscheidung Daten korrigieren, erscheint die Anfrage unter `Änderungsanfragen`. Die Änderungsübersicht zeigt pro Kind oder erziehungsberechtigter Person, welche Felder von `Bisher` auf `Neu` geändert wurden. Dort kannst du Rückfragen senden, die Änderung freigeben oder mit Begründung ablehnen.",
           "Über `Elternansicht öffnen` jederzeit prüfen, was Familien gerade sehen.",
         ],
         callout: {
@@ -753,7 +806,8 @@ export const appChapters: readonly GuideChapter[] = [
           "`PDF` und `Word-Dokument` erzeugen eine gut lesbare Datei mit einem Block pro Kind, gruppiert nach Status und innerhalb jeder Gruppe alphabetisch nach Nachname, inklusive Kontaktdaten, gewählten Angeboten, Zustimmungen und allen Formularangaben.",
           "`Excel-Datei` erzeugt eine Tabelle mit Gruppenzeilen pro Status, einer Datenzeile pro Kind und jedem Feld in einer eigenen Spalte - für Weiterverarbeitung oder Archiv.",
           "Über das `Status`-Auswahlfeld nur einen Teil exportieren (zum Beispiel nur `Bestätigt`); der Export übernimmt den gerade gewählten Status. `Alle` exportiert alles.",
-          "Für eine Auswertung nach Betreuungsangeboten oder Anzahl Betreuungstage nutzt du die Filter und die Karte `Auswertung exportieren`; dort wählst du `Excel`, `PDF` oder `Word-Dokument` für genau diese gefilterte Ansicht.",
+          "Für eine Auswertung nach Betreuungsangeboten, Betreuungstagen, Wochentag oder Gehzeit nutzt du die Filter und die Karte `Auswertung exportieren`; dort wählst du `Excel`, `PDF` oder `Word-Dokument` für genau diese gefilterte Ansicht. PDF und Word beginnen mit einer Einsatzplanung nach Wochentag und Gehzeit.",
+          "Für die Übergabe an Klassenlehrkräfte nutzt du in der Phase `Klasse für Klassenliste` und `Klassenliste exportieren`; diese Liste ist pro Klasse aufgebaut und zeigt pro Wochentag die bestätigten Angebote der Phase, Abholzeiten, Geh-/Abholweise und Erziehungsberechtigte.",
         ],
         callout: {
           title: "Vertrauliche Daten - sorgsam aufbewahren",
@@ -779,7 +833,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Das Anmeldefenster steuert die öffentliche Anmeldung",
-          body: "Das `Anmeldefenster` der Phase entscheidet, wann Familien absenden können. Über das Aktionsmenü öffnest du mit `Formular ansehen` den Elternlink, wechselst mit `Anmeldungen ansehen` zu den Eingängen oder bereitest mit `Anschlussphase erstellen` eine Folgephase vor.",
+          body: "Das `Anmeldefenster` der Phase entscheidet, wann Familien absenden können. Über das Aktionsmenü öffnest du mit `Formular ansehen` den Elternlink, wechselst mit `Anmeldungen ansehen` zu den Eingängen, erstellst einen `Nachzügler-Link`, startest eine `Manuelle Anmeldung` oder bereitest mit `Anschlussphase erstellen` eine Folgephase vor.",
           tone: "gray",
         },
         screenshot:
@@ -833,6 +887,75 @@ export const appChapters: readonly GuideChapter[] = [
         },
         screenshot: "Anmeldeformulare mit Basisformular und eigenen Vorlagen.",
         image: "/help/screens/anmeldeformulare.webp",
+      },
+      {
+        id: "nachrichten",
+        title: "Nachrichten",
+        icon: MessageSquare,
+        summary:
+          "Der zentrale Posteingang für die Kommunikation mit den Eltern, wie ein Chat. Mit jeder Bezugsperson läuft pro Kind genau eine fortlaufende Unterhaltung (ohne Betreff); so wird die E-Mail-Kommunikation überflüssig.",
+        steps: [
+          "In der Seitenleiste `Nachrichten` öffnen. Ein rotes Abzeichen zeigt ungelesene Eltern-Nachrichten an.",
+          "Der Posteingang listet alle Unterhaltungen, die du sehen darfst (als Admin alle, sonst die Kinder deiner Gruppen), neueste zuerst. Jede Zeile zeigt die Bezugsperson mit Beziehung zum Kind und die letzte Nachricht. Über `Nur ungelesen` und `Offene Anfragen` lässt sich die Liste eingrenzen.",
+          "Eine Zeile öffnet das Chat-Fenster mit dem kompletten Verlauf. Über `Zum Kinderprofil` gelangst du von dort zur Kinderdetailansicht.",
+          "Im Chat direkt antworten: Text eingeben und auf `Senden` tippen.",
+          "Über `Neue Nachricht` selbst eine Unterhaltung starten: Kind suchen und Bezugsperson wählen. Damit öffnet sich das Chat-Fenster; den eigentlichen Text schreibst du dort und tippst auf `Senden`. Gibt es mit der Person schon eine Unterhaltung, wird sie fortgesetzt.",
+          "Antworten erscheinen sofort in der Eltern-App der jeweiligen Bezugsperson; dort als `OGS` der Schule, ohne einzelnen Mitarbeitenden-Namen.",
+          "Schickt eine Bezugsperson eine strukturierte Anfrage (etwa zu den dauerhaften Betreuungszeiten), trägt die Zeile ein Abzeichen `offene Anfrage`. Wie du sie bearbeitest, steht im nächsten Abschnitt.",
+        ],
+        callout: {
+          title: "Voraussetzung",
+          body: "Die Funktion muss unter `Einstellungen` > `Betrieb` > `Eltern-OGS-Nachrichten` aktiviert sein. Jede Bezugsperson sieht nur ihre eigenen Unterhaltungen.",
+          tone: "blue",
+        },
+        screenshot:
+          "Nachrichten-Posteingang als Unterhaltungs-Liste mit Bezugsperson, Beziehung, letzter Nachricht und Ungelesen-Abzeichen.",
+        image: "/help/screens/nachrichten.webp",
+      },
+      {
+        id: "eltern-anfragen",
+        title: "Anfragen der Eltern bearbeiten",
+        icon: ClipboardCheck,
+        summary:
+          "Bezugspersonen können über die Eltern-App nicht nur schreiben, sondern auch strukturierte Anfragen stellen, etwa eine dauerhafte Änderung der Betreuungszeiten. Solche Anfragen laufen im selben Nachrichten-Verlauf auf und werden von dir bestätigt oder abgelehnt.",
+        steps: [
+          "Im Posteingang auf `Offene Anfragen` tippen, um nur Unterhaltungen mit einer noch offenen Anfrage zu sehen. Betroffene Zeilen tragen zusätzlich das Abzeichen `offene Anfrage`.",
+          "Die Unterhaltung öffnen. Die Anfrage erscheint als eigene Karte im Verlauf und zeigt unter `Änderungen` die gewünschten Werte im Vergleich `aktuell -> gewünscht`, damit du genau siehst, was sich ändern würde.",
+          "Mit `Bestätigen` wird die Änderung übernommen: Die Betreuungszeiten des Kindes werden direkt aktualisiert, und die Bezugsperson sieht den Status `Erledigt`.",
+          "Passt die Anfrage nicht, auf `Ablehnen` tippen, im Feld `Grund für die Ablehnung` einen kurzen Grund eintragen und erneut `Ablehnen` bestätigen. Der Grund wird der Bezugsperson angezeigt.",
+          "Nach der Entscheidung ist die Anfrage abgeschlossen und verschwindet aus dem Filter `Offene Anfragen`. Die Bezugsperson wird in ihrer App über das Ergebnis informiert.",
+        ],
+        callout: {
+          title: "Wer darf entscheiden",
+          body: "`Bestätigen` und `Ablehnen` erscheinen nur, wenn du Schreibrechte für das Kind hast. `Bestätigen` setzt zusätzlich voraus, dass die Eltern-OGS-Nachrichten aktiviert sind; `Ablehnen` bleibt auch danach möglich, damit offene Anfragen abgeschlossen werden können.",
+          tone: "orange",
+        },
+        screenshot:
+          "Geöffnete Unterhaltung mit Anfrage-Karte: Vergleich der Betreuungszeiten aktuell zu gewünscht und den Schaltflächen Bestätigen und Ablehnen.",
+        image: "/help/screens/offene-anfragen.webp",
+      },
+      {
+        id: "essensplan",
+        title: "Essensplan",
+        icon: UtensilsCrossed,
+        summary:
+          "Die Woche als Plan: Montag bis Freitag nebeneinander, pro Tag ein oder mehrere Gerichte mit optionalem Hinweis. Eltern sehen den Plan für die aktuelle und nächste Woche im Elternportal.",
+        steps: [
+          "In der Seitenleiste `Essensplan` öffnen.",
+          "Mit den Pfeilen `‹` und `›` zwischen den Kalenderwochen blättern; die laufende Woche ist mit `Diese Woche` markiert, mit `Heute` springst du dorthin zurück.",
+          "Pro Tag das `Gericht` eintragen; bei Bedarf einen kurzen `Hinweis` ergänzen (z. B. vegetarisch).",
+          "Mehrere Gerichte pro Tag über `+ Gericht` hinzufügen (z. B. Menü 1 und Menü 2); überflüssige Zeilen mit dem `×` entfernen.",
+          "Über das Tagesmenü (`⋯`) einen Tag `kopieren`, in einen anderen Tag `einfügen` oder `leeren`; mit `Vorwoche übernehmen` den kompletten Plan der Vorwoche übernehmen.",
+          "Änderungen unten mit `Speichern` sichern (ungespeicherte Änderungen werden angezeigt und beim Verlassen abgefragt).",
+        ],
+        callout: {
+          title: "Voraussetzung",
+          body: "Die Funktion muss unter `Einstellungen` > `Betrieb` > `Essensplan` aktiviert sein. Ist sie aus, erscheint der Punkt weder im Team- noch im Elternportal.",
+          tone: "blue",
+        },
+        screenshot:
+          "Essensplan als Wochen-Board (Mo–Fr nebeneinander), oben Wochennavigation mit Pfeilen und „Heute“, je Tag eine Liste von Gerichten mit Hinweis.",
+        image: "/help/screens/essensplan.webp",
       },
       {
         id: "feedback",

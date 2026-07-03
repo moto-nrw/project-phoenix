@@ -218,6 +218,41 @@ func (s *Service) GetStudentEnrollments(ctx context.Context, studentID int64) ([
 	return groups, nil
 }
 
+// GetActiveStudentEnrollmentsByStudentIDs retrieves active activity groups for
+// multiple students on one calendar date.
+func (s *Service) GetActiveStudentEnrollmentsByStudentIDs(ctx context.Context, studentIDs []int64, onDate timezone.Date) (map[int64][]*activities.Group, error) {
+	result := make(map[int64][]*activities.Group, len(studentIDs))
+	if len(studentIDs) == 0 {
+		return result, nil
+	}
+
+	enrollments, err := s.enrollmentRepo.FindActiveByStudentIDs(ctx, studentIDs, onDate)
+	if err != nil {
+		return nil, &ActivityError{Op: "get active student enrollments by student IDs", Err: err}
+	}
+
+	seen := make(map[int64]map[int64]bool, len(studentIDs))
+	for _, enrollment := range enrollments {
+		if enrollment == nil || enrollment.StudentID <= 0 {
+			continue
+		}
+		group := enrollment.ActivityGroup
+		if group == nil {
+			group = &activities.Group{Model: base.Model{ID: enrollment.ActivityGroupID}}
+		}
+		if seen[enrollment.StudentID] == nil {
+			seen[enrollment.StudentID] = map[int64]bool{}
+		}
+		if seen[enrollment.StudentID][group.ID] {
+			continue
+		}
+		seen[enrollment.StudentID][group.ID] = true
+		result[enrollment.StudentID] = append(result[enrollment.StudentID], group)
+	}
+
+	return result, nil
+}
+
 // GetAvailableGroups retrieves all groups a student can enroll in (not already enrolled)
 func (s *Service) GetAvailableGroups(ctx context.Context, studentID int64) ([]*activities.Group, error) {
 	// Get all active groups - assuming FindOpenGroups is the correct method

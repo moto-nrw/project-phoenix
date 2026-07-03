@@ -27,6 +27,7 @@ vi.mock("~/lib/auth-utils", () => {
       if (role === "user") return !isAdminFn();
       return false;
     }),
+    hasPermission: vi.fn(() => false),
   };
 });
 
@@ -182,6 +183,20 @@ describe("MobileBottomNav", () => {
       const hrefs = links.map((link) => link.getAttribute("href"));
       expect(hrefs).toContain("/ogs-groups");
       expect(hrefs).toContain("/active-supervisions");
+    });
+
+    it("names icon-only staff nav controls for assistive technology", () => {
+      render(<MobileBottomNav />);
+
+      expect(screen.getByRole("link", { name: "Gruppe" })).toHaveAttribute(
+        "href",
+        "/ogs-groups",
+      );
+      expect(screen.getByRole("link", { name: "Aufsicht" })).toHaveAttribute(
+        "href",
+        "/active-supervisions",
+      );
+      expect(screen.getByRole("button", { name: "Mehr" })).toBeInTheDocument();
     });
 
     it("renders navigation bar for admin users", () => {
@@ -450,6 +465,10 @@ describe("MobileBottomNav", () => {
     };
 
     it("displays coming soon badge for upcoming features", () => {
+      // "Berichte" is the remaining coming soon item and is admin-only.
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+
       render(<MobileBottomNav />);
 
       // Open overflow menu

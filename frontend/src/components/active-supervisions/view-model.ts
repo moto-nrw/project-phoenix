@@ -42,6 +42,25 @@ export interface SchulhofStatusResponse {
   }>;
 }
 
+export function activeSupervisionRosterKey(options: {
+  readonly selectedTimetableInstanceId: string | null;
+  readonly currentRoomId: string | null | undefined;
+  readonly isSchulhofActive: boolean;
+  readonly missingRosterActiveGroupIds: ReadonlySet<string>;
+}): string | null {
+  if (options.selectedTimetableInstanceId) {
+    return `timetable-roster-${options.selectedTimetableInstanceId}`;
+  }
+  if (
+    !options.currentRoomId ||
+    options.isSchulhofActive ||
+    options.missingRosterActiveGroupIds.has(options.currentRoomId)
+  ) {
+    return null;
+  }
+  return `timetable-roster-active-group-${options.currentRoomId}`;
+}
+
 interface VisitDisplayLike {
   studentId: string;
   studentName?: string;
@@ -156,4 +175,24 @@ export function mapVisitsToSupervisionStudents(
   return visits
     .filter((visit) => visit.isActive)
     .map((visit) => mapVisitToSupervisionStudent(visit, options));
+}
+
+export function withActiveSupervisionPresence(
+  student: ActiveSupervisionStudent,
+): ActiveSupervisionStudent {
+  return {
+    ...student,
+    sick: false,
+    sick_since: undefined,
+    excused: false,
+    excused_since: undefined,
+    class_trip: false,
+    class_trip_since: undefined,
+    day_planning_status:
+      student.day_planning_status === "not_coming_today"
+        ? undefined
+        : student.day_planning_status,
+    day_planning_reason: undefined,
+    day_planning_label: undefined,
+  };
 }

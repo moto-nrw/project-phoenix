@@ -21,7 +21,15 @@ type SSEEventType =
   | "instance_started"
   | "instance_completed"
   | "instance_cancelled"
-  | "instance_overdue";
+  | "instance_overdue"
+  // Parent-OGS messaging: a parent sent a message or staff replied. A trigger
+  // for the staff inbox / child thread / parent thread to refetch and update
+  // the unread badge. See backend/realtime/events.go EventParentMessage.
+  | "parent_message"
+  // Parent-OGS messaging: the COUNTERPART read the conversation. A trigger for an
+  // open chat to refresh its "Gelesen" receipts only — no new message, no unread
+  // badge change. See backend/realtime/events.go EventParentMessageRead.
+  | "parent_message_read";
 
 // SSE Connection Status
 export type ConnectionStatus = "connected" | "reconnecting" | "failed" | "idle";
@@ -56,6 +64,11 @@ interface SSEEventData {
 
   // Reason tracking for generic refresh events.
   reason?: string;
+
+  // Parent-messaging field (parent_message events). With student_id, lets an
+  // open chat/conversation skip refetching when the event is about a different
+  // thread/child.
+  thread_id?: string;
 }
 
 export interface SSEEvent {

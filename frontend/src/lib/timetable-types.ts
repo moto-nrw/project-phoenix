@@ -38,11 +38,7 @@ export interface InstanceStaffSummary {
 
 type InstanceAttendanceStatus = "expected" | "present" | "absent";
 type InstanceAttendanceSubstatus =
-  | "late"
-  | "excused"
-  | "sick"
-  | "field_trip"
-  | "other";
+  "late" | "excused" | "sick" | "field_trip" | "other";
 
 export interface InstanceStudentSummary {
   studentId: string;
@@ -232,6 +228,7 @@ interface TemplateSchedule {
   endTime: string;
   weekPattern: number;
   calendarPeriodId?: string;
+  validUntil?: string;
 }
 
 export interface TimetableTemplate {
@@ -265,6 +262,7 @@ interface BackendTemplateSchedule {
   end_time: string;
   week_pattern: number;
   calendar_period_id?: number;
+  valid_until?: string;
 }
 
 export interface BackendTimetableTemplate {
@@ -554,6 +552,22 @@ export interface BackendSplitTemplateResult {
   schedule_ids: number[];
   deleted_instances: number;
   instances_created: number;
+}
+
+export interface EndTemplateBody {
+  effective_date: string; // YYYY-MM-DD
+}
+
+export interface EndTemplateResult {
+  templateId: string;
+  effectiveDate: string;
+  deletedInstances: number;
+}
+
+export interface BackendEndTemplateResult {
+  template_id: number;
+  effective_date: string;
+  deleted_instances: number;
 }
 
 /**

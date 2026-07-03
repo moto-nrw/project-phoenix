@@ -14,6 +14,7 @@ import { LanguageSwitcher } from "~/components/parent/language-switcher";
 // Import extracted components
 import { BrandLink, BreadcrumbDivider } from "./header/brand-link";
 import { RefreshButton } from "./header/refresh-button";
+import { RemindersBell } from "./header/reminders-bell";
 import { SessionWarning } from "./header/session-warning";
 import { ProfileTrigger, ProfileDropdownMenu } from "./header/profile-dropdown";
 import {
@@ -191,6 +192,7 @@ export function Header() {
               <RefreshButton />
             </div>
 
+            {mode === "teacher" ? <RemindersBell /> : null}
             {mode === "teacher" ? <TenantSwitcher /> : null}
             {mode === "parent" ? <LanguageSwitcher compact /> : null}
 

@@ -307,6 +307,97 @@ func TestTemplateSplit_HappyPath_CarriesRosterAndProtectsHistory(t *testing.T) {
 	assert.Len(t, listInstancesForDate(t, s.db, res.NewTemplateID, secondMonday), 1)
 }
 
+func TestTemplateEndFromDate_CapsTemplateAndProtectsHistory(t *testing.T) {
+	effective := futureMonday(1)
+	secondMonday := effective.AddDays(7)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
+	defer s.runCleanup(t)
+	suffix := time.Now().UnixNano()
+
+	r0, err := s.svc.MaterializeForTenant(s.ctx, effective, secondMonday, scheduleSvc.MaterializationSourceManual)
+	require.NoError(t, err)
+	require.Equal(t, 2, r0.InstancesCreated)
+
+	first := listInstancesForDate(t, s.db, s.template.ID, effective)
+	require.Len(t, first, 1)
+	second := listInstancesForDate(t, s.db, s.template.ID, secondMonday)
+	require.Len(t, second, 1)
+	s.registerCleanup("schedule.activity_instances", first[0].ID, second[0].ID)
+
+	_, err = s.db.NewUpdate().
+		Model((*scheduleModels.ActivityInstance)(nil)).
+		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
+		Set("status = ?", scheduleModels.InstanceStatusActive).
+		Where(`"activity_instance".id = ?`, first[0].ID).
+		Where(`"activity_instance".tenant_id = ?`, s.tenantID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	completedID := splitInsertInstance(t, s, &s.template.ID, effective, scheduleModels.InstanceStatusCompleted, false, 9)
+	cancelledID := splitInsertInstance(t, s, &s.template.ID, effective, scheduleModels.InstanceStatusCancelled, false, 10)
+	spontaneousID := splitInsertInstance(t, s, &s.template.ID, effective, scheduleModels.InstanceStatusPlanned, true, 11)
+
+	roomID := s.roomID
+	otherGroup := &activitiesModels.Group{
+		Name:            fmt.Sprintf("End-Fremd-%d", suffix),
+		MaxParticipants: 10,
+		CategoryID:      s.categoryID,
+		PlannedRoomID:   &roomID,
+		IsTemplate:      true,
+	}
+	otherGroup.SetTenantID(s.tenantID)
+	_, err = s.db.NewInsert().Model(otherGroup).ModelTableExpr(`activities.groups AS "group"`).Exec(s.ctx)
+	require.NoError(t, err)
+	s.extraCleanups = append([]func(){func() {
+		testpkg.CleanupTableRecords(t, s.db, "activities.groups", otherGroup.ID)
+	}}, s.extraCleanups...)
+	otherPlannedID := splitInsertInstance(t, s, &otherGroup.ID, effective, scheduleModels.InstanceStatusPlanned, false, 12)
+
+	res, err := s.factory.TemplateSplit.EndFromDate(s.ctx, scheduleSvc.TemplateEndInput{
+		TemplateID:    s.template.ID,
+		EffectiveDate: effective,
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, s.template.ID, res.TemplateID)
+	assert.Equal(t, effective, res.EffectiveDate)
+	assert.Equal(t, 1, res.DeletedInstances, "only still-planned non-spontaneous old-template rows are deleted")
+	assert.EqualValues(t, 1, res.CappedSchedules)
+	assert.EqualValues(t, 2, res.CappedEnrollments)
+	assert.EqualValues(t, 1, res.CappedSupervisors)
+
+	oldSchedule := reloadSplitSchedule(t, s, s.schedule.ID)
+	require.NotNil(t, oldSchedule.ValidUntil)
+	assert.Equal(t, effective, *oldSchedule.ValidUntil)
+
+	oldEnrollments := loadSplitEnrollments(t, s, s.template.ID)
+	expiredUntil := effective.AddDays(-1)
+	for _, e := range oldEnrollments {
+		require.NotNil(t, e.ValidUntil)
+		if e.StudentID == s.students[2] {
+			assert.Equal(t, expiredUntil, *e.ValidUntil)
+		} else {
+			assert.Equal(t, effective, *e.ValidUntil)
+		}
+	}
+	oldSupervisors := loadSplitSupervisors(t, s, s.template.ID)
+	require.Len(t, oldSupervisors, 1)
+	require.NotNil(t, oldSupervisors[0].ValidUntil)
+	assert.Equal(t, effective, *oldSupervisors[0].ValidUntil)
+
+	assert.True(t, splitInstanceExists(t, s, first[0].ID), "active instance survives")
+	assert.False(t, splitInstanceExists(t, s, second[0].ID), "planned future old-template instance deleted")
+	assert.True(t, splitInstanceExists(t, s, completedID), "completed instance survives")
+	assert.True(t, splitInstanceExists(t, s, cancelledID), "cancelled instance survives")
+	assert.True(t, splitInstanceExists(t, s, spontaneousID), "spontaneous instance survives")
+	assert.True(t, splitInstanceExists(t, s, otherPlannedID), "other group's planned instance survives")
+
+	r1, err := s.svc.MaterializeForTenant(s.ctx, effective, secondMonday, scheduleSvc.MaterializationSourceManual)
+	require.NoError(t, err)
+	assert.Zero(t, r1.InstancesCreated, "ended template must not re-create future appointments")
+	assert.Equal(t, 2, r1.CandidatesSkippedEnded)
+}
+
 func TestTemplateSplit_ExplicitRosterAndWeekPattern(t *testing.T) {
 	effective := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)

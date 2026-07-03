@@ -133,16 +133,36 @@ func (rs *Resource) Router() chi.Router {
 		// the calling account's guardian links inside the service — the
 		// account id always comes from the JWT, never the URL/body.
 		//   - sick-note: report the child sick for one or more dates
-		//   - notes: append / list short messages for the team
 		//   - care-exception: set/clear a one-day pickup & arrival time
 		r.Get("/me/children/{studentId}/features", rs.getChildFeatures)
+		r.Get("/me/children/{studentId}/meal-plan", rs.getChildMealPlan)
 		r.Get("/me/children/{studentId}/sick-note", rs.listSickDays)
 		r.Post("/me/children/{studentId}/sick-note", rs.submitSickNote)
-		r.Get("/me/children/{studentId}/notes", rs.listNotes)
-		r.Post("/me/children/{studentId}/notes", rs.addNote)
+
+		// Parent-OGS messaging — chat model. One continuous conversation per
+		// child with the OGS (no subject). The list aggregates the guardian's
+		// conversations across all their children; the per-child routes read
+		// the conversation (marking it read) and post a message (creating the
+		// conversation on the first message). Gated by operations.parent_notes_enabled.
+		r.Get("/me/messages", rs.listMessageThreads)
+		r.Get("/me/messages/unread-count", rs.unreadMessageCount)
+		r.Get("/me/messages/children/{studentId}/threads", rs.listChildThreads)
+		r.Get("/me/messages/children/{studentId}", rs.getChildConversation)
+		r.Post("/me/messages/children/{studentId}", rs.postChildMessage)
+		r.Post("/me/messages/children/{studentId}/requests", rs.createChildRequest)
+		r.Post("/me/messages/children/{studentId}/requests/{requestId}/withdraw", rs.withdrawChildRequest)
 		r.Get("/me/children/{studentId}/care-exception", rs.listCareExceptions)
 		r.Post("/me/children/{studentId}/care-exception", rs.submitCareException)
 		r.Delete("/me/children/{studentId}/care-exception", rs.deleteCareException)
+
+		// Stammdaten — structured view of the child's master data plus the
+		// calling guardian's own contact data. Track A direct edits apply
+		// immediately and are audited; Track B change requests (name,
+		// birthday, permanent Gehzeit) are added in a later step.
+		r.Get("/me/children/{studentId}/master-data", rs.getMasterData)
+		r.Patch("/me/children/{studentId}/master-data/{target}/{field}", rs.updateMasterDataField)
+		r.Get("/me/children/{studentId}/master-data/requests", rs.listMasterDataRequests)
+		r.Post("/me/children/{studentId}/master-data/requests", rs.submitMasterDataRequest)
 
 		// Related accounts — see who has access to the child, invite a
 		// further guardian by email (gated by guardians.parent_invite_mode),

@@ -17,6 +17,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
@@ -62,6 +63,7 @@ func TestBuildParentServiceRequest_StampsTenantAndAccount(t *testing.T) {
 		GuardianEmail:     "anna@example.test",
 		ConsentFlags:      map[string]any{"photo": true},
 		CustomData:        map[string]any{"notes": "n"},
+		LateInviteToken:   "late-token-123",
 		Children: []submitParentChildRequest{
 			{FirstName: "Lara", LastName: "Beispiel", DateOfBirth: "2018-03-04"},
 		},
@@ -77,6 +79,8 @@ func TestBuildParentServiceRequest_StampsTenantAndAccount(t *testing.T) {
 	assert.True(t, out.ConsentFlags["photo"].(bool))
 	assert.Equal(t, "203.0.113.42", out.RemoteIP,
 		"RemoteIP is forwarded so per-IP rate limiting applies even on authenticated parent submits")
+	assert.Equal(t, "late-token-123", out.LateInviteToken,
+		"late invite token must survive the parent-authenticated submit path")
 	require.Len(t, out.Children, 1)
 	assert.Equal(t, timezone.NewDate(2018, 3, 4), out.Children[0].DateOfBirth)
 }
@@ -197,6 +201,7 @@ func TestSubmitParentEnrollment_AllowsMappedAccountWithoutExistingGuardianPermis
 		GuardianFirstName: "Anna",
 		GuardianLastName:  "Beispiel",
 		GuardianEmail:     "anna@example.test",
+		LateInviteToken:   "parent-late-token",
 		Children: []submitParentChildRequest{
 			{FirstName: "Lara", LastName: "Beispiel", DateOfBirth: "2018-03-04"},
 		},
@@ -218,6 +223,7 @@ func TestSubmitParentEnrollment_AllowsMappedAccountWithoutExistingGuardianPermis
 	require.NotNil(t, requestSvc.got.GuardianAccountID)
 	assert.Equal(t, int64(7777), *requestSvc.got.GuardianAccountID)
 	assert.Equal(t, tenantID, requestSvc.got.TenantID)
+	assert.Equal(t, "parent-late-token", requestSvc.got.LateInviteToken)
 }
 
 // --- mapParentSubmitError ------------------------------------------------
@@ -234,6 +240,14 @@ func TestMapParentSubmitError_EnrollmentWindowClosed403(t *testing.T) {
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
 	mapParentSubmitError(w, r, enrollmentService.ErrEnrollmentWindowClosed)
 	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestMapParentSubmitError_LateInviteInvalid403WithCode(t *testing.T) {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/x", nil)
+	mapParentSubmitError(w, r, enrollmentService.ErrLateInviteInvalid)
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Contains(t, w.Body.String(), "enrollment.late_invite_invalid")
 }
 
 func TestMapParentSubmitError_CareOfferingClosed400(t *testing.T) {
@@ -338,4 +352,60 @@ func TestToChildResponse_StringifiesIDs(t *testing.T) {
 	require.NotNil(t, out.EnrolledFrom)
 	assert.Equal(t, now, *out.EnrolledFrom)
 	assert.Nil(t, out.EnrolledUntil, "nil pointers pass through unchanged")
+}
+
+// --- staffShortName ------------------------------------------------------
+
+func TestStaffShortName(t *testing.T) {
+	cases := []struct {
+		in   string
+		want string
+	}{
+		{"Anna Müller", "Anna M."},
+		{"Sabine Schneider", "Sabine S."},
+		{"Anna-Lena Öztürk", "Anna-Lena Ö."}, // rune-based initial, not a broken byte
+		{"Anna von Berg", "Anna B."},         // multi-token: first + LAST initial
+		{"Olivia", "Olivia"},                 // single token unchanged
+		{"OGS-Team", "OGS-Team"},             // resolveStaffName fallback unchanged
+		{"", ""},                             // empty stays empty
+	}
+	for _, tc := range cases {
+		assert.Equalf(t, tc.want, staffShortName(tc.in), "staffShortName(%q)", tc.in)
+	}
+}
+
+// --- toMessageResponses staff-name masking -------------------------------
+
+func TestToMessageResponses_StaffNameMaskedUnlessVisible(t *testing.T) {
+	counterpart := "OGS Sonnenschule"
+	messages := []*usersModels.ParentMessage{
+		{
+			// Frozen visible=false (older reply / school opted out): stays anonymous.
+			SenderKind:       usersModels.ParentMessageSenderStaff,
+			SenderName:       "Sabine Schneider",
+			StaffNameVisible: false,
+			Body:             "hidden",
+		},
+		{
+			// Frozen visible=true (reply written while the setting was on): shows the
+			// person as first name + last initial, never the full surname.
+			SenderKind:       usersModels.ParentMessageSenderStaff,
+			SenderName:       "Sabine Schneider",
+			StaffNameVisible: true,
+			Body:             "shown",
+		},
+		{
+			// Guardian messages are never masked and never short-formed.
+			SenderKind:       usersModels.ParentMessageSenderGuardian,
+			SenderName:       "Olivia Berg",
+			StaffNameVisible: false,
+			Body:             "parent",
+		},
+	}
+
+	out := toMessageResponses(messages, counterpart, nil)
+	require.Len(t, out, 3)
+	assert.Equal(t, counterpart, out[0].SenderName, "masked staff reply collapses to the OGS label")
+	assert.Equal(t, "Sabine S.", out[1].SenderName, "visible staff reply shows first name + last initial")
+	assert.Equal(t, "Olivia Berg", out[2].SenderName, "guardian name passes through unchanged")
 }

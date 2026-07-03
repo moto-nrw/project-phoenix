@@ -62,10 +62,7 @@ import { UnclaimedRooms } from "~/components/active";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import { useSWRAuth } from "~/lib/swr";
 import { combineTimeNotes, getStudentAbsence } from "~/lib/student-time-status";
-import {
-  getDayPlanningNotComingLabel,
-  getStudentPresenceBadgePlanning,
-} from "~/lib/day-planning-helper";
+import { getDayPlanningNotComingLabel } from "~/lib/day-planning-helper";
 import {
   ActiveSupervisionLoadingView,
   EmptyRoomsView,
@@ -78,12 +75,15 @@ import {
   SpontaneousActivityStart,
   type SpontaneousActivityStartPayload,
 } from "~/components/active-supervisions/spontaneous-activity-start";
+import { TransitStudentsSection } from "~/components/rooms/transit-students-section";
 import {
   SCHULHOF_ROOM_NAME,
   SCHULHOF_TAB_ID,
+  activeSupervisionRosterKey,
   buildGroupNameToIdMap,
   mapSupervisedGroupsToRooms,
   mapVisitsToSupervisionStudents,
+  withActiveSupervisionPresence,
 } from "~/components/active-supervisions/view-model";
 import type {
   ActiveSupervisionRoom,
@@ -272,6 +272,8 @@ function MeinRaumPageContent() {
   const [plannedNow, setPlannedNow] = useState<PlannedTimetableInstance[]>([]);
   const [selectedTimetableInstanceId, setSelectedTimetableInstanceId] =
     useState<string | null>(null);
+  const [missingRosterActiveGroupIds, setMissingRosterActiveGroupIds] =
+    useState<Set<string>>(() => new Set());
   const [isStartingInstance, setIsStartingInstance] = useState<string | null>(
     null,
   );
@@ -842,11 +844,12 @@ function MeinRaumPageContent() {
     }
   }, [swrVisitsData, currentRoomId, updateRoomStudentCount]);
 
-  const timetableRosterKey = selectedTimetableInstanceId
-    ? `timetable-roster-${selectedTimetableInstanceId}`
-    : currentRoomId && !isSchulhofActive
-      ? `timetable-roster-active-group-${currentRoomId}`
-      : null;
+  const timetableRosterKey = activeSupervisionRosterKey({
+    selectedTimetableInstanceId,
+    currentRoomId,
+    isSchulhofActive,
+    missingRosterActiveGroupIds,
+  });
   const {
     data: timetableRoster,
     isLoading: isTimetableRosterLoading,
@@ -868,6 +871,14 @@ function MeinRaumPageContent() {
           (err.message.includes("404") ||
             err.message.toLowerCase().includes("not found"))
         ) {
+          if (!selectedTimetableInstanceId && currentRoomId) {
+            setMissingRosterActiveGroupIds((current) => {
+              if (current.has(currentRoomId)) return current;
+              const next = new Set(current);
+              next.add(currentRoomId);
+              return next;
+            });
+          }
           return null;
         }
         throw err;
@@ -1765,6 +1776,10 @@ function MeinRaumPageContent() {
               const studentArrival = arrivalTimesData?.get(
                 student.id.toString(),
               );
+              const presentStudent = withActiveSupervisionPresence(student);
+              const arrivalExceptionAbsent =
+                (studentArrival?.isException ?? false) &&
+                !studentArrival?.expectedArrival;
 
               return (
                 <StudentCard
@@ -1781,19 +1796,7 @@ function MeinRaumPageContent() {
                   }
                   locationBadge={
                     <StudentPresenceBadge
-                      student={(() => {
-                        const badgePlanning = getStudentPresenceBadgePlanning({
-                          ...student,
-                          arrival_is_exception: studentArrival?.isException,
-                          arrival_time: studentArrival?.expectedArrival,
-                          arrival_notes: studentArrival?.notes,
-                        });
-                        return {
-                          ...student,
-                          not_arrival_today: badgePlanning.notArrivalToday,
-                          not_arrival_reason: badgePlanning.notArrivalReason,
-                        };
-                      })()}
+                      student={presentStudent}
                       displayMode="contextAware"
                       userGroups={myGroupIds}
                       groupRooms={myGroupRooms}
@@ -1815,18 +1818,18 @@ function MeinRaumPageContent() {
                       )}
                       {(() => {
                         const absence = getStudentAbsence({
-                          sick: student.sick,
-                          classTrip: student.class_trip,
-                          excused: student.excused,
+                          sick: presentStudent.sick,
+                          classTrip: presentStudent.class_trip,
+                          excused: presentStudent.excused,
                         });
-                        if (absence && !student.actual_pickup_time) {
+                        if (absence && !presentStudent.actual_pickup_time) {
                           return <StudentAbsenceRow label={absence.label} />;
                         }
                         const dayPlanningNotComingLabel =
-                          getDayPlanningNotComingLabel(student);
+                          getDayPlanningNotComingLabel(presentStudent);
                         if (
                           dayPlanningNotComingLabel &&
-                          !student.actual_pickup_time
+                          !presentStudent.actual_pickup_time
                         ) {
                           return (
                             <StudentAbsenceRow
@@ -1839,13 +1842,13 @@ function MeinRaumPageContent() {
                             <ArrivalTimeRow
                               arrivalTime={studentArrival?.expectedArrival}
                               actualTime={student.actual_arrival_time}
-                              isException={studentArrival?.isException ?? false}
-                              isAbsent={
-                                (studentArrival?.isException ?? false) &&
-                                !studentArrival?.expectedArrival
+                              isException={
+                                !arrivalExceptionAbsent &&
+                                (studentArrival?.isException ?? false)
                               }
+                              isAbsent={false}
                               notes={
-                                studentArrival
+                                studentArrival && !arrivalExceptionAbsent
                                   ? combineTimeNotes(
                                       studentArrival.notes,
                                       studentArrival.dayNotes,
@@ -2135,6 +2138,16 @@ function MeinRaumPageContent() {
             onToggle={() => handleToggleSchulhof().catch(() => undefined)}
           />
         )}
+
+      {currentRoom &&
+      (!isSchulhofActive || schulhofStatus?.isUserSupervising) ? (
+        <div className="mb-4">
+          <TransitStudentsSection
+            fromReferrer="/active-supervisions"
+            collapsible
+          />
+        </div>
+      ) : null}
 
       {/* Student Grid - Mobile Optimized */}
       {(!isSchulhofActive || schulhofStatus?.isUserSupervising) &&

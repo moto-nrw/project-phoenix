@@ -23,6 +23,7 @@ const logger = createLogger({ component: "OperatorSchoolSettingsPage" });
 // Tab labels (match the tenant settings UI mapping)
 const TAB_LABELS: Record<string, string> = {
   operations: "Betrieb",
+  reminders: "Erinnerungen",
   gdpr: "Datenschutz",
   security: "Sicherheit",
   devices: "Geräte",

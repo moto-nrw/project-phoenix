@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	mealplanModels "github.com/moto-nrw/project-phoenix/models/mealplan"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
@@ -32,6 +33,21 @@ type fakeParentService struct {
 	updateProfileErr  error
 	gotUpdateLocale   string
 	updateCalledCount int
+
+	masterData       *parentService.ChildMasterData
+	masterDataErr    error
+	updateMasterData *parentService.ChildMasterData
+	updateMasterErr  error
+	gotMasterAccount int64
+	gotMasterStudent int64
+	gotMasterTarget  string
+	gotMasterField   string
+	gotMasterValue   json.RawMessage
+	submitRows       []*userModels.StudentDataChangeRequest
+	submitErr        error
+	gotSubmitChanges []parentService.MasterDataFieldChange
+	listRows         []*userModels.StudentDataChangeRequest
+	listErr          error
 }
 
 func (f *fakeParentService) GetProfile(_ context.Context, _ int64) (*parentService.Profile, error) {
@@ -59,14 +75,11 @@ func (f *fakeParentService) SubmitSickNote(context.Context, int64, int64, []time
 func (f *fakeParentService) ListSickDays(context.Context, int64, int64, timezone.Date, timezone.Date) ([]*activeModels.StudentStatusDay, error) {
 	return nil, nil
 }
-func (f *fakeParentService) AddParentNote(context.Context, int64, int64, string) ([]*userModels.StudentParentNote, error) {
-	return nil, nil
-}
-func (f *fakeParentService) ListParentNotes(context.Context, int64, int64, int) ([]*userModels.StudentParentNote, error) {
-	return nil, nil
-}
 func (f *fakeParentService) ChildFeatures(context.Context, int64, int64) (parentService.ChildFeatureFlags, error) {
 	return parentService.ChildFeatureFlags{}, nil
+}
+func (f *fakeParentService) MealPlanWeek(context.Context, int64, int64, timezone.Date) ([]*mealplanModels.MealPlanEntry, error) {
+	return nil, nil
 }
 func (f *fakeParentService) ListRelatedAccounts(context.Context, int64, int64) ([]*parentService.RelatedAccount, error) {
 	return nil, nil
@@ -76,6 +89,34 @@ func (f *fakeParentService) InviteRelatedAccount(context.Context, int64, int64, 
 }
 func (f *fakeParentService) RemoveRelatedAccount(context.Context, int64, int64, int64) error {
 	return nil
+}
+
+func (f *fakeParentService) ListMessageThreads(context.Context, int64) ([]*userModels.InboxThread, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) ListChildThreads(context.Context, int64, int64) ([]*userModels.InboxThread, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) UnreadMessageCount(context.Context, int64) (int, error) {
+	return 0, nil
+}
+
+func (f *fakeParentService) GetChildConversation(context.Context, int64, int64) (*parentService.MessageThreadView, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) PostChildMessage(context.Context, int64, int64, string) (*parentService.MessageThreadView, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) CreateChildRequest(context.Context, int64, int64, string, map[string]any) (*parentService.MessageThreadView, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) WithdrawChildRequest(context.Context, int64, int64, int64) (*parentService.MessageThreadView, error) {
+	return nil, nil
 }
 
 func (f *fakeParentService) SubmitCareException(context.Context, int64, int64, timezone.Date, *time.Time, *time.Time) (*parentService.CareException, error) {
@@ -88,6 +129,30 @@ func (f *fakeParentService) ListCareExceptions(context.Context, int64, int64, ti
 
 func (f *fakeParentService) DeleteCareException(context.Context, int64, int64, timezone.Date) error {
 	return nil
+}
+
+func (f *fakeParentService) GetChildMasterData(context.Context, int64, int64) (*parentService.ChildMasterData, error) {
+	return f.masterData, f.masterDataErr
+}
+
+func (f *fakeParentService) UpdateMasterDataField(_ context.Context, accountID, studentID int64, target, field string, value json.RawMessage) (*parentService.ChildMasterData, error) {
+	f.gotMasterAccount = accountID
+	f.gotMasterStudent = studentID
+	f.gotMasterTarget = target
+	f.gotMasterField = field
+	f.gotMasterValue = value
+	return f.updateMasterData, f.updateMasterErr
+}
+
+func (f *fakeParentService) SubmitMasterDataChangeRequest(_ context.Context, accountID, studentID int64, changes []parentService.MasterDataFieldChange) ([]*userModels.StudentDataChangeRequest, error) {
+	f.gotMasterAccount = accountID
+	f.gotMasterStudent = studentID
+	f.gotSubmitChanges = changes
+	return f.submitRows, f.submitErr
+}
+
+func (f *fakeParentService) ListMyMasterDataRequests(context.Context, int64, int64) ([]*userModels.StudentDataChangeRequest, error) {
+	return f.listRows, f.listErr
 }
 
 func (f *fakeParentService) ListChildGuardians(context.Context, int64, int64) ([]*parentService.ChildGuardian, error) {

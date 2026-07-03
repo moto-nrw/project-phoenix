@@ -693,13 +693,6 @@ func (s parentEnrollmentSeedStep) seedParentPortalActions(rt *Runtime, parentAut
 			},
 		},
 		{
-			actionType: "note",
-			path:       fmt.Sprintf("/parent/me/children/%d/notes", studentID),
-			body: map[string]any{
-				"body": "Demo-Nachricht: wird heute von Oma abgeholt.",
-			},
-		},
-		{
 			actionType: "care-exception",
 			path:       fmt.Sprintf("/parent/me/children/%d/care-exception", studentID),
 			body: map[string]any{

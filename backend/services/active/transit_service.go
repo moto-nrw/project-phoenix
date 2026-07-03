@@ -7,11 +7,15 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 const (
 	TransitSkipNotInTransit = "not_in_transit"
 	TransitSkipCreateFailed = "create_failed"
+
+	StudentMoveSkipNotPresent = "not_present"
+	StudentMoveSkipConflict   = "conflict"
 )
 
 // ListStudentsInTransit returns students who are checked in today but do not
@@ -41,6 +45,19 @@ func (s *service) ListStudentsInTransit(ctx context.Context) ([]int64, error) {
 	return ids, nil
 }
 
+// ListStudentsPresentToday returns students with open attendance today,
+// regardless of whether they currently have an open room visit.
+func (s *service) ListStudentsPresentToday(ctx context.Context) ([]int64, error) {
+	ids, err := s.attendanceRepo.ListOpenStudentIDsForDate(ctx, timezone.TodayDate())
+	if err != nil {
+		return nil, &ActiveError{Op: "ListStudentsPresentToday", Err: ErrDatabaseOperation}
+	}
+	if ids == nil {
+		return []int64{}, nil
+	}
+	return ids, nil
+}
+
 // AssignTransitStudentsToActiveGroup assigns checked-in students without an
 // active room visit to an existing active group/session.
 func (s *service) AssignTransitStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64) (*TransitAssignResult, error) {
@@ -48,12 +65,9 @@ func (s *service) AssignTransitStudentsToActiveGroup(ctx context.Context, studen
 		return nil, &ActiveError{Op: "AssignTransitStudentsToActiveGroup", Err: ErrInvalidData}
 	}
 
-	targetGroup, err := s.GetActiveGroup(ctx, activeGroupID)
+	targetGroup, err := s.lockActiveGroupForMove(ctx, activeGroupID, "AssignTransitStudentsToActiveGroup")
 	if err != nil {
 		return nil, err
-	}
-	if targetGroup == nil || !targetGroup.IsActive() {
-		return nil, &ActiveError{Op: "AssignTransitStudentsToActiveGroup", Err: ErrActiveGroupAlreadyEnded}
 	}
 
 	uniqueIDs := uniquePositiveInt64s(studentIDs)
@@ -61,7 +75,7 @@ func (s *service) AssignTransitStudentsToActiveGroup(ctx context.Context, studen
 		return nil, &ActiveError{Op: "AssignTransitStudentsToActiveGroup", Err: ErrInvalidData}
 	}
 
-	openAttendance, err := s.attendanceRepo.GetTodayByStudentIDs(ctx, uniqueIDs)
+	openAttendance, err := s.attendanceRepo.GetOpenTodayByStudentIDsForUpdate(ctx, uniqueIDs)
 	if err != nil {
 		return nil, &ActiveError{Op: "AssignTransitStudentsToActiveGroup", Err: ErrDatabaseOperation}
 	}
@@ -78,9 +92,9 @@ func (s *service) AssignTransitStudentsToActiveGroup(ctx context.Context, studen
 	}
 
 	for _, studentID := range uniqueIDs {
-		attendance, hasAttendance := openAttendance[studentID]
+		_, hasAttendance := openAttendance[studentID]
 		_, hasVisit := currentVisits[studentID]
-		if !hasAttendance || attendance == nil || attendance.CheckOutTime != nil || hasVisit {
+		if !hasAttendance || hasVisit {
 			result.Skipped = append(result.Skipped, TransitAssignSkipped{StudentID: studentID, Reason: TransitSkipNotInTransit})
 			continue
 		}
@@ -109,6 +123,334 @@ func (s *service) AssignTransitStudentsToActiveGroup(ctx context.Context, studen
 	}
 
 	return result, nil
+}
+
+// MoveStudentsToActiveGroup moves checked-in students into the target active
+// group while preserving room history: any old open visit is ended and a new
+// visit opens in the target group. It never creates or reopens daily
+// attendance; not-present students are reported as skipped.
+func (s *service) MoveStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64) (*StudentMoveResult, error) {
+	return s.moveStudentsToActiveGroup(ctx, studentIDs, activeGroupID, nil)
+}
+
+// MoveStudentsToActiveGroupAuthorized is the HTTP-facing bulk move path. It
+// revalidates the caller's source/target access against the locked move state
+// before any current visit is ended or recreated.
+func (s *service) MoveStudentsToActiveGroupAuthorized(ctx context.Context, studentIDs []int64, activeGroupID int64, auth StudentMoveAuthorization) (*StudentMoveResult, error) {
+	return s.moveStudentsToActiveGroup(ctx, studentIDs, activeGroupID, &auth)
+}
+
+func (s *service) moveStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64, auth *StudentMoveAuthorization) (*StudentMoveResult, error) {
+	const op = "MoveStudentsToActiveGroup"
+
+	if activeGroupID <= 0 || len(studentIDs) == 0 {
+		return nil, &ActiveError{Op: op, Err: ErrInvalidData}
+	}
+
+	targetGroup, err := s.lockActiveGroupForMove(ctx, activeGroupID, op)
+	if err != nil {
+		return nil, err
+	}
+
+	uniqueIDs := uniquePositiveInt64s(studentIDs)
+	if len(uniqueIDs) == 0 {
+		return nil, &ActiveError{Op: op, Err: ErrInvalidData}
+	}
+
+	var supervisedGroups map[int64]struct{}
+	if auth != nil && !auth.BypassResourceChecks {
+		supervisedGroups, err = s.loadMoveSupervisedGroupIDs(ctx, auth.StaffID, op)
+		if err != nil {
+			return nil, err
+		}
+		if _, ok := supervisedGroups[targetGroup.ID]; !ok {
+			return nil, studentMoveForbidden(op)
+		}
+	}
+	if s.GetPresenceMode(ctx) == "binary" {
+		result := newStudentMoveResult(&targetGroup.ID, &targetGroup.RoomID)
+		result.Unchanged = append(result.Unchanged, uniqueIDs...)
+		return result, nil
+	}
+
+	openAttendance, currentVisits, err := s.loadMoveState(ctx, uniqueIDs, op)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.authorizeMoveStudents(ctx, op, auth, supervisedGroups, uniqueIDs, openAttendance, currentVisits, true); err != nil {
+		return nil, err
+	}
+
+	result := newStudentMoveResult(&targetGroup.ID, &targetGroup.RoomID)
+	for _, studentID := range uniqueIDs {
+		if !studentHasOpenAttendance(openAttendance, studentID) {
+			result.Skipped = append(result.Skipped, StudentMoveSkipped{StudentID: studentID, Reason: StudentMoveSkipNotPresent})
+			continue
+		}
+
+		currentVisit := currentVisits[studentID]
+		if currentVisit != nil && currentVisit.ActiveGroupID == targetGroup.ID {
+			result.Unchanged = append(result.Unchanged, studentID)
+			continue
+		}
+
+		if currentVisit != nil {
+			if err := s.EndVisit(ctx, currentVisit.ID); err != nil {
+				if !errors.Is(err, ErrVisitAlreadyEnded) && !errors.Is(err, ErrVisitNotFound) {
+					return nil, err
+				}
+			}
+		}
+
+		visit := &active.Visit{
+			StudentID:     studentID,
+			ActiveGroupID: targetGroup.ID,
+			EntryTime:     time.Now(),
+		}
+		if err := s.createVisitWithoutAttendanceMutation(ctx, visit); err != nil {
+			if errors.Is(err, ErrStudentAlreadyActive) {
+				result.Skipped = append(result.Skipped, StudentMoveSkipped{StudentID: studentID, Reason: StudentMoveSkipConflict})
+				continue
+			}
+			return nil, err
+		}
+		result.Moved = append(result.Moved, studentID)
+	}
+
+	if len(result.Moved) > 0 {
+		if err := s.UpdateSessionActivity(ctx, targetGroup.ID); err != nil {
+			return nil, err
+		}
+	}
+	if moveResultOnlySkippedNotPresent(result) {
+		return nil, &ActiveError{Op: op, Err: ErrStudentsNotPresent}
+	}
+
+	return result, nil
+}
+
+// MoveStudentsToTransit ends any current room visit for checked-in students
+// while keeping their daily attendance open.
+func (s *service) MoveStudentsToTransit(ctx context.Context, studentIDs []int64) (*StudentMoveResult, error) {
+	return s.moveStudentsToTransit(ctx, studentIDs, nil)
+}
+
+// MoveStudentsToTransitAuthorized is the HTTP-facing transit move path. It
+// revalidates source-room access against the locked move state before ending
+// any current visit.
+func (s *service) MoveStudentsToTransitAuthorized(ctx context.Context, studentIDs []int64, auth StudentMoveAuthorization) (*StudentMoveResult, error) {
+	return s.moveStudentsToTransit(ctx, studentIDs, &auth)
+}
+
+func (s *service) moveStudentsToTransit(ctx context.Context, studentIDs []int64, auth *StudentMoveAuthorization) (*StudentMoveResult, error) {
+	const op = "MoveStudentsToTransit"
+
+	if len(studentIDs) == 0 {
+		return nil, &ActiveError{Op: op, Err: ErrInvalidData}
+	}
+
+	uniqueIDs := uniquePositiveInt64s(studentIDs)
+	if len(uniqueIDs) == 0 {
+		return nil, &ActiveError{Op: op, Err: ErrInvalidData}
+	}
+
+	var supervisedGroups map[int64]struct{}
+	var err error
+	if auth != nil && !auth.BypassResourceChecks {
+		supervisedGroups, err = s.loadMoveSupervisedGroupIDs(ctx, auth.StaffID, op)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if s.GetPresenceMode(ctx) == "binary" {
+		result := newStudentMoveResult(nil, nil)
+		result.Unchanged = append(result.Unchanged, uniqueIDs...)
+		return result, nil
+	}
+
+	openAttendance, currentVisits, err := s.loadMoveState(ctx, uniqueIDs, op)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.authorizeMoveStudents(ctx, op, auth, supervisedGroups, uniqueIDs, openAttendance, currentVisits, false); err != nil {
+		return nil, err
+	}
+
+	result := newStudentMoveResult(nil, nil)
+	for _, studentID := range uniqueIDs {
+		if !studentHasOpenAttendance(openAttendance, studentID) {
+			result.Skipped = append(result.Skipped, StudentMoveSkipped{StudentID: studentID, Reason: StudentMoveSkipNotPresent})
+			continue
+		}
+
+		currentVisit := currentVisits[studentID]
+		if currentVisit == nil {
+			result.Unchanged = append(result.Unchanged, studentID)
+			continue
+		}
+
+		if err := s.EndVisit(ctx, currentVisit.ID); err != nil {
+			if !errors.Is(err, ErrVisitAlreadyEnded) && !errors.Is(err, ErrVisitNotFound) {
+				return nil, err
+			}
+		}
+		result.Moved = append(result.Moved, studentID)
+	}
+	if moveResultOnlySkippedNotPresent(result) {
+		return nil, &ActiveError{Op: op, Err: ErrStudentsNotPresent}
+	}
+
+	return result, nil
+}
+
+func moveResultOnlySkippedNotPresent(result *StudentMoveResult) bool {
+	if result == nil || len(result.Moved) > 0 || len(result.Unchanged) > 0 || len(result.Skipped) == 0 {
+		return false
+	}
+	for _, skipped := range result.Skipped {
+		if skipped.Reason != StudentMoveSkipNotPresent {
+			return false
+		}
+	}
+	return true
+}
+
+func newStudentMoveResult(activeGroupID, roomID *int64) *StudentMoveResult {
+	return &StudentMoveResult{
+		Moved:         []int64{},
+		Unchanged:     []int64{},
+		Skipped:       []StudentMoveSkipped{},
+		ActiveGroupID: activeGroupID,
+		RoomID:        roomID,
+	}
+}
+
+func (s *service) loadMoveState(ctx context.Context, studentIDs []int64, op string) (map[int64]*active.Attendance, map[int64]*active.Visit, error) {
+	openAttendance, err := s.attendanceRepo.GetOpenTodayByStudentIDsForUpdate(ctx, studentIDs)
+	if err != nil {
+		return nil, nil, &ActiveError{Op: op, Err: ErrDatabaseOperation}
+	}
+
+	currentVisits, err := s.visitRepo.GetCurrentByStudentIDs(ctx, studentIDs)
+	if err != nil {
+		return nil, nil, &ActiveError{Op: op, Err: ErrDatabaseOperation}
+	}
+	if currentVisits == nil {
+		currentVisits = map[int64]*active.Visit{}
+	}
+
+	return openAttendance, currentVisits, nil
+}
+
+func studentHasOpenAttendance(attendances map[int64]*active.Attendance, studentID int64) bool {
+	attendance := attendances[studentID]
+	return attendance != nil && attendance.CheckOutTime == nil
+}
+
+func (s *service) loadMoveSupervisedGroupIDs(ctx context.Context, staffID int64, op string) (map[int64]struct{}, error) {
+	if staffID <= 0 {
+		return nil, studentMoveForbidden(op)
+	}
+
+	supervisions, err := s.GetStaffActiveSupervisions(ctx, staffID)
+	if err != nil {
+		return nil, err
+	}
+
+	ids := make(map[int64]struct{}, len(supervisions))
+	for _, supervision := range supervisions {
+		if supervision == nil || supervision.GroupID <= 0 {
+			continue
+		}
+		ids[supervision.GroupID] = struct{}{}
+	}
+	return ids, nil
+}
+
+func (s *service) authorizeMoveStudents(
+	ctx context.Context,
+	op string,
+	auth *StudentMoveAuthorization,
+	supervisedGroups map[int64]struct{},
+	studentIDs []int64,
+	openAttendance map[int64]*active.Attendance,
+	currentVisits map[int64]*active.Visit,
+	allowOpenTransit bool,
+) error {
+	if auth == nil || auth.BypassResourceChecks {
+		return nil
+	}
+
+	for _, studentID := range studentIDs {
+		hasTeacherAccess, err := s.CheckTeacherStudentAccess(ctx, auth.StaffID, studentID)
+		if err != nil {
+			return err
+		}
+		if hasTeacherAccess {
+			continue
+		}
+
+		currentVisit := currentVisits[studentID]
+		if currentVisit != nil {
+			if _, ok := supervisedGroups[currentVisit.ActiveGroupID]; ok {
+				continue
+			}
+			return studentMoveForbidden(op)
+		}
+
+		if allowOpenTransit && studentHasOpenAttendance(openAttendance, studentID) {
+			continue
+		}
+
+		return studentMoveForbidden(op)
+	}
+
+	return nil
+}
+
+func studentMoveForbidden(op string) error {
+	return &ActiveError{Op: op, Err: ErrStudentMoveForbidden}
+}
+
+func (s *service) lockActiveGroupForMove(ctx context.Context, activeGroupID int64, op string) (*active.Group, error) {
+	group, err := s.groupRepo.FindByIDForUpdate(ctx, activeGroupID)
+	if err != nil {
+		return nil, &ActiveError{Op: op, Err: ErrDatabaseOperation}
+	}
+	if group == nil || !group.IsActive() {
+		if group == nil {
+			return nil, &ActiveError{Op: op, Err: ErrActiveGroupNotFound}
+		}
+		return nil, &ActiveError{Op: op, Err: ErrActiveGroupAlreadyEnded}
+	}
+	return group, nil
+}
+
+func (s *service) createVisitWithoutAttendanceMutation(ctx context.Context, visit *active.Visit) error {
+	if visit == nil || visit.Validate() != nil {
+		return &ActiveError{Op: "CreateMoveVisit", Err: ErrInvalidData}
+	}
+	if err := s.validateStudentExists(ctx, visit.StudentID); err != nil {
+		return &ActiveError{Op: "CreateMoveVisit", Err: err}
+	}
+	if err := s.validateActiveGroupExists(ctx, visit.ActiveGroupID); err != nil {
+		return &ActiveError{Op: "CreateMoveVisit", Err: err}
+	}
+
+	visit.SetTenantID(tenant.FromContext(ctx))
+	if err := s.visitRepo.Create(ctx, visit); err != nil {
+		if isDuplicateActiveVisitViolation(err) {
+			return &ActiveError{Op: "CreateMoveVisit", Err: ErrStudentAlreadyActive}
+		}
+		return &ActiveError{Op: "CreateMoveVisit", Err: ErrDatabaseOperation}
+	}
+
+	var snapshot *AttendanceSnapshot
+	if s.attendanceSyncer != nil {
+		snapshot = s.attendanceSyncer.MirrorCheckInForVisit(ctx, visit)
+	}
+	s.broadcastVisitCreated(ctx, visit, snapshot)
+	return nil
 }
 
 func uniquePositiveInt64s(ids []int64) []int64 {

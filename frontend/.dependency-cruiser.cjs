@@ -1,6 +1,6 @@
 const SOURCE = "^src";
 const TEST_OR_SUPPORT =
-  "\\.(test|spec)\\.[cm]?[jt]sx?$|/__tests__/|^src/test/";
+  "\\.(test|spec|stories)\\.[cm]?[jt]sx?$|/__tests__/|^src/test/";
 const NEXT_APP_ENTRYPOINT =
   "^src/app/.*/(page|layout|template|loading|error|global-error|not-found|global-not-found|route|default)\\.[cm]?[jt]sx?$";
 const PUBLIC_ROOT_ENTRYPOINT =
