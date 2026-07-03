@@ -67,6 +67,14 @@ export interface ChatMessage {
   readonly event_type?: string;
   readonly request_type?: RequestType;
   readonly request_status?: RequestStatus;
+  // Deep-link reference to the underlying request row (e.g.
+  // "users.student_data_change_requests" / "schedule.care_schedule_change_requests"
+  // + row id, both stringified). A request_created pill and the request_status
+  // pill that resolves it carry the SAME ref, so open/closed is tracked per row
+  // — essential for multi-row master-data submissions where several rows of the
+  // same request_type are pending at once. Optional (older/non-request events).
+  readonly ref_table?: string;
+  readonly ref_id?: string;
   readonly payload?: Record<string, unknown>;
   readonly decision_reason?: string;
   // read_by_staff: a guardian message the OGS has read ("Gelesen", shown to the

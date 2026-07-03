@@ -115,32 +115,33 @@ function MessageThreadContent() {
   // that already has messages keeps messages.length > 0, so this stays false.
   const messagesLoading = (isLoading || isValidating) && messages.length === 0;
 
-  // Latest terminal-decision timestamp per request_type in this thread. A
-  // "request_created" pill offers the "Anfrage bearbeiten" action only while its
-  // request is still open; once decided (bestätigt / abgelehnt / zurückgezogen) a
-  // "request_status" event of the same type arrives. Because only one request per
-  // type may be open at a time, any request_status newer than a request_created of
-  // that type resolves exactly that request — so the button then disappears.
-  const latestDecisionAtByType: Record<string, string> = {};
+  // Per-ROW open/closed tracking for "request_created" pills. A pill offers the
+  // "Anfrage bearbeiten" action only while its request is still open; once
+  // decided (bestätigt / abgelehnt / zurückgezogen) a "request_status" pill for
+  // the SAME request row arrives, carrying the identical ref_table + ref_id.
+  // Keying by ref_table:ref_id (not request_type) is required for multi-row
+  // master-data submissions: those emit one request_created pill per changed
+  // field, all of request_type "master_data", each a separate request row.
+  // Deciding one row must NOT collapse the still-open sibling rows' actions.
+  const refKey = (m: Message): string | null =>
+    m.ref_table && m.ref_id ? `${m.ref_table}:${m.ref_id}` : null;
+  const decidedRefs = new Set<string>();
   for (const m of messages) {
-    if (
-      m.kind === "event" &&
-      m.event_type === "request_status" &&
-      m.request_type
-    ) {
-      const prev = latestDecisionAtByType[m.request_type];
-      if (!prev || m.created_at > prev) {
-        latestDecisionAtByType[m.request_type] = m.created_at;
-      }
+    if (m.kind === "event" && m.event_type === "request_status") {
+      const key = refKey(m);
+      if (key) decidedRefs.add(key);
     }
   }
 
   const requestStillOpen = (message: Message): boolean => {
-    if (message.event_type !== "request_created" || !message.request_type) {
+    if (message.event_type !== "request_created") {
       return false;
     }
-    const decidedAt = latestDecisionAtByType[message.request_type];
-    return !decidedAt || decidedAt <= message.created_at;
+    const key = refKey(message);
+    // No row reference (legacy pill): default to open — the action only
+    // deep-links to the queue, so showing it is harmless while hiding a live
+    // request is the real regression.
+    return key === null || !decidedRefs.has(key);
   };
 
   const [draft, setDraft] = useState("");
