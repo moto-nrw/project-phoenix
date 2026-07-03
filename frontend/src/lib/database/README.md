@@ -103,25 +103,36 @@ export const roomsConfig = defineEntityConfig<Room>({
 // app/database/rooms/page.tsx
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
-import { RoomCreateModal } from "@/components/rooms/room-create-modal";
+import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
 import { RoomsMasterDetail } from "@/components/rooms/rooms-master-detail";
 import { roomsConfig } from "@/components/database/configs/rooms.config";
 import { createCrudService } from "@/lib/database/service-factory";
 
 export default function RoomsPage() {
   const service = useMemo(() => createCrudService(roomsConfig), []);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   return (
     <DatabasePageLayout loading={loading} sessionLoading={sessionLoading}>
       {/* Fetch with service.getList(), then render the page-specific controls. */}
       <RoomsMasterDetail {...masterDetailProps} />
-      <RoomCreateModal {...createModalProps} />
+      <DatabaseFormModal<Room>
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        mode="create"
+        config={roomsConfig}
+        onSubmit={handleCreateRoom}
+      />
     </DatabasePageLayout>
   );
 }
 ```
+
+`DatabaseFormModal` renders the config's `form.sections` inside the shared
+modal; `mode` picks the `createModalTitle` / `editModalTitle` label (the label
+for the used mode is required — the modal fails loudly when it is missing).
 
 The configuration and service factory provide the shared CRUD behavior. Each page still owns its own data loading, selection state, filters, and entity-specific UI:
 - List view with search and filters

@@ -37,6 +37,10 @@ export function DatabaseFormModal<T>({
     [config.form.sections],
   );
 
+  // Modal renders nothing while closed; bail out before the title check so a
+  // missing label only fails when the modal is actually opened, not at mount.
+  if (!isOpen) return null;
+
   const title =
     mode === "create"
       ? config.labels.createModalTitle

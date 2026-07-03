@@ -310,7 +310,7 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
           } as PaginatedResponse<T>;
         }
 
-        const responseShape = describeResponseShape(response);
+        const responseShape = describeResponseShape(dataSource);
         const malformedResponseError = new MalformedCrudListResponseError(
           config.name.plural,
           endpoints.list,

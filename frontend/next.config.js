@@ -10,6 +10,9 @@ import createNextIntlPlugin from "next-intl/plugin";
 const config = {
   output: "standalone",
   async redirects() {
+    // :tenant must exclude the literal "api" segment: next.config redirects
+    // run before route handlers, so an unguarded /:tenant/... source would
+    // also capture /api/... fetches (e.g. /api/activities/123).
     return [
       {
         source: "/students/:id/feedback_history",
@@ -17,8 +20,19 @@ const config = {
         permanent: true,
       },
       {
-        source: "/:tenant/students/:id/feedback_history",
+        source: "/:tenant((?!api(?:/|$))[^/]+)/students/:id/feedback_history",
         destination: "/:tenant/students/:id/feedback-history",
+        permanent: true,
+      },
+      // Legacy deep-link target: the mensa history page was removed.
+      {
+        source: "/students/:id/mensa_history",
+        destination: "/students/:id",
+        permanent: true,
+      },
+      {
+        source: "/:tenant((?!api(?:/|$))[^/]+)/students/:id/mensa_history",
+        destination: "/:tenant/students/:id",
         permanent: true,
       },
       // Legacy deep-link target: activity management now happens from the
@@ -29,7 +43,7 @@ const config = {
         permanent: true,
       },
       {
-        source: "/:tenant/activities/:id",
+        source: "/:tenant((?!api(?:/|$))[^/]+)/activities/:id",
         destination: "/:tenant/activities",
         permanent: true,
       },
