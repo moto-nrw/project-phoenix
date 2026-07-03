@@ -16,7 +16,7 @@ import { CheckIcon, SpinnerIcon } from "~/components/ui/icons";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { confirmPasswordReset, type ApiError } from "~/lib/auth-api";
 import { createLogger } from "~/lib/logger";
-import { useTenantSafe } from "~/components/tenant/tenant-provider";
+import { useTenantSafe } from "~/lib/tenant-context";
 import { loginImageSrc } from "~/lib/tenant-api";
 
 const logger = createLogger({ component: "ResetPasswordPage" });

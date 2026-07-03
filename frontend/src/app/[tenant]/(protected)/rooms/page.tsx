@@ -12,12 +12,12 @@ import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
   FilterConfig,
   ActiveFilter,
   OverflowMenuItem,
-} from "~/components/ui/page-header";
+} from "~/components/ui/page-header/types";
 import {
   formatFloor,
   getRoomCategoryColor,
@@ -34,7 +34,7 @@ import {
 
 import { Loading } from "~/components/ui/loading";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
-import { RoomDetailModal } from "~/components/rooms";
+import { RoomDetailModal } from "~/components/rooms/room-detail-modal";
 import { TRANSIT_ROOM_ID } from "~/components/rooms/room-detail-modal";
 import { fetchDashboardAnalyticsClient } from "~/lib/dashboard-api";
 import type { DashboardAnalytics } from "~/lib/dashboard-helpers";

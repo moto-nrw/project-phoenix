@@ -1,7 +1,4 @@
-import {
-  createParentGetHandler,
-  parentApiGet,
-} from "~/lib/parent/route-wrapper.server";
+import { proxyGet } from "~/lib/parent/route-wrapper.server";
 
 interface BackendChild {
   student_id: string;
@@ -22,7 +19,4 @@ interface BackendChild {
  * refreshed token. Account id is derived server-side from the parent
  * JWT claims — never trust a client-provided account_id.
  */
-export const GET = createParentGetHandler<BackendChild[]>(
-  async (_request, token) =>
-    parentApiGet<BackendChild[]>("/parent/me/children", token),
-);
+export const GET = proxyGet<BackendChild[]>("/parent/me/children");

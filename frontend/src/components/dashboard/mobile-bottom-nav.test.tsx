@@ -88,10 +88,7 @@ import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { isAdmin } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import {
-  useNFCEnabled,
-  usePresenceMode,
-} from "~/components/tenant/tenant-provider";
+import { useNFCEnabled, usePresenceMode } from "~/lib/tenant-context";
 
 const mockUsePathname = vi.mocked(usePathname);
 const mockUseSearchParams = vi.mocked(useSearchParams);
@@ -267,8 +264,8 @@ describe("MobileBottomNav", () => {
       expect(mockGet).toHaveBeenCalledWith("from");
     });
 
-    it("highlights correct item when path starts with href", () => {
-      mockUsePathname.mockReturnValue("/activities/123");
+    it("highlights the canonical activities route", () => {
+      mockUsePathname.mockReturnValue("/activities");
 
       render(<MobileBottomNav />);
 

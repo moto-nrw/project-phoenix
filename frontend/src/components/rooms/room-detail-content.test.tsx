@@ -15,7 +15,7 @@ vi.mock("next-auth/react", () => ({
   }),
 }));
 
-vi.mock("~/components/tenant/tenant-provider", () => ({
+vi.mock("~/lib/tenant-context", () => ({
   useTenantSlugSafe: () => "test-tenant",
   // RoomDetailSkeleton + StudentsInRoomSection both call
   // useStudentPhotosEnabled, which reads from useTenantSafe. Returning a

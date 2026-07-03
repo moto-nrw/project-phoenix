@@ -9,7 +9,7 @@ import { Alert } from "~/components/ui/alert";
 import { UploadSection, StatsCards } from "~/components/import";
 import { useToast } from "~/contexts/ToastContext";
 import { createCrudService } from "~/lib/database/service-factory";
-import { rolesConfig } from "~/lib/database/configs/roles.config";
+import { rolesConfig } from "~/components/database/configs/roles.config";
 import { getRoleDisplayName, type Role } from "~/lib/auth-helpers";
 import { createLogger } from "~/lib/logger";
 

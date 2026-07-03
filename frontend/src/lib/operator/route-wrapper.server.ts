@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { handleApiError } from "../api-helpers.server";
 import { recordBackendProxyMetric } from "../backend-proxy-metrics";
+import { makeProxyFactories } from "../route-proxy-factory.server";
 import {
   type RouteContext,
   extractParams,
@@ -527,5 +528,25 @@ export function createOperatorProxyMethodHandler(
     }
   };
 }
+
+/**
+ * Operator proxy factories — envelope-wrapping pass-throughs built on the
+ * operator base handlers (operator fetchers already unwrap `data`). These are
+ * distinct from {@link createOperatorProxyPostHandler} /
+ * {@link createOperatorProxyMethodHandler}, which forward the backend response
+ * verbatim; use those when the client needs raw status codes/error messages.
+ */
+export const { proxyGet, proxyPost, proxyPut, proxyDelete } =
+  makeProxyFactories({
+    get: createOperatorGetHandler,
+    post: createOperatorPostHandler,
+    put: createOperatorPutHandler,
+    del: createOperatorDeleteHandler,
+    apiGet: operatorApiGet,
+    apiPost: operatorApiPost,
+    apiPut: operatorApiPut,
+    apiDelete: operatorApiDelete,
+    fetcherUnwrapsData: true,
+  });
 
 export { isStringParam } from "../route-wrapper-utils.server";

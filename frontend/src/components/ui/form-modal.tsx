@@ -5,8 +5,8 @@ import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { FocusScope } from "@radix-ui/react-focus-scope";
 import { useModal } from "../dashboard/modal-context";
-import { useScrollLock } from "~/hooks/useScrollLock";
-import { dialogAriaProps } from "./modal-utils";
+import { useScrollLock } from "~/components/ui/hooks/useScrollLock";
+import { dialogAriaProps } from "./modal";
 
 interface FormModalProps {
   readonly isOpen: boolean;

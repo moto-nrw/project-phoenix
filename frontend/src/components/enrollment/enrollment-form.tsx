@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Check, FileText, Info, Lock, Plus, Trash2 } from "lucide-react";
 import { Turnstile } from "@marsidev/react-turnstile";
-import { useTenant } from "~/components/tenant/tenant-provider";
+import { useTenant } from "~/lib/tenant-context";
 import deMessages from "~/i18n/messages/de.json";
 import { DEFAULT_LOCALE } from "~/i18n/locales";
 import {
@@ -1607,8 +1607,7 @@ export function EnrollmentForm({
                       companionNote={
                         f.target === "student.allowed_departure_modes"
                           ? (child.custom[DEPARTURE_COMPANION_KEY] as
-                              | string
-                              | undefined)
+                              string | undefined)
                           : undefined
                       }
                       onCompanionNoteChange={

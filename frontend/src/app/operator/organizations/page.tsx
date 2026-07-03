@@ -5,7 +5,7 @@ import { useCallback, useMemo, useState } from "react";
 import useSWR from "swr";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { formatCount } from "~/lib/format-utils";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";

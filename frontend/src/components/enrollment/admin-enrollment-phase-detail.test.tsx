@@ -56,7 +56,7 @@ vi.mock("~/lib/swr", () => ({
   }),
 }));
 
-vi.mock("~/components/tenant/tenant-provider", () => ({
+vi.mock("~/lib/tenant-context", () => ({
   useTenantSlugSafe: () => "demo",
 }));
 

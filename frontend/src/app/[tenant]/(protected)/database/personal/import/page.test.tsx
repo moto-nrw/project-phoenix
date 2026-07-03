@@ -46,7 +46,7 @@ vi.mock("~/lib/database/service-factory", () => ({
     ),
   }),
 }));
-vi.mock("~/lib/database/configs/roles.config", () => ({
+vi.mock("~/components/database/configs/roles.config", () => ({
   rolesConfig: {},
 }));
 vi.mock("~/lib/auth-helpers", () => ({

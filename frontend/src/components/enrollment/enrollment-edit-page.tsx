@@ -7,7 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { ArrowLeft } from "lucide-react";
 import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
-import { TenantProvider } from "~/components/tenant/tenant-provider";
+import { TenantProvider } from "~/lib/tenant-context";
 import {
   createEnrollmentChangeRequest,
   fetchEnrollmentEditBootstrap,

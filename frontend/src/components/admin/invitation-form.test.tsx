@@ -14,7 +14,7 @@ vi.mock("~/contexts/ToastContext", () => ({
   })),
 }));
 
-vi.mock("~/components/ui", () => ({
+vi.mock("~/components/ui/input", () => ({
   Input: ({
     id,
     label,

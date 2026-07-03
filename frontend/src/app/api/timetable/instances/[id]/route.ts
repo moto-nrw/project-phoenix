@@ -1,27 +1,10 @@
-import type { NextRequest } from "next/server";
-import { apiDelete, apiPut } from "~/lib/api-helpers.server";
-import {
-  createDeleteHandler,
-  createPutHandler,
-  isStringParam,
-} from "~/lib/route-wrapper.server";
+import { proxyDelete, proxyPut } from "~/lib/route-proxy.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
-export const PUT = createPutHandler(
-  async (_request: NextRequest, body: unknown, token: string, params) => {
-    if (!isStringParam(params.id)) throw new Error("Invalid id parameter");
-    const response = await apiPut<{ data: unknown }>(
-      `/api/timetable/instances/${params.id}`,
-      token,
-      body ?? {},
-    );
-    return response.data;
-  },
+export const PUT = proxyPut(
+  (params) => `/api/timetable/instances/${requirePathSegmentParam(params)}`,
 );
 
-export const DELETE = createDeleteHandler(
-  async (_request: NextRequest, token: string, params) => {
-    if (!isStringParam(params.id)) throw new Error("Invalid id parameter");
-    await apiDelete(`/api/timetable/instances/${params.id}`, token);
-    return null;
-  },
+export const DELETE = proxyDelete(
+  (params) => `/api/timetable/instances/${requirePathSegmentParam(params)}`,
 );

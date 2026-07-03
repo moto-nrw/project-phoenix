@@ -1,4 +1,4 @@
-import { createProxyGetDataHandler } from "~/lib/route-wrapper.server";
+import { proxyGet } from "~/lib/route-proxy.server";
 
 interface UnreadAnnouncement {
   id: number;
@@ -10,6 +10,6 @@ interface UnreadAnnouncement {
   published_at: string;
 }
 
-export const GET = createProxyGetDataHandler<UnreadAnnouncement[]>(
+export const GET = proxyGet<UnreadAnnouncement[]>(
   "/api/platform/announcements/unread",
 );

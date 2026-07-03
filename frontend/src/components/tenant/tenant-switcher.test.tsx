@@ -40,7 +40,7 @@ vi.mock("~/lib/swr", () => ({
   mutate: mockMutate,
 }));
 
-vi.mock("~/components/tenant/tenant-provider", () => ({
+vi.mock("~/lib/tenant-context", () => ({
   useTenantSlugSafe: mockUseTenantSlugSafe,
   useNFCEnabled: vi.fn(() => true),
 }));

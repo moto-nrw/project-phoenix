@@ -79,34 +79,7 @@ vi.mock("~/components/ui/loading", () => ({
   Loading: () => <div data-testid="loading">Loading...</div>,
 }));
 
-// Mock UI components
-vi.mock("~/components/ui", () => ({
-  Input: ({
-    id,
-    type,
-    value,
-    onChange,
-    ...props
-  }: {
-    id: string;
-    type: string;
-    value: string;
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-    label: string;
-    className?: string;
-    required?: boolean;
-    autoComplete?: string;
-    name?: string;
-  }) => (
-    <input
-      id={id}
-      type={type}
-      value={value}
-      onChange={onChange}
-      data-testid={`input-${id}`}
-      {...props}
-    />
-  ),
+vi.mock("~/components/ui/alert", () => ({
   Alert: ({ type, message }: { type: string; message: string }) => (
     <div data-testid={`alert-${type}`}>{message}</div>
   ),
@@ -121,7 +94,7 @@ vi.mock("next/image", () => ({
 }));
 
 import { useSession } from "next-auth/react";
-import { useTenant } from "~/components/tenant/tenant-provider";
+import { useTenant } from "~/lib/tenant-context";
 import { refreshToken } from "~/lib/auth-api";
 import HomePage from "./page";
 

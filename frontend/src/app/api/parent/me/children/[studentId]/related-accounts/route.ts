@@ -1,9 +1,5 @@
-import {
-  createParentGetHandler,
-  createParentPostHandler,
-  parentApiGet,
-  parentApiPost,
-} from "~/lib/parent/route-wrapper.server";
+import { proxyGet, proxyPost } from "~/lib/parent/route-wrapper.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 interface BackendRelatedAccount {
   guardian_profile_id: string;
@@ -22,26 +18,15 @@ interface InviteBody {
 }
 
 // GET /api/parent/me/children/{studentId}/related-accounts
-export const GET = createParentGetHandler<BackendRelatedAccount[]>(
-  async (_request, token, params) => {
-    const studentId = String(params.studentId);
-    return parentApiGet<BackendRelatedAccount[]>(
-      `/parent/me/children/${encodeURIComponent(studentId)}/related-accounts`,
-      token,
-    );
-  },
+export const GET = proxyGet<BackendRelatedAccount[]>(
+  (params) =>
+    `/parent/me/children/${requirePathSegmentParam(params, "studentId")}/related-accounts`,
 );
 
 // POST /api/parent/me/children/{studentId}/related-accounts
 // Invite a further guardian by email. Ownership + invite-mode gate are
 // enforced server-side.
-export const POST = createParentPostHandler<unknown, InviteBody>(
-  async (_request, body, token, params) => {
-    const studentId = String(params.studentId);
-    return parentApiPost<unknown, InviteBody>(
-      `/parent/me/children/${encodeURIComponent(studentId)}/related-accounts`,
-      token,
-      body,
-    );
-  },
+export const POST = proxyPost<unknown, InviteBody>(
+  (params) =>
+    `/parent/me/children/${requirePathSegmentParam(params, "studentId")}/related-accounts`,
 );

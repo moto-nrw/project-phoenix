@@ -21,7 +21,7 @@ vi.mock("~/lib/logger", () => ({
   }),
 }));
 
-vi.mock("~/hooks/useIsMobile", () => ({
+vi.mock("~/components/ui/hooks/useIsMobile", () => ({
   useIsMobile: vi.fn(() => false),
 }));
 

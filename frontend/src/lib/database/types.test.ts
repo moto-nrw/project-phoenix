@@ -8,7 +8,7 @@ import {
   configToFormSection,
   type SectionConfig,
 } from "./types";
-import { databaseThemes } from "@/components/ui/database/themes";
+import { databaseThemes } from "@/lib/database/themes";
 
 describe("defineEntityConfig", () => {
   it("returns the config as-is with proper typing", () => {
@@ -18,6 +18,10 @@ describe("defineEntityConfig", () => {
         plural: "Tests",
       },
       theme: databaseThemes.students,
+      labels: {
+        createModalTitle: "Test erstellen",
+        editModalTitle: "Test bearbeiten",
+      },
       api: {
         basePath: "/api/test",
       },

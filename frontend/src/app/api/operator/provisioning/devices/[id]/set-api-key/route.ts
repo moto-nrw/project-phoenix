@@ -1,20 +1,7 @@
-import type { NextRequest } from "next/server";
-import {
-  createOperatorPostHandler,
-  operatorApiPost,
-} from "~/lib/operator/route-wrapper.server";
+import { proxyPost } from "~/lib/operator/route-wrapper.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
-export const POST = createOperatorPostHandler(
-  async (
-    _request: NextRequest,
-    body: unknown,
-    token: string,
-    params: Record<string, unknown>,
-  ) => {
-    return await operatorApiPost(
-      `/operator/devices/${String(params.id)}/set-api-key`,
-      token,
-      body,
-    );
-  },
+export const POST = proxyPost(
+  (params) =>
+    `/operator/devices/${requirePathSegmentParam(params)}/set-api-key`,
 );

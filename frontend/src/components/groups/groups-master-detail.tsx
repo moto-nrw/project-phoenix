@@ -13,7 +13,7 @@ import { GroupedList } from "~/components/database/grouped-list";
 import { MasterDetailLayout } from "~/components/database/master-detail-layout";
 import { useGroupedItems } from "~/components/database/use-grouped-items";
 import { DatabaseForm } from "~/components/ui/database/database-form";
-import { groupsConfig } from "@/lib/database/configs/groups.config";
+import { groupsConfig } from "@/components/database/configs/groups.config";
 import { configToFormSection } from "@/lib/database/types";
 import type { Group } from "@/lib/group-helpers";
 

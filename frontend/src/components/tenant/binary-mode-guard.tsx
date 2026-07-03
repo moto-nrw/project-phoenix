@@ -1,7 +1,7 @@
 "use client";
 
 import { notFound } from "next/navigation";
-import { usePresenceMode } from "~/components/tenant/tenant-provider";
+import { usePresenceMode } from "~/lib/tenant-context";
 
 /**
  * BinaryModeGuard — triggers Next.js 404 when the tenant runs in binary mode.

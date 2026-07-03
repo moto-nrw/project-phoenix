@@ -16,10 +16,7 @@ import { RequestStatusBadge } from "~/components/messaging/request-status-badge"
 import { useChatViewportLock } from "~/lib/hooks/use-chat-viewport-lock";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { hasPermission } from "~/lib/auth-utils";
-import {
-  useTenant,
-  useTenantSlugSafe,
-} from "~/components/tenant/tenant-provider";
+import { useTenant, useTenantSlugSafe } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
 import {
   type InboxThread,
@@ -31,7 +28,7 @@ import {
   rejectRequest,
   relationshipLabel,
 } from "~/lib/parent-messages-api";
-import { getApiErrorMessage } from "~/components/ui/modal-utils";
+import { getApiErrorMessage } from "~/lib/api-error-message";
 import { staffRequestStatusLabel } from "~/lib/messaging-status";
 import { createLogger } from "~/lib/logger";
 import { formatChatDateTime } from "~/lib/date-helpers";

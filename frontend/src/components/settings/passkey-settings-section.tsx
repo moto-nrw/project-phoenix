@@ -155,7 +155,7 @@ export function PasskeySettingsSection({
       )}
 
       {error && (
-        <div role="alert" className="mb-3">
+        <div className="mb-3">
           <Alert type="error" message={error} />
         </div>
       )}

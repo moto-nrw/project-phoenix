@@ -51,7 +51,7 @@ vi.mock("@/lib/database/service-factory", () => ({
   })),
 }));
 
-vi.mock("~/hooks/useIsMobile", () => ({
+vi.mock("~/components/ui/hooks/useIsMobile", () => ({
   useIsMobile: vi.fn(() => false),
 }));
 
@@ -78,7 +78,7 @@ vi.mock("~/components/database/database-page-layout", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({
     search,
     onClearAllFilters,
@@ -102,23 +102,28 @@ vi.mock("~/components/ui/page-header", () => ({
   ),
 }));
 
-vi.mock("@/components/devices", () => ({
-  DeviceCreateModal: ({
+vi.mock("~/components/ui/database/database-form-modal", () => ({
+  // One mock serves both the create and the edit instance; the edit modal is
+  // the one that receives initialData. Mirrors what DatabaseForm does in
+  // production: catches the rejection from onSubmit and renders the message
+  // inline. Tests assert against the resulting message, not the transport
+  // mechanism.
+  DatabaseFormModal: ({
     isOpen,
     onClose,
-    onCreate,
+    onSubmit,
+    initialData,
   }: {
     isOpen: boolean;
     onClose: () => void;
-    onCreate: (data: { device_id: string }) => Promise<void>;
+    onSubmit: (data: { name?: string; device_id?: string }) => Promise<void>;
+    initialData?: unknown;
   }) => {
-    // Mirrors what DatabaseForm does in production: catches the rejection
-    // from onCreate and renders the message inline. Tests assert against the
-    // resulting message, not the transport mechanism.
+    const isEdit = initialData !== undefined;
     const [error, setError] = useState<string | null>(null);
-    const submit = (data: { device_id: string }) => {
+    const submit = (data: { name?: string; device_id?: string }) => {
       setError(null);
-      void onCreate(data).catch((err: unknown) => {
+      void onSubmit(data).catch((err: unknown) => {
         setError(err instanceof Error ? err.message : String(err));
       });
     };
@@ -126,7 +131,29 @@ vi.mock("@/components/devices", () => ({
       setError(null);
       onClose();
     };
-    return isOpen ? (
+    if (!isOpen) return null;
+    return isEdit ? (
+      <div data-testid="device-edit-modal">
+        {error ? <span data-testid="edit-error">{error}</span> : null}
+        <button
+          data-testid="submit-edit"
+          onClick={() => submit({ name: "Updated Device" })}
+        >
+          Save
+        </button>
+        <button
+          data-testid="submit-edit-duplicate"
+          onClick={() =>
+            submit({ name: "Updated Device", device_id: "duplicate-id" })
+          }
+        >
+          Save Duplicate
+        </button>
+        <button data-testid="close-edit-modal" onClick={handleClose}>
+          Close
+        </button>
+      </div>
+    ) : (
       <div data-testid="device-create-modal">
         {error ? <span data-testid="create-error">{error}</span> : null}
         <button
@@ -145,49 +172,11 @@ vi.mock("@/components/devices", () => ({
           Close
         </button>
       </div>
-    ) : null;
+    );
   },
-  DeviceEditModal: ({
-    isOpen,
-    onClose,
-    onSave,
-  }: {
-    isOpen: boolean;
-    onClose: () => void;
-    onSave: (data: { name: string; device_id?: string }) => Promise<void>;
-  }) => {
-    // Mirrors DatabaseForm: catches the rejection from onSave and renders the
-    // message inline. Tests assert against the resulting message.
-    const [error, setError] = useState<string | null>(null);
-    const submit = (data: { name: string; device_id?: string }) => {
-      setError(null);
-      void onSave(data).catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : String(err));
-      });
-    };
-    return isOpen ? (
-      <div data-testid="device-edit-modal">
-        {error ? <span data-testid="edit-error">{error}</span> : null}
-        <button
-          data-testid="submit-edit"
-          onClick={() => submit({ name: "Updated Device" })}
-        >
-          Save
-        </button>
-        <button
-          data-testid="submit-edit-duplicate"
-          onClick={() =>
-            submit({ name: "Updated Device", device_id: "duplicate-id" })
-          }
-        >
-          Save Duplicate
-        </button>
-        <button data-testid="close-edit-modal" onClick={onClose}>
-          Close
-        </button>
-      </div>
-    ) : null;
-  },
+}));
+
+vi.mock("@/components/devices", () => ({
   DevicesMasterDetail: ({
     groupDefinitions,
     selectedId,

@@ -35,8 +35,7 @@ interface BackendRoomsEnvelope {
 }
 
 type BackendRoomList =
-  | BackendRoomsEnvelope
-  | NonNullable<BackendRoomsEnvelope["data"]>;
+  BackendRoomsEnvelope | NonNullable<BackendRoomsEnvelope["data"]>;
 
 export interface SpontaneousActivityStartPayload {
   title: string;

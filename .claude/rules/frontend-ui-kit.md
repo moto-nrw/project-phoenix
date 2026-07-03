@@ -17,7 +17,7 @@ This rule reinforces the "Reuse Existing Components" sections in `CLAUDE.md` and
 | Semantic brand colors | `frontend/src/lib/location-helper.ts` → `LOCATION_COLORS` (the ONLY source) |
 | Radius / spacing / shadow tokens | `@moto-nrw/design-system` via the `@theme` block `globals.css` pulls in |
 
-Imports are usually by direct file path: `import { Button } from "~/components/ui/button"`. The `ui/index.ts` barrel only re-exports a subset (`input`, `button`, `alert`, `modal`, `password-change-modal`, `form-modal`, `wizard-stepper`, `custom-select`, `listbox-dropdown`); importing the other components by their file path is correct and expected.
+Imports are always by direct file path: `import { Button } from "~/components/ui/button"`. There is no `ui/index.ts` barrel — import every component from its own file.
 
 ## Study these first — canonical reference screens
 
@@ -79,8 +79,8 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Location / presence badge | `LocationBadge`, `PresenceBadge`, `StudentPresenceBadge` | `~/components/ui/location-badge`, etc. |
 | Back navigation | `BackButton`, `MobileBackButton` | `~/components/ui/back-button`, `~/components/ui/mobile-back-button` |
 | Overlay / side panel | `Drawer`, slide-over | `~/components/ui/drawer`, `~/components/ui/slide-over` |
-| API error message text | `getApiErrorMessage` | `~/components/ui/modal-utils` |
-| List/search page header | `PageHeaderWithSearch` | `~/components/ui/page-header` |
+| API error message text | `getApiErrorMessage` | `~/lib/api-error-message` |
+| List/search page header | `PageHeaderWithSearch` | `~/components/ui/page-header/PageHeaderWithSearch` |
 | Header nav tabs (sliding indicator, mobile dropdown) | `NavigationTabs` | `~/components/ui/page-header/NavigationTabs` |
 | Kebab / overflow action menu | `OverflowMenu` | `~/components/ui/page-header/OverflowMenu` |
 | Filter toggle button | `FilterButton` | `~/components/ui/page-header/FilterButton` |
