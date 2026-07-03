@@ -708,7 +708,7 @@ export async function deleteCareException(
 // api/parent.CareScheduleWeekdayResponse. `weekday` is ISO (Monday=1 .. Friday=5).
 // `arrival`/`pickup` are "HH:MM" wall-clock strings, absent/empty when unset.
 // `modes` are the allowed departure-mode keys for the day (e.g. ["bus","pickup"]).
-export interface CareScheduleWeekday {
+interface CareScheduleWeekday {
   readonly weekday: number;
   readonly arrival?: string;
   readonly pickup?: string;
@@ -721,7 +721,7 @@ export interface CareScheduleWeekday {
 // the localized parents portal can render each row in the guardian's language.
 // `submitted_by_self` is true only for the calling guardian's own request —
 // withdraw is offered only then.
-export interface PendingCareRequest {
+interface PendingCareRequest {
   readonly id: string;
   readonly created_at: string; // ISO timestamp
   readonly diff: RequestDiffEntry[];

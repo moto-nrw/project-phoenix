@@ -878,14 +878,6 @@ func buildCareScheduleChanges(payload map[string]any) (careScheduleChanges, erro
 	return out, nil
 }
 
-// ValidateCareRequestPayload checks a parent-submitted payload for shape and
-// policy (valid weekdays/modes/times) WITHOUT touching the database, so the
-// parent create path can reject bad input immediately.
-func ValidateCareRequestPayload(payload map[string]any) error {
-	_, err := canonicalizeCareSchedulePayload(payload)
-	return err
-}
-
 // canonicalizeCareSchedulePayload validates and returns the sanitized payload
 // to persist. Buckets via the shared parser (which rejects bad weekdays/modes/
 // times), then rebuilds one entry per changed weekday so unknown keys and
