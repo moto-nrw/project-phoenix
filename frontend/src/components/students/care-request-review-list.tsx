@@ -9,12 +9,32 @@ import {
 } from "~/components/students/request-review-card";
 import { createLogger } from "~/lib/logger";
 import {
+  CareRequestApiError,
   type StaffCareRequest,
   decideCareScheduleChangeRequest,
   listCareScheduleChangeRequests,
 } from "~/lib/care-request-review-api";
 
 const logger = createLogger({ component: "CareRequestReviewList" });
+
+// A care request can only be APPROVED while parent messaging is on for the
+// school and the submitting guardian still has access to the child. The backend
+// refuses the other cases with a specific 409 code, because approving would
+// change the child's weekly plan with no parent notice. Map those codes to the
+// concrete recovery action (reject the request) instead of hiding them behind a
+// generic failure, so the reviewer knows what to do with the still-pending row.
+function decideErrorMessage(code: string | undefined): string {
+  switch (code) {
+    case "messaging_disabled":
+      return "Nachrichten an Eltern sind für diese Schule deaktiviert. Die Anfrage kann nicht freigegeben werden, weil die Bezugsperson nicht über die Änderung informiert würde. Bitte die Anfrage stattdessen ablehnen.";
+    case "guardian_access_revoked":
+      return "Die anfragende Bezugsperson hat keinen Zugriff mehr auf dieses Kind. Die Anfrage kann nicht freigegeben werden. Bitte die Anfrage stattdessen ablehnen.";
+    case "change_request_not_pending":
+      return "Diese Anfrage wurde bereits entschieden oder von den Eltern zurückgezogen. Bitte die Seite neu laden.";
+    default:
+      return "Die Entscheidung konnte nicht gespeichert werden.";
+  }
+}
 
 // One-line summary for the collapsed card: the distinct change kinds (e.g.
 // "Abholzeit + Abholart"), taken from the part after "·" in each diff label.
@@ -120,11 +140,13 @@ export function CareRequestReviewList() {
         );
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
+        const code = err instanceof CareRequestApiError ? err.code : undefined;
         logger.warn("care_request_review_decide_failed", {
           error: message,
           request_id: row.id,
+          ...(code ? { code } : {}),
         });
-        setError("Die Entscheidung konnte nicht gespeichert werden.");
+        setError(decideErrorMessage(code));
       } finally {
         setBusyId(null);
       }

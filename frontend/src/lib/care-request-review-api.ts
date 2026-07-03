@@ -37,19 +37,41 @@ function unwrap<T>(json: Envelope<T>): T {
   return json as unknown as T;
 }
 
-async function readError(response: Response, fallback: string): Promise<Error> {
+/**
+ * Error thrown by the care-request client. Carries the backend's stable 409
+ * `code` (e.g. "messaging_disabled", "guardian_access_revoked",
+ * "change_request_not_pending") so the review UI can name the concrete recovery
+ * action instead of collapsing every failure into one generic message. The raw
+ * `error` string stays the Error message for logging.
+ */
+export class CareRequestApiError extends Error {
+  readonly code?: string;
+  constructor(message: string, code?: string) {
+    super(message);
+    this.name = "CareRequestApiError";
+    this.code = code;
+  }
+}
+
+async function readError(
+  response: Response,
+  fallback: string,
+): Promise<CareRequestApiError> {
   let message = fallback;
+  let code: string | undefined;
   try {
-    const body = (await response.json()) as { error?: string };
+    const body = (await response.json()) as { error?: string; code?: string };
     if (body.error) message = body.error;
+    if (body.code) code = body.code;
   } catch {
     // not JSON
   }
   logger.error("care_request_review_request_failed", {
     status: response.status,
     message,
+    ...(code ? { code } : {}),
   });
-  return new Error(message);
+  return new CareRequestApiError(message, code);
 }
 
 /** Lists the tenant's pending parent care-schedule change requests. */

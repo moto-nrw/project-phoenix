@@ -9,15 +9,24 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CareRequestReviewList } from "./care-request-review-list";
 import {
+  CareRequestApiError,
   decideCareScheduleChangeRequest,
   listCareScheduleChangeRequests,
   type StaffCareRequest,
 } from "~/lib/care-request-review-api";
 
-vi.mock("~/lib/care-request-review-api", () => ({
-  listCareScheduleChangeRequests: vi.fn(),
-  decideCareScheduleChangeRequest: vi.fn(),
-}));
+// Mock only the two network functions; keep the real CareRequestApiError so the
+// component's `err instanceof CareRequestApiError` code-branch resolves against
+// the actual class instead of an undefined stub.
+vi.mock("~/lib/care-request-review-api", async (importActual) => {
+  const actual =
+    await importActual<typeof import("~/lib/care-request-review-api")>();
+  return {
+    ...actual,
+    listCareScheduleChangeRequests: vi.fn(),
+    decideCareScheduleChangeRequest: vi.fn(),
+  };
+});
 
 const mockList = vi.mocked(listCareScheduleChangeRequests);
 const mockDecide = vi.mocked(decideCareScheduleChangeRequest);
@@ -142,6 +151,28 @@ describe("CareRequestReviewList", () => {
       await screen.findByText(
         "Die Entscheidung konnte nicht gespeichert werden.",
       ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Lara Beispiel")).toBeInTheDocument();
+  });
+
+  it("surfaces the recovery action when approval is blocked by a 409 code", async () => {
+    mockList.mockResolvedValueOnce([row()]);
+    mockDecide.mockRejectedValueOnce(
+      new CareRequestApiError(
+        "schedule: care request messaging disabled",
+        "messaging_disabled",
+      ),
+    );
+    render(<CareRequestReviewList />);
+
+    expect(await screen.findByText("Lara Beispiel")).toBeInTheDocument();
+    expandAll();
+    fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
+
+    // The blocking reason must tell the reviewer to reject instead — not a
+    // generic failure that leaves the request silently pending.
+    expect(
+      await screen.findByText(/Bitte die Anfrage stattdessen ablehnen\./),
     ).toBeInTheDocument();
     expect(screen.getByText("Lara Beispiel")).toBeInTheDocument();
   });
