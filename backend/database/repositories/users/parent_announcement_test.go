@@ -39,6 +39,7 @@ func publishedAnnouncement(
 	require.NoError(t, repo.ReplaceTargets(ctx, tenantID, a.ID, targets))
 	now := time.Now()
 	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
+	a.PublishedAt = &now // reflect the persisted version so callers can pass it to MarkRead/MarkAcknowledged
 	t.Cleanup(func() { _ = repo.Delete(ctx, a.ID) })
 	return a
 }
@@ -122,13 +123,13 @@ func TestParentAnnouncementAudience(t *testing.T) {
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, unreadBefore, 2)
 
-	require.NoError(t, repo.MarkRead(ctx, chain.TenantID, schoolWide.ID, chain.AccountID))
+	require.NoError(t, repo.MarkRead(ctx, chain.TenantID, schoolWide.ID, chain.AccountID, *schoolWide.PublishedAt))
 	unreadAfter, err := repo.CountUnreadForAccount(ctx, chain.AccountID, tenantIDs)
 	require.NoError(t, err)
 	assert.Equal(t, unreadBefore-1, unreadAfter, "reading one announcement drops unread by one")
 
 	// --- Acknowledge stamps the read row ---
-	require.NoError(t, repo.MarkAcknowledged(ctx, chain.TenantID, classMatch.ID, chain.AccountID))
+	require.NoError(t, repo.MarkAcknowledged(ctx, chain.TenantID, classMatch.ID, chain.AccountID, *classMatch.PublishedAt))
 	stats, err := repo.Stats(ctx, chain.TenantID, classMatch.ID)
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, stats.TargetCount, 1)
@@ -176,7 +177,7 @@ func TestParentAnnouncementAudienceRecipients(t *testing.T) {
 	assert.Nil(t, rcpt.AcknowledgedAt)
 
 	// Read stamps read_at, acknowledge stamps acknowledged_at.
-	require.NoError(t, repo.MarkRead(ctx, chain.TenantID, schoolWide.ID, chain.AccountID))
+	require.NoError(t, repo.MarkRead(ctx, chain.TenantID, schoolWide.ID, chain.AccountID, *schoolWide.PublishedAt))
 	recipients, err = repo.AudienceRecipients(ctx, chain.TenantID, schoolWide.ID)
 	require.NoError(t, err)
 	rcpt = findRecipient(recipients)
@@ -184,7 +185,7 @@ func TestParentAnnouncementAudienceRecipients(t *testing.T) {
 	assert.NotNil(t, rcpt.ReadAt)
 	assert.Nil(t, rcpt.AcknowledgedAt)
 
-	require.NoError(t, repo.MarkAcknowledged(ctx, chain.TenantID, schoolWide.ID, chain.AccountID))
+	require.NoError(t, repo.MarkAcknowledged(ctx, chain.TenantID, schoolWide.ID, chain.AccountID, *schoolWide.PublishedAt))
 	recipients, err = repo.AudienceRecipients(ctx, chain.TenantID, schoolWide.ID)
 	require.NoError(t, err)
 	rcpt = findRecipient(recipients)
@@ -223,8 +224,8 @@ func TestParentAnnouncementUpdate_AtomicAndClearsReads(t *testing.T) {
 	// Publish, then the guardian reads + acknowledges.
 	now := time.Now()
 	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
-	require.NoError(t, repo.MarkRead(ctx, chain.TenantID, a.ID, chain.AccountID))
-	require.NoError(t, repo.MarkAcknowledged(ctx, chain.TenantID, a.ID, chain.AccountID))
+	require.NoError(t, repo.MarkRead(ctx, chain.TenantID, a.ID, chain.AccountID, now))
+	require.NoError(t, repo.MarkAcknowledged(ctx, chain.TenantID, a.ID, chain.AccountID, now))
 	stats, err := repo.Stats(ctx, chain.TenantID, a.ID)
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, stats.ReadCount, 1)
@@ -250,6 +251,71 @@ func TestParentAnnouncementUpdate_AtomicAndClearsReads(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 0, stats.ReadCount, "editing a draft clears stale read state")
 	assert.Equal(t, 0, stats.AcknowledgedCount, "editing a draft clears stale ack state")
+}
+
+// TestParentAnnouncementDelete verifies the staff delete path: the generic
+// base.Repository.Delete builds an aliased table expression + WHERE, and the
+// model's BeforeAppendModel must leave DeleteQuery untouched so the alias
+// survives (a bare-table override would produce a WHERE referencing a missing
+// alias and fail). Targets + reads cascade in the DB.
+func TestParentAnnouncementDelete(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	repo := usersRepo.NewParentAnnouncementRepository(db)
+	ctx := tenantCtx()
+
+	a := &usersModels.ParentAnnouncement{
+		Title: "Zu löschen", Body: "x", Priority: usersModels.ParentAnnouncementPriorityInfo,
+		Active: true, CreatedBy: chain.AccountID,
+	}
+	a.SetTenantID(chain.TenantID)
+	require.NoError(t, repo.Create(ctx, a))
+	require.NoError(t, repo.ReplaceTargets(ctx, chain.TenantID, a.ID,
+		[]*usersModels.ParentAnnouncementTarget{{TargetType: usersModels.AnnouncementTargetSchoolAll}}))
+
+	require.NoError(t, repo.Delete(ctx, a.ID), "delete must not fail on a missing alias")
+	got, err := repo.FindByID(ctx, a.ID)
+	require.NoError(t, err)
+	assert.Nil(t, got, "deleted announcement is gone")
+}
+
+// TestParentAnnouncementMarkRead_VersionGuard verifies that MarkRead /
+// MarkAcknowledged only stamp when the announcement is still live at the
+// expected published_at. A request carrying the version the guardian loaded
+// before a correction (unpublish -> edit -> republish re-stamps published_at)
+// must record nothing against the corrected wording — the guard closes the
+// window between the service's authorize phase and the write.
+func TestParentAnnouncementMarkRead_VersionGuard(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	repo := usersRepo.NewParentAnnouncementRepository(db)
+	ctx := tenantCtx()
+
+	a := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+		"Versioniert", []*usersModels.ParentAnnouncementTarget{
+			{TargetType: usersModels.AnnouncementTargetSchoolAll},
+		})
+	stale := a.PublishedAt.Add(-time.Hour) // a version the announcement never had
+
+	// A stale published_at records nothing (no error — it is simply a no-op).
+	require.NoError(t, repo.MarkRead(ctx, chain.TenantID, a.ID, chain.AccountID, stale))
+	require.NoError(t, repo.MarkAcknowledged(ctx, chain.TenantID, a.ID, chain.AccountID, stale))
+	stats, err := repo.Stats(ctx, chain.TenantID, a.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 0, stats.ReadCount, "stale-version read must not stamp")
+	assert.Equal(t, 0, stats.AcknowledgedCount, "stale-version ack must not stamp")
+
+	// The current version still stamps.
+	require.NoError(t, repo.MarkRead(ctx, chain.TenantID, a.ID, chain.AccountID, *a.PublishedAt))
+	stats, err = repo.Stats(ctx, chain.TenantID, a.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, stats.ReadCount, "current-version read stamps")
 }
 
 // TestParentAnnouncementAudience_InactiveMembershipExcluded verifies that a

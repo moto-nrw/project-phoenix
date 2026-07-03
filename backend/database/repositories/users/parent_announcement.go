@@ -623,20 +623,35 @@ func (r *ParentAnnouncementRepository) CountUnreadForAccount(ctx context.Context
 	return count, nil
 }
 
+// liveAtVersion is the EXISTS guard shared by MarkRead/MarkAcknowledged: the
+// read/ack row is only written while the announcement is still live (active,
+// published, publish time reached, not expired) AND its published_at still
+// equals the version the client loaded. published_at = ? already implies NOT
+// NULL. Mirrors announcementIsLive in the service, but evaluated in the same
+// statement as the write so a concurrent correction cannot slip a stale read/ack
+// onto the corrected wording.
+const liveAtVersion = `EXISTS (
+		SELECT 1 FROM users.parent_announcements a
+		WHERE a.id = ? AND a.tenant_id = ?
+			AND a.active
+			AND a.published_at = ?
+			AND a.published_at <= NOW()
+			AND (a.expires_at IS NULL OR a.expires_at > NOW())
+	)`
+
 // MarkRead upserts the account's read row for an announcement (idempotent: a
-// repeat read leaves read_at and any acknowledgement untouched).
-func (r *ParentAnnouncementRepository) MarkRead(ctx context.Context, tenantID, announcementID, accountID int64) error {
-	row := &users.ParentAnnouncementRead{
-		AnnouncementID: announcementID,
-		AccountID:      accountID,
-		ReadAt:         time.Now(),
-	}
-	row.SetTenantID(tenantID)
-	if _, err := base.GetDB(ctx, r.DB).NewInsert().
-		Model(row).
-		ModelTableExpr("users.parent_announcement_reads").
-		On("CONFLICT (announcement_id, account_id) DO NOTHING").
-		Exec(ctx); err != nil {
+// repeat read leaves read_at and any acknowledgement untouched). The insert is
+// gated on the announcement still being live at expectedPublishedAt, so a
+// request that loaded a since-retracted/republished wording records nothing.
+func (r *ParentAnnouncementRepository) MarkRead(ctx context.Context, tenantID, announcementID, accountID int64, expectedPublishedAt time.Time) error {
+	if _, err := base.GetDB(ctx, r.DB).NewRaw(`
+		INSERT INTO users.parent_announcement_reads (tenant_id, announcement_id, account_id, read_at)
+		SELECT ?, ?, ?, ?
+		WHERE `+liveAtVersion+`
+		ON CONFLICT (announcement_id, account_id) DO NOTHING`,
+		tenantID, announcementID, accountID, time.Now(),
+		announcementID, tenantID, expectedPublishedAt,
+	).Exec(ctx); err != nil {
 		return &modelBase.DatabaseError{Op: "mark parent announcement read", Err: err}
 	}
 	return nil
@@ -644,22 +659,18 @@ func (r *ParentAnnouncementRepository) MarkRead(ctx context.Context, tenantID, a
 
 // MarkAcknowledged upserts the account's read row and stamps acknowledged_at
 // (clearing nothing on a repeat ack). A read row is created if the guardian
-// acknowledges without a prior explicit read.
-func (r *ParentAnnouncementRepository) MarkAcknowledged(ctx context.Context, tenantID, announcementID, accountID int64) error {
+// acknowledges without a prior explicit read. Same version guard as MarkRead.
+func (r *ParentAnnouncementRepository) MarkAcknowledged(ctx context.Context, tenantID, announcementID, accountID int64, expectedPublishedAt time.Time) error {
 	now := time.Now()
-	row := &users.ParentAnnouncementRead{
-		AnnouncementID: announcementID,
-		AccountID:      accountID,
-		ReadAt:         now,
-		AcknowledgedAt: &now,
-	}
-	row.SetTenantID(tenantID)
-	if _, err := base.GetDB(ctx, r.DB).NewInsert().
-		Model(row).
-		ModelTableExpr("users.parent_announcement_reads").
-		On("CONFLICT (announcement_id, account_id) DO UPDATE").
-		Set("acknowledged_at = COALESCE(parent_announcement_reads.acknowledged_at, EXCLUDED.acknowledged_at)").
-		Exec(ctx); err != nil {
+	if _, err := base.GetDB(ctx, r.DB).NewRaw(`
+		INSERT INTO users.parent_announcement_reads (tenant_id, announcement_id, account_id, read_at, acknowledged_at)
+		SELECT ?, ?, ?, ?, ?
+		WHERE `+liveAtVersion+`
+		ON CONFLICT (announcement_id, account_id) DO UPDATE
+		SET acknowledged_at = COALESCE(parent_announcement_reads.acknowledged_at, EXCLUDED.acknowledged_at)`,
+		tenantID, announcementID, accountID, now, now,
+		announcementID, tenantID, expectedPublishedAt,
+	).Exec(ctx); err != nil {
 		return &modelBase.DatabaseError{Op: "mark parent announcement acknowledged", Err: err}
 	}
 	return nil

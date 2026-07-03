@@ -58,6 +58,18 @@ export default function ParentNewsPage() {
     [],
   );
 
+  // A read/ack was rejected because the announcement is no longer current;
+  // refetch so a retracted item drops out and a corrected one refreshes.
+  const refetchOnStale = useCallback(() => {
+    listAnnouncements()
+      .then(setItems)
+      .catch((err: unknown) => {
+        logger.error("parent_news_refetch_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+  }, []);
+
   const openItem = items.find((item) => item.id === openId) ?? null;
 
   return (
@@ -113,6 +125,7 @@ export default function ParentNewsPage() {
           item={openItem}
           onClose={() => setOpenId(null)}
           onUpdated={applyState}
+          onStale={refetchOnStale}
         />
       )}
     </div>

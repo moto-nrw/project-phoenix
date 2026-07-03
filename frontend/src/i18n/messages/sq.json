@@ -107,7 +107,8 @@
     "newsAcknowledge": "Lexuar dhe konfirmuar",
     "newsAcknowledged": "Konfirmuar",
     "newsRead": "Lexuar",
-    "newsActionError": "Veprimi dështoi. Provoni përsëri."
+    "newsActionError": "Veprimi dështoi. Provoni përsëri.",
+    "newsStaleError": "Ky njoftim nuk është më aktual. Ju lutemi, ringarkoni faqen."
   },
   "parentChildren": {
     "eyebrow": "Fëmijët e mi",

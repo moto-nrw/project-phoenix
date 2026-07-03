@@ -187,10 +187,15 @@ func (s *service) stampAnnouncement(ctx context.Context, accountID, announcement
 	if ack && !requiresAck {
 		return ErrAnnouncementAckNotRequired
 	}
-	// Phase 2: stamp the read/ack row in a fresh admin tx.
+	// Phase 2: stamp the read/ack row in a fresh admin tx. Phase 1 ran in an
+	// earlier tx and the settings check opened its own, so the announcement may
+	// have been retracted/republished since. The repo write is guarded on the
+	// announcement still being live at expectedPublishedAt (the version verified
+	// in Phase 1), so a correction that slipped in cannot record a read/ack
+	// against wording the guardian never saw — the stamp is simply a no-op.
 	return tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
 		if ack {
-			if err := s.announcementRepo.MarkAcknowledged(adminCtx, announcementTenantID, announcementID, accountID); err != nil {
+			if err := s.announcementRepo.MarkAcknowledged(adminCtx, announcementTenantID, announcementID, accountID, expectedPublishedAt); err != nil {
 				return err
 			}
 			s.logger.Info("parent acknowledged announcement",
@@ -199,7 +204,7 @@ func (s *service) stampAnnouncement(ctx context.Context, accountID, announcement
 			)
 			return nil
 		}
-		return s.announcementRepo.MarkRead(adminCtx, announcementTenantID, announcementID, accountID)
+		return s.announcementRepo.MarkRead(adminCtx, announcementTenantID, announcementID, accountID, expectedPublishedAt)
 	})
 }
 

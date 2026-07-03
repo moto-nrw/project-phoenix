@@ -107,7 +107,8 @@
     "newsAcknowledge": "Gelesen und bestätigt",
     "newsAcknowledged": "Bestätigt",
     "newsRead": "Gelesen",
-    "newsActionError": "Aktion fehlgeschlagen. Bitte erneut versuchen."
+    "newsActionError": "Aktion fehlgeschlagen. Bitte erneut versuchen.",
+    "newsStaleError": "Diese Mitteilung ist nicht mehr aktuell. Bitte laden Sie die Seite neu."
   },
   "parentChildren": {
     "eyebrow": "Meine Kinder",

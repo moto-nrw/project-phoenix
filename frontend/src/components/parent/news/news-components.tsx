@@ -17,6 +17,7 @@ import { LinkifiedText } from "~/components/ui/linkified-text";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
+  ParentApiError,
   type ParentAnnouncement,
   acknowledgeAnnouncement,
   markAnnouncementRead,
@@ -27,6 +28,18 @@ const logger = createLogger({ component: "ParentNews" });
 /** Tell the sidebar badge to refetch after a read/ack. */
 function refreshUnreadBadge() {
   window.dispatchEvent(new Event("parent-news-unread-refresh"));
+}
+
+/**
+ * The backend rejects a read/ack that targets an announcement it no longer
+ * serves as current: 404 (retracted / expired / audience change) or 409 (the
+ * loaded published_at is stale after an unpublish -> edit -> republish
+ * correction). Both mean the wording on screen may be outdated.
+ */
+function isStaleAnnouncementError(err: unknown): boolean {
+  return (
+    err instanceof ParentApiError && (err.status === 404 || err.status === 409)
+  );
 }
 
 export function NewsBadges({
@@ -102,14 +115,22 @@ export function NewsDetailModal({
   item,
   onClose,
   onUpdated,
+  onStale,
 }: Readonly<{
   item: ParentAnnouncement;
   onClose: () => void;
   onUpdated: (id: string, patch: Partial<ParentAnnouncement>) => void;
+  /**
+   * Invoked when the backend rejects a read/ack because the announcement is no
+   * longer current (retracted/expired or corrected since it loaded). The parent
+   * should refetch the feed so the list + unread badge stop showing stale items.
+   */
+  onStale?: (id: string) => void;
 }>) {
   const t = useTranslations("parentDashboard");
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [stale, setStale] = useState(false);
   const markedRef = useRef(false);
 
   useEffect(() => {
@@ -126,8 +147,18 @@ export function NewsDetailModal({
         logger.error("parent_news_mark_read_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
+        if (isStaleAnnouncementError(err)) {
+          // The announcement was retracted/republished after it loaded: the
+          // shown wording may be outdated. Flag it and let the parent refetch.
+          setStale(true);
+          refreshUnreadBadge();
+          onStale?.(item.id);
+        } else {
+          // Transient failure: let a later rerender retry the mark.
+          markedRef.current = false;
+        }
       });
-  }, [item.id, item.read, item.published_at, onUpdated]);
+  }, [item.id, item.read, item.published_at, onUpdated, onStale]);
 
   const handleAcknowledge = useCallback(async () => {
     if (!item.published_at) return;
@@ -141,13 +172,22 @@ export function NewsDetailModal({
       logger.error("parent_news_acknowledge_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setActionError(t("newsActionError"));
+      if (isStaleAnnouncementError(err)) {
+        setStale(true);
+        refreshUnreadBadge();
+        onStale?.(item.id);
+      } else {
+        setActionError(t("newsActionError"));
+      }
     } finally {
       setBusy(false);
     }
-  }, [item.id, item.published_at, onUpdated, t]);
+  }, [item.id, item.published_at, onUpdated, onStale, t]);
 
-  const needsAck = item.requires_acknowledgement && !item.acknowledged;
+  // A stale announcement can't be acknowledged (the backend rejects the write),
+  // so hide the button and surface the stale banner instead.
+  const needsAck =
+    item.requires_acknowledgement && !item.acknowledged && !stale;
 
   return (
     <Modal isOpen onClose={onClose} title={item.title}>
@@ -174,6 +214,15 @@ export function NewsDetailModal({
             <ExternalLink className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span className="truncate">{item.link_url}</span>
           </a>
+        )}
+
+        {stale && (
+          <p
+            role="alert"
+            className="rounded-lg bg-[#F78C101A] px-3 py-2 text-sm text-[#B45309]"
+          >
+            {t("newsStaleError")}
+          </p>
         )}
 
         {actionError && (

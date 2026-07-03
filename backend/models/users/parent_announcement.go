@@ -83,11 +83,15 @@ type ParentAnnouncement struct {
 	Targets []*ParentAnnouncementTarget `bun:"-" json:"targets,omitempty"`
 }
 
+// BeforeAppendModel pins INSERT/UPDATE to the bare (un-aliased) table so the
+// repository's raw Set(...)/column clauses resolve. It deliberately does NOT
+// touch DeleteQuery: the generic base.Repository.Delete builds
+// `... AS "parent_announcement"` and a WHERE that references that alias, so
+// overriding the table expression here would drop the alias and the DELETE
+// would fail on a missing FROM-clause entry (Postgres allows the alias on
+// DELETE, so leaving base's aliased expression intact is correct).
 func (a *ParentAnnouncement) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableUsersParentAnnouncements)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
 		q.ModelTableExpr(tableUsersParentAnnouncements)
 	}
 	if q, ok := query.(*bun.InsertQuery); ok {
@@ -244,7 +248,13 @@ type ParentAnnouncementRepository interface {
 	CountUnreadForAccount(ctx context.Context, accountID int64, tenantIDs []int64) (int, error)
 
 	// --- read / ack state ---
-	MarkRead(ctx context.Context, tenantID, announcementID, accountID int64) error
-	MarkAcknowledged(ctx context.Context, tenantID, announcementID, accountID int64) error
+	// MarkRead / MarkAcknowledged stamp the guardian's read/ack row only while
+	// the announcement is still live at expectedPublishedAt. The version guard
+	// closes the window between the service's resolve/authorize phase and this
+	// write: a correction (unpublish -> edit -> republish) re-stamps published_at
+	// and clears reads, so a stale request must not record a read/ack against the
+	// corrected wording the guardian never saw.
+	MarkRead(ctx context.Context, tenantID, announcementID, accountID int64, expectedPublishedAt time.Time) error
+	MarkAcknowledged(ctx context.Context, tenantID, announcementID, accountID int64, expectedPublishedAt time.Time) error
 	Stats(ctx context.Context, tenantID, announcementID int64) (*AnnouncementStats, error)
 }
