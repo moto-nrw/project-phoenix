@@ -34,9 +34,14 @@ func (f *fakeAnnouncementRepo) Update(_ context.Context, _ *usersModels.ParentAn
 }
 
 func (f *fakeAnnouncementRepo) SetPublished(_ context.Context, _ int64, publishedAt *time.Time) error {
-	f.publishCalls++
 	f.announcement.PublishedAt = publishedAt
 	return nil
+}
+
+func (f *fakeAnnouncementRepo) PublishIfDraft(_ context.Context, _ int64, publishedAt time.Time) (bool, error) {
+	f.publishCalls++
+	f.announcement.PublishedAt = &publishedAt
+	return true, nil
 }
 
 func (f *fakeAnnouncementRepo) ReplaceTargets(_ context.Context, _, _ int64, _ []*usersModels.ParentAnnouncementTarget) error {
@@ -150,7 +155,7 @@ func TestPublish_EnqueuesTitleOnlyEmails(t *testing.T) {
 		t.Fatalf("publish failed: %v", err)
 	}
 	if repo.publishCalls != 1 {
-		t.Fatalf("expected one SetPublished call, got %d", repo.publishCalls)
+		t.Fatalf("expected one PublishIfDraft call, got %d", repo.publishCalls)
 	}
 	if len(outbox.requests) != 2 {
 		t.Fatalf("expected one e-mail per recipient, got %d", len(outbox.requests))
@@ -206,7 +211,7 @@ func TestPublish_RepublishDoesNotReEnqueue(t *testing.T) {
 		t.Fatalf("second publish failed: %v", err)
 	}
 	if repo.publishCalls != 1 {
-		t.Fatalf("expected publish to be idempotent, got %d SetPublished calls", repo.publishCalls)
+		t.Fatalf("expected publish to be idempotent, got %d PublishIfDraft calls", repo.publishCalls)
 	}
 	if len(outbox.requests) != 1 {
 		t.Fatalf("expected no duplicate e-mails on re-publish, got %d", len(outbox.requests))

@@ -60,7 +60,10 @@ func pendingStatusList() string {
 // in the feed query, or a bound `?` in the per-announcement check). accPlace is
 // the placeholder/expression for the account id. It is the OR-union of the
 // student-based targets (school/class/group/AG/student, gated on a live
-// students_guardians link granting parent_portal.access) and the
+// students_guardians link granting parent_portal.access AND an ACTIVE
+// auth.account_tenants membership for the school — a guardian whose mapping
+// went pending/inactive keeps the relationship rows but has lost portal access,
+// so they drop out; mirrors parent messaging + parent.ChildRepository) and the
 // guardian-based pending_enrollment target.
 func reachedPredicate(annExpr, tenantExpr, accPlace string) string {
 	return fmt.Sprintf(`(
@@ -69,13 +72,14 @@ func reachedPredicate(annExpr, tenantExpr, accPlace string) string {
 			FROM users.parent_announcement_targets pt
 			JOIN users.students s ON s.tenant_id = %[2]s AND (
 				pt.target_type = 'school_all'
-				OR (pt.target_type = 'class' AND s.school_class = pt.target_ref_text)
+				OR (pt.target_type = 'class' AND LOWER(TRIM(s.school_class)) = LOWER(TRIM(pt.target_ref_text)))
 				OR (pt.target_type = 'group' AND s.group_id = pt.target_ref_id)
 				OR (pt.target_type = 'student' AND s.id = pt.target_ref_id)
 				OR (pt.target_type = 'activity_group' AND EXISTS (
 					SELECT 1 FROM activities.student_enrollments se
 					WHERE se.student_id = s.id AND se.tenant_id = %[2]s
 						AND se.activity_group_id = pt.target_ref_id
+						AND se.valid_from <= CURRENT_DATE
 						AND (se.valid_until IS NULL OR se.valid_until >= CURRENT_DATE)
 				))
 			)
@@ -83,6 +87,8 @@ func reachedPredicate(annExpr, tenantExpr, accPlace string) string {
 				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
 			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = %[2]s
 				AND gp.account_id = %[3]s
+			JOIN auth.account_tenants act ON act.account_id = gp.account_id
+				AND act.tenant_id = gp.tenant_id AND act.status = 'active'
 			WHERE pt.announcement_id = %[1]s AND pt.tenant_id = %[2]s
 		)
 		OR EXISTS (
@@ -240,6 +246,31 @@ func (r *ParentAnnouncementRepository) SetPublished(ctx context.Context, id int6
 	return nil
 }
 
+// PublishIfDraft atomically transitions a DRAFT (published_at IS NULL) to
+// published, stamping publishedAt, and reports whether THIS call flipped the
+// row. The UPDATE is guarded by published_at IS NULL, so a concurrent second
+// publish (double-click / two tabs) blocks on the row lock, re-reads a now
+// non-null published_at, matches nothing, and returns false — the caller then
+// skips the opted-in e-mail enqueue, so a publish race can never double-send the
+// parent notification. RLS pins the update to the current tenant.
+func (r *ParentAnnouncementRepository) PublishIfDraft(ctx context.Context, id int64, publishedAt time.Time) (bool, error) {
+	res, err := base.GetDB(ctx, r.DB).NewUpdate().
+		Model((*users.ParentAnnouncement)(nil)).
+		ModelTableExpr("users.parent_announcements").
+		Set("published_at = ?", publishedAt).
+		Where("id = ?", id).
+		Where("published_at IS NULL").
+		Exec(ctx)
+	if err != nil {
+		return false, &modelBase.DatabaseError{Op: "publish parent announcement", Err: err}
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, &modelBase.DatabaseError{Op: "publish parent announcement rows affected", Err: err}
+	}
+	return n > 0, nil
+}
+
 // ReplaceTargets swaps an announcement's target rows wholesale: delete the
 // existing ones, insert the supplied set. Runs inside the caller's tenant tx.
 func (r *ParentAnnouncementRepository) ReplaceTargets(ctx context.Context, tenantID, announcementID int64, targets []*users.ParentAnnouncementTarget) error {
@@ -294,13 +325,14 @@ func (r *ParentAnnouncementRepository) CountAudience(ctx context.Context, tenant
 			FROM users.parent_announcement_targets pt
 			JOIN users.students s ON s.tenant_id = ? AND (
 				pt.target_type = 'school_all'
-				OR (pt.target_type = 'class' AND s.school_class = pt.target_ref_text)
+				OR (pt.target_type = 'class' AND LOWER(TRIM(s.school_class)) = LOWER(TRIM(pt.target_ref_text)))
 				OR (pt.target_type = 'group' AND s.group_id = pt.target_ref_id)
 				OR (pt.target_type = 'student' AND s.id = pt.target_ref_id)
 				OR (pt.target_type = 'activity_group' AND EXISTS (
 					SELECT 1 FROM activities.student_enrollments se
 					WHERE se.student_id = s.id AND se.tenant_id = ?
 						AND se.activity_group_id = pt.target_ref_id
+						AND se.valid_from <= CURRENT_DATE
 						AND (se.valid_until IS NULL OR se.valid_until >= CURRENT_DATE)
 				))
 			)
@@ -308,6 +340,8 @@ func (r *ParentAnnouncementRepository) CountAudience(ctx context.Context, tenant
 				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
 			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
 				AND gp.account_id IS NOT NULL
+			JOIN auth.account_tenants act ON act.account_id = gp.account_id
+				AND act.tenant_id = gp.tenant_id AND act.status = 'active'
 			WHERE pt.announcement_id = ? AND pt.tenant_id = ?
 
 			UNION
@@ -392,13 +426,14 @@ func (r *ParentAnnouncementRepository) ResolveAudienceEmails(ctx context.Context
 		FROM users.parent_announcement_targets pt
 		JOIN users.students s ON s.tenant_id = ? AND (
 			pt.target_type = 'school_all'
-			OR (pt.target_type = 'class' AND s.school_class = pt.target_ref_text)
+			OR (pt.target_type = 'class' AND LOWER(TRIM(s.school_class)) = LOWER(TRIM(pt.target_ref_text)))
 			OR (pt.target_type = 'group' AND s.group_id = pt.target_ref_id)
 			OR (pt.target_type = 'student' AND s.id = pt.target_ref_id)
 			OR (pt.target_type = 'activity_group' AND EXISTS (
 				SELECT 1 FROM activities.student_enrollments se
 				WHERE se.student_id = s.id AND se.tenant_id = ?
 					AND se.activity_group_id = pt.target_ref_id
+					AND se.valid_from <= CURRENT_DATE
 					AND (se.valid_until IS NULL OR se.valid_until >= CURRENT_DATE)
 			))
 		)
@@ -407,6 +442,8 @@ func (r *ParentAnnouncementRepository) ResolveAudienceEmails(ctx context.Context
 		JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
 			AND gp.account_id IS NOT NULL
 			AND gp.email IS NOT NULL AND length(btrim(gp.email)) > 0
+		JOIN auth.account_tenants act ON act.account_id = gp.account_id
+			AND act.tenant_id = gp.tenant_id AND act.status = 'active'
 		WHERE pt.announcement_id = ? AND pt.tenant_id = ?
 
 		UNION
@@ -461,13 +498,14 @@ func (r *ParentAnnouncementRepository) AudienceRecipients(ctx context.Context, t
 			FROM users.parent_announcement_targets pt
 			JOIN users.students s ON s.tenant_id = ? AND (
 				pt.target_type = 'school_all'
-				OR (pt.target_type = 'class' AND s.school_class = pt.target_ref_text)
+				OR (pt.target_type = 'class' AND LOWER(TRIM(s.school_class)) = LOWER(TRIM(pt.target_ref_text)))
 				OR (pt.target_type = 'group' AND s.group_id = pt.target_ref_id)
 				OR (pt.target_type = 'student' AND s.id = pt.target_ref_id)
 				OR (pt.target_type = 'activity_group' AND EXISTS (
 					SELECT 1 FROM activities.student_enrollments se
 					WHERE se.student_id = s.id AND se.tenant_id = ?
 						AND se.activity_group_id = pt.target_ref_id
+						AND se.valid_from <= CURRENT_DATE
 						AND (se.valid_until IS NULL OR se.valid_until >= CURRENT_DATE)
 				))
 			)
@@ -475,6 +513,8 @@ func (r *ParentAnnouncementRepository) AudienceRecipients(ctx context.Context, t
 				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
 			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
 				AND gp.account_id IS NOT NULL
+			JOIN auth.account_tenants act ON act.account_id = gp.account_id
+				AND act.tenant_id = gp.tenant_id AND act.status = 'active'
 			WHERE pt.announcement_id = ? AND pt.tenant_id = ?
 
 			UNION
@@ -621,13 +661,14 @@ func (r *ParentAnnouncementRepository) Stats(ctx context.Context, tenantID, anno
 			FROM users.parent_announcement_targets pt
 			JOIN users.students s ON s.tenant_id = ? AND (
 				pt.target_type = 'school_all'
-				OR (pt.target_type = 'class' AND s.school_class = pt.target_ref_text)
+				OR (pt.target_type = 'class' AND LOWER(TRIM(s.school_class)) = LOWER(TRIM(pt.target_ref_text)))
 				OR (pt.target_type = 'group' AND s.group_id = pt.target_ref_id)
 				OR (pt.target_type = 'student' AND s.id = pt.target_ref_id)
 				OR (pt.target_type = 'activity_group' AND EXISTS (
 					SELECT 1 FROM activities.student_enrollments se
 					WHERE se.student_id = s.id AND se.tenant_id = ?
 						AND se.activity_group_id = pt.target_ref_id
+						AND se.valid_from <= CURRENT_DATE
 						AND (se.valid_until IS NULL OR se.valid_until >= CURRENT_DATE)
 				))
 			)
@@ -635,6 +676,8 @@ func (r *ParentAnnouncementRepository) Stats(ctx context.Context, tenantID, anno
 				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
 			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
 				AND gp.account_id IS NOT NULL
+			JOIN auth.account_tenants act ON act.account_id = gp.account_id
+				AND act.tenant_id = gp.tenant_id AND act.status = 'active'
 			WHERE pt.announcement_id = ? AND pt.tenant_id = ?
 			UNION
 			SELECT DISTINCT req.guardian_account_id AS account_id

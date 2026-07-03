@@ -9,6 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -247,6 +250,139 @@ func TestParentAnnouncementUpdate_AtomicAndClearsReads(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 0, stats.ReadCount, "editing a draft clears stale read state")
 	assert.Equal(t, 0, stats.AcknowledgedCount, "editing a draft clears stale ack state")
+}
+
+// TestParentAnnouncementAudience_InactiveMembershipExcluded verifies that a
+// guardian whose auth.account_tenants mapping is no longer active drops out of
+// every audience surface, even though the guardian_profiles + students_guardians
+// rows (with parent_portal.access) still exist. Membership, not just the
+// relationship, is what grants parent-portal access.
+func TestParentAnnouncementAudience_InactiveMembershipExcluded(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db) // active mapping, tenant 1
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	repo := usersRepo.NewParentAnnouncementRepository(db)
+	ctx := tenantCtx()
+	tenantIDs := []int64{chain.TenantID}
+
+	ann := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+		"Schulweit", []*usersModels.ParentAnnouncementTarget{
+			{TargetType: usersModels.AnnouncementTargetSchoolAll},
+		})
+
+	// Sanity: while the mapping is active the guardian is in the audience.
+	matched, err := repo.AccountMatchesAnnouncement(ctx, chain.TenantID, ann.ID, chain.AccountID)
+	require.NoError(t, err)
+	require.True(t, matched, "sanity: an active guardian is reached")
+	count, err := repo.CountAudience(ctx, chain.TenantID, ann.ID)
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, count, 1)
+
+	// Revoke school access: flip the mapping to inactive.
+	_, err = db.NewUpdate().
+		Model((*authModels.AccountTenant)(nil)).
+		ModelTableExpr("auth.account_tenants").
+		Set("status = ?", authModels.AccountTenantStatusInactive).
+		Where("account_id = ? AND tenant_id = ?", chain.AccountID, chain.TenantID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	matched, err = repo.AccountMatchesAnnouncement(ctx, chain.TenantID, ann.ID, chain.AccountID)
+	require.NoError(t, err)
+	assert.False(t, matched, "an inactive membership must not be reached")
+
+	count, err = repo.CountAudience(ctx, chain.TenantID, ann.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 0, count, "inactive membership excluded from CountAudience")
+
+	feed, err := repo.ListFeedForAccount(ctx, chain.AccountID, tenantIDs)
+	require.NoError(t, err)
+	assert.Empty(t, feed, "inactive membership sees no feed for this tenant")
+}
+
+// TestParentAnnouncementAudience_ClassMatchIsCaseInsensitive verifies a class
+// target matches a student's school_class case- and whitespace-insensitively,
+// the same LOWER(TRIM(...)) rule the canonical FindBySchoolClass uses and that
+// ListSchoolClasses (TRIM) feeds the selector with — so staff can never pick a
+// visible class that then reaches no guardian.
+func TestParentAnnouncementAudience_ClassMatchIsCaseInsensitive(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	repo := usersRepo.NewParentAnnouncementRepository(db)
+	ctx := tenantCtx()
+
+	// Uppercase + padded target text against a lowercase "1a" student class.
+	ann := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+		"Klasse 1A", []*usersModels.ParentAnnouncementTarget{
+			{TargetType: usersModels.AnnouncementTargetClass, TargetRefText: strp(" 1A ")},
+		})
+
+	matched, err := repo.AccountMatchesAnnouncement(ctx, chain.TenantID, ann.ID, chain.AccountID)
+	require.NoError(t, err)
+	assert.True(t, matched, "class target ' 1A ' must reach a '1a' student (case/space-insensitive)")
+}
+
+// TestParentAnnouncementAudience_FutureEnrollmentExcluded verifies an
+// activity_group target only reaches a student whose enrollment has already
+// started: a future valid_from is not yet in the audience, and the guardian
+// enters it once the enrollment becomes current.
+func TestParentAnnouncementAudience_FutureEnrollmentExcluded(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db) // tenant 1
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	repo := usersRepo.NewParentAnnouncementRepository(db)
+	ctx := tenantCtx()
+
+	group := testpkg.CreateTestActivityGroupForTenant(t, db, chain.TenantID, "AG-Regression")
+
+	// Enroll the chain student with a valid_from a week out (not yet started).
+	enr := &activitiesModels.StudentEnrollment{
+		StudentID:       chain.StudentID,
+		ActivityGroupID: group.ID,
+		ValidFrom:       timezone.TodayDate().AddDays(7),
+	}
+	enr.SetTenantID(chain.TenantID)
+	_, err := db.NewInsert().
+		Model(enr).
+		ModelTableExpr(`activities.student_enrollments AS "enrollment"`).
+		Exec(context.Background())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().
+			Model((*activitiesModels.StudentEnrollment)(nil)).
+			ModelTableExpr("activities.student_enrollments").
+			Where("id = ?", enr.ID).
+			Exec(context.Background())
+	})
+
+	ann := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+		"AG-Mitteilung", []*usersModels.ParentAnnouncementTarget{
+			{TargetType: usersModels.AnnouncementTargetActivityGroup, TargetRefID: &group.ID},
+		})
+
+	matched, err := repo.AccountMatchesAnnouncement(ctx, chain.TenantID, ann.ID, chain.AccountID)
+	require.NoError(t, err)
+	assert.False(t, matched, "a not-yet-started (future valid_from) enrollment must not be reached")
+
+	// Advance the enrollment to today: now it is current and reaches the guardian.
+	_, err = db.NewUpdate().
+		Model((*activitiesModels.StudentEnrollment)(nil)).
+		ModelTableExpr("activities.student_enrollments").
+		Set("valid_from = ?", timezone.TodayDate()).
+		Where("id = ?", enr.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	matched, err = repo.AccountMatchesAnnouncement(ctx, chain.TenantID, ann.ID, chain.AccountID)
+	require.NoError(t, err)
+	assert.True(t, matched, "a started enrollment reaches the guardian")
 }
 
 func strp(s string) *string { return &s }

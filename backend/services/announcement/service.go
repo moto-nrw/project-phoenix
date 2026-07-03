@@ -260,14 +260,29 @@ func (s *service) Publish(ctx context.Context, id int64) (*usersModels.ParentAnn
 	}
 	if !a.IsPublished() {
 		now := time.Now()
-		if err := s.repo.SetPublished(ctx, id, &now); err != nil {
+		// Refuse an already-expired draft: the parent feed only shows rows with
+		// expires_at > NOW(), so publishing one would e-mail guardians about an
+		// announcement they can never open — and published announcements are
+		// immutable, so the mistake can't be corrected in place. Block it before
+		// any state change or e-mail.
+		if a.ExpiresAt != nil && !a.ExpiresAt.After(now) {
+			return nil, fmt.Errorf("%w: expires_at is already in the past", ErrValidation)
+		}
+		// Atomic publish: PublishIfDraft's UPDATE is guarded by
+		// published_at IS NULL, so only ONE of two concurrent publishes flips the
+		// row. Enqueue the opt-in e-mails only for that winner — a double-click or
+		// two-tab race must not double-send the parent notification.
+		published, err := s.repo.PublishIfDraft(ctx, id, now)
+		if err != nil {
 			return nil, fmt.Errorf("announcement: publish: %w", err)
 		}
-		a.PublishedAt = &now
-		s.logger.Info("parent announcement published", slog.Int64("announcement_id", id))
-		if a.SendEmail {
-			if err := s.enqueueAnnouncementEmails(ctx, a); err != nil {
-				return nil, fmt.Errorf("announcement: publish e-mails: %w", err)
+		if published {
+			a.PublishedAt = &now
+			s.logger.Info("parent announcement published", slog.Int64("announcement_id", id))
+			if a.SendEmail {
+				if err := s.enqueueAnnouncementEmails(ctx, a); err != nil {
+					return nil, fmt.Errorf("announcement: publish e-mails: %w", err)
+				}
 			}
 		}
 	}

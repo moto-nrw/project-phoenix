@@ -207,6 +207,11 @@ type ParentAnnouncementRepository interface {
 	// includeInactive controls whether soft-disabled (active=false) rows appear.
 	ListForTenant(ctx context.Context, includeInactive bool) ([]*ParentAnnouncement, error)
 	SetPublished(ctx context.Context, id int64, publishedAt *time.Time) error
+	// PublishIfDraft atomically flips a draft (published_at IS NULL) to
+	// published and reports whether this call made the change — false when the
+	// row was already published (a concurrent publish won the race), so the
+	// caller enqueues the opt-in e-mails only once.
+	PublishIfDraft(ctx context.Context, id int64, publishedAt time.Time) (bool, error)
 
 	// --- targets (tenant tx) ---
 	ReplaceTargets(ctx context.Context, tenantID, announcementID int64, targets []*ParentAnnouncementTarget) error
