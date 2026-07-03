@@ -129,9 +129,9 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     // Elternmitteilungen (#1669). Gated below on the
-    // operations.parent_news_enabled setting AND the communications:announce
-    // permission (admins hold it via the admin:* wildcard). alwaysShow lets
-    // it pass the generic role filter once the gate is satisfied.
+    // operations.parent_news_enabled setting AND the admin:* wildcard — every
+    // /api/parent-announcements route is admin-only in v1. alwaysShow lets it
+    // pass the generic role filter once that gate is satisfied.
     href: "/parent-announcements",
     label: "Elternmitteilungen",
     icon: "M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 01-2.25 2.25M16.5 7.5V18a2.25 2.25 0 002.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 002.25 2.25h13.5M6 7.5h3v3H6v-3z",
@@ -447,9 +447,13 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
   const userIsAdmin = hasRole(session, "admin");
   const userIsCaregiver = isCaregiver(session);
-  // Elternmitteilungen (#1669) is gated on this permission. Admins hold it via
-  // the admin:* wildcard; it can also be granted to non-admin staff.
-  const canAnnounce = hasPermission(session, "communications:announce");
+  // Elternmitteilungen (#1669) authoring is ADMIN-ONLY in v1: every
+  // /api/parent-announcements route is guarded by the admin:* wildcard
+  // (backend api/announcement/api.go), because the service does no per-caller
+  // audience scoping. Mirror that exact permission so a non-admin never sees a
+  // nav entry whose every list/create/publish call would 403. A future
+  // delegated-announcer role must relax the backend route first.
+  const canAnnounce = hasPermission(session, "admin:*");
   const presenceMode = usePresenceMode();
   const isBinaryMode = presenceMode === "binary";
   const nfcEnabled = useNFCEnabled();
@@ -460,12 +464,11 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // config reader (custom config-manager) must also see the feature flags;
   // gating the fetch on userIsAdmin alone hid the Essensplan entry from them.
   // Admins stay in (their other flag, timetable.enabled, depends on this too).
-  // Staff who can announce (Elternmitteilungen gate, #1669) need it too;
-  // shouldRetryOnError below avoids a 403 retry storm for announcers without
-  // config:read — the gate then simply falls closed (item hidden).
+  // Announcers are admin:* holders (see canAnnounce), who satisfy config:read
+  // via the wildcard, so they are already covered here.
   const canReadConfig = userIsAdmin || hasPermission(session, "config:read");
   const { data: settingsSchema } = useSWR(
-    canReadConfig || canAnnounce ? SETTINGS_SCHEMA_SWR_KEY : null,
+    canReadConfig ? SETTINGS_SCHEMA_SWR_KEY : null,
     fetchSettingsSchema,
     {
       revalidateOnFocus: false,
@@ -522,15 +525,11 @@ function SidebarContent({ className = "" }: SidebarProps) {
       return false;
     }
     if (item.href === "/parent-announcements") {
-      if (!canAnnounce) return false;
-      // parentNewsEnabled comes from the settings schema, which requires
-      // config:read. A config reader (admin / config-manager) gates precisely
-      // on the flag. A pure announcer (communications:announce WITHOUT
-      // config:read — grantable to a group lead) cannot load the schema, so the
-      // flag is unknowable for them; hiding the nav would lock an authorized
-      // user out of their own feature. Fall open on the announce permission —
-      // the backend route is the real authority and re-checks the flag on write.
-      return canReadConfig ? parentNewsEnabled : true;
+      // Admin-only in v1 (canAnnounce mirrors the backend admin:* guard). An
+      // admin:* holder also satisfies config:read via the wildcard, so the
+      // settings schema always loads and the feature flag is knowable — gate on
+      // it directly, matching the meal-plan pattern below.
+      return canAnnounce && parentNewsEnabled;
     }
     // The meal plan page requires config:read (admin / config-managers). Gate
     // the nav on the same permission the backend enforces — using hasPermission
