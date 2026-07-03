@@ -9,6 +9,7 @@ const {
   mockToastError,
   mockToastWarning,
   mockMutate,
+  mockUseSession,
 } = vi.hoisted(() => ({
   mockUseSWRAuth: vi.fn(),
   mockCreateStaffAppointment: vi.fn(),
@@ -17,6 +18,7 @@ const {
   mockToastError: vi.fn(),
   mockToastWarning: vi.fn(),
   mockMutate: vi.fn(),
+  mockUseSession: vi.fn(),
 }));
 
 vi.mock("~/lib/swr", () => ({
@@ -29,6 +31,10 @@ vi.mock("~/contexts/ToastContext", () => ({
     error: mockToastError,
     warning: mockToastWarning,
   }),
+}));
+
+vi.mock("next-auth/react", () => ({
+  useSession: mockUseSession,
 }));
 
 vi.mock("~/lib/personal-calendar-api", async () => {
@@ -101,6 +107,10 @@ describe("StaffCalendarPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockCalendarSWR();
+    mockUseSession.mockReturnValue({
+      data: { user: { permissions: ["calendar:own", "calendar:manage"] } },
+      status: "authenticated",
+    });
     mockRespondStaffCalendar.mockResolvedValue(undefined);
     mockCreateStaffAppointment.mockResolvedValue({ appointment: { id: 1 } });
     mockMutate.mockResolvedValue(undefined);
@@ -169,6 +179,23 @@ describe("StaffCalendarPage", () => {
     expect(mockCreateStaffAppointment).not.toHaveBeenCalled();
     expect(mockToastWarning).toHaveBeenCalledWith(
       "Bitte mindestens ein Ziel auswählen.",
+    );
+  });
+
+  it("hides creation controls without calendar manage permission", () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { permissions: ["calendar:own"] } },
+      status: "authenticated",
+    });
+
+    render(<StaffCalendarPage />);
+
+    expect(
+      screen.queryByRole("button", { name: "Neuer Termin" }),
+    ).not.toBeInTheDocument();
+    expect(mockUseSWRAuth).not.toHaveBeenCalledWith(
+      expect.stringMatching(/^calendar-recipient-options/),
+      expect.any(Function),
     );
   });
 });

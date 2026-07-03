@@ -84,6 +84,12 @@ func (a *Appointment) Validate() error {
 	if a.Title == "" {
 		return errors.New("title is required")
 	}
+	if a.StartDate.IsZero() {
+		return errors.New("start_date is required")
+	}
+	if a.EndDate.IsZero() {
+		return errors.New("end_date is required")
+	}
 	if a.EndDate.Before(a.StartDate) {
 		return errors.New("end_date must be on or after start_date")
 	}

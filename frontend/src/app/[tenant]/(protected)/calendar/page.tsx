@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { CalendarPlus, Trash2 } from "lucide-react";
+import { useSession } from "next-auth/react";
 
 import {
   CalendarOverviewList,
@@ -14,6 +15,7 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
+import { hasPermission } from "~/lib/auth-utils";
 import { toISODate } from "~/lib/date-helpers";
 import {
   createStaffAppointment,
@@ -232,6 +234,8 @@ function buildTargetGroups(
 
 export default function StaffCalendarPage() {
   const toast = useToast();
+  const { data: session } = useSession();
+  const canManageCalendar = hasPermission(session, "calendar:manage");
   const [referenceDate, setReferenceDate] = useState(startOfCurrentWeek);
   const [viewMode, setViewMode] = useState<CalendarViewMode>("week");
   const [formOpen, setFormOpen] = useState(false);
@@ -278,7 +282,9 @@ export default function StaffCalendarPage() {
 
   const { data: recipientOptions = emptyRecipientOptions } =
     useSWRAuth<CalendarRecipientOptions>(
-      formOpen ? `calendar-recipient-options-${targetSearch}` : null,
+      formOpen && canManageCalendar
+        ? `calendar-recipient-options-${targetSearch}`
+        : null,
       () => getCalendarRecipientOptions(targetSearch),
     );
 
@@ -433,14 +439,14 @@ export default function StaffCalendarPage() {
         }
         onDateChange={setReferenceDate}
         onViewModeChange={setViewMode}
-        onCreate={() => setFormOpen(true)}
+        onCreate={canManageCalendar ? () => setFormOpen(true) : undefined}
         onShowOverview={handleShowOverview}
         onRespond={handleRespond}
         respondingRecipientId={respondingRecipientId}
       />
 
       <Modal
-        isOpen={formOpen}
+        isOpen={formOpen && canManageCalendar}
         onClose={() => {
           if (!submitting) setFormOpen(false);
         }}

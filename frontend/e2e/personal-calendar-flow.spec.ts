@@ -56,9 +56,10 @@ test.describe("Personal calendar flow", () => {
     await page.getByLabel("Enddatum").fill(startDate);
     await page.getByLabel("Startzeit").fill("09:00");
     await page.getByLabel("Endzeit").fill("10:00");
-    await page.getByLabel("Zieltyp").selectOption("all_staff");
-    await page.getByRole("button", { name: "Ziel hinzufügen" }).click();
-    await expect(page.getByText("Alle Mitarbeiter").last()).toBeVisible();
+    await page.getByLabel("Alle Mitarbeitenden", { exact: true }).check();
+    await expect(
+      page.getByText("Alle Mitarbeitenden: Alle Mitarbeitenden"),
+    ).toBeVisible();
     await page.getByLabel("Wiederholung").selectOption("weekly");
     await page.getByLabel("Endet am").fill(recurrenceEnd);
 

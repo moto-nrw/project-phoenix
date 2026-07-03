@@ -1,14 +1,19 @@
 import { defineConfig, devices } from "@playwright/test";
 
+function requiredEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} is required for Playwright E2E.`);
+  }
+  return value;
+}
+
 const webServerEnv = {
-  API_URL: process.env.API_URL ?? "http://localhost:8080",
-  NEXT_PUBLIC_API_URL:
-    process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080",
-  NEXT_PUBLIC_OPERATOR_HOSTNAME:
-    process.env.NEXT_PUBLIC_OPERATOR_HOSTNAME ?? "operator.localhost:3000",
-  NEXT_PUBLIC_PARENTS_HOSTNAME:
-    process.env.NEXT_PUBLIC_PARENTS_HOSTNAME ?? "parents.localhost:3000",
-  TENANT_DOMAIN: process.env.TENANT_DOMAIN ?? "localhost:3000",
+  API_URL: requiredEnv("API_URL"),
+  NEXT_PUBLIC_API_URL: requiredEnv("NEXT_PUBLIC_API_URL"),
+  NEXT_PUBLIC_OPERATOR_HOSTNAME: requiredEnv("NEXT_PUBLIC_OPERATOR_HOSTNAME"),
+  NEXT_PUBLIC_PARENTS_HOSTNAME: requiredEnv("NEXT_PUBLIC_PARENTS_HOSTNAME"),
+  TENANT_DOMAIN: requiredEnv("TENANT_DOMAIN"),
 };
 
 const webServerEnvPrefix = Object.entries(webServerEnv)

@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	calendarSvc "github.com/moto-nrw/project-phoenix/services/calendar"
 	usercontextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -378,6 +379,11 @@ func TestCalendarServiceIntegration_RecipientOptionsAndGroupedTargets(t *testing
 	assert.NotNil(t, options.Classes)
 	assert.NotNil(t, options.Students)
 
+	childOptions, err := service.RecipientOptions(calendarContext(organizerAccount.ID), "felix", 20)
+	require.NoError(t, err)
+	require.NotEmpty(t, childOptions.Students)
+	assert.Contains(t, childOptions.Students[0].Name, "Felix")
+
 	limitedOptions, err := service.RecipientOptions(calendarContext(organizerAccount.ID), "", 1)
 	require.NoError(t, err)
 	assert.LessOrEqual(t, len(limitedOptions.Staff), 1)
@@ -428,20 +434,40 @@ func TestCalendarServiceIntegration_InvalidCreateTargets(t *testing.T) {
 
 	service := setupCalendarService(t, db)
 	organizer, organizerAccount := testpkg.CreateTestStaffWithAccount(t, db, "Invalid", "Targets")
+	const foreignTenantID int64 = 2
+	testpkg.EnsureTestTenant(t, db, foreignTenantID)
+	otherTenantStaff := testpkg.CreateTestStaffForTenant(t, db, foreignTenantID, "Other", "Tenant")
+	invisibleGuardian := &userModels.GuardianProfile{
+		FirstName:              "No",
+		LastName:               "Portal",
+		PreferredContactMethod: "email",
+		LanguagePreference:     "de",
+	}
+	invisibleGuardian.SetTenantID(1)
+	_, err := db.NewInsert().Model(invisibleGuardian).ModelTableExpr(`users.guardian_profiles`).Exec(context.Background())
+	require.NoError(t, err)
 	t.Cleanup(func() {
-		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
+		testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", invisibleGuardian.ID)
+		testpkg.CleanupStaffFixtures(t, db, otherTenantStaff.ID, organizer.ID)
+		testpkg.CleanupTenantTestData(t, db, foreignTenantID)
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM platform.schools WHERE id = ?`, foreignTenantID)
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM platform.organizations WHERE id = ?`, foreignTenantID)
 		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
 	})
 
 	className := " "
 	invalidID := int64(0)
+	missingID := int64(999999999)
 	tests := []struct {
 		name   string
 		target calendarSvc.AppointmentTarget
 	}{
 		{name: "staff target missing id", target: calendarSvc.AppointmentTarget{Type: calModels.TargetTypeStaff}},
 		{name: "staff target zero id", target: calendarSvc.AppointmentTarget{Type: calModels.TargetTypeStaff, ID: &invalidID}},
+		{name: "staff target other tenant", target: calendarSvc.AppointmentTarget{Type: calModels.TargetTypeStaff, ID: &otherTenantStaff.ID}},
 		{name: "guardian target missing id", target: calendarSvc.AppointmentTarget{Type: calModels.TargetTypeGuardianProfile}},
+		{name: "guardian target missing row", target: calendarSvc.AppointmentTarget{Type: calModels.TargetTypeGuardianProfile, ID: &missingID}},
+		{name: "guardian target without portal-visible student", target: calendarSvc.AppointmentTarget{Type: calModels.TargetTypeGuardianProfile, ID: &invisibleGuardian.ID}},
 		{name: "student target missing id", target: calendarSvc.AppointmentTarget{Type: calModels.TargetTypeParentsByStudent}},
 		{name: "group target missing id", target: calendarSvc.AppointmentTarget{Type: calModels.TargetTypeParentsByGroup}},
 		{name: "class target blank value", target: calendarSvc.AppointmentTarget{Type: calModels.TargetTypeParentsByClass, Value: &className}},
@@ -463,6 +489,43 @@ func TestCalendarServiceIntegration_InvalidCreateTargets(t *testing.T) {
 			assert.True(t, errors.Is(err, calendarSvc.ErrInvalidRequest))
 		})
 	}
+}
+
+func TestCalendarServiceIntegration_InvalidRecurrenceDoesNotPersistAppointment(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	service := setupCalendarService(t, db)
+	organizer, organizerAccount := testpkg.CreateTestStaffWithAccount(t, db, "Invalid", "Recurrence")
+	invitedStaff, invitedAccount := testpkg.CreateTestStaffWithAccount(t, db, "Invalid", "RecurrenceInvitee")
+	t.Cleanup(func() {
+		testpkg.CleanupStaffFixtures(t, db, invitedStaff.ID, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, invitedAccount.ID, organizerAccount.ID)
+	})
+
+	title := "Invalid recurrence must not persist"
+	_, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:     title,
+		StartDate: timezone.NewDate(2026, 2, 20),
+		EndDate:   timezone.NewDate(2026, 2, 20),
+		StartTime: wallClock(8, 0),
+		EndTime:   wallClock(9, 0),
+		Recurrence: &calendarSvc.RecurrenceRequest{
+			Frequency: "hourly",
+		},
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
+		},
+	})
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, calendarSvc.ErrInvalidRequest))
+
+	count, err := db.NewSelect().
+		TableExpr(`calendar.appointments`).
+		Where(`title = ?`, title).
+		Count(context.Background())
+	require.NoError(t, err)
+	assert.Zero(t, count)
 }
 
 func TestCalendarServiceIntegration_ResponseAndOverviewErrors(t *testing.T) {

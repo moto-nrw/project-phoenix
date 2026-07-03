@@ -292,6 +292,15 @@ func (s *service) CreateStaffAppointment(ctx context.Context, req CreateAppointm
 		return nil, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
 	}
 
+	recurrence := recurrenceRuleFromRequest(req.Recurrence)
+	if recurrence != nil {
+		recurrence.AppointmentID = 1
+		if err := recurrence.Validate(); err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
+		}
+		recurrence.AppointmentID = 0
+	}
+
 	recipients, recipientStudents, targets, err := s.resolveTargets(ctx, appointment.DeliveryMode, req.Targets)
 	if err != nil {
 		return nil, err
@@ -301,23 +310,8 @@ func (s *service) CreateStaffAppointment(ctx context.Context, req CreateAppointm
 		return nil, err
 	}
 
-	var recurrence *calModels.RecurrenceRule
-	if req.Recurrence != nil {
-		recurrence = &calModels.RecurrenceRule{
-			AppointmentID:   appointment.ID,
-			Frequency:       req.Recurrence.Frequency,
-			IntervalCount:   req.Recurrence.IntervalCount,
-			Weekdays:        normalizeWeekdays(req.Recurrence.Weekdays),
-			MonthDays:       req.Recurrence.MonthDays,
-			EndsOn:          req.Recurrence.EndsOn,
-			OccurrenceCount: req.Recurrence.OccurrenceCount,
-		}
-		if recurrence.IntervalCount == 0 {
-			recurrence.IntervalCount = 1
-		}
-		if err := recurrence.Validate(); err != nil {
-			return nil, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
-		}
+	if recurrence != nil {
+		recurrence.AppointmentID = appointment.ID
 		if err := s.cfg.RecurrenceRepo.Create(ctx, recurrence); err != nil {
 			return nil, err
 		}
@@ -565,19 +559,19 @@ func (s *service) RecipientOptions(ctx context.Context, query string, limit int)
 		}
 	}
 
-	students, err := s.cfg.StudentRepo.List(ctx, nil)
+	students, err := s.cfg.StudentRepo.FindAllWithGroups(ctx)
 	if err != nil {
 		return nil, err
 	}
 	studentOptions := make([]StudentOption, 0, min(limit, len(students)))
-	for _, student := range students {
-		name := studentDisplayName(student)
+	for _, row := range students {
+		name := studentDisplayName(row.Student)
 		if query == "" || strings.Contains(strings.ToLower(name), query) {
 			studentOptions = append(studentOptions, StudentOption{
-				ID:          student.ID,
+				ID:          row.ID,
 				Name:        name,
-				SchoolClass: student.SchoolClass,
-				GroupID:     student.GroupID,
+				SchoolClass: row.SchoolClass,
+				GroupID:     row.GroupID,
 			})
 			if len(studentOptions) >= limit {
 				break
@@ -842,12 +836,40 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 			if target.ID == nil || *target.ID <= 0 {
 				return nil, nil, nil, fmt.Errorf("%w: staff target requires id", ErrInvalidRequest)
 			}
+			staffRows, err := s.cfg.StaffRepo.FindByIDs(ctx, []int64{*target.ID})
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			if _, ok := staffRows[*target.ID]; !ok {
+				return nil, nil, nil, fmt.Errorf("%w: staff target is not available", ErrInvalidRequest)
+			}
 			staffIDs[*target.ID] = struct{}{}
 		case calModels.TargetTypeGuardianProfile:
 			if target.ID == nil || *target.ID <= 0 {
 				return nil, nil, nil, fmt.Errorf("%w: guardian target requires id", ErrInvalidRequest)
 			}
-			addGuardian(*target.ID, nil)
+			profiles, err := s.cfg.GuardianProfileRepo.FindByIDs(ctx, []int64{*target.ID})
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			if _, ok := profiles[*target.ID]; !ok {
+				return nil, nil, nil, fmt.Errorf("%w: guardian target is not available", ErrInvalidRequest)
+			}
+			links, err := s.cfg.StudentGuardianRepo.FindByGuardianProfileID(ctx, *target.ID)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			visible := false
+			for _, link := range links {
+				if authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess) {
+					visible = true
+					studentID := link.StudentID
+					addGuardian(*target.ID, &studentID)
+				}
+			}
+			if !visible {
+				return nil, nil, nil, fmt.Errorf("%w: guardian target is not portal-visible", ErrInvalidRequest)
+			}
 		case calModels.TargetTypeParentsByStudent:
 			if target.ID == nil || *target.ID <= 0 {
 				return nil, nil, nil, fmt.Errorf("%w: student target requires id", ErrInvalidRequest)
@@ -1189,6 +1211,24 @@ func normalizeWeekdays(days []string) []string {
 		}
 	}
 	return out
+}
+
+func recurrenceRuleFromRequest(req *RecurrenceRequest) *calModels.RecurrenceRule {
+	if req == nil {
+		return nil
+	}
+	rule := &calModels.RecurrenceRule{
+		Frequency:       req.Frequency,
+		IntervalCount:   req.IntervalCount,
+		Weekdays:        normalizeWeekdays(req.Weekdays),
+		MonthDays:       req.MonthDays,
+		EndsOn:          req.EndsOn,
+		OccurrenceCount: req.OccurrenceCount,
+	}
+	if rule.IntervalCount == 0 {
+		rule.IntervalCount = 1
+	}
+	return rule
 }
 
 func containsString(values []string, value string) bool {
