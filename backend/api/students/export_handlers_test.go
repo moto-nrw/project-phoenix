@@ -443,3 +443,51 @@ func TestDepartureSummary(t *testing.T) {
 		})
 	}
 }
+
+func TestSortExportResponsesGermanNameOrder(t *testing.T) {
+	responses := []StudentResponse{
+		{FirstName: "Jan", LastName: "Zimmermann"},
+		{FirstName: "Emre", LastName: "Özdemir"},
+		{FirstName: "Lena", LastName: "Ärmel"},
+		{FirstName: "Ben", LastName: "Müller"},
+		{FirstName: "Anna", LastName: "Müller"},
+		{FirstName: "Tim", LastName: "Mueller"},
+		{FirstName: "Ida", LastName: "von Berg"},
+		{FirstName: "Ali", LastName: "anders"},
+	}
+
+	sortExportResponses(responses, "")
+
+	got := make([]string, 0, len(responses))
+	for _, r := range responses {
+		got = append(got, r.LastName+", "+r.FirstName)
+	}
+	want := []string{
+		"anders, Ali",
+		"Ärmel, Lena",
+		"Mueller, Tim",
+		"Müller, Anna",
+		"Müller, Ben",
+		"Özdemir, Emre",
+		"von Berg, Ida",
+		"Zimmermann, Jan",
+	}
+	assert.Equal(t, want, got)
+}
+
+func TestSortExportResponsesPickupStaysTimeOnly(t *testing.T) {
+	early := "12:00"
+	late := "16:00"
+	responses := []StudentResponse{
+		{FirstName: "Jan", LastName: "Zimmermann", PickupTime: &late},
+		{FirstName: "Lena", LastName: "Ärmel", PickupTime: &late},
+		{FirstName: "Anna", LastName: "Müller", PickupTime: &early},
+	}
+
+	sortExportResponses(responses, "pickup")
+
+	// Times decide; equal times keep incoming order (stable sort, no name tiebreak).
+	assert.Equal(t, "Müller", responses[0].LastName)
+	assert.Equal(t, "Zimmermann", responses[1].LastName)
+	assert.Equal(t, "Ärmel", responses[2].LastName)
+}

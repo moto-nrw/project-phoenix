@@ -35,6 +35,7 @@ export interface StudentFilters {
   school_class?: string;
   group_id?: string;
   location?: string;
+  location_state?: "present" | "transit";
   guardian_name?: string;
   first_name?: string;
   last_name?: string;
@@ -116,6 +117,8 @@ function buildStudentUrl(
   if (filters.school_class) params.append("school_class", filters.school_class);
   if (filters.group_id) params.append("group_id", filters.group_id);
   if (filters.location) params.append("location", filters.location);
+  if (filters.location_state)
+    params.append("location_state", filters.location_state);
   if (filters.guardian_name)
     params.append("guardian_name", filters.guardian_name);
   if (filters.first_name) params.append("first_name", filters.first_name);

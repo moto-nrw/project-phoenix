@@ -192,7 +192,7 @@ function buildStudentQueryParams(filters?: {
   groupId?: string;
   roomId?: string;
   schoolClass?: string;
-  locationState?: "transit";
+  locationState?: "present" | "transit";
   dayStatus?: "comes_today" | "not_coming_today";
   bus?: "yes" | "no";
   photoConsent?: "yes" | "no";
@@ -526,7 +526,7 @@ export const studentService = {
     groupId?: string;
     roomId?: string;
     schoolClass?: string;
-    locationState?: "transit";
+    locationState?: "present" | "transit";
     dayStatus?: "comes_today" | "not_coming_today";
     bus?: "yes" | "no";
     photoConsent?: "yes" | "no";

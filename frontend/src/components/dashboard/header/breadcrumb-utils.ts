@@ -76,6 +76,7 @@ function getMainRouteTitle(pathname: string): string {
     "/students": "Kinder",
     "/rooms": "Räume",
     "/activities": "Aktivitäten",
+    "/reminders": "Erinnerungen",
     "/statistics": "Statistiken",
     "/substitutions": "Vertretungen",
     "/timetables": "Betreuungsplan",

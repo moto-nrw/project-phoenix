@@ -130,6 +130,10 @@ type AttendanceRepository interface {
 	// GetTodayByStudentIDs gets today's attendance record for multiple students
 	GetTodayByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*Attendance, error)
 
+	// GetOpenTodayByStudentIDsForUpdate gets today's open attendance rows for
+	// multiple students and locks them for the current transaction.
+	GetOpenTodayByStudentIDsForUpdate(ctx context.Context, studentIDs []int64) (map[int64]*Attendance, error)
+
 	// FindForDate finds all attendance records for a specific date
 	FindForDate(ctx context.Context, date timezone.Date) ([]*Attendance, error)
 
