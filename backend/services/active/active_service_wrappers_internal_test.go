@@ -76,9 +76,16 @@ func (r *staffRepoForActiveWrapperTest) FindByID(_ context.Context, id interface
 
 type groupRepoForActiveWrapperTest struct {
 	activeModels.GroupRepository
+	group  *activeModels.Group
 	groups map[int64]*activeModels.Group
 	err    error
+	gotID  interface{}
 	gotIDs []int64
+}
+
+func (r *groupRepoForActiveWrapperTest) FindByID(_ context.Context, id interface{}) (*activeModels.Group, error) {
+	r.gotID = id
+	return r.group, r.err
 }
 
 func (r *groupRepoForActiveWrapperTest) FindByIDs(_ context.Context, ids []int64) (map[int64]*activeModels.Group, error) {
@@ -171,6 +178,54 @@ func TestGetActiveGroupsByIDs_Branches(t *testing.T) {
 		require.Error(t, err)
 		assert.Nil(t, groups)
 		assert.Contains(t, err.Error(), ErrDatabaseOperation.Error())
+	})
+}
+
+func TestGetActiveGroup_Branches(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("success", func(t *testing.T) {
+		group := &activeModels.Group{Model: modelBase.Model{ID: 42}}
+		repo := &groupRepoForActiveWrapperTest{group: group}
+		svc := &service{groupRepo: repo}
+
+		got, err := svc.GetActiveGroup(ctx, 42)
+
+		require.NoError(t, err)
+		assert.Equal(t, group, got)
+		assert.Equal(t, int64(42), repo.gotID)
+	})
+
+	t.Run("database no rows maps to active group not found", func(t *testing.T) {
+		repo := &groupRepoForActiveWrapperTest{
+			err: &modelBase.DatabaseError{Op: "find active group", Err: sql.ErrNoRows},
+		}
+		svc := &service{groupRepo: repo}
+
+		got, err := svc.GetActiveGroup(ctx, 42)
+
+		require.ErrorIs(t, err, ErrActiveGroupNotFound)
+		assert.Nil(t, got)
+	})
+
+	t.Run("unexpected repository error maps to database operation", func(t *testing.T) {
+		repo := &groupRepoForActiveWrapperTest{err: errors.New("group repository unavailable")}
+		svc := &service{groupRepo: repo}
+
+		got, err := svc.GetActiveGroup(ctx, 42)
+
+		require.ErrorIs(t, err, ErrDatabaseOperation)
+		assert.Nil(t, got)
+	})
+
+	t.Run("nil result maps to active group not found", func(t *testing.T) {
+		repo := &groupRepoForActiveWrapperTest{}
+		svc := &service{groupRepo: repo}
+
+		got, err := svc.GetActiveGroup(ctx, 42)
+
+		require.ErrorIs(t, err, ErrActiveGroupNotFound)
+		assert.Nil(t, got)
 	})
 }
 

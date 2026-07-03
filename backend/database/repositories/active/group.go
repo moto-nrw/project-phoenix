@@ -775,6 +775,32 @@ func (r *GroupRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64
 	return groupsToMap(groups), nil
 }
 
+// FindByIDForUpdate finds a group by ID and locks it for the current
+// transaction. Returns nil when the row is not visible in the current tenant.
+func (r *GroupRepository) FindByIDForUpdate(ctx context.Context, id int64) (*active.Group, error) {
+	group := new(active.Group)
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(group).
+		ModelTableExpr(`active.groups AS "group"`).
+		Where(`"group".id = ?`, id).
+		For("UPDATE")
+
+	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, &modelBase.DatabaseError{
+			Op:  "find group by ID for update",
+			Err: err,
+		}
+	}
+	return group, nil
+}
+
 // deduplicateIDs removes duplicate IDs from the slice
 func deduplicateIDs(ids []int64) []int64 {
 	seen := make(map[int64]struct{}, len(ids))

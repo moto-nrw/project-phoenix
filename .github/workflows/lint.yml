@@ -242,3 +242,7 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: pnpm run build
+
+      - name: Build Storybook
+        working-directory: frontend
+        run: pnpm run build-storybook

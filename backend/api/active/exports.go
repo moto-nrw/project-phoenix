@@ -27,6 +27,12 @@ func (rs *Resource) CreateVisitHandler() http.HandlerFunc { return rs.createVisi
 func (rs *Resource) UpdateVisitHandler() http.HandlerFunc { return rs.updateVisit }
 func (rs *Resource) DeleteVisitHandler() http.HandlerFunc { return rs.deleteVisit }
 func (rs *Resource) EndVisitHandler() http.HandlerFunc    { return rs.endVisit }
+func (rs *Resource) MoveStudentsToActiveGroupHandler() http.HandlerFunc {
+	return rs.moveStudentsToActiveGroup
+}
+func (rs *Resource) MoveStudentsToTransitHandler() http.HandlerFunc {
+	return rs.moveStudentsToTransit
+}
 func (rs *Resource) GetStudentVisitsHandler() http.HandlerFunc {
 	return rs.getStudentVisits
 }
