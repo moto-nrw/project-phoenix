@@ -194,18 +194,14 @@ func parentAnnouncementsUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error granting sequence usage: %w", err)
 	}
 
-	// Register the communications:announce permission so it is grantable to
-	// non-admin roles (e.g. a group lead). Admin wildcards (admin:*) already
-	// match it, so no admin grant is needed; broadcast is deliberately NOT
-	// granted to the default 'user' staff role — a school grants it explicitly.
-	_, err = tx.ExecContext(ctx, `
-		INSERT INTO auth.permissions (name, description, resource, action, is_system)
-		VALUES ('communications:announce', 'Create and publish parent announcements (Elternmitteilungen)', 'communications', 'announce', TRUE)
-		ON CONFLICT (name) DO NOTHING;
-	`)
-	if err != nil {
-		return fmt.Errorf("error inserting communications:announce permission: %w", err)
-	}
+	// NOTE: the communications:announce permission is deliberately NOT registered
+	// in auth.permissions yet. In v1 every /api/parent-announcements route is gated
+	// on admin:* (there is no per-target audience scoping, so a non-admin holder
+	// could otherwise broadcast school-wide and reach other authors' announcements
+	// — #1669 "nur Admins"). Registering it now would let a school grant a
+	// permission that resolves to nothing but 403s. It is re-introduced together
+	// with the delegated/scoped announcer role that will actually honor it (the
+	// reserved permissions.CommunicationsAnnounce constant documents the future).
 
 	return tx.Commit()
 }
@@ -214,7 +210,6 @@ func parentAnnouncementsDown(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Rolling back migration 1.15.161: Dropping parent announcement tables...")
 
 	if _, err := db.NewRaw(`
-		DELETE FROM auth.permissions WHERE name = 'communications:announce';
 		DROP TRIGGER IF EXISTS update_parent_announcements_updated_at ON users.parent_announcements;
 		DROP TABLE IF EXISTS users.parent_announcement_reads CASCADE;
 		DROP TABLE IF EXISTS users.parent_announcement_targets CASCADE;

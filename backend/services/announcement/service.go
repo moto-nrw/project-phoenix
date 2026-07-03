@@ -231,6 +231,13 @@ func (s *service) Update(ctx context.Context, id int64, in Input) (*usersModels.
 		return nil, fmt.Errorf("announcement: update: %w", err)
 	}
 	if err := s.repo.ReplaceTargets(ctx, a.GetTenantID(), a.ID, targets); err != nil {
+		// ReplaceTargets locks the row and re-checks published_at IS NULL: if the
+		// draft was published between the guarded content Update above and here,
+		// it refuses the swap so e-mails and the live audience can't diverge.
+		// Surface the same immutability conflict the load-time check would have.
+		if errors.Is(err, usersModels.ErrAnnouncementPublished) {
+			return nil, ErrPublishedImmutable
+		}
 		return nil, fmt.Errorf("announcement: update targets: %w", err)
 	}
 	a.Targets = targets

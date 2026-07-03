@@ -268,6 +268,49 @@ func TestParentAnnouncementUpdate_AtomicAndClearsReads(t *testing.T) {
 	assert.Equal(t, 0, stats.AcknowledgedCount, "editing a draft clears stale ack state")
 }
 
+// TestParentAnnouncementReplaceTargets_RefusesPublished verifies the target
+// swap is guarded like the content Update: once an announcement is published,
+// ReplaceTargets locks the row, sees published_at != NULL and returns
+// ErrAnnouncementPublished without touching the target rows. This closes the
+// window where a publish (which enqueues the opt-in e-mails against the current
+// targets) could race a target edit and desynchronize the e-mailed audience
+// from the live feed/stats audience.
+func TestParentAnnouncementReplaceTargets_RefusesPublished(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	repo := usersRepo.NewParentAnnouncementRepository(db)
+	ctx := tenantCtx()
+
+	a := &usersModels.ParentAnnouncement{
+		Title: "Entwurf", Body: "x", Priority: usersModels.ParentAnnouncementPriorityInfo,
+		Active: true, CreatedBy: chain.AccountID,
+	}
+	a.SetTenantID(chain.TenantID)
+	require.NoError(t, repo.Create(ctx, a))
+	require.NoError(t, repo.ReplaceTargets(ctx, chain.TenantID, a.ID,
+		[]*usersModels.ParentAnnouncementTarget{{TargetType: usersModels.AnnouncementTargetSchoolAll}}))
+	t.Cleanup(func() { _ = repo.Delete(ctx, a.ID) })
+
+	// Publish it, then attempt to swap the audience to a single student.
+	now := time.Now()
+	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
+	studentID := chain.StudentID
+	err := repo.ReplaceTargets(ctx, chain.TenantID, a.ID,
+		[]*usersModels.ParentAnnouncementTarget{{TargetType: usersModels.AnnouncementTargetStudent, TargetRefID: &studentID}})
+	require.ErrorIs(t, err, usersModels.ErrAnnouncementPublished,
+		"a published announcement's targets must not be replaceable")
+
+	// The original school_all target must survive the rejected swap.
+	targets, err := repo.ListTargets(ctx, a.ID)
+	require.NoError(t, err)
+	require.Len(t, targets, 1)
+	assert.Equal(t, usersModels.AnnouncementTargetSchoolAll, targets[0].TargetType,
+		"rejected swap must leave the published audience untouched")
+}
+
 // TestParentAnnouncementDelete verifies the staff delete path: the generic
 // base.Repository.Delete builds an aliased table expression + WHERE, and the
 // model's BeforeAppendModel must leave DeleteQuery untouched so the alias

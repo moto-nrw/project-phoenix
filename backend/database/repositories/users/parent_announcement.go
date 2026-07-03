@@ -298,8 +298,31 @@ func (r *ParentAnnouncementRepository) PublishIfDraft(ctx context.Context, id in
 
 // ReplaceTargets swaps an announcement's target rows wholesale: delete the
 // existing ones, insert the supplied set. Runs inside the caller's tenant tx.
+//
+// It first locks the announcement row and re-checks published_at IS NULL, so a
+// target swap can only ever land on a DRAFT. Without this guard a publish that
+// slipped in between the content Update and this call could enqueue the opt-in
+// e-mails against the OLD targets while this swap moves the live audience to the
+// NEW ones — e-mailing the wrong guardians while the feed/stats show a different
+// set. On a published row it returns users.ErrAnnouncementPublished (the service
+// maps it to the same immutability conflict as a racing Update). The FOR UPDATE
+// lock also blocks a concurrent publish until this tenant tx commits, so targets
+// and published_at can never interleave.
 func (r *ParentAnnouncementRepository) ReplaceTargets(ctx context.Context, tenantID, announcementID int64, targets []*users.ParentAnnouncementTarget) error {
 	db := base.GetDB(ctx, r.DB)
+	var publishedAt *time.Time
+	if err := db.NewSelect().
+		ColumnExpr("published_at").
+		TableExpr("users.parent_announcements").
+		Where("id = ?", announcementID).
+		Where("tenant_id = ?", tenantID).
+		For("UPDATE").
+		Scan(ctx, &publishedAt); err != nil {
+		return &modelBase.DatabaseError{Op: "lock parent announcement for target replace", Err: err}
+	}
+	if publishedAt != nil {
+		return users.ErrAnnouncementPublished
+	}
 	if _, err := db.NewDelete().
 		Model((*users.ParentAnnouncementTarget)(nil)).
 		ModelTableExpr("users.parent_announcement_targets").
