@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Mail, Phone } from "lucide-react";
+import { Button } from "~/components/ui/button";
 
 interface GuardianContactPhoneOption {
   readonly number: string;
@@ -90,14 +91,15 @@ export function GuardianContactActions({
 
       <div className="flex flex-wrap gap-2">
         {email && (
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="compact"
             onClick={handleEmailClick}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100 sm:hover:scale-105"
           >
             <Mail className="h-3.5 w-3.5" aria-hidden="true" />
             E-Mail
-          </button>
+          </Button>
         )}
 
         {hasAnyPhone && (
@@ -107,12 +109,13 @@ export function GuardianContactActions({
           >
             {hasMultiplePhones ? (
               <>
-                <button
+                <Button
                   type="button"
+                  variant="primary"
+                  size="compact"
                   onClick={() => setIsPhoneDropdownOpen((isOpen) => !isOpen)}
                   aria-haspopup="menu"
                   aria-expanded={isPhoneDropdownOpen}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg active:scale-100 sm:hover:scale-105"
                 >
                   <Phone className="h-3.5 w-3.5" aria-hidden="true" />
                   Anrufen
@@ -120,7 +123,7 @@ export function GuardianContactActions({
                     className={`h-3 w-3 transition-transform ${isPhoneDropdownOpen ? "rotate-180" : ""}`}
                     aria-hidden="true"
                   />
-                </button>
+                </Button>
 
                 {isPhoneDropdownOpen && (
                   <div
@@ -145,7 +148,9 @@ export function GuardianContactActions({
                               {phoneOption.label}
                             </span>
                             {phoneOption.isPrimary && (
-                              <span className="rounded bg-purple-100 px-1 py-0.5 text-[10px] font-medium text-purple-700">
+                              // Brand purple (LOCATION_COLORS.EXCUSED), not a
+                              // generic Tailwind hue
+                              <span className="rounded bg-[#7C3AED]/10 px-1 py-0.5 text-[10px] font-medium text-[#7C3AED]">
                                 Primär
                               </span>
                             )}
@@ -160,14 +165,15 @@ export function GuardianContactActions({
                 )}
               </>
             ) : (
-              <button
+              <Button
                 type="button"
+                variant="primary"
+                size="compact"
                 onClick={() => handlePhoneClick(singlePhoneNumber ?? "")}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg active:scale-100 sm:hover:scale-105"
               >
                 <Phone className="h-3.5 w-3.5" aria-hidden="true" />
                 Anrufen
-              </button>
+              </Button>
             )}
           </div>
         )}

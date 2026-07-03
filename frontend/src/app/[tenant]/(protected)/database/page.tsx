@@ -8,7 +8,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { Suspense, useState, useEffect } from "react";
-import { useIsMobile } from "~/hooks/useIsMobile";
+import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 
 import { Loading } from "~/components/ui/loading";

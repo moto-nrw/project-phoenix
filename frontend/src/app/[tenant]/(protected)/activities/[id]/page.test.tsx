@@ -1,19 +1,22 @@
 import { describe, expect, it, vi } from "vitest";
-import ActivityDetailRedirect from "./page";
+import { render } from "@testing-library/react";
 
-const mockRedirect = vi.fn((target: string) => {
-  // Mirror Next.js: redirect() throws to short-circuit rendering.
-  throw new Error(`NEXT_REDIRECT:${target}`);
-});
-
-vi.mock("next/navigation", () => ({
-  redirect: (target: string) => mockRedirect(target),
+const { mockReplace } = vi.hoisted(() => ({
+  mockReplace: vi.fn(),
 }));
 
-describe("ActivityDetailRedirect (legacy /activities/[id])", () => {
-  it("redirects to the canonical activities page", () => {
-    expect(() => ActivityDetailRedirect()).toThrow("NEXT_REDIRECT:/activities");
+// useTenantRouter prefixes the tenant slug in path-based routing mode, so the
+// redirect must go through it instead of a bare next/navigation redirect.
+vi.mock("~/lib/tenant-router", () => ({
+  useTenantRouter: () => ({ replace: mockReplace }),
+}));
 
-    expect(mockRedirect).toHaveBeenCalledWith("/activities");
+import ActivityDetailRedirect from "./page";
+
+describe("ActivityDetailRedirect (legacy /activities/[id])", () => {
+  it("redirects to the canonical activities page via the tenant router", () => {
+    render(<ActivityDetailRedirect />);
+
+    expect(mockReplace).toHaveBeenCalledWith("/activities");
   });
 });

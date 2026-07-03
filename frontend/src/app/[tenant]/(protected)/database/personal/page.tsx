@@ -15,7 +15,7 @@ import {
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type { ActiveFilter } from "~/components/ui/page-header/types";
 import { useToast } from "~/contexts/ToastContext";
-import { useIsMobile } from "~/hooks/useIsMobile";
+import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { CaregiverCapabilityModal } from "@/components/teachers/caregiver-capability-modal";
 import { StaffMasterDetail } from "@/components/teachers/staff-master-detail";
 import { TeacherEditModal } from "@/components/teachers/teacher-edit-modal";

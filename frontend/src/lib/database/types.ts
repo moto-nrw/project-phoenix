@@ -279,11 +279,12 @@ export interface EntityConfig<T = Record<string, unknown>> {
     afterDelete?: (id: string) => Promise<void>;
   };
 
-  // Labels and messages
-  labels?: {
+  // Labels and messages. The modal titles are required so the create/edit
+  // modals never need hardcoded fallback copy at their call sites.
+  labels: {
     createButton?: string;
-    createModalTitle?: string;
-    editModalTitle?: string;
+    createModalTitle: string;
+    editModalTitle: string;
     detailModalTitle?: string;
     deleteConfirmation?: string;
     emptyState?: string;

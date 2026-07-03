@@ -56,7 +56,7 @@ vi.mock("@/lib/database/service-factory", () => ({
 }));
 
 // Mock hooks
-vi.mock("~/hooks/useIsMobile", () => ({
+vi.mock("~/components/ui/hooks/useIsMobile", () => ({
   useIsMobile: vi.fn(() => false),
 }));
 

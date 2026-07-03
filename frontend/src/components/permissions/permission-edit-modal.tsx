@@ -39,9 +39,7 @@ export function PermissionEditModal({
     <DatabaseFormModal<Permission>
       isOpen={isOpen}
       onClose={onClose}
-      title={
-        permissionsConfig.labels?.editModalTitle ?? "Berechtigung bearbeiten"
-      }
+      title={permissionsConfig.labels.editModalTitle}
       config={permissionsConfig}
       initialData={formData}
       onSubmit={onSave}

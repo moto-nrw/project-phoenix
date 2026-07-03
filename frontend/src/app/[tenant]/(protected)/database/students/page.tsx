@@ -14,7 +14,7 @@ import type {
   ActiveFilter,
   FilterConfig,
 } from "~/components/ui/page-header/types";
-import { useIsMobile } from "~/hooks/useIsMobile";
+import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { useToast } from "~/contexts/ToastContext";
 import {

@@ -6,11 +6,7 @@ import { createPortal } from "react-dom";
 import { FocusScope } from "@radix-ui/react-focus-scope";
 import { useModal } from "../dashboard/modal-context";
 import { useScrollLock } from "~/components/ui/hooks/useScrollLock";
-
-const dialogAriaProps = {
-  role: "dialog" as const,
-  "aria-modal": true,
-};
+import { dialogAriaProps } from "./modal";
 
 interface FormModalProps {
   readonly isOpen: boolean;

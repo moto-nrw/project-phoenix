@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { Modal } from "~/components/ui/modal";
 import { DatabaseForm } from "~/components/ui/database/database-form";
 import { configToFormSection, type EntityConfig } from "@/lib/database/types";
@@ -33,11 +34,19 @@ export function DatabaseFormModal<T>({
   submitButtonGradient,
   stickyActions,
 }: DatabaseFormModalProps<T>) {
+  // Stable identity: DatabaseForm resets its form state whenever the sections
+  // array identity changes, which would wipe in-progress edits on every
+  // parent re-render (e.g. a loading toggle after a failed save).
+  const sections = useMemo(
+    () => config.form.sections.map(configToFormSection),
+    [config.form.sections],
+  );
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title}>
       <DatabaseForm<Partial<T>>
         theme={config.theme}
-        sections={config.form.sections.map(configToFormSection)}
+        sections={sections}
         initialData={initialData ?? config.form.defaultValues}
         onSubmit={onSubmit}
         onCancel={onClose}

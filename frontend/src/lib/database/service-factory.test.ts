@@ -10,7 +10,7 @@ import {
   MalformedCrudListResponseError,
 } from "./service-factory";
 import type { EntityConfig } from "./types";
-import { databaseThemes } from "@/components/ui/database/themes";
+import { databaseThemes } from "@/lib/database/themes";
 
 // Mock next-auth
 const mockGetSession = vi.fn();
@@ -33,6 +33,10 @@ describe("createCrudService", () => {
       plural: "Test Entities",
     },
     theme: databaseThemes.students,
+    labels: {
+      createModalTitle: "Test erstellen",
+      editModalTitle: "Test bearbeiten",
+    },
     api: {
       basePath: "/api/test",
     },
@@ -515,11 +519,11 @@ describe("createCrudService", () => {
     });
 
     it("calls beforeDelete and afterDelete hooks", async () => {
-      const beforeDelete = vi.fn(
-        (_id: string): Promise<boolean> => Promise.resolve(true),
+      const beforeDelete = vi.fn((_id: string): Promise<boolean> =>
+        Promise.resolve(true),
       );
-      const afterDelete = vi.fn(
-        (_id: string): Promise<void> => Promise.resolve(),
+      const afterDelete = vi.fn((_id: string): Promise<void> =>
+        Promise.resolve(),
       );
 
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -546,8 +550,8 @@ describe("createCrudService", () => {
     });
 
     it("cancels delete when beforeDelete returns false", async () => {
-      const beforeDelete = vi.fn(
-        (_id: string): Promise<boolean> => Promise.resolve(false),
+      const beforeDelete = vi.fn((_id: string): Promise<boolean> =>
+        Promise.resolve(false),
       );
 
       const configWithHooks: EntityConfig<TestEntity> = {
@@ -701,6 +705,10 @@ describe("createExtendedService", () => {
         plural: "Tests",
       },
       theme: databaseThemes.students,
+      labels: {
+        createModalTitle: "Test erstellen",
+        editModalTitle: "Test bearbeiten",
+      },
       api: {
         basePath: "/api/test",
       },
@@ -738,6 +746,10 @@ describe("createExtendedService", () => {
         plural: "Tests",
       },
       theme: databaseThemes.students,
+      labels: {
+        createModalTitle: "Test erstellen",
+        editModalTitle: "Test bearbeiten",
+      },
       api: {
         basePath: "/api/test",
       },

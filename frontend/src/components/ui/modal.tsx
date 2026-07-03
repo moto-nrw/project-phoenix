@@ -6,7 +6,8 @@ import { FocusScope } from "@radix-ui/react-focus-scope";
 import { useModal } from "../dashboard/modal-context";
 import { useScrollLock } from "~/components/ui/hooks/useScrollLock";
 
-const dialogAriaProps = {
+// Shared a11y contract for all modal dialogs (also consumed by form-modal).
+export const dialogAriaProps = {
   role: "dialog" as const,
   "aria-modal": true,
 };

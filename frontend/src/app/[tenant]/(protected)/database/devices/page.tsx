@@ -21,14 +21,11 @@ import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { devicesConfig } from "@/components/database/configs/devices.config";
 import { getDeviceTypeDisplayName, type Device } from "@/lib/iot-helpers";
-import {
-  DeviceCreateModal,
-  DeviceEditModal,
-  DevicesMasterDetail,
-} from "@/components/devices";
+import { DevicesMasterDetail } from "@/components/devices";
+import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
-import { useIsMobile } from "~/hooks/useIsMobile";
+import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
@@ -413,10 +410,14 @@ function DevicesPageContent() {
         />
       ) : null}
 
-      <DeviceCreateModal
+      <DatabaseFormModal<Device>
         isOpen={showCreateModal}
         onClose={handleCloseCreateModal}
-        onCreate={handleCreateDevice}
+        title={devicesConfig.labels.createModalTitle}
+        config={devicesConfig}
+        onSubmit={handleCreateDevice}
+        submitLabel="Erstellen"
+        stickyActions
       />
 
       {selectedDevice && (
@@ -440,12 +441,16 @@ function DevicesPageContent() {
       )}
 
       {selectedDevice && (
-        <DeviceEditModal
+        <DatabaseFormModal<Device>
           isOpen={showEditModal}
           onClose={handleCloseEditModal}
-          device={selectedDevice}
-          onSave={handleUpdateDevice}
-          loading={savingDevice}
+          title={devicesConfig.labels.editModalTitle}
+          config={devicesConfig}
+          initialData={selectedDevice}
+          onSubmit={handleUpdateDevice}
+          isLoading={savingDevice}
+          submitLabel="Speichern"
+          stickyActions
         />
       )}
     </DatabasePageLayout>

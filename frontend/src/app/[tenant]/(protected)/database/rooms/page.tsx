@@ -20,11 +20,11 @@ import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { roomsConfig } from "@/components/database/configs/rooms.config";
 import { formatFloor, type Room } from "@/lib/room-helpers";
-import { RoomCreateModal } from "@/components/rooms/room-create-modal";
+import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
 import { RoomsMasterDetail } from "@/components/rooms/rooms-master-detail";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
-import { useIsMobile } from "~/hooks/useIsMobile";
+import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
@@ -435,10 +435,14 @@ export default function RoomsPage() {
         />
       ) : null}
 
-      <RoomCreateModal
+      <DatabaseFormModal<Room>
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        onCreate={handleCreateRoom}
+        title={roomsConfig.labels.createModalTitle}
+        config={roomsConfig}
+        onSubmit={handleCreateRoom}
+        submitLabel="Erstellen"
+        stickyActions
       />
 
       {selectedRoom && (

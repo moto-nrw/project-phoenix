@@ -16,15 +16,12 @@ import { createCrudService } from "@/lib/database/service-factory";
 import { rolesConfig } from "@/components/database/configs/roles.config";
 import type { Role } from "@/lib/auth-helpers";
 import { getRoleDisplayName } from "@/lib/auth-helpers";
-import {
-  RoleCreateModal,
-  RoleEditModal,
-  RolesMasterDetail,
-} from "@/components/roles";
+import { RolesMasterDetail } from "@/components/roles";
+import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
 import { RolePermissionManagementModal } from "@/components/auth";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
-import { useIsMobile } from "~/hooks/useIsMobile";
+import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
@@ -428,10 +425,14 @@ export default function RolesPage() {
         />
       ) : null}
 
-      <RoleCreateModal
+      <DatabaseFormModal<Role>
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        onCreate={handleCreateRole}
+        title={rolesConfig.labels.createModalTitle}
+        config={rolesConfig}
+        onSubmit={handleCreateRole}
+        submitLabel="Erstellen"
+        stickyActions
       />
 
       {selectedRole && (
@@ -455,11 +456,15 @@ export default function RolesPage() {
       )}
 
       {selectedRole && (
-        <RoleEditModal
+        <DatabaseFormModal<Role>
           isOpen={showEditModal}
           onClose={handleCloseEditModal}
-          role={selectedRole}
-          onSave={handleUpdateRole}
+          title={rolesConfig.labels.editModalTitle}
+          config={rolesConfig}
+          initialData={selectedRole}
+          onSubmit={handleUpdateRole}
+          submitLabel="Speichern"
+          stickyActions
         />
       )}
 
