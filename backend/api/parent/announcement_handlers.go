@@ -1,6 +1,7 @@
 package parent
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -55,6 +56,29 @@ func parseAnnouncementID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	return id, true
 }
 
+// stampRequest is the read/acknowledge body. published_at is the timestamp the
+// client loaded with the feed item; the service rejects the request if it no
+// longer matches the live announcement (a since-corrected/republished one), so
+// a stale tab cannot record a read/ack for wording the guardian never saw.
+type stampRequest struct {
+	PublishedAt *time.Time `json:"published_at"`
+}
+
+// parseStampBody decodes the required published_at version token. A missing,
+// unparseable or zero timestamp is a client error (the feed always supplies it).
+func parseStampBody(w http.ResponseWriter, r *http.Request) (time.Time, bool) {
+	var req stampRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
+		return time.Time{}, false
+	}
+	if req.PublishedAt == nil || req.PublishedAt.IsZero() {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("published_at is required")))
+		return time.Time{}, false
+	}
+	return *req.PublishedAt, true
+}
+
 // listAnnouncements returns the guardian's parent-news feed across all their
 // children's (news-enabled) schools.
 func (rs *Resource) listAnnouncements(w http.ResponseWriter, r *http.Request) {
@@ -99,7 +123,11 @@ func (rs *Resource) markAnnouncementRead(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	if err := rs.ParentService.MarkAnnouncementRead(r.Context(), accountID, announcementID); err != nil {
+	publishedAt, ok := parseStampBody(w, r)
+	if !ok {
+		return
+	}
+	if err := rs.ParentService.MarkAnnouncementRead(r.Context(), accountID, announcementID, publishedAt); err != nil {
 		renderParentWriteError(w, r, err)
 		return
 	}
@@ -116,7 +144,11 @@ func (rs *Resource) acknowledgeAnnouncement(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	if err := rs.ParentService.AcknowledgeAnnouncement(r.Context(), accountID, announcementID); err != nil {
+	publishedAt, ok := parseStampBody(w, r)
+	if !ok {
+		return
+	}
+	if err := rs.ParentService.AcknowledgeAnnouncement(r.Context(), accountID, announcementID, publishedAt); err != nil {
 		renderParentWriteError(w, r, err)
 		return
 	}

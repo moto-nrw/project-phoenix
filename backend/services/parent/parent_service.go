@@ -204,12 +204,16 @@ type Service interface {
 	UnreadAnnouncementCount(ctx context.Context, accountID int64) (int, error)
 
 	// MarkAnnouncementRead records that the guardian opened an announcement.
-	// Refuses one that is not live or outside the guardian's audience.
-	MarkAnnouncementRead(ctx context.Context, accountID, announcementID int64) error
+	// Refuses one that is not live or outside the guardian's audience, and
+	// rejects a stale request whose expectedPublishedAt no longer matches the
+	// live announcement (ErrAnnouncementStale) so a corrected announcement is
+	// not marked read against the retracted wording.
+	MarkAnnouncementRead(ctx context.Context, accountID, announcementID int64, expectedPublishedAt time.Time) error
 
 	// AcknowledgeAnnouncement records an explicit "gelesen und bestätigt"; valid
-	// only for an announcement that requires acknowledgement.
-	AcknowledgeAnnouncement(ctx context.Context, accountID, announcementID int64) error
+	// only for an announcement that requires acknowledgement. Same audience and
+	// stale-version guards as MarkAnnouncementRead.
+	AcknowledgeAnnouncement(ctx context.Context, accountID, announcementID int64, expectedPublishedAt time.Time) error
 }
 
 // ChildFeatureFlags reports the resolved per-tenant parent-portal feature

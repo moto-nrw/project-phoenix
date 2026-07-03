@@ -596,23 +596,34 @@ export async function fetchAnnouncementsUnreadCount(): Promise<number> {
   return result.unread_count ?? 0;
 }
 
-/** Marks an announcement read for this guardian (idempotent). */
+/**
+ * Marks an announcement read for this guardian (idempotent). `publishedAt` is
+ * the version the client loaded; the backend rejects the request (409) if the
+ * announcement has since been corrected/republished, so a stale tab cannot
+ * record a read for wording the guardian never saw.
+ */
 export async function markAnnouncementRead(
   announcementId: string,
+  publishedAt: string,
 ): Promise<void> {
   await postJson<{ read: boolean }>(
     `/api/parent/me/news/${encodeURIComponent(announcementId)}/read`,
-    {},
+    { published_at: publishedAt },
   );
 }
 
-/** Records an explicit "gelesen und bestätigt" for an announcement. */
+/**
+ * Records an explicit "gelesen und bestätigt" for an announcement. `publishedAt`
+ * is verified against the live announcement (see markAnnouncementRead) so a
+ * confirmation is never counted against since-corrected wording.
+ */
 export async function acknowledgeAnnouncement(
   announcementId: string,
+  publishedAt: string,
 ): Promise<void> {
   await postJson<{ acknowledged: boolean }>(
     `/api/parent/me/news/${encodeURIComponent(announcementId)}/acknowledge`,
-    {},
+    { published_at: publishedAt },
   );
 }
 

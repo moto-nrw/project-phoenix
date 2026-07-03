@@ -45,11 +45,17 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(jwt.TenantMiddleware)
 		withTx := tenant.TenantTxMiddleware(rs.db)
 
-		// Authoring a broadcast to every targeted parent is a heavier action
-		// than messaging one guardian, so it requires communications:announce
-		// (admins match via admin:*; a school may grant it to a group lead). The
-		// feature flag is re-checked in the service.
-		announce := authorize.RequiresPermission(permissions.CommunicationsAnnounce)
+		// Authoring parent broadcasts is ADMIN-ONLY in v1 (#1669 product
+		// decision, 2026-07-02: "nur Admins"). The route is the only audience
+		// gate — the service accepts school_all, arbitrary class/group/student
+		// targets and any announcement id without checking the caller's own
+		// scope — so a non-admin holder of communications:announce could
+		// otherwise broadcast school-wide and read/unpublish/delete other
+		// authors' announcements. Requiring admin:* here closes that hole
+		// structurally; per-target scoping for a delegated announcer role (e.g.
+		// a group lead limited to their own group) is deliberately deferred.
+		// The parent-news feature flag is still re-checked in the service.
+		announce := authorize.RequiresPermission(permissions.AdminWildcard)
 		r.With(announce, withTx).Get("/", rs.list)
 		r.With(announce, withTx).Post("/", rs.create)
 		r.With(announce, withTx).Get("/{announcementId}", rs.get)

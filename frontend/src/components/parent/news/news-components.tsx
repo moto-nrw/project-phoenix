@@ -113,9 +113,11 @@ export function NewsDetailModal({
   const markedRef = useRef(false);
 
   useEffect(() => {
-    if (item.read || markedRef.current) return;
+    // published_at is the version the backend verifies; feed items always carry
+    // it, so a missing value just means there is nothing to mark yet.
+    if (item.read || markedRef.current || !item.published_at) return;
     markedRef.current = true;
-    markAnnouncementRead(item.id)
+    markAnnouncementRead(item.id, item.published_at)
       .then(() => {
         onUpdated(item.id, { read: true });
         refreshUnreadBadge();
@@ -125,13 +127,14 @@ export function NewsDetailModal({
           error: err instanceof Error ? err.message : String(err),
         });
       });
-  }, [item.id, item.read, onUpdated]);
+  }, [item.id, item.read, item.published_at, onUpdated]);
 
   const handleAcknowledge = useCallback(async () => {
+    if (!item.published_at) return;
     setBusy(true);
     setActionError(null);
     try {
-      await acknowledgeAnnouncement(item.id);
+      await acknowledgeAnnouncement(item.id, item.published_at);
       onUpdated(item.id, { read: true, acknowledged: true });
       refreshUnreadBadge();
     } catch (err: unknown) {
@@ -142,7 +145,7 @@ export function NewsDetailModal({
     } finally {
       setBusy(false);
     }
-  }, [item.id, onUpdated, t]);
+  }, [item.id, item.published_at, onUpdated, t]);
 
   const needsAck = item.requires_acknowledgement && !item.acknowledged;
 

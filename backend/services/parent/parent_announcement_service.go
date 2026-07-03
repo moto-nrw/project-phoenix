@@ -24,6 +24,15 @@ var (
 	// acknowledge an announcement that does not require acknowledgement.
 	// Handler maps it to 400.
 	ErrAnnouncementAckNotRequired = errors.New("parent: announcement does not require acknowledgement")
+	// ErrAnnouncementStale is returned when the guardian's read/ack request
+	// carries a published_at that no longer matches the live announcement — the
+	// documented correction flow (unpublish -> edit -> republish) reuses the
+	// same id but stamps a fresh published_at and clears the old read rows, so a
+	// stale client that loaded the RETRACTED wording must not record a read/ack
+	// against the corrected wording it never saw. Handler maps it to 409 so the
+	// portal can refetch and show the current text. Checked only AFTER audience
+	// authorization, so it never reveals an announcement to a non-audience caller.
+	ErrAnnouncementStale = errors.New("parent: announcement changed since it was loaded")
 )
 
 // ListAnnouncements returns the guardian's parent-news feed: published, active,
@@ -87,24 +96,29 @@ func (s *service) UnreadAnnouncementCount(ctx context.Context, accountID int64) 
 // MarkAnnouncementRead records that the guardian opened an announcement. It
 // resolves the announcement (cross-tenant), refuses one that is not live or that
 // the account is not in the audience of (both surface as ErrAnnouncementNotFound
-// so the endpoint never confirms an announcement the guardian may not see), then
-// upserts the read row.
-func (s *service) MarkAnnouncementRead(ctx context.Context, accountID, announcementID int64) error {
-	return s.stampAnnouncement(ctx, accountID, announcementID, false)
+// so the endpoint never confirms an announcement the guardian may not see),
+// rejects a stale request whose expectedPublishedAt no longer matches the live
+// announcement (ErrAnnouncementStale), then upserts the read row.
+// expectedPublishedAt is the published_at the client held when it loaded the
+// feed item.
+func (s *service) MarkAnnouncementRead(ctx context.Context, accountID, announcementID int64, expectedPublishedAt time.Time) error {
+	return s.stampAnnouncement(ctx, accountID, announcementID, expectedPublishedAt, false)
 }
 
 // AcknowledgeAnnouncement records an explicit "gelesen und bestätigt". It is
 // only valid for an announcement that requires acknowledgement; otherwise it
-// returns ErrAnnouncementAckNotRequired. Same resolution/authorization as
-// MarkAnnouncementRead.
-func (s *service) AcknowledgeAnnouncement(ctx context.Context, accountID, announcementID int64) error {
-	return s.stampAnnouncement(ctx, accountID, announcementID, true)
+// returns ErrAnnouncementAckNotRequired. Same resolution/authorization (incl.
+// the stale-version check) as MarkAnnouncementRead.
+func (s *service) AcknowledgeAnnouncement(ctx context.Context, accountID, announcementID int64, expectedPublishedAt time.Time) error {
+	return s.stampAnnouncement(ctx, accountID, announcementID, expectedPublishedAt, true)
 }
 
 // stampAnnouncement is the shared resolve+authorize+write path for read and
 // acknowledge. ack=true stamps acknowledged_at and requires the announcement to
-// have requires_acknowledgement set.
-func (s *service) stampAnnouncement(ctx context.Context, accountID, announcementID int64, ack bool) error {
+// have requires_acknowledgement set. expectedPublishedAt is verified against the
+// live announcement so a stale client (one that loaded a since-retracted
+// wording) cannot record a read/ack against the corrected announcement.
+func (s *service) stampAnnouncement(ctx context.Context, accountID, announcementID int64, expectedPublishedAt time.Time, ack bool) error {
 	if accountID <= 0 || announcementID <= 0 {
 		return fmt.Errorf("parent: account_id and announcement_id must be positive")
 	}
@@ -130,6 +144,16 @@ func (s *service) stampAnnouncement(ctx context.Context, accountID, announcement
 		}
 		if !matched {
 			return ErrAnnouncementNotFound
+		}
+		// Version check AFTER audience authorization (so a non-audience caller
+		// still gets 404, never a stale hint): the client echoes the published_at
+		// it loaded. On the unpublish -> edit -> republish correction path the id
+		// is reused but published_at is re-stamped, so a mismatch means the client
+		// is acting on retracted wording — reject it rather than count a read/ack
+		// for text the guardian never saw. announcementIsLive guarantees
+		// a.PublishedAt is non-nil here.
+		if !a.PublishedAt.Equal(expectedPublishedAt) {
+			return ErrAnnouncementStale
 		}
 		announcementTenantID = a.GetTenantID()
 		requiresAck = a.RequiresAcknowledgement

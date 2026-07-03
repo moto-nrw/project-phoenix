@@ -383,6 +383,8 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, parentService.ErrAnnouncementAckNotRequired):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "announcement_ack_not_required"))
+	case errors.Is(err, parentService.ErrAnnouncementStale):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "announcement_stale"))
 	case errors.Is(err, parentService.ErrNoDates),
 		errors.Is(err, parentService.ErrInvalidStatus),
 		errors.Is(err, parentService.ErrEmptyNote),

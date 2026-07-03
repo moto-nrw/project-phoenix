@@ -177,11 +177,11 @@ func (f *fakeParentService) UnreadAnnouncementCount(context.Context, int64) (int
 	return 0, nil
 }
 
-func (f *fakeParentService) MarkAnnouncementRead(context.Context, int64, int64) error {
+func (f *fakeParentService) MarkAnnouncementRead(context.Context, int64, int64, time.Time) error {
 	return nil
 }
 
-func (f *fakeParentService) AcknowledgeAnnouncement(context.Context, int64, int64) error {
+func (f *fakeParentService) AcknowledgeAnnouncement(context.Context, int64, int64, time.Time) error {
 	return nil
 }
 
