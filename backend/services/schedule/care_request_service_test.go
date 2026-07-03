@@ -76,10 +76,11 @@ func newCareFixture(t *testing.T) *careFixture {
 	return &careFixture{db: db, svc: svc, sf: sf, repos: repos, chain: chain, staffAccount: staffAccount.ID, staffID: staff.ID}
 }
 
-// staffCtx carries tenant 1, admin permissions (so the per-child write check
-// passes) and the given account id (resolved as the acting staff on approve).
-func staffCtx(accountID int64) context.Context {
-	ctx := tenant.WithTenantID(context.Background(), 1)
+// staffCtx carries the fixture's tenant, admin permissions (so the per-child
+// write check passes) and the given account id (resolved as the acting staff on
+// approve).
+func (f *careFixture) staffCtx(accountID int64) context.Context {
+	ctx := tenant.WithTenantID(context.Background(), f.chain.TenantID)
 	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: int(accountID)})
 	ctx = context.WithValue(ctx, jwt.CtxPermissions, []string{"admin:*"})
 	return ctx
@@ -89,8 +90,8 @@ func staffCtx(accountID int64) context.Context {
 // no supervised group, so the per-child write gate (CanUpdateStudent) denies —
 // used to prove the queue/decide scope rejects a staffer who cannot edit the
 // child.
-func nonAdminCtx(accountID int64) context.Context {
-	ctx := tenant.WithTenantID(context.Background(), 1)
+func (f *careFixture) nonAdminCtx(accountID int64) context.Context {
+	ctx := tenant.WithTenantID(context.Background(), f.chain.TenantID)
 	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: int(accountID)})
 	ctx = context.WithValue(ctx, jwt.CtxPermissions, []string{"users:update"})
 	return ctx
@@ -107,7 +108,7 @@ func careWeekdays(entries ...map[string]any) map[string]any {
 // createPending stores a pending request submitted by the chain's guardian.
 func (f *careFixture) createPending(t *testing.T, payload map[string]any) *scheduleModels.CareScheduleChangeRequest {
 	t.Helper()
-	req, err := f.svc.CreateRequest(staffCtx(f.chain.AccountID), f.chain.StudentID, f.chain.AccountID, payload)
+	req, err := f.svc.CreateRequest(f.staffCtx(f.chain.AccountID), f.chain.StudentID, f.chain.AccountID, payload)
 	require.NoError(t, err)
 	return req
 }
@@ -123,7 +124,7 @@ func TestDecide_ForbiddenWithoutWriteAccess(t *testing.T) {
 		map[string]any{"weekday": 1, "mode": "pickup", "arrival": "08:00", "pickup": "16:00"},
 	))
 
-	denyCtx := nonAdminCtx(f.staffAccount)
+	denyCtx := f.nonAdminCtx(f.staffAccount)
 
 	items, err := f.svc.ListPending(denyCtx)
 	require.NoError(t, err)
@@ -134,7 +135,7 @@ func TestDecide_ForbiddenWithoutWriteAccess(t *testing.T) {
 	_, err = f.svc.Decide(denyCtx, schedule.CareRequestDecideInput{RequestID: req.ID, Approve: false, Reason: "nope", ReviewedBy: f.staffAccount})
 	assert.ErrorIs(t, err, schedule.ErrCareRequestForbidden)
 
-	item, err := f.svc.Decide(staffCtx(f.staffAccount), schedule.CareRequestDecideInput{RequestID: req.ID, Approve: false, Reason: "closing out", ReviewedBy: f.staffAccount})
+	item, err := f.svc.Decide(f.staffCtx(f.staffAccount), schedule.CareRequestDecideInput{RequestID: req.ID, Approve: false, Reason: "closing out", ReviewedBy: f.staffAccount})
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.CareRequestStatusRejected, item.Request.Status)
 }
@@ -146,7 +147,7 @@ func TestDecide_ForbiddenWithoutWriteAccess(t *testing.T) {
 // weekly plan (departure mode + arrival + pickup for the requested weekday).
 func TestDecide_ApproveAppliesModeArrivalPickup(t *testing.T) {
 	f := newCareFixture(t)
-	ctx := staffCtx(f.staffAccount)
+	ctx := f.staffCtx(f.staffAccount)
 
 	req := f.createPending(t, careWeekdays(
 		map[string]any{"weekday": 1, "mode": "pickup", "arrival": "08:00", "pickup": "16:00"},
@@ -180,7 +181,7 @@ func TestDecide_ApproveAppliesModeArrivalPickup(t *testing.T) {
 // Tuesday departure set — the collapse bug the apply guards against.
 func TestDecide_ApproveMergesPreservingOtherDaysAndModes(t *testing.T) {
 	f := newCareFixture(t)
-	ctx := staffCtx(f.staffAccount)
+	ctx := f.staffCtx(f.staffAccount)
 
 	// Seed a multi-mode Tuesday directly on the student (a request can only carry
 	// one mode per day, so this can't be produced through CreateRequest).
@@ -236,7 +237,7 @@ func TestDecide_NonStaffConfirmerForbidden(t *testing.T) {
 	f := newCareFixture(t)
 	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 1, "arrival": "08:00"}))
 
-	_, err := f.svc.Decide(staffCtx(f.chain.AccountID), schedule.CareRequestDecideInput{
+	_, err := f.svc.Decide(f.staffCtx(f.chain.AccountID), schedule.CareRequestDecideInput{
 		RequestID: req.ID, Approve: true, ReviewedBy: f.chain.AccountID,
 	})
 	require.ErrorIs(t, err, schedule.ErrCareRequestForbidden)
@@ -266,7 +267,7 @@ func TestDecide_ApproveRefusedWhenGuardianAccessRevoked(t *testing.T) {
 		slog.Default(),
 	)
 
-	req, err := svc.CreateRequest(staffCtx(f.chain.AccountID), f.chain.StudentID, f.chain.AccountID,
+	req, err := svc.CreateRequest(f.staffCtx(f.chain.AccountID), f.chain.StudentID, f.chain.AccountID,
 		careWeekdays(map[string]any{"weekday": 1, "mode": "pickup", "arrival": "08:00", "pickup": "16:00"}))
 	require.NoError(t, err)
 
@@ -277,7 +278,7 @@ func TestDecide_ApproveRefusedWhenGuardianAccessRevoked(t *testing.T) {
 	`, f.chain.TenantID, f.chain.StudentID, f.chain.GuardianProfileID)
 	require.NoError(t, err)
 
-	ctx := staffCtx(f.staffAccount)
+	ctx := f.staffCtx(f.staffAccount)
 
 	_, err = svc.Decide(ctx, schedule.CareRequestDecideInput{RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount})
 	require.ErrorIs(t, err, schedule.ErrCareRequestGuardianAccessRevoked, "a revoked guardian's request must not be applied")
@@ -325,11 +326,11 @@ func TestDecide_ApproveRefusedWhenMessagingDisabled(t *testing.T) {
 		slog.Default(),
 	)
 
-	req, err := svc.CreateRequest(staffCtx(f.chain.AccountID), f.chain.StudentID, f.chain.AccountID,
+	req, err := svc.CreateRequest(f.staffCtx(f.chain.AccountID), f.chain.StudentID, f.chain.AccountID,
 		careWeekdays(map[string]any{"weekday": 1, "mode": "pickup", "arrival": "08:00", "pickup": "16:00"}))
 	require.NoError(t, err)
 
-	ctx := staffCtx(f.staffAccount)
+	ctx := f.staffCtx(f.staffAccount)
 
 	_, err = svc.Decide(ctx, schedule.CareRequestDecideInput{RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount})
 	require.ErrorIs(t, err, schedule.ErrCareRequestMessagingDisabled, "approving with messaging disabled must be refused")
@@ -352,7 +353,7 @@ func TestDecide_ApproveRefusedWhenMessagingDisabled(t *testing.T) {
 // status under the FOR UPDATE re-read and returns ErrCareRequestNotPending.
 func TestDecide_SecondDecideNotPending(t *testing.T) {
 	f := newCareFixture(t)
-	ctx := staffCtx(f.staffAccount)
+	ctx := f.staffCtx(f.staffAccount)
 	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 2, "arrival": "07:45"}))
 
 	_, err := f.svc.Decide(ctx, schedule.CareRequestDecideInput{RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount})
@@ -370,7 +371,7 @@ func TestDecide_SecondDecideNotPending(t *testing.T) {
 // flips the row to rejected WITHOUT applying the plan.
 func TestDecide_RejectRequiresReasonAndBounds(t *testing.T) {
 	f := newCareFixture(t)
-	ctx := staffCtx(f.staffAccount)
+	ctx := f.staffCtx(f.staffAccount)
 	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 1, "arrival": "08:00"}))
 
 	_, err := f.svc.Decide(ctx, schedule.CareRequestDecideInput{RequestID: req.ID, Approve: false, Reason: "  \n\t ", ReviewedBy: f.staffAccount})
@@ -396,7 +397,7 @@ func TestDecide_RejectRequiresReasonAndBounds(t *testing.T) {
 // (it normalizes to the zero time the schedule validators treat as "unset").
 func TestCreateRequest_RejectsMidnight(t *testing.T) {
 	f := newCareFixture(t)
-	ctx := staffCtx(f.chain.AccountID)
+	ctx := f.staffCtx(f.chain.AccountID)
 
 	_, err := f.svc.CreateRequest(ctx, f.chain.StudentID, f.chain.AccountID,
 		careWeekdays(map[string]any{"weekday": 1, "arrival": "00:00"}))
@@ -417,7 +418,7 @@ func TestCreateRequest_RejectsMidnight(t *testing.T) {
 // collapsed (last value per aspect wins).
 func TestCreateRequest_CanonicalizesPayload(t *testing.T) {
 	f := newCareFixture(t)
-	ctx := staffCtx(f.chain.AccountID)
+	ctx := f.staffCtx(f.chain.AccountID)
 
 	req, err := f.svc.CreateRequest(ctx, f.chain.StudentID, f.chain.AccountID, map[string]any{
 		"weekdays": []any{
@@ -447,7 +448,7 @@ func TestCreateRequest_OnePendingPerStudent(t *testing.T) {
 	f := newCareFixture(t)
 	f.createPending(t, careWeekdays(map[string]any{"weekday": 1, "arrival": "08:00"}))
 
-	_, err := f.svc.CreateRequest(staffCtx(f.chain.AccountID), f.chain.StudentID, f.chain.AccountID,
+	_, err := f.svc.CreateRequest(f.staffCtx(f.chain.AccountID), f.chain.StudentID, f.chain.AccountID,
 		careWeekdays(map[string]any{"weekday": 2, "arrival": "08:00"}))
 	require.ErrorIs(t, err, schedule.ErrCareRequestAlreadyPending)
 }
@@ -459,7 +460,7 @@ func TestCreateRequest_OnePendingPerStudent(t *testing.T) {
 // DIFFERENT guardian account is reported not-found (id space is not probeable).
 func TestWithdraw_BySubmitterAndGuards(t *testing.T) {
 	f := newCareFixture(t)
-	ctx := staffCtx(f.chain.AccountID)
+	ctx := f.staffCtx(f.chain.AccountID)
 	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 1, "arrival": "08:00"}))
 
 	// A different guardian account cannot withdraw it.
@@ -486,7 +487,7 @@ func TestWithdraw_BySubmitterAndGuards(t *testing.T) {
 // yields (nil, nil, nil) — the read view shows no pending card.
 func TestGetPendingForStudent_NoneReturnsNil(t *testing.T) {
 	f := newCareFixture(t)
-	req, diff, err := f.svc.GetPendingForStudent(staffCtx(f.staffAccount), f.chain.StudentID)
+	req, diff, err := f.svc.GetPendingForStudent(f.staffCtx(f.staffAccount), f.chain.StudentID)
 	require.NoError(t, err)
 	assert.Nil(t, req)
 	assert.Nil(t, diff)
@@ -496,7 +497,7 @@ func TestGetPendingForStudent_NoneReturnsNil(t *testing.T) {
 // returned with a live "current → requested" diff.
 func TestGetPendingForStudent_ReturnsPendingWithDiff(t *testing.T) {
 	f := newCareFixture(t)
-	ctx := staffCtx(f.chain.AccountID)
+	ctx := f.staffCtx(f.chain.AccountID)
 	f.createPending(t, careWeekdays(map[string]any{"weekday": 1, "arrival": "08:00"}))
 
 	req, diff, err := f.svc.GetPendingForStudent(ctx, f.chain.StudentID)
