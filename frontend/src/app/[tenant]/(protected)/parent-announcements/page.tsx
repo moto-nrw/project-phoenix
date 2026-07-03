@@ -181,6 +181,10 @@ function ParentAnnouncementsContent() {
   const [deleteError, setDeleteError] = useState("");
   const [publishTarget, setPublishTarget] = useState<Announcement | null>(null);
   const [publishError, setPublishError] = useState("");
+  const [unpublishTarget, setUnpublishTarget] = useState<Announcement | null>(
+    null,
+  );
+  const [unpublishError, setUnpublishError] = useState("");
   const [pendingActionId, setPendingActionId] = useState<string | null>(null);
 
   const {
@@ -310,15 +314,21 @@ function ParentAnnouncementsContent() {
     }
   };
 
-  const runUnpublish = async (announcement: Announcement) => {
-    setPendingActionId(announcement.id);
+  const confirmUnpublish = async () => {
+    if (!unpublishTarget) return;
+    setPendingActionId(unpublishTarget.id);
+    setUnpublishError("");
     try {
-      await unpublishAnnouncement(announcement.id);
+      await unpublishAnnouncement(unpublishTarget.id);
       await mutate();
+      setUnpublishTarget(null);
     } catch (err) {
-      logger.error("announcement_unpublish_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Elternmitteilung konnte nicht zurückgezogen werden";
+      setUnpublishError(message);
+      logger.error("announcement_unpublish_failed", { error: message });
     } finally {
       setPendingActionId(null);
     }
@@ -454,7 +464,10 @@ function ParentAnnouncementsContent() {
       menuItems.push({
         label: "Zurückziehen",
         icon: <Undo2 className="size-4" aria-hidden />,
-        onClick: () => void runUnpublish(row),
+        onClick: () => {
+          setUnpublishError("");
+          setUnpublishTarget(row);
+        },
         disabled: pendingActionId === row.id,
       });
     }
@@ -617,6 +630,37 @@ function ParentAnnouncementsContent() {
             {publishError && (
               <p role="alert" className="text-sm text-[#CC2626]">
                 {publishError}
+              </p>
+            )}
+          </div>
+        </ConfirmationModal>
+      )}
+
+      {unpublishTarget && (
+        <ConfirmationModal
+          isOpen={Boolean(unpublishTarget)}
+          onClose={() => {
+            setUnpublishTarget(null);
+            setUnpublishError("");
+          }}
+          onConfirm={() => void confirmUnpublish()}
+          title="Elternmitteilung zurückziehen"
+          confirmText="Zurückziehen"
+          cancelText="Abbrechen"
+          isConfirmLoading={pendingActionId === unpublishTarget.id}
+        >
+          <div className="space-y-2 text-sm text-gray-700">
+            <p>
+              „{unpublishTarget.title}“ wird für die Eltern nicht mehr sichtbar
+              und kehrt in den Entwurfsstatus zurück.
+            </p>
+            <p className="text-xs text-gray-500">
+              Noch nicht versendete E-Mail-Benachrichtigungen werden
+              abgebrochen.
+            </p>
+            {unpublishError && (
+              <p role="alert" className="text-sm text-[#CC2626]">
+                {unpublishError}
               </p>
             )}
           </div>
