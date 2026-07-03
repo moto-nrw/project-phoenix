@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
@@ -158,12 +159,7 @@ func (s *service) loadSnapshotRows(ctx context.Context, studentIDs []int64) ([]s
 	}
 
 	rows := buildSnapshotRows(studentIDs, students, persons, locations, contacts)
-	sort.SliceStable(rows, func(i, j int) bool {
-		if rows[i].Location != rows[j].Location {
-			return rows[i].Location < rows[j].Location
-		}
-		return rows[i].Name < rows[j].Name
-	})
+	sortSnapshotRows(rows)
 	return rows, nil
 }
 
@@ -205,6 +201,15 @@ func buildSnapshotRows(
 		rows = append(rows, row)
 	}
 	return rows
+}
+
+func sortSnapshotRows(rows []snapshotRow) {
+	sort.SliceStable(rows, func(i, j int) bool {
+		if rows[i].Location != rows[j].Location {
+			return rows[i].Location < rows[j].Location
+		}
+		return collation.CompareGerman(rows[i].Name, rows[j].Name) < 0
+	})
 }
 
 func (s *service) loadCurrentLocations(ctx context.Context, studentIDs []int64) (map[int64]string, error) {
