@@ -126,7 +126,10 @@ func applyAppointmentWindow(query *bun.SelectQuery, from, to timezone.Date) *bun
 			WHERE rr.appointment_id = "appointment".id
 			  AND rr.tenant_id = "appointment".tenant_id
 			  AND "appointment".start_date <= ?
-			  AND (rr.ends_on IS NULL OR rr.ends_on >= ?)
+			  AND (
+			  	rr.ends_on IS NULL
+			  	OR rr.ends_on + ("appointment".end_date - "appointment".start_date) >= ?
+			  )
 		)
 	)`, from, to, to, from)
 }

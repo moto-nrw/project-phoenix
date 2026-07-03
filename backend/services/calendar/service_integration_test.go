@@ -528,6 +528,45 @@ func TestCalendarServiceIntegration_InvalidRecurrenceDoesNotPersistAppointment(t
 	assert.Zero(t, count)
 }
 
+func TestCalendarServiceIntegration_MultiDayRecurrenceVisibleOnFinalOverlapDay(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	service := setupCalendarService(t, db)
+	organizer, organizerAccount := testpkg.CreateTestStaffWithAccount(t, db, "MultiDay", "Organizer")
+	t.Cleanup(func() {
+		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
+	})
+
+	endsOn := timezone.NewDate(2026, 1, 31)
+	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Overnight recurring appointment",
+		StartDate:    timezone.NewDate(2026, 1, 31),
+		EndDate:      timezone.NewDate(2026, 2, 1),
+		StartTime:    wallClock(18, 0),
+		EndTime:      wallClock(9, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		Recurrence: &calendarSvc.RecurrenceRequest{
+			Frequency: calModels.RecurrenceFrequencyDaily,
+			EndsOn:    &endsOn,
+		},
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeStaff, ID: &organizer.ID},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+
+	events, err := service.ListMyStaffEvents(
+		calendarContext(organizerAccount.ID),
+		timezone.NewDate(2026, 2, 1),
+		timezone.NewDate(2026, 2, 1),
+	)
+	require.NoError(t, err)
+	assert.Contains(t, eventDates(events, calModels.EventSourceAppointment), "2026-01-31")
+}
+
 func TestCalendarServiceIntegration_ResponseAndOverviewErrors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
