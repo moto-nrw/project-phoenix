@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/collation"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -343,10 +344,10 @@ func (s *reportService) CareUsage(ctx context.Context, filters CareUsageFilters)
 	}
 
 	sort.SliceStable(report.Rows, func(i, j int) bool {
-		if report.Rows[i].ChildLastName != report.Rows[j].ChildLastName {
-			return strings.ToLower(report.Rows[i].ChildLastName) < strings.ToLower(report.Rows[j].ChildLastName)
-		}
-		return strings.ToLower(report.Rows[i].ChildFirstName) < strings.ToLower(report.Rows[j].ChildFirstName)
+		return collation.CompareGermanNames(
+			report.Rows[i].ChildLastName, report.Rows[i].ChildFirstName,
+			report.Rows[j].ChildLastName, report.Rows[j].ChildFirstName,
+		) < 0
 	})
 	report.ByOffering = careUsageOfferingStats(offeringStats)
 	report.FilterOptions.GradeLevels = careUsageGradeOptions(gradeSeen)
@@ -504,17 +505,7 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 		}
 		rows = append(rows, row)
 	}
-	sort.SliceStable(rows, func(i, j int) bool {
-		lastNameCompare := strings.Compare(strings.ToLower(rows[i].LastName), strings.ToLower(rows[j].LastName))
-		if lastNameCompare != 0 {
-			return lastNameCompare < 0
-		}
-		firstNameCompare := strings.Compare(strings.ToLower(rows[i].FirstName), strings.ToLower(rows[j].FirstName))
-		if firstNameCompare != 0 {
-			return firstNameCompare < 0
-		}
-		return rows[i].StudentID < rows[j].StudentID
-	})
+	sortClassRosterRows(rows)
 
 	report := &ClassRosterReport{
 		Phase: CareUsagePhase{ID: phase.ID, Name: phase.Name},
@@ -890,6 +881,15 @@ func (s *reportService) classRosterGroupNames(ctx context.Context, students []*u
 		return nil, fmt.Errorf("class roster report: load groups: %w", err)
 	}
 	return groups, nil
+}
+
+func sortClassRosterRows(rows []ClassRosterRow) {
+	sort.SliceStable(rows, func(i, j int) bool {
+		if r := collation.CompareGermanNames(rows[i].LastName, rows[i].FirstName, rows[j].LastName, rows[j].FirstName); r != 0 {
+			return r < 0
+		}
+		return rows[i].StudentID < rows[j].StudentID
+	})
 }
 
 func classRosterGroupName(student *userModels.Student, groups map[int64]*educationModels.Group) string {

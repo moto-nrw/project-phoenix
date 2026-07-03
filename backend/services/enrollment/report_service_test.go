@@ -1024,3 +1024,23 @@ type fakeClassRosterPhaseRepo struct {
 func (r *fakeClassRosterPhaseRepo) FindByID(_ context.Context, id int64) (*enrollmentModels.Phase, error) {
 	return &enrollmentModels.Phase{Model: baseModels.Model{ID: id}, Name: "Schuljahr 2026"}, nil
 }
+
+func TestSortClassRosterRowsGermanNameOrder(t *testing.T) {
+	rows := []ClassRosterRow{
+		{StudentID: 1, FirstName: "Jan", LastName: "Zimmermann"},
+		{StudentID: 2, FirstName: "Emre", LastName: "Özdemir"},
+		{StudentID: 3, FirstName: "Lena", LastName: "Ärmel"},
+		{StudentID: 5, FirstName: "Anna", LastName: "Müller"},
+		{StudentID: 4, FirstName: "Anna", LastName: "Müller"},
+		{StudentID: 6, FirstName: "Tim", LastName: "Mueller"},
+	}
+
+	sortClassRosterRows(rows)
+
+	wantIDs := []int64{3, 6, 4, 5, 2, 1}
+	gotIDs := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		gotIDs = append(gotIDs, row.StudentID)
+	}
+	assert.Equal(t, wantIDs, gotIDs, "expected Ärmel, Mueller, Müller (ID tiebreak), Özdemir, Zimmermann")
+}

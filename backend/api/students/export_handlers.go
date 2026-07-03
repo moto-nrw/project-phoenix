@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -246,10 +247,7 @@ func sortExportResponses(students []StudentResponse, sortMode string) {
 		if sortMode == "arrival" {
 			return timeValue(a.ArrivalTime) < timeValue(b.ArrivalTime)
 		}
-		if strings.EqualFold(a.LastName, b.LastName) {
-			return strings.ToLower(a.FirstName) < strings.ToLower(b.FirstName)
-		}
-		return strings.ToLower(a.LastName) < strings.ToLower(b.LastName)
+		return collation.CompareGermanNames(a.LastName, a.FirstName, b.LastName, b.FirstName) < 0
 	})
 }
 

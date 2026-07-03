@@ -73,3 +73,27 @@ func TestRoomSnapshotSubtitleIncludesTransit(t *testing.T) {
 		t.Fatalf("subtitle = %q", subtitle)
 	}
 }
+
+func TestBuildRoomSnapshotRowsGermanNameOrder(t *testing.T) {
+	locations := []roomSnapshotLocation{
+		{Name: "Raum 101", StudentIDs: []int64{1, 2, 3, 4}},
+	}
+	students := map[int64]roomSnapshotStudent{
+		1: {ID: 1, Name: "Jan Zimmermann"},
+		2: {ID: 2, Name: "Emre Özdemir"},
+		3: {ID: 3, Name: "lena ärmel"},
+		4: {ID: 4, Name: "Ben Anders"},
+	}
+
+	rows := buildRoomSnapshotRows(locations, students)
+
+	want := []string{"Ben Anders", "Emre Özdemir", "Jan Zimmermann", "lena ärmel"}
+	if len(rows) != len(want) {
+		t.Fatalf("row count = %d, want %d", len(rows), len(want))
+	}
+	for i, name := range want {
+		if got := rows[i].Values[listexport.ColumnStudentName]; got != name {
+			t.Fatalf("row %d student = %q, want %q", i, got, name)
+		}
+	}
+}

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/collation"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
@@ -262,7 +263,7 @@ func buildRoomSnapshotRows(locations []roomSnapshotLocation, studentsByID map[in
 			}
 		}
 		sort.SliceStable(students, func(i, j int) bool {
-			return strings.ToLower(students[i].Name) < strings.ToLower(students[j].Name)
+			return collation.CompareGerman(students[i].Name, students[j].Name) < 0
 		})
 
 		if len(students) == 0 {
