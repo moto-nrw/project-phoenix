@@ -772,7 +772,7 @@ func (s *service) DeleteCareException(ctx context.Context, accountID, studentID 
 		return ErrPastCareDate
 	}
 
-	deleted := false
+	pickupDeleted, arrivalDeleted := false, false
 	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		if err := scheduleService.LockCareExceptionDay(txCtx, s.db, studentID, date); err != nil {
 			return err
@@ -786,7 +786,7 @@ func (s *service) DeleteCareException(ctx context.Context, accountID, studentID 
 			if err := s.pickupExceptionRepo.Delete(txCtx, pickup.ID); err != nil {
 				return err
 			}
-			deleted = true
+			pickupDeleted = true
 		}
 		arrival, err := s.arrivalExceptionRepo.FindByStudentIDAndDate(txCtx, studentID, date)
 		if err != nil {
@@ -796,11 +796,21 @@ func (s *service) DeleteCareException(ctx context.Context, accountID, studentID 
 			if err := s.arrivalExceptionRepo.Delete(txCtx, arrival.ID); err != nil {
 				return err
 			}
-			deleted = true
+			arrivalDeleted = true
 		}
-		if deleted {
+		if pickupDeleted || arrivalDeleted {
 			capturedTenant := child.tenantID
-			pillBody := "Korrektur: Abholung " + date.Format("02.01.") + " zurückgezogen"
+			// Name the leg(s) actually removed: an arrival-only deletion must not
+			// be recorded as a withdrawn pickup. Both legs collapse to a neutral
+			// "Betreuungszeit" label.
+			leg := "Betreuungszeit"
+			switch {
+			case pickupDeleted && !arrivalDeleted:
+				leg = "Abholung"
+			case arrivalDeleted && !pickupDeleted:
+				leg = "Ankunft"
+			}
+			pillBody := "Korrektur: " + leg + " " + date.Format("02.01.") + " zurückgezogen"
 			tenant.RegisterAfterCommit(txCtx, func() {
 				s.emitSelfServicePill(capturedTenant, studentID, accountID, "care_exception_correction", pillBody, "", nil)
 				s.broadcastStudentUpdated(capturedTenant, studentID)

@@ -57,13 +57,18 @@ func sickNoteEventBody(status string, dates []timezone.Date) string {
 	return label + ": " + strings.Join(parts, ", ")
 }
 
+// careExceptionEventBody renders the chat pill for a guardian care-time
+// submission. The headline stays neutral ("Betreuungszeit") because either leg
+// (arrival, pickup, or both) may have changed — labelling it as an "Abholung"
+// change would record a pickup change that did not happen on an arrival-only
+// submit. The appended value lines name the concrete leg(s) that were set.
 func careExceptionEventBody(date timezone.Date, pickupTime, arrivalTime *time.Time) string {
-	parts := []string{"Abholung " + date.Format("02.01.") + " geändert"}
-	if pickupTime != nil {
-		parts = append(parts, "Abholung "+pickupTime.Format("15:04"))
-	}
+	parts := []string{"Betreuungszeit " + date.Format("02.01.") + " geändert"}
 	if arrivalTime != nil {
 		parts = append(parts, "Ankunft "+arrivalTime.Format("15:04"))
+	}
+	if pickupTime != nil {
+		parts = append(parts, "Abholung "+pickupTime.Format("15:04"))
 	}
 	return strings.Join(parts, ": ")
 }
