@@ -134,6 +134,7 @@
       "src/test/mocks/*.ts",
       "src/test/fixtures/*.ts",
       "src/test/helpers/*.ts",
+      ".storybook/mocks/env.js",
       ".storybook/mocks/next-auth-react.tsx"
     ],
     "project": [

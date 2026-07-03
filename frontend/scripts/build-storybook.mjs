@@ -3,6 +3,7 @@
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import path from "node:path";
+import { storybookProcessEnv } from "../.storybook/mocks/env.js";
 
 const require = createRequire(import.meta.url);
 const storybookPackagePath = require.resolve("storybook/package.json");
@@ -25,7 +26,11 @@ const child = spawn(
   ],
   {
     stdio: "inherit",
-    env: process.env,
+    env: {
+      ...process.env,
+      ...storybookProcessEnv,
+      SKIP_ENV_VALIDATION: "true",
+    },
   },
 );
 
