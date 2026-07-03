@@ -46,6 +46,17 @@ type ChildEvent struct {
 	RefID    *int64
 }
 
+// isTerminalRequestEvent reports whether ev CLOSES a change request that already
+// carries a request_created pill — a request_status event referencing the request
+// row (ref_table + ref_id). These are the only events allowed through the emitter
+// while messaging is disabled: without the closing pill the staff timeline keeps
+// showing a request the review queue has already resolved (see EmitChildEvent's
+// reconcileOnly path). request_created pills and self-service mirrors (sick_note,
+// care_exception*) carry no such reconcile obligation, so they stay dropped.
+func isTerminalRequestEvent(ev ChildEvent) bool {
+	return ev.EventType == usersModels.ParentMessageEventRequestStatus && ev.RefTable != "" && ev.RefID != nil
+}
+
 // Emitter appends notification pills to parent-OGS threads on behalf of
 // OUTSIDE services (schedule change requests, master-data review, parent
 // self-service writes). It is deliberately best-effort and transactionally
@@ -92,7 +103,10 @@ func NewEmitter(
 // MessagingEnabled helpers: this is a WRITE that creates thread rows via
 // GetOrCreate, and a school that disabled messaging must not accumulate
 // threads because of a transient settings blip. A skipped pill costs one
-// notification; a wrongly-created thread is permanent.
+// notification; a wrongly-created thread is permanent. The lone exception is a
+// terminal request event that CLOSES an already-emitted request_created pill —
+// see the reconcileOnly path below, which appends the closing pill to the
+// existing thread without ever creating one.
 func (e *Emitter) EmitChildEvent(tenantID, studentID, guardianAccountID int64, ev ChildEvent) {
 	if e == nil || e.db == nil || e.threadRepo == nil || e.messageRepo == nil || e.settings == nil {
 		return
@@ -104,35 +118,73 @@ func (e *Emitter) EmitChildEvent(tenantID, studentID, guardianAccountID int64, e
 	// request transaction and must not inherit its cancellation.
 	bgCtx := context.Background()
 	enabled, err := e.settings.ResolveBoolForTenant(bgCtx, tenantID, configModels.KeyParentNotesEnabled)
-	if err != nil || !enabled {
+	// Messaging OFF (or a settings-resolve blip, which fails CLOSED for this
+	// write path) normally drops the pill entirely so a disabled school never
+	// accumulates threads via GetOrCreate. The ONE exception is a TERMINAL
+	// request event (request_status) that CLOSES a request whose request_created
+	// pill was already emitted while messaging was on: the review queue clears on
+	// the backend, but the staff thread timeline decides "is this request still
+	// actionable?" by looking for a later status pill with the same ref_id — so
+	// without the closing pill it shows a request the queue has already resolved
+	// forever. reconcileOnly writes that closing pill against the EXISTING thread
+	// + created pill only (never GetOrCreate, never resurrect), so the
+	// no-orphan-thread invariant still holds.
+	reconcileOnly := err != nil || !enabled
+	if reconcileOnly && !isTerminalRequestEvent(ev) {
 		return
 	}
 
 	var threadID int64
-	var suppressed bool
+	var suppressReason string
 	err = tenant.WithTenantTx(bgCtx, e.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		// Staff-triggered decision pills must not resurrect a thread for a
-		// guardian whose child link (or parent_portal.access) was revoked after
-		// the request was submitted: GetOrCreate would leave a permanent orphan
-		// thread and the broadcast below would push parent-message activity to an
-		// account that can no longer read it. The chat's reject path suppressed
-		// the same broadcast in this case; here the whole pill is suppressed
-		// because this path also CREATES the thread. Guardian-triggered pills
-		// (submit / withdraw) are the guardian acting live under their own
-		// permission, so they are not gated.
-		if ev.ActorKind == usersModels.ParentMessageSenderStaff {
-			hasAccess, err := e.guardianHasChildAccess(txCtx, studentID, guardianAccountID)
-			if err != nil {
-				return err
+		var thread *usersModels.ParentMessageThread
+		if reconcileOnly {
+			// Messaging is off: only CLOSE an already-emitted request. Resolve the
+			// existing thread and its request_created pill; if either is absent there
+			// is no stale "open" notice to reconcile, so drop without creating a
+			// thread or leaving a dangling status pill.
+			existing, ferr := e.threadRepo.FindByStudentGuardian(txCtx, studentID, guardianAccountID)
+			if ferr != nil {
+				return ferr
 			}
-			if !hasAccess {
-				suppressed = true
+			if existing == nil || ev.RefID == nil {
+				suppressReason = "no existing thread to reconcile while messaging disabled"
 				return nil
 			}
-		}
-		thread, err := e.threadRepo.GetOrCreate(txCtx, tenantID, studentID, guardianAccountID)
-		if err != nil {
-			return err
+			created, cerr := e.messageRepo.FindEventByRef(txCtx, existing.ID, usersModels.ParentMessageEventRequestCreated, ev.RefTable, *ev.RefID)
+			if cerr != nil {
+				return cerr
+			}
+			if created == nil {
+				suppressReason = "no request_created pill to reconcile while messaging disabled"
+				return nil
+			}
+			thread = existing
+		} else {
+			// Staff-triggered decision pills must not resurrect a thread for a
+			// guardian whose child link (or parent_portal.access) was revoked after
+			// the request was submitted: GetOrCreate would leave a permanent orphan
+			// thread and the broadcast below would push parent-message activity to an
+			// account that can no longer read it. The chat's reject path suppressed
+			// the same broadcast in this case; here the whole pill is suppressed
+			// because this path also CREATES the thread. Guardian-triggered pills
+			// (submit / withdraw) are the guardian acting live under their own
+			// permission, so they are not gated.
+			if ev.ActorKind == usersModels.ParentMessageSenderStaff {
+				hasAccess, herr := e.guardianHasChildAccess(txCtx, studentID, guardianAccountID)
+				if herr != nil {
+					return herr
+				}
+				if !hasAccess {
+					suppressReason = "staff decision pill suppressed for revoked guardian"
+					return nil
+				}
+			}
+			created, cerr := e.threadRepo.GetOrCreate(txCtx, tenantID, studentID, guardianAccountID)
+			if cerr != nil {
+				return cerr
+			}
+			thread = created
 		}
 		threadID = thread.ID
 		msg := &usersModels.ParentMessage{
@@ -170,11 +222,12 @@ func (e *Emitter) EmitChildEvent(tenantID, studentID, guardianAccountID int64, e
 		)
 		return
 	}
-	if suppressed {
-		loggerOr(e.logger).Info("parent messaging: staff decision pill suppressed for revoked guardian",
+	if suppressReason != "" {
+		loggerOr(e.logger).Info("parent messaging: child event pill suppressed",
 			slog.Int64("tenant_id", tenantID),
 			slog.Int64("student_id", studentID),
 			slog.String("event_type", ev.EventType),
+			slog.String("reason", suppressReason),
 		)
 		return
 	}

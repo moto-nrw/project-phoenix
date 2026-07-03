@@ -302,6 +302,103 @@ func (fakeDisabledSettings) ResolveBoolForTenant(context.Context, int64, string)
 	return false, nil
 }
 
+// toggleSettings is a flippable messaging gate: a request can be filed while
+// messaging is ON (created pill written) and then closed after it is turned OFF,
+// exercising the emitter's reconcile-while-disabled path.
+type toggleSettings struct{ enabled bool }
+
+func (s *toggleSettings) ResolveBoolForTenant(context.Context, int64, string) (bool, error) {
+	return s.enabled, nil
+}
+
+// TestDecide_RejectClosesRequestPillEvenWhenMessagingDisabled pins the #1803
+// review follow-up (finding #2): when a request was filed while messaging was ON
+// (so its request_created pill + thread exist) and the school then turns
+// parent_notes OFF, REJECTING must still write the closing request_status pill.
+// The staff thread timeline decides "is this request still actionable?" by
+// looking for a later status pill with the same ref_id, so dropping it would show
+// a request the review queue has already resolved forever. The reconcile write
+// only appends to the EXISTING thread + created pill — it never creates a thread.
+func TestDecide_RejectClosesRequestPillEvenWhenMessagingDisabled(t *testing.T) {
+	f := newCareFixture(t)
+	// This test actually writes pills (created + status) from the separate staff
+	// account, whose sender_account_id FKs auth.accounts without cascade. Register
+	// the clear LAST so it runs FIRST (LIFO) ahead of CleanupAuthFixtures(staff).
+	t.Cleanup(func() { testpkg.CleanupParentMessagingForAccount(t, f.db, f.staffAccount) })
+	settings := &toggleSettings{enabled: true}
+	svc := schedule.NewCareScheduleRequestService(
+		f.repos.CareScheduleChangeRequest,
+		f.repos.Student,
+		f.repos.Person,
+		f.sf.ArrivalSchedule,
+		f.sf.PickupSchedule,
+		f.sf.UserContext,
+		parentmessaging.NewEmitter(f.db, f.repos.ParentMessageThread, f.repos.ParentMessage, settings, nil, slog.Default()),
+		nil,
+		slog.Default(),
+	)
+
+	// Filed while messaging is ON: the request_created pill opens the thread.
+	req, err := svc.CreateRequest(f.staffCtx(f.chain.AccountID), f.chain.StudentID, f.chain.AccountID,
+		careWeekdays(map[string]any{"weekday": 1, "mode": "pickup", "arrival": "08:00", "pickup": "16:00"}))
+	require.NoError(t, err)
+
+	ctx := f.staffCtx(f.staffAccount)
+	thread, err := f.repos.ParentMessageThread.FindByStudentGuardian(ctx, f.chain.StudentID, f.chain.AccountID)
+	require.NoError(t, err)
+	require.NotNil(t, thread, "the request_created pill must have opened the thread while messaging was on")
+	created, err := f.repos.ParentMessage.FindEventByRef(ctx, thread.ID, usersModels.ParentMessageEventRequestCreated, "schedule.care_schedule_change_requests", req.ID)
+	require.NoError(t, err)
+	require.NotNil(t, created, "request_created pill exists while messaging is on")
+
+	// School turns messaging OFF, then staff rejects the pending request.
+	settings.enabled = false
+	item, err := svc.Decide(ctx, schedule.CareRequestDecideInput{RequestID: req.ID, Approve: false, Reason: "telefonisch geklärt", ReviewedBy: f.staffAccount})
+	require.NoError(t, err)
+	assert.Equal(t, scheduleModels.CareRequestStatusRejected, item.Request.Status)
+
+	// The closing pill must still be written so the timeline and the queue agree.
+	status, err := f.repos.ParentMessage.FindEventByRef(ctx, thread.ID, usersModels.ParentMessageEventRequestStatus, "schedule.care_schedule_change_requests", req.ID)
+	require.NoError(t, err)
+	require.NotNil(t, status, "the closing request_status pill must be written even while messaging is disabled")
+	assert.Equal(t, usersModels.ParentMessageRequestStatusRejected, status.RequestStatus)
+}
+
+// TestDecide_NoReconcilePillWhenRequestFiledWhileDisabled pins the other half of
+// the reconcile gate: if the request was filed while messaging was already OFF,
+// no thread / request_created pill was ever emitted, so REJECTING must NOT
+// conjure a dangling request_status pill (or create a thread). Only an
+// already-open notice is reconciled.
+func TestDecide_NoReconcilePillWhenRequestFiledWhileDisabled(t *testing.T) {
+	f := newCareFixture(t)
+	svc := schedule.NewCareScheduleRequestService(
+		f.repos.CareScheduleChangeRequest,
+		f.repos.Student,
+		f.repos.Person,
+		f.sf.ArrivalSchedule,
+		f.sf.PickupSchedule,
+		f.sf.UserContext,
+		parentmessaging.NewEmitter(f.db, f.repos.ParentMessageThread, f.repos.ParentMessage, fakeDisabledSettings{}, nil, slog.Default()),
+		nil,
+		slog.Default(),
+	)
+
+	req, err := svc.CreateRequest(f.staffCtx(f.chain.AccountID), f.chain.StudentID, f.chain.AccountID,
+		careWeekdays(map[string]any{"weekday": 1, "mode": "pickup", "arrival": "08:00", "pickup": "16:00"}))
+	require.NoError(t, err)
+
+	ctx := f.staffCtx(f.staffAccount)
+	item, err := svc.Decide(ctx, schedule.CareRequestDecideInput{RequestID: req.ID, Approve: false, Reason: "kein Kanal", ReviewedBy: f.staffAccount})
+	require.NoError(t, err)
+	assert.Equal(t, scheduleModels.CareRequestStatusRejected, item.Request.Status)
+
+	// No thread was ever opened (created pill dropped while disabled), so there is
+	// nothing to reconcile and no dangling status pill.
+	thread, err := f.repos.ParentMessageThread.FindByStudentGuardian(ctx, f.chain.StudentID, f.chain.AccountID)
+	require.NoError(t, err)
+	assert.Nil(t, thread, "a request filed while disabled leaves no thread, so nothing to reconcile")
+}
+
 // TestDecide_ApproveRefusedWhenMessagingDisabled pins the P2 messaging gate
 // (#1803 review follow-up): if the school turns operations.parent_notes_enabled
 // OFF after a request is filed, APPROVING is refused — the guardian's "bestätigt"
