@@ -469,6 +469,19 @@ func TestCheckTeacherStudentAccess(t *testing.T) {
 		assert.False(t, hasAccess, "Expected no access when teacher not in student's group")
 	})
 
+	t.Run("returns false for non-existent student", func(t *testing.T) {
+		// ARRANGE: Create a teacher so the check reaches the student lookup.
+		teacher := testpkg.CreateTestTeacher(t, db, "MissingStudent", "Teacher")
+		defer testpkg.CleanupActivityFixtures(t, db, teacher.ID, teacher.Staff.ID)
+
+		// ACT
+		hasAccess, err := service.CheckTeacherStudentAccess(ctx, teacher.Staff.ID, 999999999)
+
+		// ASSERT
+		require.NoError(t, err)
+		assert.False(t, hasAccess, "Missing students must be treated as an authorization miss")
+	})
+
 	t.Run("returns false for student with nil group ID", func(t *testing.T) {
 		// ARRANGE: Create a teacher and student without group assignment
 		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "NoGroup", "Teacher")

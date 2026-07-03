@@ -460,13 +460,19 @@ func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListPar
 	ctx := r.Context()
 
 	if params.locationState != "" {
-		if params.locationState != "transit" {
+		if params.locationState != "transit" && params.locationState != "present" {
 			return nil, 0, ErrInvalidRequest
 		}
 		if params.roomID > 0 {
 			return nil, 0, ErrInvalidRequest
 		}
-		ids, err := rs.ActiveService.ListStudentsInTransit(ctx)
+		var ids []int64
+		var err error
+		if params.locationState == "present" {
+			ids, err = rs.ActiveService.ListStudentsPresentToday(ctx)
+		} else {
+			ids, err = rs.ActiveService.ListStudentsInTransit(ctx)
+		}
 		if err != nil {
 			return nil, 0, err
 		}

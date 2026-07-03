@@ -511,10 +511,12 @@ export const appChapters: readonly GuideChapter[] = [
           "Bei bekannter Abwesenheit `Entschuldigt` wählen.",
           "Falsche Markierung mit `Zurück auf erwartet` korrigieren.",
           "Ungeplantes Kind über `Weiteres Kind suchen...` hinzufügen.",
+          "Im Bereich `Kinder unterwegs` Kinder ohne Raum auswählen, einen Zielraum wählen und mit `In Raum setzen` zuweisen.",
+          "Den Schulhof über den Schulhof-Tab und `Aufsicht übernehmen` führen; für spontane Aktivitäten bitte einen normalen Raum wählen.",
           "Für ein neues Angebot `Spontane Aktivität starten`.",
         ],
         screenshot:
-          "Laufende Aufsicht mit Anwesend, Erwartet und Spontane Aktivität.",
+          "Laufende Aufsicht mit Anwesend, Kinder unterwegs und Spontane Aktivität.",
         image: "/help/screens/aktuelle-aufsicht.webp",
       },
     ],

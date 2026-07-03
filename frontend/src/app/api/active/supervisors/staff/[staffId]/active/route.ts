@@ -20,10 +20,12 @@ export const GET = createGetHandler(
       throw new Error("Invalid staffId parameter");
     }
 
-    // Fetch active supervisions for the staff member from the API
-    return await apiGet(
+    // The backend wraps the list in { status, data, message } — unwrap it so
+    // clients receive the plain array (coreFetch reads response.data once).
+    const response = await apiGet<{ data: unknown }>(
       `/api/active/supervisors/staff/${params.staffId}/active`,
       token,
     );
+    return response.data;
   },
 );

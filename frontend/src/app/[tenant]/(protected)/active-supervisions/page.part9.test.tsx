@@ -145,6 +145,10 @@ vi.mock("~/components/active", () => ({
   UnclaimedRooms: () => <div data-testid="unclaimed-rooms" />,
 }));
 
+vi.mock("~/components/rooms/transit-students-section", () => ({
+  TransitStudentsSection: () => <div data-testid="transit-students-section" />,
+}));
+
 // Mock LocationBadge
 vi.mock("@/components/ui/location-badge", () => ({
   LocationBadge: () => <div data-testid="location-badge">Location</div>,

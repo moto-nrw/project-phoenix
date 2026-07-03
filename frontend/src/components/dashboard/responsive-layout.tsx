@@ -42,7 +42,7 @@ export default function ResponsiveLayout({ children }: ResponsiveLayoutProps) {
         <Sidebar className="hidden lg:block" />
 
         {/* Main content with bottom padding on mobile for bottom navigation */}
-        <main className="min-w-0 flex-1 p-4 pb-24 md:p-8 lg:pb-8">
+        <main className="min-w-0 flex-1 p-4 pb-[calc(7rem+env(safe-area-inset-bottom))] md:p-8 md:pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-8">
           {children}
         </main>
       </div>
