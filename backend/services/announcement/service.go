@@ -23,15 +23,24 @@ import (
 )
 
 // OutboxEnqueuer is the slice of the email outbox service this package needs:
-// queue one e-mail row inside the current tenant transaction.
+// queue e-mail rows inside the current tenant transaction, and cancel not-yet-
+// sent rows when an announcement is retracted before the worker drains them.
 type OutboxEnqueuer interface {
 	Enqueue(ctx context.Context, req platformService.EnqueueRequest) (*platformModels.EmailOutbox, error)
+	// CancelPendingByRelatedEntity cancels the still-pending outbox rows queued
+	// for an announcement when it is unpublished or deleted, so a retracted or
+	// corrected announcement can never deliver its stale title + portal link.
+	CancelPendingByRelatedEntity(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error)
 }
 
 const (
 	maxTitleLen   = 200
 	maxBodyLen    = 4000
 	maxLinkURLLen = 2000
+
+	// relatedEntityTypeAnnouncement links an outbox row back to its announcement.
+	// Shared by the enqueue and cancel paths so they never drift apart.
+	relatedEntityTypeAnnouncement = "parent_announcement"
 )
 
 // Sentinel errors mapped to HTTP status by the handler.
@@ -236,6 +245,13 @@ func (s *service) Delete(ctx context.Context, id int64) error {
 	if a == nil {
 		return ErrNotFound
 	}
+	// Cancel any not-yet-sent e-mails before removing the announcement: outbox
+	// rows reference it only by related_entity_id (no FK), so a delete would
+	// otherwise leave pending rows that still deliver a notification for an
+	// announcement that no longer exists.
+	if err := s.cancelPendingEmails(ctx, id); err != nil {
+		return err
+	}
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return fmt.Errorf("announcement: delete: %w", err)
 	}
@@ -353,7 +369,7 @@ func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.
 				emailPayloadSchoolName: schoolName,
 				emailPayloadPortalURL:  s.parentsURL,
 			},
-			RelatedEntityType: "parent_announcement",
+			RelatedEntityType: relatedEntityTypeAnnouncement,
 			RelatedEntityID:   a.ID,
 		}); err != nil {
 			return fmt.Errorf("announcement: enqueue e-mail: %w", err)
@@ -364,6 +380,35 @@ func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.
 		slog.Int64("announcement_id", a.ID),
 		slog.Int("queued", queued),
 	)
+	return nil
+}
+
+// cancelPendingEmails cancels any not-yet-sent announcement e-mails queued for
+// this announcement. Called when it is retracted (unpublish) or deleted: a
+// published announcement that opted into e-mail may have queued outbox rows the
+// worker hasn't drained yet, and those carry the OLD title + portal link.
+// Leaving them would deliver a notification for an announcement staff has already
+// pulled — and, on the documented unpublish -> edit -> republish correction path,
+// a stale e-mail followed by a second corrected one. The cancel runs in the same
+// request tenant tx as the state change, so it commits atomically. A missing
+// outbox binding is a no-op. A cancel DB error is returned so the tenant tx rolls
+// back cleanly (mirrors enqueueAnnouncementEmails): a failed statement poisons
+// the tx anyway, so swallowing it would only mask the failure behind a later
+// error.
+func (s *service) cancelPendingEmails(ctx context.Context, id int64) error {
+	if s.outbox == nil {
+		return nil
+	}
+	cancelled, err := s.outbox.CancelPendingByRelatedEntity(ctx, relatedEntityTypeAnnouncement, id, "announcement retracted before send")
+	if err != nil {
+		return fmt.Errorf("announcement: cancel pending e-mails: %w", err)
+	}
+	if cancelled > 0 {
+		s.logger.Info("parent announcement pending e-mails cancelled",
+			slog.Int64("announcement_id", id),
+			slog.Int64("cancelled", cancelled),
+		)
+	}
 	return nil
 }
 
@@ -378,6 +423,12 @@ func (s *service) Unpublish(ctx context.Context, id int64) (*usersModels.ParentA
 	if a.IsPublished() {
 		if err := s.repo.SetPublished(ctx, id, nil); err != nil {
 			return nil, fmt.Errorf("announcement: unpublish: %w", err)
+		}
+		// Retract the queued opt-in e-mails too: the correction path is
+		// unpublish -> edit -> republish, so a still-pending mail with the old
+		// wording must not go out after the announcement is pulled.
+		if err := s.cancelPendingEmails(ctx, id); err != nil {
+			return nil, err
 		}
 		a.PublishedAt = nil
 		s.logger.Info("parent announcement unpublished", slog.Int64("announcement_id", id))
@@ -442,6 +493,15 @@ func normalizeInput(in *Input) ([]*usersModels.ParentAnnouncementTarget, error) 
 	}
 	if !usersModels.ValidAnnouncementPriority(in.Priority) {
 		return nil, fmt.Errorf("%w: priority", ErrValidation)
+	}
+	// A past expiry must fail as a 4xx here, not as a 500 later: the DB
+	// constraint chk_parent_announcements_expiry (expires_at > created_at)
+	// rejects it on insert, and publishing an already-expired announcement is
+	// refused anyway (invisible to parents, immutable). Reject it at input time
+	// so an operator who picks yesterday in the date picker gets a clean
+	// validation error instead of a server error.
+	if in.ExpiresAt != nil && !in.ExpiresAt.After(time.Now()) {
+		return nil, fmt.Errorf("%w: expires_at must be in the future", ErrValidation)
 	}
 	if len(in.Targets) == 0 {
 		return nil, fmt.Errorf("%w: at least one target required", ErrValidation)

@@ -125,4 +125,12 @@ type EmailOutboxRepository interface {
 	// FindByRelatedEntity returns all rows for a feature's related entity
 	// (e.g., "all email rows for enrollment_request 42"). Tenant-scoped.
 	FindByRelatedEntity(ctx context.Context, relatedType string, relatedID int64) ([]*EmailOutbox, error)
+
+	// CancelPendingByRelatedEntity marks every still-pending row for a related
+	// entity as 'failed' with the given reason, so the worker (which only claims
+	// 'pending' rows) never sends them. Used when the triggering entity is
+	// retracted before its async send. Rows already claimed ('sending') or
+	// terminal ('sent'/'failed') are left untouched. Tenant-scoped. Returns the
+	// number of rows cancelled.
+	CancelPendingByRelatedEntity(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error)
 }

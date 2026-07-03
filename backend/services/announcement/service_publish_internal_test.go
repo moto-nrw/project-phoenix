@@ -22,6 +22,7 @@ type fakeAnnouncementRepo struct {
 	recipients   []*usersModels.AnnouncementRecipient
 	updateCalls  int
 	publishCalls int
+	deleteCalls  int
 	// editOnPublish, when set, replaces the stored row the instant PublishIfDraft
 	// runs — simulating a concurrent edit that committed while PublishIfDraft was
 	// blocked on the row lock. The pre-publish load still sees the original.
@@ -49,6 +50,11 @@ func (f *fakeAnnouncementRepo) PublishIfDraft(_ context.Context, _ int64, publis
 	}
 	f.announcement.PublishedAt = &publishedAt
 	return true, nil
+}
+
+func (f *fakeAnnouncementRepo) Delete(_ context.Context, _ int64) error {
+	f.deleteCalls++
+	return nil
 }
 
 func (f *fakeAnnouncementRepo) ReplaceTargets(_ context.Context, _, _ int64, _ []*usersModels.ParentAnnouncementTarget) error {
@@ -79,12 +85,18 @@ func (f *fakeSettings) ResolveBool(_ context.Context, _ string) (bool, error) {
 
 // fakeOutbox captures enqueued e-mails.
 type fakeOutbox struct {
-	requests []platformService.EnqueueRequest
+	requests    []platformService.EnqueueRequest
+	cancelCalls int
 }
 
 func (f *fakeOutbox) Enqueue(_ context.Context, req platformService.EnqueueRequest) (*platformModels.EmailOutbox, error) {
 	f.requests = append(f.requests, req)
 	return &platformModels.EmailOutbox{}, nil
+}
+
+func (f *fakeOutbox) CancelPendingByRelatedEntity(_ context.Context, _ string, _ int64, _ string) (int64, error) {
+	f.cancelCalls++
+	return 0, nil
 }
 
 func newTestService(repo *fakeAnnouncementRepo, outbox *fakeOutbox) Service {
@@ -144,6 +156,55 @@ func TestUpdate_DraftStaysEditable(t *testing.T) {
 	}
 	if repo.updateCalls != 1 {
 		t.Fatalf("expected exactly one repo update, got %d", repo.updateCalls)
+	}
+}
+
+func TestCreate_RejectsPastExpiry(t *testing.T) {
+	repo := &fakeAnnouncementRepo{announcement: draftAnnouncement(false)}
+	svc := newTestService(repo, &fakeOutbox{})
+
+	in := validInput()
+	past := time.Now().Add(-24 * time.Hour)
+	in.ExpiresAt = &past
+
+	_, err := svc.Create(context.Background(), 42, in)
+	if !errors.Is(err, ErrValidation) {
+		t.Fatalf("expected ErrValidation for an expires_at in the past, got %v", err)
+	}
+}
+
+func TestUnpublish_CancelsPendingEmails(t *testing.T) {
+	published := draftAnnouncement(true)
+	now := time.Now()
+	published.PublishedAt = &now
+	repo := &fakeAnnouncementRepo{announcement: published}
+	outbox := &fakeOutbox{}
+	svc := newTestService(repo, outbox)
+
+	if _, err := svc.Unpublish(context.Background(), published.ID); err != nil {
+		t.Fatalf("unpublish failed: %v", err)
+	}
+	if outbox.cancelCalls != 1 {
+		t.Fatalf("expected unpublish to cancel pending e-mails once, got %d", outbox.cancelCalls)
+	}
+}
+
+func TestDelete_CancelsPendingEmails(t *testing.T) {
+	published := draftAnnouncement(true)
+	now := time.Now()
+	published.PublishedAt = &now
+	repo := &fakeAnnouncementRepo{announcement: published}
+	outbox := &fakeOutbox{}
+	svc := newTestService(repo, outbox)
+
+	if err := svc.Delete(context.Background(), published.ID); err != nil {
+		t.Fatalf("delete failed: %v", err)
+	}
+	if outbox.cancelCalls != 1 {
+		t.Fatalf("expected delete to cancel pending e-mails once, got %d", outbox.cancelCalls)
+	}
+	if repo.deleteCalls != 1 {
+		t.Fatalf("expected exactly one repo delete, got %d", repo.deleteCalls)
 	}
 }
 
@@ -283,6 +344,10 @@ type failingOutbox struct{}
 
 func (failingOutbox) Enqueue(_ context.Context, _ platformService.EnqueueRequest) (*platformModels.EmailOutbox, error) {
 	return nil, errors.New("outbox insert failed")
+}
+
+func (failingOutbox) CancelPendingByRelatedEntity(_ context.Context, _ string, _ int64, _ string) (int64, error) {
+	return 0, nil
 }
 
 // A failed e-mail enqueue must fail the publish rather than being swallowed: the

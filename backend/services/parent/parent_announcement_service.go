@@ -108,7 +108,11 @@ func (s *service) stampAnnouncement(ctx context.Context, accountID, announcement
 	if accountID <= 0 || announcementID <= 0 {
 		return fmt.Errorf("parent: account_id and announcement_id must be positive")
 	}
-	return tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
+	// Phase 1: resolve + authorize inside the admin tx, capturing what the write
+	// needs (tenant + ack requirement).
+	var announcementTenantID int64
+	var requiresAck bool
+	if err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
 		a, err := s.announcementRepo.FindByID(adminCtx, announcementID)
 		if err != nil {
 			return fmt.Errorf("parent: load announcement: %w", err)
@@ -127,11 +131,42 @@ func (s *service) stampAnnouncement(ctx context.Context, accountID, announcement
 		if !matched {
 			return ErrAnnouncementNotFound
 		}
-		if ack && !a.RequiresAcknowledgement {
-			return ErrAnnouncementAckNotRequired
-		}
+		announcementTenantID = a.GetTenantID()
+		requiresAck = a.RequiresAcknowledgement
+		return nil
+	}); err != nil {
+		return err
+	}
+	// Re-check the school's parent-news flag before stamping any read/ack row.
+	// The list + unread-badge paths already hide a school that turned the feature
+	// off (newsEnabledTenants); a direct read/acknowledge on a stale page or a
+	// known ID must not keep collecting interaction stats for that disabled
+	// school, so a disabled school collapses to the same 404 the feed shows. Runs
+	// OUTSIDE the admin tx because ResolveBoolForTenant opens its own tenant tx.
+	// Fails CLOSED: an unwired settings service or a resolve error excludes the
+	// school just like the feed does.
+	if s.settings == nil {
+		return ErrAnnouncementNotFound
+	}
+	on, err := s.settings.ResolveBoolForTenant(ctx, announcementTenantID, configModel.KeyParentNewsEnabled)
+	if err != nil {
+		s.logger.Warn("parent: resolve parent_news_enabled failed, refusing stamp",
+			slog.Int64("tenant_id", announcementTenantID),
+			slog.Int64("announcement_id", announcementID),
+			slog.String("error", err.Error()),
+		)
+		return ErrAnnouncementNotFound
+	}
+	if !on {
+		return ErrAnnouncementNotFound
+	}
+	if ack && !requiresAck {
+		return ErrAnnouncementAckNotRequired
+	}
+	// Phase 2: stamp the read/ack row in a fresh admin tx.
+	return tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
 		if ack {
-			if err := s.announcementRepo.MarkAcknowledged(adminCtx, a.GetTenantID(), announcementID, accountID); err != nil {
+			if err := s.announcementRepo.MarkAcknowledged(adminCtx, announcementTenantID, announcementID, accountID); err != nil {
 				return err
 			}
 			s.logger.Info("parent acknowledged announcement",
@@ -140,7 +175,7 @@ func (s *service) stampAnnouncement(ctx context.Context, accountID, announcement
 			)
 			return nil
 		}
-		return s.announcementRepo.MarkRead(adminCtx, a.GetTenantID(), announcementID, accountID)
+		return s.announcementRepo.MarkRead(adminCtx, announcementTenantID, announcementID, accountID)
 	})
 }
 
