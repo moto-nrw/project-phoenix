@@ -61,10 +61,19 @@ func (rs *Resource) listReminders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Admin scope must be derived from the effective permissions, not the
+	// literal "admin" role name: the route gate (RequiresPermission users:read)
+	// also admits wildcard admins (admin:* / *:*) via custom roles or service
+	// accounts, and those callers have claims.IsAdmin == false. Relying on the
+	// role name alone would push them down the caregiver path, which yields a
+	// wrong 403 for accounts without a staff row, or caregiver-scoped reminders
+	// for a full admin. This mirrors CanReadStudent and the rest of the
+	// authorization layer.
 	claims := jwt.ClaimsFromCtx(ctx)
-	scope := remindersService.Scope{IsAdmin: claims.IsAdmin}
+	isAdmin := claims.IsAdmin || authorize.HasAdminWildcard(jwt.PermissionsFromCtx(ctx))
+	scope := remindersService.Scope{IsAdmin: isAdmin}
 
-	if !claims.IsAdmin {
+	if !isAdmin {
 		if rs.UserContext == nil {
 			common.RenderError(w, r, common.ErrorInternalServer(errors.New("user context is not configured")))
 			return
