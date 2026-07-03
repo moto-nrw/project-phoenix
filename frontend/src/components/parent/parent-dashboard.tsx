@@ -19,6 +19,7 @@ import {
   NewsDetailModal,
 } from "~/components/parent/news/news-components";
 import { createLogger } from "~/lib/logger";
+import { useParentNewsEnabled } from "~/lib/hooks/use-parent-news-enabled";
 
 const logger = createLogger({ component: "ParentDashboard" });
 
@@ -325,6 +326,11 @@ const NEWS_PANEL_LIMIT = 3;
 
 function StartNewsPanel() {
   const t = useTranslations("parentDashboard");
+  // Only render on the dashboard once a linked school broadcasts announcements
+  // (the backend feed excludes disabled tenants). Rendered only in the parents
+  // portal, so `enabled` is always true here. Keeps the panel from showing an
+  // empty "Neuigkeiten" area when the feature is off for every linked school.
+  const newsEnabled = useParentNewsEnabled(true);
   const [items, setItems] = useState<ParentAnnouncement[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -371,6 +377,8 @@ function StartNewsPanel() {
 
   const visible = items.slice(0, NEWS_PANEL_LIMIT);
   const openItem = items.find((item) => item.id === openId) ?? null;
+
+  if (!newsEnabled) return null;
 
   return (
     <section

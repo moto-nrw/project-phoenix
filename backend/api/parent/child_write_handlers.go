@@ -179,6 +179,7 @@ type ChildFeaturesResponse struct {
 	MasterDataContactEditEnabled bool `json:"master_data_contact_edit_enabled"`
 	MasterDataRequestEnabled     bool `json:"master_data_request_enabled"`
 	MealPlanEnabled              bool `json:"meal_plan_enabled"`
+	NewsEnabled                  bool `json:"parent_news_enabled"`
 }
 
 // getChildFeatures returns the resolved parent-portal feature flags for the
@@ -209,6 +210,7 @@ func (rs *Resource) getChildFeatures(w http.ResponseWriter, r *http.Request) {
 		MasterDataContactEditEnabled: flags.MasterDataContactEditEnabled,
 		MasterDataRequestEnabled:     flags.MasterDataRequestEnabled,
 		MealPlanEnabled:              flags.MealPlanEnabled,
+		NewsEnabled:                  flags.NewsEnabled,
 	}, "Child features retrieved")
 }
 

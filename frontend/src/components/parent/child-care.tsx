@@ -97,6 +97,10 @@ const DEFAULT_FEATURES: ChildFeatures = {
   master_data_contact_edit_enabled: false,
   master_data_request_enabled: false,
   meal_plan_enabled: false,
+  // Default false on fetch failure (least privilege): hide the Neuigkeiten
+  // panel rather than showing an empty one for a school that has news off; the
+  // backend feed enforces the gate regardless.
+  parent_news_enabled: false,
 };
 
 export interface ChildCare {

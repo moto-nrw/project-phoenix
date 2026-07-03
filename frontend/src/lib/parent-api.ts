@@ -104,6 +104,11 @@ export interface ChildFeatures {
   readonly master_data_contact_edit_enabled: boolean;
   readonly master_data_request_enabled: boolean;
   readonly meal_plan_enabled: boolean;
+  // Whether the school broadcasts parent announcements
+  // (operations.parent_news_enabled). When every linked school has it off the
+  // Neuigkeiten feed is empty, so the parents-portal nav/panel entries gate on
+  // this to avoid dead-ending on an empty page.
+  readonly parent_news_enabled: boolean;
 }
 
 // One dish of the read-only meal plan (Essensplan) for a child's school.

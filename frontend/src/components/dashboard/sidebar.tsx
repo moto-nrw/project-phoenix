@@ -22,6 +22,7 @@ import { useSuggestionsUnread } from "~/lib/hooks/use-suggestions-unread";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import { useParentMessagesUnread } from "~/lib/hooks/use-parent-messages-unread";
 import { useParentNewsUnread } from "~/lib/hooks/use-parent-news-unread";
+import { useParentNewsEnabled } from "~/lib/hooks/use-parent-news-enabled";
 import { useParentMealPlanEnabled } from "~/lib/hooks/use-parent-meal-plan-enabled";
 import { useOperatorSuggestionsUnread } from "~/lib/hooks/use-operator-suggestions-unread";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
@@ -439,6 +440,11 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // Only advertise Essensplan in the parents portal once a linked school runs
   // a meal plan; otherwise the link leads to an empty/unavailable page.
   const parentMealPlanEnabled = useParentMealPlanEnabled(mode === "parent");
+  // Only advertise Neuigkeiten in the parents portal once a linked school
+  // broadcasts announcements; otherwise the feed is empty (the backend excludes
+  // disabled tenants) and the link dead-ends. Distinct from the staff-side
+  // parentNewsEnabled below, which reads the tenant settings schema.
+  const parentPortalNewsEnabled = useParentNewsEnabled(mode === "parent");
 
   // Accordion state passes `from` param so child pages (e.g. student detail)
   // keep the originating accordion section open
@@ -1002,26 +1008,28 @@ function SidebarContent({ className = "" }: SidebarProps) {
               <span>{tParentNav("messages")}</span>
               <UnreadBadge count={parentMessagesUnread} className="ml-auto" />
             </Link>
-            <Link
-              href="/parents/news"
-              className={getLinkClasses("/parents/news")}
-            >
-              <svg
-                className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+            {parentPortalNewsEnabled && (
+              <Link
+                href="/parents/news"
+                className={getLinkClasses("/parents/news")}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d={navigationIcons.newspaper}
-                />
-              </svg>
-              <span>{tParentNav("news")}</span>
-              <UnreadBadge count={parentNewsUnread} className="ml-auto" />
-            </Link>
+                <svg
+                  className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d={navigationIcons.newspaper}
+                  />
+                </svg>
+                <span>{tParentNav("news")}</span>
+                <UnreadBadge count={parentNewsUnread} className="ml-auto" />
+              </Link>
+            )}
             {parentMealPlanEnabled && (
               <Link
                 href="/parents/meal-plan"

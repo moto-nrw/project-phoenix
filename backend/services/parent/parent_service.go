@@ -247,6 +247,12 @@ type ChildFeatureFlags struct {
 	// (operations.meal_plan_enabled), so the portal can show the read-only
 	// Essensplan section for this child's school.
 	MealPlanEnabled bool
+	// NewsEnabled is true when the school broadcasts parent announcements
+	// (operations.parent_news_enabled), so the portal can advertise the
+	// Neuigkeiten feed for this child's school. When every linked school has
+	// it off, the feed/unread endpoints return nothing and the nav/panel
+	// entries must stay hidden rather than dead-end on an empty page.
+	NewsEnabled bool
 }
 
 // CareException is the parent-facing projection of a single day's pickup and/or

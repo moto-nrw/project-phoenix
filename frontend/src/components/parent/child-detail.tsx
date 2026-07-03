@@ -369,7 +369,7 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
             canInvite={care.features.related_accounts_invite_enabled}
             canRemove={care.features.related_accounts_remove_enabled}
           />
-          <NewsPanel />
+          {care.features.parent_news_enabled && <NewsPanel />}
         </div>
       </div>
 
@@ -478,7 +478,7 @@ function MobileChildAppView({
         mobile
       />
 
-      <NewsPanel mobile />
+      {care.features.parent_news_enabled && <NewsPanel mobile />}
 
       <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
         <h2 className="text-lg font-semibold text-gray-900">
