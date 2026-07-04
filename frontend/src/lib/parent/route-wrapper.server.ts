@@ -83,11 +83,11 @@ function parseResponse<T>(response: Response): Promise<T> {
   });
 }
 
-function parentApiGet<T>(endpoint: string, token: string): Promise<T> {
+export function parentApiGet<T>(endpoint: string, token: string): Promise<T> {
   return parentServerFetch<T>(endpoint, token, { method: "GET" });
 }
 
-function parentApiPost<T, B = unknown>(
+export function parentApiPost<T, B = unknown>(
   endpoint: string,
   token: string,
   body?: B,
@@ -102,7 +102,7 @@ export function parentApiDelete<T>(
   return parentServerFetch<T>(endpoint, token, { method: "DELETE" });
 }
 
-function parentApiPut<T, B = unknown>(
+export function parentApiPut<T, B = unknown>(
   endpoint: string,
   token: string,
   body?: B,
@@ -210,30 +210,21 @@ function createParentWithBodyHandler<T, B>(handler: WithBodyHandler<T, B>) {
 
 const jsonResponse = <T>(data: T) => NextResponse.json(wrapInApiResponse(data));
 
-function createParentGetHandler<T>(handler: NoBodyHandler<T>) {
+export function createParentGetHandler<T>(handler: NoBodyHandler<T>) {
   return createParentNoBodyHandler(handler, jsonResponse);
 }
 
-function createParentPostHandler<T, B = unknown>(
+export function createParentPostHandler<T, B = unknown>(
   handler: WithBodyHandler<T, B>,
 ) {
   return createParentWithBodyHandler(handler);
 }
 
-export {
-  createParentGetHandler,
-  createParentPostHandler,
-  createParentPutHandler,
-  parentApiGet,
-  parentApiPost,
-  parentApiPut,
-};
-
 export function createParentDeleteHandler<T>(handler: NoBodyHandler<T>) {
   return createParentNoBodyHandler(handler, jsonResponse);
 }
 
-function createParentPutHandler<T, B = unknown>(
+export function createParentPutHandler<T, B = unknown>(
   handler: WithBodyHandler<T, B>,
 ) {
   return createParentWithBodyHandler(handler);

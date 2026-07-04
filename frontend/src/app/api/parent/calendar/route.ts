@@ -1,15 +1,6 @@
-import type { NextRequest } from "next/server";
-import {
-  createParentGetHandler,
-  parentApiGet,
-} from "~/lib/parent/route-wrapper.server";
+import { createParentCalendarGetHandler } from "~/lib/parent/calendar-route-proxy.server";
 
-export const GET = createParentGetHandler(
-  async (request: NextRequest, token: string) => {
-    const search = request.nextUrl.searchParams.toString();
-    return parentApiGet<unknown>(
-      `/parent/me/calendar${search ? `?${search}` : ""}`,
-      token,
-    );
-  },
-);
+export const GET = createParentCalendarGetHandler<unknown>((request) => {
+  const search = request.nextUrl.searchParams.toString();
+  return `/parent/me/calendar${search ? `?${search}` : ""}`;
+});

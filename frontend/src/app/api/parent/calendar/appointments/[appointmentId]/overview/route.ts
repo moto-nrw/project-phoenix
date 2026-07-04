@@ -1,12 +1,8 @@
-import {
-  createParentGetHandler,
-  parentApiGet,
-} from "~/lib/parent/route-wrapper.server";
+import { createParentCalendarGetHandler } from "~/lib/parent/calendar-route-proxy.server";
 
-export const GET = createParentGetHandler(async (_request, token, params) => {
-  const appointmentId = params.appointmentId as string;
-  return parentApiGet<unknown>(
-    `/parent/me/calendar/appointments/${encodeURIComponent(appointmentId)}/overview`,
-    token,
-  );
-});
+export const GET = createParentCalendarGetHandler<unknown>(
+  (_request, params) => {
+    const appointmentId = params.appointmentId as string;
+    return `/parent/me/calendar/appointments/${encodeURIComponent(appointmentId)}/overview`;
+  },
+);
