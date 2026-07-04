@@ -15,10 +15,8 @@ import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { permissionsConfig } from "@/components/database/configs/permissions.config";
 import type { Permission } from "@/lib/auth-helpers";
-import {
-  PermissionEditModal,
-  PermissionsMasterDetail,
-} from "@/components/permissions";
+import { PermissionEditModal } from "@/components/permissions/permission-edit-modal";
+import { PermissionsMasterDetail } from "@/components/permissions/permissions-master-detail";
 import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {

@@ -2,7 +2,7 @@
 
 import { defineEntityConfig } from "@/lib/database/types";
 import { databaseThemes } from "@/lib/database/themes";
-import { GroupSelect } from "@/components/ui/database";
+import { GroupSelect } from "@/components/ui/database/database-select";
 import type { Student } from "@/lib/api";
 import { busDaysFromToggle, formatBusDays } from "@/lib/student-helpers";
 import dynamic from "next/dynamic";

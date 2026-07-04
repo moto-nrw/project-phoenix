@@ -9,7 +9,7 @@ import type {
   BackendStaff,
   BackendSubstitutionInfo,
 } from "./substitution-helpers";
-import { buildBackendGroup } from "~/test/fixtures";
+import { buildBackendGroup } from "~/test/fixtures/groups";
 
 // Mock dependencies
 vi.mock("./session-cache", () => {

@@ -33,7 +33,7 @@ import {
   extractGuardianContact,
   getStatusColor,
 } from "./student-helpers";
-import { buildBackendStudent } from "~/test/fixtures";
+import { buildBackendStudent } from "~/test/fixtures/students";
 
 // Sample backend student for testing
 const sampleBackendStudent = buildBackendStudent({

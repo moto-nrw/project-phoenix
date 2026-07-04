@@ -9,7 +9,7 @@ import {
   buildBackendActiveSession,
   buildBackendVisit,
   buildBackendSupervisor,
-} from "~/test/fixtures";
+} from "~/test/fixtures/sessions";
 
 // Mock dependencies before importing the module
 vi.mock("next-auth/react", () => ({

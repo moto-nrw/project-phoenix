@@ -135,7 +135,7 @@ vi.mock("~/components/ui/database/database-form-modal", () => ({
     ) : null,
 }));
 
-vi.mock("@/components/permissions", () => ({
+vi.mock("@/components/permissions/permission-edit-modal", () => ({
   PermissionEditModal: ({
     isOpen,
     onClose,
@@ -164,6 +164,9 @@ vi.mock("@/components/permissions", () => ({
         </button>
       </div>
     ) : null,
+}));
+
+vi.mock("@/components/permissions/permissions-master-detail", () => ({
   PermissionsMasterDetail: ({
     permissions,
     selectedId,

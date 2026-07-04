@@ -2,11 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { suppressConsole } from "~/test/helpers/console";
 import { createAxiosResponse } from "~/test/helpers/axios";
 import { mockSessionData } from "~/test/mocks/next-auth";
-import {
-  buildBackendStudent,
-  buildStudent,
-  buildBackendGroup,
-} from "~/test/fixtures";
+import { buildBackendStudent, buildStudent } from "~/test/fixtures/students";
+import { buildBackendGroup } from "~/test/fixtures/groups";
 
 // Mock dependencies before importing the module
 vi.mock("next-auth/react", () => ({
