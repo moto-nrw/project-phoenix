@@ -703,13 +703,14 @@ func TestPickupNextChange(t *testing.T) {
 	})
 
 	t.Run("an in-window upcoming pickup schedules its flip-to-overdue moment", func(t *testing.T) {
-		// pickup 5 min away: window-entry (595) is already past, so the next change
-		// is the flip to overdue at pickupMin = 605.
+		// pickup 5 min away: window-entry (595) is already past. At pickupMin (605)
+		// the diff is still 0 (upcoming); the flip to overdue is the first minute
+		// pickupMin is in the past, pickupMin+1 = 606.
 		svc := newSvc(map[int64]*scheduleService.EffectivePickupTime{1: pickupAt(605)})
 		out, next, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
 		require.NoError(t, err)
 		require.Len(t, out, 1)
-		assert.Equal(t, 605, next)
+		assert.Equal(t, 606, next)
 	})
 
 	t.Run("an already-overdue pickup has no future time-based change", func(t *testing.T) {
@@ -725,8 +726,40 @@ func TestPickupNextChange(t *testing.T) {
 		svc := newSvc(map[int64]*scheduleService.EffectivePickupTime{1: pickupAt(620)})
 		_, next, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1}, timezone.TodayDate(), nowMin, lead, false, true)
 		require.NoError(t, err)
-		assert.Equal(t, 620, next, "overdue-only: no window entry, only the flip at pickupMin")
+		assert.Equal(t, 621, next, "overdue-only: no window entry, only the flip at pickupMin+1 (first overdue minute)")
 	})
+}
+
+// TestPickupNextChangeExcludesUnreadableStudents guards the GDPR gate on the
+// next-change timer: a child the caregiver may not read must not leak its future
+// pickup minute through next_change_at, even though its reminder is never
+// emitted. Student 2 (a non-supervised group) has the SOONER boundary; only
+// student 1's must survive.
+func TestPickupNextChangeExcludesUnreadableStudents(t *testing.T) {
+	const nowMin = 600 // 10:00
+	const lead = 10
+	g100 := int64(100)
+	g200 := int64(200)
+
+	svc := &service{
+		pickup: fakePickup{times: map[int64]*scheduleService.EffectivePickupTime{
+			1: pickupAt(660), // supervised: enters its window at 650
+			2: pickupAt(620), // NOT supervised: would enter at 610 (sooner) — must not leak
+		}},
+		student: fakeStudent{students: map[int64]*userModel.Student{
+			1: {PersonID: 11, SchoolClass: "1a", GroupID: &g100},
+			2: {PersonID: 12, SchoolClass: "1b", GroupID: &g200},
+		}},
+		person:   fakePerson{persons: map[int64]*userModel.Person{11: {FirstName: "Anna", LastName: "A"}}},
+		settings: fakeSettings{}, // no override → group_supervisors_only
+		groups:   fakeGroups{groups: []*educationModel.Group{eduGroup(100)}},
+	}
+	caregiver := Scope{IsAdmin: false, StaffID: 7}
+
+	out, next, err := svc.pickupReminders(context.Background(), caregiver, []int64{1, 2}, timezone.TodayDate(), nowMin, lead, true, true)
+	require.NoError(t, err)
+	assert.Empty(t, out, "neither pickup is inside its window yet")
+	assert.Equal(t, 650, next, "only the readable child's boundary may schedule the refetch")
 }
 
 func TestActivityNextChange(t *testing.T) {

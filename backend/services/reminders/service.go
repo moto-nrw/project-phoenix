@@ -385,10 +385,25 @@ func (s *service) pickupReminders(ctx context.Context, scope Scope, studentIDs [
 		return nil, nextChange, err
 	}
 
-	// Compute the due set (upcoming/overdue) BEFORE hydrating names or checking
-	// read access. A large school may have hundreds of students present but only
-	// a handful whose pickup is actually within the window, and the header polls
-	// every 60s — hydrating every present student would be wasteful.
+	// Apply the read-access gate BEFORE deriving anything from the pickup times,
+	// including the next-change boundaries. studentIDs is presence-scoped only and
+	// may contain children the caller may not read (binary mode's all-present
+	// list, or a non-supervised child sharing a supervised room). Computing a
+	// boundary from an unreadable child's pickup would leak that child's exact
+	// future pickup minute through next_change_at even though no reminder for them
+	// is ever returned — so only students that pass the same gdpr.student_data_scope
+	// gate as the emitted reminders may influence this response at all. Names are
+	// still hydrated only for the due subset below (a large school may have many
+	// present students but only a handful actually within the window, and the
+	// header polls every 60s), so the wasteful person lookups stay bounded.
+	readable, err := s.readableStudents(ctx, scope, studentIDs)
+	if err != nil {
+		return nil, nextChange, err
+	}
+	if len(readable) == 0 {
+		return nil, nextChange, nil
+	}
+
 	type duePickup struct {
 		id        int64
 		pickupMin int
@@ -397,22 +412,34 @@ func (s *service) pickupReminders(ctx context.Context, scope Scope, studentIDs [
 	}
 	dues := make([]duePickup, 0)
 	for _, id := range studentIDs {
+		if _, ok := readable[id]; !ok {
+			// Not readable under gdpr.student_data_scope — must contribute neither
+			// a reminder nor a next-change boundary.
+			continue
+		}
 		effective := times[id]
 		if effective == nil || effective.PickupTime == nil {
 			continue
 		}
 		pickupMin := minutesOfDay(*effective.PickupTime)
 
-		// Next-change boundaries are tracked for EVERY present student's pickup,
+		// Next-change boundaries are tracked for EVERY readable student's pickup,
 		// not just the currently-due ones: a pickup still outside its lead window
 		// contributes the moment it will enter (pickupMin-lead) and the moment it
-		// flips upcoming->overdue (pickupMin). This is what lets the frontend time
-		// the first appearance of a reminder that isn't in this response yet.
+		// flips upcoming->overdue. The flip happens the first minute pickupMin is
+		// in the past — pickupMin+1, NOT pickupMin: at exactly pickupMin the diff
+		// is 0, which is still "upcoming" (and, when only upcoming is enabled, the
+		// upcoming reminder itself only disappears at pickupMin+1). Scheduling
+		// pickupMin would refetch a minute early (nothing changed yet) and, since
+		// that boundary is then no longer in the future, drop the real pickupMin+1
+		// boundary — leaving the overdue reminder to surface only on the next 60s
+		// poll. This is what lets the frontend time the first appearance of a
+		// reminder that isn't in this response yet.
 		if upcoming {
 			nextChange = minFuture(nextChange, futureBoundary(pickupMin-lead, nowMin))
 		}
 		if upcoming || overdue {
-			nextChange = minFuture(nextChange, futureBoundary(pickupMin, nowMin))
+			nextChange = minFuture(nextChange, futureBoundary(pickupMin+1, nowMin))
 		}
 
 		diff := pickupMin - nowMin
@@ -432,8 +459,8 @@ func (s *service) pickupReminders(ctx context.Context, scope Scope, studentIDs [
 		dueIDs[i] = d.id
 	}
 
-	// Hydrate names + apply the read-access gate for the due students only.
-	infos, err := s.readableStudentInfo(ctx, scope, dueIDs)
+	// Hydrate display names for the due students only (all already read-gated).
+	infos, err := s.hydrateNames(ctx, readable, dueIDs)
 	if err != nil {
 		return nil, nextChange, err
 	}
@@ -442,8 +469,8 @@ func (s *service) pickupReminders(ctx context.Context, scope Scope, studentIDs [
 	for _, d := range dues {
 		info, ok := infos[d.id]
 		if !ok {
-			// Not readable under gdpr.student_data_scope, or the record is
-			// missing — skip silently rather than leak an unauthorized pickup.
+			// The student record went missing between the read gate and name
+			// hydration — skip silently rather than emit an empty-title reminder.
 			continue
 		}
 		reminderType := TypePickupUpcoming
@@ -539,27 +566,26 @@ type studentNameInfo struct {
 	class string
 }
 
-// readableStudentInfo hydrates the display name + school class for each due
-// student the caller is allowed to read. It enforces the same
-// gdpr.student_data_scope gate the pickup-schedule endpoints use: room presence
-// alone does not grant visibility of a student's pickup data — a caregiver must
-// supervise the student's education group (unless the tenant runs the all_staff
-// scope, or the caller is an admin).
+// readableStudents loads the given students and returns only those the caller is
+// allowed to read. It enforces the same gdpr.student_data_scope gate the
+// pickup-schedule endpoints use: room presence alone does not grant visibility
+// of a student's pickup data — a caregiver must supervise the student's
+// education group (unless the tenant runs the all_staff scope, or the caller is
+// an admin).
 //
-// A DB/RLS lookup error is propagated: the pickup-reminder API contract
-// promises a student name as the title, so a failed read must fail the request
-// rather than emit unusable reminders with empty titles.
-func (s *service) readableStudentInfo(ctx context.Context, scope Scope, ids []int64) (map[int64]studentNameInfo, error) {
-	result := make(map[int64]studentNameInfo, len(ids))
+// A DB/RLS lookup error or a settings-resolution error is propagated rather than
+// treated as no-access, so a broken read fails the request instead of silently
+// hiding (or exposing) reminders.
+func (s *service) readableStudents(ctx context.Context, scope Scope, ids []int64) (map[int64]*userModel.Student, error) {
 	if s.student == nil {
 		// Without a student reader we can neither verify read access nor build a
 		// title. Fail closed (return nothing) rather than expose unverified data.
-		return result, nil
+		return map[int64]*userModel.Student{}, nil
 	}
 
 	students, err := s.student.FindByIDs(ctx, ids)
 	if err != nil {
-		return nil, fmt.Errorf("load student names: %w", err)
+		return nil, fmt.Errorf("load students: %w", err)
 	}
 
 	allowed, err := s.pickupReadPredicate(ctx, scope)
@@ -568,23 +594,43 @@ func (s *service) readableStudentInfo(ctx context.Context, scope Scope, ids []in
 	}
 
 	readable := make(map[int64]*userModel.Student, len(students))
-	personIDs := make([]int64, 0, len(students))
 	for id, st := range students {
 		if st == nil || !allowed(st) {
 			continue
 		}
 		readable[id] = st
-		personIDs = append(personIDs, st.PersonID)
+	}
+	return readable, nil
+}
+
+// hydrateNames builds the display name + school class for the given (already
+// read-gated) students. Only the due subset is hydrated: the pickup-reminder API
+// contract promises a student name as the title, so a failed person read must
+// fail the request rather than emit unusable reminders with empty titles.
+func (s *service) hydrateNames(ctx context.Context, readable map[int64]*userModel.Student, ids []int64) (map[int64]studentNameInfo, error) {
+	result := make(map[int64]studentNameInfo, len(ids))
+
+	personIDs := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if st := readable[id]; st != nil {
+			personIDs = append(personIDs, st.PersonID)
+		}
 	}
 
 	var persons map[int64]*userModel.Person
 	if s.person != nil && len(personIDs) > 0 {
+		var err error
 		persons, err = s.person.FindByIDs(ctx, personIDs)
 		if err != nil {
 			return nil, fmt.Errorf("load persons for student names: %w", err)
 		}
 	}
-	for id, st := range readable {
+
+	for _, id := range ids {
+		st := readable[id]
+		if st == nil {
+			continue
+		}
 		info := studentNameInfo{class: st.SchoolClass}
 		if persons != nil {
 			if p := persons[st.PersonID]; p != nil {
