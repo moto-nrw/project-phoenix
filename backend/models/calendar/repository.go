@@ -44,6 +44,6 @@ type AppointmentTargetRepository interface {
 type AppointmentOccurrenceOverrideRepository interface {
 	Create(ctx context.Context, override *AppointmentOccurrenceOverride) error
 	Update(ctx context.Context, override *AppointmentOccurrenceOverride) error
-	FindByAppointmentIDsInRange(ctx context.Context, appointmentIDs []int64, from, to timezone.Date) ([]*AppointmentOccurrenceOverride, error)
+	FindByAppointmentIDsAndOccurrenceDates(ctx context.Context, appointmentIDs []int64, occurrenceDates []timezone.Date) ([]*AppointmentOccurrenceOverride, error)
 	Delete(ctx context.Context, id any) error
 }

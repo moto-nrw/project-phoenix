@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
@@ -95,6 +96,37 @@ func (r *GuardianProfileRepository) FindByIDs(ctx context.Context, ids []int64) 
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("failed to find guardian profiles by ids: %w", err)
+	}
+
+	result := make(map[int64]*users.GuardianProfile, len(profiles))
+	for _, profile := range profiles {
+		result[profile.ID] = profile
+	}
+	return result, nil
+}
+
+// FindActivePortalProfilesByIDs returns only guardian profiles that are linked
+// to an active parent portal account for the current tenant.
+func (r *GuardianProfileRepository) FindActivePortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*users.GuardianProfile, error) {
+	if len(ids) == 0 {
+		return make(map[int64]*users.GuardianProfile), nil
+	}
+
+	var profiles []*users.GuardianProfile
+	query := repoBase.GetDB(ctx, r.db).NewSelect().
+		Model(&profiles).
+		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
+		Join(`INNER JOIN auth.account_tenants AS "account_tenant" ON "account_tenant".account_id = "guardian_profile".account_id AND "account_tenant".tenant_id = "guardian_profile".tenant_id`).
+		Where(`"guardian_profile".id IN (?)`, bun.List(ids)).
+		Where(`"guardian_profile".account_id IS NOT NULL`).
+		Where(`"account_tenant".status = ?`, authModels.AccountTenantStatusActive)
+
+	if where, val, ok := repoBase.TenantWhere(ctx, "guardian_profile"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, fmt.Errorf("failed to find active portal guardian profiles by ids: %w", err)
 	}
 
 	result := make(map[int64]*users.GuardianProfile, len(profiles))

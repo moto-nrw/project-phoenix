@@ -336,7 +336,7 @@ func personalCalendarUp(ctx context.Context, db *bun.DB) error {
 		FROM auth.roles r
 		CROSS JOIN auth.permissions p
 		WHERE p.name = 'calendar:manage'
-		  AND r.name IN ('admin', 'teacher', 'staff')
+		  AND r.name IN ('admin', 'user', 'teacher', 'staff')
 		ON CONFLICT (role_id, permission_id) DO NOTHING;
 	`)
 	if err != nil {

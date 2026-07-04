@@ -526,8 +526,19 @@ func (s *service) RecipientOptions(ctx context.Context, query string, limit int)
 	if err != nil {
 		return nil, err
 	}
+	parentIDs := make([]int64, 0, len(parents))
+	for _, parent := range parents {
+		parentIDs = append(parentIDs, parent.ID)
+	}
+	activeParents, err := s.cfg.GuardianProfileRepo.FindActivePortalProfilesByIDs(ctx, parentIDs)
+	if err != nil {
+		return nil, err
+	}
 	parentOptions := make([]ParentOption, 0, len(parents))
 	for _, parent := range parents {
+		if _, ok := activeParents[parent.ID]; !ok {
+			continue
+		}
 		visible, err := s.guardianHasPortalVisibleStudent(ctx, parent.ID)
 		if err != nil {
 			return nil, err
@@ -620,7 +631,8 @@ func (s *service) expandAppointmentEvents(ctx context.Context, appointments []*c
 	for _, recurrence := range recurrences {
 		recurrenceByAppointment[recurrence.AppointmentID] = recurrence
 	}
-	overrides, err := s.cfg.OverrideRepo.FindByAppointmentIDsInRange(ctx, ids, from, to)
+	occurrenceDates := occurrenceDatesForAppointments(appointments, recurrenceByAppointment, from, to)
+	overrides, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndOccurrenceDates(ctx, ids, occurrenceDates)
 	if err != nil {
 		return nil, err
 	}
@@ -671,7 +683,8 @@ func (s *service) expandGuardianAppointmentEvents(ctx context.Context, appointme
 	for _, recurrence := range recurrences {
 		recurrenceByAppointment[recurrence.AppointmentID] = recurrence
 	}
-	overrides, err := s.cfg.OverrideRepo.FindByAppointmentIDsInRange(ctx, ids, from, to)
+	occurrenceDates := occurrenceDatesForAppointments(appointments, recurrenceByAppointment, from, to)
+	overrides, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndOccurrenceDates(ctx, ids, occurrenceDates)
 	if err != nil {
 		return nil, err
 	}
@@ -798,10 +811,30 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 
 	staffIDs := map[int64]struct{}{}
 	guardianStudents := map[int64]map[int64]struct{}{}
+	activeGuardianCache := map[int64]bool{}
 	targetRows := make([]*calModels.AppointmentTarget, 0, len(targets))
-	addGuardian := func(guardianProfileID int64, studentID *int64) {
+	guardianCanReceive := func(guardianProfileID int64) (bool, error) {
+		if active, ok := activeGuardianCache[guardianProfileID]; ok {
+			return active, nil
+		}
+		profiles, err := s.cfg.GuardianProfileRepo.FindActivePortalProfilesByIDs(ctx, []int64{guardianProfileID})
+		if err != nil {
+			return false, err
+		}
+		_, active := profiles[guardianProfileID]
+		activeGuardianCache[guardianProfileID] = active
+		return active, nil
+	}
+	addGuardian := func(guardianProfileID int64, studentID *int64) error {
 		if guardianProfileID <= 0 {
-			return
+			return nil
+		}
+		active, err := guardianCanReceive(guardianProfileID)
+		if err != nil {
+			return err
+		}
+		if !active {
+			return nil
 		}
 		if _, ok := guardianStudents[guardianProfileID]; !ok {
 			guardianStudents[guardianProfileID] = map[int64]struct{}{}
@@ -809,6 +842,7 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 		if studentID != nil && *studentID > 0 {
 			guardianStudents[guardianProfileID][*studentID] = struct{}{}
 		}
+		return nil
 	}
 	addStudentGuardians := func(studentID int64) error {
 		links, err := s.cfg.StudentGuardianRepo.FindByStudentID(ctx, studentID)
@@ -817,7 +851,9 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 		}
 		for _, link := range links {
 			if authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess) {
-				addGuardian(link.GuardianProfileID, &studentID)
+				if err := addGuardian(link.GuardianProfileID, &studentID); err != nil {
+					return err
+				}
 			}
 		}
 		return nil
@@ -854,7 +890,7 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 			if target.ID == nil || *target.ID <= 0 {
 				return nil, nil, nil, fmt.Errorf("%w: guardian target requires id", ErrInvalidRequest)
 			}
-			profiles, err := s.cfg.GuardianProfileRepo.FindByIDs(ctx, []int64{*target.ID})
+			profiles, err := s.cfg.GuardianProfileRepo.FindActivePortalProfilesByIDs(ctx, []int64{*target.ID})
 			if err != nil {
 				return nil, nil, nil, err
 			}
@@ -870,7 +906,9 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 				if authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess) {
 					visible = true
 					studentID := link.StudentID
-					addGuardian(*target.ID, &studentID)
+					if err := addGuardian(*target.ID, &studentID); err != nil {
+						return nil, nil, nil, err
+					}
 				}
 			}
 			if !visible {
@@ -1180,6 +1218,26 @@ func expandOccurrences(appointment *calModels.Appointment, rule *calModels.Recur
 		}
 	}
 	return occurrences
+}
+
+func occurrenceDatesForAppointments(appointments []*calModels.Appointment, recurrenceByAppointment map[int64]*calModels.RecurrenceRule, from, to timezone.Date) []timezone.Date {
+	seen := map[string]struct{}{}
+	dates := []timezone.Date{}
+	for _, appointment := range appointments {
+		recurrence := recurrenceByAppointment[appointment.ID]
+		if recurrence == nil {
+			continue
+		}
+		for _, occurrence := range expandOccurrences(appointment, recurrence, from, to) {
+			key := occurrence.String()
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			dates = append(dates, occurrence)
+		}
+	}
+	return dates
 }
 
 func matchesRule(start, candidate timezone.Date, rule *calModels.RecurrenceRule) bool {

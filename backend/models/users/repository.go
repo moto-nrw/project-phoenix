@@ -596,6 +596,10 @@ type GuardianProfileRepository interface {
 	// keyed by id. Missing ids are simply absent from the map.
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*GuardianProfile, error)
 
+	// FindActivePortalProfilesByIDs retrieves guardian profiles with a linked
+	// account and active account_tenants membership for the current tenant.
+	FindActivePortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*GuardianProfile, error)
+
 	// Count returns the total number of guardian profiles
 	Count(ctx context.Context) (int, error)
 

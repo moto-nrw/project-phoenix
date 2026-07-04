@@ -8,9 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	calendarSvc "github.com/moto-nrw/project-phoenix/services/calendar"
@@ -104,12 +106,17 @@ func findRecipientByStaff(t *testing.T, detail *calendarSvc.AppointmentDetail, s
 
 func findRecipientByGuardian(t *testing.T, detail *calendarSvc.AppointmentDetail, guardianID int64) int64 {
 	t.Helper()
+	id := findOptionalRecipientByGuardian(detail, guardianID)
+	require.NotZero(t, id)
+	return id
+}
+
+func findOptionalRecipientByGuardian(detail *calendarSvc.AppointmentDetail, guardianID int64) int64 {
 	for _, recipient := range detail.Recipients {
 		if recipient.GuardianProfileID != nil && *recipient.GuardianProfileID == guardianID {
 			return recipient.ID
 		}
 	}
-	t.Fatalf("guardian recipient %d not found", guardianID)
 	return 0
 }
 
@@ -364,6 +371,15 @@ func TestCalendarServiceIntegration_RecipientOptionsAndGroupedTargets(t *testing
 	organizer, organizerAccount := testpkg.CreateTestStaffWithAccount(t, db, "Target", "Organizer")
 	invitedStaff, invitedAccount := testpkg.CreateTestStaffWithAccount(t, db, "Target", "Invitee")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
+	inactiveParentChain := testpkg.CreateTestParentGuardianChain(t, db)
+	_, err := db.ExecContext(
+		context.Background(),
+		`UPDATE auth.account_tenants SET status = ? WHERE account_id = ? AND tenant_id = ?`,
+		authModels.AccountTenantStatusInactive,
+		inactiveParentChain.AccountID,
+		inactiveParentChain.TenantID,
+	)
+	require.NoError(t, err)
 	invisibleGuardian := &userModels.GuardianProfile{
 		FirstName:              "Hidden",
 		LastName:               "Target",
@@ -371,11 +387,32 @@ func TestCalendarServiceIntegration_RecipientOptionsAndGroupedTargets(t *testing
 		LanguagePreference:     "de",
 	}
 	invisibleGuardian.SetTenantID(1)
-	_, err := db.NewInsert().Model(invisibleGuardian).ModelTableExpr(`users.guardian_profiles`).Exec(context.Background())
+	_, err = db.NewInsert().Model(invisibleGuardian).ModelTableExpr(`users.guardian_profiles`).Exec(context.Background())
+	require.NoError(t, err)
+	accountlessGuardian := &userModels.GuardianProfile{
+		FirstName:              "Accountless",
+		LastName:               "Target",
+		PreferredContactMethod: "email",
+		LanguagePreference:     "de",
+	}
+	accountlessGuardian.SetTenantID(1)
+	_, err = db.NewInsert().Model(accountlessGuardian).ModelTableExpr(`users.guardian_profiles`).Exec(context.Background())
+	require.NoError(t, err)
+	accountlessLink := &userModels.StudentGuardian{
+		StudentID:         parentChain.StudentID,
+		GuardianProfileID: accountlessGuardian.ID,
+		RelationshipType:  "parent",
+	}
+	authorize.ApplyStudentGuardianRole(accountlessLink, authorize.GuardianRoleLegalGuardian)
+	accountlessLink.SetTenantID(1)
+	_, err = db.NewInsert().Model(accountlessLink).ModelTableExpr(`users.students_guardians`).Exec(context.Background())
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "users.students_guardians", accountlessLink.ID)
+		testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", accountlessGuardian.ID)
 		testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", invisibleGuardian.ID)
+		testpkg.CleanupParentGuardianChain(t, db, inactiveParentChain)
 		testpkg.CleanupParentGuardianChain(t, db, parentChain)
 		testpkg.CleanupStaffFixtures(t, db, invitedStaff.ID, organizer.ID)
 		testpkg.CleanupAuthFixtures(t, db, invitedAccount.ID, organizerAccount.ID)
@@ -389,6 +426,13 @@ func TestCalendarServiceIntegration_RecipientOptionsAndGroupedTargets(t *testing
 	assert.NotNil(t, options.Classes)
 	assert.NotNil(t, options.Students)
 	assert.NotContains(t, parentOptionIDs(options.Parents), invisibleGuardian.ID)
+	assert.NotContains(t, parentOptionIDs(options.Parents), inactiveParentChain.GuardianProfileID)
+	assert.NotContains(t, parentOptionIDs(options.Parents), accountlessGuardian.ID)
+
+	schneiderOptions, err := service.RecipientOptions(calendarContext(organizerAccount.ID), "schneider", 20)
+	require.NoError(t, err)
+	assert.Contains(t, parentOptionIDs(schneiderOptions.Parents), parentChain.GuardianProfileID)
+	assert.NotContains(t, parentOptionIDs(schneiderOptions.Parents), inactiveParentChain.GuardianProfileID)
 
 	hiddenOptions, err := service.RecipientOptions(calendarContext(organizerAccount.ID), "hidden", 20)
 	require.NoError(t, err)
@@ -432,6 +476,8 @@ func TestCalendarServiceIntegration_RecipientOptionsAndGroupedTargets(t *testing
 	assert.NotZero(t, findRecipientByStaff(t, detail, organizer.ID))
 	assert.NotZero(t, findRecipientByStaff(t, detail, invitedStaff.ID))
 	assert.NotZero(t, findRecipientByGuardian(t, detail, parentChain.GuardianProfileID))
+	assert.Zero(t, findOptionalRecipientByGuardian(detail, inactiveParentChain.GuardianProfileID))
+	assert.Zero(t, findOptionalRecipientByGuardian(detail, accountlessGuardian.ID))
 	require.Len(t, detail.Targets, 3)
 
 	parentEvents, err := service.ListMyParentEvents(testpkg.TenantContext(1), parentChain.AccountID, timezone.NewDate(2026, 2, 12), timezone.NewDate(2026, 2, 12))
@@ -556,6 +602,7 @@ func TestCalendarServiceIntegration_MultiDayRecurrenceVisibleOnFinalOverlapDay(t
 	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
+	repos := repositories.NewFactory(db)
 	organizer, organizerAccount := testpkg.CreateTestStaffWithAccount(t, db, "MultiDay", "Organizer")
 	t.Cleanup(func() {
 		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
@@ -588,6 +635,21 @@ func TestCalendarServiceIntegration_MultiDayRecurrenceVisibleOnFinalOverlapDay(t
 	)
 	require.NoError(t, err)
 	assert.Contains(t, eventDates(events, calModels.EventSourceAppointment), "2026-01-31")
+
+	cancelledOverride := &calModels.AppointmentOccurrenceOverride{
+		AppointmentID:  detail.Appointment.ID,
+		OccurrenceDate: timezone.NewDate(2026, 1, 31),
+		Cancelled:      true,
+	}
+	require.NoError(t, repos.CalendarOccurrenceOverride.Create(calendarContext(organizerAccount.ID), cancelledOverride))
+
+	events, err = service.ListMyStaffEvents(
+		calendarContext(organizerAccount.ID),
+		timezone.NewDate(2026, 2, 1),
+		timezone.NewDate(2026, 2, 1),
+	)
+	require.NoError(t, err)
+	assert.NotContains(t, eventDates(events, calModels.EventSourceAppointment), "2026-01-31")
 }
 
 func TestCalendarServiceIntegration_ResponseAndOverviewErrors(t *testing.T) {
