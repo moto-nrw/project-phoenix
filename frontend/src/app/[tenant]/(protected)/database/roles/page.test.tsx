@@ -151,7 +151,7 @@ vi.mock("~/components/ui/database/database-form-modal", () => ({
   },
 }));
 
-vi.mock("@/components/roles", () => ({
+vi.mock("@/components/roles/roles-master-detail", () => ({
   RolesMasterDetail: ({
     roles,
     selectedId,
@@ -206,7 +206,7 @@ vi.mock("@/components/roles", () => ({
   ),
 }));
 
-vi.mock("@/components/auth", () => ({
+vi.mock("@/components/auth/role-permission-management-modal", () => ({
   RolePermissionManagementModal: ({ isOpen }: { isOpen: boolean }) =>
     isOpen ? <div data-testid="role-permission-modal" /> : null,
 }));

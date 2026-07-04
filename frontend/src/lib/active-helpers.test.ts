@@ -21,7 +21,7 @@ import {
   buildBackendActiveSession,
   buildBackendVisit,
   buildBackendSupervisor,
-} from "~/test/fixtures";
+} from "~/test/fixtures/sessions";
 
 // Sample backend data matching actual API responses
 const sampleBackendActiveGroup = buildBackendActiveSession({

@@ -82,7 +82,7 @@ vi.mock("~/components/ui/alert", () => ({
 }));
 
 // Mock import components (staff page uses UploadSection + StatsCards)
-vi.mock("~/components/import", () => ({
+vi.mock("~/components/import/upload-section", () => ({
   UploadSection: ({
     onFileSelect,
     isDragging,
@@ -119,6 +119,9 @@ vi.mock("~/components/import", () => ({
       </button>
     </div>
   ),
+}));
+
+vi.mock("~/components/import/stats-cards", () => ({
   StatsCards: ({
     total,
     newCount,

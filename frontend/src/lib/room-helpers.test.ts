@@ -14,7 +14,7 @@ import {
   isSystemRoom,
 } from "./room-helpers";
 import { suppressConsole } from "~/test/helpers/console";
-import { buildBackendRoom } from "~/test/fixtures";
+import { buildBackendRoom } from "~/test/fixtures/rooms";
 
 // Sample backend room for testing
 const sampleBackendRoom = buildBackendRoom({

@@ -176,7 +176,7 @@ vi.mock("~/components/ui/database/database-form-modal", () => ({
   },
 }));
 
-vi.mock("@/components/devices", () => ({
+vi.mock("@/components/devices/devices-master-detail", () => ({
   DevicesMasterDetail: ({
     groupDefinitions,
     selectedId,

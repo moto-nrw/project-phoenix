@@ -7,7 +7,7 @@ import type {
   FilterConfig,
 } from "~/components/ui/page-header/types";
 import { ConfirmationModal } from "~/components/ui/modal";
-import { UnclaimedRooms } from "~/components/active";
+import { UnclaimedRooms } from "~/components/active/unclaimed-rooms";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 
 interface MinimalActiveGroup {

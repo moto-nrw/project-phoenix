@@ -15,7 +15,7 @@ import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { activitiesConfig } from "@/components/database/configs/activities.config";
 import type { Activity } from "@/lib/activity-helpers";
-import { ActivitiesMasterDetail } from "@/components/activities";
+import { ActivitiesMasterDetail } from "@/components/activities/activities-master-detail";
 import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
