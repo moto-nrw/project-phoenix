@@ -50,6 +50,14 @@ type Result struct {
 	Reminders []Reminder `json:"reminders"`
 	Count     int        `json:"count"`
 	Enabled   bool       `json:"enabled"`
+	// NextChangeAt is the wall-clock "HH:MM" of the soonest future moment at
+	// which this list would change purely by time passing — the next pickup or
+	// activity entering/leaving its window. The frontend schedules a timer to
+	// exactly this time to refetch, so a reminder appears on its threshold
+	// instead of only on the next fixed poll. Omitted when nothing time-based is
+	// pending (the poll then remains the only cadence). Data-driven changes
+	// (check-ins, edits) are still delivered via the SSE-stale event, not this.
+	NextChangeAt string `json:"next_change_at,omitempty"`
 }
 
 // Scope describes whose reminders to compute. Admins see all present children
@@ -185,6 +193,9 @@ func (s *service) Compute(ctx context.Context, scope Scope) (*Result, error) {
 	nowMin := minutesOfDay(timezone.Now())
 
 	reminders := make([]Reminder, 0)
+	// -1 = no future time-based change pending. Both branches feed their soonest
+	// boundary in; the earliest across pickups and activities wins.
+	nextChange := -1
 
 	// Pickup and activity scopes are resolved independently so an activity-only
 	// tenant never pays for (or fails on) student-presence resolution, and a
@@ -198,11 +209,12 @@ func (s *service) Compute(ctx context.Context, scope Scope) (*Result, error) {
 		if lerr != nil {
 			return nil, lerr
 		}
-		pickupReminders, perr := s.pickupReminders(ctx, scope, studentIDs, today, nowMin, lead, pickupUpcoming, pickupOverdue)
+		pickupReminders, pickupNext, perr := s.pickupReminders(ctx, scope, studentIDs, today, nowMin, lead, pickupUpcoming, pickupOverdue)
 		if perr != nil {
 			return nil, perr
 		}
 		reminders = append(reminders, pickupReminders...)
+		nextChange = minFuture(nextChange, pickupNext)
 	}
 
 	if activityStart || activityOverdue {
@@ -224,11 +236,12 @@ func (s *service) Compute(ctx context.Context, scope Scope) (*Result, error) {
 		if oerr != nil {
 			return nil, oerr
 		}
-		activityReminders, aerr := s.activityReminders(ctx, scope, roomIDs, today, nowMin, lead, overdueThreshold, activityStart, activityOverdue)
+		activityReminders, activityNext, aerr := s.activityReminders(ctx, scope, roomIDs, today, nowMin, lead, overdueThreshold, activityStart, activityOverdue)
 		if aerr != nil {
 			return nil, aerr
 		}
 		reminders = append(reminders, activityReminders...)
+		nextChange = minFuture(nextChange, activityNext)
 	}
 
 	// Most urgent first (overdue is negative, soonest upcoming next).
@@ -236,7 +249,11 @@ func (s *service) Compute(ctx context.Context, scope Scope) (*Result, error) {
 		return reminders[i].MinutesAway < reminders[j].MinutesAway
 	})
 
-	return &Result{Reminders: reminders, Count: len(reminders), Enabled: true}, nil
+	result := &Result{Reminders: reminders, Count: len(reminders), Enabled: true}
+	if nextChange >= 0 {
+		result.NextChangeAt = formatMinutes(nextChange)
+	}
+	return result, nil
 }
 
 // pickupScopeStudentIDs returns the IDs of currently present students whose
@@ -358,13 +375,14 @@ func (s *service) presentStudentsInRooms(ctx context.Context, roomIDs []int64) (
 	return studentIDs, nil
 }
 
-func (s *service) pickupReminders(ctx context.Context, scope Scope, studentIDs []int64, today timezone.Date, nowMin, lead int, upcoming, overdue bool) ([]Reminder, error) {
+func (s *service) pickupReminders(ctx context.Context, scope Scope, studentIDs []int64, today timezone.Date, nowMin, lead int, upcoming, overdue bool) ([]Reminder, int, error) {
+	nextChange := -1
 	if len(studentIDs) == 0 || s.pickup == nil {
-		return nil, nil
+		return nil, nextChange, nil
 	}
 	times, err := s.pickup.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, today)
 	if err != nil {
-		return nil, err
+		return nil, nextChange, err
 	}
 
 	// Compute the due set (upcoming/overdue) BEFORE hydrating names or checking
@@ -384,6 +402,19 @@ func (s *service) pickupReminders(ctx context.Context, scope Scope, studentIDs [
 			continue
 		}
 		pickupMin := minutesOfDay(*effective.PickupTime)
+
+		// Next-change boundaries are tracked for EVERY present student's pickup,
+		// not just the currently-due ones: a pickup still outside its lead window
+		// contributes the moment it will enter (pickupMin-lead) and the moment it
+		// flips upcoming->overdue (pickupMin). This is what lets the frontend time
+		// the first appearance of a reminder that isn't in this response yet.
+		if upcoming {
+			nextChange = minFuture(nextChange, futureBoundary(pickupMin-lead, nowMin))
+		}
+		if upcoming || overdue {
+			nextChange = minFuture(nextChange, futureBoundary(pickupMin, nowMin))
+		}
+
 		diff := pickupMin - nowMin
 		switch {
 		case diff < 0 && overdue:
@@ -393,7 +424,7 @@ func (s *service) pickupReminders(ctx context.Context, scope Scope, studentIDs [
 		}
 	}
 	if len(dues) == 0 {
-		return nil, nil
+		return nil, nextChange, nil
 	}
 
 	dueIDs := make([]int64, len(dues))
@@ -404,7 +435,7 @@ func (s *service) pickupReminders(ctx context.Context, scope Scope, studentIDs [
 	// Hydrate names + apply the read-access gate for the due students only.
 	infos, err := s.readableStudentInfo(ctx, scope, dueIDs)
 	if err != nil {
-		return nil, err
+		return nil, nextChange, err
 	}
 
 	out := make([]Reminder, 0, len(dues))
@@ -428,16 +459,17 @@ func (s *service) pickupReminders(ctx context.Context, scope Scope, studentIDs [
 			MinutesAway: d.diff,
 		})
 	}
-	return out, nil
+	return out, nextChange, nil
 }
 
-func (s *service) activityReminders(ctx context.Context, scope Scope, roomIDs []int64, today timezone.Date, nowMin, lead, overdueThreshold int, upcoming, overdue bool) ([]Reminder, error) {
+func (s *service) activityReminders(ctx context.Context, scope Scope, roomIDs []int64, today timezone.Date, nowMin, lead, overdueThreshold int, upcoming, overdue bool) ([]Reminder, int, error) {
+	nextChange := -1
 	if s.instance == nil {
-		return nil, nil
+		return nil, nextChange, nil
 	}
 	instances, err := s.instance.FindByTenantAndDate(ctx, today)
 	if err != nil {
-		return nil, err
+		return nil, nextChange, err
 	}
 
 	var roomFilter map[int64]struct{}
@@ -464,6 +496,22 @@ func (s *service) activityReminders(ctx context.Context, scope Scope, roomIDs []
 		endMin := minutesOfDay(inst.EndTime)
 		diff := startMin - nowMin
 
+		// Track the boundaries at which this instance's reminder state flips, so
+		// the frontend can refetch exactly then instead of waiting for the poll:
+		//   upcoming: enters the window at startMin-lead, leaves it at startMin
+		//   overdue:  appears at startMin+overdueThreshold, disappears at endMin
+		if upcoming {
+			nextChange = minFuture(nextChange, futureBoundary(startMin-lead, nowMin))
+			nextChange = minFuture(nextChange, futureBoundary(startMin, nowMin))
+		}
+		if overdue {
+			overdueStart := startMin + overdueThreshold
+			if overdueStart < endMin {
+				nextChange = minFuture(nextChange, futureBoundary(overdueStart, nowMin))
+				nextChange = minFuture(nextChange, futureBoundary(endMin, nowMin))
+			}
+		}
+
 		switch {
 		case upcoming && diff >= 0 && diff <= lead:
 			out = append(out, Reminder{
@@ -483,7 +531,7 @@ func (s *service) activityReminders(ctx context.Context, scope Scope, roomIDs []
 			})
 		}
 	}
-	return out, nil
+	return out, nextChange, nil
 }
 
 type studentNameInfo struct {
@@ -630,6 +678,29 @@ func (s *service) overdueThresholdMinutes(ctx context.Context) (int, error) {
 		return fallback, nil
 	}
 	return v, nil
+}
+
+// futureBoundary returns boundaryMin when it is strictly after nowMin, else -1
+// (the "no candidate" sentinel). Used to feed only genuinely-upcoming state
+// flips into the next-change accumulator.
+func futureBoundary(boundaryMin, nowMin int) int {
+	if boundaryMin > nowMin {
+		return boundaryMin
+	}
+	return -1
+}
+
+// minFuture keeps the smaller of two minute-of-day candidates, treating -1 as
+// "absent". Both inputs are already restricted to future boundaries by
+// futureBoundary, so the result is the soonest upcoming change (-1 if none).
+func minFuture(cur, cand int) int {
+	if cand < 0 {
+		return cur
+	}
+	if cur < 0 || cand < cur {
+		return cand
+	}
+	return cur
 }
 
 // minutesOfDay returns the wall-clock minute of t. TIME columns are stored as a

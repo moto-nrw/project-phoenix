@@ -114,3 +114,106 @@ describe("useReminders — phoenix:reminders-stale revalidation", () => {
     expect(mockMutate).not.toHaveBeenCalled();
   });
 });
+
+describe("useReminders — next_change_at precise timer", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    // 10:00:00 local — reminders reason in wall-clock time.
+    vi.setSystemTime(new Date(2026, 6, 4, 10, 0, 0));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("refetches exactly at the next-change wall-clock minute (plus buffer)", () => {
+    mockUseSWRAuth.mockReturnValue(
+      swrReturn({
+        reminders: [],
+        count: 0,
+        enabled: true,
+        next_change_at: "10:05",
+      }),
+    );
+
+    renderHook(() => useReminders());
+    expect(mockMutate).not.toHaveBeenCalled();
+
+    // Just shy of the target (5 min) + most of the 2s buffer: still nothing.
+    act(() => {
+      vi.advanceTimersByTime(5 * 60 * 1000 + 1000);
+    });
+    expect(mockMutate).not.toHaveBeenCalled();
+
+    // Crossing the buffered boundary fires exactly once.
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(mockMutate).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not schedule a timer when the feature is disabled", () => {
+    mockUseSWRAuth.mockReturnValue(
+      swrReturn({
+        reminders: [],
+        count: 0,
+        enabled: false,
+        next_change_at: "10:05",
+      }),
+    );
+
+    renderHook(() => useReminders());
+    act(() => {
+      vi.advanceTimersByTime(60 * 60 * 1000);
+    });
+    expect(mockMutate).not.toHaveBeenCalled();
+  });
+
+  it("does not schedule a timer when next_change_at is absent", () => {
+    mockUseSWRAuth.mockReturnValue(
+      swrReturn({ reminders: [], count: 0, enabled: true }),
+    );
+
+    renderHook(() => useReminders());
+    act(() => {
+      vi.advanceTimersByTime(60 * 60 * 1000);
+    });
+    expect(mockMutate).not.toHaveBeenCalled();
+  });
+
+  it("refetches promptly when the next change is already in the past", () => {
+    // Clock skew or a stale cache can hand us a boundary in the past; refetch
+    // soon rather than a whole day later.
+    mockUseSWRAuth.mockReturnValue(
+      swrReturn({
+        reminders: [],
+        count: 0,
+        enabled: true,
+        next_change_at: "09:55",
+      }),
+    );
+
+    renderHook(() => useReminders());
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(mockMutate).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears the scheduled timer on unmount", () => {
+    mockUseSWRAuth.mockReturnValue(
+      swrReturn({
+        reminders: [],
+        count: 0,
+        enabled: true,
+        next_change_at: "10:05",
+      }),
+    );
+
+    const { unmount } = renderHook(() => useReminders());
+    unmount();
+    act(() => {
+      vi.advanceTimersByTime(10 * 60 * 1000);
+    });
+    expect(mockMutate).not.toHaveBeenCalled();
+  });
+});
