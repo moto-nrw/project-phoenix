@@ -7,7 +7,7 @@ import { Clock } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { RequestDiffPanel } from "~/components/messaging/request-diff-panel";
-import { Section } from "~/components/parent/child-master-data";
+import { Section } from "~/components/parent/child-detail-section";
 import {
   CareScheduleRequestModal,
   type CareScheduleInitialValues,
