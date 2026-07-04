@@ -19,7 +19,7 @@ const appointment: CalendarEvent = {
   all_day: false,
   delivery_mode: "rsvp_required",
   response_status: "pending",
-  recipient_id: 42,
+  recipient_id: "42",
   can_respond: true,
   can_edit: false,
 };
@@ -64,9 +64,9 @@ describe("PersonalCalendar", () => {
     expect(screen.getAllByText("Offen").length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getAllByRole("button", { name: "Zusagen" })[0]!);
-    expect(onRespond).toHaveBeenCalledWith(42, "accepted");
+    expect(onRespond).toHaveBeenCalledWith("42", "accepted");
     fireEvent.click(screen.getAllByRole("button", { name: "Absagen" })[0]!);
-    expect(onRespond).toHaveBeenCalledWith(42, "declined");
+    expect(onRespond).toHaveBeenCalledWith("42", "declined");
   });
 
   it("supports week navigation and create action", () => {

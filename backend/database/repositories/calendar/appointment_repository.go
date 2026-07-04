@@ -68,8 +68,8 @@ func (r *AppointmentRepository) ListVisibleForStaff(ctx context.Context, staffID
 	return rows, nil
 }
 
-func (r *AppointmentRepository) ListVisibleForGuardianProfiles(ctx context.Context, guardianProfileIDs []int64, from, to timezone.Date) ([]*calModels.Appointment, error) {
-	if len(guardianProfileIDs) == 0 {
+func (r *AppointmentRepository) ListVisibleForGuardianProfiles(ctx context.Context, guardianProfileIDs []int64, studentIDs []int64, from, to timezone.Date) ([]*calModels.Appointment, error) {
+	if len(guardianProfileIDs) == 0 || len(studentIDs) == 0 {
 		return []*calModels.Appointment{}, nil
 	}
 
@@ -84,7 +84,14 @@ func (r *AppointmentRepository) ListVisibleForGuardianProfiles(ctx context.Conte
 			  AND ar.tenant_id = "appointment".tenant_id
 			  AND ar.recipient_type = ?
 			  AND ar.guardian_profile_id IN (?)
-			)`, calModels.RecipientTypeGuardianProfile, bun.List(guardianProfileIDs)).
+			  AND EXISTS (
+			    SELECT 1
+			    FROM calendar.appointment_recipient_students ars
+			    WHERE ars.recipient_id = ar.id
+			      AND ars.tenant_id = ar.tenant_id
+			      AND ars.student_id IN (?)
+			  )
+			)`, calModels.RecipientTypeGuardianProfile, bun.List(guardianProfileIDs), bun.List(studentIDs)).
 		OrderExpr(`"appointment".start_date ASC, "appointment".start_time ASC, "appointment".id ASC`)
 
 	query = applyAppointmentWindow(query, from, to)

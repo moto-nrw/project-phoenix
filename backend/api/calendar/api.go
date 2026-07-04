@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -51,18 +52,67 @@ func (rs *Resource) Router() chi.Router {
 }
 
 type createAppointmentRequest struct {
-	Title              string                              `json:"title"`
-	Description        *string                             `json:"description,omitempty"`
-	Location           *string                             `json:"location,omitempty"`
-	StartDate          timezone.Date                       `json:"start_date"`
-	EndDate            timezone.Date                       `json:"end_date"`
-	StartTime          string                              `json:"start_time"`
-	EndTime            string                              `json:"end_time"`
-	AllDay             bool                                `json:"all_day"`
-	DeliveryMode       string                              `json:"delivery_mode"`
-	OverviewVisibility string                              `json:"overview_visibility"`
-	Recurrence         *calendarService.RecurrenceRequest  `json:"recurrence,omitempty"`
-	Targets            []calendarService.AppointmentTarget `json:"targets"`
+	Title              string                             `json:"title"`
+	Description        *string                            `json:"description,omitempty"`
+	Location           *string                            `json:"location,omitempty"`
+	StartDate          timezone.Date                      `json:"start_date"`
+	EndDate            timezone.Date                      `json:"end_date"`
+	StartTime          string                             `json:"start_time"`
+	EndTime            string                             `json:"end_time"`
+	AllDay             bool                               `json:"all_day"`
+	DeliveryMode       string                             `json:"delivery_mode"`
+	OverviewVisibility string                             `json:"overview_visibility"`
+	Recurrence         *calendarService.RecurrenceRequest `json:"recurrence,omitempty"`
+	Targets            []appointmentTargetRequest         `json:"targets"`
+}
+
+type requestID int64
+
+func (id *requestID) UnmarshalJSON(data []byte) error {
+	raw := strings.TrimSpace(string(data))
+	if raw == "" || raw == "null" {
+		return nil
+	}
+	if strings.HasPrefix(raw, `"`) && strings.HasSuffix(raw, `"`) {
+		unquoted, err := strconv.Unquote(raw)
+		if err != nil {
+			return err
+		}
+		raw = strings.TrimSpace(unquoted)
+	}
+	parsed, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid id %q", raw)
+	}
+	*id = requestID(parsed)
+	return nil
+}
+
+type appointmentTargetRequest struct {
+	Type  string     `json:"type"`
+	ID    *requestID `json:"id,omitempty"`
+	Value *string    `json:"value,omitempty"`
+}
+
+func (target appointmentTargetRequest) serviceTarget() calendarService.AppointmentTarget {
+	var id *int64
+	if target.ID != nil {
+		value := int64(*target.ID)
+		id = &value
+	}
+	return calendarService.AppointmentTarget{
+		Type:  target.Type,
+		ID:    id,
+		Value: target.Value,
+	}
+}
+
+func serviceTargets(targets []appointmentTargetRequest) []calendarService.AppointmentTarget {
+	out := make([]calendarService.AppointmentTarget, 0, len(targets))
+	for _, target := range targets {
+		out = append(out, target.serviceTarget())
+	}
+	return out
 }
 
 type responseRequest struct {
@@ -114,7 +164,7 @@ func (rs *Resource) createAppointment(w http.ResponseWriter, r *http.Request) {
 		DeliveryMode:       req.DeliveryMode,
 		OverviewVisibility: req.OverviewVisibility,
 		Recurrence:         req.Recurrence,
-		Targets:            req.Targets,
+		Targets:            serviceTargets(req.Targets),
 	})
 	if err != nil {
 		renderCalendarError(w, r, err)

@@ -48,7 +48,7 @@ const calendarResponse: CalendarResponse = {
       end_time: "10:30",
       all_day: false,
       response_status: "pending",
-      recipient_id: 77,
+      recipient_id: "77",
       can_respond: true,
       can_edit: false,
     },
@@ -89,7 +89,7 @@ describe("ParentCalendarPage", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Absagen" })[0]!);
 
     await waitFor(() =>
-      expect(mockRespondParentCalendar).toHaveBeenCalledWith(77, "declined"),
+      expect(mockRespondParentCalendar).toHaveBeenCalledWith("77", "declined"),
     );
     expect(mockGetParentCalendar).toHaveBeenCalledTimes(2);
     expect(mockToastSuccess).toHaveBeenCalledWith("Termin abgesagt.");

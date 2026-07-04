@@ -42,12 +42,12 @@ interface PersonalCalendarProps {
   readonly onWeekChange?: (nextWeekStart: Date) => void;
   readonly onViewModeChange?: (mode: CalendarViewMode) => void;
   readonly onCreate?: () => void;
-  readonly onShowOverview?: (appointmentId: string | number) => void;
+  readonly onShowOverview?: (appointmentId: string) => void;
   readonly onRespond?: (
-    recipientId: number,
+    recipientId: string,
     status: "accepted" | "declined",
   ) => void;
-  readonly respondingRecipientId?: number | null;
+  readonly respondingRecipientId?: string | null;
 }
 
 const sourceTone = {
@@ -383,9 +383,9 @@ function CalendarDayColumn({
 }: Readonly<{
   day: Date;
   events: readonly CalendarEvent[];
-  onShowOverview?: (appointmentId: string | number) => void;
-  onRespond?: (recipientId: number, status: "accepted" | "declined") => void;
-  respondingRecipientId?: number | null;
+  onShowOverview?: (appointmentId: string) => void;
+  onRespond?: (recipientId: string, status: "accepted" | "declined") => void;
+  respondingRecipientId?: string | null;
   compact?: boolean;
   muted?: boolean;
   className?: string;
@@ -431,9 +431,9 @@ function CalendarEventItem({
   respondingRecipientId,
 }: Readonly<{
   event: CalendarEvent;
-  onShowOverview?: (appointmentId: string | number) => void;
-  onRespond?: (recipientId: number, status: "accepted" | "declined") => void;
-  respondingRecipientId?: number | null;
+  onShowOverview?: (appointmentId: string) => void;
+  onRespond?: (recipientId: string, status: "accepted" | "declined") => void;
+  respondingRecipientId?: string | null;
 }>) {
   const tone = sourceTone[event.source];
   const recipientId = event.recipient_id;

@@ -9,15 +9,12 @@ type CalendarSource = "appointment" | "timetable";
 export type CalendarDeliveryMode = "rsvp_required" | "informational";
 export type CalendarOverviewVisibility = "organizer" | "staff" | "all";
 export type CalendarResponseStatus =
-  | "pending"
-  | "accepted"
-  | "declined"
-  | "info";
+  "pending" | "accepted" | "declined" | "info";
 
 export interface CalendarEvent {
   readonly id: string;
   readonly source: CalendarSource;
-  readonly appointment_id?: string | number;
+  readonly appointment_id?: string;
   readonly occurrence_date?: string;
   readonly timetable_id?: string;
   readonly student_id?: string;
@@ -34,8 +31,8 @@ export interface CalendarEvent {
   readonly all_day: boolean;
   readonly delivery_mode?: CalendarDeliveryMode;
   readonly response_status?: CalendarResponseStatus;
-  readonly recipient_id?: number;
-  readonly organizer_staff_id?: number;
+  readonly recipient_id?: string;
+  readonly organizer_staff_id?: string;
   readonly can_respond: boolean;
   readonly can_edit: boolean;
   readonly can_view_overview?: boolean;
@@ -57,7 +54,7 @@ export type CalendarTargetType =
 
 export interface CalendarTarget {
   readonly type: CalendarTargetType;
-  readonly id?: number;
+  readonly id?: string;
   readonly value?: string;
 }
 
@@ -86,7 +83,7 @@ export interface CreateCalendarAppointmentRequest {
 }
 
 interface CalendarAttendee {
-  readonly recipient_id: number;
+  readonly recipient_id: string;
   readonly recipient_type: "staff" | "guardian_profile";
   readonly name: string;
   readonly status: CalendarResponseStatus;
@@ -94,22 +91,22 @@ interface CalendarAttendee {
 }
 
 export interface CalendarAppointmentOverview {
-  readonly appointment_id: number;
+  readonly appointment_id: string;
   readonly delivery_mode: CalendarDeliveryMode;
   readonly overview_visibility: CalendarOverviewVisibility;
   readonly attendees: CalendarAttendee[];
 }
 
 export interface CalendarRecipientOptions {
-  readonly staff: Array<{ readonly id: number; readonly name: string }>;
-  readonly parents: Array<{ readonly id: number; readonly name: string }>;
-  readonly groups: Array<{ readonly id: number; readonly name: string }>;
+  readonly staff: Array<{ readonly id: string; readonly name: string }>;
+  readonly parents: Array<{ readonly id: string; readonly name: string }>;
+  readonly groups: Array<{ readonly id: string; readonly name: string }>;
   readonly classes: string[];
   readonly students: Array<{
-    readonly id: number;
+    readonly id: string;
     readonly name: string;
     readonly school_class?: string;
-    readonly group_id?: number;
+    readonly group_id?: string;
   }>;
 }
 
@@ -164,7 +161,7 @@ export function getParentCalendar(from: Date, to: Date) {
 }
 
 export function respondStaffCalendar(
-  recipientId: number,
+  recipientId: string,
   status: "accepted" | "declined",
 ) {
   return fetchJSON(
@@ -177,7 +174,7 @@ export function respondStaffCalendar(
 }
 
 export function respondParentCalendar(
-  recipientId: number,
+  recipientId: string,
   status: "accepted" | "declined",
 ) {
   return fetchJSON(
@@ -189,13 +186,13 @@ export function respondParentCalendar(
   );
 }
 
-export function getStaffAppointmentOverview(appointmentId: string | number) {
+export function getStaffAppointmentOverview(appointmentId: string) {
   return fetchJSON<CalendarAppointmentOverview>(
     `/api/calendar/appointments/${encodeURIComponent(appointmentId)}/overview`,
   );
 }
 
-export function getParentAppointmentOverview(appointmentId: string | number) {
+export function getParentAppointmentOverview(appointmentId: string) {
   return fetchJSON<CalendarAppointmentOverview>(
     `/api/parent/calendar/appointments/${encodeURIComponent(appointmentId)}/overview`,
   );

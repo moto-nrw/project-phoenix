@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"sort"
+	"strconv"
 	"testing"
 	"time"
 
@@ -425,18 +426,18 @@ func TestCalendarServiceIntegration_RecipientOptionsAndGroupedTargets(t *testing
 	assert.NotNil(t, options.Groups)
 	assert.NotNil(t, options.Classes)
 	assert.NotNil(t, options.Students)
-	assert.NotContains(t, parentOptionIDs(options.Parents), invisibleGuardian.ID)
-	assert.NotContains(t, parentOptionIDs(options.Parents), inactiveParentChain.GuardianProfileID)
-	assert.NotContains(t, parentOptionIDs(options.Parents), accountlessGuardian.ID)
+	assert.NotContains(t, parentOptionIDs(options.Parents), strconv.FormatInt(invisibleGuardian.ID, 10))
+	assert.NotContains(t, parentOptionIDs(options.Parents), strconv.FormatInt(inactiveParentChain.GuardianProfileID, 10))
+	assert.NotContains(t, parentOptionIDs(options.Parents), strconv.FormatInt(accountlessGuardian.ID, 10))
 
 	schneiderOptions, err := service.RecipientOptions(calendarContext(organizerAccount.ID), "schneider", 20)
 	require.NoError(t, err)
-	assert.Contains(t, parentOptionIDs(schneiderOptions.Parents), parentChain.GuardianProfileID)
-	assert.NotContains(t, parentOptionIDs(schneiderOptions.Parents), inactiveParentChain.GuardianProfileID)
+	assert.Contains(t, parentOptionIDs(schneiderOptions.Parents), strconv.FormatInt(parentChain.GuardianProfileID, 10))
+	assert.NotContains(t, parentOptionIDs(schneiderOptions.Parents), strconv.FormatInt(inactiveParentChain.GuardianProfileID, 10))
 
 	hiddenOptions, err := service.RecipientOptions(calendarContext(organizerAccount.ID), "hidden", 20)
 	require.NoError(t, err)
-	assert.NotContains(t, parentOptionIDs(hiddenOptions.Parents), invisibleGuardian.ID)
+	assert.NotContains(t, parentOptionIDs(hiddenOptions.Parents), strconv.FormatInt(invisibleGuardian.ID, 10))
 
 	childOptions, err := service.RecipientOptions(calendarContext(organizerAccount.ID), "felix", 20)
 	require.NoError(t, err)
@@ -489,8 +490,8 @@ func TestCalendarServiceIntegration_RecipientOptionsAndGroupedTargets(t *testing
 	assert.Equal(t, calModels.ResponseStatusInfo, *parentEvents[0].ResponseStatus)
 }
 
-func parentOptionIDs(options []calendarSvc.ParentOption) []int64 {
-	ids := make([]int64, 0, len(options))
+func parentOptionIDs(options []calendarSvc.ParentOption) []string {
+	ids := make([]string, 0, len(options))
 	for _, option := range options {
 		ids = append(ids, option.ID)
 	}
@@ -785,7 +786,7 @@ func TestCalendarServiceIntegration_RepositoryReadAndReplacePaths(t *testing.T) 
 	require.NoError(t, err)
 	require.NotEmpty(t, organized)
 
-	emptyGuardianAppointments, err := repos.CalendarAppointment.ListVisibleForGuardianProfiles(ctx, nil, timezone.NewDate(2026, 2, 13), timezone.NewDate(2026, 2, 13))
+	emptyGuardianAppointments, err := repos.CalendarAppointment.ListVisibleForGuardianProfiles(ctx, nil, nil, timezone.NewDate(2026, 2, 13), timezone.NewDate(2026, 2, 13))
 	require.NoError(t, err)
 	assert.Empty(t, emptyGuardianAppointments)
 
@@ -900,7 +901,7 @@ func TestCalendarServiceIntegration_ParentCalendarIncludesChildTimetable(t *test
 	assert.Equal(t, "13:00", events[0].StartTime)
 	assert.Equal(t, "16:00", events[0].EndTime)
 	require.NotNil(t, events[0].StudentID)
-	assert.Equal(t, parentChain.StudentID, *events[0].StudentID)
+	assert.Equal(t, strconv.FormatInt(parentChain.StudentID, 10), *events[0].StudentID)
 	require.NotNil(t, events[0].StudentName)
 	assert.Contains(t, *events[0].StudentName, "Felix")
 }

@@ -60,13 +60,13 @@ describe("personal calendar API", () => {
     );
   });
 
-  it("posts staff and parent RSVP responses with numeric recipient ids", async () => {
+  it("posts staff and parent RSVP responses with string recipient ids", async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ data: { status: "accepted" } }))
       .mockResolvedValueOnce(jsonResponse({ data: { status: "declined" } }));
 
-    await respondStaffCalendar(42, "accepted");
-    await respondParentCalendar(77, "declined");
+    await respondStaffCalendar("42", "accepted");
+    await respondParentCalendar("77", "declined");
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
@@ -88,7 +88,9 @@ describe("personal calendar API", () => {
 
   it("creates appointments and recipient option queries", async () => {
     fetchMock
-      .mockResolvedValueOnce(jsonResponse({ data: { appointment: { id: 1 } } }))
+      .mockResolvedValueOnce(
+        jsonResponse({ data: { appointment: { id: "1" } } }),
+      )
       .mockResolvedValueOnce(
         jsonResponse({
           data: {
@@ -114,7 +116,7 @@ describe("personal calendar API", () => {
         interval_count: 1,
         weekdays: ["monday"],
       },
-      targets: [{ type: "staff", id: 7 }],
+      targets: [{ type: "staff", id: "7" }],
     });
     await getCalendarRecipientOptions("  anna  ");
 
@@ -138,12 +140,12 @@ describe("personal calendar API", () => {
       .mockResolvedValueOnce(
         jsonResponse({
           data: {
-            appointment_id: 12,
+            appointment_id: "12",
             delivery_mode: "rsvp_required",
             overview_visibility: "all",
             attendees: [
               {
-                recipient_id: 1,
+                recipient_id: "1",
                 recipient_type: "staff",
                 name: "Ada",
                 status: "accepted",
@@ -155,7 +157,7 @@ describe("personal calendar API", () => {
       .mockResolvedValueOnce(
         jsonResponse({
           data: {
-            appointment_id: 13,
+            appointment_id: "13",
             delivery_mode: "informational",
             overview_visibility: "all",
             attendees: [],
@@ -165,12 +167,12 @@ describe("personal calendar API", () => {
 
     await expect(getStaffAppointmentOverview("12/next")).resolves.toMatchObject(
       {
-        appointment_id: 12,
+        appointment_id: "12",
         attendees: [{ name: "Ada", status: "accepted" }],
       },
     );
-    await expect(getParentAppointmentOverview(13)).resolves.toMatchObject({
-      appointment_id: 13,
+    await expect(getParentAppointmentOverview("13")).resolves.toMatchObject({
+      appointment_id: "13",
       attendees: [],
     });
 
@@ -206,7 +208,9 @@ describe("personal calendar API", () => {
       classes: [],
       students: [],
     });
-    await expect(respondStaffCalendar(5, "accepted")).resolves.toBeUndefined();
+    await expect(
+      respondStaffCalendar("5", "accepted"),
+    ).resolves.toBeUndefined();
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
@@ -228,7 +232,7 @@ describe("personal calendar API", () => {
   it("uses generic error messages when error responses are not json", async () => {
     fetchMock.mockResolvedValueOnce(new Response("nope", { status: 500 }));
 
-    await expect(getStaffAppointmentOverview(9)).rejects.toThrow(
+    await expect(getStaffAppointmentOverview("9")).rejects.toThrow(
       "Anfrage fehlgeschlagen (HTTP 500)",
     );
   });

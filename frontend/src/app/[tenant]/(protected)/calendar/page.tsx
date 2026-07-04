@@ -44,7 +44,7 @@ interface DraftTarget extends CalendarTarget {
 interface Choice {
   readonly key: string;
   readonly type: CalendarTargetType;
-  readonly id?: number;
+  readonly id?: string;
   readonly value?: string;
   readonly label: string;
   readonly covered?: boolean;
@@ -110,7 +110,7 @@ function calendarRange(referenceDate: Date, viewMode: CalendarViewMode) {
 
 function targetKey(
   type: CalendarTargetType,
-  id?: number,
+  id?: string,
   value?: string,
 ): string {
   if (type === "all_staff") return "all_staff";
@@ -263,7 +263,7 @@ export default function StaffCalendarPage() {
   const [endsOn, setEndsOn] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [respondingRecipientId, setRespondingRecipientId] = useState<
-    number | null
+    string | null
   >(null);
 
   const range = useMemo(
@@ -335,7 +335,7 @@ export default function StaffCalendarPage() {
     setFormOpen(false);
   };
 
-  const handleShowOverview = async (appointmentId: string | number) => {
+  const handleShowOverview = async (appointmentId: string) => {
     setOverviewLoading(true);
     try {
       setOverview(await getStaffAppointmentOverview(appointmentId));
@@ -349,7 +349,7 @@ export default function StaffCalendarPage() {
   };
 
   const handleRespond = async (
-    recipientId: number,
+    recipientId: string,
     status: "accepted" | "declined",
   ) => {
     setRespondingRecipientId(recipientId);

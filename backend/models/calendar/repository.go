@@ -12,7 +12,7 @@ type AppointmentRepository interface {
 	Update(ctx context.Context, appointment *Appointment) error
 	Delete(ctx context.Context, id any) error
 	ListVisibleForStaff(ctx context.Context, staffID int64, from, to timezone.Date) ([]*Appointment, error)
-	ListVisibleForGuardianProfiles(ctx context.Context, guardianProfileIDs []int64, from, to timezone.Date) ([]*Appointment, error)
+	ListVisibleForGuardianProfiles(ctx context.Context, guardianProfileIDs []int64, studentIDs []int64, from, to timezone.Date) ([]*Appointment, error)
 	ListOrganizedByStaff(ctx context.Context, staffID int64, from, to timezone.Date) ([]*Appointment, error)
 }
 

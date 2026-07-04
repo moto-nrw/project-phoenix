@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -75,12 +76,12 @@ func NewService(cfg Config) Service {
 type Event struct {
 	ID               string  `json:"id"`
 	Source           string  `json:"source"`
-	AppointmentID    *int64  `json:"appointment_id,omitempty"`
+	AppointmentID    *string `json:"appointment_id,omitempty"`
 	OccurrenceDate   *string `json:"occurrence_date,omitempty"`
-	TimetableID      *int64  `json:"timetable_id,omitempty"`
-	StudentID        *int64  `json:"student_id,omitempty"`
+	TimetableID      *string `json:"timetable_id,omitempty"`
+	StudentID        *string `json:"student_id,omitempty"`
 	StudentName      *string `json:"student_name,omitempty"`
-	TenantID         *int64  `json:"tenant_id,omitempty"`
+	TenantID         *string `json:"tenant_id,omitempty"`
 	SchoolName       *string `json:"school_name,omitempty"`
 	Title            string  `json:"title"`
 	Description      *string `json:"description,omitempty"`
@@ -92,8 +93,8 @@ type Event struct {
 	AllDay           bool    `json:"all_day"`
 	DeliveryMode     *string `json:"delivery_mode,omitempty"`
 	ResponseStatus   *string `json:"response_status,omitempty"`
-	RecipientID      *int64  `json:"recipient_id,omitempty"`
-	OrganizerStaffID *int64  `json:"organizer_staff_id,omitempty"`
+	RecipientID      *string `json:"recipient_id,omitempty"`
+	OrganizerStaffID *string `json:"organizer_staff_id,omitempty"`
 	CanRespond       bool    `json:"can_respond"`
 	CanEdit          bool    `json:"can_edit"`
 	CanViewOverview  bool    `json:"can_view_overview"`
@@ -122,14 +123,14 @@ type CreateAppointmentRequest struct {
 }
 
 type AppointmentOverview struct {
-	AppointmentID      int64                 `json:"appointment_id"`
+	AppointmentID      string                `json:"appointment_id"`
 	DeliveryMode       string                `json:"delivery_mode"`
 	OverviewVisibility string                `json:"overview_visibility"`
 	Attendees          []AppointmentAttendee `json:"attendees"`
 }
 
 type AppointmentAttendee struct {
-	RecipientID   int64      `json:"recipient_id"`
+	RecipientID   string     `json:"recipient_id"`
 	RecipientType string     `json:"recipient_type"`
 	Name          string     `json:"name"`
 	Status        string     `json:"status"`
@@ -160,25 +161,25 @@ type RecipientOptions struct {
 }
 
 type StaffOption struct {
-	ID   int64  `json:"id"`
+	ID   string `json:"id"`
 	Name string `json:"name"`
 }
 
 type ParentOption struct {
-	ID   int64  `json:"id"`
+	ID   string `json:"id"`
 	Name string `json:"name"`
 }
 
 type GroupOption struct {
-	ID   int64  `json:"id"`
+	ID   string `json:"id"`
 	Name string `json:"name"`
 }
 
 type StudentOption struct {
-	ID          int64  `json:"id"`
-	Name        string `json:"name"`
-	SchoolClass string `json:"school_class,omitempty"`
-	GroupID     *int64 `json:"group_id,omitempty"`
+	ID          string  `json:"id"`
+	Name        string  `json:"name"`
+	SchoolClass string  `json:"school_class,omitempty"`
+	GroupID     *string `json:"group_id,omitempty"`
 }
 
 func (s *service) ListMyStaffEvents(ctx context.Context, from, to timezone.Date) ([]Event, error) {
@@ -227,20 +228,22 @@ func (s *service) ListMyParentEvents(ctx context.Context, accountID int64, from,
 		tenantChildren := tenantChildren
 		if err := tenant.WithTenantTx(ctx, s.cfg.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 			guardianProfileIDs := distinctGuardianProfileIDs(tenantChildren)
-			appointments, err := s.cfg.AppointmentRepo.ListVisibleForGuardianProfiles(txCtx, guardianProfileIDs, from, to)
+			studentIDs := distinctChildStudentIDs(tenantChildren)
+			appointments, err := s.cfg.AppointmentRepo.ListVisibleForGuardianProfiles(txCtx, guardianProfileIDs, studentIDs, from, to)
 			if err != nil {
 				return err
 			}
-			appointmentEvents, err := s.expandGuardianAppointmentEvents(txCtx, appointments, guardianProfileIDs, from, to)
+			appointmentEvents, err := s.expandGuardianAppointmentEvents(txCtx, appointments, guardianProfileIDs, studentIDs, from, to)
 			if err != nil {
 				return err
 			}
 			schoolName := ""
+			tenantIDString := formatID(tenantID)
 			if len(tenantChildren) > 0 {
 				schoolName = tenantChildren[0].SchoolName
 			}
 			for i := range appointmentEvents {
-				appointmentEvents[i].TenantID = &tenantID
+				appointmentEvents[i].TenantID = &tenantIDString
 				if schoolName != "" {
 					appointmentEvents[i].SchoolName = &schoolName
 				}
@@ -297,6 +300,9 @@ func (s *service) CreateStaffAppointment(ctx context.Context, req CreateAppointm
 		recurrence.AppointmentID = 1
 		if err := recurrence.Validate(); err != nil {
 			return nil, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
+		}
+		if recurrence.EndsOn != nil && recurrence.EndsOn.Before(appointment.StartDate) {
+			return nil, fmt.Errorf("%w: recurrence end must be on or after start date", ErrInvalidRequest)
 		}
 		recurrence.AppointmentID = 0
 	}
@@ -411,7 +417,11 @@ func (s *service) GetParentAppointmentOverview(ctx context.Context, accountID, a
 				return err
 			}
 			guardianProfileIDs := distinctGuardianProfileIDs(tenantChildren)
-			_, recipientID := guardianRecipientStatus(recipients, guardianProfileIDs)
+			studentIDs := distinctChildStudentIDs(tenantChildren)
+			_, recipientID, err := s.guardianRecipientStatusForStudents(txCtx, recipients, guardianProfileIDs, studentIDs)
+			if err != nil {
+				return err
+			}
 			if recipientID == nil {
 				return nil
 			}
@@ -471,6 +481,7 @@ func (s *service) RespondToParentInvitation(ctx context.Context, accountID, reci
 	}
 	for tenantID, tenantChildren := range groupChildrenByTenant(children) {
 		allowedProfiles := int64Set(distinctGuardianProfileIDs(tenantChildren))
+		allowedStudentIDs := int64Set(distinctChildStudentIDs(tenantChildren))
 		var updated bool
 		if err := tenant.WithTenantTx(ctx, s.cfg.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 			recipient, err := s.cfg.RecipientRepo.FindByID(txCtx, recipientID)
@@ -481,6 +492,13 @@ func (s *service) RespondToParentInvitation(ctx context.Context, accountID, reci
 				return nil
 			}
 			if _, ok := allowedProfiles[*recipient.GuardianProfileID]; !ok {
+				return nil
+			}
+			visible, err := s.recipientHasVisibleStudent(txCtx, recipient.ID, allowedStudentIDs)
+			if err != nil {
+				return err
+			}
+			if !visible {
 				return nil
 			}
 			if recipient.Status == calModels.ResponseStatusInfo {
@@ -515,7 +533,7 @@ func (s *service) RecipientOptions(ctx context.Context, query string, limit int)
 	for _, row := range staffRows {
 		name := staffName(row)
 		if query == "" || strings.Contains(strings.ToLower(name), query) {
-			staffOptions = append(staffOptions, StaffOption{ID: row.ID, Name: name})
+			staffOptions = append(staffOptions, StaffOption{ID: formatID(row.ID), Name: name})
 			if len(staffOptions) >= limit {
 				break
 			}
@@ -544,7 +562,7 @@ func (s *service) RecipientOptions(ctx context.Context, query string, limit int)
 			return nil, err
 		}
 		if visible {
-			parentOptions = append(parentOptions, ParentOption{ID: parent.ID, Name: guardianName(parent)})
+			parentOptions = append(parentOptions, ParentOption{ID: formatID(parent.ID), Name: guardianName(parent)})
 		}
 	}
 
@@ -555,7 +573,7 @@ func (s *service) RecipientOptions(ctx context.Context, query string, limit int)
 	groupOptions := make([]GroupOption, 0, min(limit, len(groups)))
 	for _, group := range groups {
 		if query == "" || strings.Contains(strings.ToLower(group.Name), query) {
-			groupOptions = append(groupOptions, GroupOption{ID: group.ID, Name: group.Name})
+			groupOptions = append(groupOptions, GroupOption{ID: formatID(group.ID), Name: group.Name})
 			if len(groupOptions) >= limit {
 				break
 			}
@@ -584,11 +602,16 @@ func (s *service) RecipientOptions(ctx context.Context, query string, limit int)
 	for _, row := range students {
 		name := studentDisplayName(row.Student)
 		if query == "" || strings.Contains(strings.ToLower(name), query) {
+			var groupID *string
+			if row.GroupID != nil {
+				value := formatID(*row.GroupID)
+				groupID = &value
+			}
 			studentOptions = append(studentOptions, StudentOption{
-				ID:          row.ID,
+				ID:          formatID(row.ID),
 				Name:        name,
 				SchoolClass: row.SchoolClass,
-				GroupID:     row.GroupID,
+				GroupID:     groupID,
 			})
 			if len(studentOptions) >= limit {
 				break
@@ -670,7 +693,7 @@ func (s *service) expandAppointmentEvents(ctx context.Context, appointments []*c
 	return events, nil
 }
 
-func (s *service) expandGuardianAppointmentEvents(ctx context.Context, appointments []*calModels.Appointment, guardianProfileIDs []int64, from, to timezone.Date) ([]Event, error) {
+func (s *service) expandGuardianAppointmentEvents(ctx context.Context, appointments []*calModels.Appointment, guardianProfileIDs []int64, studentIDs []int64, from, to timezone.Date) ([]Event, error) {
 	ids := make([]int64, 0, len(appointments))
 	for _, appointment := range appointments {
 		ids = append(ids, appointment.ID)
@@ -699,7 +722,10 @@ func (s *service) expandGuardianAppointmentEvents(ctx context.Context, appointme
 		if err != nil {
 			return nil, err
 		}
-		status, recipientID := guardianRecipientStatus(recipients, guardianProfileIDs)
+		status, recipientID, err := s.guardianRecipientStatusForStudents(ctx, recipients, guardianProfileIDs, studentIDs)
+		if err != nil {
+			return nil, err
+		}
 		recurrence := recurrenceByAppointment[appointment.ID]
 		if recurrence == nil {
 			if !dateRangesOverlap(appointment.StartDate, appointment.EndDate, from, to) {
@@ -741,7 +767,10 @@ func (s *service) staffTimetableEvents(ctx context.Context, staffID int64, from,
 			if err != nil {
 				return nil, err
 			}
-			id := instance.ID
+			if instance.Status == scheduleModels.InstanceStatusCancelled {
+				continue
+			}
+			id := formatID(instance.ID)
 			events = append(events, Event{
 				ID:          fmt.Sprintf("timetable:%d", instance.ID),
 				Source:      EventSourceTimetable,
@@ -777,9 +806,12 @@ func (s *service) parentTimetableEvents(ctx context.Context, children []*parentM
 			if err != nil {
 				return nil, err
 			}
-			timetableID := instance.ID
-			studentID := child.StudentID
-			tenantID := child.TenantID
+			if instance.Status == scheduleModels.InstanceStatusCancelled {
+				continue
+			}
+			timetableID := formatID(instance.ID)
+			studentID := formatID(child.StudentID)
+			tenantID := formatID(child.TenantID)
 			studentName := strings.TrimSpace(child.FirstName + " " + child.LastName)
 			schoolName := child.SchoolName
 			events = append(events, Event{
@@ -825,16 +857,16 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 		activeGuardianCache[guardianProfileID] = active
 		return active, nil
 	}
-	addGuardian := func(guardianProfileID int64, studentID *int64) error {
+	addGuardian := func(guardianProfileID int64, studentID *int64) (bool, error) {
 		if guardianProfileID <= 0 {
-			return nil
+			return false, nil
 		}
 		active, err := guardianCanReceive(guardianProfileID)
 		if err != nil {
-			return err
+			return false, err
 		}
 		if !active {
-			return nil
+			return false, nil
 		}
 		if _, ok := guardianStudents[guardianProfileID]; !ok {
 			guardianStudents[guardianProfileID] = map[int64]struct{}{}
@@ -842,21 +874,26 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 		if studentID != nil && *studentID > 0 {
 			guardianStudents[guardianProfileID][*studentID] = struct{}{}
 		}
-		return nil
+		return true, nil
 	}
-	addStudentGuardians := func(studentID int64) error {
+	addStudentGuardians := func(studentID int64) (int, error) {
 		links, err := s.cfg.StudentGuardianRepo.FindByStudentID(ctx, studentID)
 		if err != nil {
-			return err
+			return 0, err
 		}
+		added := 0
 		for _, link := range links {
 			if authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess) {
-				if err := addGuardian(link.GuardianProfileID, &studentID); err != nil {
-					return err
+				ok, err := addGuardian(link.GuardianProfileID, &studentID)
+				if err != nil {
+					return 0, err
+				}
+				if ok {
+					added++
 				}
 			}
 		}
-		return nil
+		return added, nil
 	}
 
 	for _, target := range targets {
@@ -906,7 +943,7 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 				if authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess) {
 					visible = true
 					studentID := link.StudentID
-					if err := addGuardian(*target.ID, &studentID); err != nil {
+					if _, err := addGuardian(*target.ID, &studentID); err != nil {
 						return nil, nil, nil, err
 					}
 				}
@@ -918,8 +955,12 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 			if target.ID == nil || *target.ID <= 0 {
 				return nil, nil, nil, fmt.Errorf("%w: student target requires id", ErrInvalidRequest)
 			}
-			if err := addStudentGuardians(*target.ID); err != nil {
+			added, err := addStudentGuardians(*target.ID)
+			if err != nil {
 				return nil, nil, nil, err
+			}
+			if added == 0 {
+				return nil, nil, nil, fmt.Errorf("%w: parent target has no reachable guardians", ErrInvalidRequest)
 			}
 		case calModels.TargetTypeParentsByGroup:
 			if target.ID == nil || *target.ID <= 0 {
@@ -929,10 +970,16 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 			if err != nil {
 				return nil, nil, nil, err
 			}
+			added := 0
 			for _, student := range students {
-				if err := addStudentGuardians(student.ID); err != nil {
+				count, err := addStudentGuardians(student.ID)
+				if err != nil {
 					return nil, nil, nil, err
 				}
+				added += count
+			}
+			if added == 0 {
+				return nil, nil, nil, fmt.Errorf("%w: parent target has no reachable guardians", ErrInvalidRequest)
 			}
 		case calModels.TargetTypeParentsByClass:
 			if target.Value == nil || strings.TrimSpace(*target.Value) == "" {
@@ -942,10 +989,16 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 			if err != nil {
 				return nil, nil, nil, err
 			}
+			added := 0
 			for _, student := range students {
-				if err := addStudentGuardians(student.ID); err != nil {
+				count, err := addStudentGuardians(student.ID)
+				if err != nil {
 					return nil, nil, nil, err
 				}
+				added += count
+			}
+			if added == 0 {
+				return nil, nil, nil, fmt.Errorf("%w: parent target has no reachable guardians", ErrInvalidRequest)
 			}
 		default:
 			return nil, nil, nil, fmt.Errorf("%w: unknown target type %q", ErrInvalidRequest, target.Type)
@@ -1026,7 +1079,7 @@ func (s *service) buildAppointmentOverview(ctx context.Context, appointment *cal
 			name = fmt.Sprintf("Empfänger %d", recipient.ID)
 		}
 		attendees = append(attendees, AppointmentAttendee{
-			RecipientID:   recipient.ID,
+			RecipientID:   formatID(recipient.ID),
 			RecipientType: recipient.RecipientType,
 			Name:          name,
 			Status:        recipient.Status,
@@ -1041,7 +1094,7 @@ func (s *service) buildAppointmentOverview(ctx context.Context, appointment *cal
 	})
 
 	return &AppointmentOverview{
-		AppointmentID:      appointment.ID,
+		AppointmentID:      formatID(appointment.ID),
 		DeliveryMode:       appointment.DeliveryMode,
 		OverviewVisibility: appointment.OverviewVisibility,
 		Attendees:          attendees,
@@ -1068,11 +1121,17 @@ func canParentViewOverview(appointment *calModels.Appointment, isRecipient bool)
 }
 
 func appointmentEvent(appointment *calModels.Appointment, occurrenceDate timezone.Date, responseStatus *string, recipientID *int64, staffID int64) Event {
-	appointmentID := appointment.ID
+	appointmentID := formatID(appointment.ID)
 	deliveryMode := appointment.DeliveryMode
 	occurrence := occurrenceDate.String()
 	endDate := occurrenceDate.AddDays(appointment.StartDate.DaysUntil(appointment.EndDate))
 	isStaffRecipient := recipientID != nil
+	var recipientIDString *string
+	if recipientID != nil {
+		value := formatID(*recipientID)
+		recipientIDString = &value
+	}
+	organizerStaffID := formatID(appointment.OrganizerStaffID)
 	return Event{
 		ID:               fmt.Sprintf("appointment:%d:%s", appointment.ID, occurrence),
 		Source:           EventSourceAppointment,
@@ -1088,8 +1147,8 @@ func appointmentEvent(appointment *calModels.Appointment, occurrenceDate timezon
 		AllDay:           appointment.AllDay,
 		DeliveryMode:     &deliveryMode,
 		ResponseStatus:   responseStatus,
-		RecipientID:      recipientID,
-		OrganizerStaffID: &appointment.OrganizerStaffID,
+		RecipientID:      recipientIDString,
+		OrganizerStaffID: &organizerStaffID,
 		CanRespond:       recipientID != nil && responseStatus != nil && *responseStatus == calModels.ResponseStatusPending,
 		CanEdit:          appointment.OrganizerStaffID == staffID,
 		CanViewOverview:  canStaffViewOverview(appointment, staffID, isStaffRecipient),
@@ -1152,6 +1211,57 @@ func guardianRecipientStatus(recipients []*calModels.AppointmentRecipient, guard
 	return nil, nil
 }
 
+func (s *service) guardianRecipientStatusForStudents(ctx context.Context, recipients []*calModels.AppointmentRecipient, guardianProfileIDs []int64, studentIDs []int64) (*string, *int64, error) {
+	allowedGuardians := int64Set(guardianProfileIDs)
+	allowedStudents := int64Set(studentIDs)
+	recipientIDs := make([]int64, 0, len(recipients))
+	for _, recipient := range recipients {
+		if recipient.GuardianProfileID == nil {
+			continue
+		}
+		if _, ok := allowedGuardians[*recipient.GuardianProfileID]; ok {
+			recipientIDs = append(recipientIDs, recipient.ID)
+		}
+	}
+	links, err := s.cfg.RecipientStudentRepo.FindByRecipientIDs(ctx, recipientIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+	visibleRecipients := map[int64]struct{}{}
+	for _, link := range links {
+		if _, ok := allowedStudents[link.StudentID]; ok {
+			visibleRecipients[link.RecipientID] = struct{}{}
+		}
+	}
+	for _, recipient := range recipients {
+		if recipient.GuardianProfileID == nil {
+			continue
+		}
+		if _, ok := allowedGuardians[*recipient.GuardianProfileID]; !ok {
+			continue
+		}
+		if _, ok := visibleRecipients[recipient.ID]; ok {
+			status := recipient.Status
+			id := recipient.ID
+			return &status, &id, nil
+		}
+	}
+	return nil, nil, nil
+}
+
+func (s *service) recipientHasVisibleStudent(ctx context.Context, recipientID int64, allowedStudentIDs map[int64]struct{}) (bool, error) {
+	links, err := s.cfg.RecipientStudentRepo.FindByRecipientIDs(ctx, []int64{recipientID})
+	if err != nil {
+		return false, err
+	}
+	for _, link := range links {
+		if _, ok := allowedStudentIDs[link.StudentID]; ok {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (s *service) parentChildren(ctx context.Context, accountID int64) ([]*parentModels.ChildSummary, error) {
 	var children []*parentModels.ChildSummary
 	if err := tenant.WithAdminTx(ctx, s.cfg.DB, func(adminCtx context.Context, _ bun.Tx) error {
@@ -1186,6 +1296,23 @@ func distinctGuardianProfileIDs(children []*parentModels.ChildSummary) []int64 {
 		out = append(out, child.GuardianProfileID)
 	}
 	return out
+}
+
+func distinctChildStudentIDs(children []*parentModels.ChildSummary) []int64 {
+	seen := map[int64]struct{}{}
+	out := []int64{}
+	for _, child := range children {
+		if _, ok := seen[child.StudentID]; ok {
+			continue
+		}
+		seen[child.StudentID] = struct{}{}
+		out = append(out, child.StudentID)
+	}
+	return out
+}
+
+func formatID(id int64) string {
+	return strconv.FormatInt(id, 10)
 }
 
 func int64Set(values []int64) map[int64]struct{} {

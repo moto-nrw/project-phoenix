@@ -57,7 +57,7 @@ export default function ParentCalendarPage() {
   );
   const [overviewLoading, setOverviewLoading] = useState(false);
   const [respondingRecipientId, setRespondingRecipientId] = useState<
-    number | null
+    string | null
   >(null);
 
   const range = useMemo(
@@ -90,7 +90,7 @@ export default function ParentCalendarPage() {
   }, [load, rangeKey]);
 
   const handleRespond = async (
-    recipientId: number,
+    recipientId: string,
     status: "accepted" | "declined",
   ) => {
     setRespondingRecipientId(recipientId);
@@ -109,7 +109,7 @@ export default function ParentCalendarPage() {
     }
   };
 
-  const handleShowOverview = async (appointmentId: string | number) => {
+  const handleShowOverview = async (appointmentId: string) => {
     setOverviewLoading(true);
     try {
       setOverview(await getParentAppointmentOverview(appointmentId));

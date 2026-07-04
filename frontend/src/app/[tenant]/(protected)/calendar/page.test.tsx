@@ -70,7 +70,7 @@ const calendarResponse: CalendarResponse = {
       end_time: "10:00",
       all_day: false,
       response_status: "pending",
-      recipient_id: 42,
+      recipient_id: "42",
       can_respond: true,
       can_edit: false,
     },
@@ -78,11 +78,11 @@ const calendarResponse: CalendarResponse = {
 };
 
 const recipientOptions: CalendarRecipientOptions = {
-  staff: [{ id: 7, name: "Anna Mitarbeiterin" }],
-  parents: [{ id: 8, name: "Sabine Elternteil" }],
-  groups: [{ id: 9, name: "Gruppe A" }],
+  staff: [{ id: "7", name: "Anna Mitarbeiterin" }],
+  parents: [{ id: "8", name: "Sabine Elternteil" }],
+  groups: [{ id: "9", name: "Gruppe A" }],
   classes: ["1a"],
-  students: [{ id: 10, name: "Lara Beispiel", school_class: "1a" }],
+  students: [{ id: "10", name: "Lara Beispiel", school_class: "1a" }],
 };
 
 function mockCalendarSWR() {
@@ -112,7 +112,7 @@ describe("StaffCalendarPage", () => {
       status: "authenticated",
     });
     mockRespondStaffCalendar.mockResolvedValue(undefined);
-    mockCreateStaffAppointment.mockResolvedValue({ appointment: { id: 1 } });
+    mockCreateStaffAppointment.mockResolvedValue({ appointment: { id: "1" } });
     mockMutate.mockResolvedValue(undefined);
   });
 
@@ -123,7 +123,7 @@ describe("StaffCalendarPage", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Zusagen" })[0]!);
 
     await waitFor(() =>
-      expect(mockRespondStaffCalendar).toHaveBeenCalledWith(42, "accepted"),
+      expect(mockRespondStaffCalendar).toHaveBeenCalledWith("42", "accepted"),
     );
     expect(mockMutate).toHaveBeenCalledOnce();
     expect(mockToastSuccess).toHaveBeenCalledWith("Termin zugesagt.");
@@ -154,7 +154,7 @@ describe("StaffCalendarPage", () => {
           start_date: expect.any(String),
           end_date: expect.any(String),
           delivery_mode: "rsvp_required",
-          targets: [{ type: "staff", id: 7 }],
+          targets: [{ type: "staff", id: "7" }],
           recurrence: expect.objectContaining({
             frequency: "weekly",
             interval_count: 1,
