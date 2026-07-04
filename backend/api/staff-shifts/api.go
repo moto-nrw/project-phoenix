@@ -1,0 +1,275 @@
+// Package staffshifts exposes admin CRUD for planned per-date staff shifts
+// (Dienstplan, #1376 core slice). Shifts carry the concrete wall-clock times
+// the auto-checkout job (#1798) closes forgotten work sessions against.
+// Staff members read their own shifts via /api/time-tracking/shifts.
+package staffshifts
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+	"net/http"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
+
+	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
+)
+
+// Resource bundles the dependencies for the staff-shift HTTP handlers.
+type Resource struct {
+	Service       scheduleSvc.StaffShiftService
+	PersonService usersSvc.PersonService
+	db            *bun.DB
+	logger        *slog.Logger
+}
+
+// NewResource wires the dependencies.
+func NewResource(service scheduleSvc.StaffShiftService, personService usersSvc.PersonService, db *bun.DB, logger *slog.Logger) *Resource {
+	return &Resource{Service: service, PersonService: personService, db: db, logger: logger}
+}
+
+// Router returns the chi sub-router for /api/staff-shifts.
+func (rs *Resource) Router() chi.Router {
+	r := chi.NewRouter()
+	r.Use(render.SetContentType(render.ContentTypeJSON))
+
+	tokenAuth := jwt.MustNewTokenAuth()
+
+	r.Group(func(r chi.Router) {
+		r.Use(tokenAuth.Verifier())
+		r.Use(jwt.Authenticator)
+		r.Use(jwt.TenantMiddleware)
+		withTx := tenant.TenantTxMiddleware(rs.db)
+
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/", rs.list)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/", rs.create)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}", rs.update)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Delete("/{id}", rs.delete)
+	})
+
+	return r
+}
+
+// ShiftRequest is the create/update payload. Times are "HH:MM" wall-clock
+// strings, the date is "YYYY-MM-DD". StaffID is ignored on update (the shift
+// stays with its staff member).
+type ShiftRequest struct {
+	StaffID      int64  `json:"staff_id"`
+	Date         string `json:"date"`
+	StartTime    string `json:"start_time"`
+	EndTime      string `json:"end_time"`
+	BreakMinutes int    `json:"break_minutes"`
+	Notes        string `json:"notes"`
+}
+
+// ShiftResponse is the wire format returned to clients.
+type ShiftResponse struct {
+	ID           int64  `json:"id"`
+	StaffID      int64  `json:"staff_id"`
+	Date         string `json:"date"`
+	StartTime    string `json:"start_time"`
+	EndTime      string `json:"end_time"`
+	BreakMinutes int    `json:"break_minutes"`
+	Notes        string `json:"notes,omitempty"`
+}
+
+// ToShiftResponse maps a shift onto the wire format. Exported for the
+// time-tracking self endpoint, which serves the same shape.
+func ToShiftResponse(s *scheduleModels.StaffShift) ShiftResponse {
+	return ShiftResponse{
+		ID:           s.ID,
+		StaffID:      s.StaffID,
+		Date:         s.Date.String(),
+		StartTime:    timezone.WallClock(s.StartTime).Format("15:04"),
+		EndTime:      timezone.WallClock(s.EndTime).Format("15:04"),
+		BreakMinutes: s.BreakMinutes,
+		Notes:        s.Notes,
+	}
+}
+
+// ToShiftResponses maps a slice of shifts onto the wire format.
+func ToShiftResponses(shifts []*scheduleModels.StaffShift) []ShiftResponse {
+	out := make([]ShiftResponse, 0, len(shifts))
+	for _, s := range shifts {
+		out = append(out, ToShiftResponse(s))
+	}
+	return out
+}
+
+// ParseShiftTimes parses "HH:MM" start/end strings into wall-clock times.
+func ParseShiftTimes(startStr, endStr string) (start, end time.Time, err error) {
+	start, err = time.Parse("15:04", startStr)
+	if err != nil {
+		return time.Time{}, time.Time{}, errors.New("start_time must be HH:MM")
+	}
+	end, err = time.Parse("15:04", endStr)
+	if err != nil {
+		return time.Time{}, time.Time{}, errors.New("end_time must be HH:MM")
+	}
+	return timezone.WallClock(start), timezone.WallClock(end), nil
+}
+
+func (rs *Resource) buildShift(req ShiftRequest) (*scheduleModels.StaffShift, error) {
+	date, err := timezone.ParseDate(req.Date)
+	if err != nil {
+		return nil, errors.New("date must be YYYY-MM-DD")
+	}
+	start, end, err := ParseShiftTimes(req.StartTime, req.EndTime)
+	if err != nil {
+		return nil, err
+	}
+	return &scheduleModels.StaffShift{
+		StaffID:      req.StaffID,
+		Date:         date,
+		StartTime:    start,
+		EndTime:      end,
+		BreakMinutes: req.BreakMinutes,
+		Notes:        req.Notes,
+	}, nil
+}
+
+// editorStaffID resolves the acting admin's staff record from the JWT claims.
+func (rs *Resource) editorStaffID(ctx context.Context) (int64, error) {
+	claims := jwt.ClaimsFromCtx(ctx)
+	if claims.ID == 0 {
+		return 0, errors.New("invalid token")
+	}
+	person, err := rs.PersonService.FindByAccountID(ctx, int64(claims.ID))
+	if err != nil {
+		return 0, errors.New("person not found for account")
+	}
+	staff, err := rs.PersonService.GetStaffByPersonID(ctx, person.ID)
+	if err != nil {
+		return 0, errors.New("staff record not found")
+	}
+	return staff.ID, nil
+}
+
+func renderServiceError(w http.ResponseWriter, r *http.Request, err error) {
+	switch {
+	case errors.Is(err, scheduleSvc.ErrShiftOverlap):
+		common.RenderError(w, r, common.ErrorConflict(err))
+	case errors.Is(err, scheduleSvc.ErrShiftNotFound):
+		common.RenderError(w, r, common.ErrorNotFound(err))
+	case errors.Is(err, scheduleSvc.ErrShiftRangeTooLarge), errors.Is(err, scheduleSvc.ErrShiftInvalid):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	default:
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+	}
+}
+
+// parseDateRange extracts "from" and "to" query parameters as calendar dates.
+func parseDateRange(w http.ResponseWriter, r *http.Request) (from, to timezone.Date, ok bool) {
+	fromStr := r.URL.Query().Get("from")
+	toStr := r.URL.Query().Get("to")
+	if fromStr == "" || toStr == "" {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("from and to query parameters are required")))
+		return timezone.Date{}, timezone.Date{}, false
+	}
+	from, err := timezone.ParseDate(fromStr)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
+		return timezone.Date{}, timezone.Date{}, false
+	}
+	to, err = timezone.ParseDate(toStr)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
+		return timezone.Date{}, timezone.Date{}, false
+	}
+	return from, to, true
+}
+
+func (rs *Resource) list(w http.ResponseWriter, r *http.Request) {
+	from, to, ok := parseDateRange(w, r)
+	if !ok {
+		return
+	}
+	shifts, err := rs.Service.ListShifts(r.Context(), from, to)
+	if err != nil {
+		renderServiceError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, ToShiftResponses(shifts), "Staff shifts retrieved")
+}
+
+func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
+	var req ShiftRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	shift, err := rs.buildShift(req)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	editorID, err := rs.editorStaffID(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+	shift.CreatedBy = editorID
+
+	saved, err := rs.Service.CreateShift(r.Context(), shift)
+	if err != nil {
+		renderServiceError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusCreated, ToShiftResponse(saved), "Staff shift created")
+}
+
+func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
+	id, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	var req ShiftRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	shift, err := rs.buildShift(req)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	editorID, err := rs.editorStaffID(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+	shift.ID = id
+	shift.UpdatedBy = &editorID
+
+	saved, err := rs.Service.UpdateShift(r.Context(), shift)
+	if err != nil {
+		renderServiceError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, ToShiftResponse(saved), "Staff shift updated")
+}
+
+func (rs *Resource) delete(w http.ResponseWriter, r *http.Request) {
+	id, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	if err := rs.Service.DeleteShift(r.Context(), id); err != nil {
+		renderServiceError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, map[string]any{"id": id}, "Staff shift deleted")
+}

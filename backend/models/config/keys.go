@@ -98,6 +98,12 @@ const (
 	KeyTrackingIndicator3        = "tracking.indicator_3"
 )
 
+// Time-tracking auto-checkout settings (#1798).
+const (
+	KeyTrackingAutoCheckoutEnabled      = "tracking.auto_checkout_enabled"
+	KeyTrackingAutoCheckoutGraceMinutes = "tracking.auto_checkout_grace_minutes"
+)
+
 // Operations settings.
 const (
 	KeySessionEndEnabled               = "operations.session_end_enabled"

@@ -1,0 +1,148 @@
+package schedule_test
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+)
+
+func wallClock(hour, minute int) time.Time {
+	return time.Date(1, 1, 1, hour, minute, 0, 0, time.UTC)
+}
+
+func newShift(staffID int64, date timezone.Date, startHour, endHour int, createdBy int64) *scheduleModels.StaffShift {
+	return &scheduleModels.StaffShift{
+		StaffID:   staffID,
+		Date:      date,
+		StartTime: wallClock(startHour, 0),
+		EndTime:   wallClock(endHour, 30),
+		CreatedBy: createdBy,
+	}
+}
+
+func cleanupShifts(t *testing.T, repo scheduleModels.StaffShiftRepository, ctx context.Context, ids ...int64) {
+	t.Helper()
+	for _, id := range ids {
+		_ = repo.Delete(ctx, id)
+	}
+}
+
+func TestStaffShiftRepository_CreateFindNormalizesWallClock(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).StaffShift
+	ctx := testpkg.TenantContext(1)
+
+	staff := testpkg.CreateTestStaff(t, db, "Shift", "Owner")
+	defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
+
+	monday := timezone.NewDate(2026, time.July, 6)
+	shift := newShift(staff.ID, monday, 8, 16, staff.ID)
+	require.NoError(t, repo.Create(ctx, shift))
+	defer cleanupShifts(t, repo, ctx, shift.ID)
+	require.NotZero(t, shift.ID)
+	assert.Equal(t, int64(1), shift.TenantID, "tenant_id must be stamped from context")
+
+	rows, err := repo.FindByStaffAndDateRange(ctx, staff.ID, monday, monday)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	got := rows[0]
+	assert.Equal(t, monday, got.Date)
+	// TIME columns scan back with a driver-arbitrary year anchor; the repo
+	// must normalize to WallClock so comparisons and formatting work.
+	assert.Equal(t, wallClock(8, 0), got.StartTime)
+	assert.Equal(t, wallClock(16, 30), got.EndTime)
+	assert.Equal(t, "08:00", timezone.WallClock(got.StartTime).Format("15:04"))
+}
+
+func TestStaffShiftRepository_FindByStaffIDsAndDate(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).StaffShift
+	ctx := testpkg.TenantContext(1)
+
+	staffA := testpkg.CreateTestStaff(t, db, "ShiftA", "Batch")
+	staffB := testpkg.CreateTestStaff(t, db, "ShiftB", "Batch")
+	defer testpkg.CleanupActivityFixtures(t, db, staffA.PersonID, staffB.PersonID)
+
+	day := timezone.NewDate(2026, time.July, 7)
+	other := day.AddDays(1)
+
+	s1 := newShift(staffA.ID, day, 8, 12, staffA.ID)
+	s2 := newShift(staffA.ID, day, 13, 17, staffA.ID)
+	s3 := newShift(staffB.ID, day, 9, 15, staffA.ID)
+	s4 := newShift(staffB.ID, other, 9, 15, staffA.ID) // other day, must not appear
+	for _, s := range []*scheduleModels.StaffShift{s1, s2, s3, s4} {
+		require.NoError(t, repo.Create(ctx, s))
+	}
+	defer cleanupShifts(t, repo, ctx, s1.ID, s2.ID, s3.ID, s4.ID)
+
+	rows, err := repo.FindByStaffIDsAndDate(ctx, []int64{staffA.ID, staffB.ID}, day)
+	require.NoError(t, err)
+	assert.Len(t, rows, 3)
+
+	// Empty id list short-circuits without touching the DB.
+	rows, err = repo.FindByStaffIDsAndDate(ctx, nil, day)
+	require.NoError(t, err)
+	assert.Empty(t, rows)
+}
+
+func TestStaffShiftRepository_DuplicateStartRejected(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).StaffShift
+	ctx := testpkg.TenantContext(1)
+
+	staff := testpkg.CreateTestStaff(t, db, "Shift", "Dup")
+	defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
+
+	day := timezone.NewDate(2026, time.July, 8)
+	first := newShift(staff.ID, day, 8, 16, staff.ID)
+	require.NoError(t, repo.Create(ctx, first))
+	defer cleanupShifts(t, repo, ctx, first.ID)
+
+	dup := newShift(staff.ID, day, 8, 14, staff.ID) // same start_time
+	err := repo.Create(ctx, dup)
+	require.Error(t, err, "unique(tenant, staff, date, start_time) must reject the duplicate")
+}
+
+func TestStaffShiftRepository_TenantIsolation(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).StaffShift
+	tenant1 := testpkg.TenantContext(1)
+
+	staff := testpkg.CreateTestStaff(t, db, "Shift", "Isolated")
+	defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
+
+	const otherTenantID = int64(910002)
+	testpkg.EnsureTestTenant(t, db, otherTenantID)
+	tenant2 := tenant.WithTenantID(context.Background(), otherTenantID)
+
+	day := timezone.NewDate(2026, time.July, 9)
+	shift := newShift(staff.ID, day, 8, 16, staff.ID)
+	require.NoError(t, repo.Create(tenant1, shift))
+	defer cleanupShifts(t, repo, tenant1, shift.ID)
+
+	rows, err := repo.FindByDateRange(tenant2, day, day)
+	require.NoError(t, err)
+	assert.Empty(t, rows, "tenant 2 must not see tenant 1's shifts")
+
+	rows, err = repo.FindByDateRange(tenant1, day, day)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, shift.ID, rows[0].ID)
+}

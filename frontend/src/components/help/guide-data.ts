@@ -675,6 +675,29 @@ export const appChapters: readonly GuideChapter[] = [
         image: "/help/screens/stundenplan.webp",
       },
       {
+        id: "dienstplan",
+        title: "Dienstplan",
+        icon: CalendarRange,
+        summary:
+          "Plant konkrete Schichten (Beginn, Ende, Pause) pro Mitarbeiter und Tag (nur für Admins).",
+        steps: [
+          "`Dienstplan` in der Seitenleiste öffnen.",
+          "Mit den Pfeilen zwischen den Wochen wechseln, `Diese Woche` springt zurück zur aktuellen Woche.",
+          "In der Zeile eines Mitarbeiters auf eine leere Zelle klicken, um eine Schicht anzulegen: `Beginn`, `Ende` und `Pause (Minuten)` eintragen und speichern.",
+          "Eine vorhandene Schicht anklicken, um sie zu bearbeiten oder über `Schicht löschen` zu entfernen.",
+          "Mehrere Schichten pro Tag sind möglich (z. B. Frühdienst und Nachmittagsbetreuung), solange sie sich nicht überschneiden.",
+          "Mitarbeitende sehen ihre eigene geplante Schicht in der Zeiterfassung als Zeile `Geplant: 08:00–16:00` in der Stempeluhr.",
+        ],
+        callout: {
+          title: "Dienstplan und Arbeitszeitmodell nicht verwechseln",
+          body: "Das Arbeitszeitmodell auf der Mitarbeiter-Detailseite legt die vertraglichen Soll-Stunden pro Wochentag fest und steuert das Stundenkonto. Der Dienstplan plant konkrete Uhrzeiten pro Datum. Beide existieren nebeneinander: Das Soll bleibt die Basis für den Saldo, der Dienstplan bestimmt die geplanten Anwesenheitszeiten.",
+          tone: "blue",
+        },
+        screenshot:
+          "Dienstplan-Wochenansicht mit Schichten pro Mitarbeiter und Tag.",
+        image: "/help/screens/dienstplan.webp",
+      },
+      {
         id: "zeiterfassung",
         title: "Zeiterfassung",
         icon: Clock3,
@@ -684,6 +707,7 @@ export const appChapters: readonly GuideChapter[] = [
           "`Zeiterfassung` öffnen.",
           "`In der OGS`, `Homeoffice` oder `Abwesend` wählen.",
           "Mit `Einstempeln` beginnen und am Ende `Ausstempeln`.",
+          "Ist im Dienstplan eine Schicht geplant, zeigt die Stempeluhr sie als `Geplant: 08:00–16:00`. Vergessene Ausstempelungen kann die Einrichtung automatisch zum geplanten Dienstende beenden lassen (Einstellung `Automatische Ausstempelung`); solche Einträge sind mit `Auto-Checkout` markiert und lassen sich korrigieren.",
           "Pausen mit einer geplanten Dauer starten. Die Pause endet automatisch nach Ablauf oder manuell über `Pause beenden`.",
           "Bei langen Arbeitstagen die Pausenhinweise beachten.",
           "Für Krankheit, Fortbildung oder sonstige Abwesenheit `Abwesend` wählen und die Abwesenheit mit Art, Zeitraum und optionaler Notiz speichern.",

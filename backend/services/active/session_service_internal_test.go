@@ -14,6 +14,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -142,6 +143,11 @@ func (w *workSessionServiceForSessionUnitTest) GetTodayPresenceMap(context.Conte
 }
 func (w *workSessionServiceForSessionUnitTest) CleanupOpenSessions(context.Context) (int, error) {
 	return 0, nil
+}
+func (w *workSessionServiceForSessionUnitTest) AutoCheckoutDueSessions(context.Context, time.Duration) (int, error) {
+	return 0, nil
+}
+func (w *workSessionServiceForSessionUnitTest) SetStaffShiftRepo(scheduleModels.StaffShiftRepository) {
 }
 func (w *workSessionServiceForSessionUnitTest) EnsureCheckedIn(ctx context.Context, staffID int64, source string) (*activeModels.WorkSession, error) {
 	if w.ensureCheckedInFunc != nil {

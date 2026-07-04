@@ -99,6 +99,13 @@ const NAV_ITEMS: NavItem[] = [
     requiresAdmin: true,
   },
   {
+    href: "/staff/dienstplan",
+    label: "Dienstplan",
+    icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z",
+    activeColor: "text-[#F78C10]",
+    requiresAdmin: true,
+  },
+  {
     href: "/admin/guardian-approvals",
     label: "Konto-Anfragen",
     icon: "M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z",
@@ -547,6 +554,13 @@ function SidebarContent({ className = "" }: SidebarProps) {
     }
     if (href === "/dashboard") return pathname === "/dashboard";
     if (href === "/parents") return pathname === "/parents" || pathname === "/";
+    // /staff/dienstplan has its own sidebar entry — don't also light up "Mitarbeiter"
+    if (href === "/staff") {
+      return (
+        pathname.startsWith("/staff") &&
+        !pathname.startsWith("/staff/dienstplan")
+      );
+    }
     return pathname.startsWith(href);
   };
 

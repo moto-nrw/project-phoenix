@@ -30,6 +30,8 @@ import { StaffSessionTable } from "~/components/staff/staff-session-table";
 import { StaffExportButton } from "~/components/staff/staff-export-button";
 import { LeaveRequestsCard } from "~/components/time-tracking/leave-requests-card";
 import type { StaffHistorySession, StaffAbsenceRow } from "~/lib/staff-api";
+import { ownShiftService } from "~/lib/shift-api";
+import type { StaffShift } from "~/lib/shift-helpers";
 import { toISODate } from "~/lib/date-helpers";
 import { useToast } from "~/contexts/ToastContext";
 import { useSWRAuth } from "~/lib/swr";
@@ -468,6 +470,7 @@ function ClockInCard({
   weeklyMinutes,
   onAddAbsence,
   metrics,
+  plannedShift,
 }: {
   readonly currentSession: WorkSession | null;
   readonly breaks: WorkSessionBreak[];
@@ -478,6 +481,7 @@ function ClockInCard({
   readonly weeklyMinutes: number;
   readonly onAddAbsence: () => void;
   readonly metrics?: ReturnType<typeof computeStaffMetrics> | null;
+  readonly plannedShift?: StaffShift | null;
 }) {
   // Null until the staff member explicitly picks Vor Ort / Homeoffice / Abwesend.
   // No pre-selection per Issue #1368 — silent defaults are unacceptable for an
@@ -651,6 +655,15 @@ function ClockInCard({
             </span>
           )}
         </div>
+
+        {/* Heute geplante Schicht (Dienstplan) — dezente Zeile unter dem Titel */}
+        {plannedShift && (
+          <p className="-mt-3 mb-5 text-sm text-gray-500 tabular-nums">
+            Geplant: {plannedShift.startTime}–{plannedShift.endTime}
+            {plannedShift.breakMinutes > 0 &&
+              ` · Pause ${plannedShift.breakMinutes} min`}
+          </p>
+        )}
 
         {/* ── Not checked in: start controls ── */}
         {!isCheckedIn && !isCheckedOut && (
@@ -2793,11 +2806,22 @@ function TimeTrackingContent() {
 
   const absences = absencesData ?? [];
 
+  // Own planned shifts this week (Dienstplan) — today's shift is shown as a
+  // quiet "Geplant: 08:00–16:00" line in the Stempeluhr card.
+  const { data: ownShifts } = useSWRAuth<StaffShift[]>(
+    weekFromDate && toDate
+      ? `time-tracking-own-shifts-${weekFromDate}-${toDate}`
+      : null,
+    () => ownShiftService.getOwnShifts(weekFromDate, toDate),
+    { revalidateOnFocus: false, errorRetryCount: 1 },
+  );
+
   // Check if today has an absence (for check-in warning)
   const todayISO = toISODate(new Date());
   const todayAbsence = absences.find(
     (a) => a.dateStart <= todayISO && a.dateEnd >= todayISO,
   );
+  const todayShift = (ownShifts ?? []).find((s) => s.date === todayISO) ?? null;
 
   // --- MA-Saldo-Widget (Tranche 1.5) ----------------------------------------
   //
@@ -3273,6 +3297,7 @@ function TimeTrackingContent() {
           weeklyMinutes={weeklyCompletedMinutes}
           onAddAbsence={() => setAbsenceModalOpen(true)}
           metrics={ownMetrics ?? null}
+          plannedShift={todayShift}
         />
         <WeekChart
           history={history}

@@ -135,7 +135,7 @@ func TestWorkSessionEditRepository_CreateBatch(t *testing.T) {
 			{
 				SessionID: 1,
 				StaffID:   staff.ID,
-				EditedBy:  0, // Invalid
+				EditedBy:  -1, // Invalid; 0 is the system sentinel (#1798)
 				FieldName: audit.FieldCheckInTime,
 			},
 		}

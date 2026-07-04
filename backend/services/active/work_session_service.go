@@ -18,6 +18,7 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/xuri/excelize/v2"
@@ -170,6 +171,17 @@ type WorkSessionService interface {
 	GetSessionEditsForStaff(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error)
 	GetTodayPresenceMap(ctx context.Context) (map[int64]string, error)
 	CleanupOpenSessions(ctx context.Context) (int, error)
+	// AutoCheckoutDueSessions closes open sessions whose staff member has a
+	// planned shift (schedule.staff_shifts) that ended more than `grace` ago,
+	// stamping the checkout at the planned shift end (#1798). Sessions
+	// without a shift on their date are untouched (the nightly
+	// CleanupOpenSessions still catches them); sessions checked in after the
+	// shift end are skipped. Each close is marked AutoCheckedOut and audited
+	// with the SystemEditorID actor. No-op when no shift repo is injected.
+	AutoCheckoutDueSessions(ctx context.Context, grace time.Duration) (int, error)
+	// SetStaffShiftRepo injects the planned-shift repository consumed by
+	// AutoCheckoutDueSessions (wired by the factory after construction).
+	SetStaffShiftRepo(repo scheduleModels.StaffShiftRepository)
 	// EnsureCheckedIn opens today's session if the staff member has no active
 	// row. The caller passes `source` (`app`/`nfc`) to record which channel
 	// triggered the auto-stamp; this avoids hard-coding the channel inside
@@ -206,7 +218,16 @@ type workSessionService struct {
 	staffRepo      userModels.StaffRepository
 	scheduleRepo   configModels.StaffWorkScheduleRepository
 	workModelRepo  configModels.WorkTimeModelRepository
+	staffShiftRepo scheduleModels.StaffShiftRepository
 	logger         *slog.Logger
+}
+
+// SetStaffShiftRepo injects the planned-shift repository used by
+// AutoCheckoutDueSessions (#1798). Setter instead of a constructor param to
+// keep the already long NewWorkSessionService signature stable; the factory
+// calls it right after construction.
+func (s *workSessionService) SetStaffShiftRepo(repo scheduleModels.StaffShiftRepository) {
+	s.staffShiftRepo = repo
 }
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
@@ -1213,7 +1234,9 @@ func (s *workSessionService) loadSessionEditsView(ctx context.Context, session *
 	views := make([]*WorkSessionEditView, len(edits))
 	for i, e := range edits {
 		name := ""
-		if staff, ok := staffMap[e.EditedBy]; ok && staff != nil && staff.Person != nil {
+		if e.EditedBy == auditModels.SystemEditorID {
+			name = "System"
+		} else if staff, ok := staffMap[e.EditedBy]; ok && staff != nil && staff.Person != nil {
 			name = strings.TrimSpace(staff.Person.FirstName + " " + staff.Person.LastName)
 		}
 		views[i] = &WorkSessionEditView{
@@ -1262,6 +1285,102 @@ func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, erro
 		if err := s.repo.CloseSession(ctx, session.ID, endOfDay, true); err != nil {
 			return count, fmt.Errorf("failed to close session %d: %w", session.ID, err)
 		}
+		count++
+	}
+
+	return count, nil
+}
+
+// AutoCheckoutDueSessions closes open sessions at their planned shift end (#1798).
+func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace time.Duration) (int, error) {
+	if s.staffShiftRepo == nil {
+		return 0, nil
+	}
+
+	now := timezone.Now()
+	// GetOpenSessions filters date < beforeDate; passing tomorrow includes
+	// today's open sessions, which is where forgotten checkouts live.
+	tomorrow := timezone.TodayDate().AddDays(1)
+	openSessions, err := s.repo.GetOpenSessions(ctx, tomorrow)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get open sessions: %w", err)
+	}
+	if len(openSessions) == 0 {
+		return 0, nil
+	}
+
+	// Batch the shift lookups per session date; latest shift end per staff wins.
+	latestEndByDate := make(map[timezone.Date]map[int64]*scheduleModels.StaffShift)
+	byDate := make(map[timezone.Date][]int64)
+	for _, session := range openSessions {
+		byDate[session.Date] = append(byDate[session.Date], session.StaffID)
+	}
+	for date, staffIDs := range byDate {
+		shifts, err := s.staffShiftRepo.FindByStaffIDsAndDate(ctx, staffIDs, date)
+		if err != nil {
+			return 0, fmt.Errorf("failed to load shifts for %s: %w", date.String(), err)
+		}
+		latest := make(map[int64]*scheduleModels.StaffShift, len(shifts))
+		for _, shift := range shifts {
+			current, ok := latest[shift.StaffID]
+			if !ok || shift.EndInstant().After(current.EndInstant()) {
+				latest[shift.StaffID] = shift
+			}
+		}
+		latestEndByDate[date] = latest
+	}
+
+	tenantID := tenant.FromContext(ctx)
+	count := 0
+	for _, session := range openSessions {
+		shift, ok := latestEndByDate[session.Date][session.StaffID]
+		if !ok {
+			continue // no shift planned that day — nightly cleanup handles it
+		}
+		closeAt := shift.EndInstant()
+		if !now.After(closeAt.Add(grace)) {
+			continue // not yet due
+		}
+		if closeAt.Before(session.CheckInTime) {
+			// Checked in after the planned shift end — never fabricate a
+			// checkout before the check-in; leave it to the nightly cleanup.
+			continue
+		}
+
+		if err := s.endActiveBreakIfExists(ctx, session.ID); err != nil {
+			s.getLogger().WarnContext(ctx, "failed to end active break during auto-checkout",
+				slog.Int64("session_id", session.ID),
+				slog.String("error", err.Error()))
+			// Continue: closing the session still recalculates nothing worse
+			// than the nightly cleanup would.
+		}
+
+		if err := s.repo.CloseSession(ctx, session.ID, closeAt, true); err != nil {
+			return count, fmt.Errorf("failed to auto-checkout session %d: %w", session.ID, err)
+		}
+
+		newVal := closeAt.Format(time.RFC3339)
+		note := "Automatische Ausstempelung zum geplanten Schichtende"
+		edit := &auditModels.WorkSessionEdit{
+			SessionID: session.ID,
+			StaffID:   session.StaffID,
+			EditedBy:  auditModels.SystemEditorID,
+			FieldName: auditModels.FieldCheckOutTime,
+			OldValue:  nil,
+			NewValue:  &newVal,
+			Notes:     &note,
+		}
+		edit.SetTenantID(tenantID)
+		if err := s.auditRepo.CreateBatch(ctx, []*auditModels.WorkSessionEdit{edit}); err != nil {
+			s.getLogger().ErrorContext(ctx, "failed to write auto-checkout audit entry",
+				slog.Int64("session_id", session.ID),
+				slog.String("error", err.Error()))
+		}
+
+		s.getLogger().InfoContext(ctx, "session auto-checked-out at planned shift end",
+			slog.Int64("session_id", session.ID),
+			slog.Int64("staff_id", session.StaffID),
+			slog.String("check_out_time", newVal))
 		count++
 	}
 

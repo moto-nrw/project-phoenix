@@ -186,6 +186,12 @@ export function AdminSessionEditModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} footer={footer}>
       <div className="space-y-4 text-sm">
+        {mode === "edit" && session?.auto_checked_out && (
+          <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            Diese Sitzung wurde automatisch zum geplanten Dienstende
+            ausgestempelt. Bitte die tatsächliche Endzeit prüfen.
+          </p>
+        )}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Check-in">
             <input
