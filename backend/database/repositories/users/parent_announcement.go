@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -54,6 +55,28 @@ func pendingStatusList() string {
 	return strings.Join(quoted, ",")
 }
 
+// activeActivityGroupExists renders the activity_group branch of a target match:
+// the student has an enrollment in pt.target_ref_id that is active TODAY. It is
+// the single canonical active-enrollment predicate for the audience/feed/stats
+// queries — mirroring activities.StudentEnrollmentRepository.FindActiveByStudentIDs:
+// valid_until is EXCLUSIVE (an enrollment ending today is no longer active), and
+// "today" is Berlin's calendar date, not the DB session's CURRENT_DATE (which is
+// UTC and rolls a day early/late around Berlin midnight). tenantExpr is the SQL
+// expression for the tenant (a bound `?` in the raw builders, `a.tenant_id` in
+// the feed). The Berlin date is rendered from validated integer fields, so
+// inlining it as a literal is injection-safe and — like pendingStatusList — keeps
+// the runtime `?` args limited to the ids, preserving their positional order.
+func activeActivityGroupExists(tenantExpr string) string {
+	today := "'" + timezone.TodayDate().String() + "'"
+	return fmt.Sprintf(`(pt.target_type = 'activity_group' AND EXISTS (
+						SELECT 1 FROM activities.student_enrollments se
+						WHERE se.student_id = s.id AND se.tenant_id = %[1]s
+							AND se.activity_group_id = pt.target_ref_id
+							AND se.valid_from <= %[2]s
+							AND (se.valid_until IS NULL OR se.valid_until > %[2]s)
+					))`, tenantExpr, today)
+}
+
 // reachedPredicate builds the SQL boolean "guardian account :acc is reached by
 // the announcement identified by (annExpr, tenantExpr) right now". annExpr and
 // tenantExpr are SQL expressions (a column reference like `a.id`/`a.tenant_id`
@@ -88,13 +111,7 @@ func reachedPredicate(annExpr, tenantExpr, accPlace string) string {
 				OR (pt.target_type = 'class' AND LOWER(TRIM(s.school_class)) = LOWER(TRIM(pt.target_ref_text)))
 				OR (pt.target_type = 'group' AND s.group_id = pt.target_ref_id)
 				OR (pt.target_type = 'student' AND s.id = pt.target_ref_id)
-				OR (pt.target_type = 'activity_group' AND EXISTS (
-					SELECT 1 FROM activities.student_enrollments se
-					WHERE se.student_id = s.id AND se.tenant_id = %[2]s
-						AND se.activity_group_id = pt.target_ref_id
-						AND se.valid_from <= CURRENT_DATE
-						AND (se.valid_until IS NULL OR se.valid_until >= CURRENT_DATE)
-				))
+				OR %[5]s
 			)
 			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
 			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = %[2]s
@@ -126,7 +143,7 @@ func reachedPredicate(annExpr, tenantExpr, accPlace string) string {
 			WHERE pt.announcement_id = %[1]s AND pt.tenant_id = %[2]s
 				AND pt.target_type = 'pending_enrollment'
 		)
-	)`, annExpr, tenantExpr, accPlace, pendingStatusList())
+	)`, annExpr, tenantExpr, accPlace, pendingStatusList(), activeActivityGroupExists(tenantExpr))
 }
 
 // FindByID returns the announcement by id (tenant-scoped), or nil when absent.
@@ -376,13 +393,7 @@ func (r *ParentAnnouncementRepository) CountAudience(ctx context.Context, tenant
 				OR (pt.target_type = 'class' AND LOWER(TRIM(s.school_class)) = LOWER(TRIM(pt.target_ref_text)))
 				OR (pt.target_type = 'group' AND s.group_id = pt.target_ref_id)
 				OR (pt.target_type = 'student' AND s.id = pt.target_ref_id)
-				OR (pt.target_type = 'activity_group' AND EXISTS (
-					SELECT 1 FROM activities.student_enrollments se
-					WHERE se.student_id = s.id AND se.tenant_id = ?
-						AND se.activity_group_id = pt.target_ref_id
-						AND se.valid_from <= CURRENT_DATE
-						AND (se.valid_until IS NULL OR se.valid_until >= CURRENT_DATE)
-				))
+				OR %s
 			)
 			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
 			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
@@ -406,7 +417,7 @@ func (r *ParentAnnouncementRepository) CountAudience(ctx context.Context, tenant
 				AND rc.status IN (%s)
 			WHERE pt.announcement_id = ? AND pt.tenant_id = ? AND pt.target_type = 'pending_enrollment'
 				AND COALESCE(req.guardian_account_id, ea.id) IS NOT NULL
-		) reached`, pendingStatusList())
+		) reached`, activeActivityGroupExists("?"), pendingStatusList())
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
 		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID, // student path
 		tenantID, tenantID, announcementID, tenantID, // pending path
@@ -495,13 +506,7 @@ func (r *ParentAnnouncementRepository) ResolveAudienceEmails(ctx context.Context
 			OR (pt.target_type = 'class' AND LOWER(TRIM(s.school_class)) = LOWER(TRIM(pt.target_ref_text)))
 			OR (pt.target_type = 'group' AND s.group_id = pt.target_ref_id)
 			OR (pt.target_type = 'student' AND s.id = pt.target_ref_id)
-			OR (pt.target_type = 'activity_group' AND EXISTS (
-				SELECT 1 FROM activities.student_enrollments se
-				WHERE se.student_id = s.id AND se.tenant_id = ?
-					AND se.activity_group_id = pt.target_ref_id
-					AND se.valid_from <= CURRENT_DATE
-					AND (se.valid_until IS NULL OR se.valid_until >= CURRENT_DATE)
-			))
+			OR %s
 		)
 		JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
 		JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
@@ -530,7 +535,7 @@ func (r *ParentAnnouncementRepository) ResolveAudienceEmails(ctx context.Context
 			AND (req.guardian_account_id IS NOT NULL OR ea.id IS NOT NULL)
 		) recips
 		GROUP BY email`,
-		pendingStatusList())
+		activeActivityGroupExists("?"), pendingStatusList())
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
 		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID, // student path
 		tenantID, tenantID, announcementID, tenantID, // pending path
@@ -574,13 +579,7 @@ func (r *ParentAnnouncementRepository) AudienceRecipients(ctx context.Context, t
 				OR (pt.target_type = 'class' AND LOWER(TRIM(s.school_class)) = LOWER(TRIM(pt.target_ref_text)))
 				OR (pt.target_type = 'group' AND s.group_id = pt.target_ref_id)
 				OR (pt.target_type = 'student' AND s.id = pt.target_ref_id)
-				OR (pt.target_type = 'activity_group' AND EXISTS (
-					SELECT 1 FROM activities.student_enrollments se
-					WHERE se.student_id = s.id AND se.tenant_id = ?
-						AND se.activity_group_id = pt.target_ref_id
-						AND se.valid_from <= CURRENT_DATE
-						AND (se.valid_until IS NULL OR se.valid_until >= CURRENT_DATE)
-				))
+				OR %s
 			)
 			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
 			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
@@ -610,7 +609,7 @@ func (r *ParentAnnouncementRepository) AudienceRecipients(ctx context.Context, t
 			ON par.announcement_id = ? AND par.account_id = acc.account_id
 		GROUP BY acc.account_id, par.read_at, par.acknowledged_at
 		ORDER BY last_name ASC, first_name ASC, acc.account_id ASC`,
-		pendingStatusList())
+		activeActivityGroupExists("?"), pendingStatusList())
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
 		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID, // student path
 		tenantID, tenantID, announcementID, tenantID, // pending path
@@ -777,13 +776,7 @@ func (r *ParentAnnouncementRepository) Stats(ctx context.Context, tenantID, anno
 				OR (pt.target_type = 'class' AND LOWER(TRIM(s.school_class)) = LOWER(TRIM(pt.target_ref_text)))
 				OR (pt.target_type = 'group' AND s.group_id = pt.target_ref_id)
 				OR (pt.target_type = 'student' AND s.id = pt.target_ref_id)
-				OR (pt.target_type = 'activity_group' AND EXISTS (
-					SELECT 1 FROM activities.student_enrollments se
-					WHERE se.student_id = s.id AND se.tenant_id = ?
-						AND se.activity_group_id = pt.target_ref_id
-						AND se.valid_from <= CURRENT_DATE
-						AND (se.valid_until IS NULL OR se.valid_until >= CURRENT_DATE)
-				))
+				OR %s
 			)
 			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
 			JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
@@ -814,7 +807,7 @@ func (r *ParentAnnouncementRepository) Stats(ctx context.Context, tenantID, anno
 			(SELECT COUNT(*) FROM users.parent_announcement_reads par
 				WHERE par.announcement_id = ? AND par.tenant_id = ? AND par.acknowledged_at IS NOT NULL
 					AND par.account_id IN (SELECT account_id FROM audience)) AS acknowledged_count`,
-		pendingStatusList())
+		activeActivityGroupExists("?"), pendingStatusList())
 	if err := base.GetDB(ctx, r.DB).NewRaw(audienceCTE,
 		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID, // student path
 		tenantID, tenantID, announcementID, tenantID, // pending path
