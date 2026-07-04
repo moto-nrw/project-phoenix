@@ -363,9 +363,12 @@ func buildGroupedExportRows(students []StudentResponse, weekly map[int64]weeklyS
 	rows := make([]listexport.Row, 0, len(students))
 	currentClass := ""
 	for i, student := range students {
-		if key := strings.TrimSpace(student.SchoolClass); i == 0 || key != currentClass {
-			currentClass = key
-			rows = append(rows, listexport.Row{GroupTitle: listexport.ClassGroupTitle(key)})
+		// Boundary detection must use the sort comparator's equivalence:
+		// label variants like "1a"/"1A"/"1 a" are one logical class and
+		// must share a single heading (first-seen label).
+		if class := strings.TrimSpace(student.SchoolClass); i == 0 || collation.CompareSchoolClasses(class, currentClass) != 0 {
+			currentClass = class
+			rows = append(rows, listexport.Row{GroupTitle: listexport.ClassGroupTitle(class)})
 		}
 		rows = append(rows, buildExportRow(student, weekly[student.ID], enrollmentSummaries))
 	}

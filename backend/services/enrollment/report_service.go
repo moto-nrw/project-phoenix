@@ -905,7 +905,16 @@ func (s *reportService) classRosterStudents(ctx context.Context, filters ClassRo
 		return nil, fmt.Errorf("class roster report: list school classes: %w", err)
 	}
 	students := make([]*userModels.Student, 0)
+	// ListSchoolClasses is case-sensitive DISTINCT while FindBySchoolClass
+	// matches LOWER(TRIM(...)); dedupe with the latter rule so a tenant
+	// with both "1a" and "1A" doesn't load the same students twice.
+	seen := make(map[string]bool, len(classes))
 	for _, class := range classes {
+		key := strings.ToLower(strings.TrimSpace(class))
+		if key == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
 		classStudents, err := s.studentRepo.FindBySchoolClass(ctx, class)
 		if err != nil {
 			return nil, fmt.Errorf("class roster report: list students of class %q: %w", class, err)

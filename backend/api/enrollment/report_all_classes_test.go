@@ -84,6 +84,27 @@ func TestBuildClassRosterTableDocumentAllClassesInsertsGroupHeadings(t *testing.
 	assert.Contains(t, doc.Filters, "Klasse: Alle Klassen")
 }
 
+func TestBuildClassRosterTableDocumentMergesClassLabelVariants(t *testing.T) {
+	report := allClassesTestReport()
+	report.Rows = []enrollmentService.ClassRosterRow{
+		{StudentID: 1, FirstName: "Mila", LastName: "Anders", SchoolClass: "1a"},
+		{StudentID: 2, FirstName: "Finn", LastName: "Becker", SchoolClass: "1A"},
+		{StudentID: 3, FirstName: "Ida", LastName: "Conrad", SchoolClass: "2b"},
+	}
+
+	doc := buildClassRosterTableDocument(report)
+
+	var headings []string
+	for _, row := range doc.Rows {
+		if row.GroupTitle != "" {
+			headings = append(headings, row.GroupTitle)
+		}
+	}
+	// "1a" and "1A" are one logical class: one heading, first-seen label.
+	assert.Equal(t, []string{"Klasse 1a", "Klasse 2b"}, headings)
+	require.Len(t, doc.Rows, 5)
+}
+
 func TestBuildClassRosterTableDocumentSingleClassHasNoGroupHeadings(t *testing.T) {
 	report := allClassesTestReport()
 	report.Filters.AllClasses = false

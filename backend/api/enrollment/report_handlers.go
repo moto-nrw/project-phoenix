@@ -14,6 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/collation"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 )
@@ -596,9 +597,11 @@ func buildClassRosterTableDocument(report *enrollmentService.ClassRosterReport) 
 	for i, row := range report.Rows {
 		// All-classes rosters arrive class-sorted from the service; a
 		// heading row starts each class section (new page in the PDF).
-		if key := strings.TrimSpace(row.SchoolClass); report.Filters.AllClasses && (i == 0 || key != currentClass) {
-			currentClass = key
-			rows = append(rows, listexport.Row{GroupTitle: listexport.ClassGroupTitle(key)})
+		// Boundaries use the sort comparator's equivalence so label
+		// variants like "1a"/"1A" share one heading (first-seen label).
+		if class := strings.TrimSpace(row.SchoolClass); report.Filters.AllClasses && (i == 0 || collation.CompareSchoolClasses(class, currentClass) != 0) {
+			currentClass = class
+			rows = append(rows, listexport.Row{GroupTitle: listexport.ClassGroupTitle(class)})
 		}
 		rows = append(rows, listexport.Row{Values: map[listexport.ColumnID]string{
 			listexport.ColumnName:             strings.TrimSpace(row.FirstName + " " + row.LastName),

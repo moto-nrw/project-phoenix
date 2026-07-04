@@ -18,6 +18,40 @@ func TestCompareSchoolClasses(t *testing.T) {
 	}
 }
 
+func TestCompareSchoolClassesKlassePrefixSortsNumerically(t *testing.T) {
+	classes := []string{"Klasse 10a", "3a", "Klassenfahrt", "Klasse 2a", "1b", "klasse 4b"}
+	sort.SliceStable(classes, func(i, j int) bool {
+		return CompareSchoolClasses(classes[i], classes[j]) < 0
+	})
+	// "Klasse N…" interleaves numerically with bare grades; labels without
+	// a grade after the prefix ("Klassenfahrt") stay string-collated.
+	want := []string{"1b", "Klasse 2a", "3a", "klasse 4b", "Klasse 10a", "Klassenfahrt"}
+	for i, w := range want {
+		if classes[i] != w {
+			t.Fatalf("position %d: got %q, want %q (full: %v)", i, classes[i], w, classes)
+		}
+	}
+}
+
+func TestCompareSchoolClassesLogicalClassEquivalence(t *testing.T) {
+	// Grouped exports treat comparator equality as "same logical class";
+	// pin the variants that must merge into one section.
+	equal := [][2]string{
+		{"1a", "1A"},
+		{"1 a", "1a"},
+		{"Klasse 2a", "2a"},
+		{"klasse 2A", "Klasse 2a"},
+	}
+	for _, c := range equal {
+		if got := CompareSchoolClasses(c[0], c[1]); got != 0 {
+			t.Errorf("CompareSchoolClasses(%q, %q) = %d, want 0", c[0], c[1], got)
+		}
+	}
+	if CompareSchoolClasses("1a", "1b") == 0 {
+		t.Error("distinct classes must not compare equal")
+	}
+}
+
 func TestCompareSchoolClassesSymmetry(t *testing.T) {
 	cases := [][2]string{
 		{"1a", "1a"},
