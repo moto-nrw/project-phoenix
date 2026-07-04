@@ -52,6 +52,43 @@ func TestCompareSchoolClassesLogicalClassEquivalence(t *testing.T) {
 	}
 }
 
+func TestCompareSchoolClassesPrefixVariantsStayAdjacentAmongMixedLabels(t *testing.T) {
+	// Regression: "2a" and "Klasse 2a" compare equal, so with non-grade
+	// labels ("Eulen") in the mix they must still end up adjacent — the
+	// old fallback compared originals across forms ("2a" < "Eulen" <
+	// "Klasse 2a"), which broke the ordering contract and could split one
+	// logical class into duplicate grouped-export sections.
+	classes := []string{"Eulen", "2a", "Klasse 2a", "10b", "Füchse"}
+	sort.SliceStable(classes, func(i, j int) bool {
+		return CompareSchoolClasses(classes[i], classes[j]) < 0
+	})
+	want := []string{"2a", "Klasse 2a", "10b", "Eulen", "Füchse"}
+	for i, w := range want {
+		if classes[i] != w {
+			t.Fatalf("position %d: got %q, want %q (full: %v)", i, classes[i], w, classes)
+		}
+	}
+}
+
+func TestCompareSchoolClassesTransitivity(t *testing.T) {
+	labels := []string{"2a", "Klasse 2a", "Eulen", "1b", "Klasse 10a", "Klassenfahrt", "Übergang", "2 c", ""}
+	for _, x := range labels {
+		for _, y := range labels {
+			for _, z := range labels {
+				xy := CompareSchoolClasses(x, y)
+				yz := CompareSchoolClasses(y, z)
+				xz := CompareSchoolClasses(x, z)
+				if xy <= 0 && yz <= 0 && xz > 0 {
+					t.Errorf("not transitive: %q <= %q <= %q but cmp(%q, %q) = %d", x, y, z, x, z, xz)
+				}
+				if xy == 0 && yz == 0 && xz != 0 {
+					t.Errorf("equality not transitive: %q == %q == %q but cmp(%q, %q) = %d", x, y, z, x, z, xz)
+				}
+			}
+		}
+	}
+}
+
 func TestCompareSchoolClassesSymmetry(t *testing.T) {
 	cases := [][2]string{
 		{"1a", "1a"},

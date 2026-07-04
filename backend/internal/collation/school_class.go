@@ -6,11 +6,15 @@ import (
 )
 
 // CompareSchoolClasses compares two school class names (e.g. "1a", "2b",
-// "10a", "Klasse 2a") for display order. Leading grade numbers — with or
-// without the display prefix "Klasse" — compare numerically so "2a" sorts
-// before "10a" (plain collation would put "10a" first); the remainder falls
-// back to CompareGerman. Empty names sort last so students without a class
-// end up at the bottom of grouped lists.
+// "10a", "Klasse 2a") for display order. Labels with a leading grade number —
+// with or without the display prefix "Klasse" — sort before labels without
+// one, compare numerically among themselves so "2a" sorts before "10a"
+// (plain collation would put "10a" first), and tie-break on the remainder
+// via CompareGerman. Labels without a grade compare via CompareGerman.
+// Comparing across the two forms by original string would be intransitive
+// ("2a" == "Klasse 2a" but "2a" < "Eulen" < "Klasse 2a"), so the grade
+// bucket always wins instead. Empty names sort last so students without a
+// class end up at the bottom of grouped lists.
 //
 // A result of 0 is the equivalence rule for "same logical class": case
 // variants ("1a"/"1A"), spacing variants ("1 a"/"1a"), and prefix variants
@@ -29,7 +33,8 @@ func CompareSchoolClasses(a, b string) int {
 	}
 	aNum, aRest, aOK := splitClassGrade(a)
 	bNum, bRest, bOK := splitClassGrade(b)
-	if aOK && bOK {
+	switch {
+	case aOK && bOK:
 		if aNum != bNum {
 			if aNum < bNum {
 				return -1
@@ -37,6 +42,10 @@ func CompareSchoolClasses(a, b string) int {
 			return 1
 		}
 		return CompareGerman(aRest, bRest)
+	case aOK: // grade labels sort before non-grade labels
+		return -1
+	case bOK:
+		return 1
 	}
 	return CompareGerman(a, b)
 }
