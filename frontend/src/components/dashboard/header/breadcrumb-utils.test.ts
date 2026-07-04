@@ -20,14 +20,8 @@ describe("breadcrumb-utils", () => {
       });
 
       it("should return 'Feedback Historie' for feedback history page", () => {
-        expect(getPageTitle("/students/123/feedback_history")).toBe(
+        expect(getPageTitle("/students/123/feedback-history")).toBe(
           "Feedback Historie",
-        );
-      });
-
-      it("should return 'Mensa Historie' for mensa history page", () => {
-        expect(getPageTitle("/students/123/mensa_history")).toBe(
-          "Mensa Historie",
         );
       });
 
@@ -35,10 +29,6 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/students/123/room-history")).toBe(
           "Anwesenheitsprotokoll",
         );
-      });
-
-      it("should return 'Kinder' for /students route", () => {
-        expect(getPageTitle("/students")).toBe("Kinder");
       });
     });
 
@@ -119,10 +109,6 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/activities")).toBe("Aktivitäten");
       });
 
-      it("should return 'Statistiken' for /statistics", () => {
-        expect(getPageTitle("/statistics")).toBe("Statistiken");
-      });
-
       it("should return 'Vertretungen' for /substitutions", () => {
         expect(getPageTitle("/substitutions")).toBe("Vertretungen");
       });
@@ -135,10 +121,6 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/emergency")).toBe("Notfall");
       });
 
-      it("should return 'Einladungen' for /invitations", () => {
-        expect(getPageTitle("/invitations")).toBe("Einladungen");
-      });
-
       it("should return enrollment sub-page titles", () => {
         expect(getPageTitle("/admin/enrollments")).toBe("Überblick");
         expect(getPageTitle("/admin/enrollments/phases/phase-1")).toBe(
@@ -148,10 +130,6 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/enrollment-phases")).toBe("Anmeldephasen");
         expect(getPageTitle("/care-offerings")).toBe("Betreuungsangebote");
         expect(getPageTitle("/enrollment-form")).toBe("Anmeldeformulare");
-      });
-
-      it("should return 'Borndal Feedback' for /borndal_feedback", () => {
-        expect(getPageTitle("/borndal_feedback")).toBe("Borndal Feedback");
       });
 
       it("should return 'Home' for unknown route", () => {
@@ -246,14 +224,8 @@ describe("breadcrumb-utils", () => {
 
   describe("getHistoryType", () => {
     it("should return 'Feedback Historie' for feedback history path", () => {
-      expect(getHistoryType("/students/123/feedback_history")).toBe(
+      expect(getHistoryType("/students/123/feedback-history")).toBe(
         "Feedback Historie",
-      );
-    });
-
-    it("should return 'Mensa Historie' for mensa history path", () => {
-      expect(getHistoryType("/students/123/mensa_history")).toBe(
-        "Mensa Historie",
       );
     });
 
@@ -295,7 +267,7 @@ describe("breadcrumb-utils", () => {
       });
 
       it("should not identify history pages as detail page", () => {
-        const result = getPageTypeInfo("/students/123/feedback_history");
+        const result = getPageTypeInfo("/students/123/feedback-history");
         expect(result.isStudentDetailPage).toBe(false);
         expect(result.isStudentHistoryPage).toBe(true);
       });
@@ -303,14 +275,9 @@ describe("breadcrumb-utils", () => {
 
     describe("student history page", () => {
       it("should identify feedback history page", () => {
-        const result = getPageTypeInfo("/students/123/feedback_history");
+        const result = getPageTypeInfo("/students/123/feedback-history");
         expect(result.isStudentHistoryPage).toBe(true);
         expect(result.isStudentDetailPage).toBe(false);
-      });
-
-      it("should identify mensa history page", () => {
-        const result = getPageTypeInfo("/students/123/mensa_history");
-        expect(result.isStudentHistoryPage).toBe(true);
       });
 
       it("should identify room history page", () => {
@@ -333,18 +300,6 @@ describe("breadcrumb-utils", () => {
       it("should not identify /rooms as detail page", () => {
         const result = getPageTypeInfo("/rooms");
         expect(result.isRoomDetailPage).toBe(false);
-      });
-    });
-
-    describe("activity detail page", () => {
-      it("should identify activity detail page", () => {
-        const result = getPageTypeInfo("/activities/789");
-        expect(result.isActivityDetailPage).toBe(true);
-      });
-
-      it("should not identify /activities as detail page", () => {
-        const result = getPageTypeInfo("/activities");
-        expect(result.isActivityDetailPage).toBe(false);
       });
     });
 
@@ -380,7 +335,6 @@ describe("breadcrumb-utils", () => {
           isStudentHistoryPage: false,
           isStaffDetailPage: false,
           isRoomDetailPage: false,
-          isActivityDetailPage: false,
           isDatabaseSubPage: false,
           isDatabaseDeepPage: false,
           isEnrollmentPage: false,
@@ -393,7 +347,6 @@ describe("breadcrumb-utils", () => {
         expect(result.isStudentDetailPage).toBe(false);
         expect(result.isStudentHistoryPage).toBe(false);
         expect(result.isRoomDetailPage).toBe(false);
-        expect(result.isActivityDetailPage).toBe(false);
         expect(result.isDatabaseSubPage).toBe(false);
         expect(result.isDatabaseDeepPage).toBe(false);
         expect(result.isEnrollmentPage).toBe(false);

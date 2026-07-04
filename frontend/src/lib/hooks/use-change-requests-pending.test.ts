@@ -36,7 +36,7 @@ vi.mock("~/lib/change-requests-api", () => ({
   fetchPendingChangeRequestCount: mockFetchPendingChangeRequestCount,
 }));
 
-vi.mock("~/components/tenant/tenant-provider", () => ({
+vi.mock("~/lib/tenant-context", () => ({
   useTenantSlugSafe: (): string => "testschool",
 }));
 

@@ -36,7 +36,7 @@ vi.mock("~/lib/settings-api", () => ({
   fetchSettingsSchema: mocks.fetchSettingsSchema,
 }));
 
-vi.mock("~/components/tenant/tenant-provider", () => ({
+vi.mock("~/lib/tenant-context", () => ({
   useTenantSlugSafe: () => "demo",
   useTenantRoutingModeSafe: () => "path",
 }));

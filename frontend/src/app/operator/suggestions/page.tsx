@@ -6,10 +6,8 @@ import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
 import { ThumbsUp, ThumbsDown } from "lucide-react";
 // eslint-disable-next-line no-restricted-imports -- operator pages use useOperatorAuth, not NextAuth
 import useSWR from "swr";
-import {
-  PageHeaderWithSearch,
-  type FilterConfig,
-} from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import type { FilterConfig } from "~/components/ui/page-header/types";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusDropdown } from "~/components/operator/status-dropdown";
 import { OperatorCommentAccordion } from "~/components/operator/operator-comment-accordion";

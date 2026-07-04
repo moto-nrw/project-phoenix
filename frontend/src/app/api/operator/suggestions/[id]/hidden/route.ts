@@ -1,19 +1,6 @@
-import type { NextRequest } from "next/server";
-import {
-  createOperatorPutHandler,
-  operatorApiPut,
-  isStringParam,
-} from "~/lib/operator/route-wrapper.server";
+import { proxyPut } from "~/lib/operator/route-wrapper.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
-export const PUT = createOperatorPutHandler(
-  async (_request: NextRequest, body: unknown, token: string, params) => {
-    if (!isStringParam(params.id)) {
-      throw new Error("Invalid id parameter");
-    }
-    return await operatorApiPut(
-      `/operator/suggestions/${params.id}/hidden`,
-      token,
-      body,
-    );
-  },
+export const PUT = proxyPut(
+  (params) => `/operator/suggestions/${requirePathSegmentParam(params)}/hidden`,
 );

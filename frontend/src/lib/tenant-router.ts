@@ -6,7 +6,7 @@ import { useMemo } from "react";
 import {
   useTenantRoutingModeSafe,
   useTenantSlugSafe,
-} from "~/components/tenant/tenant-provider";
+} from "~/lib/tenant-context";
 import { attemptNavigation } from "~/lib/hooks/navigation-guard-store";
 
 /**

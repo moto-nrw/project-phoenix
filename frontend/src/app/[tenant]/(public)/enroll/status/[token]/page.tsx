@@ -9,7 +9,7 @@ import {
   PublicEnrollmentPageShell,
   PublicEnrollmentSteps,
 } from "~/components/enrollment/public-enrollment-shell";
-import { useTenant } from "~/components/tenant/tenant-provider";
+import { useTenant } from "~/lib/tenant-context";
 
 interface PageProps {
   readonly params: Promise<{ tenant: string; token: string }>;

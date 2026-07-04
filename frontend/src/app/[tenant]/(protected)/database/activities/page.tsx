@@ -6,22 +6,20 @@ import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
   ActiveFilter,
   FilterConfig,
 } from "~/components/ui/page-header/types";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
-import { activitiesConfig } from "@/lib/database/configs/activities.config";
+import { activitiesConfig } from "@/components/database/configs/activities.config";
 import type { Activity } from "@/lib/activity-helpers";
-import {
-  ActivitiesMasterDetail,
-  ActivityCreateModal,
-} from "@/components/activities";
+import { ActivitiesMasterDetail } from "@/components/activities";
+import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
-import { useIsMobile } from "~/hooks/useIsMobile";
+import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
@@ -408,10 +406,12 @@ function ActivitiesPageContent() {
         />
       ) : null}
 
-      <ActivityCreateModal
+      <DatabaseFormModal<Activity>
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        onCreate={handleCreateActivity}
+        mode="create"
+        config={activitiesConfig}
+        onSubmit={handleCreateActivity}
       />
 
       {selectedActivity && (

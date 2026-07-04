@@ -16,7 +16,39 @@ export function getDeleteErrorMessage(err: unknown): string {
     : "Fehler beim Löschen. Bitte versuchen Sie es erneut.";
 }
 
+export class MalformedCrudListResponseError extends Error {
+  readonly entity: string;
+  readonly endpoint: string;
+  readonly responseShape: string;
+
+  constructor(entity: string, endpoint: string, responseShape: string) {
+    super(
+      `Malformed CRUD list response for ${entity} from ${endpoint}: expected an array or an object with a data array. Received ${responseShape}.`,
+    );
+    this.name = "MalformedCrudListResponseError";
+    this.entity = entity;
+    this.endpoint = endpoint;
+    this.responseShape = responseShape;
+  }
+}
+
 // Helper functions extracted to reduce cognitive complexity (S3776)
+
+function describeResponseShape(response: unknown): string {
+  if (response === null) {
+    return "null";
+  }
+
+  if (Array.isArray(response)) {
+    return "array";
+  }
+
+  if (typeof response === "object") {
+    return `object keys: ${Object.keys(response).join(",")}`;
+  }
+
+  return typeof response;
+}
 
 /**
  * Creates a default pagination object for non-paginated responses
@@ -53,6 +85,7 @@ function isPaginatedResponse(obj: unknown): obj is {
     obj !== null &&
     typeof obj === "object" &&
     "data" in obj &&
+    Array.isArray((obj as { data: unknown }).data) &&
     "pagination" in obj
   );
 }
@@ -277,11 +310,18 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
           } as PaginatedResponse<T>;
         }
 
-        // Fallback - return empty paginated response
-        logger.warn("unexpected response structure", {
-          response: JSON.stringify(response),
+        const responseShape = describeResponseShape(dataSource);
+        const malformedResponseError = new MalformedCrudListResponseError(
+          config.name.plural,
+          endpoints.list,
+          responseShape,
+        );
+        logger.warn("malformed_crud_list_response", {
+          entity: malformedResponseError.entity,
+          endpoint: malformedResponseError.endpoint,
+          responseShape: malformedResponseError.responseShape,
         });
-        return { data: [], pagination: createDefaultPagination(0) };
+        throw malformedResponseError;
       } catch (error) {
         logger.error("error fetching entities", {
           entity: config.name.plural,

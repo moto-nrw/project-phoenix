@@ -50,7 +50,7 @@ vi.mock("~/lib/hooks/use-school-checkin-mode", () => ({
 // Page gates the FAB on binary mode; the global tenant-provider mock
 // (src/test/setup.ts) defaults to "detailed", which would hide the trigger
 // and make every assertion here fail. Override to "binary".
-vi.mock("~/components/tenant/tenant-provider", () => ({
+vi.mock("~/lib/tenant-context", () => ({
   useTenant: vi.fn(() => ({ tenantSlug: "test-tenant", tenant: null })),
   useTenantSlugSafe: vi.fn(() => "test-tenant"),
   // useStudentPhotosEnabled (used by ogs-groups for the avatar-clearance
@@ -201,7 +201,7 @@ vi.mock("~/components/ui/loading", () => ({
   Loading: () => <div data-testid="loading" />,
 }));
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({
     actionButton,
     mobileActionButton,

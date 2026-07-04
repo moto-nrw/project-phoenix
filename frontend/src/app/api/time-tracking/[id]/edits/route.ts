@@ -1,21 +1,10 @@
-import type { NextRequest } from "next/server";
-import { apiGet } from "~/lib/api-helpers.server";
-import { createGetHandler, isStringParam } from "~/lib/route-wrapper.server";
+import { proxyGet } from "~/lib/route-proxy.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 /**
  * GET /api/time-tracking/{id}/edits
  * Fetch audit trail for a work session
  */
-export const GET = createGetHandler<unknown>(
-  async (_request: NextRequest, token: string, params) => {
-    if (!isStringParam(params.id)) {
-      throw new Error("Invalid session ID");
-    }
-
-    const response = await apiGet<{ data: unknown }>(
-      `/api/time-tracking/${params.id}/edits`,
-      token,
-    );
-    return response.data;
-  },
+export const GET = proxyGet(
+  (p) => `/api/time-tracking/${requirePathSegmentParam(p)}/edits`,
 );

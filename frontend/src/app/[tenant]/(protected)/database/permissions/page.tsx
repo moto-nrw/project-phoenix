@@ -6,27 +6,27 @@ import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
   ActiveFilter,
   FilterConfig,
 } from "~/components/ui/page-header/types";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
-import { permissionsConfig } from "@/lib/database/configs/permissions.config";
+import { permissionsConfig } from "@/components/database/configs/permissions.config";
 import type { Permission } from "@/lib/auth-helpers";
 import {
-  PermissionCreateModal,
   PermissionEditModal,
   PermissionsMasterDetail,
 } from "@/components/permissions";
+import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
   formatPermissionDisplay,
   localizeDescription,
 } from "@/lib/permission-labels";
 import { useToast } from "~/contexts/ToastContext";
-import { useIsMobile } from "~/hooks/useIsMobile";
+import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
@@ -371,10 +371,12 @@ export default function PermissionsPage() {
         />
       ) : null}
 
-      <PermissionCreateModal
+      <DatabaseFormModal<Permission>
         isOpen={showCreateModal}
         onClose={handleCloseCreateModal}
-        onCreate={handleCreatePermission}
+        mode="create"
+        config={permissionsConfig}
+        onSubmit={handleCreatePermission}
       />
 
       {selectedPermission && (

@@ -38,11 +38,7 @@ export interface InstanceStaffSummary {
 
 type InstanceAttendanceStatus = "expected" | "present" | "absent";
 type InstanceAttendanceSubstatus =
-  | "late"
-  | "excused"
-  | "sick"
-  | "field_trip"
-  | "other";
+  "late" | "excused" | "sick" | "field_trip" | "other";
 
 export interface InstanceStudentSummary {
   studentId: string;

@@ -14,10 +14,7 @@ import { ChatBubble, ChatEventCard } from "~/components/messaging/chat-bubble";
 import { RequestStatusBadge } from "~/components/messaging/request-status-badge";
 import { useChatViewportLock } from "~/lib/hooks/use-chat-viewport-lock";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
-import {
-  useTenant,
-  useTenantSlugSafe,
-} from "~/components/tenant/tenant-provider";
+import { useTenant, useTenantSlugSafe } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
 import {
   type InboxThread,
@@ -27,7 +24,7 @@ import {
   postMessage,
   relationshipLabel,
 } from "~/lib/parent-messages-api";
-import { getApiErrorMessage } from "~/components/ui/modal-utils";
+import { getApiErrorMessage } from "~/lib/api-error-message";
 import { staffRequestStatusLabel } from "~/lib/messaging-status";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";

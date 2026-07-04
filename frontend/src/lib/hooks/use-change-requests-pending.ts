@@ -4,7 +4,7 @@ import { useSession } from "next-auth/react";
 import { fetchPendingChangeRequestCount } from "~/lib/change-requests-api";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
+import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { useUnreadCount } from "./use-unread-count";
 
 /**

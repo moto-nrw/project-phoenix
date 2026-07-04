@@ -1,20 +1,13 @@
-export { buildBackendStudent, buildStudent, resetStudentIds } from "./students";
+export { buildBackendStudent, buildStudent } from "./students";
 
-export { buildBackendGroup, buildGroup, resetGroupIds } from "./groups";
+export { buildBackendGroup } from "./groups";
 
-export { buildBackendRoom, buildRoom, resetRoomIds } from "./rooms";
+export { buildBackendRoom } from "./rooms";
 
-export {
-  buildBackendActivity,
-  buildActivity,
-  buildBackendCategory,
-  buildCategory,
-  resetActivityIds,
-} from "./activities";
+export { buildBackendActivity, buildBackendCategory } from "./activities";
 
 export {
   buildBackendActiveSession,
   buildBackendVisit,
   buildBackendSupervisor,
-  resetSessionIds,
 } from "./sessions";

@@ -193,6 +193,10 @@ jobs:
         working-directory: frontend
         run: pnpm run typecheck
 
+      - name: Check frontend dependency graph
+        working-directory: frontend
+        run: pnpm depcruise
+
       - name: Check for unused code
         working-directory: frontend
         run: pnpm knip

@@ -10,7 +10,7 @@ import { MessageComposer } from "~/components/messaging/message-composer";
 import { ChatBubble, ChatEventCard } from "~/components/messaging/chat-bubble";
 import { RequestStatusBadge } from "~/components/messaging/request-status-badge";
 import { useChatViewportLock } from "~/lib/hooks/use-chat-viewport-lock";
-import { getApiErrorMessage } from "~/components/ui/modal-utils";
+import { getApiErrorMessage } from "~/lib/api-error-message";
 import {
   parentEventI18nDescriptor,
   parentRequestStatusI18nKey,

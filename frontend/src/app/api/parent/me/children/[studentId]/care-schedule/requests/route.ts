@@ -1,7 +1,5 @@
-import {
-  createParentPostHandler,
-  parentApiPost,
-} from "~/lib/parent/route-wrapper.server";
+import { proxyPost } from "~/lib/parent/route-wrapper.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 /**
  * Proxy POST /api/parent/me/children/{studentId}/care-schedule/requests →
@@ -9,13 +7,7 @@ import {
  * guardianship + the feature/permission gate and returns the refreshed
  * care-schedule view (now carrying the pending request).
  */
-export const POST = createParentPostHandler<unknown, unknown>(
-  async (_request, body, token, params) => {
-    const studentId = String(params.studentId);
-    return parentApiPost<unknown, unknown>(
-      `/parent/me/children/${encodeURIComponent(studentId)}/care-schedule/requests`,
-      token,
-      body,
-    );
-  },
+export const POST = proxyPost<unknown, unknown>(
+  (params) =>
+    `/parent/me/children/${requirePathSegmentParam(params, "studentId")}/care-schedule/requests`,
 );

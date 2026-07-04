@@ -1,8 +1,11 @@
 "use client";
 
 import { Loading } from "~/components/ui/loading";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
-import type { ActiveFilter, FilterConfig } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import type {
+  ActiveFilter,
+  FilterConfig,
+} from "~/components/ui/page-header/types";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { UnclaimedRooms } from "~/components/active";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";

@@ -1,7 +1,5 @@
-import {
-  createParentGetHandler,
-  parentApiGet,
-} from "~/lib/parent/route-wrapper.server";
+import { proxyGet } from "~/lib/parent/route-wrapper.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 interface ProfileGuardian {
   first_name: string;
@@ -28,12 +26,7 @@ interface ProfileResponse {
  * when the parent isn't logged in. tenantSlug is taken straight from
  * the URL — backend resolves it under WithAdminTx.
  */
-export const GET = createParentGetHandler<ProfileResponse>(
-  async (_request, token, params) => {
-    const slug = typeof params.tenantSlug === "string" ? params.tenantSlug : "";
-    return parentApiGet<ProfileResponse>(
-      `/parent/enrollments/${encodeURIComponent(slug)}/profile`,
-      token,
-    );
-  },
+export const GET = proxyGet<ProfileResponse>(
+  (params) =>
+    `/parent/enrollments/${requirePathSegmentParam(params, "tenantSlug")}/profile`,
 );

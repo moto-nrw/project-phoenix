@@ -38,7 +38,7 @@ export function countCheckedInStudents(
   return students.filter(isStudentCheckedIn).length;
 }
 
-export function formatGroupAttendanceCount(group?: OGSGroup | null): string {
+function formatGroupAttendanceCount(group?: OGSGroup | null): string {
   if (!group || group.student_count === undefined) return "";
   return `${group.present_count ?? 0}/${group.student_count}`;
 }

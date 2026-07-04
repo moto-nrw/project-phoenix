@@ -1,3 +1,3 @@
-import { createProxyGetDataHandler } from "~/lib/route-wrapper.server";
+import { proxyGet } from "~/lib/route-proxy.server";
 
-export const GET = createProxyGetDataHandler("/api/time-tracking/config");
+export const GET = proxyGet("/api/time-tracking/config");

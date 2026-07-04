@@ -14,12 +14,12 @@ import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { Alert } from "~/components/ui/alert";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
   FilterConfig,
   ActiveFilter,
   FilterSection,
-} from "~/components/ui/page-header";
+} from "~/components/ui/page-header/types";
 import { DetailIcons } from "~/components/ui/detail-modal-components";
 import { studentService, groupService, roomService } from "~/lib/api";
 import type { Student, Group, Room } from "~/lib/api";
@@ -54,7 +54,7 @@ import {
   deriveCheckinState,
   useSchoolCheckinMode,
 } from "~/lib/hooks/use-school-checkin-mode";
-import { usePresenceMode } from "~/components/tenant/tenant-provider";
+import { usePresenceMode } from "~/lib/tenant-context";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
 import { SEARCH_ROOMS_LIST_CACHE_KEY } from "~/lib/swr/room-derived-caches";
@@ -97,12 +97,7 @@ type PickupStatusFilter = "all" | "self" | "pickedUp" | "none";
 type DayStatusFilter = "all" | "comes_today" | "not_coming_today";
 type SortMode = "name" | "arrival" | "pickup";
 type GroupMode =
-  | "none"
-  | "status"
-  | "room"
-  | "arrival"
-  | "pickup"
-  | "pickup-status";
+  "none" | "status" | "room" | "arrival" | "pickup" | "pickup-status";
 
 const STATUS_FILTER_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
   { value: "all", label: "Alle" },

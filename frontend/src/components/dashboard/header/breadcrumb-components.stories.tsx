@@ -2,10 +2,8 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
 import {
   ActiveSupervisionsBreadcrumb,
-  ActivityBreadcrumb,
   DatabaseBreadcrumb,
   EnrollmentBreadcrumb,
-  InvitationsBreadcrumb,
   OgsGroupsBreadcrumb,
   PageTitleDisplay,
   ParentChildBreadcrumb,
@@ -69,10 +67,6 @@ export const ActiveSupervisionsWithName: Story = {
   render: () => <ActiveSupervisionsBreadcrumb supervisionName="Raum 101" />,
 };
 
-export const Invitations: Story = {
-  render: () => <InvitationsBreadcrumb />,
-};
-
 export const Enrollment: Story = {
   render: () => <EnrollmentBreadcrumb current="Überblick" />,
 };
@@ -84,10 +78,6 @@ export const EnrollmentNested: Story = {
       pathname="/admin/enrollments/phases/1"
     />
   ),
-};
-
-export const Activity: Story = {
-  render: () => <ActivityBreadcrumb activityName="Fußball" />,
 };
 
 export const Room: Story = {

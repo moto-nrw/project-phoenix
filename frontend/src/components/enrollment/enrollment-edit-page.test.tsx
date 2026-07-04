@@ -38,7 +38,7 @@ vi.mock("~/lib/enrollment-submission-api", async (importOriginal) => {
   };
 });
 
-vi.mock("~/components/tenant/tenant-provider", () => ({
+vi.mock("~/lib/tenant-context", () => ({
   TenantProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 

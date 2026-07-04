@@ -70,7 +70,7 @@ vi.mock("~/components/ui/database/database-form", () => ({
 }));
 
 // Mock permissions config
-vi.mock("@/lib/database/configs/permissions.config", () => ({
+vi.mock("@/components/database/configs/permissions.config", () => ({
   permissionsConfig: {
     labels: {
       editModalTitle: "Berechtigung bearbeiten",

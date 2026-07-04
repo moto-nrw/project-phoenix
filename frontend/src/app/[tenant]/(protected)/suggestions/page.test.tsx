@@ -77,7 +77,7 @@ vi.mock("~/components/ui/skeleton", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({
     title,
     search,

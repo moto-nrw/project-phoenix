@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 
 import { DatabaseForm } from "./database-form";
 import type { FormSection } from "./database-form";
-import { databaseThemes } from "./themes";
+import { databaseThemes } from "~/lib/database/themes";
 
 const sections: FormSection[] = [
   {

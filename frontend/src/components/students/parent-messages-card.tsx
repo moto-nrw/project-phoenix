@@ -5,16 +5,13 @@ import useSWR from "swr";
 import { MessageCircle } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
-import {
-  useTenant,
-  useTenantSlugSafe,
-} from "~/components/tenant/tenant-provider";
+import { useTenant, useTenantSlugSafe } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
 import {
   fetchStudentThreads,
   relationshipLabel,
 } from "~/lib/parent-messages-api";
-import { NewMessageModal } from "~/app/[tenant]/(protected)/messages/new-message-modal";
+import { NewMessageModal } from "~/components/messaging/new-message-modal";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { createLogger } from "~/lib/logger";
 import { formatChatDateTime } from "~/lib/date-helpers";

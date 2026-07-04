@@ -9,9 +9,7 @@ import type {
 const logger = createLogger({ component: "EnrollmentSubmissionAPI" });
 
 export type CareOfferingSelectionMode =
-  | "optional"
-  | "at_least_one"
-  | "exactly_one";
+  "optional" | "at_least_one" | "exactly_one";
 
 export interface PublicCareOffering {
   id: string;

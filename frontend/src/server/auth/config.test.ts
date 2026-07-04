@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { authConfig, _resetRefreshState, _testHelpers } from "./config";
+import { tenantAuthConfig as authConfig } from "./tenant-config";
+import { _resetRefreshState, _testHelpers } from "./shared";
 import { operatorAuthConfig } from "./operator-config";
 import { parentAuthConfig } from "./parent-config";
 import type { NextAuthConfig, User } from "next-auth";
@@ -1439,8 +1440,7 @@ describe("authConfig", () => {
           p.type === "credentials",
       );
       const provider = providers[0] as unknown as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
       const opts = provider?.options as Record<string, unknown> | undefined;
       return opts?.authorize as (
         credentials: Record<string, string> | undefined,
@@ -1662,8 +1662,7 @@ describe("authConfig", () => {
           p.type === "credentials",
       );
       const provider = providers[0] as unknown as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
       const opts = provider?.options as Record<string, unknown> | undefined;
       return opts?.authorize as (
         credentials: Record<string, string> | undefined,

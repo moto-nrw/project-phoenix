@@ -56,7 +56,7 @@ vi.mock("@/lib/database/service-factory", () => ({
 }));
 
 // Mock hooks
-vi.mock("~/hooks/useIsMobile", () => ({
+vi.mock("~/components/ui/hooks/useIsMobile", () => ({
   useIsMobile: vi.fn(() => false),
 }));
 
@@ -88,7 +88,7 @@ vi.mock("~/components/database/database-page-layout", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({
     search,
     filters,

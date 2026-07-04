@@ -20,10 +20,7 @@ export type ChildStatus =
   | "pending_admin_review";
 
 export type DecisionStatus =
-  | "approved"
-  | "waitlisted"
-  | "rejected"
-  | "under_review";
+  "approved" | "waitlisted" | "rejected" | "under_review";
 
 export type EnrollmentRequestExportFormat = "pdf" | "docx" | "xlsx";
 

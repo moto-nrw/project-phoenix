@@ -53,7 +53,7 @@ import {
 } from "~/components/ui/data-table";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
-import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
+import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { useToast } from "~/contexts/ToastContext";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { useClickOutside } from "~/lib/hooks/use-click-outside";

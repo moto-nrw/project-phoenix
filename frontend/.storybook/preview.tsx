@@ -3,7 +3,7 @@ import { SessionProvider } from "next-auth/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { AbstractIntlMessages } from "next-intl";
 import { Providers } from "~/app/providers";
-import { TenantProvider } from "~/components/tenant/tenant-provider";
+import { TenantProvider } from "~/lib/tenant-context";
 import { mockSessionData } from "./fixtures/session";
 import type { TenantInfo } from "~/lib/tenant-api";
 import deMessages from "~/i18n/messages/de.json";
