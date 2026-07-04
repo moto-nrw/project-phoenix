@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { handleApiError } from "../api-helpers.server";
+import { makeProxyFactories } from "../route-proxy-factory.server";
 import {
   type RouteContext,
   extractParams,
@@ -235,3 +236,15 @@ export function createParentPatchHandler<T, B = unknown>(
 ) {
   return createParentWithBodyHandler(handler);
 }
+
+export const { proxyGet, proxyPost, proxyPut } = makeProxyFactories({
+  get: createParentGetHandler,
+  post: createParentPostHandler,
+  put: createParentPutHandler,
+  del: createParentDeleteHandler,
+  apiGet: parentApiGet,
+  apiPost: parentApiPost,
+  apiPut: parentApiPut,
+  apiDelete: parentApiDelete,
+  fetcherUnwrapsData: true,
+});
