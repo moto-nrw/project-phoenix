@@ -77,10 +77,15 @@ func (f *fakeAnnouncementRepo) SchoolName(_ context.Context, _ int64) (string, e
 type fakeSettings struct {
 	configService.SettingsService
 	enabled bool
+	logoURL string
 }
 
 func (f *fakeSettings) ResolveBool(_ context.Context, _ string) (bool, error) {
 	return f.enabled, nil
+}
+
+func (f *fakeSettings) GetLoginImageURL(_ context.Context, _ int64) (string, error) {
+	return f.logoURL, nil
 }
 
 // fakeOutbox captures enqueued e-mails.
@@ -244,6 +249,64 @@ func TestPublish_EnqueuesTitleOnlyEmails(t *testing.T) {
 	}
 }
 
+// The announcement mail must carry the same header/footer branding as the
+// enrollment mails: an absolute school-logo URL (uploaded image rewritten to the
+// public read endpoint) and the absolute moto footer logo.
+func TestPublish_EnqueuesBrandingLogos(t *testing.T) {
+	repo := &fakeAnnouncementRepo{
+		announcement: draftAnnouncement(true),
+		recipients: []*usersModels.AnnouncementRecipient{
+			{Email: "a@example.test", FirstName: "Anna", LastName: "A"},
+		},
+	}
+	outbox := &fakeOutbox{}
+	svc := NewService(ServiceConfig{
+		Repo:       repo,
+		Settings:   &fakeSettings{enabled: true, logoURL: "/uploads/login-images/2_abc.jpg"},
+		Outbox:     outbox,
+		ParentsURL: "https://parents.example.test",
+		Logger:     slog.Default(),
+	})
+
+	if _, err := svc.Publish(context.Background(), repo.announcement.ID); err != nil {
+		t.Fatalf("publish failed: %v", err)
+	}
+	if len(outbox.requests) != 1 {
+		t.Fatalf("expected one e-mail, got %d", len(outbox.requests))
+	}
+	payload := outbox.requests[0].Payload
+	if got := payload[emailPayloadMotoLogoURL]; got != "https://parents.example.test/images/moto_transparent.png" {
+		t.Fatalf("unexpected moto logo url: %v", got)
+	}
+	if got := payload[emailPayloadLogoURL]; got != "https://parents.example.test/api/public/login-image/2_abc.jpg" {
+		t.Fatalf("unexpected school logo url: %v", got)
+	}
+}
+
+// A school without a configured logo still gets the moto footer logo; the school
+// logo degrades to "" so the template shows the plain fallback.
+func TestPublish_BrandingWithoutSchoolLogo(t *testing.T) {
+	repo := &fakeAnnouncementRepo{
+		announcement: draftAnnouncement(true),
+		recipients: []*usersModels.AnnouncementRecipient{
+			{Email: "a@example.test", FirstName: "Anna", LastName: "A"},
+		},
+	}
+	outbox := &fakeOutbox{}
+	svc := newTestService(repo, outbox)
+
+	if _, err := svc.Publish(context.Background(), repo.announcement.ID); err != nil {
+		t.Fatalf("publish failed: %v", err)
+	}
+	payload := outbox.requests[0].Payload
+	if got := payload[emailPayloadMotoLogoURL]; got != "https://parents.example.test/images/moto_transparent.png" {
+		t.Fatalf("moto logo must always be present, got %v", got)
+	}
+	if got := payload[emailPayloadLogoURL]; got != "" {
+		t.Fatalf("expected empty school logo without a configured image, got %v", got)
+	}
+}
+
 func TestPublish_NoEmailWithoutOptIn(t *testing.T) {
 	repo := &fakeAnnouncementRepo{
 		announcement: draftAnnouncement(false),
@@ -401,5 +464,35 @@ func TestAnnouncementRenderer_TitleAndLinkOnly(t *testing.T) {
 	}
 	if _, hasBody := content["Body"]; hasBody {
 		t.Fatalf("rendered content must not contain the announcement body")
+	}
+}
+
+// The renderer must forward the logo URLs to the template so the header renders
+// the school logo and the footer renders the moto logo.
+func TestAnnouncementRenderer_PassesBranding(t *testing.T) {
+	render := NewAnnouncementRenderer(EmailConfig{})
+	msg, err := render(context.Background(), &platformModels.EmailOutbox{
+		Kind: platformModels.EmailKindParentAnnouncement,
+		Payload: map[string]any{
+			emailPayloadRecipient:   "a@example.test",
+			emailPayloadTitle:       "Sommerfest",
+			emailPayloadSchoolName:  "OGS Testschule",
+			emailPayloadPortalURL:   "https://parents.example.test",
+			emailPayloadLogoURL:     "https://parents.example.test/api/public/login-image/2_abc.jpg",
+			emailPayloadMotoLogoURL: "https://parents.example.test/images/moto_transparent.png",
+		},
+	})
+	if err != nil {
+		t.Fatalf("render failed: %v", err)
+	}
+	content, ok := msg.Content.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map content, got %T", msg.Content)
+	}
+	if content["LogoURL"] != "https://parents.example.test/api/public/login-image/2_abc.jpg" {
+		t.Fatalf("expected school logo in content, got %v", content["LogoURL"])
+	}
+	if content["MotoLogoURL"] != "https://parents.example.test/images/moto_transparent.png" {
+		t.Fatalf("expected moto logo in content, got %v", content["MotoLogoURL"])
 	}
 }

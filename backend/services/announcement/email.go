@@ -18,6 +18,11 @@ const (
 	emailPayloadTitle      = "title"
 	emailPayloadSchoolName = "school_name"
 	emailPayloadPortalURL  = "portal_url"
+	// emailPayloadLogoURL / emailPayloadMotoLogoURL carry the same header/footer
+	// branding the enrollment mails use, so the parent-announcement mail renders
+	// the school logo and the moto logo instead of the plain fallbacks.
+	emailPayloadLogoURL     = "logo_url"
+	emailPayloadMotoLogoURL = "moto_logo_url"
 )
 
 // EmailConfig is the static config for the announcement e-mail renderer.
@@ -39,6 +44,8 @@ func NewAnnouncementRenderer(cfg EmailConfig) func(context.Context, *platformMod
 		first, _ := row.Payload[emailPayloadFirstName].(string)
 		last, _ := row.Payload[emailPayloadLastName].(string)
 		portalURL, _ := row.Payload[emailPayloadPortalURL].(string)
+		logoURL, _ := row.Payload[emailPayloadLogoURL].(string)
+		motoLogoURL, _ := row.Payload[emailPayloadMotoLogoURL].(string)
 
 		subject := title
 		if schoolName != "" {
@@ -57,6 +64,8 @@ func NewAnnouncementRenderer(cfg EmailConfig) func(context.Context, *platformMod
 				"GuardianFirstName": first,
 				"GuardianLastName":  last,
 				"PortalURL":         portalURL,
+				"LogoURL":           logoURL,
+				"MotoLogoURL":       motoLogoURL,
 			},
 		}, nil
 	}

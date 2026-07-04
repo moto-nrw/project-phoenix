@@ -6,10 +6,10 @@ import (
 	"strings"
 
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/services/emailbranding"
 )
 
 const schoolLoginImageKey = "loginImageUrl"
-const loginImageUploadPrefix = "/uploads/login-images/"
 
 func emailBrandForSchool(ctx context.Context, schoolRepo platformModels.SchoolRepository, tenantID int64, baseURL string) (string, string) {
 	if schoolRepo == nil || tenantID == 0 {
@@ -34,36 +34,17 @@ func schoolLoginImageURL(rawSettings string) string {
 	return strings.TrimSpace(url)
 }
 
+// The three helpers below delegate to the shared emailbranding package so the
+// enrollment and parent-announcement mails resolve logo URLs identically. They
+// stay as package-local wrappers to keep existing call sites and tests stable.
 func motoLogoURL(baseURL string) string {
-	return absoluteBrandURL(baseURL, "/images/moto_transparent.png")
+	return emailbranding.MotoLogoURL(baseURL)
 }
 
 func schoolEmailLogoURL(baseURL string, rawURL string) string {
-	rawURL = strings.TrimSpace(rawURL)
-	if strings.HasPrefix(rawURL, loginImageUploadPrefix) {
-		filename := strings.TrimPrefix(rawURL, loginImageUploadPrefix)
-		if filename == "" || strings.Contains(filename, "/") {
-			return ""
-		}
-		return absoluteBrandURL(baseURL, "/api/public/login-image/"+filename)
-	}
-	return absoluteBrandURL(baseURL, rawURL)
+	return emailbranding.SchoolLogoURL(baseURL, rawURL)
 }
 
 func absoluteBrandURL(baseURL string, rawURL string) string {
-	rawURL = strings.TrimSpace(rawURL)
-	if rawURL == "" {
-		return ""
-	}
-	if strings.HasPrefix(rawURL, "http://") || strings.HasPrefix(rawURL, "https://") {
-		return rawURL
-	}
-	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
-	if baseURL == "" {
-		return rawURL
-	}
-	if strings.HasPrefix(rawURL, "/") {
-		return baseURL + rawURL
-	}
-	return baseURL + "/" + rawURL
+	return emailbranding.AbsoluteURL(baseURL, rawURL)
 }

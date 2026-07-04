@@ -18,6 +18,7 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/services/emailbranding"
 	platformService "github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -361,6 +362,11 @@ func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.
 	if err != nil {
 		return fmt.Errorf("announcement: resolve school name: %w", err)
 	}
+	// Header/footer branding, resolved once for the whole batch. The same logo
+	// URLs the enrollment mails use, so the announcement mail renders the school
+	// logo (header) and the moto logo (footer) instead of the plain fallbacks.
+	logoURL := s.resolveSchoolLogoURL(ctx, tenantID)
+	motoLogoURL := emailbranding.MotoLogoURL(s.parentsURL)
 	queued := 0
 	for _, rcpt := range recipients {
 		// Deliberately NO announcement body here: e-mail is the least trusted
@@ -369,12 +375,14 @@ func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.
 		if _, err := s.outbox.Enqueue(ctx, platformService.EnqueueRequest{
 			Kind: platformModels.EmailKindParentAnnouncement,
 			Payload: map[string]any{
-				emailPayloadRecipient:  rcpt.Email,
-				emailPayloadFirstName:  rcpt.FirstName,
-				emailPayloadLastName:   rcpt.LastName,
-				emailPayloadTitle:      a.Title,
-				emailPayloadSchoolName: schoolName,
-				emailPayloadPortalURL:  s.parentsURL,
+				emailPayloadRecipient:   rcpt.Email,
+				emailPayloadFirstName:   rcpt.FirstName,
+				emailPayloadLastName:    rcpt.LastName,
+				emailPayloadTitle:       a.Title,
+				emailPayloadSchoolName:  schoolName,
+				emailPayloadPortalURL:   s.parentsURL,
+				emailPayloadLogoURL:     logoURL,
+				emailPayloadMotoLogoURL: motoLogoURL,
 			},
 			RelatedEntityType: relatedEntityTypeAnnouncement,
 			RelatedEntityID:   a.ID,
@@ -388,6 +396,25 @@ func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.
 		slog.Int("queued", queued),
 	)
 	return nil
+}
+
+// resolveSchoolLogoURL returns the absolute school-logo URL for the e-mail
+// header, or "" when none is configured. Branding is cosmetic, so a missing
+// settings service or a lookup error is non-fatal: it degrades to the plain
+// "OGS" fallback in the template rather than aborting the publish transaction.
+func (s *service) resolveSchoolLogoURL(ctx context.Context, tenantID int64) string {
+	if s.settings == nil {
+		return ""
+	}
+	raw, err := s.settings.GetLoginImageURL(ctx, tenantID)
+	if err != nil {
+		s.logger.Warn("announcement: resolve school logo for e-mail failed, sending without it",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("error", err.Error()),
+		)
+		return ""
+	}
+	return emailbranding.SchoolLogoURL(s.parentsURL, raw)
 }
 
 // cancelPendingEmails cancels any not-yet-sent announcement e-mails queued for
