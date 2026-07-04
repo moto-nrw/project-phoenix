@@ -119,6 +119,7 @@ type CareUsageRowOffering struct {
 type ClassRosterFilters struct {
 	PhaseID     int64  `json:"phase_id"`
 	SchoolClass string `json:"school_class"`
+	AllClasses  bool   `json:"all_classes"`
 }
 
 type ClassRosterReport struct {
@@ -131,6 +132,7 @@ type ClassRosterReport struct {
 type ClassRosterAppliedFilters struct {
 	PhaseID     int64  `json:"phase_id"`
 	SchoolClass string `json:"school_class"`
+	AllClasses  bool   `json:"all_classes"`
 	Status      string `json:"status"`
 }
 
@@ -412,9 +414,9 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 	if err != nil {
 		return nil, fmt.Errorf("class roster report: phase %d: %w", filters.PhaseID, ErrReportPhaseNotFound)
 	}
-	students, err := s.studentRepo.FindBySchoolClass(ctx, filters.SchoolClass)
+	students, err := s.classRosterStudents(ctx, filters)
 	if err != nil {
-		return nil, fmt.Errorf("class roster report: list students: %w", err)
+		return nil, err
 	}
 	if len(students) > maxReportRows {
 		return nil, fmt.Errorf("class roster report: %d students: %w", len(students), ErrReportExportTooLarge)
@@ -512,6 +514,7 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 		Filters: ClassRosterAppliedFilters{
 			PhaseID:     filters.PhaseID,
 			SchoolClass: filters.SchoolClass,
+			AllClasses:  filters.AllClasses,
 			Status:      enrollmentModels.ChildStatusApproved,
 		},
 		Totals: ClassRosterTotals{Students: len(rows)},
@@ -560,7 +563,10 @@ func validateClassRosterFilters(filters ClassRosterFilters) error {
 	if filters.PhaseID <= 0 {
 		return fmt.Errorf("%w: phase_id is required", ErrReportInvalidFilter)
 	}
-	if filters.SchoolClass == "" {
+	if filters.AllClasses && filters.SchoolClass != "" {
+		return fmt.Errorf("%w: school_class and all_classes are mutually exclusive", ErrReportInvalidFilter)
+	}
+	if !filters.AllClasses && filters.SchoolClass == "" {
 		return fmt.Errorf("%w: school_class is required", ErrReportInvalidFilter)
 	}
 	return nil
@@ -883,8 +889,40 @@ func (s *reportService) classRosterGroupNames(ctx context.Context, students []*u
 	return groups, nil
 }
 
+// classRosterStudents loads the roster's students: one class, or — for the
+// all-classes export — every non-empty class (ListSchoolClasses only returns
+// classes that have students, so empty classes never produce empty lists).
+func (s *reportService) classRosterStudents(ctx context.Context, filters ClassRosterFilters) ([]*userModels.Student, error) {
+	if !filters.AllClasses {
+		students, err := s.studentRepo.FindBySchoolClass(ctx, filters.SchoolClass)
+		if err != nil {
+			return nil, fmt.Errorf("class roster report: list students: %w", err)
+		}
+		return students, nil
+	}
+	classes, err := s.studentRepo.ListSchoolClasses(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("class roster report: list school classes: %w", err)
+	}
+	students := make([]*userModels.Student, 0)
+	for _, class := range classes {
+		classStudents, err := s.studentRepo.FindBySchoolClass(ctx, class)
+		if err != nil {
+			return nil, fmt.Errorf("class roster report: list students of class %q: %w", class, err)
+		}
+		students = append(students, classStudents...)
+		if len(students) > maxReportRows {
+			return nil, fmt.Errorf("class roster report: %d students: %w", len(students), ErrReportExportTooLarge)
+		}
+	}
+	return students, nil
+}
+
 func sortClassRosterRows(rows []ClassRosterRow) {
 	sort.SliceStable(rows, func(i, j int) bool {
+		if r := collation.CompareSchoolClasses(rows[i].SchoolClass, rows[j].SchoolClass); r != 0 {
+			return r < 0
+		}
 		if r := collation.CompareGermanNames(rows[i].LastName, rows[i].FirstName, rows[j].LastName, rows[j].FirstName); r != 0 {
 			return r < 0
 		}
@@ -1799,7 +1837,11 @@ func (s *reportService) recordClassRosterExportAudit(ctx context.Context, report
 	entry.SetMetadata("phase_id", report.Phase.ID)
 	entry.SetMetadata("report", "class_roster")
 	entry.SetMetadata("format", format)
-	entry.SetMetadata("school_class", report.Filters.SchoolClass)
+	schoolClassMeta := report.Filters.SchoolClass
+	if report.Filters.AllClasses {
+		schoolClassMeta = "alle"
+	}
+	entry.SetMetadata("school_class", schoolClassMeta)
 	entry.SetMetadata("status_filter", report.Filters.Status)
 	entry.SetMetadata("student_count", report.Totals.Students)
 	entry.SetMetadata("registered_count", report.Totals.Registered)

@@ -348,13 +348,13 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
 
   const handleClassRosterExport = useCallback(
     async (format: EnrollmentReportFormat) => {
-      if (classRosterSchoolClass === ALL_VALUE) {
-        toast.error("Bitte zuerst eine Klasse wählen.");
-        return;
-      }
       setExportingClassRosterFormat(format);
       try {
-        await exportPhaseClassRoster(phaseId, classRosterSchoolClass, format);
+        await exportPhaseClassRoster(
+          phaseId,
+          classRosterSchoolClass === ALL_VALUE ? null : classRosterSchoolClass,
+          format,
+        );
         toast.success("Klassenliste wurde erstellt.");
       } catch (err) {
         const message =
@@ -871,8 +871,6 @@ function ClassRosterExportPanel({
   exportingFormat: EnrollmentReportFormat | null;
   onExport: (format: EnrollmentReportFormat) => void;
 }>) {
-  const hasSelectedClass = selectedSchoolClass !== ALL_VALUE;
-
   return (
     <section className="moto-content-surface relative z-10 rounded-2xl border p-4 shadow-sm backdrop-blur-md">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
@@ -891,7 +889,7 @@ function ClassRosterExportPanel({
                   label:
                     schoolClassOptions.length === 0
                       ? "Keine Klassen"
-                      : "Klasse wählen",
+                      : "Alle Klassen",
                 },
                 ...schoolClassOptions.map((schoolClass) => ({
                   value: schoolClass,
@@ -907,7 +905,7 @@ function ClassRosterExportPanel({
           menuAriaLabel="Klassenliste exportieren"
           formats={["pdf", "docx", "xlsx"]}
           exportingFormat={exportingFormat}
-          disabled={!hasSelectedClass}
+          disabled={schoolClassOptions.length === 0}
           onExport={onExport}
         />
       </div>
