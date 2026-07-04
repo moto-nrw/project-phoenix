@@ -1,7 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { handleApiError } from "../api-helpers.server";
-import { makeProxyFactories } from "../route-proxy-factory.server";
 import {
   type RouteContext,
   extractParams,
@@ -84,11 +83,11 @@ function parseResponse<T>(response: Response): Promise<T> {
   });
 }
 
-export function parentApiGet<T>(endpoint: string, token: string): Promise<T> {
+function parentApiGet<T>(endpoint: string, token: string): Promise<T> {
   return parentServerFetch<T>(endpoint, token, { method: "GET" });
 }
 
-export function parentApiPost<T, B = unknown>(
+function parentApiPost<T, B = unknown>(
   endpoint: string,
   token: string,
   body?: B,
@@ -103,7 +102,7 @@ export function parentApiDelete<T>(
   return parentServerFetch<T>(endpoint, token, { method: "DELETE" });
 }
 
-export function parentApiPut<T, B = unknown>(
+function parentApiPut<T, B = unknown>(
   endpoint: string,
   token: string,
   body?: B,
@@ -211,21 +210,30 @@ function createParentWithBodyHandler<T, B>(handler: WithBodyHandler<T, B>) {
 
 const jsonResponse = <T>(data: T) => NextResponse.json(wrapInApiResponse(data));
 
-export function createParentGetHandler<T>(handler: NoBodyHandler<T>) {
+function createParentGetHandler<T>(handler: NoBodyHandler<T>) {
   return createParentNoBodyHandler(handler, jsonResponse);
 }
 
-export function createParentPostHandler<T, B = unknown>(
+function createParentPostHandler<T, B = unknown>(
   handler: WithBodyHandler<T, B>,
 ) {
   return createParentWithBodyHandler(handler);
 }
 
+export {
+  createParentGetHandler,
+  createParentPostHandler,
+  createParentPutHandler,
+  parentApiGet,
+  parentApiPost,
+  parentApiPut,
+};
+
 export function createParentDeleteHandler<T>(handler: NoBodyHandler<T>) {
   return createParentNoBodyHandler(handler, jsonResponse);
 }
 
-export function createParentPutHandler<T, B = unknown>(
+function createParentPutHandler<T, B = unknown>(
   handler: WithBodyHandler<T, B>,
 ) {
   return createParentWithBodyHandler(handler);
@@ -236,15 +244,3 @@ export function createParentPatchHandler<T, B = unknown>(
 ) {
   return createParentWithBodyHandler(handler);
 }
-
-export const { proxyGet, proxyPost, proxyPut } = makeProxyFactories({
-  get: createParentGetHandler,
-  post: createParentPostHandler,
-  put: createParentPutHandler,
-  del: createParentDeleteHandler,
-  apiGet: parentApiGet,
-  apiPost: parentApiPost,
-  apiPut: parentApiPut,
-  apiDelete: parentApiDelete,
-  fetcherUnwrapsData: true,
-});

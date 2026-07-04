@@ -1,6 +1,18 @@
-import { proxyPost } from "~/lib/parent/route-wrapper.server";
+import {
+  createParentPostHandler,
+  parentApiPost,
+} from "~/lib/parent/route-wrapper.server";
+import { isStringParam } from "~/lib/route-wrapper.server";
 
-export const POST = proxyPost<unknown>((params) => {
-  const recipientId = String(params.recipientId);
-  return `/parent/me/calendar/recipients/${encodeURIComponent(recipientId)}/response`;
-});
+export const POST = createParentPostHandler(
+  async (_request, body: unknown, token: string, params) => {
+    const recipientId = isStringParam(params.recipientId)
+      ? params.recipientId
+      : "";
+    return parentApiPost(
+      `/parent/me/calendar/recipients/${encodeURIComponent(recipientId)}/response`,
+      token,
+      body ?? {},
+    );
+  },
+);

@@ -1,6 +1,12 @@
-import { proxyGet } from "~/lib/parent/route-wrapper.server";
+import {
+  createParentGetHandler,
+  parentApiGet,
+} from "~/lib/parent/route-wrapper.server";
 
-export const GET = proxyGet<unknown>((params) => {
-  const appointmentId = String(params.appointmentId);
-  return `/parent/me/calendar/appointments/${encodeURIComponent(appointmentId)}/overview`;
+export const GET = createParentGetHandler(async (_request, token, params) => {
+  const appointmentId = params.appointmentId as string;
+  return parentApiGet<unknown>(
+    `/parent/me/calendar/appointments/${encodeURIComponent(appointmentId)}/overview`,
+    token,
+  );
 });
