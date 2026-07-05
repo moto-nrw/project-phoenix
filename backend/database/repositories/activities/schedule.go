@@ -202,34 +202,6 @@ func (r *ScheduleRepository) CapValidUntil(ctx context.Context, activityGroupID 
 	return rows, nil
 }
 
-// FindByTimeframeID finds all schedules for a specific timeframe
-func (r *ScheduleRepository) FindByTimeframeID(ctx context.Context, timeframeID int64) ([]*activities.Schedule, error) {
-	schedules := make([]*activities.Schedule, 0)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&schedules).
-		ModelTableExpr(tableExprActivitiesSchedulesAsSch).
-		// Note: ActivityGroup relation is commented out in model, so we can't use Relation()
-		// The caller should load ActivityGroup separately if needed
-		Where("timeframe_id = ?", timeframeID)
-
-	if where, val, ok := base.TenantWhere(ctx, "schedule"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.
-		Order("weekday").
-		Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by timeframe ID",
-			Err: err,
-		}
-	}
-
-	return schedules, nil
-}
-
 // Create overrides the base Create method to handle validation
 func (r *ScheduleRepository) Create(ctx context.Context, schedule *activities.Schedule) error {
 	if schedule == nil {

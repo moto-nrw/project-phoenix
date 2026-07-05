@@ -229,26 +229,6 @@ func (r *AccountRepository) ResetPINAttempts(ctx context.Context, id int64) erro
 	return nil
 }
 
-// ClearPIN atomically removes the PIN credential and resets the PIN lockout
-// counter in a single UPDATE.
-func (r *AccountRepository) ClearPIN(ctx context.Context, id int64) error {
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*auth.Account)(nil)).
-		ModelTableExpr(accountTable).
-		Set("pin_hash = NULL").
-		Set("pin_attempts = 0").
-		Set("pin_locked_until = NULL").
-		Where(whereID, id).
-		Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "clear pin",
-			Err: err,
-		}
-	}
-	return nil
-}
-
 // SetActive toggles only the active flag for an account. Targeted update so
 // it does not clobber password_hash or other in-memory stale fields.
 func (r *AccountRepository) SetActive(ctx context.Context, id int64, active bool) error {

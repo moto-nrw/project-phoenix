@@ -104,30 +104,6 @@ func (r *TokenRepository) FindByAccountID(ctx context.Context, accountID int64) 
 	return tokens, nil
 }
 
-// FindByAccountIDAndIdentifier retrieves a token by account ID and identifier
-func (r *TokenRepository) FindByAccountIDAndIdentifier(ctx context.Context, accountID int64, identifier string) (*auth.Token, error) {
-	token := new(auth.Token)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(token).
-		ModelTableExpr(`auth.tokens AS "token"`).
-		Where(`"token".account_id = ? AND "token".identifier = ?`, accountID, identifier)
-
-	if where, val, ok := base.TenantWhere(ctx, "token"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by account ID and identifier",
-			Err: err,
-		}
-	}
-
-	return token, nil
-}
-
 // DeleteExpiredTokens removes all expired tokens
 func (r *TokenRepository) DeleteExpiredTokens(ctx context.Context) (int, error) {
 	query := base.GetDB(ctx, r.db).NewDelete().
@@ -175,29 +151,6 @@ func (r *TokenRepository) DeleteByAccountID(ctx context.Context, accountID int64
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "delete by account ID",
-			Err: err,
-		}
-	}
-
-	return nil
-}
-
-// DeleteByAccountIDAndIdentifier removes a token by account ID and identifier
-func (r *TokenRepository) DeleteByAccountIDAndIdentifier(ctx context.Context, accountID int64, identifier string) error {
-	query := base.GetDB(ctx, r.db).NewDelete().
-		Model((*auth.Token)(nil)).
-		ModelTableExpr(`auth.tokens AS "token"`).
-		Where(`"token".account_id = ? AND "token".identifier = ?`, accountID, identifier)
-
-	if where, val, ok := base.TenantWhere(ctx, "token"); ok {
-		query = query.Where(where, val)
-	}
-
-	_, err := query.Exec(ctx)
-
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "delete by account ID and identifier",
 			Err: err,
 		}
 	}
@@ -279,36 +232,6 @@ func (r *TokenRepository) Delete(ctx context.Context, id interface{}) error {
 	return nil
 }
 
-// FindValidTokens retrieves all valid (non-expired) tokens matching the filters
-func (r *TokenRepository) FindValidTokens(ctx context.Context, filters map[string]interface{}) ([]*auth.Token, error) {
-	var tokens []*auth.Token
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&tokens).
-		ModelTableExpr(`auth.tokens AS "token"`).
-		Where(`"token".expiry > ?`, time.Now())
-
-	if where, val, ok := base.TenantWhere(ctx, "token"); ok {
-		query = query.Where(where, val)
-	}
-
-	// Apply additional filters
-	for field, value := range filters {
-		if value != nil {
-			query = query.Where("? = ?", bun.Ident(field), value)
-		}
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find valid tokens",
-			Err: err,
-		}
-	}
-
-	return tokens, nil
-}
-
 // List retrieves tokens matching the provided filters
 func (r *TokenRepository) List(ctx context.Context, filters map[string]interface{}) ([]*auth.Token, error) {
 	var tokens []*auth.Token
@@ -368,36 +291,6 @@ func (r *TokenRepository) applyExpiredTokenFilter(query *bun.SelectQuery, value 
 	return query
 }
 
-// FindTokensWithAccount retrieves tokens with their associated account details
-func (r *TokenRepository) FindTokensWithAccount(ctx context.Context, filters map[string]interface{}) ([]*auth.Token, error) {
-	var tokens []*auth.Token
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&tokens).
-		ModelTableExpr(`auth.tokens AS "token"`).
-		Relation("Account")
-
-	if where, val, ok := base.TenantWhere(ctx, "token"); ok {
-		query = query.Where(where, val)
-	}
-
-	// Apply filters
-	for field, value := range filters {
-		if value != nil {
-			query = query.Where("token.? = ?", bun.Ident(field), value)
-		}
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find with account",
-			Err: err,
-		}
-	}
-
-	return tokens, nil
-}
-
 // CleanupOldTokensForAccount keeps only the most recent N tokens for an account
 // This is useful to allow multiple sessions while preventing unlimited token accumulation
 func (r *TokenRepository) CleanupOldTokensForAccount(ctx context.Context, accountID int64, keepCount int) error {
@@ -455,33 +348,6 @@ func (r *TokenRepository) CleanupOldTokensForAccount(ctx context.Context, accoun
 	return nil
 }
 
-// FindByFamilyID finds all tokens belonging to a specific family
-func (r *TokenRepository) FindByFamilyID(ctx context.Context, familyID string) ([]*auth.Token, error) {
-	var tokens []*auth.Token
-
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&tokens).
-		ModelTableExpr(`auth.tokens AS "token"`).
-		Where(`"token".family_id = ?`, familyID)
-
-	if where, val, ok := base.TenantWhere(ctx, "token"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.
-		OrderExpr(`"token".generation DESC`).
-		Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find tokens by family ID",
-			Err: err,
-		}
-	}
-
-	return tokens, nil
-}
-
 // DeleteByFamilyID deletes all tokens in a specific family
 func (r *TokenRepository) DeleteByFamilyID(ctx context.Context, familyID string) error {
 	query := base.GetDB(ctx, r.db).NewDelete().
@@ -537,4 +403,31 @@ func (r *TokenRepository) GetLatestTokenInFamily(ctx context.Context, familyID s
 	}
 
 	return &token, nil
+}
+
+// FindByFamilyID finds all tokens belonging to a specific family
+func (r *TokenRepository) FindByFamilyID(ctx context.Context, familyID string) ([]*auth.Token, error) {
+	var tokens []*auth.Token
+
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&tokens).
+		ModelTableExpr(`auth.tokens AS "token"`).
+		Where(`"token".family_id = ?`, familyID)
+
+	if where, val, ok := base.TenantWhere(ctx, "token"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.
+		OrderExpr(`"token".generation DESC`).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find tokens by family ID",
+			Err: err,
+		}
+	}
+
+	return tokens, nil
 }

@@ -35,15 +35,9 @@ type GroupRepository interface {
 	// EndSession marks a group session as ended at the current time
 	EndSession(ctx context.Context, id int64) error
 
-	// Relations methods
-	FindWithRelations(ctx context.Context, id int64) (*Group, error)
-	FindWithVisits(ctx context.Context, id int64) (*Group, error)
 	FindWithSupervisors(ctx context.Context, id int64) (*Group, error)
 
-	// Activity session conflict detection methods
-	FindActiveByGroupIDWithDevice(ctx context.Context, groupID int64) ([]*Group, error)
 	FindActiveByDeviceID(ctx context.Context, deviceID int64) (*Group, error)
-	FindActiveByDeviceIDWithRelations(ctx context.Context, deviceID int64) (*Group, error)
 	FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*Group, error)
 
 	// Room conflict detection methods
@@ -52,8 +46,6 @@ type GroupRepository interface {
 	// Session timeout methods
 	UpdateLastActivity(ctx context.Context, id int64, lastActivity time.Time) error
 	FindActiveSessionsOlderThan(ctx context.Context, cutoffTime time.Time) ([]*Group, error)
-	FindInactiveSessions(ctx context.Context, inactiveDuration time.Duration) ([]*Group, error)
-
 	// Unclaimed groups (for frontend claiming feature)
 	FindUnclaimed(ctx context.Context) ([]*Group, error)
 
@@ -150,9 +142,6 @@ type VisitRepository interface {
 	// DeleteExpiredVisits deletes visits older than retention days for a specific student
 	DeleteExpiredVisits(ctx context.Context, studentID int64, retentionDays int) (int64, error)
 
-	// DeleteVisitsBeforeDate deletes visits created before a specific date for a student
-	DeleteVisitsBeforeDate(ctx context.Context, studentID int64, beforeDate time.Time) (int64, error)
-
 	// GetVisitRetentionStats gets statistics about visits that are candidates for deletion
 	GetVisitRetentionStats(ctx context.Context) (map[int64]int, error)
 
@@ -188,9 +177,6 @@ type VisitRepository interface {
 
 	// CountActiveByGroupID counts currently active visits in a single active group.
 	CountActiveByGroupID(ctx context.Context, activeGroupID int64) (int, error)
-
-	// CountActiveByStudentID counts active visits for a student.
-	CountActiveByStudentID(ctx context.Context, studentID int64) (int, error)
 
 	// FindActiveVisits finds all visits with no exit time (currently active)
 	FindActiveVisits(ctx context.Context) ([]*Visit, error)
@@ -243,10 +229,6 @@ type GroupSupervisorRepository interface {
 	// touching their supervisions elsewhere. Idempotent: zero rows matched
 	// is not an error (staff already ended or never supervised this group).
 	EndByActiveGroupAndStaffID(ctx context.Context, activeGroupID, staffID int64) (int, error)
-
-	// CreateBulk inserts multiple supervisors in a single query.
-	// All supervisors must have valid fields and tenant IDs set before calling.
-	CreateBulk(ctx context.Context, supervisors []*GroupSupervisor) error
 
 	// EndSupervisionsByActiveGroupIDs ends all active supervisions for multiple group IDs in a single query.
 	// Returns the number of supervisions ended.
@@ -351,18 +333,12 @@ type StaffAbsenceRepository interface {
 	// GetByStaffAndDate returns an absence for a staff member on a specific date, or nil
 	GetByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*StaffAbsence, error)
 
-	// GetByDateRange returns all absences overlapping the given date range
-	GetByDateRange(ctx context.Context, from, to timezone.Date) ([]*StaffAbsence, error)
-
 	// GetTodayAbsenceMap returns a map of staff IDs to their absence type for today
 	// Priority order when multiple absences exist: sick > training > vacation > other
 	GetTodayAbsenceMap(ctx context.Context) (map[int64]string, error)
 
 	// ListByStatus returns all absences with the given status (used for inbox view)
 	ListByStatus(ctx context.Context, status string) ([]*StaffAbsence, error)
-
-	// ListByStaffAndStatuses returns absences for one staff member filtered by status set
-	ListByStaffAndStatuses(ctx context.Context, staffID int64, statuses []string) ([]*StaffAbsence, error)
 
 	// DeleteNonHistoricalByStaffID hard-deletes absences that are still pending
 	// ('requested') or not yet over (date_end >= from). Past decided absences

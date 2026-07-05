@@ -156,47 +156,6 @@ func (r *RoleRepository) RemoveRoleFromAccount(_ context.Context, _ int64, _ int
 	}
 }
 
-// GetRoleWithPermissions retrieves a role with its associated permissions
-func (r *RoleRepository) GetRoleWithPermissions(ctx context.Context, roleID int64) (*auth.Role, error) {
-	role := new(auth.Role)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(role).
-		ModelTableExpr(roleTableAlias).
-		Where(whereRoleID, roleID)
-
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-		query = query.Where("(role.tenant_id = ? OR role.tenant_id IS NULL)", tenantID)
-	}
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "get role",
-			Err: err,
-		}
-	}
-
-	// Load permissions for the role
-	var permissions []*auth.Permission
-	err = base.GetDB(ctx, r.db).NewSelect().
-		Model(&permissions).
-		ModelTableExpr("auth.permissions AS permission").
-		Join("JOIN auth.role_permissions rp ON rp.permission_id = permission.id").
-		Where("rp.role_id = ?", roleID).
-		Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "get role permissions",
-			Err: err,
-		}
-	}
-
-	role.Permissions = permissions
-	return role, nil
-}
-
 // FindByID overrides the base FindByID to include system roles (tenant_id IS NULL)
 // alongside tenant-specific roles in tenant-scoped lookups.
 func (r *RoleRepository) FindByID(ctx context.Context, id any) (*auth.Role, error) {

@@ -292,37 +292,3 @@ func (r *AccountRoleRepository) List(ctx context.Context, filters map[string]any
 
 	return accountRoles, nil
 }
-
-// FindAccountRolesWithDetails retrieves account-role mappings with account and role details
-func (r *AccountRoleRepository) FindAccountRolesWithDetails(ctx context.Context, filters map[string]any) ([]*auth.AccountRole, error) {
-	var accountRoles []*auth.AccountRole
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&accountRoles).
-		ModelTableExpr(accountRoleTableAlias).
-		ColumnExpr(`"account_role".*`).
-		ColumnExpr(`"account".id AS "account__id", "account".email AS "account__email", "account".username AS "account__username", "account".active AS "account__active", "account".created_at AS "account__created_at", "account".updated_at AS "account__updated_at"`).
-		ColumnExpr(`"role".id AS "role__id", "role".name AS "role__name", "role".description AS "role__description", "role".is_system AS "role__is_system", "role".created_at AS "role__created_at", "role".updated_at AS "role__updated_at"`).
-		Join(`LEFT JOIN auth.accounts AS "account" ON "account".id = "account_role".account_id`).
-		Join(`LEFT JOIN auth.roles AS "role" ON "role".id = "account_role".role_id`)
-
-	if where, val, ok := base.TenantWhere(ctx, "account_role"); ok {
-		query = query.Where(where, val)
-	}
-
-	// Apply filters
-	for field, value := range filters {
-		if value != nil {
-			query = query.Where(`"account_role".`+field+` = ?`, value)
-		}
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find with details",
-			Err: err,
-		}
-	}
-
-	return accountRoles, nil
-}

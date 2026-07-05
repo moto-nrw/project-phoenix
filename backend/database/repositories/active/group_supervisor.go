@@ -213,38 +213,6 @@ func (r *GroupSupervisorRepository) Create(ctx context.Context, supervision *act
 	return r.Repository.Create(ctx, supervision)
 }
 
-// CreateBulk inserts multiple supervisors in a single query.
-// All supervisors are validated and have their tenant IDs set from context before insertion.
-func (r *GroupSupervisorRepository) CreateBulk(ctx context.Context, supervisors []*active.GroupSupervisor) error {
-	if len(supervisors) == 0 {
-		return nil
-	}
-
-	// Validate all supervisors and set tenant IDs
-	for _, sup := range supervisors {
-		if sup == nil {
-			return fmt.Errorf("group supervisor cannot be nil")
-		}
-		if err := sup.Validate(); err != nil {
-			return err
-		}
-		base.EnsureTenantID(ctx, sup)
-	}
-
-	_, err := base.GetDB(ctx, r.db).NewInsert().
-		Model(&supervisors).
-		ModelTableExpr(`active.group_supervisors`).
-		Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "create bulk",
-			Err: err,
-		}
-	}
-
-	return nil
-}
-
 // Update overrides base Update to handle schema-qualified tables
 func (r *GroupSupervisorRepository) Update(ctx context.Context, supervision *active.GroupSupervisor) error {
 	if supervision == nil {
@@ -328,54 +296,6 @@ func (r *GroupSupervisorRepository) List(ctx context.Context, options *modelBase
 	}
 
 	return supervisions, nil
-}
-
-// FindWithStaff retrieves supervisions with staff details
-func (r *GroupSupervisorRepository) FindWithStaff(ctx context.Context, id int64) (*active.GroupSupervisor, error) {
-	supervision := new(active.GroupSupervisor)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(supervision).
-		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
-		Relation("Staff").
-		Where("id = ?", id)
-
-	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find with staff",
-			Err: err,
-		}
-	}
-
-	return supervision, nil
-}
-
-// FindWithActiveGroup retrieves supervisions with active group details
-func (r *GroupSupervisorRepository) FindWithActiveGroup(ctx context.Context, id int64) (*active.GroupSupervisor, error) {
-	supervision := new(active.GroupSupervisor)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(supervision).
-		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
-		Relation("ActiveGroup").
-		Where("id = ?", id)
-
-	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find with active group",
-			Err: err,
-		}
-	}
-
-	return supervision, nil
 }
 
 // EndAllActiveByStaffID ends all active supervisions for a staff member.

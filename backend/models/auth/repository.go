@@ -47,9 +47,6 @@ type AccountRepository interface {
 	// ResetPINAttempts atomically clears pin_attempts + pin_locked_until
 	// after a successful PIN verify.
 	ResetPINAttempts(ctx context.Context, id int64) error
-	// ClearPIN atomically removes the PIN credential and resets the PIN
-	// lockout counter in a single UPDATE.
-	ClearPIN(ctx context.Context, id int64) error
 }
 
 // MFAAttemptResult is the post-update snapshot returned by
@@ -80,7 +77,6 @@ type RoleRepository interface {
 	FindRoleNamesByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 	AssignRoleToAccount(ctx context.Context, accountID int64, roleID int64) error
 	RemoveRoleFromAccount(ctx context.Context, accountID int64, roleID int64) error
-	GetRoleWithPermissions(ctx context.Context, roleID int64) (*Role, error)
 }
 
 // PermissionRepository defines operations for managing permissions
@@ -91,13 +87,10 @@ type PermissionRepository interface {
 	Delete(ctx context.Context, id interface{}) error
 	List(ctx context.Context, filters map[string]interface{}) ([]*Permission, error)
 	FindByName(ctx context.Context, name string) (*Permission, error)
-	FindByResourceAction(ctx context.Context, resource, action string) (*Permission, error)
 	FindByAccountID(ctx context.Context, accountID int64) ([]*Permission, error)
 	FindByAccountIDForTenant(ctx context.Context, accountID int64, tenantID int64) ([]*Permission, error)
 	FindDirectByAccountID(ctx context.Context, accountID int64) ([]*Permission, error)
 	FindByRoleID(ctx context.Context, roleID int64) ([]*Permission, error)
-	FindByRoleByName(ctx context.Context, roleName string) (*Role, error)
-	AssignPermissionToAccount(ctx context.Context, accountID int64, permissionID int64) error
 	RemovePermissionFromAccount(ctx context.Context, accountID int64, permissionID int64) error
 	AssignPermissionToRole(ctx context.Context, roleID int64, permissionID int64) error
 	RemovePermissionFromRole(ctx context.Context, roleID int64, permissionID int64) error
@@ -124,12 +117,8 @@ type RolePermissionRepository interface {
 	Delete(ctx context.Context, id interface{}) error
 	List(ctx context.Context, filters map[string]interface{}) ([]*RolePermission, error)
 	FindByRoleID(ctx context.Context, roleID int64) ([]*RolePermission, error)
-	FindByPermissionID(ctx context.Context, permissionID int64) ([]*RolePermission, error)
-	FindByRoleAndPermission(ctx context.Context, roleID, permissionID int64) (*RolePermission, error)
-	DeleteByRoleAndPermission(ctx context.Context, roleID, permissionID int64) error
 	DeleteByRoleID(ctx context.Context, roleID int64) error
 	DeleteByPermissionID(ctx context.Context, permissionID int64) error
-	FindRolePermissionsWithDetails(ctx context.Context, filters map[string]interface{}) ([]*RolePermission, error)
 }
 
 // AccountRoleRepository defines operations for managing account-role mappings
@@ -146,7 +135,6 @@ type AccountRoleRepository interface {
 	DeleteByAccountAndRole(ctx context.Context, accountID, roleID int64) error
 	DeleteByAccountID(ctx context.Context, accountID int64) error
 	DeleteByRoleID(ctx context.Context, roleID int64) error
-	FindAccountRolesWithDetails(ctx context.Context, filters map[string]interface{}) ([]*AccountRole, error)
 }
 
 // AccountPermissionRepository defines operations for managing account-permission mappings
@@ -157,14 +145,15 @@ type AccountPermissionRepository interface {
 	Delete(ctx context.Context, id interface{}) error
 	List(ctx context.Context, filters map[string]interface{}) ([]*AccountPermission, error)
 	FindByAccountID(ctx context.Context, accountID int64) ([]*AccountPermission, error)
-	FindByPermissionID(ctx context.Context, permissionID int64) ([]*AccountPermission, error)
-	FindByAccountAndPermission(ctx context.Context, accountID, permissionID int64) (*AccountPermission, error)
 	GrantPermission(ctx context.Context, accountID, permissionID int64) error
 	DenyPermission(ctx context.Context, accountID, permissionID int64) error
 	RemovePermission(ctx context.Context, accountID, permissionID int64) error
 	DeleteByPermissionID(ctx context.Context, permissionID int64) error
 	DeleteByAccountID(ctx context.Context, accountID int64) (int64, error)
-	FindAccountPermissionsWithDetails(ctx context.Context, filters map[string]interface{}) ([]*AccountPermission, error)
+
+	FindByPermissionID(ctx context.Context, permissionID int64) ([]*AccountPermission, error)
+
+	FindByAccountAndPermission(ctx context.Context, accountID, permissionID int64) (*AccountPermission, error)
 }
 
 // TokenRepository defines operations for managing authentication tokens
@@ -177,21 +166,18 @@ type TokenRepository interface {
 	FindByToken(ctx context.Context, token string) (*Token, error)
 	FindByTokenForUpdate(ctx context.Context, token string) (*Token, error)
 	FindByAccountID(ctx context.Context, accountID int64) ([]*Token, error)
-	FindByAccountIDAndIdentifier(ctx context.Context, accountID int64, identifier string) (*Token, error)
 	DeleteExpiredTokens(ctx context.Context) (int, error)
 	DeleteByAccountID(ctx context.Context, accountID int64) error
-	DeleteByAccountIDAndIdentifier(ctx context.Context, accountID int64, identifier string) error
-	FindValidTokens(ctx context.Context, filters map[string]interface{}) ([]*Token, error)
-	FindTokensWithAccount(ctx context.Context, filters map[string]interface{}) ([]*Token, error)
 	CleanupOldTokensForAccount(ctx context.Context, accountID int64, keepCount int) error
 
 	// Bulk deletion
 	DeleteByTenantID(ctx context.Context, tenantID int64) (int, error)
 
-	// Token family tracking methods
-	FindByFamilyID(ctx context.Context, familyID string) ([]*Token, error)
 	DeleteByFamilyID(ctx context.Context, familyID string) error
 	GetLatestTokenInFamily(ctx context.Context, familyID string) (*Token, error)
+
+	// Token family tracking methods
+	FindByFamilyID(ctx context.Context, familyID string) ([]*Token, error)
 }
 
 // PasswordResetTokenRepository defines operations for managing password reset tokens
@@ -208,7 +194,6 @@ type PasswordResetTokenRepository interface {
 	MarkAsUsed(ctx context.Context, tokenID int64) error
 	DeleteExpiredTokens(ctx context.Context) (int, error)
 	InvalidateTokensByAccountID(ctx context.Context, accountID int64) error
-	FindTokensWithAccount(ctx context.Context, filters map[string]interface{}) ([]*PasswordResetToken, error)
 }
 
 // PasswordResetRateLimitRepository defines operations for managing password reset rate limiting.
@@ -292,7 +277,6 @@ type MFATrustedDeviceRepository interface {
 type PasskeyCredentialRepository interface {
 	Create(ctx context.Context, credential *PasskeyCredential) error
 	FindActiveByAccountID(ctx context.Context, accountID int64) ([]*PasskeyCredential, error)
-	FindActiveByCredentialID(ctx context.Context, credentialID []byte) (*PasskeyCredential, error)
 	FindActiveByCredentialIDAndUserHandle(ctx context.Context, credentialID, userHandle []byte) (*PasskeyCredential, error)
 	UpdateAfterUse(ctx context.Context, id int64, credentialJSON []byte, usedAt time.Time) error
 	Revoke(ctx context.Context, accountID, id int64, revokedAt time.Time) error
@@ -338,6 +322,7 @@ type MFAOverrideRepository interface {
 	// surface so a single account's override picture across tenants is
 	// inspectable.
 	ListByAccount(ctx context.Context, accountID int64) ([]*MFAOverride, error)
+
 	// DeleteAllByAccount wipes every override row when the account is
 	// reset or destroyed. Returns the number of rows removed for the
 	// audit log.
@@ -403,9 +388,6 @@ type GuardianInvitationRepository interface {
 	// staff approval (approval_status = 'pending'), newest first.
 	FindPendingApproval(ctx context.Context) ([]*GuardianInvitation, error)
 
-	// FindExpired retrieves all expired invitations
-	FindExpired(ctx context.Context) ([]*GuardianInvitation, error)
-
 	// MarkAsAccepted marks an invitation as accepted
 	MarkAsAccepted(ctx context.Context, id int64) error
 
@@ -414,7 +396,4 @@ type GuardianInvitationRepository interface {
 
 	// DeleteExpired deletes expired invitations
 	DeleteExpired(ctx context.Context) (int, error)
-
-	// Count returns the total number of guardian invitations
-	Count(ctx context.Context) (int, error)
 }

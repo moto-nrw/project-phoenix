@@ -62,7 +62,6 @@ type GroupSubstitutionRepository interface {
 	FindBySubstituteStaff(ctx context.Context, staffID int64) ([]*GroupSubstitution, error)
 	FindActive(ctx context.Context, date timezone.Date) ([]*GroupSubstitution, error)
 	FindActiveBySubstitute(ctx context.Context, substituteStaffID int64, date timezone.Date) ([]*GroupSubstitution, error)
-	FindActiveByGroup(ctx context.Context, groupID int64, date timezone.Date) ([]*GroupSubstitution, error)
 	FindOverlapping(ctx context.Context, staffID int64, startDate timezone.Date, endDate timezone.Date) ([]*GroupSubstitution, error)
 	// DeleteActiveOrFutureByStaffID removes substitutions involving the staff
 	// member (as regular or substitute) that have not ended before the given

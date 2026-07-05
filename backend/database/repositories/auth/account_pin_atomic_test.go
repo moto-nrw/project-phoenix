@@ -106,28 +106,3 @@ func TestAccountRepository_ResetPINAttempts_ClearsCounterAndLock(t *testing.T) {
 	assert.Equal(t, 0, persisted.PINAttempts, "reset must zero the counter")
 	assert.Nil(t, persisted.PINLockedUntil, "reset must clear the lock timestamp")
 }
-
-// TestAccountRepository_ClearPIN_RemovesCredentialAndLock proves ClearPIN
-// drops the PIN hash and resets the lockout state in a single statement.
-func TestAccountRepository_ClearPIN_RemovesCredentialAndLock(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
-
-	acc := testpkg.CreateTestAccount(t, db, "pin-atomic-clear")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
-
-	repo := repositories.NewFactory(db).Account
-
-	for i := 0; i < 6; i++ {
-		_, err := repo.IncrementPINAttempts(context.Background(), acc.ID, 5, 15*time.Minute)
-		require.NoError(t, err)
-	}
-
-	require.NoError(t, repo.ClearPIN(context.Background(), acc.ID))
-
-	persisted, err := repo.FindByID(context.Background(), acc.ID)
-	require.NoError(t, err)
-	assert.Nil(t, persisted.PINHash, "clear must remove the PIN hash")
-	assert.Equal(t, 0, persisted.PINAttempts, "clear must zero the counter")
-	assert.Nil(t, persisted.PINLockedUntil, "clear must clear the lock timestamp")
-}

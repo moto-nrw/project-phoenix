@@ -295,56 +295,6 @@ func (r *GroupRepository) FindWithSupervisors(ctx context.Context, groupID int64
 	return group, supervisors, nil
 }
 
-// FindWithSchedules returns a group with its scheduled times
-func (r *GroupRepository) FindWithSchedules(ctx context.Context, groupID int64) (*activities.Group, []*activities.Schedule, error) {
-	// First get the group
-	group := new(activities.Group)
-	groupQuery := base.GetDB(ctx, r.db).NewSelect().
-		Model(group).
-		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
-		Where(whereIDEquals, groupID)
-
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		groupQuery = groupQuery.Where(where, val)
-	}
-
-	err := groupQuery.Scan(ctx)
-
-	if err != nil {
-		return nil, nil, &modelBase.DatabaseError{
-			Op:  "find group",
-			Err: err,
-		}
-	}
-
-	// Then get the schedules
-	// Note: Timeframe relation is commented out in Schedule model, so we can't use Relation()
-	// The caller should load Timeframe separately if needed
-	schedules := make([]*activities.Schedule, 0)
-	schQuery := base.GetDB(ctx, r.db).NewSelect().
-		Model(&schedules).
-		ModelTableExpr(tableExprActivitiesSchedulesAsSch).
-		Where("activity_group_id = ?", groupID)
-
-	if where, val, ok := base.TenantWhere(ctx, "schedule"); ok {
-		schQuery = schQuery.Where(where, val)
-	}
-
-	err = schQuery.
-		Order("weekday ASC").
-		Order("timeframe_id ASC").
-		Scan(ctx)
-
-	if err != nil {
-		return nil, nil, &modelBase.DatabaseError{
-			Op:  "find schedules",
-			Err: err,
-		}
-	}
-
-	return group, schedules, nil
-}
-
 // FindByStaffSupervisor finds all activity groups where a staff member is a supervisor
 func (r *GroupRepository) FindByStaffSupervisor(ctx context.Context, staffID int64) ([]*activities.Group, error) {
 	var groups []*activities.Group

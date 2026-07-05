@@ -318,38 +318,6 @@ func (r *StudentEnrollmentRepository) UpdateAttendanceStatus(ctx context.Context
 	return base.AssertRowsAffected(result, 1, "update attendance status")
 }
 
-// DeleteByStudentGroupsAndWindow removes rows for one student in the given
-// linked groups and phase window. It deliberately requires explicit group ids
-// and dates so callers do not wipe unrelated rosters.
-func (r *StudentEnrollmentRepository) DeleteByStudentGroupsAndWindow(ctx context.Context, studentID int64, groupIDs []int64, validFrom timezone.Date, validUntil *timezone.Date) (int64, error) {
-	if studentID <= 0 {
-		return 0, fmt.Errorf("student_id is required")
-	}
-	if len(groupIDs) == 0 {
-		return 0, nil
-	}
-	query := base.GetDB(ctx, r.db).NewDelete().
-		Model((*activities.StudentEnrollment)(nil)).
-		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
-		Where(`"student_enrollment".student_id = ?`, studentID).
-		Where(`"student_enrollment".activity_group_id IN (?)`, bun.List(groupIDs)).
-		Where(`"student_enrollment".valid_from = ?`, validFrom)
-	if validUntil == nil {
-		query = query.Where(`"student_enrollment".valid_until IS NULL`)
-	} else {
-		query = query.Where(`"student_enrollment".valid_until = ?`, *validUntil)
-	}
-	if where, val, ok := base.TenantWhere(ctx, "student_enrollment"); ok {
-		query = query.Where(where, val)
-	}
-	result, err := query.Exec(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete by student groups and window", Err: err}
-	}
-	rows, _ := result.RowsAffected()
-	return rows, nil
-}
-
 // BackfillEnrollmentRequestChildSource stamps legacy rows materialized by a
 // request child approval before enrollment_request_child_id existed. The
 // tight approval-time guard keeps later manual rosters for the same

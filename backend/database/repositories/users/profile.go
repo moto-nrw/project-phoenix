@@ -73,52 +73,6 @@ func (r *ProfileRepository) UpdateAvatar(ctx context.Context, id int64, avatar s
 	return base.AssertRowsAffected(result, 1, "update avatar")
 }
 
-// UpdateBio updates a profile's bio
-func (r *ProfileRepository) UpdateBio(ctx context.Context, id int64, bio string) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*users.Profile)(nil)).
-		ModelTableExpr(`users.profiles AS "profile"`).
-		Set("bio = ?", bio).
-		Where(`"profile".id = ?`, id)
-
-	if where, val, ok := base.TenantWhere(ctx, "profile"); ok {
-		query = query.Where(where, val)
-	}
-
-	result, err := query.Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "update bio",
-			Err: err,
-		}
-	}
-
-	return base.AssertRowsAffected(result, 1, "update bio")
-}
-
-// UpdateSettings updates a profile's settings
-func (r *ProfileRepository) UpdateSettings(ctx context.Context, id int64, settings string) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*users.Profile)(nil)).
-		ModelTableExpr(`users.profiles AS "profile"`).
-		Set("settings = ?", settings).
-		Where(`"profile".id = ?`, id)
-
-	if where, val, ok := base.TenantWhere(ctx, "profile"); ok {
-		query = query.Where(where, val)
-	}
-
-	result, err := query.Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "update settings",
-			Err: err,
-		}
-	}
-
-	return base.AssertRowsAffected(result, 1, "update settings")
-}
-
 // Create overrides the base Create method to handle validation
 func (r *ProfileRepository) Create(ctx context.Context, profile *users.Profile) error {
 	if profile == nil {

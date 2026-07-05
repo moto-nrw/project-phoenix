@@ -3,7 +3,6 @@ package activities
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -253,39 +252,6 @@ func (r *SupervisorPlannedRepository) FindByGroupIDs(ctx context.Context, groupI
 	}
 
 	return mapSupervisorResults(results), nil
-}
-
-// FindPrimaryByGroupID finds the primary supervisor for a specific group
-func (r *SupervisorPlannedRepository) FindPrimaryByGroupID(ctx context.Context, groupID int64) (*activities.SupervisorPlanned, error) {
-	var result supervisorResult
-
-	query := applySupervisorColumnMapping(base.GetDB(ctx, r.db).NewSelect().Model(&result)).
-		Where(`"supervisor".group_id = ? AND "supervisor".is_primary = true`, groupID)
-
-	if where, val, ok := base.TenantWhere(ctx, "supervisor"); ok {
-		query = query.Where(where, val)
-	}
-
-	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find primary by group ID",
-			Err: err,
-		}
-	}
-
-	// Setup relations correctly
-	if result.Supervisor != nil {
-		result.Supervisor.Staff = result.Staff
-		if result.Staff != nil {
-			result.Staff.Person = result.Person
-		}
-		return result.Supervisor, nil
-	}
-
-	return nil, &modelBase.DatabaseError{
-		Op:  "find primary by group ID",
-		Err: errors.New("no primary supervisor found"),
-	}
 }
 
 // SetPrimary sets a supervisor as the primary supervisor for a group

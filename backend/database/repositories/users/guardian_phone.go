@@ -120,28 +120,6 @@ func (r *GuardianPhoneNumberRepository) FindByGuardianIDs(ctx context.Context, g
 	return result, nil
 }
 
-// GetPrimary retrieves the primary phone number for a guardian
-func (r *GuardianPhoneNumberRepository) GetPrimary(ctx context.Context, guardianProfileID int64) (*users.GuardianPhoneNumber, error) {
-	phone := new(users.GuardianPhoneNumber)
-
-	err := repoBase.GetDB(ctx, r.db).NewSelect().
-		Model(phone).
-		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
-		Where(`"guardian_phone_number".guardian_profile_id = ?`, guardianProfileID).
-		Where(`"guardian_phone_number".is_primary = ?`, true).
-		Limit(1).
-		Scan(ctx)
-
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.New(errGuardianPhoneNotFound)
-		}
-		return nil, fmt.Errorf("failed to get primary phone number: %w", err)
-	}
-
-	return phone, nil
-}
-
 // Update updates an existing phone number
 func (r *GuardianPhoneNumberRepository) Update(ctx context.Context, phone *users.GuardianPhoneNumber) error {
 	if err := phone.Validate(); err != nil {

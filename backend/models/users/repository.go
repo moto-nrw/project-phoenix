@@ -26,9 +26,6 @@ type RFIDCardRepository interface {
 	// List retrieves RFID cards matching the filters
 	List(ctx context.Context, filters map[string]interface{}) ([]*RFIDCard, error)
 
-	// Activate sets an RFID card as active
-	Activate(ctx context.Context, id string) error
-
 	// Deactivate sets an RFID card as inactive
 	Deactivate(ctx context.Context, id string) error
 }
@@ -143,12 +140,6 @@ type StudentRepository interface {
 	// CountByGroupIDs counts students per group for multiple groups in a single query
 	CountByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error)
 
-	// AssignToGroup assigns a student to a group
-	AssignToGroup(ctx context.Context, studentID int64, groupID int64) error
-
-	// RemoveFromGroup removes a student from their group
-	RemoveFromGroup(ctx context.Context, studentID int64) error
-
 	// FindByTeacherID retrieves students supervised by a teacher (through group assignments)
 	FindByTeacherID(ctx context.Context, teacherID int64) ([]*Student, error)
 
@@ -226,9 +217,6 @@ type StaffRepository interface {
 	// ListAllWithPerson retrieves all staff members with their associated person data in a single query
 	ListAllWithPerson(ctx context.Context) ([]*Staff, error)
 
-	// UpdateNotes updates staff notes
-	UpdateNotes(ctx context.Context, id int64, notes string) error
-
 	// ClearWorkTimeModel sets work_time_model_id to NULL. Used by staff
 	// offboarding: soft-deleted staff must not keep the reference, or the
 	// RESTRICT FK blocks work-time-model deletion while the live-staff
@@ -291,9 +279,6 @@ type TeacherRepository interface {
 	// FindByGroupID retrieves teachers assigned to a group
 	FindByGroupID(ctx context.Context, groupID int64) ([]*Teacher, error)
 
-	// UpdateQualifications updates a teacher's qualifications
-	UpdateQualifications(ctx context.Context, id int64, qualifications string) error
-
 	// FindWithStaffAndPerson retrieves a teacher with their associated staff and person data
 	FindWithStaffAndPerson(ctx context.Context, id int64) (*Teacher, error)
 
@@ -315,12 +300,6 @@ type GuestRepository interface {
 	// FindByStaffID retrieves a guest by their staff ID
 	FindByStaffID(ctx context.Context, staffID int64) (*Guest, error)
 
-	// FindByOrganization retrieves guests by their organization
-	FindByOrganization(ctx context.Context, organization string) ([]*Guest, error)
-
-	// FindByExpertise retrieves guests by their activity expertise
-	FindByExpertise(ctx context.Context, expertise string) ([]*Guest, error)
-
 	// Update updates an existing guest
 	Update(ctx context.Context, guest *Guest) error
 
@@ -332,9 +311,6 @@ type GuestRepository interface {
 
 	// FindActive retrieves currently active guests
 	FindActive(ctx context.Context) ([]*Guest, error)
-
-	// SetDateRange sets a guest's start and end dates
-	SetDateRange(ctx context.Context, id int64, startDate, endDate timezone.Date) error
 }
 
 // ProfileRepository defines operations for managing profiles
@@ -359,12 +335,6 @@ type ProfileRepository interface {
 
 	// UpdateAvatar updates a profile's avatar
 	UpdateAvatar(ctx context.Context, id int64, avatar string) error
-
-	// UpdateBio updates a profile's bio
-	UpdateBio(ctx context.Context, id int64, bio string) error
-
-	// UpdateSettings updates a profile's settings
-	UpdateSettings(ctx context.Context, id int64, settings string) error
 }
 
 // PersonGuardianRepository defines operations for managing person-guardian relationships
@@ -466,18 +436,6 @@ type StudentGuardianRepository interface {
 	// carries no explicit tenant predicate).
 	ListLinkedChildrenForGuardians(ctx context.Context, guardianProfileIDs []int64) ([]*GuardianLinkedChild, error)
 
-	// FindPrimaryByStudentID retrieves the primary guardian for a student
-	FindPrimaryByStudentID(ctx context.Context, studentID int64) (*StudentGuardian, error)
-
-	// FindEmergencyContactsByStudentID retrieves all emergency contacts for a student
-	FindEmergencyContactsByStudentID(ctx context.Context, studentID int64) ([]*StudentGuardian, error)
-
-	// FindPickupAuthoritiesByStudentID retrieves all guardians who can pickup a student
-	FindPickupAuthoritiesByStudentID(ctx context.Context, studentID int64) ([]*StudentGuardian, error)
-
-	// FindByRelationshipType retrieves relationships by relationship type
-	FindByRelationshipType(ctx context.Context, studentID int64, relationshipType string) ([]*StudentGuardian, error)
-
 	// Update updates an existing relationship
 	Update(ctx context.Context, relationship *StudentGuardian) error
 
@@ -497,15 +455,6 @@ type StudentGuardianRepository interface {
 
 	// SetPrimary sets a guardian as the primary guardian for a student
 	SetPrimary(ctx context.Context, id int64, isPrimary bool) error
-
-	// SetEmergencyContact sets whether a guardian is an emergency contact
-	SetEmergencyContact(ctx context.Context, id int64, isEmergencyContact bool) error
-
-	// SetCanPickup sets whether a guardian can pickup a student
-	SetCanPickup(ctx context.Context, id int64, canPickup bool) error
-
-	// UpdatePermissions updates a guardian's permissions
-	UpdatePermissions(ctx context.Context, id int64, permissions string) error
 }
 
 // StudentRetentionSetting is the projection used by the GDPR visit-cleanup
@@ -527,17 +476,8 @@ type PrivacyConsentRepository interface {
 	// FindByStudentID retrieves privacy consents for a student
 	FindByStudentID(ctx context.Context, studentID int64) ([]*PrivacyConsent, error)
 
-	// FindByStudentIDAndPolicyVersion retrieves a privacy consent for a student and policy version
-	FindByStudentIDAndPolicyVersion(ctx context.Context, studentID int64, policyVersion string) (*PrivacyConsent, error)
-
 	// FindActiveByStudentID retrieves active privacy consents for a student
 	FindActiveByStudentID(ctx context.Context, studentID int64) ([]*PrivacyConsent, error)
-
-	// FindExpired retrieves all expired privacy consents
-	FindExpired(ctx context.Context) ([]*PrivacyConsent, error)
-
-	// FindNeedingRenewal retrieves all privacy consents that need renewal
-	FindNeedingRenewal(ctx context.Context) ([]*PrivacyConsent, error)
 
 	// Update updates an existing privacy consent
 	Update(ctx context.Context, consent *PrivacyConsent) error
@@ -553,15 +493,6 @@ type PrivacyConsentRepository interface {
 
 	// Revoke revokes a privacy consent
 	Revoke(ctx context.Context, id int64) error
-
-	// SetExpiryDate sets the expiry date for a privacy consent
-	SetExpiryDate(ctx context.Context, id int64, expiresAt time.Time) error
-
-	// SetRenewalRequired sets whether renewal is required for a privacy consent
-	SetRenewalRequired(ctx context.Context, id int64, renewalRequired bool) error
-
-	// UpdateDetails updates the details for a privacy consent
-	UpdateDetails(ctx context.Context, id int64, details string) error
 
 	// ListAcceptedRetentionSettings returns the distinct (student_id,
 	// data_retention_days) pairs of accepted privacy consents, ordered by
@@ -605,9 +536,6 @@ type GuardianProfileRepository interface {
 	// keyed by id. Missing ids are simply absent from the map.
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*GuardianProfile, error)
 
-	// Count returns the total number of guardian profiles
-	Count(ctx context.Context) (int, error)
-
 	// Update updates an existing guardian profile
 	Update(ctx context.Context, profile *GuardianProfile) error
 
@@ -620,12 +548,6 @@ type GuardianProfileRepository interface {
 
 	// LinkAccount links a guardian profile to a parent account
 	LinkAccount(ctx context.Context, profileID int64, accountID int64) error
-
-	// UnlinkAccount unlinks a guardian profile from their account
-	UnlinkAccount(ctx context.Context, profileID int64) error
-
-	// GetStudentCount returns the number of students for a guardian
-	GetStudentCount(ctx context.Context, profileID int64) (int, error)
 
 	// LoadProfileWithChildren returns the guardian profile linked to the
 	// given account along with their primary phone and a summary of
@@ -651,9 +573,6 @@ type GuardianPhoneNumberRepository interface {
 	// profile ids in a single query, grouped by profile id. Each group is
 	// ordered primary-first, matching FindByGuardianID.
 	FindByGuardianIDs(ctx context.Context, guardianProfileIDs []int64) (map[int64][]*GuardianPhoneNumber, error)
-
-	// GetPrimary retrieves the primary phone number for a guardian
-	GetPrimary(ctx context.Context, guardianProfileID int64) (*GuardianPhoneNumber, error)
 
 	// Update updates an existing phone number
 	Update(ctx context.Context, phone *GuardianPhoneNumber) error

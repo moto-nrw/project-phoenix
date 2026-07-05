@@ -350,24 +350,6 @@ func TestRoleRepository_RemoveRoleFromAccount(t *testing.T) {
 	})
 }
 
-func TestRoleRepository_GetRoleWithPermissions(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).Role
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("gets role with empty permissions", func(t *testing.T) {
-		role := testpkg.CreateTestRole(t, db, "WithPerms")
-		defer cleanupRoleRecords(t, db, role.ID)
-
-		found, err := repo.GetRoleWithPermissions(ctx, role.ID)
-		require.NoError(t, err)
-		assert.Equal(t, role.ID, found.ID)
-		// Permissions may be empty or nil for a new role
-	})
-}
-
 // ============================================================================
 // Batch Role Name Loading Tests
 // ============================================================================

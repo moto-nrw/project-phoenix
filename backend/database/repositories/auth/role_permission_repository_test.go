@@ -121,72 +121,6 @@ func TestRolePermissionRepository_FindByRoleID(t *testing.T) {
 	})
 }
 
-func TestRolePermissionRepository_FindByPermissionID(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).RolePermission
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("finds roles by permission ID", func(t *testing.T) {
-		role1 := testpkg.CreateTestRole(t, db, "test_rp_find_by_perm1")
-		role2 := testpkg.CreateTestRole(t, db, "test_rp_find_by_perm2")
-		permission := testpkg.CreateTestPermission(t, db, "RPFindPerm", "rp_findperm", "execute")
-		defer cleanupRoleRecords(t, db, role1.ID, role2.ID)
-		defer cleanupPermissionByID(t, db, permission.ID)
-
-		// Create mappings
-		rp1 := &auth.RolePermission{RoleID: role1.ID, PermissionID: permission.ID}
-		rp2 := &auth.RolePermission{RoleID: role2.ID, PermissionID: permission.ID}
-		require.NoError(t, repo.Create(ctx, rp1))
-		require.NoError(t, repo.Create(ctx, rp2))
-
-		// Find by permission ID
-		rolePerms, err := repo.FindByPermissionID(ctx, permission.ID)
-		require.NoError(t, err)
-		assert.Len(t, rolePerms, 2)
-	})
-
-	t.Run("returns empty slice for permission with no roles", func(t *testing.T) {
-		permission := testpkg.CreateTestPermission(t, db, "RPNoRoles", "rp_noroles", "admin")
-		defer cleanupPermissionByID(t, db, permission.ID)
-
-		rolePerms, err := repo.FindByPermissionID(ctx, permission.ID)
-		require.NoError(t, err)
-		assert.Empty(t, rolePerms)
-	})
-}
-
-func TestRolePermissionRepository_FindByRoleAndPermission(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).RolePermission
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("finds specific role-permission mapping", func(t *testing.T) {
-		role := testpkg.CreateTestRole(t, db, "test_rp_find_specific")
-		permission := testpkg.CreateTestPermission(t, db, "RPFindSpecific", "rp_findspecific", "read")
-		defer cleanupRoleRecords(t, db, role.ID)
-		defer cleanupPermissionByID(t, db, permission.ID)
-
-		// Create mapping
-		rp := &auth.RolePermission{RoleID: role.ID, PermissionID: permission.ID}
-		require.NoError(t, repo.Create(ctx, rp))
-
-		// Find the specific mapping
-		found, err := repo.FindByRoleAndPermission(ctx, role.ID, permission.ID)
-		require.NoError(t, err)
-		assert.Equal(t, role.ID, found.RoleID)
-		assert.Equal(t, permission.ID, found.PermissionID)
-	})
-
-	t.Run("returns error for non-existent mapping", func(t *testing.T) {
-		_, err := repo.FindByRoleAndPermission(ctx, 999999, 999999)
-		require.Error(t, err)
-	})
-}
-
 func TestRolePermissionRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -231,38 +165,6 @@ func TestRolePermissionRepository_Update(t *testing.T) {
 
 		err := repo.Update(ctx, rp)
 		require.Error(t, err)
-	})
-}
-
-func TestRolePermissionRepository_DeleteByRoleAndPermission(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).RolePermission
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("deletes specific role-permission mapping", func(t *testing.T) {
-		role := testpkg.CreateTestRole(t, db, "test_rp_delete_specific")
-		permission := testpkg.CreateTestPermission(t, db, "RPDeleteSpecific", "rp_deletespecific", "delete")
-		defer cleanupRoleRecords(t, db, role.ID)
-		defer cleanupPermissionByID(t, db, permission.ID)
-
-		// Create mapping
-		rp := &auth.RolePermission{RoleID: role.ID, PermissionID: permission.ID}
-		require.NoError(t, repo.Create(ctx, rp))
-
-		// Delete it
-		err := repo.DeleteByRoleAndPermission(ctx, role.ID, permission.ID)
-		require.NoError(t, err)
-
-		// Verify deleted
-		_, err = repo.FindByRoleAndPermission(ctx, role.ID, permission.ID)
-		require.Error(t, err)
-	})
-
-	t.Run("does not error when deleting non-existent mapping", func(t *testing.T) {
-		err := repo.DeleteByRoleAndPermission(ctx, 999999, 999999)
-		require.NoError(t, err)
 	})
 }
 
@@ -331,19 +233,19 @@ func TestRolePermissionRepository_DeleteByPermissionID(t *testing.T) {
 		require.NoError(t, repo.Create(ctx, rp1))
 		require.NoError(t, repo.Create(ctx, rp2))
 
-		// Verify mappings exist
-		rolePerms, err := repo.FindByPermissionID(ctx, permission.ID)
-		require.NoError(t, err)
-		assert.Len(t, rolePerms, 2)
-
 		// Delete all by permission ID
-		err = repo.DeleteByPermissionID(ctx, permission.ID)
+		err := repo.DeleteByPermissionID(ctx, permission.ID)
 		require.NoError(t, err)
 
-		// Verify all deleted
-		rolePerms, err = repo.FindByPermissionID(ctx, permission.ID)
-		require.NoError(t, err)
-		assert.Empty(t, rolePerms)
+		// Verify all deleted via the live per-role lookup
+		for _, roleID := range []int64{role1.ID, role2.ID} {
+			rolePerms, err := repo.FindByRoleID(ctx, roleID)
+			require.NoError(t, err)
+			for _, rp := range rolePerms {
+				assert.NotEqual(t, permission.ID, rp.PermissionID,
+					"mapping for permission %d must be deleted", permission.ID)
+			}
+		}
 	})
 
 	t.Run("does not error when permission has no roles", func(t *testing.T) {
@@ -412,53 +314,5 @@ func TestRolePermissionRepository_List(t *testing.T) {
 		for _, p := range perms {
 			assert.Equal(t, permission.ID, p.PermissionID)
 		}
-	})
-}
-
-func TestRolePermissionRepository_FindRolePermissionsWithDetails(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).RolePermission
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("finds role permissions with role and permission details", func(t *testing.T) {
-		role := testpkg.CreateTestRole(t, db, "test_rp_with_details")
-		permission := testpkg.CreateTestPermission(t, db, "RPWithDetails", "rp_withdetails", "read")
-		defer cleanupRoleRecords(t, db, role.ID)
-		defer cleanupPermissionByID(t, db, permission.ID)
-
-		rp := &auth.RolePermission{RoleID: role.ID, PermissionID: permission.ID}
-		require.NoError(t, repo.Create(ctx, rp))
-
-		perms, err := repo.FindRolePermissionsWithDetails(ctx, map[string]any{
-			"role_id": role.ID,
-		})
-		require.NoError(t, err)
-		assert.NotEmpty(t, perms)
-
-		// Check that relations are loaded
-		found := perms[0]
-		assert.Equal(t, role.ID, found.RoleID)
-		assert.Equal(t, permission.ID, found.PermissionID)
-		// Relations should be loaded via Relation()
-		assert.NotNil(t, found.Role)
-		assert.NotNil(t, found.Permission)
-	})
-
-	t.Run("filters by permission_id with details", func(t *testing.T) {
-		role := testpkg.CreateTestRole(t, db, "test_rp_details_by_perm")
-		permission := testpkg.CreateTestPermission(t, db, "RPDetailsByPerm", "rp_detailsbyperm", "manage")
-		defer cleanupRoleRecords(t, db, role.ID)
-		defer cleanupPermissionByID(t, db, permission.ID)
-
-		rp := &auth.RolePermission{RoleID: role.ID, PermissionID: permission.ID}
-		require.NoError(t, repo.Create(ctx, rp))
-
-		perms, err := repo.FindRolePermissionsWithDetails(ctx, map[string]any{
-			"permission_id": permission.ID,
-		})
-		require.NoError(t, err)
-		assert.NotEmpty(t, perms)
 	})
 }

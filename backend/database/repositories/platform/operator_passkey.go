@@ -55,21 +55,6 @@ func (r *OperatorPasskeyCredentialRepository) FindActiveByOperatorID(ctx context
 	return credentials, nil
 }
 
-func (r *OperatorPasskeyCredentialRepository) FindActiveByCredentialID(ctx context.Context, credentialID []byte) (*platform.OperatorPasskeyCredential, error) {
-	credential := new(platform.OperatorPasskeyCredential)
-	err := base.GetDB(ctx, r.db).NewSelect().
-		Model(credential).
-		ModelTableExpr(operatorPasskeyCredentialTableAlias).
-		Where("credential_id = ?", credentialID).
-		Where("revoked_at IS NULL").
-		Limit(1).
-		Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find active operator passkey by credential id", Err: err}
-	}
-	return credential, nil
-}
-
 func (r *OperatorPasskeyCredentialRepository) FindActiveByCredentialIDAndUserHandle(ctx context.Context, credentialID, userHandle []byte) (*platform.OperatorPasskeyCredential, error) {
 	credential := new(platform.OperatorPasskeyCredential)
 	err := base.GetDB(ctx, r.db).NewSelect().

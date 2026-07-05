@@ -233,76 +233,6 @@ func (r *GroupRepository) List(ctx context.Context, options *modelBase.QueryOpti
 	return groups, nil
 }
 
-// FindWithRelations retrieves a group with its associated relations
-func (r *GroupRepository) FindWithRelations(ctx context.Context, id int64) (*active.Group, error) {
-	group := new(active.Group)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(group).
-		ModelTableExpr(`active.groups AS "group"`).
-		Where(`"group".id = ?`, id)
-
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find with relations",
-			Err: err,
-		}
-	}
-
-	return group, nil
-}
-
-// FindWithVisits retrieves a group with its associated visits
-func (r *GroupRepository) FindWithVisits(ctx context.Context, id int64) (*active.Group, error) {
-	// First get the group
-	group := new(active.Group)
-	groupQuery := base.GetDB(ctx, r.db).NewSelect().
-		Model(group).
-		ModelTableExpr(`active.groups AS "group"`).
-		Where(`"group".id = ?`, id)
-
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		groupQuery = groupQuery.Where(where, val)
-	}
-
-	err := groupQuery.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find with visits - group",
-			Err: err,
-		}
-	}
-
-	// Then get the visits separately (Relation() doesn't work with multi-schema)
-	var visits []*active.Visit
-	visitQuery := base.GetDB(ctx, r.db).NewSelect().
-		Model(&visits).
-		ModelTableExpr(`active.visits AS "visit"`).
-		Where(`"visit".active_group_id = ?`, id)
-
-	if where, val, ok := base.TenantWhere(ctx, "visit"); ok {
-		visitQuery = visitQuery.Where(where, val)
-	}
-
-	err = visitQuery.Scan(ctx)
-
-	if err != nil && err != sql.ErrNoRows {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find with visits - visits",
-			Err: err,
-		}
-	}
-
-	group.Visits = visits
-	return group, nil
-}
-
 // FindWithSupervisors retrieves a group with its associated supervisors
 func (r *GroupRepository) FindWithSupervisors(ctx context.Context, id int64) (*active.Group, error) {
 	// First get the group
@@ -353,30 +283,6 @@ func (r *GroupRepository) FindWithSupervisors(ctx context.Context, id int64) (*a
 }
 
 // Activity session conflict detection methods
-
-// FindActiveByGroupIDWithDevice finds all active instances of a specific activity group with device information
-func (r *GroupRepository) FindActiveByGroupIDWithDevice(ctx context.Context, groupID int64) ([]*active.Group, error) {
-	var groups []*active.Group
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&groups).
-		ModelTableExpr(`active.groups AS "group"`).
-		Where(`"group".group_id = ? AND "group".end_time IS NULL`, groupID)
-
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find active by group ID with device",
-			Err: err,
-		}
-	}
-
-	return groups, nil
-}
 
 // FindActiveByDeviceID finds the current active session for a specific device
 func (r *GroupRepository) FindActiveByDeviceID(ctx context.Context, deviceID int64) (*active.Group, error) {
@@ -433,13 +339,6 @@ func (r *GroupRepository) FindActiveByDeviceID(ctx context.Context, deviceID int
 	}
 
 	return group, nil
-}
-
-// FindActiveByDeviceIDWithRelations finds the current active session for a specific device with activity and room details
-// DEPRECATED: Use FindActiveByDeviceIDWithNames instead to avoid BUN relation conflicts
-func (r *GroupRepository) FindActiveByDeviceIDWithRelations(ctx context.Context, deviceID int64) (*active.Group, error) {
-	// Redirect to the working method to avoid BUN schema conflicts
-	return r.FindActiveByDeviceIDWithNames(ctx, deviceID)
 }
 
 // FindActiveByDeviceIDWithNames finds the current active session for a device with activity and room names using direct SQL
@@ -691,39 +590,6 @@ func (r *GroupRepository) FindActiveSessionsOlderThan(ctx context.Context, cutof
 		}
 
 		groups[i] = group
-	}
-
-	return groups, nil
-}
-
-// FindInactiveSessions finds sessions that have been inactive for the specified duration
-func (r *GroupRepository) FindInactiveSessions(ctx context.Context, inactiveDuration time.Duration) ([]*active.Group, error) {
-	cutoffTime := time.Now().Add(-inactiveDuration)
-
-	var groups []*active.Group
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&groups).
-		ModelTableExpr(`active.groups AS "group"`).
-		Where("end_time IS NULL").              // Only active sessions
-		Where("last_activity < ?", cutoffTime). // Inactive for specified duration
-		Where("device_id IS NOT NULL").         // Only device-managed sessions
-		Where("timeout_minutes > 0").           // Has timeout configured
-		// Only include sessions where inactivity exceeds their configured timeout
-		Where("EXTRACT(EPOCH FROM (NOW() - last_activity))/60 >= timeout_minutes")
-
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.
-		Order("last_activity ASC"). // Oldest first
-		Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find inactive sessions",
-			Err: err,
-		}
 	}
 
 	return groups, nil

@@ -689,13 +689,6 @@ func (r *passkeyCredentialRepoStub) FindActiveByAccountID(context.Context, int64
 	return r.rows, r.err
 }
 
-func (r *passkeyCredentialRepoStub) FindActiveByCredentialID(context.Context, []byte) (*authModel.PasskeyCredential, error) {
-	if len(r.rows) == 0 {
-		return nil, r.err
-	}
-	return r.rows[0], r.err
-}
-
 func (r *passkeyCredentialRepoStub) FindActiveByCredentialIDAndUserHandle(context.Context, []byte, []byte) (*authModel.PasskeyCredential, error) {
 	if len(r.rows) == 0 {
 		return nil, r.err
@@ -892,17 +885,13 @@ func TestPasskeyRepositories(t *testing.T) {
 	require.Len(t, active, 1)
 	assert.Equal(t, "Laptop", active[0].Name)
 
-	byID, err := repos.PasskeyCredential.FindActiveByCredentialID(ctx, credentialID)
-	require.NoError(t, err)
-	assert.Equal(t, credential.ID, byID.ID)
-
 	byHandle, err := repos.PasskeyCredential.FindActiveByCredentialIDAndUserHandle(ctx, credentialID, userHandle)
 	require.NoError(t, err)
 	assert.Equal(t, credential.ID, byHandle.ID)
 
 	usedAt := time.Now().UTC().Truncate(time.Microsecond)
 	require.NoError(t, repos.PasskeyCredential.UpdateAfterUse(ctx, credential.ID, json.RawMessage(`{"id":"updated"}`), usedAt))
-	updated, err := repos.PasskeyCredential.FindActiveByCredentialID(ctx, credentialID)
+	updated, err := repos.PasskeyCredential.FindActiveByCredentialIDAndUserHandle(ctx, credentialID, userHandle)
 	require.NoError(t, err)
 	require.NotNil(t, updated.LastUsedAt)
 	assert.JSONEq(t, `{"id":"updated"}`, string(updated.CredentialJSON))

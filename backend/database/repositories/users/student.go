@@ -277,52 +277,6 @@ func (r *StudentRepository) ListSchoolClasses(ctx context.Context) ([]string, er
 	return classes, nil
 }
 
-// AssignToGroup assigns a student to a group
-func (r *StudentRepository) AssignToGroup(ctx context.Context, studentID int64, groupID int64) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*users.Student)(nil)).
-		ModelTableExpr(`users.students AS "student"`).
-		Set("group_id = ?", groupID).
-		Where(`"student".id = ?`, studentID)
-
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
-
-	result, err := query.Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "assign to group",
-			Err: err,
-		}
-	}
-
-	return base.AssertRowsAffected(result, 1, "assign to group")
-}
-
-// RemoveFromGroup removes a student from their group
-func (r *StudentRepository) RemoveFromGroup(ctx context.Context, studentID int64) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*users.Student)(nil)).
-		ModelTableExpr(`users.students AS "student"`).
-		Set("group_id = NULL").
-		Where(`"student".id = ?`, studentID)
-
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
-
-	result, err := query.Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "remove from group",
-			Err: err,
-		}
-	}
-
-	return base.AssertRowsAffected(result, 1, "remove from group")
-}
-
 // Create overrides the base Create method to handle validation
 func (r *StudentRepository) Create(ctx context.Context, student *users.Student) error {
 	if student == nil {
@@ -789,31 +743,6 @@ func (r *StudentRepository) CountByGroupIDs(ctx context.Context, groupIDs []int6
 		counts[r.GroupID] = r.Count
 	}
 	return counts, nil
-}
-
-// FindWithPerson retrieves a student with their associated person data
-func (r *StudentRepository) FindWithPerson(ctx context.Context, id int64) (*users.Student, error) {
-	student := new(users.Student)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(student).
-		ModelTableExpr(`users.students AS "student"`).
-		Relation("Person").
-		Where(`"student".id = ?`, id)
-
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find with person",
-			Err: err,
-		}
-	}
-
-	return student, nil
 }
 
 // FindByGuardianEmail finds students with a specific guardian email

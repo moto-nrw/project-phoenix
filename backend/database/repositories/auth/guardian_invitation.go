@@ -185,25 +185,6 @@ func (r *GuardianInvitationRepository) FindPendingApproval(ctx context.Context) 
 	return invitations, nil
 }
 
-// FindExpired retrieves all expired invitations
-func (r *GuardianInvitationRepository) FindExpired(ctx context.Context) ([]*auth.GuardianInvitation, error) {
-	var invitations []*auth.GuardianInvitation
-
-	err := base.GetDB(ctx, r.db).NewSelect().
-		Model(&invitations).
-		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
-		Where(`"guardian_invitation".accepted_at IS NULL`).
-		Where(`"guardian_invitation".expires_at <= ?`, time.Now()).
-		OrderExpr(`"guardian_invitation".expires_at DESC`).
-		Scan(ctx)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to find expired invitations: %w", err)
-	}
-
-	return invitations, nil
-}
-
 // MarkAsAccepted marks an invitation as accepted
 func (r *GuardianInvitationRepository) MarkAsAccepted(ctx context.Context, id int64) error {
 	now := time.Now()
@@ -277,18 +258,4 @@ func (r *GuardianInvitationRepository) DeleteExpired(ctx context.Context) (int, 
 	}
 
 	return int(rowsAffected), nil
-}
-
-// Count returns the total number of guardian invitations
-func (r *GuardianInvitationRepository) Count(ctx context.Context) (int, error) {
-	count, err := base.GetDB(ctx, r.db).NewSelect().
-		Model((*auth.GuardianInvitation)(nil)).
-		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
-		Count(ctx)
-
-	if err != nil {
-		return 0, fmt.Errorf("failed to count guardian invitations: %w", err)
-	}
-
-	return count, nil
 }

@@ -143,29 +143,6 @@ func (r *TeacherRepository) FindByGroupID(ctx context.Context, groupID int64) ([
 	return teachers, nil
 }
 
-// UpdateQualifications updates a teacher's qualifications
-func (r *TeacherRepository) UpdateQualifications(ctx context.Context, id int64, qualifications string) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*users.Teacher)(nil)).
-		ModelTableExpr(`users.teachers AS "teacher"`).
-		Set("qualifications = ?", qualifications).
-		Where(`"teacher".id = ?`, id)
-
-	if where, val, ok := base.TenantWhere(ctx, "teacher"); ok {
-		query = query.Where(where, val)
-	}
-
-	_, err := query.Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "update qualifications",
-			Err: err,
-		}
-	}
-
-	return nil
-}
-
 // Create overrides the base Create method to handle validation
 func (r *TeacherRepository) Create(ctx context.Context, teacher *users.Teacher) error {
 	if teacher == nil {
@@ -257,31 +234,6 @@ func (r *TeacherRepository) ListWithOptions(ctx context.Context, options *modelB
 	}
 
 	return teachers, nil
-}
-
-// FindWithStaff retrieves a teacher with their associated staff data
-func (r *TeacherRepository) FindWithStaff(ctx context.Context, id int64) (*users.Teacher, error) {
-	teacher := new(users.Teacher)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(teacher).
-		ModelTableExpr(`users.teachers AS "teacher"`).
-		Relation("Staff").
-		Where(`"teacher".id = ?`, id)
-
-	if where, val, ok := base.TenantWhere(ctx, "teacher"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find with staff",
-			Err: err,
-		}
-	}
-
-	return teacher, nil
 }
 
 // FindWithStaffAndPerson retrieves a teacher with their associated staff and person data

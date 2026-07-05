@@ -461,10 +461,6 @@ func (noopPasswordResetTokenRepository) InvalidateTokensByAccountID(context.Cont
 	panic("InvalidateTokensByAccountID not implemented")
 }
 
-func (noopPasswordResetTokenRepository) FindTokensWithAccount(context.Context, map[string]interface{}) ([]*authModel.PasswordResetToken, error) {
-	panic("FindTokensWithAccount not implemented")
-}
-
 // stubPasswordResetTokenRepository stores tokens in memory.
 type stubPasswordResetTokenRepository struct {
 	noopPasswordResetTokenRepository
@@ -1146,10 +1142,6 @@ func (noopTokenRepository) DeleteByAccountIDAndIdentifier(context.Context, int64
 
 func (noopTokenRepository) FindValidTokens(context.Context, map[string]interface{}) ([]*authModel.Token, error) {
 	panic("FindValidTokens not implemented")
-}
-
-func (noopTokenRepository) FindTokensWithAccount(context.Context, map[string]interface{}) ([]*authModel.Token, error) {
-	panic("FindTokensWithAccount not implemented")
 }
 
 func (noopTokenRepository) CleanupOldTokensForAccount(context.Context, int64, int) error {

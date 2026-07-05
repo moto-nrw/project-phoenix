@@ -108,35 +108,6 @@ func (r *AnnouncementRepository) List(ctx context.Context, includeInactive bool)
 	return announcements, nil
 }
 
-// ListPublished retrieves only published and non-expired active announcements
-func (r *AnnouncementRepository) ListPublished(ctx context.Context) ([]*platform.Announcement, error) {
-	var announcements []*platform.Announcement
-	now := time.Now()
-
-	err := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr(tablePlatformAnnouncements).
-		ColumnExpr("*").
-		Where("active = true").
-		Where("published_at IS NOT NULL").
-		Where("published_at <= ?", now).
-		WhereGroup(" AND ", func(q *bun.SelectQuery) *bun.SelectQuery {
-			return q.
-				Where("expires_at IS NULL").
-				WhereOr("expires_at > ?", now)
-		}).
-		Order("published_at DESC").
-		Scan(ctx, &announcements)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list published announcements",
-			Err: err,
-		}
-	}
-
-	return announcements, nil
-}
-
 // Publish sets the published_at timestamp to now
 func (r *AnnouncementRepository) Publish(ctx context.Context, id int64) error {
 	now := time.Now()

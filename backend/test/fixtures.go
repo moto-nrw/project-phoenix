@@ -1756,38 +1756,6 @@ func CreateTestPersonGuardian(tb testing.TB, db *bun.DB, personID, guardianAccou
 // Schedule Domain Fixtures
 // ============================================================================
 
-// CreateTestTimeframe creates a timeframe in the database.
-// This is used for schedule-related tests that need a timeframe reference.
-func CreateTestTimeframe(tb testing.TB, db *bun.DB, description string) *schedule.Timeframe {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Make description unique
-	uniqueDesc := fmt.Sprintf("%s-%d", description, time.Now().UnixNano())
-
-	now := time.Now()
-	startTime := time.Date(now.Year(), now.Month(), now.Day(), 8, 0, 0, 0, now.Location())
-	endTime := time.Date(now.Year(), now.Month(), now.Day(), 16, 0, 0, 0, now.Location())
-
-	timeframe := &schedule.Timeframe{
-		StartTime:   startTime,
-		EndTime:     &endTime,
-		IsActive:    true,
-		Description: uniqueDesc,
-	}
-	timeframe.SetTenantID(1)
-
-	err := db.NewInsert().
-		Model(timeframe).
-		ModelTableExpr(`schedule.timeframes`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test timeframe")
-
-	return timeframe
-}
-
 // CleanupScheduleFixtures removes schedule-related fixtures from the database.
 func CleanupScheduleFixtures(tb testing.TB, db *bun.DB, timeframeIDs ...int64) {
 	tb.Helper()

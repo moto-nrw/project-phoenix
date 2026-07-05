@@ -55,21 +55,6 @@ func (r *PasskeyCredentialRepository) FindActiveByAccountID(ctx context.Context,
 	return credentials, nil
 }
 
-func (r *PasskeyCredentialRepository) FindActiveByCredentialID(ctx context.Context, credentialID []byte) (*auth.PasskeyCredential, error) {
-	credential := new(auth.PasskeyCredential)
-	err := base.GetDB(ctx, r.db).NewSelect().
-		Model(credential).
-		ModelTableExpr(passkeyCredentialTableAlias).
-		Where("credential_id = ?", credentialID).
-		Where("revoked_at IS NULL").
-		Limit(1).
-		Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find active passkey by credential id", Err: err}
-	}
-	return credential, nil
-}
-
 func (r *PasskeyCredentialRepository) FindActiveByCredentialIDAndUserHandle(ctx context.Context, credentialID, userHandle []byte) (*auth.PasskeyCredential, error) {
 	credential := new(auth.PasskeyCredential)
 	err := base.GetDB(ctx, r.db).NewSelect().

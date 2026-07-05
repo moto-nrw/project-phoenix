@@ -54,29 +54,6 @@ func (r *StaffRepository) FindByPersonID(ctx context.Context, personID int64) (*
 	return staff, nil
 }
 
-// UpdateNotes updates staff notes
-func (r *StaffRepository) UpdateNotes(ctx context.Context, id int64, notes string) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*users.Staff)(nil)).
-		ModelTableExpr(`users.staff AS "staff"`).
-		Set(`staff_notes = ?`, notes).
-		Where(`"staff".id = ?`, id)
-
-	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
-		query = query.Where(where, val)
-	}
-
-	result, err := query.Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "update notes",
-			Err: err,
-		}
-	}
-
-	return base.AssertRowsAffected(result, 1, "update notes")
-}
-
 // ClearWorkTimeModel sets work_time_model_id to NULL. Used by staff
 // offboarding before the soft delete so the retained row does not block
 // work-time-model deletion via the RESTRICT FK.

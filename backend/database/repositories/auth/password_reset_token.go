@@ -276,28 +276,3 @@ func (r *PasswordResetTokenRepository) applyExpiredTokenFilter(query *bun.Select
 	}
 	return query
 }
-
-// FindTokensWithAccount retrieves password reset tokens with their associated account details
-func (r *PasswordResetTokenRepository) FindTokensWithAccount(ctx context.Context, filters map[string]interface{}) ([]*auth.PasswordResetToken, error) {
-	var tokens []*auth.PasswordResetToken
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&tokens).
-		Relation("Account")
-
-	// Apply filters
-	for field, value := range filters {
-		if value != nil {
-			query = query.Where("password_reset_token.? = ?", bun.Ident(field), value)
-		}
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find with account",
-			Err: err,
-		}
-	}
-
-	return tokens, nil
-}

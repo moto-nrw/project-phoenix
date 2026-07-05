@@ -722,7 +722,7 @@ func TestStudentRepository_CountWithOptions(t *testing.T) {
 	})
 }
 
-// NOTE: FindWithPerson, FindByGuardianEmail, FindByGuardianPhone exist in the
+// NOTE: FindByGuardianEmail and FindByGuardianPhone exist in the
 // implementation but are not exposed in the StudentRepository interface.
 
 // ============================================================================
@@ -929,7 +929,7 @@ func TestStudentRepository_FindByNameAndClass(t *testing.T) {
 	})
 }
 
-// NOTE: FindWithPerson, FindByGuardianEmail, and FindByGuardianPhone exist in the
+// NOTE: FindByGuardianEmail and FindByGuardianPhone exist in the
 // implementation but are not exposed in the StudentRepository interface, so they
 // cannot be tested through the interface.
 

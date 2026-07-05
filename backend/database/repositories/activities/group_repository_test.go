@@ -410,32 +410,6 @@ func TestActivityGroupRepository_FindWithSupervisors(t *testing.T) {
 	})
 }
 
-func TestActivityGroupRepository_FindWithSchedules(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).ActivityGroup
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns group with schedules", func(t *testing.T) {
-		group := testpkg.CreateTestActivityGroup(t, db, "WithSchedules")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
-
-		foundGroup, schedules, err := repo.FindWithSchedules(ctx, group.ID)
-		require.NoError(t, err)
-		assert.NotNil(t, foundGroup)
-		assert.Equal(t, group.ID, foundGroup.ID)
-		assert.NotNil(t, schedules)
-		// Schedules may be empty if none are set
-	})
-
-	t.Run("returns error for non-existent group", func(t *testing.T) {
-		_, _, err := repo.FindWithSchedules(ctx, int64(999999))
-		require.Error(t, err)
-	})
-}
-
 func TestActivityGroupRepository_FindByStaffSupervisor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

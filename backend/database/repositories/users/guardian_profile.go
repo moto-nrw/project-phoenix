@@ -319,20 +319,6 @@ func (r *GuardianProfileRepository) SearchByText(ctx context.Context, searchText
 	return profiles, nil
 }
 
-// Count returns the total number of guardian profiles
-func (r *GuardianProfileRepository) Count(ctx context.Context) (int, error) {
-	count, err := repoBase.GetDB(ctx, r.db).NewSelect().
-		Model((*users.GuardianProfile)(nil)).
-		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
-		Count(ctx)
-
-	if err != nil {
-		return 0, fmt.Errorf("failed to count guardian profiles: %w", err)
-	}
-
-	return count, nil
-}
-
 // Update updates an existing guardian profile
 func (r *GuardianProfileRepository) Update(ctx context.Context, profile *users.GuardianProfile) error {
 	if err := profile.Validate(); err != nil {
@@ -439,32 +425,6 @@ func (r *GuardianProfileRepository) LinkAccount(ctx context.Context, profileID i
 	return nil
 }
 
-// UnlinkAccount unlinks a guardian profile from their account
-func (r *GuardianProfileRepository) UnlinkAccount(ctx context.Context, profileID int64) error {
-	result, err := repoBase.GetDB(ctx, r.db).NewUpdate().
-		Model((*users.GuardianProfile)(nil)).
-		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
-		Set("account_id = NULL").
-		Set("has_account = ?", false).
-		Where(`"guardian_profile".id = ?`, profileID).
-		Exec(ctx)
-
-	if err != nil {
-		return fmt.Errorf("failed to unlink account: %w", err)
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf(errRowsAffected, err)
-	}
-
-	if rowsAffected == 0 {
-		return users.ErrGuardianProfileNotFound
-	}
-
-	return nil
-}
-
 // LoadProfileWithChildren returns the guardian profile linked to the
 // account plus the primary phone + active-student summaries. Multi-
 // schema join (users.students_guardians → users.students →
@@ -536,19 +496,4 @@ func (r *GuardianProfileRepository) LoadProfileWithChildren(ctx context.Context,
 	}
 
 	return result, nil
-}
-
-// GetStudentCount returns the number of students for a guardian
-func (r *GuardianProfileRepository) GetStudentCount(ctx context.Context, profileID int64) (int, error) {
-	count, err := repoBase.GetDB(ctx, r.db).NewSelect().
-		Model((*users.StudentGuardian)(nil)).
-		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
-		Where(`"student_guardian".guardian_profile_id = ?`, profileID).
-		Count(ctx)
-
-	if err != nil {
-		return 0, fmt.Errorf("failed to count students: %w", err)
-	}
-
-	return count, nil
 }

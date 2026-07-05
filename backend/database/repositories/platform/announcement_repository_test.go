@@ -228,62 +228,6 @@ func TestAnnouncementRepository_List(t *testing.T) {
 	})
 }
 
-func TestAnnouncementRepository_ListPublished(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := platform.NewAnnouncementRepository(db)
-	ctx := testpkg.TenantContext(1)
-
-	operator := createTestOperator(t, db, "test@example.com", "Test Operator")
-	defer cleanupTestOperator(t, db, operator.ID)
-
-	now := time.Now()
-	past := now.Add(-1 * time.Hour)
-	future := now.Add(1 * time.Hour)
-
-	// Published and active (should appear)
-	published := createTestAnnouncement(t, db, "Published", operator.ID)
-	published.PublishedAt = &past
-	err := repo.Update(ctx, published)
-	require.NoError(t, err)
-	defer cleanupTestAnnouncement(t, db, published.ID)
-
-	// Not published (should not appear)
-	draft := createTestAnnouncement(t, db, "Draft", operator.ID)
-	defer cleanupTestAnnouncement(t, db, draft.ID)
-
-	// Expired (should not appear)
-	expired := createTestAnnouncement(t, db, "Expired", operator.ID)
-	expired.PublishedAt = &past
-	expired.ExpiresAt = &past
-	err = repo.Update(ctx, expired)
-	require.NoError(t, err)
-	defer cleanupTestAnnouncement(t, db, expired.ID)
-
-	// Future published (should not appear)
-	futurePublished := createTestAnnouncement(t, db, "Future", operator.ID)
-	futurePublished.PublishedAt = &future
-	err = repo.Update(ctx, futurePublished)
-	require.NoError(t, err)
-	defer cleanupTestAnnouncement(t, db, futurePublished.ID)
-
-	announcements, err := repo.ListPublished(ctx)
-	require.NoError(t, err)
-
-	foundPublished := false
-	for _, a := range announcements {
-		if a.ID == published.ID {
-			foundPublished = true
-		}
-		// Should not find draft, expired, or future
-		assert.NotEqual(t, draft.ID, a.ID)
-		assert.NotEqual(t, expired.ID, a.ID)
-		assert.NotEqual(t, futurePublished.ID, a.ID)
-	}
-	assert.True(t, foundPublished, "published announcement should be in list")
-}
-
 func TestAnnouncementRepository_Publish(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

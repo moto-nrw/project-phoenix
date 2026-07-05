@@ -181,29 +181,6 @@ func (r *GroupSubstitutionRepository) FindActiveBySubstitute(ctx context.Context
 	return substitutions, nil
 }
 
-// FindActiveByGroup retrieves all active substitutions for a specific group and date
-func (r *GroupSubstitutionRepository) FindActiveByGroup(ctx context.Context, groupID int64, date timezone.Date) ([]*education.GroupSubstitution, error) {
-	var substitutions []*education.GroupSubstitution
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&substitutions).
-		ModelTableExpr(tableExprGroupSubstitutionAsGS).
-		Where(`"group_substitution".group_id = ? AND "group_substitution".start_date <= ? AND "group_substitution".end_date >= ?`, groupID, date, date)
-
-	if where, val, ok := base.TenantWhere(ctx, "group_substitution"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find active by group",
-			Err: err,
-		}
-	}
-
-	return substitutions, nil
-}
-
 // FindOverlapping finds all substitutions that overlap with the given date range for a staff member
 func (r *GroupSubstitutionRepository) FindOverlapping(ctx context.Context, staffID int64, startDate timezone.Date, endDate timezone.Date) ([]*education.GroupSubstitution, error) {
 	var substitutions []*education.GroupSubstitution
@@ -367,60 +344,6 @@ func (r *GroupSubstitutionRepository) FindByIDWithRelations(ctx context.Context,
 			Scan(ctx)
 		if err == nil {
 			substitution.Group = &group
-		}
-	}
-
-	// Load regular staff with person
-	if substitution.RegularStaffID != nil && *substitution.RegularStaffID > 0 {
-		type staffWithPerson struct {
-			ID       int64         `bun:"staff__id"`
-			PersonID int64         `bun:"staff__person_id"`
-			Staff    *users.Staff  `bun:"staff"`
-			Person   *users.Person `bun:"person"`
-		}
-		var result staffWithPerson
-
-		err = base.GetDB(ctx, r.db).NewSelect().
-			Model(&result).
-			ModelTableExpr(`users.staff AS "staff"`).
-			ColumnExpr(`"staff".id AS "staff__id"`).
-			ColumnExpr(`"staff".person_id AS "staff__person_id"`).
-			ColumnExpr(`"staff".* AS "staff__*"`).
-			ColumnExpr(`"person".* AS "person__*"`).
-			Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
-			Where(`"staff".id = ?`, substitution.RegularStaffID).
-			Scan(ctx)
-
-		if err == nil && result.Staff != nil {
-			result.Staff.Person = result.Person
-			substitution.RegularStaff = result.Staff
-		}
-	}
-
-	// Load substitute staff with person
-	if substitution.SubstituteStaffID > 0 {
-		type staffWithPerson struct {
-			ID       int64         `bun:"staff__id"`
-			PersonID int64         `bun:"staff__person_id"`
-			Staff    *users.Staff  `bun:"staff"`
-			Person   *users.Person `bun:"person"`
-		}
-		var result staffWithPerson
-
-		err = base.GetDB(ctx, r.db).NewSelect().
-			Model(&result).
-			ModelTableExpr(`users.staff AS "staff"`).
-			ColumnExpr(`"staff".id AS "staff__id"`).
-			ColumnExpr(`"staff".person_id AS "staff__person_id"`).
-			ColumnExpr(`"staff".* AS "staff__*"`).
-			ColumnExpr(`"person".* AS "person__*"`).
-			Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
-			Where(`"staff".id = ?`, substitution.SubstituteStaffID).
-			Scan(ctx)
-
-		if err == nil && result.Staff != nil {
-			result.Staff.Person = result.Person
-			substitution.SubstituteStaff = result.Staff
 		}
 	}
 

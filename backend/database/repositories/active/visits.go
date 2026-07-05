@@ -230,66 +230,6 @@ func (r *VisitRepository) List(ctx context.Context, options *modelBase.QueryOpti
 	return visits, nil
 }
 
-// FindWithStudent retrieves visits with student details
-func (r *VisitRepository) FindWithStudent(ctx context.Context, id int64) (*active.Visit, error) {
-	visit := new(active.Visit)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(visit).
-		ModelTableExpr(tableExprActiveVisitsAsVisit).
-		Relation("Student").
-		Where(`"visit".id = ?`, id)
-
-	if where, val, ok := base.TenantWhere(ctx, "visit"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find with student",
-			Err: err,
-		}
-	}
-
-	return visit, nil
-}
-
-// FindWithActiveGroup retrieves visits with active group details
-func (r *VisitRepository) FindWithActiveGroup(ctx context.Context, id int64) (*active.Visit, error) {
-	visit := new(active.Visit)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(visit).
-		ModelTableExpr(tableExprActiveVisitsAsVisit).
-		Where(`"visit".id = ?`, id)
-
-	if where, val, ok := base.TenantWhere(ctx, "visit"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find with active group",
-			Err: err,
-		}
-	}
-
-	// Load active group separately — BUN Relation("ActiveGroup") does not
-	// resolve the schema:active tag for relation sub-queries.
-	group := new(active.Group)
-	err = base.GetDB(ctx, r.db).NewSelect().
-		Model(group).
-		ModelTableExpr(`active.groups AS "group"`).
-		Where(`"group".id = ?`, visit.ActiveGroupID).
-		Scan(ctx)
-
-	if err == nil {
-		visit.ActiveGroup = group
-	}
-
-	return visit, nil
-}
-
 // TransferVisitsFromRecentSessions transfers active visits from recent ended sessions on the same device to a new session
 func (r *VisitRepository) TransferVisitsFromRecentSessions(ctx context.Context, newActiveGroupID, deviceID int64) (int, error) {
 	// Transfer active visits from recent sessions (ended within last hour) on the same device
@@ -379,38 +319,6 @@ func (r *VisitRepository) DeleteExpiredVisits(ctx context.Context, studentID int
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "delete expired visits",
-			Err: err,
-		}
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "get rows affected",
-			Err: err,
-		}
-	}
-
-	return rowsAffected, nil
-}
-
-// DeleteVisitsBeforeDate deletes visits created before a specific date for a student
-func (r *VisitRepository) DeleteVisitsBeforeDate(ctx context.Context, studentID int64, beforeDate time.Time) (int64, error) {
-	query := base.GetDB(ctx, r.db).NewDelete().
-		Model((*active.Visit)(nil)).
-		ModelTableExpr(tableExprActiveVisitsAsVisit).
-		Where(`"visit".student_id = ?`, studentID).
-		Where(`"visit".created_at < ?`, beforeDate).
-		Where(`"visit".exit_time IS NOT NULL`) // Only delete completed visits
-
-	if where, val, ok := base.TenantWhere(ctx, "visit"); ok {
-		query = query.Where(where, val)
-	}
-
-	result, err := query.Exec(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "delete visits before date",
 			Err: err,
 		}
 	}
@@ -803,28 +711,6 @@ func (r *VisitRepository) CountActiveByGroupID(ctx context.Context, activeGroupI
 	if err != nil {
 		return 0, &modelBase.DatabaseError{
 			Op:  "count active by group ID",
-			Err: err,
-		}
-	}
-
-	return count, nil
-}
-
-// CountActiveByStudentID counts active visits (exit_time IS NULL) for a student.
-func (r *VisitRepository) CountActiveByStudentID(ctx context.Context, studentID int64) (int, error) {
-	query := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr(`active.visits AS "visit"`).
-		Where(`"visit".student_id = ?`, studentID).
-		Where(`"visit".exit_time IS NULL`)
-
-	if where, val, ok := base.TenantWhere(ctx, "visit"); ok {
-		query = query.Where(where, val)
-	}
-
-	count, err := query.Count(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "count active by student ID",
 			Err: err,
 		}
 	}

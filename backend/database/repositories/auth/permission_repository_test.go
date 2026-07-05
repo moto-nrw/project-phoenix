@@ -137,29 +137,6 @@ func TestPermissionRepository_FindByName(t *testing.T) {
 	})
 }
 
-func TestPermissionRepository_FindByResourceAction(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).Permission
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("finds permission by resource and action", func(t *testing.T) {
-		permission := testpkg.CreateTestPermission(t, db, "ByResourceAction", "test_resource", "read")
-		defer cleanupPermissionRecords(t, db, permission.ID)
-
-		// Use the actual resource value from the created permission (fixture makes it unique)
-		found, err := repo.FindByResourceAction(ctx, permission.Resource, permission.Action)
-		require.NoError(t, err)
-		assert.Equal(t, permission.ID, found.ID)
-	})
-
-	t.Run("returns error for non-existent resource/action", func(t *testing.T) {
-		_, err := repo.FindByResourceAction(ctx, "nonexistent_resource", "delete")
-		require.Error(t, err)
-	})
-}
-
 func TestPermissionRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -346,7 +323,6 @@ func TestPermissionRepository_FindDirectByAccountID(t *testing.T) {
 // Permission Assignment Tests
 // ============================================================================
 
-// NOTE: AssignPermissionToAccount and AssignPermissionToRole may be deprecated.
 // Using direct DB access for reliable tests.
 
 func TestPermissionRepository_AssignPermissionToRole(t *testing.T) {

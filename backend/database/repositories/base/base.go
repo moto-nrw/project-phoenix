@@ -241,44 +241,6 @@ func (r *Repository[T]) List(ctx context.Context, filters map[string]any) ([]T, 
 	return entities, nil
 }
 
-// Count returns the number of entities matching the filters
-func (r *Repository[T]) Count(ctx context.Context, filters map[string]any) (int, error) {
-	entityVal := r.newEntityValue()
-
-	// Use ModelTableExpr to specify the schema-qualified table name with proper alias
-	// Get the entity name in lowercase to use as alias
-	entityName := strings.ToLower(strings.TrimPrefix(r.EntityName, "*"))
-	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
-
-	query := GetDB(ctx, r.DB).NewSelect().
-		Model(entityVal).
-		ModelTableExpr(tableExpr).
-		Column("id")
-
-	if r.TenantScoped {
-		if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-			query = query.Where(fmt.Sprintf(`"%s".tenant_id = ?`, entityName), tenantID)
-		}
-	}
-
-	// Apply filters
-	for field, value := range filters {
-		if value != nil {
-			query = query.Where("? = ?", bun.Ident(field), value)
-		}
-	}
-
-	count, err := query.Count(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "count",
-			Err: err,
-		}
-	}
-
-	return count, nil
-}
-
 // CountWithOptions returns the number of entities matching the query options.
 // Unlike Count, it supports the full Filter operator set (LessThan, IsNull,
 // In, ...). Sorting and pagination are ignored — they cannot change a count.
@@ -441,13 +403,6 @@ func (r *Repository[T]) newEntityValue() any {
 		entityType = entityType.Elem()
 	}
 	return reflect.New(entityType).Interface()
-}
-
-// Transaction executes a function within a database transaction
-func (r *Repository[T]) Transaction(ctx context.Context, fn func(tx bun.Tx) error) error {
-	return r.DB.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		return fn(tx)
-	})
 }
 
 // AssertRowsAffected checks that a DML statement affected exactly the expected number of rows.

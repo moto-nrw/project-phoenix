@@ -99,32 +99,6 @@ func (r *RFIDCardRepository) FindByID(ctx context.Context, id string) (*users.RF
 	return card, nil
 }
 
-// Activate sets an RFID card as active
-func (r *RFIDCardRepository) Activate(ctx context.Context, id string) error {
-	// Normalize the tag ID to match stored format
-	normalizedID := normalizeRFIDTagID(id)
-
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*users.RFIDCard)(nil)).
-		ModelTableExpr(`users.rfid_cards AS "rfid_card"`).
-		Set("active = ?", true).
-		Where(`"rfid_card".id = ?`, normalizedID)
-
-	if where, val, ok := base.TenantWhere(ctx, "rfid_card"); ok {
-		query = query.Where(where, val)
-	}
-
-	result, err := query.Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "activate",
-			Err: err,
-		}
-	}
-
-	return base.AssertRowsAffected(result, 1, "activate rfid_card")
-}
-
 // Deactivate sets an RFID card as inactive
 func (r *RFIDCardRepository) Deactivate(ctx context.Context, id string) error {
 	// Normalize the tag ID to match stored format

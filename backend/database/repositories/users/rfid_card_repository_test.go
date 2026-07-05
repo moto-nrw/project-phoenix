@@ -126,24 +126,6 @@ func TestRFIDCardRepository_Update_ViaActivateDeactivate(t *testing.T) {
 		assert.False(t, found.Active)
 	})
 
-	t.Run("updates RFID card active status via Activate", func(t *testing.T) {
-		// Create a card and deactivate it first
-		card := testpkg.CreateTestRFIDCard(t, db, "CAFE")
-		defer testpkg.CleanupTableRecordsByStringID(t, db, "users.rfid_cards", card.ID)
-
-		// Deactivate first
-		err := repo.Deactivate(ctx, card.ID)
-		require.NoError(t, err)
-
-		// Now activate it
-		err = repo.Activate(ctx, card.ID)
-		require.NoError(t, err)
-
-		found, err := repo.FindByID(ctx, card.ID)
-		require.NoError(t, err)
-		require.NotNil(t, found)
-		assert.True(t, found.Active)
-	})
 }
 
 func TestRFIDCardRepository_Delete(t *testing.T) {
@@ -207,40 +189,6 @@ func TestRFIDCardRepository_List(t *testing.T) {
 // ============================================================================
 // Activation Tests
 // ============================================================================
-
-func TestRFIDCardRepository_Activate(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).RFIDCard
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("activates RFID card after deactivation", func(t *testing.T) {
-		// Create card and deactivate it first
-		card := testpkg.CreateTestRFIDCard(t, db, "ACDC")
-		defer testpkg.CleanupTableRecordsByStringID(t, db, "users.rfid_cards", card.ID)
-
-		// Deactivate first
-		err := repo.Deactivate(ctx, card.ID)
-		require.NoError(t, err)
-
-		// Verify it's inactive
-		found, err := repo.FindByID(ctx, card.ID)
-		require.NoError(t, err)
-		require.NotNil(t, found)
-		assert.False(t, found.Active)
-
-		// Activate it
-		err = repo.Activate(ctx, card.ID)
-		require.NoError(t, err)
-
-		// Verify it's active again
-		found, err = repo.FindByID(ctx, card.ID)
-		require.NoError(t, err)
-		require.NotNil(t, found)
-		assert.True(t, found.Active)
-	})
-}
 
 func TestRFIDCardRepository_Deactivate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
