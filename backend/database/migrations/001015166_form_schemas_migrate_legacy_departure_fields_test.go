@@ -160,7 +160,7 @@ func TestFormSchemasMigrateLegacyDeparture_DropsLegacyWhenModernFieldExists(t *t
 	assert.Equal(t, "heimwege", converted[0].Key, "existing modern field must survive unchanged")
 }
 
-func TestFormSchemasMigrateLegacyDeparture_ExistingModernFieldInheritsLegacyRequiredness(t *testing.T) {
+func TestFormSchemasMigrateLegacyDeparture_ExistingModernFieldInheritsRequirednessAndBroadensVisibility(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
@@ -189,9 +189,80 @@ func TestFormSchemasMigrateLegacyDeparture_ExistingModernFieldInheritsLegacyRequ
 	require.Len(t, converted, 1)
 	assert.Equal(t, "heimwege", converted[0].Key)
 	assert.True(t, converted[0].Required, "required legacy departure fields must keep the surviving modern field required")
-	require.NotNil(t, converted[0].VisibleWhen, "existing modern visibility must survive requiredness merge")
+	assert.Nil(t, converted[0].VisibleWhen, "mixed modern/legacy visibility must broaden so children who saw the legacy field still see the modern one")
+}
+
+func TestFormSchemasMigrateLegacyDeparture_PreservesSharedVisibilityWhenModernFieldExists(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := context.Background()
+
+	tenantID := time.Now().UnixNano()
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, db, tenantID) })
+	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("departure-migration-%d@test.local", tenantID))
+
+	mixedFields := `[
+		{"key":"heimwege","label":"Erlaubte Heimwege","type":"weekday_multi_mode","required":false,"applies_to_child":true,"sort_order":0,"target":"student.allowed_departure_modes","visible_when":{"source":"grade_level","operator":"eq","value":1}},
+		{"key":"bus","label":"Buskind","type":"weekday_boolean","required":true,"applies_to_child":true,"sort_order":1,"target":"student.bus","visible_when":{"source":"grade_level","operator":"eq","value":1}}
+	]`
+	insertDepartureTestSchema(t, db, tenantID, account.ID, "Gemischt Gleiche Sichtbarkeit", 1, mixedFields)
+
+	require.NoError(t, formSchemasMigrateLegacyDepartureUp(ctx, db))
+
+	var newID int64
+	require.NoError(t, db.QueryRowContext(ctx, `
+		SELECT id FROM enrollment.form_schemas
+		WHERE tenant_id = ? AND name = 'Gemischt Gleiche Sichtbarkeit'
+		ORDER BY version DESC LIMIT 1
+	`, tenantID).Scan(&newID))
+
+	converted := loadSchemaFields(t, db, newID)
+	require.Len(t, converted, 1)
+	assert.Equal(t, "heimwege", converted[0].Key)
+	assert.True(t, converted[0].Required)
+	require.NotNil(t, converted[0].VisibleWhen, "identical departure visibility should remain conditional")
 	assert.Equal(t, enrollmentModels.ConditionSourceGradeLevel, converted[0].VisibleWhen.Source)
+	assert.Equal(t, enrollmentModels.ConditionOpEquals, converted[0].VisibleWhen.Operator)
 	assert.Equal(t, float64(1), converted[0].VisibleWhen.Value)
+}
+
+func TestFormSchemasMigrateLegacyDeparture_DeduplicatesModernDepartureFieldsBeforeValidation(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := context.Background()
+
+	tenantID := time.Now().UnixNano()
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, db, tenantID) })
+	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("departure-migration-%d@test.local", tenantID))
+
+	legacyDuplicateFields := `[
+		{"key":"heimwege_a","label":"Erlaubte Heimwege","type":"weekday_multi_mode","required":false,"applies_to_child":true,"sort_order":0,"target":"student.allowed_departure_modes"},
+		{"key":"bus","label":"Buskind","type":"weekday_boolean","required":true,"applies_to_child":true,"sort_order":1,"target":"student.bus"},
+		{"key":"heimwege_b","label":"Erlaubte Heimwege Kopie","type":"weekday_multi_mode","required":false,"applies_to_child":true,"sort_order":2,"target":"student.allowed_departure_modes"}
+	]`
+	insertDepartureTestSchema(t, db, tenantID, account.ID, "Doppelte Heimwege", 1, legacyDuplicateFields)
+
+	require.NoError(t, formSchemasMigrateLegacyDepartureUp(ctx, db))
+
+	var newID int64
+	var newVersion int
+	require.NoError(t, db.QueryRowContext(ctx, `
+		SELECT id, version FROM enrollment.form_schemas
+		WHERE tenant_id = ? AND name = 'Doppelte Heimwege'
+		ORDER BY version DESC LIMIT 1
+	`, tenantID).Scan(&newID, &newVersion))
+
+	converted := loadSchemaFields(t, db, newID)
+	require.Len(t, converted, 1)
+	assert.Equal(t, "heimwege_a", converted[0].Key, "the first modern departure field should survive")
+	assert.Equal(t, "student.allowed_departure_modes", converted[0].Target)
+	assert.True(t, converted[0].Required, "requiredness must merge from the legacy field")
+	assert.Nil(t, converted[0].VisibleWhen)
+
+	schema := &enrollmentModels.FormSchema{Name: "Doppelte Heimwege", Version: newVersion, CreatedBy: account.ID, Fields: converted}
+	require.NoError(t, schema.Validate(), "converted schema must not fail on duplicate modern departure targets")
 }
 
 func TestFormSchemasMigrateLegacyDeparture_ClearsDifferingLegacyVisibilityOnReplacement(t *testing.T) {

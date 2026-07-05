@@ -81,14 +81,14 @@ type departureSchemaRow struct {
 // If the latest version is already clean, live phases pinned to older
 // legacy versions are still advanced onto that clean latest version.
 //
-// Conversion rules per lineage (same semantics the editor's manual
-// conversion used):
-//   - the modern field already exists → drop the legacy fields, preserving
-//     requiredness by OR-ing any required legacy field into the modern field
-//   - otherwise → replace the first legacy field with one
-//     student.allowed_departure_modes field (required when any dropped
-//     legacy field was required, preserving visibility only when all
-//     dropped legacy fields shared the same condition) and drop the rest
+// Conversion rules per lineage:
+//   - all legacy departure fields and any duplicate modern departure fields
+//     collapse into exactly one student.allowed_departure_modes field
+//   - the first existing modern field is reused when present; otherwise the
+//     first legacy field is replaced with a default modern field
+//   - requiredness is OR-ed across every collapsed departure field
+//   - visibility is kept only when every collapsed departure field had the
+//     exact same condition; mixed or broader scopes become unconditional
 //   - surviving fields that depended on removed legacy field keys become
 //     unconditional, because the modern weekday_multi_mode field is not a
 //     valid scalar visibility controller
@@ -276,30 +276,42 @@ func convertLegacyDepartureFields(fieldsJSON string) (string, bool, error) {
 	}
 
 	firstLegacyIndex := -1
-	hasModern := false
-	anyLegacyRequired := false
-	var firstLegacyVisibleWhen any
-	legacyVisibleWhenShared := true
+	firstDepartureIndex := -1
+	var firstModernField map[string]any
+	anyDepartureRequired := false
+	var firstDepartureVisibleWhen any
+	departureVisibleWhenShared := true
 	removedLegacyKeys := map[string]bool{}
 	usedKeys := map[string]bool{}
 	for i, f := range fields {
 		key, _ := f["key"].(string)
 		usedKeys[key] = true
 		target, _ := f["target"].(string)
+		isLegacy := legacyDepartureTargets[target]
+		isModern := target == modernDepartureTarget
+		if isLegacy || isModern {
+			if firstDepartureIndex < 0 {
+				firstDepartureIndex = i
+				firstDepartureVisibleWhen = f["visible_when"]
+			} else if !jsonValuesEqual(firstDepartureVisibleWhen, f["visible_when"]) {
+				departureVisibleWhenShared = false
+			}
+			if required, _ := f["required"].(bool); required {
+				anyDepartureRequired = true
+			}
+		}
 		if target == modernDepartureTarget {
-			hasModern = true
+			if firstModernField == nil {
+				firstModernField = f
+			} else {
+				removedLegacyKeys[key] = true
+			}
 		}
 		if legacyDepartureTargets[target] {
 			if firstLegacyIndex < 0 {
 				firstLegacyIndex = i
-				firstLegacyVisibleWhen = f["visible_when"]
-			} else if !jsonValuesEqual(firstLegacyVisibleWhen, f["visible_when"]) {
-				legacyVisibleWhenShared = false
 			}
 			removedLegacyKeys[key] = true
-			if required, _ := f["required"].(bool); required {
-				anyLegacyRequired = true
-			}
 		}
 	}
 	if firstLegacyIndex < 0 {
@@ -309,32 +321,37 @@ func convertLegacyDepartureFields(fieldsJSON string) (string, bool, error) {
 	next := make([]map[string]any, 0, len(fields))
 	for i, f := range fields {
 		target, _ := f["target"].(string)
-		if legacyDepartureTargets[target] {
-			if i == firstLegacyIndex && !hasModern {
-				key := modernDepartureKey
-				for usedKeys[key] {
-					key += "_1"
+		isLegacy := legacyDepartureTargets[target]
+		isModern := target == modernDepartureTarget
+		if isLegacy || isModern {
+			if i == firstDepartureIndex {
+				var modern map[string]any
+				if firstModernField != nil {
+					modern = firstModernField
+				} else {
+					key := modernDepartureKey
+					for usedKeys[key] {
+						key += "_1"
+					}
+					modern = map[string]any{
+						"key":              key,
+						"label":            modernDepartureLabel,
+						"type":             "weekday_multi_mode",
+						"help_text":        modernDepartureHelpText,
+						"applies_to_child": true,
+						"target":           modernDepartureTarget,
+					}
 				}
-				modern := map[string]any{
-					"key":              key,
-					"label":            modernDepartureLabel,
-					"type":             "weekday_multi_mode",
-					"required":         anyLegacyRequired,
-					"help_text":        modernDepartureHelpText,
-					"applies_to_child": true,
-					"target":           modernDepartureTarget,
+				modern["required"] = anyDepartureRequired
+				if departureVisibleWhenShared && firstDepartureVisibleWhen != nil {
+					modern["visible_when"] = firstDepartureVisibleWhen
+				} else {
+					delete(modern, "visible_when")
 				}
-				if legacyVisibleWhenShared && firstLegacyVisibleWhen != nil {
-					modern["visible_when"] = firstLegacyVisibleWhen
-				}
+				clearLegacyFieldVisibilityDependency(modern, removedLegacyKeys)
 				next = append(next, modern)
 			}
 			continue
-		}
-		if target == modernDepartureTarget && anyLegacyRequired {
-			if required, _ := f["required"].(bool); !required {
-				f["required"] = true
-			}
 		}
 		clearLegacyFieldVisibilityDependency(f, removedLegacyKeys)
 		next = append(next, f)
