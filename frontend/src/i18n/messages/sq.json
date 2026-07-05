@@ -43,6 +43,7 @@
     "comingSoon": "Së shpejti në portalin e prindërve",
     "calendar": "Kalendari",
     "messages": "Mesazhe",
+    "news": "Lajme",
     "contactData": "Të dhënat e kontaktit",
     "soon": "Së shpejti",
     "refresh": "Rifresko të dhënat",
@@ -82,6 +83,8 @@
     "newsDescription": "Këtu shfaqen njoftime nga përkujdesja dhe portali i prindërve.",
     "noNewsTitle": "Nuk ka lajme",
     "noNewsDescription": "Njoftimet e reja do t'i shihni direkt në faqen kryesore.",
+    "newsShowAll": "Shfaq të gjitha lajmet",
+    "noNewsPageDescription": "Sapo kujdestaria të publikojë një njoftim, ai do të shfaqet këtu.",
     "loadError": "Pamja e përgjithshme nuk u ngarkua. Rifreskoni faqen ose provoni më vonë.",
     "unknownError": "Gabim i panjohur",
     "notSet": "Nuk është vendosur",
@@ -97,7 +100,15 @@
       "rejected": "Refuzuar",
       "withdrawn": "Tërhequr"
     },
-    "dateRangeConnector": "deri"
+    "dateRangeConnector": "deri",
+    "newsNew": "E re",
+    "newsImportant": "E rëndësishme",
+    "newsMarkRead": "Shëno si të lexuar",
+    "newsAcknowledge": "Lexuar dhe konfirmuar",
+    "newsAcknowledged": "Konfirmuar",
+    "newsRead": "Lexuar",
+    "newsActionError": "Veprimi dështoi. Provoni përsëri.",
+    "newsStaleError": "Ky njoftim nuk është më aktual. Ju lutemi, ringarkoni faqen."
   },
   "parentChildren": {
     "eyebrow": "Fëmijët e mi",

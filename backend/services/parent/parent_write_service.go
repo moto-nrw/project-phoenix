@@ -322,6 +322,10 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve meal-plan setting: %w", err)
 	}
+	news, err := s.settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentNewsEnabled)
+	if err != nil {
+		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve parent-news setting: %w", err)
+	}
 	guardianManagement, err := s.guardianManagementEnabled(ctx, child.tenantID)
 	if err != nil {
 		return ChildFeatureFlags{}, err
@@ -338,6 +342,7 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 		MasterDataContactEditEnabled: canEditMasterData && guardianManagement,
 		MasterDataRequestEnabled:     masterRequest && child.hasPermission(authorize.GuardianPermissionMasterDataRequest),
 		MealPlanEnabled:              mealPlan,
+		NewsEnabled:                  news,
 	}, nil
 }
 

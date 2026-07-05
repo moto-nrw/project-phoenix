@@ -198,6 +198,9 @@ type Factory struct {
 	ParentMessageThread userModels.ParentMessageThreadRepository
 	ParentMessage       userModels.ParentMessageRepository
 	ParentMessageRead   userModels.ParentMessageReadRepository
+
+	// Parent announcements (tenant-authored broadcast news to guardians)
+	ParentAnnouncement userModels.ParentAnnouncementRepository
 }
 
 // NewFactory creates a new repository factory with all repositories
@@ -360,5 +363,6 @@ func NewFactory(db *bun.DB) *Factory {
 		ParentMessageThread: users.NewParentMessageThreadRepository(db),
 		ParentMessage:       users.NewParentMessageRepository(db),
 		ParentMessageRead:   users.NewParentMessageReadRepository(db),
+		ParentAnnouncement:  users.NewParentAnnouncementRepository(db),
 	}
 }
