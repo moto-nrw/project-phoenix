@@ -340,18 +340,24 @@ const additionalNavItems: AdditionalNavItem[] = [
     iconKey: "settings",
     requiresAdmin: true,
   },
+  // Eltern hub — mirrors the desktop "Eltern" accordion. Mobile has no
+  // accordions, so a single overflow entry points at the /eltern overview and
+  // the sub-pages are reached from its cards (same treatment as
+  // Datenverwaltung / Anmeldungen). Shown to all staff; the overview itself
+  // renders only the cards the caller may access.
   {
-    href: "/messages",
-    label: "Nachrichten",
-    iconKey: "chat",
+    href: "/eltern",
+    label: "Eltern",
+    iconKey: "parents",
     alwaysShow: true,
-  },
-  // Essensplan — gated on the meal_plan_enabled feature flag + config:read
-  // (same as the desktop sidebar). Filtered in filteredAdditionalItems.
-  {
-    href: "/meal-plan",
-    label: "Essensplan",
-    iconKey: "utensils",
+    activePaths: [
+      "/eltern",
+      "/messages",
+      "/admin/guardian-approvals",
+      "/admin/change-requests",
+      "/parent-announcements",
+      "/meal-plan",
+    ],
   },
   // Reminders live in the header bell (always visible on desktop + mobile),
   // so the bottom nav no longer carries a coming-soon "Erinnerungen" entry.
@@ -537,9 +543,6 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const timetableEnabled =
     settingsItems.find((item) => item.key === "timetable.enabled")?.value ===
     true;
-  const mealPlanEnabled =
-    settingsItems.find((item) => item.key === "operations.meal_plan_enabled")
-      ?.value === true;
   // Only advertise Essensplan in the parents portal once a linked school runs
   // a meal plan; otherwise the overflow link leads to an empty page.
   const parentMealPlanEnabled = useParentMealPlanEnabled(mode === "parent");
@@ -560,9 +563,6 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       return false;
     }
     if (!showActivityNav && NFC_ONLY_HREFS.has(item.href)) return false;
-    if (item.href === "/meal-plan") {
-      return mealPlanEnabled && hasPermission(session, "config:read");
-    }
     if (item.alwaysShow) return true;
     if (item.href === "/timetables" && !timetableEnabled) {
       return false;
