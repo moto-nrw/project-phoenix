@@ -34,7 +34,12 @@ vi.mock("~/lib/auth-utils", () => {
       if (role === "user") return !isAdminFn();
       return false;
     }),
-    hasPermission: vi.fn(() => false),
+    // Elternmitteilungen (#1669) gates on this; admins hold it via admin:*.
+    // The nav item additionally requires operations.parent_news_enabled (off
+    // in these tests' settings schema), so it stays hidden regardless.
+    hasPermission: vi.fn((_session: unknown, _permission: string) =>
+      isAdminFn(),
+    ),
   };
 });
 

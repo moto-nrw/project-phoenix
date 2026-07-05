@@ -167,6 +167,24 @@ func (f *fakeParentService) UpdateGuardianRelationship(context.Context, int64, i
 	return nil, nil
 }
 
+// Parent-news feed (#1669) — interface stubs; the announcement handlers have
+// their own tests.
+func (f *fakeParentService) ListAnnouncements(context.Context, int64) ([]*userModels.AnnouncementFeedItem, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) UnreadAnnouncementCount(context.Context, int64) (int, error) {
+	return 0, nil
+}
+
+func (f *fakeParentService) MarkAnnouncementRead(context.Context, int64, int64, time.Time) error {
+	return nil
+}
+
+func (f *fakeParentService) AcknowledgeAnnouncement(context.Context, int64, int64, time.Time) error {
+	return nil
+}
+
 // withClaims attaches a parent account id to the request context the way the
 // JWT middleware does in production.
 func withClaims(r *http.Request, accountID int) *http.Request {

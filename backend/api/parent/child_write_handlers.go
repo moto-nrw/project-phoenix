@@ -179,6 +179,7 @@ type ChildFeaturesResponse struct {
 	MasterDataContactEditEnabled bool `json:"master_data_contact_edit_enabled"`
 	MasterDataRequestEnabled     bool `json:"master_data_request_enabled"`
 	MealPlanEnabled              bool `json:"meal_plan_enabled"`
+	NewsEnabled                  bool `json:"parent_news_enabled"`
 }
 
 // getChildFeatures returns the resolved parent-portal feature flags for the
@@ -209,6 +210,7 @@ func (rs *Resource) getChildFeatures(w http.ResponseWriter, r *http.Request) {
 		MasterDataContactEditEnabled: flags.MasterDataContactEditEnabled,
 		MasterDataRequestEnabled:     flags.MasterDataRequestEnabled,
 		MealPlanEnabled:              flags.MealPlanEnabled,
+		NewsEnabled:                  flags.NewsEnabled,
 	}, "Child features retrieved")
 }
 
@@ -379,6 +381,12 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "guardian_contact_invalid"))
 	case errors.Is(err, parentService.ErrGuardianRelationshipInvalid):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "guardian_relationship_invalid"))
+	case errors.Is(err, parentService.ErrAnnouncementNotFound):
+		common.RenderError(w, r, common.ErrorNotFound(err))
+	case errors.Is(err, parentService.ErrAnnouncementAckNotRequired):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "announcement_ack_not_required"))
+	case errors.Is(err, parentService.ErrAnnouncementStale):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "announcement_stale"))
 	case errors.Is(err, parentService.ErrNoDates),
 		errors.Is(err, parentService.ErrInvalidStatus),
 		errors.Is(err, parentService.ErrEmptyNote),

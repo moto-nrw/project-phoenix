@@ -118,6 +118,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.parent_guardian_management_enabled",
 		"operations.parent_master_data_edit_enabled",
 		"operations.parent_master_data_request_enabled",
+		"operations.parent_news_enabled",
 		"operations.meal_plan_enabled",
 		// Related-accounts management.
 		"guardians.parent_invite_mode",

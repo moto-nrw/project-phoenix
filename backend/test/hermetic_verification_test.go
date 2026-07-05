@@ -330,6 +330,7 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		skipFiles := []string{
 			"http_middleware_test.go",                           // Uses nil *bun.DB for unit testing middleware
 			"parent_message_hooks_test.go",                      // Uses a connectionless bun.NewDB to drive BeforeAppendModel hooks; no real DB
+			"parent_announcement_model_test.go",                 // Uses a connectionless bun.NewDB to drive BeforeAppendModel hooks; no real DB
 			"role_management_internal_test.go",                  // Uses hand-rolled stub repos injected via repositories.Factory, no real DB
 			"database/repositories/schedule/created_by_test.go", // Shared fixture helper; caller tests own DB setup
 			"test/architecture_ratchet_test.go",                 // Source-scanning ratchet; regex literals look like DB ops but no DB is used

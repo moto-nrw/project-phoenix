@@ -21,6 +21,8 @@ import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useSuggestionsUnread } from "~/lib/hooks/use-suggestions-unread";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import { useParentMessagesUnread } from "~/lib/hooks/use-parent-messages-unread";
+import { useParentNewsUnread } from "~/lib/hooks/use-parent-news-unread";
+import { useParentNewsEnabled } from "~/lib/hooks/use-parent-news-enabled";
 import { useParentMealPlanEnabled } from "~/lib/hooks/use-parent-meal-plan-enabled";
 import { useOperatorSuggestionsUnread } from "~/lib/hooks/use-operator-suggestions-unread";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
@@ -130,6 +132,17 @@ const NAV_ITEMS: NavItem[] = [
     href: "/messages",
     label: "Nachrichten",
     icon: "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z",
+    activeColor: "text-[#5080D8]",
+    alwaysShow: true,
+  },
+  {
+    // Elternmitteilungen (#1669). Gated below on the
+    // operations.parent_news_enabled setting AND the admin:* wildcard — every
+    // /api/parent-announcements route is admin-only in v1. alwaysShow lets it
+    // pass the generic role filter once that gate is satisfied.
+    href: "/parent-announcements",
+    label: "Elternmitteilungen",
+    icon: "M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 01-2.25 2.25M16.5 7.5V18a2.25 2.25 0 002.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 002.25 2.25h13.5M6 7.5h3v3H6v-3z",
     activeColor: "text-[#5080D8]",
     alwaysShow: true,
   },
@@ -418,9 +431,18 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const { unreadCount: parentMessagesUnread } = useParentMessagesUnread(
     mode === "parent",
   );
+  // Unread announcements badge for the parents-portal Neuigkeiten item (#1669).
+  const { unreadCount: parentNewsUnread } = useParentNewsUnread(
+    mode === "parent",
+  );
   // Only advertise Essensplan in the parents portal once a linked school runs
   // a meal plan; otherwise the link leads to an empty/unavailable page.
   const parentMealPlanEnabled = useParentMealPlanEnabled(mode === "parent");
+  // Only advertise Neuigkeiten in the parents portal once a linked school
+  // broadcasts announcements; otherwise the feed is empty (the backend excludes
+  // disabled tenants) and the link dead-ends. Distinct from the staff-side
+  // parentNewsEnabled below, which reads the tenant settings schema.
+  const parentPortalNewsEnabled = useParentNewsEnabled(mode === "parent");
 
   // Accordion state passes `from` param so child pages (e.g. student detail)
   // keep the originating accordion section open
@@ -429,6 +451,13 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
   const userIsAdmin = hasRole(session, "admin");
   const userIsCaregiver = isCaregiver(session);
+  // Elternmitteilungen (#1669) authoring is ADMIN-ONLY in v1: every
+  // /api/parent-announcements route is guarded by the admin:* wildcard
+  // (backend api/announcement/api.go), because the service does no per-caller
+  // audience scoping. Mirror that exact permission so a non-admin never sees a
+  // nav entry whose every list/create/publish call would 403. A future
+  // delegated-announcer role must relax the backend route first.
+  const canAnnounce = hasPermission(session, "admin:*");
   const presenceMode = usePresenceMode();
   const isBinaryMode = presenceMode === "binary";
   const nfcEnabled = useNFCEnabled();
@@ -439,6 +468,8 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // config reader (custom config-manager) must also see the feature flags;
   // gating the fetch on userIsAdmin alone hid the Essensplan entry from them.
   // Admins stay in (their other flag, timetable.enabled, depends on this too).
+  // Announcers are admin:* holders (see canAnnounce), who satisfy config:read
+  // via the wildcard, so they are already covered here.
   const canReadConfig = userIsAdmin || hasPermission(session, "config:read");
   const { data: settingsSchema } = useSWR(
     canReadConfig ? SETTINGS_SCHEMA_SWR_KEY : null,
@@ -446,14 +477,21 @@ function SidebarContent({ className = "" }: SidebarProps) {
     {
       revalidateOnFocus: false,
       revalidateOnReconnect: false,
+      shouldRetryOnError: false,
     },
   );
 
+  const settingsItems = settingsSchema?.tabs
+    .flatMap((tab) => tab.categories)
+    .flatMap((category) => category.items);
+
   const timetableEnabled =
-    settingsSchema?.tabs
-      .flatMap((tab) => tab.categories)
-      .flatMap((category) => category.items)
-      .find((item) => item.key === "timetable.enabled")?.value === true;
+    settingsItems?.find((item) => item.key === "timetable.enabled")?.value ===
+    true;
+
+  const parentNewsEnabled =
+    settingsItems?.find((item) => item.key === "operations.parent_news_enabled")
+      ?.value === true;
 
   const mealPlanEnabled =
     settingsSchema?.tabs
@@ -489,6 +527,13 @@ function SidebarContent({ className = "" }: SidebarProps) {
     if (isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) return false;
     if (item.href === "/timetables" && !timetableEnabled) {
       return false;
+    }
+    if (item.href === "/parent-announcements") {
+      // Admin-only in v1 (canAnnounce mirrors the backend admin:* guard). An
+      // admin:* holder also satisfies config:read via the wildcard, so the
+      // settings schema always loads and the feature flag is knowable — gate on
+      // it directly, matching the meal-plan pattern below.
+      return canAnnounce && parentNewsEnabled;
     }
     // The meal plan page requires config:read (admin / config-managers). Gate
     // the nav on the same permission the backend enforces — using hasPermission
@@ -559,6 +604,15 @@ function SidebarContent({ className = "" }: SidebarProps) {
       return (
         pathname.startsWith("/staff") &&
         !pathname.startsWith("/staff/dienstplan")
+      );
+    }
+    if (href.startsWith("/parents/")) {
+      // On the parents host the proxy rewrites /parents/* internally while the
+      // browser (and usePathname) shows the external path without the prefix —
+      // /parents/news is visited as /news. Match both spellings.
+      return (
+        pathname.startsWith(href) ||
+        pathname.startsWith(href.slice("/parents".length))
       );
     }
     return pathname.startsWith(href);
@@ -959,6 +1013,28 @@ function SidebarContent({ className = "" }: SidebarProps) {
               <span>{tParentNav("messages")}</span>
               <UnreadBadge count={parentMessagesUnread} className="ml-auto" />
             </Link>
+            {parentPortalNewsEnabled && (
+              <Link
+                href="/parents/news"
+                className={getLinkClasses("/parents/news")}
+              >
+                <svg
+                  className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d={navigationIcons.newspaper}
+                  />
+                </svg>
+                <span>{tParentNav("news")}</span>
+                <UnreadBadge count={parentNewsUnread} className="ml-auto" />
+              </Link>
+            )}
             {parentMealPlanEnabled && (
               <Link
                 href="/parents/meal-plan"
