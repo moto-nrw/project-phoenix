@@ -587,6 +587,9 @@ describe("PersonalInfoReadOnly", () => {
     buskind: true,
     pickup_status: "selbst",
     health_info: "Allergien: Erdnüsse",
+    address_street: "Musterstraße 12",
+    address_city: "Köln",
+    address_postal_code: "50667",
     supervisor_notes: undefined,
     extra_info: undefined,
     sick: false,
@@ -615,6 +618,11 @@ describe("PersonalInfoReadOnly", () => {
   it("renders group name", () => {
     render(<PersonalInfoReadOnly student={mockStudent} />);
     expect(screen.getByText("Gruppe 1")).toBeInTheDocument();
+  });
+
+  it("renders student address", () => {
+    render(<PersonalInfoReadOnly student={mockStudent} />);
+    expect(screen.getByText("Musterstraße 12, 50667 Köln")).toBeInTheDocument();
   });
 
   it("renders 'Nicht zugewiesen' when no group", () => {

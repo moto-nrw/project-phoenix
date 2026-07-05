@@ -764,6 +764,15 @@ func createStudentFromRequest(req *StudentRequest, personID int64) *users.Studen
 	if req.GroupID != nil {
 		student.GroupID = req.GroupID
 	}
+	if req.AddressStreet != "" {
+		student.AddressStreet = optionalString(req.AddressStreet)
+	}
+	if req.AddressCity != "" {
+		student.AddressCity = optionalString(req.AddressCity)
+	}
+	if req.AddressPostalCode != "" {
+		student.AddressPostalCode = optionalString(req.AddressPostalCode)
+	}
 	if req.ExtraInfo != nil {
 		student.ExtraInfo = req.ExtraInfo
 	}
@@ -1205,6 +1214,15 @@ func applyGuardianUpdates(req *UpdateStudentRequest, student *users.Student) {
 func applyOptionalStudentFields(req *UpdateStudentRequest, student *users.Student) {
 	if req.GroupID != nil {
 		student.GroupID = req.GroupID
+	}
+	if req.AddressStreet != nil {
+		student.AddressStreet = optionalString(*req.AddressStreet)
+	}
+	if req.AddressCity != nil {
+		student.AddressCity = optionalString(*req.AddressCity)
+	}
+	if req.AddressPostalCode != nil {
+		student.AddressPostalCode = optionalString(*req.AddressPostalCode)
 	}
 	if req.ExtraInfo != nil {
 		student.ExtraInfo = req.ExtraInfo
