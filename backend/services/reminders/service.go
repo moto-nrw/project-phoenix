@@ -92,7 +92,13 @@ type instanceReader interface {
 }
 
 type studentReader interface {
-	FindByIDs(ctx context.Context, ids []int64) (map[int64]*userModel.Student, error)
+	// FindReadScopeByIDs returns only the id/group_id/person_id/school_class
+	// projection this service needs — read-access gating plus name display. It
+	// deliberately avoids the repository's full FindByIDs hydration (weekday
+	// bus-day / departure jsonb + an information_schema probe), which would run on
+	// every 60s header poll for the whole present population and buys this service
+	// nothing.
+	FindReadScopeByIDs(ctx context.Context, ids []int64) (map[int64]*userModel.Student, error)
 }
 
 type personReader interface {
@@ -399,12 +405,14 @@ func (s *service) pickupReminders(ctx context.Context, scope Scope, studentIDs [
 	//
 	// This gate necessarily loads every present student (the read predicate needs
 	// each Student's group to decide readability, and a boundary is tracked for
-	// EVERY readable student, not just the due ones), so the FindByIDs below scales
-	// with the present population rather than the due subset. That is a deliberate
-	// trade-off for a correct next_change_at: it is a single primary-key IN-list
-	// lookup returning small rows, bounded by how many children are physically
-	// present, so it stays cheap even at a large school. The expensive part —
-	// person-name hydration — remains scoped to the due subset.
+	// EVERY readable student, not just the due ones), so the read below scales with
+	// the present population rather than the due subset. That is a deliberate
+	// trade-off for a correct next_change_at, kept cheap on purpose: readableStudents
+	// uses FindReadScopeByIDs — a single primary-key IN-list projection of
+	// id/group_id/person_id/school_class only, with NONE of FindByIDs' weekday
+	// bus-day hydration or information_schema probing — so a 60s poll over the whole
+	// present population stays a small-row lookup. The expensive part — person-name
+	// hydration — remains scoped to the due subset.
 	readable, err := s.readableStudents(ctx, scope, studentIDs)
 	if err != nil {
 		return nil, nextChange, err
@@ -607,7 +615,7 @@ func (s *service) readableStudents(ctx context.Context, scope Scope, ids []int64
 		return map[int64]*userModel.Student{}, nil
 	}
 
-	students, err := s.student.FindByIDs(ctx, ids)
+	students, err := s.student.FindReadScopeByIDs(ctx, ids)
 	if err != nil {
 		return nil, fmt.Errorf("load students: %w", err)
 	}

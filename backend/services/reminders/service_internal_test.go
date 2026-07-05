@@ -95,7 +95,7 @@ type fakeStudent struct {
 	err      error
 }
 
-func (f fakeStudent) FindByIDs(_ context.Context, _ []int64) (map[int64]*userModel.Student, error) {
+func (f fakeStudent) FindReadScopeByIDs(_ context.Context, _ []int64) (map[int64]*userModel.Student, error) {
 	return f.students, f.err
 }
 
