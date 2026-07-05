@@ -42,6 +42,8 @@ vi.mock("~/lib/tenant-context", () => ({
 }));
 
 import { AdminEnrollmentsList } from "./admin-enrollments-list";
+import type { CareOffering } from "~/lib/care-offering-api";
+import type { FormSchema } from "~/lib/enrollment-form-schema-api";
 import type { Phase } from "~/lib/enrollment-phase-api";
 
 function phase(overrides: Partial<Phase> = {}): Phase {
@@ -58,6 +60,40 @@ function phase(overrides: Partial<Phase> = {}): Phase {
     care_overflow_mode: "waitlist",
     care_offering_selection_mode: "optional",
     is_active: true,
+    created_at: "2026-01-01T00:00:00.000Z",
+    updated_at: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function schema(overrides: Partial<FormSchema> = {}): FormSchema {
+  return {
+    id: "schema-1",
+    name: "Regelformular",
+    version: 1,
+    is_active: true,
+    fields: [],
+    created_by: "1",
+    created_at: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function offering(overrides: Partial<CareOffering> = {}): CareOffering {
+  return {
+    id: "offer-1",
+    phase_id: "10",
+    name: "Regelbetreuung",
+    days_of_week_mode: "fixed",
+    available_days: ["mon", "tue"],
+    includes_holiday_care: false,
+    includes_lunch: false,
+    is_active: true,
+    is_required: false,
+    counts_as_care: true,
+    auto_add_grade_levels: [],
+    auto_add_trigger_offering_ids: [],
+    sort_order: 0,
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z",
     ...overrides,
@@ -127,6 +163,32 @@ describe("AdminEnrollmentsList setup guide", () => {
 
     expect(screen.getByText("2 von 5 Schritten erledigt")).toBeVisible();
     expect(screen.getByText("Basisformular")).toBeVisible();
+  });
+
+  it("warns when an active care-offering phase uses legacy Heimwege fields", async () => {
+    mocks.listPhases.mockResolvedValue([phase({ form_schema_id: "schema-1" })]);
+    mocks.listCareOfferings.mockResolvedValue([offering()]);
+    mocks.listSchemas.mockResolvedValue([
+      schema({
+        fields: [
+          {
+            key: "pickup_status",
+            label: "Abholung",
+            type: "weekday_boolean",
+            required: true,
+            applies_to_child: true,
+            sort_order: 0,
+            target: "student.pickup_status",
+          },
+        ],
+      }),
+    ]);
+
+    render(<AdminEnrollmentsList />);
+
+    expect(await screen.findByText("Heimwege prüfen")).toBeVisible();
+    expect(screen.getAllByText("1 prüfen").length).toBeGreaterThan(0);
+    expect(screen.getByText(/noch alte Heimwegfelder/)).toBeVisible();
   });
 
   it("uses tenant-aware phase detail links", async () => {

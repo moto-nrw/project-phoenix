@@ -300,6 +300,7 @@ beforeEach(() => {
     blocks: [],
   });
   mocks.listCareOfferings.mockReset();
+  mocks.listCareOfferings.mockResolvedValue([]);
   mocks.listPhases.mockReset();
   mocks.listSchemas.mockReset();
   mocks.renameSchema.mockReset();
@@ -595,6 +596,44 @@ describe("CareOfferingsEditor", () => {
 });
 
 describe("PhasesEditor", () => {
+  it("warns when a care-offering phase uses a legacy Heimwege template", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([offering()]);
+    mocks.listSchemas.mockResolvedValue([
+      schema({
+        fields: [
+          {
+            key: "pickup_status",
+            label: "Abholung",
+            type: "weekday_boolean",
+            required: true,
+            applies_to_child: true,
+            sort_order: 0,
+            target: "student.pickup_status",
+          },
+        ],
+      }),
+    ]);
+
+    render(<PhasesEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Schuljahr 2026/27",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+
+    expect(
+      await screen.findByText(/Diese Phase hat Betreuungsangebote/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Pflicht pro Betreuungstag greift erst/),
+    ).toBeInTheDocument();
+  });
+
   it("creates a phase, assigns schemas, toggles status, deletes, and completes rollover", async () => {
     mocks.searchParams = new URLSearchParams("assignForm=schema-1");
     mocks.listPhases.mockResolvedValue([phase()]);
@@ -774,6 +813,101 @@ const defaultLegalBlocksForSave = [
 ];
 
 describe("EnrollmentFormEditor", () => {
+  it("warns about legacy Heimwege fields in templates", async () => {
+    mocks.listSchemas.mockResolvedValue([
+      schema({
+        fields: [
+          {
+            key: "bus_days",
+            label: "Buskind",
+            type: "weekday_boolean",
+            required: false,
+            applies_to_child: true,
+            sort_order: 0,
+            target: "student.bus_days",
+          },
+        ],
+      }),
+    ]);
+    mocks.listPhases.mockResolvedValue([]);
+
+    render(<EnrollmentFormEditor />);
+
+    expect(await screen.findByText("Heimwege prüfen")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Regelformular" }),
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Prüfen" }));
+
+    expect(screen.getByText("Heimwege-Felder prüfen")).toBeInTheDocument();
+    expect(screen.getByText(/neue Pflichtlogik/)).toBeInTheDocument();
+  });
+
+  it("converts legacy Heimwege fields to allowed departure modes before saving", async () => {
+    mocks.listSchemas.mockResolvedValue([
+      schema({
+        fields: [
+          {
+            key: "pickup_status",
+            label: "Abholung",
+            type: "weekday_boolean",
+            required: true,
+            applies_to_child: true,
+            sort_order: 0,
+            target: "student.pickup_status",
+          },
+          {
+            key: "allergies",
+            label: "Allergien",
+            type: "textarea",
+            required: false,
+            applies_to_child: true,
+            sort_order: 1,
+            target: "student.health_info",
+          },
+        ],
+      }),
+    ]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.updateSchema.mockResolvedValue(schema({ name: "Regelformular" }));
+
+    render(<EnrollmentFormEditor />);
+
+    expect(await screen.findByText("Regelformular")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Regelformular" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Alte Heimwegfelder ersetzen",
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen speichern" }),
+    );
+
+    await waitFor(() => expect(mocks.updateSchema).toHaveBeenCalled());
+    const [, savedFields] = mocks.updateSchema.mock.calls[0] as [
+      string,
+      FormField[],
+    ];
+    expect(savedFields.map((field) => field.target)).toEqual([
+      "student.allowed_departure_modes",
+      "student.health_info",
+    ]);
+    expect(savedFields[0]).toMatchObject({
+      key: "student_allowed_departure_modes",
+      type: "weekday_multi_mode",
+      required: true,
+      applies_to_child: true,
+    });
+  });
+
   it("creates, previews, updates, and deletes schemas", async () => {
     const initialSchema = schema();
     mocks.listSchemas.mockResolvedValue([initialSchema]);

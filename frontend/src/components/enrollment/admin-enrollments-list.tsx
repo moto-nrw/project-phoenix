@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
+  AlertTriangle,
   ArrowRight,
   CalendarRange,
   Check,
@@ -30,6 +31,7 @@ import {
   listSchemas,
   type FormSchema,
 } from "~/lib/enrollment-form-schema-api";
+import { getDepartureSchemaHealth } from "~/lib/enrollment-departure-schema-health";
 import { fetchSettingsSchema } from "~/lib/settings-api";
 import { Alert } from "~/components/ui/alert";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
@@ -41,7 +43,7 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "AdminEnrollmentsList" });
 
-type SetupStepStatus = "done" | "todo" | "blocked";
+type SetupStepStatus = "done" | "todo" | "blocked" | "warning";
 
 interface SetupStep {
   readonly title: string;
@@ -67,6 +69,7 @@ export function AdminEnrollmentsList() {
   const [careOfferingStats, setCareOfferingStats] = useState<CareOfferingStats>(
     { total: 0, activeInActivePhases: 0 },
   );
+  const [legacyDeparturePhaseCount, setLegacyDeparturePhaseCount] = useState(0);
   const [enrollmentEnabled, setEnrollmentEnabled] = useState<boolean | null>(
     null,
   );
@@ -130,6 +133,15 @@ export function AdminEnrollmentsList() {
             .map((phase) => phase.id),
         );
         const careOfferings = offeringLists.flat();
+        const schemasById = new Map(
+          schemasData.map((schema) => [schema.id, schema]),
+        );
+        const phaseHasActiveCareOffering = new Map(
+          phasesData.map((phase, index) => [
+            phase.id,
+            (offeringLists[index] ?? []).some((offering) => offering.is_active),
+          ]),
+        );
         setCareOfferingStats({
           total: careOfferings.length,
           activeInActivePhases: careOfferings.filter(
@@ -137,6 +149,17 @@ export function AdminEnrollmentsList() {
               offering.is_active && activePhaseIds.has(offering.phase_id),
           ).length,
         });
+        setLegacyDeparturePhaseCount(
+          phasesData.filter((phase) => {
+            if (!phase.is_active || !phaseHasActiveCareOffering.get(phase.id)) {
+              return false;
+            }
+            const schema = phase.form_schema_id
+              ? schemasById.get(phase.form_schema_id)
+              : null;
+            return getDepartureSchemaHealth(schema).needsLegacyCleanup;
+          }).length,
+        );
         setEnrollmentEnabled(readEnrollmentEnabled(settingsData));
       } catch (err) {
         if (cancelled) return;
@@ -177,6 +200,7 @@ export function AdminEnrollmentsList() {
         schemaCount={latestSchemas.length}
         careOfferingCount={careOfferingStats.total}
         activeCareOfferingCount={careOfferingStats.activeInActivePhases}
+        legacyDeparturePhaseCount={legacyDeparturePhaseCount}
         requestCount={allRequests.length}
       />
 
@@ -511,6 +535,7 @@ interface EnrollmentSetupGuideProps {
   readonly schemaCount: number;
   readonly careOfferingCount: number;
   readonly activeCareOfferingCount: number;
+  readonly legacyDeparturePhaseCount: number;
   readonly requestCount: number;
 }
 
@@ -523,6 +548,7 @@ function EnrollmentSetupGuide({
   schemaCount,
   careOfferingCount,
   activeCareOfferingCount,
+  legacyDeparturePhaseCount,
   requestCount,
 }: EnrollmentSetupGuideProps) {
   const readyForPreview =
@@ -605,11 +631,17 @@ function EnrollmentSetupGuide({
     {
       title: "Anmeldeformular festlegen",
       description:
-        "Wähle in der Anmeldephase das Basisformular oder eine eigene Vorlage aus.",
+        legacyDeparturePhaseCount > 0
+          ? "Mindestens eine aktive Phase nutzt mit Betreuungsangeboten noch alte Heimwegfelder."
+          : "Wähle in der Anmeldephase das Basisformular oder eine eigene Vorlage aus.",
       href: activePhaseCount === 0 ? "/enrollment-phases" : "/enrollment-form",
-      action: formStepAction,
-      status: formStepStatus,
-      meta: formStepMeta,
+      action:
+        legacyDeparturePhaseCount > 0 ? "Heimwege prüfen" : formStepAction,
+      status: legacyDeparturePhaseCount > 0 ? "warning" : formStepStatus,
+      meta:
+        legacyDeparturePhaseCount > 0
+          ? `${legacyDeparturePhaseCount} prüfen`
+          : formStepMeta,
       icon: FileText,
       requiredForPublish: false,
     },
@@ -748,6 +780,8 @@ function EnrollmentSetupGuide({
                         >
                           {isStepComplete(step.status) ? (
                             <Check className="h-4 w-4" />
+                          ) : step.status === "warning" ? (
+                            <AlertTriangle className="h-4 w-4" />
                           ) : step.status === "blocked" ? (
                             <LockKeyhole className="h-4 w-4" />
                           ) : (
@@ -865,11 +899,15 @@ function getStepIconClass(status: SetupStepStatus) {
   if (status === "done") {
     return "border-[#83CD2D]/30 bg-[#83CD2D]/15 text-[#5A8B1F]";
   }
+  if (status === "warning") {
+    return "border-yellow-200 bg-yellow-50 text-yellow-700";
+  }
   return "border-gray-200 bg-white text-gray-500";
 }
 
 function getStepDotClass(status: SetupStepStatus) {
   if (isStepComplete(status)) return "bg-[#83CD2D]";
+  if (status === "warning") return "bg-yellow-400";
   return "bg-gray-300";
 }
 
