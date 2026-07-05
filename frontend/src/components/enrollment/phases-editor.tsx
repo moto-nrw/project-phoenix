@@ -630,6 +630,7 @@ export function PhasesEditor() {
           draft={draft}
           setDraft={setDraft}
           schemas={latestSchemas}
+          schemaHealthSchemas={schemas}
           schemaSource={schemaSource}
           setSchemaSource={setSchemaSource}
           currentPhaseHasCareOfferings={
@@ -728,6 +729,7 @@ interface PhaseFormProps {
   readonly draft: PhaseInput;
   readonly setDraft: React.Dispatch<React.SetStateAction<PhaseInput | null>>;
   readonly schemas: FormSchema[];
+  readonly schemaHealthSchemas: FormSchema[];
   readonly schemaSource: SchemaSource;
   readonly setSchemaSource: React.Dispatch<React.SetStateAction<SchemaSource>>;
   readonly currentPhaseHasCareOfferings: boolean;
@@ -1145,6 +1147,7 @@ function PhaseForm(props: PhaseFormProps) {
     draft,
     setDraft,
     schemas,
+    schemaHealthSchemas,
     schemaSource,
     setSchemaSource,
     currentPhaseHasCareOfferings,
@@ -1156,8 +1159,11 @@ function PhaseForm(props: PhaseFormProps) {
   } = props;
   const formSectionRef = useRef<HTMLFieldSetElement>(null);
   const selectedSchema = useMemo(
-    () => schemas.find((schema) => schema.id === draft.form_schema_id) ?? null,
-    [draft.form_schema_id, schemas],
+    () =>
+      schemaHealthSchemas.find(
+        (schema) => schema.id === draft.form_schema_id,
+      ) ?? null,
+    [draft.form_schema_id, schemaHealthSchemas],
   );
   const selectedSchemaDepartureHealth = useMemo(
     () => getDepartureSchemaHealth(selectedSchema),

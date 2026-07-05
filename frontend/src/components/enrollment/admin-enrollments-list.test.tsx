@@ -186,9 +186,45 @@ describe("AdminEnrollmentsList setup guide", () => {
 
     render(<AdminEnrollmentsList />);
 
-    expect(await screen.findByText("Heimwege prüfen")).toBeVisible();
+    expect(
+      (await screen.findAllByText("Heimwege prüfen")).length,
+    ).toBeGreaterThan(0);
     expect(screen.getAllByText("1 prüfen").length).toBeGreaterThan(0);
     expect(screen.getByText(/noch alte Heimwegfelder/)).toBeVisible();
+  });
+
+  it("keeps cleanup visible when enrollment setup is otherwise complete", async () => {
+    mocks.fetchSettingsSchema.mockResolvedValue(settingsSchema(true));
+    mocks.listPhases.mockResolvedValue([phase({ form_schema_id: "schema-1" })]);
+    mocks.listCareOfferings.mockResolvedValue([offering()]);
+    mocks.listSchemas.mockResolvedValue([
+      schema({
+        fields: [
+          {
+            key: "pickup_status",
+            label: "Abholung",
+            type: "weekday_boolean",
+            required: true,
+            applies_to_child: true,
+            sort_order: 0,
+            target: "student.pickup_status",
+          },
+        ],
+      }),
+    ]);
+
+    render(<AdminEnrollmentsList />);
+
+    expect(
+      await screen.findByText("Online-Anmeldung vorbereiten"),
+    ).toBeVisible();
+    expect(
+      screen.queryByText("Online-Anmeldung eingerichtet"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Heimwege prüfen" })).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Heimwege prüfen" }),
+    ).toHaveAttribute("href", "/enrollment-form");
   });
 
   it("uses tenant-aware phase detail links", async () => {

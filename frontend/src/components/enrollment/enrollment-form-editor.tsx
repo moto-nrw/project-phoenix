@@ -620,24 +620,23 @@ export function EnrollmentFormEditor() {
       const firstLegacyIndex = prev.findIndex((field) =>
         health.legacyFields.includes(field),
       );
-      const existingModern = prev.find(
+      const existingModernFields = prev.filter(
         (field) => field.target === "student.allowed_departure_modes",
       );
-      const required =
-        Boolean(existingModern?.required) ||
-        health.legacyFields.some((field) => field.required);
+      if (existingModernFields.length > 0) {
+        return prev
+          .filter((field) => !health.legacyFields.includes(field))
+          .map((field, index) => ({ ...field, sort_order: index }));
+      }
       const modernField = {
-        ...(existingModern ??
-          createTargetField(
-            "student.allowed_departure_modes",
-            Math.max(firstLegacyIndex, 0),
-          )),
-        required,
+        ...createTargetField(
+          "student.allowed_departure_modes",
+          Math.max(firstLegacyIndex, 0),
+        ),
+        required: health.legacyFields.some((field) => field.required),
       };
       const withoutDepartureFields = prev.filter(
-        (field) =>
-          field.target !== "student.allowed_departure_modes" &&
-          !health.legacyFields.includes(field),
+        (field) => !health.legacyFields.includes(field),
       );
       const insertAt =
         firstLegacyIndex >= 0

@@ -555,7 +555,8 @@ function EnrollmentSetupGuide({
     enrollmentEnabled === true &&
     activePhaseCount > 0 &&
     activeCareOfferingCount > 0;
-  const setupComplete = readyForPreview;
+  const hasLegacyDepartureWarnings = legacyDeparturePhaseCount > 0;
+  const setupComplete = readyForPreview && !hasLegacyDepartureWarnings;
   const [expanded, setExpanded] = useState(!setupComplete);
 
   useEffect(() => {
@@ -667,6 +668,7 @@ function EnrollmentSetupGuide({
   const nextActionStep =
     steps.find((step) => step.status === "todo") ??
     steps.find((step) => step.status === "blocked") ??
+    steps.find((step) => step.status === "warning") ??
     steps[steps.length - 1];
   const contentExpanded = !setupComplete || expanded;
 
@@ -739,9 +741,19 @@ function EnrollmentSetupGuide({
                   <div className="flex flex-wrap gap-2 text-xs">
                     <StatusPill
                       label={
-                        readyForPreview ? "Eingerichtet" : "In Vorbereitung"
+                        hasLegacyDepartureWarnings
+                          ? "Heimwege prüfen"
+                          : readyForPreview
+                            ? "Eingerichtet"
+                            : "In Vorbereitung"
                       }
-                      tone={readyForPreview ? "success" : "neutral"}
+                      tone={
+                        hasLegacyDepartureWarnings
+                          ? "warning"
+                          : readyForPreview
+                            ? "success"
+                            : "neutral"
+                      }
                     />
                     <StatusPill
                       label={`${requestCount} Anmeldungen`}
@@ -916,14 +928,16 @@ function StatusPill({
   tone,
 }: Readonly<{
   label: string;
-  tone: "success" | "info" | "neutral";
+  tone: "success" | "info" | "warning" | "neutral";
 }>) {
   const className =
     tone === "success"
       ? "bg-[#83CD2D]/15 text-[#5A8B1F]"
       : tone === "info"
         ? "bg-[#5080D8]/10 text-[#4070C8]"
-        : "bg-gray-100 text-gray-600";
+        : tone === "warning"
+          ? "bg-yellow-100 text-yellow-800"
+          : "bg-gray-100 text-gray-600";
   return (
     <span
       className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${className}`}

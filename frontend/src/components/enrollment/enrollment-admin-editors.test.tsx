@@ -601,6 +601,9 @@ describe("PhasesEditor", () => {
     mocks.listCareOfferings.mockResolvedValue([offering()]);
     mocks.listSchemas.mockResolvedValue([
       schema({
+        id: "schema-1",
+        version: 1,
+        created_at: "2026-01-01T00:00:00.000Z",
         fields: [
           {
             key: "pickup_status",
@@ -612,6 +615,12 @@ describe("PhasesEditor", () => {
             target: "student.pickup_status",
           },
         ],
+      }),
+      schema({
+        id: "schema-new",
+        version: 2,
+        created_at: "2026-02-01T00:00:00.000Z",
+        fields: [],
       }),
     ]);
 
@@ -905,6 +914,103 @@ describe("EnrollmentFormEditor", () => {
       type: "weekday_multi_mode",
       required: true,
       applies_to_child: true,
+    });
+  });
+
+  it("preserves every modern departure field when replacing legacy Heimwege fields", async () => {
+    mocks.listSchemas.mockResolvedValue([
+      schema({
+        fields: [
+          {
+            key: "allowed_departure_regular",
+            label: "Regel-Heimwege",
+            type: "weekday_multi_mode",
+            required: false,
+            applies_to_child: true,
+            sort_order: 0,
+            target: "student.allowed_departure_modes",
+            visible_when: {
+              source: "care_offering",
+              operator: "includes",
+              value: "regular-care",
+            },
+          },
+          {
+            key: "pickup_status",
+            label: "Abholung",
+            type: "weekday_boolean",
+            required: true,
+            applies_to_child: true,
+            sort_order: 1,
+            target: "student.pickup_status",
+          },
+          {
+            key: "allowed_departure_holiday",
+            label: "Ferien-Heimwege",
+            type: "weekday_multi_mode",
+            required: true,
+            applies_to_child: true,
+            sort_order: 2,
+            target: "student.allowed_departure_modes",
+            visible_when: {
+              source: "care_offering",
+              operator: "includes",
+              value: "holiday-care",
+            },
+          },
+        ],
+      }),
+    ]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.updateSchema.mockResolvedValue(schema({ name: "Regelformular" }));
+
+    render(<EnrollmentFormEditor />);
+
+    expect(await screen.findByText("Regelformular")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Regelformular" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Alte Heimwegfelder ersetzen",
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen speichern" }),
+    );
+
+    await waitFor(() => expect(mocks.updateSchema).toHaveBeenCalled());
+    const [, savedFields] = mocks.updateSchema.mock.calls[0] as [
+      string,
+      FormField[],
+    ];
+    expect(savedFields).toHaveLength(2);
+    expect(savedFields.map((field) => field.label)).toEqual([
+      "Regel-Heimwege",
+      "Ferien-Heimwege",
+    ]);
+    expect(savedFields.map((field) => field.sort_order)).toEqual([0, 1]);
+    expect(savedFields[0]).toMatchObject({
+      target: "student.allowed_departure_modes",
+      required: false,
+      visible_when: {
+        source: "care_offering",
+        operator: "includes",
+        value: "regular-care",
+      },
+    });
+    expect(savedFields[1]).toMatchObject({
+      target: "student.allowed_departure_modes",
+      required: true,
+      visible_when: {
+        source: "care_offering",
+        operator: "includes",
+        value: "holiday-care",
+      },
     });
   });
 
