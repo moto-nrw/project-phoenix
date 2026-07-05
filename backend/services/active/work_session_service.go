@@ -1389,8 +1389,7 @@ func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace 
 				s.getLogger().WarnContext(ctx, "failed to end active break during auto-checkout",
 					slog.Int64("session_id", session.ID),
 					slog.String("error", err.Error()))
-				// Continue: closing the session still recalculates nothing worse
-				// than the nightly cleanup would.
+				continue
 			}
 		}
 

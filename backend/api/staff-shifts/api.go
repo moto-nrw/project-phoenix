@@ -65,12 +65,12 @@ func (rs *Resource) Router() chi.Router {
 // strings, the date is "YYYY-MM-DD". StaffID is ignored on update (the shift
 // stays with its staff member).
 type ShiftRequest struct {
-	StaffID      int64  `json:"staff_id"`
-	Date         string `json:"date"`
-	StartTime    string `json:"start_time"`
-	EndTime      string `json:"end_time"`
-	BreakMinutes int    `json:"break_minutes"`
-	Notes        string `json:"notes"`
+	StaffID      int64   `json:"staff_id"`
+	Date         string  `json:"date"`
+	StartTime    string  `json:"start_time"`
+	EndTime      string  `json:"end_time"`
+	BreakMinutes int     `json:"break_minutes"`
+	Notes        *string `json:"notes"`
 }
 
 // ShiftResponse is the wire format returned to clients.
@@ -129,13 +129,17 @@ func (rs *Resource) buildShift(req ShiftRequest) (*scheduleModels.StaffShift, er
 	if err != nil {
 		return nil, err
 	}
+	notes := ""
+	if req.Notes != nil {
+		notes = *req.Notes
+	}
 	return &scheduleModels.StaffShift{
 		StaffID:      req.StaffID,
 		Date:         date,
 		StartTime:    start,
 		EndTime:      end,
 		BreakMinutes: req.BreakMinutes,
-		Notes:        req.Notes,
+		Notes:        notes,
 	}, nil
 }
 
@@ -253,7 +257,9 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 	shift.ID = id
 	shift.UpdatedBy = &editorID
 
-	saved, err := rs.Service.UpdateShift(r.Context(), shift)
+	saved, err := rs.Service.UpdateShiftWithOptions(r.Context(), shift, scheduleSvc.StaffShiftUpdateOptions{
+		PreserveExistingNotes: req.Notes == nil,
+	})
 	if err != nil {
 		renderServiceError(w, r, err)
 		return

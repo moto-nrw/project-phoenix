@@ -285,6 +285,71 @@ func TestShiftService_UpdatePreservesCreatedAt(t *testing.T) {
 		"zero CreatedAt would be written as DEFAULT and reset created_at to now()")
 }
 
+func TestShiftService_UpdateCanPreserveExistingNotes(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+
+	existing := validShift(7)
+	existing.ID = 5
+	existing.Notes = "Existing note"
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return existing, nil
+	}
+
+	var persisted *scheduleModels.StaffShift
+	repo.updateFunc = func(_ context.Context, shift *scheduleModels.StaffShift) error {
+		persisted = shift
+		return nil
+	}
+
+	update := validShift(7)
+	update.ID = 5
+	update.Notes = ""
+
+	saved, err := svc.UpdateShiftWithOptions(context.Background(), update, StaffShiftUpdateOptions{PreserveExistingNotes: true})
+	require.NoError(t, err)
+	require.NotNil(t, persisted)
+	assert.Equal(t, "Existing note", persisted.Notes)
+	assert.Equal(t, "Existing note", saved.Notes)
+}
+
+func TestShiftService_UpdateExplicitNotesReplaceExistingNotes(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+
+	existing := validShift(7)
+	existing.ID = 5
+	existing.Notes = "Existing note"
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return existing, nil
+	}
+
+	update := validShift(7)
+	update.ID = 5
+	update.Notes = "Replacement"
+
+	saved, err := svc.UpdateShiftWithOptions(context.Background(), update, StaffShiftUpdateOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, "Replacement", saved.Notes)
+}
+
+func TestShiftService_UpdateExplicitEmptyNotesClearsExistingNotes(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+
+	existing := validShift(7)
+	existing.ID = 5
+	existing.Notes = "Existing note"
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return existing, nil
+	}
+
+	update := validShift(7)
+	update.ID = 5
+	update.Notes = ""
+
+	saved, err := svc.UpdateShiftWithOptions(context.Background(), update, StaffShiftUpdateOptions{})
+	require.NoError(t, err)
+	assert.Empty(t, saved.Notes)
+}
+
 func TestShiftService_UpdateNotFound(t *testing.T) {
 	svc, repo, _ := shiftServiceFixture()
 	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {

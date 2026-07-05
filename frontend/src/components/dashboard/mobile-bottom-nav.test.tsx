@@ -307,6 +307,24 @@ describe("MobileBottomNav", () => {
       expect(screen.getByText("Vertretungen")).toBeInTheDocument();
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
     });
+
+    it("highlights Dienstplan without also highlighting Mitarbeiter in the overflow menu", () => {
+      mockUsePathname.mockReturnValue("/staff/dienstplan");
+
+      render(<MobileBottomNav />);
+
+      const navButtons = screen.getAllByRole("button");
+      const moreButton = navButtons.find(
+        (btn) => !btn.hasAttribute("data-testid"),
+      );
+      expect(moreButton).toBeDefined();
+      fireEvent.click(moreButton!);
+
+      const dienstplanLink = screen.getByText("Dienstplan").closest("a");
+      const staffLink = screen.getByText("Mitarbeiter").closest("a");
+      expect(dienstplanLink).toHaveClass("bg-gray-900");
+      expect(staffLink).not.toHaveClass("bg-gray-900");
+    });
   });
 
   describe("staff navigation", () => {

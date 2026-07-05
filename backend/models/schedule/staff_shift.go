@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	tableScheduleStaffShifts  = "schedule.staff_shifts"
-	MaxStaffShiftBreakMinutes = 300
+	tableScheduleStaffShifts        = "schedule.staff_shifts"
+	tableScheduleStaffShiftsAsShift = `schedule.staff_shifts AS "staff_shift"`
+	MaxStaffShiftBreakMinutes       = 300
 )
 
 // StaffShift is one planned work shift for a staff member on a concrete
@@ -41,10 +42,10 @@ type StaffShift struct {
 
 func (s *StaffShift) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableScheduleStaffShifts)
+		q.ModelTableExpr(tableScheduleStaffShiftsAsShift)
 	}
 	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableScheduleStaffShifts)
+		q.ModelTableExpr(tableScheduleStaffShiftsAsShift)
 	}
 	if q, ok := query.(*bun.InsertQuery); ok {
 		q.ModelTableExpr(tableScheduleStaffShifts)

@@ -411,6 +411,12 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       if (activePaths?.some((p) => pathname.startsWith(p))) {
         return true;
       }
+      if (href === "/staff") {
+        return (
+          pathname.startsWith("/staff") &&
+          !pathname.startsWith("/staff/dienstplan")
+        );
+      }
       return pathname.startsWith(href);
     },
     [pathname, searchParams],

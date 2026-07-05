@@ -39,8 +39,14 @@ type StaffShiftService interface {
 	CreateShift(ctx context.Context, shift *scheduleModels.StaffShift) (*scheduleModels.StaffShift, error)
 	// UpdateShift validates and persists changes to an existing shift.
 	UpdateShift(ctx context.Context, shift *scheduleModels.StaffShift) (*scheduleModels.StaffShift, error)
+	// UpdateShiftWithOptions validates and persists changes with update-specific merge options.
+	UpdateShiftWithOptions(ctx context.Context, shift *scheduleModels.StaffShift, opts StaffShiftUpdateOptions) (*scheduleModels.StaffShift, error)
 	// DeleteShift removes a shift.
 	DeleteShift(ctx context.Context, id int64) error
+}
+
+type StaffShiftUpdateOptions struct {
+	PreserveExistingNotes bool
 }
 
 type staffShiftService struct {
@@ -154,6 +160,10 @@ func (s *staffShiftService) CreateShift(ctx context.Context, shift *scheduleMode
 }
 
 func (s *staffShiftService) UpdateShift(ctx context.Context, shift *scheduleModels.StaffShift) (*scheduleModels.StaffShift, error) {
+	return s.UpdateShiftWithOptions(ctx, shift, StaffShiftUpdateOptions{})
+}
+
+func (s *staffShiftService) UpdateShiftWithOptions(ctx context.Context, shift *scheduleModels.StaffShift, opts StaffShiftUpdateOptions) (*scheduleModels.StaffShift, error) {
 	if shift.ID <= 0 {
 		return nil, ErrShiftNotFound
 	}
@@ -171,6 +181,9 @@ func (s *staffShiftService) UpdateShift(ctx context.Context, shift *scheduleMode
 	shift.StaffID = existing.StaffID
 	shift.CreatedBy = existing.CreatedBy
 	shift.TenantID = existing.TenantID
+	if opts.PreserveExistingNotes {
+		shift.Notes = existing.Notes
+	}
 	// The request model has a zero CreatedAt; the whole-model update would
 	// otherwise write created_at = DEFAULT and reset it to now().
 	shift.CreatedAt = existing.CreatedAt

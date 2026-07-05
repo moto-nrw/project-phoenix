@@ -65,6 +65,37 @@ func TestStaffShiftRepository_CreateFindNormalizesWallClock(t *testing.T) {
 	assert.Equal(t, "08:00", timezone.WallClock(got.StartTime).Format("15:04"))
 }
 
+func TestStaffShiftRepository_UpdateDeleteUseTenantAlias(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).StaffShift
+	ctx := testpkg.TenantContext(1)
+
+	staff := testpkg.CreateTestStaff(t, db, "Shift", "WriteAlias")
+	defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
+
+	day := timezone.NewDate(2026, time.July, 6)
+	shift := newShift(staff.ID, day, 8, 16, staff.ID)
+	require.NoError(t, repo.Create(ctx, shift))
+	defer cleanupShifts(t, repo, ctx, shift.ID)
+
+	shift.EndTime = wallClock(17, 0)
+	shift.Notes = "Updated through generic repo"
+	require.NoError(t, repo.Update(ctx, shift), "tenant-scoped update must keep the staff_shift alias")
+
+	rows, err := repo.FindByStaffAndDateRange(ctx, staff.ID, day, day)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, wallClock(17, 0), rows[0].EndTime)
+	assert.Equal(t, "Updated through generic repo", rows[0].Notes)
+
+	require.NoError(t, repo.Delete(ctx, shift.ID), "tenant-scoped delete must keep the staff_shift alias")
+	rows, err = repo.FindByStaffAndDateRange(ctx, staff.ID, day, day)
+	require.NoError(t, err)
+	assert.Empty(t, rows)
+}
+
 func TestStaffShiftRepository_FindByStaffIDsAndDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
