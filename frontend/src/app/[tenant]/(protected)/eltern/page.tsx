@@ -21,6 +21,7 @@ import {
   SETTINGS_SCHEMA_SWR_KEY,
   fetchSettingsSchema,
 } from "~/lib/settings-api";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 
 interface ElternCard {
   readonly href: string;
@@ -34,6 +35,9 @@ interface ElternCard {
 function ElternContent() {
   const { data: session, status } = useSession({ required: true });
   const isMobile = useIsMobile();
+  // Card links must carry the tenant segment in path routing mode (e.g.
+  // /school-a/messages); bare hrefs would leave the tenant path entirely.
+  const tenantPath = useTenantAwarePath();
 
   const userIsAdmin = hasRole(session, "admin");
   // Mirror the sidebar gating so a card never links somewhere the caller would
@@ -135,7 +139,7 @@ function ElternContent() {
           {visibleCards.map((card) => (
             <EntryPointCard
               key={card.href}
-              href={card.href}
+              href={tenantPath(card.href)}
               title={card.title}
               body={card.body}
               icon={card.icon}
