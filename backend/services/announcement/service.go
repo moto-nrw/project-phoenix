@@ -20,7 +20,6 @@ import (
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/emailbranding"
 	platformService "github.com/moto-nrw/project-phoenix/services/platform"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // OutboxEnqueuer is the slice of the email outbox service this package needs:
@@ -606,8 +605,3 @@ func dedupeKey(t *usersModels.ParentAnnouncementTarget) string {
 		return t.TargetType
 	}
 }
-
-// TenantID returns the current request's tenant from context, or 0. Exposed for
-// handlers that need it for logging; the service itself relies on the request
-// tenant tx for scoping.
-func TenantID(ctx context.Context) int64 { return tenant.FromContext(ctx) }
