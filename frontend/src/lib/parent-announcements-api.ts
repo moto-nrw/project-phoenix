@@ -45,7 +45,7 @@ export interface AnnouncementStats {
   acknowledged_count: number;
 }
 
-export type AnnouncementRecipientStatus = "pending" | "read" | "acknowledged";
+type AnnouncementRecipientStatus = "pending" | "read" | "acknowledged";
 
 /** One guardian account in the live audience with their read/ack state. */
 export interface AnnouncementRecipient {
@@ -111,16 +111,6 @@ export async function fetchAnnouncements(
     "Elternmitteilungen konnten nicht geladen werden",
   );
   return data ?? [];
-}
-
-export async function fetchAnnouncement(id: string): Promise<Announcement> {
-  const data = await request<Announcement>(
-    `${BASE}/${encodeURIComponent(id)}`,
-    undefined,
-    "Elternmitteilung konnte nicht geladen werden",
-  );
-  if (!data) throw new Error("Elternmitteilung konnte nicht geladen werden");
-  return data;
 }
 
 function jsonBody(body: AnnouncementInput): RequestInit {

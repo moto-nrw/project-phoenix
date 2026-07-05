@@ -42,7 +42,7 @@ function isStaleAnnouncementError(err: unknown): boolean {
   );
 }
 
-export function NewsBadges({
+function NewsBadges({
   item,
 }: Readonly<{ item: ParentAnnouncement }>): React.ReactNode {
   const t = useTranslations("parentDashboard");
