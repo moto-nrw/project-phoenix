@@ -4,6 +4,7 @@ import { Suspense, useMemo, useState } from "react";
 import useSWR from "swr";
 import { MessageCircle } from "lucide-react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import type { FilterConfig } from "~/components/ui/page-header/types";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { Loading } from "~/components/ui/loading";
@@ -71,6 +72,27 @@ function MessagesInboxContent() {
     marksRead: false,
   });
 
+  // Read filter as a dropdown in the page header (same pattern as the
+  // Kindersuche filters), not a bare toggle button. "all" is the default
+  // (inactive) state so the header shows no active-filter badge until the
+  // staffer narrows to unread.
+  const filterConfigs: FilterConfig[] = useMemo(
+    () => [
+      {
+        id: "read-state",
+        label: "Status",
+        type: "dropdown",
+        value: onlyUnread ? "unread" : "all",
+        onChange: (value) => setOnlyUnread(value === "unread"),
+        options: [
+          { value: "all", label: "Alle Nachrichten" },
+          { value: "unread", label: "Nur ungelesen" },
+        ],
+      },
+    ],
+    [onlyUnread],
+  );
+
   const filteredThreads = useMemo(() => {
     const list: InboxThread[] = threads ?? [];
     if (!searchTerm) return list;
@@ -100,18 +122,11 @@ function MessagesInboxContent() {
           onChange: setSearchTerm,
           placeholder: "Person oder Kind suchen...",
         }}
+        filters={filterConfigs}
       />
 
-      <div className="mb-4 flex items-center justify-end gap-2">
-        <Button
-          type="button"
-          variant={onlyUnread ? "primary" : "outline"}
-          size="md"
-          onClick={() => setOnlyUnread((prev) => !prev)}
-        >
-          Nur ungelesen
-        </Button>
-        {messagingEnabled && (
+      {messagingEnabled && (
+        <div className="mb-4 flex items-center justify-end">
           <Button
             type="button"
             variant="primary"
@@ -120,8 +135,8 @@ function MessagesInboxContent() {
           >
             Neue Nachricht
           </Button>
-        )}
-      </div>
+        </div>
+      )}
 
       {error && (
         <div className="mb-4">
