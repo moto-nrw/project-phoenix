@@ -56,6 +56,10 @@ type StaffShiftRepository interface {
 	// FindByStaffIDsAndDate returns the shifts of the given staff members on
 	// one date (batch lookup for the auto-checkout job).
 	FindByStaffIDsAndDate(ctx context.Context, staffIDs []int64, date timezone.Date) ([]*StaffShift, error)
+
+	// DeleteUpcomingByStaffID removes planned shifts on or after from. Past
+	// shifts stay as history. Used by staff offboarding.
+	DeleteUpcomingByStaffID(ctx context.Context, staffID int64, from timezone.Date) (int64, error)
 }
 
 // RecurrenceRuleRepository defines operations for managing recurrence rules

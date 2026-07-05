@@ -318,8 +318,10 @@ func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status,
 // differs from the existing one. The caller is expected to follow up
 // with UpdateSession (which gates on a notes reason).
 func (s *workSessionService) reopenSession(ctx context.Context, session *activeModels.WorkSession, staffID int64) (*activeModels.WorkSession, error) {
+	now := time.Now()
 	session.CheckOutTime = nil
 	session.AutoCheckedOut = false
+	session.ReopenedAt = &now
 	session.UpdatedBy = &staffID
 
 	if err := session.Validate(); err != nil {
@@ -426,7 +428,7 @@ func (s *workSessionService) endActiveSupervisionsOnCheckout(ctx context.Context
 // If plannedDurationMinutes is provided (1-120), sets planned_end_time for auto-end
 func (s *workSessionService) StartBreak(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error) {
 	// Get today's active session
-	session, err := s.repo.GetCurrentByStaffID(ctx, staffID)
+	session, err := s.repo.GetCurrentByStaffIDForUpdate(ctx, staffID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New(errNoActiveSession)
@@ -1352,7 +1354,18 @@ func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace 
 
 	tenantID := tenant.FromContext(ctx)
 	count := 0
-	for _, session := range openSessions {
+	for _, listedSession := range openSessions {
+		session, err := s.repo.LockOpenByIDForUpdate(ctx, listedSession.ID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				s.getLogger().InfoContext(ctx, "skipping auto-checkout side effects because session was already closed",
+					slog.Int64("session_id", listedSession.ID),
+					slog.Int64("staff_id", listedSession.StaffID))
+				continue
+			}
+			return count, fmt.Errorf("failed to lock auto-checkout session %d: %w", listedSession.ID, err)
+		}
+
 		shift, ok := latestEndByDate[session.Date][session.StaffID]
 		if !ok {
 			continue // no shift planned that day — nightly cleanup handles it
@@ -1361,9 +1374,9 @@ func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace 
 		if !now.After(closeAt.Add(grace)) {
 			continue // not yet due
 		}
-		if closeAt.Before(session.CheckInTime) {
-			// Checked in after the planned shift end — never fabricate a
-			// checkout before the check-in; leave it to the nightly cleanup.
+		if !closeAt.After(autoCheckoutEffectiveStart(session)) {
+			// Checked in or reopened after the planned shift end — never
+			// fabricate a checkout before the effective work start.
 			continue
 		}
 
@@ -1375,7 +1388,7 @@ func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace 
 			continue
 		}
 
-		activeBreak, lateBreak := activeBreakAndLateBreakAfter(breaks, closeAt)
+		_, lateBreak := activeBreakAndLateBreakAfter(breaks, closeAt)
 		if lateBreak != nil {
 			attrs := []any{
 				slog.Int64("session_id", session.ID),
@@ -1399,6 +1412,15 @@ func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace 
 				slog.Int64("session_id", session.ID),
 				slog.Int64("staff_id", session.StaffID))
 			continue
+		}
+
+		breaks, err = s.breakRepo.GetBySessionID(ctx, session.ID)
+		if err != nil {
+			return count, fmt.Errorf("failed to re-inspect breaks after auto-checkout close for session %d: %w", session.ID, err)
+		}
+		activeBreak, lateBreak := activeBreakAndLateBreakAfter(breaks, closeAt)
+		if lateBreak != nil {
+			return count, fmt.Errorf("late break detected after auto-checkout close for session %d", session.ID)
 		}
 
 		if activeBreak != nil {
@@ -1436,6 +1458,16 @@ func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace 
 	}
 
 	return count, nil
+}
+
+func autoCheckoutEffectiveStart(session *activeModels.WorkSession) time.Time {
+	if session == nil {
+		return time.Time{}
+	}
+	if session.ReopenedAt != nil {
+		return *session.ReopenedAt
+	}
+	return session.CheckInTime
 }
 
 func activeBreakAndLateBreakAfter(breaks []*activeModels.WorkSessionBreak, closeAt time.Time) (*activeModels.WorkSessionBreak, *activeModels.WorkSessionBreak) {

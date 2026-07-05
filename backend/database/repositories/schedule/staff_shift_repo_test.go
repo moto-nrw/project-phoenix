@@ -129,6 +129,46 @@ func TestStaffShiftRepository_FindByStaffIDsAndDate(t *testing.T) {
 	assert.Empty(t, rows)
 }
 
+func TestStaffShiftRepository_DeleteUpcomingByStaffID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).StaffShift
+	ctx := testpkg.TenantContext(1)
+
+	staff := testpkg.CreateTestStaff(t, db, "Shift", "DeleteUpcoming")
+	defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
+
+	today := timezone.TodayDate()
+	past := newShift(staff.ID, today.AddDays(-1), 8, 12, staff.ID)
+	sameDay := newShift(staff.ID, today, 8, 12, staff.ID)
+	future := newShift(staff.ID, today.AddDays(1), 8, 12, staff.ID)
+	for _, s := range []*scheduleModels.StaffShift{past, sameDay, future} {
+		require.NoError(t, repo.Create(ctx, s))
+	}
+	defer cleanupShifts(t, repo, ctx, past.ID, sameDay.ID, future.ID)
+
+	const otherTenantID = int64(910004)
+	testpkg.EnsureTestTenant(t, db, otherTenantID)
+	otherTenantCtx := tenant.WithTenantID(context.Background(), otherTenantID)
+	deleted, err := repo.DeleteUpcomingByStaffID(otherTenantCtx, staff.ID, today)
+	require.NoError(t, err)
+	assert.Zero(t, deleted, "wrong tenant must not delete tenant 1 shifts")
+
+	deleted, err = repo.DeleteUpcomingByStaffID(ctx, staff.ID, today)
+	require.NoError(t, err)
+	expectedDeleted := int64(0)
+	for range []*scheduleModels.StaffShift{sameDay, future} {
+		expectedDeleted++
+	}
+	assert.Equal(t, expectedDeleted, deleted)
+
+	rows, err := repo.FindByStaffAndDateRange(ctx, staff.ID, today.AddDays(-2), today.AddDays(2))
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, past.ID, rows[0].ID)
+}
+
 func TestStaffShiftRepository_DuplicateStartRejected(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

@@ -221,6 +221,21 @@ func (m *absWorkSessionRepoMock) GetCurrentByStaffID(ctx context.Context, staffI
 	return nil, nil
 }
 
+func (m *absWorkSessionRepoMock) GetCurrentByStaffIDForUpdate(ctx context.Context, staffID int64) (*activeModels.WorkSession, error) {
+	return m.GetCurrentByStaffID(ctx, staffID)
+}
+
+func (m *absWorkSessionRepoMock) LockOpenByIDForUpdate(ctx context.Context, id int64) (*activeModels.WorkSession, error) {
+	session, err := m.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if session.CheckOutTime != nil {
+		return nil, errors.New("not found")
+	}
+	return session, nil
+}
+
 func (m *absWorkSessionRepoMock) GetHistoryByStaffID(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error) {
 	if m.getHistoryByStaffIDFunc != nil {
 		return m.getHistoryByStaffIDFunc(ctx, staffID, from, to)

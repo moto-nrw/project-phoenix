@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -105,4 +106,27 @@ func (r *StaffShiftRepository) FindByStaffIDsAndDate(ctx context.Context, staffI
 	}
 	normalizeShiftWallClock(shifts)
 	return shifts, nil
+}
+
+// DeleteUpcomingByStaffID removes planned shifts from the given date onwards.
+// Past Dienstplan rows stay as history after staff offboarding.
+func (r *StaffShiftRepository) DeleteUpcomingByStaffID(ctx context.Context, staffID int64, from timezone.Date) (int64, error) {
+	query := base.GetDB(ctx, r.db).NewDelete().
+		Table("schedule.staff_shifts").
+		Where("staff_id = ?", staffID).
+		Where("date >= ?", from)
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "delete upcoming staff shifts by staff ID", Err: err}
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "delete upcoming staff shifts by staff ID", Err: err}
+	}
+	return rows, nil
 }

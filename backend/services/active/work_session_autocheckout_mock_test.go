@@ -7,6 +7,7 @@ package active
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"testing"
 	"time"
@@ -56,6 +57,10 @@ func (m *wsMockStaffShiftRepository) FindByStaffIDsAndDate(ctx context.Context, 
 	return nil, nil
 }
 
+func (m *wsMockStaffShiftRepository) DeleteUpcomingByStaffID(context.Context, int64, timezone.Date) (int64, error) {
+	return 0, nil
+}
+
 // ============================================================================
 // Helpers
 // ============================================================================
@@ -74,6 +79,14 @@ func autoCheckoutFixture(openSessions []*activeModels.WorkSession, shifts []*sch
 
 	sessionRepo.getOpenSessionsFunc = func(_ context.Context, _ timezone.Date) ([]*activeModels.WorkSession, error) {
 		return openSessions, nil
+	}
+	sessionRepo.lockOpenByIDFunc = func(_ context.Context, id int64) (*activeModels.WorkSession, error) {
+		for _, session := range openSessions {
+			if session != nil && session.ID == id && session.CheckOutTime == nil {
+				return session, nil
+			}
+		}
+		return nil, sql.ErrNoRows
 	}
 	shiftRepo.findByStaffIDsAndDateFunc = func(_ context.Context, _ []int64, _ timezone.Date) ([]*scheduleModels.StaffShift, error) {
 		return shifts, nil
@@ -157,6 +170,41 @@ func TestAutoCheckout_SkipsCheckInAfterShiftEnd(t *testing.T) {
 	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) (bool, error) {
 		t.Fatal("session checked in after shift end must not be closed")
 		return true, nil
+	}
+
+	count, err := service.AutoCheckoutDueSessions(context.Background(), 15*time.Minute)
+	require.NoError(t, err)
+	assert.Equal(t, 0, count)
+}
+
+func TestAutoCheckout_SkipsReopenedAfterShiftEndFromLockedRow(t *testing.T) {
+	yesterday := timezone.TodayDate().AddDays(-1)
+	staffID := int64(7)
+	listedSession := &activeModels.WorkSession{
+		StaffID:     staffID,
+		Date:        yesterday,
+		CheckInTime: yesterday.BerlinMidnight().Add(8 * time.Hour),
+	}
+	listedSession.ID = 42
+	reopenedAt := yesterday.BerlinMidnight().Add(16*time.Hour + 20*time.Minute)
+	lockedSession := *listedSession
+	lockedSession.ReopenedAt = &reopenedAt
+	shift := shiftFor(staffID, yesterday, 8, 16)
+
+	service, sessionRepo, _, auditRepo, _ := autoCheckoutFixture(
+		[]*activeModels.WorkSession{listedSession},
+		[]*scheduleModels.StaffShift{shift},
+	)
+	sessionRepo.lockOpenByIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
+		return &lockedSession, nil
+	}
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) (bool, error) {
+		t.Fatal("same-day reopened session must not be closed against the stale shift end")
+		return true, nil
+	}
+	auditRepo.createBatchFunc = func(_ context.Context, _ []*auditModels.WorkSessionEdit) error {
+		t.Fatal("same-day reopened session must not be audited as auto-checked-out")
+		return nil
 	}
 
 	count, err := service.AutoCheckoutDueSessions(context.Background(), 15*time.Minute)
@@ -356,7 +404,7 @@ func TestAutoCheckout_ReturnsErrorWhenActiveBreakRecalcFailsAfterClose(t *testin
 	getBreaksCalls := 0
 	breakRepo.getBySessionIDFunc = func(_ context.Context, _ int64) ([]*activeModels.WorkSessionBreak, error) {
 		getBreaksCalls++
-		if getBreaksCalls == 1 {
+		if getBreaksCalls <= 2 {
 			return []*activeModels.WorkSessionBreak{activeBreak}, nil
 		}
 		return nil, errors.New("break-minute recalc failed")
@@ -369,7 +417,7 @@ func TestAutoCheckout_ReturnsErrorWhenActiveBreakRecalcFailsAfterClose(t *testin
 	require.Error(t, err)
 	assert.Equal(t, 0, count)
 	assert.True(t, closed, "auto-checkout must claim the session before mutating breaks")
-	assert.Equal(t, 2, getBreaksCalls)
+	assert.Equal(t, 3, getBreaksCalls)
 }
 
 func TestAutoCheckout_BreakCappedAtShiftEnd(t *testing.T) {
@@ -531,6 +579,51 @@ func TestAutoCheckout_SkipsCompletedBreakEndedAfterShiftEnd(t *testing.T) {
 	assert.Equal(t, 0, count)
 }
 
+func TestAutoCheckout_RechecksBreaksAfterCloseBeforeAudit(t *testing.T) {
+	yesterday := timezone.TodayDate().AddDays(-1)
+	staffID := int64(7)
+	session := &activeModels.WorkSession{
+		StaffID:     staffID,
+		Date:        yesterday,
+		CheckInTime: yesterday.BerlinMidnight().Add(8 * time.Hour),
+	}
+	session.ID = 42
+	shift := shiftFor(staffID, yesterday, 8, 16)
+
+	service, sessionRepo, breakRepo, auditRepo, _ := autoCheckoutFixture(
+		[]*activeModels.WorkSession{session},
+		[]*scheduleModels.StaffShift{shift},
+	)
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) (bool, error) {
+		return true, nil
+	}
+	auditRepo.createBatchFunc = func(_ context.Context, _ []*auditModels.WorkSessionEdit) error {
+		t.Fatal("late break discovered after close must roll back before audit")
+		return nil
+	}
+
+	lateBreak := &activeModels.WorkSessionBreak{StartedAt: shift.EndInstant().Add(10 * time.Minute)}
+	lateBreak.ID = 9
+	getBreaksCalls := 0
+	breakRepo.getBySessionIDFunc = func(_ context.Context, _ int64) ([]*activeModels.WorkSessionBreak, error) {
+		getBreaksCalls++
+		if getBreaksCalls == 1 {
+			return nil, nil
+		}
+		return []*activeModels.WorkSessionBreak{lateBreak}, nil
+	}
+	breakRepo.endBreakFunc = func(_ context.Context, _ int64, _ time.Time, _ int) error {
+		t.Fatal("late break must not be ended at a checkout time before it started")
+		return nil
+	}
+
+	count, err := service.AutoCheckoutDueSessions(context.Background(), 15*time.Minute)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "late break detected")
+	assert.Equal(t, 0, count)
+	assert.Equal(t, 2, getBreaksCalls)
+}
+
 func TestAutoCheckout_AuditFailureReturnsError(t *testing.T) {
 	yesterday := timezone.TodayDate().AddDays(-1)
 	staffID := int64(7)
@@ -611,6 +704,9 @@ func TestAutoCheckout_EndsActiveSupervisions(t *testing.T) {
 	service.SetStaffShiftRepo(shiftRepo)
 	sessionRepo.getOpenSessionsFunc = func(_ context.Context, _ timezone.Date) ([]*activeModels.WorkSession, error) {
 		return []*activeModels.WorkSession{session}, nil
+	}
+	sessionRepo.lockOpenByIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
+		return session, nil
 	}
 	shiftRepo.findByStaffIDsAndDateFunc = func(_ context.Context, _ []int64, _ timezone.Date) ([]*scheduleModels.StaffShift, error) {
 		return []*scheduleModels.StaffShift{shift}, nil

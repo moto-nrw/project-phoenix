@@ -78,6 +78,10 @@ func (m *shiftMockRepo) FindByStaffIDsAndDate(_ context.Context, _ []int64, _ ti
 	return nil, nil
 }
 
+func (m *shiftMockRepo) DeleteUpcomingByStaffID(context.Context, int64, timezone.Date) (int64, error) {
+	return 0, nil
+}
+
 type shiftMockStaffRepo struct {
 	findByIDFunc func(ctx context.Context, id interface{}) (*usersModels.Staff, error)
 }
