@@ -21,11 +21,6 @@ type AccountParent struct {
 	LastLogin    *time.Time `bun:"last_login" json:"last_login,omitempty"`
 }
 
-// TableName returns the database table name
-func (a *AccountParent) TableName() string {
-	return "auth.accounts_parents"
-}
-
 func (a *AccountParent) BeforeAppendModel(query any) error {
 	if q, ok := query.(*bun.UpdateQuery); ok {
 		q.ModelTableExpr(`auth.accounts_parents AS "accountparent"`)
@@ -61,19 +56,4 @@ func (a *AccountParent) IsActive() bool {
 // SetLastLogin updates the last login timestamp
 func (a *AccountParent) SetLastLogin(time time.Time) {
 	a.LastLogin = &time
-}
-
-// GetID returns the entity's ID
-func (a *AccountParent) GetID() interface{} {
-	return a.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (a *AccountParent) GetCreatedAt() time.Time {
-	return a.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (a *AccountParent) GetUpdatedAt() time.Time {
-	return a.UpdatedAt
 }

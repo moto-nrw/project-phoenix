@@ -3,7 +3,6 @@ package education
 import (
 	"errors"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
@@ -34,11 +33,6 @@ func (g *Group) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// TableName returns the database table name
-func (g *Group) TableName() string {
-	return "education.groups"
-}
-
 // Validate ensures group data is valid
 func (g *Group) Validate() error {
 	if g.Name == "" {
@@ -64,19 +58,4 @@ func (g *Group) SetRoom(room *facilities.Room) {
 // HasRoom checks if the group has a room assigned
 func (g *Group) HasRoom() bool {
 	return g.RoomID != nil && *g.RoomID > 0
-}
-
-// GetID returns the entity's ID
-func (m *Group) GetID() interface{} {
-	return m.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (m *Group) GetCreatedAt() time.Time {
-	return m.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (m *Group) GetUpdatedAt() time.Time {
-	return m.UpdatedAt
 }

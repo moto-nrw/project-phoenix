@@ -2,7 +2,6 @@ package activities
 
 import (
 	"errors"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -23,26 +22,6 @@ type SupervisorPlanned struct {
 	// Relations - these would be populated when using the ORM's relations
 	Staff *users.Staff `bun:"rel:belongs-to,join:staff_id=id" json:"staff,omitempty"`
 	Group *Group       `bun:"rel:belongs-to,join:group_id=id" json:"group,omitempty"`
-}
-
-// GetID returns the entity's ID
-func (sp *SupervisorPlanned) GetID() interface{} {
-	return sp.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (sp *SupervisorPlanned) GetCreatedAt() time.Time {
-	return sp.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (sp *SupervisorPlanned) GetUpdatedAt() time.Time {
-	return sp.UpdatedAt
-}
-
-// TableName returns the database table name
-func (sp *SupervisorPlanned) TableName() string {
-	return "activities.supervisors"
 }
 
 // Validate ensures supervisor planned data is valid

@@ -48,19 +48,6 @@ func TestOperatorMFACredential_Validate(t *testing.T) {
 	}
 }
 
-func TestOperatorMFACredential_AccessorsAndTableName(t *testing.T) {
-	now := time.Now()
-	c := &OperatorMFACredential{OperatorID: 7, Method: OperatorMFAMethodEmail}
-	c.ID = 99
-	c.CreatedAt = now
-	c.UpdatedAt = now.Add(time.Hour)
-
-	assert.Equal(t, int64(99), c.GetID())
-	assert.Equal(t, now, c.GetCreatedAt())
-	assert.Equal(t, now.Add(time.Hour), c.GetUpdatedAt())
-	assert.Equal(t, "platform.operator_mfa_credentials", c.TableName())
-}
-
 func TestOperatorMFACredential_BeforeAppendModel(t *testing.T) {
 	c := &OperatorMFACredential{}
 	assert.NoError(t, c.BeforeAppendModel(nil))
@@ -77,19 +64,6 @@ func TestOperatorMFAEmailChallenge_IsConsumed(t *testing.T) {
 	assert.True(t, consumed.IsConsumed())
 }
 
-func TestOperatorMFAEmailChallenge_AccessorsAndTableName(t *testing.T) {
-	now := time.Now()
-	c := &OperatorMFAEmailChallenge{OperatorID: 8, CodeHash: "h", ExpiresAt: now}
-	c.ID = 101
-	c.CreatedAt = now
-	c.UpdatedAt = now.Add(time.Hour)
-
-	assert.Equal(t, int64(101), c.GetID())
-	assert.Equal(t, now, c.GetCreatedAt())
-	assert.Equal(t, now.Add(time.Hour), c.GetUpdatedAt())
-	assert.Equal(t, "platform.operator_mfa_email_challenges", c.TableName())
-}
-
 func TestOperatorMFAEmailChallenge_BeforeAppendModel(t *testing.T) {
 	c := &OperatorMFAEmailChallenge{}
 	assert.NoError(t, c.BeforeAppendModel(nil))
@@ -104,19 +78,6 @@ func TestOperatorMFATrustedDevice_IsRevoked(t *testing.T) {
 	revoked := &OperatorMFATrustedDevice{ExpiresAt: now.Add(time.Hour), RevokedAt: &now}
 	assert.False(t, active.IsRevoked())
 	assert.True(t, revoked.IsRevoked())
-}
-
-func TestOperatorMFATrustedDevice_AccessorsAndTableName(t *testing.T) {
-	now := time.Now()
-	d := &OperatorMFATrustedDevice{OperatorID: 9, TokenHash: "h", ExpiresAt: now}
-	d.ID = 202
-	d.CreatedAt = now
-	d.UpdatedAt = now.Add(time.Hour)
-
-	assert.Equal(t, int64(202), d.GetID())
-	assert.Equal(t, now, d.GetCreatedAt())
-	assert.Equal(t, now.Add(time.Hour), d.GetUpdatedAt())
-	assert.Equal(t, "platform.operator_mfa_trusted_devices", d.TableName())
 }
 
 func TestOperatorMFATrustedDevice_BeforeAppendModel(t *testing.T) {

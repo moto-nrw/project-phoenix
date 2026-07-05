@@ -151,11 +151,6 @@ func TestCalendarPeriod_ContainsDate(t *testing.T) {
 	assert.False(t, p.ContainsDate(time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)))  // after
 }
 
-func TestCalendarPeriod_TableName(t *testing.T) {
-	p := &CalendarPeriod{}
-	assert.Equal(t, "schedule.calendar_periods", p.TableName())
-}
-
 func TestCalendarPeriod_GetID(t *testing.T) {
 	p := &CalendarPeriod{}
 	p.ID = 42

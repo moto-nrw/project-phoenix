@@ -112,11 +112,6 @@ func TestIsValidDirection(t *testing.T) {
 	}
 }
 
-func TestVote_TableName(t *testing.T) {
-	vote := &Vote{}
-	assert.Equal(t, "suggestions.votes", vote.TableName())
-}
-
 func TestVote_GetID(t *testing.T) {
 	vote := &Vote{}
 	vote.ID = 99

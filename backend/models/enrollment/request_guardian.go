@@ -34,10 +34,6 @@ type RequestGuardian struct {
 	SortOrder         int     `bun:"sort_order,notnull,default:0" json:"sort_order"`
 }
 
-func (g *RequestGuardian) TableName() string {
-	return "enrollment.request_guardians"
-}
-
 // RequestGuardianRepository describes the DB operations the submit flow
 // (Create) and the approval flow (ListByRequestID + StampResolvedProfile)
 // need. Tenant-scoped via RLS.

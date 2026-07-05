@@ -21,7 +21,6 @@ func TestOperatorPasskeyCredentialModel(t *testing.T) {
 	}
 
 	require.NoError(t, credential.Validate())
-	assert.Equal(t, "platform.operator_passkey_credentials", credential.TableName())
 	assert.Equal(t, credential.ID, credential.GetID())
 	assert.Equal(t, now, credential.GetCreatedAt())
 	assert.Equal(t, now, credential.GetUpdatedAt())
@@ -56,7 +55,6 @@ func TestOperatorPasskeySessionModel(t *testing.T) {
 	}
 
 	require.NoError(t, session.Validate())
-	assert.Equal(t, "platform.operator_passkey_sessions", session.TableName())
 	assert.Equal(t, "session", session.GetID())
 	assert.Equal(t, now, session.GetCreatedAt())
 	assert.Equal(t, now, session.GetUpdatedAt())

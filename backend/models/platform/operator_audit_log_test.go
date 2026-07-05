@@ -77,11 +77,6 @@ func TestOperatorAuditLog_GetChanges_InvalidJSON(t *testing.T) {
 	assert.Nil(t, changes)
 }
 
-func TestOperatorAuditLog_TableName(t *testing.T) {
-	log := &OperatorAuditLog{}
-	assert.Equal(t, "platform.operator_audit_log", log.TableName())
-}
-
 func TestOperatorAuditLog_BeforeAppendModel_SelectQuery(t *testing.T) {
 	log := &OperatorAuditLog{}
 	query := &bun.SelectQuery{}

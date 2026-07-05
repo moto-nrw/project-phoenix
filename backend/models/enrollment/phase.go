@@ -139,11 +139,6 @@ func (p *Phase) IsRollover() bool {
 	return p.RolloverSourcePhaseID != nil && p.RolloverMode != nil
 }
 
-// TableName returns the schema-qualified table name.
-func (p *Phase) TableName() string {
-	return "enrollment.phases"
-}
-
 // Validate runs the column-level checks in app code so the service can
 // fail fast before round-tripping. Mirrors the CHECK clauses from
 // migration 1.15.67 plus a couple of sanity rules (name non-empty,

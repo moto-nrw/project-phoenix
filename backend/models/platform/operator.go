@@ -47,11 +47,6 @@ func (o *Operator) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// TableName returns the database table name
-func (o *Operator) TableName() string {
-	return tablePlatformOperators
-}
-
 // Validate ensures operator data is valid
 func (o *Operator) Validate() error {
 	o.Email = strings.TrimSpace(strings.ToLower(o.Email))
@@ -73,19 +68,4 @@ func (o *Operator) Validate() error {
 		return errors.New("display name must not exceed 100 characters")
 	}
 	return nil
-}
-
-// GetID returns the entity's ID
-func (o *Operator) GetID() any {
-	return o.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (o *Operator) GetCreatedAt() time.Time {
-	return o.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (o *Operator) GetUpdatedAt() time.Time {
-	return o.UpdatedAt
 }

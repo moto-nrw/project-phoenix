@@ -3,7 +3,6 @@ package config
 import (
 	"encoding/json"
 	"errors"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
@@ -32,18 +31,6 @@ func (sv *SettingValue) BeforeAppendModel(query any) error {
 	}
 	return nil
 }
-
-// GetID returns the entity's ID.
-func (sv *SettingValue) GetID() interface{} { return sv.ID }
-
-// GetCreatedAt returns the creation timestamp.
-func (sv *SettingValue) GetCreatedAt() time.Time { return sv.CreatedAt }
-
-// GetUpdatedAt returns the last update timestamp.
-func (sv *SettingValue) GetUpdatedAt() time.Time { return sv.UpdatedAt }
-
-// TableName returns the database table name.
-func (sv *SettingValue) TableName() string { return tableSettingValues }
 
 // Validate checks that all required fields are set.
 func (sv *SettingValue) Validate() error {

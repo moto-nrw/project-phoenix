@@ -39,21 +39,9 @@ func (d *MFATrustedDevice) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// TableName returns the database table name.
-func (d *MFATrustedDevice) TableName() string { return "auth.mfa_trusted_devices" }
-
 // IsRevoked returns true once the device was explicitly revoked. This is a pure
 // field accessor (RevokedAt != nil); the wall-clock expiry/active decision lives
 // in the auth service (services/auth.MFATrustedDeviceExpired /
 // MFATrustedDeviceActive) and the repository's active-device finders, per issue
 // #586 (Rule 12).
 func (d *MFATrustedDevice) IsRevoked() bool { return d.RevokedAt != nil }
-
-// GetID returns the entity's primary key. Required by base.Entity.
-func (d *MFATrustedDevice) GetID() interface{} { return d.ID }
-
-// GetCreatedAt returns the row creation timestamp. Required by base.Entity.
-func (d *MFATrustedDevice) GetCreatedAt() time.Time { return d.CreatedAt }
-
-// GetUpdatedAt returns the last update timestamp. Required by base.Entity.
-func (d *MFATrustedDevice) GetUpdatedAt() time.Time { return d.UpdatedAt }

@@ -12,10 +12,6 @@ import (
 
 // --- Request -------------------------------------------------------------
 
-func TestRequest_TableName(t *testing.T) {
-	assert.Equal(t, "enrollment.requests", (&Request{}).TableName())
-}
-
 func TestRequestStatus_StableValues(t *testing.T) {
 	// Derived statuses — the request service computes one of these from
 	// the per-child set. The admin list page filters on them by string,

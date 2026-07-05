@@ -837,11 +837,6 @@ type FormSchema struct {
 	CreatedBy        int64            `bun:"created_by,notnull" json:"created_by"`
 }
 
-// TableName returns the schema-qualified table name.
-func (s *FormSchema) TableName() string {
-	return "enrollment.form_schemas"
-}
-
 // Validate checks fields for duplicate keys + per-field validity.
 func (s *FormSchema) Validate() error {
 	if s.Name == "" {

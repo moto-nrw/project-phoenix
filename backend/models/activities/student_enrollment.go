@@ -2,7 +2,6 @@ package activities
 
 import (
 	"errors"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -55,26 +54,6 @@ func (se *StudentEnrollment) BeforeAppendModel(query any) error {
 		q.ModelTableExpr(tableActivitiesStudentEnrollments)
 	}
 	return nil
-}
-
-// GetID returns the entity's ID
-func (se *StudentEnrollment) GetID() interface{} {
-	return se.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (se *StudentEnrollment) GetCreatedAt() time.Time {
-	return se.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (se *StudentEnrollment) GetUpdatedAt() time.Time {
-	return se.UpdatedAt
-}
-
-// TableName returns the database table name
-func (se *StudentEnrollment) TableName() string {
-	return tableActivitiesStudentEnrollments
 }
 
 // IsValidAttendanceStatus checks if the attendance status is valid

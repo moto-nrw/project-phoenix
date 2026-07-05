@@ -39,8 +39,6 @@ func (c *PasskeyCredential) BeforeAppendModel(query any) error {
 	return nil
 }
 
-func (c *PasskeyCredential) TableName() string { return "auth.passkey_credentials" }
-
 func (c *PasskeyCredential) Validate() error {
 	if c.AccountID == 0 {
 		return errors.New("account_id is required")
@@ -56,10 +54,6 @@ func (c *PasskeyCredential) Validate() error {
 	}
 	return nil
 }
-
-func (c *PasskeyCredential) GetID() interface{}      { return c.ID }
-func (c *PasskeyCredential) GetCreatedAt() time.Time { return c.CreatedAt }
-func (c *PasskeyCredential) GetUpdatedAt() time.Time { return c.UpdatedAt }
 
 // PasskeySession stores the server-side WebAuthn ceremony state.
 type PasskeySession struct {
@@ -85,8 +79,6 @@ func (s *PasskeySession) BeforeAppendModel(query any) error {
 	}
 	return nil
 }
-
-func (s *PasskeySession) TableName() string { return "auth.passkey_sessions" }
 
 func (s *PasskeySession) GetID() interface{}      { return s.ID }
 func (s *PasskeySession) GetCreatedAt() time.Time { return s.CreatedAt }

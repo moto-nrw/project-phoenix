@@ -49,8 +49,6 @@ func (m *WorkTimeModel) BeforeAppendModel(query any) error {
 	return nil
 }
 
-func (m *WorkTimeModel) TableName() string { return tableWorkTimeModels }
-
 func (m *WorkTimeModel) SetTenantID(tenantID int64) { m.TenantID = tenantID }
 
 func (m *WorkTimeModel) Validate() error {
@@ -94,8 +92,6 @@ func (e *WorkTimeModelEntry) BeforeAppendModel(query any) error {
 	}
 	return nil
 }
-
-func (e *WorkTimeModelEntry) TableName() string { return tableWorkTimeModelEntries }
 
 func (e *WorkTimeModelEntry) Validate() error {
 	// model_id is set right before insert by the repository, so validating

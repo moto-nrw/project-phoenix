@@ -91,11 +91,6 @@ func (l *OperatorAuditLog) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// TableName returns the database table name
-func (l *OperatorAuditLog) TableName() string {
-	return tablePlatformOperatorAuditLog
-}
-
 // SetChanges sets the changes field from a map
 func (l *OperatorAuditLog) SetChanges(changes map[string]any) error {
 	data, err := json.Marshal(changes)

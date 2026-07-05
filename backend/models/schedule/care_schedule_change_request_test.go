@@ -26,18 +26,6 @@ func TestCareScheduleChangeRequest_IsTerminal(t *testing.T) {
 	}
 }
 
-func TestCareScheduleChangeRequest_TableName(t *testing.T) {
-	req := &CareScheduleChangeRequest{}
-	if got := req.TableName(); got != tableScheduleCareScheduleChangeRequests {
-		t.Errorf("TableName() = %q, want %q", got, tableScheduleCareScheduleChangeRequests)
-	}
-	// The schema-qualified name is what BUN needs; a bare table name would
-	// resolve against the wrong search_path.
-	if want := "schedule.care_schedule_change_requests"; req.TableName() != want {
-		t.Errorf("TableName() = %q, want %q", req.TableName(), want)
-	}
-}
-
 func TestCareScheduleChangeRequest_BeforeAppendModel_IgnoresNonWriteQueries(t *testing.T) {
 	req := &CareScheduleChangeRequest{}
 	// A nil / non-write query type must be tolerated without panicking and

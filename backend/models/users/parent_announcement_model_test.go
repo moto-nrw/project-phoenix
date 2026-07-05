@@ -60,13 +60,4 @@ func TestParentAnnouncement_BeforeAppendModelRoutesQueryKinds(t *testing.T) {
 	require.NoError(t, a.BeforeAppendModel(db.NewDelete().Model(a)))
 	// A non-query argument is a no-op, not a panic.
 	require.NoError(t, a.BeforeAppendModel(nil))
-	assert.Equal(t, "users.parent_announcements", a.TableName())
-}
-
-func TestParentAnnouncementTarget_TableName(t *testing.T) {
-	assert.Equal(t, "users.parent_announcement_targets", (&ParentAnnouncementTarget{}).TableName())
-}
-
-func TestParentAnnouncementRead_TableName(t *testing.T) {
-	assert.Equal(t, "users.parent_announcement_reads", (&ParentAnnouncementRead{}).TableName())
 }

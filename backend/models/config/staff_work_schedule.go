@@ -27,6 +27,8 @@ const (
 // rotation (e.g. A/B-Wochen). Existing rows from the single-week era default to
 // week_index=0 / rotation_length=1 and behave exactly as before.
 type StaffWorkSchedule struct {
+	bun.BaseModel `bun:"table:config.staff_work_schedules,alias:staff_work_schedule"`
+
 	ID             int64          `bun:"id,pk,autoincrement" json:"id"`
 	TenantID       int64          `bun:"tenant_id,notnull" json:"tenant_id"`
 	StaffID        int64          `bun:"staff_id,notnull" json:"staff_id"`
@@ -52,10 +54,6 @@ func (s *StaffWorkSchedule) BeforeAppendModel(query any) error {
 		q.ModelTableExpr(tableStaffWorkSchedules)
 	}
 	return nil
-}
-
-func (s *StaffWorkSchedule) TableName() string {
-	return tableStaffWorkSchedules
 }
 
 func (s *StaffWorkSchedule) Validate() error {

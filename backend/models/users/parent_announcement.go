@@ -100,9 +100,6 @@ func (a *ParentAnnouncement) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// TableName returns the schema-qualified table name.
-func (a *ParentAnnouncement) TableName() string { return tableUsersParentAnnouncements }
-
 // IsPublished reports whether the announcement has been published (vs draft).
 func (a *ParentAnnouncement) IsPublished() bool {
 	return a.PublishedAt != nil
@@ -125,9 +122,6 @@ type ParentAnnouncementTarget struct {
 	CreatedAt      time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp" json:"created_at"`
 }
 
-// TableName returns the schema-qualified table name.
-func (t *ParentAnnouncementTarget) TableName() string { return tableUsersParentAnnouncementTargets }
-
 // ParentAnnouncementRead is a guardian account's read/ack state for one
 // announcement. Read state is account-global (one row per account+announcement),
 // not per child: the feed is a cross-child, cross-tenant list, so "gelesen" is
@@ -141,9 +135,6 @@ type ParentAnnouncementRead struct {
 	ReadAt         time.Time  `bun:"read_at,notnull" json:"read_at"`
 	AcknowledgedAt *time.Time `bun:"acknowledged_at" json:"acknowledged_at,omitempty"`
 }
-
-// TableName returns the schema-qualified table name.
-func (r *ParentAnnouncementRead) TableName() string { return tableUsersParentAnnouncementReads }
 
 // AnnouncementFeedItem is the parent-facing list/detail projection: the
 // announcement core fields plus the authoring school's name (the feed is

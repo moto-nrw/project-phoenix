@@ -203,11 +203,6 @@ func TestIsValidStatus(t *testing.T) {
 	}
 }
 
-func TestPost_TableName(t *testing.T) {
-	post := &Post{}
-	assert.Equal(t, "suggestions.posts", post.TableName())
-}
-
 func TestPost_GetID(t *testing.T) {
 	post := &Post{}
 	post.ID = 42

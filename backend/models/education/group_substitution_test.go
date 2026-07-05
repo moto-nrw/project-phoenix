@@ -300,13 +300,6 @@ func TestGroupSubstitution_SetSubstituteStaff(t *testing.T) {
 	})
 }
 
-func TestGroupSubstitution_TableName(t *testing.T) {
-	gs := &GroupSubstitution{}
-	if got := gs.TableName(); got != "education.group_substitution" {
-		t.Errorf("TableName() = %v, want education.group_substitution", got)
-	}
-}
-
 func TestGroupSubstitution_GetID(t *testing.T) {
 	gs := &GroupSubstitution{
 		Model:             base.Model{ID: 42},

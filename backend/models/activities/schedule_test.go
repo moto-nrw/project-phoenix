@@ -177,13 +177,6 @@ func TestScheduleHasTimeframe(t *testing.T) {
 	}
 }
 
-func TestSchedule_TableName(t *testing.T) {
-	schedule := &Schedule{}
-	if got := schedule.TableName(); got != "activities.schedules" {
-		t.Errorf("TableName() = %v, want activities.schedules", got)
-	}
-}
-
 func TestSchedule_BeforeAppendModel(t *testing.T) {
 	t.Run("handles nil query", func(t *testing.T) {
 		schedule := &Schedule{Weekday: WeekdayMonday, ActivityGroupID: 1}

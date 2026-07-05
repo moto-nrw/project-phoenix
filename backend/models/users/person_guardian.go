@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
@@ -69,11 +68,6 @@ func (pg *PersonGuardian) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// TableName returns the database table name
-func (pg *PersonGuardian) TableName() string {
-	return personGuardianTableName
-}
-
 // Validate ensures person guardian data is valid
 func (pg *PersonGuardian) Validate() error {
 	if pg.PersonID <= 0 {
@@ -135,19 +129,4 @@ func (pg *PersonGuardian) GetRelationshipName() string {
 	default:
 		return "Unknown"
 	}
-}
-
-// GetID returns the entity's ID
-func (m *PersonGuardian) GetID() interface{} {
-	return m.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (m *PersonGuardian) GetCreatedAt() time.Time {
-	return m.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (m *PersonGuardian) GetUpdatedAt() time.Time {
-	return m.UpdatedAt
 }

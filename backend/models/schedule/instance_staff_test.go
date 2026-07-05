@@ -50,10 +50,6 @@ func TestInstanceStaff_Validate(t *testing.T) {
 	})
 }
 
-func TestInstanceStaff_TableName(t *testing.T) {
-	assert.Equal(t, "schedule.instance_staff", (&InstanceStaff{}).TableName())
-}
-
 func TestInstanceStaff_BeforeAppendModel(t *testing.T) {
 	s := &InstanceStaff{}
 	for _, q := range []any{&bun.SelectQuery{}, &bun.UpdateQuery{}, &bun.DeleteQuery{}, "unknown"} {

@@ -112,5 +112,4 @@ func TestStaffShiftEntityAccessors(t *testing.T) {
 	assert.Equal(t, int64(123), shift.GetID())
 	assert.Equal(t, shift.CreatedAt, shift.GetCreatedAt())
 	assert.Equal(t, shift.UpdatedAt, shift.GetUpdatedAt())
-	assert.Equal(t, tableScheduleStaffShifts, shift.TableName())
 }

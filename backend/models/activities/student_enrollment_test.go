@@ -258,11 +258,6 @@ func TestStudentEnrollment_BeforeAppendModel(t *testing.T) {
 	})
 }
 
-func TestStudentEnrollment_TableName(t *testing.T) {
-	se := &StudentEnrollment{}
-	assert.Equal(t, "activities.student_enrollments", se.TableName())
-}
-
 func TestStudentEnrollment_GetID(t *testing.T) {
 	se := &StudentEnrollment{}
 	se.ID = 123

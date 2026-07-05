@@ -129,11 +129,6 @@ func (s *Student) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// TableName returns the database table name
-func (s *Student) TableName() string {
-	return "users.students"
-}
-
 // Validate ensures student data is valid
 func (s *Student) Validate() error {
 	if s.PersonID <= 0 {
@@ -272,21 +267,6 @@ func (s *Student) SetPerson(person *Person) {
 	if person != nil {
 		s.PersonID = person.ID
 	}
-}
-
-// GetID returns the entity's ID
-func (m *Student) GetID() interface{} {
-	return m.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (m *Student) GetCreatedAt() time.Time {
-	return m.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (m *Student) GetUpdatedAt() time.Time {
-	return m.UpdatedAt
 }
 
 // StudentWithGroupInfo represents a student with their group information

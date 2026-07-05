@@ -270,13 +270,6 @@ func TestDevice_BeforeAppendModel(t *testing.T) {
 	})
 }
 
-func TestDevice_TableName(t *testing.T) {
-	device := &Device{}
-	if got := device.TableName(); got != "iot.devices" {
-		t.Errorf("TableName() = %v, want iot.devices", got)
-	}
-}
-
 func TestDevice_IsOffline(t *testing.T) {
 	tests := []struct {
 		name     string

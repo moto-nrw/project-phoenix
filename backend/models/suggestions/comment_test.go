@@ -192,11 +192,6 @@ func TestComment_Validate_ContentExactly5000Chars(t *testing.T) {
 // Table and Model Methods Tests
 // =============================================================================
 
-func TestComment_TableName(t *testing.T) {
-	c := &Comment{}
-	assert.Equal(t, "suggestions.comments", c.TableName())
-}
-
 func TestComment_GetID(t *testing.T) {
 	c := &Comment{}
 	c.ID = 123

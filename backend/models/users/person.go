@@ -37,11 +37,6 @@ func (p *Person) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// TableName returns the database table name
-func (p *Person) TableName() string {
-	return "users.persons"
-}
-
 // Validate ensures person data is valid
 func (p *Person) Validate() error {
 	if p.FirstName == "" {
@@ -96,19 +91,4 @@ func (p *Person) HasRFIDCard() bool {
 // HasAccount checks if the person has an account assigned
 func (p *Person) HasAccount() bool {
 	return p.AccountID != nil && *p.AccountID > 0
-}
-
-// GetID returns the entity's ID
-func (m *Person) GetID() interface{} {
-	return m.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (m *Person) GetCreatedAt() time.Time {
-	return m.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (m *Person) GetUpdatedAt() time.Time {
-	return m.UpdatedAt
 }

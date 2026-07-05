@@ -176,13 +176,6 @@ func TestToken_FamilyTracking(t *testing.T) {
 	})
 }
 
-func TestToken_TableName(t *testing.T) {
-	token := &Token{}
-	if got := token.TableName(); got != "auth.tokens" {
-		t.Errorf("TableName() = %v, want auth.tokens", got)
-	}
-}
-
 func TestToken_BeforeAppendModel(t *testing.T) {
 	// BeforeAppendModel modifies query table expressions for different query types
 	// It doesn't set timestamps - those are handled by the base model or repository

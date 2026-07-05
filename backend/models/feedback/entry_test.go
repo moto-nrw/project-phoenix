@@ -227,13 +227,6 @@ func TestEntry_BeforeAppendModel(t *testing.T) {
 	})
 }
 
-func TestEntry_TableName(t *testing.T) {
-	entry := &Entry{}
-	if got := entry.TableName(); got != "feedback.entries" {
-		t.Errorf("TableName() = %v, want feedback.entries", got)
-	}
-}
-
 func TestEntry_GetID(t *testing.T) {
 	entry := &Entry{
 		Model:     base.Model{ID: 42},

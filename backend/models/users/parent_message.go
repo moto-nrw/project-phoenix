@@ -105,9 +105,6 @@ func (m *ParentMessage) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// GetID/GetCreatedAt/GetUpdatedAt are provided by the embedded base.Model.
-func (m *ParentMessage) TableName() string { return tableUsersParentMessages }
-
 // atOrBeforeCursor reports whether the message sits at or before the read cursor,
 // comparing on the SAME composite (created_at, id) the unread predicates use, not
 // the timestamp alone: two messages can share a created_at, and a timestamp-only

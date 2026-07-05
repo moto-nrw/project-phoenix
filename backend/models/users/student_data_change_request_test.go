@@ -24,7 +24,6 @@ func TestStudentDataChangeRequest_AccessorsAndTableHooks(t *testing.T) {
 	assert.Equal(t, int64(42), row.GetID())
 	assert.Equal(t, now, row.GetCreatedAt())
 	assert.Equal(t, now.Add(time.Hour), row.GetUpdatedAt())
-	assert.Equal(t, "users.student_data_change_requests", row.TableName())
 
 	require.NoError(t, row.BeforeAppendModel(db.NewInsert().Model(row)))
 	require.NoError(t, row.BeforeAppendModel(db.NewUpdate().Model(row)))

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
@@ -37,11 +36,6 @@ func (r *RFIDCard) BeforeAppendModel(query any) error {
 		q.ModelTableExpr(rfidCardTableName)
 	}
 	return nil
-}
-
-// TableName returns the database table name
-func (r *RFIDCard) TableName() string {
-	return rfidCardTableName
 }
 
 // Validate ensures the RFID card data is valid
@@ -92,19 +86,4 @@ func (r *RFIDCard) Activate() {
 // Deactivate sets the RFID card as inactive
 func (r *RFIDCard) Deactivate() {
 	r.Active = false
-}
-
-// GetID returns the ID of the RFID card
-func (r *RFIDCard) GetID() interface{} {
-	return r.ID
-}
-
-// GetCreatedAt returns the creation timestamp of the RFID card
-func (r *RFIDCard) GetCreatedAt() time.Time {
-	return r.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp of the RFID card
-func (r *RFIDCard) GetUpdatedAt() time.Time {
-	return r.UpdatedAt
 }

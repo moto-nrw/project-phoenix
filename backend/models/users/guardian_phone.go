@@ -4,7 +4,6 @@ import (
 	"errors"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
@@ -27,9 +26,6 @@ var ValidPhoneTypes = map[PhoneType]bool{
 	PhoneTypeWork:   true,
 	PhoneTypeOther:  true,
 }
-
-// tableGuardianPhoneNumbers is the schema-qualified table name
-const tableGuardianPhoneNumbers = "users.guardian_phone_numbers"
 
 // Validation bounds for guardian phone numbers.
 const (
@@ -63,11 +59,6 @@ func (g *GuardianPhoneNumber) BeforeAppendModel(query any) error {
 		q.ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`)
 	}
 	return nil
-}
-
-// TableName returns the database table name
-func (g *GuardianPhoneNumber) TableName() string {
-	return tableGuardianPhoneNumbers
 }
 
 // Validate ensures guardian phone number data is valid
@@ -118,21 +109,6 @@ func (g *GuardianPhoneNumber) Validate() error {
 	}
 
 	return nil
-}
-
-// GetID returns the entity's ID
-func (g *GuardianPhoneNumber) GetID() any {
-	return g.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (g *GuardianPhoneNumber) GetCreatedAt() time.Time {
-	return g.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (g *GuardianPhoneNumber) GetUpdatedAt() time.Time {
-	return g.UpdatedAt
 }
 
 // GetDisplayString returns a formatted display string for the phone number

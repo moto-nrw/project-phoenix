@@ -497,13 +497,6 @@ func TestGuardianProfile_BeforeAppendModel(t *testing.T) {
 	})
 }
 
-func TestGuardianProfile_TableName(t *testing.T) {
-	profile := &GuardianProfile{}
-	if got := profile.TableName(); got != "users.guardian_profiles" {
-		t.Errorf("TableName() = %v, want users.guardian_profiles", got)
-	}
-}
-
 func TestGuardianProfile_GetID(t *testing.T) {
 	profile := &GuardianProfile{
 		Model:     base.Model{ID: 42},

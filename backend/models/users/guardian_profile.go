@@ -4,7 +4,6 @@ import (
 	"errors"
 	"net/mail"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -71,11 +70,6 @@ func (g *GuardianProfile) BeforeAppendModel(query any) error {
 		q.ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`)
 	}
 	return nil
-}
-
-// TableName returns the database table name
-func (g *GuardianProfile) TableName() string {
-	return "users.guardian_profiles"
 }
 
 // Validate ensures guardian data is valid
@@ -210,19 +204,4 @@ func (g *GuardianProfile) HasEmail() bool {
 // edit their data, while isSelf already keys off account_id (#1667 review).
 func (g *GuardianProfile) HasPortalAccount() bool {
 	return g.HasAccount || g.AccountID != nil
-}
-
-// GetID returns the entity's ID
-func (g *GuardianProfile) GetID() interface{} {
-	return g.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (g *GuardianProfile) GetCreatedAt() time.Time {
-	return g.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (g *GuardianProfile) GetUpdatedAt() time.Time {
-	return g.UpdatedAt
 }

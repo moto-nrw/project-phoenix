@@ -296,13 +296,6 @@ func TestPrivacyConsent_BeforeAppendModel(t *testing.T) {
 	})
 }
 
-func TestPrivacyConsent_TableName(t *testing.T) {
-	pc := &PrivacyConsent{}
-	if got := pc.TableName(); got != "users.privacy_consents" {
-		t.Errorf("TableName() = %v, want users.privacy_consents", got)
-	}
-}
-
 func TestPrivacyConsent_NeedsRenewal(t *testing.T) {
 	tests := []struct {
 		name            string

@@ -53,8 +53,6 @@ func (s *StaffShift) BeforeAppendModel(query any) error {
 	return nil
 }
 
-func (s *StaffShift) TableName() string { return tableScheduleStaffShifts }
-
 // Validate ensures shift data is consistent.
 func (s *StaffShift) Validate() error {
 	if s.StaffID <= 0 {
@@ -99,19 +97,4 @@ func (s *StaffShift) Overlaps(other *StaffShift) bool {
 func (s *StaffShift) EndInstant() time.Time {
 	wc := timezone.WallClock(s.EndTime)
 	return time.Date(s.Date.Year, s.Date.Month, s.Date.Day, wc.Hour(), wc.Minute(), wc.Second(), 0, timezone.Berlin)
-}
-
-// GetID implements the Entity interface
-func (s *StaffShift) GetID() interface{} {
-	return s.ID
-}
-
-// GetCreatedAt implements the Entity interface
-func (s *StaffShift) GetCreatedAt() time.Time {
-	return s.CreatedAt
-}
-
-// GetUpdatedAt implements the Entity interface
-func (s *StaffShift) GetUpdatedAt() time.Time {
-	return s.UpdatedAt
 }

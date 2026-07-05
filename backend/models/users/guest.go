@@ -4,7 +4,6 @@ import (
 	"errors"
 	"net/mail"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -38,11 +37,6 @@ func (s *Guest) BeforeAppendModel(query any) error {
 		q.ModelTableExpr(guestTableName)
 	}
 	return nil
-}
-
-// TableName returns the database table name
-func (g *Guest) TableName() string {
-	return guestTableName
 }
 
 // Validate ensures guest data is valid
@@ -113,19 +107,4 @@ func (g *Guest) AddNotes(notes string) {
 	} else {
 		g.Notes += "\n" + notes
 	}
-}
-
-// GetID returns the entity's ID
-func (m *Guest) GetID() interface{} {
-	return m.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (m *Guest) GetCreatedAt() time.Time {
-	return m.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (m *Guest) GetUpdatedAt() time.Time {
-	return m.UpdatedAt
 }

@@ -3,7 +3,6 @@ package suggestions
 import (
 	"errors"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
@@ -65,11 +64,6 @@ func (p *Post) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// TableName returns the database table name
-func (p *Post) TableName() string {
-	return tableSuggestionsPosts
-}
-
 // Validate ensures post data is valid
 func (p *Post) Validate() error {
 	p.Title = strings.TrimSpace(p.Title)
@@ -104,19 +98,4 @@ func IsValidStatus(status string) bool {
 	default:
 		return false
 	}
-}
-
-// GetID returns the entity's ID
-func (p *Post) GetID() any {
-	return p.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (p *Post) GetCreatedAt() time.Time {
-	return p.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (p *Post) GetUpdatedAt() time.Time {
-	return p.UpdatedAt
 }

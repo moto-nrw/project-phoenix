@@ -73,13 +73,6 @@ func TestAccountRole_Validate(t *testing.T) {
 	}
 }
 
-func TestAccountRole_TableName(t *testing.T) {
-	ar := &AccountRole{}
-	if got := ar.TableName(); got != "auth.account_roles" {
-		t.Errorf("TableName() = %v, want auth.account_roles", got)
-	}
-}
-
 func TestAccountRole_BeforeAppendModel(t *testing.T) {
 	// BeforeAppendModel modifies query table expressions for different query types
 	// It doesn't set timestamps - those are handled by the base model or repository

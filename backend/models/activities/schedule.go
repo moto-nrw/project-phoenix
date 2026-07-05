@@ -2,7 +2,6 @@ package activities
 
 import (
 	"errors"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -58,26 +57,6 @@ func (s *Schedule) BeforeAppendModel(query any) error {
 		q.ModelTableExpr(tableActivitiesSchedules)
 	}
 	return nil
-}
-
-// GetID returns the entity's ID
-func (s *Schedule) GetID() interface{} {
-	return s.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (s *Schedule) GetCreatedAt() time.Time {
-	return s.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (s *Schedule) GetUpdatedAt() time.Time {
-	return s.UpdatedAt
-}
-
-// TableName returns the database table name
-func (s *Schedule) TableName() string {
-	return tableActivitiesSchedules
 }
 
 // IsValidWeekday checks if the weekday is valid (ISO 8601: 1-7)

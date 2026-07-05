@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -37,11 +36,6 @@ func (p *Profile) BeforeAppendModel(query any) error {
 		q.ModelTableExpr(profileTableName)
 	}
 	return nil
-}
-
-// TableName returns the database table name
-func (p *Profile) TableName() string {
-	return profileTableName
 }
 
 // Validate ensures profile data is valid
@@ -135,19 +129,4 @@ func (p *Profile) HasAvatar() bool {
 // HasBio checks if the profile has a bio
 func (p *Profile) HasBio() bool {
 	return p.Bio != ""
-}
-
-// GetID returns the entity's ID
-func (m *Profile) GetID() interface{} {
-	return m.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (m *Profile) GetCreatedAt() time.Time {
-	return m.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (m *Profile) GetUpdatedAt() time.Time {
-	return m.UpdatedAt
 }

@@ -73,13 +73,6 @@ func TestRolePermission_Validate(t *testing.T) {
 	}
 }
 
-func TestRolePermission_TableName(t *testing.T) {
-	rp := &RolePermission{}
-	if got := rp.TableName(); got != "auth.role_permissions" {
-		t.Errorf("TableName() = %v, want auth.role_permissions", got)
-	}
-}
-
 func TestRolePermission_BeforeAppendModel(t *testing.T) {
 	// BeforeAppendModel modifies query table expressions for different query types
 	// It doesn't set timestamps - those are handled by the base model or repository

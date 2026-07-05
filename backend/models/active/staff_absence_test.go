@@ -141,11 +141,6 @@ func TestStaffAbsence_DurationDays(t *testing.T) {
 	})
 }
 
-func TestStaffAbsence_TableName(t *testing.T) {
-	a := &StaffAbsence{}
-	assert.Equal(t, "active.staff_absences", a.TableName())
-}
-
 func TestStaffAbsence_Getters(t *testing.T) {
 	now := time.Now()
 	a := &StaffAbsence{}

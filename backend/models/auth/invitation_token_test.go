@@ -247,13 +247,6 @@ func TestInvitationToken_EmailTracking(t *testing.T) {
 	})
 }
 
-func TestInvitationToken_TableName(t *testing.T) {
-	token := &InvitationToken{}
-	if got := token.TableName(); got != "auth.invitation_tokens" {
-		t.Errorf("TableName() = %v, want auth.invitation_tokens", got)
-	}
-}
-
 func TestInvitationToken_BeforeAppendModel(t *testing.T) {
 	// BeforeAppendModel modifies query table expressions for different query types
 	// It doesn't set timestamps - those are handled by the base model or repository

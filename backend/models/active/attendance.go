@@ -52,26 +52,6 @@ func (a *Attendance) IsOnYard() bool {
 // 	return nil
 // }
 
-// GetID returns the entity's ID
-func (a *Attendance) GetID() interface{} {
-	return a.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (a *Attendance) GetCreatedAt() time.Time {
-	return a.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (a *Attendance) GetUpdatedAt() time.Time {
-	return a.UpdatedAt
-}
-
-// TableName returns the database table name
-func (a *Attendance) TableName() string {
-	return "active.attendance"
-}
-
 // IsCheckedIn returns true if the student is currently checked in
 func (a *Attendance) IsCheckedIn() bool {
 	return a.CheckOutTime == nil

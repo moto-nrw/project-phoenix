@@ -154,13 +154,6 @@ func TestGroup_BeforeAppendModel(t *testing.T) {
 	})
 }
 
-func TestGroup_TableName(t *testing.T) {
-	group := &Group{}
-	if got := group.TableName(); got != "education.groups" {
-		t.Errorf("TableName() = %v, want education.groups", got)
-	}
-}
-
 func TestGroup_GetID(t *testing.T) {
 	group := &Group{
 		Model: base.Model{ID: 42},

@@ -2,7 +2,6 @@ package active
 
 import (
 	"errors"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
@@ -36,26 +35,6 @@ func (gm *GroupMapping) BeforeAppendModel(query any) error {
 		q.ModelTableExpr(tableActiveGroupMappings)
 	}
 	return nil
-}
-
-// GetID returns the entity's ID
-func (gm *GroupMapping) GetID() interface{} {
-	return gm.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (gm *GroupMapping) GetCreatedAt() time.Time {
-	return gm.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (gm *GroupMapping) GetUpdatedAt() time.Time {
-	return gm.UpdatedAt
-}
-
-// TableName returns the database table name
-func (gm *GroupMapping) TableName() string {
-	return tableActiveGroupMappings
 }
 
 // Validate ensures group mapping data is valid

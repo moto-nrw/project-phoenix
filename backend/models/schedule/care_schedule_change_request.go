@@ -62,11 +62,6 @@ func (c *CareScheduleChangeRequest) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// TableName returns the database table name
-func (c *CareScheduleChangeRequest) TableName() string {
-	return tableScheduleCareScheduleChangeRequests
-}
-
 // IsTerminal reports whether the row is in a final state. Only pending rows
 // accept a staff decision or a guardian withdrawal.
 func (c *CareScheduleChangeRequest) IsTerminal() bool {

@@ -56,11 +56,6 @@ func (i *GuardianInvitation) IsPendingApproval() bool {
 	return i.ApprovalStatus == GuardianInvitationApprovalPending
 }
 
-// TableName returns the fully-qualified table name
-func (i *GuardianInvitation) TableName() string {
-	return "auth.guardian_invitations"
-}
-
 // BeforeAppendModel ensures the schema-qualified table expression is used with an alias
 func (i *GuardianInvitation) BeforeAppendModel(query any) error {
 	const tableExpr = `auth.guardian_invitations AS "guardian_invitation"`
@@ -104,19 +99,4 @@ func (i *GuardianInvitation) IsAccepted() bool {
 // SetExpiry assigns a duration from now as the expiry
 func (i *GuardianInvitation) SetExpiry(duration time.Duration) {
 	i.ExpiresAt = time.Now().Add(duration)
-}
-
-// GetID returns the primary key
-func (i *GuardianInvitation) GetID() interface{} {
-	return i.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (i *GuardianInvitation) GetCreatedAt() time.Time {
-	return i.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (i *GuardianInvitation) GetUpdatedAt() time.Time {
-	return i.UpdatedAt
 }

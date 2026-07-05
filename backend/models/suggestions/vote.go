@@ -2,7 +2,6 @@ package suggestions
 
 import (
 	"errors"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
@@ -36,11 +35,6 @@ func (v *Vote) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// TableName returns the database table name
-func (v *Vote) TableName() string {
-	return tableSuggestionsVotes
-}
-
 // Validate ensures vote data is valid
 func (v *Vote) Validate() error {
 	if v.PostID <= 0 {
@@ -58,19 +52,4 @@ func (v *Vote) Validate() error {
 // IsValidDirection checks if a vote direction is valid
 func IsValidDirection(direction string) bool {
 	return direction == DirectionUp || direction == DirectionDown
-}
-
-// GetID returns the entity's ID
-func (v *Vote) GetID() any {
-	return v.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (v *Vote) GetCreatedAt() time.Time {
-	return v.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (v *Vote) GetUpdatedAt() time.Time {
-	return v.UpdatedAt
 }

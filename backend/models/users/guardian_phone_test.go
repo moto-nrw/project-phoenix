@@ -206,13 +206,6 @@ func TestGuardianPhoneNumber_Validate(t *testing.T) {
 	}
 }
 
-func TestGuardianPhoneNumber_TableName(t *testing.T) {
-	phone := &GuardianPhoneNumber{}
-	if got := phone.TableName(); got != "users.guardian_phone_numbers" {
-		t.Errorf("TableName() = %v, want users.guardian_phone_numbers", got)
-	}
-}
-
 func TestGuardianPhoneNumber_GetID(t *testing.T) {
 	phone := &GuardianPhoneNumber{
 		Model:             base.Model{ID: 42},

@@ -348,13 +348,6 @@ func TestDateframe_BeforeAppendModel(t *testing.T) {
 	})
 }
 
-func TestDateframe_TableName(t *testing.T) {
-	df := &Dateframe{}
-	if got := df.TableName(); got != "schedule.dateframes" {
-		t.Errorf("TableName() = %v, want schedule.dateframes", got)
-	}
-}
-
 func TestDateframe_GetID(t *testing.T) {
 	df := &Dateframe{
 		Model:     base.Model{ID: 42},

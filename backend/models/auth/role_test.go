@@ -195,13 +195,6 @@ func TestRole_IsSystemFlag(t *testing.T) {
 	})
 }
 
-func TestRole_TableName(t *testing.T) {
-	role := &Role{}
-	if got := role.TableName(); got != "auth.roles" {
-		t.Errorf("TableName() = %v, want auth.roles", got)
-	}
-}
-
 func TestRole_BeforeAppendModel(t *testing.T) {
 	// BeforeAppendModel modifies query table expressions for different query types
 	// It doesn't set timestamps - those are handled by the base model or repository

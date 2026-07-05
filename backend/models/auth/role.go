@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
@@ -37,11 +36,6 @@ type Role struct {
 
 	// Relations
 	Permissions []*Permission `bun:"-" json:"permissions,omitempty"`
-}
-
-// TableName returns the database table name
-func (r *Role) TableName() string {
-	return "auth.roles"
 }
 
 func (r *Role) BeforeAppendModel(query any) error {
@@ -97,19 +91,4 @@ func (r *Role) GetTenantID() int64 {
 // SetTenantID sets the tenant ID.
 func (r *Role) SetTenantID(id int64) {
 	r.TenantID = &id
-}
-
-// GetID returns the entity's ID
-func (m *Role) GetID() interface{} {
-	return m.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (m *Role) GetCreatedAt() time.Time {
-	return m.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (m *Role) GetUpdatedAt() time.Time {
-	return m.UpdatedAt
 }

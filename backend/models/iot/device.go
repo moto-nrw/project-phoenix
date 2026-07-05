@@ -59,11 +59,6 @@ func (d *Device) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// TableName returns the database table name
-func (d *Device) TableName() string {
-	return tableIoTDevices
-}
-
 // Validate ensures device data is valid
 func (d *Device) Validate() error {
 	if d.DeviceID == "" {
@@ -127,21 +122,6 @@ func (d *Device) GetLastSeenDuration() *time.Duration {
 
 	duration := time.Since(*d.LastSeen)
 	return &duration
-}
-
-// GetID returns the entity's ID
-func (m *Device) GetID() interface{} {
-	return m.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (m *Device) GetCreatedAt() time.Time {
-	return m.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (m *Device) GetUpdatedAt() time.Time {
-	return m.UpdatedAt
 }
 
 // HasAPIKey returns true if the device has an API key set

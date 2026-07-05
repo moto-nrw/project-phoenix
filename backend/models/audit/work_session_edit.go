@@ -39,11 +39,6 @@ const (
 	FieldNotes         = "notes"
 )
 
-// TableName returns the database table name
-func (e *WorkSessionEdit) TableName() string {
-	return "audit.work_session_edits"
-}
-
 // Validate ensures the edit record is valid
 func (e *WorkSessionEdit) Validate() error {
 	if e.SessionID <= 0 {

@@ -1,8 +1,6 @@
 package auth
 
 import (
-	"time"
-
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
@@ -65,18 +63,6 @@ func (o *MFAOverride) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// TableName returns the database table name.
-func (o *MFAOverride) TableName() string { return "auth.mfa_overrides" }
-
 // IsGlobal reports whether this row applies platform-wide (any tenant
 // the account belongs to). Used by the audit + UI to label rows.
 func (o *MFAOverride) IsGlobal() bool { return o.TenantID == nil }
-
-// GetID returns the entity's primary key. Required by base.Entity.
-func (o *MFAOverride) GetID() interface{} { return o.ID }
-
-// GetCreatedAt returns the row creation timestamp. Required by base.Entity.
-func (o *MFAOverride) GetCreatedAt() time.Time { return o.CreatedAt }
-
-// GetUpdatedAt returns the last update timestamp. Required by base.Entity.
-func (o *MFAOverride) GetUpdatedAt() time.Time { return o.UpdatedAt }
