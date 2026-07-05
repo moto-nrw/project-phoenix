@@ -363,6 +363,7 @@ export function EnrollmentFormEditor() {
     () => latestSchemasByName(allSchemas),
     [allSchemas],
   );
+
   const loadAll = useCallback(async () => {
     setLoading(true);
     setError(null);
