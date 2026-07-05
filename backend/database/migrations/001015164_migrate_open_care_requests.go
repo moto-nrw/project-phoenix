@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	migrateOpenCareRequestsVersion     = "1.15.163"
+	migrateOpenCareRequestsVersion     = "1.15.164"
 	migrateOpenCareRequestsDescription = "Move open chat care_schedule requests into schedule.care_schedule_change_requests, convert their chat rows to notification pills (#1803)"
 )
 
@@ -63,7 +63,7 @@ func init() {
 // Runs as the superuser CLI connection, so RLS is bypassed and one statement
 // covers all tenants.
 func migrateOpenCareRequestsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.163: Moving open care_schedule chat requests to schedule.care_schedule_change_requests...")
+	fmt.Println("Migration 1.15.164: Moving open care_schedule chat requests to schedule.care_schedule_change_requests...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -196,7 +196,7 @@ func migrateOpenCareRequestsUp(ctx context.Context, db *bun.DB) error {
 // after the cutover revert to chat requests as well — acceptable for a dev
 // rollback.
 func migrateOpenCareRequestsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.163: Restoring open care requests into users.parent_messages...")
+	fmt.Println("Rolling back migration 1.15.164: Restoring open care requests into users.parent_messages...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
