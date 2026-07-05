@@ -102,15 +102,18 @@ function MessagesInboxContent() {
         }}
       />
 
-      <div className="mb-4 flex items-center justify-end gap-2">
-        <Button
-          type="button"
-          variant={onlyUnread ? "primary" : "outline"}
-          size="md"
-          onClick={() => setOnlyUnread((prev) => !prev)}
+      {/* A single dropdown that filters on selection — same control and
+          behaviour on desktop and mobile, no separate apply step. */}
+      <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
+        <select
+          aria-label="Nachrichten filtern"
+          value={onlyUnread ? "unread" : "all"}
+          onChange={(e) => setOnlyUnread(e.target.value === "unread")}
+          className="moto-select h-10 rounded-lg border-0 bg-white px-3 text-sm font-medium text-gray-900 shadow-sm ring-1 ring-gray-200 transition-colors ring-inset hover:ring-gray-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
         >
-          Nur ungelesen
-        </Button>
+          <option value="all">Alle Nachrichten</option>
+          <option value="unread">Nur ungelesen</option>
+        </select>
         {messagingEnabled && (
           <Button
             type="button"

@@ -3,11 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 
 type AccordionSection =
-  | "groups"
-  | "supervisions"
-  | "database"
-  | "enrollments"
-  | null;
+  "groups" | "supervisions" | "database" | "enrollments" | "eltern" | null;
 
 // Paths that belong to the enrollments accordion. Centralized so the
 // sidebar's render code and the auto-expand logic stay in sync.
@@ -20,6 +16,21 @@ const ENROLLMENT_PATH_PREFIXES = [
 
 function isEnrollmentPath(p: string): boolean {
   return ENROLLMENT_PATH_PREFIXES.some((prefix) => p.startsWith(prefix));
+}
+
+// Paths that belong to the "Eltern" accordion (overview hub + the parent
+// communication sub-pages). Keep in sync with PARENT_SUB_PAGES in sidebar.tsx.
+const ELTERN_PATH_PREFIXES = [
+  "/eltern",
+  "/messages",
+  "/admin/guardian-approvals",
+  "/admin/change-requests",
+  "/parent-announcements",
+  "/meal-plan",
+];
+
+function isElternPath(p: string): boolean {
+  return ELTERN_PATH_PREFIXES.some((prefix) => p.startsWith(prefix));
 }
 
 const STORAGE_KEY = "sidebar-accordion-expanded";
@@ -37,6 +48,7 @@ function sectionFromPathname(
   if (pathname.startsWith("/active-supervisions")) return "supervisions";
   if (pathname.startsWith("/database")) return "database";
   if (isEnrollmentPath(pathname)) return "enrollments";
+  if (isElternPath(pathname)) return "eltern";
 
   // Child pages: keep the originating accordion section open
   if (fromParam) {
@@ -44,6 +56,7 @@ function sectionFromPathname(
     if (fromParam.startsWith("/active-supervisions")) return "supervisions";
     if (fromParam.startsWith("/database")) return "database";
     if (isEnrollmentPath(fromParam)) return "enrollments";
+    if (isElternPath(fromParam)) return "eltern";
   }
 
   return null;
@@ -76,7 +89,8 @@ export function useSidebarAccordion(
       stored === "groups" ||
       stored === "supervisions" ||
       stored === "database" ||
-      stored === "enrollments"
+      stored === "enrollments" ||
+      stored === "eltern"
     ) {
       setExpanded(stored);
     }

@@ -20,10 +20,6 @@ vi.mock("~/components/ui/loading", () => ({
   Loading: () => <div>loading</div>,
 }));
 
-vi.mock("~/components/ui/desktop-only-notice", () => ({
-  DesktopOnlyNotice: () => <div>desktop-notice</div>,
-}));
-
 const mockUseRequirePermission = vi.mocked(useRequirePermission);
 
 describe("AdminChangeRequestsPage", () => {
@@ -53,7 +49,6 @@ describe("AdminChangeRequestsPage", () => {
     expect(
       screen.getByRole("heading", { name: "Änderungsanfragen" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("desktop-notice")).toBeInTheDocument();
     expect(screen.getByText("master-data-review-list")).toBeInTheDocument();
     expect(screen.getByText("care-request-review-list")).toBeInTheDocument();
   });
