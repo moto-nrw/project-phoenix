@@ -1,53 +1,50 @@
 // Breadcrumb utilities for header navigation
 // Extracted to reduce cognitive complexity in header.tsx
 
-/**
- * Get page title based on pathname
- */
+const exactPageTitles: Record<string, string> = {
+  "/staff/dienstplan": "Dienstplan",
+  "/admin/guardian-approvals": "Konto-Anfragen",
+  "/admin/change-requests": "Änderungsanfragen",
+  "/parent-announcements": "Elternmitteilungen",
+  "/meal-plan": "Essensplan",
+  "/students/search": "Kindersuche",
+};
+
+const segmentPageTitles: Record<string, string> = {
+  "/messages": "Nachrichten",
+};
+
+const detailRouteTitles: Array<{
+  basePath: string;
+  rootPath: string;
+  title: string;
+}> = [
+  {
+    basePath: "/staff/",
+    rootPath: "/staff",
+    title: "Mitarbeiter Details",
+  },
+  {
+    basePath: "/rooms/",
+    rootPath: "/rooms",
+    title: "Raum Details",
+  },
+];
+
 export function getPageTitle(pathname: string): string {
-  if (pathname === "/staff/dienstplan") {
-    return "Dienstplan";
-  }
+  const exactTitle = exactPageTitles[pathname];
+  if (exactTitle) return exactTitle;
 
-  if (pathname === "/admin/guardian-approvals") {
-    return "Konto-Anfragen";
-  }
-
-  if (pathname === "/admin/change-requests") {
-    return "Änderungsanfragen";
-  }
-
-  if (matchesPathSegment(pathname, "/messages")) {
-    return "Nachrichten";
-  }
-
-  if (pathname === "/parent-announcements") {
-    return "Elternmitteilungen";
-  }
-
-  if (pathname === "/meal-plan") {
-    return "Essensplan";
-  }
-
-  // Check for /students/search first before other /students/ paths
-  if (pathname === "/students/search") {
-    return "Kindersuche";
-  }
+  const segmentTitle = getSegmentPageTitle(pathname);
+  if (segmentTitle) return segmentTitle;
 
   // Handle student detail pages
   if (pathname.startsWith("/students/") && pathname !== "/students") {
     return getStudentPageTitle(pathname);
   }
 
-  // Handle staff detail pages
-  if (pathname.startsWith("/staff/") && pathname !== "/staff") {
-    return "Mitarbeiter Details";
-  }
-
-  // Handle room detail pages
-  if (pathname.startsWith("/rooms/") && pathname !== "/rooms") {
-    return "Raum Details";
-  }
+  const detailTitle = getDetailRouteTitle(pathname);
+  if (detailTitle) return detailTitle;
 
   // Handle database sub-pages
   if (pathname.startsWith("/database/")) {
@@ -68,6 +65,21 @@ function getStudentPageTitle(pathname: string): string {
   if (pathname.includes("/feedback-history")) return "Feedback Historie";
   if (pathname.includes("/room-history")) return "Anwesenheitsprotokoll";
   return "Kinder Details";
+}
+
+function getSegmentPageTitle(pathname: string): string | null {
+  for (const [basePath, title] of Object.entries(segmentPageTitles)) {
+    if (matchesPathSegment(pathname, basePath)) return title;
+  }
+  return null;
+}
+
+function getDetailRouteTitle(pathname: string): string | null {
+  const route = detailRouteTitles.find(
+    ({ basePath, rootPath }) =>
+      pathname.startsWith(basePath) && pathname !== rootPath,
+  );
+  return route?.title ?? null;
 }
 
 function matchesPathSegment(pathname: string, basePath: string): boolean {

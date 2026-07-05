@@ -37,6 +37,10 @@ import {
   getPageTypeInfo,
 } from "./header/breadcrumb-utils";
 
+function isPathSegment(path: string, basePath: string): boolean {
+  return path === basePath || path.startsWith(`${basePath}/`);
+}
+
 export function Header() {
   const { breadcrumb } = useBreadcrumb();
   const {
@@ -85,10 +89,6 @@ export function Header() {
     return null;
   })();
   const displayedPageTitle = parentPageTitle ?? pageTitle;
-
-  function isPathSegment(path: string, basePath: string): boolean {
-    return path === basePath || path.startsWith(`${basePath}/`);
-  }
 
   // Derive user info from ShellAuth context
   const userName = user?.name ?? "Benutzer";
