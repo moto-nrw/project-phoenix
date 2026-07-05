@@ -138,6 +138,47 @@ func TestWithdrawCareScheduleRequest_WorksWhenDisabled(t *testing.T) {
 	assert.Nil(t, view.PendingRequest, "the withdrawn request no longer appears on the read view")
 }
 
+// TestWithdrawCareScheduleRequest_WorksAfterSubmitRevoked is the review-finding
+// regression: withdraw is gated ONLY on parent_portal.access, not
+// parent_portal.request.submit. If the school revokes request.submit AFTER a
+// guardian filed a request, the read view still exposes that request as
+// submitted_by_self and renders a withdraw button, so the owning guardian must
+// still be able to withdraw it (ownership is enforced inside WithdrawRequest).
+// Gating withdraw on request.submit would strand the request behind an
+// always-403 button.
+func TestWithdrawCareScheduleRequest_WorksAfterSubmitRevoked(t *testing.T) {
+	svc, db, _ := buildCareScheduleService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	created, err := svc.CreateCareScheduleRequest(context.Background(), chain.AccountID, chain.StudentID, carePayload())
+	require.NoError(t, err)
+	reqID := created.PendingRequest.ID
+
+	// Revoke request.submit but keep parent_portal.access (mirrors a school
+	// tightening permissions while a request is already open).
+	_, err = db.ExecContext(context.Background(), `
+		UPDATE users.students_guardians
+		SET permissions = '{"parent_portal.access": true}'::jsonb
+		WHERE tenant_id = ? AND student_id = ? AND guardian_profile_id = ?
+	`, chain.TenantID, chain.StudentID, chain.GuardianProfileID)
+	require.NoError(t, err)
+
+	// The read view still surfaces the request as the caller's own (withdraw
+	// button visible) even though CanRequest has dropped.
+	read, err := svc.GetChildCareSchedule(context.Background(), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	require.NotNil(t, read.PendingRequest)
+	assert.True(t, read.PendingRequest.SubmittedBySelf, "the open request is still shown as the caller's own")
+	assert.False(t, read.CanRequest, "request.submit was revoked, so a NEW request is no longer offered")
+
+	// Withdraw must succeed on portal access + ownership despite the missing
+	// request.submit permission.
+	view, err := svc.WithdrawCareScheduleRequest(context.Background(), chain.AccountID, chain.StudentID, reqID)
+	require.NoError(t, err, "the owning guardian withdraws on portal access + ownership, not request.submit")
+	assert.Nil(t, view.PendingRequest, "the withdrawn request no longer appears on the read view")
+}
+
 // TestGetChildCareSchedule_ReadViewReflectsPendingRequest drives the parent
 // read-view method (GetChildCareSchedule): it needs only parent_portal.access,
 // so it stays available regardless of the request feature gates, and it

@@ -53,6 +53,12 @@ func init() {
 //     cleared (it lives on the new row now). TERMINAL chat requests
 //     (erledigt/abgelehnt/zurueckgezogen) stay untouched as read-only
 //     history.
+//  4. Repair previews: a converted row may have been a thread's
+//     last_message_id, but request_created pills are deliberately excluded from
+//     the denormalized last_message_* preview/ordering. Re-derive those columns
+//     from the newest previewable message per affected thread (or clear them
+//     where none remains) so migrated tenants don't see a stale Nachrichten
+//     preview pointing at a now-hidden pill.
 //
 // Runs as the superuser CLI connection, so RLS is bypassed and one statement
 // covers all tenants.
@@ -128,6 +134,52 @@ func migrateOpenCareRequestsUp(ctx context.Context, db *bun.DB) error {
 		  AND m.kind = 'request'
 		  AND m.request_type = 'care_schedule'
 		  AND m.request_status = 'offen';
+
+		-- 4) Repair denormalized thread previews. Step 3 may have converted a
+		--    row that was a thread's last_message_id into a 'request_created'
+		--    pill, which the app deliberately keeps OUT of the preview and
+		--    ordering (see services/parentmessaging/emitter.go and
+		--    counterpartUnread). A thread still pointing at such a pill would
+		--    render a stale "latest message" in the Nachrichten inbox until the
+		--    next real message touches it. Re-derive last_message_* from the
+		--    newest PREVIEWABLE message (anything but a request_created pill,
+		--    mirroring the unread-count exclusion), attributing it to the
+		--    EFFECTIVE actor kind so the thread's
+		--    last_sender_kind IN ('guardian','staff') check holds; where no
+		--    previewable message remains, clear the columns back to the
+		--    fresh-thread empty state (NULL activity, '' body). The pre-migration
+		--    app never points last_message_id at a request_created pill, so this
+		--    targets exactly the rows step 3 just touched and is idempotent.
+		WITH affected AS (
+			SELECT t.id AS thread_id
+			FROM users.parent_message_threads t
+			JOIN users.parent_messages lm
+			  ON lm.id = t.last_message_id
+			 AND lm.tenant_id = t.tenant_id
+			WHERE lm.event_type = 'request_created'
+		),
+		newest AS (
+			SELECT DISTINCT ON (m.thread_id)
+			       m.thread_id,
+			       m.created_at,
+			       m.id,
+			       CASE WHEN m.sender_kind IN ('guardian','staff') THEN m.sender_kind
+			            ELSE m.event_actor_kind END AS actor_kind,
+			       m.body
+			FROM users.parent_messages m
+			JOIN affected a ON a.thread_id = m.thread_id
+			WHERE m.event_type IS DISTINCT FROM 'request_created'
+			ORDER BY m.thread_id, m.created_at DESC, m.id DESC
+		)
+		UPDATE users.parent_message_threads t
+		SET last_message_at   = newest.created_at,
+		    last_message_id   = newest.id,
+		    last_sender_kind  = newest.actor_kind,
+		    last_message_body = COALESCE(newest.body, ''),
+		    updated_at        = NOW()
+		FROM affected a
+		LEFT JOIN newest ON newest.thread_id = a.thread_id
+		WHERE t.id = a.thread_id;
 	`)
 	if err != nil {
 		return fmt.Errorf("error migrating open care_schedule requests: %w", err)
