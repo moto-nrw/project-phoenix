@@ -455,8 +455,9 @@ func TestWorkSessionRepository_CloseSession(t *testing.T) {
 		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", session.ID)
 
 		checkOutTime := time.Now()
-		err = repo.CloseSession(ctx, session.ID, checkOutTime, false)
+		didClose, err := repo.CloseSession(ctx, session.ID, checkOutTime, false)
 		require.NoError(t, err)
+		assert.True(t, didClose)
 
 		closed, err := repo.FindByID(ctx, session.ID)
 		require.NoError(t, err)
@@ -478,8 +479,9 @@ func TestWorkSessionRepository_CloseSession(t *testing.T) {
 		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", session.ID)
 
 		checkOutTime := time.Now()
-		err = repo.CloseSession(ctx, session.ID, checkOutTime, true)
+		didClose, err := repo.CloseSession(ctx, session.ID, checkOutTime, true)
 		require.NoError(t, err)
+		assert.True(t, didClose)
 
 		closed, err := repo.FindByID(ctx, session.ID)
 		require.NoError(t, err)
@@ -504,8 +506,9 @@ func TestWorkSessionRepository_CloseSession(t *testing.T) {
 
 		// Try to close again - should be no-op due to WHERE clause
 		newCheckOut := time.Now()
-		err = repo.CloseSession(ctx, session.ID, newCheckOut, false)
+		didClose, err := repo.CloseSession(ctx, session.ID, newCheckOut, false)
 		require.NoError(t, err)
+		assert.False(t, didClose)
 
 		// Original check-out time should remain
 		closed, err := repo.FindByID(ctx, session.ID)

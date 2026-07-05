@@ -113,9 +113,9 @@ func TestAutoCheckout_ClosesDueSessionAtShiftEnd(t *testing.T) {
 	var closedID int64
 	var closedAt time.Time
 	var closedAuto bool
-	sessionRepo.closeSessionFunc = func(_ context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) error {
+	sessionRepo.closeSessionFunc = func(_ context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) (bool, error) {
 		closedID, closedAt, closedAuto = id, checkOutTime, autoCheckedOut
-		return nil
+		return true, nil
 	}
 	var auditEdits []*auditModels.WorkSessionEdit
 	auditRepo.createBatchFunc = func(_ context.Context, edits []*auditModels.WorkSessionEdit) error {
@@ -154,9 +154,9 @@ func TestAutoCheckout_SkipsCheckInAfterShiftEnd(t *testing.T) {
 		[]*activeModels.WorkSession{session},
 		[]*scheduleModels.StaffShift{shift},
 	)
-	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) error {
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) (bool, error) {
 		t.Fatal("session checked in after shift end must not be closed")
-		return nil
+		return true, nil
 	}
 
 	count, err := service.AutoCheckoutDueSessions(context.Background(), 15*time.Minute)
@@ -177,9 +177,9 @@ func TestAutoCheckout_SkipsSessionWithoutShift(t *testing.T) {
 		[]*activeModels.WorkSession{session},
 		nil, // no shifts planned
 	)
-	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) error {
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) (bool, error) {
 		t.Fatal("session without a planned shift must not be closed")
-		return nil
+		return true, nil
 	}
 
 	count, err := service.AutoCheckoutDueSessions(context.Background(), 15*time.Minute)
@@ -206,9 +206,9 @@ func TestAutoCheckout_MultipleShiftsLatestEndWins(t *testing.T) {
 	auditRepo.createBatchFunc = func(_ context.Context, _ []*auditModels.WorkSessionEdit) error { return nil }
 
 	var closedAt time.Time
-	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, checkOutTime time.Time, _ bool) error {
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, checkOutTime time.Time, _ bool) (bool, error) {
 		closedAt = checkOutTime
-		return nil
+		return true, nil
 	}
 
 	count, err := service.AutoCheckoutDueSessions(context.Background(), 15*time.Minute)
@@ -232,9 +232,9 @@ func TestAutoCheckout_GraceNotElapsed(t *testing.T) {
 		[]*activeModels.WorkSession{session},
 		[]*scheduleModels.StaffShift{shift},
 	)
-	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) error {
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) (bool, error) {
 		t.Fatal("session must not be closed while the grace window is still open")
-		return nil
+		return true, nil
 	}
 
 	// Grace long enough that yesterday-16:00 + grace is still in the future.
@@ -272,10 +272,10 @@ func TestAutoCheckout_EndsActiveBreakFirst(t *testing.T) {
 		return nil
 	}
 	closed := false
-	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) error {
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) (bool, error) {
 		assert.True(t, breakEnded, "break must be ended before the session closes")
 		closed = true
-		return nil
+		return true, nil
 	}
 
 	count, err := service.AutoCheckoutDueSessions(context.Background(), 15*time.Minute)
@@ -300,7 +300,9 @@ func TestAutoCheckout_BreakCappedAtShiftEnd(t *testing.T) {
 		[]*scheduleModels.StaffShift{shift},
 	)
 	auditRepo.createBatchFunc = func(_ context.Context, _ []*auditModels.WorkSessionEdit) error { return nil }
-	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) error { return nil }
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) (bool, error) {
+		return true, nil
+	}
 
 	// Break started 30 min before the planned end and was never ended — a
 	// wall-clock "now" end would land after check_out_time.
@@ -323,7 +325,7 @@ func TestAutoCheckout_BreakCappedAtShiftEnd(t *testing.T) {
 	assert.Equal(t, 30, endedDuration)
 }
 
-func TestAutoCheckout_BreakStartedAfterShiftEndHasZeroDuration(t *testing.T) {
+func TestAutoCheckout_SkipsBreakStartedAfterShiftEnd(t *testing.T) {
 	yesterday := timezone.TodayDate().AddDays(-1)
 	staffID := int64(7)
 	session := &activeModels.WorkSession{
@@ -338,8 +340,14 @@ func TestAutoCheckout_BreakStartedAfterShiftEndHasZeroDuration(t *testing.T) {
 		[]*activeModels.WorkSession{session},
 		[]*scheduleModels.StaffShift{shift},
 	)
-	auditRepo.createBatchFunc = func(_ context.Context, _ []*auditModels.WorkSessionEdit) error { return nil }
-	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) error { return nil }
+	auditRepo.createBatchFunc = func(_ context.Context, _ []*auditModels.WorkSessionEdit) error {
+		t.Fatal("late-break skip must not write an auto-checkout audit entry")
+		return nil
+	}
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) (bool, error) {
+		t.Fatal("late-break session must not be auto-closed at planned end")
+		return false, nil
+	}
 
 	// Break started during the grace window, after the planned end.
 	activeBreak := &activeModels.WorkSessionBreak{StartedAt: shift.EndInstant().Add(10 * time.Minute)}
@@ -347,18 +355,14 @@ func TestAutoCheckout_BreakStartedAfterShiftEndHasZeroDuration(t *testing.T) {
 	breakRepo.getActiveBySessionIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSessionBreak, error) {
 		return activeBreak, nil
 	}
-	var endedAt time.Time
-	var endedDuration int
-	breakRepo.endBreakFunc = func(_ context.Context, _ int64, at time.Time, duration int) error {
-		endedAt, endedDuration = at, duration
+	breakRepo.endBreakFunc = func(_ context.Context, _ int64, _ time.Time, _ int) error {
+		t.Fatal("late break must stay open for manual checkout or nightly cleanup")
 		return nil
 	}
 
 	count, err := service.AutoCheckoutDueSessions(context.Background(), 15*time.Minute)
 	require.NoError(t, err)
-	assert.Equal(t, 1, count)
-	assert.Equal(t, activeBreak.StartedAt, endedAt, "a break started after the planned end is capped to zero length")
-	assert.Equal(t, 0, endedDuration)
+	assert.Equal(t, 0, count)
 }
 
 func TestAutoCheckout_AuditFailureReturnsError(t *testing.T) {
@@ -376,13 +380,43 @@ func TestAutoCheckout_AuditFailureReturnsError(t *testing.T) {
 		[]*activeModels.WorkSession{session},
 		[]*scheduleModels.StaffShift{shift},
 	)
-	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) error { return nil }
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) (bool, error) {
+		return true, nil
+	}
 	auditRepo.createBatchFunc = func(_ context.Context, _ []*auditModels.WorkSessionEdit) error {
 		return errors.New("insert failed")
 	}
 
 	count, err := service.AutoCheckoutDueSessions(context.Background(), 15*time.Minute)
 	require.Error(t, err, "an unaudited system checkout must not commit silently")
+	assert.Equal(t, 0, count)
+}
+
+func TestAutoCheckout_SkipsAuditWhenCloseRacesWithManualCheckout(t *testing.T) {
+	yesterday := timezone.TodayDate().AddDays(-1)
+	staffID := int64(7)
+	session := &activeModels.WorkSession{
+		StaffID:     staffID,
+		Date:        yesterday,
+		CheckInTime: yesterday.BerlinMidnight().Add(8 * time.Hour),
+	}
+	session.ID = 42
+	shift := shiftFor(staffID, yesterday, 8, 16)
+
+	service, sessionRepo, _, auditRepo, _ := autoCheckoutFixture(
+		[]*activeModels.WorkSession{session},
+		[]*scheduleModels.StaffShift{shift},
+	)
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) (bool, error) {
+		return false, nil
+	}
+	auditRepo.createBatchFunc = func(_ context.Context, _ []*auditModels.WorkSessionEdit) error {
+		t.Fatal("auto-checkout must not audit a row it did not close")
+		return nil
+	}
+
+	count, err := service.AutoCheckoutDueSessions(context.Background(), 15*time.Minute)
+	require.NoError(t, err)
 	assert.Equal(t, 0, count)
 }
 
@@ -406,7 +440,9 @@ func TestAutoCheckout_EndsActiveSupervisions(t *testing.T) {
 	shiftRepo.findByStaffIDsAndDateFunc = func(_ context.Context, _ []int64, _ timezone.Date) ([]*scheduleModels.StaffShift, error) {
 		return []*scheduleModels.StaffShift{shift}, nil
 	}
-	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) error { return nil }
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) (bool, error) {
+		return true, nil
+	}
 	auditRepo.createBatchFunc = func(_ context.Context, _ []*auditModels.WorkSessionEdit) error { return nil }
 
 	var endedStaffID int64

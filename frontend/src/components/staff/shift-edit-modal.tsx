@@ -6,10 +6,41 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Modal } from "~/components/ui/modal";
 import { getApiErrorMessage } from "~/lib/api-error-message";
 import { createLogger } from "~/lib/logger";
-import { staffShiftService } from "~/lib/shift-api";
+import { ShiftApiError, staffShiftService } from "~/lib/shift-api";
 import type { StaffShift } from "~/lib/shift-helpers";
 
 const logger = createLogger({ component: "ShiftEditModal" });
+
+function getShiftMutationErrorMessage(
+  err: unknown,
+  action: "speichern" | "löschen",
+): string {
+  if (err instanceof ShiftApiError) {
+    const detail = err.detail.toLowerCase();
+    if (err.status === 409 || detail.includes("overlap")) {
+      return "Diese Schicht überschneidet sich mit einer bestehenden Schicht.";
+    }
+    if (err.status === 400) {
+      return "Ungültige Schichtdaten. Bitte prüfen Sie Beginn, Ende und Pause.";
+    }
+    if (err.status === 401) {
+      return "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.";
+    }
+    if (err.status === 403) {
+      return `Sie haben keine Berechtigung, diese Schicht zu ${action}.`;
+    }
+    return err.detail || `Schicht konnte nicht ${action} werden.`;
+  }
+
+  return getApiErrorMessage(
+    err,
+    action,
+    "Schicht",
+    action === "speichern"
+      ? "Speichern fehlgeschlagen."
+      : "Löschen fehlgeschlagen.",
+  );
+}
 
 // Create/edit modal for one planned shift (Dienstplan). Times are plain
 // "HH:MM" strings end-to-end — no Date/ISO conversion, which sidesteps the
@@ -102,14 +133,7 @@ export function ShiftEditModal({
         mode,
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(
-        getApiErrorMessage(
-          err,
-          "speichern",
-          "Schicht",
-          "Speichern fehlgeschlagen.",
-        ),
-      );
+      setError(getShiftMutationErrorMessage(err, "speichern"));
     } finally {
       setIsSaving(false);
     }
@@ -128,14 +152,7 @@ export function ShiftEditModal({
         shift_id: shift.id,
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(
-        getApiErrorMessage(
-          err,
-          "löschen",
-          "Schicht",
-          "Löschen fehlgeschlagen.",
-        ),
-      );
+      setError(getShiftMutationErrorMessage(err, "löschen"));
       setConfirmDeleteOpen(false);
     } finally {
       setIsDeleting(false);

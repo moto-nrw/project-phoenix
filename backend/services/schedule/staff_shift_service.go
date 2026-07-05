@@ -2,6 +2,7 @@ package schedule
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -125,7 +126,14 @@ func (s *staffShiftService) CreateShift(ctx context.Context, shift *scheduleMode
 	if err := shift.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrShiftInvalid, err.Error())
 	}
-	if _, err := s.staffRepo.FindByID(ctx, shift.StaffID); err != nil {
+	staff, err := s.staffRepo.FindByID(ctx, shift.StaffID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("%w: staff member not found", ErrShiftInvalid)
+		}
+		return nil, fmt.Errorf("find staff member for shift: %w", err)
+	}
+	if staff == nil {
 		return nil, fmt.Errorf("%w: staff member not found", ErrShiftInvalid)
 	}
 	if err := s.lockShiftWrites(ctx, shift.StaffID); err != nil {
@@ -150,7 +158,13 @@ func (s *staffShiftService) UpdateShift(ctx context.Context, shift *scheduleMode
 		return nil, ErrShiftNotFound
 	}
 	existing, err := s.repo.FindByID(ctx, shift.ID)
-	if err != nil || existing == nil {
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrShiftNotFound
+		}
+		return nil, fmt.Errorf("find staff shift: %w", err)
+	}
+	if existing == nil {
 		return nil, ErrShiftNotFound
 	}
 	// Staff assignment is immutable; the shift stays with its staff member.
@@ -185,7 +199,13 @@ func (s *staffShiftService) DeleteShift(ctx context.Context, id int64) error {
 		return ErrShiftNotFound
 	}
 	existing, err := s.repo.FindByID(ctx, id)
-	if err != nil || existing == nil {
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrShiftNotFound
+		}
+		return fmt.Errorf("find staff shift: %w", err)
+	}
+	if existing == nil {
 		return ErrShiftNotFound
 	}
 	if err := s.repo.Delete(ctx, id); err != nil {

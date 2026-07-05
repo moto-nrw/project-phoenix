@@ -243,8 +243,9 @@ func (r *WorkSessionRepository) UpdateBreakMinutes(ctx context.Context, id int64
 	return base.AssertRowsAffected(result, 1, "update break minutes")
 }
 
-// CloseSession sets the check-out time and auto_checked_out flag
-func (r *WorkSessionRepository) CloseSession(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) error {
+// CloseSession sets the check-out time and auto_checked_out flag.
+// It returns false when the session was already closed or no visible row matched.
+func (r *WorkSessionRepository) CloseSession(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) (bool, error) {
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Table(tableActiveWorkSessions).
 		Set("check_out_time = ?", checkOutTime).
@@ -256,13 +257,21 @@ func (r *WorkSessionRepository) CloseSession(ctx context.Context, id int64, chec
 		query = query.Where("tenant_id = ?", tenantID)
 	}
 
-	_, err := query.Exec(ctx)
+	result, err := query.Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{
+		return false, &modelBase.DatabaseError{
 			Op:  "close session",
 			Err: err,
 		}
 	}
 
-	return nil
+	closed, err := result.RowsAffected()
+	if err != nil {
+		return false, &modelBase.DatabaseError{
+			Op:  "close session",
+			Err: err,
+		}
+	}
+
+	return closed == 1, nil
 }

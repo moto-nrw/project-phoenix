@@ -21,6 +21,18 @@ interface ShiftPayload {
   breakMinutes: number;
 }
 
+export class ShiftApiError extends Error {
+  readonly status: number;
+  readonly detail: string;
+
+  constructor(status: number, detail: string) {
+    super(`HTTP ${status}: ${detail}`);
+    this.name = "ShiftApiError";
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
 function toBackendBody(payload: ShiftPayload) {
   return {
     staff_id: Number.parseInt(payload.staffId, 10),
@@ -31,9 +43,31 @@ function toBackendBody(payload: ShiftPayload) {
   };
 }
 
+async function readShiftError(
+  response: Response,
+  fallback: string,
+): Promise<ShiftApiError> {
+  let detail = "";
+  const contentType = response.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    try {
+      const body = (await response.json()) as { error?: string };
+      detail = body.error ?? "";
+    } catch {
+      detail = "";
+    }
+  } else {
+    detail = await response.text();
+  }
+  return new ShiftApiError(response.status, detail || fallback);
+}
+
 async function readShiftList(response: Response): Promise<StaffShift[]> {
   if (!response.ok) {
-    throw new Error(`Failed to load shifts (${response.status})`);
+    throw await readShiftError(
+      response,
+      "Schichten konnten nicht geladen werden",
+    );
   }
   const json = (await response.json()) as { data: BackendStaffShift[] | null };
   return (json.data ?? []).map(mapStaffShift);
@@ -41,8 +75,10 @@ async function readShiftList(response: Response): Promise<StaffShift[]> {
 
 async function readShift(response: Response): Promise<StaffShift> {
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `Failed to save shift (${response.status})`);
+    throw await readShiftError(
+      response,
+      "Schicht konnte nicht gespeichert werden",
+    );
   }
   const json = (await response.json()) as { data: BackendStaffShift };
   return mapStaffShift(json.data);
@@ -82,7 +118,10 @@ class StaffShiftService {
       method: "DELETE",
     });
     if (!response.ok) {
-      throw new Error(`Failed to delete shift (${response.status})`);
+      throw await readShiftError(
+        response,
+        "Schicht konnte nicht gelöscht werden",
+      );
     }
   }
 }

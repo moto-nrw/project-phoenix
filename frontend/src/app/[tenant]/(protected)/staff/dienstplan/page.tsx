@@ -9,6 +9,7 @@ import {
   ShiftEditModal,
   type ShiftEditMode,
 } from "~/components/staff/shift-edit-modal";
+import { Alert } from "~/components/ui/alert";
 import { Loading } from "~/components/ui/loading";
 import { isAdmin } from "~/lib/auth-utils";
 import { toISODate, todayISO } from "~/lib/date-helpers";
@@ -69,13 +70,16 @@ function DienstplanContent() {
   const weekTo = weekDays[4] ?? "";
   const today = todayISO();
 
-  const { data: staff, isLoading: staffLoading } = useSWRAuth<Staff[]>(
-    "dienstplan-staff",
-    () => staffService.getAllStaff(),
-  );
+  const {
+    data: staff,
+    error: staffError,
+    isLoading: staffLoading,
+    mutate: mutateStaff,
+  } = useSWRAuth<Staff[]>("dienstplan-staff", () => staffService.getAllStaff());
 
   const {
     data: shifts,
+    error: shiftsError,
     isLoading: shiftsLoading,
     mutate: mutateShifts,
   } = useSWRAuth<StaffShift[]>(`dienstplan-shifts-${weekFrom}-${weekTo}`, () =>
@@ -121,6 +125,11 @@ function DienstplanContent() {
       next.setDate(next.getDate() + deltaDays);
       return next;
     });
+  };
+
+  const loadError = staffError ?? shiftsError;
+  const retryLoad = () => {
+    void Promise.all([mutateStaff(), mutateShifts()]);
   };
 
   if (sessionStatus === "loading") {
@@ -199,21 +208,37 @@ function DienstplanContent() {
             </button>
           </div>
         </div>
-        <DienstplanWeekGrid
-          staff={sortedStaff}
-          shiftsByStaff={shiftsByStaff}
-          weekDays={weekDays}
-          todayIso={today}
-          isLoading={staffLoading || shiftsLoading}
-          onCellClick={(member, date, shift) =>
-            setModal({
-              mode: shift ? "edit" : "create",
-              staff: member,
-              date,
-              shift,
-            })
-          }
-        />
+        {loadError ? (
+          <div className="space-y-3">
+            <Alert
+              type="error"
+              message="Der Dienstplan konnte nicht vollständig geladen werden. Bearbeiten ist deaktiviert, bis die Daten erfolgreich geladen wurden."
+            />
+            <button
+              type="button"
+              onClick={retryLoad}
+              className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+            >
+              Erneut laden
+            </button>
+          </div>
+        ) : (
+          <DienstplanWeekGrid
+            staff={sortedStaff}
+            shiftsByStaff={shiftsByStaff}
+            weekDays={weekDays}
+            todayIso={today}
+            isLoading={staffLoading || shiftsLoading}
+            onCellClick={(member, date, shift) =>
+              setModal({
+                mode: shift ? "edit" : "create",
+                staff: member,
+                date,
+                shift,
+              })
+            }
+          />
+        )}
       </div>
       {modal && (
         <ShiftEditModal

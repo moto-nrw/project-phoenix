@@ -32,7 +32,7 @@ type wsMockWorkSessionRepository struct {
 	getHistoryByStaffIDFunc func(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error)
 	getOpenSessionsFunc     func(ctx context.Context, beforeDate timezone.Date) ([]*activeModels.WorkSession, error)
 	getTodayPresenceMapFunc func(ctx context.Context) (map[int64]string, error)
-	closeSessionFunc        func(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) error
+	closeSessionFunc        func(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) (bool, error)
 	updateBreakMinutesFunc  func(ctx context.Context, id int64, breakMinutes int) error
 }
 
@@ -106,11 +106,11 @@ func (m *wsMockWorkSessionRepository) GetTodayPresenceMap(ctx context.Context) (
 	return nil, nil
 }
 
-func (m *wsMockWorkSessionRepository) CloseSession(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) error {
+func (m *wsMockWorkSessionRepository) CloseSession(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) (bool, error) {
 	if m.closeSessionFunc != nil {
 		return m.closeSessionFunc(ctx, id, checkOutTime, autoCheckedOut)
 	}
-	return nil
+	return true, nil
 }
 
 func (m *wsMockWorkSessionRepository) UpdateBreakMinutes(ctx context.Context, id int64, breakMinutes int) error {
@@ -953,9 +953,9 @@ func TestWSCheckOut_Success(t *testing.T) {
 		return nil, nil
 	}
 
-	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, autoCheckedOut bool) error {
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, autoCheckedOut bool) (bool, error) {
 		assert.False(t, autoCheckedOut)
-		return nil
+		return true, nil
 	}
 
 	supervisorRepo.endAllActiveByStaffIDFunc = func(_ context.Context, _ int64) (int, error) {
@@ -1036,8 +1036,8 @@ func TestWSCheckOut_WithActiveBreak(t *testing.T) {
 		return nil
 	}
 
-	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) error {
-		return nil
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) (bool, error) {
+		return true, nil
 	}
 
 	supervisorRepo.endAllActiveByStaffIDFunc = func(_ context.Context, _ int64) (int, error) {
@@ -1634,9 +1634,9 @@ func TestWSCleanupOpenSessions_Success(t *testing.T) {
 		}, nil
 	}
 
-	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, autoCheckedOut bool) error {
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, autoCheckedOut bool) (bool, error) {
 		assert.True(t, autoCheckedOut)
-		return nil
+		return true, nil
 	}
 
 	count, err := svc.CleanupOpenSessions(context.Background())
@@ -1669,9 +1669,9 @@ func TestWSCleanupOpenSessions_CheckOutTimeIsBerlinEndOfDay(t *testing.T) {
 	}
 
 	var capturedCheckOutTime time.Time
-	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, checkOutTime time.Time, _ bool) error {
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, checkOutTime time.Time, _ bool) (bool, error) {
 		capturedCheckOutTime = checkOutTime
-		return nil
+		return true, nil
 	}
 
 	count, err := svc.CleanupOpenSessions(context.Background())

@@ -5,6 +5,7 @@ package schedule
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"testing"
 	"time"
@@ -170,12 +171,24 @@ func TestShiftService_CreateRejectsInvalid(t *testing.T) {
 func TestShiftService_CreateRejectsUnknownStaff(t *testing.T) {
 	svc, _, staffRepo := shiftServiceFixture()
 	staffRepo.findByIDFunc = func(_ context.Context, _ interface{}) (*usersModels.Staff, error) {
-		return nil, errors.New("no rows")
+		return nil, sql.ErrNoRows
 	}
 
 	_, err := svc.CreateShift(context.Background(), validShift(999))
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrShiftInvalid)
+}
+
+func TestShiftService_CreatePropagatesStaffLookupError(t *testing.T) {
+	svc, _, staffRepo := shiftServiceFixture()
+	staffRepo.findByIDFunc = func(_ context.Context, _ interface{}) (*usersModels.Staff, error) {
+		return nil, errors.New("connection reset")
+	}
+
+	_, err := svc.CreateShift(context.Background(), validShift(999))
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, ErrShiftInvalid)
+	assert.Contains(t, err.Error(), "connection reset")
 }
 
 func TestShiftService_CreateRejectsOverlap(t *testing.T) {
@@ -275,7 +288,7 @@ func TestShiftService_UpdatePreservesCreatedAt(t *testing.T) {
 func TestShiftService_UpdateNotFound(t *testing.T) {
 	svc, repo, _ := shiftServiceFixture()
 	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
-		return nil, errors.New("no rows")
+		return nil, sql.ErrNoRows
 	}
 
 	update := validShift(7)
@@ -285,14 +298,41 @@ func TestShiftService_UpdateNotFound(t *testing.T) {
 	assert.ErrorIs(t, err, ErrShiftNotFound)
 }
 
+func TestShiftService_UpdatePropagatesFindError(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return nil, errors.New("database timeout")
+	}
+
+	update := validShift(7)
+	update.ID = 12345
+
+	_, err := svc.UpdateShift(context.Background(), update)
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, ErrShiftNotFound)
+	assert.Contains(t, err.Error(), "database timeout")
+}
+
 func TestShiftService_DeleteNotFound(t *testing.T) {
 	svc, repo, _ := shiftServiceFixture()
 	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
-		return nil, errors.New("no rows")
+		return nil, sql.ErrNoRows
 	}
 
 	err := svc.DeleteShift(context.Background(), 12345)
 	assert.ErrorIs(t, err, ErrShiftNotFound)
+}
+
+func TestShiftService_DeletePropagatesFindError(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return nil, errors.New("database timeout")
+	}
+
+	err := svc.DeleteShift(context.Background(), 12345)
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, ErrShiftNotFound)
+	assert.Contains(t, err.Error(), "database timeout")
 }
 
 func TestShiftService_ListRejectsTooLargeRange(t *testing.T) {

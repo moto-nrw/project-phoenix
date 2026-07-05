@@ -263,6 +263,12 @@ const additionalNavItems: AdditionalNavItem[] = [
     alwaysShow: true,
   },
   { href: "/staff", label: "Mitarbeiter", iconKey: "staff", alwaysShow: true },
+  {
+    href: "/staff/dienstplan",
+    label: "Dienstplan",
+    iconKey: "calendar",
+    requiresAdmin: true,
+  },
   { href: "/rooms", label: "Räume", iconKey: "rooms", alwaysShow: true },
   {
     href: "/substitutions",

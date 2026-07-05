@@ -321,8 +321,9 @@ type WorkSessionRepository interface {
 	// GetTodayPresenceMap returns a map of staff IDs to their work status for today
 	GetTodayPresenceMap(ctx context.Context) (map[int64]string, error)
 
-	// CloseSession sets the check-out time and auto_checked_out flag
-	CloseSession(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) error
+	// CloseSession sets the check-out time and auto_checked_out flag.
+	// The boolean reports whether an open row was actually closed.
+	CloseSession(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) (bool, error)
 
 	// UpdateBreakMinutes sets the break_minutes cache field on a session
 	UpdateBreakMinutes(ctx context.Context, id int64, breakMinutes int) error

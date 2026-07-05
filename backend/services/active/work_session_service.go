@@ -354,8 +354,12 @@ func (s *workSessionService) CheckOut(ctx context.Context, staffID int64) (*acti
 	}
 
 	// Close the session using repository method
-	if err := s.repo.CloseSession(ctx, session.ID, now, false); err != nil {
+	closed, err := s.repo.CloseSession(ctx, session.ID, now, false)
+	if err != nil {
 		return nil, fmt.Errorf("failed to close session: %w", err)
+	}
+	if !closed {
+		return nil, errors.New(errNoActiveSession)
 	}
 
 	// End all active supervisions for this staff member (fire-and-forget)
@@ -1289,10 +1293,13 @@ func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, erro
 			// Continue cleanup even if break ending fails
 		}
 
-		if err := s.repo.CloseSession(ctx, session.ID, endOfDay, true); err != nil {
+		closed, err := s.repo.CloseSession(ctx, session.ID, endOfDay, true)
+		if err != nil {
 			return count, fmt.Errorf("failed to close session %d: %w", session.ID, err)
 		}
-		count++
+		if closed {
+			count++
+		}
 	}
 
 	return count, nil
@@ -1354,16 +1361,41 @@ func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace 
 			continue
 		}
 
-		if err := s.endActiveBreakIfExists(ctx, session.ID, closeAt); err != nil {
-			s.getLogger().WarnContext(ctx, "failed to end active break during auto-checkout",
+		activeBreak, err := s.breakRepo.GetActiveBySessionID(ctx, session.ID)
+		if err != nil {
+			s.getLogger().WarnContext(ctx, "failed to inspect active break during auto-checkout",
 				slog.Int64("session_id", session.ID),
 				slog.String("error", err.Error()))
-			// Continue: closing the session still recalculates nothing worse
-			// than the nightly cleanup would.
+			continue
+		}
+		if activeBreak != nil && activeBreak.StartedAt.After(closeAt) {
+			s.getLogger().WarnContext(ctx, "skipping auto-checkout because active break starts after planned shift end",
+				slog.Int64("session_id", session.ID),
+				slog.Int64("break_id", activeBreak.ID),
+				slog.Time("break_started_at", activeBreak.StartedAt),
+				slog.Time("planned_end", closeAt))
+			continue
 		}
 
-		if err := s.repo.CloseSession(ctx, session.ID, closeAt, true); err != nil {
+		if activeBreak != nil {
+			if err := s.endActiveBreak(ctx, session.ID, activeBreak, closeAt); err != nil {
+				s.getLogger().WarnContext(ctx, "failed to end active break during auto-checkout",
+					slog.Int64("session_id", session.ID),
+					slog.String("error", err.Error()))
+				// Continue: closing the session still recalculates nothing worse
+				// than the nightly cleanup would.
+			}
+		}
+
+		closed, err := s.repo.CloseSession(ctx, session.ID, closeAt, true)
+		if err != nil {
 			return count, fmt.Errorf("failed to auto-checkout session %d: %w", session.ID, err)
+		}
+		if !closed {
+			s.getLogger().InfoContext(ctx, "skipping auto-checkout side effects because session was already closed",
+				slog.Int64("session_id", session.ID),
+				slog.Int64("staff_id", session.StaffID))
+			continue
 		}
 
 		// End open supervisions, exactly like manual checkout does.
@@ -1395,6 +1427,18 @@ func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace 
 	}
 
 	return count, nil
+}
+
+func (s *workSessionService) endActiveBreak(ctx context.Context, sessionID int64, activeBreak *activeModels.WorkSessionBreak, endAt time.Time) error {
+	duration := int(math.Round(endAt.Sub(activeBreak.StartedAt).Minutes()))
+	if err := s.breakRepo.EndBreak(ctx, activeBreak.ID, endAt, duration); err != nil {
+		return fmt.Errorf("failed to end active break: %w", err)
+	}
+
+	if err := s.recalcBreakMinutes(ctx, sessionID); err != nil {
+		return fmt.Errorf("failed to update break minutes: %w", err)
+	}
+	return nil
 }
 
 // EnsureCheckedIn ensures a staff member is checked in, creating a session if needed.

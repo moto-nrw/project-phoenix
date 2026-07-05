@@ -168,7 +168,7 @@ type absWorkSessionRepoMock struct {
 	getHistoryByStaffIDFunc func(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error)
 	getOpenSessionsFunc     func(ctx context.Context, beforeDate timezone.Date) ([]*activeModels.WorkSession, error)
 	getTodayPresenceMapFunc func(ctx context.Context) (map[int64]string, error)
-	closeSessionFunc        func(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) error
+	closeSessionFunc        func(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) (bool, error)
 	updateBreakMinutesFunc  func(ctx context.Context, id int64, breakMinutes int) error
 }
 
@@ -242,11 +242,11 @@ func (m *absWorkSessionRepoMock) GetTodayPresenceMap(ctx context.Context) (map[i
 	return nil, nil
 }
 
-func (m *absWorkSessionRepoMock) CloseSession(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) error {
+func (m *absWorkSessionRepoMock) CloseSession(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) (bool, error) {
 	if m.closeSessionFunc != nil {
 		return m.closeSessionFunc(ctx, id, checkOutTime, autoCheckedOut)
 	}
-	return nil
+	return true, nil
 }
 
 func (m *absWorkSessionRepoMock) UpdateBreakMinutes(ctx context.Context, id int64, breakMinutes int) error {

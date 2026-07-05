@@ -303,6 +303,7 @@ describe("MobileBottomNav", () => {
       fireEvent.click(moreButton!);
 
       // Admin-only items should be visible in the drawer
+      expect(screen.getByText("Dienstplan")).toBeInTheDocument();
       expect(screen.getByText("Vertretungen")).toBeInTheDocument();
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
     });

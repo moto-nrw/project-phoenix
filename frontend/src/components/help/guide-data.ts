@@ -681,7 +681,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Plant konkrete Schichten (Beginn, Ende, Pause) pro Mitarbeiter und Tag (nur für Admins).",
         steps: [
-          "`Dienstplan` in der Seitenleiste öffnen.",
+          "`Dienstplan` in der Seitenleiste oder im mobilen `Mehr`-Menü öffnen.",
           "Mit den Pfeilen zwischen den Wochen wechseln, `Diese Woche` springt zurück zur aktuellen Woche.",
           "In der Zeile eines Mitarbeiters auf eine leere Zelle klicken, um eine Schicht anzulegen: `Beginn`, `Ende` und `Pause (Minuten)` eintragen und speichern.",
           "Eine vorhandene Schicht anklicken, um sie zu bearbeiten oder über `Schicht löschen` zu entfernen.",
