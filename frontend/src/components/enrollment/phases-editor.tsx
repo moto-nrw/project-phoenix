@@ -5,7 +5,6 @@ import { useSearchParams } from "next/navigation";
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  AlertTriangle,
   CalendarClock,
   CalendarPlus,
   CalendarRange,
@@ -41,8 +40,6 @@ import {
   listSchemas,
   type FormSchema,
 } from "~/lib/enrollment-form-schema-api";
-import { getDepartureSchemaHealth } from "~/lib/enrollment-departure-schema-health";
-import { listCareOfferings } from "~/lib/care-offering-api";
 import { createLogger } from "~/lib/logger";
 import { RolloverForm } from "./rollover-form";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
@@ -162,9 +159,6 @@ export function PhasesEditor() {
   const searchParams = useSearchParams();
   const [phases, setPhases] = useState<Phase[]>([]);
   const [schemas, setSchemas] = useState<FormSchema[]>([]);
-  const [careOfferingCountsByPhase, setCareOfferingCountsByPhase] = useState<
-    Record<string, number>
-  >({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -217,19 +211,8 @@ export function PhasesEditor() {
         listPhases(),
         listSchemas().catch(() => [] as FormSchema[]),
       ]);
-      const offeringLists = await Promise.all(
-        phasesData.map((phase) => listCareOfferings(phase.id).catch(() => [])),
-      );
       setPhases(phasesData);
       setSchemas(schemasData);
-      setCareOfferingCountsByPhase(
-        Object.fromEntries(
-          phasesData.map((phase, index) => [
-            phase.id,
-            offeringLists[index]?.length ?? 0,
-          ]),
-        ),
-      );
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unbekannter Fehler";
       logger.error("phases_load_failed", { error: message });
@@ -630,13 +613,8 @@ export function PhasesEditor() {
           draft={draft}
           setDraft={setDraft}
           schemas={latestSchemas}
-          schemaHealthSchemas={schemas}
           schemaSource={schemaSource}
           setSchemaSource={setSchemaSource}
-          currentPhaseHasCareOfferings={
-            editingId !== "new" &&
-            (careOfferingCountsByPhase[editingId] ?? 0) > 0
-          }
           editing={editingId !== "new"}
           saving={saving}
           highlightFormSection={highlightFormSection}
@@ -729,10 +707,8 @@ interface PhaseFormProps {
   readonly draft: PhaseInput;
   readonly setDraft: React.Dispatch<React.SetStateAction<PhaseInput | null>>;
   readonly schemas: FormSchema[];
-  readonly schemaHealthSchemas: FormSchema[];
   readonly schemaSource: SchemaSource;
   readonly setSchemaSource: React.Dispatch<React.SetStateAction<SchemaSource>>;
-  readonly currentPhaseHasCareOfferings: boolean;
   readonly editing: boolean;
   readonly saving: boolean;
   readonly highlightFormSection: boolean;
@@ -1147,10 +1123,8 @@ function PhaseForm(props: PhaseFormProps) {
     draft,
     setDraft,
     schemas,
-    schemaHealthSchemas,
     schemaSource,
     setSchemaSource,
-    currentPhaseHasCareOfferings,
     editing,
     saving,
     highlightFormSection,
@@ -1158,17 +1132,6 @@ function PhaseForm(props: PhaseFormProps) {
     onCancel,
   } = props;
   const formSectionRef = useRef<HTMLFieldSetElement>(null);
-  const selectedSchema = useMemo(
-    () =>
-      schemaHealthSchemas.find(
-        (schema) => schema.id === draft.form_schema_id,
-      ) ?? null,
-    [draft.form_schema_id, schemaHealthSchemas],
-  );
-  const selectedSchemaDepartureHealth = useMemo(
-    () => getDepartureSchemaHealth(selectedSchema),
-    [selectedSchema],
-  );
 
   const update = (patch: Partial<PhaseInput>) =>
     setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
@@ -1395,25 +1358,6 @@ function PhaseForm(props: PhaseFormProps) {
                   ]}
                 />
               )}
-              {schemaSource === "reuse" &&
-              selectedSchemaDepartureHealth.needsLegacyCleanup ? (
-                <div
-                  role="alert"
-                  className="mt-3 rounded-xl border border-yellow-200 bg-yellow-50 p-3 text-xs leading-5 text-yellow-800"
-                >
-                  <div className="flex items-start gap-2">
-                    <AlertTriangle
-                      className="mt-0.5 h-4 w-4 shrink-0"
-                      aria-hidden="true"
-                    />
-                    <p>
-                      {currentPhaseHasCareOfferings
-                        ? "Diese Phase hat Betreuungsangebote. Die Vorlage nutzt noch alte Heimwegfelder; die Pflicht pro Betreuungstag greift erst nach Umstellung auf „Erlaubte Heimwege“."
-                        : "Diese Vorlage nutzt noch alte Heimwegfelder. Stelle sie vor dem Anlegen von Betreuungsangeboten auf „Erlaubte Heimwege“ um."}
-                    </p>
-                  </div>
-                </div>
-              ) : null}
               {schemas.length === 0 && (
                 <p className="mt-1 text-xs text-gray-500">
                   Noch keine eigenen Formulare vorhanden. Erstelle zunächst

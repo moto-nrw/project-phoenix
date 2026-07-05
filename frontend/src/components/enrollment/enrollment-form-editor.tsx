@@ -14,7 +14,6 @@ import {
 } from "react";
 import {
   ArrowLeft,
-  AlertTriangle,
   CalendarClock,
   Check,
   ChevronDown,
@@ -67,7 +66,6 @@ import {
   type PublicLegalTexts,
   type VisibilityCondition,
 } from "~/lib/enrollment-form-schema-api";
-import { getDepartureSchemaHealth } from "~/lib/enrollment-departure-schema-health";
 import { listPhases, type Phase } from "~/lib/enrollment-phase-api";
 import { createLogger } from "~/lib/logger";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
@@ -365,11 +363,6 @@ export function EnrollmentFormEditor() {
     () => latestSchemasByName(allSchemas),
     [allSchemas],
   );
-  const draftDepartureHealth = useMemo(
-    () => getDepartureSchemaHealth(fields),
-    [fields],
-  );
-
   const loadAll = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -610,41 +603,6 @@ export function EnrollmentFormEditor() {
     setFields((prev) => {
       if (prev.some((field) => field.target === target)) return prev;
       return [...prev, createTargetField(target, prev.length)];
-    });
-  };
-
-  const replaceLegacyDepartureFields = () => {
-    setFields((prev) => {
-      const health = getDepartureSchemaHealth(prev);
-      if (!health.needsLegacyCleanup) return prev;
-      const firstLegacyIndex = prev.findIndex((field) =>
-        health.legacyFields.includes(field),
-      );
-      const existingModernFields = prev.filter(
-        (field) => field.target === "student.allowed_departure_modes",
-      );
-      if (existingModernFields.length > 0) {
-        return prev
-          .filter((field) => !health.legacyFields.includes(field))
-          .map((field, index) => ({ ...field, sort_order: index }));
-      }
-      const modernField = {
-        ...createTargetField(
-          "student.allowed_departure_modes",
-          Math.max(firstLegacyIndex, 0),
-        ),
-        required: health.legacyFields.some((field) => field.required),
-      };
-      const withoutDepartureFields = prev.filter(
-        (field) => !health.legacyFields.includes(field),
-      );
-      const insertAt =
-        firstLegacyIndex >= 0
-          ? Math.min(firstLegacyIndex, withoutDepartureFields.length)
-          : withoutDepartureFields.length;
-      const next = [...withoutDepartureFields];
-      next.splice(insertAt, 0, modernField);
-      return next.map((field, index) => ({ ...field, sort_order: index }));
     });
   };
 
@@ -1074,12 +1032,6 @@ export function EnrollmentFormEditor() {
                 disabled={saving}
               />
 
-              <DepartureLegacyWarning
-                labels={draftDepartureHealth.legacyLabels}
-                onConvert={replaceLegacyDepartureFields}
-                disabled={saving}
-              />
-
               {fields.length > 0 ? (
                 <div className="space-y-3">
                   {fields.map((field, index) => (
@@ -1354,7 +1306,6 @@ function TemplateOverviewRow({
   const questionLabel =
     schema.fields.length === 1 ? "1 Frage" : `${schema.fields.length} Fragen`;
   const usageTitle = isAssigned ? "In Phase verwendet" : "Nicht verwendet";
-  const departureHealth = getDepartureSchemaHealth(schema);
 
   return (
     <article className="grid gap-4 px-4 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
@@ -1370,12 +1321,6 @@ function TemplateOverviewRow({
         <p className="mt-1 text-xs leading-5 text-gray-500">
           Eigene Vorlage für Pflichtangaben und Zusatzfragen.
         </p>
-        {departureHealth.needsLegacyCleanup ? (
-          <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-yellow-200 bg-yellow-50 px-2 py-0.5 text-[11px] font-medium text-yellow-800">
-            <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
-            Heimwege prüfen
-          </p>
-        ) : null}
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
           <UsageLine title={usageTitle} status={usageStatus} />
           <span>Erstellt {formatSchemaDate(schema.created_at)}</span>
@@ -1675,7 +1620,6 @@ function FormTemplateDetail({
   const childFieldCount = schema.fields.filter((field) =>
     Boolean(field.applies_to_child),
   ).length;
-  const departureHealth = getDepartureSchemaHealth(schema);
 
   return (
     <div className="space-y-5">
@@ -1739,11 +1683,6 @@ function FormTemplateDetail({
                   label="Pro Kind"
                 />
               </div>
-
-              <DepartureLegacyWarning
-                labels={departureHealth.legacyLabels}
-                compact
-              />
 
               <FormPreview
                 fields={schema.fields}
@@ -3176,51 +3115,6 @@ function TargetSuggestions({
         })}
       </div>
     </section>
-  );
-}
-
-function DepartureLegacyWarning({
-  labels,
-  onConvert,
-  disabled = false,
-  compact = false,
-}: Readonly<{
-  labels: readonly string[];
-  onConvert?: () => void;
-  disabled?: boolean;
-  compact?: boolean;
-}>) {
-  if (labels.length === 0) return null;
-  const legacyList = labels.join(", ");
-  return (
-    <div
-      role="alert"
-      className={`rounded-xl border border-yellow-200 bg-yellow-50 text-yellow-800 ${
-        compact ? "p-3 text-xs" : "p-4 text-sm"
-      }`}
-    >
-      <div className="flex items-start gap-3">
-        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-        <div className="min-w-0 flex-1">
-          <p className="font-semibold">Heimwege-Felder prüfen</p>
-          <p className="mt-1 leading-5">
-            Diese Vorlage nutzt noch {legacyList}. Für Betreuungsangebote mit
-            Tagesauswahl greift die neue Pflichtlogik nur mit „Erlaubte
-            Heimwege“.
-          </p>
-          {onConvert ? (
-            <button
-              type="button"
-              onClick={onConvert}
-              disabled={disabled}
-              className="mt-3 inline-flex h-8 items-center justify-center rounded-lg bg-yellow-900 px-3 text-xs font-medium text-white shadow-sm transition-colors hover:bg-yellow-800 focus-visible:ring-2 focus-visible:ring-yellow-700 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Alte Heimwegfelder ersetzen
-            </button>
-          ) : null}
-        </div>
-      </div>
-    </div>
   );
 }
 
