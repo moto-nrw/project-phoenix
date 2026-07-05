@@ -43,7 +43,7 @@ vi.mock("~/lib/hooks/use-school-checkin-mode", () => ({
 
 // Page gates the toggle on binary mode; override the global mock
 // (src/test/setup.ts defaults to "detailed") so the button renders.
-vi.mock("~/components/tenant/tenant-provider", () => ({
+vi.mock("~/lib/tenant-context", () => ({
   useTenant: vi.fn(() => ({ tenantSlug: "test-tenant", tenant: null })),
   useTenantSafe: vi.fn(() => ({
     tenantSlug: "test-tenant",
@@ -155,7 +155,7 @@ vi.mock("~/components/ui/alert", () => ({
   Alert: ({ message }: { message: string }) => <div>{message}</div>,
 }));
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({
     actionButton,
     mobileActionButton,

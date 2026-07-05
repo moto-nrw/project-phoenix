@@ -6,10 +6,11 @@ import { redirect } from "next/navigation";
 import { Loading } from "~/components/ui/loading";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
-import { UploadSection, StatsCards } from "~/components/import";
+import { UploadSection } from "~/components/import/upload-section";
+import { StatsCards } from "~/components/import/stats-cards";
 import { useToast } from "~/contexts/ToastContext";
 import { createCrudService } from "~/lib/database/service-factory";
-import { rolesConfig } from "~/lib/database/configs/roles.config";
+import { rolesConfig } from "~/components/database/configs/roles.config";
 import { getRoleDisplayName, type Role } from "~/lib/auth-helpers";
 import { createLogger } from "~/lib/logger";
 

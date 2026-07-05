@@ -1,19 +1,7 @@
-import type { NextRequest } from "next/server";
-import {
-  createOperatorDeleteHandler,
-  operatorApiDelete,
-  isStringParam,
-} from "~/lib/operator/route-wrapper.server";
+import { proxyDelete } from "~/lib/operator/route-wrapper.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
-export const DELETE = createOperatorDeleteHandler(
-  async (_request: NextRequest, token: string, params) => {
-    if (!isStringParam(params.id) || !isStringParam(params.commentId)) {
-      throw new Error("Invalid parameters");
-    }
-    await operatorApiDelete(
-      `/operator/suggestions/${params.id}/comments/${params.commentId}`,
-      token,
-    );
-    return null;
-  },
+export const DELETE = proxyDelete(
+  (params) =>
+    `/operator/suggestions/${requirePathSegmentParam(params)}/comments/${requirePathSegmentParam(params, "commentId")}`,
 );

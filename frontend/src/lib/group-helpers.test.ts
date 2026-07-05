@@ -1,28 +1,16 @@
 import { describe, it, expect } from "vitest";
-import type {
-  BackendGroup,
-  BackendCombinedGroup,
-  Group,
-  CombinedGroup,
-} from "./group-helpers";
+import type { BackendGroup, Group } from "./group-helpers";
 import {
   mapGroupResponse,
   mapGroupsResponse,
-  mapCombinedGroupResponse,
-  mapCombinedGroupsResponse,
   mapSingleGroupResponse,
-  mapSingleCombinedGroupResponse,
   prepareGroupForBackend,
-  prepareCombinedGroupForBackend,
   formatGroupName,
   formatGroupLocation,
   formatGroupRepresentative,
-  formatCombinedGroupStatus,
-  formatCombinedGroupValidity,
-  getAccessPolicyName,
 } from "./group-helpers";
 import { suppressConsole } from "~/test/helpers/console";
-import { buildBackendGroup } from "~/test/fixtures";
+import { buildBackendGroup } from "~/test/fixtures/groups";
 
 // Sample backend group for testing
 const sampleBackendGroup = buildBackendGroup({
@@ -75,22 +63,6 @@ const sampleBackendGroup = buildBackendGroup({
     { id: 2, name: "Anna Schmidt", school_class: "3a", current_location: null },
   ],
 });
-
-const sampleBackendCombinedGroup: BackendCombinedGroup = {
-  id: 100,
-  name: "Combined Group A",
-  is_active: true,
-  created_at: "2024-01-01T00:00:00Z",
-  valid_until: "2024-12-31T23:59:59Z",
-  access_policy: "all",
-  specific_group_id: undefined,
-  groups: [sampleBackendGroup],
-  access_specialists: [{ id: 1, name: "Dr. Smith" }],
-  is_expired: false,
-  group_count: 1,
-  specialist_count: 1,
-  time_until_expiration: "11 months",
-};
 
 describe("mapGroupResponse", () => {
   it("maps backend group to frontend structure", () => {
@@ -234,87 +206,6 @@ describe("mapGroupsResponse", () => {
   });
 });
 
-describe("mapCombinedGroupResponse", () => {
-  it("maps backend combined group to frontend structure", () => {
-    const result = mapCombinedGroupResponse(sampleBackendCombinedGroup);
-
-    expect(result.id).toBe("100");
-    expect(result.name).toBe("Combined Group A");
-    expect(result.is_active).toBe(true);
-    expect(result.created_at).toBe("2024-01-01T00:00:00Z");
-    expect(result.valid_until).toBe("2024-12-31T23:59:59Z");
-    expect(result.access_policy).toBe("all");
-    expect(result.is_expired).toBe(false);
-    expect(result.group_count).toBe(1);
-    expect(result.specialist_count).toBe(1);
-    expect(result.time_until_expiration).toBe("11 months");
-  });
-
-  it("maps nested groups", () => {
-    const result = mapCombinedGroupResponse(sampleBackendCombinedGroup);
-
-    expect(result.groups).toHaveLength(1);
-    expect(result.groups?.[0]?.id).toBe("1");
-    expect(result.groups?.[0]?.name).toBe("Klasse 3a");
-  });
-
-  it("maps access specialists", () => {
-    const result = mapCombinedGroupResponse(sampleBackendCombinedGroup);
-
-    expect(result.access_specialists).toHaveLength(1);
-    expect(result.access_specialists?.[0]?.id).toBe("1");
-    expect(result.access_specialists?.[0]?.name).toBe("Dr. Smith");
-  });
-
-  it("handles combined group with specific_group", () => {
-    const withSpecificGroup: BackendCombinedGroup = {
-      ...sampleBackendCombinedGroup,
-      access_policy: "specific",
-      specific_group_id: 1,
-      specific_group: sampleBackendGroup,
-    };
-
-    const result = mapCombinedGroupResponse(withSpecificGroup);
-
-    expect(result.access_policy).toBe("specific");
-    expect(result.specific_group_id).toBe("1");
-    expect(result.specific_group?.id).toBe("1");
-    expect(result.specific_group?.name).toBe("Klasse 3a");
-  });
-
-  it("handles combined group without optional fields", () => {
-    const minimalCombinedGroup: BackendCombinedGroup = {
-      id: 100,
-      name: "Minimal Group",
-      is_active: false,
-      created_at: "2024-01-01T00:00:00Z",
-      access_policy: "manual",
-    };
-
-    const result = mapCombinedGroupResponse(minimalCombinedGroup);
-
-    expect(result.groups).toBeUndefined();
-    expect(result.access_specialists).toBeUndefined();
-    expect(result.valid_until).toBeUndefined();
-    expect(result.specific_group_id).toBeUndefined();
-  });
-});
-
-describe("mapCombinedGroupsResponse", () => {
-  it("maps array of backend combined groups", () => {
-    const groups = [
-      sampleBackendCombinedGroup,
-      { ...sampleBackendCombinedGroup, id: 101, name: "Combined Group B" },
-    ];
-
-    const result = mapCombinedGroupsResponse(groups);
-
-    expect(result).toHaveLength(2);
-    expect(result[0]?.id).toBe("100");
-    expect(result[1]?.id).toBe("101");
-  });
-});
-
 describe("mapSingleGroupResponse", () => {
   it("extracts and maps group from { data: group } wrapper", () => {
     const response = { data: sampleBackendGroup };
@@ -323,17 +214,6 @@ describe("mapSingleGroupResponse", () => {
 
     expect(result.id).toBe("1");
     expect(result.name).toBe("Klasse 3a");
-  });
-});
-
-describe("mapSingleCombinedGroupResponse", () => {
-  it("extracts and maps combined group from { data: group } wrapper", () => {
-    const response = { data: sampleBackendCombinedGroup };
-
-    const result = mapSingleCombinedGroupResponse(response);
-
-    expect(result.id).toBe("100");
-    expect(result.name).toBe("Combined Group A");
   });
 });
 
@@ -378,84 +258,6 @@ describe("prepareGroupForBackend", () => {
     const result = prepareGroupForBackend(frontendGroup);
 
     expect(result.teacher_ids).toEqual([]);
-  });
-});
-
-describe("prepareCombinedGroupForBackend", () => {
-  it("converts frontend combined group to backend format", () => {
-    const frontendGroup: Partial<CombinedGroup> = {
-      id: "100",
-      name: "Combined Group A",
-      is_active: true,
-      valid_until: "2024-12-31T23:59:59Z",
-      access_policy: "all",
-      groups: [{ id: "1", name: "Klasse 3a", isOccupied: false } as Group],
-      access_specialists: [{ id: "1", name: "Dr. Smith" }],
-    };
-
-    const result = prepareCombinedGroupForBackend(frontendGroup);
-
-    expect(result.id).toBe(100);
-    expect(result.name).toBe("Combined Group A");
-    expect(result.is_active).toBe(true);
-    expect(result.valid_until).toBe("2024-12-31T23:59:59Z");
-    expect(result.access_policy).toBe("all");
-  });
-
-  it("creates full BackendGroup objects for nested groups", () => {
-    const frontendGroup: Partial<CombinedGroup> = {
-      groups: [
-        {
-          id: "1",
-          name: "Klasse 3a",
-          created_at: "2024-01-01T00:00:00Z",
-          updated_at: "2024-01-15T12:00:00Z",
-        } as Group,
-      ],
-    };
-
-    const result = prepareCombinedGroupForBackend(frontendGroup);
-
-    expect(result.groups).toHaveLength(1);
-    expect(result.groups?.[0]?.id).toBe(1);
-    expect(result.groups?.[0]?.name).toBe("Klasse 3a");
-    expect(result.groups?.[0]?.created_at).toBe("2024-01-01T00:00:00Z");
-  });
-
-  it("generates timestamps for groups without dates", () => {
-    const frontendGroup: Partial<CombinedGroup> = {
-      groups: [{ id: "1", name: "Test" } as Group],
-    };
-
-    const result = prepareCombinedGroupForBackend(frontendGroup);
-
-    expect(result.groups?.[0]?.created_at).toBeDefined();
-    expect(result.groups?.[0]?.updated_at).toBeDefined();
-  });
-
-  it("converts access_specialists ids to numbers", () => {
-    const frontendGroup: Partial<CombinedGroup> = {
-      access_specialists: [
-        { id: "1", name: "Dr. Smith" },
-        { id: "2", name: "Prof. Jones" },
-      ],
-    };
-
-    const result = prepareCombinedGroupForBackend(frontendGroup);
-
-    expect(result.access_specialists?.[0]?.id).toBe(1);
-    expect(result.access_specialists?.[1]?.id).toBe(2);
-  });
-
-  it("handles specific_group_id conversion", () => {
-    const frontendGroup: Partial<CombinedGroup> = {
-      access_policy: "specific",
-      specific_group_id: "5",
-    };
-
-    const result = prepareCombinedGroupForBackend(frontendGroup);
-
-    expect(result.specific_group_id).toBe(5);
   });
 });
 
@@ -530,91 +332,5 @@ describe("formatGroupRepresentative", () => {
     const result = formatGroupRepresentative(group);
 
     expect(result).toBe("No Representative");
-  });
-});
-
-describe("formatCombinedGroupStatus", () => {
-  it("returns 'Inactive' for inactive groups", () => {
-    const group: CombinedGroup = {
-      id: "1",
-      name: "Test",
-      is_active: false,
-      access_policy: "all",
-    };
-
-    const result = formatCombinedGroupStatus(group);
-
-    expect(result).toBe("Inactive");
-  });
-
-  it("returns 'Expired' for active but expired groups", () => {
-    const group: CombinedGroup = {
-      id: "1",
-      name: "Test",
-      is_active: true,
-      is_expired: true,
-      access_policy: "all",
-    };
-
-    const result = formatCombinedGroupStatus(group);
-
-    expect(result).toBe("Expired");
-  });
-
-  it("returns 'Active' for active non-expired groups", () => {
-    const group: CombinedGroup = {
-      id: "1",
-      name: "Test",
-      is_active: true,
-      is_expired: false,
-      access_policy: "all",
-    };
-
-    const result = formatCombinedGroupStatus(group);
-
-    expect(result).toBe("Active");
-  });
-});
-
-describe("formatCombinedGroupValidity", () => {
-  it("returns valid_until when available", () => {
-    const group: CombinedGroup = {
-      id: "1",
-      name: "Test",
-      is_active: true,
-      valid_until: "2024-12-31T23:59:59Z",
-      access_policy: "all",
-    };
-
-    const result = formatCombinedGroupValidity(group);
-
-    expect(result).toBe("2024-12-31T23:59:59Z");
-  });
-
-  it("returns 'No expiration' when valid_until is undefined", () => {
-    const group: CombinedGroup = {
-      id: "1",
-      name: "Test",
-      is_active: true,
-      access_policy: "all",
-    };
-
-    const result = formatCombinedGroupValidity(group);
-
-    expect(result).toBe("No expiration");
-  });
-});
-
-describe("getAccessPolicyName", () => {
-  it("translates known policy names", () => {
-    expect(getAccessPolicyName("all")).toBe("All Specialists");
-    expect(getAccessPolicyName("first")).toBe("First Specialist");
-    expect(getAccessPolicyName("specific")).toBe("Specific Specialist");
-    expect(getAccessPolicyName("manual")).toBe("Manual Assignment");
-  });
-
-  it("returns original value for unknown policies", () => {
-    expect(getAccessPolicyName("custom")).toBe("custom");
-    expect(getAccessPolicyName("unknown_policy")).toBe("unknown_policy");
   });
 });

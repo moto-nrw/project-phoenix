@@ -1,6 +1,6 @@
 "use client";
 
-import { useIsMobile } from "~/hooks/useIsMobile";
+import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 
 interface MobileBackButtonProps {
   /** Destination URL when button is clicked */

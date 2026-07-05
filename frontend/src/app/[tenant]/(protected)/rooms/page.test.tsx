@@ -33,7 +33,8 @@ vi.mock("~/hooks/useUpdateUrlParams", () => ({
   useUpdateUrlParams: () => mockUpdateUrlParams,
 }));
 
-vi.mock("~/components/rooms", () => ({
+vi.mock("~/components/rooms/room-detail-modal", () => ({
+  TRANSIT_ROOM_ID: "__transit__",
   // Surface the onClose handler as a clickable element so tests can
   // exercise the modal-close branch (back vs. updateUrlParams).
   RoomDetailModal: ({
@@ -77,7 +78,7 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({
     search,
     filters,

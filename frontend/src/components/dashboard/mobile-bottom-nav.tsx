@@ -20,10 +20,8 @@ import { hasPermission, hasRole, isCaregiver } from "~/lib/auth-utils";
 import { navigationIcons } from "~/lib/navigation-icons";
 import { operatorPath } from "~/lib/operator-url";
 import { useParentMealPlanEnabled } from "~/lib/hooks/use-parent-meal-plan-enabled";
-import {
-  useNFCEnabled,
-  usePresenceMode,
-} from "~/components/tenant/tenant-provider";
+import { useParentNewsEnabled } from "~/lib/hooks/use-parent-news-enabled";
+import { useNFCEnabled, usePresenceMode } from "~/lib/tenant-context";
 import {
   SETTINGS_SCHEMA_SWR_KEY,
   fetchSettingsSchema,
@@ -238,6 +236,14 @@ const PARENT_ADDITIONAL_ITEMS: readonly (AdditionalNavItem & {
     tKey: "messages",
     iconKey: "chat",
     alwaysShow: true,
+  },
+  // Neuigkeiten — only shown once a linked school broadcasts announcements
+  // (gated via useParentNewsEnabled in the parent display filter below).
+  {
+    href: "/parents/news",
+    label: "Neuigkeiten",
+    tKey: "news",
+    iconKey: "newspaper",
   },
   // Essensplan — only shown once a linked school runs a meal plan (gated via
   // useParentMealPlanEnabled in the parent display filter below).
@@ -530,6 +536,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // Only advertise Essensplan in the parents portal once a linked school runs
   // a meal plan; otherwise the overflow link leads to an empty page.
   const parentMealPlanEnabled = useParentMealPlanEnabled(mode === "parent");
+  // Same gate for Neuigkeiten: hidden until a linked school broadcasts
+  // announcements, otherwise the overflow link dead-ends on an empty feed.
+  const parentNewsEnabled = useParentNewsEnabled(mode === "parent");
   const hasGroupSupervision = !isLoadingGroups && hasGroups;
   const hasRoomSupervision = !isLoadingSupervision && isSupervising;
 
@@ -575,7 +584,8 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       ? parentAdditionalItems.filter(
           (i) =>
             !mainHrefs.has(i.href) &&
-            (i.href !== "/parents/meal-plan" || parentMealPlanEnabled),
+            (i.href !== "/parents/meal-plan" || parentMealPlanEnabled) &&
+            (i.href !== "/parents/news" || parentNewsEnabled),
         )
       : mode === "operator"
         ? resolvedOperatorAdditionalItems.filter((i) => !mainHrefs.has(i.href))
@@ -653,7 +663,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       {/* shadcn/UI Drawer - Full-width on mobile */}
       <Drawer open={isOverflowMenuOpen} onOpenChange={setIsOverflowMenuOpen}>
         <DrawerContent className="bg-white">
-          <div className="w-full">
+          <div className="min-h-0 w-full flex-1 overflow-y-auto">
             {/* Hidden header for accessibility only */}
             <DrawerHeader className="sr-only">
               <DrawerTitle>Navigation</DrawerTitle>

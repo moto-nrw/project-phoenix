@@ -71,7 +71,7 @@ vi.mock("~/components/ui/loading", () => ({
 }));
 
 // Mock PageHeaderWithSearch (vi.fn wrapper enables mockImplementation in enhanced tests)
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: vi.fn(
     ({ title, badge }: { title: string; badge?: { count: number } }) => (
       <div data-testid="page-header" data-count={badge?.count}>
@@ -141,7 +141,7 @@ vi.mock("~/components/sse/SSEErrorBoundary", () => ({
 }));
 
 // Mock UnclaimedRooms
-vi.mock("~/components/active", () => ({
+vi.mock("~/components/active/unclaimed-rooms", () => ({
   UnclaimedRooms: () => <div data-testid="unclaimed-rooms" />,
 }));
 
@@ -289,7 +289,8 @@ describe("Action button click handlers", () => {
     global.fetch = vi.fn();
 
     // Override PageHeaderWithSearch to render action buttons as clickable elements
-    const mod = await import("~/components/ui/page-header");
+    const mod =
+      await import("~/components/ui/page-header/PageHeaderWithSearch");
     vi.mocked(
       mod.PageHeaderWithSearch as React.FC<Record<string, unknown>>,
     ).mockImplementation((props: Record<string, unknown>) => {
@@ -571,7 +572,8 @@ describe("Schulhof tab onTabChange callback", () => {
     });
 
     // Override PageHeaderWithSearch to render tabs with onTabChange
-    const mod = await import("~/components/ui/page-header");
+    const mod =
+      await import("~/components/ui/page-header/PageHeaderWithSearch");
     vi.mocked(
       mod.PageHeaderWithSearch as React.FC<Record<string, unknown>>,
     ).mockImplementation((props: Record<string, unknown>) => {

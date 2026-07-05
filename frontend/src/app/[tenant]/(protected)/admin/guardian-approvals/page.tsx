@@ -1,7 +1,7 @@
 "use client";
 
 import GuardianApprovalQueue from "~/components/admin/guardian-approval-queue";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { Loading } from "~/components/ui/loading";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
 

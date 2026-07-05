@@ -60,15 +60,7 @@ vi.mock("~/lib/operator-url", () => ({
   isOperatorSubdomain: () => false,
 }));
 
-vi.mock("~/components/ui", () => ({
-  Input: ({
-    value,
-    onChange,
-    ...props
-  }: React.InputHTMLAttributes<HTMLInputElement> & {
-    value?: string;
-    onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  }) => <input value={value} onChange={onChange} {...props} />,
+vi.mock("~/components/ui/alert", () => ({
   Alert: ({ message }: { message: string }) => (
     <div role="alert">{message}</div>
   ),

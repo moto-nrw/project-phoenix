@@ -1,77 +1,30 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { GET, POST } from "./route";
-import { parentApiGet, parentApiPost } from "~/lib/parent/route-wrapper.server";
-
+// Capture the endpoint builders the route hands to the parent proxy factories,
+// so the test can assert path-segment encoding without real HTTP plumbing.
 vi.mock("~/lib/parent/route-wrapper.server", () => ({
-  createParentGetHandler:
-    (
-      handler: (
-        request: Request,
-        token: string,
-        params: Record<string, unknown>,
-      ) => Promise<unknown>,
-    ) =>
-    (request: Request, context: { params: Record<string, unknown> }) =>
-      handler(request, "parent-token", context.params),
-  createParentPostHandler:
-    (
-      handler: (
-        request: Request,
-        body: { changes: unknown[] },
-        token: string,
-        params: Record<string, unknown>,
-      ) => Promise<unknown>,
-    ) =>
-    (
-      request: Request,
-      context: {
-        params: Record<string, unknown>;
-        body: { changes: unknown[] };
-      },
-    ) =>
-      handler(request, context.body, "parent-token", context.params),
-  parentApiGet: vi.fn(),
-  parentApiPost: vi.fn(),
+  proxyGet: vi.fn((endpoint: unknown) => endpoint),
+  proxyPost: vi.fn((endpoint: unknown) => endpoint),
 }));
 
+import { GET, POST } from "./route";
+
+type EndpointBuilder = (params: Record<string, unknown>) => string;
+
 describe("parent child master-data requests route", () => {
-  it("forwards GET to the encoded backend request list endpoint", async () => {
-    vi.mocked(parentApiGet).mockResolvedValue([{ id: "100" }]);
+  it("forwards GET to the encoded backend request list endpoint", () => {
+    const buildEndpoint = GET as unknown as EndpointBuilder;
 
-    const out = await GET(
-      new Request("http://test.local") as never,
-      {
-        params: { studentId: "42/unsafe" },
-      } as never,
-    );
-
-    expect(out).toEqual([{ id: "100" }]);
-    expect(parentApiGet).toHaveBeenCalledWith(
+    expect(buildEndpoint({ studentId: "42/unsafe" })).toBe(
       "/parent/me/children/42%2Funsafe/master-data/requests",
-      "parent-token",
     );
   });
 
-  it("forwards POST bodies to the encoded backend request endpoint", async () => {
-    const body = {
-      changes: [{ target: "person", field_key: "first_name", value: "Lea" }],
-    };
-    vi.mocked(parentApiPost).mockResolvedValue([{ id: "101" }]);
+  it("forwards POST to the encoded backend request endpoint", () => {
+    const buildEndpoint = POST as unknown as EndpointBuilder;
 
-    const out = await POST(
-      new Request("http://test.local") as never,
-      {
-        params: { studentId: "42/unsafe" },
-        body,
-      } as never,
-    );
-
-    expect(out).toEqual([{ id: "101" }]);
-    expect(parentApiPost).toHaveBeenCalledWith(
+    expect(buildEndpoint({ studentId: "42/unsafe" })).toBe(
       "/parent/me/children/42%2Funsafe/master-data/requests",
-      "parent-token",
-      body,
     );
   });
 });

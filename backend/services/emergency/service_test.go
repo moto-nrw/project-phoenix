@@ -233,3 +233,28 @@ func TestBinaryLocationLabel(t *testing.T) {
 	assert.Equal(t, "Abwesend", binaryLocationLabel(&activeService.AttendanceStatus{Status: "checked_out"}))
 	assert.Equal(t, "Abwesend", binaryLocationLabel(nil))
 }
+
+func TestSortSnapshotRowsGermanNameOrder(t *testing.T) {
+	rows := []snapshotRow{
+		{Name: "Jan Zimmermann", Location: "Raum A"},
+		{Name: "emre özdemir", Location: "Raum A"},
+		{Name: "Lena Ärmel", Location: "Raum A"},
+		{Name: "Anna Müller", Location: "Unterwegs"},
+		{Name: "Ben Anders", Location: "Unterwegs"},
+	}
+
+	sortSnapshotRows(rows)
+
+	got := make([]string, 0, len(rows))
+	for _, row := range rows {
+		got = append(got, row.Location+"/"+row.Name)
+	}
+	want := []string{
+		"Raum A/emre özdemir",
+		"Raum A/Jan Zimmermann",
+		"Raum A/Lena Ärmel",
+		"Unterwegs/Anna Müller",
+		"Unterwegs/Ben Anders",
+	}
+	assert.Equal(t, want, got)
+}

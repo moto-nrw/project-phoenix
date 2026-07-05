@@ -50,7 +50,7 @@ vi.mock("@/lib/database/service-factory", () => ({
   })),
 }));
 
-vi.mock("~/hooks/useIsMobile", () => ({
+vi.mock("~/components/ui/hooks/useIsMobile", () => ({
   useIsMobile: vi.fn(() => false),
 }));
 
@@ -77,7 +77,7 @@ vi.mock("~/components/database/database-page-layout", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({
     search,
     onClearAllFilters,
@@ -101,7 +101,7 @@ vi.mock("~/components/ui/page-header", () => ({
   ),
 }));
 
-vi.mock("@/components/teachers", () => ({
+vi.mock("@/components/teachers/staff-master-detail", () => ({
   StaffMasterDetail: ({
     groupDefinitions,
     selectedId,
@@ -170,6 +170,9 @@ vi.mock("@/components/teachers", () => ({
       ) : null}
     </div>
   ),
+}));
+
+vi.mock("@/components/teachers/caregiver-capability-modal", () => ({
   CaregiverCapabilityModal: ({ isOpen }: { isOpen: boolean }) =>
     isOpen ? <div data-testid="caregiver-modal" /> : null,
 }));

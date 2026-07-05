@@ -31,7 +31,7 @@
     <div class="school-logo-fallback">OGS</div>
     {{end}}
     <div class="school-brand-copy">
-        <p class="school-kicker">Online-Anmeldung</p>
+        <p class="school-kicker">{{if .BrandKicker}}{{.BrandKicker}}{{else}}Online-Anmeldung{{end}}</p>
         <p class="school-name">{{if .SchoolName}}{{.SchoolName}}{{else}}Ihre OGS{{end}}</p>
     </div>
 </div>

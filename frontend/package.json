@@ -9,6 +9,7 @@
     "build-storybook": "node scripts/build-storybook.mjs",
     "check": "node scripts/verify-locales.mjs && oxlint . && tsc --noEmit",
     "check:fresh": "rm -f *.tsbuildinfo && node scripts/verify-locales.mjs && oxlint . && tsc --noEmit",
+    "depcruise": "dependency-cruise --config .dependency-cruiser.cjs src",
     "dev": "next dev",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
     "format:write": "prettier --write \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
@@ -69,6 +70,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
     "@vitest/coverage-v8": "^4.1.9",
+    "dependency-cruiser": "^18.0.0",
     "happy-dom": "^20.10.6",
     "jsdom": "^29.1.1",
     "knip": "^6.23.0",
@@ -89,7 +91,7 @@
   "ct3aMetadata": {
     "initVersion": "7.39.3"
   },
-  "packageManager": "pnpm@10.32.1+sha512.a706938f0e89ac1456b6563eab4edf1d1faf3368d1191fc5c59790e96dc918e4456ab2e67d613de1043d2e8c81f87303e6b40d4ffeca9df15ef1ad567348f2be",
+  "packageManager": "pnpm@10.34.4+sha512.8768be55200ae3f2226b6527fcca2687e14bc4e5f12d7721a0f25da3df47915177058648db4177baf348120fa0ba2752d8d8d93f6beaf1fe64ae18da8de961af",
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild",
@@ -118,36 +120,13 @@
     ]
   },
   "knip": {
-    "entry": [
-      "src/app/**/*.{ts,tsx}",
-      "src/env.js",
-      "src/sentry.client.config.ts",
-      "src/sentry.server.config.ts",
-      "src/lib/utils.ts",
-      "src/lib/image-utils.ts",
-      "src/lib/database/configs/*.{ts,tsx}",
-      "src/lib/swr/index.ts",
-      "src/server/auth/token-refresh.ts",
-      "src/server/auth/shared.ts",
-      "src/server/auth/operator.ts",
-      "src/**/*.test.{ts,tsx}",
-      "src/test/mocks/*.ts",
-      "src/test/fixtures/*.ts",
-      "src/test/helpers/*.ts",
-      ".storybook/mocks/env.js",
-      ".storybook/mocks/next-auth-react.tsx"
-    ],
-    "project": [
-      "src/**/*.{ts,tsx,js}"
-    ],
+    "includeEntryExports": true,
     "ignore": [
-      "src/components/**/*.stories.tsx"
+      ".storybook/mocks/**"
     ],
     "ignoreDependencies": [
       "sharp",
-      "lint-staged",
-      "@fontsource/geist-sans",
-      "@moto-nrw/design-system"
+      "lint-staged"
     ]
   }
 }

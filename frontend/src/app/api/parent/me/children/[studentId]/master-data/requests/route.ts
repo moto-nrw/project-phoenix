@@ -1,9 +1,5 @@
-import {
-  createParentGetHandler,
-  createParentPostHandler,
-  parentApiGet,
-  parentApiPost,
-} from "~/lib/parent/route-wrapper.server";
+import { proxyGet, proxyPost } from "~/lib/parent/route-wrapper.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 interface ChangeRequestBody {
   changes: { target: string; field_key: string; value: unknown }[];
@@ -13,27 +9,16 @@ interface ChangeRequestBody {
  * Proxy GET /api/parent/me/children/{studentId}/master-data/requests → backend.
  * Lists the child's Track B change requests (any status).
  */
-export const GET = createParentGetHandler<unknown>(
-  async (_request, token, params) => {
-    const studentId = String(params.studentId);
-    return parentApiGet<unknown>(
-      `/parent/me/children/${encodeURIComponent(studentId)}/master-data/requests`,
-      token,
-    );
-  },
+export const GET = proxyGet<unknown>(
+  (params) =>
+    `/parent/me/children/${requirePathSegmentParam(params, "studentId")}/master-data/requests`,
 );
 
 /**
  * Proxy POST /api/parent/me/children/{studentId}/master-data/requests → backend.
  * Submits Track B change requests for staff approval.
  */
-export const POST = createParentPostHandler<unknown, ChangeRequestBody>(
-  async (_request, body, token, params) => {
-    const studentId = String(params.studentId);
-    return parentApiPost<unknown, ChangeRequestBody>(
-      `/parent/me/children/${encodeURIComponent(studentId)}/master-data/requests`,
-      token,
-      body,
-    );
-  },
+export const POST = proxyPost<unknown, ChangeRequestBody>(
+  (params) =>
+    `/parent/me/children/${requirePathSegmentParam(params, "studentId")}/master-data/requests`,
 );

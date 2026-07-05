@@ -1,6 +1,4 @@
-import type { NextRequest } from "next/server";
-import { apiPost } from "~/lib/api-helpers.server";
-import { createPostHandler } from "~/lib/route-wrapper.server";
+import { proxyPost } from "~/lib/route-proxy.server";
 
 interface VacationRequestBody {
   date_start: string;
@@ -11,13 +9,6 @@ interface VacationRequestBody {
   substitute_staff_id?: number;
 }
 
-export const POST = createPostHandler<unknown, VacationRequestBody>(
-  async (_request: NextRequest, body: VacationRequestBody, token: string) => {
-    const response = await apiPost<{ data: unknown }>(
-      "/api/time-tracking/vacation/request",
-      token,
-      body,
-    );
-    return response.data;
-  },
+export const POST = proxyPost<unknown, VacationRequestBody>(
+  "/api/time-tracking/vacation/request",
 );

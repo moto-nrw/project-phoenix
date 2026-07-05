@@ -30,7 +30,7 @@ vi.mock("./modal", () => ({
   },
 }));
 
-vi.mock("./index", () => ({
+vi.mock("./input", () => ({
   Input: ({
     id,
     value,
@@ -58,6 +58,9 @@ vi.mock("./index", () => ({
       {...props}
     />
   ),
+}));
+
+vi.mock("./alert", () => ({
   Alert: ({ type, message }: { type: string; message: string }) => (
     <div data-testid={`alert-${type}`}>{message}</div>
   ),

@@ -2,7 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { fetchUnreadCount } from "~/lib/suggestions-api";
-import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
+import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { useUnreadCount } from "./use-unread-count";
 
 export function useSuggestionsUnread() {

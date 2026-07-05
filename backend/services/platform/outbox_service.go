@@ -147,6 +147,17 @@ func (s *OutboxService) Enqueue(ctx context.Context, req EnqueueRequest) (*platf
 	return row, nil
 }
 
+// CancelPendingByRelatedEntity marks every still-pending outbox row for a
+// related entity as failed so the worker never sends it — used when the
+// triggering entity is retracted before the async send. Tenant-scoped; must run
+// inside the caller's tenant tx. Returns the number of rows cancelled.
+func (s *OutboxService) CancelPendingByRelatedEntity(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error) {
+	if s == nil || s.repo == nil {
+		return 0, errors.New("outbox service not wired")
+	}
+	return s.repo.CancelPendingByRelatedEntity(ctx, relatedType, relatedID, reason)
+}
+
 // FindByRelatedEntity surfaces the per-feature lookup so admin UIs can
 // show "all email rows for this enrollment request". Tenant-scoped.
 func (s *OutboxService) FindByRelatedEntity(ctx context.Context, relatedType string, relatedID int64) ([]*platformModels.EmailOutbox, error) {

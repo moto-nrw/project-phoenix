@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/collation"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -118,6 +119,7 @@ type CareUsageRowOffering struct {
 type ClassRosterFilters struct {
 	PhaseID     int64  `json:"phase_id"`
 	SchoolClass string `json:"school_class"`
+	AllClasses  bool   `json:"all_classes"`
 }
 
 type ClassRosterReport struct {
@@ -130,6 +132,7 @@ type ClassRosterReport struct {
 type ClassRosterAppliedFilters struct {
 	PhaseID     int64  `json:"phase_id"`
 	SchoolClass string `json:"school_class"`
+	AllClasses  bool   `json:"all_classes"`
 	Status      string `json:"status"`
 }
 
@@ -343,10 +346,10 @@ func (s *reportService) CareUsage(ctx context.Context, filters CareUsageFilters)
 	}
 
 	sort.SliceStable(report.Rows, func(i, j int) bool {
-		if report.Rows[i].ChildLastName != report.Rows[j].ChildLastName {
-			return strings.ToLower(report.Rows[i].ChildLastName) < strings.ToLower(report.Rows[j].ChildLastName)
-		}
-		return strings.ToLower(report.Rows[i].ChildFirstName) < strings.ToLower(report.Rows[j].ChildFirstName)
+		return collation.CompareGermanNames(
+			report.Rows[i].ChildLastName, report.Rows[i].ChildFirstName,
+			report.Rows[j].ChildLastName, report.Rows[j].ChildFirstName,
+		) < 0
 	})
 	report.ByOffering = careUsageOfferingStats(offeringStats)
 	report.FilterOptions.GradeLevels = careUsageGradeOptions(gradeSeen)
@@ -411,9 +414,9 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 	if err != nil {
 		return nil, fmt.Errorf("class roster report: phase %d: %w", filters.PhaseID, ErrReportPhaseNotFound)
 	}
-	students, err := s.studentRepo.FindBySchoolClass(ctx, filters.SchoolClass)
+	students, err := s.classRosterStudents(ctx, filters)
 	if err != nil {
-		return nil, fmt.Errorf("class roster report: list students: %w", err)
+		return nil, err
 	}
 	if len(students) > maxReportRows {
 		return nil, fmt.Errorf("class roster report: %d students: %w", len(students), ErrReportExportTooLarge)
@@ -504,23 +507,14 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 		}
 		rows = append(rows, row)
 	}
-	sort.SliceStable(rows, func(i, j int) bool {
-		lastNameCompare := strings.Compare(strings.ToLower(rows[i].LastName), strings.ToLower(rows[j].LastName))
-		if lastNameCompare != 0 {
-			return lastNameCompare < 0
-		}
-		firstNameCompare := strings.Compare(strings.ToLower(rows[i].FirstName), strings.ToLower(rows[j].FirstName))
-		if firstNameCompare != 0 {
-			return firstNameCompare < 0
-		}
-		return rows[i].StudentID < rows[j].StudentID
-	})
+	sortClassRosterRows(rows)
 
 	report := &ClassRosterReport{
 		Phase: CareUsagePhase{ID: phase.ID, Name: phase.Name},
 		Filters: ClassRosterAppliedFilters{
 			PhaseID:     filters.PhaseID,
 			SchoolClass: filters.SchoolClass,
+			AllClasses:  filters.AllClasses,
 			Status:      enrollmentModels.ChildStatusApproved,
 		},
 		Totals: ClassRosterTotals{Students: len(rows)},
@@ -569,7 +563,10 @@ func validateClassRosterFilters(filters ClassRosterFilters) error {
 	if filters.PhaseID <= 0 {
 		return fmt.Errorf("%w: phase_id is required", ErrReportInvalidFilter)
 	}
-	if filters.SchoolClass == "" {
+	if filters.AllClasses && filters.SchoolClass != "" {
+		return fmt.Errorf("%w: school_class and all_classes are mutually exclusive", ErrReportInvalidFilter)
+	}
+	if !filters.AllClasses && filters.SchoolClass == "" {
 		return fmt.Errorf("%w: school_class is required", ErrReportInvalidFilter)
 	}
 	return nil
@@ -890,6 +887,56 @@ func (s *reportService) classRosterGroupNames(ctx context.Context, students []*u
 		return nil, fmt.Errorf("class roster report: load groups: %w", err)
 	}
 	return groups, nil
+}
+
+// classRosterStudents loads the roster's students: one class, or — for the
+// all-classes export — every non-empty class (ListSchoolClasses only returns
+// classes that have students, so empty classes never produce empty lists).
+func (s *reportService) classRosterStudents(ctx context.Context, filters ClassRosterFilters) ([]*userModels.Student, error) {
+	if !filters.AllClasses {
+		students, err := s.studentRepo.FindBySchoolClass(ctx, filters.SchoolClass)
+		if err != nil {
+			return nil, fmt.Errorf("class roster report: list students: %w", err)
+		}
+		return students, nil
+	}
+	classes, err := s.studentRepo.ListSchoolClasses(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("class roster report: list school classes: %w", err)
+	}
+	students := make([]*userModels.Student, 0)
+	// ListSchoolClasses is case-sensitive DISTINCT while FindBySchoolClass
+	// matches LOWER(TRIM(...)); dedupe with the latter rule so a tenant
+	// with both "1a" and "1A" doesn't load the same students twice.
+	seen := make(map[string]bool, len(classes))
+	for _, class := range classes {
+		key := strings.ToLower(strings.TrimSpace(class))
+		if key == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
+		classStudents, err := s.studentRepo.FindBySchoolClass(ctx, class)
+		if err != nil {
+			return nil, fmt.Errorf("class roster report: list students of class %q: %w", class, err)
+		}
+		students = append(students, classStudents...)
+		if len(students) > maxReportRows {
+			return nil, fmt.Errorf("class roster report: %d students: %w", len(students), ErrReportExportTooLarge)
+		}
+	}
+	return students, nil
+}
+
+func sortClassRosterRows(rows []ClassRosterRow) {
+	sort.SliceStable(rows, func(i, j int) bool {
+		if r := collation.CompareSchoolClasses(rows[i].SchoolClass, rows[j].SchoolClass); r != 0 {
+			return r < 0
+		}
+		if r := collation.CompareGermanNames(rows[i].LastName, rows[i].FirstName, rows[j].LastName, rows[j].FirstName); r != 0 {
+			return r < 0
+		}
+		return rows[i].StudentID < rows[j].StudentID
+	})
 }
 
 func classRosterGroupName(student *userModels.Student, groups map[int64]*educationModels.Group) string {
@@ -1799,7 +1846,11 @@ func (s *reportService) recordClassRosterExportAudit(ctx context.Context, report
 	entry.SetMetadata("phase_id", report.Phase.ID)
 	entry.SetMetadata("report", "class_roster")
 	entry.SetMetadata("format", format)
-	entry.SetMetadata("school_class", report.Filters.SchoolClass)
+	schoolClassMeta := report.Filters.SchoolClass
+	if report.Filters.AllClasses {
+		schoolClassMeta = "alle"
+	}
+	entry.SetMetadata("school_class", schoolClassMeta)
 	entry.SetMetadata("status_filter", report.Filters.Status)
 	entry.SetMetadata("student_count", report.Totals.Students)
 	entry.SetMetadata("registered_count", report.Totals.Registered)

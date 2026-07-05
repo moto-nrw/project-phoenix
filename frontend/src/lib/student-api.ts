@@ -512,8 +512,7 @@ export async function uploadStudentPhoto(
   }
 
   const body = (await response.json()) as
-    | { data: { photo_url: string } }
-    | { photo_url: string };
+    { data: { photo_url: string } } | { photo_url: string };
   const data = "data" in body ? body.data : body;
   return { photoUrl: data.photo_url };
 }

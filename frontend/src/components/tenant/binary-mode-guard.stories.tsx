@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
-import { TenantProvider } from "~/components/tenant/tenant-provider";
+import { TenantProvider } from "~/lib/tenant-context";
 import type { TenantInfo } from "~/lib/tenant-api";
 import { BinaryModeGuard } from "./binary-mode-guard";
 

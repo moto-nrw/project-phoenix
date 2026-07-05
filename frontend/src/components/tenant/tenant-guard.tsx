@@ -5,7 +5,7 @@ import { signIn, signOut, useSession } from "next-auth/react";
 import { mutate } from "~/lib/swr";
 import { clearSessionCache } from "~/lib/session-cache";
 import { TenantSwitchError, performTenantSwitch } from "~/lib/tenant-api";
-import { useTenant } from "~/components/tenant/tenant-provider";
+import { useTenant } from "~/lib/tenant-context";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "TenantGuard" });

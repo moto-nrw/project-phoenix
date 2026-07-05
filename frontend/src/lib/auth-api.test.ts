@@ -21,11 +21,6 @@ vi.mock("./auth-service", () => ({
   },
 }));
 
-// Mock server-side token refresh module
-vi.mock("~/server/auth/token-refresh", () => ({
-  refreshSessionTokensOnServer: vi.fn(),
-}));
-
 // Helper to setup browser environment
 function setupBrowserEnv() {
   const originalWindow = globalThis.window;
@@ -203,56 +198,12 @@ describe("auth-api", () => {
   });
 
   describe("handleAuthFailure", () => {
-    it("returns false in server context without importing server refresh", async () => {
+    it("returns false in server context", async () => {
       const restore = setupServerEnv();
       try {
-        const { refreshSessionTokensOnServer } =
-          await import("~/server/auth/token-refresh");
-        vi.mocked(refreshSessionTokensOnServer).mockResolvedValue({
-          accessToken: "new-token",
-          refreshToken: "new-refresh",
-        });
-
         const result = await handleAuthFailure();
 
         expect(result).toBe(false);
-        expect(refreshSessionTokensOnServer).not.toHaveBeenCalled();
-      } finally {
-        restore();
-      }
-    });
-
-    it("returns false when server-side refresh fails", async () => {
-      const restore = setupServerEnv();
-      try {
-        const { refreshSessionTokensOnServer } =
-          await import("~/server/auth/token-refresh");
-        vi.mocked(refreshSessionTokensOnServer).mockResolvedValue(null);
-
-        const result = await handleAuthFailure();
-
-        expect(result).toBe(false);
-      } finally {
-        restore();
-      }
-    });
-
-    it("returns false when server-side refresh throws", async () => {
-      const restore = setupServerEnv();
-      try {
-        const { refreshSessionTokensOnServer } =
-          await import("~/server/auth/token-refresh");
-        vi.mocked(refreshSessionTokensOnServer).mockRejectedValue(
-          new Error("Server error"),
-        );
-
-        const consoleSpy = vi
-          .spyOn(console, "error")
-          .mockImplementation(/* noop */ () => undefined);
-        const result = await handleAuthFailure();
-
-        expect(result).toBe(false);
-        expect(consoleSpy).toHaveBeenCalled();
       } finally {
         restore();
       }

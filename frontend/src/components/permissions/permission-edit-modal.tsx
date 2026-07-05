@@ -1,11 +1,9 @@
 "use client";
 
 import { useMemo } from "react";
-import { Modal } from "~/components/ui/modal";
-import { DatabaseForm } from "~/components/ui/database/database-form";
-import { permissionsConfig } from "@/lib/database/configs/permissions.config";
-import { configToFormSection } from "@/lib/database/types";
+import { permissionsConfig } from "@/components/database/configs/permissions.config";
 import type { Permission } from "@/lib/auth-helpers";
+import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
 
 interface Props {
   readonly isOpen: boolean;
@@ -38,23 +36,14 @@ export function PermissionEditModal({
   if (!permission || !formData) return null;
 
   return (
-    <Modal
+    <DatabaseFormModal<Permission>
       isOpen={isOpen}
       onClose={onClose}
-      title={
-        permissionsConfig.labels?.editModalTitle ?? "Berechtigung bearbeiten"
-      }
-    >
-      <DatabaseForm
-        theme={permissionsConfig.theme}
-        sections={permissionsConfig.form.sections.map(configToFormSection)}
-        initialData={formData}
-        onSubmit={onSave}
-        onCancel={onClose}
-        isLoading={loading}
-        submitLabel="Speichern"
-        stickyActions
-      />
-    </Modal>
+      mode="edit"
+      config={permissionsConfig}
+      initialData={formData}
+      onSubmit={onSave}
+      isLoading={loading}
+    />
   );
 }

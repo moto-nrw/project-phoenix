@@ -12,7 +12,7 @@ import { ChatBubble, ChatEventCard } from "~/components/messaging/chat-bubble";
 import { RequestDiffPanel } from "~/components/messaging/request-diff-panel";
 import { RequestStatusBadge } from "~/components/messaging/request-status-badge";
 import { useChatViewportLock } from "~/lib/hooks/use-chat-viewport-lock";
-import { getApiErrorMessage } from "~/components/ui/modal-utils";
+import { getApiErrorMessage } from "~/lib/api-error-message";
 import {
   PARENT_DEPARTURE_MODE_I18N_KEYS,
   PARENT_DIFF_CARE_KIND_I18N_KEYS,

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { authConfig, _resetRefreshState } from "./config";
+import { tenantAuthConfig as authConfig } from "./tenant-config";
+import { _resetRefreshState } from "./shared";
 import type { User } from "next-auth";
 
 // Mock ~/env

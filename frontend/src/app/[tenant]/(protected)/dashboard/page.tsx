@@ -15,10 +15,7 @@ import {
 } from "~/lib/dashboard-helpers";
 import { useSWRAuth } from "~/lib/swr/hooks";
 import { RoleGuard } from "~/components/auth/role-guard";
-import {
-  useNFCEnabled,
-  usePresenceMode,
-} from "~/components/tenant/tenant-provider";
+import { useNFCEnabled, usePresenceMode } from "~/lib/tenant-context";
 
 import { Loading } from "~/components/ui/loading";
 

@@ -18,7 +18,7 @@ vi.mock("~/lib/suggestions-api", () => ({
 // The hook prefixes its cache key with the active tenant slug (per-tenant
 // metadata must not leak across a tenant switch). Pin the slug so the resolved
 // key is deterministic; CACHE_KEY mirrors what the hook builds.
-vi.mock("~/components/tenant/tenant-provider", () => ({
+vi.mock("~/lib/tenant-context", () => ({
   useTenantSlugSafe: (): string => "testschool",
 }));
 

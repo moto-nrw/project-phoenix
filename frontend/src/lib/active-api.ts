@@ -32,13 +32,6 @@ export function isSupervisionActive(endTime?: Date): boolean {
 }
 
 /**
- * Utility function to check if a combined group is currently active
- */
-export function isCombinedGroupActive(endTime?: Date): boolean {
-  return !endTime || endTime > new Date();
-}
-
-/**
  * Utility function to format duration between two dates
  */
 export function formatDuration(start: Date, end?: Date): string {

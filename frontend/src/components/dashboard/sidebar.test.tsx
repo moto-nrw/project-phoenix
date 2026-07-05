@@ -34,7 +34,12 @@ vi.mock("~/lib/auth-utils", () => {
       if (role === "user") return !isAdminFn();
       return false;
     }),
-    hasPermission: vi.fn(() => false),
+    // Elternmitteilungen (#1669) gates on this; admins hold it via admin:*.
+    // The nav item additionally requires operations.parent_news_enabled (off
+    // in these tests' settings schema), so it stays hidden regardless.
+    hasPermission: vi.fn((_session: unknown, _permission: string) =>
+      isAdminFn(),
+    ),
   };
 });
 
@@ -61,10 +66,7 @@ import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { isAdmin } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import {
-  useNFCEnabled,
-  usePresenceMode,
-} from "~/components/tenant/tenant-provider";
+import { useNFCEnabled, usePresenceMode } from "~/lib/tenant-context";
 
 const mockUsePathname = vi.mocked(usePathname);
 const mockUseSearchParams = vi.mocked(useSearchParams);
@@ -299,8 +301,8 @@ describe("Sidebar", () => {
       expect(dashboardLink).toHaveClass("text-gray-900");
     });
 
-    it("highlights link when path starts with href", () => {
-      mockUsePathname.mockReturnValue("/activities/123");
+    it("highlights the canonical activities link", () => {
+      mockUsePathname.mockReturnValue("/activities");
 
       render(<Sidebar />);
 

@@ -41,41 +41,6 @@ vi.mock("~/lib/auth-helpers", () => ({
   getRoleDisplayName: (role: string) => role,
 }));
 
-// Mock UI components
-vi.mock("~/components/ui", () => ({
-  Input: ({
-    id,
-    value,
-    onChange,
-    disabled,
-    label,
-    ...props
-  }: {
-    id: string;
-    value: string;
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-    disabled?: boolean;
-    label?: string;
-    type?: string;
-    name?: string;
-    autoComplete?: string;
-    required?: boolean;
-    className?: string;
-  }) => (
-    <div>
-      {label && <label htmlFor={id}>{label}</label>}
-      <input
-        id={id}
-        data-testid={`input-${id}`}
-        value={value}
-        onChange={onChange}
-        disabled={disabled}
-        {...props}
-      />
-    </div>
-  ),
-}));
-
 describe("InvitationAcceptForm", () => {
   const mockInvitation: InvitationValidation = {
     email: "test@example.com",

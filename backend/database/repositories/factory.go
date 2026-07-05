@@ -208,6 +208,9 @@ type Factory struct {
 	CalendarAppointmentRecipientChild calendarModels.AppointmentRecipientStudentRepository
 	CalendarAppointmentTarget         calendarModels.AppointmentTargetRepository
 	CalendarOccurrenceOverride        calendarModels.AppointmentOccurrenceOverrideRepository
+
+	// Parent announcements (tenant-authored broadcast news to guardians)
+	ParentAnnouncement userModels.ParentAnnouncementRepository
 }
 
 // NewFactory creates a new repository factory with all repositories
@@ -378,5 +381,6 @@ func NewFactory(db *bun.DB) *Factory {
 		CalendarAppointmentRecipientChild: calendarRepo.NewAppointmentRecipientStudentRepository(db),
 		CalendarAppointmentTarget:         calendarRepo.NewAppointmentTargetRepository(db),
 		CalendarOccurrenceOverride:        calendarRepo.NewAppointmentOccurrenceOverrideRepository(db),
+		ParentAnnouncement:                users.NewParentAnnouncementRepository(db),
 	}
 }

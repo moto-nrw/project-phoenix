@@ -4,8 +4,22 @@ import React, { useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { FocusScope } from "@radix-ui/react-focus-scope";
 import { useModal } from "../dashboard/modal-context";
-import { useScrollLock } from "~/hooks/useScrollLock";
-import { dialogAriaProps, getModalAnimationClass } from "./modal-utils";
+import { useScrollLock } from "~/components/ui/hooks/useScrollLock";
+
+// Shared a11y contract for all modal dialogs (also consumed by form-modal).
+export const dialogAriaProps = {
+  role: "dialog" as const,
+  "aria-modal": true,
+};
+
+function getModalAnimationClass(
+  isAnimating: boolean,
+  isExiting: boolean,
+): string {
+  if (isAnimating && !isExiting) return "animate-modalEnter";
+  if (isExiting) return "animate-modalExit";
+  return "translate-y-8 scale-75 -rotate-1 opacity-0";
+}
 
 interface ModalProps {
   readonly isOpen: boolean;

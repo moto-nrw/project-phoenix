@@ -5,7 +5,7 @@ import {
   type TenantRoutingMode,
   useTenantRoutingModeSafe,
   useTenantSlugSafe,
-} from "~/components/tenant/tenant-provider";
+} from "~/lib/tenant-context";
 
 export function tenantAwarePath(
   path: string,

@@ -21,7 +21,7 @@ import useSWR, {
 import { useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { swrConfig, immutableConfig } from "./config";
-import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
+import { useTenantSlugSafe } from "~/lib/tenant-context";
 
 /**
  * Prefix a cache key with the tenant slug for cross-tenant cache isolation.

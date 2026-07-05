@@ -42,7 +42,7 @@ import {
 } from "~/lib/enrollment-form-schema-api";
 import { createLogger } from "~/lib/logger";
 import { RolloverForm } from "./rollover-form";
-import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
+import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { useToast } from "~/contexts/ToastContext";
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
 import { useTenantAwarePath } from "~/lib/tenant-path";

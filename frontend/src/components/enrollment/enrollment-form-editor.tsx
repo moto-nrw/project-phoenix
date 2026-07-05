@@ -68,7 +68,7 @@ import {
 } from "~/lib/enrollment-form-schema-api";
 import { listPhases, type Phase } from "~/lib/enrollment-phase-api";
 import { createLogger } from "~/lib/logger";
-import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
+import { useTenantSlugSafe } from "~/lib/tenant-context";
 
 const logger = createLogger({ component: "EnrollmentFormEditor" });
 

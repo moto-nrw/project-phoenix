@@ -96,7 +96,7 @@ vi.mock("~/components/ui/loading", () => ({
 // overflow-menu items so the existing "Gruppe übergeben" assertions keep
 // working. The real OverflowMenu requires a click to expose its items, but
 // for tests we render them flat so getByLabelText still finds them.
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({
     title,
     filters,
@@ -432,8 +432,7 @@ vi.mock("~/lib/hooks/use-school-checkin-mode", () => ({
 // Mock useUserContext
 const mockUserContext = vi.fn(() => ({
   userContext: undefined as
-    | { currentStaff: { id: string; personId: string } | null }
-    | undefined,
+    { currentStaff: { id: string; personId: string } | null } | undefined,
   isLoading: false,
   error: undefined,
   isReady: true,
