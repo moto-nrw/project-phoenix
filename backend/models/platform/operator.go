@@ -6,11 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
-
-// tablePlatformOperators is the schema-qualified table name
-const tablePlatformOperators = "platform.operators"
 
 // Field-length caps for Operator.Validate (storage/business bounds, named so
 // the rule lives in a constant rather than as inline literals — issue #586).
@@ -35,16 +31,6 @@ type Operator struct {
 	// OperatorRepository (issue #586, Rule 12).
 	MFAAttempts    int        `bun:"mfa_attempts,default:0" json:"-"`
 	MFALockedUntil *time.Time `bun:"mfa_locked_until" json:"-"`
-}
-
-func (o *Operator) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tablePlatformOperators)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tablePlatformOperators)
-	}
-	return nil
 }
 
 // Validate ensures operator data is valid

@@ -31,21 +31,6 @@ type Group struct {
 	Supervisors []*GroupSupervisor `bun:"rel:has-many,join:id=group_id" json:"supervisors,omitempty"`
 }
 
-// BeforeAppendModel is commented out to let the repository control the table expression
-// func (g *Group) BeforeAppendModel(query any) error {
-// 	switch q := query.(type) {
-// 	case *bun.SelectQuery:
-// 		q.ModelTableExpr("active.groups")
-// 	case *bun.InsertQuery:
-// 		q.ModelTableExpr("active.groups")
-// 	case *bun.UpdateQuery:
-// 		q.ModelTableExpr("active.groups")
-// 	case *bun.DeleteQuery:
-// 		q.ModelTableExpr("active.groups")
-// 	}
-// 	return nil
-// }
-
 // Validate ensures active group data is valid
 func (g *Group) Validate() error {
 	if g.StartTime.IsZero() {

@@ -4,7 +4,6 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Vote direction constants
@@ -13,9 +12,6 @@ const (
 	DirectionDown = "down"
 )
 
-// tableSuggestionsVotes is the schema-qualified table name
-const tableSuggestionsVotes = "suggestions.votes"
-
 // Vote represents a user's vote on a suggestion post
 type Vote struct {
 	base.Model `bun:"schema:suggestions,table:votes"`
@@ -23,16 +19,6 @@ type Vote struct {
 	PostID    int64  `bun:"post_id,notnull" json:"post_id"`
 	VoterID   int64  `bun:"voter_id,notnull" json:"voter_id"`
 	Direction string `bun:"direction,notnull" json:"direction"`
-}
-
-func (v *Vote) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableSuggestionsVotes)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableSuggestionsVotes)
-	}
-	return nil
 }
 
 // Validate ensures vote data is valid

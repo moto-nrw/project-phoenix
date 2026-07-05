@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Activity instance status constants. Stored as TEXT with a CHECK constraint
@@ -55,16 +54,6 @@ type ActivityInstance struct {
 	StartedBy        *int64        `bun:"started_by" json:"started_by,omitempty"`
 	StartedAt        *time.Time    `bun:"started_at" json:"started_at,omitempty"`
 	CompletedAt      *time.Time    `bun:"completed_at" json:"completed_at,omitempty"`
-}
-
-func (i *ActivityInstance) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`schedule.activity_instances AS "activity_instance"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`schedule.activity_instances AS "activity_instance"`)
-	}
-	return nil
 }
 
 // Validate ensures activity instance data is valid for persistence.

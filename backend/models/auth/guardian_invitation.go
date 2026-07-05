@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // GuardianInvitation represents an invitation sent to create a guardian account
@@ -54,21 +53,6 @@ const (
 // still awaiting staff approval (pure field accessor).
 func (i *GuardianInvitation) IsPendingApproval() bool {
 	return i.ApprovalStatus == GuardianInvitationApprovalPending
-}
-
-// BeforeAppendModel ensures the schema-qualified table expression is used with an alias
-func (i *GuardianInvitation) BeforeAppendModel(query any) error {
-	const tableExpr = `auth.guardian_invitations AS "guardian_invitation"`
-
-	switch q := query.(type) {
-	case *bun.InsertQuery:
-		q.ModelTableExpr(tableExpr)
-	case *bun.UpdateQuery:
-		q.ModelTableExpr(tableExpr)
-	case *bun.DeleteQuery:
-		q.ModelTableExpr(tableExpr)
-	}
-	return nil
 }
 
 // Validate ensures core fields are present and sensible

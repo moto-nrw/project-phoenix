@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // OperatorMFAMethod constants accepted by the v1 implementation.
@@ -21,17 +20,6 @@ type OperatorMFACredential struct {
 	Method     string     `bun:"method,notnull" json:"method"`
 	EnrolledAt time.Time  `bun:"enrolled_at,notnull,default:current_timestamp" json:"enrolled_at"`
 	LastUsedAt *time.Time `bun:"last_used_at" json:"last_used_at,omitempty"`
-}
-
-// BeforeAppendModel keeps the schema-qualified table name on UPDATE/DELETE.
-func (c *OperatorMFACredential) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`platform.operator_mfa_credentials AS "operator_mfa_credential"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`platform.operator_mfa_credentials AS "operator_mfa_credential"`)
-	}
-	return nil
 }
 
 // Validate ensures the credential references a valid method.

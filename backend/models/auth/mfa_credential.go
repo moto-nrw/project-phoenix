@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // MFA method constants accepted by the v1 implementation.
@@ -22,17 +21,6 @@ type MFACredential struct {
 	Method     string     `bun:"method,notnull" json:"method"`
 	EnrolledAt time.Time  `bun:"enrolled_at,notnull,default:current_timestamp" json:"enrolled_at"`
 	LastUsedAt *time.Time `bun:"last_used_at" json:"last_used_at,omitempty"`
-}
-
-// BeforeAppendModel keeps the schema-qualified table name on UPDATE/DELETE.
-func (c *MFACredential) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`auth.mfa_credentials AS "mfa_credential"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`auth.mfa_credentials AS "mfa_credential"`)
-	}
-	return nil
 }
 
 // Validate ensures the credential references a valid method.

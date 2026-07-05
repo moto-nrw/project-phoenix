@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Status constants for suggestion posts
@@ -17,9 +16,6 @@ const (
 	StatusRejected   = "rejected"
 	StatusNeedInfo   = "need_info"
 )
-
-// tableSuggestionsPosts is the schema-qualified table name
-const tableSuggestionsPosts = "suggestions.posts"
 
 // Field-length bounds for suggestion posts and comments.
 const (
@@ -52,16 +48,6 @@ type Post struct {
 	UserVote *string `bun:"user_vote,scanonly" json:"user_vote"`
 	// School metadata, resolved at query time via JOIN to platform.schools
 	SchoolName string `bun:"school_name,scanonly" json:"school_name,omitempty"`
-}
-
-func (p *Post) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableSuggestionsPosts)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableSuggestionsPosts)
-	}
-	return nil
 }
 
 // Validate ensures post data is valid

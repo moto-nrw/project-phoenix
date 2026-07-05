@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // ErrStudentGuardianNotFound is returned when no students_guardians row joins a
@@ -43,16 +42,6 @@ type StudentGuardian struct {
 	// Relations not stored in the database
 	Student         *Student         `bun:"rel:belongs-to,join:student_id=id" json:"student,omitempty"`
 	GuardianProfile *GuardianProfile `bun:"rel:belongs-to,join:guardian_profile_id=id" json:"guardian_profile,omitempty"`
-}
-
-func (sg *StudentGuardian) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`users.students_guardians AS "student_guardian"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`users.students_guardians AS "student_guardian"`)
-	}
-	return nil
 }
 
 // Validate ensures student guardian data is valid

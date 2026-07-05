@@ -5,7 +5,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/uptrace/bun"
 )
 
 // GroupTeacher represents the many-to-many relationship between groups and teachers
@@ -18,20 +17,6 @@ type GroupTeacher struct {
 	// Relations not stored in the database
 	Group   *Group         `bun:"-" json:"group,omitempty"`
 	Teacher *users.Teacher `bun:"-" json:"teacher,omitempty"`
-}
-
-func (gt *GroupTeacher) BeforeAppendModel(query any) error {
-	// INSERT queries should not use aliases
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr(`education.group_teacher`)
-	}
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`education.group_teacher AS "group_teacher"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`education.group_teacher AS "group_teacher"`)
-	}
-	return nil
 }
 
 // Validate ensures group teacher data is valid

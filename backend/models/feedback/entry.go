@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/uptrace/bun"
 )
 
 // Feedback value constants for standardized feedback types
@@ -17,9 +16,6 @@ const (
 	ValueNeutral  = "neutral"
 	ValueNegative = "negative"
 )
-
-// tableFeedbackEntries is the schema-qualified table name for feedback entries
-const tableFeedbackEntries = "feedback.entries"
 
 // Entry represents a feedback entry from a student
 type Entry struct {
@@ -33,16 +29,6 @@ type Entry struct {
 
 	// Relations not stored in the database
 	Student *users.Student `bun:"-" json:"student,omitempty"`
-}
-
-func (e *Entry) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableFeedbackEntries)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableFeedbackEntries)
-	}
-	return nil
 }
 
 // Validate ensures feedback entry data is valid

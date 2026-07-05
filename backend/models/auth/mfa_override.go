@@ -2,7 +2,6 @@ package auth
 
 import (
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // MFAOverrideSetByType discriminates the two surfaces that can write an
@@ -50,17 +49,6 @@ type MFAOverride struct {
 	SetBy     int64  `bun:"set_by,notnull" json:"set_by"`
 	SetByType string `bun:"set_by_type,notnull" json:"set_by_type"`
 	Reason    string `bun:"reason,notnull" json:"reason"`
-}
-
-// BeforeAppendModel keeps the schema-qualified table name on UPDATE/DELETE.
-func (o *MFAOverride) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`auth.mfa_overrides AS "mfa_override"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`auth.mfa_overrides AS "mfa_override"`)
-	}
-	return nil
 }
 
 // IsGlobal reports whether this row applies platform-wide (any tenant

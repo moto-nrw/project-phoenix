@@ -87,24 +87,6 @@ func TestCategoryValidate(t *testing.T) {
 	}
 }
 
-func TestCategory_BeforeAppendModel(t *testing.T) {
-	t.Run("handles nil query", func(t *testing.T) {
-		cat := &Category{Name: "Test"}
-		err := cat.BeforeAppendModel(nil)
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-
-	t.Run("returns no error for unknown query type", func(t *testing.T) {
-		cat := &Category{Name: "Test"}
-		err := cat.BeforeAppendModel("some string")
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-}
-
 func TestCategory_GetID(t *testing.T) {
 	cat := &Category{
 		Model: base.Model{ID: 42},

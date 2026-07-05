@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Token represents an authentication token in the system
@@ -45,15 +44,4 @@ func (t *Token) Validate() error {
 // SetExpiry sets the token expiry time to a specified duration from now
 func (t *Token) SetExpiry(duration time.Duration) {
 	t.Expiry = time.Now().Add(duration)
-}
-
-// BeforeAppendModel lets us modify query before it's executed
-func (t *Token) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`auth.tokens AS "token"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`auth.tokens AS "token"`)
-	}
-	return nil
 }

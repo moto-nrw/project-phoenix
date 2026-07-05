@@ -9,8 +9,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const tableStaffWorkSchedules = "config.staff_work_schedules"
-
 // Day of week constants (ISO: 0=Monday, 6=Sunday)
 const (
 	DayMonday    = 0
@@ -41,19 +39,6 @@ type StaffWorkSchedule struct {
 	ValidUntil     *timezone.Date `bun:"valid_until,type:date" json:"valid_until,omitempty"`
 	CreatedAt      time.Time      `bun:"created_at,notnull,default:now()" json:"created_at"`
 	UpdatedAt      time.Time      `bun:"updated_at,notnull,default:now()" json:"updated_at"`
-}
-
-func (s *StaffWorkSchedule) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableStaffWorkSchedules)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableStaffWorkSchedules)
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr(tableStaffWorkSchedules)
-	}
-	return nil
 }
 
 func (s *StaffWorkSchedule) Validate() error {

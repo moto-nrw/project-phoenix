@@ -9,7 +9,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // StudentStatus represents the lifecycle status of a student.
@@ -113,20 +112,6 @@ type Student struct {
 	// Relations
 	Person *Person `bun:"rel:belongs-to,join:person_id=id" json:"person,omitempty"`
 	// Group relation is loaded dynamically to avoid import cycle
-}
-
-// BeforeAppendModel sets the correct table expression
-// Note: Table aliases (AS "student") are only applied for SELECT, UPDATE, and DELETE queries.
-//
-//	For INSERT queries, aliases should NOT be used, as they can cause issues with some database drivers.
-func (s *Student) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`users.students AS "student"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`users.students AS "student"`)
-	}
-	return nil
 }
 
 // Validate ensures student data is valid

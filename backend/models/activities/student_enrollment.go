@@ -6,7 +6,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/uptrace/bun"
 )
 
 // Define attendance status constants
@@ -18,9 +17,7 @@ const (
 )
 
 // Table name constants for BUN ORM schema qualification
-const (
-	tableActivitiesStudentEnrollments = "activities.student_enrollments"
-)
+const ()
 
 // StudentEnrollment represents a student enrolled in an activity group
 type StudentEnrollment struct {
@@ -41,19 +38,6 @@ type StudentEnrollment struct {
 	// Relations - populated when using the ORM's relations
 	Student       *users.Student `bun:"rel:belongs-to,join:student_id=id" json:"student,omitempty"`
 	ActivityGroup *Group         `bun:"rel:belongs-to,join:activity_group_id=id" json:"activity_group,omitempty"`
-}
-
-func (se *StudentEnrollment) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableActivitiesStudentEnrollments)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableActivitiesStudentEnrollments)
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr(tableActivitiesStudentEnrollments)
-	}
-	return nil
 }
 
 // IsValidAttendanceStatus checks if the attendance status is valid

@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // RFID card validation configuration
@@ -19,23 +18,11 @@ var (
 	MaxRFIDCardLength = 64
 )
 
-const rfidCardTableName = "users.rfid_cards"
-
 // RFIDCard represents a physical RFID card used for identification and access
 type RFIDCard struct {
 	base.StringIDModel `bun:"schema:users,table:rfid_cards"`
 	base.TenantModel
 	Active bool `bun:"active,notnull,default:true" json:"active"`
-}
-
-func (r *RFIDCard) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(rfidCardTableName)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(rfidCardTableName)
-	}
-	return nil
 }
 
 // Validate ensures the RFID card data is valid

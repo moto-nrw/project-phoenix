@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // slugRegex validates URL-safe slugs: lowercase alphanumeric with hyphens, no leading/trailing hyphens.
@@ -48,9 +47,6 @@ var reservedSlugs = map[string]bool{
 	"demo":      true,
 }
 
-// tablePlatformOrganizations is the schema-qualified table name
-const tablePlatformOrganizations = "platform.organizations"
-
 // Organization represents a top-level tenant organization (e.g. a school district).
 type Organization struct {
 	base.Model `bun:"schema:platform,table:organizations"`
@@ -59,19 +55,6 @@ type Organization struct {
 	Active     bool       `bun:"active,notnull,default:true" json:"active"`
 	DeletedAt  *time.Time `bun:"deleted_at" json:"deleted_at,omitempty"`
 	Settings   string     `bun:"settings,default:'{}'" json:"settings,omitempty"`
-}
-
-func (o *Organization) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr(tablePlatformOrganizations)
-	}
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`platform.organizations AS "organization"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`platform.organizations AS "organization"`)
-	}
-	return nil
 }
 
 // Validate ensures organization data is valid

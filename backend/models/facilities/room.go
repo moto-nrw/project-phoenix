@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Room represents a physical room in a facility
@@ -19,20 +18,6 @@ type Room struct {
 	Capacity *int    `bun:"capacity" json:"capacity,omitempty"`
 	Category *string `bun:"category" json:"category,omitempty"`
 	Color    *string `bun:"color" json:"color,omitempty"`
-}
-
-// BeforeAppendModel lets us modify query before it's executed
-func (r *Room) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr(`facilities.rooms`)
-	}
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`facilities.rooms AS "room"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`facilities.rooms AS "room"`)
-	}
-	return nil
 }
 
 // Validate ensures room data is valid

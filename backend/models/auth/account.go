@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Account represents an authentication account
@@ -36,18 +35,6 @@ type Account struct {
 	// Relations not stored in the database
 	Roles       []*Role       `bun:"-" json:"roles,omitempty"`
 	Permissions []*Permission `bun:"-" json:"permissions,omitempty"`
-}
-
-// BeforeAppendModel lets us modify query before it's executed
-func (a *Account) BeforeAppendModel(query any) error {
-	// INSERT queries should not use aliases
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`auth.accounts AS "account"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`auth.accounts AS "account"`)
-	}
-	return nil
 }
 
 // Validate ensures account data is valid

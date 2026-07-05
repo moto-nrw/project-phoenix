@@ -5,10 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
-
-const tableUsersParentMessages = "users.parent_messages"
 
 const (
 	ParentMessageKindMessage = "message"
@@ -61,8 +58,8 @@ type ParentMessage struct {
 	Body             string `bun:"body,notnull" json:"body"`
 	// Kind discriminates a plain chat message ('message') from a system event
 	// ('event', e.g. a quick-action pill posting a Raumwechsel/Abholung notice
-	// into the thread) and a structured change request ('request'). Defaults to
-	// 'message' on insert via BeforeAppendModel.
+	// into the thread) and a structured change request ('request'). Creators
+	// set it explicitly; the column default is 'message'.
 	Kind      string `bun:"kind,notnull,default:'message'" json:"kind"`
 	EventType string `bun:"event_type,nullzero" json:"event_type,omitempty"`
 	// EventActorKind records which side TRIGGERED a system event ('staff' or
@@ -87,22 +84,6 @@ type ParentMessage struct {
 	// the relevant side's read cursor — never persisted.
 	ReadByStaff    bool `bun:"-" json:"read_by_staff,omitempty"`
 	ReadByGuardian bool `bun:"-" json:"read_by_guardian,omitempty"`
-}
-
-func (m *ParentMessage) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableUsersParentMessages)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableUsersParentMessages)
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		if m.Kind == "" {
-			m.Kind = ParentMessageKindMessage
-		}
-		q.ModelTableExpr(tableUsersParentMessages)
-	}
-	return nil
 }
 
 // atOrBeforeCursor reports whether the message sits at or before the read cursor,

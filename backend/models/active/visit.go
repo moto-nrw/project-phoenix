@@ -7,11 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
-
-// tableActiveVisits is the schema-qualified table name for visits
-const tableActiveVisits = "active.visits"
 
 // Visit represents a student visit to an active group
 type Visit struct {
@@ -25,19 +21,6 @@ type Visit struct {
 	// Relations - these would be populated when using the ORM's relations
 	Student     *users.Student `bun:"rel:belongs-to,join:student_id=id" json:"student,omitempty"`
 	ActiveGroup *Group         `bun:"rel:belongs-to,join:active_group_id=id" json:"active_group,omitempty"`
-}
-
-func (v *Visit) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableActiveVisits)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableActiveVisits)
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr(tableActiveVisits)
-	}
-	return nil
 }
 
 // Validate ensures active visit data is valid

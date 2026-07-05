@@ -5,11 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
-
-// tablePlatformOperatorInvitationTokens is the schema-qualified table name
-const tablePlatformOperatorInvitationTokens = "platform.operator_invitation_tokens"
 
 // OperatorInvitationToken represents a pending operator invitation
 type OperatorInvitationToken struct {
@@ -26,18 +22,6 @@ type OperatorInvitationToken struct {
 
 	// Relations
 	Creator *Operator `bun:"rel:belongs-to,join:created_by=id" json:"creator,omitempty"`
-}
-
-// BeforeAppendModel sets the schema-qualified table expression for UPDATE and DELETE queries.
-// This is NOT inherited from base.Model and must be explicitly implemented.
-func (t *OperatorInvitationToken) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tablePlatformOperatorInvitationTokens)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tablePlatformOperatorInvitationTokens)
-	}
-	return nil
 }
 
 // Validate ensures the token data is valid

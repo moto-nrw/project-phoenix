@@ -7,7 +7,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 func shiftWall(hour, minute int) time.Time {
@@ -92,15 +91,6 @@ func TestStaffShiftEndInstant(t *testing.T) {
 	assert.Equal(t, 16, end.Hour())
 	assert.Equal(t, 0, end.Minute())
 	assert.Equal(t, timezone.Berlin, end.Location())
-}
-
-func TestStaffShiftBeforeAppendModelSetsWriteTableAliases(t *testing.T) {
-	shift := testShift(8, 16)
-
-	assert.NoError(t, shift.BeforeAppendModel(&bun.UpdateQuery{}))
-	assert.NoError(t, shift.BeforeAppendModel(&bun.DeleteQuery{}))
-	assert.NoError(t, shift.BeforeAppendModel(&bun.InsertQuery{}))
-	assert.NoError(t, shift.BeforeAppendModel(struct{}{}))
 }
 
 func TestStaffShiftEntityAccessors(t *testing.T) {

@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/uptrace/bun"
 )
 
 // DeviceStatus represents the status of an IoT device
@@ -26,9 +25,6 @@ const (
 	WebManualDeviceID = "WEB-MANUAL-001"
 )
 
-// tableIoTDevices is the schema-qualified table name for IoT devices
-const tableIoTDevices = "iot.devices"
-
 // Device represents an IoT device in the system
 type Device struct {
 	base.Model `bun:"schema:iot,table:devices"`
@@ -47,16 +43,6 @@ type Device struct {
 
 	// Transient fields populated by JOINs (ignored by INSERT/UPDATE)
 	RoomName *string `bun:"room_name,scanonly" json:"room_name,omitempty"`
-}
-
-func (d *Device) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableIoTDevices)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableIoTDevices)
-	}
-	return nil
 }
 
 // Validate ensures device data is valid

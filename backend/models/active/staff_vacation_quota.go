@@ -4,10 +4,7 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
-
-const tableStaffVacationQuota = "active.staff_vacation_quota"
 
 // Validation bounds for a staff vacation quota.
 const (
@@ -26,19 +23,6 @@ type StaffVacationQuota struct {
 	Year          int     `bun:"year,notnull" json:"year"`
 	EntitledDays  float64 `bun:"entitled_days,notnull,default:30" json:"entitled_days"`
 	CarryoverDays float64 `bun:"carryover_days,notnull,default:0" json:"carryover_days"`
-}
-
-func (q *StaffVacationQuota) BeforeAppendModel(query any) error {
-	if qb, ok := query.(*bun.UpdateQuery); ok {
-		qb.ModelTableExpr(tableStaffVacationQuota)
-	}
-	if qb, ok := query.(*bun.DeleteQuery); ok {
-		qb.ModelTableExpr(tableStaffVacationQuota)
-	}
-	if qb, ok := query.(*bun.InsertQuery); ok {
-		qb.ModelTableExpr(tableStaffVacationQuota)
-	}
-	return nil
 }
 
 func (q *StaffVacationQuota) Validate() error {

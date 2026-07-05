@@ -157,24 +157,6 @@ func TestGroupHasAvailableSpots(t *testing.T) {
 	}
 }
 
-func TestGroup_BeforeAppendModel(t *testing.T) {
-	t.Run("handles nil query", func(t *testing.T) {
-		group := &Group{Name: "Test", CategoryID: 1, MaxParticipants: 10}
-		err := group.BeforeAppendModel(nil)
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-
-	t.Run("returns no error for unknown query type", func(t *testing.T) {
-		group := &Group{Name: "Test", CategoryID: 1, MaxParticipants: 10}
-		err := group.BeforeAppendModel("some string")
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-}
-
 func TestGroup_GetID(t *testing.T) {
 	group := &Group{
 		Model:           base.Model{ID: 42},

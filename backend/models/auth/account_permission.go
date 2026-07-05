@@ -4,11 +4,7 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
-
-// tableAuthAccountPermissions is the schema-qualified table name for account permissions
-const tableAuthAccountPermissions = "auth.account_permissions"
 
 // AccountPermission represents a direct permission assignment to an account
 type AccountPermission struct {
@@ -21,16 +17,6 @@ type AccountPermission struct {
 	// Relations
 	Account    *Account    `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
 	Permission *Permission `bun:"rel:belongs-to,join:permission_id=id" json:"permission,omitempty"`
-}
-
-func (ap *AccountPermission) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableAuthAccountPermissions)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableAuthAccountPermissions)
-	}
-	return nil
 }
 
 // Validate ensures account permission data is valid

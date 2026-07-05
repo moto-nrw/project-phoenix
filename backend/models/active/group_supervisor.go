@@ -7,7 +7,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // GroupSupervisor represents a staff member assigned to supervise an active group
@@ -26,23 +25,7 @@ type GroupSupervisor struct {
 }
 
 // Table name constants for BUN ORM schema qualification
-const (
-	tableGroupSupervisors = "active.group_supervisors"
-)
-
-// BeforeAppendModel ensures schema-qualified table names for all query types
-func (gs *GroupSupervisor) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr(tableGroupSupervisors)
-	}
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableGroupSupervisors)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableGroupSupervisors)
-	}
-	return nil
-}
+const ()
 
 // Validate ensures group supervisor data is valid
 func (gs *GroupSupervisor) Validate() error {

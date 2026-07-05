@@ -5,11 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
-
-// tableScheduleDateframes is the schema-qualified table name for dateframes
-const tableScheduleDateframes = "schedule.dateframes"
 
 // Dateframe represents a date range for scheduling
 type Dateframe struct {
@@ -19,16 +15,6 @@ type Dateframe struct {
 	EndDate     time.Time `bun:"end_date,notnull" json:"end_date"`
 	Name        string    `bun:"name" json:"name,omitempty"`
 	Description string    `bun:"description" json:"description,omitempty"`
-}
-
-func (d *Dateframe) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableScheduleDateframes)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableScheduleDateframes)
-	}
-	return nil
 }
 
 // Validate ensures dateframe data is valid

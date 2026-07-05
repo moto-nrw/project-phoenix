@@ -25,12 +25,17 @@ import (
 //	     base.Model, or audit models with intentionally different semantics
 //	     (GetUpdatedAt returning AccessedAt/ChangedAt).
 //	M2 — TableName() method declarations. Zero tolerated.
+//	M3 — bun-incompatible BeforeAppendModel(query any) hook declarations.
+//	     bun dispatches only the two-arg (ctx, query) interface via reflection;
+//	     the one-arg shape never runs and 93 dead copies were deleted in PR A2.
+//	     Zero tolerated; a correctly-signed (ctx, query) hook stays legal.
 //
 // Allowlist rules (identical to the other ratchets): a file not listed must
 // have zero hits, a file may never exceed its count, and counts only shrink.
 var (
 	modelGetterDeclPattern = regexp.MustCompile(`^func \([^)]*\) (GetID|GetCreatedAt|GetUpdatedAt)\(`)
 	modelTableNamePattern  = regexp.MustCompile(`^func \([^)]*\) TableName\(`)
+	modelDeadHookPattern   = regexp.MustCompile(`^func \([^)]*\) BeforeAppendModel\(\w+ (any|interface\{\})\)`)
 )
 
 // M1 — load-bearing getter declarations (structs without base.Model embed or
@@ -48,6 +53,9 @@ var modelGetterAllowlist = map[string]int{
 
 // M2 — TableName() declarations in models/. Empty: bun never calls them.
 var modelTableNameAllowlist = map[string]int{}
+
+// M3 — one-arg BeforeAppendModel hooks in models/. Empty: bun never ran them.
+var modelDeadHookAllowlist = map[string]int{}
 
 func TestModelCeremonyRatchet(t *testing.T) {
 	backendRoot, err := findBackendRoot()
@@ -76,6 +84,12 @@ func TestModelCeremonyRatchet(t *testing.T) {
 			pattern:   modelTableNamePattern,
 			allowlist: modelTableNameAllowlist,
 			fix:       "bun never calls TableName() — set the table via struct tags / ModelTableExpr and delete the method",
+		},
+		{
+			name:      "M3 one-arg BeforeAppendModel hooks in models/",
+			pattern:   modelDeadHookPattern,
+			allowlist: modelDeadHookAllowlist,
+			fix:       "BeforeAppendModel(query any) never runs — bun dispatches only BeforeAppendModel(ctx context.Context, query schema.Query); use the two-arg signature or set ModelTableExpr in the repository",
 		},
 	}
 

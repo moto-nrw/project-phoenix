@@ -244,32 +244,6 @@ func TestDevice_HasAPIKey(t *testing.T) {
 	}
 }
 
-func TestDevice_BeforeAppendModel(t *testing.T) {
-	t.Run("handles nil query", func(t *testing.T) {
-		device := &Device{
-			DeviceID:   "dev-001",
-			DeviceType: "terminal",
-			Status:     DeviceStatusActive,
-		}
-		err := device.BeforeAppendModel(nil)
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-
-	t.Run("returns no error for unknown query type", func(t *testing.T) {
-		device := &Device{
-			DeviceID:   "dev-001",
-			DeviceType: "terminal",
-			Status:     DeviceStatusActive,
-		}
-		err := device.BeforeAppendModel("some string")
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-}
-
 func TestDevice_IsOffline(t *testing.T) {
 	tests := []struct {
 		name     string

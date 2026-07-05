@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Attendance status constants (system-controlled, E18).
@@ -51,16 +50,6 @@ type InstanceStudent struct {
 	Substatus   *string    `bun:"substatus" json:"substatus,omitempty"`
 	Note        *string    `bun:"note" json:"note,omitempty"`
 	CheckedInAt *time.Time `bun:"checked_in_at" json:"checked_in_at,omitempty"`
-}
-
-func (s *InstanceStudent) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`schedule.instance_students AS "instance_student"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`schedule.instance_students AS "instance_student"`)
-	}
-	return nil
 }
 
 // Validate ensures the attendance row is well-formed.

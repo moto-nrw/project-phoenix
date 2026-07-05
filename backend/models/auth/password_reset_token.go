@@ -5,11 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
-
-// tableAuthPasswordResetTokens is the schema-qualified table name for password reset tokens
-const tableAuthPasswordResetTokens = "auth.password_reset_tokens"
 
 // PasswordResetToken represents a token used for password reset operations
 type PasswordResetToken struct {
@@ -24,16 +20,6 @@ type PasswordResetToken struct {
 
 	// Relations
 	Account *Account `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
-}
-
-func (t *PasswordResetToken) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableAuthPasswordResetTokens)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableAuthPasswordResetTokens)
-	}
-	return nil
 }
 
 // Validate ensures password reset token data is valid. It performs pure field

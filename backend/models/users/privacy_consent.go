@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Data-retention bounds and default for privacy consents (GDPR visit-data
@@ -35,16 +34,6 @@ type PrivacyConsent struct {
 
 	// Relations not stored in the database
 	Student *Student `bun:"-" json:"student,omitempty"`
-}
-
-func (pc *PrivacyConsent) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`users.privacy_consents AS "privacy_consent"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`users.privacy_consents AS "privacy_consent"`)
-	}
-	return nil
 }
 
 // Validate ensures privacy consent data is valid. It performs pure field

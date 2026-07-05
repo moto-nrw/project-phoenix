@@ -313,32 +313,6 @@ func TestGuardianPhoneNumber_PhoneTypeLabel(t *testing.T) {
 	}
 }
 
-func TestGuardianPhoneNumber_BeforeAppendModel(t *testing.T) {
-	t.Run("handles nil query", func(t *testing.T) {
-		phone := &GuardianPhoneNumber{
-			GuardianProfileID: 1,
-			PhoneNumber:       "+49 30 123456",
-			PhoneType:         PhoneTypeHome,
-		}
-		err := phone.BeforeAppendModel(nil)
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-
-	t.Run("returns no error for unknown query type", func(t *testing.T) {
-		phone := &GuardianPhoneNumber{
-			GuardianProfileID: 1,
-			PhoneNumber:       "+49 30 123456",
-			PhoneType:         PhoneTypeHome,
-		}
-		err := phone.BeforeAppendModel("some string")
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-}
-
 func TestValidPhoneTypes(t *testing.T) {
 	expected := map[PhoneType]bool{
 		PhoneTypeMobile: true,

@@ -124,7 +124,7 @@ func (t *TenantModel) GetTenantID() int64 / SetTenantID(id int64)
 
 ### A note on `BeforeAppendModel`
 
-The per-entity `BeforeAppendModel` hooks implement BUN's `BeforeAppendModelHook` interface and may contain entity-specific logic — they are NOT automatically redundant. Audit each hook before deleting.
+The old per-entity `BeforeAppendModel(query any) error` hooks never ran: bun's hook interface is `BeforeAppendModel(ctx context.Context, query schema.Query) error`, dispatched via a reflection `Implements()` check the one-arg signature never matched. All 93 copies were deleted in the 2026-07 audit cleanup; repositories set `ModelTableExpr` explicitly, which is the actual mechanism. If a model genuinely needs a bun append hook, use the correct two-arg signature — the dead one-arg shape is CI-ratcheted to zero by `TestModelCeremonyRatchet` (M3).
 
 ---
 

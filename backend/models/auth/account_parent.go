@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // AccountParent represents a parent/guardian authentication account
@@ -19,16 +18,6 @@ type AccountParent struct {
 	Active       bool       `bun:"active,notnull,default:true" json:"active"`
 	PasswordHash *string    `bun:"password_hash" json:"-"`
 	LastLogin    *time.Time `bun:"last_login" json:"last_login,omitempty"`
-}
-
-func (a *AccountParent) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`auth.accounts_parents AS "accountparent"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`auth.accounts_parents AS "accountparent"`)
-	}
-	return nil
 }
 
 // Validate ensures account parent data is valid

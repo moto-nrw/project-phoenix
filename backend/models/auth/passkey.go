@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 const (
@@ -27,16 +26,6 @@ type PasskeyCredential struct {
 	Name           string          `bun:"name" json:"name"`
 	LastUsedAt     *time.Time      `bun:"last_used_at" json:"last_used_at,omitempty"`
 	RevokedAt      *time.Time      `bun:"revoked_at" json:"revoked_at,omitempty"`
-}
-
-func (c *PasskeyCredential) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`auth.passkey_credentials AS "passkey_credential"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`auth.passkey_credentials AS "passkey_credential"`)
-	}
-	return nil
 }
 
 func (c *PasskeyCredential) Validate() error {
@@ -68,16 +57,6 @@ type PasskeySession struct {
 	ConsumedAt     *time.Time      `bun:"consumed_at" json:"consumed_at,omitempty"`
 	CreatedAt      time.Time       `bun:"created_at,notnull,default:current_timestamp" json:"created_at"`
 	UpdatedAt      time.Time       `bun:"updated_at,notnull,default:current_timestamp" json:"updated_at"`
-}
-
-func (s *PasskeySession) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`auth.passkey_sessions AS "passkey_session"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`auth.passkey_sessions AS "passkey_session"`)
-	}
-	return nil
 }
 
 func (s *PasskeySession) GetID() interface{}      { return s.ID }

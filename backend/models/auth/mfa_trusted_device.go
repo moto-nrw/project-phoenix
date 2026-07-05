@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // MFATrustedDevice persists the server-side record of a trusted-device cookie.
@@ -26,17 +25,6 @@ type MFATrustedDevice struct {
 	ExpiresAt  time.Time  `bun:"expires_at,notnull" json:"expires_at"`
 	LastUsedAt *time.Time `bun:"last_used_at" json:"last_used_at,omitempty"`
 	RevokedAt  *time.Time `bun:"revoked_at" json:"revoked_at,omitempty"`
-}
-
-// BeforeAppendModel keeps the schema-qualified table name on UPDATE/DELETE.
-func (d *MFATrustedDevice) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`auth.mfa_trusted_devices AS "mfa_trusted_device"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`auth.mfa_trusted_devices AS "mfa_trusted_device"`)
-	}
-	return nil
 }
 
 // IsRevoked returns true once the device was explicitly revoked. This is a pure

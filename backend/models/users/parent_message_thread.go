@@ -5,10 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
-
-const tableUsersParentMessageThreads = "users.parent_message_threads"
 
 // Sender kinds shared by threads and messages. A message originates either
 // from a guardian (parents portal) or from staff (tenant portal).
@@ -43,19 +40,6 @@ type ParentMessageThread struct {
 	// per thread row. Every code path that updates LastMessageAt MUST also set
 	// this in the same UPDATE.
 	LastMessageBody string `bun:"last_message_body" json:"last_message_body,omitempty"`
-}
-
-func (t *ParentMessageThread) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableUsersParentMessageThreads)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableUsersParentMessageThreads)
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr(tableUsersParentMessageThreads)
-	}
-	return nil
 }
 
 // ParentMessageThreadRepository is the tenant-scoped data-access contract for

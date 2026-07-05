@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Person represents a physical person in the system
@@ -25,16 +24,6 @@ type Person struct {
 	// Relations not stored in the database
 	Account  *auth.Account `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
 	RFIDCard *RFIDCard     `bun:"rel:belongs-to,join:tag_id=id" json:"rfid_card,omitempty"`
-}
-
-func (p *Person) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`users.persons AS "person"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`users.persons AS "person"`)
-	}
-	return nil
 }
 
 // Validate ensures person data is valid

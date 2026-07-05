@@ -17,11 +17,7 @@ import (
 // signal the condition without importing the service package.
 var ErrAnnouncementPublished = errors.New("users: parent announcement is published (not editable)")
 
-const (
-	tableUsersParentAnnouncements       = "users.parent_announcements"
-	tableUsersParentAnnouncementTargets = "users.parent_announcement_targets"
-	tableUsersParentAnnouncementReads   = "users.parent_announcement_reads"
-)
+const ()
 
 // Announcement priority levels (mirrors the chk_parent_announcements_priority
 // constraint). "important" only changes presentation (a highlighted badge); it
@@ -81,23 +77,6 @@ type ParentAnnouncement struct {
 	// the parent feed resolves audience in a cross-tenant admin tx where explicit
 	// joins are clearer than relation magic. bun:"-" so it is never persisted.
 	Targets []*ParentAnnouncementTarget `bun:"-" json:"targets,omitempty"`
-}
-
-// BeforeAppendModel pins INSERT/UPDATE to the bare (un-aliased) table so the
-// repository's raw Set(...)/column clauses resolve. It deliberately does NOT
-// touch DeleteQuery: the generic base.Repository.Delete builds
-// `... AS "parent_announcement"` and a WHERE that references that alias, so
-// overriding the table expression here would drop the alias and the DELETE
-// would fail on a missing FROM-clause entry (Postgres allows the alias on
-// DELETE, so leaving base's aliased expression intact is correct).
-func (a *ParentAnnouncement) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableUsersParentAnnouncements)
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr(tableUsersParentAnnouncements)
-	}
-	return nil
 }
 
 // IsPublished reports whether the announcement has been published (vs draft).

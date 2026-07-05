@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Permission represents a system permission
@@ -15,16 +14,6 @@ type Permission struct {
 	Description string `bun:"description" json:"description"`
 	Resource    string `bun:"resource,notnull" json:"resource"`
 	Action      string `bun:"action,notnull" json:"action"`
-}
-
-func (p *Permission) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`auth.permissions AS "permission"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`auth.permissions AS "permission"`)
-	}
-	return nil
 }
 
 // Validate ensures permission data is valid

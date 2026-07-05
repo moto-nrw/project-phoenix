@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Account tenant status constants
@@ -15,9 +14,6 @@ const (
 	AccountTenantStatusActive   = "active"
 	AccountTenantStatusInactive = "inactive"
 )
-
-// tableAuthAccountTenants is the schema-qualified table name
-const tableAuthAccountTenants = "auth.account_tenants"
 
 // AccountTenant maps an account to a tenant (school) with lifecycle status.
 type AccountTenant struct {
@@ -31,19 +27,6 @@ type AccountTenant struct {
 
 	// Relations
 	Account *Account `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
-}
-
-func (at *AccountTenant) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr(tableAuthAccountTenants)
-	}
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`auth.account_tenants AS "account_tenant"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`auth.account_tenants AS "account_tenant"`)
-	}
-	return nil
 }
 
 // Validate ensures account tenant data is valid

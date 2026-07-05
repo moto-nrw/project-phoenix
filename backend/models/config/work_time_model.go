@@ -36,19 +36,6 @@ type WorkTimeModel struct {
 	Entries []*WorkTimeModelEntry `bun:"rel:has-many,join:id=model_id" json:"entries,omitempty"`
 }
 
-func (m *WorkTimeModel) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableWorkTimeModels)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableWorkTimeModels)
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr(tableWorkTimeModels)
-	}
-	return nil
-}
-
 func (m *WorkTimeModel) SetTenantID(tenantID int64) { m.TenantID = tenantID }
 
 func (m *WorkTimeModel) Validate() error {
@@ -78,19 +65,6 @@ type WorkTimeModelEntry struct {
 	StartTime     *time.Time `bun:"start_time" json:"start_time,omitempty"`
 	CreatedAt     time.Time  `bun:"created_at,notnull,default:now()" json:"created_at"`
 	UpdatedAt     time.Time  `bun:"updated_at,notnull,default:now()" json:"updated_at"`
-}
-
-func (e *WorkTimeModelEntry) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableWorkTimeModelEntries)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableWorkTimeModelEntries)
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr(tableWorkTimeModelEntries)
-	}
-	return nil
 }
 
 func (e *WorkTimeModelEntry) Validate() error {

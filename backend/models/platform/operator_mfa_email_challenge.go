@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // OperatorMFAEmailChallenge represents a single 6-digit code emailed to a
@@ -18,16 +17,6 @@ type OperatorMFAEmailChallenge struct {
 	ExpiresAt  time.Time  `bun:"expires_at,notnull" json:"expires_at"`
 	ConsumedAt *time.Time `bun:"consumed_at" json:"consumed_at,omitempty"`
 	IPAddress  net.IP     `bun:"ip_address,type:inet,nullzero" json:"ip_address,omitempty"`
-}
-
-func (c *OperatorMFAEmailChallenge) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`platform.operator_mfa_email_challenges AS "operator_mfa_email_challenge"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`platform.operator_mfa_email_challenges AS "operator_mfa_email_challenge"`)
-	}
-	return nil
 }
 
 // IsConsumed returns true once the code has been redeemed. This is a pure field

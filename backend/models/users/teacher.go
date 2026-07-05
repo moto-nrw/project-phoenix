@@ -6,10 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
-
-const teacherTableName = "users.teachers"
 
 // Teacher represents a pedagogical specialist in the system
 type Teacher struct {
@@ -24,16 +21,6 @@ type Teacher struct {
 	// Relations not stored in the database
 	Staff *Staff `bun:"-" json:"staff,omitempty"`
 	// Groups will be managed through the education.GroupTeacher model
-}
-
-func (t *Teacher) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(teacherTableName)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(teacherTableName)
-	}
-	return nil
 }
 
 // Validate ensures teacher data is valid

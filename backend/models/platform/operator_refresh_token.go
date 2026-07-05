@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // OperatorRefreshToken is the server-side session handle behind an operator
@@ -21,16 +20,6 @@ type OperatorRefreshToken struct {
 	Generation int       `bun:"generation,notnull,default:0" json:"generation"`
 
 	Operator *Operator `bun:"rel:belongs-to,join:operator_id=id" json:"operator,omitempty"`
-}
-
-func (t *OperatorRefreshToken) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`platform.operator_refresh_tokens AS "operator_refresh_token"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`platform.operator_refresh_tokens AS "operator_refresh_token"`)
-	}
-	return nil
 }
 
 func (t *OperatorRefreshToken) Validate() error {

@@ -7,7 +7,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 func validActivityInstance() *ActivityInstance {
@@ -151,11 +150,4 @@ func TestActivityInstance_AccessorContract(t *testing.T) {
 	assert.Equal(t, int64(17), inst.GetID())
 	assert.Equal(t, now, inst.GetCreatedAt())
 	assert.Equal(t, now.Add(time.Minute), inst.GetUpdatedAt())
-}
-
-func TestActivityInstance_BeforeAppendModel(t *testing.T) {
-	inst := &ActivityInstance{}
-	for _, q := range []any{&bun.SelectQuery{}, &bun.UpdateQuery{}, &bun.DeleteQuery{}, "unknown"} {
-		require.NoError(t, inst.BeforeAppendModel(q))
-	}
 }

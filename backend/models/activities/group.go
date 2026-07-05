@@ -7,7 +7,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/uptrace/bun"
 )
 
 // Group type constants
@@ -39,16 +38,6 @@ type Group struct {
 	Supervisors    []*SupervisorPlanned `bun:"rel:has-many,join:id=group_id" json:"supervisors,omitempty"`
 	Schedules      []*Schedule          `bun:"rel:has-many,join:id=activity_group_id" json:"schedules,omitempty"`
 	Enrollments    []*StudentEnrollment `bun:"rel:has-many,join:id=activity_group_id" json:"enrollments,omitempty"`
-}
-
-func (g *Group) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`activities.groups AS "group"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`activities.groups AS "group"`)
-	}
-	return nil
 }
 
 // Validate ensures group data is valid

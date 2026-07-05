@@ -289,24 +289,6 @@ func TestProfile_HasBio(t *testing.T) {
 	}
 }
 
-func TestProfile_BeforeAppendModel(t *testing.T) {
-	t.Run("handles nil query", func(t *testing.T) {
-		profile := &Profile{AccountID: 1}
-		err := profile.BeforeAppendModel(nil)
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-
-	t.Run("returns no error for unknown query type", func(t *testing.T) {
-		profile := &Profile{AccountID: 1}
-		err := profile.BeforeAppendModel("some string")
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-}
-
 func TestProfile_GetID(t *testing.T) {
 	profile := &Profile{
 		Model:     base.Model{ID: 42},

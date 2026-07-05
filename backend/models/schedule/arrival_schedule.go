@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Common validation error messages for arrival schedule models.
@@ -34,16 +33,6 @@ type StudentArrivalSchedule struct {
 	ExpectedArrival time.Time `bun:"expected_arrival,notnull" json:"expected_arrival"`
 	Notes           *string   `bun:"notes" json:"notes,omitempty"`
 	CreatedBy       int64     `bun:"created_by,notnull" json:"created_by"`
-}
-
-func (s *StudentArrivalSchedule) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`schedule.student_arrival_schedules AS "schedule"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`schedule.student_arrival_schedules AS "schedule"`)
-	}
-	return nil
 }
 
 // Validate ensures arrival schedule data is valid
@@ -88,16 +77,6 @@ type StudentArrivalException struct {
 	CreatedByGuardian *int64        `bun:"created_by_guardian,nullzero" json:"created_by_guardian,omitempty"`
 }
 
-func (e *StudentArrivalException) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`schedule.student_arrival_exceptions AS "exception"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`schedule.student_arrival_exceptions AS "exception"`)
-	}
-	return nil
-}
-
 // Validate ensures arrival exception data is valid
 func (e *StudentArrivalException) Validate() error {
 	if e.StudentID <= 0 {
@@ -129,16 +108,6 @@ type StudentArrivalNote struct {
 	NoteDate  timezone.Date `bun:"note_date,notnull" json:"note_date"`
 	Content   string        `bun:"content,notnull" json:"content"`
 	CreatedBy int64         `bun:"created_by,notnull" json:"created_by"`
-}
-
-func (n *StudentArrivalNote) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`schedule.student_arrival_notes AS "student_arrival_note"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`schedule.student_arrival_notes AS "student_arrival_note"`)
-	}
-	return nil
 }
 
 // Validate ensures arrival note data is valid

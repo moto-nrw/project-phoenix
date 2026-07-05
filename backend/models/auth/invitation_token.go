@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // InvitationToken represents an invitation sent to create a new account.
@@ -31,21 +30,6 @@ type InvitationToken struct {
 	// Relations
 	Role    *Role    `bun:"rel:belongs-to,join:role_id=id" json:"role,omitempty"`
 	Creator *Account `bun:"rel:belongs-to,join:created_by=id" json:"creator,omitempty"`
-}
-
-// BeforeAppendModel ensures the schema-qualified table expression is used with an alias.
-func (t *InvitationToken) BeforeAppendModel(query any) error {
-	const tableExpr = `auth.invitation_tokens AS "invitation_token"`
-
-	switch q := query.(type) {
-	case *bun.InsertQuery:
-		q.ModelTableExpr(tableExpr)
-	case *bun.UpdateQuery:
-		q.ModelTableExpr(tableExpr)
-	case *bun.DeleteQuery:
-		q.ModelTableExpr(tableExpr)
-	}
-	return nil
 }
 
 // Validate ensures core fields are present and sensible.

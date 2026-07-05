@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uptrace/bun"
 )
 
 // =============================================================================
@@ -209,36 +208,6 @@ func TestComment_GetUpdatedAt(t *testing.T) {
 	c := &Comment{}
 	// Since UpdatedAt comes from base.Model, just verify the method exists
 	_ = c.GetUpdatedAt()
-}
-
-func TestComment_BeforeAppendModel_SelectQuery(t *testing.T) {
-	c := &Comment{}
-	// Create a mock SelectQuery - we can't easily test the actual behavior
-	// without a real DB connection, but we can verify the method doesn't panic
-	query := &bun.SelectQuery{}
-	err := c.BeforeAppendModel(query)
-	assert.NoError(t, err)
-}
-
-func TestComment_BeforeAppendModel_UpdateQuery(t *testing.T) {
-	c := &Comment{}
-	query := &bun.UpdateQuery{}
-	err := c.BeforeAppendModel(query)
-	assert.NoError(t, err)
-}
-
-func TestComment_BeforeAppendModel_DeleteQuery(t *testing.T) {
-	c := &Comment{}
-	query := &bun.DeleteQuery{}
-	err := c.BeforeAppendModel(query)
-	assert.NoError(t, err)
-}
-
-func TestComment_BeforeAppendModel_OtherQueryType(t *testing.T) {
-	c := &Comment{}
-	// Pass some other type - should not panic
-	err := c.BeforeAppendModel("not a query")
-	assert.NoError(t, err)
 }
 
 // =============================================================================

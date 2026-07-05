@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // System role names used as base role targets for custom roles.
@@ -36,16 +35,6 @@ type Role struct {
 
 	// Relations
 	Permissions []*Permission `bun:"-" json:"permissions,omitempty"`
-}
-
-func (r *Role) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`auth.roles AS "role"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`auth.roles AS "role"`)
-	}
-	return nil
 }
 
 // Validate ensures role data is valid

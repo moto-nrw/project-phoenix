@@ -163,27 +163,6 @@ func TestGuardianInvitation_SetExpiry(t *testing.T) {
 	}
 }
 
-func TestGuardianInvitation_BeforeAppendModel(t *testing.T) {
-	// BeforeAppendModel modifies query table expressions for different query types
-	// It doesn't set timestamps - those are handled by the base model or repository
-
-	t.Run("handles nil query", func(t *testing.T) {
-		inv := &GuardianInvitation{Token: "test", GuardianProfileID: 1, CreatedBy: 1, ExpiresAt: time.Now().Add(48 * time.Hour)}
-		err := inv.BeforeAppendModel(nil)
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-
-	t.Run("returns no error for unknown query type", func(t *testing.T) {
-		inv := &GuardianInvitation{Token: "test", GuardianProfileID: 1, CreatedBy: 1, ExpiresAt: time.Now().Add(48 * time.Hour)}
-		err := inv.BeforeAppendModel("some string")
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-}
-
 func TestGuardianInvitation_GetID(t *testing.T) {
 	inv := &GuardianInvitation{
 		Model: base.Model{ID: 42},

@@ -235,32 +235,6 @@ func TestPersonGuardian_GetRelationshipName(t *testing.T) {
 	}
 }
 
-func TestPersonGuardian_BeforeAppendModel(t *testing.T) {
-	t.Run("handles nil query", func(t *testing.T) {
-		pg := &PersonGuardian{
-			PersonID:          1,
-			GuardianAccountID: 2,
-			RelationshipType:  RelationshipParent,
-		}
-		err := pg.BeforeAppendModel(nil)
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-
-	t.Run("returns no error for unknown query type", func(t *testing.T) {
-		pg := &PersonGuardian{
-			PersonID:          1,
-			GuardianAccountID: 2,
-			RelationshipType:  RelationshipParent,
-		}
-		err := pg.BeforeAppendModel("some string")
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-}
-
 func TestPersonGuardian_GetID(t *testing.T) {
 	pg := &PersonGuardian{
 		Model:             base.Model{ID: 42},

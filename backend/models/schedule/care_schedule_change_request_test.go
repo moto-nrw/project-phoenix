@@ -25,16 +25,3 @@ func TestCareScheduleChangeRequest_IsTerminal(t *testing.T) {
 		}
 	}
 }
-
-func TestCareScheduleChangeRequest_BeforeAppendModel_IgnoresNonWriteQueries(t *testing.T) {
-	req := &CareScheduleChangeRequest{}
-	// A nil / non-write query type must be tolerated without panicking and
-	// return no error (the ModelTableExpr rewrite only applies to
-	// insert/update/delete queries).
-	if err := req.BeforeAppendModel(nil); err != nil {
-		t.Errorf("BeforeAppendModel(nil) = %v, want nil", err)
-	}
-	if err := req.BeforeAppendModel("not a query"); err != nil {
-		t.Errorf("BeforeAppendModel(non-query) = %v, want nil", err)
-	}
-}

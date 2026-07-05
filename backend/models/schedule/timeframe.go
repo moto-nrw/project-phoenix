@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Timeframe represents a time period with start and end times
@@ -16,16 +15,6 @@ type Timeframe struct {
 	EndTime     *time.Time `bun:"end_time" json:"end_time,omitempty"`
 	IsActive    bool       `bun:"is_active,notnull,default:false" json:"is_active"`
 	Description string     `bun:"description" json:"description,omitempty"`
-}
-
-func (t *Timeframe) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`schedule.timeframes AS "timeframe"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`schedule.timeframes AS "timeframe"`)
-	}
-	return nil
 }
 
 // Validate ensures timeframe data is valid

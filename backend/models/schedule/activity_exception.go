@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Activity exception type constants.
@@ -46,16 +45,6 @@ type ActivityException struct {
 	RoomID          *int64        `bun:"room_id" json:"room_id,omitempty"`
 	Reason          *string       `bun:"reason" json:"reason,omitempty"`
 	CreatedBy       *int64        `bun:"created_by" json:"created_by,omitempty"`
-}
-
-func (e *ActivityException) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`schedule.activity_exceptions AS "activity_exception"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`schedule.activity_exceptions AS "activity_exception"`)
-	}
-	return nil
 }
 
 // Validate ensures the exception is well-formed for persistence.

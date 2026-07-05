@@ -4,13 +4,10 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Table name constants for BUN ORM schema qualification
-const (
-	tableActiveGroupMappings = "active.group_mappings"
-)
+const ()
 
 // GroupMapping represents a mapping between a combined group and an active group
 type GroupMapping struct {
@@ -22,19 +19,6 @@ type GroupMapping struct {
 	// Relations - these would be populated when using the ORM's relations
 	CombinedGroup *CombinedGroup `bun:"rel:belongs-to,join:active_combined_group_id=id" json:"combined_group,omitempty"`
 	ActiveGroup   *Group         `bun:"rel:belongs-to,join:active_group_id=id" json:"active_group,omitempty"`
-}
-
-func (gm *GroupMapping) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableActiveGroupMappings)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableActiveGroupMappings)
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr(tableActiveGroupMappings)
-	}
-	return nil
 }
 
 // Validate ensures group mapping data is valid

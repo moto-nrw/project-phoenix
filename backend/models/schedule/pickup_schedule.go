@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Common validation error messages for pickup schedule models.
@@ -87,16 +86,6 @@ type StudentPickupSchedule struct {
 	CreatedBy  int64     `bun:"created_by,notnull" json:"created_by"`
 }
 
-func (s *StudentPickupSchedule) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`schedule.student_pickup_schedules AS "schedule"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`schedule.student_pickup_schedules AS "schedule"`)
-	}
-	return nil
-}
-
 // Validate ensures pickup schedule data is valid
 func (s *StudentPickupSchedule) Validate() error {
 	if s.StudentID <= 0 {
@@ -137,16 +126,6 @@ type StudentPickupException struct {
 	Source            string        `bun:"source,nullzero,notnull,default:'staff'" json:"source"`
 	CreatedBy         int64         `bun:"created_by,nullzero" json:"created_by,omitempty"`
 	CreatedByGuardian *int64        `bun:"created_by_guardian,nullzero" json:"created_by_guardian,omitempty"`
-}
-
-func (e *StudentPickupException) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`schedule.student_pickup_exceptions AS "exception"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`schedule.student_pickup_exceptions AS "exception"`)
-	}
-	return nil
 }
 
 // Validate ensures pickup exception data is valid
@@ -229,16 +208,6 @@ type StudentPickupNote struct {
 	NoteDate  timezone.Date `bun:"note_date,notnull" json:"note_date"`
 	Content   string        `bun:"content,notnull" json:"content"`
 	CreatedBy int64         `bun:"created_by,notnull" json:"created_by"`
-}
-
-func (n *StudentPickupNote) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`)
-	}
-	return nil
 }
 
 // Validate ensures pickup note data is valid

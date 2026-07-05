@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // ErrGuardianProfileNotFound is returned by repositories when no guardian
@@ -59,17 +58,6 @@ type GuardianProfile struct {
 	// auth.accounts_parents table by migration 1.15.57).
 	Account      *auth.Account          `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
 	PhoneNumbers []*GuardianPhoneNumber `bun:"rel:has-many,join:id=guardian_profile_id" json:"phone_numbers,omitempty"`
-}
-
-// BeforeAppendModel sets the correct table expression
-func (g *GuardianProfile) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`)
-	}
-	return nil
 }
 
 // Validate ensures guardian data is valid

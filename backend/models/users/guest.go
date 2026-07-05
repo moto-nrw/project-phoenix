@@ -7,10 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
-
-const guestTableName = "users.guests"
 
 // Guest represents a guest instructor in the system
 type Guest struct {
@@ -27,16 +24,6 @@ type Guest struct {
 
 	// Relations not stored in the database
 	Staff *Staff `bun:"-" json:"staff,omitempty"`
-}
-
-func (s *Guest) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(guestTableName)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(guestTableName)
-	}
-	return nil
 }
 
 // Validate ensures guest data is valid

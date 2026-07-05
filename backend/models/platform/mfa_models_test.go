@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uptrace/bun"
 )
 
 // Lift PR-diff coverage on the operator-side MFA model helpers. Mirror of
@@ -48,12 +47,6 @@ func TestOperatorMFACredential_Validate(t *testing.T) {
 	}
 }
 
-func TestOperatorMFACredential_BeforeAppendModel(t *testing.T) {
-	c := &OperatorMFACredential{}
-	assert.NoError(t, c.BeforeAppendModel(nil))
-	assert.NoError(t, c.BeforeAppendModel(&bun.SelectQuery{}))
-}
-
 // --- OperatorMFAEmailChallenge ---
 
 func TestOperatorMFAEmailChallenge_IsConsumed(t *testing.T) {
@@ -64,12 +57,6 @@ func TestOperatorMFAEmailChallenge_IsConsumed(t *testing.T) {
 	assert.True(t, consumed.IsConsumed())
 }
 
-func TestOperatorMFAEmailChallenge_BeforeAppendModel(t *testing.T) {
-	c := &OperatorMFAEmailChallenge{}
-	assert.NoError(t, c.BeforeAppendModel(nil))
-	assert.NoError(t, c.BeforeAppendModel(&bun.SelectQuery{}))
-}
-
 // --- OperatorMFATrustedDevice ---
 
 func TestOperatorMFATrustedDevice_IsRevoked(t *testing.T) {
@@ -78,12 +65,6 @@ func TestOperatorMFATrustedDevice_IsRevoked(t *testing.T) {
 	revoked := &OperatorMFATrustedDevice{ExpiresAt: now.Add(time.Hour), RevokedAt: &now}
 	assert.False(t, active.IsRevoked())
 	assert.True(t, revoked.IsRevoked())
-}
-
-func TestOperatorMFATrustedDevice_BeforeAppendModel(t *testing.T) {
-	d := &OperatorMFATrustedDevice{}
-	assert.NoError(t, d.BeforeAppendModel(nil))
-	assert.NoError(t, d.BeforeAppendModel(&bun.SelectQuery{}))
 }
 
 // The operator MFA lockout decision (IsMFALocked) and the counter mutations

@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/stretchr/testify/assert"
-	"github.com/uptrace/bun"
 )
 
 func TestIsValidAttendanceStatus(t *testing.T) {
@@ -228,35 +227,6 @@ func TestStudentEnrollmentClearAttendance(t *testing.T) {
 // ============================================================================
 // BeforeAppendModel Hook Tests
 // ============================================================================
-
-func TestStudentEnrollment_BeforeAppendModel(t *testing.T) {
-	se := &StudentEnrollment{}
-
-	t.Run("handles SelectQuery", func(t *testing.T) {
-		err := se.BeforeAppendModel(&bun.SelectQuery{})
-		assert.NoError(t, err)
-	})
-
-	t.Run("handles InsertQuery", func(t *testing.T) {
-		err := se.BeforeAppendModel(&bun.InsertQuery{})
-		assert.NoError(t, err)
-	})
-
-	t.Run("handles UpdateQuery", func(t *testing.T) {
-		err := se.BeforeAppendModel(&bun.UpdateQuery{})
-		assert.NoError(t, err)
-	})
-
-	t.Run("handles DeleteQuery", func(t *testing.T) {
-		err := se.BeforeAppendModel(&bun.DeleteQuery{})
-		assert.NoError(t, err)
-	})
-
-	t.Run("handles unknown query type", func(t *testing.T) {
-		err := se.BeforeAppendModel("unknown")
-		assert.NoError(t, err)
-	})
-}
 
 func TestStudentEnrollment_GetID(t *testing.T) {
 	se := &StudentEnrollment{}

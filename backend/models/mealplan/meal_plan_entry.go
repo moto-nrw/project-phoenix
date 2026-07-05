@@ -9,10 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
-
-const tableScheduleMealPlanEntries = "schedule.meal_plan_entries"
 
 // MealPlanEntry is one dish served on a calendar day for one school. A day can
 // have several dishes (Menü 1 / Menü 2 / vegetarisch), ordered by Position.
@@ -26,19 +23,6 @@ type MealPlanEntry struct {
 	// Note is an optional free-text hint shown beneath the dish (e.g.
 	// "vegetarisch", "ohne Schwein"). Deliberately not an allergen feature.
 	Note *string `bun:"note" json:"note,omitempty"`
-}
-
-func (m *MealPlanEntry) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableScheduleMealPlanEntries)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableScheduleMealPlanEntries)
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr(tableScheduleMealPlanEntries)
-	}
-	return nil
 }
 
 // MealPlanEntryRepository is the data-access boundary for meal plan entries.

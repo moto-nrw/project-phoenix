@@ -195,27 +195,6 @@ func TestRole_IsSystemFlag(t *testing.T) {
 	})
 }
 
-func TestRole_BeforeAppendModel(t *testing.T) {
-	// BeforeAppendModel modifies query table expressions for different query types
-	// It doesn't set timestamps - those are handled by the base model or repository
-
-	t.Run("handles nil query", func(t *testing.T) {
-		role := &Role{Name: "test"}
-		err := role.BeforeAppendModel(nil)
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-
-	t.Run("returns no error for unknown query type", func(t *testing.T) {
-		role := &Role{Name: "test"}
-		err := role.BeforeAppendModel("some string")
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-}
-
 func TestRole_GetTenantID(t *testing.T) {
 	t.Run("returns tenant ID when set", func(t *testing.T) {
 		tid := int64(42)

@@ -6,11 +6,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
-
-// tableActivitiesCategories is the schema-qualified table name for categories
-const tableActivitiesCategories = "activities.categories"
 
 // DefaultCategoryColor is the fallback display color used when a category has
 // no color set.
@@ -23,16 +19,6 @@ type Category struct {
 	Name        string `bun:"name,notnull" json:"name"`
 	Description string `bun:"description" json:"description,omitempty"`
 	Color       string `bun:"color" json:"color,omitempty"`
-}
-
-func (c *Category) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableActivitiesCategories)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableActivitiesCategories)
-	}
-	return nil
 }
 
 // Validate ensures category data is valid

@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // RelationshipType represents the type of relationship between a person and guardian
@@ -38,8 +37,6 @@ func IsValidRelationshipType(s string) bool {
 	return validRelationshipTypes[RelationshipType(strings.ToLower(strings.TrimSpace(s)))]
 }
 
-const personGuardianTableName = "users.persons_guardians"
-
 // PersonGuardian represents the relationship between a person and their guardian
 type PersonGuardian struct {
 	base.Model `bun:"schema:users,table:persons_guardians"`
@@ -56,16 +53,6 @@ type PersonGuardian struct {
 
 	// Parsed permissions
 	parsedPermissions map[string]bool `bun:"-" json:"-"`
-}
-
-func (pg *PersonGuardian) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(personGuardianTableName)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(personGuardianTableName)
-	}
-	return nil
 }
 
 // Validate ensures person guardian data is valid

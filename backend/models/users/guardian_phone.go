@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // PhoneType represents the type of phone number
@@ -48,17 +47,6 @@ type GuardianPhoneNumber struct {
 
 	// Relations (not stored in database)
 	GuardianProfile *GuardianProfile `bun:"rel:belongs-to,join:guardian_profile_id=id" json:"guardian_profile,omitempty"`
-}
-
-// BeforeAppendModel sets the correct table expression for BUN queries
-func (g *GuardianPhoneNumber) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`)
-	}
-	return nil
 }
 
 // Validate ensures guardian phone number data is valid

@@ -59,11 +59,6 @@ type Announcement struct {
 	Creator *Operator `bun:"rel:belongs-to,join:created_by=id" json:"creator,omitempty"`
 }
 
-// BeforeAppendModel is intentionally removed to allow repository methods
-// to set custom table expressions with aliases (e.g., for JOIN queries).
-// The bun tag `bun:"schema:platform,table:announcements"` handles the
-// default table name, and repositories use ModelTableExpr when needed.
-
 // Validate ensures announcement data is valid
 func (a *Announcement) Validate() error {
 	a.Title = strings.TrimSpace(a.Title)

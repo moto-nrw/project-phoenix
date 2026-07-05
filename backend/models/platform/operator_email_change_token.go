@@ -5,11 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
-
-// tablePlatformOperatorEmailChangeTokens is the schema-qualified table name
-const tablePlatformOperatorEmailChangeTokens = "platform.operator_email_change_tokens"
 
 // OperatorEmailChangeToken represents a pending email change verification token
 type OperatorEmailChangeToken struct {
@@ -25,18 +21,6 @@ type OperatorEmailChangeToken struct {
 
 	// Relations
 	Operator *Operator `bun:"rel:belongs-to,join:operator_id=id" json:"operator,omitempty"`
-}
-
-// BeforeAppendModel sets the schema-qualified table expression for UPDATE and DELETE queries.
-// This is NOT inherited from base.Model and must be explicitly implemented.
-func (t *OperatorEmailChangeToken) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tablePlatformOperatorEmailChangeTokens)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tablePlatformOperatorEmailChangeTokens)
-	}
-	return nil
 }
 
 // Validate ensures the token data is valid

@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uptrace/bun"
 )
 
 // The tests in this file lift PR-diff coverage on the MFA model helpers
@@ -50,16 +49,6 @@ func TestMFACredential_Validate(t *testing.T) {
 	}
 }
 
-func TestMFACredential_BeforeAppendModel_SetsTableExprForUpdateAndDelete(t *testing.T) {
-	cred := &MFACredential{}
-	// Both branches set ModelTableExpr; calling with a noop query type just
-	// exercises the type-switch fallthrough. The branches that ARE typed
-	// (UpdateQuery / DeleteQuery) need a real bun.IDB to construct, so we
-	// rely on the in-package coverage hit and assert no error.
-	assert.NoError(t, cred.BeforeAppendModel(nil))
-	assert.NoError(t, cred.BeforeAppendModel(&bun.SelectQuery{}))
-}
-
 // --- MFAEmailChallenge ---
 
 func TestMFAEmailChallenge_IsConsumed(t *testing.T) {
@@ -70,24 +59,12 @@ func TestMFAEmailChallenge_IsConsumed(t *testing.T) {
 	assert.True(t, consumed.IsConsumed())
 }
 
-func TestMFAEmailChallenge_BeforeAppendModel_DoesNotPanicOnFallthrough(t *testing.T) {
-	c := &MFAEmailChallenge{}
-	assert.NoError(t, c.BeforeAppendModel(nil))
-	assert.NoError(t, c.BeforeAppendModel(&bun.SelectQuery{}))
-}
-
 // --- MFATrustedDevice ---
 
 func TestMFATrustedDevice_IsRevoked(t *testing.T) {
 	now := time.Now()
 	assert.False(t, (&MFATrustedDevice{ExpiresAt: now.Add(time.Hour)}).IsRevoked())
 	assert.True(t, (&MFATrustedDevice{ExpiresAt: now.Add(time.Hour), RevokedAt: &now}).IsRevoked())
-}
-
-func TestMFATrustedDevice_BeforeAppendModel_DoesNotPanicOnFallthrough(t *testing.T) {
-	d := &MFATrustedDevice{}
-	assert.NoError(t, d.BeforeAppendModel(nil))
-	assert.NoError(t, d.BeforeAppendModel(&bun.SelectQuery{}))
 }
 
 // The Account MFA lockout helpers (IsMFALocked / IncrementMFAAttempts /

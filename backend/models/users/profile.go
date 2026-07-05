@@ -7,10 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
-
-const profileTableName = "users.profiles"
 
 // Profile represents a user profile in the system
 type Profile struct {
@@ -26,16 +23,6 @@ type Profile struct {
 
 	// Parsed settings
 	parsedSettings map[string]interface{} `bun:"-" json:"-"`
-}
-
-func (p *Profile) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(profileTableName)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(profileTableName)
-	}
-	return nil
 }
 
 // Validate ensures profile data is valid

@@ -4,12 +4,7 @@ import (
 	"encoding/json"
 	"net"
 	"time"
-
-	"github.com/uptrace/bun"
 )
-
-// tablePlatformOperatorAuditLog is the schema-qualified table name
-const tablePlatformOperatorAuditLog = "platform.operator_audit_log"
 
 // Common audit action constants
 const (
@@ -79,16 +74,6 @@ type OperatorAuditLog struct {
 
 	// Relations
 	Operator *Operator `bun:"rel:belongs-to,join:operator_id=id" json:"operator,omitempty"`
-}
-
-func (l *OperatorAuditLog) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tablePlatformOperatorAuditLog)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tablePlatformOperatorAuditLog)
-	}
-	return nil
 }
 
 // SetChanges sets the changes field from a map

@@ -5,7 +5,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Valid weekday values following ISO 8601 (Monday = 1, Sunday = 7)
@@ -18,9 +17,6 @@ const (
 	WeekdaySaturday  = 6
 	WeekdaySunday    = 7
 )
-
-// tableActivitiesSchedules is the schema-qualified table name for schedules
-const tableActivitiesSchedules = "activities.schedules"
 
 // Schedule represents a scheduled time for an activity group
 type Schedule struct {
@@ -47,16 +43,6 @@ type Schedule struct {
 	// Relations - these would be populated when using the ORM's relations
 	// ActivityGroup *Group `bun:"rel:belongs-to,join:activity_group_id=id" json:"activity_group,omitempty"`
 	// Timeframe *schedule.Timeframe `bun:"rel:belongs-to,join:timeframe_id=id" json:"timeframe,omitempty"`
-}
-
-func (s *Schedule) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableActivitiesSchedules)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableActivitiesSchedules)
-	}
-	return nil
 }
 
 // IsValidWeekday checks if the weekday is valid (ISO 8601: 1-7)

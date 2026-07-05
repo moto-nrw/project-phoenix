@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
-	"github.com/uptrace/bun"
 )
 
 // Group represents an educational group/class
@@ -20,17 +19,6 @@ type Group struct {
 	Room *facilities.Room `bun:"rel:belongs-to,join:room_id=id" json:"room,omitempty"`
 	// Teachers are linked through the GroupTeacher model
 	// Students will be a relationship from the Student model
-}
-
-// BeforeAppendModel lets us modify query before it's executed
-func (g *Group) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`education.groups AS "group"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`education.groups AS "group"`)
-	}
-	return nil
 }
 
 // Validate ensures group data is valid

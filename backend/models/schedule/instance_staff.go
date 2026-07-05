@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // InstanceStaff assigns a staff member to a materialized activity instance.
@@ -23,16 +22,6 @@ type InstanceStaff struct {
 	IsPrimary    bool   `bun:"is_primary,notnull,default:false" json:"is_primary"`
 	IsSubstitute bool   `bun:"is_substitute,notnull,default:false" json:"is_substitute"`
 	IsAbsent     bool   `bun:"is_absent,notnull,default:false" json:"is_absent"`
-}
-
-func (s *InstanceStaff) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`schedule.instance_staff AS "instance_staff"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`schedule.instance_staff AS "instance_staff"`)
-	}
-	return nil
 }
 
 // Validate ensures the staff assignment is well-formed.
