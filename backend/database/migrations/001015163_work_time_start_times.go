@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	workTimeStartTimesVersion     = "1.15.162"
+	workTimeStartTimesVersion     = "1.15.163"
 	workTimeStartTimesDescription = "Add optional planned start times to staff work schedules"
 )
 
@@ -32,7 +32,7 @@ func init() {
 }
 
 func addWorkTimeStartTimes(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.162: Adding planned start times to work-time schedules...")
+	fmt.Println("Migration 1.15.163: Adding planned start times to work-time schedules...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -55,12 +55,12 @@ func addWorkTimeStartTimes(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error adding work-time start times: %w", err)
 	}
 
-	fmt.Println("Migration 1.15.162: Successfully added work-time start times")
+	fmt.Println("Migration 1.15.163: Successfully added work-time start times")
 	return tx.Commit()
 }
 
 func dropWorkTimeStartTimes(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.162: Removing work-time start times...")
+	fmt.Println("Rolling back migration 1.15.163: Removing work-time start times...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -83,6 +83,6 @@ func dropWorkTimeStartTimes(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error removing work-time start times: %w", err)
 	}
 
-	fmt.Println("Migration 1.15.162: Successfully rolled back")
+	fmt.Println("Migration 1.15.163: Successfully rolled back")
 	return tx.Commit()
 }
