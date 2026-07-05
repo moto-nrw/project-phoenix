@@ -308,4 +308,71 @@ describe("useReminders — next_change_at precise timer", () => {
     });
     expect(mockMutate).toHaveBeenCalledTimes(2);
   });
+
+  it("re-arms across midnight WITHOUT any re-render (self-sustaining timer)", () => {
+    // The production hazard the re-arm guards against: a persistent end-of-day
+    // "24:00" refetches to a payload SWR compares deep-equal and does NOT
+    // re-render on, so the effect never re-runs. The timer must therefore
+    // reschedule itself from inside its own callback rather than depending on a
+    // render. This test never calls rerender() — the data (and thus the hook's
+    // dependencies) is frozen for the whole run, exactly as SWR would leave it.
+    vi.setSystemTime(new Date(2026, 6, 4, 23, 0, 0)); // 23:00 Berlin (CEST)
+    mockUseSWRAuth.mockReturnValue(
+      swrReturn({
+        reminders: [],
+        count: 0,
+        enabled: true,
+        next_change_at: "24:00",
+      }),
+    );
+
+    renderHook(() => useReminders());
+
+    // First midnight: 1h to the boundary + the 2s buffer.
+    act(() => {
+      vi.advanceTimersByTime(60 * 60 * 1000 + 3000);
+    });
+    expect(mockMutate).toHaveBeenCalledTimes(1);
+
+    // No rerender. A whole day later the self-armed timer must fire again.
+    act(() => {
+      vi.advanceTimersByTime(24 * 60 * 60 * 1000);
+    });
+    expect(mockMutate).toHaveBeenCalledTimes(2);
+
+    // And again the day after — the timer keeps re-arming indefinitely.
+    act(() => {
+      vi.advanceTimersByTime(24 * 60 * 60 * 1000);
+    });
+    expect(mockMutate).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not re-arm (nor busy-refetch) a within-day boundary that is now past", () => {
+    // After a normal within-day boundary fires, re-computing it yields a PAST
+    // instant. The timer must not reschedule that spent one-shot — otherwise a
+    // frozen (non-re-rendering) payload would refetch every 500ms forever. The
+    // next boundary arrives via the effect re-running on a fresh string, not via
+    // self-re-arm. Here the data is frozen, so exactly one refetch must happen.
+    mockUseSWRAuth.mockReturnValue(
+      swrReturn({
+        reminders: [],
+        count: 0,
+        enabled: true,
+        next_change_at: "10:05",
+      }),
+    );
+
+    renderHook(() => useReminders());
+
+    act(() => {
+      vi.advanceTimersByTime(5 * 60 * 1000 + 3000);
+    });
+    expect(mockMutate).toHaveBeenCalledTimes(1);
+
+    // Ten more minutes with a frozen payload: no busy-refetch loop.
+    act(() => {
+      vi.advanceTimersByTime(10 * 60 * 1000);
+    });
+    expect(mockMutate).toHaveBeenCalledTimes(1);
+  });
 });

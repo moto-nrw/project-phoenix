@@ -396,6 +396,15 @@ func (s *service) pickupReminders(ctx context.Context, scope Scope, studentIDs [
 	// still hydrated only for the due subset below (a large school may have many
 	// present students but only a handful actually within the window, and the
 	// header polls every 60s), so the wasteful person lookups stay bounded.
+	//
+	// This gate necessarily loads every present student (the read predicate needs
+	// each Student's group to decide readability, and a boundary is tracked for
+	// EVERY readable student, not just the due ones), so the FindByIDs below scales
+	// with the present population rather than the due subset. That is a deliberate
+	// trade-off for a correct next_change_at: it is a single primary-key IN-list
+	// lookup returning small rows, bounded by how many children are physically
+	// present, so it stays cheap even at a large school. The expensive part —
+	// person-name hydration — remains scoped to the due subset.
 	readable, err := s.readableStudents(ctx, scope, studentIDs)
 	if err != nil {
 		return nil, nextChange, err

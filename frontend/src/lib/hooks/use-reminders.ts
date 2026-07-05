@@ -26,6 +26,11 @@ const IDLE_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 // of a wall-clock minute, and client/server clocks can drift by a second or two.
 const NEXT_CHANGE_BUFFER_MS = 2000;
 
+// When the flagged boundary is already in the past (client clock skew, or the
+// timer resolving at the exact minute), refetch after this short delay rather
+// than a whole day later.
+const PAST_BOUNDARY_REFETCH_MS = 500;
+
 // The backend reports next_change_at in Berlin wall-clock time (formatMinutes on
 // timezone.Now()), so the timer delay must be measured against Berlin time, NOT
 // the browser's local zone. A device on a different timezone (traveling staff, a
@@ -53,34 +58,62 @@ function berlinSecondsOfDay(now: Date): number {
 
 // berlinUtcOffsetSeconds returns Europe/Berlin's UTC offset in seconds at the
 // given instant: +7200 in summer (CEST) or +3600 in winter (CET). Used to
-// correct the scheduled delay across a DST transition (see msUntilNextChange).
+// correct the scheduled delay across a DST transition (see nextChangeDelay).
+//
+// The offset is derived by formatting the instant as Berlin wall-clock fields
+// and differencing that against the real instant. This relies only on Intl
+// timeZone support (already required by berlinSecondsOfDay), NOT the newer
+// "longOffset" option — so it stays correct on older WebViews instead of
+// silently falling back to no DST correction (which would fire the refetch ~1h
+// off on the two transition nights per year).
 function berlinUtcOffsetSeconds(at: Date): number {
-  const tzName = new Intl.DateTimeFormat("en-US", {
+  const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: BERLIN_TIME_ZONE,
-    timeZoneName: "longOffset",
-  })
-    .formatToParts(at)
-    .find((p) => p.type === "timeZoneName")?.value;
-  // longOffset renders a zero-padded "GMT+02:00" / "GMT-01:00" (bare "GMT" for
-  // UTC, which Berlin never is). Anything unexpected falls back to 0 rather than
-  // NaN-poisoning the delay.
-  const match = /GMT([+-])(\d{2}):(\d{2})/.exec(tzName ?? "");
-  if (!match) return 0;
-  const sign = match[1] === "-" ? -1 : 1;
-  return sign * (Number(match[2]) * 3600 + Number(match[3]) * 60);
+    hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(at);
+  const value = (type: string) =>
+    Number(parts.find((p) => p.type === type)?.value ?? "0");
+  // Some engines render midnight as "24" under hour12:false; normalize to 0.
+  const asUtc = Date.UTC(
+    value("year"),
+    value("month") - 1,
+    value("day"),
+    value("hour") % 24,
+    value("minute"),
+    value("second"),
+  );
+  return Math.round((asUtc - at.getTime()) / 1000);
 }
 
-// msUntilNextChange returns how long to wait before refetching so the refetch
+interface NextChangeDelay {
+  // How long to wait before refetching, in ms.
+  delayMs: number;
+  // Whether the flagged boundary is a genuine future instant. Drives whether the
+  // one-shot timer re-arms itself after firing (see the effect): a boundary that
+  // is still in the future after the refetch — a day-agnostic "24:00" that maps
+  // to the *next* midnight — must recur; one that has fallen into the past is a
+  // spent one-shot for this occurrence.
+  inFuture: boolean;
+}
+
+// nextChangeDelay computes how long to wait before refetching so the refetch
 // lands just after the Berlin wall-clock "HH:MM" the backend flagged as the next
-// time-based change. Returns null for an unparseable value. When the target is
-// already in the past (clock skew, or the timer resolving at the exact minute),
-// it returns a short delay so we refetch promptly rather than a whole day later.
+// time-based change, and whether that boundary is still in the future. Returns
+// null for an unparseable value. When the target is already in the past (clock
+// skew, or the timer resolving at the exact minute) it returns a short delay
+// (inFuture: false) so we refetch promptly rather than a whole day later.
 //
 // "24:00" is accepted: the backend emits it from formatMinutes(1440) for a
 // boundary at end-of-day (e.g. a 23:59 pickup flipping overdue at minute 1440).
 // It maps to 86400 seconds — one full day of Berlin seconds ahead of midnight —
 // so the timer fires at the next midnight instead of being dropped.
-function msUntilNextChange(hhmm: string): number | null {
+function nextChangeDelay(hhmm: string): NextChangeDelay | null {
   const match = /^(\d{2}):(\d{2})$/.exec(hhmm);
   if (!match) return null;
   const hours = Number(match[1]);
@@ -107,26 +140,13 @@ function msUntilNextChange(hhmm: string): number | null {
   const estTarget = new Date(now.getTime() + wallDeltaSec * 1000);
   const offsetTarget = berlinUtcOffsetSeconds(estTarget);
   const realDeltaSec = wallDeltaSec - (offsetTarget - offsetNow);
-  const delay = realDeltaSec * 1000 + NEXT_CHANGE_BUFFER_MS;
-  return delay > 0 ? delay : 500;
-}
-
-// berlinDateKey returns the current Berlin calendar day as "YYYY-MM-DD",
-// independent of the browser's own timezone. It discriminates the scheduling
-// effect across midnight: next_change_at is a day-agnostic "HH:MM", so a
-// boundary that recurs at the same wall-clock time on consecutive days (a
-// persistent end-of-day "24:00", or any daily fixed threshold) would otherwise
-// hand the effect an identical dependency and never re-arm the one-shot timer
-// after it fires once. Folding the Berlin date in makes a repeated HH:MM on a
-// new day a fresh dependency. It stays constant within a day, so a boundary
-// that resolves in the past still refetches only once (no busy loop).
-function berlinDateKey(now: Date): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: BERLIN_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(now);
+  if (realDeltaSec <= 0) {
+    return { delayMs: PAST_BOUNDARY_REFETCH_MS, inFuture: false };
+  }
+  return {
+    delayMs: realDeltaSec * 1000 + NEXT_CHANGE_BUFFER_MS,
+    inFuture: true,
+  };
 }
 
 /**
@@ -153,11 +173,6 @@ export function useReminders() {
 
   const enabled = data?.enabled ?? false;
   const nextChangeAt = data?.next_change_at;
-  // Re-armed per response (data identity changes on every refetch) but only
-  // observably different across a Berlin midnight, so a repeated next_change_at
-  // still schedules the next day's boundary — see berlinDateKey / the effect.
-  const nextChangeDay =
-    enabled && nextChangeAt ? berlinDateKey(new Date()) : null;
 
   // Event-driven refresh. useGlobalSSE() runs above TenantProvider and cannot
   // build the tenant-prefixed reminders SWR key, so it dispatches
@@ -179,31 +194,58 @@ export function useReminders() {
   // no backend event, so instead of only catching them on the 60s poll we
   // schedule a single timer to the exact Berlin wall-clock minute the backend
   // reported as the next change (a pickup/activity entering or leaving its
-  // window). The timer refetches on the threshold; because it fires one buffer
-  // past the boundary, the server excludes the just-passed minute and the fresh
-  // response carries a strictly-later next_change_at — a new string that
-  // re-runs this effect and schedules the following boundary. The effect key
-  // also folds in the Berlin day (nextChangeDay): within a day the string alone
-  // advances, but across midnight a boundary can repeat verbatim (a persistent
-  // end-of-day "24:00", or a daily fixed threshold), and without the date that
-  // identical string would never re-arm the fired one-shot timer — the feature
-  // would silently fall back to the 60s poll from the next midnight on. The date
-  // is stable within a day, so a boundary that resolves in the past still
-  // refetches only once (no busy-refetch loop). Backstops for the residual
-  // cases: while the tab is hidden the browser throttles/freezes this timer AND
-  // SWR pauses the refreshInterval poll (refreshWhenHidden defaults off), so
-  // neither runs — the `revalidateOnFocus: true` above is what refetches the
-  // moment the tab is refocused. Client clock skew larger than the buffer is
-  // caught by the next 60s poll once the tab is visible again.
+  // window). Because it fires one buffer past the boundary, the server excludes
+  // the just-passed minute and the fresh response carries a later next_change_at
+  // in the normal within-day case — a new string that re-runs this effect for
+  // the following boundary.
+  //
+  // The one-shot timer RE-ARMS ITSELF after firing rather than relying on that
+  // re-run, because the re-run is not guaranteed: a day-agnostic boundary can
+  // repeat verbatim across midnight (a persistent end-of-day "24:00", or a daily
+  // fixed threshold), and the refetch then returns a payload SWR compares equal
+  // and does not re-render on — so the effect would never re-run and the timer
+  // would never re-arm, silently degrading to the 60s poll from the first
+  // midnight on. Rescheduling in the callback makes the timer self-sustaining.
+  // We only re-arm when the boundary is still in the future (the "24:00" case,
+  // which now maps to the *next* midnight); a boundary that has fallen into the
+  // past is a spent one-shot, and re-arming it would busy-refetch under large
+  // clock skew, so we let the refreshed response drive the next arm instead.
+  //
+  // Backstops for the residual cases: while the tab is hidden the browser
+  // throttles/freezes this timer AND SWR pauses the refreshInterval poll
+  // (refreshWhenHidden defaults off), so neither runs — the
+  // `revalidateOnFocus: true` above is what refetches the moment the tab is
+  // refocused. Client clock skew larger than the buffer is caught by the next
+  // 60s poll once the tab is visible again.
   useEffect(() => {
     if (!enabled || !nextChangeAt) return;
-    const delay = msUntilNextChange(nextChangeAt);
-    if (delay === null) return;
-    const timer = setTimeout(() => {
-      void mutate();
-    }, delay);
-    return () => clearTimeout(timer);
-  }, [enabled, nextChangeAt, nextChangeDay, mutate]);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const arm = (isReArm: boolean) => {
+      const next = nextChangeDelay(nextChangeAt);
+      if (next === null) return;
+      if (!next.inFuture) {
+        // The boundary is already in the past. On the initial arm (clock skew,
+        // or mounting at the exact minute) refetch once soon. When reached via a
+        // re-arm after a fire, the just-fired mutate already covered this
+        // occurrence — scheduling another would busy-refetch a perpetually-past
+        // value, so stop and let the refreshed response re-arm via the effect.
+        if (!isReArm) {
+          timer = setTimeout(() => {
+            void mutate();
+          }, next.delayMs);
+        }
+        return;
+      }
+      timer = setTimeout(() => {
+        void mutate();
+        arm(true);
+      }, next.delayMs);
+    };
+    arm(false);
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [enabled, nextChangeAt, mutate]);
 
   return {
     reminders: data?.reminders ?? [],
