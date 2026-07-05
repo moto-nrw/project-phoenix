@@ -69,10 +69,12 @@ const (
 //
 // Conversion rules per lineage (same semantics the editor's manual
 // conversion used):
-//   - the modern field already exists → drop the legacy fields
+//   - the modern field already exists → drop the legacy fields, preserving
+//     requiredness by OR-ing any required legacy field into the modern field
 //   - otherwise → replace the first legacy field with one
 //     student.allowed_departure_modes field (required when any dropped
-//     legacy field was required) and drop the rest
+//     legacy field was required, visible under the first legacy field's
+//     condition) and drop the rest
 //   - sort_order is renumbered 0..n-1
 //
 // Runs on the superuser CLI connection, so RLS is bypassed and all tenants
@@ -196,6 +198,7 @@ func convertLegacyDepartureFields(fieldsJSON string) (string, bool, error) {
 	firstLegacyIndex := -1
 	hasModern := false
 	anyLegacyRequired := false
+	var firstLegacyVisibleWhen any
 	usedKeys := map[string]bool{}
 	for i, f := range fields {
 		key, _ := f["key"].(string)
@@ -207,6 +210,7 @@ func convertLegacyDepartureFields(fieldsJSON string) (string, bool, error) {
 		if legacyDepartureTargets[target] {
 			if firstLegacyIndex < 0 {
 				firstLegacyIndex = i
+				firstLegacyVisibleWhen = f["visible_when"]
 			}
 			if required, _ := f["required"].(bool); required {
 				anyLegacyRequired = true
@@ -226,7 +230,7 @@ func convertLegacyDepartureFields(fieldsJSON string) (string, bool, error) {
 				for usedKeys[key] {
 					key += "_1"
 				}
-				next = append(next, map[string]any{
+				modern := map[string]any{
 					"key":              key,
 					"label":            modernDepartureLabel,
 					"type":             "weekday_multi_mode",
@@ -234,9 +238,18 @@ func convertLegacyDepartureFields(fieldsJSON string) (string, bool, error) {
 					"help_text":        modernDepartureHelpText,
 					"applies_to_child": true,
 					"target":           modernDepartureTarget,
-				})
+				}
+				if firstLegacyVisibleWhen != nil {
+					modern["visible_when"] = firstLegacyVisibleWhen
+				}
+				next = append(next, modern)
 			}
 			continue
+		}
+		if target == modernDepartureTarget && anyLegacyRequired {
+			if required, _ := f["required"].(bool); !required {
+				f["required"] = true
+			}
 		}
 		next = append(next, f)
 	}

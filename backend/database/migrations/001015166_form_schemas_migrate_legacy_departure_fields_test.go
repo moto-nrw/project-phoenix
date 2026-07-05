@@ -160,6 +160,78 @@ func TestFormSchemasMigrateLegacyDeparture_DropsLegacyWhenModernFieldExists(t *t
 	assert.Equal(t, "heimwege", converted[0].Key, "existing modern field must survive unchanged")
 }
 
+func TestFormSchemasMigrateLegacyDeparture_ExistingModernFieldInheritsLegacyRequiredness(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := context.Background()
+
+	tenantID := time.Now().UnixNano()
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, db, tenantID) })
+	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("departure-migration-%d@test.local", tenantID))
+
+	mixedFields := `[
+		{"key":"heimwege","label":"Erlaubte Heimwege","type":"weekday_multi_mode","required":false,"applies_to_child":true,"sort_order":0,"target":"student.allowed_departure_modes","visible_when":{"source":"grade_level","operator":"eq","value":1}},
+		{"key":"bus","label":"Buskind","type":"weekday_boolean","required":true,"applies_to_child":true,"sort_order":1,"target":"student.bus"}
+	]`
+	insertDepartureTestSchema(t, db, tenantID, account.ID, "Gemischt Pflicht", 1, mixedFields)
+
+	require.NoError(t, formSchemasMigrateLegacyDepartureUp(ctx, db))
+
+	var newID int64
+	require.NoError(t, db.QueryRowContext(ctx, `
+		SELECT id FROM enrollment.form_schemas
+		WHERE tenant_id = ? AND name = 'Gemischt Pflicht'
+		ORDER BY version DESC LIMIT 1
+	`, tenantID).Scan(&newID))
+
+	converted := loadSchemaFields(t, db, newID)
+	require.Len(t, converted, 1)
+	assert.Equal(t, "heimwege", converted[0].Key)
+	assert.True(t, converted[0].Required, "required legacy departure fields must keep the surviving modern field required")
+	require.NotNil(t, converted[0].VisibleWhen, "existing modern visibility must survive requiredness merge")
+	assert.Equal(t, enrollmentModels.ConditionSourceGradeLevel, converted[0].VisibleWhen.Source)
+	assert.Equal(t, float64(1), converted[0].VisibleWhen.Value)
+}
+
+func TestFormSchemasMigrateLegacyDeparture_PreservesFirstLegacyVisibilityOnReplacement(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := context.Background()
+
+	tenantID := time.Now().UnixNano()
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, db, tenantID) })
+	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("departure-migration-%d@test.local", tenantID))
+
+	legacyFields := `[
+		{"key":"care_kind","label":"Betreuung","type":"select","required":true,"applies_to_child":true,"sort_order":0,"options":[{"value":"ogs","label":"OGS"},{"value":"eight_to_one","label":"8-1"}]},
+		{"key":"pickup_status","label":"Abholung","type":"weekday_boolean","required":true,"applies_to_child":true,"sort_order":1,"target":"student.pickup_status","visible_when":{"source":"field","field":"care_kind","operator":"eq","value":"ogs"}},
+		{"key":"bus_days","label":"Buskind","type":"weekday_boolean","required":false,"applies_to_child":true,"sort_order":2,"target":"student.bus_days","visible_when":{"source":"grade_level","operator":"eq","value":1}}
+	]`
+	insertDepartureTestSchema(t, db, tenantID, account.ID, "Sichtbar Bedingt", 1, legacyFields)
+
+	require.NoError(t, formSchemasMigrateLegacyDepartureUp(ctx, db))
+
+	var newID int64
+	require.NoError(t, db.QueryRowContext(ctx, `
+		SELECT id FROM enrollment.form_schemas
+		WHERE tenant_id = ? AND name = 'Sichtbar Bedingt'
+		ORDER BY version DESC LIMIT 1
+	`, tenantID).Scan(&newID))
+
+	converted := loadSchemaFields(t, db, newID)
+	require.Len(t, converted, 2)
+	assert.Equal(t, "care_kind", converted[0].Key)
+	assert.Equal(t, "student.allowed_departure_modes", converted[1].Target)
+	require.NotNil(t, converted[1].VisibleWhen, "replacement field must preserve the first legacy field's visibility")
+	assert.Equal(t, enrollmentModels.ConditionSourceField, converted[1].VisibleWhen.Source)
+	assert.Equal(t, "care_kind", converted[1].VisibleWhen.Field)
+	assert.Equal(t, enrollmentModels.ConditionOpEquals, converted[1].VisibleWhen.Operator)
+	assert.Equal(t, "ogs", converted[1].VisibleWhen.Value)
+	assert.True(t, converted[1].Required)
+}
+
 func TestFormSchemasMigrateLegacyDeparture_SkipsCleanLineages(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
