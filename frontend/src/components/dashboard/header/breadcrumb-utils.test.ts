@@ -136,6 +136,44 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/enrollment-form")).toBe("Anmeldeformulare");
       });
 
+      it("should return titles for staff admin request pages", () => {
+        expect(getPageTitle("/admin/guardian-approvals")).toBe(
+          "Konto-Anfragen",
+        );
+        expect(getPageTitle("/admin/change-requests")).toBe(
+          "Änderungsanfragen",
+        );
+      });
+
+      it("should return titles for recent staff navigation entries", () => {
+        expect(getPageTitle("/messages")).toBe("Nachrichten");
+        expect(getPageTitle("/messages/thread-1")).toBe("Nachrichten");
+        expect(getPageTitle("/parent-announcements")).toBe(
+          "Elternmitteilungen",
+        );
+        expect(getPageTitle("/meal-plan")).toBe("Essensplan");
+        expect(getPageTitle("/suggestions")).toBe("Feedback");
+      });
+
+      it("should return titles for operator navigation entries", () => {
+        expect(getPageTitle("/operator/organizations")).toBe("Träger");
+        expect(getPageTitle("/operator/schools")).toBe("Schulen");
+        expect(getPageTitle("/operator/accounts")).toBe("Konten");
+        expect(getPageTitle("/operator/devices")).toBe("Geräte");
+        expect(getPageTitle("/operator/persons")).toBe("Personen");
+        expect(getPageTitle("/operator/unregistered-tags")).toBe(
+          "Unbekannte RFID",
+        );
+        expect(getPageTitle("/operator/operators")).toBe("Operatoren");
+        expect(getPageTitle("/operator/announcements")).toBe("Ankündigungen");
+      });
+
+      it("should return German fallback titles for parent navigation entries", () => {
+        expect(getPageTitle("/parents/messages")).toBe("Nachrichten");
+        expect(getPageTitle("/parents/news")).toBe("Neuigkeiten");
+        expect(getPageTitle("/parents/meal-plan")).toBe("Essensplan");
+      });
+
       it("should return 'Home' for unknown route", () => {
         expect(getPageTitle("/unknown-route")).toBe("Home");
       });
