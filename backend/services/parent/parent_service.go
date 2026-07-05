@@ -198,6 +198,27 @@ type Service interface {
 	// withdrawn. Requires parent_portal.request.submit; stays available after
 	// messaging is disabled so outstanding requests can be wound down.
 	WithdrawCareScheduleRequest(ctx context.Context, accountID, studentID, requestID int64) (*ChildCareSchedule, error)
+
+	// ListAnnouncements returns the guardian's parent-news feed across all their
+	// (news-enabled) children's schools, newest-published first, each with the
+	// guardian's read/ack state. Cross-tenant; broadcast (#1669).
+	ListAnnouncements(ctx context.Context, accountID int64) ([]*usersModels.AnnouncementFeedItem, error)
+
+	// UnreadAnnouncementCount returns how many feed announcements the guardian
+	// has not read — the parent-portal Neuigkeiten badge. Cross-tenant.
+	UnreadAnnouncementCount(ctx context.Context, accountID int64) (int, error)
+
+	// MarkAnnouncementRead records that the guardian opened an announcement.
+	// Refuses one that is not live or outside the guardian's audience, and
+	// rejects a stale request whose expectedPublishedAt no longer matches the
+	// live announcement (ErrAnnouncementStale) so a corrected announcement is
+	// not marked read against the retracted wording.
+	MarkAnnouncementRead(ctx context.Context, accountID, announcementID int64, expectedPublishedAt time.Time) error
+
+	// AcknowledgeAnnouncement records an explicit "gelesen und bestätigt"; valid
+	// only for an announcement that requires acknowledgement. Same audience and
+	// stale-version guards as MarkAnnouncementRead.
+	AcknowledgeAnnouncement(ctx context.Context, accountID, announcementID int64, expectedPublishedAt time.Time) error
 }
 
 // ChildFeatureFlags reports the resolved per-tenant parent-portal feature
@@ -239,6 +260,12 @@ type ChildFeatureFlags struct {
 	// still live on the Stammdaten page. Defaults false, so a fetch failure never
 	// shows a phantom badge.
 	HasOpenChangeRequest bool
+	// NewsEnabled is true when the school broadcasts parent announcements
+	// (operations.parent_news_enabled), so the portal can advertise the
+	// Neuigkeiten feed for this child's school. When every linked school has
+	// it off, the feed/unread endpoints return nothing and the nav/panel
+	// entries must stay hidden rather than dead-end on an empty page.
+	NewsEnabled bool
 }
 
 // CareException is the parent-facing projection of a single day's pickup and/or
@@ -296,6 +323,9 @@ type ServiceConfig struct {
 	MessageRepo       usersModels.ParentMessageRepository
 	MessageReadRepo   usersModels.ParentMessageReadRepository
 
+	// Parent announcements (broadcast news feed).
+	AnnouncementRepo usersModels.ParentAnnouncementRepository
+
 	// Related-accounts management (invite/remove further guardians from the
 	// parents portal). The invitation service runs the shared resolve logic.
 	GuardianInvites     authService.GuardianInvitationService
@@ -341,6 +371,8 @@ type service struct {
 	messageRepo       usersModels.ParentMessageRepository
 	messageReadRepo   usersModels.ParentMessageReadRepository
 
+	announcementRepo usersModels.ParentAnnouncementRepository
+
 	guardianInvites     authService.GuardianInvitationService
 	guardianInviteRepo  authModels.GuardianInvitationRepository
 	studentGuardianRepo usersModels.StudentGuardianRepository
@@ -381,6 +413,7 @@ func NewService(cfg ServiceConfig) Service {
 		messageThreadRepo:       cfg.MessageThreadRepo,
 		messageRepo:             cfg.MessageRepo,
 		messageReadRepo:         cfg.MessageReadRepo,
+		announcementRepo:        cfg.AnnouncementRepo,
 		guardianInvites:         cfg.GuardianInvites,
 		guardianInviteRepo:      cfg.GuardianInviteRepo,
 		studentGuardianRepo:     cfg.StudentGuardianRepo,

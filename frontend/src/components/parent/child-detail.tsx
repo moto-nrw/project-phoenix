@@ -375,7 +375,6 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
             canInvite={care.features.related_accounts_invite_enabled}
             canRemove={care.features.related_accounts_remove_enabled}
           />
-          <NewsPanel />
         </div>
       </div>
 
@@ -483,8 +482,6 @@ function MobileChildAppView({
         canRemove={care.features.related_accounts_remove_enabled}
         mobile
       />
-
-      <NewsPanel mobile />
 
       <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
@@ -734,44 +731,6 @@ function ChildMessagesPanel({
             </span>
           </button>
         )}
-      </div>
-    </section>
-  );
-}
-
-function NewsPanel({ mobile = false }: Readonly<{ mobile?: boolean }>) {
-  const t = useTranslations("parentChildDetail");
-  return (
-    <section
-      className={
-        mobile
-          ? "rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
-          : "rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6"
-      }
-    >
-      {mobile ? (
-        <h2 className="text-lg font-semibold text-gray-900">
-          {t("newsTitle")}
-        </h2>
-      ) : (
-        <PanelHeader
-          eyebrow={t("newsEyebrow")}
-          title={t("newsTitle")}
-          description={t("newsDescription")}
-        />
-      )}
-      <div className="mt-4 flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50/70 p-4">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-gray-600 shadow-sm ring-1 ring-gray-200">
-          <Newspaper className="h-5 w-5" aria-hidden="true" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-gray-900">
-            {t("noNewsTitle")}
-          </p>
-          <p className="mt-0.5 text-sm leading-5 text-gray-600">
-            {t("noNewsDescription")}
-          </p>
-        </div>
       </div>
     </section>
   );

@@ -108,6 +108,11 @@ export interface ChildFeatures {
   // or care schedule) awaiting an OGS decision. Lets the overview badge the
   // Stammdaten entry without fetching the full request payloads.
   readonly has_open_change_request: boolean;
+  // Whether the school broadcasts parent announcements
+  // (operations.parent_news_enabled). When every linked school has it off the
+  // Neuigkeiten feed is empty, so the parents-portal nav/panel entries gate on
+  // this to avoid dead-ending on an empty page.
+  readonly parent_news_enabled: boolean;
 }
 
 // One dish of the read-only meal plan (Essensplan) for a child's school.
@@ -521,6 +526,23 @@ export interface ThreadSummary {
   readonly unread: number;
 }
 
+// One parent-news feed entry (#1669). read/acknowledged are THIS guardian's
+// state; requires_acknowledgement tells the app whether to offer the
+// "gelesen und bestätigt" action.
+export interface ParentAnnouncement {
+  readonly id: string;
+  readonly title: string;
+  readonly body: string;
+  readonly priority: "info" | "important";
+  readonly link_url?: string;
+  readonly requires_acknowledgement: boolean;
+  readonly school_name: string;
+  readonly published_at?: string; // ISO timestamp
+  readonly expires_at?: string; // ISO timestamp
+  readonly read: boolean;
+  readonly acknowledged: boolean;
+}
+
 // A child's full conversation (messages oldest-first). `thread_id` is empty
 // when the guardian has not written about this child yet.
 export interface ThreadView {
@@ -561,6 +583,57 @@ export async function fetchMessagesUnreadCount(): Promise<number> {
     "/api/parent/me/messages/unread-count",
   );
   return result.unread_count ?? 0;
+}
+
+/**
+ * The guardian's parent-news feed across all their (news-enabled) children's
+ * schools, newest-published first. Visibility + audience are enforced
+ * server-side from the JWT account.
+ */
+export async function listAnnouncements(): Promise<ParentAnnouncement[]> {
+  return getJson<ParentAnnouncement[]>("/api/parent/me/news");
+}
+
+/**
+ * Unread parent-news count for the parents-portal Neuigkeiten badge. A light
+ * COUNT endpoint, mirroring the messages badge.
+ */
+export async function fetchAnnouncementsUnreadCount(): Promise<number> {
+  const result = await getJson<{ unread_count: number }>(
+    "/api/parent/me/news/unread-count",
+  );
+  return result.unread_count ?? 0;
+}
+
+/**
+ * Marks an announcement read for this guardian (idempotent). `publishedAt` is
+ * the version the client loaded; the backend rejects the request (409) if the
+ * announcement has since been corrected/republished, so a stale tab cannot
+ * record a read for wording the guardian never saw.
+ */
+export async function markAnnouncementRead(
+  announcementId: string,
+  publishedAt: string,
+): Promise<void> {
+  await postJson<{ read: boolean }>(
+    `/api/parent/me/news/${encodeURIComponent(announcementId)}/read`,
+    { published_at: publishedAt },
+  );
+}
+
+/**
+ * Records an explicit "gelesen und bestätigt" for an announcement. `publishedAt`
+ * is verified against the live announcement (see markAnnouncementRead) so a
+ * confirmation is never counted against since-corrected wording.
+ */
+export async function acknowledgeAnnouncement(
+  announcementId: string,
+  publishedAt: string,
+): Promise<void> {
+  await postJson<{ acknowledged: boolean }>(
+    `/api/parent/me/news/${encodeURIComponent(announcementId)}/acknowledge`,
+    { published_at: publishedAt },
+  );
 }
 
 /**

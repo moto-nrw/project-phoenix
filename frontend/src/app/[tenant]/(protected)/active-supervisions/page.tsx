@@ -58,7 +58,7 @@ import {
   SCHOOL_YEAR_FILTER_OPTIONS,
   getSchoolYear,
 } from "~/lib/student-helpers";
-import { UnclaimedRooms } from "~/components/active";
+import { UnclaimedRooms } from "~/components/active/unclaimed-rooms";
 import { SSEErrorBoundary } from "~/components/sse/SSEErrorBoundary";
 import { useSWRAuth } from "~/lib/swr";
 import { combineTimeNotes, getStudentAbsence } from "~/lib/student-time-status";

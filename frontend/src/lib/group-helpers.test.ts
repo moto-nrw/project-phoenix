@@ -10,7 +10,7 @@ import {
   formatGroupRepresentative,
 } from "./group-helpers";
 import { suppressConsole } from "~/test/helpers/console";
-import { buildBackendGroup } from "~/test/fixtures";
+import { buildBackendGroup } from "~/test/fixtures/groups";
 
 // Sample backend group for testing
 const sampleBackendGroup = buildBackendGroup({

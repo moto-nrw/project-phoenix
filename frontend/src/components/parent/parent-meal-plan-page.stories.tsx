@@ -15,6 +15,7 @@ const baseFeatures = {
   master_data_request_enabled: true,
   meal_plan_enabled: true,
   has_open_change_request: false,
+  parent_news_enabled: true,
 } satisfies ChildFeatures;
 
 const childrenWithMealPlans: Child[] = [

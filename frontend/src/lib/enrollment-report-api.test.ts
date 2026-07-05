@@ -450,4 +450,29 @@ describe("exportPhaseClassRoster", () => {
     expect(anchor.click).toHaveBeenCalledTimes(1);
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:class-roster");
   });
+
+  it("posts all_classes when no class is selected", async () => {
+    const fetchFn = mockFetch(
+      async () =>
+        ({
+          ok: true,
+          headers: new Headers(),
+          blob: async () => new Blob(["PDF"]),
+        }) as unknown as Response,
+    );
+
+    await exportPhaseClassRoster("42", null, "pdf");
+
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    const [, init] = fetchFn.mock.calls[0]!;
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+      format: "pdf",
+      filters: {
+        phase_id: "42",
+        all_classes: true,
+      },
+    });
+    expect(anchor.download).toBe("klassenlisten.pdf");
+    expect(anchor.click).toHaveBeenCalledTimes(1);
+  });
 });

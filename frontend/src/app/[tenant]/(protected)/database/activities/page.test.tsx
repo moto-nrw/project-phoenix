@@ -158,7 +158,7 @@ vi.mock("~/components/ui/database/database-form-modal", () => ({
   },
 }));
 
-vi.mock("@/components/activities", () => ({
+vi.mock("@/components/activities/activities-master-detail", () => ({
   ActivitiesMasterDetail: ({
     activities,
     selectedId,

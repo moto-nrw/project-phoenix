@@ -13,6 +13,7 @@ import {
   FileText,
   KeyRound,
   LayoutDashboard,
+  Megaphone,
   MessageSquare,
   Nfc,
   PlayCircle,
@@ -387,7 +388,7 @@ export const appChapters: readonly GuideChapter[] = [
           "`Kindersuche` öffnen.",
           "Namen oder Namensbestandteil in das Suchfeld eingeben.",
           "Bei Bedarf nach Klasse, Gruppe, Stufe oder Status filtern.",
-          "Für aktuelle Klassenlisten im Filter `Klasse` den Klassenverband wählen und über `Exportieren` die Vorlage `Klassenliste` ausgeben. Phasebezogene Listen für Klassenlehrkräfte erstellst du in der jeweiligen `Anmeldephase`.",
+          "Für aktuelle Klassenlisten im Filter `Klasse` den Klassenverband wählen und über `Exportieren` die Vorlage `Klassenliste` ausgeben. Ohne Klassenfilter erzeugt die Option `Nach Klassen getrennt` alle Klassenlisten auf einmal: jede Klasse erhält eine eigene Überschrift, im PDF beginnt jede Klasse auf einer neuen Seite. Phasebezogene Listen für Klassenlehrkräfte erstellst du in der jeweiligen `Anmeldephase`.",
           "Die Vorlage `Tagesliste` enthält den `Tagesstatus`, damit `Krank`, `Entschuldigt` und `Klassenfahrt` direkt auf der Liste stehen.",
           "Auf jeder Karte rechts die `Aktivitäts-Indikatoren` ablesen: ein grüner Haken bedeutet, das Kind war heute schon im genannten Bereich (z. B. `Mensa`, `Hausaufgaben`), ein grauer Kreis steht für noch ausstehend.",
           "Ein Kind öffnen, um Details, Raum und Zeiten zu sehen.",
@@ -778,7 +779,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Bei einer Phase auf `Anmeldungen ansehen` klicken, um die eingegangenen Anmeldungen zu prüfen.",
           "Mit `Status`, den `Angeboten für die Auswertung`, der `Anzahl Betreuungstage`, `Zielklasse`, `Wochentag`, `Gehzeit` oder der Suche die Tabelle auf die Kinder eingrenzen, die du brauchst.",
           "Die Kennzahlen über der Tabelle zeigen, wie viele Kinder an einem, zwei, drei, vier oder fünf Tagen betreut werden. Die Karte `Einsatzplanung` zeigt zusätzlich, wie viele Kinder je Wochentag bis zu welcher Gehzeit bleiben.",
-          "Für Klassenlehrkräfte unter `Klasse für Klassenliste` den Klassenverband wählen und `Klassenliste exportieren` nutzen. Die Liste enthält den gesamten Klassenverband, auch Kinder ohne bestätigte Anmeldung, und zeigt pro Wochentag die gebuchten Angebote, zum Beispiel `Randstunde` oder `Ganztag`, inklusive Abholzeit, Geh-/Abholweise und Kontaktdaten der Erziehungsberechtigten.",
+          "Für Klassenlehrkräfte unter `Klasse für Klassenliste` den Klassenverband wählen und `Klassenliste exportieren` nutzen. Mit `Alle Klassen` erhältst du alle Klassenlisten in einer Datei, sauber getrennt mit eigener Überschrift je Klasse (im PDF auf einer neuen Seite). Die Liste enthält den gesamten Klassenverband, auch Kinder ohne bestätigte Anmeldung, und zeigt pro Wochentag die gebuchten Angebote, zum Beispiel `Randstunde` oder `Ganztag`, inklusive Abholzeit, Geh-/Abholweise und Kontaktdaten der Erziehungsberechtigten.",
           "Eine Anmeldung öffnen und Kind, erziehungsberechtigte Personen (Hauptkontakt und weitere erziehungsberechtigte Personen), gewähltes Betreuungsangebot und Formularangaben prüfen.",
           "Wenn eine Familie nach der Frist nachgereicht hat, erscheint die Anmeldung nach Nutzung des Nachzügler-Links ganz normal in dieser Liste. Bei der manuellen Freigabe ist das Kind bereits bestätigt; prüfe anschließend bei Bedarf den Statuslink oder die Kinddetailseite.",
           "Mit `Bestätigen`, `Warteliste` oder `Ablehnen` entscheiden; mit `Zur Prüfung` für später vormerken.",
@@ -808,7 +809,7 @@ export const appChapters: readonly GuideChapter[] = [
           "`Excel-Datei` erzeugt eine Tabelle mit Gruppenzeilen pro Status, einer Datenzeile pro Kind und jedem Feld in einer eigenen Spalte - für Weiterverarbeitung oder Archiv.",
           "Über das `Status`-Auswahlfeld nur einen Teil exportieren (zum Beispiel nur `Bestätigt`); der Export übernimmt den gerade gewählten Status. `Alle` exportiert alles.",
           "Für eine Auswertung nach Betreuungsangeboten, Betreuungstagen, Wochentag oder Gehzeit nutzt du die Filter und die Karte `Auswertung exportieren`; dort wählst du `Excel`, `PDF` oder `Word-Dokument` für genau diese gefilterte Ansicht. PDF und Word beginnen mit einer Einsatzplanung nach Wochentag und Gehzeit.",
-          "Für die Übergabe an Klassenlehrkräfte nutzt du in der Phase `Klasse für Klassenliste` und `Klassenliste exportieren`; diese Liste ist pro Klasse aufgebaut und zeigt pro Wochentag die bestätigten Angebote der Phase, Abholzeiten, Geh-/Abholweise und Erziehungsberechtigte.",
+          "Für die Übergabe an Klassenlehrkräfte nutzt du in der Phase `Klasse für Klassenliste` und `Klassenliste exportieren`; diese Liste ist pro Klasse aufgebaut und zeigt pro Wochentag die bestätigten Angebote der Phase, Abholzeiten, Geh-/Abholweise und Erziehungsberechtigte. Mit `Alle Klassen` exportierst du alle Klassenlisten in einer Datei, mit eigener Überschrift je Klasse und im PDF auf jeweils einer neuen Seite.",
         ],
         callout: {
           title: "Vertrauliche Daten - sorgsam aufbewahren",
@@ -935,6 +936,28 @@ export const appChapters: readonly GuideChapter[] = [
         screenshot:
           "Admin-Seite Änderungsanfragen, Bereich Betreuungszeiten: Wochenplan-Vergleich aktuell zu gewünscht mit den Schaltflächen Freigeben und Ablehnen.",
         image: "/help/screens/offene-anfragen.webp",
+      },
+      {
+        id: "elternmitteilungen",
+        title: "Elternmitteilungen",
+        icon: Megaphone,
+        summary:
+          "Mitteilungen an ausgewählte Elterngruppen senden (Rundinformationen statt Einzelnachrichten). Eltern sehen sie als Neuigkeiten im Elternportal. Anders als die Nachrichten ist das eine Einbahn-Information ohne Antwortmöglichkeit; für Rückfragen nutzen Eltern den normalen Nachrichten-Chat.",
+        steps: [
+          "In der Seitenleiste `Elternmitteilungen` öffnen und auf `Elternmitteilung` tippen.",
+          "Schritt `Inhalt`: Titel und Text eingeben. Optional: einen Link ergänzen, Priorität `Wichtig` setzen, ein Ablaufdatum wählen (danach wird die Mitteilung ausgeblendet), `Lesebestätigung erforderlich` und `Eltern zusätzlich per E-Mail benachrichtigen` aktivieren. Die E-Mail enthält nur den Titel und einen Link ins Elternportal.",
+          "Schritt `Empfänger`: Zielgruppe wählen: ganze Schule, einzelne Klassen, Gruppen, AGs/Betreuungsangebote, einzelne Kinder oder Eltern mit offener Anmeldung. Mehrere Zielgruppen lassen sich kombinieren; ein Elternteil erhält die Mitteilung höchstens einmal.",
+          "Mit `Als Entwurf speichern` für später sichern oder mit `Veröffentlichen` direkt an die Eltern geben. Veröffentlichte Mitteilungen erscheinen sofort im Elternportal der erreichten Eltern.",
+          "Entwürfe lassen sich aus der Liste bearbeiten und über `Veröffentlichen` freigeben. Nach dem Veröffentlichen ist keine Bearbeitung mehr möglich; über `Zurückziehen` wird eine Mitteilung wieder zum Entwurf und aus dem Elternportal entfernt.",
+          "Ein Tipp auf eine Mitteilung öffnet die Detailansicht mit dem vollständigen Text und der Statistik: wie viele der erreichten Eltern sie gelesen und (falls verlangt) bestätigt haben, inklusive Liste, welche Bezugsperson noch aussteht.",
+        ],
+        callout: {
+          title: "Voraussetzung",
+          body: "Die Funktion muss unter `Einstellungen` > `Betrieb` > `Elternmitteilungen (Neuigkeiten)` aktiviert sein. Eltern sehen nur Mitteilungen, die für ihre eigenen Kinder bestimmt sind.",
+          tone: "blue",
+        },
+        screenshot:
+          "Übersicht der Elternmitteilungen mit Status (Entwurf, veröffentlicht, abgelaufen) und der Aktion „Neue Elternmitteilung“.",
       },
       {
         id: "essensplan",

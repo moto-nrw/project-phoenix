@@ -141,7 +141,7 @@ vi.mock("~/components/sse/SSEErrorBoundary", () => ({
 }));
 
 // Mock UnclaimedRooms
-vi.mock("~/components/active", () => ({
+vi.mock("~/components/active/unclaimed-rooms", () => ({
   UnclaimedRooms: () => <div data-testid="unclaimed-rooms" />,
 }));
 

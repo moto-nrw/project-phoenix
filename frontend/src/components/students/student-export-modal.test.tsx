@@ -161,6 +161,61 @@ describe("StudentExportModal", () => {
     expect(mockExportStudents).not.toHaveBeenCalled();
   });
 
+  it("enables grouping by class for the class roster preset without a class filter", async () => {
+    await openModal();
+
+    fireEvent.click(screen.getByRole("button", { name: /Klassenliste/ }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("checkbox", { name: /Nach Klassen getrennt/ }),
+      ).toBeChecked();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Exportieren" }));
+
+    await waitFor(() => {
+      expect(mockExportStudents).toHaveBeenCalledWith(
+        expect.objectContaining({
+          preset: "class_roster",
+          filters: { search: "mila", group_id: "5", group_by_class: true },
+        }),
+      );
+    });
+  });
+
+  it("exports without grouping when the checkbox is turned off", async () => {
+    await openModal();
+
+    fireEvent.click(screen.getByRole("button", { name: /Klassenliste/ }));
+    await waitFor(() => {
+      expect(
+        screen.getByRole("checkbox", { name: /Nach Klassen getrennt/ }),
+      ).toBeChecked();
+    });
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /Nach Klassen getrennt/ }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Exportieren" }));
+
+    await waitFor(() => {
+      expect(mockExportStudents).toHaveBeenCalledWith(
+        expect.objectContaining({
+          filters: { search: "mila", group_id: "5" },
+        }),
+      );
+    });
+  });
+
+  it("hides the grouping option when a class filter is active", async () => {
+    await openModal({
+      filters: { search: "mila", school_class: "3a" },
+    });
+
+    expect(
+      screen.queryByRole("checkbox", { name: /Nach Klassen getrennt/ }),
+    ).not.toBeInTheDocument();
+  });
+
   it("keeps the dialog open and reports export failures", async () => {
     mockExportStudents.mockRejectedValueOnce(new Error("PDF kaputt"));
     const { onClose } = await openModal();

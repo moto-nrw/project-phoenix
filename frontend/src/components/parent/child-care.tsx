@@ -98,6 +98,10 @@ const DEFAULT_FEATURES: ChildFeatures = {
   // State flag defaults false so a fetch failure never shows a phantom
   // "Anfrage offen" badge on the overview.
   has_open_change_request: false,
+  // Default false on fetch failure (least privilege): hide the Neuigkeiten
+  // panel rather than showing an empty one for a school that has news off; the
+  // backend feed enforces the gate regardless.
+  parent_news_enabled: false,
 };
 
 export interface ChildCare {
