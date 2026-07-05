@@ -22,6 +22,12 @@ export interface RemindersResult {
   // True when the tenant has enabled at least one reminder type. Drives
   // whether the header bell (the only entry point to /reminders) renders at all.
   enabled: boolean;
+  // Wall-clock "HH:MM" of the soonest future moment this list changes purely by
+  // time passing (a pickup/activity entering or leaving its window). The hook
+  // schedules a timer to exactly this time so a reminder appears on its
+  // threshold instead of only on the next poll. Absent when nothing time-based
+  // is pending. Data-driven changes still arrive via the SSE-stale event.
+  next_change_at?: string;
 }
 
 // Proxy route wrapper envelope: { success: true, data: <payload> }.

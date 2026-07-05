@@ -96,6 +96,15 @@ type StudentRepository interface {
 	// FindByIDs retrieves multiple students by their IDs in a single query
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*Student, error)
 
+	// FindReadScopeByIDs retrieves a lightweight projection of the given students
+	// — only id, group_id, person_id, and school_class — without the weekday
+	// bus-day / departure hydration FindByIDs performs. It exists for callers that
+	// only need read-access gating and name display (e.g. the frequently-polled
+	// reminders service) and must not pay for schema probing and jsonb hydration
+	// on data they never read. The returned *Student values have ONLY those four
+	// fields populated.
+	FindReadScopeByIDs(ctx context.Context, ids []int64) (map[int64]*Student, error)
+
 	// FindByPersonID retrieves a student by their person ID
 	FindByPersonID(ctx context.Context, personID int64) (*Student, error)
 
