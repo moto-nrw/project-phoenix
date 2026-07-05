@@ -86,8 +86,16 @@ func seedPublishedAnnouncement(
 		[]*usersModels.ParentAnnouncementTarget{{TargetType: usersModels.AnnouncementTargetSchoolAll}}))
 	now := time.Now()
 	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
-	a.PublishedAt = &now
 	t.Cleanup(func() { _ = repo.Delete(ctx, a.ID) })
+	// Re-read so PublishedAt reflects the DB-persisted value (Postgres truncates
+	// TIMESTAMPTZ to microseconds). Callers echo this exact instant back to
+	// MarkRead/Acknowledge; using the in-memory nanosecond `now` would flakily
+	// miss the service's Equal() version guard and surface as ErrAnnouncementStale.
+	persisted, err := repo.FindByID(ctx, a.ID)
+	require.NoError(t, err)
+	require.NotNil(t, persisted)
+	require.NotNil(t, persisted.PublishedAt)
+	a.PublishedAt = persisted.PublishedAt
 	return a
 }
 
