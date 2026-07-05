@@ -194,7 +194,7 @@ func TestFormSchemasMigrateLegacyDeparture_ExistingModernFieldInheritsLegacyRequ
 	assert.Equal(t, float64(1), converted[0].VisibleWhen.Value)
 }
 
-func TestFormSchemasMigrateLegacyDeparture_PreservesFirstLegacyVisibilityOnReplacement(t *testing.T) {
+func TestFormSchemasMigrateLegacyDeparture_ClearsDifferingLegacyVisibilityOnReplacement(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
@@ -224,12 +224,82 @@ func TestFormSchemasMigrateLegacyDeparture_PreservesFirstLegacyVisibilityOnRepla
 	require.Len(t, converted, 2)
 	assert.Equal(t, "care_kind", converted[0].Key)
 	assert.Equal(t, "student.allowed_departure_modes", converted[1].Target)
-	require.NotNil(t, converted[1].VisibleWhen, "replacement field must preserve the first legacy field's visibility")
-	assert.Equal(t, enrollmentModels.ConditionSourceField, converted[1].VisibleWhen.Source)
-	assert.Equal(t, "care_kind", converted[1].VisibleWhen.Field)
-	assert.Equal(t, enrollmentModels.ConditionOpEquals, converted[1].VisibleWhen.Operator)
-	assert.Equal(t, "ogs", converted[1].VisibleWhen.Value)
+	assert.Nil(t, converted[1].VisibleWhen, "replacement field must be unconditional when removed legacy fields had different visibility")
 	assert.True(t, converted[1].Required)
+}
+
+func TestFormSchemasMigrateLegacyDeparture_ClearsDanglingVisibilityDependencies(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := context.Background()
+
+	tenantID := time.Now().UnixNano()
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, db, tenantID) })
+	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("departure-migration-%d@test.local", tenantID))
+
+	legacyFields := `[
+		{"key":"pickup_status","label":"Abholung","type":"weekday_boolean","required":true,"applies_to_child":true,"sort_order":0,"target":"student.pickup_status"},
+		{"key":"pickup_note","label":"Abholhinweis","type":"textarea","required":false,"applies_to_child":true,"sort_order":1,"target":"student.extra_info","visible_when":{"source":"field","field":"pickup_status","operator":"eq","value":true}}
+	]`
+	insertDepartureTestSchema(t, db, tenantID, account.ID, "Abhängigkeit", 1, legacyFields)
+
+	require.NoError(t, formSchemasMigrateLegacyDepartureUp(ctx, db))
+
+	var newID int64
+	var newVersion int
+	require.NoError(t, db.QueryRowContext(ctx, `
+		SELECT id, version FROM enrollment.form_schemas
+		WHERE tenant_id = ? AND name = 'Abhängigkeit'
+		ORDER BY version DESC LIMIT 1
+	`, tenantID).Scan(&newID, &newVersion))
+
+	converted := loadSchemaFields(t, db, newID)
+	require.Len(t, converted, 2)
+	assert.Equal(t, "student.allowed_departure_modes", converted[0].Target)
+	assert.Equal(t, "pickup_note", converted[1].Key)
+	assert.Nil(t, converted[1].VisibleWhen, "dependent field must not point at the removed legacy pickup_status key")
+
+	schema := &enrollmentModels.FormSchema{Name: "Abhängigkeit", Version: newVersion, CreatedBy: account.ID, Fields: converted}
+	require.NoError(t, schema.Validate())
+}
+
+func TestFormSchemasMigrateLegacyDeparture_RepointsLegacyPhaseToCleanLatest(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := context.Background()
+
+	tenantID := time.Now().UnixNano()
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, db, tenantID) })
+	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("departure-migration-%d@test.local", tenantID))
+
+	legacyFields := `[
+		{"key":"pickup_status","label":"Abholung","type":"weekday_boolean","required":true,"applies_to_child":true,"sort_order":0,"target":"student.pickup_status"}
+	]`
+	cleanFields := `[
+		{"key":"heimwege","label":"Erlaubte Heimwege","type":"weekday_multi_mode","required":true,"applies_to_child":true,"sort_order":0,"target":"student.allowed_departure_modes"}
+	]`
+	v1 := insertDepartureTestSchema(t, db, tenantID, account.ID, "Schon Sauber", 1, legacyFields)
+	v2 := insertDepartureTestSchema(t, db, tenantID, account.ID, "Schon Sauber", 2, cleanFields)
+	phaseID := insertDepartureTestPhase(t, db, tenantID, v1)
+
+	require.NoError(t, formSchemasMigrateLegacyDepartureUp(ctx, db))
+
+	var count int
+	require.NoError(t, db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM enrollment.form_schemas WHERE tenant_id = ? AND name = 'Schon Sauber'`, tenantID).Scan(&count))
+	assert.Equal(t, 2, count, "clean latest lineage must not receive a duplicate version")
+
+	var phaseSchemaID int64
+	require.NoError(t, db.QueryRowContext(ctx,
+		`SELECT form_schema_id FROM enrollment.phases WHERE id = ?`, phaseID).Scan(&phaseSchemaID))
+	assert.Equal(t, v2, phaseSchemaID, "phase pinned to legacy v1 must advance to clean latest v2")
+
+	require.NoError(t, formSchemasMigrateLegacyDepartureUp(ctx, db))
+	require.NoError(t, db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM enrollment.form_schemas WHERE tenant_id = ? AND name = 'Schon Sauber'`, tenantID).Scan(&count))
+	assert.Equal(t, 2, count, "clean-latest repoint path must stay idempotent")
 }
 
 func TestFormSchemasMigrateLegacyDeparture_SkipsCleanLineages(t *testing.T) {
