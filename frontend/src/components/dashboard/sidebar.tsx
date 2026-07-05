@@ -1302,13 +1302,15 @@ function SidebarContent({ className = "" }: SidebarProps) {
             {parentSubPages.map((page) => (
               <SidebarSubItem
                 key={page.href}
-                // The Übersicht hub is a tenant-scoped [tenant]/eltern route; a
-                // bare "/eltern" href is captured as the tenant slug in
-                // path-routing mode. Prefix it to match the accordion header's
-                // tenant-aware router.push and the /eltern page's card links.
-                href={
-                  page.href === "/eltern" ? tenantPath(page.href) : page.href
-                }
+                // Every Eltern sub-page is a tenant-scoped [tenant]/… route
+                // (/eltern, /messages, /admin/guardian-approvals, /meal-plan,
+                // …). In path-routing mode a bare href is either captured as
+                // the tenant slug ("/eltern") or leaves the current tenant path
+                // entirely ("/messages" → wrong slug / missing route), so
+                // prefix all of them via tenantPath — matching the accordion
+                // header's tenant-aware router.push and the /eltern page's
+                // card links. No-op in subdomain mode.
+                href={tenantPath(page.href)}
                 label={page.label}
                 isActive={activeParentSubPageHref === page.href}
                 badgeCount={

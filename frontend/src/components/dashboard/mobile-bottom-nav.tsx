@@ -24,6 +24,7 @@ import { useParentNewsEnabled } from "~/lib/hooks/use-parent-news-enabled";
 import {
   useNFCEnabled,
   usePresenceMode,
+  useTenantRoutingModeSafe,
   useTenantSlugSafe,
 } from "~/lib/tenant-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -385,16 +386,21 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const tParentNav = useTranslations("parentNav");
   const rawPathname = usePathname();
   const tenantSlug = useTenantSlugSafe();
+  const routingMode = useTenantRoutingModeSafe();
   const searchParams = useSearchParams();
   // Strip the tenant prefix so all active-state checks compare against
-  // unprefixed paths (e.g. "/eltern"). In path-routing mode usePathname()
-  // returns "/{slug}/eltern"; mirror the desktop sidebar's normalization so
-  // the "Mehr" button and drawer rows highlight correctly. No-op in
-  // subdomain/operator/parent mode where tenantSlug is null.
+  // unprefixed paths (e.g. "/eltern"). Only path-routing mode carries the slug
+  // in usePathname() as "/{slug}/eltern"; mirror the desktop sidebar's
+  // normalization so the "Mehr" button and drawer rows highlight correctly.
+  // Gate on routingMode: useTenantSlugSafe() still returns the slug in
+  // subdomain mode, so without this guard a tenant whose slug is a real route
+  // (e.g. "messages") visiting messages.<domain>/messages would be stripped to
+  // "/" and mis-highlight Home. No-op in subdomain/operator/parent mode.
+  const inPathRouting = routingMode === "path";
   const pathname =
-    tenantSlug && rawPathname.startsWith(`/${tenantSlug}/`)
+    inPathRouting && tenantSlug && rawPathname.startsWith(`/${tenantSlug}/`)
       ? rawPathname.slice(tenantSlug.length + 1)
-      : tenantSlug && rawPathname === `/${tenantSlug}`
+      : inPathRouting && tenantSlug && rawPathname === `/${tenantSlug}`
         ? "/"
         : rawPathname;
   // Prefixes tenant-scoped hrefs with the slug in path-routing mode (no-op in
@@ -436,12 +442,19 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       if (href === "/dashboard") {
         return pathname === "/dashboard" || pathname === "/";
       }
-      // Check if we came from this page via the 'from' query parameter
-      if (
-        pathname.startsWith("/students/") &&
-        searchParams.get("from")?.startsWith(href)
-      ) {
-        return true;
+      // Check if we came from this page via the 'from' query parameter. Grouped
+      // items (e.g. Eltern) own several routes via activePaths, so a child page
+      // reached with ?from=/messages must still highlight the Eltern entry —
+      // compare `from` against the item's href AND its activePaths.
+      if (pathname.startsWith("/students/")) {
+        const from = searchParams.get("from");
+        if (
+          from &&
+          (from.startsWith(href) ||
+            activePaths?.some((p) => from.startsWith(p)))
+        ) {
+          return true;
+        }
       }
       if (activePaths?.some((p) => pathname.startsWith(p))) {
         return true;
