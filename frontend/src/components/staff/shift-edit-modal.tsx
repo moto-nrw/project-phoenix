@@ -10,6 +10,7 @@ import { ShiftApiError, staffShiftService } from "~/lib/shift-api";
 import type { StaffShift } from "~/lib/shift-helpers";
 
 const logger = createLogger({ component: "ShiftEditModal" });
+const STAFF_SHIFT_MAX_BREAK_MINUTES = 300;
 
 function getShiftMutationErrorMessage(
   err: unknown,
@@ -102,7 +103,14 @@ export function ShiftEditModal({
   }, [isOpen, initial]);
 
   const timesValid = startTime !== "" && endTime !== "" && startTime < endTime;
-  const breakMinutes = parseBreakMinutes(breakMinutesStr);
+  const breakMaxMinutes = timesValid
+    ? Math.min(
+        STAFF_SHIFT_MAX_BREAK_MINUTES,
+        shiftDurationMinutes(startTime, endTime) ??
+          STAFF_SHIFT_MAX_BREAK_MINUTES,
+      )
+    : STAFF_SHIFT_MAX_BREAK_MINUTES;
+  const breakMinutes = parseBreakMinutes(breakMinutesStr, breakMaxMinutes);
   const breakValid = breakMinutes !== null;
 
   const handleSubmit = async () => {
@@ -112,7 +120,9 @@ export function ShiftEditModal({
       return;
     }
     if (!breakValid || breakMinutes === null) {
-      setError("Pause muss eine ganze Zahl zwischen 0 und 300 sein.");
+      setError(
+        `Pause muss eine ganze Zahl zwischen 0 und ${breakMaxMinutes} sein.`,
+      );
       return;
     }
 
@@ -235,7 +245,7 @@ export function ShiftEditModal({
               <input
                 type="number"
                 min={0}
-                max={300}
+                max={breakMaxMinutes}
                 inputMode="numeric"
                 value={breakMinutesStr}
                 onChange={(e) => setBreakMinutesStr(e.target.value)}
@@ -297,11 +307,30 @@ function formatLongDate(isoDate: string): string {
   });
 }
 
-function parseBreakMinutes(raw: string): number | null {
+function shiftDurationMinutes(
+  startTime: string,
+  endTime: string,
+): number | null {
+  const start = parseClockMinutes(startTime);
+  const end = parseClockMinutes(endTime);
+  if (start === null || end === null || end <= start) return null;
+  return end - start;
+}
+
+function parseClockMinutes(value: string): number | null {
+  const match = /^(\d{2}):(\d{2})$/.exec(value);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  return hours * 60 + minutes;
+}
+
+function parseBreakMinutes(raw: string, maxMinutes: number): number | null {
   const trimmed = raw.trim();
   if (trimmed === "") return null;
   const n = Number(trimmed);
-  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0 || n > 300) {
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0 || n > maxMinutes) {
     return null;
   }
   return n;

@@ -12,7 +12,8 @@ import {
 import { Alert } from "~/components/ui/alert";
 import { Loading } from "~/components/ui/loading";
 import { isAdmin } from "~/lib/auth-utils";
-import { toISODate, todayISO } from "~/lib/date-helpers";
+import { parseISODate, toISODate } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { staffShiftService } from "~/lib/shift-api";
 import {
   groupShiftsByStaffAndDate,
@@ -52,9 +53,10 @@ function DienstplanContent() {
   });
   const router = useTenantRouter();
   const canEdit = isAdmin(session);
+  const today = useBerlinToday();
 
   const [weekAnchor, setWeekAnchor] = useState<Date>(() =>
-    startOfWeek(new Date()),
+    startOfWeek(parseISODate(today)),
   );
   const [modal, setModal] = useState<ModalState | null>(null);
 
@@ -68,7 +70,6 @@ function DienstplanContent() {
 
   const weekFrom = weekDays[0] ?? "";
   const weekTo = weekDays[4] ?? "";
-  const today = todayISO();
 
   const {
     data: staff,
@@ -101,7 +102,7 @@ function DienstplanContent() {
   );
 
   const isOnCurrentWeek =
-    toISODate(startOfWeek(new Date())) === toISODate(weekAnchor);
+    toISODate(startOfWeek(parseISODate(today))) === toISODate(weekAnchor);
 
   const weekLabel = useMemo(() => {
     const start = new Date(weekAnchor);
@@ -200,7 +201,7 @@ function DienstplanContent() {
           <div className="flex justify-center sm:justify-end">
             <button
               type="button"
-              onClick={() => setWeekAnchor(startOfWeek(new Date()))}
+              onClick={() => setWeekAnchor(startOfWeek(parseISODate(today)))}
               disabled={isOnCurrentWeek}
               className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
             >

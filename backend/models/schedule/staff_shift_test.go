@@ -44,6 +44,18 @@ func TestStaffShiftValidate(t *testing.T) {
 	negativeBreak.BreakMinutes = -1
 	assert.Error(t, negativeBreak.Validate())
 
+	breakEqualsDuration := testShift(8, 9)
+	breakEqualsDuration.BreakMinutes = 60
+	assert.NoError(t, breakEqualsDuration.Validate())
+
+	breakExceedsDuration := testShift(8, 9)
+	breakExceedsDuration.BreakMinutes = 61
+	assert.Error(t, breakExceedsDuration.Validate())
+
+	breakExceedsAbsoluteMax := testShift(8, 16)
+	breakExceedsAbsoluteMax.BreakMinutes = MaxStaffShiftBreakMinutes + 1
+	assert.Error(t, breakExceedsAbsoluteMax.Validate())
+
 	missingCreator := testShift(8, 16)
 	missingCreator.CreatedBy = 0
 	assert.Error(t, missingCreator.Validate())

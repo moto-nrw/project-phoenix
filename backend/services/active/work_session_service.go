@@ -1361,19 +1361,26 @@ func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace 
 			continue
 		}
 
-		activeBreak, err := s.breakRepo.GetActiveBySessionID(ctx, session.ID)
+		breaks, err := s.breakRepo.GetBySessionID(ctx, session.ID)
 		if err != nil {
-			s.getLogger().WarnContext(ctx, "failed to inspect active break during auto-checkout",
+			s.getLogger().WarnContext(ctx, "failed to inspect breaks during auto-checkout",
 				slog.Int64("session_id", session.ID),
 				slog.String("error", err.Error()))
 			continue
 		}
-		if activeBreak != nil && activeBreak.StartedAt.After(closeAt) {
-			s.getLogger().WarnContext(ctx, "skipping auto-checkout because active break starts after planned shift end",
+
+		activeBreak, lateBreak := activeBreakAndLateBreakAfter(breaks, closeAt)
+		if lateBreak != nil {
+			attrs := []any{
 				slog.Int64("session_id", session.ID),
-				slog.Int64("break_id", activeBreak.ID),
-				slog.Time("break_started_at", activeBreak.StartedAt),
-				slog.Time("planned_end", closeAt))
+				slog.Int64("break_id", lateBreak.ID),
+				slog.Time("break_started_at", lateBreak.StartedAt),
+				slog.Time("planned_end", closeAt),
+			}
+			if lateBreak.EndedAt != nil {
+				attrs = append(attrs, slog.Time("break_ended_at", *lateBreak.EndedAt))
+			}
+			s.getLogger().WarnContext(ctx, "skipping auto-checkout because a break crosses planned shift end", attrs...)
 			continue
 		}
 
@@ -1427,6 +1434,25 @@ func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace 
 	}
 
 	return count, nil
+}
+
+func activeBreakAndLateBreakAfter(breaks []*activeModels.WorkSessionBreak, closeAt time.Time) (*activeModels.WorkSessionBreak, *activeModels.WorkSessionBreak) {
+	var activeBreak *activeModels.WorkSessionBreak
+	for _, brk := range breaks {
+		if brk == nil {
+			continue
+		}
+		if brk.EndedAt == nil {
+			activeBreak = brk
+		}
+		if brk.StartedAt.After(closeAt) {
+			return activeBreak, brk
+		}
+		if brk.EndedAt != nil && brk.EndedAt.After(closeAt) {
+			return activeBreak, brk
+		}
+	}
+	return activeBreak, nil
 }
 
 func (s *workSessionService) endActiveBreak(ctx context.Context, sessionID int64, activeBreak *activeModels.WorkSessionBreak, endAt time.Time) error {

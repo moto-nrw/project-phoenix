@@ -33,6 +33,7 @@ import type { StaffHistorySession, StaffAbsenceRow } from "~/lib/staff-api";
 import { ownShiftService } from "~/lib/shift-api";
 import type { StaffShift } from "~/lib/shift-helpers";
 import { toISODate } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useToast } from "~/contexts/ToastContext";
 import { useSWRAuth } from "~/lib/swr";
 import { useSWRConfig } from "swr";
@@ -2689,6 +2690,7 @@ function TimeTrackingContent() {
   });
 
   const toast = useToast();
+  const todayISO = useBerlinToday();
   // WeekChart shows trailing 10 workdays from today; no UI to navigate it
   // anymore (the table owns its own range state). Kept as a constant so the
   // chart's data window stays anchored at "now".
@@ -2811,7 +2813,6 @@ function TimeTrackingContent() {
   const absences = absencesData ?? [];
 
   // Check if today has an absence (for check-in warning)
-  const todayISO = toISODate(new Date());
   const todayAbsence = absences.find(
     (a) => a.dateStart <= todayISO && a.dateEnd >= todayISO,
   );

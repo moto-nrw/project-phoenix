@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   useSession: vi.fn(),
   useSWRAuth: vi.fn(),
   isAdmin: vi.fn(),
+  useBerlinToday: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -28,8 +29,23 @@ vi.mock("~/lib/swr", () => ({
   useSWRAuth: mocks.useSWRAuth,
 }));
 
+vi.mock("~/lib/hooks/use-berlin-today", () => ({
+  useBerlinToday: mocks.useBerlinToday,
+}));
+
 vi.mock("~/components/staff/dienstplan-week-grid", () => ({
-  DienstplanWeekGrid: () => <div data-testid="dienstplan-grid" />,
+  DienstplanWeekGrid: ({
+    weekDays,
+    todayIso,
+  }: {
+    weekDays: string[];
+    todayIso: string;
+  }) => (
+    <div data-testid="dienstplan-grid">
+      <span data-testid="dienstplan-week-days">{weekDays.join(",")}</span>
+      <span data-testid="dienstplan-today">{todayIso}</span>
+    </div>
+  ),
 }));
 
 vi.mock("~/components/staff/shift-edit-modal", () => ({
@@ -50,6 +66,7 @@ describe("DienstplanPage", () => {
       status: "authenticated",
     });
     mocks.isAdmin.mockReturnValue(true);
+    mocks.useBerlinToday.mockReturnValue("2026-07-05");
   });
 
   it("shows a blocking load error instead of the editable grid", () => {
@@ -84,5 +101,38 @@ describe("DienstplanPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Erneut laden" }));
     expect(mutateStaff).toHaveBeenCalledTimes(1);
     expect(mutateShifts).toHaveBeenCalledTimes(1);
+  });
+
+  it("anchors the current week and today marker to the Berlin calendar date", () => {
+    mocks.useBerlinToday.mockReturnValue("2026-07-06");
+    mocks.useSWRAuth.mockImplementation((key: string) => {
+      if (key === "dienstplan-staff") {
+        return {
+          data: [{ id: "7", firstName: "Ada", lastName: "Lovelace" }],
+          error: undefined,
+          isLoading: false,
+          mutate: vi.fn(),
+        };
+      }
+      return {
+        data: [],
+        error: undefined,
+        isLoading: false,
+        mutate: vi.fn(),
+      };
+    });
+
+    render(<DienstplanPage />);
+
+    expect(screen.getByTestId("dienstplan-week-days")).toHaveTextContent(
+      "2026-07-06,2026-07-07,2026-07-08,2026-07-09,2026-07-10",
+    );
+    expect(screen.getByTestId("dienstplan-today")).toHaveTextContent(
+      "2026-07-06",
+    );
+    expect(mocks.useSWRAuth).toHaveBeenCalledWith(
+      "dienstplan-shifts-2026-07-06-2026-07-10",
+      expect.any(Function),
+    );
   });
 });

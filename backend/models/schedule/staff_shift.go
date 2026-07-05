@@ -10,7 +10,10 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const tableScheduleStaffShifts = "schedule.staff_shifts"
+const (
+	tableScheduleStaffShifts  = "schedule.staff_shifts"
+	MaxStaffShiftBreakMinutes = 300
+)
 
 // StaffShift is one planned work shift for a staff member on a concrete
 // calendar date (Dienstplan). Multiple non-overlapping shifts per staff per
@@ -59,11 +62,20 @@ func (s *StaffShift) Validate() error {
 	if s.Date.IsZero() {
 		return errors.New("date is required")
 	}
-	if !timezone.WallClock(s.EndTime).After(timezone.WallClock(s.StartTime)) {
+	start := timezone.WallClock(s.StartTime)
+	end := timezone.WallClock(s.EndTime)
+	if !end.After(start) {
 		return errors.New("end time must be after start time")
 	}
 	if s.BreakMinutes < 0 {
 		return errors.New("break minutes must not be negative")
+	}
+	if s.BreakMinutes > MaxStaffShiftBreakMinutes {
+		return errors.New("break minutes must not exceed 300")
+	}
+	durationMinutes := int(end.Sub(start) / time.Minute)
+	if s.BreakMinutes > durationMinutes {
+		return errors.New("break minutes must not exceed shift duration")
 	}
 	if s.CreatedBy <= 0 {
 		return errors.New("created by is required")
