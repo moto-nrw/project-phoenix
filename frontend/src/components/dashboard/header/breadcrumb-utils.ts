@@ -9,6 +9,26 @@ export function getPageTitle(pathname: string): string {
     return "Dienstplan";
   }
 
+  if (pathname === "/admin/guardian-approvals") {
+    return "Konto-Anfragen";
+  }
+
+  if (pathname === "/admin/change-requests") {
+    return "Änderungsanfragen";
+  }
+
+  if (matchesPathSegment(pathname, "/messages")) {
+    return "Nachrichten";
+  }
+
+  if (pathname === "/parent-announcements") {
+    return "Elternmitteilungen";
+  }
+
+  if (pathname === "/meal-plan") {
+    return "Essensplan";
+  }
+
   // Check for /students/search first before other /students/ paths
   if (pathname === "/students/search") {
     return "Kindersuche";
@@ -48,6 +68,10 @@ function getStudentPageTitle(pathname: string): string {
   if (pathname.includes("/feedback-history")) return "Feedback Historie";
   if (pathname.includes("/room-history")) return "Anwesenheitsprotokoll";
   return "Kinder Details";
+}
+
+function matchesPathSegment(pathname: string, basePath: string): boolean {
+  return pathname === basePath || pathname.startsWith(`${basePath}/`);
 }
 
 function getDatabasePageTitle(pathname: string): string {
@@ -92,8 +116,19 @@ function getMainRouteTitle(pathname: string): string {
     "/care-offerings": "Betreuungsangebote",
     "/enrollment-form": "Anmeldeformulare",
     "/time-tracking": "Zeiterfassung",
+    "/suggestions": "Feedback",
     "/operator/suggestions": "Vorschläge",
     "/operator/announcements": "Ankündigungen",
+    "/operator/organizations": "Träger",
+    "/operator/schools": "Schulen",
+    "/operator/accounts": "Konten",
+    "/operator/devices": "Geräte",
+    "/operator/persons": "Personen",
+    "/operator/unregistered-tags": "Unbekannte RFID",
+    "/operator/operators": "Operatoren",
+    "/parents/messages": "Nachrichten",
+    "/parents/news": "Neuigkeiten",
+    "/parents/meal-plan": "Essensplan",
   };
 
   return mainRoutes[pathname] ?? "Home";

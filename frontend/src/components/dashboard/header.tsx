@@ -75,9 +75,20 @@ export function Header() {
     if (pathname === "/parents/children") return tParentNav("children");
     if (pathname.startsWith("/parents/children/"))
       return tParentNav("childProfile");
+    if (isPathSegment(pathname, "/parents/messages"))
+      return tParentNav("messages");
+    if (isPathSegment(pathname, "/messages")) return tParentNav("messages");
+    if (pathname === "/parents/news" || pathname === "/news")
+      return tParentNav("news");
+    if (pathname === "/parents/meal-plan" || pathname === "/meal-plan")
+      return tParentNav("mealPlan");
     return null;
   })();
   const displayedPageTitle = parentPageTitle ?? pageTitle;
+
+  function isPathSegment(path: string, basePath: string): boolean {
+    return path === basePath || path.startsWith(`${basePath}/`);
+  }
 
   // Derive user info from ShellAuth context
   const userName = user?.name ?? "Benutzer";
