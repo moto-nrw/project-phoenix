@@ -199,6 +199,34 @@ describe("useReminders — next_change_at precise timer", () => {
     expect(mockMutate).toHaveBeenCalledTimes(1);
   });
 
+  it("schedules an end-of-day '24:00' boundary at the next midnight", () => {
+    // The backend emits "24:00" from formatMinutes(1440) for a boundary at the
+    // top of the day (e.g. a 23:59 pickup flipping overdue). It must not be
+    // dropped: the timer fires at the next midnight, 14h after the 10:00 clock.
+    mockUseSWRAuth.mockReturnValue(
+      swrReturn({
+        reminders: [],
+        count: 0,
+        enabled: true,
+        next_change_at: "24:00",
+      }),
+    );
+
+    renderHook(() => useReminders());
+
+    // Just before next midnight (14h from 10:00) + most of the buffer: nothing.
+    act(() => {
+      vi.advanceTimersByTime(14 * 60 * 60 * 1000 + 1000);
+    });
+    expect(mockMutate).not.toHaveBeenCalled();
+
+    // Crossing the buffered midnight boundary fires exactly once.
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(mockMutate).toHaveBeenCalledTimes(1);
+  });
+
   it("clears the scheduled timer on unmount", () => {
     mockUseSWRAuth.mockReturnValue(
       swrReturn({

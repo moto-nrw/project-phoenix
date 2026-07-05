@@ -467,12 +467,10 @@ func (s *service) pickupReminders(ctx context.Context, scope Scope, studentIDs [
 
 	out := make([]Reminder, 0, len(dues))
 	for _, d := range dues {
-		info, ok := infos[d.id]
-		if !ok {
-			// The student record went missing between the read gate and name
-			// hydration — skip silently rather than emit an empty-title reminder.
-			continue
-		}
+		// dueIDs is a subset of the read-gated `readable` set and hydrateNames
+		// populates an entry for every one of them, so infos[d.id] is always
+		// present here — no missing-key guard is needed.
+		info := infos[d.id]
 		reminderType := TypePickupUpcoming
 		if d.isOverdue {
 			reminderType = TypePickupOverdue
@@ -525,11 +523,16 @@ func (s *service) activityReminders(ctx context.Context, scope Scope, roomIDs []
 
 		// Track the boundaries at which this instance's reminder state flips, so
 		// the frontend can refetch exactly then instead of waiting for the poll:
-		//   upcoming: enters the window at startMin-lead, leaves it at startMin
+		//   upcoming: enters the window at startMin-lead, leaves it at startMin+1
 		//   overdue:  appears at startMin+overdueThreshold, disappears at endMin
+		// The upcoming exit is startMin+1, NOT startMin: at exactly startMin the
+		// diff is 0, which is still "upcoming" (diff >= 0); the reminder only
+		// disappears the first minute startMin is in the past. Scheduling startMin
+		// would refetch a minute early (nothing changed) and drop the real
+		// startMin+1 boundary — same reasoning as the pickup flip below.
 		if upcoming {
 			nextChange = minFuture(nextChange, futureBoundary(startMin-lead, nowMin))
-			nextChange = minFuture(nextChange, futureBoundary(startMin, nowMin))
+			nextChange = minFuture(nextChange, futureBoundary(startMin+1, nowMin))
 		}
 		if overdue {
 			overdueStart := startMin + overdueThreshold

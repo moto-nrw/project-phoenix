@@ -769,7 +769,7 @@ func TestActivityNextChange(t *testing.T) {
 	adminScope := Scope{IsAdmin: true}
 
 	t.Run("an activity starting beyond the window schedules its earliest boundary", func(t *testing.T) {
-		// start 620, end 700. Boundaries: window entry 610, start 620,
+		// start 620, end 700. Boundaries: window entry 610, upcoming exit 621,
 		// overdue 625, slot end 700. The soonest is 610.
 		svc := &service{instance: fakeInstance{instances: []*scheduleModel.ActivityInstance{
 			plannedInstance("Schach", 1, 620, 700),
@@ -778,6 +778,21 @@ func TestActivityNextChange(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, out)
 		assert.Equal(t, 610, next)
+	})
+
+	t.Run("an in-window upcoming activity schedules its flip-out at startMin+1", func(t *testing.T) {
+		// now 615, window [610, 620]: entry already past. The start reminder is
+		// still shown at exactly startMin (diff 0 is upcoming); it disappears the
+		// first minute start is in the past, startMin+1 = 621 — NOT startMin.
+		// Upcoming-only isolates that boundary from the overdue ones.
+		const nowMin = 615
+		svc := &service{instance: fakeInstance{instances: []*scheduleModel.ActivityInstance{
+			plannedInstance("Schach", 1, 620, 700),
+		}}}
+		out, next, err := svc.activityReminders(context.Background(), adminScope, nil, timezone.TodayDate(), nowMin, lead, overdueThreshold, true, false)
+		require.NoError(t, err)
+		require.Len(t, out, 1)
+		assert.Equal(t, 621, next, "upcoming exit is startMin+1, not startMin")
 	})
 
 	t.Run("nil instance reader yields no scheduled change", func(t *testing.T) {

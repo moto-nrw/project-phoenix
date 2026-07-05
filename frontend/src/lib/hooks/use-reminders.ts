@@ -31,6 +31,11 @@ const NEXT_CHANGE_BUFFER_MS = 2000;
 // time-based change. Returns null for an unparseable value. When the target is
 // already in the past (clock skew, or the timer resolving at the exact minute),
 // it returns a short delay so we refetch promptly rather than a whole day later.
+//
+// "24:00" is accepted: the backend emits it from formatMinutes(1440) for a
+// boundary at end-of-day (e.g. a 23:59 pickup flipping overdue at minute 1440).
+// setHours(24, 0) normalizes to the next day's midnight, which is that exact
+// instant — so the timer still fires on the boundary instead of being dropped.
 function msUntilNextChange(hhmm: string): number | null {
   const match = /^(\d{2}):(\d{2})$/.exec(hhmm);
   if (!match) return null;
@@ -39,7 +44,8 @@ function msUntilNextChange(hhmm: string): number | null {
   if (
     Number.isNaN(hours) ||
     Number.isNaN(minutes) ||
-    hours > 23 ||
+    hours > 24 ||
+    (hours === 24 && minutes > 0) ||
     minutes > 59
   ) {
     return null;
