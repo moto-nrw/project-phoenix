@@ -43,6 +43,9 @@ interface BackendStudentRequest {
   departure_companion_note?: string;
   extra_info?: string;
   birthday?: string;
+  address_street?: string;
+  address_city?: string;
+  address_postal_code?: string;
   health_info?: string;
   supervisor_notes?: string;
   pickup_status?: string;
@@ -187,6 +190,9 @@ export function buildBackendStudentRequest(
     departure_companion_note: backendData.departure_companion_note,
     extra_info: backendData.extra_info,
     birthday: backendData.birthday,
+    address_street: backendData.address_street,
+    address_city: backendData.address_city,
+    address_postal_code: backendData.address_postal_code,
     health_info: backendData.health_info,
     supervisor_notes: backendData.supervisor_notes,
     pickup_status: backendData.pickup_status,
