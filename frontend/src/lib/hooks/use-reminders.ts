@@ -51,6 +51,25 @@ function berlinSecondsOfDay(now: Date): number {
   return hour * 3600 + value("minute") * 60 + value("second");
 }
 
+// berlinUtcOffsetSeconds returns Europe/Berlin's UTC offset in seconds at the
+// given instant: +7200 in summer (CEST) or +3600 in winter (CET). Used to
+// correct the scheduled delay across a DST transition (see msUntilNextChange).
+function berlinUtcOffsetSeconds(at: Date): number {
+  const tzName = new Intl.DateTimeFormat("en-US", {
+    timeZone: BERLIN_TIME_ZONE,
+    timeZoneName: "longOffset",
+  })
+    .formatToParts(at)
+    .find((p) => p.type === "timeZoneName")?.value;
+  // longOffset renders a zero-padded "GMT+02:00" / "GMT-01:00" (bare "GMT" for
+  // UTC, which Berlin never is). Anything unexpected falls back to 0 rather than
+  // NaN-poisoning the delay.
+  const match = /GMT([+-])(\d{2}):(\d{2})/.exec(tzName ?? "");
+  if (!match) return 0;
+  const sign = match[1] === "-" ? -1 : 1;
+  return sign * (Number(match[2]) * 3600 + Number(match[3]) * 60);
+}
+
 // msUntilNextChange returns how long to wait before refetching so the refetch
 // lands just after the Berlin wall-clock "HH:MM" the backend flagged as the next
 // time-based change. Returns null for an unparseable value. When the target is
@@ -77,8 +96,18 @@ function msUntilNextChange(hhmm: string): number | null {
   }
   const targetSec = hours * 3600 + minutes * 60; // 24:00 → 86400
   const now = new Date();
-  const delaySec = targetSec - berlinSecondsOfDay(now);
-  const delay = delaySec * 1000 + NEXT_CHANGE_BUFFER_MS;
+  // wallDeltaSec is a wall-clock delta, but setTimeout counts real elapsed ms.
+  // On a Berlin DST-transition day the two diverge by 3600s across the boundary
+  // (spring-forward loses an hour, fall-back gains one), so a raw wall-clock
+  // subtraction would fire ~1h early or late. Correct by the change in UTC
+  // offset between now and the (estimated) target instant — Berlin's offset is
+  // piecewise-constant, so a single estimate lands in the right region.
+  const wallDeltaSec = targetSec - berlinSecondsOfDay(now);
+  const offsetNow = berlinUtcOffsetSeconds(now);
+  const estTarget = new Date(now.getTime() + wallDeltaSec * 1000);
+  const offsetTarget = berlinUtcOffsetSeconds(estTarget);
+  const realDeltaSec = wallDeltaSec - (offsetTarget - offsetNow);
+  const delay = realDeltaSec * 1000 + NEXT_CHANGE_BUFFER_MS;
   return delay > 0 ? delay : 500;
 }
 
@@ -132,9 +161,12 @@ export function useReminders() {
   // response carries a strictly-later next_change_at — a new string that
   // re-runs this effect and schedules the following boundary. Gating on the
   // string identity (not every refetch) is deliberate: it prevents a
-  // busy-refetch loop if a boundary ever resolves in the past. The 60s poll
-  // backstops the residual cases — a hidden tab throttling this timer, or client
-  // clock skew larger than the buffer.
+  // busy-refetch loop if a boundary ever resolves in the past. Backstops for the
+  // residual cases: while the tab is hidden the browser throttles/freezes this
+  // timer AND SWR pauses the refreshInterval poll (refreshWhenHidden defaults
+  // off), so neither runs — the `revalidateOnFocus: true` above is what refetches
+  // the moment the tab is refocused. Client clock skew larger than the buffer is
+  // caught by the next 60s poll once the tab is visible again.
   useEffect(() => {
     if (!enabled || !nextChangeAt) return;
     const delay = msUntilNextChange(nextChangeAt);

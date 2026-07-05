@@ -244,4 +244,35 @@ describe("useReminders — next_change_at precise timer", () => {
     });
     expect(mockMutate).not.toHaveBeenCalled();
   });
+
+  it("measures the delay in real time across a Berlin DST spring-forward", () => {
+    // 2026-03-29 01:00 CET (+01:00); at 02:00 the clock jumps to 03:00 CEST
+    // (+02:00). A "04:00" boundary is 3h of wall-clock away but only 2h of REAL
+    // elapsed time, because the 02:00→03:00 hour never occurs. The delay must be
+    // the real 2h (a naive wall-clock subtraction would wait 3h and fire an hour
+    // late). TZ is pinned to Europe/Berlin (vitest.config.ts).
+    vi.setSystemTime(new Date(2026, 2, 29, 1, 0, 0));
+    mockUseSWRAuth.mockReturnValue(
+      swrReturn({
+        reminders: [],
+        count: 0,
+        enabled: true,
+        next_change_at: "04:00",
+      }),
+    );
+
+    renderHook(() => useReminders());
+
+    // Just before the real 2h boundary + most of the buffer: nothing yet.
+    act(() => {
+      vi.advanceTimersByTime(2 * 60 * 60 * 1000 + 1000);
+    });
+    expect(mockMutate).not.toHaveBeenCalled();
+
+    // Crossing the buffered 2h boundary fires exactly once (not at 3h).
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(mockMutate).toHaveBeenCalledTimes(1);
+  });
 });
