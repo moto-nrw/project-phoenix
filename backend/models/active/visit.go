@@ -40,26 +40,6 @@ func (v *Visit) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// GetID returns the entity's ID
-func (v *Visit) GetID() interface{} {
-	return v.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (v *Visit) GetCreatedAt() time.Time {
-	return v.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (v *Visit) GetUpdatedAt() time.Time {
-	return v.UpdatedAt
-}
-
-// TableName returns the database table name
-func (v *Visit) TableName() string {
-	return tableActiveVisits
-}
-
 // Validate ensures active visit data is valid
 func (v *Visit) Validate() error {
 	if v.StudentID <= 0 {

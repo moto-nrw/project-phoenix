@@ -141,10 +141,6 @@ func TestActivityInstance_IsLive(t *testing.T) {
 	assert.False(t, inst.IsLive())
 }
 
-func TestActivityInstance_TableName(t *testing.T) {
-	assert.Equal(t, "schedule.activity_instances", (&ActivityInstance{}).TableName())
-}
-
 func TestActivityInstance_AccessorContract(t *testing.T) {
 	now := time.Now()
 	inst := &ActivityInstance{}

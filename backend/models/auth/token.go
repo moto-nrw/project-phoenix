@@ -26,11 +26,6 @@ type Token struct {
 	Account *Account `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
 }
 
-// TableName returns the database table name
-func (t *Token) TableName() string {
-	return "auth.tokens"
-}
-
 // Validate ensures token data is valid. It performs pure field validation only.
 // The expiry/validity decision is wall-clock policy owned by the auth service
 // (services/auth.TokenExpired), per issue #586 (Rule 12: models hold data, not
@@ -50,21 +45,6 @@ func (t *Token) Validate() error {
 // SetExpiry sets the token expiry time to a specified duration from now
 func (t *Token) SetExpiry(duration time.Duration) {
 	t.Expiry = time.Now().Add(duration)
-}
-
-// GetID returns the entity's ID
-func (m *Token) GetID() interface{} {
-	return m.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (m *Token) GetCreatedAt() time.Time {
-	return m.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (m *Token) GetUpdatedAt() time.Time {
-	return m.UpdatedAt
 }
 
 // BeforeAppendModel lets us modify query before it's executed

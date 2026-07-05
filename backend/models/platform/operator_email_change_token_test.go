@@ -58,11 +58,6 @@ func TestOperatorEmailChangeToken_Validate(t *testing.T) {
 	})
 }
 
-func TestOperatorEmailChangeToken_TableName(t *testing.T) {
-	token := &OperatorEmailChangeToken{}
-	assert.Equal(t, "platform.operator_email_change_tokens", token.TableName())
-}
-
 func TestOperatorEmailChangeToken_Accessors(t *testing.T) {
 	now := time.Now()
 	token := &OperatorEmailChangeToken{}

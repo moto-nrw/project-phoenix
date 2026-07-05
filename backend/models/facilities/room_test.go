@@ -193,13 +193,6 @@ func TestRoom_GetFullName(t *testing.T) {
 	}
 }
 
-func TestRoom_TableName(t *testing.T) {
-	room := &Room{}
-	if got := room.TableName(); got != "facilities.rooms" {
-		t.Errorf("TableName() = %v, want facilities.rooms", got)
-	}
-}
-
 func TestRoom_BeforeAppendModel(t *testing.T) {
 	// BeforeAppendModel modifies query table expressions for different query types
 	// It doesn't set timestamps - those are handled by the base model or repository

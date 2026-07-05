@@ -58,9 +58,6 @@ func (t *ParentMessageThread) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// GetID/GetCreatedAt/GetUpdatedAt are provided by the embedded base.Model.
-func (t *ParentMessageThread) TableName() string { return tableUsersParentMessageThreads }
-
 // ParentMessageThreadRepository is the tenant-scoped data-access contract for
 // message threads. All methods must run inside a tenant transaction.
 type ParentMessageThreadRepository interface {

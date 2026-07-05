@@ -9,12 +9,6 @@ import (
 )
 
 // TestTableName pins the schema-qualified table name the repository relies on.
-func TestTableName(t *testing.T) {
-	entry := &MealPlanEntry{}
-	if got := entry.TableName(); got != "schedule.meal_plan_entries" {
-		t.Errorf("TableName() = %q, want schedule.meal_plan_entries", got)
-	}
-}
 
 // TestBeforeAppendModel_SetsTableExprOnWriteQueries verifies the persistence
 // hook rewrites the model table expression for insert/update/delete queries so

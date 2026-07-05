@@ -37,11 +37,6 @@ func (b *WorkSessionBreak) BeforeAppendModel(query any) error {
 	return nil
 }
 
-func (b *WorkSessionBreak) GetID() any              { return b.ID }
-func (b *WorkSessionBreak) GetCreatedAt() time.Time { return b.CreatedAt }
-func (b *WorkSessionBreak) GetUpdatedAt() time.Time { return b.UpdatedAt }
-func (b *WorkSessionBreak) TableName() string       { return tableActiveWorkSessionBreaks }
-
 // Validate validates the break record
 func (b *WorkSessionBreak) Validate() error {
 	if b.SessionID <= 0 {

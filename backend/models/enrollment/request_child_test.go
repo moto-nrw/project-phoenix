@@ -135,11 +135,6 @@ func TestRequestChild_IsRollover_TerminalStatusStillRollover(t *testing.T) {
 
 // --- TableName -----------------------------------------------------------
 
-func TestRequestChild_TableName(t *testing.T) {
-	c := &RequestChild{}
-	assert.Equal(t, "enrollment.request_children", c.TableName())
-}
-
 // --- Status constants ----------------------------------------------------
 
 // Pin the wire values — the rollover worker, admin UI labels, and

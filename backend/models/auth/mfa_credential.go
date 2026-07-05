@@ -35,9 +35,6 @@ func (c *MFACredential) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// TableName returns the database table name.
-func (c *MFACredential) TableName() string { return "auth.mfa_credentials" }
-
 // Validate ensures the credential references a valid method.
 func (c *MFACredential) Validate() error {
 	if c.AccountID == 0 {
@@ -48,12 +45,3 @@ func (c *MFACredential) Validate() error {
 	}
 	return nil
 }
-
-// GetID returns the entity's primary key. Required by base.Entity.
-func (c *MFACredential) GetID() interface{} { return c.ID }
-
-// GetCreatedAt returns the row creation timestamp. Required by base.Entity.
-func (c *MFACredential) GetCreatedAt() time.Time { return c.CreatedAt }
-
-// GetUpdatedAt returns the last update timestamp. Required by base.Entity.
-func (c *MFACredential) GetUpdatedAt() time.Time { return c.UpdatedAt }

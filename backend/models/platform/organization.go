@@ -74,11 +74,6 @@ func (o *Organization) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// TableName returns the database table name
-func (o *Organization) TableName() string {
-	return tablePlatformOrganizations
-}
-
 // Validate ensures organization data is valid
 func (o *Organization) Validate() error {
 	o.Name = strings.TrimSpace(o.Name)
@@ -103,21 +98,6 @@ func (o *Organization) Validate() error {
 		return errors.New("slug is reserved for infrastructure use")
 	}
 	return nil
-}
-
-// GetID returns the entity's ID
-func (o *Organization) GetID() any {
-	return o.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (o *Organization) GetCreatedAt() time.Time {
-	return o.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (o *Organization) GetUpdatedAt() time.Time {
-	return o.UpdatedAt
 }
 
 // IsDeleted returns true if the organization has been soft-deleted.

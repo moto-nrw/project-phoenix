@@ -27,11 +27,6 @@ type OperatorEmailChangeToken struct {
 	Operator *Operator `bun:"rel:belongs-to,join:operator_id=id" json:"operator,omitempty"`
 }
 
-// TableName returns the database table name
-func (t *OperatorEmailChangeToken) TableName() string {
-	return tablePlatformOperatorEmailChangeTokens
-}
-
 // BeforeAppendModel sets the schema-qualified table expression for UPDATE and DELETE queries.
 // This is NOT inherited from base.Model and must be explicitly implemented.
 func (t *OperatorEmailChangeToken) BeforeAppendModel(query any) error {
@@ -65,19 +60,4 @@ func (t *OperatorEmailChangeToken) Validate() error {
 		return errors.New("token has already been used")
 	}
 	return nil
-}
-
-// GetID returns the entity's ID
-func (t *OperatorEmailChangeToken) GetID() interface{} {
-	return t.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (t *OperatorEmailChangeToken) GetCreatedAt() time.Time {
-	return t.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (t *OperatorEmailChangeToken) GetUpdatedAt() time.Time {
-	return t.UpdatedAt
 }

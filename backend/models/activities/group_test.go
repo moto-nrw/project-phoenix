@@ -157,13 +157,6 @@ func TestGroupHasAvailableSpots(t *testing.T) {
 	}
 }
 
-func TestGroup_TableName(t *testing.T) {
-	group := &Group{}
-	if got := group.TableName(); got != "activities.groups" {
-		t.Errorf("TableName() = %v, want activities.groups", got)
-	}
-}
-
 func TestGroup_BeforeAppendModel(t *testing.T) {
 	t.Run("handles nil query", func(t *testing.T) {
 		group := &Group{Name: "Test", CategoryID: 1, MaxParticipants: 10}

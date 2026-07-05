@@ -76,11 +76,6 @@ func (c *StudentDataChangeRequest) BeforeAppendModel(query any) error {
 	return nil
 }
 
-func (c *StudentDataChangeRequest) GetID() any              { return c.ID }
-func (c *StudentDataChangeRequest) GetCreatedAt() time.Time { return c.CreatedAt }
-func (c *StudentDataChangeRequest) GetUpdatedAt() time.Time { return c.UpdatedAt }
-func (c *StudentDataChangeRequest) TableName() string       { return tableUsersStudentDataChangeRequests }
-
 // IsTerminal reports whether the row is in a final state — a Track A audit row
 // (auto_applied) or a decided Track B row (approved/rejected). Only pending
 // rows accept a staff decision.

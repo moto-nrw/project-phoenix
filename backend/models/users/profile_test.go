@@ -307,13 +307,6 @@ func TestProfile_BeforeAppendModel(t *testing.T) {
 	})
 }
 
-func TestProfile_TableName(t *testing.T) {
-	profile := &Profile{}
-	if got := profile.TableName(); got != "users.profiles" {
-		t.Errorf("TableName() = %v, want users.profiles", got)
-	}
-}
-
 func TestProfile_GetID(t *testing.T) {
 	profile := &Profile{
 		Model:     base.Model{ID: 42},

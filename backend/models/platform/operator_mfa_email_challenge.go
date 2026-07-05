@@ -30,17 +30,8 @@ func (c *OperatorMFAEmailChallenge) BeforeAppendModel(query any) error {
 	return nil
 }
 
-func (c *OperatorMFAEmailChallenge) TableName() string {
-	return "platform.operator_mfa_email_challenges"
-}
-
 // IsConsumed returns true once the code has been redeemed. This is a pure field
 // accessor (ConsumedAt != nil); the wall-clock TTL/expiry decision lives in the
 // service layer (services/platform.OperatorMFAEmailChallengeExpired) and the
 // repository's active-challenge finder, per issue #586 (Rule 12).
 func (c *OperatorMFAEmailChallenge) IsConsumed() bool { return c.ConsumedAt != nil }
-
-// GetID, GetCreatedAt, GetUpdatedAt — base.Entity contract.
-func (c *OperatorMFAEmailChallenge) GetID() interface{}      { return c.ID }
-func (c *OperatorMFAEmailChallenge) GetCreatedAt() time.Time { return c.CreatedAt }
-func (c *OperatorMFAEmailChallenge) GetUpdatedAt() time.Time { return c.UpdatedAt }

@@ -41,8 +41,6 @@ func (m *MealPlanEntry) BeforeAppendModel(query any) error {
 	return nil
 }
 
-func (m *MealPlanEntry) TableName() string { return tableScheduleMealPlanEntries }
-
 // MealPlanEntryRepository is the data-access boundary for meal plan entries.
 type MealPlanEntryRepository interface {
 	// FindByDateRange returns all dish entries with start <= date <= end for

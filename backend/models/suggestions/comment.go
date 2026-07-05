@@ -42,11 +42,6 @@ func (c *Comment) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// TableName returns the database table name
-func (c *Comment) TableName() string {
-	return tableSuggestionsComments
-}
-
 // Validate ensures comment data is valid
 func (c *Comment) Validate() error {
 	c.Content = strings.TrimSpace(c.Content)
@@ -72,19 +67,4 @@ func (c *Comment) Validate() error {
 // isValidAuthorType checks if an author type string is valid
 func isValidAuthorType(authorType string) bool {
 	return authorType == AuthorTypeOperator || authorType == AuthorTypeUser
-}
-
-// GetID returns the entity's ID
-func (c *Comment) GetID() any {
-	return c.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (c *Comment) GetCreatedAt() time.Time {
-	return c.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (c *Comment) GetUpdatedAt() time.Time {
-	return c.UpdatedAt
 }

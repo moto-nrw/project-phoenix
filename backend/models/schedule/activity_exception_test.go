@@ -120,10 +120,6 @@ func TestActivityException_IsCancellation(t *testing.T) {
 	assert.False(t, modified.IsCancellation())
 }
 
-func TestActivityException_TableName(t *testing.T) {
-	assert.Equal(t, "schedule.activity_exceptions", (&ActivityException{}).TableName())
-}
-
 func TestActivityException_BeforeAppendModel(t *testing.T) {
 	e := &ActivityException{}
 	for _, q := range []any{&bun.SelectQuery{}, &bun.UpdateQuery{}, &bun.DeleteQuery{}, "unknown"} {

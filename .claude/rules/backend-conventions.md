@@ -112,14 +112,15 @@ type Model struct {
     CreatedAt time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp"`
     UpdatedAt time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
 }
-func (m *Model) BeforeAppend() error  // note: NOT BeforeAppendModel
+func (m *Model) GetID() any / GetCreatedAt() / GetUpdatedAt()  // Rule-3 getters, live here ONCE
+// base.StringIDModel provides the same three getters for string-ID entities
 
 // models/base/tenant.go
 type TenantModel struct { TenantID int64 `bun:"tenant_id,notnull"` }
 func (t *TenantModel) GetTenantID() int64 / SetTenantID(id int64)
 ```
 
-`base.Model` does NOT provide `GetID()`/`GetCreatedAt()`/`GetUpdatedAt()`. If an interface needs them, add them ONCE on `base.Model` — never per entity. The legacy copy-paste is still widespread (~85 `GetID` copies, ~170 timestamp getters, ~82 `BeforeAppendModel` hooks as of 2026-06-12, and growing — nothing ratchets it yet); don't add to it.
+`base.Model` and `base.StringIDModel` provide `GetID()`/`GetCreatedAt()`/`GetUpdatedAt()` — never redeclare them per entity (shadowing is allowed only for genuinely different semantics, e.g. the audit models mapping `GetUpdatedAt` to `AccessedAt`/`ChangedAt`). The same goes for GORM-style `TableName()` methods: bun never calls them; table names come from struct tags and `ModelTableExpr` strings. Both patterns are CI-ratcheted by `TestModelCeremonyRatchet` (`backend/test/model_ceremony_ratchet_test.go`) with an allowlist of the load-bearing shadow getters.
 
 ### A note on `BeforeAppendModel`
 

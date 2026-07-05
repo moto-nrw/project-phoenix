@@ -4,7 +4,6 @@ import (
 	"errors"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
@@ -20,11 +19,6 @@ type Room struct {
 	Capacity *int    `bun:"capacity" json:"capacity,omitempty"`
 	Category *string `bun:"category" json:"category,omitempty"`
 	Color    *string `bun:"color" json:"color,omitempty"`
-}
-
-// TableName returns the database table name
-func (r *Room) TableName() string {
-	return "facilities.rooms"
 }
 
 // BeforeAppendModel lets us modify query before it's executed
@@ -137,19 +131,4 @@ func (r *Room) GetFullName() string {
 		return r.Building + " - " + r.Name
 	}
 	return r.Name
-}
-
-// GetID returns the entity's ID
-func (r *Room) GetID() interface{} {
-	return r.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (r *Room) GetCreatedAt() time.Time {
-	return r.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (r *Room) GetUpdatedAt() time.Time {
-	return r.UpdatedAt
 }

@@ -476,13 +476,6 @@ func TestRecurrenceRule_BeforeAppendModel(t *testing.T) {
 	})
 }
 
-func TestRecurrenceRule_TableName(t *testing.T) {
-	r := &RecurrenceRule{}
-	if got := r.TableName(); got != "schedule.recurrence_rules" {
-		t.Errorf("TableName() = %v, want schedule.recurrence_rules", got)
-	}
-}
-
 func TestRecurrenceRule_GetID(t *testing.T) {
 	r := &RecurrenceRule{
 		Model:         base.Model{ID: 42},

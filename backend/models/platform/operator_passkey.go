@@ -35,10 +35,6 @@ func (c *OperatorPasskeyCredential) BeforeAppendModel(query any) error {
 	return nil
 }
 
-func (c *OperatorPasskeyCredential) TableName() string {
-	return "platform.operator_passkey_credentials"
-}
-
 func (c *OperatorPasskeyCredential) Validate() error {
 	if c.OperatorID == 0 {
 		return errors.New("operator_id is required")
@@ -54,10 +50,6 @@ func (c *OperatorPasskeyCredential) Validate() error {
 	}
 	return nil
 }
-
-func (c *OperatorPasskeyCredential) GetID() interface{}      { return c.ID }
-func (c *OperatorPasskeyCredential) GetCreatedAt() time.Time { return c.CreatedAt }
-func (c *OperatorPasskeyCredential) GetUpdatedAt() time.Time { return c.UpdatedAt }
 
 type OperatorPasskeySession struct {
 	ID             string          `bun:"id,pk" json:"id"`
@@ -80,10 +72,6 @@ func (s *OperatorPasskeySession) BeforeAppendModel(query any) error {
 		q.ModelTableExpr(`platform.operator_passkey_sessions AS "operator_passkey_session"`)
 	}
 	return nil
-}
-
-func (s *OperatorPasskeySession) TableName() string {
-	return "platform.operator_passkey_sessions"
 }
 
 func (s *OperatorPasskeySession) GetID() interface{}      { return s.ID }

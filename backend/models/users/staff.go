@@ -41,11 +41,6 @@ func (s *Staff) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// TableName returns the database table name
-func (s *Staff) TableName() string {
-	return "users.staff"
-}
-
 // Validate ensures staff data is valid
 func (s *Staff) Validate() error {
 	if s.PersonID <= 0 {
@@ -92,21 +87,6 @@ func (s *Staff) AddNotes(notes string) {
 	} else {
 		s.StaffNotes += "\n" + notes
 	}
-}
-
-// GetID returns the entity's ID
-func (m *Staff) GetID() interface{} {
-	return m.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (m *Staff) GetCreatedAt() time.Time {
-	return m.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (m *Staff) GetUpdatedAt() time.Time {
-	return m.UpdatedAt
 }
 
 // StaffWithRoleInfo contains staff data with person info and account details for role-based queries

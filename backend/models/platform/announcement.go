@@ -39,9 +39,6 @@ const (
 	maxVersionLen = 50
 )
 
-// tablePlatformAnnouncements is the schema-qualified table name
-const tablePlatformAnnouncements = "platform.announcements"
-
 // Announcement represents a platform announcement or release note
 type Announcement struct {
 	base.Model      `bun:"schema:platform,table:announcements"`
@@ -66,11 +63,6 @@ type Announcement struct {
 // to set custom table expressions with aliases (e.g., for JOIN queries).
 // The bun tag `bun:"schema:platform,table:announcements"` handles the
 // default table name, and repositories use ModelTableExpr when needed.
-
-// TableName returns the database table name
-func (a *Announcement) TableName() string {
-	return tablePlatformAnnouncements
-}
 
 // Validate ensures announcement data is valid
 func (a *Announcement) Validate() error {
@@ -144,21 +136,6 @@ func IsValidSeverity(s string) bool {
 // IsDraft returns true if the announcement is a draft (not published)
 func (a *Announcement) IsDraft() bool {
 	return a.PublishedAt == nil
-}
-
-// GetID returns the entity's ID
-func (a *Announcement) GetID() any {
-	return a.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (a *Announcement) GetCreatedAt() time.Time {
-	return a.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (a *Announcement) GetUpdatedAt() time.Time {
-	return a.UpdatedAt
 }
 
 // AnnouncementStats contains view statistics for an announcement

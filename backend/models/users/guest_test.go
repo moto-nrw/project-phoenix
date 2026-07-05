@@ -241,13 +241,6 @@ func TestGuest_BeforeAppendModel(t *testing.T) {
 	})
 }
 
-func TestGuest_TableName(t *testing.T) {
-	guest := &Guest{}
-	if got := guest.TableName(); got != "users.guests" {
-		t.Errorf("TableName() = %v, want users.guests", got)
-	}
-}
-
 func TestGuest_GetID(t *testing.T) {
 	guest := &Guest{
 		Model:             base.Model{ID: 42},

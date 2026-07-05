@@ -32,17 +32,5 @@ func (c *MFAEmailChallenge) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// TableName returns the database table name.
-func (c *MFAEmailChallenge) TableName() string { return "auth.mfa_email_challenges" }
-
 // IsConsumed returns true once the code has been redeemed.
 func (c *MFAEmailChallenge) IsConsumed() bool { return c.ConsumedAt != nil }
-
-// GetID returns the entity's primary key. Required by base.Entity.
-func (c *MFAEmailChallenge) GetID() interface{} { return c.ID }
-
-// GetCreatedAt returns the row creation timestamp. Required by base.Entity.
-func (c *MFAEmailChallenge) GetCreatedAt() time.Time { return c.CreatedAt }
-
-// GetUpdatedAt returns the last update timestamp. Required by base.Entity.
-func (c *MFAEmailChallenge) GetUpdatedAt() time.Time { return c.UpdatedAt }

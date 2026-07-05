@@ -17,7 +17,6 @@ func TestEnrollmentOfferingAdjustmentAccessors(t *testing.T) {
 		ChangedAt: changedAt,
 	}
 
-	assert.Equal(t, "audit.enrollment_offering_adjustments", entry.TableName())
 	assert.Equal(t, int64(42), entry.GetID())
 	assert.Equal(t, changedAt, entry.GetCreatedAt())
 	assert.Equal(t, changedAt, entry.GetUpdatedAt())

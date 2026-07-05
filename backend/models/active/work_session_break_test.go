@@ -78,11 +78,6 @@ func TestWorkSessionBreak_IsActive(t *testing.T) {
 	})
 }
 
-func TestWorkSessionBreak_TableName(t *testing.T) {
-	b := &WorkSessionBreak{}
-	assert.Equal(t, "active.work_session_breaks", b.TableName())
-}
-
 func TestWorkSessionBreak_Getters(t *testing.T) {
 	now := time.Now()
 	b := &WorkSessionBreak{}

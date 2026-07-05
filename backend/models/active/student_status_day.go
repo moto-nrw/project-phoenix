@@ -73,11 +73,6 @@ func (s *StudentStatusDay) BeforeAppendModel(query any) error {
 	return nil
 }
 
-func (s *StudentStatusDay) GetID() any              { return s.ID }
-func (s *StudentStatusDay) GetCreatedAt() time.Time { return s.CreatedAt }
-func (s *StudentStatusDay) GetUpdatedAt() time.Time { return s.UpdatedAt }
-func (s *StudentStatusDay) TableName() string       { return tableActiveStudentStatusDays }
-
 type StudentStatusCounts struct {
 	Sick    int `bun:"sick_count"`
 	Excused int `bun:"excused_count"`

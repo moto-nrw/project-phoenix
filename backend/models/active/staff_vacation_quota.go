@@ -2,7 +2,6 @@ package active
 
 import (
 	"errors"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
@@ -41,11 +40,6 @@ func (q *StaffVacationQuota) BeforeAppendModel(query any) error {
 	}
 	return nil
 }
-
-func (q *StaffVacationQuota) GetID() any              { return q.ID }
-func (q *StaffVacationQuota) GetCreatedAt() time.Time { return q.CreatedAt }
-func (q *StaffVacationQuota) GetUpdatedAt() time.Time { return q.UpdatedAt }
-func (q *StaffVacationQuota) TableName() string       { return tableStaffVacationQuota }
 
 func (q *StaffVacationQuota) Validate() error {
 	if q.StaffID <= 0 {

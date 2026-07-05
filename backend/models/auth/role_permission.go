@@ -2,7 +2,6 @@ package auth
 
 import (
 	"errors"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
@@ -20,11 +19,6 @@ type RolePermission struct {
 	// Relations
 	Role       *Role       `bun:"rel:belongs-to,join:role_id=id" json:"role,omitempty"`
 	Permission *Permission `bun:"rel:belongs-to,join:permission_id=id" json:"permission,omitempty"`
-}
-
-// TableName returns the database table name
-func (rp *RolePermission) TableName() string {
-	return tableAuthRolePermissions
 }
 
 func (rp *RolePermission) BeforeAppendModel(query any) error {
@@ -50,19 +44,4 @@ func (rp *RolePermission) Validate() error {
 	}
 
 	return nil
-}
-
-// GetID returns the entity's ID
-func (m *RolePermission) GetID() interface{} {
-	return m.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (m *RolePermission) GetCreatedAt() time.Time {
-	return m.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (m *RolePermission) GetUpdatedAt() time.Time {
-	return m.UpdatedAt
 }

@@ -33,11 +33,6 @@ type InvitationToken struct {
 	Creator *Account `bun:"rel:belongs-to,join:created_by=id" json:"creator,omitempty"`
 }
 
-// TableName returns the fully-qualified table name.
-func (t *InvitationToken) TableName() string {
-	return "auth.invitation_tokens"
-}
-
 // BeforeAppendModel ensures the schema-qualified table expression is used with an alias.
 func (t *InvitationToken) BeforeAppendModel(query any) error {
 	const tableExpr = `auth.invitation_tokens AS "invitation_token"`
@@ -84,19 +79,4 @@ func (t *InvitationToken) IsUsed() bool {
 // SetExpiry assigns a duration from now as the expiry.
 func (t *InvitationToken) SetExpiry(duration time.Duration) {
 	t.ExpiresAt = time.Now().Add(duration)
-}
-
-// GetID returns the primary key.
-func (t *InvitationToken) GetID() interface{} {
-	return t.ID
-}
-
-// GetCreatedAt returns the creation timestamp.
-func (t *InvitationToken) GetCreatedAt() time.Time {
-	return t.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp.
-func (t *InvitationToken) GetUpdatedAt() time.Time {
-	return t.UpdatedAt
 }

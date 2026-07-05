@@ -34,9 +34,6 @@ const (
 // field on an attendance row.
 const InstanceStudentNoteMaxLength = 500
 
-// tableInstanceStudents is the schema-qualified table name.
-const tableInstanceStudents = "schedule.instance_students"
-
 // InstanceStudent represents a student's expected attendance at a materialized
 // activity instance, plus the three-field attendance model (E18):
 //
@@ -65,18 +62,6 @@ func (s *InstanceStudent) BeforeAppendModel(query any) error {
 	}
 	return nil
 }
-
-// TableName returns the database table name.
-func (s *InstanceStudent) TableName() string { return tableInstanceStudents }
-
-// GetID implements the Entity interface.
-func (s *InstanceStudent) GetID() any { return s.ID }
-
-// GetCreatedAt implements the Entity interface.
-func (s *InstanceStudent) GetCreatedAt() time.Time { return s.CreatedAt }
-
-// GetUpdatedAt implements the Entity interface.
-func (s *InstanceStudent) GetUpdatedAt() time.Time { return s.UpdatedAt }
 
 // Validate ensures the attendance row is well-formed.
 func (s *InstanceStudent) Validate() error {

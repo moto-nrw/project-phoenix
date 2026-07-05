@@ -14,11 +14,6 @@ type PasswordResetRateLimit struct {
 	WindowStart time.Time `bun:"window_start,notnull,default:current_timestamp" json:"window_start"`
 }
 
-// TableName returns the fully-qualified table name.
-func (PasswordResetRateLimit) TableName() string {
-	return `auth.password_reset_rate_limits`
-}
-
 // BeforeAppendModel ensures the schema-qualified table name is used with an alias.
 func (m *PasswordResetRateLimit) BeforeAppendModel(query any) error {
 	const tableExpr = `auth.password_reset_rate_limits AS "password_reset_rate_limit"`

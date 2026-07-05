@@ -74,13 +74,6 @@ func TestAccountPermission_Validate(t *testing.T) {
 	}
 }
 
-func TestAccountPermission_TableName(t *testing.T) {
-	ap := &AccountPermission{}
-	if got := ap.TableName(); got != "auth.account_permissions" {
-		t.Errorf("TableName() = %v, want auth.account_permissions", got)
-	}
-}
-
 func TestAccountPermission_BeforeAppendModel(t *testing.T) {
 	// BeforeAppendModel modifies query table expressions for different query types
 	// It doesn't set timestamps - those are handled by the base model or repository

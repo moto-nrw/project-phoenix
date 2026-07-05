@@ -29,8 +29,3 @@ func (v *AnnouncementView) BeforeAppendModel(query any) error {
 	}
 	return nil
 }
-
-// TableName returns the database table name
-func (v *AnnouncementView) TableName() string {
-	return tablePlatformAnnouncementViews
-}

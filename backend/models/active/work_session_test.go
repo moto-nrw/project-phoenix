@@ -100,11 +100,6 @@ func TestWorkSession_IsActive(t *testing.T) {
 	})
 }
 
-func TestWorkSession_TableName(t *testing.T) {
-	ws := &WorkSession{}
-	assert.Equal(t, "active.work_sessions", ws.TableName())
-}
-
 func TestWorkSession_Getters(t *testing.T) {
 	now := time.Now()
 	ws := &WorkSession{}

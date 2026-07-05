@@ -51,26 +51,6 @@ func (g *Group) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// GetID returns the entity's ID
-func (g *Group) GetID() interface{} {
-	return g.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (g *Group) GetCreatedAt() time.Time {
-	return g.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (g *Group) GetUpdatedAt() time.Time {
-	return g.UpdatedAt
-}
-
-// TableName returns the database table name
-func (g *Group) TableName() string {
-	return "activities.groups"
-}
-
 // Validate ensures group data is valid
 func (g *Group) Validate() error {
 	if g.Name == "" {

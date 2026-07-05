@@ -38,11 +38,6 @@ type Account struct {
 	Permissions []*Permission `bun:"-" json:"permissions,omitempty"`
 }
 
-// TableName returns the database table name
-func (a *Account) TableName() string {
-	return "auth.accounts"
-}
-
 // BeforeAppendModel lets us modify query before it's executed
 func (a *Account) BeforeAppendModel(query any) error {
 	// INSERT queries should not use aliases
@@ -80,21 +75,6 @@ func (a *Account) IsActive() bool {
 // SetLastLogin updates the last login timestamp
 func (a *Account) SetLastLogin(time time.Time) {
 	a.LastLogin = &time
-}
-
-// GetID returns the entity's ID
-func (a *Account) GetID() interface{} {
-	return a.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (a *Account) GetCreatedAt() time.Time {
-	return a.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (a *Account) GetUpdatedAt() time.Time {
-	return a.UpdatedAt
 }
 
 // PIN-related methods

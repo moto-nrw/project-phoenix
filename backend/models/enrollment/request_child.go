@@ -81,10 +81,6 @@ type RequestChild struct {
 	ReviewReason          *string `bun:"review_reason" json:"review_reason,omitempty"`
 }
 
-func (c *RequestChild) TableName() string {
-	return "enrollment.request_children"
-}
-
 // IsTerminal returns true when this child's status is approved, rejected,
 // or withdrawn - i.e., no further admin decision can change it (other than
 // promotion of a waitlisted child, but waitlisted is non-terminal).

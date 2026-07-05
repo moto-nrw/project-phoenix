@@ -261,13 +261,6 @@ func TestPersonGuardian_BeforeAppendModel(t *testing.T) {
 	})
 }
 
-func TestPersonGuardian_TableName(t *testing.T) {
-	pg := &PersonGuardian{}
-	if got := pg.TableName(); got != "users.persons_guardians" {
-		t.Errorf("TableName() = %v, want users.persons_guardians", got)
-	}
-}
-
 func TestPersonGuardian_GetID(t *testing.T) {
 	pg := &PersonGuardian{
 		Model:             base.Model{ID: 42},

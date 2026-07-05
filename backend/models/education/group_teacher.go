@@ -2,7 +2,6 @@ package education
 
 import (
 	"errors"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -35,11 +34,6 @@ func (gt *GroupTeacher) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// TableName returns the database table name
-func (gt *GroupTeacher) TableName() string {
-	return "education.group_teacher"
-}
-
 // Validate ensures group teacher data is valid
 func (gt *GroupTeacher) Validate() error {
 	if gt.GroupID <= 0 {
@@ -67,19 +61,4 @@ func (gt *GroupTeacher) SetTeacher(teacher *users.Teacher) {
 	if teacher != nil {
 		gt.TeacherID = teacher.ID
 	}
-}
-
-// GetID returns the entity's ID
-func (m *GroupTeacher) GetID() interface{} {
-	return m.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (m *GroupTeacher) GetCreatedAt() time.Time {
-	return m.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (m *GroupTeacher) GetUpdatedAt() time.Time {
-	return m.UpdatedAt
 }

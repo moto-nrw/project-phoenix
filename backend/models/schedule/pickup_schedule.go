@@ -97,11 +97,6 @@ func (s *StudentPickupSchedule) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// TableName returns the database table name
-func (s *StudentPickupSchedule) TableName() string {
-	return "schedule.student_pickup_schedules"
-}
-
 // Validate ensures pickup schedule data is valid
 func (s *StudentPickupSchedule) Validate() error {
 	if s.StudentID <= 0 {
@@ -130,21 +125,6 @@ func (s *StudentPickupSchedule) GetWeekdayName() string {
 	return ""
 }
 
-// GetID implements the Entity interface
-func (s *StudentPickupSchedule) GetID() any {
-	return s.ID
-}
-
-// GetCreatedAt implements the Entity interface
-func (s *StudentPickupSchedule) GetCreatedAt() time.Time {
-	return s.CreatedAt
-}
-
-// GetUpdatedAt implements the Entity interface
-func (s *StudentPickupSchedule) GetUpdatedAt() time.Time {
-	return s.UpdatedAt
-}
-
 // StudentPickupException represents a date-specific pickup exception
 type StudentPickupException struct {
 	base.Model `bun:"schema:schedule,table:student_pickup_exceptions"`
@@ -169,11 +149,6 @@ func (e *StudentPickupException) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// TableName returns the database table name
-func (e *StudentPickupException) TableName() string {
-	return "schedule.student_pickup_exceptions"
-}
-
 // Validate ensures pickup exception data is valid
 func (e *StudentPickupException) Validate() error {
 	if e.StudentID <= 0 {
@@ -194,21 +169,6 @@ func (e *StudentPickupException) Validate() error {
 // IsAbsent returns true if this exception indicates the student will be absent (no pickup)
 func (e *StudentPickupException) IsAbsent() bool {
 	return e.PickupTime == nil
-}
-
-// GetID implements the Entity interface
-func (e *StudentPickupException) GetID() any {
-	return e.ID
-}
-
-// GetCreatedAt implements the Entity interface
-func (e *StudentPickupException) GetCreatedAt() time.Time {
-	return e.CreatedAt
-}
-
-// GetUpdatedAt implements the Entity interface
-func (e *StudentPickupException) GetUpdatedAt() time.Time {
-	return e.UpdatedAt
 }
 
 // StudentPickupScheduleRepository defines operations for managing student pickup schedules
@@ -281,11 +241,6 @@ func (n *StudentPickupNote) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// TableName returns the database table name
-func (n *StudentPickupNote) TableName() string {
-	return "schedule.student_pickup_notes"
-}
-
 // Validate ensures pickup note data is valid
 func (n *StudentPickupNote) Validate() error {
 	if n.StudentID <= 0 {
@@ -304,21 +259,6 @@ func (n *StudentPickupNote) Validate() error {
 		return errors.New(errMsgCreatedByRequired)
 	}
 	return nil
-}
-
-// GetID implements the Entity interface
-func (n *StudentPickupNote) GetID() any {
-	return n.ID
-}
-
-// GetCreatedAt implements the Entity interface
-func (n *StudentPickupNote) GetCreatedAt() time.Time {
-	return n.CreatedAt
-}
-
-// GetUpdatedAt implements the Entity interface
-func (n *StudentPickupNote) GetUpdatedAt() time.Time {
-	return n.UpdatedAt
 }
 
 // StudentPickupNoteRepository defines operations for managing student pickup notes

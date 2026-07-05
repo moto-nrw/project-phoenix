@@ -4,7 +4,6 @@ import (
 	"errors"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
@@ -34,26 +33,6 @@ func (c *Category) BeforeAppendModel(query any) error {
 		q.ModelTableExpr(tableActivitiesCategories)
 	}
 	return nil
-}
-
-// GetID returns the entity's ID
-func (c *Category) GetID() interface{} {
-	return c.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (c *Category) GetCreatedAt() time.Time {
-	return c.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (c *Category) GetUpdatedAt() time.Time {
-	return c.UpdatedAt
-}
-
-// TableName returns the database table name
-func (c *Category) TableName() string {
-	return tableActivitiesCategories
 }
 
 // Validate ensures category data is valid

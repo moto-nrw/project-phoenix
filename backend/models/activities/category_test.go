@@ -87,13 +87,6 @@ func TestCategoryValidate(t *testing.T) {
 	}
 }
 
-func TestCategory_TableName(t *testing.T) {
-	cat := &Category{}
-	if got := cat.TableName(); got != "activities.categories" {
-		t.Errorf("TableName() = %v, want activities.categories", got)
-	}
-}
-
 func TestCategory_BeforeAppendModel(t *testing.T) {
 	t.Run("handles nil query", func(t *testing.T) {
 		cat := &Category{Name: "Test"}

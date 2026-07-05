@@ -2,7 +2,6 @@ package auth
 
 import (
 	"errors"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
@@ -22,11 +21,6 @@ type AccountPermission struct {
 	// Relations
 	Account    *Account    `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
 	Permission *Permission `bun:"rel:belongs-to,join:permission_id=id" json:"permission,omitempty"`
-}
-
-// TableName returns the database table name
-func (ap *AccountPermission) TableName() string {
-	return tableAuthAccountPermissions
 }
 
 func (ap *AccountPermission) BeforeAppendModel(query any) error {
@@ -65,19 +59,4 @@ func (ap *AccountPermission) Grant() {
 // Deny changes the permission to denied
 func (ap *AccountPermission) Deny() {
 	ap.Granted = false
-}
-
-// GetID returns the entity's ID
-func (m *AccountPermission) GetID() interface{} {
-	return m.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (m *AccountPermission) GetCreatedAt() time.Time {
-	return m.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (m *AccountPermission) GetUpdatedAt() time.Time {
-	return m.UpdatedAt
 }

@@ -27,9 +27,6 @@ var (
 	ErrActivityExceptionDateConflict = errors.New("activity exception for this date already exists")
 )
 
-// tableActivityExceptions is the schema-qualified table name.
-const tableActivityExceptions = "schedule.activity_exceptions"
-
 // ActivityException records a per-date deviation from a template's normal
 // schedule: either a cancellation or a modification (time/room override).
 // Consumed by the materialization service (E8).
@@ -60,18 +57,6 @@ func (e *ActivityException) BeforeAppendModel(query any) error {
 	}
 	return nil
 }
-
-// TableName returns the database table name.
-func (e *ActivityException) TableName() string { return tableActivityExceptions }
-
-// GetID implements the Entity interface.
-func (e *ActivityException) GetID() any { return e.ID }
-
-// GetCreatedAt implements the Entity interface.
-func (e *ActivityException) GetCreatedAt() time.Time { return e.CreatedAt }
-
-// GetUpdatedAt implements the Entity interface.
-func (e *ActivityException) GetUpdatedAt() time.Time { return e.UpdatedAt }
 
 // Validate ensures the exception is well-formed for persistence.
 func (e *ActivityException) Validate() error {

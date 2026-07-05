@@ -84,7 +84,6 @@ func TestOperatorRefreshToken_Validate(t *testing.T) {
 func TestOperatorRefreshToken_EntityAccessors(t *testing.T) {
 	token := validOperatorRefreshToken()
 
-	assert.Equal(t, "platform.operator_refresh_tokens", token.TableName())
 	assert.Equal(t, token.ID, token.GetID())
 	assert.Equal(t, token.CreatedAt, token.GetCreatedAt())
 	assert.Equal(t, token.UpdatedAt, token.GetUpdatedAt())

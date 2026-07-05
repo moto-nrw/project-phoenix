@@ -93,11 +93,6 @@ func (sa *StaffAbsence) BeforeAppendModel(query any) error {
 	return nil
 }
 
-func (sa *StaffAbsence) GetID() any              { return sa.ID }
-func (sa *StaffAbsence) GetCreatedAt() time.Time { return sa.CreatedAt }
-func (sa *StaffAbsence) GetUpdatedAt() time.Time { return sa.UpdatedAt }
-func (sa *StaffAbsence) TableName() string       { return tableActiveStaffAbsences }
-
 // Validate validates the absence record
 func (sa *StaffAbsence) Validate() error {
 	if sa.StaffID <= 0 {

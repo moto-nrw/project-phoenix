@@ -63,11 +63,6 @@ func (ws *WorkSession) BeforeAppendModel(query any) error {
 	return nil
 }
 
-func (ws *WorkSession) GetID() interface{}      { return ws.ID }
-func (ws *WorkSession) GetCreatedAt() time.Time { return ws.CreatedAt }
-func (ws *WorkSession) GetUpdatedAt() time.Time { return ws.UpdatedAt }
-func (ws *WorkSession) TableName() string       { return tableActiveWorkSessions }
-
 func (ws *WorkSession) Validate() error {
 	if ws.StaffID <= 0 {
 		return errors.New("staff ID is required")

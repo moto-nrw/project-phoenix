@@ -26,10 +26,6 @@ type EnrollmentOfferingAdjustment struct {
 	ChangedAt          time.Time       `bun:"changed_at,notnull,default:now()" json:"changed_at"`
 }
 
-func (e *EnrollmentOfferingAdjustment) TableName() string {
-	return "audit.enrollment_offering_adjustments"
-}
-
 func (e *EnrollmentOfferingAdjustment) GetID() interface{} {
 	return e.ID
 }

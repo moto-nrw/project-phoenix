@@ -3,7 +3,6 @@ package users
 import (
 	"errors"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
@@ -54,11 +53,6 @@ func (sg *StudentGuardian) BeforeAppendModel(query any) error {
 		q.ModelTableExpr(`users.students_guardians AS "student_guardian"`)
 	}
 	return nil
-}
-
-// TableName returns the database table name
-func (sg *StudentGuardian) TableName() string {
-	return "users.students_guardians"
 }
 
 // Validate ensures student guardian data is valid
@@ -137,19 +131,4 @@ func (sg *StudentGuardian) GetRelationshipName() string {
 	default:
 		return "Unknown"
 	}
-}
-
-// GetID implements the base.Entity interface
-func (sg *StudentGuardian) GetID() interface{} {
-	return sg.ID
-}
-
-// GetCreatedAt implements the base.Entity interface
-func (sg *StudentGuardian) GetCreatedAt() time.Time {
-	return sg.CreatedAt
-}
-
-// GetUpdatedAt implements the base.Entity interface
-func (sg *StudentGuardian) GetUpdatedAt() time.Time {
-	return sg.UpdatedAt
 }

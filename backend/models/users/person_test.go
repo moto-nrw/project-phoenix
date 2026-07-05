@@ -356,13 +356,6 @@ func TestPerson_BeforeAppendModel(t *testing.T) {
 	})
 }
 
-func TestPerson_TableName(t *testing.T) {
-	person := &Person{}
-	if got := person.TableName(); got != "users.persons" {
-		t.Errorf("TableName() = %v, want users.persons", got)
-	}
-}
-
 func TestPerson_GetID(t *testing.T) {
 	person := &Person{
 		Model:     base.Model{ID: 42},

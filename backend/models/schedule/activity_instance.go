@@ -28,9 +28,6 @@ var (
 	ErrActivityInstanceTimeConflict = errors.New("activity instance time conflict")
 )
 
-// tableActivityInstances is the schema-qualified table name.
-const tableActivityInstances = "schedule.activity_instances"
-
 // ActivityInstanceTitleMaxLength is the maximum length of the title field.
 const ActivityInstanceTitleMaxLength = 255
 
@@ -69,20 +66,6 @@ func (i *ActivityInstance) BeforeAppendModel(query any) error {
 	}
 	return nil
 }
-
-// TableName returns the database table name.
-func (i *ActivityInstance) TableName() string {
-	return tableActivityInstances
-}
-
-// GetID implements the Entity interface.
-func (i *ActivityInstance) GetID() any { return i.ID }
-
-// GetCreatedAt implements the Entity interface.
-func (i *ActivityInstance) GetCreatedAt() time.Time { return i.CreatedAt }
-
-// GetUpdatedAt implements the Entity interface.
-func (i *ActivityInstance) GetUpdatedAt() time.Time { return i.UpdatedAt }
 
 // Validate ensures activity instance data is valid for persistence.
 func (i *ActivityInstance) Validate() error {

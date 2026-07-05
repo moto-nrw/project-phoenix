@@ -37,10 +37,6 @@ type Request struct {
 	WithdrawnAt        *time.Time     `bun:"withdrawn_at" json:"withdrawn_at,omitempty"`
 }
 
-func (r *Request) TableName() string {
-	return "enrollment.requests"
-}
-
 // Consent-flag keys stored in Request.ConsentFlags. These are the
 // canonical string keys shared across the submit validation, the
 // decision service (which stamps the matching student consent

@@ -42,11 +42,6 @@ func TestGroupMapping_BeforeAppendModel(t *testing.T) {
 	})
 }
 
-func TestGroupMapping_TableName(t *testing.T) {
-	gm := &GroupMapping{}
-	assert.Equal(t, "active.group_mappings", gm.TableName())
-}
-
 func TestGroupMapping_GetID(t *testing.T) {
 	gm := &GroupMapping{}
 	gm.ID = 123
@@ -115,11 +110,6 @@ func TestGroupSupervisor_BeforeAppendModel(t *testing.T) {
 	})
 }
 
-func TestGroupSupervisor_TableName(t *testing.T) {
-	gs := &GroupSupervisor{}
-	assert.Equal(t, "active.group_supervisors", gs.TableName())
-}
-
 func TestGroupSupervisor_GetID(t *testing.T) {
 	gs := &GroupSupervisor{}
 	gs.ID = 456
@@ -157,11 +147,6 @@ func TestVisit_BeforeAppendModel(t *testing.T) {
 		err := v.BeforeAppendModel("unknown")
 		assert.NoError(t, err)
 	})
-}
-
-func TestVisit_TableName(t *testing.T) {
-	v := &Visit{}
-	assert.Equal(t, "active.visits", v.TableName())
 }
 
 func TestVisit_GetID(t *testing.T) {

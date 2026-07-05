@@ -46,11 +46,6 @@ func (s *StudentArrivalSchedule) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// TableName returns the database table name
-func (s *StudentArrivalSchedule) TableName() string {
-	return "schedule.student_arrival_schedules"
-}
-
 // Validate ensures arrival schedule data is valid
 func (s *StudentArrivalSchedule) Validate() error {
 	if s.StudentID <= 0 {
@@ -79,21 +74,6 @@ func (s *StudentArrivalSchedule) GetWeekdayName() string {
 	return ""
 }
 
-// GetID implements the Entity interface
-func (s *StudentArrivalSchedule) GetID() any {
-	return s.ID
-}
-
-// GetCreatedAt implements the Entity interface
-func (s *StudentArrivalSchedule) GetCreatedAt() time.Time {
-	return s.CreatedAt
-}
-
-// GetUpdatedAt implements the Entity interface
-func (s *StudentArrivalSchedule) GetUpdatedAt() time.Time {
-	return s.UpdatedAt
-}
-
 // StudentArrivalException represents a date-specific arrival exception
 type StudentArrivalException struct {
 	base.Model `bun:"schema:schedule,table:student_arrival_exceptions"`
@@ -118,11 +98,6 @@ func (e *StudentArrivalException) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// TableName returns the database table name
-func (e *StudentArrivalException) TableName() string {
-	return "schedule.student_arrival_exceptions"
-}
-
 // Validate ensures arrival exception data is valid
 func (e *StudentArrivalException) Validate() error {
 	if e.StudentID <= 0 {
@@ -143,21 +118,6 @@ func (e *StudentArrivalException) Validate() error {
 // IsAbsent returns true if this exception indicates the student will not arrive (no arrival)
 func (e *StudentArrivalException) IsAbsent() bool {
 	return e.ExpectedArrival == nil
-}
-
-// GetID implements the Entity interface
-func (e *StudentArrivalException) GetID() any {
-	return e.ID
-}
-
-// GetCreatedAt implements the Entity interface
-func (e *StudentArrivalException) GetCreatedAt() time.Time {
-	return e.CreatedAt
-}
-
-// GetUpdatedAt implements the Entity interface
-func (e *StudentArrivalException) GetUpdatedAt() time.Time {
-	return e.UpdatedAt
 }
 
 // StudentArrivalNote represents a date-specific note for a student's arrival
@@ -181,11 +141,6 @@ func (n *StudentArrivalNote) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// TableName returns the database table name
-func (n *StudentArrivalNote) TableName() string {
-	return "schedule.student_arrival_notes"
-}
-
 // Validate ensures arrival note data is valid
 func (n *StudentArrivalNote) Validate() error {
 	if n.StudentID <= 0 {
@@ -204,21 +159,6 @@ func (n *StudentArrivalNote) Validate() error {
 		return errors.New(errMsgArrivalCreatedByRequired)
 	}
 	return nil
-}
-
-// GetID implements the Entity interface
-func (n *StudentArrivalNote) GetID() any {
-	return n.ID
-}
-
-// GetCreatedAt implements the Entity interface
-func (n *StudentArrivalNote) GetCreatedAt() time.Time {
-	return n.CreatedAt
-}
-
-// GetUpdatedAt implements the Entity interface
-func (n *StudentArrivalNote) GetUpdatedAt() time.Time {
-	return n.UpdatedAt
 }
 
 // StudentArrivalScheduleRepository defines operations for managing student arrival schedules

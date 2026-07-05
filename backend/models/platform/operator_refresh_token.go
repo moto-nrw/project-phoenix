@@ -8,8 +8,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const tablePlatformOperatorRefreshTokens = "platform.operator_refresh_tokens"
-
 // OperatorRefreshToken is the server-side session handle behind an operator
 // refresh JWT. The JWT carries Token as an opaque claim; refresh succeeds only
 // while the matching row exists and is current.
@@ -35,10 +33,6 @@ func (t *OperatorRefreshToken) BeforeAppendModel(query any) error {
 	return nil
 }
 
-func (t *OperatorRefreshToken) TableName() string {
-	return tablePlatformOperatorRefreshTokens
-}
-
 func (t *OperatorRefreshToken) Validate() error {
 	if t.OperatorID <= 0 {
 		return errors.New("operator ID is required")
@@ -53,16 +47,4 @@ func (t *OperatorRefreshToken) Validate() error {
 		return errors.New("family ID is required")
 	}
 	return nil
-}
-
-func (t *OperatorRefreshToken) GetID() any {
-	return t.ID
-}
-
-func (t *OperatorRefreshToken) GetCreatedAt() time.Time {
-	return t.CreatedAt
-}
-
-func (t *OperatorRefreshToken) GetUpdatedAt() time.Time {
-	return t.UpdatedAt
 }

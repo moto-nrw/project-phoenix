@@ -46,11 +46,6 @@ func (at *AccountTenant) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// TableName returns the database table name
-func (at *AccountTenant) TableName() string {
-	return tableAuthAccountTenants
-}
-
 // Validate ensures account tenant data is valid
 func (at *AccountTenant) Validate() error {
 	at.Status = strings.TrimSpace(strings.ToLower(at.Status))
@@ -68,21 +63,6 @@ func (at *AccountTenant) Validate() error {
 		return errors.New("status must be one of: pending, active, inactive")
 	}
 	return nil
-}
-
-// GetID returns the entity's ID
-func (at *AccountTenant) GetID() any {
-	return at.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (at *AccountTenant) GetCreatedAt() time.Time {
-	return at.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (at *AccountTenant) GetUpdatedAt() time.Time {
-	return at.UpdatedAt
 }
 
 // IsActive returns true if the account-tenant mapping is active

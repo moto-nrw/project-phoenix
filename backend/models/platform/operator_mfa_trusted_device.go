@@ -32,17 +32,9 @@ func (d *OperatorMFATrustedDevice) BeforeAppendModel(query any) error {
 	return nil
 }
 
-func (d *OperatorMFATrustedDevice) TableName() string {
-	return "platform.operator_mfa_trusted_devices"
-}
-
 // IsRevoked returns true once the device was explicitly revoked. This is a pure
 // field accessor (RevokedAt != nil); the wall-clock expiry/active decision lives
 // in the service layer (services/platform.OperatorMFATrustedDeviceExpired /
 // OperatorMFATrustedDeviceActive) and the repository's active-device finders,
 // per issue #586 (Rule 12).
 func (d *OperatorMFATrustedDevice) IsRevoked() bool { return d.RevokedAt != nil }
-
-func (d *OperatorMFATrustedDevice) GetID() interface{}      { return d.ID }
-func (d *OperatorMFATrustedDevice) GetCreatedAt() time.Time { return d.CreatedAt }
-func (d *OperatorMFATrustedDevice) GetUpdatedAt() time.Time { return d.UpdatedAt }

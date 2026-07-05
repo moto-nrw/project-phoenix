@@ -48,11 +48,6 @@ func (s *School) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// TableName returns the database table name
-func (s *School) TableName() string {
-	return tablePlatformSchools
-}
-
 // Validate ensures school data is valid
 func (s *School) Validate() error {
 	s.Name = strings.TrimSpace(s.Name)
@@ -96,21 +91,6 @@ func (s *School) Validate() error {
 		return errors.New("email must not exceed 255 characters")
 	}
 	return nil
-}
-
-// GetID returns the entity's ID
-func (s *School) GetID() any {
-	return s.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (s *School) GetCreatedAt() time.Time {
-	return s.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (s *School) GetUpdatedAt() time.Time {
-	return s.UpdatedAt
 }
 
 // IsDeleted returns true if the school has been soft-deleted.

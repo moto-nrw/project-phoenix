@@ -33,26 +33,6 @@ func (cg *CombinedGroup) BeforeAppendModel(query any) error {
 	return nil
 }
 
-// GetID returns the entity's ID
-func (cg *CombinedGroup) GetID() interface{} {
-	return cg.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (cg *CombinedGroup) GetCreatedAt() time.Time {
-	return cg.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (cg *CombinedGroup) GetUpdatedAt() time.Time {
-	return cg.UpdatedAt
-}
-
-// TableName returns the database table name
-func (cg *CombinedGroup) TableName() string {
-	return tableActiveCombinedGroups
-}
-
 // Validate ensures combined group data is valid
 func (cg *CombinedGroup) Validate() error {
 	if cg.StartTime.IsZero() {

@@ -86,11 +86,6 @@ func TestWorkSessionEdit_Validate(t *testing.T) {
 	})
 }
 
-func TestWorkSessionEdit_TableName(t *testing.T) {
-	e := &WorkSessionEdit{}
-	assert.Equal(t, "audit.work_session_edits", e.TableName())
-}
-
 func TestWorkSessionEdit_FieldConstants(t *testing.T) {
 	assert.Equal(t, "check_in_time", FieldCheckInTime)
 	assert.Equal(t, "check_out_time", FieldCheckOutTime)

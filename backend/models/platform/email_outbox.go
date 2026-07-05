@@ -65,11 +65,6 @@ type EmailOutbox struct {
 	SentAt            *time.Time     `bun:"sent_at" json:"sent_at,omitempty"`
 }
 
-// TableName returns the schema-qualified table name.
-func (e *EmailOutbox) TableName() string {
-	return "platform.email_outbox"
-}
-
 // Validate enforces the column-level CHECK constraints in app code so we
 // fail fast before the round-trip.
 func (e *EmailOutbox) Validate() error {

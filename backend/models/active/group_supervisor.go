@@ -2,7 +2,6 @@ package active
 
 import (
 	"errors"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -43,26 +42,6 @@ func (gs *GroupSupervisor) BeforeAppendModel(query any) error {
 		q.ModelTableExpr(tableGroupSupervisors)
 	}
 	return nil
-}
-
-// GetID returns the entity's ID
-func (gs *GroupSupervisor) GetID() interface{} {
-	return gs.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (gs *GroupSupervisor) GetCreatedAt() time.Time {
-	return gs.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (gs *GroupSupervisor) GetUpdatedAt() time.Time {
-	return gs.UpdatedAt
-}
-
-// TableName returns the database table name
-func (gs *GroupSupervisor) TableName() string {
-	return "active.group_supervisors"
 }
 
 // Validate ensures group supervisor data is valid

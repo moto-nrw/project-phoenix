@@ -28,7 +28,6 @@ func TestParentMessage_BeforeAppendModelRoutesAllQueryKinds(t *testing.T) {
 	require.NoError(t, m.BeforeAppendModel(db.NewDelete()))
 	// A non-query argument is a no-op, not a panic.
 	require.NoError(t, m.BeforeAppendModel(nil))
-	assert.Equal(t, "users.parent_messages", m.TableName())
 }
 
 func TestParentMessageThread_BeforeAppendModelRoutesAllQueryKinds(t *testing.T) {
@@ -38,11 +37,6 @@ func TestParentMessageThread_BeforeAppendModelRoutesAllQueryKinds(t *testing.T) 
 	require.NoError(t, th.BeforeAppendModel(db.NewUpdate()))
 	require.NoError(t, th.BeforeAppendModel(db.NewDelete()))
 	require.NoError(t, th.BeforeAppendModel(nil))
-	assert.Equal(t, "users.parent_message_threads", th.TableName())
-}
-
-func TestParentMessageRead_TableName(t *testing.T) {
-	assert.Equal(t, "users.parent_message_reads", (&ParentMessageRead{}).TableName())
 }
 
 func TestBaseModel_Accessors(t *testing.T) {

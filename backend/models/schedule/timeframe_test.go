@@ -421,13 +421,6 @@ func TestTimeframe_BeforeAppendModel(t *testing.T) {
 	})
 }
 
-func TestTimeframe_TableName(t *testing.T) {
-	tf := &Timeframe{}
-	if got := tf.TableName(); got != "schedule.timeframes" {
-		t.Errorf("TableName() = %v, want schedule.timeframes", got)
-	}
-}
-
 func TestTimeframe_GetID(t *testing.T) {
 	tf := &Timeframe{
 		Model:     base.Model{ID: 42},
