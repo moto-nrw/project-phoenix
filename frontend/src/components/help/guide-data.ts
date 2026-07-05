@@ -610,7 +610,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Im Reiter `Übersicht` Stundenkonto, Urlaubstage und Krankheitstage prüfen. Die Diagramme lassen sich einzeln nach Zeitraum filtern.",
           "Im Reiter `Zeiterfassung` zwischen Woche und Monat wechseln, Soll, Ist, Saldo, Quelle und Hinweise kontrollieren.",
           "Bei einem Arbeitstag das Stift-Symbol nutzen, um Zeiten nachzutragen oder zu korrigieren. Eine Begründung ist erforderlich und landet im Audit-Log.",
-          "Im Reiter `Arbeitszeitmodell` eine Vorlage zuweisen oder ein eigenes Modell mit 1 bis 4 Wochen Rotation pflegen.",
+          "Im Reiter `Arbeitszeitmodell` eine Vorlage zuweisen oder ein eigenes Modell mit 1 bis 4 Wochen Rotation pflegen. Pro Arbeitstag kann optional eine Startzeit hinterlegt werden.",
           "Im Reiter `Abwesenheiten` Urlaubsanspruch und offene Anträge prüfen, genehmigen oder mit Begründung ablehnen.",
         ],
         callout: {
@@ -685,6 +685,7 @@ export const appChapters: readonly GuideChapter[] = [
           "`Zeiterfassung` öffnen.",
           "`In der OGS`, `Homeoffice` oder `Abwesend` wählen.",
           "Mit `Einstempeln` beginnen und am Ende `Ausstempeln`.",
+          "Wenn die Einrichtung Einstempeln erst ab geplanter Startzeit aktiviert hat, wird ein zu früher Versuch mit Hinweis auf die Startzeit abgewiesen.",
           "Pausen mit einer geplanten Dauer starten. Die Pause endet automatisch nach Ablauf oder manuell über `Pause beenden`.",
           "Bei langen Arbeitstagen die Pausenhinweise beachten.",
           "Für Krankheit, Fortbildung oder sonstige Abwesenheit `Abwesend` wählen und die Abwesenheit mit Art, Zeitraum und optionaler Notiz speichern.",

@@ -42,6 +42,7 @@ import {
   toDateKey,
 } from "~/lib/staff-metrics-helpers";
 import {
+  PLANNED_START_NOT_REACHED_CODE,
   REOPEN_STATUS_CONFLICT_CODE,
   timeTrackingService,
 } from "~/lib/time-tracking-api";
@@ -171,6 +172,9 @@ function friendlyError(err: unknown, fallback: string): string {
   }
   if (code.startsWith("invalid session data:")) {
     return "Bitte prüfe Start- und Endzeit.";
+  }
+  if (code === "planned start not reached") {
+    return "Einstempeln ist noch nicht möglich. Bitte prüfe deine geplante Startzeit.";
   }
 
   return fallback;
@@ -2989,6 +2993,18 @@ function TimeTrackingContent() {
           });
           toast.error(
             "Heute liegt bereits eine Sitzung vor. Bitte kurz warten und erneut versuchen.",
+          );
+          return;
+        }
+        if (apiErr.code === PLANNED_START_NOT_REACHED_CODE) {
+          const plannedStart =
+            typeof apiErr.details?.planned_start_time === "string"
+              ? apiErr.details.planned_start_time
+              : undefined;
+          toast.error(
+            plannedStart
+              ? `Einstempeln ist erst ab ${plannedStart} Uhr möglich.`
+              : "Einstempeln ist noch nicht möglich.",
           );
           return;
         }

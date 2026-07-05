@@ -72,6 +72,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.group_mode",
 		"operations.care_concept",
 		"operations.time_tracking_account_start_date",
+		"operations.time_tracking_enforce_planned_start",
 		// Student photo feature (Datenverwaltung): per-school opt-in toggle.
 		"operations.student_photos_enabled",
 		// 2FA / MFA work package (issue #1308): mode toggle + trusted-device pair.
@@ -284,6 +285,17 @@ func TestTimeTrackingAccountStartDateSetting(t *testing.T) {
 	require.NotNil(t, def, "operations.time_tracking_account_start_date should be registered")
 	assert.Equal(t, config.FieldDate, def.Type)
 	assert.Equal(t, "", def.Default)
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "zeiterfassung", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
+}
+
+func TestTimeTrackingEnforcePlannedStartSetting(t *testing.T) {
+	def := config.GetDefinition(config.KeyTimeTrackingEnforcePlannedStart)
+	require.NotNil(t, def, "operations.time_tracking_enforce_planned_start should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default, "planned-start enforcement must be opt-in")
 	assert.Equal(t, config.AccessShared, def.AccessPolicy)
 	assert.Equal(t, "operations", def.Tab)
 	assert.Equal(t, "zeiterfassung", def.Category)

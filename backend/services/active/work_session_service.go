@@ -128,6 +128,22 @@ func (e *ReopenStatusConflictError) Error() string {
 	return "reopen status conflict"
 }
 
+// PlannedStartNotReachedError is returned by CheckIn when the optional
+// planned-start enforcement setting is enabled and today's work schedule has a
+// start time later than the current wall clock.
+type PlannedStartNotReachedError struct {
+	PlannedStartTime string
+	CurrentTime      string
+}
+
+func (e *PlannedStartNotReachedError) Error() string {
+	return "planned start not reached"
+}
+
+type settingsResolver interface {
+	ResolveBool(ctx context.Context, key string) (bool, error)
+}
+
 // WorkSessionService defines operations for staff time tracking
 type WorkSessionService interface {
 	// CheckIn opens or reopens today's session for staffID. `source` records
@@ -206,7 +222,9 @@ type workSessionService struct {
 	staffRepo      userModels.StaffRepository
 	scheduleRepo   configModels.StaffWorkScheduleRepository
 	workModelRepo  configModels.WorkTimeModelRepository
+	settings       settingsResolver
 	logger         *slog.Logger
+	nowFunc        func() time.Time
 }
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
@@ -218,8 +236,15 @@ func (s *workSessionService) getLogger() *slog.Logger {
 }
 
 // NewWorkSessionService creates a new work session service
-func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo activeModels.WorkSessionBreakRepository, auditRepo auditModels.WorkSessionEditRepository, absenceRepo activeModels.StaffAbsenceRepository, supervisorRepo activeModels.GroupSupervisorRepository, staffRepo userModels.StaffRepository, scheduleRepo configModels.StaffWorkScheduleRepository, workModelRepo configModels.WorkTimeModelRepository, logger *slog.Logger) WorkSessionService {
-	return &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo, absenceRepo: absenceRepo, supervisorRepo: supervisorRepo, staffRepo: staffRepo, scheduleRepo: scheduleRepo, workModelRepo: workModelRepo, logger: logger}
+func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo activeModels.WorkSessionBreakRepository, auditRepo auditModels.WorkSessionEditRepository, absenceRepo activeModels.StaffAbsenceRepository, supervisorRepo activeModels.GroupSupervisorRepository, staffRepo userModels.StaffRepository, scheduleRepo configModels.StaffWorkScheduleRepository, workModelRepo configModels.WorkTimeModelRepository, settings settingsResolver, logger *slog.Logger) WorkSessionService {
+	return &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo, absenceRepo: absenceRepo, supervisorRepo: supervisorRepo, staffRepo: staffRepo, scheduleRepo: scheduleRepo, workModelRepo: workModelRepo, settings: settings, logger: logger}
+}
+
+func (s *workSessionService) now() time.Time {
+	if s.nowFunc != nil {
+		return s.nowFunc()
+	}
+	return time.Now()
 }
 
 // CheckIn creates a new work session for the staff member.
@@ -233,8 +258,9 @@ func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status,
 		return nil, fmt.Errorf("source must be 'app' or 'nfc'")
 	}
 
+	now := s.now()
 	// Today's Berlin calendar day for the PostgreSQL DATE column
-	today := timezone.TodayDate()
+	today := timezone.DateFromTime(now)
 
 	// Check if there's already a session today
 	existingSession, err := s.repo.GetByStaffAndDate(ctx, staffID, today)
@@ -245,6 +271,9 @@ func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status,
 	if existingSession != nil {
 		if existingSession.IsActive() {
 			return nil, fmt.Errorf("already checked in")
+		}
+		if err := s.ensurePlannedStartReached(ctx, staffID, today, now); err != nil {
+			return nil, err
 		}
 		// A status mismatch on reopen would silently rewrite an audit-relevant
 		// field with no FieldStatus edit emitted. Force the caller to reopen
@@ -262,8 +291,11 @@ func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status,
 		return s.reopenSession(ctx, existingSession, staffID)
 	}
 
+	if err := s.ensurePlannedStartReached(ctx, staffID, today, now); err != nil {
+		return nil, err
+	}
+
 	// Create new session
-	now := time.Now()
 	session := &activeModels.WorkSession{
 		StaffID:      staffID,
 		Date:         today,
@@ -285,6 +317,53 @@ func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status,
 	}
 
 	return session, nil
+}
+
+func (s *workSessionService) ensurePlannedStartReached(ctx context.Context, staffID int64, today timezone.Date, now time.Time) error {
+	if s.settings == nil {
+		return nil
+	}
+	enabled, err := s.settings.ResolveBool(ctx, configModels.KeyTimeTrackingEnforcePlannedStart)
+	if err != nil {
+		return fmt.Errorf("failed to resolve planned-start setting: %w", err)
+	}
+	if !enabled {
+		return nil
+	}
+	if s.scheduleRepo == nil {
+		return fmt.Errorf("staff work schedule repository not configured")
+	}
+
+	entries, err := s.scheduleRepo.GetByStaffIDAndDate(ctx, staffID, today)
+	if err != nil {
+		return fmt.Errorf("failed to load planned start schedule: %w", err)
+	}
+	if len(entries) == 0 {
+		return nil
+	}
+
+	staff := s.resolveStaffForTargets(ctx, staffID)
+	anchor := resolveScheduleAnchorFromStaff(staff, entries)
+	if anchor.IsZero() {
+		return nil
+	}
+	rotationWeek := configModels.ResolveWeekIndex(scheduleRotationLength(entries), isoWeekStart(anchor), isoWeekStart(today))
+	dayIndex := isoDayIndex(today)
+	for _, entry := range entries {
+		if entry.WeekIndex != rotationWeek || entry.DayOfWeek != dayIndex || entry.StartTime == nil {
+			continue
+		}
+		plannedStart := timezone.WallClock(*entry.StartTime)
+		currentClock := timezone.WallClock(now.In(timezone.Berlin))
+		if currentClock.Before(plannedStart) {
+			return &PlannedStartNotReachedError{
+				PlannedStartTime: plannedStart.Format("15:04"),
+				CurrentTime:      currentClock.Format("15:04"),
+			}
+		}
+		return nil
+	}
+	return nil
 }
 
 // reopenSession clears checkout on an existing session so the staff member
@@ -1238,7 +1317,7 @@ func (s *workSessionService) GetTodayPresenceMap(ctx context.Context) (map[int64
 // CleanupOpenSessions closes all sessions that are still open before today
 func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, error) {
 	// Today's Berlin calendar day for the PostgreSQL DATE column
-	today := timezone.TodayDate()
+	today := timezone.DateFromTime(s.now())
 
 	// Get all open sessions before today
 	openSessions, err := s.repo.GetOpenSessions(ctx, today)
@@ -1282,7 +1361,7 @@ func (s *workSessionService) EnsureCheckedIn(ctx context.Context, staffID int64,
 	}
 
 	// Check if there's already a checked-out session today
-	today := timezone.TodayDate()
+	today := timezone.DateFromTime(s.now())
 	todaySession, err := s.repo.GetByStaffAndDate(ctx, staffID, today)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("failed to check today's session: %w", err)
@@ -1682,6 +1761,7 @@ func modelEntriesToScheduleRows(modelEntries []*configModels.WorkTimeModelEntry,
 			RotationLength: rotation,
 			DayOfWeek:      e.DayOfWeek,
 			TargetMinutes:  e.TargetMinutes,
+			StartTime:      e.StartTime,
 		})
 	}
 	return rows

@@ -219,6 +219,17 @@ func (m *wsMockStaffRepository) UpdateNotes(ctx context.Context, id int64, notes
 	return nil
 }
 
+type wsMockSettingsResolver struct {
+	resolveBoolFunc func(ctx context.Context, key string) (bool, error)
+}
+
+func (m *wsMockSettingsResolver) ResolveBool(ctx context.Context, key string) (bool, error) {
+	if m.resolveBoolFunc != nil {
+		return m.resolveBoolFunc(ctx, key)
+	}
+	return false, nil
+}
+
 func (m *wsMockStaffRepository) FindWithPerson(ctx context.Context, id int64) (*userModels.Staff, error) {
 	return nil, sql.ErrNoRows
 }
@@ -617,6 +628,169 @@ func TestWSCheckIn_Success(t *testing.T) {
 	assert.Equal(t, activeModels.WorkSessionStatusPresent, session.Status)
 	assert.Equal(t, activeModels.WorkSessionSourceApp, session.Source)
 	assert.Nil(t, session.CheckOutTime)
+}
+
+func TestWSCheckIn_PlannedStartEnforcement(t *testing.T) {
+	startAt := func(t *testing.T, hhmm string) *time.Time {
+		t.Helper()
+		parsed, err := time.Parse("15:04", hhmm)
+		require.NoError(t, err)
+		wallClock := timezone.WallClock(parsed)
+		return &wallClock
+	}
+
+	tests := []struct {
+		name          string
+		now           time.Time
+		rows          []*configModels.StaffWorkSchedule
+		wantErr       bool
+		wantCreate    bool
+		wantPlannedAt string
+	}{
+		{
+			name: "before planned start rejects",
+			now:  time.Date(2026, time.July, 6, 8, 59, 0, 0, timezone.Berlin),
+			rows: []*configModels.StaffWorkSchedule{{
+				WeekIndex:      0,
+				RotationLength: 1,
+				DayOfWeek:      configModels.DayMonday,
+				TargetMinutes:  480,
+				StartTime:      startAt(t, "09:00"),
+				ValidFrom:      timezone.DateFromTime(time.Date(2026, time.July, 6, 0, 0, 0, 0, timezone.Berlin)),
+			}},
+			wantErr:       true,
+			wantPlannedAt: "09:00",
+		},
+		{
+			name: "exact planned start allows",
+			now:  time.Date(2026, time.July, 6, 9, 0, 0, 0, timezone.Berlin),
+			rows: []*configModels.StaffWorkSchedule{{
+				WeekIndex:      0,
+				RotationLength: 1,
+				DayOfWeek:      configModels.DayMonday,
+				TargetMinutes:  480,
+				StartTime:      startAt(t, "09:00"),
+				ValidFrom:      timezone.DateFromTime(time.Date(2026, time.July, 6, 0, 0, 0, 0, timezone.Berlin)),
+			}},
+			wantCreate: true,
+		},
+		{
+			name: "after planned start allows",
+			now:  time.Date(2026, time.July, 6, 9, 1, 0, 0, timezone.Berlin),
+			rows: []*configModels.StaffWorkSchedule{{
+				WeekIndex:      0,
+				RotationLength: 1,
+				DayOfWeek:      configModels.DayMonday,
+				TargetMinutes:  480,
+				StartTime:      startAt(t, "09:00"),
+				ValidFrom:      timezone.DateFromTime(time.Date(2026, time.July, 6, 0, 0, 0, 0, timezone.Berlin)),
+			}},
+			wantCreate: true,
+		},
+		{
+			name:       "no schedule keeps existing behavior",
+			now:        time.Date(2026, time.July, 6, 8, 30, 0, 0, timezone.Berlin),
+			rows:       nil,
+			wantCreate: true,
+		},
+		{
+			name: "schedule without start time keeps existing behavior",
+			now:  time.Date(2026, time.July, 6, 8, 30, 0, 0, timezone.Berlin),
+			rows: []*configModels.StaffWorkSchedule{{
+				WeekIndex:      0,
+				RotationLength: 1,
+				DayOfWeek:      configModels.DayMonday,
+				TargetMinutes:  480,
+				ValidFrom:      timezone.DateFromTime(time.Date(2026, time.July, 6, 0, 0, 0, 0, timezone.Berlin)),
+			}},
+			wantCreate: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, sessionRepo, _, _, _ := wsCreateTestService()
+			svc.nowFunc = func() time.Time { return tt.now }
+			svc.settings = &wsMockSettingsResolver{resolveBoolFunc: func(_ context.Context, key string) (bool, error) {
+				assert.Equal(t, configModels.KeyTimeTrackingEnforcePlannedStart, key)
+				return true, nil
+			}}
+			svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
+				getByStaffIDAndDateFunc: func(_ context.Context, _ int64, _ timezone.Date) ([]*configModels.StaffWorkSchedule, error) {
+					return tt.rows, nil
+				},
+			}
+
+			sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) (*activeModels.WorkSession, error) {
+				return nil, sql.ErrNoRows
+			}
+			created := false
+			sessionRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
+				created = true
+				entity.ID = 10
+				return nil
+			}
+
+			session, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, session)
+				var plannedErr *PlannedStartNotReachedError
+				require.ErrorAs(t, err, &plannedErr)
+				assert.Equal(t, tt.wantPlannedAt, plannedErr.PlannedStartTime)
+				assert.False(t, created, "early check-in must not create a work session")
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, session)
+			assert.Equal(t, tt.wantCreate, created)
+		})
+	}
+}
+
+func TestWSCreateSessionAsAdmin_IgnoresPlannedStartEnforcement(t *testing.T) {
+	svc, sessionRepo, _, auditRepo, _ := wsCreateTestService()
+	ctx := context.Background()
+	editorStaffID := int64(10)
+	targetStaffID := int64(100)
+	checkIn := time.Date(2026, time.July, 6, 8, 0, 0, 0, timezone.Berlin)
+	checkOut := time.Date(2026, time.July, 6, 10, 0, 0, 0, timezone.Berlin)
+
+	svc.settings = &wsMockSettingsResolver{resolveBoolFunc: func(context.Context, string) (bool, error) {
+		t.Fatal("admin-created sessions must not resolve planned-start enforcement")
+		return true, nil
+	}}
+
+	var created *activeModels.WorkSession
+	sessionRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
+		entity.ID = 55
+		created = entity
+		return nil
+	}
+
+	var capturedEdits []*auditModels.WorkSessionEdit
+	auditRepo.createBatchFunc = func(_ context.Context, edits []*auditModels.WorkSessionEdit) error {
+		capturedEdits = edits
+		return nil
+	}
+
+	session, err := svc.CreateSessionAsAdmin(ctx, editorStaffID, targetStaffID, AdminCreateSessionRequest{
+		Date:         checkIn,
+		CheckInTime:  checkIn,
+		CheckOutTime: checkOut,
+		Status:       activeModels.WorkSessionStatusPresent,
+		Notes:        "Früherer Start durch Admin genehmigt",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, session)
+	require.NotNil(t, created)
+	assert.Equal(t, checkIn, created.CheckInTime)
+	require.NotNil(t, created.CheckOutTime)
+	assert.Equal(t, checkOut, *created.CheckOutTime)
+	assert.Equal(t, editorStaffID, created.CreatedBy)
+	require.NotEmpty(t, capturedEdits, "admin-created sessions must keep audit trail")
 }
 
 func TestWSCheckIn_RejectsEmptyStatus(t *testing.T) {

@@ -132,6 +132,7 @@ const (
 	KeyParentMasterDataRequestEnabled  = "operations.parent_master_data_request_enabled"
 	KeyParentNewsEnabled               = "operations.parent_news_enabled"
 	KeyTimeTrackingAccountStartDate    = "operations.time_tracking_account_start_date"
+	KeyTimeTrackingEnforcePlannedStart = "operations.time_tracking_enforce_planned_start"
 	KeyMealPlanEnabled                 = "operations.meal_plan_enabled"
 )
 
