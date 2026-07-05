@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	careScheduleChangeRequestsVersion     = "1.15.163"
+	careScheduleChangeRequestsVersion     = "1.15.164"
 	careScheduleChangeRequestsDescription = "Create schedule.care_schedule_change_requests - parent care-schedule change requests reviewed on the Aenderungsanfragen page (#1803)"
 )
 
@@ -19,9 +19,9 @@ func init() {
 		Version:     careScheduleChangeRequestsVersion,
 		Description: careScheduleChangeRequestsDescription,
 		DependsOn: []string{
-			UsersStudentsVersion,        // student_id FK target
-			"1.0.1",                     // auth.accounts (submitted_by + reviewed_by FKs)
-			addAddressToStudentsVersion, // latest development migration before this branch's additions
+			UsersStudentsVersion,      // student_id FK target
+			"1.0.1",                   // auth.accounts (submitted_by + reviewed_by FKs)
+			workTimeStartTimesVersion, // latest development migration before this branch's additions
 		},
 	})
 
@@ -50,7 +50,7 @@ func init() {
 // a parent revises by withdrawing and re-submitting, staff never has to
 // reconcile stacked requests.
 func careScheduleChangeRequestsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.163: Creating schedule.care_schedule_change_requests...")
+	fmt.Println("Migration 1.15.164: Creating schedule.care_schedule_change_requests...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -115,7 +115,7 @@ func careScheduleChangeRequestsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func careScheduleChangeRequestsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.163: Dropping schedule.care_schedule_change_requests...")
+	fmt.Println("Rolling back migration 1.15.164: Dropping schedule.care_schedule_change_requests...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
