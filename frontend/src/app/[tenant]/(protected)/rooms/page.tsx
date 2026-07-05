@@ -251,8 +251,7 @@ function RoomsPageContent() {
       }
 
       const data = (await response.json()) as
-        | BackendRoom[]
-        | { data: BackendRoom[] };
+        BackendRoom[] | { data: BackendRoom[] };
 
       // Use mapping helper to transform backend data to frontend format
       let roomsData: Room[];

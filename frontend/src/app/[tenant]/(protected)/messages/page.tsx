@@ -36,7 +36,6 @@ function MessagesInboxContent() {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [onlyUnread, setOnlyUnread] = useState(false);
-  const [onlyOpenRequests, setOnlyOpenRequests] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
 
   // SWR caches the inbox per filter across navigation, so returning from a
@@ -48,8 +47,8 @@ function MessagesInboxContent() {
     isLoading,
     mutate,
   } = useSWR(
-    [`${tenantSlug ?? ""}:messages-inbox`, onlyUnread, onlyOpenRequests],
-    () => fetchInboxWithFilters({ onlyUnread, onlyOpenRequests }),
+    [`${tenantSlug ?? ""}:messages-inbox`, onlyUnread],
+    () => fetchInboxWithFilters({ onlyUnread }),
     {
       revalidateOnFocus: false,
       keepPreviousData: true,
@@ -111,14 +110,6 @@ function MessagesInboxContent() {
           onClick={() => setOnlyUnread((prev) => !prev)}
         >
           Nur ungelesen
-        </Button>
-        <Button
-          type="button"
-          variant={onlyOpenRequests ? "primary" : "outline"}
-          size="md"
-          onClick={() => setOnlyOpenRequests((prev) => !prev)}
-        >
-          Offene Anfragen
         </Button>
         {messagingEnabled && (
           <Button
@@ -198,14 +189,6 @@ function MessagesInboxContent() {
                           {thread.student_name}
                         </span>
                         <UnreadBadge count={thread.unread_count} />
-                        {thread.open_request_count > 0 && (
-                          <span className="inline-flex items-center rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs font-medium text-[#5080D8]">
-                            {thread.open_request_count}{" "}
-                            {thread.open_request_count === 1
-                              ? "offene Anfrage"
-                              : "offene Anfragen"}
-                          </span>
-                        )}
                       </div>
                       {thread.last_message_body && (
                         <p className="mt-1 truncate text-sm text-gray-600">

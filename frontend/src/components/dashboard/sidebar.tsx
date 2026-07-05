@@ -20,6 +20,7 @@ import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useSuggestionsUnread } from "~/lib/hooks/use-suggestions-unread";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
+import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
 import { useParentMessagesUnread } from "~/lib/hooks/use-parent-messages-unread";
 import { useParentNewsUnread } from "~/lib/hooks/use-parent-news-unread";
 import { useParentNewsEnabled } from "~/lib/hooks/use-parent-news-enabled";
@@ -41,6 +42,10 @@ interface NavItem {
   label: string;
   icon: string;
   requiresAdmin?: boolean;
+  // Show when the caller holds this tenant permission (admins always pass). Use
+  // instead of requiresAdmin for items open to more than admins, e.g. the
+  // Änderungsanfragen queue (users:update, scoped per child in the backend).
+  requiresPermission?: string;
   alwaysShow?: boolean;
   hideForAdmin?: boolean;
   comingSoon?: boolean;
@@ -119,7 +124,7 @@ const NAV_ITEMS: NavItem[] = [
     label: "Änderungsanfragen",
     icon: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z",
     activeColor: "text-[#5080D8]",
-    requiresAdmin: true,
+    requiresPermission: "users:update",
   },
   {
     href: "/time-tracking",
@@ -427,6 +432,11 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const { unreadCount: operatorUnreadCount } = useOperatorSuggestionsUnread();
   // Unread parent-OGS messages badge (staff/teacher mode)
   const { unreadCount: messagesUnreadCount } = useMessagesUnread();
+  // Pending parent change-requests badge (Änderungsanfragen; users:update,
+  // scoped per child in the backend so the count reflects the caller's own
+  // group's requests)
+  const { unreadCount: changeRequestsPendingCount } =
+    useChangeRequestsPending();
   // Unread OGS messages badge (parents portal) — only fetches in parent mode.
   const { unreadCount: parentMessagesUnread } = useParentMessagesUnread(
     mode === "parent",
@@ -543,6 +553,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
     if (item.href === "/meal-plan")
       return mealPlanEnabled === true && hasPermission(session, "config:read");
     if (item.alwaysShow) return true;
+    // Permission-gated items (e.g. Änderungsanfragen on users:update): show for
+    // admins or anyone holding the permission, matching the backend route gate.
+    if (
+      item.requiresPermission &&
+      !userIsAdmin &&
+      !hasPermission(session, item.requiresPermission)
+    )
+      return false;
     if (item.requiresAdmin && !userIsAdmin) return false;
     return true;
   });
@@ -718,6 +736,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
             )}
             {item.href === "/messages" && (
               <UnreadBadge count={messagesUnreadCount} className="ml-2" />
+            )}
+            {item.href === "/admin/change-requests" && (
+              <UnreadBadge
+                count={changeRequestsPendingCount}
+                className="ml-2"
+              />
             )}
           </span>
         </Link>

@@ -432,8 +432,7 @@ vi.mock("~/lib/hooks/use-school-checkin-mode", () => ({
 // Mock useUserContext
 const mockUserContext = vi.fn(() => ({
   userContext: undefined as
-    | { currentStaff: { id: string; personId: string } | null }
-    | undefined,
+    { currentStaff: { id: string; personId: string } | null } | undefined,
   isLoading: false,
   error: undefined,
   isReady: true,

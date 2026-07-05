@@ -310,19 +310,10 @@
         "label": "Marrje për një ditë",
         "shortLabel": "Marrje",
         "hint": "Përshtatni orarin e marrjes ose ardhjes për një ditë të vetme"
-      },
-      "care_schedule": {
-        "label": "Ndrysho përgjithmonë oraret e kujdesit",
-        "shortLabel": "Oraret e kujdesit",
-        "hint": "Përshtatni planin javor (Hën–Pre)"
       }
     },
     "request": {
       "submit": "Dërgo kërkesën",
-      "entryLabel": "Ndryshim i përhershëm",
-      "entryHint": "Kërkoni një ndryshim të përhershëm. Institucioni e konfirmon.",
-      "chooserTitle": "Kërko një ndryshim",
-      "chooserIntro": "Institucioni shqyrton kërkesën tuaj dhe e zbaton vetëm pas konfirmimit. Deri atëherë nuk ndryshon asgjë.",
       "sendError": "Kërkesa nuk mund të dërgohej.",
       "careSchedule": {
         "title": "Ndrysho oraret e kujdesit",
@@ -920,7 +911,8 @@
       "child": "Angaben zum Kind",
       "health": "Gesundheit",
       "contact": "Ihre Kontaktdaten",
-      "departure": "Dauerhafte Gehzeiten"
+      "departure": "Dauerhafte Gehzeiten",
+      "careSchedule": "Betreuungszeiten"
     },
     "fields": {
       "firstName": "Vorname",
@@ -958,11 +950,24 @@
       "wed": "Mi",
       "thu": "Do",
       "fri": "Fr"
+    },
+    "careSchedule": {
+      "hint": "Ihr aktueller Wochenplan. Dauerhafte Änderungen prüft das Team, bevor sie gelten.",
+      "arrival": "Bringzeit",
+      "pickup": "Abholzeit",
+      "modes": "Abholart",
+      "loadError": "Die Betreuungszeiten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
+      "pendingBadge": "In Prüfung",
+      "pendingNotice": "Ihre Anfrage wird vom Team geprüft. Bis zur Bestätigung gilt der bisherige Plan.",
+      "requestedAt": "Angefragt am {date}",
+      "withdraw": "Zurückziehen",
+      "withdrawError": "Die Anfrage konnte nicht zurückgezogen werden.",
+      "withdrawConfirmTitle": "Anfrage zurückziehen?",
+      "withdrawConfirmBody": "Möchten Sie Ihre Änderungsanfrage wirklich zurückziehen? Der bisherige Plan bleibt unverändert."
     }
   },
   "parentOgsMessaging": {
     "readByStaff": "Lexuar",
-    "requestWithdraw": "Tërhiqe",
     "requestTypeCareSchedule": "Kërkesë: Ndrysho oraret e rregullta të kujdesit",
     "requestTitleFallback": "Kërkesë",
     "statusOpen": "E hapur",
@@ -971,6 +976,9 @@
     "statusWithdrawn": "E tërhequr",
     "eventRequestConfirmed": "Kërkesa u konfirmua",
     "eventRequestConfirmedCareSchedule": "Kërkesa u konfirmua, oraret e kujdesit u zbatuan",
+    "eventRequestCreatedCareSchedule": "Kërkesë për ndryshim të orareve të kujdesit u dërgua",
+    "eventRequestCreatedMasterData": "Kërkesë për ndryshim të Stammdaten u dërgua",
+    "eventRequestConfirmedMasterData": "Kërkesa u konfirmua, Stammdaten u zbatuan",
     "eventRequestRejected": "Kërkesa u refuzua",
     "eventRequestRejectedReason": "Kërkesa u refuzua: {reason}",
     "eventRequestWithdrawn": "Kërkesa u tërhoq",

@@ -149,9 +149,6 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/me/messages/children/{studentId}/threads", rs.listChildThreads)
 		r.Get("/me/messages/children/{studentId}", rs.getChildConversation)
 		r.Post("/me/messages/children/{studentId}", rs.postChildMessage)
-		r.Post("/me/messages/children/{studentId}/requests", rs.createChildRequest)
-		r.Post("/me/messages/children/{studentId}/requests/{requestId}/withdraw", rs.withdrawChildRequest)
-
 		// Parent-news feed (#1669) — read-only broadcast announcements the
 		// guardian is targeted by across all their children's (news-enabled)
 		// schools. The guardian can mark one read, or acknowledge one that
@@ -165,6 +162,14 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/me/children/{studentId}/care-exception", rs.listCareExceptions)
 		r.Post("/me/children/{studentId}/care-exception", rs.submitCareException)
 		r.Delete("/me/children/{studentId}/care-exception", rs.deleteCareException)
+
+		// Permanent weekly care plan (#1803) — read view on the Stammdaten
+		// page plus the change-request lifecycle (create / withdraw). Staff
+		// decide the requests on the central Änderungsanfragen page; the chat
+		// only receives notification pills.
+		r.Get("/me/children/{studentId}/care-schedule", rs.getChildCareSchedule)
+		r.Post("/me/children/{studentId}/care-schedule/requests", rs.createCareScheduleRequest)
+		r.Post("/me/children/{studentId}/care-schedule/requests/{requestId}/withdraw", rs.withdrawCareScheduleRequest)
 
 		// Stammdaten — structured view of the child's master data plus the
 		// calling guardian's own contact data. Track A direct edits apply

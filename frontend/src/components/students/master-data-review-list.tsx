@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import { Button } from "~/components/ui/button";
-import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { Loading } from "~/components/ui/loading";
+import {
+  RequestReviewCard,
+  ReviewDiffPanel,
+} from "~/components/students/request-review-card";
 import { createLogger } from "~/lib/logger";
 import {
   type StaffMasterDataChange,
@@ -61,6 +63,10 @@ export function MasterDataReviewList() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [notice, setNotice] = useState<string | null>(null);
+  // Set while THIS list dispatches change-requests-refresh so its own listener
+  // (below) doesn't refetch — it already removed the decided row optimistically.
+  // dispatchEvent is synchronous, so the flag only has to cover that one call.
+  const suppressSelfReloadRef = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -80,6 +86,43 @@ export function MasterDataReviewList() {
     void load();
   }, [load]);
 
+  // Refetch without the full-page spinner. An `allowed_departure_modes`
+  // decision here changes the departure modes the sibling Betreuungszeiten
+  // queue computes its diffs against (and a care decision changes ours), so a
+  // sibling decision can leave these "current → requested" diffs stale. Both
+  // queues emit change-requests-refresh after a decision; listen for it and
+  // swap rows in place (never blank the section) so reviewers act on fresh
+  // values.
+  const reloadInPlace = useCallback(async () => {
+    try {
+      setRows(await listMasterDataChangeRequests());
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn("master_data_review_reload_failed", { error: message });
+    }
+  }, []);
+
+  // change-requests-refresh covers decisions made in THIS window (both queues
+  // dispatch it). A decision made elsewhere (another tab, another staffer)
+  // never fires it here; it only reaches this window as the parent-message pill
+  // the backend emits, which use-global-sse fans out as messages-unread-refresh
+  // (the same SSE-derived path the sidebar badge listens to). Without this an
+  // already-open review page keeps showing pending rows the backend has already
+  // decided and would let the reviewer submit a now-conflicting decision until
+  // a manual reload. Listen to both and swap rows in place.
+  useEffect(() => {
+    const handler = () => {
+      if (suppressSelfReloadRef.current) return;
+      void reloadInPlace();
+    };
+    window.addEventListener("change-requests-refresh", handler);
+    window.addEventListener("messages-unread-refresh", handler);
+    return () => {
+      window.removeEventListener("change-requests-refresh", handler);
+      window.removeEventListener("messages-unread-refresh", handler);
+    };
+  }, [reloadInPlace]);
+
   const decide = useCallback(
     async (row: StaffMasterDataChange, approve: boolean) => {
       setBusyId(row.id);
@@ -92,6 +135,13 @@ export function MasterDataReviewList() {
           reasons[row.id]?.trim() || undefined,
         );
         setRows((prev) => prev.filter((r) => r.id !== row.id));
+        // Clear/decrement the Änderungsanfragen sidebar badge without waiting
+        // for the 60s cache or an SSE round-trip, and prompt the sibling
+        // Betreuungszeiten queue to refetch its (possibly now-stale) diffs.
+        // Suppress our own listener: the decided row is already removed above.
+        suppressSelfReloadRef.current = true;
+        window.dispatchEvent(new Event("change-requests-refresh"));
+        suppressSelfReloadRef.current = false;
         setNotice(approve ? "Änderung übernommen" : "Änderung abgelehnt");
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -107,104 +157,57 @@ export function MasterDataReviewList() {
     [reasons],
   );
 
-  const columns = useMemo<DataTableColumn<StaffMasterDataChange>[]>(
-    () => [
-      {
-        key: "child",
-        header: "Kind",
-        render: (row) => (
-          <span className="font-medium text-gray-900">
-            {row.first_name} {row.last_name}
-          </span>
-        ),
-        sortValue: (row) => `${row.last_name} ${row.first_name}`,
-      },
-      {
-        key: "field",
-        header: "Feld",
-        render: (row) => fieldLabel(row.field_key),
-      },
-      {
-        key: "change",
-        header: "Änderung",
-        render: (row) => (
-          <span className="text-sm">
-            <span className="text-gray-500 line-through">
-              {formatValue(row.old_value, EMPTY_VALUE)}
-            </span>
-            <span className="mx-2 text-gray-400">→</span>
-            <span className="font-medium text-gray-900">
-              {formatValue(row.new_value, EMPTY_VALUE)}
-            </span>
-          </span>
-        ),
-      },
-      {
-        key: "actions",
-        header: "Aktion",
-        align: "right",
-        render: (row) => (
-          <div className="flex flex-col items-end gap-2">
-            <input
-              type="text"
-              value={reasons[row.id] ?? ""}
-              onChange={(e) =>
-                setReasons((prev) => ({ ...prev, [row.id]: e.target.value }))
-              }
-              placeholder="Begründung (optional)"
-              className="h-8 w-44 rounded-md border-0 bg-white px-2 text-sm text-gray-900 ring-1 ring-gray-200 ring-inset focus:ring-2 focus:ring-gray-400 focus:outline-none"
-            />
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="success"
-                size="compact"
-                disabled={busyId === row.id}
-                onClick={() => void decide(row, true)}
-              >
-                Freigeben
-              </Button>
-              <Button
-                type="button"
-                variant="outline_danger"
-                size="compact"
-                disabled={busyId === row.id}
-                onClick={() => void decide(row, false)}
-              >
-                Ablehnen
-              </Button>
-            </div>
-          </div>
-        ),
-      },
-    ],
-    [reasons, busyId, decide],
-  );
-
   if (loading) return <Loading fullPage={false} />;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {error && (
         <div className="rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-3 text-sm text-[#CC2626]">
           {error}
         </div>
       )}
       {notice && (
-        <div className="rounded-xl border border-[#83CD2D]/30 bg-[#83CD2D]/10 p-3 text-sm text-[#4A7A15]">
+        <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
           {notice}
         </div>
       )}
-      <DataTable
-        columns={columns}
-        rows={rows}
-        getRowKey={(row) => row.id}
-        emptyState={
-          <span className="text-sm text-gray-500">
-            Keine offenen Änderungsanfragen.
-          </span>
-        }
-      />
+      {rows.length === 0 ? (
+        <p className="rounded-2xl border border-gray-200 bg-white p-4 text-sm text-gray-500 shadow-sm">
+          Keine offenen Änderungsanfragen.
+        </p>
+      ) : (
+        rows.map((row) => (
+          <RequestReviewCard
+            key={row.id}
+            childName={`${row.first_name} ${row.last_name}`}
+            summary={fieldLabel(row.field_key)}
+            reason={reasons[row.id] ?? ""}
+            onReasonChange={(value) =>
+              setReasons((prev) => ({ ...prev, [row.id]: value }))
+            }
+            reasonPlaceholder="Begründung (optional)"
+            busy={busyId === row.id}
+            onApprove={() => void decide(row, true)}
+            onReject={() => void decide(row, false)}
+          >
+            <ReviewDiffPanel>
+              {/* Field name lives in the collapsed summary; the expanded panel
+                  shows only the value change. */}
+              <div className="flex flex-wrap items-baseline gap-2 text-sm">
+                <span className="text-gray-400 line-through">
+                  {formatValue(row.old_value, EMPTY_VALUE)}
+                </span>
+                <span className="text-gray-400" aria-hidden="true">
+                  →
+                </span>
+                <span className="font-medium text-gray-900">
+                  {formatValue(row.new_value, EMPTY_VALUE)}
+                </span>
+              </div>
+            </ReviewDiffPanel>
+          </RequestReviewCard>
+        ))
+      )}
     </div>
   );
 }

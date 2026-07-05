@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
-	messagingService "github.com/moto-nrw/project-phoenix/services/messaging"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 )
 
@@ -179,7 +178,11 @@ type ChildFeaturesResponse struct {
 	MasterDataContactEditEnabled bool `json:"master_data_contact_edit_enabled"`
 	MasterDataRequestEnabled     bool `json:"master_data_request_enabled"`
 	MealPlanEnabled              bool `json:"meal_plan_enabled"`
-	NewsEnabled                  bool `json:"parent_news_enabled"`
+	// HasOpenChangeRequest is STATE (not a capability): the child has a pending
+	// change request awaiting an OGS decision, so the overview can badge the
+	// Stammdaten entry.
+	HasOpenChangeRequest bool `json:"has_open_change_request"`
+	NewsEnabled          bool `json:"parent_news_enabled"`
 }
 
 // getChildFeatures returns the resolved parent-portal feature flags for the
@@ -210,6 +213,7 @@ func (rs *Resource) getChildFeatures(w http.ResponseWriter, r *http.Request) {
 		MasterDataContactEditEnabled: flags.MasterDataContactEditEnabled,
 		MasterDataRequestEnabled:     flags.MasterDataRequestEnabled,
 		MealPlanEnabled:              flags.MealPlanEnabled,
+		HasOpenChangeRequest:         flags.HasOpenChangeRequest,
 		NewsEnabled:                  flags.NewsEnabled,
 	}, "Child features retrieved")
 }
@@ -341,10 +345,14 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "care_exception_conflict"))
 	case errors.Is(err, parentService.ErrCareExceptionRaced):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "care_exception_raced"))
-	case errors.Is(err, parentService.ErrParentRequestNotOpen):
+	case errors.Is(err, parentService.ErrCareRequestNotPending):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "request_not_open"))
-	case errors.Is(err, parentService.ErrParentRequestNotFound):
+	case errors.Is(err, parentService.ErrCareRequestNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
+	case errors.Is(err, parentService.ErrCareRequestAlreadyPending):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "care_request_already_pending"))
+	case errors.Is(err, parentService.ErrInvalidCareRequestPayload):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "invalid_request_payload"))
 	case errors.Is(err, parentService.ErrNoCareException):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "care_exception_no_time"))
 	case errors.Is(err, parentService.ErrPastCareDate):
@@ -391,8 +399,6 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		errors.Is(err, parentService.ErrInvalidStatus),
 		errors.Is(err, parentService.ErrEmptyNote),
 		errors.Is(err, parentService.ErrNoteTooLong),
-		errors.Is(err, parentService.ErrInvalidParentRequestType),
-		errors.Is(err, messagingService.ErrInvalidRequestPayload),
 		errors.Is(err, parentService.ErrEmailRequired),
 		errors.Is(err, parentService.ErrInvalidInviteInput):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))

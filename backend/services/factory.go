@@ -40,6 +40,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/mealplan"
 	"github.com/moto-nrw/project-phoenix/services/messaging"
 	"github.com/moto-nrw/project-phoenix/services/parent"
+	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/services/reminders"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
@@ -110,6 +111,7 @@ type Factory struct {
 	WorkTimeModels       config.WorkTimeModelService
 	Students             users.StudentService
 	MasterDataReview     users.MasterDataReviewService
+	CareRequests         schedule.CareScheduleRequestService
 	StudentStatusDays    active.StudentStatusDayService
 	StudentHistory       active.StudentHistoryService
 	TimetableData        schedule.TimetableDataService
@@ -1147,14 +1149,38 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	studentService := users.NewStudentService(repos.Student, repos.PrivacyConsent)
 
+	// Chat-pill emitter (#1803): posts non-interactive notification events
+	// into parent-OGS threads on behalf of the request/self-service flows.
+	// Best-effort and transactionally detached — see parentmessaging.Emitter.
+	pillEmitter := parentmessaging.NewEmitter(
+		db,
+		repos.ParentMessageThread,
+		repos.ParentMessage,
+		settingsService,
+		realtimeHub,
+		logger.With("service", "parent-events"),
+	)
+
+	// Care-schedule change requests (#1803): the schedule-domain request
+	// lifecycle (create / withdraw / staff decide + apply), decoupled from the
+	// chat.
+	careRequestService := schedule.NewCareScheduleRequestService(
+		repos.CareScheduleChangeRequest,
+		repos.Student,
+		repos.Person,
+		arrivalScheduleService,
+		pickupScheduleService,
+		userContextService,
+		pillEmitter,
+		realtimeHub,
+		logger.With("service", "care-requests"),
+	)
+
 	messagingService := messaging.NewService(messaging.Config{
 		ThreadRepo:  repos.ParentMessageThread,
 		MessageRepo: repos.ParentMessage,
 		ReadRepo:    repos.ParentMessageRead,
 		Persons:     usersService,
-		Students:    studentService,
-		Arrival:     arrivalScheduleService,
-		Pickup:      pickupScheduleService,
 		UserContext: userContextService,
 		Settings:    settingsService,
 		Broadcaster: realtimeHub,
@@ -1179,8 +1205,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		MessageThreadRepo:       repos.ParentMessageThread,
 		MessageRepo:             repos.ParentMessage,
 		MessageReadRepo:         repos.ParentMessageRead,
+		ArrivalSchedules:        arrivalScheduleService,
+		PickupSchedules:         pickupScheduleService,
+		CareRequests:            careRequestService,
+		Emitter:                 pillEmitter,
 		AnnouncementRepo:        repos.ParentAnnouncement,
-		DiffBuilder:             messagingService,
 		GuardianInvites:         guardianInvitationService,
 		GuardianInviteRepo:      repos.GuardianInvitation,
 		StudentGuardianRepo:     repos.StudentGuardian,
@@ -1305,7 +1334,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Schools:              platform.NewSchoolService(repos.School),
 		WorkTimeModels:       config.NewWorkTimeModelService(repos.WorkTimeModel),
 		Students:             studentService,
-		MasterDataReview:     users.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, logger.With("service", "master-data-review"), realtimeHub),
+		MasterDataReview:     users.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, userContextService, pillEmitter, logger.With("service", "master-data-review"), realtimeHub),
+		CareRequests:         careRequestService,
 		StudentStatusDays:    active.NewStudentStatusDayService(repos.StudentStatusDay),
 		StudentHistory:       active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog),
 		TimetableData: schedule.NewTimetableDataService(schedule.TimetableDataDependencies{

@@ -59,6 +59,7 @@ type Resource struct {
 	SettingsService         configService.SettingsService
 	StudentService          userService.StudentService
 	MasterDataReviewService userService.MasterDataReviewService
+	CareRequestService      scheduleService.CareScheduleRequestService
 	StudentStatusDayService activeService.StudentStatusDayService
 	StudentHistoryService   activeService.StudentHistoryService
 	ActivityService         activityService.ActivityService
@@ -88,6 +89,7 @@ type ResourceConfig struct {
 	SettingsService         configService.SettingsService
 	StudentService          userService.StudentService
 	MasterDataReviewService userService.MasterDataReviewService
+	CareRequestService      scheduleService.CareScheduleRequestService
 	StudentStatusDayService activeService.StudentStatusDayService
 	StudentHistoryService   activeService.StudentHistoryService
 	ActivityService         activityService.ActivityService
@@ -122,6 +124,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		SettingsService:         cfg.SettingsService,
 		StudentService:          cfg.StudentService,
 		MasterDataReviewService: cfg.MasterDataReviewService,
+		CareRequestService:      cfg.CareRequestService,
 		StudentStatusDayService: cfg.StudentStatusDayService,
 		StudentHistoryService:   cfg.StudentHistoryService,
 		ActivityService:         cfg.ActivityService,
@@ -165,12 +168,27 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/enrollment-extra-fields", rs.getStudentEnrollmentExtraFields)
 
 		// Parent Stammdaten change-request review queue (Track B). Requests can
-		// contain parent-submitted name, birthday, and departure-plan changes,
-		// so both listing and terminal decisions require admin-level user
-		// management access. Static paths take precedence over the /{id} param
-		// route in chi.
-		r.With(authorize.RequiresPermission(permissions.UsersManage), withTx).Get("/master-data-change-requests", rs.listMasterDataChangeRequests)
-		r.With(authorize.RequiresPermission(permissions.UsersManage), withTx).Post("/master-data-change-requests/{requestId}/decide", rs.decideMasterDataChangeRequest)
+		// contain parent-submitted name, birthday, and departure-plan changes.
+		// Gated on users:update — the same permission as editing a child directly
+		// (PUT /{id}) — because deciding a request is that same write. The service
+		// additionally scopes both the list and the decision per child (admin or
+		// the child's group supervisor), so a supervisor sees and decides only
+		// their own group's requests. Static paths take precedence over the /{id}
+		// param route in chi.
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Get("/master-data-change-requests", rs.listMasterDataChangeRequests)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/master-data-change-requests/{requestId}/decide", rs.decideMasterDataChangeRequest)
+
+		// Parent care-schedule change-request review queue (#1803). Decisions
+		// rewrite the child's permanent weekly plan, so they share the users:update
+		// gate + per-child write scope of the master-data queue — both are decided
+		// on the same Änderungsanfragen page.
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Get("/care-schedule-change-requests", rs.listCareScheduleChangeRequests)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/care-schedule-change-requests/{requestId}/decide", rs.decideCareScheduleChangeRequest)
+
+		// Combined pending count across both review queues, driving the
+		// Änderungsanfragen sidebar badge. Same users:update gate + per-child
+		// scope as the queues it summarizes (the count sums their scoped lists).
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Get("/change-requests/pending-count", rs.pendingChangeRequestCount)
 
 		// Routes requiring users:create permission
 		r.With(authorize.RequiresPermission(permissions.UsersCreate), withTx).Post("/", rs.createStudent)

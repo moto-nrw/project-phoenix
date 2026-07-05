@@ -105,6 +105,8 @@ func (rs *Resource) decideMasterDataChangeRequest(w http.ResponseWriter, r *http
 		switch {
 		case errors.Is(err, userService.ErrReviewNotFound):
 			renderError(w, r, ErrorNotFound(err))
+		case errors.Is(err, userService.ErrReviewForbidden):
+			renderError(w, r, ErrorForbidden(err))
 		case errors.Is(err, userService.ErrReviewNotPending):
 			renderError(w, r, ErrorConflictWithCode(err, "change_request_not_pending"))
 		case errors.Is(err, userService.ErrReviewStaleValue):

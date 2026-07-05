@@ -1440,8 +1440,7 @@ describe("authConfig", () => {
           p.type === "credentials",
       );
       const provider = providers[0] as unknown as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
       const opts = provider?.options as Record<string, unknown> | undefined;
       return opts?.authorize as (
         credentials: Record<string, string> | undefined,
@@ -1663,8 +1662,7 @@ describe("authConfig", () => {
           p.type === "credentials",
       );
       const provider = providers[0] as unknown as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
       const opts = provider?.options as Record<string, unknown> | undefined;
       return opts?.authorize as (
         credentials: Record<string, string> | undefined,

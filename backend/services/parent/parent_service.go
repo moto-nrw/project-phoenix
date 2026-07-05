@@ -29,6 +29,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -182,17 +184,20 @@ type Service interface {
 	// operations.parent_notes_enabled.
 	PostChildMessage(ctx context.Context, accountID, studentID int64, body string) (*MessageThreadView, error)
 
-	// CreateChildRequest appends a structured parent change request (care
-	// schedule or student master data) to the child's conversation and notifies
-	// the OGS. Requires parent_portal.request.submit; gated by
-	// operations.parent_notes_enabled.
-	CreateChildRequest(ctx context.Context, accountID, studentID int64, requestType string, payload map[string]any) (*MessageThreadView, error)
+	// GetChildCareSchedule returns the child's permanent weekly care plan
+	// (arrival/pickup times + departure modes per weekday) with any pending
+	// change request — the Stammdaten read view. Authorization only.
+	GetChildCareSchedule(ctx context.Context, accountID, studentID int64) (*ChildCareSchedule, error)
 
-	// WithdrawChildRequest flips an open guardian request to withdrawn and posts
-	// a parent-visible system event. Requires parent_portal.request.submit;
-	// deliberately stays available after messaging is disabled so outstanding
-	// requests can still be wound down.
-	WithdrawChildRequest(ctx context.Context, accountID, studentID, requestID int64) (*MessageThreadView, error)
+	// CreateCareScheduleRequest stores a pending care-schedule change request
+	// for staff review on the Änderungsanfragen page. Requires
+	// parent_portal.request.submit; gated by operations.parent_notes_enabled.
+	CreateCareScheduleRequest(ctx context.Context, accountID, studentID int64, payload map[string]any) (*ChildCareSchedule, error)
+
+	// WithdrawCareScheduleRequest flips the caller's own pending request to
+	// withdrawn. Requires parent_portal.request.submit; stays available after
+	// messaging is disabled so outstanding requests can be wound down.
+	WithdrawCareScheduleRequest(ctx context.Context, accountID, studentID, requestID int64) (*ChildCareSchedule, error)
 
 	// ListAnnouncements returns the guardian's parent-news feed across all their
 	// (news-enabled) children's schools, newest-published first, each with the
@@ -247,6 +252,14 @@ type ChildFeatureFlags struct {
 	// (operations.meal_plan_enabled), so the portal can show the read-only
 	// Essensplan section for this child's school.
 	MealPlanEnabled bool
+	// HasOpenChangeRequest is STATE, not a capability: true when the child has at
+	// least one pending change request (master data OR care schedule) awaiting an
+	// OGS decision. It rides along on the features fetch (the one call the child
+	// overview already makes) so the overview can badge the Stammdaten entry
+	// without pulling the full master-data + care-schedule payloads. The details
+	// still live on the Stammdaten page. Defaults false, so a fetch failure never
+	// shows a phantom badge.
+	HasOpenChangeRequest bool
 	// NewsEnabled is true when the school broadcasts parent announcements
 	// (operations.parent_news_enabled), so the portal can advertise the
 	// Neuigkeiten feed for this child's school. When every linked school has
@@ -292,6 +305,16 @@ type ServiceConfig struct {
 	Settings             configService.SettingsService
 	Broadcaster          realtime.Broadcaster
 
+	// Weekly care plan read view + change requests (#1803).
+	ArrivalSchedules scheduleSvc.ArrivalScheduleService
+	PickupSchedules  scheduleSvc.PickupScheduleService
+	CareRequests     scheduleSvc.CareScheduleRequestService
+
+	// Emitter posts notification pills into the child's parent-OGS thread for
+	// self-service actions (sick note, one-day pickup change) and master-data
+	// request submissions. Best-effort, after-commit only.
+	Emitter *parentmessaging.Emitter
+
 	// Meal plan (Essensplan) read access for the child's school.
 	MealPlanRepo mealplanModels.MealPlanEntryRepository
 
@@ -299,10 +322,6 @@ type ServiceConfig struct {
 	MessageThreadRepo usersModels.ParentMessageThreadRepository
 	MessageRepo       usersModels.ParentMessageRepository
 	MessageReadRepo   usersModels.ParentMessageReadRepository
-	// DiffBuilder reuses the staff messaging service's request-diff logic so the
-	// guardian's own request card shows the same "current → requested" view staff
-	// see. Satisfied by services/messaging.Service.
-	DiffBuilder requestDiffBuilder
 
 	// Parent announcements (broadcast news feed).
 	AnnouncementRepo usersModels.ParentAnnouncementRepository
@@ -341,12 +360,16 @@ type service struct {
 	settings             configService.SettingsService
 	broadcaster          realtime.Broadcaster
 
+	arrivalSchedules scheduleSvc.ArrivalScheduleService
+	pickupSchedules  scheduleSvc.PickupScheduleService
+	careRequests     scheduleSvc.CareScheduleRequestService
+	emitter          *parentmessaging.Emitter
+
 	mealPlanRepo mealplanModels.MealPlanEntryRepository
 
 	messageThreadRepo usersModels.ParentMessageThreadRepository
 	messageRepo       usersModels.ParentMessageRepository
 	messageReadRepo   usersModels.ParentMessageReadRepository
-	diffBuilder       requestDiffBuilder
 
 	announcementRepo usersModels.ParentAnnouncementRepository
 
@@ -381,13 +404,16 @@ func NewService(cfg ServiceConfig) Service {
 		arrivalExceptionRepo:    cfg.ArrivalExceptionRepo,
 		settings:                cfg.Settings,
 		broadcaster:             cfg.Broadcaster,
+		arrivalSchedules:        cfg.ArrivalSchedules,
+		pickupSchedules:         cfg.PickupSchedules,
+		careRequests:            cfg.CareRequests,
+		emitter:                 cfg.Emitter,
 		personRepo:              cfg.PersonRepo,
 		changeRequestRepo:       cfg.ChangeRequestRepo,
 		messageThreadRepo:       cfg.MessageThreadRepo,
 		messageRepo:             cfg.MessageRepo,
 		messageReadRepo:         cfg.MessageReadRepo,
 		announcementRepo:        cfg.AnnouncementRepo,
-		diffBuilder:             cfg.DiffBuilder,
 		guardianInvites:         cfg.GuardianInvites,
 		guardianInviteRepo:      cfg.GuardianInviteRepo,
 		studentGuardianRepo:     cfg.StudentGuardianRepo,

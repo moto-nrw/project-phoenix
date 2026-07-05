@@ -20,6 +20,20 @@ const (
 	ParentMessageRequestStatusRejected  = "abgelehnt"
 	ParentMessageRequestStatusWithdrawn = "zurueckgezogen"
 	ParentMessageRequestCareSchedule    = "care_schedule"
+	// ParentMessageRequestMasterData tags notification pills for Stammdaten
+	// change requests (users.student_data_change_requests). Unlike
+	// care_schedule it was never a chat-request kind — it only ever appears on
+	// kind='event' rows.
+	ParentMessageRequestMasterData = "master_data"
+
+	// Event types for kind='event' system pills that mirror a change request's
+	// lifecycle. ParentMessageEventRequestCreated marks a submitted request (its
+	// actionable signal is the Änderungsanfragen queue badge, NOT the unread chat
+	// count — see IsCounterpartMessage / counterpartUnread); ParentMessageEventRequestStatus
+	// CLOSES it (done / rejected / withdrawn). Kept as constants so the model
+	// helpers, the emitter's reconcile gate, and the SQL predicate stay aligned.
+	ParentMessageEventRequestCreated = "request_created"
+	ParentMessageEventRequestStatus  = "request_status"
 )
 
 // ParentMessage is a single message in a child's parent-OGS thread.
@@ -161,7 +175,20 @@ func StampGuardianReadReceipts(messages []*ParentMessage, cutoff *ReadCursor) {
 // messages the unread count considers — advancing past a later staff/system row
 // (not the reader's, but not a counterpart either) would skip an earlier
 // counterpart message still committing in a concurrent send/read race.
+//
+// request_created pills are excluded here in lock-step with counterpartUnread's
+// `event_type IS DISTINCT FROM 'request_created'`: a submitted request is
+// surfaced on the Änderungsanfragen queue badge, never as an unread chat message,
+// so the unread SQL ignores it. Without the SAME exclusion here, MarkReadToNewest
+// would advance the read cursor onto such a pill when it is the newest
+// guardian-side row — leaping past an earlier, still-committing guardian message
+// (lower created_at, later commit) that the unread query would then never surface.
+// For a guardian reader it is a no-op (a guardian-side pill is not their
+// counterpart anyway), so this only affects the staff side, exactly like the SQL.
 func IsCounterpartMessage(msg *ParentMessage, staffReader bool) bool {
+	if msg.EventType == ParentMessageEventRequestCreated {
+		return false
+	}
 	side := ParentMessageSenderStaff
 	if staffReader {
 		side = ParentMessageSenderGuardian
@@ -201,4 +228,9 @@ type ParentMessageRepository interface {
 	// ListByThread returns a thread's messages oldest-first (chat order).
 	// limit <= 0 returns all.
 	ListByThread(ctx context.Context, threadID int64, limit int) ([]*ParentMessage, error)
+	// FindEventByRef returns the system-event message referencing a specific
+	// record (event_type + ref_table + ref_id) in a thread, or nil when none
+	// exists. Locates a change request's "request created" pill so a decision
+	// can mark it read for the deciding admin.
+	FindEventByRef(ctx context.Context, threadID int64, eventType, refTable string, refID int64) (*ParentMessage, error)
 }
