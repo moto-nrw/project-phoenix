@@ -18,6 +18,7 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/xuri/excelize/v2"
@@ -74,6 +75,7 @@ type SessionResponse struct {
 	RestPeriodWarning *string                          `json:"rest_period_warning,omitempty"`
 	Breaks            []*activeModels.WorkSessionBreak `json:"breaks"`
 	EditCount         int                              `json:"edit_count"`
+	AuditCount        int                              `json:"audit_count"`
 }
 
 // WeeklySummary aggregates work session data per ISO week
@@ -170,6 +172,17 @@ type WorkSessionService interface {
 	GetSessionEditsForStaff(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error)
 	GetTodayPresenceMap(ctx context.Context) (map[int64]string, error)
 	CleanupOpenSessions(ctx context.Context) (int, error)
+	// AutoCheckoutDueSessions closes open sessions whose staff member has a
+	// planned shift (schedule.staff_shifts) that ended more than `grace` ago,
+	// stamping the checkout at the planned shift end (#1798). Sessions
+	// without a shift on their date are untouched (the nightly
+	// CleanupOpenSessions still catches them); sessions checked in after the
+	// shift end are skipped. Each close is marked AutoCheckedOut and audited
+	// with the SystemEditorID actor. No-op when no shift repo is injected.
+	AutoCheckoutDueSessions(ctx context.Context, grace time.Duration) (int, error)
+	// SetStaffShiftRepo injects the planned-shift repository consumed by
+	// AutoCheckoutDueSessions (wired by the factory after construction).
+	SetStaffShiftRepo(repo scheduleModels.StaffShiftRepository)
 	// EnsureCheckedIn opens today's session if the staff member has no active
 	// row. The caller passes `source` (`app`/`nfc`) to record which channel
 	// triggered the auto-stamp; this avoids hard-coding the channel inside
@@ -206,7 +219,16 @@ type workSessionService struct {
 	staffRepo      userModels.StaffRepository
 	scheduleRepo   configModels.StaffWorkScheduleRepository
 	workModelRepo  configModels.WorkTimeModelRepository
+	staffShiftRepo scheduleModels.StaffShiftRepository
 	logger         *slog.Logger
+}
+
+// SetStaffShiftRepo injects the planned-shift repository used by
+// AutoCheckoutDueSessions (#1798). Setter instead of a constructor param to
+// keep the already long NewWorkSessionService signature stable; the factory
+// calls it right after construction.
+func (s *workSessionService) SetStaffShiftRepo(repo scheduleModels.StaffShiftRepository) {
+	s.staffShiftRepo = repo
 }
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
@@ -296,8 +318,10 @@ func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status,
 // differs from the existing one. The caller is expected to follow up
 // with UpdateSession (which gates on a notes reason).
 func (s *workSessionService) reopenSession(ctx context.Context, session *activeModels.WorkSession, staffID int64) (*activeModels.WorkSession, error) {
+	now := time.Now()
 	session.CheckOutTime = nil
 	session.AutoCheckedOut = false
+	session.ReopenedAt = &now
 	session.UpdatedBy = &staffID
 
 	if err := session.Validate(); err != nil {
@@ -327,14 +351,18 @@ func (s *workSessionService) CheckOut(ctx context.Context, staffID int64) (*acti
 	}
 
 	// End any active break before checkout
-	if err := s.endActiveBreakIfExists(ctx, session.ID); err != nil {
+	now := time.Now()
+	if err := s.endActiveBreakIfExists(ctx, session.ID, now); err != nil {
 		return nil, err
 	}
 
 	// Close the session using repository method
-	now := time.Now()
-	if err := s.repo.CloseSession(ctx, session.ID, now, false); err != nil {
+	closed, err := s.repo.CloseSession(ctx, session.ID, now, false)
+	if err != nil {
 		return nil, fmt.Errorf("failed to close session: %w", err)
+	}
+	if !closed {
+		return nil, errors.New(errNoActiveSession)
 	}
 
 	// End all active supervisions for this staff member (fire-and-forget)
@@ -349,8 +377,10 @@ func (s *workSessionService) CheckOut(ctx context.Context, staffID int64) (*acti
 	return updatedSession, nil
 }
 
-// endActiveBreakIfExists ends any active break for a session and recalculates break minutes.
-func (s *workSessionService) endActiveBreakIfExists(ctx context.Context, sessionID int64) error {
+// endActiveBreakIfExists ends any active break for a session at endAt and
+// recalculates break minutes. endAt must not be after the session's checkout
+// time, or break rows end up ending after check_out_time.
+func (s *workSessionService) endActiveBreakIfExists(ctx context.Context, sessionID int64, endAt time.Time) error {
 	activeBreak, err := s.breakRepo.GetActiveBySessionID(ctx, sessionID)
 	if err != nil {
 		return fmt.Errorf("failed to check active break: %w", err)
@@ -359,9 +389,13 @@ func (s *workSessionService) endActiveBreakIfExists(ctx context.Context, session
 		return nil
 	}
 
-	now := time.Now()
-	duration := int(math.Round(now.Sub(activeBreak.StartedAt).Minutes()))
-	if err := s.breakRepo.EndBreak(ctx, activeBreak.ID, now, duration); err != nil {
+	// A break started after endAt (e.g. during the auto-checkout grace
+	// window) is capped to zero length instead of a negative duration.
+	if endAt.Before(activeBreak.StartedAt) {
+		endAt = activeBreak.StartedAt
+	}
+	duration := int(math.Round(endAt.Sub(activeBreak.StartedAt).Minutes()))
+	if err := s.breakRepo.EndBreak(ctx, activeBreak.ID, endAt, duration); err != nil {
 		return fmt.Errorf("failed to end active break: %w", err)
 	}
 
@@ -394,7 +428,7 @@ func (s *workSessionService) endActiveSupervisionsOnCheckout(ctx context.Context
 // If plannedDurationMinutes is provided (1-120), sets planned_end_time for auto-end
 func (s *workSessionService) StartBreak(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error) {
 	// Get today's active session
-	session, err := s.repo.GetCurrentByStaffID(ctx, staffID)
+	session, err := s.repo.GetCurrentByStaffIDForUpdate(ctx, staffID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New(errNoActiveSession)
@@ -889,10 +923,15 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 		sessionIDs[i] = session.ID
 	}
 
-	// Batch fetch edit counts
-	editCounts, err := s.auditRepo.CountBySessionIDs(ctx, sessionIDs)
+	// Batch fetch manual edit counts. System-authored edits (auto-checkout)
+	// are excluded so they don't surface as "Manuell korrigiert".
+	editCounts, err := s.auditRepo.CountManualBySessionIDs(ctx, sessionIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get edit counts: %w", err)
+	}
+	auditCounts, err := s.auditRepo.CountBySessionIDs(ctx, sessionIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get audit counts: %w", err)
 	}
 
 	// Wrap each session in SessionResponse with calculated fields and breaks
@@ -911,6 +950,7 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 			IsBreakCompliant: isBreakCompliant(session, now),
 			Breaks:           breaks,
 			EditCount:        editCounts[session.ID],
+			AuditCount:       auditCounts[session.ID],
 		}
 	}
 
@@ -1213,7 +1253,9 @@ func (s *workSessionService) loadSessionEditsView(ctx context.Context, session *
 	views := make([]*WorkSessionEditView, len(edits))
 	for i, e := range edits {
 		name := ""
-		if staff, ok := staffMap[e.EditedBy]; ok && staff != nil && staff.Person != nil {
+		if e.EditedBy == auditModels.SystemEditorID {
+			name = "System"
+		} else if staff, ok := staffMap[e.EditedBy]; ok && staff != nil && staff.Person != nil {
 			name = strings.TrimSpace(staff.Person.FirstName + " " + staff.Person.LastName)
 		}
 		views[i] = &WorkSessionEditView{
@@ -1248,24 +1290,215 @@ func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, erro
 
 	count := 0
 	for _, session := range openSessions {
+		// Set check-out time to 23:59:59 of the session date in Berlin timezone.
+		endOfDay := session.Date.EndOfDay()
+
 		// End any active break before closing the session
-		if err := s.endActiveBreakIfExists(ctx, session.ID); err != nil {
+		if err := s.endActiveBreakIfExists(ctx, session.ID, endOfDay); err != nil {
 			s.getLogger().WarnContext(ctx, "failed to end active break during cleanup",
 				slog.Int64("session_id", session.ID),
 				slog.String("error", err.Error()))
 			// Continue cleanup even if break ending fails
 		}
 
-		// Set check-out time to 23:59:59 of the session date in Berlin timezone.
-		endOfDay := session.Date.EndOfDay()
-
-		if err := s.repo.CloseSession(ctx, session.ID, endOfDay, true); err != nil {
+		closed, err := s.repo.CloseSession(ctx, session.ID, endOfDay, true)
+		if err != nil {
 			return count, fmt.Errorf("failed to close session %d: %w", session.ID, err)
 		}
+		if closed {
+			count++
+		}
+	}
+
+	return count, nil
+}
+
+// AutoCheckoutDueSessions closes open sessions at their planned shift end (#1798).
+func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace time.Duration) (int, error) {
+	if s.staffShiftRepo == nil {
+		return 0, nil
+	}
+
+	now := timezone.Now()
+	// GetOpenSessions filters date < beforeDate; passing tomorrow includes
+	// today's open sessions, which is where forgotten checkouts live.
+	tomorrow := timezone.TodayDate().AddDays(1)
+	openSessions, err := s.repo.GetOpenSessions(ctx, tomorrow)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get open sessions: %w", err)
+	}
+	if len(openSessions) == 0 {
+		return 0, nil
+	}
+
+	// Batch the shift lookups per session date; latest shift end per staff wins.
+	latestEndByDate := make(map[timezone.Date]map[int64]*scheduleModels.StaffShift)
+	byDate := make(map[timezone.Date][]int64)
+	for _, session := range openSessions {
+		byDate[session.Date] = append(byDate[session.Date], session.StaffID)
+	}
+	for date, staffIDs := range byDate {
+		shifts, err := s.staffShiftRepo.FindByStaffIDsAndDate(ctx, staffIDs, date)
+		if err != nil {
+			return 0, fmt.Errorf("failed to load shifts for %s: %w", date.String(), err)
+		}
+		latest := make(map[int64]*scheduleModels.StaffShift, len(shifts))
+		for _, shift := range shifts {
+			current, ok := latest[shift.StaffID]
+			if !ok || shift.EndInstant().After(current.EndInstant()) {
+				latest[shift.StaffID] = shift
+			}
+		}
+		latestEndByDate[date] = latest
+	}
+
+	tenantID := tenant.FromContext(ctx)
+	count := 0
+	for _, listedSession := range openSessions {
+		session, err := s.repo.LockOpenByIDForUpdate(ctx, listedSession.ID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				s.getLogger().InfoContext(ctx, "skipping auto-checkout side effects because session was already closed",
+					slog.Int64("session_id", listedSession.ID),
+					slog.Int64("staff_id", listedSession.StaffID))
+				continue
+			}
+			return count, fmt.Errorf("failed to lock auto-checkout session %d: %w", listedSession.ID, err)
+		}
+
+		shift, ok := latestEndByDate[session.Date][session.StaffID]
+		if !ok {
+			continue // no shift planned that day — nightly cleanup handles it
+		}
+		closeAt := shift.EndInstant()
+		if !now.After(closeAt.Add(grace)) {
+			continue // not yet due
+		}
+		if !closeAt.After(autoCheckoutEffectiveStart(session)) {
+			// Checked in or reopened after the planned shift end — never
+			// fabricate a checkout before the effective work start.
+			continue
+		}
+
+		breaks, err := s.breakRepo.GetBySessionID(ctx, session.ID)
+		if err != nil {
+			s.getLogger().WarnContext(ctx, "failed to inspect breaks during auto-checkout",
+				slog.Int64("session_id", session.ID),
+				slog.String("error", err.Error()))
+			continue
+		}
+
+		_, lateBreak := activeBreakAndLateBreakAfter(breaks, closeAt)
+		if lateBreak != nil {
+			attrs := []any{
+				slog.Int64("session_id", session.ID),
+				slog.Int64("break_id", lateBreak.ID),
+				slog.Time("break_started_at", lateBreak.StartedAt),
+				slog.Time("planned_end", closeAt),
+			}
+			if lateBreak.EndedAt != nil {
+				attrs = append(attrs, slog.Time("break_ended_at", *lateBreak.EndedAt))
+			}
+			s.getLogger().WarnContext(ctx, "skipping auto-checkout because a break crosses planned shift end", attrs...)
+			continue
+		}
+
+		closed, err := s.repo.CloseSession(ctx, session.ID, closeAt, true)
+		if err != nil {
+			return count, fmt.Errorf("failed to auto-checkout session %d: %w", session.ID, err)
+		}
+		if !closed {
+			s.getLogger().InfoContext(ctx, "skipping auto-checkout side effects because session was already closed",
+				slog.Int64("session_id", session.ID),
+				slog.Int64("staff_id", session.StaffID))
+			continue
+		}
+
+		breaks, err = s.breakRepo.GetBySessionID(ctx, session.ID)
+		if err != nil {
+			return count, fmt.Errorf("failed to re-inspect breaks after auto-checkout close for session %d: %w", session.ID, err)
+		}
+		activeBreak, lateBreak := activeBreakAndLateBreakAfter(breaks, closeAt)
+		if lateBreak != nil {
+			return count, fmt.Errorf("late break detected after auto-checkout close for session %d", session.ID)
+		}
+
+		if activeBreak != nil {
+			if err := s.endActiveBreak(ctx, session.ID, activeBreak, closeAt); err != nil {
+				return count, fmt.Errorf("failed to end active break during auto-checkout for session %d: %w", session.ID, err)
+			}
+		}
+
+		// End open supervisions, exactly like manual checkout does.
+		s.endActiveSupervisionsOnCheckout(ctx, session.StaffID)
+
+		newVal := closeAt.Format(time.RFC3339)
+		note := "Automatische Ausstempelung zum geplanten Schichtende"
+		edit := &auditModels.WorkSessionEdit{
+			SessionID: session.ID,
+			StaffID:   session.StaffID,
+			EditedBy:  auditModels.SystemEditorID,
+			FieldName: auditModels.FieldCheckOutTime,
+			OldValue:  nil,
+			NewValue:  &newVal,
+			Notes:     &note,
+		}
+		edit.SetTenantID(tenantID)
+		if err := s.auditRepo.CreateBatch(ctx, []*auditModels.WorkSessionEdit{edit}); err != nil {
+			// The scheduler runs this inside a per-tenant transaction, so
+			// returning here rolls the unaudited checkout back with it.
+			return count, fmt.Errorf("failed to write auto-checkout audit entry for session %d: %w", session.ID, err)
+		}
+
+		s.getLogger().InfoContext(ctx, "session auto-checked-out at planned shift end",
+			slog.Int64("session_id", session.ID),
+			slog.Int64("staff_id", session.StaffID),
+			slog.String("check_out_time", newVal))
 		count++
 	}
 
 	return count, nil
+}
+
+func autoCheckoutEffectiveStart(session *activeModels.WorkSession) time.Time {
+	if session == nil {
+		return time.Time{}
+	}
+	if session.ReopenedAt != nil {
+		return *session.ReopenedAt
+	}
+	return session.CheckInTime
+}
+
+func activeBreakAndLateBreakAfter(breaks []*activeModels.WorkSessionBreak, closeAt time.Time) (*activeModels.WorkSessionBreak, *activeModels.WorkSessionBreak) {
+	var activeBreak *activeModels.WorkSessionBreak
+	for _, brk := range breaks {
+		if brk == nil {
+			continue
+		}
+		if brk.EndedAt == nil {
+			activeBreak = brk
+		}
+		if brk.StartedAt.After(closeAt) {
+			return activeBreak, brk
+		}
+		if brk.EndedAt != nil && brk.EndedAt.After(closeAt) {
+			return activeBreak, brk
+		}
+	}
+	return activeBreak, nil
+}
+
+func (s *workSessionService) endActiveBreak(ctx context.Context, sessionID int64, activeBreak *activeModels.WorkSessionBreak, endAt time.Time) error {
+	duration := int(math.Round(endAt.Sub(activeBreak.StartedAt).Minutes()))
+	if err := s.breakRepo.EndBreak(ctx, activeBreak.ID, endAt, duration); err != nil {
+		return fmt.Errorf("failed to end active break: %w", err)
+	}
+
+	if err := s.recalcBreakMinutes(ctx, sessionID); err != nil {
+		return fmt.Errorf("failed to update break minutes: %w", err)
+	}
+	return nil
 }
 
 // EnsureCheckedIn ensures a staff member is checked in, creating a session if needed.

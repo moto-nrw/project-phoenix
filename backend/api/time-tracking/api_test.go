@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -15,6 +16,7 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
@@ -273,6 +275,10 @@ func (m *mockWorkSessionService) GetTodayPresenceMap(ctx context.Context) (map[i
 	return map[int64]string{}, nil
 }
 func (m *mockWorkSessionService) CleanupOpenSessions(_ context.Context) (int, error) { return 0, nil }
+func (m *mockWorkSessionService) AutoCheckoutDueSessions(_ context.Context, _ time.Duration) (int, error) {
+	return 0, nil
+}
+func (m *mockWorkSessionService) SetStaffShiftRepo(_ scheduleModels.StaffShiftRepository) {}
 func (m *mockWorkSessionService) EnsureCheckedIn(_ context.Context, _ int64, _ string) (*activeModels.WorkSession, error) {
 	return nil, nil
 }
@@ -463,7 +469,7 @@ func defaultPersonSvc() *mockPersonService {
 }
 
 func testResource(wsSvc *mockWorkSessionService, absSvc *mockStaffAbsenceService, pSvc *mockPersonService, db *bun.DB) *Resource {
-	return NewResource(wsSvc, absSvc, pSvc, nil, db)
+	return NewResource(wsSvc, absSvc, pSvc, nil, nil, db)
 }
 
 func withClaims(r *http.Request, claims jwt.AppClaims) *http.Request {
@@ -530,7 +536,7 @@ func TestCheckInRequest_Bind(t *testing.T) {
 // --- NewResource ---
 
 func TestNewResource(t *testing.T) {
-	rs := NewResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), &mockSettingsService{}, nil)
+	rs := NewResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), &mockSettingsService{}, nil, nil)
 	assert.NotNil(t, rs)
 	assert.NotNil(t, rs.WorkSessionService)
 	assert.NotNil(t, rs.StaffAbsenceService)

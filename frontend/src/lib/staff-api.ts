@@ -366,8 +366,7 @@ class StaffService {
     }
 
     const staffData = (await staffResponse.json()) as
-      | BackendStaffResponse[]
-      | { data: BackendStaffResponse[] };
+      BackendStaffResponse[] | { data: BackendStaffResponse[] };
     const staffList = extractStaffList(staffData);
     const staffGroupsMap = buildStaffGroupsMap(activeGroups);
 
@@ -436,8 +435,7 @@ class StaffService {
       }
 
       const data = (await response.json()) as
-        | ActiveSupervisionResponse[]
-        | { data: ActiveSupervisionResponse[] };
+        ActiveSupervisionResponse[] | { data: ActiveSupervisionResponse[] };
 
       if (Array.isArray(data)) {
         return data;
@@ -551,8 +549,7 @@ interface UpdateScheduleTemplateRequest {
 }
 
 export type UpdateScheduleRequest =
-  | UpdateScheduleCustomRequest
-  | UpdateScheduleTemplateRequest;
+  UpdateScheduleCustomRequest | UpdateScheduleTemplateRequest;
 
 class StaffScheduleService {
   async getSchedule(staffId: string): Promise<StaffSchedule> {
@@ -657,6 +654,7 @@ export interface StaffHistorySession {
   auto_checked_out?: boolean;
   notes?: string;
   edit_count?: number;
+  audit_count?: number;
 }
 
 class StaffHistoryService {

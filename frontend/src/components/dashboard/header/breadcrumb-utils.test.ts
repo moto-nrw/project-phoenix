@@ -105,6 +105,10 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/staff")).toBe("Mitarbeiter");
       });
 
+      it("should return 'Dienstplan' for /staff/dienstplan", () => {
+        expect(getPageTitle("/staff/dienstplan")).toBe("Dienstplan");
+      });
+
       it("should return 'Aktivitäten' for /activities", () => {
         expect(getPageTitle("/activities")).toBe("Aktivitäten");
       });
@@ -390,4 +394,8 @@ describe("breadcrumb-utils", () => {
       });
     });
   });
+});
+it("does not treat Dienstplan as a staff detail page", () => {
+  const info = getPageTypeInfo("/staff/dienstplan");
+  expect(info.isStaffDetailPage).toBe(false);
 });

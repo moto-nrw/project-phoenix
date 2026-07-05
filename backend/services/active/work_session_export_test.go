@@ -1033,8 +1033,8 @@ func TestWSCleanupOpenSessions_CloseSessionError(t *testing.T) {
 		}, nil
 	}
 
-	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) error {
-		return errors.New("close error")
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) (bool, error) {
+		return false, errors.New("close error")
 	}
 
 	count, err := svc.CleanupOpenSessions(context.Background())
@@ -1177,8 +1177,8 @@ func TestWSCheckOut_CloseSessionError(t *testing.T) {
 		return nil, nil
 	}
 
-	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) error {
-		return errors.New("close error")
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) (bool, error) {
+		return false, errors.New("close error")
 	}
 
 	session, err := svc.CheckOut(context.Background(), 100)
@@ -1202,8 +1202,8 @@ func TestWSCheckOut_FindByIDError(t *testing.T) {
 		return nil, nil
 	}
 
-	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) error {
-		return nil
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) (bool, error) {
+		return true, nil
 	}
 
 	supervisorRepo.endAllActiveByStaffIDFunc = func(_ context.Context, _ int64) (int, error) {

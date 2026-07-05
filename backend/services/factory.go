@@ -71,6 +71,7 @@ type Factory struct {
 	IoT                      iot.Service
 	Settings                 config.SettingsService
 	Schedule                 schedule.Service
+	StaffShifts              schedule.StaffShiftService
 	PickupSchedule           schedule.PickupScheduleService
 	ArrivalSchedule          schedule.ArrivalScheduleService
 	CalendarPeriod           schedule.CalendarPeriodService
@@ -295,6 +296,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	// Initialize work session service (before active service - needed for NFC auto-check-in)
 	workSessionService := active.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, repos.WorkSessionEdit, repos.StaffAbsence, repos.GroupSupervisor, repos.Staff, repos.StaffWorkSchedule, repos.WorkTimeModel, activeLogger)
+	// Planned-shift lookups for the auto-checkout job (#1798).
+	workSessionService.SetStaffShiftRepo(repos.StaffShift)
 
 	// Initialize staff absence service
 	staffAbsenceService := active.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota, repos.StaffAbsenceAudit)
@@ -415,6 +418,14 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.Dateframe,
 		repos.Timeframe,
 		repos.RecurrenceRule,
+	)
+
+	// Initialize staff shift service (Dienstplan, #1376 core slice)
+	staffShiftService := schedule.NewStaffShiftService(
+		repos.StaffShift,
+		repos.Staff,
+		db,
+		logger.With("service", "staff_shift"),
 	)
 
 	// Initialize pickup schedule service
@@ -790,6 +801,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		GroupSubstitutionRepo:  repos.GroupSubstitution,
 		ActivitySupervisorRepo: repos.ActivitySupervisor,
 		InstanceStaffRepo:      repos.InstanceStaff,
+		StaffShiftRepo:         repos.StaffShift,
 		StaffAbsenceRepo:       repos.StaffAbsence,
 		AccountTenantRepo:      repos.AccountTenant,
 		RoleRepo:               repos.Role,
@@ -1249,6 +1261,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		IoT:                      iotService,
 		Settings:                 settingsService,
 		Schedule:                 scheduleService,
+		StaffShifts:              staffShiftService,
 		PickupSchedule:           pickupScheduleService,
 		ArrivalSchedule:          arrivalScheduleService,
 		CalendarPeriod:           calendarPeriodService,

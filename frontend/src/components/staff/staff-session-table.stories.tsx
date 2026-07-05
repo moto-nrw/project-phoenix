@@ -40,6 +40,7 @@ const sessions: StaffHistorySession[] = [
     check_out_time: "2026-06-08T15:00:00Z",
     break_minutes: 30,
     edit_count: 0,
+    audit_count: 0,
   },
   {
     id: 2,
@@ -51,6 +52,7 @@ const sessions: StaffHistorySession[] = [
     check_out_time: "2026-06-09T14:30:00Z",
     break_minutes: 30,
     edit_count: 1,
+    audit_count: 1,
   },
   {
     id: 3,
@@ -63,6 +65,7 @@ const sessions: StaffHistorySession[] = [
     break_minutes: 0,
     auto_checked_out: true,
     edit_count: 0,
+    audit_count: 1,
   },
 ];
 

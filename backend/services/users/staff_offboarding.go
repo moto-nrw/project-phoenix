@@ -35,6 +35,7 @@ type StaffOffboardingServiceDependencies struct {
 	GroupSubstitutionRepo  educationModels.GroupSubstitutionRepository
 	ActivitySupervisorRepo activitiesModels.SupervisorPlannedRepository
 	InstanceStaffRepo      scheduleModels.InstanceStaffRepository
+	StaffShiftRepo         scheduleModels.StaffShiftRepository
 	StaffAbsenceRepo       activeModels.StaffAbsenceRepository
 	AccountTenantRepo      authModels.AccountTenantRepository
 	RoleRepo               authModels.RoleRepository
@@ -54,6 +55,7 @@ type staffOffboardingService struct {
 	groupSubstitutionRepo  educationModels.GroupSubstitutionRepository
 	activitySupervisorRepo activitiesModels.SupervisorPlannedRepository
 	instanceStaffRepo      scheduleModels.InstanceStaffRepository
+	staffShiftRepo         scheduleModels.StaffShiftRepository
 	staffAbsenceRepo       activeModels.StaffAbsenceRepository
 	accountTenantRepo      authModels.AccountTenantRepository
 	roleRepo               authModels.RoleRepository
@@ -75,6 +77,7 @@ func NewStaffOffboardingService(deps StaffOffboardingServiceDependencies) StaffO
 		groupSubstitutionRepo:  deps.GroupSubstitutionRepo,
 		activitySupervisorRepo: deps.ActivitySupervisorRepo,
 		instanceStaffRepo:      deps.InstanceStaffRepo,
+		staffShiftRepo:         deps.StaffShiftRepo,
 		staffAbsenceRepo:       deps.StaffAbsenceRepo,
 		accountTenantRepo:      deps.AccountTenantRepo,
 		roleRepo:               deps.RoleRepo,
@@ -200,6 +203,14 @@ func (s *staffOffboardingService) cleanupAssignments(ctx context.Context, staffI
 		return nil, &UsersError{Op: opOffboardStaff, Err: err}
 	}
 	counts["timetable_instance_staff"] = instanceAssignments
+
+	if s.staffShiftRepo != nil {
+		staffShifts, err := s.staffShiftRepo.DeleteUpcomingByStaffID(ctx, staffID, today)
+		if err != nil {
+			return nil, &UsersError{Op: opOffboardStaff, Err: err}
+		}
+		counts["staff_shifts"] = staffShifts
+	}
 
 	absences, err := s.staffAbsenceRepo.DeleteNonHistoricalByStaffID(ctx, staffID, today)
 	if err != nil {

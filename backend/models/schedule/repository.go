@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
@@ -33,6 +34,32 @@ type TimeframeRepository interface {
 
 	// FindByDescription finds timeframes with matching description
 	FindByDescription(ctx context.Context, description string) ([]*Timeframe, error)
+}
+
+// StaffShiftRepository is the data-access boundary for planned staff shifts
+// (Dienstplan). CRUD comes from the generic repository; the finders below
+// are the date-scoped lookups the Dienstplan grid and the auto-checkout job
+// need (mirrors the MealPlanEntryRepository shape).
+type StaffShiftRepository interface {
+	Create(ctx context.Context, shift *StaffShift) error
+	FindByID(ctx context.Context, id any) (*StaffShift, error)
+	Update(ctx context.Context, shift *StaffShift) error
+	Delete(ctx context.Context, id any) error
+
+	// FindByDateRange returns all shifts with start <= date <= end for the
+	// current tenant, ordered by date, staff, start time.
+	FindByDateRange(ctx context.Context, start, end timezone.Date) ([]*StaffShift, error)
+
+	// FindByStaffAndDateRange returns one staff member's shifts in the range.
+	FindByStaffAndDateRange(ctx context.Context, staffID int64, start, end timezone.Date) ([]*StaffShift, error)
+
+	// FindByStaffIDsAndDate returns the shifts of the given staff members on
+	// one date (batch lookup for the auto-checkout job).
+	FindByStaffIDsAndDate(ctx context.Context, staffIDs []int64, date timezone.Date) ([]*StaffShift, error)
+
+	// DeleteUpcomingByStaffID removes planned shifts on or after from. Past
+	// shifts stay as history. Used by staff offboarding.
+	DeleteUpcomingByStaffID(ctx context.Context, staffID int64, from timezone.Date) (int64, error)
 }
 
 // RecurrenceRuleRepository defines operations for managing recurrence rules

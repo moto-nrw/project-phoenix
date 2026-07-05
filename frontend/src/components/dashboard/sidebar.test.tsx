@@ -310,6 +310,19 @@ describe("Sidebar", () => {
       expect(activitiesLink).toHaveClass("bg-gray-100");
     });
 
+    it("highlights Dienstplan without also highlighting Mitarbeiter", () => {
+      mockUsePathname.mockReturnValue("/staff/dienstplan");
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+
+      render(<Sidebar />);
+
+      const dienstplanLink = screen.getByText("Dienstplan").closest("a");
+      const staffLink = screen.getByText("Mitarbeiter").closest("a");
+      expect(dienstplanLink).toHaveClass("bg-gray-100");
+      expect(staffLink).not.toHaveClass("bg-gray-100");
+    });
+
     it("does not highlight dashboard for non-dashboard paths", () => {
       mockUsePathname.mockReturnValue("/activities");
       mockIsAdmin.mockReturnValue(true);
