@@ -61,6 +61,7 @@ vi.mock("~/contexts/ToastContext", () => ({
 }));
 
 vi.mock("~/lib/time-tracking-api", () => ({
+  PLANNED_START_NOT_REACHED_CODE: "planned_start_not_reached",
   REOPEN_STATUS_CONFLICT_CODE: "reopen_status_conflict",
   timeTrackingService: mockTimeTrackingService,
 }));
@@ -1257,6 +1258,25 @@ describe("TimeTrackingPage", () => {
       return err;
     }
 
+    function makePlannedStartError(): Error & {
+      code?: string;
+      status?: number;
+      details?: Record<string, unknown>;
+    } {
+      const err = new Error("planned start not reached") as Error & {
+        code?: string;
+        status?: number;
+        details?: Record<string, unknown>;
+      };
+      err.code = "planned_start_not_reached";
+      err.status = 409;
+      err.details = {
+        planned_start_time: "09:00",
+        current_time: "08:45",
+      };
+      return err;
+    }
+
     it("opens the status-change modal on reopen_status_conflict", async () => {
       // Today: existing checked-out 'present' session in history.
       setupDefaultMocks({ history: [mockHistorySession] });
@@ -1279,6 +1299,34 @@ describe("TimeTrackingPage", () => {
       // Confirm button is disabled until the user enters a reason.
       const confirmBtn = screen.getByText("Auf Homeoffice ändern");
       expect(confirmBtn).toBeDisabled();
+    });
+
+    it("shows planned-start message when check-in is too early", async () => {
+      const mockToast = {
+        success: vi.fn(),
+        error: vi.fn(),
+        info: vi.fn(),
+        warning: vi.fn(),
+        remove: vi.fn(),
+      };
+      vi.mocked(useToast).mockReturnValue(mockToast);
+      setupDefaultMocks();
+      vi.mocked(timeTrackingService.checkIn).mockRejectedValueOnce(
+        makePlannedStartError(),
+      );
+      render(<TimeTrackingPage />);
+
+      fireEvent.click(screen.getByText("In der OGS"));
+
+      await act(async () => {
+        fireEvent.click(screen.getByLabelText("Einstempeln"));
+      });
+
+      await waitFor(() => {
+        expect(mockToast.error).toHaveBeenCalledWith(
+          "Einstempeln ist erst ab 09:00 Uhr möglich.",
+        );
+      });
     });
 
     it("confirm calls checkIn(existingStatus) then updateSession with reason", async () => {

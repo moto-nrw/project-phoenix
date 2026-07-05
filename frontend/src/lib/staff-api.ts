@@ -464,6 +464,7 @@ interface ScheduleEntry {
   weekIndex: number;
   dayOfWeek: number;
   targetMinutes: number;
+  startTime?: string;
 }
 
 interface ScheduleModelInfo {
@@ -489,6 +490,7 @@ interface BackendScheduleEntry {
   week_index: number;
   day_of_week: number;
   target_minutes: number;
+  start_time?: string | null;
 }
 
 interface BackendScheduleModel {
@@ -525,6 +527,7 @@ function mapScheduleResponse(data: BackendScheduleResponse): StaffSchedule {
       weekIndex: e.week_index,
       dayOfWeek: e.day_of_week,
       targetMinutes: e.target_minutes,
+      startTime: e.start_time ?? undefined,
     })),
     weeklyTotals: data.weekly_totals ?? [],
     validFrom: (data.valid_from ?? "").slice(0, 10),
@@ -539,6 +542,7 @@ interface UpdateScheduleCustomRequest {
     weekIndex: number;
     dayOfWeek: number;
     targetMinutes: number;
+    startTime?: string;
   }>;
   saveAsTemplate?: string;
 }
@@ -575,6 +579,7 @@ class StaffScheduleService {
               week_index: e.weekIndex,
               day_of_week: e.dayOfWeek,
               target_minutes: e.targetMinutes,
+              start_time: e.startTime,
             })),
             save_as_template: update.saveAsTemplate,
           };
@@ -595,6 +600,7 @@ interface WorkTimeModelEntry {
   weekIndex: number;
   dayOfWeek: number;
   targetMinutes: number;
+  startTime?: string;
 }
 
 export interface WorkTimeModel {
@@ -625,6 +631,7 @@ function mapWorkTimeModel(m: BackendWorkTimeModel): WorkTimeModel {
       weekIndex: e.week_index,
       dayOfWeek: e.day_of_week,
       targetMinutes: e.target_minutes,
+      startTime: e.start_time ?? undefined,
     })),
     weeklyTotals: m.weekly_totals ?? [],
   };

@@ -740,6 +740,43 @@ func TestCheckIn_ReopenStatusConflict(t *testing.T) {
 	assert.Equal(t, activeModels.WorkSessionStatusHomeOffice, resp.Details["requested_status"])
 }
 
+func TestCheckIn_PlannedStartNotReached(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	wsSvc := &mockWorkSessionService{
+		checkInFn: func(_ context.Context, _ int64, _, _ string) (*activeModels.WorkSession, error) {
+			return nil, &activeSvc.PlannedStartNotReachedError{
+				PlannedStartTime: "09:00",
+				CurrentTime:      "08:45",
+			}
+		},
+	}
+	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
+
+	body := bytes.NewBufferString(`{"status":"present"}`)
+	r := httptest.NewRequest(http.MethodPost, "/check-in", body)
+	r.Header.Set("Content-Type", "application/json")
+	r = withClaims(r, validClaims())
+	w := httptest.NewRecorder()
+
+	rs.checkIn(w, r)
+	require.Equal(t, http.StatusConflict, w.Code)
+
+	var resp struct {
+		Status  string         `json:"status"`
+		Code    string         `json:"code"`
+		Error   string         `json:"error"`
+		Details map[string]any `json:"details"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, "error", resp.Status)
+	assert.Equal(t, "planned_start_not_reached", resp.Code)
+	require.NotNil(t, resp.Details)
+	assert.Equal(t, "09:00", resp.Details["planned_start_time"])
+	assert.Equal(t, "08:45", resp.Details["current_time"])
+}
+
 // --- checkOut handler ---
 
 func TestCheckOut_Success(t *testing.T) {

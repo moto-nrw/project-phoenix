@@ -1201,6 +1201,31 @@ describe("staff-api", () => {
       expect(result.validFrom).toBe("2026-06-01");
     });
 
+    it("maps optional staff schedule start times", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              ...backendSchedule,
+              entries: [
+                {
+                  week_index: 0,
+                  day_of_week: 0,
+                  target_minutes: 480,
+                  start_time: "09:00",
+                },
+              ],
+            },
+          }),
+      } as Response);
+
+      const result = await staffScheduleService.getSchedule("1");
+
+      expect(result.entries[0]?.startTime).toBe("09:00");
+    });
+
     it("sends template updates with numeric model id", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       mockFetch.mockResolvedValueOnce({
@@ -1255,6 +1280,50 @@ describe("staff-api", () => {
       );
       expect(result.model).toBeNull();
     });
+
+    it("sends optional custom schedule start times", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: { ...backendSchedule, mode: "custom", model: null },
+          }),
+      } as Response);
+
+      await staffScheduleService.updateSchedule("1", {
+        mode: "custom",
+        rotationLength: 1,
+        entries: [
+          {
+            weekIndex: 0,
+            dayOfWeek: 1,
+            targetMinutes: 360,
+            startTime: "09:00",
+          },
+        ],
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/1/schedule",
+        expect.objectContaining({
+          body: JSON.stringify({
+            mode: "custom",
+            rotation_length: 1,
+            rotation_anchor_date: undefined,
+            entries: [
+              {
+                week_index: 0,
+                day_of_week: 1,
+                target_minutes: 360,
+                start_time: "09:00",
+              },
+            ],
+            save_as_template: undefined,
+          }),
+        }),
+      );
+    });
   });
 
   describe("workTimeModelService", () => {
@@ -1287,6 +1356,37 @@ describe("staff-api", () => {
       );
       expect(result[0]?.id).toBe("9");
       expect(result[0]?.entries[0]?.targetMinutes).toBe(240);
+    });
+
+    it("maps optional work time model start times", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: [
+              {
+                id: 9,
+                name: "Halbtag",
+                rotation_length: 1,
+                rotation_anchor_date: "2026-06-01",
+                entries: [
+                  {
+                    week_index: 0,
+                    day_of_week: 0,
+                    target_minutes: 240,
+                    start_time: "09:00",
+                  },
+                ],
+                weekly_totals: [1200],
+              },
+            ],
+          }),
+      } as Response);
+
+      const result = await workTimeModelService.list();
+
+      expect(result[0]?.entries[0]?.startTime).toBe("09:00");
     });
   });
 
