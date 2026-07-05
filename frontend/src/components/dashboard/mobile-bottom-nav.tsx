@@ -22,6 +22,7 @@ import { operatorPath } from "~/lib/operator-url";
 import { useParentMealPlanEnabled } from "~/lib/hooks/use-parent-meal-plan-enabled";
 import { useParentNewsEnabled } from "~/lib/hooks/use-parent-news-enabled";
 import { useNFCEnabled, usePresenceMode } from "~/lib/tenant-context";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
   SETTINGS_SCHEMA_SWR_KEY,
   fetchSettingsSchema,
@@ -380,6 +381,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const tParentNav = useTranslations("parentNav");
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  // Prefixes tenant-scoped hrefs with the slug in path-routing mode (no-op in
+  // subdomain/operator/parent mode). Used for the Eltern hub link below.
+  const tenantPath = useTenantAwarePath();
   const [isOverflowMenuOpen, setIsOverflowMenuOpen] = useState(false);
 
   // Refs for sliding indicator
@@ -680,6 +684,13 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
               <div className="space-y-2">
                 {displayAdditionalItems.map((item) => {
                   const isActive = isActiveRoute(item.href, item.activePaths);
+                  // The Eltern hub is a tenant-scoped [tenant]/eltern route. In
+                  // path-routing mode a bare "/eltern" href is captured as the
+                  // tenant slug, so prefix it the same way the /eltern page
+                  // prefixes its card links. Other entries stay bare — /help is
+                  // host-agnostic and must not carry the slug.
+                  const href =
+                    item.href === "/eltern" ? tenantPath(item.href) : item.href;
 
                   // Coming soon items are not clickable
                   if (item.comingSoon) {
@@ -708,7 +719,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   return (
                     <Link
                       key={item.href}
-                      href={item.href}
+                      href={href}
                       onClick={closeOverflowMenu}
                       {...(item.newTab
                         ? { target: "_blank", rel: "noopener noreferrer" }

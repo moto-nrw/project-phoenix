@@ -6,6 +6,7 @@ import Link from "next/link";
 import useSWR from "swr";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
   useNFCEnabled,
   usePresenceMode,
@@ -407,6 +408,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const tenantSlug = useTenantSlugSafe();
   const searchParams = useSearchParams();
   const router = useTenantRouter();
+  // Prefixes tenant-scoped hrefs with the slug in path-routing mode (no-op in
+  // subdomain/operator mode). Used for the Eltern hub sub-item link below.
+  const tenantPath = useTenantAwarePath();
   const { data: session } = useSession();
   const { mode } = useShellAuth();
   const parentPreviewItems = useMemo(
@@ -1298,7 +1302,13 @@ function SidebarContent({ className = "" }: SidebarProps) {
             {parentSubPages.map((page) => (
               <SidebarSubItem
                 key={page.href}
-                href={page.href}
+                // The Übersicht hub is a tenant-scoped [tenant]/eltern route; a
+                // bare "/eltern" href is captured as the tenant slug in
+                // path-routing mode. Prefix it to match the accordion header's
+                // tenant-aware router.push and the /eltern page's card links.
+                href={
+                  page.href === "/eltern" ? tenantPath(page.href) : page.href
+                }
                 label={page.label}
                 isActive={activeParentSubPageHref === page.href}
                 badgeCount={
