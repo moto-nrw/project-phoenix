@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => ({
     master_data_edit_enabled: false,
     master_data_contact_edit_enabled: false,
     master_data_request_enabled: false,
+    meal_plan_enabled: false,
   }),
   // The dashboard news panel loads the announcement feed on mount; stub it so
   // the rendered dashboard settles cleanly (empty feed → placeholder).
@@ -138,6 +139,7 @@ describe("Parent portal components", () => {
       master_data_edit_enabled: false,
       master_data_contact_edit_enabled: false,
       master_data_request_enabled: false,
+      meal_plan_enabled: false,
     });
     mocks.setBreadcrumb.mockReset();
   });
@@ -279,6 +281,7 @@ describe("Parent portal components", () => {
       master_data_edit_enabled: false,
       master_data_contact_edit_enabled: false,
       master_data_request_enabled: false,
+      meal_plan_enabled: false,
     });
     mocks.listCareExceptions.mockResolvedValueOnce([
       {

@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -44,6 +45,7 @@ type studentExportFilters struct {
 	PickupTime   string `json:"pickup_time"`
 	ArrivalTime  string `json:"arrival_time"`
 	Sort         string `json:"sort"`
+	GroupByClass bool   `json:"group_by_class"`
 }
 
 type weeklySchedule struct {
@@ -100,6 +102,9 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 
 	responses = applyExportFilters(responses, req.Filters)
 	sortExportResponses(responses, req.Filters.Sort)
+	if req.Filters.GroupByClass {
+		groupExportResponsesByClass(responses)
+	}
 
 	weekly, err := rs.loadWeeklySchedules(r, collectResponseIDs(responses))
 	if err != nil {
@@ -113,13 +118,19 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var rows []listexport.Row
+	if req.Filters.GroupByClass {
+		rows = buildGroupedExportRows(responses, weekly, enrollmentSummaries)
+	} else {
+		rows = buildExportRows(responses, weekly, enrollmentSummaries)
+	}
 	doc := listexport.Document{
 		Title:       exportTitle(req),
 		Subtitle:    rs.exportSubtitle(r, len(responses)),
 		GeneratedAt: time.Now(),
 		Filters:     exportFilterLabels(req.Filters),
 		Columns:     columns,
-		Rows:        buildExportRows(responses, weekly, enrollmentSummaries),
+		Rows:        rows,
 	}
 
 	file, err := rs.ListExportService.Render(doc, req.Format, doc.Title)
@@ -246,10 +257,7 @@ func sortExportResponses(students []StudentResponse, sortMode string) {
 		if sortMode == "arrival" {
 			return timeValue(a.ArrivalTime) < timeValue(b.ArrivalTime)
 		}
-		if strings.EqualFold(a.LastName, b.LastName) {
-			return strings.ToLower(a.FirstName) < strings.ToLower(b.FirstName)
-		}
-		return strings.ToLower(a.LastName) < strings.ToLower(b.LastName)
+		return collation.CompareGermanNames(a.LastName, a.FirstName, b.LastName, b.FirstName) < 0
 	})
 }
 
@@ -343,30 +351,57 @@ func columnsContain(columns []listexport.Column, id listexport.ColumnID) bool {
 	return false
 }
 
+// groupExportResponsesByClass stably re-sorts by class only, preserving the
+// prior within-class ordering (name collation or pickup/arrival sort mode).
+func groupExportResponsesByClass(students []StudentResponse) {
+	sort.SliceStable(students, func(i, j int) bool {
+		return collation.CompareSchoolClasses(students[i].SchoolClass, students[j].SchoolClass) < 0
+	})
+}
+
+func buildGroupedExportRows(students []StudentResponse, weekly map[int64]weeklySchedule, enrollmentSummaries map[int64]string) []listexport.Row {
+	rows := make([]listexport.Row, 0, len(students))
+	currentClass := ""
+	for i, student := range students {
+		// Boundary detection must use the sort comparator's equivalence:
+		// label variants like "1a"/"1A"/"1 a" are one logical class and
+		// must share a single heading (first-seen label).
+		if class := strings.TrimSpace(student.SchoolClass); i == 0 || collation.CompareSchoolClasses(class, currentClass) != 0 {
+			currentClass = class
+			rows = append(rows, listexport.Row{GroupTitle: listexport.ClassGroupTitle(class)})
+		}
+		rows = append(rows, buildExportRow(student, weekly[student.ID], enrollmentSummaries))
+	}
+	return rows
+}
+
 func buildExportRows(students []StudentResponse, weekly map[int64]weeklySchedule, enrollmentSummaries map[int64]string) []listexport.Row {
 	rows := make([]listexport.Row, 0, len(students))
 	for _, student := range students {
-		plan := weekly[student.ID]
-		rows = append(rows, listexport.Row{Values: map[listexport.ColumnID]string{
-			listexport.ColumnName:              strings.TrimSpace(student.FirstName + " " + student.LastName),
-			listexport.ColumnSchoolClass:       student.SchoolClass,
-			listexport.ColumnGroup:             student.GroupName,
-			listexport.ColumnEnrollmentSummary: enrollmentSummaries[student.ID],
-			listexport.ColumnCareDays:          careDays(plan),
-			listexport.ColumnWeeklyMonday:      weeklyCell(plan, schedule.WeekdayMonday),
-			listexport.ColumnWeeklyTuesday:     weeklyCell(plan, schedule.WeekdayTuesday),
-			listexport.ColumnWeeklyWednesday:   weeklyCell(plan, schedule.WeekdayWednesday),
-			listexport.ColumnWeeklyThursday:    weeklyCell(plan, schedule.WeekdayThursday),
-			listexport.ColumnWeeklyFriday:      weeklyCell(plan, schedule.WeekdayFriday),
-			listexport.ColumnDailyStatus:       dailyStatusExportCell(student),
-			listexport.ColumnPlannedArrival:    ptrValue(student.ArrivalTime),
-			listexport.ColumnPlannedPickup:     ptrValue(student.PickupTime),
-			listexport.ColumnDeparture:         departureExportCell(student),
-			listexport.ColumnDailyNotes:        dailyNotes(student),
-			listexport.ColumnCurrentLocation:   student.Location,
-		}})
+		rows = append(rows, buildExportRow(student, weekly[student.ID], enrollmentSummaries))
 	}
 	return rows
+}
+
+func buildExportRow(student StudentResponse, plan weeklySchedule, enrollmentSummaries map[int64]string) listexport.Row {
+	return listexport.Row{Values: map[listexport.ColumnID]string{
+		listexport.ColumnName:              strings.TrimSpace(student.FirstName + " " + student.LastName),
+		listexport.ColumnSchoolClass:       student.SchoolClass,
+		listexport.ColumnGroup:             student.GroupName,
+		listexport.ColumnEnrollmentSummary: enrollmentSummaries[student.ID],
+		listexport.ColumnCareDays:          careDays(plan),
+		listexport.ColumnWeeklyMonday:      weeklyCell(plan, schedule.WeekdayMonday),
+		listexport.ColumnWeeklyTuesday:     weeklyCell(plan, schedule.WeekdayTuesday),
+		listexport.ColumnWeeklyWednesday:   weeklyCell(plan, schedule.WeekdayWednesday),
+		listexport.ColumnWeeklyThursday:    weeklyCell(plan, schedule.WeekdayThursday),
+		listexport.ColumnWeeklyFriday:      weeklyCell(plan, schedule.WeekdayFriday),
+		listexport.ColumnDailyStatus:       dailyStatusExportCell(student),
+		listexport.ColumnPlannedArrival:    ptrValue(student.ArrivalTime),
+		listexport.ColumnPlannedPickup:     ptrValue(student.PickupTime),
+		listexport.ColumnDeparture:         departureExportCell(student),
+		listexport.ColumnDailyNotes:        dailyNotes(student),
+		listexport.ColumnCurrentLocation:   student.Location,
+	}}
 }
 
 func dailyStatusExportCell(student StudentResponse) string {
@@ -597,6 +632,9 @@ func exportFilterLabels(filters studentExportFilters) []string {
 	}
 	if filters.DayStatus != "" && filters.DayStatus != DayPlanningStatusAll {
 		labels = append(labels, "Tagesplanung: "+dayStatusExportLabel(filters.DayStatus))
+	}
+	if filters.GroupByClass {
+		labels = append(labels, "Nach Klassen getrennt")
 	}
 	return labels
 }

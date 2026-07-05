@@ -2,7 +2,8 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { Modal } from "./modal";
-import { Input, Alert } from "./index";
+import { Alert } from "./alert";
+import { Input } from "./input";
 import { requestPasswordReset, type ApiError } from "~/lib/auth-api";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { createLogger } from "~/lib/logger";

@@ -33,6 +33,7 @@ import (
 	importAPI "github.com/moto-nrw/project-phoenix/api/import"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
 	mealplanAPI "github.com/moto-nrw/project-phoenix/api/mealplan"
+	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
 	roomsAPI "github.com/moto-nrw/project-phoenix/api/rooms"
 	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
 	sseAPI "github.com/moto-nrw/project-phoenix/api/sse"
@@ -98,6 +99,7 @@ type API struct {
 	Emergency        *emergencyAPI.Resource
 	Messaging        *messagingAPI.Resource
 	Announcements    *announcementAPI.Resource
+	Reminders        *remindersAPI.Resource
 
 	// Operator Dashboard (platform domain)
 	Operator *operatorAPI.Resource
@@ -469,6 +471,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		DB:                     db,
 	})
 	api.Emergency = emergencyAPI.NewResource(api.Services.Emergency, db)
+	api.Reminders = remindersAPI.NewResource(api.Services.Reminders, api.Services.UserContext, db)
 
 	// Initialize operator dashboard resources
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
@@ -656,6 +659,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 		// Mount emergency snapshot resources
 		r.Mount("/emergency", a.Emergency.Router())
+
+		// Mount reminders resources (visual-only staff reminders, issue #1457)
+		r.Mount("/reminders", a.Reminders.Router())
 
 		// Mount admin resources
 		r.Mount("/admin/grade-transitions", a.GradeTransitions.Router())

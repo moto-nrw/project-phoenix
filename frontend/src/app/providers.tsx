@@ -1,7 +1,6 @@
 "use client";
 
 import { ModalProvider } from "@/components/dashboard/modal-context";
-import { AlertProvider } from "~/contexts/AlertContext";
 import { ToastProvider } from "~/contexts/ToastContext";
 
 /**
@@ -18,9 +17,7 @@ export function Providers({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <ModalProvider>
-      <AlertProvider>
-        <ToastProvider>{children}</ToastProvider>
-      </AlertProvider>
+      <ToastProvider>{children}</ToastProvider>
     </ModalProvider>
   );
 }

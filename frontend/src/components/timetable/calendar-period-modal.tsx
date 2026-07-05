@@ -17,7 +17,6 @@ import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Input } from "~/components/ui/input";
 import { FormModal } from "~/components/ui/form-modal";
-import { renderModalErrorAlert } from "~/components/ui/modal-utils";
 import { useToast } from "~/contexts/ToastContext";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import {
@@ -411,7 +410,7 @@ export function CalendarPeriodModal({
           />
         ))}
 
-        {validationError && renderModalErrorAlert({ message: validationError })}
+        {validationError && <Alert type="error" message={validationError} />}
       </form>
     </FormModal>
   );

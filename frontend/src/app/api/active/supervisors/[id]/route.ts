@@ -1,9 +1,6 @@
 // app/api/active/supervisors/[id]/route.ts
-import {
-  createProxyDeleteHandler,
-  createProxyGetByIdHandler,
-  createProxyPutHandler,
-} from "~/lib/route-wrapper.server";
+import { proxyDelete, proxyGet, proxyPut } from "~/lib/route-proxy.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 /**
  * Type definition for supervisor update request
@@ -15,8 +12,16 @@ interface SupervisorUpdateRequest {
 
 const ENDPOINT = "/api/active/supervisors";
 
-export const GET = createProxyGetByIdHandler(ENDPOINT);
-export const PUT = createProxyPutHandler<unknown, SupervisorUpdateRequest>(
-  ENDPOINT,
+export const GET = proxyGet(
+  (p) => `${ENDPOINT}/${requirePathSegmentParam(p)}`,
+  {
+    raw: true,
+  },
 );
-export const DELETE = createProxyDeleteHandler(ENDPOINT);
+export const PUT = proxyPut<unknown, SupervisorUpdateRequest>(
+  (p) => `${ENDPOINT}/${requirePathSegmentParam(p)}`,
+  { raw: true },
+);
+export const DELETE = proxyDelete(
+  (p) => `${ENDPOINT}/${requirePathSegmentParam(p)}`,
+);

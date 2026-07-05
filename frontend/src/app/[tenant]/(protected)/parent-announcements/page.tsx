@@ -13,8 +13,11 @@ import {
   Undo2,
 } from "lucide-react";
 
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
-import type { FilterConfig, ActiveFilter } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import type {
+  FilterConfig,
+  ActiveFilter,
+} from "~/components/ui/page-header/types";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { OverflowMenuItem } from "~/components/ui/page-header/OverflowMenu";
 import { DataTable } from "~/components/ui/data-table";

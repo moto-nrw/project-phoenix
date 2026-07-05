@@ -12,7 +12,7 @@ vi.mock("~/components/students/master-data-review-list", () => ({
   MasterDataReviewList: () => <div>review-list</div>,
 }));
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({ title }: { title: string }) => <h1>{title}</h1>,
 }));
 

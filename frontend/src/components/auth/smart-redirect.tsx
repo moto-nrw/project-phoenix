@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useSupervision } from "~/lib/supervision-context";
 import { useSmartRedirectPath } from "~/lib/redirect-utils";
-import { usePresenceMode } from "~/components/tenant/tenant-provider";
+import { usePresenceMode } from "~/lib/tenant-context";
 
 interface SmartRedirectProps {
   readonly onRedirect?: (path: string) => void;

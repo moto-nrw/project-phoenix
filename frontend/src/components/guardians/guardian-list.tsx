@@ -11,8 +11,12 @@ import {
   getLanguageLabel,
   PHONE_TYPE_LABELS,
 } from "@/lib/guardian-helpers";
+import {
+  GuardianContactActions,
+  buildGuardianMailtoHref,
+  buildGuardianTelHref,
+} from "./guardian-contact-actions";
 import { LOCATION_COLORS, GROUP_ROOM_SHADES } from "~/lib/location-helper";
-import { ModernContactActions } from "~/components/simple/student";
 import {
   UserCheck,
   Phone,
@@ -217,7 +221,7 @@ export default function GuardianList({
 
           {/* Contact Actions */}
           <div className="mt-2 sm:mt-3">
-            <ModernContactActions
+            <GuardianContactActions
               email={guardian.email}
               phone={getPrimaryPhone(guardian)}
               phoneNumbers={
@@ -227,7 +231,7 @@ export default function GuardianList({
                   isPrimary: p.isPrimary,
                 })) ?? []
               }
-              studentName={getGuardianFullName(guardian)}
+              contactName={getGuardianFullName(guardian)}
             />
           </div>
         </div>
@@ -253,8 +257,7 @@ function EmailItem({
     );
   }
 
-  const subject = `Betreff: ${guardianName}`;
-  const mailtoUrl = `mailto:${email}?subject=${encodeURIComponent(subject)}`;
+  const mailtoUrl = buildGuardianMailtoHref(email, guardianName);
 
   return (
     <div className="min-w-0">
@@ -295,8 +298,6 @@ function getPhoneLabel(phone: PhoneNumber): string {
 
 // Helper component for displaying phone numbers (clickable)
 function PhoneItem({ phone }: Readonly<{ phone: PhoneNumber }>) {
-  const cleanPhone = phone.phoneNumber.replaceAll(/\s+/g, "");
-
   return (
     <div className="min-w-0">
       <div className="mb-1 flex items-center gap-1 text-xs text-gray-500">
@@ -309,7 +310,7 @@ function PhoneItem({ phone }: Readonly<{ phone: PhoneNumber }>) {
         )}
       </div>
       <a
-        href={`tel:${cleanPhone}`}
+        href={buildGuardianTelHref(phone.phoneNumber)}
         className="text-sm font-medium break-words text-gray-900 underline decoration-gray-300 underline-offset-2 transition-colors hover:text-blue-600 hover:decoration-blue-600"
       >
         {phone.phoneNumber}

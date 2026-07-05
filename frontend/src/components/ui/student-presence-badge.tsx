@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { usePresenceMode } from "~/components/tenant/tenant-provider";
+import { usePresenceMode } from "~/lib/tenant-context";
 import type {
   DisplayMode,
   StudentLocationContext,

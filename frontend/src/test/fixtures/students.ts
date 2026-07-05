@@ -45,8 +45,3 @@ export function buildStudent(overrides?: Partial<Student>): Student {
     ...overrides,
   };
 }
-
-/** Reset the auto-increment counter (call in beforeEach if needed). */
-export function resetStudentIds() {
-  studentIdCounter = 0;
-}

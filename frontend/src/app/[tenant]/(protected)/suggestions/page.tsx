@@ -4,10 +4,8 @@ import { useState, useMemo, useCallback, Suspense } from "react";
 import { useSession } from "next-auth/react";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
-import {
-  PageHeaderWithSearch,
-  type FilterConfig,
-} from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import type { FilterConfig } from "~/components/ui/page-header/types";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { SuggestionCard } from "~/components/suggestions/suggestion-card";
 import { Skeleton } from "~/components/ui/skeleton";

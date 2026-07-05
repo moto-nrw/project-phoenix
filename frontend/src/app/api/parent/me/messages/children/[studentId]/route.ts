@@ -1,9 +1,5 @@
-import {
-  createParentGetHandler,
-  createParentPostHandler,
-  parentApiGet,
-  parentApiPost,
-} from "~/lib/parent/route-wrapper.server";
+import { proxyGet, proxyPost } from "~/lib/parent/route-wrapper.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 interface BackendMessage {
   id: string;
@@ -31,14 +27,9 @@ interface PostMessageBody {
  * guardian's conversation about one child (oldest-first), marking it read.
  * Guardian ownership is enforced server-side.
  */
-export const GET = createParentGetHandler<BackendThreadView>(
-  async (_request, token, params) => {
-    const studentId = String(params.studentId);
-    return parentApiGet<BackendThreadView>(
-      `/parent/me/messages/children/${encodeURIComponent(studentId)}`,
-      token,
-    );
-  },
+export const GET = proxyGet<BackendThreadView>(
+  (params) =>
+    `/parent/me/messages/children/${requirePathSegmentParam(params, "studentId")}`,
 );
 
 /**
@@ -46,13 +37,7 @@ export const GET = createParentGetHandler<BackendThreadView>(
  * guardian message to the child's conversation (created on the first message)
  * and returns the full updated conversation.
  */
-export const POST = createParentPostHandler<BackendThreadView, PostMessageBody>(
-  async (_request, body, token, params) => {
-    const studentId = String(params.studentId);
-    return parentApiPost<BackendThreadView, PostMessageBody>(
-      `/parent/me/messages/children/${encodeURIComponent(studentId)}`,
-      token,
-      body,
-    );
-  },
+export const POST = proxyPost<BackendThreadView, PostMessageBody>(
+  (params) =>
+    `/parent/me/messages/children/${requirePathSegmentParam(params, "studentId")}`,
 );

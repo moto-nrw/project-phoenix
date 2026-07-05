@@ -8,7 +8,7 @@ import {
   performTenantSwitch,
   type TenantInfo,
 } from "~/lib/tenant-api";
-import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
+import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { createLogger } from "~/lib/logger";
 import { env } from "~/env";
 

@@ -12,14 +12,12 @@ import {
   useGroupedItems,
   type Grouper,
 } from "~/components/database/use-grouped-items";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type { ActiveFilter } from "~/components/ui/page-header/types";
 import { useToast } from "~/contexts/ToastContext";
-import { useIsMobile } from "~/hooks/useIsMobile";
-import {
-  CaregiverCapabilityModal,
-  StaffMasterDetail,
-} from "@/components/teachers";
+import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
+import { CaregiverCapabilityModal } from "@/components/teachers/caregiver-capability-modal";
+import { StaffMasterDetail } from "@/components/teachers/staff-master-detail";
 import { TeacherEditModal } from "@/components/teachers/teacher-edit-modal";
 import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-modal";
 import { InvitationForm } from "~/components/admin/invitation-form";
@@ -28,7 +26,7 @@ import { RoleGuard } from "~/components/auth/role-guard";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { getRoleDisplayName } from "@/lib/auth-helpers";
 import { createCrudService } from "@/lib/database/service-factory";
-import { teachersConfig } from "@/lib/database/configs/teachers.config";
+import { teachersConfig } from "@/components/database/configs/teachers.config";
 import type { Teacher } from "@/lib/teacher-api";
 import { Modal, ConfirmationModal } from "~/components/ui/modal";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";

@@ -142,11 +142,7 @@ vi.mock("~/env", () => ({
   },
 }));
 
-// Mock tenant provider globally so tenant-scoped components can render in tests.
-// Individual tests can override by calling vi.mocked(useTenant).mockReturnValue(...)
-// or `vi.unmock("~/components/tenant/tenant-provider")` when they need the real
-// context wired up (see `binary-mode-guard.test.tsx` for an example).
-vi.mock("~/components/tenant/tenant-provider", () => ({
+const tenantProviderMock = vi.hoisted(() => ({
   useTenant: vi.fn(() => ({
     tenantSlug: "test-tenant",
     tenant: null,
@@ -177,6 +173,10 @@ vi.mock("~/components/tenant/tenant-provider", () => ({
     tenant: unknown;
   }) => children,
 }));
+
+// Mock tenant context globally so tenant-scoped components can render in tests.
+// Tests that need the real context must unmock this module path.
+vi.mock("~/lib/tenant-context", () => tenantProviderMock);
 
 // Mock SWR globally - individual tests can override with vi.mocked()
 vi.mock("swr", () => ({

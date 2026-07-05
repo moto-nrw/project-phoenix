@@ -1,6 +1,6 @@
 "use client";
 
-import { useTenantSafe } from "~/components/tenant/tenant-provider";
+import { useTenantSafe } from "~/lib/tenant-context";
 
 // Pure selector over TenantContext — provider owns the cross-tab subscription.
 // useTenantSafe never throws so the hook-order invariant survives HMR/tests.

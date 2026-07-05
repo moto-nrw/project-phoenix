@@ -101,6 +101,11 @@ pre-push:
       glob: "frontend/**/*.{ts,tsx}"
       run: cd frontend && pnpm run check
 
+    # Frontend dependency graph validation (matches CI)
+    frontend-depcruise:
+      glob: "frontend/**/*.{ts,tsx,js,jsx}"
+      run: cd frontend && pnpm depcruise
+
     # Frontend unused code detection (matches CI)
     frontend-knip:
       glob: "frontend/**/*.{ts,tsx,js,jsx}"

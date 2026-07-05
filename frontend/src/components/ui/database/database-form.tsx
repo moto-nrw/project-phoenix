@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import type { DatabaseTheme } from "./themes";
-import { getThemeClassNames } from "./themes";
+import type { DatabaseTheme } from "~/lib/database/themes";
+import { getThemeClassNames } from "~/lib/database/themes";
 import { getAccentRing, getAccentText } from "./accents";
 import { Alert } from "~/components/ui/alert";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
@@ -680,10 +680,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
       case "number": {
         // Handle both number and empty string values
         const numberValue = formData[field.name] as
-          | string
-          | number
-          | undefined
-          | null;
+          string | number | undefined | null;
         const displayValue =
           numberValue === "" ||
           numberValue === undefined ||

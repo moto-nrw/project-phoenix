@@ -91,7 +91,7 @@ declare module "next-auth" {
 // Utility functions
 // ---------------------------------------------------------------------------
 
-export function parseDurationToMs(duration: string): number {
+function parseDurationToMs(duration: string): number {
   const regex = /^(\d+)([hm])$/;
   const match = regex.exec(duration);
   if (!match) return 12 * 60 * 60 * 1000; // 12h default
@@ -101,7 +101,7 @@ export function parseDurationToMs(duration: string): number {
   return unit === "h" ? num * 60 * 60 * 1000 : num * 60 * 1000;
 }
 
-export const accessTokenExpiry = parseDurationToMs(env.AUTH_JWT_EXPIRY);
+const accessTokenExpiry = parseDurationToMs(env.AUTH_JWT_EXPIRY);
 export const refreshTokenExpiry = parseDurationToMs(
   env.AUTH_JWT_REFRESH_EXPIRY,
 );

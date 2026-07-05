@@ -14,15 +14,14 @@ import { LanguageSwitcher } from "~/components/parent/language-switcher";
 // Import extracted components
 import { BrandLink, BreadcrumbDivider } from "./header/brand-link";
 import { RefreshButton } from "./header/refresh-button";
+import { RemindersBell } from "./header/reminders-bell";
 import { SessionWarning } from "./header/session-warning";
 import { ProfileTrigger, ProfileDropdownMenu } from "./header/profile-dropdown";
 import {
   DatabaseBreadcrumb,
   OgsGroupsBreadcrumb,
   ActiveSupervisionsBreadcrumb,
-  InvitationsBreadcrumb,
   EnrollmentBreadcrumb,
-  ActivityBreadcrumb,
   RoomBreadcrumb,
   StudentHistoryBreadcrumb,
   StudentDetailBreadcrumb,
@@ -44,7 +43,6 @@ export function Header() {
     studentName,
     staffName,
     roomName,
-    activityName,
     referrerPage,
     activeSupervisionName,
     ogsGroupName,
@@ -172,7 +170,6 @@ export function Header() {
               studentName={studentName}
               staffName={staffName}
               roomName={roomName}
-              activityName={activityName}
               referrer={referrer}
               breadcrumbLabel={breadcrumbLabel}
               historyType={historyType}
@@ -195,6 +192,7 @@ export function Header() {
               <RefreshButton />
             </div>
 
+            {mode === "teacher" ? <RemindersBell /> : null}
             {mode === "teacher" ? <TenantSwitcher /> : null}
             {mode === "parent" ? <LanguageSwitcher compact /> : null}
 
@@ -262,7 +260,6 @@ interface HeaderBreadcrumbProps {
   readonly studentName?: string;
   readonly staffName?: string;
   readonly roomName?: string;
-  readonly activityName?: string;
   readonly referrer: string;
   readonly breadcrumbLabel: string;
   readonly historyType: string;
@@ -279,7 +276,6 @@ function HeaderBreadcrumb({
   studentName,
   staffName,
   roomName,
-  activityName,
   referrer,
   breadcrumbLabel,
   historyType,
@@ -310,11 +306,6 @@ function HeaderBreadcrumb({
     );
   }
 
-  // Invitations page
-  if (pathname === "/invitations") {
-    return <InvitationsBreadcrumb />;
-  }
-
   if (pageTypeInfo.isEnrollmentPage) {
     return (
       <EnrollmentBreadcrumb
@@ -329,11 +320,6 @@ function HeaderBreadcrumb({
     return (
       <ParentChildBreadcrumb childName={pageTitle} isScrolled={isScrolled} />
     );
-  }
-
-  // Activity detail page
-  if (pageTypeInfo.isActivityDetailPage && activityName) {
-    return <ActivityBreadcrumb activityName={activityName} />;
   }
 
   // Room detail page
@@ -393,7 +379,6 @@ function HeaderBreadcrumb({
     "/activities",
     "/staff",
     "/substitutions",
-    "/statistics",
     "/timetables",
     "/time-tracking",
   ];

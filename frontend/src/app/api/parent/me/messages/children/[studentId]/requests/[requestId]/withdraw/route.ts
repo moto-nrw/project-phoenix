@@ -1,16 +1,11 @@
-import {
-  createParentPostHandler,
-  parentApiPost,
-} from "~/lib/parent/route-wrapper.server";
+import { proxyPost } from "~/lib/parent/route-wrapper.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
-export const POST = createParentPostHandler<unknown, Record<string, never>>(
-  async (_request, body, token, params) => {
-    const studentId = String(params.studentId);
-    const requestId = String(params.requestId);
-    return parentApiPost<unknown, Record<string, never>>(
-      `/parent/me/messages/children/${encodeURIComponent(studentId)}/requests/${encodeURIComponent(requestId)}/withdraw`,
-      token,
-      body,
-    );
-  },
+/**
+ * Proxy POST /api/parent/me/messages/children/{studentId}/requests/{requestId}/withdraw
+ * → backend. Withdraws a pending guardian request.
+ */
+export const POST = proxyPost<unknown, Record<string, never>>(
+  (params) =>
+    `/parent/me/messages/children/${requirePathSegmentParam(params, "studentId")}/requests/${requirePathSegmentParam(params, "requestId")}/withdraw`,
 );

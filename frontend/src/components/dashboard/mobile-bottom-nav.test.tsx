@@ -88,10 +88,7 @@ import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { isAdmin } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import {
-  useNFCEnabled,
-  usePresenceMode,
-} from "~/components/tenant/tenant-provider";
+import { useNFCEnabled, usePresenceMode } from "~/lib/tenant-context";
 
 const mockUsePathname = vi.mocked(usePathname);
 const mockUseSearchParams = vi.mocked(useSearchParams);
@@ -185,6 +182,20 @@ describe("MobileBottomNav", () => {
       expect(hrefs).toContain("/active-supervisions");
     });
 
+    it("names icon-only staff nav controls for assistive technology", () => {
+      render(<MobileBottomNav />);
+
+      expect(screen.getByRole("link", { name: "Gruppe" })).toHaveAttribute(
+        "href",
+        "/ogs-groups",
+      );
+      expect(screen.getByRole("link", { name: "Aufsicht" })).toHaveAttribute(
+        "href",
+        "/active-supervisions",
+      );
+      expect(screen.getByRole("button", { name: "Mehr" })).toBeInTheDocument();
+    });
+
     it("renders navigation bar for admin users", () => {
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
@@ -253,8 +264,8 @@ describe("MobileBottomNav", () => {
       expect(mockGet).toHaveBeenCalledWith("from");
     });
 
-    it("highlights correct item when path starts with href", () => {
-      mockUsePathname.mockReturnValue("/activities/123");
+    it("highlights the canonical activities route", () => {
+      mockUsePathname.mockReturnValue("/activities");
 
       render(<MobileBottomNav />);
 
@@ -451,6 +462,10 @@ describe("MobileBottomNav", () => {
     };
 
     it("displays coming soon badge for upcoming features", () => {
+      // "Berichte" is the remaining coming soon item and is admin-only.
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+
       render(<MobileBottomNav />);
 
       // Open overflow menu

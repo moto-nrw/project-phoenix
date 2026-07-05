@@ -43,7 +43,7 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => mocks.searchParams,
 }));
 
-vi.mock("~/components/tenant/tenant-provider", () => ({
+vi.mock("~/lib/tenant-context", () => ({
   useTenantSlugSafe: () => "demo",
   useTenantRoutingModeSafe: () => "path",
   useNFCEnabled: vi.fn(() => true),

@@ -1,6 +1,6 @@
 "use client";
 
-import { roomsConfig } from "@/lib/database/configs/rooms.config";
+import { roomsConfig } from "@/components/database/configs/rooms.config";
 import { configToFormSection } from "@/lib/database/types";
 import { isSystemRoom, type Room } from "@/lib/room-helpers";
 import type { FormSection } from "~/components/ui/database/database-form";

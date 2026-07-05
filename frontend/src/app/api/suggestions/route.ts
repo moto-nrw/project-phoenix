@@ -1,10 +1,8 @@
 // app/api/suggestions/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet, apiPost } from "~/lib/api-helpers.server";
-import {
-  createGetHandler,
-  createPostHandler,
-} from "~/lib/route-wrapper.server";
+import { apiGet } from "~/lib/api-helpers.server";
+import { createGetHandler } from "~/lib/route-wrapper.server";
+import { proxyPost } from "~/lib/route-proxy.server";
 
 interface BackendSuggestionResponse {
   id: number;
@@ -24,11 +22,6 @@ interface BackendListResponse {
   data: BackendSuggestionResponse[];
 }
 
-interface BackendSingleResponse {
-  status: string;
-  data: BackendSuggestionResponse;
-}
-
 interface CreateRequest {
   title: string;
   description: string;
@@ -46,13 +39,6 @@ export const GET = createGetHandler(
   },
 );
 
-export const POST = createPostHandler<BackendSuggestionResponse, CreateRequest>(
-  async (_request: NextRequest, body: CreateRequest, token: string) => {
-    const response = await apiPost<BackendSingleResponse>(
-      "/api/suggestions",
-      token,
-      body,
-    );
-    return response.data;
-  },
+export const POST = proxyPost<BackendSuggestionResponse, CreateRequest>(
+  "/api/suggestions",
 );

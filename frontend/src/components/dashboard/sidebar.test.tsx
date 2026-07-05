@@ -66,10 +66,7 @@ import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { isAdmin } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import {
-  useNFCEnabled,
-  usePresenceMode,
-} from "~/components/tenant/tenant-provider";
+import { useNFCEnabled, usePresenceMode } from "~/lib/tenant-context";
 
 const mockUsePathname = vi.mocked(usePathname);
 const mockUseSearchParams = vi.mocked(useSearchParams);
@@ -304,8 +301,8 @@ describe("Sidebar", () => {
       expect(dashboardLink).toHaveClass("text-gray-900");
     });
 
-    it("highlights link when path starts with href", () => {
-      mockUsePathname.mockReturnValue("/activities/123");
+    it("highlights the canonical activities link", () => {
+      mockUsePathname.mockReturnValue("/activities");
 
       render(<Sidebar />);
 
@@ -419,25 +416,35 @@ describe("Sidebar", () => {
 
   describe("coming soon items", () => {
     it("displays coming soon items with badge", () => {
+      // "Berichte" is the remaining coming soon item and is admin-only.
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+
       render(<Sidebar />);
 
       // Coming soon items should have "Bald" badge
-      expect(screen.getByText("Erinnerungen")).toBeInTheDocument();
+      expect(screen.getByText("Berichte")).toBeInTheDocument();
       expect(screen.getAllByText("Bald").length).toBeGreaterThan(0);
     });
 
     it("coming soon items are not clickable", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+
       render(<Sidebar />);
 
-      // Erinnerungen is still a coming soon feature
-      const comingSoonElement = screen.getByText("Erinnerungen");
+      // Berichte is still a coming soon feature
+      const comingSoonElement = screen.getByText("Berichte");
       expect(comingSoonElement.closest("a")).toBeNull();
     });
 
     it("coming soon items have disabled styling", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+
       render(<Sidebar />);
 
-      const comingSoonElement = screen.getByText("Erinnerungen");
+      const comingSoonElement = screen.getByText("Berichte");
       const container = comingSoonElement.closest("div");
       expect(container).toHaveClass("text-gray-400");
       expect(container).toHaveClass("cursor-not-allowed");
@@ -779,23 +786,6 @@ describe("Sidebar", () => {
       const activitiesLink = screen.getByText("Aktivitäten").closest("a");
       const svg = activitiesLink?.querySelector("svg");
       expect(svg?.getAttribute("class")).toContain("text-[#FF3130]");
-    });
-  });
-
-  describe("hideForAdmin items", () => {
-    it("shows Erinnerungen for non-admin users", () => {
-      mockIsAdmin.mockReturnValue(false);
-      render(<Sidebar />);
-
-      expect(screen.getByText("Erinnerungen")).toBeInTheDocument();
-    });
-
-    it("hides Erinnerungen for admin users", () => {
-      mockIsAdmin.mockReturnValue(true);
-      mockUseSession.mockReturnValue(createMockSession(true));
-      render(<Sidebar />);
-
-      expect(screen.queryByText("Erinnerungen")).not.toBeInTheDocument();
     });
   });
 

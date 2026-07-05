@@ -4,7 +4,7 @@ import { MobileBackButton } from "./mobile-back-button";
 
 // Mock useIsMobile hook
 const mockIsMobile = vi.fn();
-vi.mock("~/hooks/useIsMobile", () => ({
+vi.mock("~/components/ui/hooks/useIsMobile", () => ({
   useIsMobile: (): boolean => mockIsMobile() as boolean,
 }));
 

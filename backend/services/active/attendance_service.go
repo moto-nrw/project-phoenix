@@ -452,6 +452,9 @@ func (s *service) CheckTeacherStudentAccess(ctx context.Context, teacherID, stud
 	// Get student info
 	student, err := s.studentRepo.FindByID(ctx, studentID)
 	if err != nil {
+		if isNotFoundError(err) {
+			return false, nil
+		}
 		return false, &ActiveError{Op: "CheckTeacherStudentAccess", Err: err}
 	}
 	if student == nil || student.GroupID == nil {

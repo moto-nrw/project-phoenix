@@ -1,7 +1,5 @@
-import {
-  createParentPostHandler,
-  parentApiPost,
-} from "~/lib/parent/route-wrapper.server";
+import { proxyPost } from "~/lib/parent/route-wrapper.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 interface AcknowledgeResult {
   acknowledged: boolean;
@@ -17,13 +15,7 @@ interface StampBody {
  * acknowledgement. published_at is the version the backend verifies to reject a
  * confirmation against since-corrected wording.
  */
-export const POST = createParentPostHandler<AcknowledgeResult, StampBody>(
-  async (_request, body, token, params) => {
-    const announcementId = String(params.announcementId);
-    return parentApiPost<AcknowledgeResult>(
-      `/parent/me/news/${encodeURIComponent(announcementId)}/acknowledge`,
-      token,
-      { published_at: body?.published_at },
-    );
-  },
+export const POST = proxyPost<AcknowledgeResult, StampBody>(
+  (params) =>
+    `/parent/me/news/${requirePathSegmentParam(params, "announcementId")}/acknowledge`,
 );

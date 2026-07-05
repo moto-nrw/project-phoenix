@@ -41,8 +41,7 @@ export function getPageTitle(pathname: string): string {
 }
 
 function getStudentPageTitle(pathname: string): string {
-  if (pathname.includes("/feedback_history")) return "Feedback Historie";
-  if (pathname.includes("/mensa_history")) return "Mensa Historie";
+  if (pathname.includes("/feedback-history")) return "Feedback Historie";
   if (pathname.includes("/room-history")) return "Anwesenheitsprotokoll";
   return "Kinder Details";
 }
@@ -73,24 +72,21 @@ function getMainRouteTitle(pathname: string): string {
     "/ogs-groups": "Meine Gruppe",
     "/active-supervisions": "Aktuelle Aufsicht",
     "/staff": "Mitarbeiter",
-    "/students": "Kinder",
     "/rooms": "Räume",
     "/activities": "Aktivitäten",
-    "/statistics": "Statistiken",
+    "/reminders": "Erinnerungen",
     "/substitutions": "Vertretungen",
     "/timetables": "Betreuungsplan",
     "/database": "Datenverwaltung",
     "/emergency": "Notfall",
     "/settings": "Einstellungen",
     "/profile": "Profil",
-    "/invitations": "Einladungen",
     "/admin/enrollments": "Überblick",
     "/admin/enrollments/change-requests": "Änderungsanfragen",
     "/enrollment-phases": "Anmeldephasen",
     "/care-offerings": "Betreuungsangebote",
     "/enrollment-form": "Anmeldeformulare",
     "/time-tracking": "Zeiterfassung",
-    "/borndal_feedback": "Borndal Feedback",
     "/operator/suggestions": "Vorschläge",
     "/operator/announcements": "Ankündigungen",
   };
@@ -139,8 +135,7 @@ export function getBreadcrumbLabel(referrer: string): string {
  * Determine history type from pathname
  */
 export function getHistoryType(pathname: string): string {
-  if (pathname.includes("/feedback_history")) return "Feedback Historie";
-  if (pathname.includes("/mensa_history")) return "Mensa Historie";
+  if (pathname.includes("/feedback-history")) return "Feedback Historie";
   if (pathname.includes("/room-history")) return "Anwesenheitsprotokoll";
   return "";
 }
@@ -153,7 +148,6 @@ export interface PageTypeInfo {
   isStudentHistoryPage: boolean;
   isStaffDetailPage: boolean;
   isRoomDetailPage: boolean;
-  isActivityDetailPage: boolean;
   isDatabaseSubPage: boolean;
   isDatabaseDeepPage: boolean;
   isEnrollmentPage: boolean;
@@ -165,14 +159,12 @@ export function getPageTypeInfo(pathname: string): PageTypeInfo {
     isStudentPath &&
     pathname !== "/students" &&
     pathname !== "/students/search" &&
-    !pathname.includes("/feedback_history") &&
-    !pathname.includes("/mensa_history") &&
+    !pathname.includes("/feedback-history") &&
     !pathname.includes("/room-history");
 
   const isStudentHistoryPage =
     isStudentPath &&
-    (pathname.includes("/feedback_history") ||
-      pathname.includes("/mensa_history") ||
+    (pathname.includes("/feedback-history") ||
       pathname.includes("/room-history"));
 
   const isStaffDetailPage =
@@ -180,9 +172,6 @@ export function getPageTypeInfo(pathname: string): PageTypeInfo {
 
   const isRoomDetailPage =
     pathname.startsWith("/rooms/") && pathname !== "/rooms";
-
-  const isActivityDetailPage =
-    pathname.startsWith("/activities/") && pathname !== "/activities";
 
   const isDatabaseSubPage =
     pathname.startsWith("/database/") && pathname !== "/database";
@@ -195,7 +184,6 @@ export function getPageTypeInfo(pathname: string): PageTypeInfo {
     isStudentHistoryPage,
     isStaffDetailPage,
     isRoomDetailPage,
-    isActivityDetailPage,
     isDatabaseSubPage,
     isDatabaseDeepPage,
     isEnrollmentPage,

@@ -53,7 +53,7 @@ import {
 } from "~/components/ui/data-table";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
-import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
+import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { useToast } from "~/contexts/ToastContext";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { useClickOutside } from "~/lib/hooks/use-click-outside";
@@ -155,7 +155,7 @@ const TERMINAL_STATUSES = new Set<ChildStatus>([
   "withdrawn",
 ]);
 
-const EXPORT_FORMAT_LABELS: Record<EnrollmentExportFormat, string> = {
+const EXPORT_MENU_LABELS: Record<EnrollmentExportFormat, string> = {
   pdf: "Als PDF exportieren",
   docx: "Als Word-Dokument exportieren",
   xlsx: "Als Excel-Datei exportieren",
@@ -165,12 +165,6 @@ const REPORT_EXPORT_LABELS: Record<EnrollmentReportFormat, string> = {
   docx: "Word",
   pdf: "PDF",
   xlsx: "Excel",
-};
-
-const REPORT_EXPORT_MENU_LABELS: Record<EnrollmentReportFormat, string> = {
-  docx: "Als Word-Dokument exportieren",
-  pdf: "Als PDF exportieren",
-  xlsx: "Als Excel-Datei exportieren",
 };
 
 const DAY_LABELS: Record<string, string> = {
@@ -354,13 +348,13 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
 
   const handleClassRosterExport = useCallback(
     async (format: EnrollmentReportFormat) => {
-      if (classRosterSchoolClass === ALL_VALUE) {
-        toast.error("Bitte zuerst eine Klasse wählen.");
-        return;
-      }
       setExportingClassRosterFormat(format);
       try {
-        await exportPhaseClassRoster(phaseId, classRosterSchoolClass, format);
+        await exportPhaseClassRoster(
+          phaseId,
+          classRosterSchoolClass === ALL_VALUE ? null : classRosterSchoolClass,
+          format,
+        );
         toast.success("Klassenliste wurde erstellt.");
       } catch (err) {
         const message =
@@ -616,7 +610,10 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <ExportMenu
+            <ExportMenuButton
+              label="Anmeldungen exportieren"
+              menuAriaLabel="Exportformat auswählen"
+              formats={["pdf", "docx", "xlsx"]}
               exportingFormat={exportingFormat}
               onExport={(format) => void handleExport(format)}
             />
@@ -624,7 +621,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
               href={`/enroll/${encodeURIComponent(phase.id)}`}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
             >
               Elternansicht öffnen
               <ExternalLink className="h-4 w-4" aria-hidden="true" />
@@ -874,13 +871,6 @@ function ClassRosterExportPanel({
   exportingFormat: EnrollmentReportFormat | null;
   onExport: (format: EnrollmentReportFormat) => void;
 }>) {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  useClickOutside(containerRef, () => setOpen(false), open);
-  const formats: readonly EnrollmentReportFormat[] = ["pdf", "docx", "xlsx"];
-  const hasSelectedClass = selectedSchoolClass !== ALL_VALUE;
-  const disabled = exportingFormat !== null || !hasSelectedClass;
-
   return (
     <section className="moto-content-surface relative z-10 rounded-2xl border p-4 shadow-sm backdrop-blur-md">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
@@ -899,7 +889,7 @@ function ClassRosterExportPanel({
                   label:
                     schoolClassOptions.length === 0
                       ? "Keine Klassen"
-                      : "Klasse wählen",
+                      : "Alle Klassen",
                 },
                 ...schoolClassOptions.map((schoolClass) => ({
                   value: schoolClass,
@@ -910,51 +900,14 @@ function ClassRosterExportPanel({
           </SelectField>
         </div>
 
-        <div className="relative" ref={containerRef}>
-          <button
-            type="button"
-            onClick={() => setOpen((value) => !value)}
-            disabled={disabled}
-            aria-haspopup="menu"
-            aria-expanded={open}
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <Download className="h-4 w-4" aria-hidden="true" />
-            {exportingFormat === null
-              ? "Klassenliste exportieren"
-              : `Exportiere ${REPORT_EXPORT_LABELS[exportingFormat]}...`}
-            <ChevronDown
-              className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`}
-              aria-hidden="true"
-            />
-          </button>
-
-          {open ? (
-            <div
-              role="menu"
-              aria-label="Klassenliste exportieren"
-              className="absolute right-0 z-30 mt-2 min-w-64 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg"
-            >
-              {formats.map((format) => (
-                <button
-                  key={format}
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setOpen(false);
-                    onExport(format);
-                  }}
-                  className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 active:bg-gray-100"
-                >
-                  <ExportFormatIcon format={format} />
-                  <span className="flex-1">
-                    {REPORT_EXPORT_MENU_LABELS[format]}
-                  </span>
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
+        <ExportMenuButton
+          label="Klassenliste exportieren"
+          menuAriaLabel="Klassenliste exportieren"
+          formats={["pdf", "docx", "xlsx"]}
+          exportingFormat={exportingFormat}
+          disabled={schoolClassOptions.length === 0}
+          onExport={onExport}
+        />
       </div>
     </section>
   );
@@ -1115,28 +1068,13 @@ function ReportExportCard({
           aria-label="Auswertung exportieren"
           className="absolute right-0 z-40 mt-2 min-w-64 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg"
         >
-          {formats.map((format) => {
-            const Icon = format === "xlsx" ? FileSpreadsheet : FileText;
-            return (
-              <button
-                key={format}
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setOpen(false);
-                  onExport(format);
-                }}
-                className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 active:bg-gray-100"
-              >
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-gray-100 text-gray-600">
-                  <Icon className="h-4 w-4" aria-hidden="true" />
-                </span>
-                <span className="flex-1">
-                  {REPORT_EXPORT_MENU_LABELS[format]}
-                </span>
-              </button>
-            );
-          })}
+          <ExportMenuItems
+            formats={formats}
+            onSelect={(format) => {
+              setOpen(false);
+              onExport(format);
+            }}
+          />
         </div>
       ) : null}
     </div>
@@ -1212,36 +1150,64 @@ function formatDayCountLabel(count: number): string {
   return count === 1 ? "1 Tag" : `${count} Tage`;
 }
 
-function ExportMenu({
+function ExportMenuItems({
+  formats,
+  onSelect,
+}: {
+  readonly formats: readonly EnrollmentExportFormat[];
+  readonly onSelect: (format: EnrollmentExportFormat) => void;
+}) {
+  return (
+    <>
+      {formats.map((format) => (
+        <button
+          key={format}
+          type="button"
+          role="menuitem"
+          onClick={() => onSelect(format)}
+          className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 active:bg-gray-100"
+        >
+          <ExportFormatIcon format={format} />
+          <span className="flex-1">{EXPORT_MENU_LABELS[format]}</span>
+        </button>
+      ))}
+    </>
+  );
+}
+
+function ExportMenuButton({
+  label,
+  menuAriaLabel,
+  formats,
   exportingFormat,
+  disabled = false,
   onExport,
 }: {
+  readonly label: string;
+  readonly menuAriaLabel: string;
+  readonly formats: readonly EnrollmentExportFormat[];
   readonly exportingFormat: EnrollmentExportFormat | null;
+  readonly disabled?: boolean;
   readonly onExport: (format: EnrollmentExportFormat) => void;
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   useClickOutside(containerRef, () => setOpen(false), open);
 
-  const disabled = exportingFormat !== null;
-  const formats: readonly EnrollmentExportFormat[] = ["pdf", "docx", "xlsx"];
-  const triggerLabel =
-    exportingFormat === null
-      ? "Anmeldungen exportieren"
-      : `Exportiere ${exportingFormat.toUpperCase()}...`;
-
   return (
     <div className="relative" ref={containerRef}>
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        disabled={disabled}
+        disabled={disabled || exportingFormat !== null}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
       >
         <Download className="h-4 w-4" aria-hidden="true" />
-        {triggerLabel}
+        {exportingFormat === null
+          ? label
+          : `Exportiere ${REPORT_EXPORT_LABELS[exportingFormat]}...`}
         <ChevronDown
           className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`}
           aria-hidden="true"
@@ -1251,24 +1217,16 @@ function ExportMenu({
       {open ? (
         <div
           role="menu"
-          aria-label="Exportformat auswählen"
+          aria-label={menuAriaLabel}
           className="absolute right-0 z-30 mt-2 min-w-64 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg"
         >
-          {formats.map((format) => (
-            <button
-              key={format}
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setOpen(false);
-                onExport(format);
-              }}
-              className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 active:bg-gray-100"
-            >
-              <ExportFormatIcon format={format} />
-              <span className="flex-1">{EXPORT_FORMAT_LABELS[format]}</span>
-            </button>
-          ))}
+          <ExportMenuItems
+            formats={formats}
+            onSelect={(format) => {
+              setOpen(false);
+              onExport(format);
+            }}
+          />
         </div>
       ) : null}
     </div>

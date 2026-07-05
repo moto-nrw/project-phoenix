@@ -9,7 +9,7 @@ import {
 import { useEffect, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("~/hooks/useIsMobile", () => ({
+vi.mock("~/components/ui/hooks/useIsMobile", () => ({
   useIsMobile: vi.fn(() => false),
 }));
 

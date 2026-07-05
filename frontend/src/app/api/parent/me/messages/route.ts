@@ -1,7 +1,4 @@
-import {
-  createParentGetHandler,
-  parentApiGet,
-} from "~/lib/parent/route-wrapper.server";
+import { proxyGet } from "~/lib/parent/route-wrapper.server";
 
 interface BackendThreadSummary {
   thread_id: string;
@@ -19,8 +16,4 @@ interface BackendThreadSummary {
  * Proxy GET /api/parent/me/messages → backend. Returns one summary per child
  * conversation, with the guardian's unread (staff-sent) count.
  */
-export const GET = createParentGetHandler<BackendThreadSummary[]>(
-  async (_request, token) => {
-    return parentApiGet<BackendThreadSummary[]>(`/parent/me/messages`, token);
-  },
-);
+export const GET = proxyGet<BackendThreadSummary[]>("/parent/me/messages");

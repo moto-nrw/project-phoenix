@@ -11,7 +11,10 @@ import type {
   CreateActivityRequest,
   UpdateActivityRequest,
 } from "./activity-helpers";
-import { buildBackendActivity, buildBackendCategory } from "~/test/fixtures";
+import {
+  buildBackendActivity,
+  buildBackendCategory,
+} from "~/test/fixtures/activities";
 
 const { mockGetServerApiUrl } = vi.hoisted(() => ({
   mockGetServerApiUrl: vi.fn(() => "http://server:8080"),

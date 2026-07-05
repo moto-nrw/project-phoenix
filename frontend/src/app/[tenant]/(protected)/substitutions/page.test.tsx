@@ -62,7 +62,7 @@ vi.mock("~/lib/substitution-api", () => ({
   },
 }));
 
-// Mock breadcrumb context (pages no longer use ResponsiveLayout)
+// Mock breadcrumb context used by the page header
 vi.mock("~/lib/breadcrumb-context", () => ({
   useSetBreadcrumb: vi.fn(),
   useBreadcrumb: vi.fn(() => ({ breadcrumb: {}, setBreadcrumb: vi.fn() })),
@@ -72,7 +72,7 @@ vi.mock("~/lib/breadcrumb-context", () => ({
 }));
 
 // Mock PageHeaderWithSearch
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({
     search,
     filters,

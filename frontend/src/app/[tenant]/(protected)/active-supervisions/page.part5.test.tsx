@@ -65,7 +65,7 @@ vi.mock("~/components/ui/loading", () => ({
 }));
 
 // Mock PageHeaderWithSearch (vi.fn wrapper enables mockImplementation in enhanced tests)
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: vi.fn(
     ({ title, badge }: { title: string; badge?: { count: number } }) => (
       <div data-testid="page-header" data-count={badge?.count}>
@@ -135,8 +135,12 @@ vi.mock("~/components/sse/SSEErrorBoundary", () => ({
 }));
 
 // Mock UnclaimedRooms
-vi.mock("~/components/active", () => ({
+vi.mock("~/components/active/unclaimed-rooms", () => ({
   UnclaimedRooms: () => <div data-testid="unclaimed-rooms" />,
+}));
+
+vi.mock("~/components/rooms/transit-students-section", () => ({
+  TransitStudentsSection: () => <div data-testid="transit-students-section" />,
 }));
 
 // Mock LocationBadge

@@ -31,7 +31,7 @@ import { PersonsTable } from "~/components/operator/persons-table";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
-import { CaregiverCapabilityModal } from "~/components/teachers";
+import { CaregiverCapabilityModal } from "~/components/teachers/caregiver-capability-modal";
 import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-modal";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { formatCount } from "~/lib/format-utils";

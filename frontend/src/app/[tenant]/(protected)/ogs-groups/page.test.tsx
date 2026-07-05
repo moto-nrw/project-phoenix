@@ -96,7 +96,7 @@ vi.mock("~/components/ui/loading", () => ({
 // overflow-menu items so the existing "Gruppe übergeben" assertions keep
 // working. The real OverflowMenu requires a click to expose its items, but
 // for tests we render them flat so getByLabelText still finds them.
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({
     title,
     filters,

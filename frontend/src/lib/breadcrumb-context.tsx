@@ -14,7 +14,6 @@ interface BreadcrumbData {
   studentName?: string;
   staffName?: string;
   roomName?: string;
-  activityName?: string;
   referrerPage?: string;
   activeSupervisionName?: string;
   ogsGroupName?: string;

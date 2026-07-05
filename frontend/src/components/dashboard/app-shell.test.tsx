@@ -72,7 +72,12 @@ describe("AppShell", () => {
     const main = screen.getByRole("main");
     expect(main).toBeInTheDocument();
     expect(main.className).toContain("flex-1");
-    expect(main.className).toContain("pb-24");
+    expect(main.className).toContain(
+      "pb-[calc(7rem+env(safe-area-inset-bottom))]",
+    );
+    expect(main.className).toContain(
+      "md:pb-[calc(7rem+env(safe-area-inset-bottom))]",
+    );
     expect(main.className).not.toContain("moto-dotted-background");
   });
 });

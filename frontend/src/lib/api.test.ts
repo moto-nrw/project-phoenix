@@ -29,11 +29,7 @@ vi.mock("./group-helpers", () => ({
   mapSingleGroupResponse: vi.fn(<T>(data: T): T => data),
   mapGroupResponse: vi.fn(<T>(data: T): T => data),
   prepareGroupForBackend: vi.fn(<T>(data: T): T => data),
-  mapSingleCombinedGroupResponse: vi.fn(<T>(data: T): T => data),
-  prepareCombinedGroupForBackend: vi.fn(<T>(data: T): T => data),
   mapGroupsResponse: vi.fn(<T>(data: T): T => data),
-  mapCombinedGroupsResponse: vi.fn(<T>(data: T): T => data),
-  mapCombinedGroupResponse: vi.fn(<T>(data: T): T => data),
 }));
 
 vi.mock("./room-helpers", () => ({
@@ -945,45 +941,6 @@ describe("api.ts helper functions", () => {
     });
   });
 
-  describe("combinedGroupService.createCombinedGroup", () => {
-    it("validates required name field", async () => {
-      const { combinedGroupService } = await import("./api");
-      const { prepareCombinedGroupForBackend } =
-        await import("./group-helpers");
-      vi.mocked(prepareCombinedGroupForBackend).mockReturnValue({
-        name: "",
-        access_policy: "all",
-      });
-
-      // Use type assertion to test validation with minimal data
-      await expect(
-        combinedGroupService.createCombinedGroup({
-          name: "",
-          access_policy: "all",
-          is_active: true,
-        }),
-      ).rejects.toThrow("Missing required field: name");
-    });
-
-    it("validates required access_policy field", async () => {
-      const { combinedGroupService } = await import("./api");
-      const { prepareCombinedGroupForBackend } =
-        await import("./group-helpers");
-      vi.mocked(prepareCombinedGroupForBackend).mockReturnValue({
-        name: "Test",
-        access_policy: "" as "all", // Empty string to test validation
-      });
-
-      await expect(
-        combinedGroupService.createCombinedGroup({
-          name: "Test",
-          access_policy: "" as "all", // Empty string to test validation
-          is_active: true,
-        }),
-      ).rejects.toThrow("Missing required field: access_policy");
-    });
-  });
-
   describe("groupService.deleteGroup error handling", () => {
     it("extracts detailed error from JSON response", async () => {
       global.fetch = vi.fn().mockResolvedValue({
@@ -1368,110 +1325,6 @@ describe("api.ts helper functions", () => {
     });
   });
 
-  describe("combinedGroupService.getCombinedGroups", () => {
-    it("calls fetch with correct URL", async () => {
-      const mockGroups = [{ id: 1, name: "Combined A" }];
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ data: mockGroups }),
-      });
-
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
-
-      const { combinedGroupService } = await import("./api");
-
-      const restore = setupBrowserEnv();
-      try {
-        await combinedGroupService.getCombinedGroups();
-        expect(global.fetch).toHaveBeenCalledWith(
-          expect.stringContaining("/api/groups/combined"),
-          expect.any(Object),
-        );
-      } finally {
-        restore();
-      }
-    });
-
-    it("throws error on API failure", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        status: 500,
-        text: () => Promise.resolve("Server Error"),
-      });
-
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
-
-      const { combinedGroupService } = await import("./api");
-
-      const restore = setupBrowserEnv();
-      try {
-        await expect(combinedGroupService.getCombinedGroups()).rejects.toThrow(
-          "API error",
-        );
-      } finally {
-        restore();
-      }
-    });
-  });
-
-  describe("combinedGroupService.getCombinedGroup", () => {
-    it("calls fetch with correct URL", async () => {
-      const mockGroup = { id: 1, name: "Combined A" };
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ data: mockGroup }),
-      });
-
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
-
-      const { combinedGroupService } = await import("./api");
-
-      const restore = setupBrowserEnv();
-      try {
-        await combinedGroupService.getCombinedGroup("1");
-        expect(global.fetch).toHaveBeenCalledWith(
-          expect.stringContaining("/api/groups/combined/1"),
-          expect.any(Object),
-        );
-      } finally {
-        restore();
-      }
-    });
-
-    it("throws error on API failure", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        status: 404,
-        text: () => Promise.resolve("Not Found"),
-      });
-
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
-
-      const { combinedGroupService } = await import("./api");
-
-      const restore = setupBrowserEnv();
-      try {
-        await expect(
-          combinedGroupService.getCombinedGroup("1"),
-        ).rejects.toThrow("API error");
-      } finally {
-        restore();
-      }
-    });
-  });
-
   describe("roomService.updateRoom", () => {
     it("calls fetch with correct URL and method", async () => {
       global.fetch = vi.fn().mockResolvedValue({
@@ -1558,37 +1411,6 @@ describe("api.ts helper functions", () => {
     });
   });
 
-  describe("combinedGroupService.updateCombinedGroup", () => {
-    it("calls fetch with correct URL and method", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ id: 1, name: "Updated Combined" }),
-      });
-
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
-
-      const { combinedGroupService } = await import("./api");
-
-      const restore = setupBrowserEnv();
-      try {
-        await combinedGroupService.updateCombinedGroup("1", {
-          name: "Updated Combined",
-          access_policy: "all",
-          is_active: true,
-        });
-        expect(global.fetch).toHaveBeenCalledWith(
-          expect.stringContaining("/api/groups/combined/1"),
-          expect.objectContaining({ method: "PUT" }),
-        );
-      } finally {
-        restore();
-      }
-    });
-  });
-
   describe("studentService.deleteStudent", () => {
     it("calls fetch with correct URL and method", async () => {
       global.fetch = vi.fn().mockResolvedValue({
@@ -1656,33 +1478,6 @@ describe("api.ts helper functions", () => {
         await roomService.deleteRoom("456");
         expect(global.fetch).toHaveBeenCalledWith(
           expect.stringContaining("/api/rooms/456"),
-          expect.objectContaining({ method: "DELETE" }),
-        );
-      } finally {
-        restore();
-      }
-    });
-  });
-
-  describe("combinedGroupService.deleteCombinedGroup", () => {
-    it("calls fetch with correct URL and method", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({}),
-      });
-
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
-
-      const { combinedGroupService } = await import("./api");
-
-      const restore = setupBrowserEnv();
-      try {
-        await combinedGroupService.deleteCombinedGroup("789");
-        expect(global.fetch).toHaveBeenCalledWith(
-          expect.stringContaining("/api/groups/combined/789"),
           expect.objectContaining({ method: "DELETE" }),
         );
       } finally {
@@ -2006,111 +1801,6 @@ describe("api.ts helper functions", () => {
       const restore = setupBrowserEnv();
       try {
         await expect(roomService.getRoomsByCategory()).rejects.toThrow();
-      } finally {
-        restore();
-      }
-    });
-  });
-
-  describe("combinedGroupService.addGroupToCombined", () => {
-    it("adds group to combined group successfully", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({}),
-      });
-
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
-
-      const { combinedGroupService } = await import("./api");
-
-      const restore = setupBrowserEnv();
-      try {
-        await combinedGroupService.addGroupToCombined("100", "200");
-        expect(global.fetch).toHaveBeenCalledWith(
-          expect.stringContaining("/api/groups/combined/100/groups"),
-          expect.objectContaining({
-            method: "POST",
-            body: JSON.stringify({ group_id: 200 }),
-          }),
-        );
-      } finally {
-        restore();
-      }
-    });
-
-    it("throws error on API failure", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        status: 409,
-        text: () => Promise.resolve("Conflict"),
-      });
-
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
-
-      const { combinedGroupService } = await import("./api");
-
-      const restore = setupBrowserEnv();
-      try {
-        await expect(
-          combinedGroupService.addGroupToCombined("100", "200"),
-        ).rejects.toThrow("API error: 409");
-      } finally {
-        restore();
-      }
-    });
-  });
-
-  describe("combinedGroupService.removeGroupFromCombined", () => {
-    it("removes group from combined group successfully", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({}),
-      });
-
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
-
-      const { combinedGroupService } = await import("./api");
-
-      const restore = setupBrowserEnv();
-      try {
-        await combinedGroupService.removeGroupFromCombined("100", "200");
-        expect(global.fetch).toHaveBeenCalledWith(
-          expect.stringContaining("/api/groups/combined/100/groups/200"),
-          expect.objectContaining({ method: "DELETE" }),
-        );
-      } finally {
-        restore();
-      }
-    });
-
-    it("throws error on API failure", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        status: 404,
-        text: () => Promise.resolve("Not Found"),
-      });
-
-      const { getSession } = await import("next-auth/react");
-      vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
-      } as never);
-
-      const { combinedGroupService } = await import("./api");
-
-      const restore = setupBrowserEnv();
-      try {
-        await expect(
-          combinedGroupService.removeGroupFromCombined("100", "200"),
-        ).rejects.toThrow("API error: 404");
       } finally {
         restore();
       }

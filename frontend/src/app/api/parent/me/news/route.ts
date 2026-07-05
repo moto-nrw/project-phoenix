@@ -1,7 +1,4 @@
-import {
-  createParentGetHandler,
-  parentApiGet,
-} from "~/lib/parent/route-wrapper.server";
+import { proxyGet } from "~/lib/parent/route-wrapper.server";
 
 interface BackendAnnouncement {
   id: string;
@@ -22,8 +19,4 @@ interface BackendAnnouncement {
  * first, each with the guardian's read/ack state. Audience + visibility are
  * enforced server-side from the JWT account.
  */
-export const GET = createParentGetHandler<BackendAnnouncement[]>(
-  async (_request, token) => {
-    return parentApiGet<BackendAnnouncement[]>(`/parent/me/news`, token);
-  },
-);
+export const GET = proxyGet<BackendAnnouncement[]>("/parent/me/news");

@@ -1,6 +1,9 @@
 package listexport
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 type Format string
 
@@ -65,6 +68,21 @@ type Column struct {
 type Row struct {
 	Values     map[ColumnID]string `json:"values"`
 	GroupTitle string              `json:"group_title,omitempty"`
+}
+
+// ClassGroupTitle labels a per-class section in grouped class-list
+// exports. Class names that already carry the word "Klasse" (e.g.
+// "Klasse 1a") are used as-is to avoid "Klasse Klasse 1a"; students
+// without a class collect under "Ohne Klasse".
+func ClassGroupTitle(schoolClass string) string {
+	schoolClass = strings.TrimSpace(schoolClass)
+	if schoolClass == "" {
+		return "Ohne Klasse"
+	}
+	if strings.HasPrefix(strings.ToLower(schoolClass), "klasse") {
+		return schoolClass
+	}
+	return "Klasse " + schoolClass
 }
 
 type Document struct {
