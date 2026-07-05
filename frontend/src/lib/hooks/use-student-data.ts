@@ -23,6 +23,9 @@ export interface ExtendedStudent extends Student {
   extra_info?: string;
   supervisor_notes?: string;
   health_info?: string;
+  address_street?: string;
+  address_city?: string;
+  address_postal_code?: string;
   pickup_status?: string;
   sick?: boolean;
   sick_since?: string;
@@ -87,6 +90,15 @@ function mapStudentResponse(
       ? (mappedStudent.location_since ?? undefined)
       : undefined,
     extra_info: hasAccess ? (mappedStudent.extra_info ?? undefined) : undefined,
+    address_street: hasAccess
+      ? (mappedStudent.address_street ?? undefined)
+      : undefined,
+    address_city: hasAccess
+      ? (mappedStudent.address_city ?? undefined)
+      : undefined,
+    address_postal_code: hasAccess
+      ? (mappedStudent.address_postal_code ?? undefined)
+      : undefined,
     supervisor_notes: hasAccess
       ? (mappedStudent.supervisor_notes ?? undefined)
       : undefined,

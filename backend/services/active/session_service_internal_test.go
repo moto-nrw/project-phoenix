@@ -14,6 +14,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -142,6 +143,11 @@ func (w *workSessionServiceForSessionUnitTest) GetTodayPresenceMap(context.Conte
 }
 func (w *workSessionServiceForSessionUnitTest) CleanupOpenSessions(context.Context) (int, error) {
 	return 0, nil
+}
+func (w *workSessionServiceForSessionUnitTest) AutoCheckoutDueSessions(context.Context, time.Duration) (int, error) {
+	return 0, nil
+}
+func (w *workSessionServiceForSessionUnitTest) SetStaffShiftRepo(scheduleModels.StaffShiftRepository) {
 }
 func (w *workSessionServiceForSessionUnitTest) EnsureCheckedIn(ctx context.Context, staffID int64, source string) (*activeModels.WorkSession, error) {
 	if w.ensureCheckedInFunc != nil {
@@ -466,13 +472,47 @@ func TestAssignSupervisorNonCritical_WorkSessionBestEffortBranches(t *testing.T)
 
 		svc.assignSupervisorNonCritical(ctx, 77, 88, time.Now())
 	})
+
+	t.Run("planned start auto check-in error is treated as skipped", func(t *testing.T) {
+		var checkedStaffID int64
+		createdSupervisor := false
+		svc := &service{
+			logger: slog.Default(),
+			supervisorRepo: &mockGroupSupervisorRepository{
+				createFunc: func(_ context.Context, supervisor *activeModels.GroupSupervisor) error {
+					createdSupervisor = true
+					assert.Equal(t, int64(88), supervisor.StaffID)
+					return nil
+				},
+			},
+			workSessionService: &workSessionServiceForSessionUnitTest{
+				ensureCheckedInFunc: func(_ context.Context, staffID int64, source string) (*activeModels.WorkSession, error) {
+					checkedStaffID = staffID
+					assert.Equal(t, activeModels.WorkSessionSourceNFC, source)
+					return nil, &PlannedStartNotReachedError{
+						PlannedStartTime: "09:00",
+						CurrentTime:      "08:45",
+					}
+				},
+			},
+		}
+
+		svc.assignSupervisorNonCritical(ctx, 77, 88, time.Now())
+
+		assert.True(t, createdSupervisor)
+		assert.Equal(t, int64(88), checkedStaffID)
+	})
 }
 
 func TestAssignMultipleSupervisorsNonCritical_WorkSessionBestEffortBranches(t *testing.T) {
 	ctx := context.Background()
 	checkInResults := map[int64]error{
 		10: errors.New("auto check-in failed"),
-		20: nil,
+		20: &PlannedStartNotReachedError{
+			PlannedStartTime: "09:00",
+			CurrentTime:      "08:45",
+		},
+		30: nil,
 	}
 	checked := map[int64]bool{}
 	created := map[int64]bool{}
@@ -496,10 +536,10 @@ func TestAssignMultipleSupervisorsNonCritical_WorkSessionBestEffortBranches(t *t
 		},
 	}
 
-	svc.assignMultipleSupervisorsNonCritical(ctx, 99, []int64{10, 20, 10}, time.Now())
+	svc.assignMultipleSupervisorsNonCritical(ctx, 99, []int64{10, 20, 10, 30}, time.Now())
 
-	assert.Equal(t, map[int64]bool{10: true, 20: true}, created)
-	assert.Equal(t, map[int64]bool{10: true, 20: true}, checked)
+	assert.Equal(t, map[int64]bool{10: true, 20: true, 30: true}, created)
+	assert.Equal(t, map[int64]bool{10: true, 20: true, 30: true}, checked)
 }
 
 func TestRunBestEffortDB_SavepointBranches(t *testing.T) {

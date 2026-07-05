@@ -64,6 +64,32 @@ export function isStringParam(param: unknown): param is string {
   return typeof param === "string";
 }
 
+/**
+ * Returns a required string route param, throwing "Invalid {key} parameter"
+ * (→ 500 via handleApiError) when it is missing or not a string. This does not
+ * URL-encode the value; use requirePathSegmentParam for path interpolation.
+ */
+export function requireStringParam(
+  params: Record<string, unknown>,
+  key = "id",
+): string {
+  const value = params[key];
+  if (!isStringParam(value)) {
+    throw new Error(`Invalid ${key} parameter`);
+  }
+  return value;
+}
+
 export function encodePathSegment(param: string): string {
   return encodeURIComponent(param);
+}
+
+/**
+ * Returns a required route param encoded for use as one URL path segment.
+ */
+export function requirePathSegmentParam(
+  params: Record<string, unknown>,
+  key = "id",
+): string {
+  return encodePathSegment(requireStringParam(params, key));
 }

@@ -170,8 +170,10 @@ describe("OverflowMenu", () => {
   });
 
   it("anchors menu to the left when the trigger sits near the left edge", () => {
-    // Force the trigger's bounding rect to report no room on its left so
-    // the alignment logic flips to `left-0`.
+    // Force the trigger's bounding rect to report it sits near the left edge
+    // (left < 220) so the alignment logic anchors with an inline `left` rather
+    // than `right`. The portaled menu positions via inline fixed-position
+    // styles, not `left-0`/`right-0` classes.
     const originalGetRect = window.HTMLElement.prototype.getBoundingClientRect;
     window.HTMLElement.prototype.getBoundingClientRect = () =>
       ({
@@ -196,8 +198,43 @@ describe("OverflowMenu", () => {
         screen.getByRole("button", { name: /Weitere Aktionen/i }),
       );
       const menu = screen.getByRole("menu");
-      expect(menu.className).toContain("left-0");
-      expect(menu.className).not.toContain("right-0");
+      expect(menu.style.left).toBe("10px");
+      expect(menu.style.right).toBe("");
+    } finally {
+      window.HTMLElement.prototype.getBoundingClientRect = originalGetRect;
+    }
+  });
+
+  it("anchors menu to the right when the trigger has room on its left", () => {
+    // left >= 220 → the menu extends left from the trigger's right edge,
+    // positioned with an inline `right` (viewport width minus rect.right) and
+    // no inline `left`.
+    const originalGetRect = window.HTMLElement.prototype.getBoundingClientRect;
+    window.HTMLElement.prototype.getBoundingClientRect = () =>
+      ({
+        left: 600,
+        right: 640,
+        top: 0,
+        bottom: 0,
+        width: 40,
+        height: 0,
+        x: 600,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect;
+
+    try {
+      render(
+        <OverflowMenu
+          items={[{ label: "Export", onClick: () => undefined }]}
+        />,
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: /Weitere Aktionen/i }),
+      );
+      const menu = screen.getByRole("menu");
+      expect(menu.style.right).toBe(`${window.innerWidth - 640}px`);
+      expect(menu.style.left).toBe("");
     } finally {
       window.HTMLElement.prototype.getBoundingClientRect = originalGetRect;
     }

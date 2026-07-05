@@ -450,3 +450,9 @@ describe("fetchGuardians", () => {
     expect(out[0]!.is_primary).toBe(false);
   });
 });
+
+// #1803 removed the inbox "offene Anfragen" filter (open_requests param +
+// open_request_count field) and the staff confirmRequest/rejectRequest decision
+// endpoints: change requests are now decided on the Änderungsanfragen admin page
+// (care-request-review-api), not inline in the chat. Their tests were removed
+// with them.

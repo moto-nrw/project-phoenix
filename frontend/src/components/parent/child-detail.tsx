@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   CalendarClock,
+  Clock,
   HeartPulse,
   MessageCircle,
   Newspaper,
@@ -20,6 +21,7 @@ import {
   listChildThreads,
   listMyChildren,
 } from "~/lib/parent-api";
+import { parentThreadPreviewI18nDescriptor } from "~/lib/messaging-status";
 import { createLogger } from "~/lib/logger";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import {
@@ -339,6 +341,11 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
               title={t("masterDataTitle")}
               description={t("masterDataDescription")}
             />
+            {care.features.has_open_change_request && (
+              <div className="mt-3">
+                <OpenRequestBadge />
+              </div>
+            )}
           </div>
           <dl className="divide-y divide-gray-100 border-t border-gray-100">
             {summaryItems.map((item) => (
@@ -368,7 +375,6 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
             canInvite={care.features.related_accounts_invite_enabled}
             canRemove={care.features.related_accounts_remove_enabled}
           />
-          <NewsPanel />
         </div>
       </div>
 
@@ -477,12 +483,13 @@ function MobileChildAppView({
         mobile
       />
 
-      <NewsPanel mobile />
-
       <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-gray-900">
-          {t("careLabel")}
-        </h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-lg font-semibold text-gray-900">
+            {t("careLabel")}
+          </h2>
+          {care.features.has_open_change_request && <OpenRequestBadge />}
+        </div>
         <dl className="mt-4 space-y-3">
           <CompactInfoRow
             label={t("periodLabel")}
@@ -650,9 +657,24 @@ function ChildMessagesPanel({
   mobile?: boolean;
 }>) {
   const t = useTranslations("parentChildDetail");
+  const tMsg = useTranslations("parentOgsMessaging");
   const router = useRouter();
   // Chat model: at most one conversation per child.
   const conversation = threads[0];
+  // System-generated bodies (request titles, decision/withdrawal events) are
+  // German on the wire; localize the preview from the structured last-message
+  // fields, falling back to the language-neutral body for plain messages.
+  const previewDescriptor = conversation
+    ? parentThreadPreviewI18nDescriptor({
+        last_message_kind: conversation.last_message_kind,
+        last_event_type: conversation.last_event_type,
+        last_request_type: conversation.last_request_type,
+        last_request_status: conversation.last_request_status,
+      })
+    : null;
+  const previewBody = previewDescriptor
+    ? tMsg(previewDescriptor.key, previewDescriptor.values)
+    : conversation?.last_message_body;
   return (
     <section
       className={
@@ -698,9 +720,9 @@ function ChildMessagesPanel({
                 </span>
                 <UnreadBadge count={conversation.unread} />
               </span>
-              {conversation.last_message_body && (
+              {previewBody && (
                 <span className="mt-0.5 block truncate text-sm text-gray-600">
-                  {conversation.last_message_body}
+                  {previewBody}
                 </span>
               )}
             </span>
@@ -709,44 +731,6 @@ function ChildMessagesPanel({
             </span>
           </button>
         )}
-      </div>
-    </section>
-  );
-}
-
-function NewsPanel({ mobile = false }: Readonly<{ mobile?: boolean }>) {
-  const t = useTranslations("parentChildDetail");
-  return (
-    <section
-      className={
-        mobile
-          ? "rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
-          : "rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6"
-      }
-    >
-      {mobile ? (
-        <h2 className="text-lg font-semibold text-gray-900">
-          {t("newsTitle")}
-        </h2>
-      ) : (
-        <PanelHeader
-          eyebrow={t("newsEyebrow")}
-          title={t("newsTitle")}
-          description={t("newsDescription")}
-        />
-      )}
-      <div className="mt-4 flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50/70 p-4">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-gray-600 shadow-sm ring-1 ring-gray-200">
-          <Newspaper className="h-5 w-5" aria-hidden="true" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-gray-900">
-            {t("noNewsTitle")}
-          </p>
-          <p className="mt-0.5 text-sm leading-5 text-gray-600">
-            {t("noNewsDescription")}
-          </p>
-        </div>
       </div>
     </section>
   );
@@ -765,6 +749,20 @@ function CompactInfoRow({
         {value}
       </dd>
     </div>
+  );
+}
+
+// "Anfrage offen" pill for the child overview's Stammdaten entry: a pending
+// change request (master data or care schedule) is awaiting an OGS decision.
+// The details live on the Stammdaten page; this only signals that one exists so
+// the parent knows to look without opening it.
+function OpenRequestBadge() {
+  const tMd = useTranslations("parentMasterData");
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-semibold text-[#92710b]">
+      <Clock className="h-3 w-3" aria-hidden="true" />
+      {tMd("careSchedule.pendingBadge")}
+    </span>
   );
 }
 

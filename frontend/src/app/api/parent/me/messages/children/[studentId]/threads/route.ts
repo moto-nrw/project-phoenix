@@ -1,7 +1,5 @@
-import {
-  createParentGetHandler,
-  parentApiGet,
-} from "~/lib/parent/route-wrapper.server";
+import { proxyGet } from "~/lib/parent/route-wrapper.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 interface BackendThreadSummary {
   thread_id: string;
@@ -22,12 +20,7 @@ interface BackendThreadSummary {
  * page uses this instead of fetching the whole inbox. Guardian ownership is
  * enforced server-side.
  */
-export const GET = createParentGetHandler<BackendThreadSummary[]>(
-  async (_request, token, params) => {
-    const studentId = String(params.studentId);
-    return parentApiGet<BackendThreadSummary[]>(
-      `/parent/me/messages/children/${encodeURIComponent(studentId)}/threads`,
-      token,
-    );
-  },
+export const GET = proxyGet<BackendThreadSummary[]>(
+  (params) =>
+    `/parent/me/messages/children/${requirePathSegmentParam(params, "studentId")}/threads`,
 );

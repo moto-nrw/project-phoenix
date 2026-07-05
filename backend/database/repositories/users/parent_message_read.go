@@ -75,12 +75,37 @@ func (r *ParentMessageReadRepository) MarkReadUpTo(ctx context.Context, tenantID
 
 // counterpartUnread builds the SQL boolean for "a message from the OTHER party
 // relative to the reader", on the given message alias: a staff reader counts
-// unread guardian messages, a guardian reader counts unread staff messages.
+// unread guardian-side activity, a guardian reader counts unread staff-side
+// activity.
+//
+// A system event (request decision / withdrawal) carries sender_kind='system'
+// and records the side that TRIGGERED it in event_actor_kind, so the counterpart
+// side cannot be read from sender_kind for those rows — it must come from
+// event_actor_kind. A staff confirm/reject (event_actor_kind='staff') is unread
+// to the guardian; a parent withdrawal (event_actor_kind='guardian') is unread to
+// staff. Plain messages match on sender_kind directly. Centralizing both cases
+// here keeps every unread number (inbox COUNT column, sidebar badges, unread
+// EXISTS filter) consistent — see the callers of this helper.
 func counterpartUnread(alias string, staffReader bool) string {
+	side := "staff"
 	if staffReader {
-		return fmt.Sprintf(`%s.sender_kind = 'guardian'`, alias)
+		side = "guardian"
 	}
-	return fmt.Sprintf(`%s.sender_kind = 'staff'`, alias)
+	// request_created pills are excluded from EVERY unread number here: a
+	// submitted change request is surfaced as a count on the Änderungsanfragen
+	// queue badge (its own actionable signal), never as an unread chat message on
+	// the Nachrichten badge (#1803 — kills the double-signal). The pill still
+	// lives in the thread timeline as a non-interactive notice. IS DISTINCT FROM
+	// keeps plain messages (NULL event_type) and every OTHER pill counted; only
+	// this one event_type drops out. Baking it into the shared predicate is what
+	// keeps the aggregate badge count, the per-thread unread_count column, and the
+	// unread-EXISTS filter from ever disagreeing. For guardian readers it is a
+	// no-op — a guardian-side pill is already not their counterpart — so the
+	// exclusion only affects the staff side, by design.
+	return fmt.Sprintf(
+		`((%[1]s.sender_kind = '%[2]s' OR (%[1]s.sender_kind = 'system' AND %[1]s.event_actor_kind = '%[2]s')) AND %[1]s.event_type IS DISTINCT FROM 'request_created')`,
+		alias, side,
+	)
 }
 
 // afterReadCursor builds the load-bearing composite tie-break "message <alias>
@@ -97,10 +122,10 @@ func afterReadCursor(alias string) string {
 	)
 }
 
-// notReaderAuthored excludes the reader's OWN messages from their unread set,
-// keyed on sender_account_id (a real column) regardless of sender_kind. It is the
-// third leg of every unread predicate, and carries a single `?` bound to the
-// reader's account id at the call site.
+// notReaderAuthored excludes the reader's OWN plain messages from their unread
+// set, keyed on sender_account_id (a real column). It is the third leg of every
+// unread predicate, and carries a single `?` bound to the reader's account id at
+// the call site.
 //
 // This is what keeps a dual-role (staff+guardian) account from counting its own
 // just-sent message as unread to itself: that account is the counterpart of
@@ -112,8 +137,19 @@ func afterReadCursor(alias string) string {
 // longer moves the cursor: a cursor leap to the just-sent message also skips an
 // earlier counterpart message that committed after the send (lower created_at,
 // later commit), silently marking an unseen message read.
+//
+// System events (request decisions / withdrawals) are DELIBERATELY exempt from
+// the account exclusion: they carry the triggering side in event_actor_kind and
+// are attributed by SIDE, not account — counterpartUnread already decides which
+// portal they are unread to. appendSystemEvent stores the ACTOR in
+// sender_account_id, so for a dual-role account a confirm/reject it triggers as
+// staff (or a withdrawal as guardian) would match its own account and be filtered
+// back out of the OPPOSITE side's unread set — silently cancelling exactly the
+// event_actor_kind attribution that exists to light the other portal's badge. So
+// the self-exclusion applies to plain messages only; for system events
+// counterpartUnread is the sole, side-correct gate.
 func notReaderAuthored(alias string) string {
-	return fmt.Sprintf(`%s.sender_account_id <> ?`, alias)
+	return fmt.Sprintf(`(%[1]s.sender_kind = 'system' OR %[1]s.sender_account_id <> ?)`, alias)
 }
 
 // inboxSelect builds the InboxThread projection. staffReader switches the
@@ -154,6 +190,16 @@ func inboxSelect(q *bun.SelectQuery, accountID int64, staffReader bool) *bun.Sel
 		// last_message_at is set), so the inbox preview no longer needs a
 		// correlated subquery that re-scans parent_messages per thread row.
 		ColumnExpr("COALESCE(t.last_message_body,'') AS last_message_body").
+		// Structured fields of the last message (joined as lm on last_message_id
+		// below), so the LOCALIZED parents portal renders a request title or a
+		// decision/withdrawal system-event preview from fields instead of the
+		// German last_message_body. Empty for a fresh thread (no last message) and
+		// for plain messages, where the body is already language-neutral. The
+		// German-only staff inbox ignores these.
+		ColumnExpr("COALESCE(lm.kind,'') AS last_message_kind").
+		ColumnExpr("COALESCE(lm.event_type,'') AS last_event_type").
+		ColumnExpr("COALESCE(lm.request_type,'') AS last_request_type").
+		ColumnExpr("COALESCE(lm.request_status,'') AS last_request_status").
 		// accountID binds the notReaderAuthored `?` in unreadSub (cm.sender_account_id
 		// <> ?). bun renders args in SQL-fragment order, so this select-list arg
 		// precedes the read-cursor join's account-id arg below; both are the same id.
@@ -169,6 +215,12 @@ func inboxSelect(q *bun.SelectQuery, accountID int64, staffReader bool) *bun.Sel
 		Join("LEFT JOIN users.guardian_profiles AS gp ON gp.account_id = t.guardian_account_id AND gp.tenant_id = t.tenant_id").
 		Join("LEFT JOIN users.students_guardians AS sg ON sg.guardian_profile_id = gp.id AND sg.student_id = t.student_id").
 		Join("LEFT JOIN users.parent_message_reads AS r ON r.thread_id = t.id AND r.account_id = ? AND r.tenant_id = t.tenant_id", accountID).
+		// The thread's last message, for the structured preview columns above. PK
+		// lookup (one row per thread), so it stays an index scan; tenant_id = t.tenant_id
+		// mirrors the other correlated reads (RLS-correct and index-leading under the
+		// cross-tenant guardian path). NULL last_message_id (fresh thread) -> no row,
+		// columns COALESCE to ''.
+		Join("LEFT JOIN users.parent_messages AS lm ON lm.id = t.last_message_id AND lm.tenant_id = t.tenant_id").
 		OrderExpr("t.last_message_at DESC NULLS LAST")
 }
 

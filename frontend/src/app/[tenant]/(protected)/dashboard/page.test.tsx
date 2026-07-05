@@ -109,7 +109,7 @@ vi.mock("~/lib/swr/hooks", () => ({
   useSWRAuth: vi.fn(),
 }));
 
-vi.mock("~/components/tenant/tenant-provider", () => ({
+vi.mock("~/lib/tenant-context", () => ({
   useNFCEnabled: vi.fn(() => true),
   usePresenceMode: vi.fn(() => "detailed"),
   useTenantSlugSafe: vi.fn(() => "test-tenant"),
@@ -131,10 +131,7 @@ vi.mock("~/lib/dashboard-helpers", () => ({
 import { useSession } from "next-auth/react";
 import { isAdmin } from "~/lib/auth-utils";
 import { useSWRAuth } from "~/lib/swr/hooks";
-import {
-  useNFCEnabled,
-  usePresenceMode,
-} from "~/components/tenant/tenant-provider";
+import { useNFCEnabled, usePresenceMode } from "~/lib/tenant-context";
 
 // Helper to create SWR mock return values
 function mockSWR(

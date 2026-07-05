@@ -1,37 +1,21 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { GET } from "./route";
-import { parentApiGet } from "~/lib/parent/route-wrapper.server";
-
+// Capture the endpoint builders the route hands to the parent proxy factories,
+// so the test can assert path-segment encoding without real HTTP plumbing.
 vi.mock("~/lib/parent/route-wrapper.server", () => ({
-  createParentGetHandler:
-    (
-      handler: (
-        request: Request,
-        token: string,
-        params: Record<string, unknown>,
-      ) => Promise<unknown>,
-    ) =>
-    (request: Request, context: { params: Record<string, unknown> }) =>
-      handler(request, "parent-token", context.params),
-  parentApiGet: vi.fn(),
+  proxyGet: vi.fn((endpoint: unknown) => endpoint),
 }));
 
+import { GET } from "./route";
+
+type EndpointBuilder = (params: Record<string, unknown>) => string;
+
 describe("parent child master-data route", () => {
-  it("forwards to the encoded backend master-data endpoint", async () => {
-    vi.mocked(parentApiGet).mockResolvedValue({ student_id: "42" });
+  it("forwards to the encoded backend master-data endpoint", () => {
+    const buildEndpoint = GET as unknown as EndpointBuilder;
 
-    const out = await GET(
-      new Request("http://test.local") as never,
-      {
-        params: { studentId: "42/unsafe" },
-      } as never,
-    );
-
-    expect(out).toEqual({ student_id: "42" });
-    expect(parentApiGet).toHaveBeenCalledWith(
+    expect(buildEndpoint({ studentId: "42/unsafe" })).toBe(
       "/parent/me/children/42%2Funsafe/master-data",
-      "parent-token",
     );
   });
 });

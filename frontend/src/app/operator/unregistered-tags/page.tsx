@@ -3,10 +3,8 @@
 import { Suspense, useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import useSWR from "swr";
-import {
-  PageHeaderWithSearch,
-  type FilterConfig,
-} from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import type { FilterConfig } from "~/components/ui/page-header/types";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { getRelativeTime } from "~/lib/format-utils";
 import { createLogger } from "~/lib/logger";

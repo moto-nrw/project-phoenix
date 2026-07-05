@@ -51,7 +51,7 @@ Need X → use Y (do NOT hand-roll):
 - Avatar                    → Avatar
 - Location/presence badge    → LocationBadge, PresenceBadge, StudentPresenceBadge
 - Kebab / overflow menu     → OverflowMenu                          (~/components/ui/page-header/OverflowMenu)
-- API error message text     → getApiErrorMessage                   (~/components/ui/modal-utils)
+- API error message text     → getApiErrorMessage                   (~/lib/api-error-message)
 
 CANONICAL VALUES:
 - Card / panel surface = "rounded-2xl border border-gray-200 bg-white shadow-sm" (24px radius). Inconsistent card radii (rounded-lg/rounded-xl for a card surface), bare "rounded", ad-hoc "rounded-[Npx]", or a square border-b-only strip are VIOLATIONS.

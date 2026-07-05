@@ -56,7 +56,7 @@ vi.mock("~/components/ui/alert", () => ({
 }));
 
 // Mock PageHeaderWithSearch
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({
     filters,
     activeFilters,
@@ -442,7 +442,7 @@ describe("StudentSearchPage", () => {
       update: vi.fn(),
     } as unknown as ReturnType<typeof sessionModule.useSession>);
 
-    const tenantProvider = await import("~/components/tenant/tenant-provider");
+    const tenantProvider = await import("~/lib/tenant-context");
     vi.mocked(tenantProvider.useTenantSafe).mockReturnValue({
       tenantSlug: "test-tenant",
       tenant: { studentPhotosEnabled: true },
@@ -1753,8 +1753,7 @@ describe("StudentSearchPage", () => {
   describe("Administrative Student Filters", () => {
     it("separates student caches when the photo feature flag changes", async () => {
       const swrModule = await import("~/lib/swr");
-      const tenantProvider =
-        await import("~/components/tenant/tenant-provider");
+      const tenantProvider = await import("~/lib/tenant-context");
       const studentKeys: string[] = [];
 
       vi.mocked(swrModule.useSWRAuth).mockImplementation((key) => {
@@ -2015,8 +2014,7 @@ describe("StudentSearchPage", () => {
     });
 
     it("hides the photo consent filter when the tenant photo feature is disabled", async () => {
-      const tenantProvider =
-        await import("~/components/tenant/tenant-provider");
+      const tenantProvider = await import("~/lib/tenant-context");
       vi.mocked(tenantProvider.useTenantSafe).mockReturnValue({
         tenantSlug: "test-tenant",
         tenant: { studentPhotosEnabled: false },

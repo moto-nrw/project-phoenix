@@ -10,6 +10,7 @@ import {
   submitSickNote,
   listSickDays,
   getChildFeatures,
+  getChildMealPlan,
   getChildMasterData,
   updateMasterDataField,
   submitMasterDataRequest,
@@ -18,12 +19,17 @@ import {
   fetchMessagesUnreadCount,
   getChildConversation,
   postChildMessage,
+  listAnnouncements,
+  fetchAnnouncementsUnreadCount,
+  markAnnouncementRead,
+  acknowledgeAnnouncement,
   type Child,
   type EnrollmentRequest,
   type StatusDay,
   type ChildMasterData,
   type ThreadSummary,
   type ThreadView,
+  type ParentAnnouncement,
 } from "./parent-api";
 
 import type { SubmitEnrollmentPayload } from "./enrollment-submission-api";
@@ -606,6 +612,49 @@ describe("getChildFeatures", () => {
   });
 });
 
+describe("getChildMealPlan", () => {
+  it("GETs the child meal-plan route with the week_start query and returns entries", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({
+        data: [
+          { date: "2026-07-06", position: 0, dish: "Spaghetti", note: null },
+          {
+            date: "2026-07-06",
+            position: 1,
+            dish: "Salat",
+            note: "vegetarisch",
+          },
+        ],
+      });
+    });
+    const out = await getChildMealPlan("84", "2026-07-06");
+    expect(out).toHaveLength(2);
+    expect(out[0]?.dish).toBe("Spaghetti");
+    expect(out[1]?.note).toBe("vegetarisch");
+    expect(seenURL).toContain("/api/parent/me/children/84/meal-plan");
+    expect(seenURL).toContain("week_start=2026-07-06");
+  });
+
+  it("URL-encodes the student id and week start", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({ data: [] });
+    });
+    await getChildMealPlan("a/b", "2026-07-06");
+    expect(seenURL).toContain("/api/parent/me/children/a%2Fb/meal-plan");
+  });
+
+  it("propagates a 403 (meal_plan_disabled) so the caller can hide the section", async () => {
+    mockFetch(async () => new Response("nope", { status: 403 }));
+    await expect(getChildMealPlan("84", "2026-07-06")).rejects.toThrow(
+      /Request failed \(403\)/,
+    );
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -800,5 +849,125 @@ describe("postChildMessage", () => {
     await expect(postChildMessage("42", "test")).rejects.toThrow(
       /Messaging deaktiviert/,
     );
+  });
+});
+
+// createChildRequest / withdrawChildRequest were removed in #1803: change
+// requests no longer flow through the chat. Care-schedule requests are now
+// created/withdrawn via the Stammdaten care-schedule endpoints
+// (submitCareScheduleRequest / withdrawCareScheduleRequest), covered elsewhere.
+
+function mkAnnouncement(
+  overrides: Partial<ParentAnnouncement> = {},
+): ParentAnnouncement {
+  return {
+    id: "5",
+    title: "Sommerfest",
+    body: "Wir feiern am Freitag.",
+    priority: "info",
+    requires_acknowledgement: false,
+    school_name: "OGS Am Berg",
+    published_at: "2026-07-01T08:00:00Z",
+    read: false,
+    acknowledged: false,
+    ...overrides,
+  };
+}
+
+describe("listAnnouncements", () => {
+  it("GETs the news feed and unwraps the data envelope", async () => {
+    let seenURL = "";
+    let seenMethod: string | undefined;
+    const feed = [mkAnnouncement(), mkAnnouncement({ id: "6", read: true })];
+    mockFetch(async (input, init) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      seenMethod = init?.method;
+      return jsonResponse({ data: feed });
+    });
+
+    await expect(listAnnouncements()).resolves.toEqual(feed);
+    expect(seenURL).toBe("/api/parent/me/news");
+    expect(seenMethod).toBe("GET");
+  });
+
+  it("throws a ParentApiError on a failed feed load", async () => {
+    mockFetch(async () => jsonResponse({ error: "kaputt" }, { status: 500 }));
+    await expect(listAnnouncements()).rejects.toThrow(/kaputt/);
+  });
+});
+
+describe("fetchAnnouncementsUnreadCount", () => {
+  it("returns the unread_count from the envelope", async () => {
+    mockFetch(async (input) => {
+      expect(typeof input === "string" ? input : input.toString()).toBe(
+        "/api/parent/me/news/unread-count",
+      );
+      return jsonResponse({ data: { unread_count: 4 } });
+    });
+    await expect(fetchAnnouncementsUnreadCount()).resolves.toBe(4);
+  });
+
+  it("defaults to zero when the count is missing", async () => {
+    mockFetch(async () => jsonResponse({ data: {} }));
+    await expect(fetchAnnouncementsUnreadCount()).resolves.toBe(0);
+  });
+});
+
+describe("markAnnouncementRead", () => {
+  it("POSTs the loaded published_at version to the read endpoint", async () => {
+    let seenURL = "";
+    let seenMethod: string | undefined;
+    let seenBody: unknown;
+    mockFetch(async (input, init) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      seenMethod = init?.method;
+      seenBody = JSON.parse(init?.body as string);
+      return jsonResponse({ data: { read: true } });
+    });
+
+    await markAnnouncementRead("5", "2026-07-01T08:00:00Z");
+    expect(seenURL).toBe("/api/parent/me/news/5/read");
+    expect(seenMethod).toBe("POST");
+    expect(seenBody).toEqual({ published_at: "2026-07-01T08:00:00Z" });
+  });
+
+  it("URL-encodes the announcement id", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({ data: { read: true } });
+    });
+    await markAnnouncementRead("a/b", "2026-07-01T08:00:00Z");
+    expect(seenURL).toBe("/api/parent/me/news/a%2Fb/read");
+  });
+
+  it("propagates a 409 when the loaded version is stale", async () => {
+    mockFetch(async () => jsonResponse({ error: "veraltet" }, { status: 409 }));
+    await expect(
+      markAnnouncementRead("5", "2026-07-01T08:00:00Z"),
+    ).rejects.toThrow(/veraltet/);
+  });
+});
+
+describe("acknowledgeAnnouncement", () => {
+  it("POSTs the loaded published_at version to the acknowledge endpoint", async () => {
+    let seenURL = "";
+    let seenBody: unknown;
+    mockFetch(async (input, init) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      seenBody = JSON.parse(init?.body as string);
+      return jsonResponse({ data: { acknowledged: true } });
+    });
+
+    await acknowledgeAnnouncement("5", "2026-07-01T08:00:00Z");
+    expect(seenURL).toBe("/api/parent/me/news/5/acknowledge");
+    expect(seenBody).toEqual({ published_at: "2026-07-01T08:00:00Z" });
+  });
+
+  it("propagates a 409 when acknowledging since-corrected wording", async () => {
+    mockFetch(async () => jsonResponse({ error: "veraltet" }, { status: 409 }));
+    await expect(
+      acknowledgeAnnouncement("5", "2026-07-01T08:00:00Z"),
+    ).rejects.toThrow(/veraltet/);
   });
 });

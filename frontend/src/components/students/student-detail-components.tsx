@@ -269,7 +269,7 @@ function ForkKnifeIcon({
         strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth={2}
-        d="M8.5 3v18M7 3v3.5M10 3v3.5M7 10h3M15.5 3v3c0 1-2 2-2 2v13"
+        d="M17 21a1 1 0 0 0 1-1v-5.35c0-.457.316-.844.727-1.041a4 4 0 0 0-2.134-7.589 5 5 0 0 0-9.186 0 4 4 0 0 0-2.134 7.588c.411.198.727.585.727 1.041V20a1 1 0 0 0 1 1ZM6 17h12"
       />
     </svg>
   );
@@ -671,6 +671,7 @@ export function PersonalInfoReadOnly({
         year: "numeric",
       })
     : "Nicht angegeben";
+  const addressDisplay = formatStudentAddress(student);
 
   return (
     <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
@@ -704,6 +705,7 @@ export function PersonalInfoReadOnly({
           value={student.group_name ?? "Nicht zugewiesen"}
         />
         <InfoItem label="Geburtsdatum" value={birthdayDisplay} />
+        {addressDisplay && <InfoItem label="Adresse" value={addressDisplay} />}
         <InfoItem
           label="Erlaubte Heimwege"
           value={
@@ -743,6 +745,15 @@ export function PersonalInfoReadOnly({
       </div>
     </div>
   );
+}
+
+function formatStudentAddress(student: ExtendedStudent): string | null {
+  const street = student.address_street?.trim();
+  const postalCode = student.address_postal_code?.trim();
+  const city = student.address_city?.trim();
+  const locality = [postalCode, city].filter(Boolean).join(" ");
+  const lines = [street, locality].filter(Boolean);
+  return lines.length > 0 ? lines.join(", ") : null;
 }
 
 function EnrollmentExtraInfoItems({
@@ -888,7 +899,7 @@ export function StudentHistorySection({
           disabled={feedbackDisabled}
           onClick={
             !feedbackDisabled
-              ? () => onNavigate(`/students/${studentId}/feedback_history`)
+              ? () => onNavigate(`/students/${studentId}/feedback-history`)
               : undefined
           }
         />

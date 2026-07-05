@@ -170,12 +170,19 @@ func parseSickDayRange(r *http.Request) (timezone.Date, timezone.Date, error) {
 type ChildFeaturesResponse struct {
 	SickNoteEnabled              bool `json:"sick_note_enabled"`
 	NotesEnabled                 bool `json:"notes_enabled"`
+	RequestSubmitEnabled         bool `json:"request_submit_enabled"`
 	PickupChangeEnabled          bool `json:"pickup_change_enabled"`
 	RelatedAccountsInviteEnabled bool `json:"related_accounts_invite_enabled"`
 	RelatedAccountsRemoveEnabled bool `json:"related_accounts_remove_enabled"`
 	MasterDataEditEnabled        bool `json:"master_data_edit_enabled"`
 	MasterDataContactEditEnabled bool `json:"master_data_contact_edit_enabled"`
 	MasterDataRequestEnabled     bool `json:"master_data_request_enabled"`
+	MealPlanEnabled              bool `json:"meal_plan_enabled"`
+	// HasOpenChangeRequest is STATE (not a capability): the child has a pending
+	// change request awaiting an OGS decision, so the overview can badge the
+	// Stammdaten entry.
+	HasOpenChangeRequest bool `json:"has_open_change_request"`
+	NewsEnabled          bool `json:"parent_news_enabled"`
 }
 
 // getChildFeatures returns the resolved parent-portal feature flags for the
@@ -198,13 +205,64 @@ func (rs *Resource) getChildFeatures(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, ChildFeaturesResponse{
 		SickNoteEnabled:              flags.SickNoteEnabled,
 		NotesEnabled:                 flags.NotesEnabled,
+		RequestSubmitEnabled:         flags.RequestSubmitEnabled,
 		PickupChangeEnabled:          flags.PickupChangeEnabled,
 		RelatedAccountsInviteEnabled: flags.RelatedAccountsInviteEnabled,
 		RelatedAccountsRemoveEnabled: flags.RelatedAccountsRemoveEnabled,
 		MasterDataEditEnabled:        flags.MasterDataEditEnabled,
 		MasterDataContactEditEnabled: flags.MasterDataContactEditEnabled,
 		MasterDataRequestEnabled:     flags.MasterDataRequestEnabled,
+		MealPlanEnabled:              flags.MealPlanEnabled,
+		HasOpenChangeRequest:         flags.HasOpenChangeRequest,
+		NewsEnabled:                  flags.NewsEnabled,
 	}, "Child features retrieved")
+}
+
+// --- Meal plan (Essensplan) ---
+
+// MealPlanEntryResponse is one dish of the read-only meal plan shown to parents.
+type MealPlanEntryResponse struct {
+	Date     string  `json:"date"` // YYYY-MM-DD
+	Position int     `json:"position"`
+	Dish     string  `json:"dish"`
+	Note     *string `json:"note,omitempty"`
+}
+
+// getChildMealPlan returns the Monday-Friday meal plan for the child's school
+// for the week containing week_start. Gated by operations.meal_plan_enabled for
+// that tenant (404-like "disabled" is mapped to 403 meal_plan_disabled).
+func (rs *Resource) getChildMealPlan(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := rs.parentAccountID(w, r)
+	if !ok {
+		return
+	}
+	studentID, ok := parsePathStudentID(w, r)
+	if !ok {
+		return
+	}
+
+	weekStart, err := timezone.ParseDate(r.URL.Query().Get("week_start"))
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("week_start must be in YYYY-MM-DD format")))
+		return
+	}
+
+	rows, err := rs.ParentService.MealPlanWeek(r.Context(), accountID, studentID, weekStart)
+	if err != nil {
+		renderParentWriteError(w, r, err)
+		return
+	}
+
+	out := make([]MealPlanEntryResponse, 0, len(rows))
+	for _, entry := range rows {
+		out = append(out, MealPlanEntryResponse{
+			Date:     entry.Date.String(),
+			Position: entry.Position,
+			Dish:     entry.Dish,
+			Note:     entry.Note,
+		})
+	}
+	common.Respond(w, r, http.StatusOK, out, "Meal plan retrieved")
 }
 
 // --- shared helpers ---
@@ -265,6 +323,10 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "sick_note_disabled"))
 	case errors.Is(err, parentService.ErrNotesDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "notes_disabled"))
+	case errors.Is(err, parentService.ErrMealPlanDisabled):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "meal_plan_disabled"))
+	case errors.Is(err, parentService.ErrMealPlanWeekOutOfRange):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "meal_plan_week_out_of_range"))
 	case errors.Is(err, parentService.ErrPickupChangeDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "pickup_change_disabled"))
 	case errors.Is(err, parentService.ErrMasterDataEditDisabled):
@@ -283,6 +345,14 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "care_exception_conflict"))
 	case errors.Is(err, parentService.ErrCareExceptionRaced):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "care_exception_raced"))
+	case errors.Is(err, parentService.ErrCareRequestNotPending):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "request_not_open"))
+	case errors.Is(err, parentService.ErrCareRequestNotFound):
+		common.RenderError(w, r, common.ErrorNotFound(err))
+	case errors.Is(err, parentService.ErrCareRequestAlreadyPending):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "care_request_already_pending"))
+	case errors.Is(err, parentService.ErrInvalidCareRequestPayload):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "invalid_request_payload"))
 	case errors.Is(err, parentService.ErrNoCareException):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "care_exception_no_time"))
 	case errors.Is(err, parentService.ErrPastCareDate):
@@ -319,6 +389,12 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "guardian_contact_invalid"))
 	case errors.Is(err, parentService.ErrGuardianRelationshipInvalid):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "guardian_relationship_invalid"))
+	case errors.Is(err, parentService.ErrAnnouncementNotFound):
+		common.RenderError(w, r, common.ErrorNotFound(err))
+	case errors.Is(err, parentService.ErrAnnouncementAckNotRequired):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "announcement_ack_not_required"))
+	case errors.Is(err, parentService.ErrAnnouncementStale):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "announcement_stale"))
 	case errors.Is(err, parentService.ErrNoDates),
 		errors.Is(err, parentService.ErrInvalidStatus),
 		errors.Is(err, parentService.ErrEmptyNote),

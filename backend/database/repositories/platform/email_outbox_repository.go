@@ -167,6 +167,31 @@ func (r *EmailOutboxRepository) MarkFailed(ctx context.Context, id int64, attemp
 	return nil
 }
 
+// CancelPendingByRelatedEntity marks every still-pending outbox row for a
+// feature's related entity as 'failed' with the given reason, so the worker
+// (which only claims 'pending' rows) never sends them. Used when the triggering
+// entity is retracted before the async send (e.g. a published parent
+// announcement is unpublished or deleted). Rows already claimed by the worker
+// ('sending') or terminal ('sent'/'failed') are deliberately left untouched —
+// they may already be in flight. Tenant-scoped; runs under the caller's tenant
+// tx (phoenix_tenant holds UPDATE on the table). Returns rows affected.
+func (r *EmailOutboxRepository) CancelPendingByRelatedEntity(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error) {
+	res, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*platform.EmailOutbox)(nil)).
+		ModelTableExpr(tableExprAlias).
+		Set("status = ?", platform.EmailOutboxStatusFailed).
+		Set("last_error = ?", reason).
+		Where(`"email_outbox".related_entity_type = ?`, relatedType).
+		Where(`"email_outbox".related_entity_id = ?`, relatedID).
+		Where(`"email_outbox".status = ?`, platform.EmailOutboxStatusPending).
+		Exec(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to cancel pending email rows: %w", err)
+	}
+	rows, _ := res.RowsAffected()
+	return rows, nil
+}
+
 // FindByRelatedEntity returns all outbox rows linked to a feature's
 // related entity. Tenant-scoped.
 func (r *EmailOutboxRepository) FindByRelatedEntity(ctx context.Context, relatedType string, relatedID int64) ([]*platform.EmailOutbox, error) {

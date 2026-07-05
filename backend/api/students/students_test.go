@@ -554,17 +554,27 @@ func TestCreateStudent(t *testing.T) {
 
 	t.Run("success_creates_student_with_optional_fields", func(t *testing.T) {
 		body := map[string]interface{}{
-			"first_name":     "Optional",
-			"last_name":      "Fields",
-			"school_class":   "2b",
-			"birthday":       "2015-06-15",
-			"guardian_name":  "Parent Name",
-			"guardian_email": "parent@example.com",
+			"first_name":          "Optional",
+			"last_name":           "Fields",
+			"school_class":        "2b",
+			"birthday":            "2015-06-15",
+			"guardian_name":       "Parent Name",
+			"guardian_email":      "parent@example.com",
+			"address_street":      "Musterstraße 12",
+			"address_city":        "Köln",
+			"address_postal_code": "50667",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
-		assert.Equal(t, http.StatusCreated, rr.Code)
+		require.Equal(t, http.StatusCreated, rr.Code)
+		var resp struct {
+			Data students.StudentResponse `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+		assert.Equal(t, "Musterstraße 12", resp.Data.AddressStreet)
+		assert.Equal(t, "Köln", resp.Data.AddressCity)
+		assert.Equal(t, "50667", resp.Data.AddressPostalCode)
 	})
 
 	t.Run("success_creates_student_with_bus_days", func(t *testing.T) {
@@ -1109,6 +1119,52 @@ func TestUpdateStudent_ExtendedFields(t *testing.T) {
 		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
+	})
+
+	t.Run("update_and_clear_child_address", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "Address", "Student", "AS1")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
+		body := map[string]interface{}{
+			"address_street":      "  Neue Straße 5  ",
+			"address_city":        "  Bonn  ",
+			"address_postal_code": "  53111  ",
+		}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
+		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+		var resp struct {
+			Data students.StudentResponse `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+		assert.Equal(t, "Neue Straße 5", resp.Data.AddressStreet)
+		assert.Equal(t, "Bonn", resp.Data.AddressCity)
+		assert.Equal(t, "53111", resp.Data.AddressPostalCode)
+
+		clearBody := map[string]interface{}{
+			"address_street":      "",
+			"address_city":        "",
+			"address_postal_code": "",
+		}
+		clearReq := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), clearBody)
+		clearRR := executeWithAuth(router, clearReq, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+		require.Equal(t, http.StatusOK, clearRR.Code, "Body: %s", clearRR.Body.String())
+		var clearResp struct {
+			Data students.StudentResponse `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(clearRR.Body.Bytes(), &clearResp))
+		assert.Empty(t, clearResp.Data.AddressStreet)
+		assert.Empty(t, clearResp.Data.AddressCity)
+		assert.Empty(t, clearResp.Data.AddressPostalCode)
+
+		fresh, err := tc.resource.PersonService.GetStudentByID(testpkg.TenantContext(1), student.ID)
+		require.NoError(t, err)
+		assert.Nil(t, fresh.AddressStreet)
+		assert.Nil(t, fresh.AddressCity)
+		assert.Nil(t, fresh.AddressPostalCode)
 	})
 
 	t.Run("update_pickup_status", func(t *testing.T) {

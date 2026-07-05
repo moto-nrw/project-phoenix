@@ -58,7 +58,7 @@ vi.mock("@/lib/database/service-factory", () => ({
   })),
 }));
 
-vi.mock("~/hooks/useIsMobile", () => ({
+vi.mock("~/components/ui/hooks/useIsMobile", () => ({
   useIsMobile: vi.fn(() => false),
 }));
 
@@ -85,7 +85,7 @@ vi.mock("~/components/database/database-page-layout", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({
     search,
     filters,
@@ -130,22 +130,22 @@ vi.mock("~/components/ui/page-header", () => ({
   ),
 }));
 
-vi.mock("@/components/rooms", () => ({
-  RoomCreateModal: ({
+vi.mock("~/components/ui/database/database-form-modal", () => ({
+  DatabaseFormModal: ({
     isOpen,
     onClose,
-    onCreate,
+    onSubmit,
   }: {
     isOpen: boolean;
     onClose: () => void;
-    onCreate: (data: { name: string }) => Promise<void>;
+    onSubmit: (data: { name: string }) => Promise<void>;
   }) => {
-    // Mirrors DatabaseForm: catches the rejection from onCreate and renders
+    // Mirrors DatabaseForm: catches the rejection from onSubmit and renders
     // the message inline. Tests assert against the resulting message.
     const [error, setError] = useState<string | null>(null);
     const submit = (data: { name: string }) => {
       setError(null);
-      void onCreate(data).catch((err: unknown) => {
+      void onSubmit(data).catch((err: unknown) => {
         setError(err instanceof Error ? err.message : String(err));
       });
     };
@@ -164,6 +164,9 @@ vi.mock("@/components/rooms", () => ({
       </div>
     ) : null;
   },
+}));
+
+vi.mock("@/components/rooms/rooms-master-detail", () => ({
   RoomsMasterDetail: ({
     groupDefinitions,
     selectedId,

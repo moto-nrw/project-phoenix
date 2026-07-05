@@ -41,6 +41,7 @@ export interface StudentExportFilters {
   pickup_time?: string;
   arrival_time?: string;
   sort?: string;
+  group_by_class?: boolean;
 }
 
 export interface StudentExportRequest {

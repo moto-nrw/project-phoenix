@@ -84,13 +84,23 @@ type InboxThreadResponse struct {
 }
 
 type MessageResponse struct {
-	ID             string    `json:"id"`
-	SenderKind     string    `json:"sender_kind"`
-	SenderName     string    `json:"sender_name"`
-	Body           string    `json:"body"`
-	CreatedAt      time.Time `json:"created_at"`
-	ReadByStaff    bool      `json:"read_by_staff,omitempty"`
-	ReadByGuardian bool      `json:"read_by_guardian,omitempty"`
+	ID             string         `json:"id"`
+	SenderKind     string         `json:"sender_kind"`
+	SenderName     string         `json:"sender_name"`
+	Body           string         `json:"body"`
+	CreatedAt      time.Time      `json:"created_at"`
+	Kind           string         `json:"kind"`
+	EventType      string         `json:"event_type,omitempty"`
+	RequestType    string         `json:"request_type,omitempty"`
+	RequestStatus  string         `json:"request_status,omitempty"`
+	Payload        map[string]any `json:"payload,omitempty"`
+	RefTable       string         `json:"ref_table,omitempty"`
+	RefID          string         `json:"ref_id,omitempty"`
+	AppliedAt      *time.Time     `json:"applied_at,omitempty"`
+	AppliedBy      string         `json:"applied_by,omitempty"`
+	DecisionReason string         `json:"decision_reason,omitempty"`
+	ReadByStaff    bool           `json:"read_by_staff,omitempty"`
+	ReadByGuardian bool           `json:"read_by_guardian,omitempty"`
 }
 
 type ThreadDetailResponse struct {
@@ -127,12 +137,30 @@ type OpenThreadRequest struct {
 func toMessageResponses(messages []*usersModels.ParentMessage) []MessageResponse {
 	out := make([]MessageResponse, 0, len(messages))
 	for _, m := range messages {
+		refID := ""
+		if m.RefID != nil {
+			refID = strconv.FormatInt(*m.RefID, 10)
+		}
+		appliedBy := ""
+		if m.AppliedBy != nil {
+			appliedBy = strconv.FormatInt(*m.AppliedBy, 10)
+		}
 		out = append(out, MessageResponse{
 			ID:             strconv.FormatInt(m.ID, 10),
 			SenderKind:     m.SenderKind,
 			SenderName:     m.SenderName,
 			Body:           m.Body,
 			CreatedAt:      m.CreatedAt,
+			Kind:           m.Kind,
+			EventType:      m.EventType,
+			RequestType:    m.RequestType,
+			RequestStatus:  m.RequestStatus,
+			Payload:        m.Payload,
+			RefTable:       m.RefTable,
+			RefID:          refID,
+			AppliedAt:      m.AppliedAt,
+			AppliedBy:      appliedBy,
+			DecisionReason: m.DecisionReason,
 			ReadByStaff:    m.ReadByStaff,
 			ReadByGuardian: m.ReadByGuardian,
 		})

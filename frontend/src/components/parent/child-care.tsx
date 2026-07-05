@@ -2,7 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { Loader2, Trash2 } from "lucide-react";
+import {
+  CalendarClock,
+  HeartPulse,
+  Loader2,
+  type LucideIcon,
+  Trash2,
+} from "lucide-react";
 import { Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
 import {
@@ -75,6 +81,10 @@ const DEFAULT_FEATURES: ChildFeatures = {
   // composer on a transient hiccup → send → 403. The backend enforces the gate
   // regardless; this just keeps the UI from dead-ending on an action it can see.
   notes_enabled: false,
+  // Consequential capability: default false on fetch failure (least privilege),
+  // so a transient hiccup hides the request actions rather than dead-ending on
+  // a 403; the backend enforces the gate regardless.
+  request_submit_enabled: false,
   pickup_change_enabled: false,
   // Capability flags default to false on fetch failure (least privilege —
   // hide invite/remove if we can't confirm they're enabled; the backend
@@ -84,6 +94,14 @@ const DEFAULT_FEATURES: ChildFeatures = {
   master_data_edit_enabled: false,
   master_data_contact_edit_enabled: false,
   master_data_request_enabled: false,
+  meal_plan_enabled: false,
+  // State flag defaults false so a fetch failure never shows a phantom
+  // "Anfrage offen" badge on the overview.
+  has_open_change_request: false,
+  // Default false on fetch failure (least privilege): hide the Neuigkeiten
+  // panel rather than showing an empty one for a school that has news off; the
+  // backend feed enforces the gate regardless.
+  parent_news_enabled: false,
 };
 
 export interface ChildCare {
@@ -621,4 +639,44 @@ export function SickStatusSummary({
           to: formatLocaleDate(last.date, locale),
         });
   return <span className="text-sm font-semibold text-gray-900">{label}</span>;
+}
+
+// --- OGS quick actions (parent self-service, immediate) --------------------
+//
+// The care-schedule change request FORM now lives in ./care-schedule-request-
+// modal and is owned entirely by the Stammdaten page (#1803) — it is no longer
+// reachable from the chat. Only the immediate self-service actions (sick note,
+// one-day pickup change) remain here as quick-action pills above the composer.
+
+export type OgsActionKey = "sick" | "pickup";
+
+// A single parent self-service action available from the OGS chat. Each takes
+// effect immediately for a single day (no OGS confirmation).
+export interface OgsAction {
+  readonly key: OgsActionKey;
+  readonly Icon: LucideIcon;
+  readonly enabled: boolean;
+}
+
+// The SINGLE source of truth for the actions a parent can take from the OGS
+// chat. Consumed by the always-visible quick-action chips above the composer
+// (OgsConversation) — keep it here so the chips and any future menu can never
+// drift apart. The actions are gated on the school's feature flags. Display
+// strings (label / shortLabel / hint) are NOT carried here — this function is
+// not a hook, so consumers localize each key via
+// t(`actions.${key}.{label,shortLabel,hint}`) in the "parentChildCare"
+// namespace (mirrors the child-detail action pattern).
+export function getOgsActions(features: ChildFeatures): OgsAction[] {
+  return [
+    {
+      key: "sick",
+      Icon: HeartPulse,
+      enabled: features.sick_note_enabled,
+    },
+    {
+      key: "pickup",
+      Icon: CalendarClock,
+      enabled: features.pickup_change_enabled,
+    },
+  ];
 }

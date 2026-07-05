@@ -41,7 +41,7 @@ vi.mock("~/components/ui/loading", () => ({
   ),
 }));
 
-vi.mock("~/hooks/useIsMobile", () => ({
+vi.mock("~/components/ui/hooks/useIsMobile", () => ({
   useIsMobile: vi.fn(() => false),
 }));
 
@@ -78,7 +78,7 @@ global.fetch = vi.fn(() =>
 );
 
 import { useSession } from "next-auth/react";
-import { useIsMobile } from "~/hooks/useIsMobile";
+import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 
 describe("DatabasePage", () => {
   beforeEach(() => {

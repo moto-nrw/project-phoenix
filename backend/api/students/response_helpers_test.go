@@ -107,6 +107,24 @@ func TestPopulateSnapshotPublicFields_BusAndAccompaniedSameDayKeepsAccompanied(t
 	assert.True(t, resp.BusDays[users.PickupDayTuesday], "the bus signal must still surface")
 }
 
+func TestPopulateStudentAddressFields(t *testing.T) {
+	street := "Musterstraße 12"
+	city := "Köln"
+	postalCode := "50667"
+	student := &users.Student{
+		AddressStreet:     &street,
+		AddressCity:       &city,
+		AddressPostalCode: &postalCode,
+	}
+	resp := StudentResponse{}
+
+	populateStudentAddressFields(&resp, student)
+
+	assert.Equal(t, street, resp.AddressStreet)
+	assert.Equal(t, city, resp.AddressCity)
+	assert.Equal(t, postalCode, resp.AddressPostalCode)
+}
+
 // helper: build a Student with a given ID + photo state.
 func makeStudent(id int64, photoPath *string, consentAt *time.Time, consentBy *int64) *users.Student {
 	s := &users.Student{

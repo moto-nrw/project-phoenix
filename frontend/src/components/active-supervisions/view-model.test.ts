@@ -1,12 +1,46 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  activeSupervisionRosterKey,
   buildGroupNameToIdMap,
   mapSupervisedGroupsToRooms,
   mapVisitsToSupervisionStudents,
+  withActiveSupervisionPresence,
 } from "./view-model";
 
 describe("active-supervisions view model", () => {
+  it("suppresses active-group roster keys after a not-found roster miss", () => {
+    const missing = new Set(["active-1"]);
+
+    expect(
+      activeSupervisionRosterKey({
+        selectedTimetableInstanceId: null,
+        currentRoomId: "active-1",
+        isSchulhofActive: false,
+        missingRosterActiveGroupIds: missing,
+      }),
+    ).toBeNull();
+    expect(
+      activeSupervisionRosterKey({
+        selectedTimetableInstanceId: null,
+        currentRoomId: "active-2",
+        isSchulhofActive: false,
+        missingRosterActiveGroupIds: missing,
+      }),
+    ).toBe("timetable-roster-active-group-active-2");
+  });
+
+  it("keeps explicit timetable instance roster keys even when the active group missed", () => {
+    expect(
+      activeSupervisionRosterKey({
+        selectedTimetableInstanceId: "instance-1",
+        currentRoomId: "active-1",
+        isSchulhofActive: false,
+        missingRosterActiveGroupIds: new Set(["active-1"]),
+      }),
+    ).toBe("timetable-roster-instance-1");
+  });
+
   it("maps educational group names to ids", () => {
     const result = buildGroupNameToIdMap([
       { id: "g2", name: "Gruppe Blau", room: { name: "Raum B" } },
@@ -117,5 +151,42 @@ describe("active-supervisions view model", () => {
       group_id: undefined,
     });
     expect(students[0]?.checkInTime).toBe(checkInTime);
+  });
+
+  it("makes active room presence win over stale absence flags", () => {
+    const checkInTime = new Date("2026-01-15T10:00:00.000Z");
+    const [student] = mapVisitsToSupervisionStudents(
+      [
+        {
+          studentId: "student-4",
+          studentName: "Kerstin Krank",
+          activeGroupId: "active-1",
+          checkInTime,
+          isActive: true,
+          sick: true,
+          sickSince: "2026-01-15T07:00:00.000Z",
+          excused: true,
+          excusedSince: "2026-01-15T07:30:00.000Z",
+        },
+      ],
+      { roomName: "Atelier" },
+    );
+
+    expect(student?.sick).toBe(true);
+
+    const normalized = withActiveSupervisionPresence(student!);
+
+    expect(normalized).toMatchObject({
+      current_location: "Anwesend - Atelier",
+      sick: false,
+      sick_since: undefined,
+      excused: false,
+      excused_since: undefined,
+      class_trip: false,
+      class_trip_since: undefined,
+      day_planning_status: undefined,
+      day_planning_reason: undefined,
+      day_planning_label: undefined,
+    });
   });
 });

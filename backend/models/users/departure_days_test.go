@@ -317,3 +317,30 @@ func TestDepartureDaysMerge(t *testing.T) {
 		}
 	})
 }
+
+// TestDepartureModeGermanLabel pins the single source of truth for the
+// parent-facing German wording of each departure mode (used by the parent
+// messaging diff via germanAllowedDepartureModes). The accompanied case is
+// safety-sensitive: an "accompanied" child leaves WITH another child/person and
+// must NEVER fall through to "Geht alleine" — that would mislabel the child as a
+// self-goer on the staff confirm diff (#1694). An unknown mode falls back to the
+// alone label, matching how an unset weekday is treated.
+func TestDepartureModeGermanLabel(t *testing.T) {
+	cases := map[DepartureMode]string{
+		DepartureBus:         "Fährt Bus",
+		DeparturePickup:      "Wird abgeholt",
+		DepartureAccompanied: "Geht mit anderem Kind/Person",
+		DepartureAlone:       "Geht alleine",
+		DepartureMode("xxx"): "Geht alleine", // unknown → safe default
+	}
+	for mode, want := range cases {
+		if got := mode.GermanLabel(); got != want {
+			t.Errorf("DepartureMode(%q).GermanLabel() = %q, want %q", mode, got, want)
+		}
+	}
+	// The accompanied label must be distinct from the alone label — regression
+	// guard against a future refactor letting accompanied fall through to default.
+	if DepartureAccompanied.GermanLabel() == DepartureAlone.GermanLabel() {
+		t.Fatal("accompanied must not render as the alone label")
+	}
+}

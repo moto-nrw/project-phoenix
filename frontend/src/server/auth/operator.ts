@@ -12,12 +12,9 @@ import { cache } from "react";
 
 import { operatorAuthConfig } from "./operator-config";
 
-const {
-  auth: uncachedOperatorAuth,
-  handlers: operatorHandlers,
-  signIn: operatorSignIn,
-} = NextAuth(operatorAuthConfig);
+const { auth: uncachedOperatorAuth, handlers: operatorHandlers } =
+  NextAuth(operatorAuthConfig);
 
 const operatorAuth = cache(uncachedOperatorAuth);
 
-export { operatorAuth, uncachedOperatorAuth, operatorHandlers, operatorSignIn };
+export { operatorAuth, uncachedOperatorAuth, operatorHandlers };

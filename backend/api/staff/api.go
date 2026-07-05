@@ -1440,16 +1440,18 @@ func (rs *Resource) UpdatePINHandler() http.HandlerFunc { return rs.updatePIN }
 
 // ScheduleEntryRequest represents a single day in the schedule
 type ScheduleEntryRequest struct {
-	WeekIndex     int `json:"week_index"`
-	DayOfWeek     int `json:"day_of_week"`
-	TargetMinutes int `json:"target_minutes"`
+	WeekIndex     int     `json:"week_index"`
+	DayOfWeek     int     `json:"day_of_week"`
+	TargetMinutes int     `json:"target_minutes"`
+	StartTime     *string `json:"start_time,omitempty"`
 }
 
 // ScheduleEntryResponse represents a single day in the schedule response
 type ScheduleEntryResponse struct {
-	WeekIndex     int `json:"week_index"`
-	DayOfWeek     int `json:"day_of_week"`
-	TargetMinutes int `json:"target_minutes"`
+	WeekIndex     int     `json:"week_index"`
+	DayOfWeek     int     `json:"day_of_week"`
+	TargetMinutes int     `json:"target_minutes"`
+	StartTime     *string `json:"start_time,omitempty"`
 }
 
 // ScheduleModelInfo describes the assigned work-time template, when there is one.
@@ -1729,19 +1731,45 @@ func buildScheduleEntries(reqEntries []ScheduleEntryRequest, rotation int) ([]*c
 		if err := validateScheduleEntryRequest(e, rotation, seenSlots); err != nil {
 			return nil, nil, err
 		}
+		startTime, err := parseScheduleStartTime(e.StartTime)
+		if err != nil {
+			return nil, nil, err
+		}
 		entries = append(entries, &config.StaffWorkSchedule{
 			WeekIndex:      e.WeekIndex,
 			RotationLength: rotation,
 			DayOfWeek:      e.DayOfWeek,
 			TargetMinutes:  e.TargetMinutes,
+			StartTime:      startTime,
 		})
 		templateEntries = append(templateEntries, &config.WorkTimeModelEntry{
 			WeekIndex:     e.WeekIndex,
 			DayOfWeek:     e.DayOfWeek,
 			TargetMinutes: e.TargetMinutes,
+			StartTime:     startTime,
 		})
 	}
 	return entries, templateEntries, nil
+}
+
+func parseScheduleStartTime(raw *string) (*time.Time, error) {
+	if raw == nil || *raw == "" {
+		return nil, nil
+	}
+	parsed, err := time.Parse("15:04", *raw)
+	if err != nil {
+		return nil, scheduleValidationErrorf("start_time must be HH:MM")
+	}
+	wallClock := timezone.WallClock(parsed)
+	return &wallClock, nil
+}
+
+func formatScheduleStartTime(value *time.Time) *string {
+	if value == nil {
+		return nil
+	}
+	formatted := timezone.WallClock(*value).Format("15:04")
+	return &formatted
 }
 
 func scheduleRowsToResponseParts(rows []*config.StaffWorkSchedule) ([]ScheduleEntryResponse, []int, int) {
@@ -1761,6 +1789,7 @@ func scheduleRowsToResponseParts(rows []*config.StaffWorkSchedule) ([]ScheduleEn
 			WeekIndex:     row.WeekIndex,
 			DayOfWeek:     row.DayOfWeek,
 			TargetMinutes: row.TargetMinutes,
+			StartTime:     formatScheduleStartTime(row.StartTime),
 		})
 		if row.WeekIndex >= 0 && row.WeekIndex < rotation {
 			totals[row.WeekIndex] += row.TargetMinutes
@@ -1780,6 +1809,7 @@ func modelEntriesToResponseParts(modelEntries []*config.WorkTimeModelEntry, rota
 			WeekIndex:     e.WeekIndex,
 			DayOfWeek:     e.DayOfWeek,
 			TargetMinutes: e.TargetMinutes,
+			StartTime:     formatScheduleStartTime(e.StartTime),
 		})
 		if e.WeekIndex >= 0 && e.WeekIndex < rotation {
 			totals[e.WeekIndex] += e.TargetMinutes

@@ -48,22 +48,37 @@ func renderPDF(doc Document) ([]byte, error) {
 
 func pdfPages(doc Document, cols []Column, widths []float64, pageWidth, pageHeight, margin float64) []string {
 	pages := make([]string, 0, 1)
-	page, y := newPDFPage(doc, cols, widths, pageWidth, pageHeight, margin)
+	groupTitle := ""
+	wroteBody := false
+	page, y := newPDFPage(doc, cols, widths, pageWidth, pageHeight, margin, groupTitle)
 	for _, row := range doc.Rows {
+		if row.GroupTitle != "" {
+			// Each group starts on its own page; a page without body rows
+			// (the initial page before the first group) is discarded so the
+			// export never begins with a blank page.
+			if wroteBody {
+				pages = append(pages, page.String())
+			}
+			groupTitle = row.GroupTitle
+			page, y = newPDFPage(doc, cols, widths, pageWidth, pageHeight, margin, groupTitle)
+			wroteBody = false
+			continue
+		}
 		lines := pdfRowLines(row, cols, widths)
 		rowHeight := pdfRowHeight(lines)
 		if y-rowHeight < margin+12 {
 			pages = append(pages, page.String())
-			page, y = newPDFPage(doc, cols, widths, pageWidth, pageHeight, margin)
+			page, y = newPDFPage(doc, cols, widths, pageWidth, pageHeight, margin, groupTitle)
 		}
 		writePDFRow(page, margin, y, widths, lines, rowHeight)
 		y -= rowHeight
+		wroteBody = true
 	}
 	pages = append(pages, page.String())
 	return pages
 }
 
-func newPDFPage(doc Document, cols []Column, widths []float64, pageWidth, pageHeight, margin float64) (*strings.Builder, float64) {
+func newPDFPage(doc Document, cols []Column, widths []float64, pageWidth, pageHeight, margin float64, groupTitle string) (*strings.Builder, float64) {
 	b := &strings.Builder{}
 	y := pageHeight - margin
 	writePDFText(b, margin, y, 16, doc.Title)
@@ -79,6 +94,10 @@ func newPDFPage(doc Document, cols []Column, widths []float64, pageWidth, pageHe
 		y -= 10
 	}
 	y -= 6
+	if groupTitle != "" {
+		writePDFText(b, margin, y, 12, groupTitle)
+		y -= 16
+	}
 
 	headerLines := pdfHeaderLines(cols, widths)
 	headerHeight := pdfRowHeight(headerLines)

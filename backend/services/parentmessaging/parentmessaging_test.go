@@ -67,8 +67,14 @@ type touchCall struct {
 
 type fakeThreadRepo struct {
 	usersModels.ParentMessageThreadRepository
-	touchErr error
-	touched  *touchCall
+	touchErr     error
+	touched      *touchCall
+	guardians    []*usersModels.MessageableGuardian
+	guardiansErr error
+}
+
+func (f *fakeThreadRepo) ListGuardiansForStudent(context.Context, int64) ([]*usersModels.MessageableGuardian, error) {
+	return f.guardians, f.guardiansErr
 }
 
 func (f *fakeThreadRepo) TouchLastMessage(_ context.Context, threadID int64, at time.Time, messageID int64, kind, body string) error {
@@ -146,6 +152,37 @@ func TestMessagingEnabledForTenant(t *testing.T) {
 		"a per-tenant resolve error must fail open")
 }
 
+// --- GuardianHasChildAccess ---------------------------------------------
+
+// TestGuardianHasChildAccess pins the linked-guardian / parent_portal.access
+// gate shared by the emitter's staff-decision-pill suppression and the
+// care-schedule request approve gate: an account still present in the
+// messageable-guardian list has access; an unlinked/revoked account (absent
+// from the list) does not; a repo error propagates; and an unwired emitter
+// returns a configuration error rather than silently granting access.
+func TestGuardianHasChildAccess(t *testing.T) {
+	ctx := context.Background()
+
+	linked := &Emitter{threadRepo: &fakeThreadRepo{
+		guardians: []*usersModels.MessageableGuardian{{AccountID: 7}, {AccountID: 9}},
+	}}
+	ok, err := linked.GuardianHasChildAccess(ctx, 1, 7)
+	require.NoError(t, err)
+	assert.True(t, ok, "an account in the messageable-guardian list has access")
+
+	ok, err = linked.GuardianHasChildAccess(ctx, 1, 42)
+	require.NoError(t, err)
+	assert.False(t, ok, "a revoked/unlinked account is absent from the list → no access")
+
+	failing := &Emitter{threadRepo: &fakeThreadRepo{guardiansErr: errors.New("db down")}}
+	_, err = failing.GuardianHasChildAccess(ctx, 1, 7)
+	require.Error(t, err, "a repo error must propagate, not be read as revoked")
+
+	var unwired *Emitter
+	_, err = unwired.GuardianHasChildAccess(ctx, 1, 7)
+	require.Error(t, err, "an unwired emitter must error, never silently grant access")
+}
+
 // --- AppendMessage ------------------------------------------------------
 
 func TestAppendMessage_PersistsThenTouchesOffDBStampedRow(t *testing.T) {
@@ -173,6 +210,37 @@ func TestAppendMessage_CreateErrorSkipsTouch(t *testing.T) {
 	assert.Nil(t, tr.touched, "a failed insert must not touch the thread preview")
 }
 
+// --- isTerminalRequestEvent ---------------------------------------------
+
+// TestIsTerminalRequestEvent pins the gate that lets a request-closing pill
+// through EmitChildEvent while messaging is disabled: ONLY a request_status
+// event that references the request row (ref_table + ref_id). Everything else —
+// the request_created pill, self-service mirrors, and a status event with no ref
+// — stays dropped, so a disabled school never accumulates threads or dangling
+// pills.
+func TestIsTerminalRequestEvent(t *testing.T) {
+	refID := int64(7)
+	terminal := ChildEvent{
+		EventType: usersModels.ParentMessageEventRequestStatus,
+		RefTable:  "schedule.care_schedule_change_requests",
+		RefID:     &refID,
+	}
+	assert.True(t, isTerminalRequestEvent(terminal), "a request_status event with a ref closes a request and must reconcile")
+
+	assert.False(t, isTerminalRequestEvent(ChildEvent{
+		EventType: usersModels.ParentMessageEventRequestCreated, RefTable: "schedule.care_schedule_change_requests", RefID: &refID,
+	}), "a request_created pill carries no reconcile obligation")
+	assert.False(t, isTerminalRequestEvent(ChildEvent{
+		EventType: "sick_note", RefTable: "x", RefID: &refID,
+	}), "a self-service mirror is not a terminal request event")
+	assert.False(t, isTerminalRequestEvent(ChildEvent{
+		EventType: usersModels.ParentMessageEventRequestStatus, RefTable: "schedule.care_schedule_change_requests",
+	}), "a status event without a ref_id cannot locate a created pill to close")
+	assert.False(t, isTerminalRequestEvent(ChildEvent{
+		EventType: usersModels.ParentMessageEventRequestStatus, RefID: &refID,
+	}), "a status event without a ref_table cannot locate a created pill to close")
+}
+
 // --- MarkReadToNewest ---------------------------------------------------
 
 func TestMarkReadToNewest_AdvancesToNewestCounterpartMessage(t *testing.T) {
@@ -186,23 +254,128 @@ func TestMarkReadToNewest_AdvancesToNewestCounterpartMessage(t *testing.T) {
 	messages := []*usersModels.ParentMessage{oldestGuardian, newestGuardian, readerOwn}
 
 	rr := &fakeReadRepo{markAdvanced: true}
-	advanced, err := MarkReadToNewest(context.Background(), rr, 1, 42, reader, messages)
+	advanced, err := MarkReadToNewest(context.Background(), rr, 1, 42, reader, true, messages)
 	require.NoError(t, err)
 	assert.True(t, advanced)
 	require.Len(t, rr.marks, 1)
-	assert.Equal(t, newestGuardian.ID, rr.marks[0].messageID, "cursor must bound to the newest non-authored message, never the reader's own")
+	assert.Equal(t, newestGuardian.ID, rr.marks[0].messageID, "cursor must bound to the newest counterpart message the reader did not author, never the reader's own")
+}
+
+func TestMarkReadToNewest_DoesNotAdvancePastCounterpartViaOtherSideRow(t *testing.T) {
+	reader := int64(100)
+	// A staff reader's snapshot: a guardian message, then a LATER staff row from a
+	// DIFFERENT staff account and a LATER system event the staff side triggered.
+	// Neither later row is a counterpart (the unread query only counts guardian-side
+	// rows), so the cursor must bound to the guardian message (id 1) — not the later
+	// staff/system rows. Binding past them would skip a guardian message still
+	// committing with an earlier created_at in a concurrent send/read race.
+	guardian := msg(1, 200, usersModels.ParentMessageSenderGuardian)
+	otherStaff := msg(2, 300, usersModels.ParentMessageSenderStaff)
+	staffEvent := msg(3, 300, usersModels.ParentMessageSenderSystem)
+	staffEvent.EventActorKind = usersModels.ParentMessageSenderStaff
+	messages := []*usersModels.ParentMessage{guardian, otherStaff, staffEvent}
+
+	rr := &fakeReadRepo{markAdvanced: true}
+	advanced, err := MarkReadToNewest(context.Background(), rr, 1, 42, reader, true, messages)
+	require.NoError(t, err)
+	assert.True(t, advanced)
+	require.Len(t, rr.marks, 1)
+	assert.Equal(t, guardian.ID, rr.marks[0].messageID,
+		"cursor must bound to the newest counterpart row, never a later staff/system row")
+}
+
+func TestMarkReadToNewest_GuardianReaderBoundsToStaffSide(t *testing.T) {
+	reader := int64(100)
+	// A guardian reader: a staff message and a staff-triggered system event are the
+	// counterpart; the reader's own guardian message is not. The cursor must land on
+	// the newest staff-side row (the system event, id 3).
+	staffMsg := msg(1, 300, usersModels.ParentMessageSenderStaff)
+	readerOwn := msg(2, reader, usersModels.ParentMessageSenderGuardian)
+	staffEvent := msg(3, 300, usersModels.ParentMessageSenderSystem)
+	staffEvent.EventActorKind = usersModels.ParentMessageSenderStaff
+	messages := []*usersModels.ParentMessage{staffMsg, readerOwn, staffEvent}
+
+	rr := &fakeReadRepo{markAdvanced: true}
+	advanced, err := MarkReadToNewest(context.Background(), rr, 1, 42, reader, false, messages)
+	require.NoError(t, err)
+	assert.True(t, advanced)
+	require.Len(t, rr.marks, 1)
+	assert.Equal(t, staffEvent.ID, rr.marks[0].messageID,
+		"guardian reader's cursor bounds to the newest staff-side row")
+}
+
+func TestMarkReadToNewest_DualRoleOwnSystemEventStillAdvances(t *testing.T) {
+	reader := int64(100)
+	// Dual-role staff+guardian account reading the GUARDIAN portal. It triggered a
+	// confirm/reject as STAFF, so the system event carries its OWN account in
+	// SenderAccountID but is attributed to the staff side via EventActorKind. The
+	// unread SQL counts it (notReaderAuthored exempts system rows), so the cursor
+	// MUST advance onto it — a bare SenderAccountID == reader skip stranded it as
+	// permanently unread once viewed.
+	guardianOwn := msg(1, reader, usersModels.ParentMessageSenderGuardian)
+	ownStaffEvent := msg(2, reader, usersModels.ParentMessageSenderSystem)
+	ownStaffEvent.EventActorKind = usersModels.ParentMessageSenderStaff
+	messages := []*usersModels.ParentMessage{guardianOwn, ownStaffEvent}
+
+	rr := &fakeReadRepo{markAdvanced: true}
+	advanced, err := MarkReadToNewest(context.Background(), rr, 1, 42, reader, false, messages)
+	require.NoError(t, err)
+	assert.True(t, advanced)
+	require.Len(t, rr.marks, 1)
+	assert.Equal(t, ownStaffEvent.ID, rr.marks[0].messageID,
+		"a dual-role account's own staff-triggered system event must advance the guardian-side cursor, not stay stuck unread")
+}
+
+func TestMarkReadToNewest_DoesNotAdvanceOntoRequestCreatedPill(t *testing.T) {
+	reader := int64(100)
+	// A staff reader's snapshot: an unread guardian message, then a LATER
+	// request_created pill (guardian-triggered system event). The unread SQL
+	// excludes request_created (it is surfaced on the queue badge, not the chat),
+	// so the cursor must bound to the guardian message (id 1) — NOT the later pill.
+	// Advancing onto the pill would skip the guardian message when it commits with
+	// an earlier created_at in a concurrent send/read race, and it would never
+	// resurface as unread.
+	guardian := msg(1, 200, usersModels.ParentMessageSenderGuardian)
+	requestCreated := msg(2, 200, usersModels.ParentMessageSenderSystem)
+	requestCreated.EventActorKind = usersModels.ParentMessageSenderGuardian
+	requestCreated.EventType = usersModels.ParentMessageEventRequestCreated
+	messages := []*usersModels.ParentMessage{guardian, requestCreated}
+
+	rr := &fakeReadRepo{markAdvanced: true}
+	advanced, err := MarkReadToNewest(context.Background(), rr, 1, 42, reader, true, messages)
+	require.NoError(t, err)
+	assert.True(t, advanced)
+	require.Len(t, rr.marks, 1)
+	assert.Equal(t, guardian.ID, rr.marks[0].messageID,
+		"cursor must skip a request_created pill in lock-step with the unread SQL, bounding to the newest counted counterpart")
+}
+
+func TestMarkReadToNewest_RequestCreatedOnlyDoesNotMark(t *testing.T) {
+	reader := int64(100)
+	// The newest (and only counterpart-side) row is a request_created pill. Since
+	// it is excluded from the unread set, there is nothing to mark seen and the
+	// cursor stays untouched — matching a snapshot with no counted counterpart.
+	requestCreated := msg(1, 200, usersModels.ParentMessageSenderSystem)
+	requestCreated.EventActorKind = usersModels.ParentMessageSenderGuardian
+	requestCreated.EventType = usersModels.ParentMessageEventRequestCreated
+
+	rr := &fakeReadRepo{markAdvanced: true}
+	advanced, err := MarkReadToNewest(context.Background(), rr, 1, 42, reader, true, []*usersModels.ParentMessage{requestCreated})
+	require.NoError(t, err)
+	assert.False(t, advanced)
+	assert.Empty(t, rr.marks, "a lone request_created pill is not counted, so no cursor write")
 }
 
 func TestMarkReadToNewest_OwnOnlyOrEmptyDoesNotMark(t *testing.T) {
 	reader := int64(100)
 	rr := &fakeReadRepo{}
 	// Empty snapshot.
-	advanced, err := MarkReadToNewest(context.Background(), rr, 1, 42, reader, nil)
+	advanced, err := MarkReadToNewest(context.Background(), rr, 1, 42, reader, true, nil)
 	require.NoError(t, err)
 	assert.False(t, advanced)
 	// Only the reader's own messages → nothing to mark seen.
 	own := []*usersModels.ParentMessage{msg(1, reader, usersModels.ParentMessageSenderStaff)}
-	advanced, err = MarkReadToNewest(context.Background(), rr, 1, 42, reader, own)
+	advanced, err = MarkReadToNewest(context.Background(), rr, 1, 42, reader, true, own)
 	require.NoError(t, err)
 	assert.False(t, advanced)
 	assert.Empty(t, rr.marks, "no counterpart message means no cursor write")
@@ -211,7 +384,7 @@ func TestMarkReadToNewest_OwnOnlyOrEmptyDoesNotMark(t *testing.T) {
 func TestMarkReadToNewest_PropagatesRepoError(t *testing.T) {
 	rr := &fakeReadRepo{markErr: errors.New("upsert failed")}
 	messages := []*usersModels.ParentMessage{msg(1, 200, usersModels.ParentMessageSenderGuardian)}
-	_, err := MarkReadToNewest(context.Background(), rr, 1, 42, 100, messages)
+	_, err := MarkReadToNewest(context.Background(), rr, 1, 42, 100, true, messages)
 	require.Error(t, err)
 }
 

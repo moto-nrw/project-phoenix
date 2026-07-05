@@ -72,13 +72,14 @@ func (m *WorkTimeModel) Validate() error {
 type WorkTimeModelEntry struct {
 	bun.BaseModel `bun:"schema:config,table:work_time_model_entries"`
 
-	ID            int64     `bun:"id,pk,autoincrement" json:"id"`
-	ModelID       int64     `bun:"model_id,notnull" json:"model_id"`
-	WeekIndex     int       `bun:"week_index,notnull" json:"week_index"`
-	DayOfWeek     int       `bun:"day_of_week,notnull" json:"day_of_week"`
-	TargetMinutes int       `bun:"target_minutes,notnull" json:"target_minutes"`
-	CreatedAt     time.Time `bun:"created_at,notnull,default:now()" json:"created_at"`
-	UpdatedAt     time.Time `bun:"updated_at,notnull,default:now()" json:"updated_at"`
+	ID            int64      `bun:"id,pk,autoincrement" json:"id"`
+	ModelID       int64      `bun:"model_id,notnull" json:"model_id"`
+	WeekIndex     int        `bun:"week_index,notnull" json:"week_index"`
+	DayOfWeek     int        `bun:"day_of_week,notnull" json:"day_of_week"`
+	TargetMinutes int        `bun:"target_minutes,notnull" json:"target_minutes"`
+	StartTime     *time.Time `bun:"start_time" json:"start_time,omitempty"`
+	CreatedAt     time.Time  `bun:"created_at,notnull,default:now()" json:"created_at"`
+	UpdatedAt     time.Time  `bun:"updated_at,notnull,default:now()" json:"updated_at"`
 }
 
 func (e *WorkTimeModelEntry) BeforeAppendModel(query any) error {

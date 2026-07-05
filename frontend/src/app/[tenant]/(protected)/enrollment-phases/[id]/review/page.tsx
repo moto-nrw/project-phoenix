@@ -5,7 +5,7 @@ import Link from "next/link";
 import { RolloverReviewQueue } from "~/components/enrollment/rollover-review-queue";
 import { Loading } from "~/components/ui/loading";
 import { MobileBackButton } from "~/components/ui/mobile-back-button";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
 
 interface PageProps {

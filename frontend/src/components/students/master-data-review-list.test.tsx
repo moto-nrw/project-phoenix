@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MasterDataReviewList } from "./master-data-review-list";
@@ -15,6 +21,15 @@ vi.mock("~/lib/master-data-review-api", () => ({
 
 const mockList = vi.mocked(listMasterDataChangeRequests);
 const mockDecide = vi.mocked(decideMasterDataChangeRequest);
+
+// Cards are collapsed by default (compact queue); expand every card so the diff
+// and the Freigeben/Ablehnen actions render. The header button's accessible
+// name contains the child name.
+function expandAll() {
+  for (const btn of screen.getAllByRole("button", { name: /Lara Beispiel/ })) {
+    fireEvent.click(btn);
+  }
+}
 
 function row(
   overrides: Partial<StaffMasterDataChange> = {},
@@ -56,6 +71,7 @@ describe("MasterDataReviewList", () => {
     render(<MasterDataReviewList />);
 
     expect(await screen.findAllByText("Lara Beispiel")).toHaveLength(2);
+    expandAll();
     expect(screen.getByText("Vorname")).toBeInTheDocument();
     expect(screen.getByText("mon: pickup")).toBeInTheDocument();
     expect(screen.getByText("mon: bus/alone")).toBeInTheDocument();
@@ -82,6 +98,7 @@ describe("MasterDataReviewList", () => {
     render(<MasterDataReviewList />);
 
     expect(await screen.findByText("unknown_field")).toBeInTheDocument();
+    expandAll();
     fireEvent.click(screen.getByRole("button", { name: "Ablehnen" }));
 
     await waitFor(() =>
@@ -103,6 +120,7 @@ describe("MasterDataReviewList", () => {
     render(<MasterDataReviewList />);
 
     expect(await screen.findByText("Lara Beispiel")).toBeInTheDocument();
+    expandAll();
     fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
 
     expect(
@@ -121,5 +139,55 @@ describe("MasterDataReviewList", () => {
     expect(
       await screen.findByText("Keine offenen Änderungsanfragen."),
     ).toBeInTheDocument();
+  });
+
+  it("refetches in place when the sibling queue dispatches change-requests-refresh", async () => {
+    // A care-schedule decision changes the departure modes this queue's
+    // allowed_departure_modes diffs are computed against; the sibling list emits
+    // change-requests-refresh, and this list must refetch so it doesn't show
+    // stale "current → requested" values.
+    mockList
+      .mockResolvedValueOnce([row()])
+      .mockResolvedValueOnce([
+        row({ id: "102", first_name: "Max", last_name: "Muster" }),
+      ]);
+
+    render(<MasterDataReviewList />);
+
+    expect(await screen.findByText("Lara Beispiel")).toBeInTheDocument();
+    expect(mockList).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      window.dispatchEvent(new Event("change-requests-refresh"));
+    });
+
+    await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("Max Muster")).toBeInTheDocument();
+    expect(screen.queryByText("Lara Beispiel")).not.toBeInTheDocument();
+  });
+
+  it("refetches in place on the SSE-derived messages-unread-refresh event", async () => {
+    // A decision made in another tab or by another staffer never fires
+    // change-requests-refresh here; it only arrives as the parent-message pill
+    // use-global-sse fans out as messages-unread-refresh. The open queue must
+    // refetch so it drops a row the backend has already decided.
+    mockList
+      .mockResolvedValueOnce([row()])
+      .mockResolvedValueOnce([
+        row({ id: "102", first_name: "Max", last_name: "Muster" }),
+      ]);
+
+    render(<MasterDataReviewList />);
+
+    expect(await screen.findByText("Lara Beispiel")).toBeInTheDocument();
+    expect(mockList).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      window.dispatchEvent(new Event("messages-unread-refresh"));
+    });
+
+    await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("Max Muster")).toBeInTheDocument();
+    expect(screen.queryByText("Lara Beispiel")).not.toBeInTheDocument();
   });
 });

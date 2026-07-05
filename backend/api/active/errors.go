@@ -98,6 +98,14 @@ func ErrorRenderer(err error) render.Renderer {
 		renderer.HTTPStatusCode = http.StatusConflict
 		renderer.StatusText = "Student Already Has Active Visit"
 
+	case errors.Is(err, activeSvc.ErrStudentsNotPresent):
+		renderer.HTTPStatusCode = http.StatusConflict
+		renderer.StatusText = "Students Not Present"
+
+	case errors.Is(err, activeSvc.ErrStudentMoveForbidden):
+		renderer.HTTPStatusCode = http.StatusForbidden
+		renderer.StatusText = "Forbidden"
+
 	case errors.Is(err, activeSvc.ErrStaffAlreadySupervising):
 		renderer.HTTPStatusCode = http.StatusBadRequest
 		renderer.StatusText = "Staff Already Supervising This Group"

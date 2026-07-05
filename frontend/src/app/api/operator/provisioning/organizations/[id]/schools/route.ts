@@ -1,18 +1,7 @@
-import type { NextRequest } from "next/server";
-import {
-  createOperatorGetHandler,
-  isStringParam,
-  operatorApiGet,
-} from "~/lib/operator/route-wrapper.server";
+import { proxyGet } from "~/lib/operator/route-wrapper.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
-export const GET = createOperatorGetHandler(
-  async (_request: NextRequest, token: string, params) => {
-    if (!isStringParam(params.id)) {
-      throw new Error("Invalid id parameter");
-    }
-    return await operatorApiGet(
-      `/operator/organizations/${params.id}/schools`,
-      token,
-    );
-  },
+export const GET = proxyGet(
+  (params) =>
+    `/operator/organizations/${requirePathSegmentParam(params)}/schools`,
 );

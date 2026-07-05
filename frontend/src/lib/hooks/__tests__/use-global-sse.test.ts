@@ -21,6 +21,13 @@ vi.mock("next-auth/react", () => ({
 
 vi.mock("swr", () => ({
   mutate: vi.fn(() => Promise.resolve()),
+  // useGlobalSSE reads the SWR cache to gate reminder revalidation on the
+  // feature-enabled flag; an empty cache means reminders are treated as
+  // disabled, which is correct for these (non-reminders) event tests.
+  useSWRConfig: vi.fn(() => ({
+    cache: new Map(),
+    mutate: vi.fn(() => Promise.resolve()),
+  })),
 }));
 
 vi.mock("~/lib/hooks/use-sse", () => ({

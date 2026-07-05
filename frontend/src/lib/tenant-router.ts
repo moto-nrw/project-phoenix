@@ -6,7 +6,8 @@ import { useMemo } from "react";
 import {
   useTenantRoutingModeSafe,
   useTenantSlugSafe,
-} from "~/components/tenant/tenant-provider";
+} from "~/lib/tenant-context";
+import { attemptNavigation } from "~/lib/hooks/navigation-guard-store";
 
 /**
  * Tenant-aware router that handles both subdomain and path-based routing.
@@ -33,8 +34,23 @@ export function useTenantRouter() {
     const prefix =
       !tenantSlug || routingMode === "subdomain" ? "" : `/${tenantSlug}`;
     return {
-      push: (path: string) => router.push(`${prefix}${path}`),
-      replace: (path: string) => router.replace(`${prefix}${path}`),
+      // push/replace consult the navigation-guard registry first: if a page has
+      // an active unsaved-changes guard, the navigation is deferred to its
+      // confirmation instead of running immediately. With no guard registered
+      // attemptNavigation returns false and we navigate as normal. back/forward
+      // are already covered by the guard's popstate handling, so they stay bare.
+      push: (path: string) => {
+        const full = `${prefix}${path}`;
+        if (!attemptNavigation(() => router.push(full), full)) {
+          router.push(full);
+        }
+      },
+      replace: (path: string) => {
+        const full = `${prefix}${path}`;
+        if (!attemptNavigation(() => router.replace(full), full)) {
+          router.replace(full);
+        }
+      },
       back: () => router.back(),
       forward: () => router.forward(),
       refresh: () => router.refresh(),

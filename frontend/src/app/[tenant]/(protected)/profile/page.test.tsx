@@ -50,13 +50,13 @@ vi.mock("~/lib/image-utils", () => ({
 }));
 
 // Mock UI Components
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({ title }: { title: string }) => (
     <div data-testid="page-header">{title}</div>
   ),
 }));
 
-vi.mock("~/components/ui", () => ({
+vi.mock("~/components/ui/password-change-modal", () => ({
   PasswordChangeModal: ({
     isOpen,
     onClose,

@@ -14,6 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/collation"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 )
@@ -31,6 +32,7 @@ type classRosterExportRequest struct {
 type classRosterExportFiltersRequest struct {
 	PhaseID     json.RawMessage `json:"phase_id"`
 	SchoolClass string          `json:"school_class"`
+	AllClasses  bool            `json:"all_classes"`
 }
 
 type careUsageExportFiltersRequest struct {
@@ -392,8 +394,12 @@ func parseClassRosterExportRequest(r *http.Request) (listexport.Format, enrollme
 	filters := enrollmentService.ClassRosterFilters{
 		PhaseID:     phaseID,
 		SchoolClass: strings.TrimSpace(body.Filters.SchoolClass),
+		AllClasses:  body.Filters.AllClasses,
 	}
-	if filters.SchoolClass == "" {
+	if filters.AllClasses && filters.SchoolClass != "" {
+		return "", enrollmentService.ClassRosterFilters{}, errors.New("school_class and all_classes are mutually exclusive")
+	}
+	if !filters.AllClasses && filters.SchoolClass == "" {
 		return "", enrollmentService.ClassRosterFilters{}, errors.New("school_class is required")
 	}
 	return format, filters, nil
@@ -565,6 +571,9 @@ func buildCareUsageExportFile(svc listexport.Service, report *enrollmentService.
 
 func buildClassRosterExportFile(svc listexport.Service, report *enrollmentService.ClassRosterReport, format listexport.Format) (listexport.File, error) {
 	filename := "Klassenliste " + strings.TrimSpace(report.Filters.SchoolClass)
+	if report.Filters.AllClasses {
+		filename = "Klassenlisten"
+	}
 	if phaseName := strings.TrimSpace(report.Phase.Name); phaseName != "" {
 		filename += " " + phaseName
 	}
@@ -584,7 +593,16 @@ func buildClassRosterTableDocument(report *enrollmentService.ClassRosterReport) 
 		{ID: listexport.ColumnGuardianContacts, Label: "Erziehungsberechtigte"},
 	}
 	rows := make([]listexport.Row, 0, len(report.Rows))
-	for _, row := range report.Rows {
+	currentClass := ""
+	for i, row := range report.Rows {
+		// All-classes rosters arrive class-sorted from the service; a
+		// heading row starts each class section (new page in the PDF).
+		// Boundaries use the sort comparator's equivalence so label
+		// variants like "1a"/"1A" share one heading (first-seen label).
+		if class := strings.TrimSpace(row.SchoolClass); report.Filters.AllClasses && (i == 0 || collation.CompareSchoolClasses(class, currentClass) != 0) {
+			currentClass = class
+			rows = append(rows, listexport.Row{GroupTitle: listexport.ClassGroupTitle(class)})
+		}
 		rows = append(rows, listexport.Row{Values: map[listexport.ColumnID]string{
 			listexport.ColumnName:             strings.TrimSpace(row.FirstName + " " + row.LastName),
 			listexport.ColumnSchoolClass:      row.SchoolClass,
@@ -613,7 +631,9 @@ func classRosterTitle(report *enrollmentService.ClassRosterReport) string {
 	if report == nil {
 		return title
 	}
-	if className := strings.TrimSpace(report.Filters.SchoolClass); className != "" {
+	if report.Filters.AllClasses {
+		title = "Klassenlisten"
+	} else if className := strings.TrimSpace(report.Filters.SchoolClass); className != "" {
 		title += " " + className
 	}
 	if phaseName := strings.TrimSpace(report.Phase.Name); phaseName != "" {
@@ -633,9 +653,13 @@ func classRosterFilterLabels(report *enrollmentService.ClassRosterReport) []stri
 	if report == nil {
 		return nil
 	}
+	classLabel := strings.TrimSpace(report.Filters.SchoolClass)
+	if report.Filters.AllClasses {
+		classLabel = "Alle Klassen"
+	}
 	return []string{
 		"Anmeldephase: " + strings.TrimSpace(report.Phase.Name),
-		"Klasse: " + strings.TrimSpace(report.Filters.SchoolClass),
+		"Klasse: " + classLabel,
 		"Status: " + statusLabelDE(report.Filters.Status),
 	}
 }

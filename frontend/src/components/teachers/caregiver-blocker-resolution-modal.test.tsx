@@ -11,7 +11,7 @@ const { mockToastSuccess, mockGetAllAvailableStaff, mockFetch } = vi.hoisted(
   }),
 );
 
-vi.mock("~/components/ui", async () => {
+vi.mock("~/components/ui/form-modal", async () => {
   const { createElement } = await import("react");
 
   return {

@@ -22,6 +22,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
@@ -71,6 +72,7 @@ type Service interface {
 	ListInbox(ctx context.Context, onlyUnread bool) ([]*usersModels.InboxThread, error)
 	UnreadMessageCount(ctx context.Context) (int, error)
 	GetThread(ctx context.Context, threadID int64) (*ThreadDetail, error)
+	// PostMessage appends a staff reply and returns the refreshed thread messages.
 	PostMessage(ctx context.Context, threadID int64, body string) ([]*usersModels.ParentMessage, error)
 	StartThread(ctx context.Context, studentID, guardianAccountID int64, body string) (*ThreadDetail, error)
 	// OpenThread get-or-creates the conversation for a (student, guardian) pair
@@ -282,8 +284,8 @@ func (s *service) requireLinkedGuardian(ctx context.Context, thread *usersModels
 }
 
 // buildDetailFromMessages assembles the chat-window payload (read receipts,
-// header, request diffs) from an already-fetched message snapshot, so the read
-// paths can mark-read off the SAME snapshot they return (see markReadAndBuild).
+// header) from an already-fetched message snapshot, so the read paths can
+// mark-read off the SAME snapshot they return (see markReadAndBuild).
 func (s *service) buildDetailFromMessages(ctx context.Context, thread *usersModels.ParentMessageThread, messages []*usersModels.ParentMessage) (*ThreadDetail, error) {
 	// "OGS hat gelesen" receipt: flag guardian messages a staff member has read.
 	// Shared with the parent side via parentmessaging.DecorateReadReceipts so the
@@ -332,7 +334,7 @@ func (s *service) markReadAndBuild(ctx context.Context, thread *usersModels.Pare
 	if err != nil {
 		return nil, false, fmt.Errorf("messaging: list messages: %w", err)
 	}
-	advanced, err := parentmessaging.MarkReadToNewest(ctx, s.readRepo, thread.TenantID, thread.ID, accountIDFromCtx(ctx), messages)
+	advanced, err := parentmessaging.MarkReadToNewest(ctx, s.readRepo, thread.TenantID, thread.ID, accountIDFromCtx(ctx), true, messages)
 	if err != nil {
 		return nil, false, fmt.Errorf("messaging: mark read: %w", err)
 	}
@@ -399,7 +401,7 @@ func (s *service) PostMessage(ctx context.Context, threadID int64, body string) 
 	// newest GUARDIAN row in the snapshot (never NOW(), never our own just-sent
 	// message), so it can't leap the cursor to ~now and swallow a guardian message
 	// committing concurrently in a still-open tx. See parentmessaging.MarkReadToNewest.
-	if _, err := parentmessaging.MarkReadToNewest(ctx, s.readRepo, thread.TenantID, thread.ID, accountID, messages); err != nil {
+	if _, err := parentmessaging.MarkReadToNewest(ctx, s.readRepo, thread.TenantID, thread.ID, accountID, true, messages); err != nil {
 		return nil, fmt.Errorf("messaging: mark read: %w", err)
 	}
 	// Re-stamp the "Gelesen" receipts on the returned snapshot: the client applies
@@ -532,12 +534,14 @@ func (s *service) ListStudentThreads(ctx context.Context, studentID int64) ([]*u
 // created_at" rule).
 func (s *service) appendStaffMessage(ctx context.Context, thread *usersModels.ParentMessageThread, accountID int64, body string) error {
 	msg := &usersModels.ParentMessage{
-		ThreadID:        thread.ID,
-		StudentID:       thread.StudentID,
-		SenderAccountID: accountID,
-		SenderKind:      usersModels.ParentMessageSenderStaff,
-		SenderName:      s.resolveStaffName(ctx, accountID),
-		Body:            body,
+		ThreadID:         thread.ID,
+		StudentID:        thread.StudentID,
+		SenderAccountID:  accountID,
+		SenderKind:       usersModels.ParentMessageSenderStaff,
+		SenderName:       s.resolveStaffName(ctx, accountID),
+		StaffNameVisible: s.staffNameVisibleToParents(ctx),
+		Body:             body,
+		Kind:             usersModels.ParentMessageKindMessage,
 	}
 	msg.SetTenantID(thread.TenantID)
 	if err := parentmessaging.AppendMessage(ctx, s.messageRepo, s.threadRepo, msg); err != nil {
@@ -573,6 +577,29 @@ func (s *service) resolveStaffName(ctx context.Context, accountID int64) string 
 		name = full
 	}
 	return name
+}
+
+// staffNameVisibleToParents resolves whether team replies should attribute the
+// individual staff member to guardians, to be FROZEN onto the message at send
+// time (users.parent_messages.staff_name_visible). It is read only here, on the
+// write path: the parent-facing read path trusts the stamped column, so a later
+// toggle never rewrites history. Unlike MessagingEnabled it fails CLOSED (false,
+// anonymous) on a transient config-DB error: the flag exposes staff personal
+// data and is frozen per message, so a blip must not permanently reveal a name
+// for a school that explicitly opted out. Anonymizing one message is
+// recoverable and privacy-safe; a wrongful disclosure is neither.
+func (s *service) staffNameVisibleToParents(ctx context.Context) bool {
+	if s.settings == nil {
+		return false
+	}
+	visible, err := s.settings.ResolveBool(ctx, configModels.KeyParentMessageStaffNameVisible)
+	if err != nil {
+		s.logger.Warn("messaging: resolve staff-name visibility failed, defaulting to anonymous",
+			slog.String("error", err.Error()),
+		)
+		return false
+	}
+	return visible
 }
 
 // broadcastAfterCommit queues the SSE wake-up to fire only AFTER the request

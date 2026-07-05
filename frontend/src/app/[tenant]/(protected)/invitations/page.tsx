@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useTenantRouter } from "~/lib/tenant-router";
 
-export default function InvitationsPage() {
+export default function InvitationsRedirectPage() {
   const router = useTenantRouter();
 
   useEffect(() => {

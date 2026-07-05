@@ -7,17 +7,32 @@ import { ArrowLeft } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Skeleton } from "~/components/ui/skeleton";
 import { MessageComposer } from "~/components/messaging/message-composer";
-import { ChatBubble } from "~/components/messaging/chat-bubble";
+import { ChatBubble, ChatEventCard } from "~/components/messaging/chat-bubble";
+import { RequestStatusBadge } from "~/components/messaging/request-status-badge";
 import { useChatViewportLock } from "~/lib/hooks/use-chat-viewport-lock";
-import { getApiErrorMessage } from "~/components/ui/modal-utils";
+import { getApiErrorMessage } from "~/lib/api-error-message";
 import {
+  parentEventI18nDescriptor,
+  parentRequestStatusI18nKey,
+  parentRequestTypeI18nKey,
+} from "~/lib/messaging-status";
+import {
+  type ChildFeatures,
+  type ParentMessage,
   type ThreadView,
   getChildConversation,
   postChildMessage,
 } from "~/lib/parent-api";
-import { useChildCare } from "~/components/parent/child-care";
+import {
+  PickupTimeModal,
+  SickNoteModal,
+  getOgsActions,
+  useChildCare,
+  type OgsActionKey,
+} from "~/components/parent/child-care";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { createLogger } from "~/lib/logger";
+import { formatChatTime } from "~/lib/date-helpers";
 
 const logger = createLogger({ component: "OgsConversation" });
 
@@ -58,6 +73,7 @@ export function OgsConversation({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const care = useChildCare(studentId);
+  const [activeModal, setActiveModal] = useState<OgsActionKey | null>(null);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -187,7 +203,7 @@ export function OgsConversation({
   return (
     <div
       ref={containerRef}
-      className="mx-auto flex min-h-[20rem] w-full max-w-5xl flex-col gap-3 overflow-hidden"
+      className="mx-auto flex min-h-[20rem] w-full max-w-7xl flex-col gap-3 overflow-hidden"
     >
       {showBack ? <BackBar /> : null}
 
@@ -215,20 +231,45 @@ export function OgsConversation({
           {loading ? (
             <ThreadSkeleton />
           ) : messages.length > 0 ? (
-            messages.map((message) => (
-              <ChatBubble
-                key={message.id}
-                body={message.body}
-                own={message.sender_kind === "guardian"}
-                senderName={message.sender_name}
-                createdAt={message.created_at}
-                readReceiptLabel={
-                  message.sender_kind === "guardian" && message.read_by_staff
-                    ? t("readByStaff")
-                    : undefined
-                }
-              />
-            ))
+            messages.map((message) => {
+              const eventI18n =
+                message.kind === "event"
+                  ? parentEventI18nDescriptor(message)
+                  : null;
+              return message.kind === "event" ? (
+                <ChatEventCard
+                  key={message.id}
+                  // Backend system-event bodies are German; render the localized
+                  // text from the event's structured fields, falling back to the
+                  // raw body only for events we can't localize.
+                  body={
+                    eventI18n
+                      ? t(eventI18n.key, eventI18n.values)
+                      : message.body
+                  }
+                  createdAt={message.created_at}
+                />
+              ) : message.kind === "request" ? (
+                <RequestItem key={message.id} message={message} />
+              ) : (
+                <ChatBubble
+                  key={message.id}
+                  body={message.body}
+                  own={message.sender_kind === "guardian"}
+                  senderName={message.sender_name}
+                  createdAt={message.created_at}
+                  // The parent's own bubbles are always the logged-in guardian
+                  // (one guardian account per thread), so drop the redundant name
+                  // and keep just the time. Staff bubbles still show "Vorname N.".
+                  showOwnSenderName={false}
+                  readReceiptLabel={
+                    message.sender_kind === "guardian" && message.read_by_staff
+                      ? t("readByStaff")
+                      : undefined
+                  }
+                />
+              );
+            })
           ) : loadError ? (
             <Alert
               type="error"
@@ -245,6 +286,11 @@ export function OgsConversation({
               <Alert type="error" message={sendError} />
             </div>
           ) : null}
+          <QuickActions
+            features={care.features}
+            loading={care.loading}
+            onPick={(key) => setActiveModal(key)}
+          />
           {/* Only show the free-text composer when the school has parent notes
               enabled AND this relationship grants notes.write (both folded into
               care.features.notes_enabled). A pickup-only/emergency guardian, or
@@ -271,7 +317,121 @@ export function OgsConversation({
           )}
         </div>
       </section>
+
+      {/* Self-service actions (sick note, pickup change) apply IMMEDIATELY and are
+          NOT chat messages — the write endpoints update status/exception rows and
+          fire only a student-updated cache SSE, they create no parent_messages
+          event. So they deliberately leave no card in this thread (the change is
+          visible in the attendance/status views, and stays editable/removable,
+          which a permanent event card could not reflect). The child-care hook
+          updates its own local state, so no conversation refetch is needed. */}
+      {activeModal === "sick" && (
+        <SickNoteModal
+          onClose={() => setActiveModal(null)}
+          onSubmit={async (dates, reason, status) => {
+            await care.reportSick(dates, reason, status);
+          }}
+        />
+      )}
+      {activeModal === "pickup" && (
+        <PickupTimeModal
+          careExceptions={care.careExceptions}
+          careExceptionsLoaded={care.careExceptionsLoaded}
+          pickupChangeEnabled={care.features.pickup_change_enabled}
+          onClose={() => setActiveModal(null)}
+          onSubmit={async (params) => {
+            await care.saveCareException(params);
+          }}
+          onRemove={async (date) => {
+            await care.removeCareException(date);
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+// Historical change-request card. Since #1803 the chat no longer CREATES
+// requests (the Stammdaten page owns that) — but past kind="request" rows still
+// arrive in the timeline and must render read-only: title + status + timestamp,
+// no diff (messages no longer carry one) and no withdraw button (withdrawal now
+// happens on the Stammdaten page). New request activity shows up as
+// non-interactive "event" pills instead.
+function RequestItem({ message }: Readonly<{ message: ParentMessage }>) {
+  const t = useTranslations("parentOgsMessaging");
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-gray-900">
+            {t(parentRequestTypeI18nKey(message.request_type))}
+          </p>
+          <p className="mt-1 text-xs text-gray-500">
+            {formatChatTime(message.created_at)}
+            {message.read_by_staff ? ` · ${t("readByStaff")}` : ""}
+          </p>
+        </div>
+        <RequestStatusBadge
+          label={t(parentRequestStatusI18nKey(message.request_status))}
+        />
+      </div>
+    </div>
+  );
+}
+
+// Quick actions above the composer. The structured actions previously hid behind
+// an unlabelled "+", so parents rarely discovered them and typed the same thing
+// as free text instead, which silently loses the auto-apply.
+//
+// These are all immediate self-service actions (sick note, pickup-for-a-day) —
+// frequent, low-stakes, one tap and it takes effect at once. Permanent change
+// requests (care schedule, master data) are NOT reachable from the chat since
+// #1803; they live on the Stammdaten page, which owns the create/withdraw flow.
+// Feature flags still gate the pills.
+//
+// Pills render only once the per-child feature flags have loaded: the pickup
+// flag arrives async (defaults off), so rendering early made "Abholung" pop in a
+// beat after the others. While loading we reserve one pill-row of height so the
+// whole set appears at once without shifting the composer.
+function QuickActions({
+  features,
+  loading,
+  onPick,
+}: Readonly<{
+  features: ChildFeatures;
+  loading: boolean;
+  onPick: (key: OgsActionKey) => void;
+}>) {
+  if (loading) return <div className="mb-3 h-9" aria-hidden="true" />;
+  const actions = getOgsActions(features).filter((action) => action.enabled);
+  if (actions.length === 0) return null;
+  return (
+    <div className="mb-3 flex flex-wrap gap-2">
+      {actions.map((action) => (
+        <QuickActionPill key={action.key} action={action} onPick={onPick} />
+      ))}
+    </div>
+  );
+}
+
+function QuickActionPill({
+  action,
+  onPick,
+}: Readonly<{
+  action: ReturnType<typeof getOgsActions>[number];
+  onPick: (key: OgsActionKey) => void;
+}>) {
+  const t = useTranslations("parentChildCare");
+  return (
+    <button
+      type="button"
+      onClick={() => onPick(action.key)}
+      title={t(`actions.${action.key}.hint`)}
+      className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+    >
+      <action.Icon className="h-4 w-4 text-gray-400" aria-hidden="true" />
+      {t(`actions.${action.key}.shortLabel`)}
+    </button>
   );
 }
 

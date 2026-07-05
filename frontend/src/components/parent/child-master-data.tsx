@@ -21,6 +21,8 @@ import {
   submitMasterDataRequest,
   updateMasterDataField,
 } from "~/lib/parent-api";
+import { ChildCareScheduleSection } from "~/components/parent/child-care-schedule";
+import { Section } from "~/components/parent/child-detail-section";
 
 const logger = createLogger({ component: "ChildMasterData" });
 
@@ -72,7 +74,7 @@ export function ChildMasterDataView({ studentId }: Props) {
 
   if (loading) {
     return (
-      <div className="mx-auto w-full max-w-3xl space-y-4">
+      <div className="mx-auto w-full max-w-7xl space-y-4">
         <div className="h-40 animate-pulse rounded-2xl border border-gray-200 bg-white shadow-sm" />
         <div className="h-64 animate-pulse rounded-2xl border border-gray-200 bg-white shadow-sm" />
       </div>
@@ -81,7 +83,7 @@ export function ChildMasterDataView({ studentId }: Props) {
 
   if (error || !data || !features) {
     return (
-      <div className="mx-auto w-full max-w-3xl">
+      <div className="mx-auto w-full max-w-7xl">
         <BackBar studentId={studentId} />
         <div className="mt-4 rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-5 text-sm text-[#CC2626] shadow-sm">
           {t("loadError")}
@@ -144,7 +146,7 @@ function ChildMasterDataContent({
   );
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-6">
+    <div className="mx-auto w-full max-w-7xl space-y-6">
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <BackBar studentId={studentId} />
         <div className="p-5 sm:p-6">
@@ -249,6 +251,8 @@ function ChildMasterDataContent({
         pending={pendingByField.get("departure/allowed_departure_modes")}
         onApplied={onApplied}
       />
+
+      <ChildCareScheduleSection studentId={studentId} />
     </div>
   );
 }
@@ -433,22 +437,6 @@ function IdentitySection({
         <p className="text-xs text-gray-500">{t("requestDisabled")}</p>
       )}
     </Section>
-  );
-}
-
-function Section({
-  title,
-  hint,
-  children,
-}: Readonly<{ title: string; hint: string; children: React.ReactNode }>) {
-  return (
-    <section className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-      <header className="mb-4">
-        <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-        <p className="mt-0.5 text-xs text-gray-500">{hint}</p>
-      </header>
-      <div className="space-y-4">{children}</div>
-    </section>
   );
 }
 

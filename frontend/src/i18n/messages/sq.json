@@ -39,9 +39,11 @@
   "parentNav": {
     "start": "Fillimi",
     "children": "Fëmijët e mi",
+    "mealPlan": "Plani i ushqimit",
     "comingSoon": "Së shpejti në portalin e prindërve",
     "calendar": "Kalendari",
     "messages": "Mesazhe",
+    "news": "Lajme",
     "contactData": "Të dhënat e kontaktit",
     "soon": "Së shpejti",
     "refresh": "Rifresko të dhënat",
@@ -52,6 +54,20 @@
     "role": "Prind",
     "childProfile": "Profili i fëmijës",
     "loading": "Po ngarkohet..."
+  },
+  "parentMealPlan": {
+    "title": "Plani i ushqimit",
+    "subtitle": "Çfarë shërbehet në kujdesin ditor.",
+    "thisWeek": "Këtë javë",
+    "nextWeek": "Javën tjetër",
+    "today": "Sot",
+    "noMeal": "Asnjë vakt i regjistruar",
+    "empty": "Aktualisht nuk ka plan ushqimi për shkollën tuaj.",
+    "loadError": "Plani i ushqimit nuk mund të ngarkohej.",
+    "emptyWeek": "Për këtë javë ende nuk është futur asnjë plan ushqimi.",
+    "weekHeading": "Këtë javë",
+    "school": "Shkolla",
+    "week": "Java"
   },
   "parentDashboard": {
     "eyebrow": "Portali i prindërve",
@@ -67,6 +83,8 @@
     "newsDescription": "Këtu shfaqen njoftime nga përkujdesja dhe portali i prindërve.",
     "noNewsTitle": "Nuk ka lajme",
     "noNewsDescription": "Njoftimet e reja do t'i shihni direkt në faqen kryesore.",
+    "newsShowAll": "Shfaq të gjitha lajmet",
+    "noNewsPageDescription": "Sapo kujdestaria të publikojë një njoftim, ai do të shfaqet këtu.",
     "loadError": "Pamja e përgjithshme nuk u ngarkua. Rifreskoni faqen ose provoni më vonë.",
     "unknownError": "Gabim i panjohur",
     "notSet": "Nuk është vendosur",
@@ -82,7 +100,15 @@
       "rejected": "Refuzuar",
       "withdrawn": "Tërhequr"
     },
-    "dateRangeConnector": "deri"
+    "dateRangeConnector": "deri",
+    "newsNew": "E re",
+    "newsImportant": "E rëndësishme",
+    "newsMarkRead": "Shëno si të lexuar",
+    "newsAcknowledge": "Lexuar dhe konfirmuar",
+    "newsAcknowledged": "Konfirmuar",
+    "newsRead": "Lexuar",
+    "newsActionError": "Veprimi dështoi. Provoni përsëri.",
+    "newsStaleError": "Ky njoftim nuk është më aktual. Ju lutemi, ringarkoni faqen."
   },
   "parentChildren": {
     "eyebrow": "Fëmijët e mi",
@@ -273,6 +299,43 @@
       "existingHint": "Për {date} është caktuar tashmë një ndryshim. Ruajtja e mbishkruan.",
       "reset": "Rivendos",
       "submit": "Ruaj"
+    },
+    "actions": {
+      "sick": {
+        "label": "Njofto mungesë",
+        "shortLabel": "Mungesë",
+        "hint": "Njoftoni mungesën e fëmijës për një ose më shumë ditë"
+      },
+      "pickup": {
+        "label": "Marrje për një ditë",
+        "shortLabel": "Marrje",
+        "hint": "Përshtatni orarin e marrjes ose ardhjes për një ditë të vetme"
+      }
+    },
+    "request": {
+      "submit": "Dërgo kërkesën",
+      "sendError": "Kërkesa nuk mund të dërgohej.",
+      "careSchedule": {
+        "title": "Ndrysho oraret e kujdesit",
+        "intro": "Plani javor Hën–Pre si kërkesë drejt institucionit. Ndryshohen vetëm fushat e plotësuara, fushat bosh mbeten si më parë.",
+        "noChange": "Ju lutemi përshtatni të paktën një ditë.",
+        "arrival": "Ora e ardhjes",
+        "pickup": "Ora e marrjes",
+        "modeAria": "Mënyra e largimit {day}"
+      },
+      "weekday": {
+        "1": "E hënë",
+        "2": "E martë",
+        "3": "E mërkurë",
+        "4": "E enjte",
+        "5": "E premte"
+      },
+      "careMode": {
+        "unchanged": "Pa ndryshim",
+        "alone": "Largohet vetë",
+        "bus": "Udhëton me autobus",
+        "pickup": "Merret"
+      }
     }
   },
   "parentLogin": {
@@ -848,7 +911,8 @@
       "child": "Angaben zum Kind",
       "health": "Gesundheit",
       "contact": "Ihre Kontaktdaten",
-      "departure": "Dauerhafte Gehzeiten"
+      "departure": "Dauerhafte Gehzeiten",
+      "careSchedule": "Betreuungszeiten"
     },
     "fields": {
       "firstName": "Vorname",
@@ -886,43 +950,50 @@
       "wed": "Mi",
       "thu": "Do",
       "fri": "Fr"
+    },
+    "careSchedule": {
+      "hint": "Ihr aktueller Wochenplan. Dauerhafte Änderungen prüft das Team, bevor sie gelten.",
+      "arrival": "Bringzeit",
+      "pickup": "Abholzeit",
+      "modes": "Abholart",
+      "loadError": "Die Betreuungszeiten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
+      "pendingBadge": "In Prüfung",
+      "pendingNotice": "Ihre Anfrage wird vom Team geprüft. Bis zur Bestätigung gilt der bisherige Plan.",
+      "requestedAt": "Angefragt am {date}",
+      "withdraw": "Zurückziehen",
+      "withdrawError": "Die Anfrage konnte nicht zurückgezogen werden.",
+      "withdrawConfirmTitle": "Anfrage zurückziehen?",
+      "withdrawConfirmBody": "Möchten Sie Ihre Änderungsanfrage wirklich zurückziehen? Der bisherige Plan bleibt unverändert."
     }
   },
-  "staffMasterDataReview": {
-    "title": "Änderungsanfragen",
-    "subtitle": "Von Eltern eingereichte Änderungen an Stammdaten, die eine Freigabe benötigen.",
-    "loadError": "Die Änderungsanfragen konnten nicht geladen werden.",
-    "empty": "Keine offenen Änderungsanfragen.",
-    "columns": {
-      "child": "Kind",
-      "field": "Feld",
-      "change": "Änderung",
-      "submitted": "Eingereicht",
-      "actions": "Aktion"
-    },
-    "fields": {
-      "first_name": "Vorname",
-      "last_name": "Nachname",
-      "birthday": "Geburtsdatum",
-      "health_info": "Gesundheitshinweise",
-      "email": "E-Mail",
-      "primary": "Telefonnummer",
-      "address_street": "Straße",
-      "address_city": "Ort",
-      "address_postal_code": "PLZ",
-      "preferred_contact_method": "Kontaktweg",
-      "language_preference": "Sprache",
-      "allowed_departure_modes": "Dauerhafte Gehzeiten"
-    },
-    "empty_value": "—",
-    "approve": "Freigeben",
-    "reject": "Ablehnen",
-    "reason": "Begründung (optional)",
-    "approved": "Änderung übernommen",
-    "rejected": "Änderung abgelehnt",
-    "decideError": "Die Entscheidung konnte nicht gespeichert werden."
-  },
   "parentOgsMessaging": {
-    "readByStaff": "Lexuar"
+    "readByStaff": "Lexuar",
+    "requestTypeCareSchedule": "Kërkesë: Ndrysho oraret e rregullta të kujdesit",
+    "requestTitleFallback": "Kërkesë",
+    "statusOpen": "E hapur",
+    "statusDone": "E përfunduar",
+    "statusRejected": "E refuzuar",
+    "statusWithdrawn": "E tërhequr",
+    "eventRequestConfirmed": "Kërkesa u konfirmua",
+    "eventRequestConfirmedCareSchedule": "Kërkesa u konfirmua, oraret e kujdesit u zbatuan",
+    "eventRequestCreatedCareSchedule": "Kërkesë për ndryshim të orareve të kujdesit u dërgua",
+    "eventRequestCreatedMasterData": "Kërkesë për ndryshim të Stammdaten u dërgua",
+    "eventRequestConfirmedMasterData": "Kërkesa u konfirmua, Stammdaten u zbatuan",
+    "eventRequestRejected": "Kërkesa u refuzua",
+    "eventRequestRejectedReason": "Kërkesa u refuzua: {reason}",
+    "eventRequestWithdrawn": "Kërkesa u tërhoq",
+    "diffHeading": "Ndryshimet tuaja të kërkuara",
+    "diffCareArrival": "Ora e ardhjes",
+    "diffCarePickup": "Ora e marrjes",
+    "diffCareDepartureMode": "Mënyra e largimit",
+    "diffWeekday1": "E hënë",
+    "diffWeekday2": "E martë",
+    "diffWeekday3": "E mërkurë",
+    "diffWeekday4": "E enjte",
+    "diffWeekday5": "E premte",
+    "diffModeAlone": "Largohet vetë",
+    "diffModeBus": "Udhëton me autobus",
+    "diffModePickup": "Merret",
+    "diffModeAccompanied": "Me një fëmijë tjetër"
   }
 }

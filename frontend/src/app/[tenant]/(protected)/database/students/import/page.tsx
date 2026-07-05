@@ -6,7 +6,9 @@ import { redirect } from "next/navigation";
 import { Loading } from "~/components/ui/loading";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
-import { UploadSection, StatsCards, StudentRowCard } from "~/components/import";
+import { UploadSection } from "~/components/import/upload-section";
+import { StatsCards } from "~/components/import/stats-cards";
+import { StudentRowCard } from "~/components/import/student-row-card";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 
@@ -207,10 +209,7 @@ export default function StudentImportPage() {
             // Determine row status based on error conditions
             // Check isExisting first because already_exists has severity "error"
             const getRowStatus = ():
-              | "error"
-              | "existing"
-              | "warning"
-              | "new" => {
+              "error" | "existing" | "warning" | "new" => {
               if (isExisting) return "existing";
               if (hasErrors) return "error";
               if (hasWarnings) return "warning";

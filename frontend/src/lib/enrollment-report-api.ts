@@ -167,7 +167,7 @@ export async function exportCareUsageReport(
 
 export async function exportPhaseClassRoster(
   phaseId: string,
-  schoolClass: string,
+  schoolClass: string | null,
   format: EnrollmentReportFormat,
 ): Promise<void> {
   const response = await fetch(
@@ -179,7 +179,9 @@ export async function exportPhaseClassRoster(
         format,
         filters: {
           phase_id: phaseId,
-          school_class: schoolClass,
+          ...(schoolClass
+            ? { school_class: schoolClass }
+            : { all_classes: true }),
         },
       }),
     },
@@ -193,8 +195,10 @@ export async function exportPhaseClassRoster(
   const blob = await response.blob();
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
+  link.download =
+    filenameFromDisposition(response) ??
+    (schoolClass ? `klassenliste.${format}` : `klassenlisten.${format}`);
   link.href = url;
-  link.download = filenameFromDisposition(response) ?? `klassenliste.${format}`;
   document.body.append(link);
   link.click();
   link.remove();

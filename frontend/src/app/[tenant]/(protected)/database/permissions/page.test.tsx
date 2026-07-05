@@ -45,7 +45,7 @@ vi.mock("@/lib/database/service-factory", () => ({
   })),
 }));
 
-vi.mock("~/hooks/useIsMobile", () => ({
+vi.mock("~/components/ui/hooks/useIsMobile", () => ({
   useIsMobile: vi.fn(() => false),
 }));
 
@@ -72,7 +72,7 @@ vi.mock("~/components/database/database-page-layout", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({
     search,
     onClearAllFilters,
@@ -100,15 +100,17 @@ vi.mock("~/components/ui/page-header", () => ({
 // assert the rethrown message bubbles up to the form layer.
 const lastModalError = { message: "" };
 
-vi.mock("@/components/permissions", () => ({
-  PermissionCreateModal: ({
+vi.mock("~/components/ui/database/database-form-modal", () => ({
+  // The page renders the create modal via DatabaseFormModal directly; the
+  // edit modal keeps its PermissionEditModal wrapper (mocked below).
+  DatabaseFormModal: ({
     isOpen,
     onClose,
-    onCreate,
+    onSubmit,
   }: {
     isOpen: boolean;
     onClose: () => void;
-    onCreate: (data: { resource: string; action: string }) => Promise<void>;
+    onSubmit: (data: { resource: string; action: string }) => Promise<void>;
   }) =>
     isOpen ? (
       <div data-testid="permission-create-modal">
@@ -116,7 +118,7 @@ vi.mock("@/components/permissions", () => ({
           data-testid="submit-create"
           onClick={() => {
             lastModalError.message = "";
-            onCreate({ resource: "students", action: "delete" }).catch(
+            onSubmit({ resource: "students", action: "delete" }).catch(
               (err: unknown) => {
                 lastModalError.message =
                   err instanceof Error ? err.message : String(err);
@@ -131,6 +133,9 @@ vi.mock("@/components/permissions", () => ({
         </button>
       </div>
     ) : null,
+}));
+
+vi.mock("@/components/permissions/permission-edit-modal", () => ({
   PermissionEditModal: ({
     isOpen,
     onClose,
@@ -159,6 +164,9 @@ vi.mock("@/components/permissions", () => ({
         </button>
       </div>
     ) : null,
+}));
+
+vi.mock("@/components/permissions/permissions-master-detail", () => ({
   PermissionsMasterDetail: ({
     permissions,
     selectedId,

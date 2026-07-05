@@ -98,6 +98,12 @@ const (
 	KeyTrackingIndicator3        = "tracking.indicator_3"
 )
 
+// Time-tracking auto-checkout settings (#1798).
+const (
+	KeyTrackingAutoCheckoutEnabled      = "tracking.auto_checkout_enabled"
+	KeyTrackingAutoCheckoutGraceMinutes = "tracking.auto_checkout_grace_minutes"
+)
+
 // Operations settings.
 const (
 	KeySessionEndEnabled               = "operations.session_end_enabled"
@@ -125,11 +131,15 @@ const (
 	KeyCareConcept                     = "operations.care_concept"
 	KeyParentSickNoteEnabled           = "operations.parent_sick_note_enabled"
 	KeyParentNotesEnabled              = "operations.parent_notes_enabled"
+	KeyParentMessageStaffNameVisible   = "operations.parent_message_staff_name_visible"
 	KeyParentPickupChangeEnabled       = "operations.parent_pickup_change_enabled"
 	KeyParentGuardianManagementEnabled = "operations.parent_guardian_management_enabled"
 	KeyParentMasterDataEditEnabled     = "operations.parent_master_data_edit_enabled"
 	KeyParentMasterDataRequestEnabled  = "operations.parent_master_data_request_enabled"
+	KeyParentNewsEnabled               = "operations.parent_news_enabled"
 	KeyTimeTrackingAccountStartDate    = "operations.time_tracking_account_start_date"
+	KeyTimeTrackingEnforcePlannedStart = "operations.time_tracking_enforce_planned_start"
+	KeyMealPlanEnabled                 = "operations.meal_plan_enabled"
 )
 
 // PresenceMode option values for KeyPresenceMode.
@@ -260,4 +270,17 @@ const (
 	// and scrolls if events fall outside.
 	KeyTimetableDayStartTime = "timetable.day_start_time"
 	KeyTimetableDayEndTime   = "timetable.day_end_time"
+)
+
+// Reminder settings (issue #1457). Visual-only (no sound) reminders surfaced
+// on the staff "Erinnerungen" page. Every type defaults OFF — a school opts in
+// per event type. Lead-time minutes control how early an upcoming-pickup /
+// activity-start reminder appears. Definitions live in defaults/reminders.go.
+const (
+	KeyRemindersPickupUpcomingEnabled     = "reminders.pickup_upcoming_enabled"
+	KeyRemindersPickupUpcomingLeadMinutes = "reminders.pickup_upcoming_lead_minutes"
+	KeyRemindersPickupOverdueEnabled      = "reminders.pickup_overdue_enabled"
+	KeyRemindersActivityStartEnabled      = "reminders.activity_start_enabled"
+	KeyRemindersActivityStartLeadMinutes  = "reminders.activity_start_lead_minutes"
+	KeyRemindersActivityOverdueEnabled    = "reminders.activity_overdue_enabled"
 )

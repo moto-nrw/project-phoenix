@@ -632,6 +632,35 @@ func TestResolveIntSetting_OverrideZeroFallsThrough(t *testing.T) {
 	assert.Equal(t, 11, val)
 }
 
+func TestResolveNonNegativeIntSetting_OverrideZeroHonored(t *testing.T) {
+	// Zero is a meaningful value for settings like
+	// tracking.auto_checkout_grace_minutes (checkout exactly at shift end).
+	s := &Scheduler{
+		settings: &stubSettingsResolver{hasOverride: true, intVal: 0},
+		logger:   slog.Default(),
+	}
+	val := s.resolveNonNegativeIntSetting(context.Background(), "some.key", "NEVER_SET_FFF", 15)
+	assert.Equal(t, 0, val)
+}
+
+func TestResolveNonNegativeIntSetting_NegativeFallsThrough(t *testing.T) {
+	s := &Scheduler{
+		settings: &stubSettingsResolver{hasOverride: true, intVal: -3},
+		logger:   slog.Default(),
+	}
+	val := s.resolveNonNegativeIntSetting(context.Background(), "some.key", "NEVER_SET_GGG", 15)
+	assert.Equal(t, 15, val)
+}
+
+func TestResolveNonNegativeIntSetting_PositiveOverride(t *testing.T) {
+	s := &Scheduler{
+		settings: &stubSettingsResolver{hasOverride: true, intVal: 30},
+		logger:   slog.Default(),
+	}
+	val := s.resolveNonNegativeIntSetting(context.Background(), "some.key", "NEVER_SET_HHH", 15)
+	assert.Equal(t, 30, val)
+}
+
 // Stubs for the issue #585 cleanup refactor interface additions — unused by
 // the setter tests.
 func (f *fakeInstanceRepo) CompleteActiveByActiveGroupIDs(context.Context, []int64, time.Time) (int64, error) {

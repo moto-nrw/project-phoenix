@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import useSWR, { unstable_serialize, useSWRConfig } from "swr";
 import { ArrowLeft, User } from "lucide-react";
 import { Button } from "~/components/ui/button";
@@ -9,13 +10,11 @@ import { Alert } from "~/components/ui/alert";
 import { Loading } from "~/components/ui/loading";
 import { BackButton } from "~/components/ui/back-button";
 import { MessageComposer } from "~/components/messaging/message-composer";
-import { ChatBubble } from "~/components/messaging/chat-bubble";
+import { ChatBubble, ChatEventCard } from "~/components/messaging/chat-bubble";
+import { RequestStatusBadge } from "~/components/messaging/request-status-badge";
 import { useChatViewportLock } from "~/lib/hooks/use-chat-viewport-lock";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
-import {
-  useTenant,
-  useTenantSlugSafe,
-} from "~/components/tenant/tenant-provider";
+import { useTenant, useTenantSlugSafe } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
 import {
   type InboxThread,
@@ -25,8 +24,11 @@ import {
   postMessage,
   relationshipLabel,
 } from "~/lib/parent-messages-api";
-import { getApiErrorMessage } from "~/components/ui/modal-utils";
+import { getApiErrorMessage } from "~/lib/api-error-message";
+import { staffRequestStatusLabel } from "~/lib/messaging-status";
+import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
+import { formatChatDateTime } from "~/lib/date-helpers";
 
 const logger = createLogger({ component: "MessageThreadPage" });
 
@@ -34,6 +36,13 @@ function MessageThreadContent() {
   const params = useParams();
   const threadId = params.threadId as string;
   const router = useTenantRouter();
+  const { data: session } = useSession();
+  // The Änderungsanfragen queue is gated on users:update (backend + page guard),
+  // scoped per child in the service. So the deep-link on a "request created" pill
+  // shows for any staffer who may edit children; one who lacks users:update sees
+  // the plain info pill.
+  const canReviewRequests =
+    isAdmin(session ?? null) || hasPermission(session ?? null, "users:update");
   const { tenant } = useTenant();
   // Tenant-prefix every SWR key on this page so a tenant switch (multi-tab /
   // switch-tenant) can never render the previous school's cached thread under
@@ -54,8 +63,8 @@ function MessageThreadContent() {
   // child) so opening a chat shows its structure immediately instead of a
   // full-page skeleton; the messages then fill in.
   const seed = useMemo<ThreadDetail | undefined>(() => {
-    // The inbox is keyed ["messages-inbox", onlyUnread], so the seed searches
-    // both filter values that may be cached.
+    // The inbox is keyed ["messages-inbox", onlyUnread], so the seed must search
+    // every filter combination that may be cached.
     for (const unread of [false, true]) {
       const entry = cache.get(
         unstable_serialize([`${tenantSlug ?? ""}:messages-inbox`, unread]),
@@ -102,6 +111,35 @@ function MessageThreadContent() {
   // Nachrichten…" until the GET resolves. A background revalidation of a thread
   // that already has messages keeps messages.length > 0, so this stays false.
   const messagesLoading = (isLoading || isValidating) && messages.length === 0;
+
+  // Per-ROW open/closed tracking for "request_created" pills. A pill offers the
+  // "Anfrage bearbeiten" action only while its request is still open; once
+  // decided (bestätigt / abgelehnt / zurückgezogen) a "request_status" pill for
+  // the SAME request row arrives, carrying the identical ref_table + ref_id.
+  // Keying by ref_table:ref_id (not request_type) is required for multi-row
+  // master-data submissions: those emit one request_created pill per changed
+  // field, all of request_type "master_data", each a separate request row.
+  // Deciding one row must NOT collapse the still-open sibling rows' actions.
+  const refKey = (m: Message): string | null =>
+    m.ref_table && m.ref_id ? `${m.ref_table}:${m.ref_id}` : null;
+  const decidedRefs = new Set<string>();
+  for (const m of messages) {
+    if (m.kind === "event" && m.event_type === "request_status") {
+      const key = refKey(m);
+      if (key) decidedRefs.add(key);
+    }
+  }
+
+  const requestStillOpen = (message: Message): boolean => {
+    if (message.event_type !== "request_created") {
+      return false;
+    }
+    const key = refKey(message);
+    // No row reference (legacy pill): default to open — the action only
+    // deep-links to the queue, so showing it is harmless while hiding a live
+    // request is the real regression.
+    return key === null || !decidedRefs.has(key);
+  };
 
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -150,13 +188,13 @@ function MessageThreadContent() {
     setSendError(null);
     try {
       const updated = await postMessage(threadId, body);
-      // The POST returns the full, current message list, so apply it
-      // optimistically WITHOUT a follow-up refetch — staff don't render read
-      // receipts in this view, so there is no read-state to re-fetch (the parent
-      // side likewise applies its POST result directly). The SSE echo for this
-      // send still drives one debounced revalidate if anything else changed.
+      // Show the sent message immediately. The postMessage response now carries
+      // the rebuilt "current → requested" diff inline on every still-open request
+      // (like the GET path), so the optimistic replace keeps the review card's
+      // comparison intact even before the revalidate lands — staff can't end up
+      // confirming without the preview. Revalidate stays as a freshness backstop.
       await mutate((prev) => (prev ? { ...prev, messages: updated } : prev), {
-        revalidate: false,
+        revalidate: true,
       });
       setDraft("");
     } catch (err) {
@@ -244,20 +282,38 @@ function MessageThreadContent() {
               Verlauf wird geladen...
             </p>
           ) : messages.length > 0 ? (
-            messages.map((message) => (
-              <ChatBubble
-                key={message.id}
-                body={message.body}
-                own={message.sender_kind === "staff"}
-                senderName={message.sender_name}
-                createdAt={message.created_at}
-                readReceiptLabel={
-                  message.sender_kind === "staff" && message.read_by_guardian
-                    ? "Gelesen"
-                    : undefined
-                }
-              />
-            ))
+            messages.map((message) =>
+              message.kind === "request" ? (
+                <RequestHistoryCard key={message.id} message={message} />
+              ) : message.kind === "event" ? (
+                <ChatEventCard
+                  key={message.id}
+                  body={message.body}
+                  createdAt={message.created_at}
+                  action={
+                    canReviewRequests && requestStillOpen(message)
+                      ? {
+                          label: "Anfrage bearbeiten",
+                          onClick: () => router.push("/admin/change-requests"),
+                        }
+                      : undefined
+                  }
+                />
+              ) : (
+                <ChatBubble
+                  key={message.id}
+                  body={message.body}
+                  own={message.sender_kind === "staff"}
+                  senderName={message.sender_name}
+                  createdAt={message.created_at}
+                  readReceiptLabel={
+                    message.sender_kind === "staff" && message.read_by_guardian
+                      ? "Gelesen"
+                      : undefined
+                  }
+                />
+              ),
+            )
           ) : loadError ? (
             // The header seed (fallbackData) keeps `thread` truthy with an empty
             // messages array, so a failed history fetch would otherwise render the
@@ -296,6 +352,30 @@ function MessageThreadContent() {
             </p>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Historical change-request card (read-only). Since #1803 care-schedule change
+// requests are decided on the Änderungsanfragen (change-requests) admin page,
+// not inline in the chat — so past kind="request" rows render as a plain card
+// (title/body + status + timestamp) with no confirm/reject buttons and no diff
+// (messages no longer carry one). Live request activity now arrives as
+// non-interactive "event" pills (ChatEventCard) with a German body.
+function RequestHistoryCard({ message }: Readonly<{ message: Message }>) {
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-gray-900">{message.body}</p>
+          <p className="mt-1 text-xs text-gray-500">
+            {message.sender_name} • {formatChatDateTime(message.created_at)}
+          </p>
+        </div>
+        <RequestStatusBadge
+          label={staffRequestStatusLabel(message.request_status)}
+        />
       </div>
     </div>
   );

@@ -65,7 +65,7 @@ vi.mock("~/components/ui/loading", () => ({
 }));
 
 // Mock PageHeaderWithSearch (vi.fn wrapper enables mockImplementation in enhanced tests)
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: vi.fn(
     ({ title, badge }: { title: string; badge?: { count: number } }) => (
       <div data-testid="page-header" data-count={badge?.count}>
@@ -135,8 +135,12 @@ vi.mock("~/components/sse/SSEErrorBoundary", () => ({
 }));
 
 // Mock UnclaimedRooms
-vi.mock("~/components/active", () => ({
+vi.mock("~/components/active/unclaimed-rooms", () => ({
   UnclaimedRooms: () => <div data-testid="unclaimed-rooms" />,
+}));
+
+vi.mock("~/components/rooms/transit-students-section", () => ({
+  TransitStudentsSection: () => <div data-testid="transit-students-section" />,
 }));
 
 // Mock LocationBadge
@@ -292,7 +296,7 @@ describe("MeinRaumPage (Active Supervisions) (2/5)", () => {
     cleanup();
   });
 
-  it("keeps a sick checked-in room student out of the overdue pickup row", async () => {
+  it("shows time rows instead of absence rows for a checked-in sick room student", async () => {
     vi.mocked(useSWRAuth)
       .mockReturnValueOnce({
         data: {
@@ -343,11 +347,10 @@ describe("MeinRaumPage (Active Supervisions) (2/5)", () => {
     render(<MeinRaumPage />);
 
     await waitFor(() => {
-      expect(
-        screen.getByText("Kommt heute nicht (krank gemeldet)"),
-      ).toBeInTheDocument();
+      expect(screen.getByTestId("arrival-time-row")).toBeInTheDocument();
     });
-    expect(screen.queryByTestId("pickup-time-row")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("student-absence-row")).not.toBeInTheDocument();
+    expect(screen.getByTestId("pickup-time-row")).toBeInTheDocument();
   });
 
   it("shows no access state when user has no active supervision", async () => {

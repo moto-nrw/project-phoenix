@@ -76,28 +76,6 @@ export interface BackendSupervisor {
   updated_at: string;
 }
 
-export interface BackendCombinedGroup {
-  id: number;
-  name: string;
-  description?: string;
-  room_id: number;
-  start_time: string;
-  end_time?: string;
-  is_active: boolean;
-  notes?: string;
-  group_count?: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface BackendGroupMapping {
-  id: number;
-  active_group_id: number;
-  combined_group_id: number;
-  group_name?: string;
-  combined_name?: string;
-}
-
 // Frontend types
 // groupId: string | null — mirrors the nullable backend contract (WP-B6).
 // A null value means the session is spontaneous (no parent template).
@@ -162,28 +140,6 @@ export interface Supervisor {
   activeGroupName?: string;
   createdAt: Date;
   updatedAt: Date;
-}
-
-export interface CombinedGroup {
-  id: string;
-  name: string;
-  description?: string;
-  roomId: string;
-  startTime: Date;
-  endTime?: Date;
-  isActive: boolean;
-  notes?: string;
-  groupCount?: number;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface GroupMapping {
-  id: string;
-  activeGroupId: string;
-  combinedGroupId: string;
-  groupName?: string;
-  combinedName?: string;
 }
 
 // Transformation functions
@@ -262,38 +218,6 @@ export function mapSupervisorResponse(
   };
 }
 
-export function mapCombinedGroupResponse(
-  backendCombinedGroup: BackendCombinedGroup,
-): CombinedGroup {
-  return {
-    id: String(backendCombinedGroup.id),
-    name: backendCombinedGroup.name,
-    description: backendCombinedGroup.description,
-    roomId: String(backendCombinedGroup.room_id),
-    startTime: new Date(backendCombinedGroup.start_time),
-    endTime: backendCombinedGroup.end_time
-      ? new Date(backendCombinedGroup.end_time)
-      : undefined,
-    isActive: backendCombinedGroup.is_active,
-    notes: backendCombinedGroup.notes,
-    groupCount: backendCombinedGroup.group_count,
-    createdAt: new Date(backendCombinedGroup.created_at),
-    updatedAt: new Date(backendCombinedGroup.updated_at),
-  };
-}
-
-export function mapGroupMappingResponse(
-  backendGroupMapping: BackendGroupMapping,
-): GroupMapping {
-  return {
-    id: String(backendGroupMapping.id),
-    activeGroupId: String(backendGroupMapping.active_group_id),
-    combinedGroupId: String(backendGroupMapping.combined_group_id),
-    groupName: backendGroupMapping.group_name,
-    combinedName: backendGroupMapping.combined_name,
-  };
-}
-
 // Request/Response types
 interface CreateActiveGroupRequest {
   group_id: number;
@@ -317,21 +241,6 @@ interface CreateSupervisorRequest {
   start_time: string;
   end_time?: string;
   notes?: string;
-}
-
-interface CreateCombinedGroupRequest {
-  name: string;
-  description?: string;
-  room_id: number;
-  start_time: string;
-  end_time?: string;
-  notes?: string;
-  group_ids?: number[];
-}
-
-interface GroupMappingRequest {
-  active_group_id: number;
-  combined_group_id: number;
 }
 
 // Utility functions to prepare data for backend.
@@ -393,35 +302,6 @@ export function prepareSupervisorForBackend(
   return request;
 }
 
-export function prepareCombinedGroupForBackend(
-  combinedGroup: Partial<CombinedGroup>,
-): Partial<CreateCombinedGroupRequest> {
-  const request: Partial<CreateCombinedGroupRequest> = {};
-
-  if (combinedGroup.name) request.name = combinedGroup.name;
-  if (combinedGroup.description !== undefined)
-    request.description = combinedGroup.description;
-  if (combinedGroup.roomId)
-    request.room_id = Number.parseInt(combinedGroup.roomId);
-  if (combinedGroup.startTime)
-    request.start_time = combinedGroup.startTime.toISOString();
-  if (combinedGroup.endTime)
-    request.end_time = combinedGroup.endTime.toISOString();
-  if (combinedGroup.notes !== undefined) request.notes = combinedGroup.notes;
-
-  return request;
-}
-
-export function prepareGroupMappingForBackend(mapping: {
-  activeGroupId: string;
-  combinedGroupId: string;
-}): GroupMappingRequest {
-  return {
-    active_group_id: Number.parseInt(mapping.activeGroupId),
-    combined_group_id: Number.parseInt(mapping.combinedGroupId),
-  };
-}
-
 // Input types for create operations (omitting auto-generated fields)
 export type CreateActiveGroupInput = Omit<
   ActiveGroup,
@@ -435,11 +315,6 @@ export type CreateVisitInput = Omit<
 
 export type CreateSupervisorInput = Omit<
   Supervisor,
-  "id" | "isActive" | "createdAt" | "updatedAt"
->;
-
-export type CreateCombinedGroupInput = Omit<
-  CombinedGroup,
   "id" | "isActive" | "createdAt" | "updatedAt"
 >;
 

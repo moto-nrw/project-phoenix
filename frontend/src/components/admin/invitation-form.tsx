@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useToast } from "~/contexts/ToastContext";
-import { Input } from "~/components/ui";
+import { Input } from "~/components/ui/input";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { authService } from "~/lib/auth-service";
 import { getRoleDisplayName } from "~/lib/auth-helpers";

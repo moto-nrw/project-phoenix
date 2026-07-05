@@ -6,19 +6,20 @@ import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
   ActiveFilter,
   FilterConfig,
 } from "~/components/ui/page-header/types";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
-import { groupsConfig } from "@/lib/database/configs/groups.config";
+import { groupsConfig } from "@/components/database/configs/groups.config";
 import type { Group } from "@/lib/group-helpers";
-import { GroupCreateModal, GroupsMasterDetail } from "@/components/groups";
+import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
+import { GroupsMasterDetail } from "@/components/groups/groups-master-detail";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
-import { useIsMobile } from "~/hooks/useIsMobile";
+import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
@@ -330,10 +331,12 @@ export default function GroupsPage() {
         />
       ) : null}
 
-      <GroupCreateModal
+      <DatabaseFormModal<Group>
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        onCreate={handleCreateGroup}
+        mode="create"
+        config={groupsConfig}
+        onSubmit={handleCreateGroup}
       />
 
       {selectedGroup && (

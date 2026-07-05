@@ -228,6 +228,19 @@ func init() {
 		SortOrder:       1,
 	})
 
+	config.Register(config.Definition{
+		Key:             config.KeyTimeTrackingEnforcePlannedStart,
+		Label:           "Einstempeln erst ab geplanter Startzeit",
+		Description:     "Wenn aktiviert, können Mitarbeitende erst ab der Startzeit einstempeln, die im Arbeitszeitmodell für den jeweiligen Tag hinterlegt ist. Tage ohne Startzeit bleiben unverändert.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "zeiterfassung",
+		SortOrder:       2,
+	})
+
 	// Break auto-end interval is NOT registered here — it controls a global ticker
 	// (not per-tenant) and is configured via BREAK_AUTO_END_INTERVAL_SECONDS env var only.
 
@@ -487,6 +500,32 @@ func init() {
 		SortOrder:       61,
 	})
 
+	// Whether a guardian sees the individual staff member's name (first name +
+	// last initial, e.g. "Anna M.") on team replies instead of the neutral
+	// "OGS [Schulname]" label. Defaults ON so a messaging-active school attributes
+	// replies to a person by default. Only messages SENT while this is on are
+	// revealed: the per-message visibility is frozen at send time on
+	// users.parent_messages.staff_name_visible, so enabling it never retroactively
+	// exposes older replies written under anonymity. Hidden in the UI unless
+	// messaging (parent_notes_enabled) is on, since it only affects those messages.
+	config.Register(config.Definition{
+		Key:             config.KeyParentMessageStaffNameVisible,
+		Label:           "Name des Teammitglieds in Nachrichten anzeigen",
+		Description:     "Wenn aktiviert, sehen Eltern bei Antworten des Teams den Vornamen und den ersten Buchstaben des Nachnamens der antwortenden Person (z. B. „Anna M.“) statt nur „OGS [Schulname]“. Gilt nur für Nachrichten, die ab der Aktivierung geschrieben werden; ältere Nachrichten bleiben anonym. Bereits mit Namen gesendete Nachrichten bleiben sichtbar, wenn die Funktion später wieder deaktiviert wird.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       62,
+		DependsOn: &config.Dependency{
+			Key:       config.KeyParentNotesEnabled,
+			Condition: "eq",
+			Value:     true,
+		},
+	})
+
 	// Related-accounts management. Whether a parent may invite further
 	// guardians to their own child, and whether they may revoke another
 	// account's access. Sensitive (controls access to child data) -> manage.
@@ -500,7 +539,7 @@ func init() {
 		WritePermission: "config:manage",
 		Tab:             "operations",
 		Category:        "elternportal",
-		SortOrder:       62,
+		SortOrder:       63,
 		Options: &config.SelectOptions{
 			Static: []config.SelectOption{
 				{Label: "Deaktiviert", Value: config.ParentInviteModeDisabled},
@@ -520,7 +559,7 @@ func init() {
 		WritePermission: "config:manage",
 		Tab:             "operations",
 		Category:        "elternportal",
-		SortOrder:       63,
+		SortOrder:       64,
 		DependsOn: &config.Dependency{
 			Key:       config.KeyGuardianParentInviteMode,
 			Condition: "neq",
@@ -538,7 +577,7 @@ func init() {
 		WritePermission: "config:update",
 		Tab:             "operations",
 		Category:        "elternportal",
-		SortOrder:       64,
+		SortOrder:       65,
 	})
 
 	config.Register(config.Definition{
@@ -551,7 +590,7 @@ func init() {
 		WritePermission: "config:manage",
 		Tab:             "operations",
 		Category:        "elternportal",
-		SortOrder:       65,
+		SortOrder:       66,
 	})
 
 	// Defaults ON, like the other parents-portal write features. The
@@ -574,7 +613,7 @@ func init() {
 		WritePermission: "config:manage",
 		Tab:             "operations",
 		Category:        "elternportal",
-		SortOrder:       66,
+		SortOrder:       67,
 	})
 
 	config.Register(config.Definition{
@@ -587,6 +626,42 @@ func init() {
 		WritePermission: "config:update",
 		Tab:             "operations",
 		Category:        "elternportal",
-		SortOrder:       67,
+		SortOrder:       68,
+	})
+
+	// Essensplan. Unlike the other parents-portal features this one is
+	// opt-out (default ON): every school gets the meal plan out of the box and
+	// can switch it off if it doesn't serve food. When on, staff maintain a
+	// per-day dish + optional note and parents can view the current and next
+	// week in the parents portal.
+	config.Register(config.Definition{
+		Key:             config.KeyMealPlanEnabled,
+		Label:           "Essensplan",
+		Description:     "Wenn aktiviert, kann das Team pro Tag ein Gericht mit optionalem Hinweis hinterlegen. Eltern sehen den Essensplan für die aktuelle und nächste Woche im Elternportal.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       68,
+	})
+
+	// Parent broadcast announcements (#1669). When on, staff with the
+	// communications:announce permission can publish news to guardians, and
+	// guardians see the Neuigkeiten feed in the parents portal. Defaults ON
+	// (opt-out), like the other parents-portal features: schools get it
+	// immediately and can disable per school.
+	config.Register(config.Definition{
+		Key:             config.KeyParentNewsEnabled,
+		Label:           "Elternmitteilungen (Neuigkeiten)",
+		Description:     "Wenn aktiviert, kann das Team über das Elternportal Mitteilungen an ausgewählte Elterngruppen senden (ganze Schule, Klassen, Gruppen, AGs, einzelne Kinder oder offene Anmeldungen). Eltern sehen die Mitteilungen als Neuigkeiten im Elternportal; optional kann eine Lesebestätigung verlangt werden.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       68,
 	})
 }

@@ -17,6 +17,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
@@ -351,4 +352,60 @@ func TestToChildResponse_StringifiesIDs(t *testing.T) {
 	require.NotNil(t, out.EnrolledFrom)
 	assert.Equal(t, now, *out.EnrolledFrom)
 	assert.Nil(t, out.EnrolledUntil, "nil pointers pass through unchanged")
+}
+
+// --- staffShortName ------------------------------------------------------
+
+func TestStaffShortName(t *testing.T) {
+	cases := []struct {
+		in   string
+		want string
+	}{
+		{"Anna Müller", "Anna M."},
+		{"Sabine Schneider", "Sabine S."},
+		{"Anna-Lena Öztürk", "Anna-Lena Ö."}, // rune-based initial, not a broken byte
+		{"Anna von Berg", "Anna B."},         // multi-token: first + LAST initial
+		{"Olivia", "Olivia"},                 // single token unchanged
+		{"OGS-Team", "OGS-Team"},             // resolveStaffName fallback unchanged
+		{"", ""},                             // empty stays empty
+	}
+	for _, tc := range cases {
+		assert.Equalf(t, tc.want, staffShortName(tc.in), "staffShortName(%q)", tc.in)
+	}
+}
+
+// --- toMessageResponses staff-name masking -------------------------------
+
+func TestToMessageResponses_StaffNameMaskedUnlessVisible(t *testing.T) {
+	counterpart := "OGS Sonnenschule"
+	messages := []*usersModels.ParentMessage{
+		{
+			// Frozen visible=false (older reply / school opted out): stays anonymous.
+			SenderKind:       usersModels.ParentMessageSenderStaff,
+			SenderName:       "Sabine Schneider",
+			StaffNameVisible: false,
+			Body:             "hidden",
+		},
+		{
+			// Frozen visible=true (reply written while the setting was on): shows the
+			// person as first name + last initial, never the full surname.
+			SenderKind:       usersModels.ParentMessageSenderStaff,
+			SenderName:       "Sabine Schneider",
+			StaffNameVisible: true,
+			Body:             "shown",
+		},
+		{
+			// Guardian messages are never masked and never short-formed.
+			SenderKind:       usersModels.ParentMessageSenderGuardian,
+			SenderName:       "Olivia Berg",
+			StaffNameVisible: false,
+			Body:             "parent",
+		},
+	}
+
+	out := toMessageResponses(messages, counterpart)
+	require.Len(t, out, 3)
+	assert.Equal(t, counterpart, out[0].SenderName, "masked staff reply collapses to the OGS label")
+	assert.Equal(t, "Sabine S.", out[1].SenderName, "visible staff reply shows first name + last initial")
+	assert.Equal(t, "Olivia Berg", out[2].SenderName, "guardian name passes through unchanged")
 }

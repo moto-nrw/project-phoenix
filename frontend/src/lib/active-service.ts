@@ -9,33 +9,24 @@ import {
   mapActiveGroupResponse,
   mapVisitResponse,
   mapSupervisorResponse,
-  mapCombinedGroupResponse,
-  mapGroupMappingResponse,
   mapSchulhofStatusResponse,
   mapToggleSupervisionResponse,
   prepareActiveGroupForBackend,
   prepareVisitForBackend,
   prepareSupervisorForBackend,
-  prepareCombinedGroupForBackend,
-  prepareGroupMappingForBackend,
   type ActiveGroup,
   type Visit,
   type Supervisor,
-  type CombinedGroup,
-  type GroupMapping,
   type SchulhofStatus,
   type ToggleSupervisionResponse,
   type BackendActiveGroup,
   type BackendVisit,
   type BackendSupervisor,
-  type BackendCombinedGroup,
-  type BackendGroupMapping,
   type BackendSchulhofStatus,
   type BackendToggleSupervisionResponse,
   type CreateActiveGroupInput,
   type CreateVisitInput,
   type CreateSupervisorInput,
-  type CreateCombinedGroupInput,
   type TrackingIndicatorsResponse,
 } from "./active-helpers";
 
@@ -56,6 +47,38 @@ interface TransitAssignResult {
   skipped: TransitAssignSkipped[];
   active_group_id: number;
   room_id: number;
+}
+
+interface StudentMoveSkipped {
+  student_id: number;
+  reason: string;
+}
+
+export interface StudentMoveResult {
+  moved: number[];
+  unchanged: number[];
+  skipped: StudentMoveSkipped[];
+  active_group_id?: number | null;
+  room_id?: number | null;
+}
+
+export interface StudentMoveSummary {
+  successCount: number;
+  notPresentCount: number;
+  otherSkippedCount: number;
+}
+
+export function summarizeStudentMoveResult(
+  result: StudentMoveResult,
+): StudentMoveSummary {
+  const notPresentCount = result.skipped.filter(
+    (item) => item.reason === "not_present",
+  ).length;
+  return {
+    successCount: result.moved.length + result.unchanged.length,
+    notPresentCount,
+    otherSkippedCount: result.skipped.length - notPresentCount,
+  };
 }
 
 interface BackendResponseEnvelope<T> {
@@ -736,144 +759,6 @@ export const activeService = {
     );
   },
 
-  // Combined Groups
-  getCombinedGroups: async (filters?: {
-    active?: boolean;
-  }): Promise<CombinedGroup[]> => {
-    const suffix = buildActiveFilterSuffix(filters);
-    return proxyGetArray<BackendCombinedGroup, CombinedGroup>(
-      `/api/active/combined${suffix}`,
-      `/active/combined${suffix}`,
-      mapCombinedGroupResponse,
-      "Get combined groups",
-    );
-  },
-
-  getActiveCombinedGroups: async (): Promise<CombinedGroup[]> => {
-    return proxyGetArray<BackendCombinedGroup, CombinedGroup>(
-      "/api/active/combined/active",
-      "/active/combined/active",
-      mapCombinedGroupResponse,
-      "Get active combined groups",
-    );
-  },
-
-  getCombinedGroup: async (id: string): Promise<CombinedGroup> => {
-    return proxyGet<BackendCombinedGroup, CombinedGroup>(
-      `/api/active/combined/${id}`,
-      `/active/combined/${id}`,
-      mapCombinedGroupResponse,
-      "Get combined group",
-    );
-  },
-
-  getCombinedGroupGroups: async (id: string): Promise<ActiveGroup[]> => {
-    return proxyGetArray<BackendActiveGroup, ActiveGroup>(
-      `/api/active/combined/${id}/groups`,
-      `/active/combined/${id}/groups`,
-      mapActiveGroupResponse,
-      "Get combined group groups",
-    );
-  },
-
-  createCombinedGroup: async (
-    combinedGroup: CreateCombinedGroupInput,
-  ): Promise<CombinedGroup> => {
-    const backendData = prepareCombinedGroupForBackend(combinedGroup);
-    return proxyPost<BackendCombinedGroup, CombinedGroup>(
-      "/api/active/combined",
-      "/active/combined",
-      backendData,
-      mapCombinedGroupResponse,
-      "Create combined group",
-    );
-  },
-
-  updateCombinedGroup: async (
-    id: string,
-    combinedGroup: Partial<CombinedGroup>,
-  ): Promise<CombinedGroup> => {
-    const backendData = prepareCombinedGroupForBackend(combinedGroup);
-    return proxyPut<BackendCombinedGroup, CombinedGroup>(
-      `/api/active/combined/${id}`,
-      `/active/combined/${id}`,
-      backendData,
-      mapCombinedGroupResponse,
-      "Update combined group",
-    );
-  },
-
-  deleteCombinedGroup: async (id: string): Promise<void> => {
-    return proxyDelete(
-      `/api/active/combined/${id}`,
-      `/active/combined/${id}`,
-      "Delete combined group",
-    );
-  },
-
-  endCombinedGroup: async (id: string): Promise<CombinedGroup> => {
-    return proxyPostNoBody<BackendCombinedGroup, CombinedGroup>(
-      `/api/active/combined/${id}/end`,
-      `/active/combined/${id}/end`,
-      mapCombinedGroupResponse,
-      "End combined group",
-    );
-  },
-
-  // Group Mappings
-  getGroupMappingsByGroup: async (groupId: string): Promise<GroupMapping[]> => {
-    return proxyGetArray<BackendGroupMapping, GroupMapping>(
-      `/api/active/mappings/group/${groupId}`,
-      `/active/mappings/group/${groupId}`,
-      mapGroupMappingResponse,
-      "Get group mappings by group",
-    );
-  },
-
-  getGroupMappingsByCombined: async (
-    combinedId: string,
-  ): Promise<GroupMapping[]> => {
-    return proxyGetArray<BackendGroupMapping, GroupMapping>(
-      `/api/active/mappings/combined/${combinedId}`,
-      `/active/mappings/combined/${combinedId}`,
-      mapGroupMappingResponse,
-      "Get group mappings by combined",
-    );
-  },
-
-  addGroupToCombination: async (
-    activeGroupId: string,
-    combinedGroupId: string,
-  ): Promise<GroupMapping> => {
-    const backendData = prepareGroupMappingForBackend({
-      activeGroupId,
-      combinedGroupId,
-    });
-    return proxyPost<BackendGroupMapping, GroupMapping>(
-      "/api/active/mappings/add",
-      "/active/mappings/add",
-      backendData,
-      mapGroupMappingResponse,
-      "Add group to combination",
-    );
-  },
-
-  removeGroupFromCombination: async (
-    activeGroupId: string,
-    combinedGroupId: string,
-  ): Promise<void> => {
-    const backendData = prepareGroupMappingForBackend({
-      activeGroupId,
-      combinedGroupId,
-    });
-    return proxyPostVoid(
-      "/api/active/mappings/remove",
-      "/active/mappings/remove",
-      backendData,
-      "Remove group from combination",
-    );
-  },
-
   // Unclaimed Groups (Deviceless Claiming)
   getUnclaimedGroups: async (): Promise<ActiveGroup[]> => {
     const useProxyApi = globalThis.window !== undefined;
@@ -1044,6 +929,22 @@ export const activeService = {
       {
         student_ids: studentIds.map((id) => Number.parseInt(id, 10)),
         active_group_id: Number.parseInt(activeGroupId, 10),
+      },
+    );
+  },
+
+  moveStudentsToActiveGroup: async (
+    studentIds: string[],
+    activeGroupId: string,
+  ): Promise<StudentMoveResult> => {
+    return coreFetch<StudentMoveResult>(
+      "POST",
+      "/api/active/visits/move-to-group",
+      "/active/visits/move-to-group",
+      "Move students to active group",
+      {
+        student_ids: studentIds.map((id) => Number.parseInt(id, 10)),
+        target_active_group_id: Number.parseInt(activeGroupId, 10),
       },
     );
   },

@@ -10,17 +10,21 @@ import {
   useNFCEnabled,
   usePresenceMode,
   useTenantSlugSafe,
-} from "~/components/tenant/tenant-provider";
+} from "~/lib/tenant-context";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { hasRole, isCaregiver } from "~/lib/auth-utils";
+import { hasPermission, hasRole, isCaregiver } from "~/lib/auth-utils";
 import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useSuggestionsUnread } from "~/lib/hooks/use-suggestions-unread";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
+import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
 import { useParentMessagesUnread } from "~/lib/hooks/use-parent-messages-unread";
+import { useParentNewsUnread } from "~/lib/hooks/use-parent-news-unread";
+import { useParentNewsEnabled } from "~/lib/hooks/use-parent-news-enabled";
+import { useParentMealPlanEnabled } from "~/lib/hooks/use-parent-meal-plan-enabled";
 import { useOperatorSuggestionsUnread } from "~/lib/hooks/use-operator-suggestions-unread";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
@@ -38,6 +42,10 @@ interface NavItem {
   label: string;
   icon: string;
   requiresAdmin?: boolean;
+  // Show when the caller holds this tenant permission (admins always pass). Use
+  // instead of requiresAdmin for items open to more than admins, e.g. the
+  // Änderungsanfragen queue (users:update, scoped per child in the backend).
+  requiresPermission?: string;
   alwaysShow?: boolean;
   hideForAdmin?: boolean;
   comingSoon?: boolean;
@@ -98,6 +106,13 @@ const NAV_ITEMS: NavItem[] = [
     requiresAdmin: true,
   },
   {
+    href: "/staff/dienstplan",
+    label: "Dienstplan",
+    icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z",
+    activeColor: "text-[#F78C10]",
+    requiresAdmin: true,
+  },
+  {
     href: "/admin/guardian-approvals",
     label: "Konto-Anfragen",
     icon: "M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z",
@@ -109,7 +124,7 @@ const NAV_ITEMS: NavItem[] = [
     label: "Änderungsanfragen",
     icon: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z",
     activeColor: "text-[#5080D8]",
-    requiresAdmin: true,
+    requiresPermission: "users:update",
   },
   {
     href: "/time-tracking",
@@ -125,22 +140,24 @@ const NAV_ITEMS: NavItem[] = [
     activeColor: "text-[#5080D8]",
     alwaysShow: true,
   },
-  // Coming soon features - shown to all users
   {
-    href: "#",
-    label: "Mittagessen",
-    icon: "M8.5 3v18M7 3v3.5M10 3v3.5M7 10h3M15.5 3v3c0 1-2 2-2 2v13",
+    // Elternmitteilungen (#1669). Gated below on the
+    // operations.parent_news_enabled setting AND the admin:* wildcard — every
+    // /api/parent-announcements route is admin-only in v1. alwaysShow lets it
+    // pass the generic role filter once that gate is satisfied.
+    href: "/parent-announcements",
+    label: "Elternmitteilungen",
+    icon: "M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 01-2.25 2.25M16.5 7.5V18a2.25 2.25 0 002.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 002.25 2.25h13.5M6 7.5h3v3H6v-3z",
+    activeColor: "text-[#5080D8]",
     alwaysShow: true,
-    comingSoon: true,
   },
-  // Coming soon features - caregivers only
+  // Essensplan — visible only when the meal_plan.enabled setting is on
+  // (gated in filteredNavItems below).
   {
-    href: "#",
-    label: "Erinnerungen",
-    icon: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9",
-    alwaysShow: true,
-    hideForAdmin: true,
-    comingSoon: true,
+    href: "/meal-plan",
+    label: "Essensplan",
+    icon: navigationIcons.utensils,
+    activeColor: "text-[#83CD2D]",
   },
   {
     href: "#",
@@ -415,10 +432,27 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const { unreadCount: operatorUnreadCount } = useOperatorSuggestionsUnread();
   // Unread parent-OGS messages badge (staff/teacher mode)
   const { unreadCount: messagesUnreadCount } = useMessagesUnread();
+  // Pending parent change-requests badge (Änderungsanfragen; users:update,
+  // scoped per child in the backend so the count reflects the caller's own
+  // group's requests)
+  const { unreadCount: changeRequestsPendingCount } =
+    useChangeRequestsPending();
   // Unread OGS messages badge (parents portal) — only fetches in parent mode.
   const { unreadCount: parentMessagesUnread } = useParentMessagesUnread(
     mode === "parent",
   );
+  // Unread announcements badge for the parents-portal Neuigkeiten item (#1669).
+  const { unreadCount: parentNewsUnread } = useParentNewsUnread(
+    mode === "parent",
+  );
+  // Only advertise Essensplan in the parents portal once a linked school runs
+  // a meal plan; otherwise the link leads to an empty/unavailable page.
+  const parentMealPlanEnabled = useParentMealPlanEnabled(mode === "parent");
+  // Only advertise Neuigkeiten in the parents portal once a linked school
+  // broadcasts announcements; otherwise the feed is empty (the backend excludes
+  // disabled tenants) and the link dead-ends. Distinct from the staff-side
+  // parentNewsEnabled below, which reads the tenant settings schema.
+  const parentPortalNewsEnabled = useParentNewsEnabled(mode === "parent");
 
   // Accordion state passes `from` param so child pages (e.g. student detail)
   // keep the originating accordion section open
@@ -427,25 +461,54 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
   const userIsAdmin = hasRole(session, "admin");
   const userIsCaregiver = isCaregiver(session);
+  // Elternmitteilungen (#1669) authoring is ADMIN-ONLY in v1: every
+  // /api/parent-announcements route is guarded by the admin:* wildcard
+  // (backend api/announcement/api.go), because the service does no per-caller
+  // audience scoping. Mirror that exact permission so a non-admin never sees a
+  // nav entry whose every list/create/publish call would 403. A future
+  // delegated-announcer role must relax the backend route first.
+  const canAnnounce = hasPermission(session, "admin:*");
   const presenceMode = usePresenceMode();
   const isBinaryMode = presenceMode === "binary";
   const nfcEnabled = useNFCEnabled();
   const { counts: groupAttendanceCounts } = useGroupAttendanceCounts();
   const canShowGroupAttendanceCounts = pathname.startsWith("/ogs-groups");
+  // Fetch the settings schema for anyone the backend lets read config, not just
+  // admins. The meal-plan GET route is guarded by config:read, so a non-admin
+  // config reader (custom config-manager) must also see the feature flags;
+  // gating the fetch on userIsAdmin alone hid the Essensplan entry from them.
+  // Admins stay in (their other flag, timetable.enabled, depends on this too).
+  // Announcers are admin:* holders (see canAnnounce), who satisfy config:read
+  // via the wildcard, so they are already covered here.
+  const canReadConfig = userIsAdmin || hasPermission(session, "config:read");
   const { data: settingsSchema } = useSWR(
-    userIsAdmin ? SETTINGS_SCHEMA_SWR_KEY : null,
+    canReadConfig ? SETTINGS_SCHEMA_SWR_KEY : null,
     fetchSettingsSchema,
     {
       revalidateOnFocus: false,
       revalidateOnReconnect: false,
+      shouldRetryOnError: false,
     },
   );
 
+  const settingsItems = settingsSchema?.tabs
+    .flatMap((tab) => tab.categories)
+    .flatMap((category) => category.items);
+
   const timetableEnabled =
+    settingsItems?.find((item) => item.key === "timetable.enabled")?.value ===
+    true;
+
+  const parentNewsEnabled =
+    settingsItems?.find((item) => item.key === "operations.parent_news_enabled")
+      ?.value === true;
+
+  const mealPlanEnabled =
     settingsSchema?.tabs
       .flatMap((tab) => tab.categories)
       .flatMap((category) => category.items)
-      .find((item) => item.key === "timetable.enabled")?.value === true;
+      .find((item) => item.key === "operations.meal_plan_enabled")?.value ===
+    true;
 
   const formatGroupAttendanceCount = (groupId: string | number) => {
     if (!canShowGroupAttendanceCounts) return undefined;
@@ -475,7 +538,29 @@ function SidebarContent({ className = "" }: SidebarProps) {
     if (item.href === "/timetables" && !timetableEnabled) {
       return false;
     }
+    if (item.href === "/parent-announcements") {
+      // Admin-only in v1 (canAnnounce mirrors the backend admin:* guard). An
+      // admin:* holder also satisfies config:read via the wildcard, so the
+      // settings schema always loads and the feature flag is knowable — gate on
+      // it directly, matching the meal-plan pattern below.
+      return canAnnounce && parentNewsEnabled;
+    }
+    // The meal plan page requires config:read (admin / config-managers). Gate
+    // the nav on the same permission the backend enforces — using hasPermission
+    // (not hasRole) so it stays in lockstep with the API: anyone the backend
+    // would 403 never sees the entry, and anyone with config access (incl.
+    // wildcard grants) does. Feature flag still applies.
+    if (item.href === "/meal-plan")
+      return mealPlanEnabled === true && hasPermission(session, "config:read");
     if (item.alwaysShow) return true;
+    // Permission-gated items (e.g. Änderungsanfragen on users:update): show for
+    // admins or anyone holding the permission, matching the backend route gate.
+    if (
+      item.requiresPermission &&
+      !userIsAdmin &&
+      !hasPermission(session, item.requiresPermission)
+    )
+      return false;
     if (item.requiresAdmin && !userIsAdmin) return false;
     return true;
   });
@@ -532,6 +617,22 @@ function SidebarContent({ className = "" }: SidebarProps) {
     }
     if (href === "/dashboard") return pathname === "/dashboard";
     if (href === "/parents") return pathname === "/parents" || pathname === "/";
+    // /staff/dienstplan has its own sidebar entry — don't also light up "Mitarbeiter"
+    if (href === "/staff") {
+      return (
+        pathname.startsWith("/staff") &&
+        !pathname.startsWith("/staff/dienstplan")
+      );
+    }
+    if (href.startsWith("/parents/")) {
+      // On the parents host the proxy rewrites /parents/* internally while the
+      // browser (and usePathname) shows the external path without the prefix —
+      // /parents/news is visited as /news. Match both spellings.
+      return (
+        pathname.startsWith(href) ||
+        pathname.startsWith(href.slice("/parents".length))
+      );
+    }
     return pathname.startsWith(href);
   };
 
@@ -635,6 +736,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
             )}
             {item.href === "/messages" && (
               <UnreadBadge count={messagesUnreadCount} className="ml-2" />
+            )}
+            {item.href === "/admin/change-requests" && (
+              <UnreadBadge
+                count={changeRequestsPendingCount}
+                className="ml-2"
+              />
             )}
           </span>
         </Link>
@@ -930,6 +1037,49 @@ function SidebarContent({ className = "" }: SidebarProps) {
               <span>{tParentNav("messages")}</span>
               <UnreadBadge count={parentMessagesUnread} className="ml-auto" />
             </Link>
+            {parentPortalNewsEnabled && (
+              <Link
+                href="/parents/news"
+                className={getLinkClasses("/parents/news")}
+              >
+                <svg
+                  className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d={navigationIcons.newspaper}
+                  />
+                </svg>
+                <span>{tParentNav("news")}</span>
+                <UnreadBadge count={parentNewsUnread} className="ml-auto" />
+              </Link>
+            )}
+            {parentMealPlanEnabled && (
+              <Link
+                href="/parents/meal-plan"
+                className={getLinkClasses("/parents/meal-plan")}
+              >
+                <svg
+                  className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d={navigationIcons.utensils}
+                  />
+                </svg>
+                <span>{tParentNav("mealPlan")}</span>
+              </Link>
+            )}
             <div className="mt-5">
               <p className="mb-1.5 px-3 text-[10px] font-semibold tracking-wider text-gray-400 uppercase lg:px-4 xl:px-3">
                 {tParentNav("comingSoon")}

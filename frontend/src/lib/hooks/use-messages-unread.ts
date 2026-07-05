@@ -3,10 +3,7 @@
 import { useSession } from "next-auth/react";
 import { fetchUnreadCount } from "~/lib/parent-messages-api";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import {
-  useTenantSafe,
-  useTenantSlugSafe,
-} from "~/components/tenant/tenant-provider";
+import { useTenantSafe, useTenantSlugSafe } from "~/lib/tenant-context";
 import { useUnreadCount } from "./use-unread-count";
 
 export function useMessagesUnread() {

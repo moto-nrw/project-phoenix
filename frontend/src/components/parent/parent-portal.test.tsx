@@ -30,7 +30,13 @@ const mocks = vi.hoisted(() => ({
     master_data_edit_enabled: false,
     master_data_contact_edit_enabled: false,
     master_data_request_enabled: false,
+    meal_plan_enabled: false,
   }),
+  // The dashboard news panel loads the announcement feed on mount; stub it so
+  // the rendered dashboard settles cleanly (empty feed → placeholder).
+  listAnnouncements: vi.fn().mockResolvedValue([]),
+  markAnnouncementRead: vi.fn().mockResolvedValue(undefined),
+  acknowledgeAnnouncement: vi.fn().mockResolvedValue(undefined),
   setBreadcrumb: vi.fn(),
 }));
 
@@ -60,6 +66,9 @@ vi.mock("~/lib/parent-api", () => ({
   submitCareException: mocks.submitCareException,
   deleteCareException: mocks.deleteCareException,
   getChildFeatures: mocks.getChildFeatures,
+  listAnnouncements: mocks.listAnnouncements,
+  markAnnouncementRead: mocks.markAnnouncementRead,
+  acknowledgeAnnouncement: mocks.acknowledgeAnnouncement,
 }));
 
 vi.mock("~/lib/breadcrumb-context", () => ({
@@ -130,6 +139,7 @@ describe("Parent portal components", () => {
       master_data_edit_enabled: false,
       master_data_contact_edit_enabled: false,
       master_data_request_enabled: false,
+      meal_plan_enabled: false,
     });
     mocks.setBreadcrumb.mockReset();
   });
@@ -271,6 +281,7 @@ describe("Parent portal components", () => {
       master_data_edit_enabled: false,
       master_data_contact_edit_enabled: false,
       master_data_request_enabled: false,
+      meal_plan_enabled: false,
     });
     mocks.listCareExceptions.mockResolvedValueOnce([
       {

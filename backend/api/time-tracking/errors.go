@@ -29,6 +29,14 @@ func classifyServiceError(err error) render.Renderer {
 		})
 	}
 
+	var plannedStart *activeSvc.PlannedStartNotReachedError
+	if errors.As(err, &plannedStart) {
+		return common.ErrorConflictWithDetails(err, "planned_start_not_reached", map[string]any{
+			"planned_start_time": plannedStart.PlannedStartTime,
+			"current_time":       plannedStart.CurrentTime,
+		})
+	}
+
 	msg := err.Error()
 
 	switch {
