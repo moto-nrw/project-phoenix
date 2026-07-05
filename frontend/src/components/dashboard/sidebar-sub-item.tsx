@@ -1,12 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { UnreadBadge } from "~/components/messaging/unread-badge";
 
 interface SidebarSubItemProps {
   readonly href: string;
   readonly label: string;
   readonly isActive: boolean;
   readonly count?: number | string;
+  // Red unread pill (e.g. unread messages / pending requests). Renders nothing
+  // when 0. Distinct from `count`, which is the muted gray attendance count.
+  readonly badgeCount?: number;
 }
 
 export function SidebarSubItem({
@@ -14,6 +18,7 @@ export function SidebarSubItem({
   label,
   isActive,
   count,
+  badgeCount = 0,
 }: SidebarSubItemProps) {
   return (
     <Link
@@ -25,8 +30,12 @@ export function SidebarSubItem({
       }`}
     >
       <span className="truncate">{label}</span>
-      {count !== undefined && (
-        <span className="ml-2 shrink-0 text-xs text-gray-400">{count}</span>
+      {badgeCount > 0 ? (
+        <UnreadBadge count={badgeCount} className="ml-2" />
+      ) : (
+        count !== undefined && (
+          <span className="ml-2 shrink-0 text-xs text-gray-400">{count}</span>
+        )
       )}
     </Link>
   );

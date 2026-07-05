@@ -119,6 +119,7 @@ function getMainRouteTitle(pathname: string): string {
     "/substitutions": "Vertretungen",
     "/timetables": "Betreuungsplan",
     "/database": "Datenverwaltung",
+    "/eltern": "Eltern",
     "/emergency": "Notfall",
     "/settings": "Einstellungen",
     "/profile": "Profil",

@@ -21,7 +21,13 @@ import { navigationIcons } from "~/lib/navigation-icons";
 import { operatorPath } from "~/lib/operator-url";
 import { useParentMealPlanEnabled } from "~/lib/hooks/use-parent-meal-plan-enabled";
 import { useParentNewsEnabled } from "~/lib/hooks/use-parent-news-enabled";
-import { useNFCEnabled, usePresenceMode } from "~/lib/tenant-context";
+import {
+  useNFCEnabled,
+  usePresenceMode,
+  useTenantRoutingModeSafe,
+  useTenantSlugSafe,
+} from "~/lib/tenant-context";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
   SETTINGS_SCHEMA_SWR_KEY,
   fetchSettingsSchema,
@@ -340,18 +346,24 @@ const additionalNavItems: AdditionalNavItem[] = [
     iconKey: "settings",
     requiresAdmin: true,
   },
+  // Eltern hub — mirrors the desktop "Eltern" accordion. Mobile has no
+  // accordions, so a single overflow entry points at the /eltern overview and
+  // the sub-pages are reached from its cards (same treatment as
+  // Datenverwaltung / Anmeldungen). Shown to all staff; the overview itself
+  // renders only the cards the caller may access.
   {
-    href: "/messages",
-    label: "Nachrichten",
-    iconKey: "chat",
+    href: "/eltern",
+    label: "Eltern",
+    iconKey: "parents",
     alwaysShow: true,
-  },
-  // Essensplan — gated on the meal_plan_enabled feature flag + config:read
-  // (same as the desktop sidebar). Filtered in filteredAdditionalItems.
-  {
-    href: "/meal-plan",
-    label: "Essensplan",
-    iconKey: "utensils",
+    activePaths: [
+      "/eltern",
+      "/messages",
+      "/admin/guardian-approvals",
+      "/admin/change-requests",
+      "/parent-announcements",
+      "/meal-plan",
+    ],
   },
   // Reminders live in the header bell (always visible on desktop + mobile),
   // so the bottom nav no longer carries a coming-soon "Erinnerungen" entry.
@@ -372,8 +384,28 @@ interface MobileBottomNavProps {
 
 export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const tParentNav = useTranslations("parentNav");
-  const pathname = usePathname();
+  const rawPathname = usePathname();
+  const tenantSlug = useTenantSlugSafe();
+  const routingMode = useTenantRoutingModeSafe();
   const searchParams = useSearchParams();
+  // Strip the tenant prefix so all active-state checks compare against
+  // unprefixed paths (e.g. "/eltern"). Only path-routing mode carries the slug
+  // in usePathname() as "/{slug}/eltern"; mirror the desktop sidebar's
+  // normalization so the "Mehr" button and drawer rows highlight correctly.
+  // Gate on routingMode: useTenantSlugSafe() still returns the slug in
+  // subdomain mode, so without this guard a tenant whose slug is a real route
+  // (e.g. "messages") visiting messages.<domain>/messages would be stripped to
+  // "/" and mis-highlight Home. No-op in subdomain/operator/parent mode.
+  const inPathRouting = routingMode === "path";
+  const pathname =
+    inPathRouting && tenantSlug && rawPathname.startsWith(`/${tenantSlug}/`)
+      ? rawPathname.slice(tenantSlug.length + 1)
+      : inPathRouting && tenantSlug && rawPathname === `/${tenantSlug}`
+        ? "/"
+        : rawPathname;
+  // Prefixes tenant-scoped hrefs with the slug in path-routing mode (no-op in
+  // subdomain/operator/parent mode). Used for the Eltern hub link below.
+  const tenantPath = useTenantAwarePath();
   const [isOverflowMenuOpen, setIsOverflowMenuOpen] = useState(false);
 
   // Refs for sliding indicator
@@ -410,12 +442,19 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       if (href === "/dashboard") {
         return pathname === "/dashboard" || pathname === "/";
       }
-      // Check if we came from this page via the 'from' query parameter
-      if (
-        pathname.startsWith("/students/") &&
-        searchParams.get("from")?.startsWith(href)
-      ) {
-        return true;
+      // Check if we came from this page via the 'from' query parameter. Grouped
+      // items (e.g. Eltern) own several routes via activePaths, so a child page
+      // reached with ?from=/messages must still highlight the Eltern entry —
+      // compare `from` against the item's href AND its activePaths.
+      if (pathname.startsWith("/students/")) {
+        const from = searchParams.get("from");
+        if (
+          from &&
+          (from.startsWith(href) ||
+            activePaths?.some((p) => from.startsWith(p)))
+        ) {
+          return true;
+        }
       }
       if (activePaths?.some((p) => pathname.startsWith(p))) {
         return true;
@@ -537,9 +576,6 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const timetableEnabled =
     settingsItems.find((item) => item.key === "timetable.enabled")?.value ===
     true;
-  const mealPlanEnabled =
-    settingsItems.find((item) => item.key === "operations.meal_plan_enabled")
-      ?.value === true;
   // Only advertise Essensplan in the parents portal once a linked school runs
   // a meal plan; otherwise the overflow link leads to an empty page.
   const parentMealPlanEnabled = useParentMealPlanEnabled(mode === "parent");
@@ -560,9 +596,6 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       return false;
     }
     if (!showActivityNav && NFC_ONLY_HREFS.has(item.href)) return false;
-    if (item.href === "/meal-plan") {
-      return mealPlanEnabled && hasPermission(session, "config:read");
-    }
     if (item.alwaysShow) return true;
     if (item.href === "/timetables" && !timetableEnabled) {
       return false;
@@ -680,6 +713,13 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
               <div className="space-y-2">
                 {displayAdditionalItems.map((item) => {
                   const isActive = isActiveRoute(item.href, item.activePaths);
+                  // The Eltern hub is a tenant-scoped [tenant]/eltern route. In
+                  // path-routing mode a bare "/eltern" href is captured as the
+                  // tenant slug, so prefix it the same way the /eltern page
+                  // prefixes its card links. Other entries stay bare — /help is
+                  // host-agnostic and must not carry the slug.
+                  const href =
+                    item.href === "/eltern" ? tenantPath(item.href) : item.href;
 
                   // Coming soon items are not clickable
                   if (item.comingSoon) {
@@ -708,7 +748,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   return (
                     <Link
                       key={item.href}
-                      href={item.href}
+                      href={href}
                       onClick={closeOverflowMenu}
                       {...(item.newTab
                         ? { target: "_blank", rel: "noopener noreferrer" }
