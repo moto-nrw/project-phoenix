@@ -39,6 +39,15 @@ export function useChatViewportLock<T extends HTMLElement>(ready: boolean) {
     if (!el) return;
     const vv = window.visualViewport;
     const fit = () => {
+      // iOS Safari scrolls the layout viewport to reveal a focused input even
+      // though html/body overflow is set to hidden, then leaves that offset
+      // stuck once the keyboard dismisses after sending: the sticky header
+      // scrolls out (the topbar goes white) and, with page scroll locked, the
+      // user can't scroll it back — the chat looks frozen. The chat pins page
+      // scroll, so the document must always sit at the top; snap any stray
+      // offset back whenever the viewport changes (fires on keyboard open/close
+      // via visualViewport). A no-op on platforms that honour overflow:hidden.
+      if (window.scrollY !== 0) window.scrollTo(0, 0);
       const top = el.getBoundingClientRect().top;
       // Measure against the VISUAL viewport, not window.innerHeight: when the
       // iOS soft keyboard opens it shrinks visualViewport.height (and fires only
