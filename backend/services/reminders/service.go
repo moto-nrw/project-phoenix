@@ -471,6 +471,18 @@ func (s *service) pickupReminders(ctx context.Context, scope Scope, studentIDs [
 		// populates an entry for every one of them, so infos[d.id] is always
 		// present here — no missing-key guard is needed.
 		info := infos[d.id]
+		if info.name == "" {
+			// The student passed the read gate but its person record could not be
+			// resolved (a not-found row rather than a read error — e.g. the person
+			// was soft-deleted mid-day while the student still has an open
+			// attendance row). A reminder with a blank title is an unidentifiable
+			// card, so skip it: this upholds the same "no unusable empty-title
+			// reminders" guarantee the person-read-error path enforces by failing.
+			if s.logger != nil {
+				s.logger.Debug("skipping pickup reminder with unresolved name", "student_id", d.id)
+			}
+			continue
+		}
 		reminderType := TypePickupUpcoming
 		if d.isOverdue {
 			reminderType = TypePickupOverdue

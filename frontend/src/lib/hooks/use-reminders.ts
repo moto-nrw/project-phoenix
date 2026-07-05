@@ -26,16 +26,41 @@ const IDLE_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 // of a wall-clock minute, and client/server clocks can drift by a second or two.
 const NEXT_CHANGE_BUFFER_MS = 2000;
 
+// The backend reports next_change_at in Berlin wall-clock time (formatMinutes on
+// timezone.Now()), so the timer delay must be measured against Berlin time, NOT
+// the browser's local zone. A device on a different timezone (traveling staff, a
+// misconfigured tablet, a UTC browser) would otherwise schedule the refetch at
+// the wrong instant. Intl resolves the offset — including DST — for us.
+const BERLIN_TIME_ZONE = "Europe/Berlin";
+
+// berlinSecondsOfDay returns the current wall-clock time in Europe/Berlin as
+// seconds since local midnight (0..86399), independent of the browser's own
+// timezone.
+function berlinSecondsOfDay(now: Date): number {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: BERLIN_TIME_ZONE,
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(now);
+  const value = (type: string) =>
+    Number(parts.find((p) => p.type === type)?.value ?? "0");
+  // Some engines render midnight as "24" under hour12:false; normalize to 0.
+  const hour = value("hour") % 24;
+  return hour * 3600 + value("minute") * 60 + value("second");
+}
+
 // msUntilNextChange returns how long to wait before refetching so the refetch
-// lands just after the wall-clock "HH:MM" the backend flagged as the next
+// lands just after the Berlin wall-clock "HH:MM" the backend flagged as the next
 // time-based change. Returns null for an unparseable value. When the target is
 // already in the past (clock skew, or the timer resolving at the exact minute),
 // it returns a short delay so we refetch promptly rather than a whole day later.
 //
 // "24:00" is accepted: the backend emits it from formatMinutes(1440) for a
 // boundary at end-of-day (e.g. a 23:59 pickup flipping overdue at minute 1440).
-// setHours(24, 0) normalizes to the next day's midnight, which is that exact
-// instant — so the timer still fires on the boundary instead of being dropped.
+// It maps to 86400 seconds — one full day of Berlin seconds ahead of midnight —
+// so the timer fires at the next midnight instead of being dropped.
 function msUntilNextChange(hhmm: string): number | null {
   const match = /^(\d{2}):(\d{2})$/.exec(hhmm);
   if (!match) return null;
@@ -50,10 +75,10 @@ function msUntilNextChange(hhmm: string): number | null {
   ) {
     return null;
   }
+  const targetSec = hours * 3600 + minutes * 60; // 24:00 → 86400
   const now = new Date();
-  const target = new Date(now);
-  target.setHours(hours, minutes, 0, 0);
-  const delay = target.getTime() + NEXT_CHANGE_BUFFER_MS - now.getTime();
+  const delaySec = targetSec - berlinSecondsOfDay(now);
+  const delay = delaySec * 1000 + NEXT_CHANGE_BUFFER_MS;
   return delay > 0 ? delay : 500;
 }
 
@@ -100,11 +125,16 @@ export function useReminders() {
 
   // Precise time-based refresh. Time-based reminders cross their threshold with
   // no backend event, so instead of only catching them on the 60s poll we
-  // schedule a single timer to the exact wall-clock minute the backend reported
-  // as the next change (a pickup/activity entering or leaving its window). The
-  // timer refetches on the threshold; the fresh response carries the following
-  // next_change_at, which reschedules this effect. The poll stays as a backstop
-  // for the case where a hidden tab throttles this timer.
+  // schedule a single timer to the exact Berlin wall-clock minute the backend
+  // reported as the next change (a pickup/activity entering or leaving its
+  // window). The timer refetches on the threshold; because it fires one buffer
+  // past the boundary, the server excludes the just-passed minute and the fresh
+  // response carries a strictly-later next_change_at — a new string that
+  // re-runs this effect and schedules the following boundary. Gating on the
+  // string identity (not every refetch) is deliberate: it prevents a
+  // busy-refetch loop if a boundary ever resolves in the past. The 60s poll
+  // backstops the residual cases — a hidden tab throttling this timer, or client
+  // clock skew larger than the buffer.
   useEffect(() => {
     if (!enabled || !nextChangeAt) return;
     const delay = msUntilNextChange(nextChangeAt);
