@@ -177,3 +177,27 @@ func TestStaffShiftRepository_TenantIsolation(t *testing.T) {
 	require.Len(t, rows, 1)
 	assert.Equal(t, shift.ID, rows[0].ID)
 }
+
+func TestStaffShiftRepository_RejectsCrossTenantStaffReference(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).StaffShift
+	tenant1 := testpkg.TenantContext(1)
+
+	staff := testpkg.CreateTestStaff(t, db, "Shift", "CrossTenant")
+	defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
+
+	const otherTenantID = int64(910003)
+	testpkg.EnsureTestTenant(t, db, otherTenantID)
+	tenant2 := tenant.WithTenantID(context.Background(), otherTenantID)
+
+	day := timezone.NewDate(2026, time.July, 10)
+	shift := newShift(staff.ID, day, 8, 16, staff.ID)
+	err := repo.Create(tenant2, shift)
+	require.Error(t, err, "tenant 2 shift must not reference tenant 1 staff")
+
+	rows, findErr := repo.FindByDateRange(tenant1, day, day)
+	require.NoError(t, findErr)
+	assert.Empty(t, rows, "failed cross-tenant insert must not leave tenant 1 data behind")
+}

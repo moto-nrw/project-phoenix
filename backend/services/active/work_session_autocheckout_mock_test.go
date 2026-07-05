@@ -243,7 +243,7 @@ func TestAutoCheckout_GraceNotElapsed(t *testing.T) {
 	assert.Equal(t, 0, count)
 }
 
-func TestAutoCheckout_EndsActiveBreakFirst(t *testing.T) {
+func TestAutoCheckout_EndsActiveBreakAfterCloseClaim(t *testing.T) {
 	yesterday := timezone.TodayDate().AddDays(-1)
 	staffID := int64(7)
 	session := &activeModels.WorkSession{
@@ -266,14 +266,15 @@ func TestAutoCheckout_EndsActiveBreakFirst(t *testing.T) {
 		return []*activeModels.WorkSessionBreak{activeBreak}, nil
 	}
 	breakEnded := false
+	closed := false
 	breakRepo.endBreakFunc = func(_ context.Context, id int64, _ time.Time, _ int) error {
 		assert.Equal(t, int64(9), id)
+		assert.True(t, closed, "break must be ended only after auto-checkout wins the close race")
 		breakEnded = true
 		return nil
 	}
-	closed := false
 	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) (bool, error) {
-		assert.True(t, breakEnded, "break must be ended before the session closes")
+		assert.False(t, breakEnded, "break must not be ended before the session close is claimed")
 		closed = true
 		return true, nil
 	}
@@ -282,9 +283,10 @@ func TestAutoCheckout_EndsActiveBreakFirst(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, count)
 	assert.True(t, closed)
+	assert.True(t, breakEnded)
 }
 
-func TestAutoCheckout_SkipsSessionWhenActiveBreakEndFails(t *testing.T) {
+func TestAutoCheckout_ReturnsErrorWhenActiveBreakEndFailsAfterClose(t *testing.T) {
 	yesterday := timezone.TodayDate().AddDays(-1)
 	staffID := int64(7)
 	session := &activeModels.WorkSession{
@@ -303,9 +305,10 @@ func TestAutoCheckout_SkipsSessionWhenActiveBreakEndFails(t *testing.T) {
 		t.Fatal("failed break close must not write an auto-checkout audit entry")
 		return nil
 	}
+	closed := false
 	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) (bool, error) {
-		t.Fatal("failed break close must leave the session open")
-		return false, nil
+		closed = true
+		return true, nil
 	}
 
 	activeBreak := &activeModels.WorkSessionBreak{StartedAt: shift.EndInstant().Add(-time.Hour)}
@@ -318,11 +321,12 @@ func TestAutoCheckout_SkipsSessionWhenActiveBreakEndFails(t *testing.T) {
 	}
 
 	count, err := service.AutoCheckoutDueSessions(context.Background(), 15*time.Minute)
-	require.NoError(t, err)
+	require.Error(t, err)
 	assert.Equal(t, 0, count)
+	assert.True(t, closed, "auto-checkout must claim the session before mutating breaks")
 }
 
-func TestAutoCheckout_SkipsSessionWhenActiveBreakRecalcFails(t *testing.T) {
+func TestAutoCheckout_ReturnsErrorWhenActiveBreakRecalcFailsAfterClose(t *testing.T) {
 	yesterday := timezone.TodayDate().AddDays(-1)
 	staffID := int64(7)
 	session := &activeModels.WorkSession{
@@ -341,9 +345,10 @@ func TestAutoCheckout_SkipsSessionWhenActiveBreakRecalcFails(t *testing.T) {
 		t.Fatal("failed break-minute recalc must not write an auto-checkout audit entry")
 		return nil
 	}
+	var closed bool
 	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) (bool, error) {
-		t.Fatal("failed break-minute recalc must leave the session open")
-		return false, nil
+		closed = true
+		return true, nil
 	}
 
 	activeBreak := &activeModels.WorkSessionBreak{StartedAt: shift.EndInstant().Add(-time.Hour)}
@@ -361,8 +366,9 @@ func TestAutoCheckout_SkipsSessionWhenActiveBreakRecalcFails(t *testing.T) {
 	}
 
 	count, err := service.AutoCheckoutDueSessions(context.Background(), 15*time.Minute)
-	require.NoError(t, err)
+	require.Error(t, err)
 	assert.Equal(t, 0, count)
+	assert.True(t, closed, "auto-checkout must claim the session before mutating breaks")
 	assert.Equal(t, 2, getBreaksCalls)
 }
 
@@ -563,7 +569,7 @@ func TestAutoCheckout_SkipsAuditWhenCloseRacesWithManualCheckout(t *testing.T) {
 	session.ID = 42
 	shift := shiftFor(staffID, yesterday, 8, 16)
 
-	service, sessionRepo, _, auditRepo, _ := autoCheckoutFixture(
+	service, sessionRepo, breakRepo, auditRepo, _ := autoCheckoutFixture(
 		[]*activeModels.WorkSession{session},
 		[]*scheduleModels.StaffShift{shift},
 	)
@@ -572,6 +578,15 @@ func TestAutoCheckout_SkipsAuditWhenCloseRacesWithManualCheckout(t *testing.T) {
 	}
 	auditRepo.createBatchFunc = func(_ context.Context, _ []*auditModels.WorkSessionEdit) error {
 		t.Fatal("auto-checkout must not audit a row it did not close")
+		return nil
+	}
+	activeBreak := &activeModels.WorkSessionBreak{StartedAt: shift.EndInstant().Add(-time.Hour)}
+	activeBreak.ID = 9
+	breakRepo.getBySessionIDFunc = func(_ context.Context, _ int64) ([]*activeModels.WorkSessionBreak, error) {
+		return []*activeModels.WorkSessionBreak{activeBreak}, nil
+	}
+	breakRepo.endBreakFunc = func(_ context.Context, _ int64, _ time.Time, _ int) error {
+		t.Fatal("auto-checkout must not mutate breaks after losing the close race")
 		return nil
 	}
 

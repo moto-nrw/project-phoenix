@@ -53,7 +53,7 @@ func staffShiftsUp(ctx context.Context, db *bun.DB) error {
 		CREATE TABLE IF NOT EXISTS schedule.staff_shifts (
 			id            BIGSERIAL PRIMARY KEY,
 			tenant_id     BIGINT NOT NULL REFERENCES platform.schools(id),
-			staff_id      BIGINT NOT NULL REFERENCES users.staff(id) ON DELETE CASCADE,
+			staff_id      BIGINT NOT NULL,
 			date          DATE NOT NULL,
 			start_time    TIME WITHOUT TIME ZONE NOT NULL,
 			end_time      TIME WITHOUT TIME ZONE NOT NULL,
@@ -65,13 +65,22 @@ func staffShiftsUp(ctx context.Context, db *bun.DB) error {
 			updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			CONSTRAINT chk_staff_shifts_times CHECK (end_time > start_time),
 			CONSTRAINT chk_staff_shifts_break CHECK (break_minutes >= 0),
+			CONSTRAINT fk_staff_shifts_staff
+				FOREIGN KEY (tenant_id, staff_id)
+				REFERENCES users.staff(tenant_id, id) ON DELETE CASCADE,
+			CONSTRAINT fk_staff_shifts_created_by
+				FOREIGN KEY (tenant_id, created_by)
+				REFERENCES users.staff(tenant_id, id),
+			CONSTRAINT fk_staff_shifts_updated_by
+				FOREIGN KEY (tenant_id, updated_by)
+				REFERENCES users.staff(tenant_id, id),
 			CONSTRAINT uniq_staff_shift_start UNIQUE (tenant_id, staff_id, date, start_time)
 		);
 
 		CREATE INDEX IF NOT EXISTS idx_staff_shifts_tenant_date
 			ON schedule.staff_shifts (tenant_id, date);
 		CREATE INDEX IF NOT EXISTS idx_staff_shifts_staff_date
-			ON schedule.staff_shifts (staff_id, date);
+			ON schedule.staff_shifts (tenant_id, staff_id, date);
 
 		DROP TRIGGER IF EXISTS update_staff_shifts_updated_at ON schedule.staff_shifts;
 		CREATE TRIGGER update_staff_shifts_updated_at

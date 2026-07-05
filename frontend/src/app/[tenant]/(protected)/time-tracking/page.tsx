@@ -85,6 +85,7 @@ function adaptHistorySessionForMetrics(
     auto_checked_out: session.autoCheckedOut,
     notes: session.notes || undefined,
     edit_count: session.editCount,
+    audit_count: session.auditCount,
   };
 }
 

@@ -1,5 +1,7 @@
 "use client";
 
+import { Plus } from "lucide-react";
+
 import { Skeleton } from "~/components/ui/skeleton";
 import type { Staff } from "~/lib/staff-api";
 import { formatShiftLabel, type StaffShift } from "~/lib/shift-helpers";
@@ -115,23 +117,11 @@ export function DienstplanWeekGrid({
                           aria-label={`Schicht anlegen für ${member.firstName} ${member.lastName} am ${formatColumnDate(date)}`}
                           className={`flex h-7 w-full items-center justify-center rounded-md border border-dashed border-gray-200 text-gray-400 transition-opacity hover:bg-gray-50 hover:text-gray-600 focus:opacity-100 ${
                             shifts.length > 0
-                              ? "opacity-0 group-hover:opacity-100"
+                              ? "opacity-100 [@media(hover:hover)_and_(pointer:fine)]:opacity-0 [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100"
                               : "opacity-60 hover:opacity-100"
                           }`}
                         >
-                          <svg
-                            className="h-4 w-4"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M12 4v16m8-8H4"
-                            />
-                          </svg>
+                          <Plus className="h-4 w-4" />
                         </button>
                       </div>
                     </td>

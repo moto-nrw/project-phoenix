@@ -75,6 +75,7 @@ type SessionResponse struct {
 	RestPeriodWarning *string                          `json:"rest_period_warning,omitempty"`
 	Breaks            []*activeModels.WorkSessionBreak `json:"breaks"`
 	EditCount         int                              `json:"edit_count"`
+	AuditCount        int                              `json:"audit_count"`
 }
 
 // WeeklySummary aggregates work session data per ISO week
@@ -926,6 +927,10 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 	if err != nil {
 		return nil, fmt.Errorf("failed to get edit counts: %w", err)
 	}
+	auditCounts, err := s.auditRepo.CountBySessionIDs(ctx, sessionIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get audit counts: %w", err)
+	}
 
 	// Wrap each session in SessionResponse with calculated fields and breaks
 	now := time.Now()
@@ -943,6 +948,7 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 			IsBreakCompliant: isBreakCompliant(session, now),
 			Breaks:           breaks,
 			EditCount:        editCounts[session.ID],
+			AuditCount:       auditCounts[session.ID],
 		}
 	}
 
@@ -1384,15 +1390,6 @@ func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace 
 			continue
 		}
 
-		if activeBreak != nil {
-			if err := s.endActiveBreak(ctx, session.ID, activeBreak, closeAt); err != nil {
-				s.getLogger().WarnContext(ctx, "failed to end active break during auto-checkout",
-					slog.Int64("session_id", session.ID),
-					slog.String("error", err.Error()))
-				continue
-			}
-		}
-
 		closed, err := s.repo.CloseSession(ctx, session.ID, closeAt, true)
 		if err != nil {
 			return count, fmt.Errorf("failed to auto-checkout session %d: %w", session.ID, err)
@@ -1402,6 +1399,12 @@ func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace 
 				slog.Int64("session_id", session.ID),
 				slog.Int64("staff_id", session.StaffID))
 			continue
+		}
+
+		if activeBreak != nil {
+			if err := s.endActiveBreak(ctx, session.ID, activeBreak, closeAt); err != nil {
+				return count, fmt.Errorf("failed to end active break during auto-checkout for session %d: %w", session.ID, err)
+			}
 		}
 
 		// End open supervisions, exactly like manual checkout does.

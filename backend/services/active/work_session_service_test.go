@@ -1269,6 +1269,9 @@ func TestWSGetHistory_Success(t *testing.T) {
 		}, nil
 	}
 
+	auditRepo.countManualBySessionIDsFunc = func(_ context.Context, _ []int64) (map[int64]int, error) {
+		return map[int64]int{1: 1}, nil
+	}
 	auditRepo.countBySessionIDsFunc = func(_ context.Context, _ []int64) (map[int64]int, error) {
 		return map[int64]int{1: 2}, nil
 	}
@@ -1280,7 +1283,8 @@ func TestWSGetHistory_Success(t *testing.T) {
 	historyResp, err := svc.GetHistory(context.Background(), staffID, from, to)
 	require.NoError(t, err)
 	require.Len(t, historyResp.Sessions, 1)
-	assert.Equal(t, 2, historyResp.Sessions[0].EditCount)
+	assert.Equal(t, 1, historyResp.Sessions[0].EditCount)
+	assert.Equal(t, 2, historyResp.Sessions[0].AuditCount)
 	require.Len(t, historyResp.WeeklySummaries, 1)
 }
 

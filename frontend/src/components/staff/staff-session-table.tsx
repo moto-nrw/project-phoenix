@@ -39,7 +39,7 @@ const dayLabels = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 // metadata. Anomalies (auto-closed sessions, future ArbZG flags) are
 // colour-coded so the admin can spot corrections at a glance.
 //
-// Rows with audit history (edit_count > 0) are clickable and expand
+// Rows with audit history (audit_count > 0) are clickable and expand
 // inline to reveal an EditHistoryAccordion — same component and UX as
 // the MA-side /time-tracking page.
 //
@@ -185,11 +185,11 @@ export function StaffSessionTable({
             const delta = session && target > 0 ? ist - target : 0;
             const status = computeRowStatus(session, absence, target, isFuture);
             const isExpanded = expandedKey === key;
-            const hasEdits = (session?.edit_count ?? 0) > 0;
+            const hasAuditHistory = (session?.audit_count ?? 0) > 0;
             // Only rows with audit history are interactive — clicking an
             // unchanged row should not toggle anything since there is
             // nothing to reveal.
-            const canExpand = hasEdits && session != null;
+            const canExpand = hasAuditHistory && session != null;
             // Edit / nachtragen is available for workdays in the past or
             // present, regardless of whether a session already exists. The
             // SquarePen action lands on Tranche 1b — for now the wiring is
