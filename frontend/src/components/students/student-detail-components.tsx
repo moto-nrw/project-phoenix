@@ -671,6 +671,7 @@ export function PersonalInfoReadOnly({
         year: "numeric",
       })
     : "Nicht angegeben";
+  const addressDisplay = formatStudentAddress(student);
 
   return (
     <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
@@ -704,6 +705,7 @@ export function PersonalInfoReadOnly({
           value={student.group_name ?? "Nicht zugewiesen"}
         />
         <InfoItem label="Geburtsdatum" value={birthdayDisplay} />
+        {addressDisplay && <InfoItem label="Adresse" value={addressDisplay} />}
         <InfoItem
           label="Erlaubte Heimwege"
           value={
@@ -743,6 +745,15 @@ export function PersonalInfoReadOnly({
       </div>
     </div>
   );
+}
+
+function formatStudentAddress(student: ExtendedStudent): string | null {
+  const street = student.address_street?.trim();
+  const postalCode = student.address_postal_code?.trim();
+  const city = student.address_city?.trim();
+  const locality = [postalCode, city].filter(Boolean).join(" ");
+  const lines = [street, locality].filter(Boolean);
+  return lines.length > 0 ? lines.join(", ") : null;
 }
 
 function EnrollmentExtraInfoItems({

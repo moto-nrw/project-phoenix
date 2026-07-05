@@ -154,6 +154,24 @@ export function PersonalInfoFormModal({
           value={editedStudent.birthday}
           onChange={(value) => updateField("birthday", value)}
         />
+        <TextInput
+          id="modal-student-address-street"
+          label="Straße und Hausnummer"
+          value={editedStudent.address_street ?? ""}
+          onChange={(value) => updateField("address_street", value)}
+        />
+        <TextInput
+          id="modal-student-address-postal-code"
+          label="PLZ"
+          value={editedStudent.address_postal_code ?? ""}
+          onChange={(value) => updateField("address_postal_code", value)}
+        />
+        <TextInput
+          id="modal-student-address-city"
+          label="Ort"
+          value={editedStudent.address_city ?? ""}
+          onChange={(value) => updateField("address_city", value)}
+        />
         <DepartureSection
           days={
             editedStudent.allowed_departure_modes ??

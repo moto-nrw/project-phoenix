@@ -489,6 +489,9 @@ const mockStudent = {
   bus: false,
   buskind: false,
   birthday: "2015-05-15",
+  address_street: "Musterstraße 12",
+  address_postal_code: "50667",
+  address_city: "Köln",
   health_info: "",
   supervisor_notes: "",
   extra_info: "",
@@ -791,7 +794,14 @@ describe("StudentDetailPage", () => {
       });
 
       await waitFor(() => {
-        expect(mockUpdateStudent).toHaveBeenCalledWith("1", expect.any(Object));
+        expect(mockUpdateStudent).toHaveBeenCalledWith(
+          "1",
+          expect.objectContaining({
+            address_street: "Musterstraße 12",
+            address_postal_code: "50667",
+            address_city: "Köln",
+          }),
+        );
         expect(mockRefreshData).toHaveBeenCalled();
         expect(mockToastSuccess).toHaveBeenCalled();
       });
