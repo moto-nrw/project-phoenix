@@ -604,3 +604,47 @@ func TestWorkSessionEditRepository_CountManualBySessionIDs(t *testing.T) {
 		assert.Empty(t, counts)
 	})
 }
+
+func TestWorkSessionEditRepository_WrapsDatabaseErrors(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	require.NoError(t, db.Close())
+
+	repo := repositories.NewFactory(db).WorkSessionEdit
+	ctx := testpkg.TenantContext(1)
+	edit := &audit.WorkSessionEdit{
+		SessionID: 1,
+		StaffID:   1,
+		EditedBy:  audit.SystemEditorID,
+		FieldName: audit.FieldCheckOutTime,
+	}
+
+	t.Run("create batch", func(t *testing.T) {
+		err := repo.CreateBatch(ctx, []*audit.WorkSessionEdit{edit})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "create batch")
+	})
+
+	t.Run("get by session ID", func(t *testing.T) {
+		_, err := repo.GetBySessionID(ctx, 1)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "get by session ID")
+	})
+
+	t.Run("count by session ID", func(t *testing.T) {
+		_, err := repo.CountBySessionID(ctx, 1)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "count by session ID")
+	})
+
+	t.Run("count by session IDs", func(t *testing.T) {
+		_, err := repo.CountBySessionIDs(ctx, []int64{1})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "count by session IDs")
+	})
+
+	t.Run("count manual by session IDs", func(t *testing.T) {
+		_, err := repo.CountManualBySessionIDs(ctx, []int64{1})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "count manual by session IDs")
+	})
+}

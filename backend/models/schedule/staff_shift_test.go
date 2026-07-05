@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 func shiftWall(hour, minute int) time.Time {
@@ -91,4 +92,25 @@ func TestStaffShiftEndInstant(t *testing.T) {
 	assert.Equal(t, 16, end.Hour())
 	assert.Equal(t, 0, end.Minute())
 	assert.Equal(t, timezone.Berlin, end.Location())
+}
+
+func TestStaffShiftBeforeAppendModelSetsWriteTableAliases(t *testing.T) {
+	shift := testShift(8, 16)
+
+	assert.NoError(t, shift.BeforeAppendModel(&bun.UpdateQuery{}))
+	assert.NoError(t, shift.BeforeAppendModel(&bun.DeleteQuery{}))
+	assert.NoError(t, shift.BeforeAppendModel(&bun.InsertQuery{}))
+	assert.NoError(t, shift.BeforeAppendModel(struct{}{}))
+}
+
+func TestStaffShiftEntityAccessors(t *testing.T) {
+	shift := testShift(8, 16)
+	shift.ID = 123
+	shift.CreatedAt = time.Date(2026, time.July, 1, 9, 0, 0, 0, time.UTC)
+	shift.UpdatedAt = time.Date(2026, time.July, 2, 10, 0, 0, 0, time.UTC)
+
+	assert.Equal(t, int64(123), shift.GetID())
+	assert.Equal(t, shift.CreatedAt, shift.GetCreatedAt())
+	assert.Equal(t, shift.UpdatedAt, shift.GetUpdatedAt())
+	assert.Equal(t, tableScheduleStaffShifts, shift.TableName())
 }

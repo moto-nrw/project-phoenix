@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // ============================================================================
@@ -191,6 +193,50 @@ func TestShiftService_CreatePropagatesStaffLookupError(t *testing.T) {
 	assert.Contains(t, err.Error(), "connection reset")
 }
 
+func TestShiftService_CreateRejectsNilStaff(t *testing.T) {
+	svc, _, staffRepo := shiftServiceFixture()
+	staffRepo.findByIDFunc = func(_ context.Context, _ interface{}) (*usersModels.Staff, error) {
+		return nil, nil
+	}
+
+	_, err := svc.CreateShift(context.Background(), validShift(999))
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrShiftInvalid)
+	assert.Contains(t, err.Error(), "staff member not found")
+}
+
+func TestShiftService_CreatePropagatesLockError(t *testing.T) {
+	repo := &shiftMockRepo{}
+	staffRepo := &shiftMockStaffRepo{}
+	svc := NewStaffShiftService(repo, staffRepo, &bun.DB{}, nil)
+
+	_, err := svc.CreateShift(context.Background(), validShift(7))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "tenant id is required")
+}
+
+func TestShiftService_CreatePropagatesOverlapLookupError(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*scheduleModels.StaffShift, error) {
+		return nil, errors.New("read failed")
+	}
+
+	_, err := svc.CreateShift(context.Background(), validShift(7))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "read failed")
+}
+
+func TestShiftService_CreatePropagatesCreateError(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+	repo.createFunc = func(_ context.Context, _ *scheduleModels.StaffShift) error {
+		return errors.New("insert failed")
+	}
+
+	_, err := svc.CreateShift(context.Background(), validShift(7))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "insert failed")
+}
+
 func TestShiftService_CreateRejectsOverlap(t *testing.T) {
 	svc, repo, _ := shiftServiceFixture()
 
@@ -363,6 +409,26 @@ func TestShiftService_UpdateNotFound(t *testing.T) {
 	assert.ErrorIs(t, err, ErrShiftNotFound)
 }
 
+func TestShiftService_UpdateRejectsMissingID(t *testing.T) {
+	svc, _, _ := shiftServiceFixture()
+
+	_, err := svc.UpdateShift(context.Background(), validShift(7))
+	assert.ErrorIs(t, err, ErrShiftNotFound)
+}
+
+func TestShiftService_UpdateRejectsNilExistingShift(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return nil, nil
+	}
+
+	update := validShift(7)
+	update.ID = 12345
+
+	_, err := svc.UpdateShift(context.Background(), update)
+	assert.ErrorIs(t, err, ErrShiftNotFound)
+}
+
 func TestShiftService_UpdatePropagatesFindError(t *testing.T) {
 	svc, repo, _ := shiftServiceFixture()
 	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
@@ -378,10 +444,105 @@ func TestShiftService_UpdatePropagatesFindError(t *testing.T) {
 	assert.Contains(t, err.Error(), "database timeout")
 }
 
+func TestShiftService_UpdateRejectsInvalidMergedShift(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+	existing := validShift(7)
+	existing.ID = 5
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return existing, nil
+	}
+
+	update := validShift(7)
+	update.ID = 5
+	update.EndTime = wall(7, 0)
+
+	_, err := svc.UpdateShift(context.Background(), update)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrShiftInvalid)
+}
+
+func TestShiftService_UpdatePropagatesOverlap(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+	existing := validShift(7)
+	existing.ID = 5
+	conflicting := validShift(7)
+	conflicting.ID = 6
+	conflicting.StartTime = wall(15, 0)
+	conflicting.EndTime = wall(18, 0)
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return existing, nil
+	}
+	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*scheduleModels.StaffShift, error) {
+		return []*scheduleModels.StaffShift{existing, conflicting}, nil
+	}
+
+	update := validShift(7)
+	update.ID = 5
+	update.StartTime = wall(14, 0)
+	update.EndTime = wall(17, 0)
+
+	_, err := svc.UpdateShift(context.Background(), update)
+	assert.ErrorIs(t, err, ErrShiftOverlap)
+}
+
+func TestShiftService_UpdatePropagatesLockError(t *testing.T) {
+	repo := &shiftMockRepo{}
+	staffRepo := &shiftMockStaffRepo{}
+	svc := NewStaffShiftService(repo, staffRepo, &bun.DB{}, nil)
+	existing := validShift(7)
+	existing.ID = 5
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return existing, nil
+	}
+
+	update := validShift(7)
+	update.ID = 5
+
+	_, err := svc.UpdateShift(context.Background(), update)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "tenant id is required")
+}
+
+func TestShiftService_UpdatePropagatesUpdateError(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+	existing := validShift(7)
+	existing.ID = 5
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return existing, nil
+	}
+	repo.updateFunc = func(_ context.Context, _ *scheduleModels.StaffShift) error {
+		return errors.New("update failed")
+	}
+
+	update := validShift(7)
+	update.ID = 5
+
+	_, err := svc.UpdateShift(context.Background(), update)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "update failed")
+}
+
 func TestShiftService_DeleteNotFound(t *testing.T) {
 	svc, repo, _ := shiftServiceFixture()
 	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
 		return nil, sql.ErrNoRows
+	}
+
+	err := svc.DeleteShift(context.Background(), 12345)
+	assert.ErrorIs(t, err, ErrShiftNotFound)
+}
+
+func TestShiftService_DeleteRejectsMissingID(t *testing.T) {
+	svc, _, _ := shiftServiceFixture()
+
+	err := svc.DeleteShift(context.Background(), 0)
+	assert.ErrorIs(t, err, ErrShiftNotFound)
+}
+
+func TestShiftService_DeleteRejectsNilExistingShift(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return nil, nil
 	}
 
 	err := svc.DeleteShift(context.Background(), 12345)
@@ -398,6 +559,33 @@ func TestShiftService_DeletePropagatesFindError(t *testing.T) {
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, ErrShiftNotFound)
 	assert.Contains(t, err.Error(), "database timeout")
+}
+
+func TestShiftService_DeletePropagatesDeleteError(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+	existing := validShift(7)
+	existing.ID = 5
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return existing, nil
+	}
+	repo.deleteFunc = func(_ context.Context, _ any) error {
+		return errors.New("delete failed")
+	}
+
+	err := svc.DeleteShift(context.Background(), 5)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "delete failed")
+}
+
+func TestShiftService_DeleteSuccess(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+	existing := validShift(7)
+	existing.ID = 5
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return existing, nil
+	}
+
+	require.NoError(t, svc.DeleteShift(context.Background(), 5))
 }
 
 func TestShiftService_ListRejectsTooLargeRange(t *testing.T) {
@@ -418,10 +606,73 @@ func TestShiftService_ListRejectsInvertedRange(t *testing.T) {
 	assert.ErrorIs(t, err, ErrShiftInvalid)
 }
 
+func TestShiftService_ListRejectsMissingRangeDates(t *testing.T) {
+	svc, _, _ := shiftServiceFixture()
+
+	_, err := svc.ListShifts(context.Background(), timezone.Date{}, timezone.NewDate(2026, time.July, 6))
+	assert.ErrorIs(t, err, ErrShiftInvalid)
+
+	_, err = svc.ListShifts(context.Background(), timezone.NewDate(2026, time.July, 6), timezone.Date{})
+	assert.ErrorIs(t, err, ErrShiftInvalid)
+}
+
+func TestShiftService_ListDelegatesToRepository(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+	start := timezone.NewDate(2026, time.July, 6)
+	end := start.AddDays(4)
+	expected := []*scheduleModels.StaffShift{validShift(7)}
+	repo.findByDateRangeFunc = func(_ context.Context, gotStart, gotEnd timezone.Date) ([]*scheduleModels.StaffShift, error) {
+		assert.Equal(t, start, gotStart)
+		assert.Equal(t, end, gotEnd)
+		return expected, nil
+	}
+
+	shifts, err := svc.ListShifts(context.Background(), start, end)
+	require.NoError(t, err)
+	assert.Same(t, expected[0], shifts[0])
+}
+
+func TestShiftService_ListShiftsForStaffDelegatesToRepository(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+	start := timezone.NewDate(2026, time.July, 6)
+	expected := []*scheduleModels.StaffShift{validShift(7)}
+	repo.findByStaffAndDateRangeFunc = func(_ context.Context, staffID int64, gotStart, gotEnd timezone.Date) ([]*scheduleModels.StaffShift, error) {
+		assert.Equal(t, int64(7), staffID)
+		assert.Equal(t, start, gotStart)
+		assert.Equal(t, start, gotEnd)
+		return expected, nil
+	}
+
+	shifts, err := svc.ListShiftsForStaff(context.Background(), 7, start, start)
+	require.NoError(t, err)
+	assert.Same(t, expected[0], shifts[0])
+}
+
 func TestShiftService_ListShiftsForStaffRequiresStaffID(t *testing.T) {
 	svc, _, _ := shiftServiceFixture()
 
 	start := timezone.NewDate(2026, time.July, 6)
 	_, err := svc.ListShiftsForStaff(context.Background(), 0, start, start)
 	assert.ErrorIs(t, err, ErrShiftInvalid)
+}
+
+func TestShiftService_ListShiftsForStaffRejectsInvalidRange(t *testing.T) {
+	svc, _, _ := shiftServiceFixture()
+
+	start := timezone.NewDate(2026, time.July, 6)
+	_, err := svc.ListShiftsForStaff(context.Background(), 7, start, start.AddDays(-1))
+	assert.ErrorIs(t, err, ErrShiftInvalid)
+}
+
+func TestStaffShiftServiceDefaultsLogger(t *testing.T) {
+	repo := &shiftMockRepo{}
+	staffRepo := &shiftMockStaffRepo{}
+	svc := NewStaffShiftService(repo, staffRepo, nil, nil).(*staffShiftService)
+	assert.Same(t, slog.Default(), svc.getLogger())
+}
+
+func TestStaffShiftServiceUsesInjectedLogger(t *testing.T) {
+	logger := slog.New(slog.DiscardHandler)
+	svc := NewStaffShiftService(&shiftMockRepo{}, &shiftMockStaffRepo{}, nil, logger).(*staffShiftService)
+	assert.Same(t, logger, svc.getLogger())
 }
