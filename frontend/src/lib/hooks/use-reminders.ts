@@ -111,6 +111,24 @@ function msUntilNextChange(hhmm: string): number | null {
   return delay > 0 ? delay : 500;
 }
 
+// berlinDateKey returns the current Berlin calendar day as "YYYY-MM-DD",
+// independent of the browser's own timezone. It discriminates the scheduling
+// effect across midnight: next_change_at is a day-agnostic "HH:MM", so a
+// boundary that recurs at the same wall-clock time on consecutive days (a
+// persistent end-of-day "24:00", or any daily fixed threshold) would otherwise
+// hand the effect an identical dependency and never re-arm the one-shot timer
+// after it fires once. Folding the Berlin date in makes a repeated HH:MM on a
+// new day a fresh dependency. It stays constant within a day, so a boundary
+// that resolves in the past still refetches only once (no busy loop).
+function berlinDateKey(now: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: BERLIN_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+}
+
 /**
  * useReminders fetches the current visual reminders for the authenticated user.
  * The /reminders page renders the full list; the header bell reads the count
@@ -135,6 +153,11 @@ export function useReminders() {
 
   const enabled = data?.enabled ?? false;
   const nextChangeAt = data?.next_change_at;
+  // Re-armed per response (data identity changes on every refetch) but only
+  // observably different across a Berlin midnight, so a repeated next_change_at
+  // still schedules the next day's boundary — see berlinDateKey / the effect.
+  const nextChangeDay =
+    enabled && nextChangeAt ? berlinDateKey(new Date()) : null;
 
   // Event-driven refresh. useGlobalSSE() runs above TenantProvider and cannot
   // build the tenant-prefixed reminders SWR key, so it dispatches
@@ -159,13 +182,18 @@ export function useReminders() {
   // window). The timer refetches on the threshold; because it fires one buffer
   // past the boundary, the server excludes the just-passed minute and the fresh
   // response carries a strictly-later next_change_at — a new string that
-  // re-runs this effect and schedules the following boundary. Gating on the
-  // string identity (not every refetch) is deliberate: it prevents a
-  // busy-refetch loop if a boundary ever resolves in the past. Backstops for the
-  // residual cases: while the tab is hidden the browser throttles/freezes this
-  // timer AND SWR pauses the refreshInterval poll (refreshWhenHidden defaults
-  // off), so neither runs — the `revalidateOnFocus: true` above is what refetches
-  // the moment the tab is refocused. Client clock skew larger than the buffer is
+  // re-runs this effect and schedules the following boundary. The effect key
+  // also folds in the Berlin day (nextChangeDay): within a day the string alone
+  // advances, but across midnight a boundary can repeat verbatim (a persistent
+  // end-of-day "24:00", or a daily fixed threshold), and without the date that
+  // identical string would never re-arm the fired one-shot timer — the feature
+  // would silently fall back to the 60s poll from the next midnight on. The date
+  // is stable within a day, so a boundary that resolves in the past still
+  // refetches only once (no busy-refetch loop). Backstops for the residual
+  // cases: while the tab is hidden the browser throttles/freezes this timer AND
+  // SWR pauses the refreshInterval poll (refreshWhenHidden defaults off), so
+  // neither runs — the `revalidateOnFocus: true` above is what refetches the
+  // moment the tab is refocused. Client clock skew larger than the buffer is
   // caught by the next 60s poll once the tab is visible again.
   useEffect(() => {
     if (!enabled || !nextChangeAt) return;
@@ -175,7 +203,7 @@ export function useReminders() {
       void mutate();
     }, delay);
     return () => clearTimeout(timer);
-  }, [enabled, nextChangeAt, mutate]);
+  }, [enabled, nextChangeAt, nextChangeDay, mutate]);
 
   return {
     reminders: data?.reminders ?? [],

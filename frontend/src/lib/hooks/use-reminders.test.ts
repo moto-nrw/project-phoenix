@@ -275,4 +275,37 @@ describe("useReminders — next_change_at precise timer", () => {
     });
     expect(mockMutate).toHaveBeenCalledTimes(1);
   });
+
+  it("re-arms across midnight when next_change_at repeats verbatim", () => {
+    // A tenant whose only time-based boundary is an end-of-day flip gets the
+    // same next_change_at = "24:00" every day. The one-shot timer must be
+    // re-armed for the NEXT midnight after it fires, not left dangling because
+    // the day-agnostic string is unchanged — otherwise the precise refresh
+    // silently degrades to the 60s poll from the first midnight on.
+    vi.setSystemTime(new Date(2026, 6, 4, 23, 0, 0)); // 23:00 Berlin (CEST)
+    mockUseSWRAuth.mockReturnValue(
+      swrReturn({
+        reminders: [],
+        count: 0,
+        enabled: true,
+        next_change_at: "24:00",
+      }),
+    );
+
+    const { rerender } = renderHook(() => useReminders());
+
+    // First boundary: 1h to midnight + the 2s buffer.
+    act(() => {
+      vi.advanceTimersByTime(60 * 60 * 1000 + 3000);
+    });
+    expect(mockMutate).toHaveBeenCalledTimes(1);
+
+    // The refetch returns the identical "24:00"; a re-render now past midnight
+    // (new Berlin day) must schedule the next midnight rather than nothing.
+    rerender();
+    act(() => {
+      vi.advanceTimersByTime(24 * 60 * 60 * 1000);
+    });
+    expect(mockMutate).toHaveBeenCalledTimes(2);
+  });
 });
