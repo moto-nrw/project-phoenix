@@ -21,7 +21,11 @@ import { navigationIcons } from "~/lib/navigation-icons";
 import { operatorPath } from "~/lib/operator-url";
 import { useParentMealPlanEnabled } from "~/lib/hooks/use-parent-meal-plan-enabled";
 import { useParentNewsEnabled } from "~/lib/hooks/use-parent-news-enabled";
-import { useNFCEnabled, usePresenceMode } from "~/lib/tenant-context";
+import {
+  useNFCEnabled,
+  usePresenceMode,
+  useTenantSlugSafe,
+} from "~/lib/tenant-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
   SETTINGS_SCHEMA_SWR_KEY,
@@ -379,8 +383,20 @@ interface MobileBottomNavProps {
 
 export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const tParentNav = useTranslations("parentNav");
-  const pathname = usePathname();
+  const rawPathname = usePathname();
+  const tenantSlug = useTenantSlugSafe();
   const searchParams = useSearchParams();
+  // Strip the tenant prefix so all active-state checks compare against
+  // unprefixed paths (e.g. "/eltern"). In path-routing mode usePathname()
+  // returns "/{slug}/eltern"; mirror the desktop sidebar's normalization so
+  // the "Mehr" button and drawer rows highlight correctly. No-op in
+  // subdomain/operator/parent mode where tenantSlug is null.
+  const pathname =
+    tenantSlug && rawPathname.startsWith(`/${tenantSlug}/`)
+      ? rawPathname.slice(tenantSlug.length + 1)
+      : tenantSlug && rawPathname === `/${tenantSlug}`
+        ? "/"
+        : rawPathname;
   // Prefixes tenant-scoped hrefs with the slug in path-routing mode (no-op in
   // subdomain/operator/parent mode). Used for the Eltern hub link below.
   const tenantPath = useTenantAwarePath();
