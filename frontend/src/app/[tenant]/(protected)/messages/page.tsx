@@ -104,7 +104,7 @@ function MessagesInboxContent() {
 
       {/* A single dropdown that filters on selection — same control and
           behaviour on desktop and mobile, no separate apply step. */}
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+      <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
         <select
           aria-label="Nachrichten filtern"
           value={onlyUnread ? "unread" : "all"}
