@@ -228,44 +228,6 @@ func TestGroupRepository_FindByName(t *testing.T) {
 	})
 }
 
-func TestGroupRepository_FindByRoom(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).Group
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("finds groups by room ID", func(t *testing.T) {
-		room := testpkg.CreateTestRoom(t, db, "FindByRoomTest")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, 0, room.ID)
-
-		// Create group with room
-		uniqueName := fmt.Sprintf("GroupForRoom-%d", time.Now().UnixNano())
-		group := &education.Group{
-			Name:   uniqueName,
-			RoomID: &room.ID,
-		}
-		err := repo.Create(ctx, group)
-		require.NoError(t, err)
-		defer cleanupGroupRecords(t, db, group.ID)
-
-		// Find by room
-		groups, err := repo.FindByRoom(ctx, room.ID)
-		require.NoError(t, err)
-		assert.NotEmpty(t, groups)
-
-		// Verify our group is in results
-		var found bool
-		for _, g := range groups {
-			if g.ID == group.ID {
-				found = true
-				break
-			}
-		}
-		assert.True(t, found)
-	})
-}
-
 func TestGroupRepository_FindByTeacher(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

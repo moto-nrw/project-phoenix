@@ -232,43 +232,6 @@ func isAuthenticated(ctx context.Context) bool {
 	return jwt.ClaimsFromCtx(ctx).ID > 0
 }
 
-func currentUserHasRole(ctx context.Context, roleName string) bool {
-	claims := jwt.ClaimsFromCtx(ctx)
-	for _, role := range claims.Roles {
-		if strings.EqualFold(role, roleName) {
-			return true
-		}
-	}
-	return false
-}
-
-// currentUserHasAnyRole checks whether the authenticated user holds at least
-// one of the given roles.  It returns true when:
-//   - the user is authenticated AND has at least one matching role, OR
-//   - the user is authenticated but has NO roles assigned at all (backwards-
-//     compatible: legacy tokens / test helpers that omit the Roles field are
-//     treated as implicitly authorised).
-//
-// It returns false only when:
-//   - the context has no claims (unauthenticated), OR
-//   - the user has explicit roles but none of them match.
-func currentUserHasAnyRole(ctx context.Context, roleNames ...string) bool {
-	claims := jwt.ClaimsFromCtx(ctx)
-	if claims.ID == 0 {
-		return false
-	}
-	// No explicit roles → legacy token / test context; allow through.
-	if len(claims.Roles) == 0 {
-		return true
-	}
-	for _, name := range roleNames {
-		if currentUserHasRole(ctx, name) {
-			return true
-		}
-	}
-	return false
-}
-
 // hasValidStaffOrTeacher checks if the user has valid staff or teacher linkage
 // Returns: valid bool, unexpectedErr error
 func (s *userContextService) hasValidStaffOrTeacher(staffErr, teacherErr error) (bool, error) {

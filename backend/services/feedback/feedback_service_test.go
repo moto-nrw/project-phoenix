@@ -187,78 +187,6 @@ func TestFeedbackService_GetEntryByID(t *testing.T) {
 	})
 }
 
-func TestFeedbackService_UpdateEntry(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupFeedbackService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	// Create a test student and entry
-	student := testpkg.CreateTestStudent(t, db, "Feedback", "UpdateStudent", "3a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, 0, 0)
-
-	entry := createTestFeedbackEntry(t, db, student.ID, feedback.ValuePositive, timezone.TodayDate())
-	defer cleanupFeedbackFixtures(t, db, []int64{entry.ID})
-
-	t.Run("updates entry successfully", func(t *testing.T) {
-		// ARRANGE
-		entry.Value = feedback.ValueNegative
-
-		// ACT
-		err := service.UpdateEntry(ctx, entry)
-
-		// ASSERT
-		require.NoError(t, err)
-
-		// Verify update
-		updated, err := service.GetEntryByID(ctx, entry.ID)
-		require.NoError(t, err)
-		assert.Equal(t, feedback.ValueNegative, updated.Value)
-	})
-
-	t.Run("rejects nil entry", func(t *testing.T) {
-		// ACT
-		err := service.UpdateEntry(ctx, nil)
-
-		// ASSERT
-		require.Error(t, err)
-	})
-
-	t.Run("rejects entry without ID", func(t *testing.T) {
-		// ARRANGE
-		entry := &feedback.Entry{
-			Value:     feedback.ValuePositive,
-			Day:       timezone.TodayDate(),
-			Time:      time.Now(),
-			StudentID: student.ID,
-		}
-
-		// ACT
-		err := service.UpdateEntry(ctx, entry)
-
-		// ASSERT
-		require.Error(t, err)
-	})
-
-	t.Run("returns error for non-existent entry", func(t *testing.T) {
-		// ARRANGE
-		entry := &feedback.Entry{
-			Value:     feedback.ValuePositive,
-			Day:       timezone.TodayDate(),
-			Time:      time.Now(),
-			StudentID: student.ID,
-		}
-		entry.ID = 999999999
-
-		// ACT
-		err := service.UpdateEntry(ctx, entry)
-
-		// ASSERT
-		require.Error(t, err)
-	})
-}
-
 func TestFeedbackService_DeleteEntry(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -548,98 +476,6 @@ func TestFeedbackService_GetEntriesByStudentAndDateRange(t *testing.T) {
 // Count Operations Tests
 // ============================================================================
 
-func TestFeedbackService_CountByDay(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupFeedbackService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	// Create a test student and entry
-	student := testpkg.CreateTestStudent(t, db, "Feedback", "CountDay", "10a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, 0, 0)
-
-	today := timezone.TodayDate()
-	entry := createTestFeedbackEntry(t, db, student.ID, feedback.ValuePositive, today)
-	defer cleanupFeedbackFixtures(t, db, []int64{entry.ID})
-
-	t.Run("counts entries for day", func(t *testing.T) {
-		// ACT
-		count, err := service.CountByDay(ctx, today)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, count, 1)
-	})
-
-	t.Run("returns error for zero time", func(t *testing.T) {
-		// ACT
-		_, err := service.CountByDay(ctx, timezone.Date{})
-
-		// ASSERT
-		require.Error(t, err)
-	})
-}
-
-func TestFeedbackService_CountByStudent(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupFeedbackService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	// Create a test student and entry
-	student := testpkg.CreateTestStudent(t, db, "Feedback", "CountStudent", "11a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, 0, 0)
-
-	entry := createTestFeedbackEntry(t, db, student.ID, feedback.ValueNeutral, timezone.TodayDate())
-	defer cleanupFeedbackFixtures(t, db, []int64{entry.ID})
-
-	t.Run("counts entries for student", func(t *testing.T) {
-		// ACT
-		count, err := service.CountByStudent(ctx, student.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, count, 1)
-	})
-
-	t.Run("returns error for invalid student ID", func(t *testing.T) {
-		// ACT
-		_, err := service.CountByStudent(ctx, 0)
-
-		// ASSERT
-		require.Error(t, err)
-	})
-}
-
-func TestFeedbackService_CountMensaFeedback(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupFeedbackService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("counts mensa feedback", func(t *testing.T) {
-		// ACT
-		count, err := service.CountMensaFeedback(ctx, true)
-
-		// ASSERT
-		require.NoError(t, err)
-		// May be zero, just verify no error
-		assert.GreaterOrEqual(t, count, 0)
-	})
-
-	t.Run("counts non-mensa feedback", func(t *testing.T) {
-		// ACT
-		count, err := service.CountMensaFeedback(ctx, false)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, count, 0)
-	})
-}
-
 // ============================================================================
 // Batch Operations Tests
 // ============================================================================
@@ -730,8 +566,9 @@ func TestFeedbackService_DeleteEntriesOlderThan(t *testing.T) {
 		defer cleanupFeedbackFixtures(t, db, []int64{oldEntry.ID, recentEntry.ID})
 
 		// Count before
-		countBefore, err := service.CountByStudent(ctx, student.ID)
+		entriesBefore, err := service.GetEntriesByStudent(ctx, student.ID)
 		require.NoError(t, err)
+		countBefore := len(entriesBefore)
 
 		// ACT: Delete entries older than 30 days
 		deleted, err := service.DeleteEntriesOlderThan(ctx, 30)
@@ -741,9 +578,9 @@ func TestFeedbackService_DeleteEntriesOlderThan(t *testing.T) {
 		assert.GreaterOrEqual(t, deleted, 1, "should delete at least the old entry")
 
 		// Verify count decreased
-		countAfter, err := service.CountByStudent(ctx, student.ID)
+		entriesAfter, err := service.GetEntriesByStudent(ctx, student.ID)
 		require.NoError(t, err)
-		assert.Less(t, countAfter, countBefore, "should have fewer entries after cleanup")
+		assert.Less(t, len(entriesAfter), countBefore, "should have fewer entries after cleanup")
 
 		// Verify recent entry still exists
 		recent, err := service.GetEntryByID(ctx, recentEntry.ID)

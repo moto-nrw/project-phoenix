@@ -529,16 +529,6 @@ func (s *guardianInvitationService) expireInvitations(ctx context.Context, invit
 	return nil
 }
 
-// ListPendingApprovals returns parent-initiated invitations awaiting staff
-// approval for the current tenant.
-func (s *guardianInvitationService) ListPendingApprovals(ctx context.Context) ([]*authModels.GuardianInvitation, error) {
-	invitations, err := s.invitationRepo.FindPendingApproval(ctx)
-	if err != nil {
-		return nil, &AuthError{Op: opGuardianInviteApprove, Err: err}
-	}
-	return invitations, nil
-}
-
 // PendingApprovalView is the staff-facing, name-resolved projection of a
 // parent-initiated invitation awaiting approval. Backs the approval queue so
 // staff see who is being invited, to which child, and by whom — not raw IDs.

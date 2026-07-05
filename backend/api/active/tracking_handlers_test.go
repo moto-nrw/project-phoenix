@@ -122,9 +122,6 @@ func (m *trackingMockActiveService) GetPresenceMode(_ context.Context) string {
 }
 
 // Stub out the rest of the Service interface:
-func (m *trackingMockActiveService) GetAllActiveSupervisions(_ context.Context) ([]*activeModel.GroupSupervisor, error) {
-	return nil, nil
-}
 func (m *trackingMockActiveService) GetActiveGroup(ctx context.Context, id int64) (*activeModel.Group, error) {
 	if m.getActiveGroupFunc != nil {
 		return m.getActiveGroupFunc(ctx, id)
@@ -150,9 +147,6 @@ func (m *trackingMockActiveService) FindDeviceActiveGroupInRoom(ctx context.Cont
 	return nil, nil
 }
 func (m *trackingMockActiveService) FindActiveGroupsByGroupID(ctx context.Context, groupID int64) ([]*activeModel.Group, error) {
-	return nil, nil
-}
-func (m *trackingMockActiveService) FindActiveGroupsByTimeRange(ctx context.Context, start, end time.Time) ([]*activeModel.Group, error) {
 	return nil, nil
 }
 func (m *trackingMockActiveService) EndActiveGroupSession(ctx context.Context, id int64) error {
@@ -181,9 +175,6 @@ func (m *trackingMockActiveService) FindVisitsByStudentID(ctx context.Context, s
 	return nil, nil
 }
 func (m *trackingMockActiveService) FindVisitsByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*activeModel.Visit, error) {
-	return nil, nil
-}
-func (m *trackingMockActiveService) FindVisitsByTimeRange(ctx context.Context, start, end time.Time) ([]*activeModel.Visit, error) {
 	return nil, nil
 }
 func (m *trackingMockActiveService) EndVisit(ctx context.Context, id int64) error { return nil }
@@ -220,21 +211,12 @@ func (m *trackingMockActiveService) AssignTransitStudentsToActiveGroup(ctx conte
 	}
 	return nil, nil
 }
-func (m *trackingMockActiveService) MoveStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64) (*activeSvc.StudentMoveResult, error) {
-	if m.moveStudentsToActiveGroupFunc != nil {
-		return m.moveStudentsToActiveGroupFunc(ctx, studentIDs, activeGroupID)
-	}
-	return nil, nil
-}
 func (m *trackingMockActiveService) MoveStudentsToActiveGroupAuthorized(ctx context.Context, studentIDs []int64, activeGroupID int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
 	if m.moveStudentsToActiveGroupAuthorizedFunc != nil {
 		return m.moveStudentsToActiveGroupAuthorizedFunc(ctx, studentIDs, activeGroupID, auth)
 	}
-	return m.MoveStudentsToActiveGroup(ctx, studentIDs, activeGroupID)
-}
-func (m *trackingMockActiveService) MoveStudentsToTransit(ctx context.Context, studentIDs []int64) (*activeSvc.StudentMoveResult, error) {
-	if m.moveStudentsToTransitFunc != nil {
-		return m.moveStudentsToTransitFunc(ctx, studentIDs)
+	if m.moveStudentsToActiveGroupFunc != nil {
+		return m.moveStudentsToActiveGroupFunc(ctx, studentIDs, activeGroupID)
 	}
 	return nil, nil
 }
@@ -242,7 +224,10 @@ func (m *trackingMockActiveService) MoveStudentsToTransitAuthorized(ctx context.
 	if m.moveStudentsToTransitAuthorizedFunc != nil {
 		return m.moveStudentsToTransitAuthorizedFunc(ctx, studentIDs, auth)
 	}
-	return m.MoveStudentsToTransit(ctx, studentIDs)
+	if m.moveStudentsToTransitFunc != nil {
+		return m.moveStudentsToTransitFunc(ctx, studentIDs)
+	}
+	return nil, nil
 }
 func (m *trackingMockActiveService) GetGroupSupervisor(ctx context.Context, id int64) (*activeModel.GroupSupervisor, error) {
 	return nil, nil
@@ -317,9 +302,6 @@ func (m *trackingMockActiveService) GetGroupMappingsByActiveGroupID(ctx context.
 func (m *trackingMockActiveService) GetGroupMappingsByCombinedGroupID(ctx context.Context, combinedGroupID int64) ([]*activeModel.GroupMapping, error) {
 	return nil, nil
 }
-func (m *trackingMockActiveService) StartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*activeModel.Group, error) {
-	return nil, nil
-}
 func (m *trackingMockActiveService) StartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*activeModel.Group, error) {
 	return nil, nil
 }
@@ -328,9 +310,6 @@ func (m *trackingMockActiveService) CheckActivityConflict(ctx context.Context, a
 }
 func (m *trackingMockActiveService) EndActivitySession(ctx context.Context, activeGroupID int64) error {
 	return nil
-}
-func (m *trackingMockActiveService) ForceStartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*activeModel.Group, error) {
-	return nil, nil
 }
 func (m *trackingMockActiveService) ForceStartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*activeModel.Group, error) {
 	return nil, nil

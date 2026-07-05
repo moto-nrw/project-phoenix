@@ -52,29 +52,6 @@ func (r *GroupSupervisorRepository) FindActiveByStaffID(ctx context.Context, sta
 	return supervisions, nil
 }
 
-// FindAllActive finds all currently active supervisions across all staff
-func (r *GroupSupervisorRepository) FindAllActive(ctx context.Context) ([]*active.GroupSupervisor, error) {
-	var supervisions []*active.GroupSupervisor
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&supervisions).
-		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
-		Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > NOW()`)
-
-	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find all active supervisions",
-			Err: err,
-		}
-	}
-
-	return supervisions, nil
-}
-
 // FindStaleOpen returns supervisor rows started before the given day that
 // still lack an end_date. Feeds the nightly stale-supervisor cleanup and its
 // preview (services/active/cleanup_service.go, session_service.go).

@@ -45,12 +45,6 @@ func ParseImageWithLimits(w http.ResponseWriter, r *http.Request, fieldName stri
 	return parseUploadWithLimits(w, r, fieldName, maxFileSize, maxBodySize, detectImageContentType)
 }
 
-// ParsePDF parses a multipart form upload, validates the content type via magic bytes,
-// and returns the file ready for saving. The caller must close UploadedFile.File.
-func ParsePDF(w http.ResponseWriter, r *http.Request, fieldName string, maxSize int64) (*UploadedFile, error) {
-	return ParsePDFWithLimits(w, r, fieldName, maxSize, maxSize)
-}
-
 // ParsePDFWithLimits enforces an advertised file-size cap separately from
 // the multipart body cap. Body cap needs headroom for boundaries and headers.
 func ParsePDFWithLimits(w http.ResponseWriter, r *http.Request, fieldName string, maxFileSize, maxBodySize int64) (*UploadedFile, error) {
@@ -97,10 +91,6 @@ func parseUploadWithLimits(
 // and validates it against AllowedImageTypes.
 func detectImageContentType(file io.ReadSeeker) (string, error) {
 	return detectAllowedContentType(file, AllowedImageTypes, "invalid file type. Only JPEG, PNG, and WebP images are allowed")
-}
-
-func detectContentType(file io.ReadSeeker) (string, error) {
-	return detectImageContentType(file)
 }
 
 // detectPDFContentType reads the first 512 bytes to detect a PDF via magic bytes.

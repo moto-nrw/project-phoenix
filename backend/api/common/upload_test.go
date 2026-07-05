@@ -21,7 +21,7 @@ func TestDetectContentType_JPEG(t *testing.T) {
 	jpegBytes[2] = 0xFF
 
 	reader := bytes.NewReader(jpegBytes)
-	contentType, err := detectContentType(reader)
+	contentType, err := detectImageContentType(reader)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "image/jpeg", contentType)
@@ -32,7 +32,7 @@ func TestDetectContentType_PNG(t *testing.T) {
 	copy(pngBytes, []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A})
 
 	reader := bytes.NewReader(pngBytes)
-	contentType, err := detectContentType(reader)
+	contentType, err := detectImageContentType(reader)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "image/png", contentType)
@@ -43,7 +43,7 @@ func TestDetectContentType_Invalid(t *testing.T) {
 	copy(htmlBytes, []byte("<!DOCTYPE html><html><body>Hello</body></html>"))
 
 	reader := bytes.NewReader(htmlBytes)
-	_, err := detectContentType(reader)
+	_, err := detectImageContentType(reader)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid file type")
@@ -55,7 +55,7 @@ func TestDetectContentType_SmallFile(t *testing.T) {
 	copy(pngBytes, []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A})
 
 	reader := bytes.NewReader(pngBytes)
-	contentType, err := detectContentType(reader)
+	contentType, err := detectImageContentType(reader)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "image/png", contentType)
@@ -63,7 +63,7 @@ func TestDetectContentType_SmallFile(t *testing.T) {
 
 func TestDetectContentType_Empty(t *testing.T) {
 	reader := bytes.NewReader([]byte{})
-	_, err := detectContentType(reader)
+	_, err := detectImageContentType(reader)
 
 	assert.Error(t, err)
 }
@@ -244,7 +244,7 @@ func TestParsePDF_ValidDocument(t *testing.T) {
 	req := createMultipartRequest(t, "document", "terms.pdf", makePDFBytes())
 	w := httptest.NewRecorder()
 
-	uploaded, err := ParsePDF(w, req, "document", 10<<20)
+	uploaded, err := ParsePDFWithLimits(w, req, "document", 10<<20, 10<<20)
 	require.NoError(t, err)
 	defer func() { _ = uploaded.File.Close() }()
 
@@ -256,7 +256,7 @@ func TestParsePDF_RejectsNonPDFContent(t *testing.T) {
 	req := createMultipartRequest(t, "document", "terms.pdf", makeJPEGBytes())
 	w := httptest.NewRecorder()
 
-	_, err := ParsePDF(w, req, "document", 10<<20)
+	_, err := ParsePDFWithLimits(w, req, "document", 10<<20, 10<<20)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Only PDF documents are allowed")
 }

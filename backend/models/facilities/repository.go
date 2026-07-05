@@ -28,14 +28,8 @@ type RoomRepository interface {
 	// occupancy aggregates, ordered by name.
 	ListWithOccupancy(ctx context.Context, options *base.QueryOptions) ([]RoomOccupancyRow, error)
 
-	// FindByBuilding retrieves rooms by building
-	FindByBuilding(ctx context.Context, building string) ([]*Room, error)
-
 	// FindByCategory retrieves rooms by category
 	FindByCategory(ctx context.Context, category string) ([]*Room, error)
-
-	// FindByFloor retrieves rooms by building and floor
-	FindByFloor(ctx context.Context, building string, floor int) ([]*Room, error)
 
 	// Update updates an existing room
 	Update(ctx context.Context, room *Room) error

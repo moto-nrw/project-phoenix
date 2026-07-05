@@ -167,7 +167,6 @@ type ClassRosterGuardian struct {
 type ReportService interface {
 	CareUsage(ctx context.Context, filters CareUsageFilters) (*CareUsageReport, error)
 	ExportCareUsage(ctx context.Context, filters CareUsageFilters, actorAccountID int64, actorRole, format string) (*CareUsageReport, error)
-	ClassRoster(ctx context.Context, filters ClassRosterFilters) (*ClassRosterReport, error)
 	ExportClassRoster(ctx context.Context, filters ClassRosterFilters, actorAccountID int64, actorRole, format string) (*ClassRosterReport, error)
 }
 

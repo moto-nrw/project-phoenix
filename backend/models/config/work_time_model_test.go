@@ -182,26 +182,3 @@ func TestStaffWorkScheduleValidate(t *testing.T) {
 		}
 	})
 }
-
-func TestWeeklyTargetForRotationWeek(t *testing.T) {
-	t.Parallel()
-
-	entries := []*config.StaffWorkSchedule{
-		{WeekIndex: 0, DayOfWeek: config.DayMonday, TargetMinutes: 20 * 60},
-		{WeekIndex: 1, DayOfWeek: config.DayMonday, TargetMinutes: 30 * 60},
-	}
-
-	weekZero := config.WeeklyTargetForRotationWeek(entries, 0)
-	weekOne := config.WeeklyTargetForRotationWeek(entries, 1)
-	missing := config.WeeklyTargetForRotationWeek(entries, 2)
-
-	if weekZero == nil || *weekZero != 20*60 {
-		t.Fatalf("week 0 target = %v, want 1200", weekZero)
-	}
-	if weekOne == nil || *weekOne != 30*60 {
-		t.Fatalf("week 1 target = %v, want 1800", weekOne)
-	}
-	if missing != nil {
-		t.Fatalf("missing week target = %v, want nil", *missing)
-	}
-}

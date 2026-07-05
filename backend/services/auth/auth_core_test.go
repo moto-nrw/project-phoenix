@@ -258,53 +258,6 @@ func TestAuthService_Login(t *testing.T) {
 // ValidateToken Tests
 // =============================================================================
 
-func TestAuthService_ValidateToken(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupAuthService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("validates token successfully", func(t *testing.T) {
-		// ARRANGE
-		email, username := uniqueTestCredentials("validate")
-		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
-		require.NoError(t, err)
-		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
-
-		accessToken, _, err := service.Login(ctx, email, testPassword)
-		require.NoError(t, err)
-
-		// ACT
-		validatedAccount, claims, err := service.ValidateToken(ctx, accessToken)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, validatedAccount)
-		assert.NotNil(t, claims)
-		assert.Equal(t, account.ID, validatedAccount.ID)
-	})
-
-	t.Run("returns error for invalid token", func(t *testing.T) {
-		// ACT
-		account, _, err := service.ValidateToken(ctx, "invalid.token.here")
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, account)
-	})
-
-	t.Run("returns error for empty token", func(t *testing.T) {
-		// ACT
-		account, _, err := service.ValidateToken(ctx, "")
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, account)
-	})
-}
-
 // =============================================================================
 // RefreshToken Tests
 // =============================================================================
@@ -449,7 +402,7 @@ func TestAuthService_Logout(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT
-		err = service.Logout(ctx, refreshToken)
+		err = service.LogoutWithAudit(ctx, refreshToken, "", "")
 
 		// ASSERT
 		require.NoError(t, err)
@@ -461,7 +414,7 @@ func TestAuthService_Logout(t *testing.T) {
 
 	t.Run("logout with invalid token returns error", func(t *testing.T) {
 		// ACT
-		err := service.Logout(ctx, "invalid.refresh.token")
+		err := service.LogoutWithAudit(ctx, "invalid.refresh.token", "", "")
 
 		// ASSERT
 		require.Error(t, err)
@@ -570,39 +523,6 @@ func TestAuthService_GetAccountByID(t *testing.T) {
 // =============================================================================
 // GetAccountByEmail Tests
 // =============================================================================
-
-func TestAuthService_GetAccountByEmail(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupAuthService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns account when found", func(t *testing.T) {
-		// ARRANGE
-		email, username := uniqueTestCredentials("getbyemail")
-		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
-		require.NoError(t, err)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
-
-		// ACT
-		result, err := service.GetAccountByEmail(ctx, email)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, result)
-		assert.Equal(t, account.ID, result.ID)
-	})
-
-	t.Run("returns error when not found", func(t *testing.T) {
-		// ACT
-		result, err := service.GetAccountByEmail(ctx, "nonexistent@test.local")
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, result)
-	})
-}
 
 // =============================================================================
 // Account Activation/Deactivation Tests
@@ -892,38 +812,6 @@ func TestAuthService_GetRoleByID(t *testing.T) {
 	t.Run("returns error when not found", func(t *testing.T) {
 		// ACT
 		result, err := service.GetRoleByID(ctx, 99999999)
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, result)
-	})
-}
-
-func TestAuthService_GetRoleByName(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupAuthService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns role when found", func(t *testing.T) {
-		// ARRANGE
-		name := fmt.Sprintf("find-role-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, name, "description", strPtr("user"))
-		require.NoError(t, err)
-
-		// ACT
-		result, err := service.GetRoleByName(ctx, name)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, result)
-		assert.Equal(t, role.ID, result.ID)
-	})
-
-	t.Run("returns error when not found", func(t *testing.T) {
-		// ACT
-		result, err := service.GetRoleByName(ctx, "nonexistent-role")
 
 		// ASSERT
 		require.Error(t, err)

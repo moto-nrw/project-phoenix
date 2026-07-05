@@ -518,21 +518,6 @@ func (s *guardianInvitationService) Resend(ctx context.Context, invitationID int
 	return nil
 }
 
-// CleanupExpired removes accepted-or-expired guardian invitations. Scheduler-
-// callable. Mirrors staff InvitationService.CleanupExpiredInvitations.
-func (s *guardianInvitationService) CleanupExpired(ctx context.Context) (int, error) {
-	count, err := s.invitationRepo.DeleteExpired(ctx)
-	if err != nil {
-		return 0, &AuthError{Op: "cleanup guardian invitations", Err: err}
-	}
-	if count > 0 {
-		s.getLogger().Info("guardian invitation cleanup completed",
-			slog.Int("records_deleted", count),
-		)
-	}
-	return count, nil
-}
-
 func (s *guardianInvitationService) fetchValidInvitation(ctx context.Context, token string) (*authModels.GuardianInvitation, error) {
 	token = strings.TrimSpace(token)
 	if token == "" {

@@ -358,16 +358,15 @@ func TestInviteToStudent_RequireApproval_QueuesPending(t *testing.T) {
 		"pending approval must not link the child yet")
 
 	// It shows up in the approval queue.
-	pending, err := env.service.ListPendingApprovals(ctx)
+	pending, err := env.service.ListPendingApprovalsDetailed(ctx)
 	require.NoError(t, err)
 	found := false
-	for _, inv := range pending {
-		if inv.ID == *result.InvitationID {
+	for _, view := range pending {
+		if view.InvitationID == *result.InvitationID {
 			found = true
-			assert.Equal(t, authModels.GuardianInvitationApprovalPending, inv.ApprovalStatus)
 		}
 	}
-	assert.True(t, found, "queued invitation must appear in ListPendingApprovals")
+	assert.True(t, found, "queued invitation must appear in the approval queue")
 
 	// Approving it links the child.
 	require.NoError(t, env.service.ApproveInvitation(ctx, *result.InvitationID, creatorID))

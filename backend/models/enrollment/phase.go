@@ -132,13 +132,6 @@ type Phase struct {
 	RolloverBumpsGrade    bool       `bun:"rollover_bumps_grade,notnull" json:"rollover_bumps_grade"`
 }
 
-// IsRollover reports whether this phase was created from a source
-// phase (i.e., the rollover columns are set). Used by the deadline
-// worker to scope its scan to rollover phases only.
-func (p *Phase) IsRollover() bool {
-	return p.RolloverSourcePhaseID != nil && p.RolloverMode != nil
-}
-
 // Validate runs the column-level checks in app code so the service can
 // fail fast before round-tripping. Mirrors the CHECK clauses from
 // migration 1.15.67 plus a couple of sanity rules (name non-empty,

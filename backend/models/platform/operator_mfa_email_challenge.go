@@ -20,7 +20,6 @@ type OperatorMFAEmailChallenge struct {
 }
 
 // IsConsumed returns true once the code has been redeemed. This is a pure field
-// accessor (ConsumedAt != nil); the wall-clock TTL/expiry decision lives in the
-// service layer (services/platform.OperatorMFAEmailChallengeExpired) and the
-// repository's active-challenge finder, per issue #586 (Rule 12).
+// accessor (ConsumedAt != nil); the wall-clock TTL/expiry decision is enforced
+// by the repository's active-challenge finder, per issue #586 (Rule 12).
 func (c *OperatorMFAEmailChallenge) IsConsumed() bool { return c.ConsumedAt != nil }

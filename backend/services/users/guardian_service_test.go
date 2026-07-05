@@ -217,44 +217,6 @@ func TestGuardianService_GetGuardianByID(t *testing.T) {
 }
 
 // =============================================================================
-// GetGuardianByEmail Tests
-// =============================================================================
-
-func TestGuardianService_GetGuardianByEmail(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupGuardianService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns guardian when found by email", func(t *testing.T) {
-		// ARRANGE
-		profile := testpkg.CreateTestGuardianProfile(t, db, "find-by-email")
-		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
-
-		// ACT
-		result, err := service.GetGuardianByEmail(ctx, *profile.Email)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotNil(t, result)
-		assert.Equal(t, profile.ID, result.ID)
-	})
-
-	t.Run("returns nil when email not found", func(t *testing.T) {
-		// ACT
-		result, err := service.GetGuardianByEmail(ctx, "nonexistent@test.local")
-
-		// ASSERT
-		if err != nil {
-			assert.Nil(t, result)
-		} else {
-			assert.Nil(t, result)
-		}
-	})
-}
-
-// =============================================================================
 // UpdateGuardian Tests
 // =============================================================================
 
@@ -409,7 +371,7 @@ func TestGuardianService_DeleteGuardian(t *testing.T) {
 }
 
 // =============================================================================
-// DeleteGuardianWithLinks + GetLinkedStudentNames Tests (#819)
+// DeleteGuardianWithLinks + GetGuardianDeleteImpact Tests (#819)
 // =============================================================================
 
 func TestGuardianService_DeleteGuardianWithLinks(t *testing.T) {
@@ -434,12 +396,10 @@ func TestGuardianService_DeleteGuardianWithLinks(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// GetLinkedStudentNames reports both children before deletion.
-	names, err := service.GetLinkedStudentNames(ctx, guardian.ID)
-	require.NoError(t, err)
-	assert.Len(t, names, 2, "both linked children must be reported for the 409 warning")
+	// The delete preview reports both children before deletion.
 	impact, err := service.GetGuardianDeleteImpact(ctx, guardian.ID)
 	require.NoError(t, err)
+	assert.Len(t, impact.StudentNames, 2, "both linked children must be reported for the 409 warning")
 	require.Len(t, impact.LinkIDs, 2, "both link IDs must be returned as the delete concurrency token")
 
 	// ACT — the deliberate full delete removes links first, then the guardian.
@@ -455,9 +415,9 @@ func TestGuardianService_DeleteGuardianWithLinks(t *testing.T) {
 	require.NoError(t, err)
 	gone, _ := service.GetGuardianByID(ctx, guardian.ID)
 	assert.Nil(t, gone, "guardian must be deleted by the force path")
-	remaining, err := service.GetLinkedStudentNames(ctx, guardian.ID)
+	remainingImpact, err := service.GetGuardianDeleteImpact(ctx, guardian.ID)
 	require.NoError(t, err)
-	assert.Empty(t, remaining, "all student links must be removed")
+	assert.Empty(t, remainingImpact.StudentNames, "all student links must be removed")
 }
 
 func TestGuardianService_DeleteGuardianWithLinks_RejectsChangedPreview(t *testing.T) {
@@ -487,9 +447,9 @@ func TestGuardianService_DeleteGuardianWithLinks_RejectsChangedPreview(t *testin
 	survivor, err := service.GetGuardianByID(ctx, guardian.ID)
 	require.NoError(t, err)
 	assert.NotNil(t, survivor, "guardian must survive when preview token is stale")
-	remaining, err := service.GetLinkedStudentNames(ctx, guardian.ID)
+	remainingImpact, err := service.GetGuardianDeleteImpact(ctx, guardian.ID)
 	require.NoError(t, err)
-	assert.Len(t, remaining, 1, "link must survive when preview token is stale")
+	assert.Len(t, remainingImpact.StudentNames, 1, "link must survive when preview token is stale")
 }
 
 // =============================================================================
@@ -1253,9 +1213,10 @@ func TestGuardianService_AddGuardiansToStudent(t *testing.T) {
 		req := validNewStudentGuardian(email)
 
 		err := service.AddGuardiansToStudent(ctx, missingStudentID, []users.NewStudentGuardian{req})
-		if created, lookupErr := service.GetGuardianByEmail(ctx, email); lookupErr == nil && created != nil {
-			testpkg.CleanupActivityFixtures(t, db, created.ID)
-		}
+		t.Cleanup(func() {
+			_, _ = db.NewDelete().TableExpr("users.guardian_profiles").
+				Where("email = ?", email).Exec(context.Background())
+		})
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to link guardian at index 0")

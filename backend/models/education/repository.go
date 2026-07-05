@@ -22,7 +22,6 @@ type GroupRepository interface {
 	List(ctx context.Context, filters map[string]interface{}) ([]*Group, error)
 	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*Group, error)
 	FindByName(ctx context.Context, name string) (*Group, error)
-	FindByRoom(ctx context.Context, roomID int64) ([]*Group, error)
 	FindByTeacher(ctx context.Context, teacherID int64) ([]*Group, error)
 	FindWithRoom(ctx context.Context, groupID int64) (*Group, error)
 	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)

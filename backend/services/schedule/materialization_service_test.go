@@ -336,29 +336,6 @@ func TestExtractTimeOfDay(t *testing.T) {
 }
 
 // -----------------------------------------------------------------------------
-// TestMergeDecision — insert-only policy. Every non-empty existing status
-// resolves to SkipExisting. decideMerge("") → Insert.
-// -----------------------------------------------------------------------------
-
-func TestMergeDecision(t *testing.T) {
-	cases := []struct {
-		status string
-		want   mergeDecision
-	}{
-		{"", mergeDecisionInsert},
-		{schedule.InstanceStatusPlanned, mergeDecisionSkipExisting},
-		{schedule.InstanceStatusActive, mergeDecisionSkipExisting},
-		{schedule.InstanceStatusCompleted, mergeDecisionSkipExisting},
-		{schedule.InstanceStatusCancelled, mergeDecisionSkipExisting},
-	}
-	for _, tc := range cases {
-		t.Run("status="+tc.status, func(t *testing.T) {
-			assert.Equal(t, tc.want, decideMerge(tc.status))
-		})
-	}
-}
-
-// -----------------------------------------------------------------------------
 // TestPeriodSelection — the WP-B8 period-selection rule.
 // -----------------------------------------------------------------------------
 

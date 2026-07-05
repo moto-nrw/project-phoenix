@@ -45,10 +45,6 @@ func (p *Permission) GetFullName() string {
 	return p.Resource + ":" + p.Action
 }
 
-// Note: the admin-level classification (formerly Permission.IsAdminPermission)
-// moved out of the model in issue #586 (Rule 12) to:
-//   - auth/authorize/role_permission.go (PermissionIsAdmin)
-
 // Clone creates a copy of the permission
 func (p *Permission) Clone() *Permission {
 	return &Permission{

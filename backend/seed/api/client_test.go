@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -139,8 +141,14 @@ func TestJoinStrings_Multiple(t *testing.T) {
 // Client Tests (with httptest)
 // =============================================================================
 
+// newTestClient builds a Client the way the seeder does (NewClientWithAdapter
+// over a fresh adapter); the direct constructor was deleted as dead code.
+func newTestClient(baseURL string, verbose bool) *Client {
+	return NewClientWithAdapter(phoenixapi.New(baseURL, verbose), verbose)
+}
+
 func TestNewClient(t *testing.T) {
-	c := NewClient("http://localhost:8080", true)
+	c := newTestClient("http://localhost:8080", true)
 	assert.Equal(t, "http://localhost:8080", c.baseURL)
 	assert.True(t, c.verbose)
 	assert.NotNil(t, c.httpClient)
@@ -153,13 +161,13 @@ func TestClient_CheckHealth_Success(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewClient(srv.URL, false)
+	c := newTestClient(srv.URL, false)
 	err := c.CheckHealth()
 	assert.NoError(t, err)
 }
 
 func TestClient_CheckHealth_ServerDown(t *testing.T) {
-	c := NewClient("http://localhost:1", false)
+	c := newTestClient("http://localhost:1", false)
 	err := c.CheckHealth()
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "server not reachable")
@@ -171,7 +179,7 @@ func TestClient_CheckHealth_NonOK(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewClient(srv.URL, false)
+	c := newTestClient(srv.URL, false)
 	err := c.CheckHealth()
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "health check failed")
@@ -192,7 +200,7 @@ func TestClient_Login_Success(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewClient(srv.URL, false)
+	c := newTestClient(srv.URL, false)
 	err := c.Login("demo1@mail.de", "pass123")
 	require.NoError(t, err)
 	assert.Equal(t, "test-token-123", c.token)
@@ -205,7 +213,7 @@ func TestClient_Login_NoToken(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewClient(srv.URL, false)
+	c := newTestClient(srv.URL, false)
 	err := c.Login("demo1@mail.de", "pass123")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "no access token")
@@ -218,7 +226,7 @@ func TestClient_Login_ServerError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewClient(srv.URL, false)
+	c := newTestClient(srv.URL, false)
 	err := c.Login("wrong@mail.de", "wrong")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "login request failed")
@@ -235,7 +243,7 @@ func TestClient_Post_Success(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewClient(srv.URL, false)
+	c := newTestClient(srv.URL, false)
 	c.token = "test-token"
 
 	resp, err := c.Post("/api/rooms", map[string]string{"name": "Room 1"})
@@ -254,7 +262,7 @@ func TestClient_Get_Success(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewClient(srv.URL, false)
+	c := newTestClient(srv.URL, false)
 	c.token = "my-token"
 
 	resp, err := c.Get("/api/active/visits")
@@ -272,7 +280,7 @@ func TestClient_Put_Success(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewClient(srv.URL, false)
+	c := newTestClient(srv.URL, false)
 	c.token = "tok"
 
 	resp, err := c.Put("/api/students/1", map[string]bool{"sick": true})
@@ -287,7 +295,7 @@ func TestClient_Post_ServerError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewClient(srv.URL, false)
+	c := newTestClient(srv.URL, false)
 	c.token = "tok"
 
 	_, err := c.Post("/api/rooms", map[string]string{"name": "Room"})
@@ -304,7 +312,7 @@ func TestClient_Post_NoAuth(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewClient(srv.URL, false)
+	c := newTestClient(srv.URL, false)
 	// token is empty
 	_, err := c.Post("/api/rooms", nil)
 	assert.NoError(t, err)
@@ -320,7 +328,7 @@ func TestClient_Get_NilBody(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewClient(srv.URL, false)
+	c := newTestClient(srv.URL, false)
 	c.token = "tok"
 	resp, err := c.Get("/api/test")
 	require.NoError(t, err)
@@ -334,7 +342,7 @@ func TestClient_Verbose_Logging(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewClient(srv.URL, true) // verbose=true
+	c := newTestClient(srv.URL, true) // verbose=true
 	c.token = "tok"
 
 	// Just verify it doesn't panic with verbose logging
@@ -349,7 +357,7 @@ func TestClient_Login_InvalidJSON(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewClient(srv.URL, false)
+	c := newTestClient(srv.URL, false)
 	err := c.Login("test@mail.de", "pass")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "parse login response")

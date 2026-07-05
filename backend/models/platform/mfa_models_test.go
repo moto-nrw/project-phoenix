@@ -75,7 +75,6 @@ func TestOperatorMFATrustedDevice_IsRevoked(t *testing.T) {
 // database/repositories/platform/operator_mfa_atomic_test.go.
 //
 // The wall-clock expiry/active decisions (OperatorMFAEmailChallenge.IsExpired,
-// OperatorMFATrustedDevice.IsExpired/IsActive) likewise moved to
-// services/platform (OperatorMFAEmailChallengeExpired,
-// OperatorMFATrustedDeviceExpired/Active) and are covered by
-// services/platform/operator_token_validity_test.go with the clock injected.
+// OperatorMFATrustedDevice.IsExpired/IsActive) likewise moved off the models
+// and are enforced by the repositories' SQL expiry filters
+// (FindActiveByOperatorID, FindActiveByOperatorIDAndTokenHash).

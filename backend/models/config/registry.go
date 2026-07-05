@@ -1,7 +1,6 @@
 package config
 
 import (
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"sync"
@@ -177,14 +176,6 @@ func toFloat(v any) (float64, bool) {
 	default:
 		return 0, false
 	}
-}
-
-// MarshalDefault returns the default value as JSON bytes.
-func (d *Definition) MarshalDefault() (json.RawMessage, error) {
-	if d.Default == nil {
-		return json.RawMessage("null"), nil
-	}
-	return json.Marshal(d.Default)
 }
 
 // --- Registry singleton ---

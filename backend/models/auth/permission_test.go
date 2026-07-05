@@ -178,10 +178,6 @@ func TestPermission_GetFullName(t *testing.T) {
 	}
 }
 
-// Note: the admin-level classification (formerly Permission.IsAdminPermission)
-// moved out of the model in issue #586 (Rule 12). Its test follows the logic to:
-//   - auth/authorize/role_permission_test.go (TestPermissionIsAdmin)
-
 func TestPermission_Clone(t *testing.T) {
 	now := time.Now()
 	original := &Permission{

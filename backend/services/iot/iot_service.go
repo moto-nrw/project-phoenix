@@ -466,13 +466,6 @@ func (s *service) ScanNetwork(_ context.Context) (map[string]string, error) {
 	return nil, &IoTError{Op: "ScanNetwork", Err: errors.New("network scanning not implemented")}
 }
 
-// UpdateDeviceLastSeen updates only the last_seen timestamp for a device by PK.
-// This is a targeted update that skips existence checks and full-model validation,
-// intended for use in middleware where the device has already been authenticated.
-func (s *service) UpdateDeviceLastSeen(ctx context.Context, id int64) error {
-	return s.UpdateDeviceLastSeenAt(ctx, id, time.Now())
-}
-
 // UpdateDeviceLastSeenAt updates only the last_seen timestamp for a device using
 // the caller-supplied observation time. Uses the integer PK (globally unique)
 // rather than device_id (unique per tenant) for cross-tenant safety.

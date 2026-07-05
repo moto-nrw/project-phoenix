@@ -63,12 +63,6 @@ func (r *Role) Validate() error {
 	return nil
 }
 
-// Note: the role's permission membership check and the add/remove permission
-// mutations (formerly Role.HasPermission / Role.AddPermission /
-// Role.RemovePermission) moved out of the model in issue #586 (Rule 12) to:
-//   - auth/authorize/role_permission.go (RoleHasPermission / RoleAddPermission /
-//     RoleRemovePermission)
-
 // GetTenantID returns the tenant ID (0 if nil/system role).
 func (r *Role) GetTenantID() int64 {
 	if r.TenantID != nil {

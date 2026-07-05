@@ -185,8 +185,9 @@ func (s *service) SetSettingsService(resolver SettingsResolver) {
 // GetPresenceMode returns the tenant's resolved presence mode
 // ("detailed" | "binary"), falling back to "detailed" whenever the settings
 // resolver is nil, the key is unset/empty, or the lookup errors. Mirrors the
-// fallback logic of services/config.ResolvePresenceMode but avoids importing
-// the config package here (it would create a dep cycle through the factory).
+// fallback logic of services/config.ResolvePresenceModeForTenant but avoids
+// importing the config package here (it would create a dep cycle through the
+// factory).
 func (s *service) GetPresenceMode(ctx context.Context) string {
 	const (
 		keyPresenceMode      = "operations.presence_mode"
@@ -393,18 +394,6 @@ func (s *service) FindActiveGroupsByGroupID(ctx context.Context, groupID int64) 
 	groups, err := s.groupRepo.FindActiveByGroupID(ctx, groupID)
 	if err != nil {
 		return nil, &ActiveError{Op: "FindActiveGroupsByGroupID", Err: ErrDatabaseOperation}
-	}
-	return groups, nil
-}
-
-func (s *service) FindActiveGroupsByTimeRange(ctx context.Context, start, end time.Time) ([]*active.Group, error) {
-	if start.After(end) {
-		return nil, &ActiveError{Op: "FindActiveGroupsByTimeRange", Err: ErrInvalidTimeRange}
-	}
-
-	groups, err := s.groupRepo.FindByTimeRange(ctx, start, end)
-	if err != nil {
-		return nil, &ActiveError{Op: "FindActiveGroupsByTimeRange", Err: ErrDatabaseOperation}
 	}
 	return groups, nil
 }
@@ -695,18 +684,6 @@ func (s *service) FindVisitsByActiveGroupID(ctx context.Context, activeGroupID i
 	visits, err := s.visitRepo.FindByActiveGroupID(ctx, activeGroupID)
 	if err != nil {
 		return nil, &ActiveError{Op: "FindVisitsByActiveGroupID", Err: ErrDatabaseOperation}
-	}
-	return visits, nil
-}
-
-func (s *service) FindVisitsByTimeRange(ctx context.Context, start, end time.Time) ([]*active.Visit, error) {
-	if start.After(end) {
-		return nil, &ActiveError{Op: "FindVisitsByTimeRange", Err: ErrInvalidTimeRange}
-	}
-
-	visits, err := s.visitRepo.FindByTimeRange(ctx, start, end)
-	if err != nil {
-		return nil, &ActiveError{Op: "FindVisitsByTimeRange", Err: ErrDatabaseOperation}
 	}
 	return visits, nil
 }
@@ -1164,25 +1141,6 @@ func (s *service) GetStaffActiveSupervisions(ctx context.Context, staffID int64)
 	}
 
 	// Filter only active supervisions
-	now := time.Now()
-	var activeSupervisions []*active.GroupSupervisor
-	for _, supervisor := range supervisors {
-		if IsSupervisorActive(supervisor, now) {
-			activeSupervisions = append(activeSupervisions, supervisor)
-		}
-	}
-
-	return activeSupervisions, nil
-}
-
-// GetAllActiveSupervisions returns all currently active supervisions across all staff.
-// Used by admin supervision overview to display all active rooms.
-func (s *service) GetAllActiveSupervisions(ctx context.Context) ([]*active.GroupSupervisor, error) {
-	supervisors, err := s.supervisorRepo.FindAllActive(ctx)
-	if err != nil {
-		return nil, &ActiveError{Op: "GetAllActiveSupervisions", Err: ErrDatabaseOperation}
-	}
-
 	now := time.Now()
 	var activeSupervisions []*active.GroupSupervisor
 	for _, supervisor := range supervisors {

@@ -220,17 +220,6 @@ func (s *Service) handlePrimaryStatusChangeInTx(ctx context.Context, txService A
 	return nil
 }
 
-// GetStaffAssignments gets all supervisor assignments for a staff member
-func (s *Service) GetStaffAssignments(ctx context.Context, staffID int64) ([]*activities.SupervisorPlanned, error) {
-	// Directly use the repository
-	assignments, err := s.supervisorRepo.FindByStaffID(ctx, staffID)
-	if err != nil {
-		return nil, &ActivityError{Op: "get staff assignments", Err: err}
-	}
-
-	return assignments, nil
-}
-
 // DeleteSupervisor deletes a supervisor
 func (s *Service) DeleteSupervisor(ctx context.Context, id int64) error {
 	supervisor, err := s.supervisorRepo.FindByID(ctx, id)

@@ -22,106 +22,9 @@ import (
 
 // Activity Session Management with Conflict Detection
 
-// StartActivitySession starts a new activity session on a device with conflict detection
-func (s *service) StartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*active.Group, error) {
-	var newGroup *active.Group
-	err := s.executeSessionStart(ctx, activityID, deviceID, roomID, "StartActivitySession", func(ctx context.Context, finalRoomID int64) (*active.Group, error) {
-		group, err := s.createSessionWithSupervisor(ctx, activityID, deviceID, staffID, finalRoomID)
-		newGroup = group
-		return group, err
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	s.broadcastActivityStartEvent(ctx, newGroup, []int64{staffID})
-	return newGroup, nil
-}
-
 // determineSessionRoomID determines the room for a session with conflict checking
 func (s *service) determineSessionRoomID(ctx context.Context, activityID int64, roomID *int64) (int64, error) {
 	return s.determineRoomIDWithStrategy(ctx, activityID, roomID, RoomConflictFail)
-}
-
-// createSessionWithSupervisor creates a new session, assigns supervisor, and transfers visits
-func (s *service) createSessionWithSupervisor(ctx context.Context, activityID, deviceID, staffID, roomID int64) (*active.Group, error) {
-	newGroup, transferredCount, err := s.createSessionBase(ctx, activityID, deviceID, roomID)
-	if err != nil {
-		return nil, err
-	}
-
-	s.assignSupervisorNonCritical(ctx, newGroup.ID, staffID, newGroup.StartTime)
-
-	if transferredCount > 0 {
-		s.getLogger().InfoContext(ctx, "visits transferred to new session",
-			slog.Int("count", transferredCount),
-			slog.Int64("session_id", newGroup.ID),
-		)
-	}
-
-	return newGroup, nil
-}
-
-// assignSupervisorNonCritical assigns a supervisor but doesn't fail if assignment fails.
-// Also ensures the staff member is checked in for time tracking (NFC auto-check-in).
-func (s *service) assignSupervisorNonCritical(ctx context.Context, groupID, staffID int64, startDate time.Time) {
-	supervisor := &active.GroupSupervisor{
-		StaffID:   staffID,
-		GroupID:   groupID,
-		Role:      "Supervisor",
-		StartDate: timezone.DateFromTime(startDate),
-	}
-	supervisor.SetTenantID(tenant.FromContext(ctx))
-	s.runBestEffortDB(ctx, "assign_supervisor", func() error {
-		return s.supervisorRepo.Create(ctx, supervisor)
-	}, func(err error) {
-		s.getLogger().WarnContext(ctx, "supervisor assignment failed",
-			slog.Int64("staff_id", staffID),
-			slog.Int64("group_id", groupID),
-			slog.String("error", err.Error()),
-		)
-	})
-
-	// NFC auto-check-in: ensure staff member has a work session for today.
-	// This path runs from the IoT supervisor flow (kiosk-driven activity
-	// start), so the channel is recorded as 'nfc' in the audit trail.
-	//
-	// EnsureCheckedIn returns (nil, nil) when the staff member has already
-	// checked out for the day — by design, we do not auto-reopen. That
-	// leaves an asymmetric audit trail (supervisor row recorded, no
-	// matching NFC stamp), so log it at INFO so a dispute can be traced
-	// later.
-	if s.workSessionService != nil {
-		s.runBestEffortDB(ctx, "nfc_auto_checkin", func() error {
-			session, err := s.workSessionService.EnsureCheckedIn(ctx, staffID, active.WorkSessionSourceNFC)
-			if err != nil {
-				var plannedStart *PlannedStartNotReachedError
-				if errors.As(err, &plannedStart) {
-					s.getLogger().InfoContext(ctx, "NFC auto-check-in skipped: planned start not reached",
-						slog.Int64("staff_id", staffID),
-						slog.Int64("group_id", groupID),
-						slog.String("planned_start_time", plannedStart.PlannedStartTime),
-						slog.String("current_time", plannedStart.CurrentTime),
-					)
-					return nil
-				}
-				return err
-			}
-			if session == nil {
-				s.getLogger().InfoContext(ctx, "NFC auto-check-in skipped: staff already checked out today",
-					slog.Int64("staff_id", staffID),
-					slog.Int64("group_id", groupID),
-				)
-			}
-			return nil
-		}, func(err error) {
-			s.getLogger().WarnContext(ctx, "NFC auto-check-in failed",
-				slog.Int64("staff_id", staffID),
-				slog.String("error", err.Error()),
-			)
-		})
-	}
 }
 
 // broadcastActivityStartEvent broadcasts SSE event for activity start
@@ -276,7 +179,7 @@ func (s *service) createSessionWithMultipleSupervisors(ctx context.Context, acti
 // assignMultipleSupervisorsNonCritical assigns multiple supervisors but doesn't fail if assignment fails.
 // Each supervisor is inserted independently so one bad row doesn't prevent the other valid assignments.
 //
-// Mirrors the single-supervisor variant's NFC auto-check-in (assignSupervisorNonCritical):
+// Mirrors the deleted single-supervisor variant's NFC auto-check-in:
 // the kiosk-driven IoT activity start dispatches through this path, so each
 // supervisor must get a work_session stamped with source='nfc' for the audit
 // trail to distinguish kiosk scans from app check-ins. Without the loop here,
@@ -348,68 +251,6 @@ func (s *service) assignMultipleSupervisorsNonCritical(ctx context.Context, grou
 			})
 		}
 	}
-}
-
-// ForceStartActivitySession starts an activity session with override capability
-func (s *service) ForceStartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*active.Group, error) {
-	const operation = "ForceStartActivitySession"
-	txHandler := modelBase.NewTxHandler(s.db)
-
-	var newGroup *active.Group
-	err := txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
-		if err := s.acquireActivitySessionLock(txCtx, tx, activityID, operation); err != nil {
-			return err
-		}
-
-		deviceEndedSessionID, err := s.endExistingDeviceSessionForForceStart(txCtx, deviceID)
-		if err != nil {
-			return &ActiveError{Op: operation, Err: err}
-		}
-
-		finalRoomID := s.determineRoomIDWithoutConflictCheck(txCtx, activityID, roomID)
-
-		group, err := s.createSessionWithSupervisorForceStart(txCtx, activityID, deviceID, staffID, finalRoomID)
-		if err != nil {
-			return &ActiveError{Op: operation, Err: err}
-		}
-
-		if err := s.completeForceEndedTimetableMirrors(txCtx, appendActiveGroupID(nil, deviceEndedSessionID)); err != nil {
-			return &ActiveError{Op: operation, Err: err}
-		}
-
-		newGroup = group
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return newGroup, nil
-}
-
-// determineRoomIDWithoutConflictCheck determines room ID without checking conflicts (for force start)
-func (s *service) determineRoomIDWithoutConflictCheck(ctx context.Context, activityID int64, roomID *int64) int64 {
-	finalRoomID, _ := s.determineRoomIDWithStrategy(ctx, activityID, roomID, RoomConflictIgnore)
-	return finalRoomID
-}
-
-// createSessionWithSupervisorForceStart creates a session for force start with special logging
-func (s *service) createSessionWithSupervisorForceStart(ctx context.Context, activityID, deviceID, staffID, roomID int64) (*active.Group, error) {
-	newGroup, transferredCount, err := s.createSessionBase(ctx, activityID, deviceID, roomID)
-	if err != nil {
-		return nil, err
-	}
-
-	s.assignSupervisorNonCritical(ctx, newGroup.ID, staffID, newGroup.StartTime)
-
-	if transferredCount > 0 {
-		s.getLogger().InfoContext(ctx, "visits transferred to new session (force start)",
-			slog.Int("count", transferredCount),
-			slog.Int64("session_id", newGroup.ID),
-		)
-	}
-
-	return newGroup, nil
 }
 
 // createSessionBase creates a new active group session and transfers visits from recent sessions
@@ -719,24 +560,6 @@ func normalizeTransferredSupervisorRole(role string) string {
 		return "supervisor"
 	}
 	return role
-}
-
-// endExistingDeviceSession ends any existing session for the device
-func (s *service) endExistingDeviceSession(ctx context.Context, deviceID int64, fullCleanup bool) error {
-	existingSession, err := s.groupRepo.FindActiveByDeviceID(ctx, deviceID)
-	if err != nil {
-		return err
-	}
-
-	if existingSession == nil {
-		return nil
-	}
-
-	if fullCleanup {
-		return s.EndActivitySession(ctx, existingSession.ID)
-	}
-
-	return s.groupRepo.EndSession(ctx, existingSession.ID)
 }
 
 // determineRoomIDForForceStart determines room ID for force start with conflict warning but no failure

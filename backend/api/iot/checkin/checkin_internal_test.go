@@ -291,39 +291,6 @@ func TestGetStudentDailyCheckoutTime_NoConfigAnywhere_ReturnsNil(t *testing.T) {
 }
 
 // =============================================================================
-// getRoomNameFromVisit TESTS
-// =============================================================================
-
-func TestGetRoomNameFromVisit_NilVisit(t *testing.T) {
-	result := getRoomNameFromVisit(nil)
-	assert.Equal(t, "", result)
-}
-
-func TestGetRoomNameFromVisit_NilActiveGroup(t *testing.T) {
-	visit := &active.Visit{}
-	result := getRoomNameFromVisit(visit)
-	assert.Equal(t, "", result)
-}
-
-func TestGetRoomNameFromVisit_NilRoom(t *testing.T) {
-	visit := &active.Visit{
-		ActiveGroup: &active.Group{},
-	}
-	result := getRoomNameFromVisit(visit)
-	assert.Equal(t, "", result)
-}
-
-func TestGetRoomNameFromVisit_WithRoom(t *testing.T) {
-	visit := &active.Visit{
-		ActiveGroup: &active.Group{
-			Room: &facilities.Room{Name: "Test Room"},
-		},
-	}
-	result := getRoomNameFromVisit(visit)
-	assert.Equal(t, "Test Room", result)
-}
-
-// =============================================================================
 // shouldSkipCheckin TESTS
 // =============================================================================
 
@@ -1140,53 +1107,6 @@ func TestCheckinProcessingInput_Struct(t *testing.T) {
 	assert.False(t, input.SkipCheckin)
 	assert.True(t, input.CheckedOut)
 	assert.Nil(t, input.CurrentVisit)
-}
-
-// =============================================================================
-// countActiveStudentsInVisits TESTS
-// =============================================================================
-
-func TestCountActiveStudentsInVisits_EmptySlice(t *testing.T) {
-	count := countActiveStudentsInVisits([]*active.Visit{})
-	assert.Equal(t, 0, count)
-}
-
-func TestCountActiveStudentsInVisits_NilSlice(t *testing.T) {
-	count := countActiveStudentsInVisits(nil)
-	assert.Equal(t, 0, count)
-}
-
-func TestCountActiveStudentsInVisits_AllActive(t *testing.T) {
-	visits := []*active.Visit{
-		{Model: base.Model{ID: 1}, ExitTime: nil},
-		{Model: base.Model{ID: 2}, ExitTime: nil},
-		{Model: base.Model{ID: 3}, ExitTime: nil},
-	}
-	count := countActiveStudentsInVisits(visits)
-	assert.Equal(t, 3, count)
-}
-
-func TestCountActiveStudentsInVisits_AllExited(t *testing.T) {
-	now := time.Now()
-	visits := []*active.Visit{
-		{Model: base.Model{ID: 1}, ExitTime: &now},
-		{Model: base.Model{ID: 2}, ExitTime: &now},
-	}
-	count := countActiveStudentsInVisits(visits)
-	assert.Equal(t, 0, count)
-}
-
-func TestCountActiveStudentsInVisits_Mixed(t *testing.T) {
-	now := time.Now()
-	visits := []*active.Visit{
-		{Model: base.Model{ID: 1}, ExitTime: nil},  // active
-		{Model: base.Model{ID: 2}, ExitTime: &now}, // exited
-		{Model: base.Model{ID: 3}, ExitTime: nil},  // active
-		{Model: base.Model{ID: 4}, ExitTime: &now}, // exited
-		{Model: base.Model{ID: 5}, ExitTime: nil},  // active
-	}
-	count := countActiveStudentsInVisits(visits)
-	assert.Equal(t, 3, count)
 }
 
 // =============================================================================

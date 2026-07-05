@@ -790,25 +790,6 @@ func schedulePinnedPeriodID(tmpl *activities.Group, sch *activities.Schedule) *i
 	return nil
 }
 
-// mergeDecision is the per-candidate branch used by the materialization loop.
-// Exposed as a pure function so tests can cover each status without a DB.
-type mergeDecision int
-
-const (
-	mergeDecisionInsert mergeDecision = iota
-	mergeDecisionSkipExisting
-)
-
-// decideMerge chooses what to do given an existing row of the given status.
-// Under the WP-B8 insert-only policy, every non-nil existing row is skipped —
-// template propagation becomes the "Re-plan week" WP-B9 action.
-func decideMerge(existingStatus string) mergeDecision {
-	if existingStatus == "" {
-		return mergeDecisionInsert
-	}
-	return mergeDecisionSkipExisting
-}
-
 // --- indexing helpers (not part of the public surface) ---
 
 func buildExistingIndex(existing []*schedule.ActivityInstance) map[existingKey]struct{} {

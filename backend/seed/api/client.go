@@ -20,17 +20,6 @@ type Client struct {
 	verbose    bool
 }
 
-// NewClient creates a new API client
-func NewClient(baseURL string, verbose bool) *Client {
-	adapter := phoenixapi.New(baseURL, verbose)
-	return &Client{
-		baseURL:    baseURL,
-		adapter:    adapter,
-		httpClient: adapter.HTTPClient(),
-		verbose:    verbose,
-	}
-}
-
 // NewClientWithAdapter creates a client that reuses a shared adapter.
 func NewClientWithAdapter(adapter *phoenixapi.Adapter, verbose bool) *Client {
 	return &Client{

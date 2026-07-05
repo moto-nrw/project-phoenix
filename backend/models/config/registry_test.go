@@ -153,24 +153,6 @@ func TestDefinitionValidate_SelectWithOptions(t *testing.T) {
 	assert.NoError(t, def.Validate())
 }
 
-func TestMarshalDefault(t *testing.T) {
-	def := validDefinition("test.marshal")
-	def.Default = 42
-
-	data, err := def.MarshalDefault()
-	require.NoError(t, err)
-	assert.Equal(t, "42", string(data))
-}
-
-func TestMarshalDefault_Nil(t *testing.T) {
-	def := validDefinition("test.marshal_nil")
-	def.Default = nil
-
-	data, err := def.MarshalDefault()
-	require.NoError(t, err)
-	assert.Equal(t, "null", string(data))
-}
-
 func TestResetRegistry(t *testing.T) {
 	setup(t)
 	config.Register(validDefinition("test.reset"))

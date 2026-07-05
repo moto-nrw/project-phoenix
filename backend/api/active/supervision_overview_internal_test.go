@@ -132,9 +132,6 @@ func (s *stubActiveService) FindDeviceActiveGroupInRoom(_ context.Context, _, _ 
 func (s *stubActiveService) FindActiveGroupsByGroupID(_ context.Context, _ int64) ([]*activeModel.Group, error) {
 	return nil, nil
 }
-func (s *stubActiveService) FindActiveGroupsByTimeRange(_ context.Context, _, _ time.Time) ([]*activeModel.Group, error) {
-	return nil, nil
-}
 func (s *stubActiveService) EndActiveGroupSession(_ context.Context, _ int64) error { return nil }
 func (s *stubActiveService) GetActiveGroupWithVisits(_ context.Context, _ int64) (*activeModel.Group, error) {
 	return nil, nil
@@ -157,9 +154,6 @@ func (s *stubActiveService) FindVisitsByStudentID(_ context.Context, _ int64) ([
 func (s *stubActiveService) FindVisitsByActiveGroupID(_ context.Context, _ int64) ([]*activeModel.Visit, error) {
 	return nil, nil
 }
-func (s *stubActiveService) FindVisitsByTimeRange(_ context.Context, _, _ time.Time) ([]*activeModel.Visit, error) {
-	return nil, nil
-}
 func (s *stubActiveService) EndVisit(_ context.Context, _ int64) error { return nil }
 func (s *stubActiveService) GetStudentCurrentVisit(_ context.Context, _ int64) (*activeModel.Visit, error) {
 	return nil, nil
@@ -179,13 +173,7 @@ func (s *stubActiveService) ListStudentsPresentToday(_ context.Context) ([]int64
 func (s *stubActiveService) AssignTransitStudentsToActiveGroup(_ context.Context, _ []int64, _ int64) (*activeSvc.TransitAssignResult, error) {
 	return nil, nil
 }
-func (s *stubActiveService) MoveStudentsToActiveGroup(_ context.Context, _ []int64, _ int64) (*activeSvc.StudentMoveResult, error) {
-	return nil, nil
-}
 func (s *stubActiveService) MoveStudentsToActiveGroupAuthorized(_ context.Context, _ []int64, _ int64, _ activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
-	return nil, nil
-}
-func (s *stubActiveService) MoveStudentsToTransit(_ context.Context, _ []int64) (*activeSvc.StudentMoveResult, error) {
 	return nil, nil
 }
 func (s *stubActiveService) MoveStudentsToTransitAuthorized(_ context.Context, _ []int64, _ activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
@@ -226,9 +214,6 @@ func (s *stubActiveService) EndSupervision(_ context.Context, _ int64) error { r
 func (s *stubActiveService) GetStaffActiveSupervisions(_ context.Context, _ int64) ([]*activeModel.GroupSupervisor, error) {
 	return nil, nil
 }
-func (s *stubActiveService) GetAllActiveSupervisions(_ context.Context) ([]*activeModel.GroupSupervisor, error) {
-	return nil, nil
-}
 func (s *stubActiveService) GetCombinedGroup(_ context.Context, _ int64) (*activeModel.CombinedGroup, error) {
 	return nil, nil
 }
@@ -267,9 +252,6 @@ func (s *stubActiveService) GetGroupMappingsByCombinedGroupID(_ context.Context,
 }
 
 // Activity session stubs
-func (s *stubActiveService) StartActivitySession(_ context.Context, _, _, _ int64, _ *int64) (*activeModel.Group, error) {
-	return nil, nil
-}
 func (s *stubActiveService) StartActivitySessionWithSupervisors(_ context.Context, _, _ int64, _ []int64, _ *int64) (*activeModel.Group, error) {
 	return nil, nil
 }
@@ -277,9 +259,6 @@ func (s *stubActiveService) CheckActivityConflict(_ context.Context, _, _ int64)
 	return nil, nil
 }
 func (s *stubActiveService) EndActivitySession(_ context.Context, _ int64) error { return nil }
-func (s *stubActiveService) ForceStartActivitySession(_ context.Context, _, _, _ int64, _ *int64) (*activeModel.Group, error) {
-	return nil, nil
-}
 func (s *stubActiveService) ForceStartActivitySessionWithSupervisors(_ context.Context, _, _ int64, _ []int64, _ *int64) (*activeModel.Group, error) {
 	return nil, nil
 }

@@ -461,43 +461,6 @@ func TestActivityGroupRepository_FindByStaffSupervisor(t *testing.T) {
 	})
 }
 
-func TestActivityGroupRepository_FindByStaffSupervisorToday(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).ActivityGroup
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("finds only open groups supervised by staff member", func(t *testing.T) {
-		group := testpkg.CreateTestActivityGroup(t, db, "SupervisorToday")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
-
-		staff := testpkg.CreateTestStaff(t, db, "Today", "Supervisor")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
-
-		// Add supervisor assignment
-		sup := &activities.SupervisorPlanned{
-			GroupID:   group.ID,
-			StaffID:   staff.ID,
-			IsPrimary: true,
-		}
-		sup.SetTenantID(1)
-		_, _ = db.NewInsert().
-			Model(sup).
-			ModelTableExpr(`activities.supervisors`).
-			Exec(ctx)
-
-		groups, err := repo.FindByStaffSupervisorToday(ctx, staff.ID)
-		require.NoError(t, err)
-
-		// All returned groups should be open
-		for _, g := range groups {
-			assert.True(t, g.IsOpen)
-		}
-	})
-}
-
 // ============================================================================
 // Edge Cases and Validation Tests
 // ============================================================================

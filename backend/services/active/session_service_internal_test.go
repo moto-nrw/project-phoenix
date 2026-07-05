@@ -433,77 +433,6 @@ func TestUpdateDeviceLocationBestEffort(t *testing.T) {
 	assert.Equal(t, 1, calls)
 }
 
-func TestAssignSupervisorNonCritical_WorkSessionBestEffortBranches(t *testing.T) {
-	ctx := context.Background()
-
-	t.Run("supervisor insert and auto check-in errors are logged but swallowed", func(t *testing.T) {
-		var checkedStaffID int64
-		svc := &service{
-			logger: slog.Default(),
-			supervisorRepo: &mockGroupSupervisorRepository{
-				createFunc: func(context.Context, *activeModels.GroupSupervisor) error {
-					return errors.New("supervisor insert failed")
-				},
-			},
-			workSessionService: &workSessionServiceForSessionUnitTest{
-				ensureCheckedInFunc: func(_ context.Context, staffID int64, source string) (*activeModels.WorkSession, error) {
-					checkedStaffID = staffID
-					assert.Equal(t, activeModels.WorkSessionSourceNFC, source)
-					return nil, errors.New("auto check-in failed")
-				},
-			},
-		}
-
-		svc.assignSupervisorNonCritical(ctx, 77, 88, time.Now())
-
-		assert.Equal(t, int64(88), checkedStaffID)
-	})
-
-	t.Run("nil auto check-in session is accepted", func(t *testing.T) {
-		svc := &service{
-			logger:         slog.Default(),
-			supervisorRepo: &mockGroupSupervisorRepository{},
-			workSessionService: &workSessionServiceForSessionUnitTest{
-				ensureCheckedInFunc: func(context.Context, int64, string) (*activeModels.WorkSession, error) {
-					return nil, nil
-				},
-			},
-		}
-
-		svc.assignSupervisorNonCritical(ctx, 77, 88, time.Now())
-	})
-
-	t.Run("planned start auto check-in error is treated as skipped", func(t *testing.T) {
-		var checkedStaffID int64
-		createdSupervisor := false
-		svc := &service{
-			logger: slog.Default(),
-			supervisorRepo: &mockGroupSupervisorRepository{
-				createFunc: func(_ context.Context, supervisor *activeModels.GroupSupervisor) error {
-					createdSupervisor = true
-					assert.Equal(t, int64(88), supervisor.StaffID)
-					return nil
-				},
-			},
-			workSessionService: &workSessionServiceForSessionUnitTest{
-				ensureCheckedInFunc: func(_ context.Context, staffID int64, source string) (*activeModels.WorkSession, error) {
-					checkedStaffID = staffID
-					assert.Equal(t, activeModels.WorkSessionSourceNFC, source)
-					return nil, &PlannedStartNotReachedError{
-						PlannedStartTime: "09:00",
-						CurrentTime:      "08:45",
-					}
-				},
-			},
-		}
-
-		svc.assignSupervisorNonCritical(ctx, 77, 88, time.Now())
-
-		assert.True(t, createdSupervisor)
-		assert.Equal(t, int64(88), checkedStaffID)
-	})
-}
-
 func TestAssignMultipleSupervisorsNonCritical_WorkSessionBestEffortBranches(t *testing.T) {
 	ctx := context.Background()
 	checkInResults := map[int64]error{
@@ -702,31 +631,6 @@ func TestCreateSessionBase_Branches(t *testing.T) {
 		assert.Equal(t, 2, transferred)
 		assert.Zero(t, locationUpdates)
 	})
-}
-
-func TestCreateSessionWithSupervisor_TransferredVisitsBranch(t *testing.T) {
-	svc := &service{
-		logger: slog.Default(),
-		groupRepo: &mockGroupRepository{
-			createFunc: func(_ context.Context, group *activeModels.Group) error {
-				group.ID = 50
-				return nil
-			},
-		},
-		visitRepo: &mockVisitRepository{
-			transferVisitsFromRecentSessionsFunc: func(context.Context, int64, int64) (int, error) {
-				return 3, nil
-			},
-		},
-		supervisorRepo: &mockGroupSupervisorRepository{},
-		deviceRepo:     &deviceRepoForSessionUnitTest{},
-	}
-
-	group, err := svc.createSessionWithSupervisor(context.Background(), 11, 22, 33, 44)
-
-	require.NoError(t, err)
-	require.NotNil(t, group)
-	assert.Equal(t, int64(50), group.ID)
 }
 
 func TestCreateSessionWithMultipleSupervisors_TransferredVisitsBranch(t *testing.T) {
@@ -1051,78 +955,6 @@ func TestTransferActiveVisitsBetweenGroups_DelegatesToConditionalRepositoryTrans
 	assert.Equal(t, 3, count)
 	assert.Equal(t, int64(100), gotOldGroupID)
 	assert.Equal(t, int64(200), gotNewGroupID)
-}
-
-func TestEndExistingDeviceSession_Branches(t *testing.T) {
-	ctx := context.Background()
-
-	t.Run("find error is returned", func(t *testing.T) {
-		expectedErr := errors.New("device session lookup failed")
-		svc := &service{
-			groupRepo: &mockGroupRepository{
-				findActiveByDeviceIDFunc: func(context.Context, int64) (*activeModels.Group, error) {
-					return nil, expectedErr
-				},
-			},
-		}
-
-		err := svc.endExistingDeviceSession(ctx, 100, false)
-
-		require.ErrorIs(t, err, expectedErr)
-	})
-
-	t.Run("nil existing session is a no-op", func(t *testing.T) {
-		svc := &service{groupRepo: &mockGroupRepository{}}
-
-		err := svc.endExistingDeviceSession(ctx, 100, false)
-
-		require.NoError(t, err)
-	})
-
-	t.Run("full cleanup delegates to EndActivitySession", func(t *testing.T) {
-		endedGroupIDs := []int64{}
-		svc := &service{
-			groupRepo: &mockGroupRepository{
-				findActiveByDeviceIDFunc: func(context.Context, int64) (*activeModels.Group, error) {
-					return &activeModels.Group{Model: modelBase.Model{ID: 300}}, nil
-				},
-				findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
-					return &activeModels.Group{Model: modelBase.Model{ID: 300}}, nil
-				},
-				endSessionFunc: func(_ context.Context, id int64) error {
-					endedGroupIDs = append(endedGroupIDs, id)
-					return nil
-				},
-			},
-			visitRepo:      &mockVisitRepository{},
-			supervisorRepo: &mockGroupSupervisorRepository{},
-		}
-
-		err := svc.endExistingDeviceSession(ctx, 100, true)
-
-		require.NoError(t, err)
-		assert.Equal(t, []int64{300}, endedGroupIDs)
-	})
-
-	t.Run("simple cleanup ends the device session directly", func(t *testing.T) {
-		var ended []int64
-		svc := &service{
-			groupRepo: &mockGroupRepository{
-				findActiveByDeviceIDFunc: func(context.Context, int64) (*activeModels.Group, error) {
-					return &activeModels.Group{Model: modelBase.Model{ID: 301}}, nil
-				},
-				endSessionFunc: func(_ context.Context, id int64) error {
-					ended = append(ended, id)
-					return nil
-				},
-			},
-		}
-
-		err := svc.endExistingDeviceSession(ctx, 100, false)
-
-		require.NoError(t, err)
-		assert.Equal(t, []int64{301}, ended)
-	})
 }
 
 func TestEndExistingDeviceSessionForForceStart_Branches(t *testing.T) {

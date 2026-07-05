@@ -187,15 +187,3 @@ func TestPhase_Validate_RolloverSourceWithoutModeRejected(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "rollover_source_phase_id and rollover_mode")
 }
-
-func TestPhase_IsRollover(t *testing.T) {
-	mode := PhaseRolloverModeOptOut
-	src := int64(7)
-	p := validPhase()
-	p.RolloverMode = &mode
-	p.RolloverSourcePhaseID = &src
-	assert.True(t, p.IsRollover())
-
-	p2 := validPhase()
-	assert.False(t, p2.IsRollover(), "fresh phase is not a rollover")
-}

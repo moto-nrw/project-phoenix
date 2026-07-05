@@ -125,14 +125,6 @@ func (s *service) AssignTransitStudentsToActiveGroup(ctx context.Context, studen
 	return result, nil
 }
 
-// MoveStudentsToActiveGroup moves checked-in students into the target active
-// group while preserving room history: any old open visit is ended and a new
-// visit opens in the target group. It never creates or reopens daily
-// attendance; not-present students are reported as skipped.
-func (s *service) MoveStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64) (*StudentMoveResult, error) {
-	return s.moveStudentsToActiveGroup(ctx, studentIDs, activeGroupID, nil)
-}
-
 // MoveStudentsToActiveGroupAuthorized is the HTTP-facing bulk move path. It
 // revalidates the caller's source/target access against the locked move state
 // before any current visit is ended or recreated.
@@ -227,12 +219,6 @@ func (s *service) moveStudentsToActiveGroup(ctx context.Context, studentIDs []in
 	}
 
 	return result, nil
-}
-
-// MoveStudentsToTransit ends any current room visit for checked-in students
-// while keeping their daily attendance open.
-func (s *service) MoveStudentsToTransit(ctx context.Context, studentIDs []int64) (*StudentMoveResult, error) {
-	return s.moveStudentsToTransit(ctx, studentIDs, nil)
 }
 
 // MoveStudentsToTransitAuthorized is the HTTP-facing transit move path. It

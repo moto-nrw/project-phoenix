@@ -216,11 +216,6 @@ func (s *guardianService) GetGuardianByID(ctx context.Context, id int64) (*users
 	return profile, nil
 }
 
-// GetGuardianByEmail retrieves a guardian profile by email
-func (s *guardianService) GetGuardianByEmail(ctx context.Context, email string) (*users.GuardianProfile, error) {
-	return s.guardianProfileRepo.FindByEmail(ctx, email)
-}
-
 // UpdateGuardian updates a guardian profile
 func (s *guardianService) UpdateGuardian(ctx context.Context, id int64, req GuardianCreateRequest) error {
 	// Serialize all guardian contact writers on the profile row. The
@@ -320,18 +315,6 @@ func (s *guardianService) DeleteGuardianWithLinks(ctx context.Context, id int64,
 		}
 	}
 	return s.guardianProfileRepo.Delete(ctx, id)
-}
-
-// GetLinkedStudentNames returns the full names of every student currently
-// linked to the guardian. Backs the delete-confirmation flow: an empty slice
-// means a plain delete is safe, a non-empty one drives the 409 warning that
-// lists exactly which children (incl. siblings) would lose the guardian.
-func (s *guardianService) GetLinkedStudentNames(ctx context.Context, guardianProfileID int64) ([]string, error) {
-	impact, err := s.GetGuardianDeleteImpact(ctx, guardianProfileID)
-	if err != nil {
-		return nil, err
-	}
-	return impact.StudentNames, nil
 }
 
 // GetGuardianDeleteImpact returns the exact current affected links and display

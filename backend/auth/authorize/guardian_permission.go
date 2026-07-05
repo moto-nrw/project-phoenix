@@ -138,20 +138,6 @@ func StudentGuardianPermissionSet(role string) map[string]interface{} {
 	return perms
 }
 
-func StudentGuardianGrantPermissions(sg *users.StudentGuardian, permissions ...string) {
-	if sg == nil {
-		return
-	}
-	perms := sg.GetPermissions()
-	for _, permission := range permissions {
-		permission = strings.TrimSpace(permission)
-		if permission == "" {
-			continue
-		}
-		perms[permission] = true
-	}
-}
-
 func ApplyStudentGuardianRole(sg *users.StudentGuardian, role string) {
 	if sg == nil {
 		return
@@ -167,19 +153,6 @@ func ApplyDefaultStudentGuardianRole(sg *users.StudentGuardian) {
 	}
 	role := DefaultStudentGuardianRole(sg.RelationshipType, sg.IsPrimary, sg.IsEmergencyContact, sg.CanPickup)
 	ApplyStudentGuardianRole(sg, role)
-}
-
-// PersonGuardianHasPermission reports whether the guardian relationship grants
-// the named permission. An empty or invalid permissions JSON yields false.
-func PersonGuardianHasPermission(pg *users.PersonGuardian, permission string) bool {
-	if pg == nil || pg.Permissions == "" {
-		return false
-	}
-	perms := map[string]bool{}
-	if err := json.Unmarshal([]byte(pg.Permissions), &perms); err != nil {
-		return false
-	}
-	return perms[permission]
 }
 
 // PersonGuardianGrantPermission grants the named permission on the guardian

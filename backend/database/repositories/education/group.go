@@ -53,29 +53,6 @@ func (r *GroupRepository) FindByName(ctx context.Context, name string) (*educati
 	return group, nil
 }
 
-// FindByRoom retrieves groups by their room ID
-func (r *GroupRepository) FindByRoom(ctx context.Context, roomID int64) ([]*education.Group, error) {
-	var groups []*education.Group
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&groups).
-		ModelTableExpr(`education.groups AS "group"`).
-		Where("room_id = ?", roomID)
-
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by room",
-			Err: err,
-		}
-	}
-
-	return groups, nil
-}
-
 // FindByIDs retrieves multiple groups by their IDs in a single query
 func (r *GroupRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64]*education.Group, error) {
 	if len(ids) == 0 {

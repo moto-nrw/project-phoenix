@@ -544,29 +544,6 @@ func (s *Service) loadAccountMetadataForTenant(ctx context.Context, account *aut
 	return result, nil
 }
 
-// ensureAccountRolesLoaded loads account roles if not already loaded.
-// Uses context-based tenant filtering (for authenticated requests).
-func (s *Service) ensureAccountRolesLoaded(ctx context.Context, account *auth.Account) {
-	if len(account.Roles) > 0 {
-		return
-	}
-
-	accountRoles, err := s.repos.AccountRole.FindByAccountID(ctx, account.ID)
-	if err != nil {
-		s.getLogger().Warn("failed to load roles",
-			slog.Int64("account_id", account.ID),
-			slog.Any("error", err),
-		)
-		return
-	}
-
-	for _, ar := range accountRoles {
-		if ar.Role != nil {
-			account.Roles = append(account.Roles, ar.Role)
-		}
-	}
-}
-
 // ensureAccountRolesLoadedForTenant loads account roles scoped to a specific tenant.
 // Used during login/switch flows where no tenant context exists yet (D13 §6.1 step 6).
 func (s *Service) ensureAccountRolesLoadedForTenant(ctx context.Context, account *auth.Account, tenantID int64) {
@@ -603,24 +580,6 @@ func (s *Service) loadAccountPermissionsForTenant(ctx context.Context, accountID
 		return []*auth.Permission{}
 	}
 	return permissions
-}
-
-// ensureAccountPermissionsLoaded loads account permissions if not already loaded
-func (s *Service) ensureAccountPermissionsLoaded(ctx context.Context, account *auth.Account) {
-	if len(account.Permissions) > 0 {
-		return
-	}
-
-	permissions, err := s.getAccountPermissions(ctx, account.ID)
-	if err != nil {
-		s.getLogger().Warn("failed to load permissions",
-			slog.Int64("account_id", account.ID),
-			slog.Any("error", err),
-		)
-		return
-	}
-
-	account.Permissions = permissions
 }
 
 // extractRoleNames converts roles to string slice
@@ -1088,63 +1047,6 @@ func isDuplicateKeyError(err error) bool {
 	return false
 }
 
-// ValidateToken validates an access token and returns the associated account and parsed claims.
-func (s *Service) ValidateToken(ctx context.Context, tokenString string) (*auth.Account, *jwt.AppClaims, error) {
-	// Parse and validate JWT token
-	jwtToken, err := s.tokenAuth.JwtAuth.Decode(tokenString)
-	if err != nil {
-		return nil, nil, &AuthError{Op: "validate token", Err: ErrInvalidToken}
-	}
-
-	// Extract claims
-	claims := extractClaims(jwtToken)
-
-	// Parse claims into AppClaims
-	var appClaims jwt.AppClaims
-	err = appClaims.ParseClaims(claims)
-	if err != nil {
-		return nil, nil, &AuthError{Op: "parse claims", Err: ErrInvalidToken}
-	}
-
-	// Get account by ID
-	account, err := s.repos.Account.FindByID(ctx, int64(appClaims.ID))
-	if err != nil {
-		return nil, nil, &AuthError{Op: opGetAccount, Err: ErrAccountNotFound}
-	}
-
-	// Ensure account is active
-	if !account.Active {
-		return nil, nil, &AuthError{Op: "validate token", Err: ErrAccountInactive}
-	}
-
-	// Load roles and permissions scoped to the JWT's tenant (D13 revision:
-	// never load cross-tenant roles/permissions, even in secondary paths).
-	// Use WithTenantTx so that app.current_tenant_id is set for RLS policies.
-	// ValidateToken may be called from public routes (e.g. /register) where
-	// no tenant middleware exists. Without a tenant-scoped tx, RLS on
-	// auth.account_roles and auth.account_permissions returns zero rows.
-	if appClaims.TenantID > 0 {
-		err = tenant.WithTenantTx(ctx, s.db, appClaims.TenantID, func(ctx context.Context, tx bun.Tx) error {
-			txService := s.WithTx(tx).(*Service)
-			txService.ensureAccountRolesLoadedForTenant(ctx, account, appClaims.TenantID)
-			account.Permissions = txService.loadAccountPermissionsForTenant(ctx, account.ID, appClaims.TenantID)
-			return nil
-		})
-		if err != nil {
-			s.getLogger().Warn("failed to load roles/permissions in tenant tx",
-				slog.Int64("account_id", account.ID),
-				slog.Int64("tenant_id", appClaims.TenantID),
-				slog.Any("error", err),
-			)
-		}
-	} else {
-		s.ensureAccountRolesLoaded(ctx, account)
-		s.ensureAccountPermissionsLoaded(ctx, account)
-	}
-
-	return account, &appClaims, nil
-}
-
 // RefreshToken generates new token pair from a refresh token
 func (s *Service) RefreshToken(ctx context.Context, refreshTokenStr string) (string, string, error) {
 	return s.RefreshTokenWithAudit(ctx, refreshTokenStr, "", "")
@@ -1453,11 +1355,6 @@ func (s *Service) validateTenantAccess(ctx context.Context, claims *jwt.RefreshC
 	return nil
 }
 
-// Logout invalidates a refresh token
-func (s *Service) Logout(ctx context.Context, refreshTokenStr string) error {
-	return s.LogoutWithAudit(ctx, refreshTokenStr, "", "")
-}
-
 // LogoutWithAudit invalidates a refresh token with audit logging.
 //
 // Uses WithAdminTx (BYPASSRLS) because logout is a pre-deauthentication flow.
@@ -1559,18 +1456,6 @@ func (s *Service) GetAccountByID(ctx context.Context, id int) (*auth.Account, er
 	account, err := s.repos.Account.FindByID(ctx, int64(id))
 	if err != nil {
 		return nil, &AuthError{Op: opGetAccount, Err: ErrAccountNotFound}
-	}
-	return account, nil
-}
-
-// GetAccountByEmail retrieves an account by email
-func (s *Service) GetAccountByEmail(ctx context.Context, email string) (*auth.Account, error) {
-	// Normalize email
-	email = strings.TrimSpace(strings.ToLower(email))
-
-	account, err := s.repos.Account.FindByEmail(ctx, email)
-	if err != nil {
-		return nil, &AuthError{Op: "get account by email", Err: ErrAccountNotFound}
 	}
 	return account, nil
 }

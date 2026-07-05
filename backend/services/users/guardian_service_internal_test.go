@@ -229,7 +229,7 @@ func TestDeleteGuardianWithLinks_LinkDeleteError(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to remove guardian link")
 }
 
-func TestGetLinkedStudentNames_StudentLoadError(t *testing.T) {
+func TestGetGuardianDeleteImpact_StudentLoadError(t *testing.T) {
 	rel := &users.StudentGuardian{StudentID: 7, GuardianProfileID: 1}
 	rel.ID = 5
 	svc := &guardianService{
@@ -244,7 +244,7 @@ func TestGetLinkedStudentNames_StudentLoadError(t *testing.T) {
 			},
 		},
 	}
-	_, err := svc.GetLinkedStudentNames(context.Background(), 1)
+	_, err := svc.GetGuardianDeleteImpact(context.Background(), 1)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to load student")
 }

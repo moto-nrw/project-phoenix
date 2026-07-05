@@ -166,7 +166,7 @@ func TestLogoutInvalidatesTokensBeforeTenantSwitch(t *testing.T) {
 	require.NoError(t, err, "User A switch to tenant 2 should succeed")
 
 	// Step 3: User A logs out — this should invalidate User A's tokens
-	err = service.Logout(ctx, refreshTokenA)
+	err = service.LogoutWithAudit(ctx, refreshTokenA, "", "")
 	require.NoError(t, err, "User A logout should succeed")
 
 	// Verify: User A's refresh token is now invalid
@@ -207,7 +207,7 @@ func TestLogoutInvalidatesRefreshToken(t *testing.T) {
 	require.NoError(t, err, "refresh should succeed before logout")
 
 	// ACT: Logout
-	err = service.Logout(ctx, refreshToken)
+	err = service.LogoutWithAudit(ctx, refreshToken, "", "")
 	require.NoError(t, err)
 
 	// ASSERT: Refresh must fail after logout

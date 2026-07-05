@@ -81,22 +81,3 @@ type StaffWorkScheduleRepository interface {
 	// ReplaceSchedule atomically replaces all current schedule entries for a staff member
 	ReplaceSchedule(ctx context.Context, staffID int64, entries []*StaffWorkSchedule) error
 }
-
-// WeeklyTargetForRotationWeek calculates target minutes for one rotation week.
-func WeeklyTargetForRotationWeek(entries []*StaffWorkSchedule, weekIndex int) *int {
-	if len(entries) == 0 {
-		return nil
-	}
-	total := 0
-	found := false
-	for _, e := range entries {
-		if e.WeekIndex == weekIndex {
-			total += e.TargetMinutes
-			found = true
-		}
-	}
-	if !found {
-		return nil
-	}
-	return &total
-}

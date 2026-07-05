@@ -22,11 +22,6 @@ type EntryRepository interface {
 	FindMensaFeedback(ctx context.Context, isMensaFeedback bool) ([]*Entry, error)
 	FindByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*Entry, error)
 
-	// Aggregation methods
-	CountByDay(ctx context.Context, day timezone.Date) (int, error)
-	CountByStudentID(ctx context.Context, studentID int64) (int, error)
-	CountMensaFeedback(ctx context.Context, isMensaFeedback bool) (int, error)
-
 	// Cleanup methods
 	DeleteOlderThan(ctx context.Context, days int) (int, error)
 }

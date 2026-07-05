@@ -1,39 +1,21 @@
 package authorize
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
-// Moved from models/users/person_guardian_test.go (TestPersonGuardian_HasPermission)
-// when the guardian permission check left the model in issue #586 (Rule 12).
-func TestPersonGuardianHasPermission(t *testing.T) {
-	tests := []struct {
-		name        string
-		permissions string
-		permission  string
-		expected    bool
-	}{
-		{"has permission - true", `{"view_grades": true}`, "view_grades", true},
-		{"has permission - false", `{"view_grades": false}`, "view_grades", false},
-		{"permission not found", `{"view_grades": true}`, "contact_teachers", false},
-		{"empty permissions", "", "view_grades", false},
-		{"invalid JSON returns false", "invalid json", "view_grades", false},
+// pgHasPermission is a test-local check that the guardian relationship's
+// permissions JSON grants the named permission (the production predicate was
+// deleted as dead code; grant/revoke are asserted directly on the JSON).
+func pgHasPermission(pg *users.PersonGuardian, permission string) bool {
+	perms := map[string]bool{}
+	if err := json.Unmarshal([]byte(pg.Permissions), &perms); err != nil {
+		return false
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			pg := &users.PersonGuardian{Permissions: tt.permissions}
-			if got := PersonGuardianHasPermission(pg, tt.permission); got != tt.expected {
-				t.Errorf("PersonGuardianHasPermission(%q) = %v, want %v", tt.permission, got, tt.expected)
-			}
-		})
-	}
-
-	if PersonGuardianHasPermission(nil, "view_grades") {
-		t.Error("PersonGuardianHasPermission(nil, ...) should return false")
-	}
+	return perms[permission]
 }
 
 // Moved from models/users/person_guardian_test.go (TestPersonGuardian_GrantPermission).
@@ -43,7 +25,7 @@ func TestPersonGuardianGrantPermission(t *testing.T) {
 		if err := PersonGuardianGrantPermission(pg, "view_grades"); err != nil {
 			t.Errorf("PersonGuardianGrantPermission() error = %v", err)
 		}
-		if !PersonGuardianHasPermission(pg, "view_grades") {
+		if !pgHasPermission(pg, "view_grades") {
 			t.Error("PersonGuardianGrantPermission() failed to grant permission")
 		}
 	})
@@ -53,10 +35,10 @@ func TestPersonGuardianGrantPermission(t *testing.T) {
 		if err := PersonGuardianGrantPermission(pg, "view_grades"); err != nil {
 			t.Errorf("PersonGuardianGrantPermission() error = %v", err)
 		}
-		if !PersonGuardianHasPermission(pg, "view_grades") {
+		if !pgHasPermission(pg, "view_grades") {
 			t.Error("PersonGuardianGrantPermission() failed to grant new permission")
 		}
-		if !PersonGuardianHasPermission(pg, "contact_teachers") {
+		if !pgHasPermission(pg, "contact_teachers") {
 			t.Error("PersonGuardianGrantPermission() removed existing permission")
 		}
 	})
@@ -66,7 +48,7 @@ func TestPersonGuardianGrantPermission(t *testing.T) {
 		if err := PersonGuardianGrantPermission(pg, "view_grades"); err != nil {
 			t.Errorf("PersonGuardianGrantPermission() error = %v", err)
 		}
-		if !PersonGuardianHasPermission(pg, "view_grades") {
+		if !pgHasPermission(pg, "view_grades") {
 			t.Error("PersonGuardianGrantPermission() failed to grant permission after resetting")
 		}
 	})
@@ -79,10 +61,10 @@ func TestPersonGuardianRevokePermission(t *testing.T) {
 		if err := PersonGuardianRevokePermission(pg, "view_grades"); err != nil {
 			t.Errorf("PersonGuardianRevokePermission() error = %v", err)
 		}
-		if PersonGuardianHasPermission(pg, "view_grades") {
+		if pgHasPermission(pg, "view_grades") {
 			t.Error("PersonGuardianRevokePermission() failed to revoke permission")
 		}
-		if !PersonGuardianHasPermission(pg, "contact_teachers") {
+		if !pgHasPermission(pg, "contact_teachers") {
 			t.Error("PersonGuardianRevokePermission() incorrectly revoked other permission")
 		}
 	})
@@ -99,7 +81,7 @@ func TestPersonGuardianRevokePermission(t *testing.T) {
 		if err := PersonGuardianRevokePermission(pg, "contact_teachers"); err != nil {
 			t.Errorf("PersonGuardianRevokePermission() error = %v", err)
 		}
-		if !PersonGuardianHasPermission(pg, "view_grades") {
+		if !pgHasPermission(pg, "view_grades") {
 			t.Error("PersonGuardianRevokePermission() incorrectly affected other permission")
 		}
 	})
@@ -181,20 +163,6 @@ func TestStudentGuardianPermissionSet(t *testing.T) {
 				t.Fatalf("role %q got portal permissions: %#v", role, perms)
 			}
 		})
-	}
-}
-
-func TestStudentGuardianGrantPermissions(t *testing.T) {
-	sg := &users.StudentGuardian{}
-
-	StudentGuardianGrantPermissions(sg, GuardianPermissionPortalAccess, "", "  ")
-	StudentGuardianGrantPermissions(nil, GuardianPermissionNotesWrite)
-
-	if !StudentGuardianHasPermission(sg, GuardianPermissionPortalAccess) {
-		t.Fatal("StudentGuardianGrantPermissions() failed to grant portal access")
-	}
-	if StudentGuardianHasPermission(sg, GuardianPermissionNotesWrite) {
-		t.Fatal("StudentGuardianGrantPermissions(nil, ...) should not mutate another guardian")
 	}
 }
 

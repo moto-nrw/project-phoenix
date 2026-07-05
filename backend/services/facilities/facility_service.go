@@ -414,16 +414,6 @@ func (s *service) FindRoomByName(ctx context.Context, name string) (*facilities.
 	return room, nil
 }
 
-// FindRoomsByBuilding finds rooms by building
-func (s *service) FindRoomsByBuilding(ctx context.Context, building string) ([]*facilities.Room, error) {
-	rooms, err := s.roomRepo.FindByBuilding(ctx, building)
-	if err != nil {
-		return nil, &FacilitiesError{Op: "find rooms by building", Err: err}
-	}
-
-	return rooms, nil
-}
-
 // FindRoomsByCategory finds rooms by category
 func (s *service) FindRoomsByCategory(ctx context.Context, category string) ([]*facilities.Room, error) {
 	rooms, err := s.roomRepo.FindByCategory(ctx, category)
@@ -432,26 +422,6 @@ func (s *service) FindRoomsByCategory(ctx context.Context, category string) ([]*
 	}
 
 	return rooms, nil
-}
-
-// FindRoomsByFloor finds rooms by building and floor
-func (s *service) FindRoomsByFloor(ctx context.Context, building string, floor int) ([]*facilities.Room, error) {
-	rooms, err := s.roomRepo.FindByFloor(ctx, building, floor)
-	if err != nil {
-		return nil, &FacilitiesError{Op: "find rooms by floor", Err: err}
-	}
-
-	return rooms, nil
-}
-
-// CheckRoomAvailability checks if a room is available for a given capacity
-func (s *service) CheckRoomAvailability(ctx context.Context, roomID int64, requiredCapacity int) (bool, error) {
-	room, err := s.roomRepo.FindByID(ctx, roomID)
-	if err != nil {
-		return false, &FacilitiesError{Op: "check room availability", Err: ErrRoomNotFound}
-	}
-
-	return room.IsAvailable(requiredCapacity), nil
 }
 
 // GetAvailableRooms finds all rooms that can accommodate the given capacity
@@ -508,23 +478,6 @@ func (s *service) GetAvailableRoomsWithOccupancy(ctx context.Context, capacity i
 	}
 
 	return roomsWithOccupancy, nil
-}
-
-// GetRoomUtilization calculates the current utilization of a room
-func (s *service) GetRoomUtilization(ctx context.Context, roomID int64) (float64, error) {
-	room, err := s.roomRepo.FindByID(ctx, roomID)
-	if err != nil {
-		return 0, &FacilitiesError{Op: "get room utilization", Err: ErrRoomNotFound}
-	}
-
-	// This would typically be implemented by querying other systems
-	// For now just return a placeholder value
-	if room.Capacity == nil || *room.Capacity <= 0 {
-		return 0, nil
-	}
-
-	// Placeholder logic
-	return 0.0, nil
 }
 
 // GetBuildingList returns a list of all buildings in the system

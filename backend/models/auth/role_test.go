@@ -166,12 +166,6 @@ func TestRole_Validate_BaseRole(t *testing.T) {
 	})
 }
 
-// Note: the role permission membership check and the add/remove permission
-// mutations (formerly Role.HasPermission / Role.AddPermission /
-// Role.RemovePermission) moved out of the model in issue #586 (Rule 12). Their
-// tests follow the logic to:
-//   - auth/authorize/role_permission_test.go
-
 func TestRole_IsSystemFlag(t *testing.T) {
 	t.Run("default is false", func(t *testing.T) {
 		role := &Role{

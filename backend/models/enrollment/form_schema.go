@@ -99,8 +99,8 @@ const (
 	// templates are not bound to a phase and offering ids differ per
 	// phase. Only valid on per-child fields, paired with the "includes"
 	// operator. Evaluated client-side only — the backend never resolves
-	// this source (care offerings are per-child, and ValidateSubmission
-	// checks guardian-level fields only).
+	// this source (care offerings are per-child; the submit flow's
+	// validation checks guardian-level fields only).
 	ConditionSourceCareOffering = "care_offering"
 )
 

@@ -173,7 +173,7 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 		Repo:   repoFactory.FormSchema,
 		Logger: slog.Default(),
 	})
-	schema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag", []enrollmentModels.FormField{
 		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
 	}, account.ID)
 	require.NoError(t, err)
@@ -1958,7 +1958,7 @@ func TestRequestService_ReplaceEditable_BasisRequestStaysSchemaLessAfterPhaseSch
 		Repo:   repoFactory.FormSchema,
 		Logger: slog.Default(),
 	})
-	laterSchema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{
+	laterSchema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag 2", []enrollmentModels.FormField{
 		{
 			Key:       "later_required",
 			Label:     "Später erforderlich",
@@ -2009,7 +2009,7 @@ func TestRequestService_Submit_HiddenRequiredFieldDoesNotBlockAndIsNotPersisted(
 		Repo:   repoFactory.FormSchema,
 		Logger: slog.Default(),
 	})
-	schema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag 3", []enrollmentModels.FormField{
 		{Key: "has_allergy", Label: "Allergie?", Type: enrollmentModels.FormFieldBoolean, AppliesToCh: true, SortOrder: 0},
 		{
 			Key: "which_allergy", Label: "Welche?", Type: enrollmentModels.FormFieldText,
@@ -2057,7 +2057,7 @@ func TestRequestService_Submit_VisibleRequiredFieldStillEnforced(t *testing.T) {
 		Repo:   repoFactory.FormSchema,
 		Logger: slog.Default(),
 	})
-	schema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag 4", []enrollmentModels.FormField{
 		{Key: "has_allergy", Label: "Allergie?", Type: enrollmentModels.FormFieldBoolean, AppliesToCh: true, SortOrder: 0},
 		{
 			Key: "which_allergy", Label: "Welche?", Type: enrollmentModels.FormFieldText,
@@ -2095,7 +2095,7 @@ func TestRequestService_Submit_RequiredStructuredFieldValidatesEntries(t *testin
 		Logger: slog.Default(),
 	})
 	// Required per-child contact_list (canonical target student.contacts).
-	schema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag 5", []enrollmentModels.FormField{
 		{
 			Key: "contacts", Label: "Notfallkontakte",
 			Type: enrollmentModels.FormFieldContactList, AppliesToCh: true,
@@ -2134,7 +2134,7 @@ func publishPickupSchema(t *testing.T, env *requestTestEnv, allowed []string) {
 		Repo:   repoFactory.FormSchema,
 		Logger: slog.Default(),
 	})
-	schema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag 6", []enrollmentModels.FormField{
 		{
 			Key: "schedule_pickup", Label: "Abholzeiten",
 			Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: true,

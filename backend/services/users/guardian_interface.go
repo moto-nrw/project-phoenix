@@ -166,9 +166,6 @@ type GuardianService interface {
 	// GetGuardianByID retrieves a guardian profile by ID
 	GetGuardianByID(ctx context.Context, id int64) (*users.GuardianProfile, error)
 
-	// GetGuardianByEmail retrieves a guardian profile by email
-	GetGuardianByEmail(ctx context.Context, email string) (*users.GuardianProfile, error)
-
 	// UpdateGuardian updates a guardian profile
 	UpdateGuardian(ctx context.Context, id int64, req GuardianCreateRequest) error
 
@@ -182,11 +179,6 @@ type GuardianService interface {
 	// Must run inside a tenant transaction; the handler gates it to admins.
 	// expectedLinkIDs must be the exact link set returned by the delete preview.
 	DeleteGuardianWithLinks(ctx context.Context, id int64, expectedLinkIDs []int64) error
-
-	// GetLinkedStudentNames returns the full names of every student linked to
-	// the guardian. Empty means a plain delete is safe; non-empty drives the
-	// 409 warning listing the affected children.
-	GetLinkedStudentNames(ctx context.Context, guardianProfileID int64) ([]string, error)
 
 	// GetGuardianDeleteImpact returns the exact current affected link IDs and
 	// student names for the admin full-delete confirmation.

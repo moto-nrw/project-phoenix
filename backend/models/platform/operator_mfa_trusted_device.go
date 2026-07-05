@@ -22,8 +22,6 @@ type OperatorMFATrustedDevice struct {
 }
 
 // IsRevoked returns true once the device was explicitly revoked. This is a pure
-// field accessor (RevokedAt != nil); the wall-clock expiry/active decision lives
-// in the service layer (services/platform.OperatorMFATrustedDeviceExpired /
-// OperatorMFATrustedDeviceActive) and the repository's active-device finders,
-// per issue #586 (Rule 12).
+// field accessor (RevokedAt != nil); the wall-clock expiry/active decision is
+// enforced by the repository's active-device finders, per issue #586 (Rule 12).
 func (d *OperatorMFATrustedDevice) IsRevoked() bool { return d.RevokedAt != nil }

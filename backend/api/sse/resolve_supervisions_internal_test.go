@@ -83,7 +83,6 @@ func (m *mockSettingsSvc) ClearLoginImageURL(_ context.Context, _ int64) (string
 // =============================================================================
 
 type mockActiveSvcForSSE struct {
-	getAllFunc   func(ctx context.Context) ([]*activeModel.GroupSupervisor, error)
 	getStaffFunc func(ctx context.Context, staffID int64) ([]*activeModel.GroupSupervisor, error)
 	listFunc     func(ctx context.Context, opts *base.QueryOptions) ([]*activeModel.Group, error)
 }
@@ -100,12 +99,6 @@ func (m *mockActiveSvcForSSE) HasOpenAttendanceOn(_ context.Context, _ timezone.
 	return false, nil
 }
 
-func (m *mockActiveSvcForSSE) GetAllActiveSupervisions(ctx context.Context) ([]*activeModel.GroupSupervisor, error) {
-	if m.getAllFunc != nil {
-		return m.getAllFunc(ctx)
-	}
-	return []*activeModel.GroupSupervisor{}, nil
-}
 func (m *mockActiveSvcForSSE) GetStaffActiveSupervisions(ctx context.Context, staffID int64) ([]*activeModel.GroupSupervisor, error) {
 	if m.getStaffFunc != nil {
 		return m.getStaffFunc(ctx, staffID)
@@ -146,9 +139,6 @@ func (m *mockActiveSvcForSSE) FindDeviceActiveGroupInRoom(_ context.Context, _, 
 func (m *mockActiveSvcForSSE) FindActiveGroupsByGroupID(_ context.Context, _ int64) ([]*activeModel.Group, error) {
 	return nil, nil
 }
-func (m *mockActiveSvcForSSE) FindActiveGroupsByTimeRange(_ context.Context, _, _ time.Time) ([]*activeModel.Group, error) {
-	return nil, nil
-}
 func (m *mockActiveSvcForSSE) EndActiveGroupSession(_ context.Context, _ int64) error { return nil }
 func (m *mockActiveSvcForSSE) GetActiveGroupWithVisits(_ context.Context, _ int64) (*activeModel.Group, error) {
 	return nil, nil
@@ -169,9 +159,6 @@ func (m *mockActiveSvcForSSE) FindVisitsByStudentID(_ context.Context, _ int64) 
 	return nil, nil
 }
 func (m *mockActiveSvcForSSE) FindVisitsByActiveGroupID(_ context.Context, _ int64) ([]*activeModel.Visit, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) FindVisitsByTimeRange(_ context.Context, _, _ time.Time) ([]*activeModel.Visit, error) {
 	return nil, nil
 }
 func (m *mockActiveSvcForSSE) EndVisit(_ context.Context, _ int64) error { return nil }
@@ -202,13 +189,7 @@ func (m *mockActiveSvcForSSE) ListStudentsPresentToday(_ context.Context) ([]int
 func (m *mockActiveSvcForSSE) AssignTransitStudentsToActiveGroup(_ context.Context, _ []int64, _ int64) (*activeSvc.TransitAssignResult, error) {
 	return nil, nil
 }
-func (m *mockActiveSvcForSSE) MoveStudentsToActiveGroup(_ context.Context, _ []int64, _ int64) (*activeSvc.StudentMoveResult, error) {
-	return nil, nil
-}
 func (m *mockActiveSvcForSSE) MoveStudentsToActiveGroupAuthorized(_ context.Context, _ []int64, _ int64, _ activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) MoveStudentsToTransit(_ context.Context, _ []int64) (*activeSvc.StudentMoveResult, error) {
 	return nil, nil
 }
 func (m *mockActiveSvcForSSE) MoveStudentsToTransitAuthorized(_ context.Context, _ []int64, _ activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
@@ -273,9 +254,6 @@ func (m *mockActiveSvcForSSE) GetGroupMappingsByActiveGroupID(_ context.Context,
 func (m *mockActiveSvcForSSE) GetGroupMappingsByCombinedGroupID(_ context.Context, _ int64) ([]*activeModel.GroupMapping, error) {
 	return nil, nil
 }
-func (m *mockActiveSvcForSSE) StartActivitySession(_ context.Context, _, _, _ int64, _ *int64) (*activeModel.Group, error) {
-	return nil, nil
-}
 func (m *mockActiveSvcForSSE) StartActivitySessionWithSupervisors(_ context.Context, _, _ int64, _ []int64, _ *int64) (*activeModel.Group, error) {
 	return nil, nil
 }
@@ -283,9 +261,6 @@ func (m *mockActiveSvcForSSE) CheckActivityConflict(_ context.Context, _, _ int6
 	return nil, nil
 }
 func (m *mockActiveSvcForSSE) EndActivitySession(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveSvcForSSE) ForceStartActivitySession(_ context.Context, _, _, _ int64, _ *int64) (*activeModel.Group, error) {
-	return nil, nil
-}
 func (m *mockActiveSvcForSSE) ForceStartActivitySessionWithSupervisors(_ context.Context, _, _ int64, _ []int64, _ *int64) (*activeModel.Group, error) {
 	return nil, nil
 }

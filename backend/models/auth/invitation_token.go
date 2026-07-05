@@ -53,9 +53,9 @@ func (t *InvitationToken) Validate() error {
 }
 
 // IsUsed returns true if the invitation was already accepted or revoked. This
-// is a pure field accessor (UsedAt != nil); the wall-clock expiry/validity
-// decision lives in the auth service (services/auth.InvitationTokenExpired /
-// InvitationTokenValid), per issue #586 (Rule 12).
+// is a pure field accessor (UsedAt != nil); the wall-clock expiry decision
+// lives in the auth service (services/auth.InvitationTokenExpired), per issue
+// #586 (Rule 12).
 func (t *InvitationToken) IsUsed() bool {
 	return t.UsedAt != nil
 }

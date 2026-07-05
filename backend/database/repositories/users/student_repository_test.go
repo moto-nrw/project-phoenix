@@ -729,58 +729,6 @@ func TestStudentRepository_CountWithOptions(t *testing.T) {
 // Complex Query Tests (Teacher Relationships)
 // ============================================================================
 
-func TestStudentRepository_FindByTeacherID(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).Student
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("finds students supervised by teacher through group", func(t *testing.T) {
-		// Create education group
-		group := testpkg.CreateTestEducationGroup(t, db, "TeacherClass")
-
-		// Create teacher
-		teacher := testpkg.CreateTestTeacher(t, db, "Teacher", "Test")
-
-		// Create group-teacher assignment
-		gt := testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
-
-		// Create student and assign to group directly
-		student := testpkg.CreateTestStudent(t, db, "TeacherStudent", "Test", "1a")
-		assignStudentToGroupDirect(t, db, student.ID, group.ID)
-
-		// Cleanup in reverse order of dependencies
-		defer func() {
-			cleanupStudentRecords(t, db, student.ID)
-			// Delete group-teacher first
-			_, _ = db.NewDelete().
-				TableExpr("education.group_teacher").
-				Where("id = ?", gt.ID).
-				Exec(ctx)
-			cleanupEducationData(t, db, []int64{group.ID}, []int64{teacher.ID})
-		}()
-
-		// Test the query
-		students, err := repo.FindByTeacherID(ctx, teacher.ID)
-		require.NoError(t, err)
-		assert.Len(t, students, 1)
-		assert.Equal(t, student.ID, students[0].ID)
-		// Person should be loaded
-		require.NotNil(t, students[0].Person)
-		assert.Equal(t, "TeacherStudent", students[0].Person.FirstName)
-	})
-
-	t.Run("returns empty for teacher with no students", func(t *testing.T) {
-		teacher := testpkg.CreateTestTeacher(t, db, "NoStudents", "Teacher")
-		defer cleanupEducationData(t, db, nil, []int64{teacher.ID})
-
-		students, err := repo.FindByTeacherID(ctx, teacher.ID)
-		require.NoError(t, err)
-		assert.Empty(t, students)
-	})
-}
-
 func TestStudentRepository_FindByTeacherIDWithGroups(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

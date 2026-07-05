@@ -272,24 +272,22 @@ type RequestService interface {
 	// behind legally relevant blocks.
 	LegalTexts(ctx context.Context) (LegalTexts, error)
 
-	// LegalTextsForPhase returns the legal block contract for the selected
-	// phase. When the phase's template carries at least one ENABLED legal
-	// block those blocks win; otherwise it falls back to the tenant-wide
-	// legal settings. Runs the same public phase gate as
-	// LoadOpenPublicPhase, so stale or closed phases surface the sentinel
-	// errors instead of an incomplete legal contract.
-	LegalTextsForPhase(ctx context.Context, phaseID int64) (LegalTexts, error)
+	// LegalTextsForPhaseWithLateInvite returns the legal block contract for
+	// the selected phase. When the phase's template carries at least one
+	// ENABLED legal block those blocks win; otherwise it falls back to the
+	// tenant-wide legal settings. Runs the same public phase gate as
+	// LoadPublicPhaseWithLateInvite, so stale or closed phases surface the
+	// sentinel errors instead of an incomplete legal contract.
 	LegalTextsForPhaseWithLateInvite(ctx context.Context, phaseID int64, lateInviteToken string) (LegalTexts, error)
 	LegalTextsForManualEnrollmentPhase(ctx context.Context, phaseID int64) (LegalTexts, error)
 
-	// LoadOpenPublicPhase is the shared public phase gate: every public
-	// form-load endpoint (schema, offerings, legal texts, bootstrap) calls
-	// this so a direct or stale parent link cannot load detail data for a
-	// phase the picker would hide. Returns ErrEnrollmentDisabled when the
-	// tenant toggle is off or the phase is inactive, ErrInvalidSubmission
+	// LoadPublicPhaseWithLateInvite is the shared public phase gate: every
+	// public form-load endpoint (schema, offerings, legal texts, bootstrap)
+	// calls this so a direct or stale parent link cannot load detail data
+	// for a phase the picker would hide. Returns ErrEnrollmentDisabled when
+	// the tenant toggle is off or the phase is inactive, ErrInvalidSubmission
 	// when the id is unknown, and ErrEnrollmentWindowClosed outside the
 	// phase's enrollment window. Caller must be inside a tenant-tx.
-	LoadOpenPublicPhase(ctx context.Context, phaseID int64, now time.Time) (*enrollmentModels.Phase, error)
 	LoadPublicPhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentModels.Phase, error)
 	LoadManualEnrollmentPhase(ctx context.Context, phaseID int64) (*enrollmentModels.Phase, error)
 }
@@ -1276,7 +1274,7 @@ func copyDays(days []string) []string {
 // validateRequiredOfferings enforces that every offering flagged
 // is_required in the phase's open catalog is selected by every child.
 // The day-level requirement for parent_choice offerings is already
-// enforced at insert time by resolveSelectedDays, so this only checks
+// enforced at insert time by the manual-selected-days resolution, so this only checks
 // presence in child.OfferingIDs.
 func validateRequiredOfferings(children []SubmitChild, openByID map[int64]*enrollmentModels.CareOffering) error {
 	requiredIDs := make([]int64, 0)
@@ -2414,10 +2412,6 @@ func (s *requestService) LegalTexts(ctx context.Context) (LegalTexts, error) {
 	return texts, nil
 }
 
-func (s *requestService) LegalTextsForPhase(ctx context.Context, phaseID int64) (LegalTexts, error) {
-	return s.LegalTextsForPhaseWithLateInvite(ctx, phaseID, "")
-}
-
 func (s *requestService) LegalTextsForPhaseWithLateInvite(ctx context.Context, phaseID int64, lateInviteToken string) (LegalTexts, error) {
 	phase, err := s.LoadPublicPhaseWithLateInvite(ctx, phaseID, time.Now(), lateInviteToken)
 	if err != nil {
@@ -2454,12 +2448,6 @@ func (s *requestService) legalTextsForLoadedPhase(ctx context.Context, phase *en
 		}
 	}
 	return texts, nil
-}
-
-// LoadOpenPublicPhase implements the shared public phase gate documented
-// on the RequestService interface.
-func (s *requestService) LoadOpenPublicPhase(ctx context.Context, phaseID int64, now time.Time) (*enrollmentModels.Phase, error) {
-	return s.LoadPublicPhaseWithLateInvite(ctx, phaseID, now, "")
 }
 
 func (s *requestService) LoadPublicPhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentModels.Phase, error) {
@@ -2643,7 +2631,7 @@ func (s *requestService) legalBlockEnabled(ctx context.Context, key string, labe
 // validated and persisted against: the template's enabled blocks when the
 // pinned schema declares at least one, otherwise the tenant-wide settings
 // blocks. Zero enabled template blocks fall back to settings (same rule as
-// LegalTextsForPhase) so an all-disabled snapshot can never erase the
+// LegalTextsForPhaseWithLateInvite) so an all-disabled snapshot can never erase the
 // tenant's consent contract.
 func (s *requestService) resolveSubmissionLegalBlocks(ctx context.Context, schema *enrollmentModels.FormSchema) ([]LegalBlock, error) {
 	if schema != nil && len(schema.LegalBlocks) > 0 {
@@ -2669,17 +2657,6 @@ func requiredConsentKeys(blocks []LegalBlock) []string {
 		}
 	}
 	return required
-}
-
-// resolveRequiredConsents returns the consent keys the parent must accept
-// for this schema/tenant. Kept as the single entry point combining block
-// resolution + required filtering.
-func (s *requestService) resolveRequiredConsents(ctx context.Context, schema *enrollmentModels.FormSchema) ([]string, error) {
-	blocks, err := s.resolveSubmissionLegalBlocks(ctx, schema)
-	if err != nil {
-		return nil, err
-	}
-	return requiredConsentKeys(blocks), nil
 }
 
 // filterConsentFlags drops every consent key the resolved legal-block
@@ -2956,29 +2933,6 @@ func (s *requestService) enforceRateLimitBuckets(ctx context.Context, req Submit
 	}
 
 	return nil
-}
-
-// resolveSelectedDays computes the SelectedDays value for a
-// request_child_offerings row given the offering's days_of_week_mode
-// + available_days and any parent-supplied day picks.
-//
-//   - fixed offerings: parent picks are ignored and the row stores
-//     NULL — semantics "use the offering's current available_days".
-//     If the admin later changes the offering's day set, the link
-//     reflects the new value automatically. Sending parent picks for
-//     a fixed offering is a 400, not a silent overwrite.
-//   - parent_choice offerings: picks must be a non-empty subset of
-//     the offering's available_days. Missing picks → 400; subset
-//     violation → 400.
-func resolveSelectedDays(offering *enrollmentModels.CareOffering, picks []string) ([]string, error) {
-	days, err := resolveManualSelectedDays(offering, picks)
-	if err != nil {
-		return nil, err
-	}
-	if offering.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeParentChoice && len(days) == 0 {
-		return nil, errParentChoiceOfferingMissingDays
-	}
-	return days, nil
 }
 
 var errParentChoiceOfferingMissingDays = fmt.Errorf("offering requires the parent to pick at least one day")

@@ -140,9 +140,6 @@ type StudentRepository interface {
 	// CountByGroupIDs counts students per group for multiple groups in a single query
 	CountByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error)
 
-	// FindByTeacherID retrieves students supervised by a teacher (through group assignments)
-	FindByTeacherID(ctx context.Context, teacherID int64) ([]*Student, error)
-
 	// FindByTeacherIDWithGroups retrieves students with group names supervised by a teacher
 	FindByTeacherIDWithGroups(ctx context.Context, teacherID int64) ([]*StudentWithGroupInfo, error)
 

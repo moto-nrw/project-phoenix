@@ -557,44 +557,6 @@ func TestGuardianInvitationService_Resend_ResetsEmailColumns(t *testing.T) {
 	assert.Nil(t, updated.EmailError, "email_error must be cleared on resend")
 }
 
-func TestGuardianInvitationService_CleanupExpired_RemovesExpired(t *testing.T) {
-	env := setupGuardianInvitationTest(t)
-	defer env.cleanup()
-
-	profile := testpkg.CreateTestGuardianProfile(t, env.db, "cleanup-test")
-	creatorID := env.inviterAccountID(t)
-
-	ctx := testpkg.TenantContext(1)
-	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
-		GuardianProfileID: profile.ID,
-		CreatedBy:         creatorID,
-	})
-	require.NoError(t, err)
-	defer func() {
-		_, _ = env.db.NewDelete().
-			TableExpr("users.guardian_profiles").
-			Where("id = ?", profile.ID).
-			Exec(context.Background())
-	}()
-
-	// Push the invitation into the expired window.
-	_, err = env.db.NewUpdate().
-		TableExpr("auth.guardian_invitations").
-		Set("expires_at = ?", time.Now().Add(-1*time.Hour)).
-		Where("id = ?", invitation.ID).
-		Exec(context.Background())
-	require.NoError(t, err)
-
-	count, err := env.service.CleanupExpired(context.Background())
-	require.NoError(t, err)
-	assert.GreaterOrEqual(t, count, 1, "expired invitation should be deleted")
-
-	// Confirm the row is gone.
-	_, err = env.repos.GuardianInvitation.FindByID(context.Background(), invitation.ID)
-	require.Error(t, err, "expired invitation should no longer exist after cleanup")
-	_ = authModels.GuardianInvitation{} // import retention
-}
-
 // --- Enrollment backfill on accept ---
 
 // stubEnrollmentBackfiller records inputs to BackfillGuardianAccountID

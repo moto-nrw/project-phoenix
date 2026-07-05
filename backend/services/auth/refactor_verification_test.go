@@ -63,18 +63,18 @@ func TestRefactoringPreservesRepositoryAccess(t *testing.T) {
 	require.NotNil(t, service.repos.Token, "Should access Token repo through factory")
 	require.NotNil(t, service.repos.Role, "Should access Role repo through factory")
 
-	// Verify GetAccountByEmail uses factory (calls s.repos.Account.FindByEmail)
+	// Verify GetAccountByID uses factory (calls s.repos.Account.FindByID)
 	ctx := context.Background()
 	mock.ExpectBegin()
 	mock.ExpectCommit()
 
-	account, err := service.GetAccountByEmail(ctx, "test@example.com")
-	require.NoError(t, err, "GetAccountByEmail should work with factory pattern")
+	account, err := service.GetAccountByID(ctx, 1)
+	require.NoError(t, err, "GetAccountByID should work with factory pattern")
 	require.NotNil(t, account, "Should return account")
 	require.Equal(t, "test@example.com", account.Email)
 
 	t.Log("✅ Service successfully accesses repositories through factory")
-	t.Log("✅ GetAccountByEmail verified to work after refactoring")
+	t.Log("✅ GetAccountByID verified to work after refactoring")
 }
 
 func stringPtr(s string) *string {

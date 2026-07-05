@@ -104,30 +104,6 @@ func (r *RoomRepository) FindByName(ctx context.Context, name string) (*faciliti
 	return room, nil
 }
 
-// FindByBuilding retrieves rooms by building
-func (r *RoomRepository) FindByBuilding(ctx context.Context, building string) ([]*facilities.Room, error) {
-	var rooms []*facilities.Room
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&rooms).
-		ModelTableExpr(tableExprFacilitiesRoomsAsRoom).
-		Where("LOWER(building) = LOWER(?)", building)
-
-	if where, val, ok := base.TenantWhere(ctx, "room"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by building",
-			Err: err,
-		}
-	}
-
-	return rooms, nil
-}
-
 // FindByCategory retrieves rooms by category
 func (r *RoomRepository) FindByCategory(ctx context.Context, category string) ([]*facilities.Room, error) {
 	var rooms []*facilities.Room
@@ -145,34 +121,6 @@ func (r *RoomRepository) FindByCategory(ctx context.Context, category string) ([
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find by category",
-			Err: err,
-		}
-	}
-
-	return rooms, nil
-}
-
-// FindByFloor retrieves rooms by building and floor
-func (r *RoomRepository) FindByFloor(ctx context.Context, building string, floor int) ([]*facilities.Room, error) {
-	var rooms []*facilities.Room
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&rooms).
-		ModelTableExpr(tableExprFacilitiesRoomsAsRoom)
-
-	if where, val, ok := base.TenantWhere(ctx, "room"); ok {
-		query = query.Where(where, val)
-	}
-
-	if building != "" {
-		query = query.Where("LOWER(building) = LOWER(?)", building)
-	}
-
-	query = query.Where("floor = ?", floor)
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by floor",
 			Err: err,
 		}
 	}

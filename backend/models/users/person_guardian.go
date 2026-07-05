@@ -96,11 +96,11 @@ func (pg *PersonGuardian) SetPerson(person *Person) {
 	}
 }
 
-// Note: the guardian permission check and grant/revoke mutations (formerly
-// PersonGuardian.HasPermission / GrantPermission / RevokePermission) moved out
-// of the model in issue #586 (Rule 12) to:
-//   - auth/authorize/guardian_permission.go (PersonGuardianHasPermission /
-//     PersonGuardianGrantPermission / PersonGuardianRevokePermission)
+// Note: the guardian grant/revoke mutations (formerly
+// PersonGuardian.GrantPermission / RevokePermission) moved out of the model in
+// issue #586 (Rule 12) to:
+//   - auth/authorize/guardian_permission.go (PersonGuardianGrantPermission /
+//     PersonGuardianRevokePermission)
 
 // GetRelationshipName returns a formatted name for the relationship type
 func (pg *PersonGuardian) GetRelationshipName() string {

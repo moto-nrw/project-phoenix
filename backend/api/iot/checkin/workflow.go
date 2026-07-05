@@ -877,18 +877,6 @@ func (rs *Resource) getActiveStudentCountForGroup(ctx context.Context, activeGro
 	return &count
 }
 
-// countActiveStudentsInVisits counts visits without an exit time (active students).
-// Kept for tests and utility callers that already have visit data in memory.
-func countActiveStudentsInVisits(visits []*active.Visit) int {
-	count := 0
-	for _, visit := range visits {
-		if visit.ExitTime == nil {
-			count++
-		}
-	}
-	return count
-}
-
 // updateSessionActivity updates session activity for the already-selected active group.
 func (rs *Resource) updateSessionActivity(ctx context.Context, activeGroupID int64) {
 	if updateErr := rs.ActiveService.UpdateSessionActivity(ctx, activeGroupID); updateErr != nil {

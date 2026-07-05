@@ -26,8 +26,8 @@ type Token struct {
 }
 
 // Validate ensures token data is valid. It performs pure field validation only.
-// The expiry/validity decision is wall-clock policy owned by the auth service
-// (services/auth.TokenExpired), per issue #586 (Rule 12: models hold data, not
+// The expiry/validity decision is wall-clock policy enforced by the read paths'
+// SQL expiry filters, per issue #586 (Rule 12: models hold data, not
 // decisions).
 func (t *Token) Validate() error {
 	if t.AccountID <= 0 {

@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -497,7 +496,7 @@ func TestPersonGuardianRepository_GrantPermissionToGuardian(t *testing.T) {
 		// Verify permission granted
 		found, err := repo.FindByID(ctx, pg.ID)
 		require.NoError(t, err)
-		assert.True(t, authorize.PersonGuardianHasPermission(found, "view_attendance"))
+		assert.True(t, pgPermissionGranted(t, found.Permissions, "view_attendance"))
 	})
 
 	t.Run("returns error for non-existent ID", func(t *testing.T) {
@@ -537,11 +536,23 @@ func TestPersonGuardianRepository_RevokePermissionFromGuardian(t *testing.T) {
 		// Verify permission revoked
 		found, err := repo.FindByID(ctx, pg.ID)
 		require.NoError(t, err)
-		assert.False(t, authorize.PersonGuardianHasPermission(found, "view_attendance"))
+		assert.False(t, pgPermissionGranted(t, found.Permissions, "view_attendance"))
 	})
 
 	t.Run("returns error for non-existent ID", func(t *testing.T) {
 		err := repo.RevokePermissionFromGuardian(ctx, int64(999999), "view_attendance")
 		require.Error(t, err)
 	})
+}
+
+// pgPermissionGranted reports whether the stored permissions JSON grants the
+// named permission (the production predicate was deleted as dead code).
+func pgPermissionGranted(t *testing.T, permissionsJSON, permission string) bool {
+	t.Helper()
+	if permissionsJSON == "" {
+		return false
+	}
+	perms := map[string]bool{}
+	require.NoError(t, json.Unmarshal([]byte(permissionsJSON), &perms))
+	return perms[permission]
 }

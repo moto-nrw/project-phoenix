@@ -72,8 +72,8 @@ func legalBlocksValue(value []enrollmentModels.FormLegalBlock) []enrollmentModel
 
 // PublishSchemaRequest is the wire shape POST /schema accepts. When
 // Name is set, the handler routes to CreateSchema (new named schema);
-// when empty it falls back to PublishVersion (legacy single-schema
-// flow that writes the row under the default name).
+// when empty it falls back to updating/creating the default
+// "Standardformular" schema (legacy single-schema flow).
 type PublishSchemaRequest struct {
 	Name             string                             `json:"name"`
 	Fields           []enrollmentModels.FormField       `json:"fields"`
@@ -425,8 +425,9 @@ func (rs *Resource) getSchemaByID(w http.ResponseWriter, r *http.Request) {
 
 // publishSchema creates a schema. When the request body carries a
 // name, this routes to CreateSchema (new named schema, version 1).
-// When the name is omitted, it falls back to PublishVersion for
-// backward compatibility with the original single-schema flow.
+// When the name is omitted, it updates the active schema (or creates
+// the default "Standardformular" one) for backward compatibility with
+// the original single-schema flow.
 func (rs *Resource) publishSchema(w http.ResponseWriter, r *http.Request) {
 	if rs.FormSchemaService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("form schema service not configured")))

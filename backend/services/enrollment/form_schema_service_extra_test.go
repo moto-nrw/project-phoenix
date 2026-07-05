@@ -70,7 +70,7 @@ func TestFormSchemaService_GetByID_ReturnsRow(t *testing.T) {
 	_, svc, creatorID, _ := setupFullSchemaTest(t)
 	ctx := testpkg.TenantContext(1)
 
-	pub, err := svc.PublishVersion(ctx, []enrollmentModels.FormField{
+	pub, err := svc.CreateSchema(ctx, "Testformular GetByID", []enrollmentModels.FormField{
 		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
 	}, creatorID)
 	require.NoError(t, err)
@@ -292,87 +292,6 @@ func TestFormSchemaService_DeleteSchema_HappyPathDropsAllVersions(t *testing.T) 
 		Count(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, 0, count, "delete removes every row under the logical name")
-}
-
-func TestFormSchemaService_ValidateSubmission_MissingFieldErrors(t *testing.T) {
-	_, svc, creatorID, _ := setupFullSchemaTest(t)
-	ctx := testpkg.TenantContext(1)
-
-	schema, err := svc.CreateSchema(ctx, uniqueSchemaName("ValidateMissing"),
-		[]enrollmentModels.FormField{
-			{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0, Required: true},
-		}, creatorID)
-	require.NoError(t, err)
-
-	err = svc.ValidateSubmission(ctx, schema.ID, enrollmentModels.SubmissionData{
-		GuardianFields: map[string]any{},
-	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "allergies")
-	assert.Contains(t, err.Error(), "required")
-}
-
-func TestFormSchemaService_ValidateSubmission_EmptyStringTreatedAsMissing(t *testing.T) {
-	_, svc, creatorID, _ := setupFullSchemaTest(t)
-	ctx := testpkg.TenantContext(1)
-
-	schema, err := svc.CreateSchema(ctx, uniqueSchemaName("ValidateEmpty"),
-		[]enrollmentModels.FormField{
-			{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0, Required: true},
-		}, creatorID)
-	require.NoError(t, err)
-
-	err = svc.ValidateSubmission(ctx, schema.ID, enrollmentModels.SubmissionData{
-		GuardianFields: map[string]any{"allergies": ""},
-	})
-	require.Error(t, err, "empty string for required field must error")
-}
-
-func TestFormSchemaService_ValidateSubmission_PresentValueOK(t *testing.T) {
-	_, svc, creatorID, _ := setupFullSchemaTest(t)
-	ctx := testpkg.TenantContext(1)
-
-	schema, err := svc.CreateSchema(ctx, uniqueSchemaName("ValidateOK"),
-		[]enrollmentModels.FormField{
-			{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0, Required: true},
-			{Key: "diet", Label: "Diät", Type: enrollmentModels.FormFieldText, SortOrder: 1, Required: false},
-		}, creatorID)
-	require.NoError(t, err)
-
-	err = svc.ValidateSubmission(ctx, schema.ID, enrollmentModels.SubmissionData{
-		GuardianFields: map[string]any{"allergies": "Nüsse"},
-	})
-	require.NoError(t, err)
-}
-
-func TestFormSchemaService_ValidateSubmission_SkipsPerChildFields(t *testing.T) {
-	// This helper only receives guardian-level custom data. Per-child
-	// required fields are validated by RequestService.Submit, so this
-	// legacy check must not flag them as missing here.
-	_, svc, creatorID, _ := setupFullSchemaTest(t)
-	ctx := testpkg.TenantContext(1)
-
-	schema, err := svc.CreateSchema(ctx, uniqueSchemaName("ChildSkip"),
-		[]enrollmentModels.FormField{
-			{Key: "child_note", Label: "Hinweis", Type: enrollmentModels.FormFieldText, SortOrder: 0, Required: true, AppliesToCh: true},
-		}, creatorID)
-	require.NoError(t, err)
-
-	err = svc.ValidateSubmission(ctx, schema.ID, enrollmentModels.SubmissionData{
-		GuardianFields: map[string]any{},
-	})
-	require.NoError(t, err, "per-child required fields must be skipped at guardian-level validation")
-}
-
-func TestFormSchemaService_ValidateSubmission_MissingSchemaErrors(t *testing.T) {
-	_, svc, _, _ := setupFullSchemaTest(t)
-	ctx := testpkg.TenantContext(1)
-
-	err := svc.ValidateSubmission(ctx, 999_999_999, enrollmentModels.SubmissionData{
-		GuardianFields: map[string]any{},
-	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "schema lookup")
 }
 
 // uniqueSchemaName builds a per-test schema name so parallel tests

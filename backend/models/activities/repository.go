@@ -62,9 +62,6 @@ type GroupRepository interface {
 	// FindByStaffSupervisor finds all activity groups where a staff member is a supervisor
 	FindByStaffSupervisor(ctx context.Context, staffID int64) ([]*Group, error)
 
-	// FindByStaffSupervisorToday finds all activity groups where a staff member is a supervisor for today
-	FindByStaffSupervisorToday(ctx context.Context, staffID int64) ([]*Group, error)
-
 	// FindAllTemplates returns all activity groups flagged as templates
 	// (is_template = true). Used by the materialization service to enumerate
 	// candidates when generating schedule.activity_instances rows.
@@ -169,15 +166,6 @@ type StudentEnrollmentRepository interface {
 
 	// FindByGroupID finds all enrollments for a specific group
 	FindByGroupID(ctx context.Context, groupID int64) ([]*StudentEnrollment, error)
-
-	// CountByGroupID counts the number of students enrolled in a specific group
-	CountByGroupID(ctx context.Context, groupID int64) (int, error)
-
-	// FindByValidFromRange finds enrollments within a valid_from date range
-	FindByValidFromRange(ctx context.Context, start, end timezone.Date) ([]*StudentEnrollment, error)
-
-	// UpdateAttendanceStatus updates the attendance status for a specific enrollment
-	UpdateAttendanceStatus(ctx context.Context, id int64, status *string) error
 
 	// BackfillEnrollmentRequestChildSource stamps legacy rows that were
 	// materialized during the same approval as requestChildID but predate the

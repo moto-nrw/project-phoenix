@@ -257,30 +257,6 @@ func (s *service) CountGroups(ctx context.Context, options *base.QueryOptions) (
 	return count, nil
 }
 
-// FindGroupByName finds a group by its name
-func (s *service) FindGroupByName(ctx context.Context, name string) (*education.Group, error) {
-	group, err := s.groupRepo.FindByName(ctx, name)
-	if err != nil {
-		return nil, &EducationError{Op: "FindGroupByName", Err: ErrGroupNotFound}
-	}
-	return group, nil
-}
-
-// FindGroupsByRoom finds all groups assigned to a specific room
-func (s *service) FindGroupsByRoom(ctx context.Context, roomID int64) ([]*education.Group, error) {
-	// Verify room exists
-	_, err := s.roomRepo.FindByID(ctx, roomID)
-	if err != nil {
-		return nil, &EducationError{Op: "FindGroupsByRoom", Err: ErrRoomNotFound}
-	}
-
-	groups, err := s.groupRepo.FindByRoom(ctx, roomID)
-	if err != nil {
-		return nil, &EducationError{Op: "FindGroupsByRoom", Err: err}
-	}
-	return groups, nil
-}
-
 // FindGroupWithRoom retrieves a group with its associated room
 func (s *service) FindGroupWithRoom(ctx context.Context, groupID int64) (*education.Group, error) {
 	group, err := s.groupRepo.FindWithRoom(ctx, groupID)
@@ -290,85 +266,7 @@ func (s *service) FindGroupWithRoom(ctx context.Context, groupID int64) (*educat
 	return group, nil
 }
 
-// AssignRoomToGroup assigns a room to a group
-func (s *service) AssignRoomToGroup(ctx context.Context, groupID, roomID int64) error {
-	// Verify group exists
-	group, err := s.groupRepo.FindByID(ctx, groupID)
-	if err != nil {
-		return &EducationError{Op: "AssignRoomToGroup", Err: ErrGroupNotFound}
-	}
-
-	// Verify room exists
-	room, err := s.roomRepo.FindByID(ctx, roomID)
-	if err != nil {
-		return &EducationError{Op: "AssignRoomToGroup", Err: ErrRoomNotFound}
-	}
-
-	// Update group's room
-	group.SetRoom(room)
-	if err := s.groupRepo.Update(ctx, group); err != nil {
-		return &EducationError{Op: "AssignRoomToGroup", Err: err}
-	}
-
-	return nil
-}
-
-// RemoveRoomFromGroup removes a room assignment from a group
-func (s *service) RemoveRoomFromGroup(ctx context.Context, groupID int64) error {
-	// Verify group exists
-	group, err := s.groupRepo.FindByID(ctx, groupID)
-	if err != nil {
-		return &EducationError{Op: "RemoveRoomFromGroup", Err: ErrGroupNotFound}
-	}
-
-	// Remove room assignment
-	group.SetRoom(nil)
-	if err := s.groupRepo.Update(ctx, group); err != nil {
-		return &EducationError{Op: "RemoveRoomFromGroup", Err: err}
-	}
-
-	return nil
-}
-
 // Group-Teacher operations
-
-// AddTeacherToGroup adds a teacher to a group
-func (s *service) AddTeacherToGroup(ctx context.Context, groupID, teacherID int64) error {
-	// Verify group exists
-	_, err := s.groupRepo.FindByID(ctx, groupID)
-	if err != nil {
-		return &EducationError{Op: "AddTeacherToGroup", Err: ErrGroupNotFound}
-	}
-
-	// Verify teacher exists
-	teacher, err := s.teacherRepo.FindByID(ctx, teacherID)
-	if err != nil {
-		return &EducationError{Op: "AddTeacherToGroup", Err: ErrTeacherNotFound}
-	}
-
-	// Check if relationship already exists
-	relations, err := s.groupTeacherRepo.FindByGroup(ctx, groupID)
-	if err == nil {
-		for _, rel := range relations {
-			if rel.TeacherID == teacherID {
-				return &EducationError{Op: "AddTeacherToGroup", Err: ErrDuplicateTeacherInGroup}
-			}
-		}
-	}
-
-	// Create group-teacher relationship
-	groupTeacher := &education.GroupTeacher{
-		GroupID:   groupID,
-		TeacherID: teacher.ID,
-	}
-	groupTeacher.SetTenantID(tenant.FromContext(ctx))
-
-	if err := s.groupTeacherRepo.Create(ctx, groupTeacher); err != nil {
-		return &EducationError{Op: "AddTeacherToGroup", Err: err}
-	}
-
-	return nil
-}
 
 // RemoveTeacherFromGroup removes a teacher from a group
 func (s *service) RemoveTeacherFromGroup(ctx context.Context, groupID, teacherID int64) error {

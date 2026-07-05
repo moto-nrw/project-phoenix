@@ -26,49 +26,6 @@ func TestSessionInactivityDuration(t *testing.T) {
 	assert.Equal(t, 15*time.Minute, SessionInactivityDuration(group, now))
 }
 
-func TestMarkSessionActivity(t *testing.T) {
-	now := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
-	group := &activeModels.Group{LastActivity: now.Add(-1 * time.Hour)}
-	MarkSessionActivity(group, now)
-	assert.Equal(t, now, group.LastActivity)
-}
-
-func TestEndGroupSession(t *testing.T) {
-	now := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
-	group := &activeModels.Group{StartTime: now.Add(-1 * time.Hour)}
-	EndGroupSession(group, now)
-	if assert.NotNil(t, group.EndTime) {
-		assert.Equal(t, now, *group.EndTime)
-	}
-}
-
-func TestEndVisitRecord(t *testing.T) {
-	now := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
-	visit := &activeModels.Visit{EntryTime: now.Add(-1 * time.Hour)}
-	EndVisitRecord(visit, now)
-	if assert.NotNil(t, visit.ExitTime) {
-		assert.Equal(t, now, *visit.ExitTime)
-	}
-}
-
-func TestEndSupervisionRecord(t *testing.T) {
-	now := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
-	gs := &activeModels.GroupSupervisor{StartDate: timezone.DateFromTime(now)}
-	EndSupervisionRecord(gs, now)
-	if assert.NotNil(t, gs.EndDate) {
-		assert.Equal(t, timezone.DateFromTime(now), *gs.EndDate)
-	}
-}
-
-func TestEndCombinationRecord(t *testing.T) {
-	now := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
-	cg := &activeModels.CombinedGroup{StartTime: now.Add(-1 * time.Hour)}
-	EndCombinationRecord(cg, now)
-	if assert.NotNil(t, cg.EndTime) {
-		assert.Equal(t, now, *cg.EndTime)
-	}
-}
-
 func TestIsSupervisorActive(t *testing.T) {
 	now := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 

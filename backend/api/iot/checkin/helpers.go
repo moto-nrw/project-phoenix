@@ -83,14 +83,6 @@ func (rs *Resource) getStudentDailyCheckoutTime(ctx context.Context) (*time.Time
 	return &checkoutTime, nil
 }
 
-// getRoomNameFromVisit extracts the room name from a visit's active group if available.
-func getRoomNameFromVisit(visit *active.Visit) string {
-	if visit != nil && visit.ActiveGroup != nil && visit.ActiveGroup.Room != nil {
-		return visit.ActiveGroup.Room.Name
-	}
-	return ""
-}
-
 // shouldUpgradeToDailyCheckout checks if a checkout should be upgraded to daily checkout.
 // Encapsulates the complex condition to reduce cognitive complexity in deviceCheckin.
 func (rs *Resource) shouldUpgradeToDailyCheckout(ctx context.Context, action string, student *users.Student, currentVisit *active.Visit) bool {

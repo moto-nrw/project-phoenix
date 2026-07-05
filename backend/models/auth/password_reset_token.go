@@ -24,8 +24,8 @@ type PasswordResetToken struct {
 
 // Validate ensures password reset token data is valid. It performs pure field
 // validation only. Expiry/used consumability is wall-clock policy owned by the
-// auth service (services/auth.PasswordResetTokenValid) and the repository's
-// FindValidByToken, per issue #586 (Rule 12: models hold data, not decisions).
+// repository's FindValidByToken, per issue #586 (Rule 12: models hold data, not
+// decisions).
 func (t *PasswordResetToken) Validate() error {
 	if t.AccountID <= 0 {
 		return errors.New("account ID is required")

@@ -82,10 +82,10 @@ func TestResolveRequiredConsents_UsesTemplateLegalBlocks(t *testing.T) {
 		},
 	}
 
-	required, err := svc.resolveRequiredConsents(context.Background(), schema)
+	blocks, err := svc.resolveSubmissionLegalBlocks(context.Background(), schema)
 
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []string{enrollmentModels.ConsentKeyDataProcessing, "custom_pool"}, required)
+	assert.ElementsMatch(t, []string{enrollmentModels.ConsentKeyDataProcessing, "custom_pool"}, requiredConsentKeys(blocks))
 }
 
 func TestBuildLegalBlocks_RequiresEnabledTogglesForEveryStandardBlock(t *testing.T) {
@@ -230,10 +230,10 @@ func TestResolveRequiredConsents_AllDisabledTemplateFallsBackToSettings(t *testi
 		},
 	}
 
-	required, err := svc.resolveRequiredConsents(context.Background(), schema)
+	blocks, err := svc.resolveSubmissionLegalBlocks(context.Background(), schema)
 
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []string{enrollmentModels.ConsentKeyDataProcessing}, required)
+	assert.ElementsMatch(t, []string{enrollmentModels.ConsentKeyDataProcessing}, requiredConsentKeys(blocks))
 }
 
 func TestBuildTemplateLegalBlocks_SortsBySortOrder(t *testing.T) {

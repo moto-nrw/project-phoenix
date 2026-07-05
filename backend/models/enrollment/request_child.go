@@ -93,20 +93,6 @@ func (c *RequestChild) IsTerminal() bool {
 	}
 }
 
-// IsRenewalPending returns true while this child is waiting on a
-// parent action (opt-in confirm) or deadline (opt-out decline). Used
-// by the deadline worker to scope its scan.
-func (c *RequestChild) IsRenewalPending() bool {
-	return c.Status == ChildStatusPendingRenewal || c.Status == ChildStatusAutoRenewed
-}
-
-// IsRollover returns true when this row was created by RolloverService
-// from a previous-year approval. The decision service uses this to
-// update the existing student record instead of creating a new one.
-func (c *RequestChild) IsRollover() bool {
-	return c.RolloverSourceChildID != nil
-}
-
 // RequestChildRepository describes the DB operations PR 5/7/8 need. PR 5
 // only implements + tests Create/ListByRequestID/UpdateStatus; PR 8
 // adds LinkCreatedStudent to back-link the row to the student record
