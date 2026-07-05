@@ -563,6 +563,12 @@ html {
   background: #ffffff;
   overflow-y: scroll;
   scrollbar-gutter: stable;
+  /* html is the document scroll container. Without this, touch devices
+     rubber-band (bounce) past the top/bottom and sideways even when there is
+     nothing more to scroll — which reads as a stutter at the end of a page and
+     lets short pages be dragged in both axes. Contain the overscroll so the
+     document never chains into the native bounce. */
+  overscroll-behavior: none;
 }
 
 body {
