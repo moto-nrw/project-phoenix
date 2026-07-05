@@ -661,6 +661,7 @@ export interface StaffHistorySession {
   auto_checked_out?: boolean;
   notes?: string;
   edit_count?: number;
+  audit_count?: number;
 }
 
 class StaffHistoryService {

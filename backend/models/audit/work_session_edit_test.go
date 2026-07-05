@@ -51,12 +51,20 @@ func TestWorkSessionEdit_Validate(t *testing.T) {
 		assert.Contains(t, err.Error(), "staff ID is required")
 	})
 
-	t.Run("missing edited by", func(t *testing.T) {
+	t.Run("negative edited by", func(t *testing.T) {
 		e := validEdit()
-		e.EditedBy = 0
+		e.EditedBy = -1
 		err := e.Validate()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "edited by is required")
+	})
+
+	t.Run("system editor sentinel is valid", func(t *testing.T) {
+		// #1798: EditedBy 0 marks system actions (auto-checkout at planned
+		// shift end) and must pass validation.
+		e := validEdit()
+		e.EditedBy = SystemEditorID
+		assert.NoError(t, e.Validate())
 	})
 
 	t.Run("empty field name", func(t *testing.T) {

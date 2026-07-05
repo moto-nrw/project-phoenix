@@ -5,6 +5,10 @@
  * Get page title based on pathname
  */
 export function getPageTitle(pathname: string): string {
+  if (pathname === "/staff/dienstplan") {
+    return "Dienstplan";
+  }
+
   // Check for /students/search first before other /students/ paths
   if (pathname === "/students/search") {
     return "Kindersuche";
@@ -72,6 +76,7 @@ function getMainRouteTitle(pathname: string): string {
     "/ogs-groups": "Meine Gruppe",
     "/active-supervisions": "Aktuelle Aufsicht",
     "/staff": "Mitarbeiter",
+    "/staff/dienstplan": "Dienstplan",
     "/rooms": "Räume",
     "/activities": "Aktivitäten",
     "/reminders": "Erinnerungen",
@@ -168,7 +173,9 @@ export function getPageTypeInfo(pathname: string): PageTypeInfo {
       pathname.includes("/room-history"));
 
   const isStaffDetailPage =
-    pathname.startsWith("/staff/") && pathname !== "/staff";
+    pathname.startsWith("/staff/") &&
+    pathname !== "/staff" &&
+    pathname !== "/staff/dienstplan";
 
   const isRoomDetailPage =
     pathname.startsWith("/rooms/") && pathname !== "/rooms";

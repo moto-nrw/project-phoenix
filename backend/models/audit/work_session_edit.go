@@ -22,6 +22,12 @@ type WorkSessionEdit struct {
 	CreatedAt time.Time `bun:"created_at,notnull,default:now()" json:"created_at"`
 }
 
+// SystemEditorID is the sentinel edited_by value for changes performed by
+// the system itself (e.g. the automatic checkout at planned shift end,
+// #1798). The column has no FK, so 0 is storable; display code renders it
+// as "System".
+const SystemEditorID int64 = 0
+
 // Valid field names for audit entries
 const (
 	FieldDate          = "date"
@@ -46,7 +52,8 @@ func (e *WorkSessionEdit) Validate() error {
 	if e.StaffID <= 0 {
 		return errors.New("staff ID is required")
 	}
-	if e.EditedBy <= 0 {
+	// SystemEditorID (0) marks system actions (#1798); negative IDs stay invalid.
+	if e.EditedBy < 0 {
 		return errors.New("edited by is required")
 	}
 	if e.FieldName == "" {
@@ -73,4 +80,6 @@ type WorkSessionEditRepository interface {
 	GetBySessionID(ctx context.Context, sessionID int64) ([]*WorkSessionEdit, error)
 	CountBySessionID(ctx context.Context, sessionID int64) (int, error)
 	CountBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64]int, error)
+	// CountManualBySessionIDs excludes system-authored edits (edited_by = SystemEditorID).
+	CountManualBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64]int, error)
 }

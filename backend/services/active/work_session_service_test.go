@@ -29,10 +29,12 @@ type wsMockWorkSessionRepository struct {
 	listFunc                func(ctx context.Context, options *base.QueryOptions) ([]*activeModels.WorkSession, error)
 	getByStaffAndDateFunc   func(ctx context.Context, staffID int64, date timezone.Date) (*activeModels.WorkSession, error)
 	getCurrentByStaffIDFunc func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	getCurrentForUpdateFunc func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	lockOpenByIDFunc        func(ctx context.Context, id int64) (*activeModels.WorkSession, error)
 	getHistoryByStaffIDFunc func(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error)
 	getOpenSessionsFunc     func(ctx context.Context, beforeDate timezone.Date) ([]*activeModels.WorkSession, error)
 	getTodayPresenceMapFunc func(ctx context.Context) (map[int64]string, error)
-	closeSessionFunc        func(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) error
+	closeSessionFunc        func(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) (bool, error)
 	updateBreakMinutesFunc  func(ctx context.Context, id int64, breakMinutes int) error
 }
 
@@ -85,6 +87,30 @@ func (m *wsMockWorkSessionRepository) GetCurrentByStaffID(ctx context.Context, s
 	return nil, sql.ErrNoRows
 }
 
+func (m *wsMockWorkSessionRepository) GetCurrentByStaffIDForUpdate(ctx context.Context, staffID int64) (*activeModels.WorkSession, error) {
+	if m.getCurrentForUpdateFunc != nil {
+		return m.getCurrentForUpdateFunc(ctx, staffID)
+	}
+	return m.GetCurrentByStaffID(ctx, staffID)
+}
+
+func (m *wsMockWorkSessionRepository) LockOpenByIDForUpdate(ctx context.Context, id int64) (*activeModels.WorkSession, error) {
+	if m.lockOpenByIDFunc != nil {
+		return m.lockOpenByIDFunc(ctx, id)
+	}
+	if m.findByIDFunc != nil {
+		session, err := m.findByIDFunc(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if session.CheckOutTime != nil {
+			return nil, sql.ErrNoRows
+		}
+		return session, nil
+	}
+	return nil, sql.ErrNoRows
+}
+
 func (m *wsMockWorkSessionRepository) GetHistoryByStaffID(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error) {
 	if m.getHistoryByStaffIDFunc != nil {
 		return m.getHistoryByStaffIDFunc(ctx, staffID, from, to)
@@ -106,11 +132,11 @@ func (m *wsMockWorkSessionRepository) GetTodayPresenceMap(ctx context.Context) (
 	return nil, nil
 }
 
-func (m *wsMockWorkSessionRepository) CloseSession(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) error {
+func (m *wsMockWorkSessionRepository) CloseSession(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) (bool, error) {
 	if m.closeSessionFunc != nil {
 		return m.closeSessionFunc(ctx, id, checkOutTime, autoCheckedOut)
 	}
-	return nil
+	return true, nil
 }
 
 func (m *wsMockWorkSessionRepository) UpdateBreakMinutes(ctx context.Context, id int64, breakMinutes int) error {
@@ -338,10 +364,11 @@ func (m *wsMockWorkSessionBreakRepository) GetExpiredBreaks(ctx context.Context,
 // ============================================================================
 
 type wsMockWorkSessionEditRepository struct {
-	createBatchFunc       func(ctx context.Context, edits []*auditModels.WorkSessionEdit) error
-	getBySessionIDFunc    func(ctx context.Context, sessionID int64) ([]*auditModels.WorkSessionEdit, error)
-	countBySessionIDFunc  func(ctx context.Context, sessionID int64) (int, error)
-	countBySessionIDsFunc func(ctx context.Context, sessionIDs []int64) (map[int64]int, error)
+	createBatchFunc             func(ctx context.Context, edits []*auditModels.WorkSessionEdit) error
+	getBySessionIDFunc          func(ctx context.Context, sessionID int64) ([]*auditModels.WorkSessionEdit, error)
+	countBySessionIDFunc        func(ctx context.Context, sessionID int64) (int, error)
+	countBySessionIDsFunc       func(ctx context.Context, sessionIDs []int64) (map[int64]int, error)
+	countManualBySessionIDsFunc func(ctx context.Context, sessionIDs []int64) (map[int64]int, error)
 }
 
 func (m *wsMockWorkSessionEditRepository) CreateBatch(ctx context.Context, edits []*auditModels.WorkSessionEdit) error {
@@ -370,6 +397,15 @@ func (m *wsMockWorkSessionEditRepository) CountBySessionIDs(ctx context.Context,
 		return m.countBySessionIDsFunc(ctx, sessionIDs)
 	}
 	return map[int64]int{}, nil
+}
+
+func (m *wsMockWorkSessionEditRepository) CountManualBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64]int, error) {
+	if m.countManualBySessionIDsFunc != nil {
+		return m.countManualBySessionIDsFunc(ctx, sessionIDs)
+	}
+	// Existing tests stub countBySessionIDsFunc to mean "edits by a person";
+	// fall back so their semantics are unchanged.
+	return m.CountBySessionIDs(ctx, sessionIDs)
 }
 
 // ============================================================================
@@ -829,13 +865,14 @@ func TestWSCheckIn_AlreadyCheckedIn(t *testing.T) {
 
 func TestWSCheckIn_ReopenCheckedOutSession(t *testing.T) {
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	checkIn := time.Now().Add(-4 * time.Hour)
 	checkOut := time.Now().Add(-1 * time.Hour)
 
 	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) (*activeModels.WorkSession, error) {
 		return &activeModels.WorkSession{
 			Model:          base.Model{ID: 1},
 			StaffID:        100,
-			CheckInTime:    time.Now().Add(-4 * time.Hour),
+			CheckInTime:    checkIn,
 			CheckOutTime:   &checkOut,
 			AutoCheckedOut: true,
 			Status:         activeModels.WorkSessionStatusPresent,
@@ -847,6 +884,9 @@ func TestWSCheckIn_ReopenCheckedOutSession(t *testing.T) {
 	sessionRepo.updateFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
 		assert.Nil(t, entity.CheckOutTime)
 		assert.False(t, entity.AutoCheckedOut)
+		assert.Equal(t, checkIn, entity.CheckInTime)
+		require.NotNil(t, entity.ReopenedAt)
+		assert.True(t, entity.ReopenedAt.After(checkOut))
 		return nil
 	}
 
@@ -854,6 +894,8 @@ func TestWSCheckIn_ReopenCheckedOutSession(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, session)
 	assert.Nil(t, session.CheckOutTime)
+	assert.Equal(t, checkIn, session.CheckInTime)
+	require.NotNil(t, session.ReopenedAt)
 }
 
 // TestWSCheckIn_ReopenPreservesOriginalSourceAndStatus locks in the
@@ -1117,9 +1159,9 @@ func TestWSCheckOut_Success(t *testing.T) {
 		return nil, nil
 	}
 
-	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, autoCheckedOut bool) error {
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, autoCheckedOut bool) (bool, error) {
 		assert.False(t, autoCheckedOut)
-		return nil
+		return true, nil
 	}
 
 	supervisorRepo.endAllActiveByStaffIDFunc = func(_ context.Context, _ int64) (int, error) {
@@ -1200,8 +1242,8 @@ func TestWSCheckOut_WithActiveBreak(t *testing.T) {
 		return nil
 	}
 
-	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) error {
-		return nil
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) (bool, error) {
+		return true, nil
 	}
 
 	supervisorRepo.endAllActiveByStaffIDFunc = func(_ context.Context, _ int64) (int, error) {
@@ -1245,6 +1287,38 @@ func TestWSStartBreak_Success(t *testing.T) {
 	}
 
 	breakRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSessionBreak) error {
+		entity.ID = 10
+		return nil
+	}
+
+	brk, err := svc.StartBreak(context.Background(), staffID, nil)
+	require.NoError(t, err)
+	require.NotNil(t, brk)
+	assert.Equal(t, int64(50), brk.SessionID)
+}
+
+func TestWSStartBreak_LocksCurrentSessionBeforeCreate(t *testing.T) {
+	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
+	staffID := int64(100)
+
+	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
+		t.Fatal("StartBreak must lock the active session before creating a break")
+		return nil, nil
+	}
+	locked := false
+	sessionRepo.getCurrentForUpdateFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
+		locked = true
+		return &activeModels.WorkSession{
+			Model:       base.Model{ID: 50},
+			StaffID:     staffID,
+			CheckInTime: time.Now().Add(-2 * time.Hour),
+		}, nil
+	}
+	breakRepo.getActiveBySessionIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSessionBreak, error) {
+		return nil, nil
+	}
+	breakRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSessionBreak) error {
+		require.True(t, locked, "session lock must happen before break insert")
 		entity.ID = 10
 		return nil
 	}
@@ -1433,6 +1507,9 @@ func TestWSGetHistory_Success(t *testing.T) {
 		}, nil
 	}
 
+	auditRepo.countManualBySessionIDsFunc = func(_ context.Context, _ []int64) (map[int64]int, error) {
+		return map[int64]int{1: 1}, nil
+	}
 	auditRepo.countBySessionIDsFunc = func(_ context.Context, _ []int64) (map[int64]int, error) {
 		return map[int64]int{1: 2}, nil
 	}
@@ -1444,7 +1521,8 @@ func TestWSGetHistory_Success(t *testing.T) {
 	historyResp, err := svc.GetHistory(context.Background(), staffID, from, to)
 	require.NoError(t, err)
 	require.Len(t, historyResp.Sessions, 1)
-	assert.Equal(t, 2, historyResp.Sessions[0].EditCount)
+	assert.Equal(t, 1, historyResp.Sessions[0].EditCount)
+	assert.Equal(t, 2, historyResp.Sessions[0].AuditCount)
 	require.Len(t, historyResp.WeeklySummaries, 1)
 }
 
@@ -1798,9 +1876,9 @@ func TestWSCleanupOpenSessions_Success(t *testing.T) {
 		}, nil
 	}
 
-	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, autoCheckedOut bool) error {
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, autoCheckedOut bool) (bool, error) {
 		assert.True(t, autoCheckedOut)
-		return nil
+		return true, nil
 	}
 
 	count, err := svc.CleanupOpenSessions(context.Background())
@@ -1833,9 +1911,9 @@ func TestWSCleanupOpenSessions_CheckOutTimeIsBerlinEndOfDay(t *testing.T) {
 	}
 
 	var capturedCheckOutTime time.Time
-	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, checkOutTime time.Time, _ bool) error {
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, checkOutTime time.Time, _ bool) (bool, error) {
 		capturedCheckOutTime = checkOutTime
-		return nil
+		return true, nil
 	}
 
 	count, err := svc.CleanupOpenSessions(context.Background())

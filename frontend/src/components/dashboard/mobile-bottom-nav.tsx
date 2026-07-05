@@ -272,6 +272,12 @@ const additionalNavItems: AdditionalNavItem[] = [
     alwaysShow: true,
   },
   { href: "/staff", label: "Mitarbeiter", iconKey: "staff", alwaysShow: true },
+  {
+    href: "/staff/dienstplan",
+    label: "Dienstplan",
+    iconKey: "calendar",
+    requiresAdmin: true,
+  },
   { href: "/rooms", label: "Räume", iconKey: "rooms", alwaysShow: true },
   {
     href: "/substitutions",
@@ -413,6 +419,12 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       }
       if (activePaths?.some((p) => pathname.startsWith(p))) {
         return true;
+      }
+      if (href === "/staff") {
+        return (
+          pathname.startsWith("/staff") &&
+          !pathname.startsWith("/staff/dienstplan")
+        );
       }
       return pathname.startsWith(href);
     },
@@ -658,7 +670,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       {/* shadcn/UI Drawer - Full-width on mobile */}
       <Drawer open={isOverflowMenuOpen} onOpenChange={setIsOverflowMenuOpen}>
         <DrawerContent className="bg-white">
-          <div className="w-full">
+          <div className="min-h-0 w-full flex-1 overflow-y-auto">
             {/* Hidden header for accessibility only */}
             <DrawerHeader className="sr-only">
               <DrawerTitle>Navigation</DrawerTitle>

@@ -66,6 +66,7 @@ const backendHistory = {
   rest_period_warning: null,
   breaks: [backendBreak],
   edit_count: 0,
+  audit_count: 0,
 };
 
 const backendEdit = {
