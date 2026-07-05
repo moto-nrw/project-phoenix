@@ -74,6 +74,15 @@ func (r *WorkSessionRepository) GetByStaffAndDate(ctx context.Context, staffID i
 
 // GetCurrentByStaffID returns the active (not checked out) session for a staff member today
 func (r *WorkSessionRepository) GetCurrentByStaffID(ctx context.Context, staffID int64) (*active.WorkSession, error) {
+	return r.getCurrentByStaffID(ctx, staffID, false)
+}
+
+// GetCurrentByStaffIDForUpdate returns the active session for a staff member today and locks it.
+func (r *WorkSessionRepository) GetCurrentByStaffIDForUpdate(ctx context.Context, staffID int64) (*active.WorkSession, error) {
+	return r.getCurrentByStaffID(ctx, staffID, true)
+}
+
+func (r *WorkSessionRepository) getCurrentByStaffID(ctx context.Context, staffID int64, forUpdate bool) (*active.WorkSession, error) {
 	session := new(active.WorkSession)
 	today := timezone.TodayDate()
 
@@ -87,11 +96,39 @@ func (r *WorkSessionRepository) GetCurrentByStaffID(ctx context.Context, staffID
 	if where, val, ok := base.TenantWhere(ctx, "work_session"); ok {
 		query = query.Where(where, val)
 	}
+	if forUpdate {
+		query = query.For("UPDATE")
+	}
 
 	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "get current by staff ID",
+			Err: err,
+		}
+	}
+
+	return session, nil
+}
+
+// LockOpenByIDForUpdate returns and locks an open session row by ID.
+func (r *WorkSessionRepository) LockOpenByIDForUpdate(ctx context.Context, id int64) (*active.WorkSession, error) {
+	session := new(active.WorkSession)
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(session).
+		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
+		Where(`"work_session".id = ?`, id).
+		Where(`"work_session".check_out_time IS NULL`).
+		For("UPDATE")
+
+	if where, val, ok := base.TenantWhere(ctx, "work_session"); ok {
+		query = query.Where(where, val)
+	}
+
+	err := query.Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "lock open session by ID",
 			Err: err,
 		}
 	}
@@ -243,8 +280,9 @@ func (r *WorkSessionRepository) UpdateBreakMinutes(ctx context.Context, id int64
 	return base.AssertRowsAffected(result, 1, "update break minutes")
 }
 
-// CloseSession sets the check-out time and auto_checked_out flag
-func (r *WorkSessionRepository) CloseSession(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) error {
+// CloseSession sets the check-out time and auto_checked_out flag.
+// It returns false when the session was already closed or no visible row matched.
+func (r *WorkSessionRepository) CloseSession(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) (bool, error) {
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Table(tableActiveWorkSessions).
 		Set("check_out_time = ?", checkOutTime).
@@ -256,13 +294,21 @@ func (r *WorkSessionRepository) CloseSession(ctx context.Context, id int64, chec
 		query = query.Where("tenant_id = ?", tenantID)
 	}
 
-	_, err := query.Exec(ctx)
+	result, err := query.Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{
+		return false, &modelBase.DatabaseError{
 			Op:  "close session",
 			Err: err,
 		}
 	}
 
-	return nil
+	closed, err := result.RowsAffected()
+	if err != nil {
+		return false, &modelBase.DatabaseError{
+			Op:  "close session",
+			Err: err,
+		}
+	}
+
+	return closed == 1, nil
 }

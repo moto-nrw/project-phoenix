@@ -70,6 +70,8 @@ func NewServer(logger *slog.Logger) (*Server, error) {
 		if api.Services.WorkSession != nil {
 			srv.scheduler.SetWorkSessionCleaner(api.Services.WorkSession)
 			srv.scheduler.SetBreakAutoEnder(api.Services.WorkSession)
+			// #1798: auto-checkout at planned shift end (per-tenant opt-in).
+			srv.scheduler.SetAutoCheckouter(api.Services.WorkSession)
 		}
 		if api.Services.Feedback != nil {
 			srv.scheduler.SetFeedbackCleaner(api.Services.Feedback)

@@ -38,6 +38,7 @@ import (
 	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
 	sseAPI "github.com/moto-nrw/project-phoenix/api/sse"
 	staffAPI "github.com/moto-nrw/project-phoenix/api/staff"
+	staffshiftsAPI "github.com/moto-nrw/project-phoenix/api/staff-shifts"
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
 	substitutionsAPI "github.com/moto-nrw/project-phoenix/api/substitutions"
 	suggestionsAPI "github.com/moto-nrw/project-phoenix/api/suggestions"
@@ -80,6 +81,7 @@ type API struct {
 	Activities       *activitiesAPI.Resource
 	Staff            *staffAPI.Resource
 	WorkTimeModels   *worktimemodelsAPI.Resource
+	StaffShifts      *staffshiftsAPI.Resource
 	Feedback         *feedbackAPI.Resource
 	MealPlan         *mealplanAPI.Resource
 	Suggestions      *suggestionsAPI.Resource
@@ -409,6 +411,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
 	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.StaffOffboarding, api.Services.Education, api.Services.Auth, api.Services.WorkSession, api.Services.StaffAbsence, db, logger.With("handler", "staff"))
 	api.WorkTimeModels = worktimemodelsAPI.NewResource(api.Services.WorkTimeModels, db, logger.With("handler", "work-time-models"))
+	api.StaffShifts = staffshiftsAPI.NewResource(api.Services.StaffShifts, api.Services.Users, db, logger.With("handler", "staff-shifts"))
 	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback, api.Services.Settings, db)
 	api.MealPlan = mealplanAPI.NewResource(api.Services.MealPlan, api.Services.Settings, db)
 	api.Enrollment = enrollmentAPI.NewResource(
@@ -456,7 +459,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education, db)
 	api.Database = databaseAPI.NewResource(api.Services.Database, db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
-	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users, api.Services.Settings, db)
+	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users, api.Services.Settings, api.Services.StaffShifts, db)
 	api.Timetable = timetableAPI.NewResource(timetableAPI.Dependencies{
 		CalendarPeriodService:  api.Services.CalendarPeriod,
 		MaterializationService: api.Services.Materialization,
@@ -609,6 +612,7 @@ func (a *API) registerRoutesWithRateLimiting() {
 		// Mount staff resources
 		r.Mount("/staff", a.Staff.Router())
 		r.Mount("/work-time-models", a.WorkTimeModels.Router())
+		r.Mount("/staff-shifts", a.StaffShifts.Router())
 
 		// Mount feedback resources
 		r.Mount("/feedback", a.Feedback.Router())
