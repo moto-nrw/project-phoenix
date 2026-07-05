@@ -95,7 +95,7 @@ type fakeStudent struct {
 	err      error
 }
 
-func (f fakeStudent) FindByIDs(_ context.Context, _ []int64) (map[int64]*userModel.Student, error) {
+func (f fakeStudent) FindReadScopeByIDs(_ context.Context, _ []int64) (map[int64]*userModel.Student, error) {
 	return f.students, f.err
 }
 
@@ -179,7 +179,7 @@ func TestPickupReminders(t *testing.T) {
 
 	t.Run("upcoming within lead is reported", func(t *testing.T) {
 		svc := newSvc(map[int64]*scheduleService.EffectivePickupTime{1: pickupAt(605)})
-		out, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
+		out, _, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
 		require.NoError(t, err)
 		require.Len(t, out, 1)
 		assert.Equal(t, TypePickupUpcoming, out[0].Type)
@@ -193,7 +193,7 @@ func TestPickupReminders(t *testing.T) {
 
 	t.Run("overdue is reported with negative minutes", func(t *testing.T) {
 		svc := newSvc(map[int64]*scheduleService.EffectivePickupTime{1: pickupAt(595)})
-		out, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
+		out, _, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
 		require.NoError(t, err)
 		require.Len(t, out, 1)
 		assert.Equal(t, TypePickupOverdue, out[0].Type)
@@ -203,7 +203,7 @@ func TestPickupReminders(t *testing.T) {
 
 	t.Run("beyond lead window is ignored", func(t *testing.T) {
 		svc := newSvc(map[int64]*scheduleService.EffectivePickupTime{1: pickupAt(615)}) // +15 > lead 10
-		out, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
+		out, _, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
 		require.NoError(t, err)
 		assert.Empty(t, out)
 	})
@@ -225,12 +225,12 @@ func TestPickupReminders(t *testing.T) {
 			}},
 		}
 
-		upcomingOnly, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1, 2}, timezone.TodayDate(), nowMin, lead, true, false)
+		upcomingOnly, _, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1, 2}, timezone.TodayDate(), nowMin, lead, true, false)
 		require.NoError(t, err)
 		require.Len(t, upcomingOnly, 1)
 		assert.Equal(t, TypePickupUpcoming, upcomingOnly[0].Type)
 
-		overdueOnly, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1, 2}, timezone.TodayDate(), nowMin, lead, false, true)
+		overdueOnly, _, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1, 2}, timezone.TodayDate(), nowMin, lead, false, true)
 		require.NoError(t, err)
 		require.Len(t, overdueOnly, 1)
 		assert.Equal(t, TypePickupOverdue, overdueOnly[0].Type)
@@ -238,21 +238,21 @@ func TestPickupReminders(t *testing.T) {
 
 	t.Run("student without an effective pickup time is skipped", func(t *testing.T) {
 		svc := newSvc(map[int64]*scheduleService.EffectivePickupTime{1: nil})
-		out, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
+		out, _, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
 		require.NoError(t, err)
 		assert.Empty(t, out)
 	})
 
 	t.Run("empty student list returns nothing", func(t *testing.T) {
 		svc := newSvc(map[int64]*scheduleService.EffectivePickupTime{1: pickupAt(605)})
-		out, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, nil, timezone.TodayDate(), nowMin, lead, true, true)
+		out, _, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, nil, timezone.TodayDate(), nowMin, lead, true, true)
 		require.NoError(t, err)
 		assert.Empty(t, out)
 	})
 
 	t.Run("propagates a pickup lookup error", func(t *testing.T) {
 		svc := &service{pickup: fakePickup{err: errors.New("boom")}}
-		_, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
+		_, _, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
 		require.Error(t, err)
 	})
 
@@ -261,7 +261,7 @@ func TestPickupReminders(t *testing.T) {
 			pickup:  fakePickup{times: map[int64]*scheduleService.EffectivePickupTime{1: pickupAt(605)}},
 			student: fakeStudent{err: errors.New("boom")},
 		}
-		_, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
+		_, _, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
 		require.Error(t, err)
 	})
 
@@ -271,7 +271,7 @@ func TestPickupReminders(t *testing.T) {
 			student: fakeStudent{students: students},
 			person:  fakePerson{err: errors.New("boom")},
 		}
-		_, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
+		_, _, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
 		require.Error(t, err)
 	})
 
@@ -302,7 +302,7 @@ func TestPickupReminders(t *testing.T) {
 			settings: fakeSettings{}, // no override → group_supervisors_only
 			groups:   fakeGroups{groups: []*educationModel.Group{eduGroup(100)}},
 		}
-		out, err := svc.pickupReminders(context.Background(), caregiver, []int64{1, 2}, timezone.TodayDate(), nowMin, lead, true, true)
+		out, _, err := svc.pickupReminders(context.Background(), caregiver, []int64{1, 2}, timezone.TodayDate(), nowMin, lead, true, true)
 		require.NoError(t, err)
 		require.Len(t, out, 1)
 		require.NotNil(t, out[0].StudentID)
@@ -320,7 +320,7 @@ func TestPickupReminders(t *testing.T) {
 			}},
 			groups: fakeGroups{}, // supervised groups irrelevant under all_staff
 		}
-		out, err := svc.pickupReminders(context.Background(), caregiver, []int64{1, 2}, timezone.TodayDate(), nowMin, lead, true, true)
+		out, _, err := svc.pickupReminders(context.Background(), caregiver, []int64{1, 2}, timezone.TodayDate(), nowMin, lead, true, true)
 		require.NoError(t, err)
 		require.Len(t, out, 2)
 	})
@@ -333,7 +333,7 @@ func TestPickupReminders(t *testing.T) {
 			settings: fakeSettings{},
 			groups:   fakeGroups{groups: nil},
 		}
-		out, err := svc.pickupReminders(context.Background(), caregiver, []int64{1, 2}, timezone.TodayDate(), nowMin, lead, true, true)
+		out, _, err := svc.pickupReminders(context.Background(), caregiver, []int64{1, 2}, timezone.TodayDate(), nowMin, lead, true, true)
 		require.NoError(t, err)
 		assert.Empty(t, out)
 	})
@@ -347,7 +347,7 @@ func TestPickupReminders(t *testing.T) {
 			settings: fakeSettings{strErr: resolveErr},
 			groups:   fakeGroups{groups: []*educationModel.Group{eduGroup(100)}},
 		}
-		_, err := svc.pickupReminders(context.Background(), caregiver, []int64{1, 2}, timezone.TodayDate(), nowMin, lead, true, true)
+		_, _, err := svc.pickupReminders(context.Background(), caregiver, []int64{1, 2}, timezone.TodayDate(), nowMin, lead, true, true)
 		require.ErrorIs(t, err, resolveErr)
 	})
 }
@@ -374,7 +374,7 @@ func TestActivityReminders(t *testing.T) {
 		instances = append(instances, active)
 
 		svc := &service{instance: fakeInstance{instances: instances}}
-		out, err := svc.activityReminders(context.Background(), adminScope, nil, timezone.TodayDate(), nowMin, lead, overdueThreshold, true, true)
+		out, _, err := svc.activityReminders(context.Background(), adminScope, nil, timezone.TodayDate(), nowMin, lead, overdueThreshold, true, true)
 		require.NoError(t, err)
 		require.Len(t, out, 2)
 
@@ -398,12 +398,12 @@ func TestActivityReminders(t *testing.T) {
 		}
 		svc := &service{instance: fakeInstance{instances: instances}}
 
-		upcomingOnly, err := svc.activityReminders(context.Background(), adminScope, nil, timezone.TodayDate(), nowMin, lead, overdueThreshold, true, false)
+		upcomingOnly, _, err := svc.activityReminders(context.Background(), adminScope, nil, timezone.TodayDate(), nowMin, lead, overdueThreshold, true, false)
 		require.NoError(t, err)
 		require.Len(t, upcomingOnly, 1)
 		assert.Equal(t, TypeActivityStart, upcomingOnly[0].Type)
 
-		overdueOnly, err := svc.activityReminders(context.Background(), adminScope, nil, timezone.TodayDate(), nowMin, lead, overdueThreshold, false, true)
+		overdueOnly, _, err := svc.activityReminders(context.Background(), adminScope, nil, timezone.TodayDate(), nowMin, lead, overdueThreshold, false, true)
 		require.NoError(t, err)
 		require.Len(t, overdueOnly, 1)
 		assert.Equal(t, TypeActivityOverdue, overdueOnly[0].Type)
@@ -415,7 +415,7 @@ func TestActivityReminders(t *testing.T) {
 			plannedInstance("Fußball", 99, 605, 700), // room 99 — not supervised
 		}
 		svc := &service{instance: fakeInstance{instances: instances}}
-		out, err := svc.activityReminders(context.Background(), Scope{IsAdmin: false}, []int64{10}, timezone.TodayDate(), nowMin, lead, overdueThreshold, true, true)
+		out, _, err := svc.activityReminders(context.Background(), Scope{IsAdmin: false}, []int64{10}, timezone.TodayDate(), nowMin, lead, overdueThreshold, true, true)
 		require.NoError(t, err)
 		require.Len(t, out, 1)
 		assert.Equal(t, "Schach", out[0].Title)
@@ -423,7 +423,7 @@ func TestActivityReminders(t *testing.T) {
 
 	t.Run("nil instance reader yields nothing", func(t *testing.T) {
 		svc := &service{}
-		out, err := svc.activityReminders(context.Background(), adminScope, nil, timezone.TodayDate(), nowMin, lead, overdueThreshold, true, true)
+		out, _, err := svc.activityReminders(context.Background(), adminScope, nil, timezone.TodayDate(), nowMin, lead, overdueThreshold, true, true)
 		require.NoError(t, err)
 		assert.Empty(t, out)
 	})
@@ -659,6 +659,176 @@ func TestComputeSortsMostUrgentFirst(t *testing.T) {
 	assert.Equal(t, TypePickupOverdue, res.Reminders[0].Type)
 	assert.Equal(t, TypePickupUpcoming, res.Reminders[1].Type)
 	assert.Less(t, res.Reminders[0].MinutesAway, res.Reminders[1].MinutesAway)
+}
+
+// --- next-change (time-based refresh scheduling) -----------------------------
+// The frontend schedules a timer to NextChangeAt to refetch exactly when a
+// reminder crosses a threshold, instead of only on its fixed poll. These tests
+// pin the boundary math the timer depends on.
+
+func TestNextChangeMinFutureHelper(t *testing.T) {
+	assert.Equal(t, -1, futureBoundary(600, 600), "a boundary at now is not in the future")
+	assert.Equal(t, -1, futureBoundary(590, 600), "a past boundary yields the absent sentinel")
+	assert.Equal(t, 610, futureBoundary(610, 600))
+
+	assert.Equal(t, 5, minFuture(-1, 5), "first candidate replaces the absent sentinel")
+	assert.Equal(t, 5, minFuture(5, -1), "an absent candidate leaves the current value")
+	assert.Equal(t, 5, minFuture(8, 5), "the sooner candidate wins")
+	assert.Equal(t, 5, minFuture(5, 8))
+	assert.Equal(t, -1, minFuture(-1, -1), "nothing pending stays absent")
+}
+
+func TestPickupNextChange(t *testing.T) {
+	const nowMin = 600 // 10:00
+	const lead = 10
+
+	students := map[int64]*userModel.Student{1: {PersonID: 11, SchoolClass: "1a"}}
+	persons := map[int64]*userModel.Person{11: {FirstName: "Anna", LastName: "A"}}
+	newSvc := func(times map[int64]*scheduleService.EffectivePickupTime) *service {
+		return &service{
+			pickup:  fakePickup{times: times},
+			student: fakeStudent{students: students},
+			person:  fakePerson{persons: persons},
+		}
+	}
+
+	t.Run("a pickup outside the window schedules its window-entry moment", func(t *testing.T) {
+		// pickup 20 min away, lead 10 → not due yet, but enters the window at
+		// pickupMin-lead = 610. That is the next change even though `out` is empty.
+		svc := newSvc(map[int64]*scheduleService.EffectivePickupTime{1: pickupAt(620)})
+		out, next, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
+		require.NoError(t, err)
+		assert.Empty(t, out)
+		assert.Equal(t, 610, next)
+	})
+
+	t.Run("an in-window upcoming pickup schedules its flip-to-overdue moment", func(t *testing.T) {
+		// pickup 5 min away: window-entry (595) is already past. At pickupMin (605)
+		// the diff is still 0 (upcoming); the flip to overdue is the first minute
+		// pickupMin is in the past, pickupMin+1 = 606.
+		svc := newSvc(map[int64]*scheduleService.EffectivePickupTime{1: pickupAt(605)})
+		out, next, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
+		require.NoError(t, err)
+		require.Len(t, out, 1)
+		assert.Equal(t, 606, next)
+	})
+
+	t.Run("an already-overdue pickup has no future time-based change", func(t *testing.T) {
+		// Overdue persists until the child is picked up (a data event, not a clock
+		// tick), so there is nothing to schedule.
+		svc := newSvc(map[int64]*scheduleService.EffectivePickupTime{1: pickupAt(595)})
+		_, next, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
+		require.NoError(t, err)
+		assert.Equal(t, -1, next)
+	})
+
+	t.Run("overdue-only schedules the flip, never the window entry", func(t *testing.T) {
+		svc := newSvc(map[int64]*scheduleService.EffectivePickupTime{1: pickupAt(620)})
+		_, next, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1}, timezone.TodayDate(), nowMin, lead, false, true)
+		require.NoError(t, err)
+		assert.Equal(t, 621, next, "overdue-only: no window entry, only the flip at pickupMin+1 (first overdue minute)")
+	})
+}
+
+// TestPickupNextChangeExcludesUnreadableStudents guards the GDPR gate on the
+// next-change timer: a child the caregiver may not read must not leak its future
+// pickup minute through next_change_at, even though its reminder is never
+// emitted. Student 2 (a non-supervised group) has the SOONER boundary; only
+// student 1's must survive.
+func TestPickupNextChangeExcludesUnreadableStudents(t *testing.T) {
+	const nowMin = 600 // 10:00
+	const lead = 10
+	g100 := int64(100)
+	g200 := int64(200)
+
+	svc := &service{
+		pickup: fakePickup{times: map[int64]*scheduleService.EffectivePickupTime{
+			1: pickupAt(660), // supervised: enters its window at 650
+			2: pickupAt(620), // NOT supervised: would enter at 610 (sooner) — must not leak
+		}},
+		student: fakeStudent{students: map[int64]*userModel.Student{
+			1: {PersonID: 11, SchoolClass: "1a", GroupID: &g100},
+			2: {PersonID: 12, SchoolClass: "1b", GroupID: &g200},
+		}},
+		person:   fakePerson{persons: map[int64]*userModel.Person{11: {FirstName: "Anna", LastName: "A"}}},
+		settings: fakeSettings{}, // no override → group_supervisors_only
+		groups:   fakeGroups{groups: []*educationModel.Group{eduGroup(100)}},
+	}
+	caregiver := Scope{IsAdmin: false, StaffID: 7}
+
+	out, next, err := svc.pickupReminders(context.Background(), caregiver, []int64{1, 2}, timezone.TodayDate(), nowMin, lead, true, true)
+	require.NoError(t, err)
+	assert.Empty(t, out, "neither pickup is inside its window yet")
+	assert.Equal(t, 650, next, "only the readable child's boundary may schedule the refetch")
+}
+
+func TestActivityNextChange(t *testing.T) {
+	const nowMin = 600 // 10:00
+	const lead = 10
+	const overdueThreshold = 5
+	adminScope := Scope{IsAdmin: true}
+
+	t.Run("an activity starting beyond the window schedules its earliest boundary", func(t *testing.T) {
+		// start 620, end 700. Boundaries: window entry 610, upcoming exit 621,
+		// overdue 625, slot end 700. The soonest is 610.
+		svc := &service{instance: fakeInstance{instances: []*scheduleModel.ActivityInstance{
+			plannedInstance("Schach", 1, 620, 700),
+		}}}
+		out, next, err := svc.activityReminders(context.Background(), adminScope, nil, timezone.TodayDate(), nowMin, lead, overdueThreshold, true, true)
+		require.NoError(t, err)
+		assert.Empty(t, out)
+		assert.Equal(t, 610, next)
+	})
+
+	t.Run("an in-window upcoming activity schedules its flip-out at startMin+1", func(t *testing.T) {
+		// now 615, window [610, 620]: entry already past. The start reminder is
+		// still shown at exactly startMin (diff 0 is upcoming); it disappears the
+		// first minute start is in the past, startMin+1 = 621 — NOT startMin.
+		// Upcoming-only isolates that boundary from the overdue ones.
+		const nowMin = 615
+		svc := &service{instance: fakeInstance{instances: []*scheduleModel.ActivityInstance{
+			plannedInstance("Schach", 1, 620, 700),
+		}}}
+		out, next, err := svc.activityReminders(context.Background(), adminScope, nil, timezone.TodayDate(), nowMin, lead, overdueThreshold, true, false)
+		require.NoError(t, err)
+		require.Len(t, out, 1)
+		assert.Equal(t, 621, next, "upcoming exit is startMin+1, not startMin")
+	})
+
+	t.Run("nil instance reader yields no scheduled change", func(t *testing.T) {
+		svc := &service{}
+		_, next, err := svc.activityReminders(context.Background(), adminScope, nil, timezone.TodayDate(), nowMin, lead, overdueThreshold, true, true)
+		require.NoError(t, err)
+		assert.Equal(t, -1, next)
+	})
+}
+
+func TestComputeExposesNextChangeAt(t *testing.T) {
+	now := timezone.Now()
+	nowMin := now.Hour()*60 + now.Minute()
+	// Guard the wall-clock arithmetic against day wrap near midnight.
+	if nowMin < 30 || nowMin > 1400 {
+		t.Skip("skipping wall-clock-relative next-change test near midnight")
+	}
+
+	svc := &service{
+		settings: fakeSettings{bools: map[string]bool{
+			configModel.KeyRemindersPickupUpcomingEnabled: true,
+		}},
+		attendance: fakeAttendance{ids: []int64{1}},
+		pickup: fakePickup{times: map[int64]*scheduleService.EffectivePickupTime{
+			1: pickupAt(nowMin + 20), // outside the default 10-min lead window
+		}},
+		student: fakeStudent{students: map[int64]*userModel.Student{1: {PersonID: 11, SchoolClass: "1a"}}},
+		person:  fakePerson{persons: map[int64]*userModel.Person{11: {FirstName: "Anna", LastName: "A"}}},
+	}
+
+	res, err := svc.Compute(context.Background(), Scope{IsAdmin: true})
+	require.NoError(t, err)
+	assert.True(t, res.Enabled)
+	assert.Empty(t, res.Reminders, "the pickup is still outside its window, so nothing is due yet")
+	// It enters the window (lead 10) at (nowMin+20)-10 = nowMin+10.
+	assert.Equal(t, formatMinutes(nowMin+10), res.NextChangeAt)
 }
 
 // --- pure helpers ------------------------------------------------------------

@@ -34,6 +34,7 @@ type StaffWorkSchedule struct {
 	RotationLength int            `bun:"rotation_length,notnull,default:1" json:"rotation_length"`
 	DayOfWeek      int            `bun:"day_of_week,notnull" json:"day_of_week"`
 	TargetMinutes  int            `bun:"target_minutes,notnull" json:"target_minutes"`
+	StartTime      *time.Time     `bun:"start_time" json:"start_time,omitempty"`
 	ValidFrom      timezone.Date  `bun:"valid_from,notnull,type:date" json:"valid_from"`
 	ValidUntil     *timezone.Date `bun:"valid_until,type:date" json:"valid_until,omitempty"`
 	CreatedAt      time.Time      `bun:"created_at,notnull,default:now()" json:"created_at"`

@@ -228,6 +228,19 @@ func init() {
 		SortOrder:       1,
 	})
 
+	config.Register(config.Definition{
+		Key:             config.KeyTimeTrackingEnforcePlannedStart,
+		Label:           "Einstempeln erst ab geplanter Startzeit",
+		Description:     "Wenn aktiviert, können Mitarbeitende erst ab der Startzeit einstempeln, die im Arbeitszeitmodell für den jeweiligen Tag hinterlegt ist. Tage ohne Startzeit bleiben unverändert.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "zeiterfassung",
+		SortOrder:       2,
+	})
+
 	// Break auto-end interval is NOT registered here — it controls a global ticker
 	// (not per-tenant) and is configured via BREAK_AUTO_END_INTERVAL_SECONDS env var only.
 

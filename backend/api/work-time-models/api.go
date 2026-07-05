@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -61,16 +62,18 @@ func (rs *Resource) Router() chi.Router {
 
 // EntryRequest is the wire-format for an entry in create/update bodies.
 type EntryRequest struct {
-	WeekIndex     int `json:"week_index"`
-	DayOfWeek     int `json:"day_of_week"`
-	TargetMinutes int `json:"target_minutes"`
+	WeekIndex     int     `json:"week_index"`
+	DayOfWeek     int     `json:"day_of_week"`
+	TargetMinutes int     `json:"target_minutes"`
+	StartTime     *string `json:"start_time,omitempty"`
 }
 
 // EntryResponse is the wire-format for an entry returned to clients.
 type EntryResponse struct {
-	WeekIndex     int `json:"week_index"`
-	DayOfWeek     int `json:"day_of_week"`
-	TargetMinutes int `json:"target_minutes"`
+	WeekIndex     int     `json:"week_index"`
+	DayOfWeek     int     `json:"day_of_week"`
+	TargetMinutes int     `json:"target_minutes"`
+	StartTime     *string `json:"start_time,omitempty"`
 }
 
 // ModelRequest is the create/update payload.
@@ -200,10 +203,15 @@ func buildModelAndEntries(req ModelRequest) (*config.WorkTimeModel, []*config.Wo
 		if e.TargetMinutes == 0 {
 			continue
 		}
+		startTime, err := parseOptionalStartTime(e.StartTime)
+		if err != nil {
+			return nil, nil, err
+		}
 		entry := &config.WorkTimeModelEntry{
 			WeekIndex:     e.WeekIndex,
 			DayOfWeek:     e.DayOfWeek,
 			TargetMinutes: e.TargetMinutes,
+			StartTime:     startTime,
 		}
 		if err := entry.Validate(); err != nil {
 			return nil, nil, err
@@ -221,6 +229,26 @@ func buildModelAndEntries(req ModelRequest) (*config.WorkTimeModel, []*config.Wo
 	return model, entries, nil
 }
 
+func parseOptionalStartTime(raw *string) (*time.Time, error) {
+	if raw == nil || *raw == "" {
+		return nil, nil
+	}
+	parsed, err := time.Parse("15:04", *raw)
+	if err != nil {
+		return nil, errors.New("start_time must be HH:MM")
+	}
+	wallClock := timezone.WallClock(parsed)
+	return &wallClock, nil
+}
+
+func formatOptionalStartTime(value *time.Time) *string {
+	if value == nil {
+		return nil
+	}
+	formatted := timezone.WallClock(*value).Format("15:04")
+	return &formatted
+}
+
 func toResponse(m *config.WorkTimeModel) ModelResponse {
 	totals := make([]int, m.RotationLength)
 	entries := make([]EntryResponse, 0, len(m.Entries))
@@ -229,6 +257,7 @@ func toResponse(m *config.WorkTimeModel) ModelResponse {
 			WeekIndex:     e.WeekIndex,
 			DayOfWeek:     e.DayOfWeek,
 			TargetMinutes: e.TargetMinutes,
+			StartTime:     formatOptionalStartTime(e.StartTime),
 		})
 		if e.WeekIndex >= 0 && e.WeekIndex < m.RotationLength {
 			totals[e.WeekIndex] += e.TargetMinutes
