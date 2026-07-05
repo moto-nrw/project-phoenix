@@ -327,10 +327,11 @@ func (m *wsMockWorkSessionBreakRepository) GetExpiredBreaks(ctx context.Context,
 // ============================================================================
 
 type wsMockWorkSessionEditRepository struct {
-	createBatchFunc       func(ctx context.Context, edits []*auditModels.WorkSessionEdit) error
-	getBySessionIDFunc    func(ctx context.Context, sessionID int64) ([]*auditModels.WorkSessionEdit, error)
-	countBySessionIDFunc  func(ctx context.Context, sessionID int64) (int, error)
-	countBySessionIDsFunc func(ctx context.Context, sessionIDs []int64) (map[int64]int, error)
+	createBatchFunc             func(ctx context.Context, edits []*auditModels.WorkSessionEdit) error
+	getBySessionIDFunc          func(ctx context.Context, sessionID int64) ([]*auditModels.WorkSessionEdit, error)
+	countBySessionIDFunc        func(ctx context.Context, sessionID int64) (int, error)
+	countBySessionIDsFunc       func(ctx context.Context, sessionIDs []int64) (map[int64]int, error)
+	countManualBySessionIDsFunc func(ctx context.Context, sessionIDs []int64) (map[int64]int, error)
 }
 
 func (m *wsMockWorkSessionEditRepository) CreateBatch(ctx context.Context, edits []*auditModels.WorkSessionEdit) error {
@@ -359,6 +360,15 @@ func (m *wsMockWorkSessionEditRepository) CountBySessionIDs(ctx context.Context,
 		return m.countBySessionIDsFunc(ctx, sessionIDs)
 	}
 	return map[int64]int{}, nil
+}
+
+func (m *wsMockWorkSessionEditRepository) CountManualBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64]int, error) {
+	if m.countManualBySessionIDsFunc != nil {
+		return m.countManualBySessionIDsFunc(ctx, sessionIDs)
+	}
+	// Existing tests stub countBySessionIDsFunc to mean "edits by a person";
+	// fall back so their semantics are unchanged.
+	return m.CountBySessionIDs(ctx, sessionIDs)
 }
 
 // ============================================================================

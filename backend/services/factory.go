@@ -420,6 +420,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	staffShiftService := schedule.NewStaffShiftService(
 		repos.StaffShift,
 		repos.Staff,
+		db,
 		logger.With("service", "staff_shift"),
 	)
 

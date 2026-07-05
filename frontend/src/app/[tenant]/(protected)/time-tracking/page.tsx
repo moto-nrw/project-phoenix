@@ -470,7 +470,7 @@ function ClockInCard({
   weeklyMinutes,
   onAddAbsence,
   metrics,
-  plannedShift,
+  plannedShifts,
 }: {
   readonly currentSession: WorkSession | null;
   readonly breaks: WorkSessionBreak[];
@@ -481,7 +481,7 @@ function ClockInCard({
   readonly weeklyMinutes: number;
   readonly onAddAbsence: () => void;
   readonly metrics?: ReturnType<typeof computeStaffMetrics> | null;
-  readonly plannedShift?: StaffShift | null;
+  readonly plannedShifts?: readonly StaffShift[];
 }) {
   // Null until the staff member explicitly picks Vor Ort / Homeoffice / Abwesend.
   // No pre-selection per Issue #1368 — silent defaults are unacceptable for an
@@ -656,12 +656,16 @@ function ClockInCard({
           )}
         </div>
 
-        {/* Heute geplante Schicht (Dienstplan) — dezente Zeile unter dem Titel */}
-        {plannedShift && (
+        {/* Heute geplante Schichten (Dienstplan) — dezente Zeile unter dem
+            Titel. Geteilte Dienste zeigen alle Zeitbereiche des Tages. */}
+        {plannedShifts && plannedShifts.length > 0 && (
           <p className="-mt-3 mb-5 text-sm text-gray-500 tabular-nums">
-            Geplant: {plannedShift.startTime}–{plannedShift.endTime}
-            {plannedShift.breakMinutes > 0 &&
-              ` · Pause ${plannedShift.breakMinutes} min`}
+            Geplant:{" "}
+            {plannedShifts
+              .map((s) => `${s.startTime}–${s.endTime}`)
+              .join(" · ")}
+            {plannedShifts.reduce((sum, s) => sum + s.breakMinutes, 0) > 0 &&
+              ` · Pause ${plannedShifts.reduce((sum, s) => sum + s.breakMinutes, 0)} min`}
           </p>
         )}
 
@@ -2806,22 +2810,28 @@ function TimeTrackingContent() {
 
   const absences = absencesData ?? [];
 
-  // Own planned shifts this week (Dienstplan) — today's shift is shown as a
-  // quiet "Geplant: 08:00–16:00" line in the Stempeluhr card.
-  const { data: ownShifts } = useSWRAuth<StaffShift[]>(
-    weekFromDate && toDate
-      ? `time-tracking-own-shifts-${weekFromDate}-${toDate}`
-      : null,
-    () => ownShiftService.getOwnShifts(weekFromDate, toDate),
-    { revalidateOnFocus: false, errorRetryCount: 1 },
-  );
-
   // Check if today has an absence (for check-in warning)
   const todayISO = toISODate(new Date());
   const todayAbsence = absences.find(
     (a) => a.dateStart <= todayISO && a.dateEnd >= todayISO,
   );
-  const todayShift = (ownShifts ?? []).find((s) => s.date === todayISO) ?? null;
+
+  // Today's own planned shifts (Dienstplan) — shown as a quiet
+  // "Geplant: 08:00–16:00" line in the Stempeluhr card. Fetched for today
+  // only, independent of the viewed chart week, so navigating to another
+  // week never hides today's planned shifts.
+  const { data: ownTodayShifts } = useSWRAuth<StaffShift[]>(
+    `time-tracking-own-shifts-today-${todayISO}`,
+    () => ownShiftService.getOwnShifts(todayISO, todayISO),
+    { revalidateOnFocus: false, errorRetryCount: 1 },
+  );
+  const todayShifts = useMemo(
+    () =>
+      (ownTodayShifts ?? [])
+        .filter((s) => s.date === todayISO)
+        .sort((a, b) => a.startTime.localeCompare(b.startTime)),
+    [ownTodayShifts, todayISO],
+  );
 
   // --- MA-Saldo-Widget (Tranche 1.5) ----------------------------------------
   //
@@ -3297,7 +3307,7 @@ function TimeTrackingContent() {
           weeklyMinutes={weeklyCompletedMinutes}
           onAddAbsence={() => setAbsenceModalOpen(true)}
           metrics={ownMetrics ?? null}
-          plannedShift={todayShift}
+          plannedShifts={todayShifts}
         />
         <WeekChart
           history={history}

@@ -1381,7 +1381,8 @@ func (s *Scheduler) checkAndRunAutoCheckout(task *ScheduledTask) {
 			return nil
 		}
 
-		graceMinutes := s.resolveIntSetting(tenantCtx, configModel.KeyTrackingAutoCheckoutGraceMinutes, "", 15)
+		// Zero is valid here: grace 0 means checkout exactly at shift end.
+		graceMinutes := s.resolveNonNegativeIntSetting(tenantCtx, configModel.KeyTrackingAutoCheckoutGraceMinutes, "", 15)
 		count, err := s.autoCheckouter.AutoCheckoutDueSessions(tenantCtx, time.Duration(graceMinutes)*time.Minute)
 		if err != nil {
 			return err
@@ -1458,6 +1459,30 @@ func (s *Scheduler) resolveIntSetting(ctx context.Context, key string, envVar st
 	}
 	if val := os.Getenv(envVar); val != "" {
 		if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 {
+			return parsed
+		}
+	}
+	return defaultVal
+}
+
+// resolveNonNegativeIntSetting is resolveIntSetting for settings where zero is
+// a meaningful value (e.g. tracking.auto_checkout_grace_minutes = 0 means
+// checkout exactly at the planned shift end).
+func (s *Scheduler) resolveNonNegativeIntSetting(ctx context.Context, key string, envVar string, defaultVal int) int {
+	if s.settings != nil {
+		if hasOverride, err := s.settings.HasTenantOverride(ctx, key); err != nil {
+			s.getLogger().Warn("settings override check failed, falling back",
+				slog.String("key", key),
+				slog.String("error", err.Error()),
+			)
+		} else if hasOverride {
+			if val, err := s.settings.ResolveInt(ctx, key); err == nil && val >= 0 {
+				return val
+			}
+		}
+	}
+	if val := os.Getenv(envVar); val != "" {
+		if parsed, err := strconv.Atoi(val); err == nil && parsed >= 0 {
 			return parsed
 		}
 	}

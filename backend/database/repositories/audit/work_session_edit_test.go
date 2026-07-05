@@ -505,3 +505,102 @@ func TestWorkSessionEditRepository_CountBySessionIDs(t *testing.T) {
 		assert.False(t, exists, "session with no edits should not be in counts map")
 	})
 }
+
+// ============================================================================
+// CountManualBySessionIDs Tests
+// ============================================================================
+
+func TestWorkSessionEditRepository_CountManualBySessionIDs(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).WorkSessionEdit
+	sessionRepo := repositories.NewFactory(db).WorkSession
+	ctx := testpkg.TenantContext(1)
+
+	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
+
+	t.Run("excludes system-authored edits", func(t *testing.T) {
+		today := timezone.TodayDate()
+		session := &active.WorkSession{
+			StaffID:     staff.ID,
+			Date:        today,
+			Status:      active.WorkSessionStatusPresent,
+			CheckInTime: time.Now(),
+			CreatedBy:   staff.ID,
+		}
+		err := sessionRepo.Create(ctx, session)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", session.ID)
+
+		newValue := "17:00"
+		systemEdit := &audit.WorkSessionEdit{
+			SessionID: session.ID,
+			StaffID:   staff.ID,
+			EditedBy:  audit.SystemEditorID, // auto-checkout audit row
+			FieldName: audit.FieldCheckOutTime,
+			NewValue:  &newValue,
+		}
+		manualEdit := &audit.WorkSessionEdit{
+			SessionID: session.ID,
+			StaffID:   staff.ID,
+			EditedBy:  staff.ID,
+			FieldName: audit.FieldCheckOutTime,
+			NewValue:  &newValue,
+		}
+		err = repo.CreateBatch(ctx, []*audit.WorkSessionEdit{systemEdit, manualEdit})
+		require.NoError(t, err)
+		defer func() {
+			testpkg.CleanupTableRecords(t, db, "audit.work_session_edits", systemEdit.ID)
+			testpkg.CleanupTableRecords(t, db, "audit.work_session_edits", manualEdit.ID)
+		}()
+
+		manualCounts, err := repo.CountManualBySessionIDs(ctx, []int64{session.ID})
+		require.NoError(t, err)
+		assert.Equal(t, 1, manualCounts[session.ID],
+			"system edit must not count as a manual correction")
+
+		allCounts, err := repo.CountBySessionIDs(ctx, []int64{session.ID})
+		require.NoError(t, err)
+		assert.Equal(t, 2, allCounts[session.ID],
+			"total count still includes system edits for the edit history")
+	})
+
+	t.Run("session with only system edits is absent from map", func(t *testing.T) {
+		today := timezone.TodayDate()
+		session := &active.WorkSession{
+			StaffID:     staff.ID,
+			Date:        today.AddDays(1),
+			Status:      active.WorkSessionStatusPresent,
+			CheckInTime: time.Now(),
+			CreatedBy:   staff.ID,
+		}
+		err := sessionRepo.Create(ctx, session)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", session.ID)
+
+		newValue := "17:00"
+		systemEdit := &audit.WorkSessionEdit{
+			SessionID: session.ID,
+			StaffID:   staff.ID,
+			EditedBy:  audit.SystemEditorID,
+			FieldName: audit.FieldCheckOutTime,
+			NewValue:  &newValue,
+		}
+		err = repo.CreateBatch(ctx, []*audit.WorkSessionEdit{systemEdit})
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "audit.work_session_edits", systemEdit.ID)
+
+		counts, err := repo.CountManualBySessionIDs(ctx, []int64{session.ID})
+		require.NoError(t, err)
+		_, exists := counts[session.ID]
+		assert.False(t, exists, "auto-checkout-only session must not appear as manually corrected")
+	})
+
+	t.Run("returns empty map for empty input", func(t *testing.T) {
+		counts, err := repo.CountManualBySessionIDs(ctx, []int64{})
+		require.NoError(t, err)
+		assert.Empty(t, counts)
+	})
+}

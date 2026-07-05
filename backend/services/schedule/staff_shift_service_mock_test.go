@@ -121,7 +121,7 @@ func (m *shiftMockStaffRepo) ListStaffByRoles(context.Context, []string) ([]*use
 func shiftServiceFixture() (StaffShiftService, *shiftMockRepo, *shiftMockStaffRepo) {
 	repo := &shiftMockRepo{}
 	staffRepo := &shiftMockStaffRepo{}
-	return NewStaffShiftService(repo, staffRepo, nil), repo, staffRepo
+	return NewStaffShiftService(repo, staffRepo, nil, nil), repo, staffRepo
 }
 
 func wall(hour, minute int) time.Time {
@@ -251,6 +251,25 @@ func TestShiftService_UpdateKeepsStaffAssignment(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(7), saved.StaffID, "staff assignment must be immutable on update")
 	assert.Equal(t, int64(3), saved.CreatedBy, "original creator must be preserved")
+}
+
+func TestShiftService_UpdatePreservesCreatedAt(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+
+	existing := validShift(7)
+	existing.ID = 5
+	existing.CreatedAt = time.Date(2026, time.June, 1, 10, 0, 0, 0, time.UTC)
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return existing, nil
+	}
+
+	update := validShift(7) // request-built model: zero CreatedAt
+	update.ID = 5
+
+	saved, err := svc.UpdateShift(context.Background(), update)
+	require.NoError(t, err)
+	assert.Equal(t, existing.CreatedAt, saved.CreatedAt,
+		"zero CreatedAt would be written as DEFAULT and reset created_at to now()")
 }
 
 func TestShiftService_UpdateNotFound(t *testing.T) {

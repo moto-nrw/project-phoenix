@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/uptrace/bun"
 )
 
 // maxShiftRangeDays caps date-range queries so a malformed request cannot
@@ -44,12 +45,25 @@ type StaffShiftService interface {
 type staffShiftService struct {
 	repo      scheduleModels.StaffShiftRepository
 	staffRepo usersModels.StaffRepository
+	db        *bun.DB
 	logger    *slog.Logger
 }
 
-// NewStaffShiftService creates a new staff shift service.
-func NewStaffShiftService(repo scheduleModels.StaffShiftRepository, staffRepo usersModels.StaffRepository, logger *slog.Logger) StaffShiftService {
-	return &staffShiftService{repo: repo, staffRepo: staffRepo, logger: logger}
+// NewStaffShiftService creates a new staff shift service. db is used for the
+// per-staff advisory lock that makes the overlap check safe under concurrency.
+func NewStaffShiftService(repo scheduleModels.StaffShiftRepository, staffRepo usersModels.StaffRepository, db *bun.DB, logger *slog.Logger) StaffShiftService {
+	return &staffShiftService{repo: repo, staffRepo: staffRepo, db: db, logger: logger}
+}
+
+// lockShiftWrites takes the per-staff advisory lock before the overlap
+// read-check so concurrent writers serialize on the same staff member.
+// Unit tests construct the service without a DB; they exercise the overlap
+// logic, not concurrency, so a nil DB skips the lock.
+func (s *staffShiftService) lockShiftWrites(ctx context.Context, staffID int64) error {
+	if s.db == nil {
+		return nil
+	}
+	return LockStaffShiftWrites(ctx, s.db, staffID)
 }
 
 func (s *staffShiftService) getLogger() *slog.Logger {
@@ -114,6 +128,9 @@ func (s *staffShiftService) CreateShift(ctx context.Context, shift *scheduleMode
 	if _, err := s.staffRepo.FindByID(ctx, shift.StaffID); err != nil {
 		return nil, fmt.Errorf("%w: staff member not found", ErrShiftInvalid)
 	}
+	if err := s.lockShiftWrites(ctx, shift.StaffID); err != nil {
+		return nil, err
+	}
 	if err := s.checkOverlap(ctx, shift); err != nil {
 		return nil, err
 	}
@@ -140,8 +157,14 @@ func (s *staffShiftService) UpdateShift(ctx context.Context, shift *scheduleMode
 	shift.StaffID = existing.StaffID
 	shift.CreatedBy = existing.CreatedBy
 	shift.TenantID = existing.TenantID
+	// The request model has a zero CreatedAt; the whole-model update would
+	// otherwise write created_at = DEFAULT and reset it to now().
+	shift.CreatedAt = existing.CreatedAt
 	if err := shift.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrShiftInvalid, err.Error())
+	}
+	if err := s.lockShiftWrites(ctx, shift.StaffID); err != nil {
+		return nil, err
 	}
 	if err := s.checkOverlap(ctx, shift); err != nil {
 		return nil, err

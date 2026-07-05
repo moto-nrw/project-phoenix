@@ -80,4 +80,6 @@ type WorkSessionEditRepository interface {
 	GetBySessionID(ctx context.Context, sessionID int64) ([]*WorkSessionEdit, error)
 	CountBySessionID(ctx context.Context, sessionID int64) (int, error)
 	CountBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64]int, error)
+	// CountManualBySessionIDs excludes system-authored edits (edited_by = SystemEditorID).
+	CountManualBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64]int, error)
 }
