@@ -239,8 +239,8 @@ func (rs *Resource) Router() chi.Router {
 				r.Route("/{accountId}", func(r chi.Router) {
 					// Account update operations
 					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/", rs.updateAccount)
-					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/activate", rs.activateAccount)
-					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/deactivate", rs.deactivateAccount)
+					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/activate", idAction("accountId", common.MsgInvalidAccountID, rs.AuthService.ActivateAccount, common.ErrorInternalServer))
+					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/deactivate", idAction("accountId", common.MsgInvalidAccountID, rs.AuthService.DeactivateAccount, common.ErrorInternalServer))
 					r.With(authorize.RequiresPermission(permUsersManage)).Get("/caregiver-capability", rs.getCaregiverCapability)
 					r.With(authorize.RequiresPermission(permUsersManage)).Post("/caregiver-capability", rs.enableCaregiverCapability)
 					r.With(authorize.RequiresPermission(permUsersManage)).Delete("/caregiver-capability", rs.disableCaregiverCapability)
@@ -248,23 +248,23 @@ func (rs *Resource) Router() chi.Router {
 					// Role assignments
 					r.Route("/roles", func(r chi.Router) {
 						r.With(authorize.RequiresPermission(permUsersManage)).Get("/", rs.getAccountRoles)
-						r.With(authorize.RequiresPermission(permUsersManage)).Post("/{roleId}", rs.assignRoleToAccount)
-						r.With(authorize.RequiresPermission(permUsersManage)).Delete("/{roleId}", rs.removeRoleFromAccount)
+						r.With(authorize.RequiresPermission(permUsersManage)).Post("/{roleId}", twoIDAction("accountId", common.MsgInvalidAccountID, "roleId", common.MsgInvalidRoleID, rs.AuthService.AssignRoleToAccount, common.ErrorInternalServer))
+						r.With(authorize.RequiresPermission(permUsersManage)).Delete("/{roleId}", twoIDAction("accountId", common.MsgInvalidAccountID, "roleId", common.MsgInvalidRoleID, rs.AuthService.RemoveRoleFromAccount, common.ErrorInternalServer))
 					})
 
 					// Permission assignments
 					r.Route(pathPermissions, func(r chi.Router) {
 						r.With(authorize.RequiresPermission(permUsersManage)).Get("/", rs.getAccountPermissions)
 						r.With(authorize.RequiresPermission(permUsersManage)).Get("/direct", rs.getAccountDirectPermissions)
-						r.With(authorize.RequiresPermission(permUsersManage)).Post(pathPermissionID+"/grant", rs.grantPermissionToAccount)
-						r.With(authorize.RequiresPermission(permUsersManage)).Post(pathPermissionID+"/deny", rs.denyPermissionToAccount)
-						r.With(authorize.RequiresPermission(permUsersManage)).Delete(pathPermissionID, rs.removePermissionFromAccount)
+						r.With(authorize.RequiresPermission(permUsersManage)).Post(pathPermissionID+"/grant", twoIDAction("accountId", common.MsgInvalidAccountID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.GrantPermissionToAccount, common.ErrorInternalServer))
+						r.With(authorize.RequiresPermission(permUsersManage)).Post(pathPermissionID+"/deny", twoIDAction("accountId", common.MsgInvalidAccountID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.DenyPermissionToAccount, common.ErrorInternalServer))
+						r.With(authorize.RequiresPermission(permUsersManage)).Delete(pathPermissionID, twoIDAction("accountId", common.MsgInvalidAccountID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.RemovePermissionFromAccount, common.ErrorInternalServer))
 					})
 
 					// Token management
 					r.Route("/tokens", func(r chi.Router) {
 						r.With(authorize.RequiresPermission(permUsersManage)).Get("/", rs.getActiveTokens)
-						r.With(authorize.RequiresPermission(permUsersManage)).Delete("/", rs.revokeAllTokens)
+						r.With(authorize.RequiresPermission(permUsersManage)).Delete("/", idAction("accountId", common.MsgInvalidAccountID, rs.AuthService.RevokeAllTokens, common.ErrorInternalServer))
 					})
 
 					// MFA admin override ("Godmode") — issue #1308 Phase 6.
@@ -281,8 +281,8 @@ func (rs *Resource) Router() chi.Router {
 			// Role permission assignments
 			r.Route("/roles/{roleId}/permissions", func(r chi.Router) {
 				r.With(authorize.RequiresPermission(permRolesManage)).Get("/", rs.getRolePermissions)
-				r.With(authorize.RequiresPermission(permRolesManage)).Post(pathPermissionID, rs.assignPermissionToRole)
-				r.With(authorize.RequiresPermission(permRolesManage)).Delete(pathPermissionID, rs.removePermissionFromRole)
+				r.With(authorize.RequiresPermission(permRolesManage)).Post(pathPermissionID, twoIDAction("roleId", common.MsgInvalidRoleID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.AssignPermissionToRole, renderRoleMutationError))
+				r.With(authorize.RequiresPermission(permRolesManage)).Delete(pathPermissionID, twoIDAction("roleId", common.MsgInvalidRoleID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.RemovePermissionFromRole, renderRoleMutationError))
 			})
 
 			// Token cleanup
@@ -317,8 +317,8 @@ func (rs *Resource) Router() chi.Router {
 				r.Route("/{id}", func(r chi.Router) {
 					r.With(authorize.RequiresPermission("users:read")).Get("/", rs.getParentAccountByID)
 					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/", rs.updateParentAccount)
-					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/activate", rs.activateParentAccount)
-					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/deactivate", rs.deactivateParentAccount)
+					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/activate", idAction("id", common.MsgInvalidParentAccountID, rs.AuthService.ActivateParentAccount, common.ErrorInternalServer))
+					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/deactivate", idAction("id", common.MsgInvalidParentAccountID, rs.AuthService.DeactivateParentAccount, common.ErrorInternalServer))
 				})
 			})
 		})
@@ -1487,46 +1487,6 @@ func (rs *Resource) listRoles(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, responses, "Roles retrieved successfully")
 }
 
-// assignRoleToAccount handles assigning a role to an account
-func (rs *Resource) assignRoleToAccount(w http.ResponseWriter, r *http.Request) {
-	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
-	if !ok {
-		return
-	}
-
-	roleID, ok := common.ParseIntIDWithError(w, r, "roleId", common.MsgInvalidRoleID)
-	if !ok {
-		return
-	}
-
-	if err := rs.AuthService.AssignRoleToAccount(r.Context(), accountID, roleID); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-
-	common.RespondNoContent(w, r)
-}
-
-// removeRoleFromAccount handles removing a role from an account
-func (rs *Resource) removeRoleFromAccount(w http.ResponseWriter, r *http.Request) {
-	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
-	if !ok {
-		return
-	}
-
-	roleID, ok := common.ParseIntIDWithError(w, r, "roleId", common.MsgInvalidRoleID)
-	if !ok {
-		return
-	}
-
-	if err := rs.AuthService.RemoveRoleFromAccount(r.Context(), accountID, roleID); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-
-	common.RespondNoContent(w, r)
-}
-
 // getAccountRoles handles getting roles for an account
 func (rs *Resource) getAccountRoles(w http.ResponseWriter, r *http.Request) {
 	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
@@ -1784,66 +1744,6 @@ func (rs *Resource) listPermissions(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, responses, "Permissions retrieved successfully")
 }
 
-// grantPermissionToAccount handles granting a permission to an account
-func (rs *Resource) grantPermissionToAccount(w http.ResponseWriter, r *http.Request) {
-	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
-	if !ok {
-		return
-	}
-
-	permissionID, ok := common.ParseIntIDWithError(w, r, "permissionId", common.MsgInvalidPermissionID)
-	if !ok {
-		return
-	}
-
-	if err := rs.AuthService.GrantPermissionToAccount(r.Context(), accountID, permissionID); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-
-	common.RespondNoContent(w, r)
-}
-
-// denyPermissionToAccount handles denying a permission to an account
-func (rs *Resource) denyPermissionToAccount(w http.ResponseWriter, r *http.Request) {
-	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
-	if !ok {
-		return
-	}
-
-	permissionID, ok := common.ParseIntIDWithError(w, r, "permissionId", common.MsgInvalidPermissionID)
-	if !ok {
-		return
-	}
-
-	if err := rs.AuthService.DenyPermissionToAccount(r.Context(), accountID, permissionID); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-
-	common.RespondNoContent(w, r)
-}
-
-// removePermissionFromAccount handles removing a permission from an account
-func (rs *Resource) removePermissionFromAccount(w http.ResponseWriter, r *http.Request) {
-	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
-	if !ok {
-		return
-	}
-
-	permissionID, ok := common.ParseIntIDWithError(w, r, "permissionId", common.MsgInvalidPermissionID)
-	if !ok {
-		return
-	}
-
-	if err := rs.AuthService.RemovePermissionFromAccount(r.Context(), accountID, permissionID); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-
-	common.RespondNoContent(w, r)
-}
-
 // getAccountPermissions handles getting permissions for an account
 func (rs *Resource) getAccountPermissions(w http.ResponseWriter, r *http.Request) {
 	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
@@ -1904,46 +1804,6 @@ func (rs *Resource) getAccountDirectPermissions(w http.ResponseWriter, r *http.R
 	common.Respond(w, r, http.StatusOK, responses, "Account direct permissions retrieved successfully")
 }
 
-// assignPermissionToRole handles assigning a permission to a role
-func (rs *Resource) assignPermissionToRole(w http.ResponseWriter, r *http.Request) {
-	roleID, ok := common.ParseIntIDWithError(w, r, "roleId", common.MsgInvalidRoleID)
-	if !ok {
-		return
-	}
-
-	permissionID, ok := common.ParseIntIDWithError(w, r, "permissionId", common.MsgInvalidPermissionID)
-	if !ok {
-		return
-	}
-
-	if err := rs.AuthService.AssignPermissionToRole(r.Context(), roleID, permissionID); err != nil {
-		common.RenderError(w, r, renderRoleMutationError(err))
-		return
-	}
-
-	common.RespondNoContent(w, r)
-}
-
-// removePermissionFromRole handles removing a permission from a role
-func (rs *Resource) removePermissionFromRole(w http.ResponseWriter, r *http.Request) {
-	roleID, ok := common.ParseIntIDWithError(w, r, "roleId", common.MsgInvalidRoleID)
-	if !ok {
-		return
-	}
-
-	permissionID, ok := common.ParseIntIDWithError(w, r, "permissionId", common.MsgInvalidPermissionID)
-	if !ok {
-		return
-	}
-
-	if err := rs.AuthService.RemovePermissionFromRole(r.Context(), roleID, permissionID); err != nil {
-		common.RenderError(w, r, renderRoleMutationError(err))
-		return
-	}
-
-	common.RespondNoContent(w, r)
-}
-
 // getRolePermissions handles getting permissions for a role
 func (rs *Resource) getRolePermissions(w http.ResponseWriter, r *http.Request) {
 	roleID, ok := common.ParseIntIDWithError(w, r, "roleId", common.MsgInvalidRoleID)
@@ -1975,36 +1835,6 @@ func (rs *Resource) getRolePermissions(w http.ResponseWriter, r *http.Request) {
 }
 
 // Account Management Extension Endpoints
-
-// activateAccount handles activating an account
-func (rs *Resource) activateAccount(w http.ResponseWriter, r *http.Request) {
-	id, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
-	if !ok {
-		return
-	}
-
-	if err := rs.AuthService.ActivateAccount(r.Context(), id); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-
-	common.RespondNoContent(w, r)
-}
-
-// deactivateAccount handles deactivating an account
-func (rs *Resource) deactivateAccount(w http.ResponseWriter, r *http.Request) {
-	id, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
-	if !ok {
-		return
-	}
-
-	if err := rs.AuthService.DeactivateAccount(r.Context(), id); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-
-	common.RespondNoContent(w, r)
-}
 
 // updateAccount handles updating an account
 func (rs *Resource) updateAccount(w http.ResponseWriter, r *http.Request) {
@@ -2193,21 +2023,6 @@ func (rs *Resource) cleanupExpiredTokens(w http.ResponseWriter, r *http.Request)
 	common.Respond(w, r, http.StatusOK, response, "Expired tokens cleaned up successfully")
 }
 
-// revokeAllTokens handles revoking all tokens for an account
-func (rs *Resource) revokeAllTokens(w http.ResponseWriter, r *http.Request) {
-	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
-	if !ok {
-		return
-	}
-
-	if err := rs.AuthService.RevokeAllTokens(r.Context(), accountID); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-
-	common.RespondNoContent(w, r)
-}
-
 // getActiveTokens handles getting active tokens for an account
 func (rs *Resource) getActiveTokens(w http.ResponseWriter, r *http.Request) {
 	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
@@ -2347,36 +2162,6 @@ func (rs *Resource) updateParentAccount(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err := rs.AuthService.UpdateParentAccount(r.Context(), parentAccount); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-
-	common.RespondNoContent(w, r)
-}
-
-// activateParentAccount handles activating a parent account
-func (rs *Resource) activateParentAccount(w http.ResponseWriter, r *http.Request) {
-	id, ok := common.ParseIntIDWithError(w, r, "id", common.MsgInvalidParentAccountID)
-	if !ok {
-		return
-	}
-
-	if err := rs.AuthService.ActivateParentAccount(r.Context(), id); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-
-	common.RespondNoContent(w, r)
-}
-
-// deactivateParentAccount handles deactivating a parent account
-func (rs *Resource) deactivateParentAccount(w http.ResponseWriter, r *http.Request) {
-	id, ok := common.ParseIntIDWithError(w, r, "id", common.MsgInvalidParentAccountID)
-	if !ok {
-		return
-	}
-
-	if err := rs.AuthService.DeactivateParentAccount(r.Context(), id); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
