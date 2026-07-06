@@ -1163,9 +1163,13 @@ func appointmentEvent(appointment *calModels.Appointment, occurrenceDate timezon
 		ResponseStatus:   responseStatus,
 		RecipientID:      recipientIDString,
 		OrganizerStaffID: &organizerStaffID,
-		CanRespond:       recipientID != nil && responseStatus != nil && *responseStatus == calModels.ResponseStatusPending,
-		CanEdit:          appointment.OrganizerStaffID == staffID,
-		CanViewOverview:  canStaffViewOverview(appointment, staffID, isStaffRecipient),
+		// Stay respondable for any real (non-informational) recipient, including
+		// already accepted/declined ones — the respond endpoints allow changing
+		// an existing RSVP, so users can correct an accidental answer. Only
+		// informational recipients (and non-recipients) cannot respond.
+		CanRespond:      recipientID != nil && responseStatus != nil && *responseStatus != calModels.ResponseStatusInfo,
+		CanEdit:         appointment.OrganizerStaffID == staffID,
+		CanViewOverview: canStaffViewOverview(appointment, staffID, isStaffRecipient),
 	}
 }
 

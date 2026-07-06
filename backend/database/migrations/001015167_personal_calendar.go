@@ -336,12 +336,18 @@ func personalCalendarUp(ctx context.Context, db *bun.DB) error {
 		  AND r.name IN ('admin', 'user', 'teacher', 'staff', 'guardian')
 		ON CONFLICT (role_id, permission_id) DO NOTHING;
 
+		-- calendar:manage gates appointment creation and recipient search
+		-- (create school-wide staff/parent invitations). This is an
+		-- administration capability, so grant it only to the admin role by
+		-- default; schools can assign it to additional roles via the
+		-- role-permission admin UI. calendar:own (respond to own invitations)
+		-- above stays broad.
 		INSERT INTO auth.role_permissions (role_id, permission_id)
 		SELECT r.id, p.id
 		FROM auth.roles r
 		CROSS JOIN auth.permissions p
 		WHERE p.name = 'calendar:manage'
-		  AND r.name IN ('admin', 'user', 'teacher', 'staff')
+		  AND r.name IN ('admin')
 		ON CONFLICT (role_id, permission_id) DO NOTHING;
 	`)
 	if err != nil {

@@ -97,6 +97,33 @@ func TestAppointmentEventAndOverride(t *testing.T) {
 	assert.True(t, event.AllDay)
 }
 
+func TestAppointmentEventCanRespond(t *testing.T) {
+	appointment := helperAppointment()
+	recipientID := int64(99)
+	day := timezone.NewDate(2026, 1, 6)
+
+	// A recipient can respond for any non-informational status, including an
+	// already accepted/declined one — the respond endpoints allow changing it.
+	for _, status := range []string{
+		calModels.ResponseStatusPending,
+		calModels.ResponseStatusAccepted,
+		calModels.ResponseStatusDeclined,
+	} {
+		s := status
+		event := appointmentEvent(appointment, day, &s, &recipientID, 8)
+		assert.Truef(t, event.CanRespond, "status %q should be respondable", status)
+	}
+
+	// Informational recipients cannot respond.
+	info := calModels.ResponseStatusInfo
+	infoEvent := appointmentEvent(appointment, day, &info, &recipientID, 8)
+	assert.False(t, infoEvent.CanRespond)
+
+	// A non-recipient (nil recipient/status) cannot respond.
+	nonRecipient := appointmentEvent(appointment, day, nil, nil, 8)
+	assert.False(t, nonRecipient.CanRespond)
+}
+
 func TestCalendarRecipientStatusHelpers(t *testing.T) {
 	staffID := int64(10)
 	guardianID := int64(20)

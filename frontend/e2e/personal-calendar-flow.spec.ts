@@ -1,9 +1,11 @@
 import { expect, type Page, test } from "@playwright/test";
 import { toISODate } from "../src/lib/date-helpers";
 
-// Test credentials from environment variables (never commit real credentials!)
-const TEST_EMAIL = process.env.E2E_TEST_EMAIL ?? "";
-const TEST_PASSWORD = process.env.E2E_TEST_PASSWORD ?? "";
+// Test credentials from environment variables (never commit real credentials!).
+// No fallback defaults per the repo no-fallback policy — the suite skips when
+// either is unset (see beforeEach) rather than substituting an empty string.
+const TEST_EMAIL = process.env.E2E_TEST_EMAIL;
+const TEST_PASSWORD = process.env.E2E_TEST_PASSWORD;
 
 function addDays(date: Date, days: number): Date {
   const next = new Date(date);
@@ -11,11 +13,11 @@ function addDays(date: Date, days: number): Date {
   return next;
 }
 
-async function login(page: Page) {
+async function login(page: Page, email: string, password: string) {
   await page.goto("/");
   await page.waitForSelector('input[type="email"]');
-  await page.fill('input[type="email"]', TEST_EMAIL);
-  await page.fill('input[type="password"]', TEST_PASSWORD);
+  await page.fill('input[type="email"]', email);
+  await page.fill('input[type="password"]', password);
   await page.click('button:has-text("Anmelden")');
   await page.waitForURL(
     (url) => !url.pathname.includes("login") && url.pathname !== "/",
@@ -30,7 +32,10 @@ test.describe("Personal calendar flow", () => {
       !TEST_EMAIL || !TEST_PASSWORD,
       "E2E_TEST_EMAIL and E2E_TEST_PASSWORD must be set",
     );
-    await login(page);
+    // Redundant at runtime (test.skip already aborted) but narrows the
+    // string | undefined env reads to string for the login call.
+    if (!TEST_EMAIL || !TEST_PASSWORD) return;
+    await login(page, TEST_EMAIL, TEST_PASSWORD);
   });
 
   test("staff creates, accepts, and sees a recurring all-staff appointment", async ({
