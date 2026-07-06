@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -75,10 +77,7 @@ func (s *service) validateSupervisorIDs(ctx context.Context, supervisorIDs []int
 	}
 
 	// Batch-validate all unique supervisor IDs in a single query
-	idSlice := make([]int64, 0, len(uniqueIDs))
-	for id := range uniqueIDs {
-		idSlice = append(idSlice, id)
-	}
+	idSlice := slices.Collect(maps.Keys(uniqueIDs))
 
 	staffMap, err := s.StaffRepo.FindByIDs(ctx, idSlice)
 	if err != nil {
@@ -935,10 +934,7 @@ func (s *service) collectActiveVisitsForSSE(ctx context.Context, sessionID int64
 	}
 
 	// Batch-fetch all students (1 query instead of N)
-	studentIDs := make([]int64, 0, len(studentIDSet))
-	for id := range studentIDSet {
-		studentIDs = append(studentIDs, id)
-	}
+	studentIDs := slices.Collect(maps.Keys(studentIDSet))
 	studentsMap, err := s.StudentRepo.FindByIDs(ctx, studentIDs)
 	if err != nil {
 		studentsMap = nil
@@ -955,10 +951,7 @@ func (s *service) collectActiveVisitsForSSE(ctx context.Context, sessionID int64
 	// Batch-fetch all persons (1 query instead of M)
 	var personsMap map[int64]*userModels.Person
 	if len(personIDSet) > 0 {
-		personIDs := make([]int64, 0, len(personIDSet))
-		for id := range personIDSet {
-			personIDs = append(personIDs, id)
-		}
+		personIDs := slices.Collect(maps.Keys(personIDSet))
 		personsMap, err = s.PersonRepo.FindByIDs(ctx, personIDs)
 		if err != nil {
 			personsMap = nil

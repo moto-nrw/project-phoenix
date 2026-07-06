@@ -1,6 +1,7 @@
 package platform
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -66,10 +67,7 @@ func NewAnnouncementService(cfg AnnouncementServiceConfig) AnnouncementService {
 }
 
 func (s *announcementService) getLogger() *slog.Logger {
-	if s.Logger != nil {
-		return s.Logger
-	}
-	return slog.Default()
+	return cmp.Or(s.Logger, slog.Default())
 }
 
 // deduplicateInt64 returns a sorted copy of the slice with duplicates removed.

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"slices"
 	"strconv"
 	"time"
 
@@ -109,7 +110,7 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 				return err
 			}
 		}
-		if containsDate(dates, today) {
+		if slices.Contains(dates, today) {
 			applyLiveStatusForToday(fresh, req.Status, now)
 			if err := rs.StudentService.Update(ctx, fresh); err != nil {
 				return err
@@ -131,7 +132,7 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	rows, err := rs.StudentStatusDayService.GetActiveByStudentAndDateRange(r.Context(), student.ID, minDate(dates), maxDate(dates))
+	rows, err := rs.StudentStatusDayService.GetActiveByStudentAndDateRange(r.Context(), student.ID, slices.MinFunc(dates, timezone.Date.Compare), slices.MaxFunc(dates, timezone.Date.Compare))
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServerWrap("failed to fetch student status days", err))
 		return
@@ -200,7 +201,7 @@ func (rs *Resource) bulkCreateStudentStatusDays(w http.ResponseWriter, r *http.R
 					return err
 				}
 			}
-			if containsDate(dates, today) {
+			if slices.Contains(dates, today) {
 				applyLiveStatusForToday(fresh, req.Status, now)
 				if err := rs.StudentService.Update(ctx, fresh); err != nil {
 					return err
@@ -394,33 +395,4 @@ func clearLiveStatusForToday(student *users.Student, status string) {
 		student.Excused = &falseVal
 		student.ExcusedSince = nil
 	}
-}
-
-func containsDate(dates []timezone.Date, needle timezone.Date) bool {
-	for _, date := range dates {
-		if date == needle {
-			return true
-		}
-	}
-	return false
-}
-
-func minDate(dates []timezone.Date) timezone.Date {
-	min := dates[0]
-	for _, date := range dates[1:] {
-		if date.Before(min) {
-			min = date
-		}
-	}
-	return min
-}
-
-func maxDate(dates []timezone.Date) timezone.Date {
-	max := dates[0]
-	for _, date := range dates[1:] {
-		if date.After(max) {
-			max = date
-		}
-	}
-	return max
 }

@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"cmp"
 	"log/slog"
 	"net/http"
 	"time"
@@ -16,10 +17,7 @@ type SecurityLogger struct {
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
 func (sl *SecurityLogger) getLogger() *slog.Logger {
-	if sl.logger != nil {
-		return sl.logger
-	}
-	return slog.Default()
+	return cmp.Or(sl.logger, slog.Default())
 }
 
 // NewSecurityLogger creates a new security logger

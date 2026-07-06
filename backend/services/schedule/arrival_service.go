@@ -1,6 +1,7 @@
 package schedule
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -150,10 +151,7 @@ func NewArrivalScheduleService(
 }
 
 func (s *arrivalScheduleService) getLogger() *slog.Logger {
-	if s.logger != nil {
-		return s.logger
-	}
-	return slog.Default()
+	return cmp.Or(s.logger, slog.Default())
 }
 
 // Schedule operations

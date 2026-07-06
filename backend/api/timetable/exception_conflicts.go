@@ -20,7 +20,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
+	"slices"
 	"sort"
 	"time"
 
@@ -316,10 +318,7 @@ func (rs *Resource) loadArrivalPreload(
 		dateObjByKey[dateKey(a.exception.ExceptionDate)] = a.exception.ExceptionDate
 	}
 	for dk, stuMap := range datesToStudents {
-		ids := make([]int64, 0, len(stuMap))
-		for id := range stuMap {
-			ids = append(ids, id)
-		}
+		ids := slices.Collect(maps.Keys(stuMap))
 		excs, err := rs.TimetableData.GetArrivalExceptionsByStudentIDsAndDate(ctx, ids, dateObjByKey[dk])
 		if err != nil {
 			return nil, fmt.Errorf("load arrival exceptions for %s: %w", dk, err)
@@ -352,10 +351,7 @@ func (rs *Resource) loadArrivalPreload(
 		}
 	}
 	for wd, stuMap := range schedulesNeededByWd {
-		ids := make([]int64, 0, len(stuMap))
-		for id := range stuMap {
-			ids = append(ids, id)
-		}
+		ids := slices.Collect(maps.Keys(stuMap))
 		schedules, err := rs.TimetableData.GetArrivalSchedulesByStudentIDsAndWeekday(ctx, ids, wd)
 		if err != nil {
 			return nil, fmt.Errorf("load arrival schedules for weekday %d: %w", wd, err)
@@ -436,10 +432,7 @@ func (rs *Resource) loadTemplatePreload(
 		return pre, nil
 	}
 
-	ids := make([]int64, 0, len(needed))
-	for id := range needed {
-		ids = append(ids, id)
-	}
+	ids := slices.Collect(maps.Keys(needed))
 	rows, err := rs.TimetableData.GetTemplateStartTimesByGroupIDs(ctx, ids)
 	if err != nil {
 		return nil, fmt.Errorf("load template start times: %w", err)

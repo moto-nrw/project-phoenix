@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"reflect"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -559,10 +561,7 @@ func (s *changeRequestService) changeRequestOfferingCatalogs(
 
 	currentOfferingsByID := map[int64]*enrollmentModels.CareOffering{}
 	if len(currentIDs) > 0 {
-		ids := make([]int64, 0, len(currentIDs))
-		for id := range currentIDs {
-			ids = append(ids, id)
-		}
+		ids := slices.Collect(maps.Keys(currentIDs))
 		currentOfferings, err := s.CareOfferingRepo.ListByIDs(ctx, ids)
 		if err != nil {
 			return nil, nil, fmt.Errorf("change request: load current inactive offerings: %w", err)

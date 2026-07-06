@@ -1,6 +1,7 @@
 package database
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 
@@ -17,10 +18,7 @@ type databaseService struct {
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
 func (s *databaseService) getLogger() *slog.Logger {
-	if s.logger != nil {
-		return s.logger
-	}
-	return slog.Default()
+	return cmp.Or(s.logger, slog.Default())
 }
 
 // NewService creates a new DatabaseService instance

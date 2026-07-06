@@ -1,6 +1,7 @@
 package platform
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -123,10 +124,7 @@ func NewOperatorAuthService(cfg OperatorAuthServiceConfig) (OperatorAuthAndInvit
 }
 
 func (s *operatorAuthService) getLogger() *slog.Logger {
-	if s.Logger != nil {
-		return s.Logger
-	}
-	return slog.Default()
+	return cmp.Or(s.Logger, slog.Default())
 }
 
 // OperatorLoginStatus discriminates between the two shapes the operator

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -672,11 +674,7 @@ func careUsageRow(req *enrollmentModels.Request, child *enrollmentModels.Request
 	sort.SliceStable(rowOfferings, func(i, j int) bool {
 		return rowOfferings[i].Name < rowOfferings[j].Name
 	})
-	effectiveDays := make([]string, 0, len(daySet))
-	for day := range daySet {
-		effectiveDays = append(effectiveDays, day)
-	}
-	effectiveDays = sortedDayCodes(effectiveDays)
+	effectiveDays := sortedDayCodes(slices.Collect(maps.Keys(daySet)))
 	pickupByDay := map[string]string{}
 	if len(pickupByDayArgs) > 0 && pickupByDayArgs[0] != nil {
 		pickupByDay = pickupByDayArgs[0]
@@ -723,11 +721,7 @@ func careUsageBookedPickupDays(row CareUsageRow, filters CareUsageFilters) []str
 			}
 		}
 	}
-	days := make([]string, 0, len(daySet))
-	for day := range daySet {
-		days = append(days, day)
-	}
-	return sortedDayCodes(days)
+	return sortedDayCodes(slices.Collect(maps.Keys(daySet)))
 }
 
 func careUsageBookedDays(row CareUsageRow, filters CareUsageFilters) []string {
@@ -752,11 +746,7 @@ func careUsageBookedDays(row CareUsageRow, filters CareUsageFilters) []string {
 			}
 		}
 	}
-	days := make([]string, 0, len(daySet))
-	for day := range daySet {
-		days = append(days, day)
-	}
-	return sortedDayCodes(days)
+	return sortedDayCodes(slices.Collect(maps.Keys(daySet)))
 }
 
 type classRosterApprovedEnrollment struct {
@@ -1589,7 +1579,7 @@ func careUsageRowMatches(row CareUsageRow, filters CareUsageFilters) bool {
 	}
 	if filters.Weekday != "" {
 		bookedDays := careUsageBookedDays(row, filters)
-		if !containsString(bookedDays, filters.Weekday) {
+		if !slices.Contains(bookedDays, filters.Weekday) {
 			return false
 		}
 		if filters.PickupTime != "" && row.PickupByDay[filters.Weekday] != filters.PickupTime {
@@ -1621,15 +1611,6 @@ func careUsageRowMatches(row CareUsageRow, filters CareUsageFilters) bool {
 		}
 	}
 	return true
-}
-
-func containsString(values []string, needle string) bool {
-	for _, value := range values {
-		if value == needle {
-			return true
-		}
-	}
-	return false
 }
 
 func careUsageRowHasAnyOffering(row CareUsageRow, offeringIDs []int64) bool {

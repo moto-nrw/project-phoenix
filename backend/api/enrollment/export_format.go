@@ -3,7 +3,8 @@ package enrollment
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -404,11 +405,7 @@ func stringifyValue(raw any) string {
 		}
 		return strings.Join(parts, ", ")
 	case map[string]any:
-		keys := make([]string, 0, len(v))
-		for k := range v {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
+		keys := slices.Sorted(maps.Keys(v))
 		parts := make([]string, 0, len(keys))
 		for _, k := range keys {
 			parts = append(parts, k+": "+stringifyValue(v[k]))

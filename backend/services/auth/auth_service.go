@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"log/slog"
@@ -131,10 +132,7 @@ func NewService(
 
 // getLogger returns the service's logger, falling back to slog.Default() if nil.
 func (s *Service) getLogger() *slog.Logger {
-	if s.logger != nil {
-		return s.logger
-	}
-	return slog.Default()
+	return cmp.Or(s.logger, slog.Default())
 }
 
 // SetMFAService wires the optional MFA service post-construction. Idempotent

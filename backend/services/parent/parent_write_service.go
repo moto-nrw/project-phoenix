@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -219,7 +220,7 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 			}
 		}
 
-		if containsDate(dates, today) {
+		if slices.Contains(dates, today) {
 			fresh, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 			if err != nil {
 				return err
@@ -230,7 +231,7 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 			}
 		}
 
-		rows, err := s.StatusDayRepo.FindActiveByStudentAndDateRange(txCtx, studentID, minDate(dates), maxDate(dates))
+		rows, err := s.StatusDayRepo.FindActiveByStudentAndDateRange(txCtx, studentID, slices.MinFunc(dates, timezone.Date.Compare), slices.MaxFunc(dates, timezone.Date.Compare))
 		if err != nil {
 			return err
 		}
@@ -908,33 +909,4 @@ func applyLiveStatusForParentToday(student *usersModels.Student, status string, 
 		student.Sick = &falseVal
 		student.SickSince = nil
 	}
-}
-
-func containsDate(dates []timezone.Date, needle timezone.Date) bool {
-	for _, d := range dates {
-		if d == needle {
-			return true
-		}
-	}
-	return false
-}
-
-func minDate(dates []timezone.Date) timezone.Date {
-	min := dates[0]
-	for _, d := range dates[1:] {
-		if d.Before(min) {
-			min = d
-		}
-	}
-	return min
-}
-
-func maxDate(dates []timezone.Date) timezone.Date {
-	max := dates[0]
-	for _, d := range dates[1:] {
-		if d.After(max) {
-			max = d
-		}
-	}
-	return max
 }

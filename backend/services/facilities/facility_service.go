@@ -6,7 +6,8 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
-	"sort"
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/constants"
@@ -497,11 +498,7 @@ func (s *service) GetBuildingList(ctx context.Context) ([]string, error) {
 	}
 
 	// Convert map to sorted slice
-	buildings := make([]string, 0, len(buildingMap))
-	for building := range buildingMap {
-		buildings = append(buildings, building)
-	}
-	sort.Strings(buildings)
+	buildings := slices.Sorted(maps.Keys(buildingMap))
 
 	return buildings, nil
 }
@@ -523,11 +520,7 @@ func (s *service) GetCategoryList(ctx context.Context) ([]string, error) {
 	}
 
 	// Convert map to sorted slice
-	categories := make([]string, 0, len(categoryMap))
-	for category := range categoryMap {
-		categories = append(categories, category)
-	}
-	sort.Strings(categories)
+	categories := slices.Sorted(maps.Keys(categoryMap))
 
 	return categories, nil
 }

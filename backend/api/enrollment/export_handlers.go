@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -894,10 +896,7 @@ func collectCustomFields(schemas map[int64]*enrollmentModels.FormSchema) (guardi
 	// as deterministic as ascending (a Go map range would pick a random
 	// winner and produce differently-labelled columns between two exports
 	// of the same phase); it just picks the more useful winner.
-	schemaIDs := make([]int64, 0, len(schemas))
-	for id := range schemas {
-		schemaIDs = append(schemaIDs, id)
-	}
+	schemaIDs := slices.Collect(maps.Keys(schemas))
 	sort.Slice(schemaIDs, func(i, j int) bool { return schemaIDs[i] > schemaIDs[j] })
 	for _, id := range schemaIDs {
 		fs := schemas[id]

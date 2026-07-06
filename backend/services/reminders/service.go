@@ -9,6 +9,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
+	"slices"
 	"sort"
 	"strconv"
 	"time"
@@ -332,11 +334,7 @@ func (s *service) supervisedRoomIDs(ctx context.Context, scope Scope) ([]int64, 
 			roomSet[g.RoomID] = struct{}{}
 		}
 	}
-	roomIDs := make([]int64, 0, len(roomSet))
-	for roomID := range roomSet {
-		roomIDs = append(roomIDs, roomID)
-	}
-	return roomIDs, nil
+	return slices.Collect(maps.Keys(roomSet)), nil
 }
 
 // presentStudentsInRooms returns the deduplicated IDs of students currently
@@ -355,11 +353,7 @@ func (s *service) presentStudentsInRooms(ctx context.Context, roomIDs []int64) (
 			studentSet[id] = struct{}{}
 		}
 	}
-	studentIDs := make([]int64, 0, len(studentSet))
-	for id := range studentSet {
-		studentIDs = append(studentIDs, id)
-	}
-	return studentIDs, nil
+	return slices.Collect(maps.Keys(studentSet)), nil
 }
 
 func (s *service) pickupReminders(ctx context.Context, scope Scope, studentIDs []int64, today timezone.Date, nowMin, lead int, upcoming, overdue bool) ([]Reminder, int, error) {

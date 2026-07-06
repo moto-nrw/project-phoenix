@@ -23,6 +23,7 @@
 package schedule
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
@@ -147,10 +148,7 @@ func NewTemplateSplitService(deps TemplateSplitDependencies) TemplateSplitServic
 }
 
 func (s *templateSplitService) getLogger() *slog.Logger {
-	if s.deps.Logger != nil {
-		return s.deps.Logger
-	}
-	return slog.Default()
+	return cmp.Or(s.deps.Logger, slog.Default())
 }
 
 // Split implements TemplateSplitService.

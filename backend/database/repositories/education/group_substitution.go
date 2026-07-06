@@ -3,6 +3,8 @@ package education
 
 import (
 	"context"
+	"maps"
+	"slices"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -348,7 +350,7 @@ func (r *GroupSubstitutionRepository) loadGroupsByIDs(ctx context.Context, group
 		return groupMap
 	}
 
-	groupIDSlice := mapKeysToSlice(groupIDs)
+	groupIDSlice := slices.Collect(maps.Keys(groupIDs))
 
 	var groups []*education.Group
 	groupQuery := base.GetDB(ctx, r.db).NewSelect().
@@ -375,7 +377,7 @@ func (r *GroupSubstitutionRepository) loadStaffWithPersonsByIDs(ctx context.Cont
 		return staffMap
 	}
 
-	staffIDSlice := mapKeysToSlice(staffIDs)
+	staffIDSlice := slices.Collect(maps.Keys(staffIDs))
 
 	// Load staff records. Include soft-deleted staff so historical
 	// substitutions keep resolving the staff member's name after offboarding.
@@ -456,15 +458,6 @@ func assignRelationsToSubstitutions(substitutions []*education.GroupSubstitution
 			sub.SubstituteStaff = staff
 		}
 	}
-}
-
-// mapKeysToSlice converts map keys to a slice
-func mapKeysToSlice(m map[int64]bool) []int64 {
-	slice := make([]int64, 0, len(m))
-	for id := range m {
-		slice = append(slice, id)
-	}
-	return slice
 }
 
 // FindActiveWithRelations retrieves all active substitutions for a specific date with related data

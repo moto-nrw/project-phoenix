@@ -3,6 +3,8 @@ package education
 import (
 	"context"
 	"log/slog"
+	"maps"
+	"slices"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -462,10 +464,7 @@ func (s *service) GetTeachersForGroups(ctx context.Context, groupIDs []int64) (m
 		teacherIDSet[rel.TeacherID] = true
 	}
 
-	teacherIDs := make([]int64, 0, len(teacherIDSet))
-	for id := range teacherIDSet {
-		teacherIDs = append(teacherIDs, id)
-	}
+	teacherIDs := slices.Collect(maps.Keys(teacherIDSet))
 
 	if len(teacherIDs) == 0 {
 		result := make(map[int64][]*users.Teacher)

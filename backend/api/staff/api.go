@@ -1,6 +1,7 @@
 package staff
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -86,10 +87,7 @@ func NewResource(
 
 // getLogger returns the injected logger, falling back to slog.Default()
 func (rs *Resource) getLogger() *slog.Logger {
-	if rs.logger != nil {
-		return rs.logger
-	}
-	return slog.Default()
+	return cmp.Or(rs.logger, slog.Default())
 }
 
 // Router returns a configured router for staff endpoints

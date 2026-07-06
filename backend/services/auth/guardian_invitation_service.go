@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -139,10 +140,7 @@ func NewGuardianInvitationService(cfg GuardianInvitationServiceConfig) GuardianI
 }
 
 func (s *guardianInvitationService) getLogger() *slog.Logger {
-	if s.Logger != nil {
-		return s.Logger
-	}
-	return slog.Default()
+	return cmp.Or(s.Logger, slog.Default())
 }
 
 // resolveTokenExpiry follows the documented HasTenantOverride → ResolveInt →

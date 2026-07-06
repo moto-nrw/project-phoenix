@@ -1,6 +1,7 @@
 package users
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
@@ -60,10 +61,7 @@ func NewStaffOffboardingService(deps StaffOffboardingServiceDependencies) StaffO
 }
 
 func (s *staffOffboardingService) getLogger() *slog.Logger {
-	if s.Logger != nil {
-		return s.Logger
-	}
-	return slog.Default()
+	return cmp.Or(s.Logger, slog.Default())
 }
 
 // OffboardStaff removes a staff member from daily operations and revokes their

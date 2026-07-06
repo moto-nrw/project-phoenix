@@ -1,12 +1,15 @@
 package usercontext
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -63,10 +66,7 @@ type userContextService struct {
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
 func (s *userContextService) getLogger() *slog.Logger {
-	if s.logger != nil {
-		return s.logger
-	}
-	return slog.Default()
+	return cmp.Or(s.logger, slog.Default())
 }
 
 // NewUserContextServiceWithRepos creates a new user context service using a repositories struct
@@ -603,10 +603,7 @@ func (s *userContextService) GetGroupStudents(ctx context.Context, groupID int64
 	}
 
 	// Convert map keys to slice
-	ids := make([]int64, 0, len(studentIDs))
-	for id := range studentIDs {
-		ids = append(ids, id)
-	}
+	ids := slices.Collect(maps.Keys(studentIDs))
 
 	// If no students found, return empty slice
 	if len(ids) == 0 {

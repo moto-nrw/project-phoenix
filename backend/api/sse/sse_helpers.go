@@ -1,6 +1,7 @@
 package sse
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -37,10 +38,7 @@ type sseTopics struct {
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
 func (conn *sseConnection) getLogger() *slog.Logger {
-	if conn.logger != nil {
-		return conn.logger
-	}
-	return slog.Default()
+	return cmp.Or(conn.logger, slog.Default())
 }
 
 // connectedEvent is the initial event sent when SSE connection is established

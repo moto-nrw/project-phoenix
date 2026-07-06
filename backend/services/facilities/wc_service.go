@@ -3,6 +3,7 @@
 package facilities
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -38,10 +39,7 @@ var errWCActivityNotFound = errors.New("WC activity not found")
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil.
 func (s *wcService) getLogger() *slog.Logger {
-	if s.logger != nil {
-		return s.logger
-	}
-	return slog.Default()
+	return cmp.Or(s.logger, slog.Default())
 }
 
 // NewWCService creates a new WC service.

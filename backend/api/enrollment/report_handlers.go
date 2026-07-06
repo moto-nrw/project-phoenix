@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -980,12 +982,7 @@ func careUsagePickupPlanningTimes(report *enrollmentService.CareUsageReport) []s
 			}
 		}
 	}
-	out := make([]string, 0, len(seen))
-	for pickupTime := range seen {
-		out = append(out, pickupTime)
-	}
-	sort.Strings(out)
-	return out
+	return slices.Sorted(maps.Keys(seen))
 }
 
 func careUsagePickupDayDetails(pickupByDay map[string]string) string {

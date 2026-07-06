@@ -53,11 +53,8 @@ func TestStatusDayDateHelpers(t *testing.T) {
 	dates, err := parseStatusDayDates([]string{"2026-05-25", "2026-05-27"})
 	require.NoError(t, err)
 	require.Len(t, dates, 2)
-
-	assert.Equal(t, "2026-05-25", minDate(dates).String())
-	assert.Equal(t, "2026-05-27", maxDate(dates).String())
-	assert.True(t, containsDate(dates, timezone.NewDate(2026, 5, 25)))
-	assert.False(t, containsDate(dates, timezone.NewDate(2026, 5, 26)))
+	assert.Equal(t, timezone.NewDate(2026, 5, 25), dates[0])
+	assert.Equal(t, timezone.NewDate(2026, 5, 27), dates[1])
 
 	_, err = parseStatusDayDates([]string{"2026-05-25", "broken"})
 	require.ErrorContains(t, err, "invalid date format")

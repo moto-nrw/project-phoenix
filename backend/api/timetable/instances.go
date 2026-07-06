@@ -11,6 +11,7 @@
 package timetable
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"log/slog"
@@ -210,8 +211,5 @@ func (rs *Resource) resolveStartedByStaffID(ctx context.Context) int64 {
 // getLogger is a nil-safe accessor used by helpers that run outside the
 // chi handler's standard error-rendering path.
 func (rs *Resource) getLogger() *slog.Logger {
-	if rs.Logger != nil {
-		return rs.Logger
-	}
-	return slog.Default()
+	return cmp.Or(rs.Logger, slog.Default())
 }

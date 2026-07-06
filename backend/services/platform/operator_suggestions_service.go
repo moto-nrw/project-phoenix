@@ -1,6 +1,7 @@
 package platform
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -67,10 +68,7 @@ func NewOperatorSuggestionsService(cfg OperatorSuggestionsServiceConfig) Operato
 }
 
 func (s *operatorSuggestionsService) getLogger() *slog.Logger {
-	if s.Logger != nil {
-		return s.Logger
-	}
-	return slog.Default()
+	return cmp.Or(s.Logger, slog.Default())
 }
 
 // withAdminTx wraps fn in a BYPASSRLS admin transaction so operator queries

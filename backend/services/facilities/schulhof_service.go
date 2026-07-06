@@ -3,6 +3,7 @@
 package facilities
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -82,10 +83,7 @@ type schulhofService struct {
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
 func (s *schulhofService) getLogger() *slog.Logger {
-	if s.logger != nil {
-		return s.logger
-	}
-	return slog.Default()
+	return cmp.Or(s.logger, slog.Default())
 }
 
 // NewSchulhofService creates a new Schulhof service.

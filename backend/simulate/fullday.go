@@ -3,8 +3,9 @@ package simulate
 import (
 	"context"
 	"fmt"
+	"maps"
 	"math/rand"
-	"sort"
+	"slices"
 
 	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 )
@@ -387,19 +388,9 @@ func findRoomForActivity(activityName string, rooms map[string]int64) int64 {
 }
 
 func sortedDeviceKeys(devices map[string]seedapi.SeedDevice) []string {
-	keys := make([]string, 0, len(devices))
-	for k := range devices {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
+	return slices.Sorted(maps.Keys(devices))
 }
 
 func sortedStringKeys(m map[string]int64) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
+	return slices.Sorted(maps.Keys(m))
 }

@@ -1,6 +1,7 @@
 package students
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -250,8 +251,5 @@ func labelForAttendanceStatus(status string) string {
 
 // getLogger returns a nil-safe logger for handler use.
 func (rs *Resource) getLogger() *slog.Logger {
-	if rs.Logger != nil {
-		return rs.Logger
-	}
-	return slog.Default()
+	return cmp.Or(rs.Logger, slog.Default())
 }

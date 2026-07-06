@@ -22,6 +22,7 @@
 package schedule
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
@@ -185,10 +186,7 @@ func NewInstanceService(deps InstanceServiceDependencies) InstanceService {
 }
 
 func (s *instanceService) getLogger() *slog.Logger {
-	if s.deps.Logger != nil {
-		return s.deps.Logger
-	}
-	return slog.Default()
+	return cmp.Or(s.deps.Logger, slog.Default())
 }
 
 // Start implements planned → active. Runs inside the caller's tenant tx

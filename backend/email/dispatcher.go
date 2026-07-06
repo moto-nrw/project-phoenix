@@ -1,6 +1,7 @@
 package email
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -66,10 +67,7 @@ type Dispatcher struct {
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
 func (d *Dispatcher) getLogger() *slog.Logger {
-	if d.logger != nil {
-		return d.logger
-	}
-	return slog.Default()
+	return cmp.Or(d.logger, slog.Default())
 }
 
 // NewDispatcher constructs a Dispatcher with sensible defaults.

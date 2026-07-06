@@ -1,6 +1,7 @@
 package active
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
@@ -171,10 +172,7 @@ func (s *service) GetPresenceMode(ctx context.Context) string {
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
 func (s *service) getLogger() *slog.Logger {
-	if s.Logger != nil {
-		return s.Logger
-	}
-	return slog.Default()
+	return cmp.Or(s.Logger, slog.Default())
 }
 
 // NewService creates a new active service instance

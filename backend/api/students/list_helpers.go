@@ -1,7 +1,9 @@
 package students
 
 import (
+	"maps"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -193,10 +195,7 @@ func collectIDsFromStudents(students []*users.Student) (studentIDs, personIDs, g
 		}
 	}
 
-	groupIDs = make([]int64, 0, len(groupIDSet))
-	for groupID := range groupIDSet {
-		groupIDs = append(groupIDs, groupID)
-	}
+	groupIDs = slices.Collect(maps.Keys(groupIDSet))
 
 	return studentIDs, personIDs, groupIDs
 }

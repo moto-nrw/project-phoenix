@@ -1,6 +1,7 @@
 package suggestions
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -34,10 +35,7 @@ type suggestionsService struct {
 }
 
 func (s *suggestionsService) getLogger() *slog.Logger {
-	if s.Logger != nil {
-		return s.Logger
-	}
-	return slog.Default()
+	return cmp.Or(s.Logger, slog.Default())
 }
 
 func notificationContext(ctx context.Context) context.Context {

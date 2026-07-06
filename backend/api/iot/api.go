@@ -1,6 +1,7 @@
 package iot
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 	"net/http"
@@ -93,10 +94,7 @@ func (rs *Resource) pinResolver() device.PINResolver {
 
 // getLogger returns the resource's logger, falling back to slog.Default() if nil.
 func (rs *Resource) getLogger() *slog.Logger {
-	if rs.Logger != nil {
-		return rs.Logger
-	}
-	return slog.Default()
+	return cmp.Or(rs.Logger, slog.Default())
 }
 
 // Router returns a configured router for IoT endpoints

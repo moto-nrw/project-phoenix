@@ -33,6 +33,7 @@
 package schedule
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -175,10 +176,7 @@ func NewMaterializationService(
 }
 
 func (s *materializationService) getLogger() *slog.Logger {
-	if s.logger != nil {
-		return s.logger
-	}
-	return slog.Default()
+	return cmp.Or(s.logger, slog.Default())
 }
 
 // ResolveWindow computes the next full Monday–Sunday span covering weeksAhead

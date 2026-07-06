@@ -3,6 +3,8 @@ package common
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"time"
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -129,11 +131,7 @@ func extractActiveGroupIDs(visits map[int64]*activeModels.Visit) []int64 {
 			groupIDSet[visit.ActiveGroupID] = struct{}{}
 		}
 	}
-	result := make([]int64, 0, len(groupIDSet))
-	for groupID := range groupIDSet {
-		result = append(result, groupID)
-	}
-	return result
+	return slices.Collect(maps.Keys(groupIDSet))
 }
 
 // coalesceMap returns m if non-nil, otherwise fallback

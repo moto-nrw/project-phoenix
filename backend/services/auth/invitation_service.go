@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
@@ -88,10 +89,7 @@ type invitationService struct {
 
 // getLogger returns the service's logger, falling back to slog.Default() if nil.
 func (s *invitationService) getLogger() *slog.Logger {
-	if s.logger != nil {
-		return s.logger
-	}
-	return slog.Default()
+	return cmp.Or(s.logger, slog.Default())
 }
 
 // NewInvitationService constructs a new invitation service instance.

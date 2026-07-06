@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -197,10 +198,7 @@ func NewScheduler(activeService active.Service, cleanupService active.CleanupSer
 
 // getLogger returns the scheduler's logger, falling back to slog.Default() if nil.
 func (s *Scheduler) getLogger() *slog.Logger {
-	if s.logger != nil {
-		return s.logger
-	}
-	return slog.Default()
+	return cmp.Or(s.logger, slog.Default())
 }
 
 // SetWorkSessionCleaner sets the work session cleanup service (optional).

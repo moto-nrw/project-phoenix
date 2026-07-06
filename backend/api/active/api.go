@@ -1,6 +1,7 @@
 package active
 
 import (
+	"cmp"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -33,10 +34,7 @@ type Resource struct {
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
 func (rs *Resource) getLogger() *slog.Logger {
-	if rs.logger != nil {
-		return rs.logger
-	}
-	return slog.Default()
+	return cmp.Or(rs.logger, slog.Default())
 }
 
 // NewResource creates a new active resource

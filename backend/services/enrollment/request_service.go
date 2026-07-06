@@ -11,7 +11,9 @@ import (
 	"fmt"
 	"hash/fnv"
 	"log/slog"
+	"maps"
 	"net/mail"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -1031,12 +1033,12 @@ func materializeOfferingSelections(child SubmitChild, openByID map[int64]*enroll
 				selectionByID[target.ID] = selection
 				changed = true
 			}
-			if !sameStringSlice(selection.AutomaticSelectedDays, autoDays) {
+			if !slices.Equal(selection.AutomaticSelectedDays, autoDays) {
 				selection.AutomaticSelectedDays = autoDays
 				changed = true
 			}
 			selectedDays := unionDaysInOfferingOrder(target.AvailableDays, selection.ManualSelectedDays, selection.AutomaticSelectedDays)
-			if !sameStringSlice(selection.SelectedDays, selectedDays) {
+			if !slices.Equal(selection.SelectedDays, selectedDays) {
 				selection.SelectedDays = selectedDays
 				changed = true
 			}
@@ -1085,18 +1087,6 @@ func sortedCareOfferings(openByID map[int64]*enrollmentModels.CareOffering) []*e
 		return out[i].SortOrder < out[j].SortOrder
 	})
 	return out
-}
-
-func sameStringSlice(left, right []string) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for i := range left {
-		if left[i] != right[i] {
-			return false
-		}
-	}
-	return true
 }
 
 func selectionPayload(selections []materializedOfferingSelection, openByID map[int64]*enrollmentModels.CareOffering) ([]int64, []SubmitOfferingDays) {
@@ -1549,10 +1539,7 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 			missingLinkedIDs[link.CareOfferingID] = struct{}{}
 		}
 		if len(missingLinkedIDs) > 0 {
-			ids := make([]int64, 0, len(missingLinkedIDs))
-			for id := range missingLinkedIDs {
-				ids = append(ids, id)
-			}
+			ids := slices.Collect(maps.Keys(missingLinkedIDs))
 			currentOfferings, err := s.CareOfferingRepo.ListByIDs(txCtx, ids)
 			if err != nil {
 				return fmt.Errorf("edit draft: list current inactive offerings: %w", err)
