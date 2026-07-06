@@ -1276,14 +1276,25 @@ func submitSnapshot(req SubmitRequest) map[string]any {
 			})
 		}
 		row := map[string]any{
-			"first_name":          child.FirstName,
-			"last_name":           child.LastName,
-			"date_of_birth":       child.DateOfBirth.String(),
-			"target_grade_level":  child.TargetGradeLevel,
-			"target_school_class": child.TargetSchoolClass,
-			"custom_data":         child.CustomData,
-			"offering_ids":        offeringIDs,
-			"offering_days":       offeringDays,
+			"first_name":         child.FirstName,
+			"last_name":          child.LastName,
+			"date_of_birth":      child.DateOfBirth.String(),
+			"target_grade_level": child.TargetGradeLevel,
+			"custom_data":        child.CustomData,
+			"offering_ids":       offeringIDs,
+			"offering_days":      offeringDays,
+		}
+		// Only emit target_school_class when a concrete class is actually
+		// set. Snapshots persisted before #1833 have no such key at all, so
+		// currentSnapshot() must omit it too when unset — otherwise
+		// applyApprovedChange() compares a recomputed snapshot carrying
+		// "target_school_class": null against a stored base snapshot missing
+		// the key, and jsonEqual treats missing != null, wrongly reporting a
+		// conflict that blocks approval of every pre-existing pending change
+		// request. Round-trips cleanly: snapshotToSubmitRequest reads a
+		// missing key back as nil.
+		if class := trimmedOptionalString(child.TargetSchoolClass); class != "" {
+			row["target_school_class"] = class
 		}
 		if child.ID > 0 {
 			row["id"] = strconv.FormatInt(child.ID, 10)

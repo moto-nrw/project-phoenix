@@ -115,6 +115,17 @@ func TestValidateAndNormalizeSchoolClasses(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			// The phase requires a class but only offers grade-3 classes;
+			// grade 2 has no matching option, so the required pick is
+			// unsatisfiable and must fall back to Klasse offen (nil) rather
+			// than reject an otherwise valid submission (#1833).
+			name:      "grade 2 required but no matching class collapses to Klasse offen",
+			collect:   true,
+			phase:     phaseWithClasses([]string{"3a", "3b"}, true),
+			child:     SubmitChild{TargetGradeLevel: grade(2), TargetSchoolClass: nil},
+			wantClass: nil,
+		},
+		{
 			name:      "grade 3 keeps its own class from a mixed list",
 			collect:   true,
 			phase:     phaseWithClasses(classes, true),

@@ -724,12 +724,19 @@ export function EnrollmentForm({
         newFieldErrors[`children_${i}_target_grade_level`] = tr("errors.grade");
       }
       // Concrete class is only required when the tenant collects it, the
-      // phase makes it mandatory, and the child is grade 2 or higher
-      // (grade 1 never shows the field). Mirror the backend gate (#1833).
+      // phase makes it mandatory, the child is grade 2 or higher (grade 1
+      // never shows the field), and this grade actually has a matching
+      // class to pick. A phase may require classes yet only offer them for
+      // some grades, so a grade with no matching class stays "Klasse offen"
+      // rather than an unsubmittable required-but-empty dropdown. Mirror the
+      // backend gate (#1833).
       if (
         schoolClassConfig.collect &&
         schoolClassConfig.require &&
         Number(c.target_grade_level) >= 2 &&
+        schoolClassConfig.available_classes.some((cls) =>
+          classMatchesGrade(cls, c.target_grade_level),
+        ) &&
         !c.target_school_class.trim()
       ) {
         newFieldErrors[`children_${i}_target_school_class`] =
@@ -1468,21 +1475,32 @@ export function EnrollmentForm({
                   tr={tr}
                 />
                 {schoolClassConfig.collect &&
-                  Number(child.target_grade_level) >= 2 && (
-                    <SchoolClassSelect
-                      id={`children-${i}-target-school-class`}
-                      value={child.target_school_class}
-                      onChange={(v) =>
-                        updateChild(i, { target_school_class: v })
-                      }
-                      classes={schoolClassConfig.available_classes.filter((c) =>
+                  Number(child.target_grade_level) >= 2 &&
+                  (() => {
+                    // Options are filtered to this child's grade; a phase may
+                    // require classes yet offer none for this grade, in which
+                    // case the pick cannot be mandatory (no valid option to
+                    // choose), so "Klasse offen" stays available (#1833).
+                    const gradeClasses =
+                      schoolClassConfig.available_classes.filter((c) =>
                         classMatchesGrade(c, child.target_grade_level),
-                      )}
-                      required={schoolClassConfig.require}
-                      error={fieldErrors[`children_${i}_target_school_class`]}
-                      tr={tr}
-                    />
-                  )}
+                      );
+                    return (
+                      <SchoolClassSelect
+                        id={`children-${i}-target-school-class`}
+                        value={child.target_school_class}
+                        onChange={(v) =>
+                          updateChild(i, { target_school_class: v })
+                        }
+                        classes={gradeClasses}
+                        required={
+                          schoolClassConfig.require && gradeClasses.length > 0
+                        }
+                        error={fieldErrors[`children_${i}_target_school_class`]}
+                        tr={tr}
+                      />
+                    );
+                  })()}
               </div>
 
               {offerings.length > 0 && (

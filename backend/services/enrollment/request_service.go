@@ -2788,7 +2788,14 @@ func (s *requestService) validateAndNormalizeSchoolClasses(ctx context.Context, 
 			continue
 		}
 		if chosen == "" {
-			if phase.RequireSchoolClass {
+			// Only force a pick when this grade actually has a class to
+			// pick. A phase may require classes yet only offer them for some
+			// grades (e.g. ["3a"] while grade 2 is still selectable). For a
+			// grade with no matching offered class the required pick is
+			// unsatisfiable — the grade-prefix check below would reject every
+			// offered class — so "Klasse offen" is the only valid outcome
+			// rather than a submission that can never succeed. Issue #1833.
+			if phase.RequireSchoolClass && gradeHasSelectableClass(allowed, grade) {
 				return fmt.Errorf("%w: child %d missing target_school_class", ErrInvalidSubmission, i)
 			}
 			children[i].TargetSchoolClass = nil
@@ -2811,6 +2818,23 @@ func (s *requestService) validateAndNormalizeSchoolClasses(ctx context.Context, 
 		children[i].TargetSchoolClass = &chosen
 	}
 	return nil
+}
+
+// gradeHasSelectableClass reports whether at least one offered class can be
+// picked by a child in the given grade. A class matches when its numeric
+// prefix equals the grade ("2a" for grade 2); a class without a numeric
+// prefix ("Bienen") carries no derivable grade and is offered to every
+// grade. Used to decide whether RequireSchoolClass can be enforced for a
+// grade at all — a required pick with no matching class is unsatisfiable.
+// Issue #1833.
+func gradeHasSelectableClass(allowed map[string]struct{}, grade int) bool {
+	want := strconv.Itoa(grade)
+	for class := range allowed {
+		if prefix := schoolClassGradePrefix(class); prefix == "" || prefix == want {
+			return true
+		}
+	}
+	return false
 }
 
 // schoolClassGradePrefix returns the leading run of digits in a school
