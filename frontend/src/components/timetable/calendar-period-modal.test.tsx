@@ -107,7 +107,7 @@ describe("CalendarPeriodModal", () => {
       }),
     );
     expect(mockToastSuccess).toHaveBeenCalledWith(
-      'Planungszeitraum "Schuljahr 2026/2027" angelegt',
+      'Kalenderzeitraum "Schuljahr 2026/2027" angelegt',
     );
     expect(onSaved).toHaveBeenCalledWith(period);
     expect(onClose).toHaveBeenCalledOnce();
@@ -149,14 +149,38 @@ describe("CalendarPeriodModal", () => {
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Löschen" }));
-    expect(screen.getByText(/Löschen klappt nur/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Beim Löschen werden bestehende Verknüpfungen/),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Löschen abbrechen" }));
-    expect(screen.queryByText(/Löschen klappt nur/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Beim Löschen werden bestehende Verknüpfungen/),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Löschen" }));
     fireEvent.click(screen.getByRole("button", { name: "Löschen bestätigen" }));
     await waitFor(() => expect(mockDelete).toHaveBeenCalledWith("5"));
     expect(onDeleted).toHaveBeenCalledWith(period);
+  });
+
+  it("names the concrete usage in the delete warning when usage is provided", () => {
+    render(
+      <CalendarPeriodModal
+        isOpen
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+        onDeleted={vi.fn()}
+        initial={period}
+        usage={{ enrollmentPhaseCount: 1, scheduleCount: 3 }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Löschen" }));
+    expect(
+      screen.getByText(
+        /Dieser Zeitraum wird von 1 Anmeldephase und 3 Regelterminen? verwendet/,
+      ),
+    ).toBeInTheDocument();
   });
 
   it("keeps the modal open and lists warnings when the save overlaps active periods", async () => {
@@ -197,7 +221,7 @@ describe("CalendarPeriodModal", () => {
     ).toBeInTheDocument();
     expect(onSaved).toHaveBeenCalledWith(period);
     expect(mockToastSuccess).toHaveBeenCalledWith(
-      'Planungszeitraum "Schuljahr 2026/2027" angelegt',
+      'Kalenderzeitraum "Schuljahr 2026/2027" angelegt',
     );
     expect(onClose).not.toHaveBeenCalled();
     expect(

@@ -216,6 +216,54 @@ func (r *CalendarPeriodRepository) FindActiveOverlapping(ctx context.Context, st
 	return periods, nil
 }
 
+// UsageCounts returns, per calendar period of the current tenant, how many
+// enrollment phases and activity schedules reference it. Correlated
+// subqueries (pattern: facilities/room.go occupancyColumns) keep this a
+// single round-trip; RLS on the referenced tables scopes the counts to the
+// tenant. Periods without references are omitted from the map.
+func (r *CalendarPeriodRepository) UsageCounts(ctx context.Context) (map[int64]schedule.CalendarPeriodUsage, error) {
+	var rows []struct {
+		ID            int64 `bun:"id"`
+		PhaseCount    int   `bun:"phase_count"`
+		ScheduleCount int   `bun:"schedule_count"`
+	}
+
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`schedule.calendar_periods AS "calendar_period"`).
+		ColumnExpr(`"calendar_period".id AS id`).
+		ColumnExpr(`(
+			SELECT COUNT(*) FROM enrollment.phases p
+			WHERE p.calendar_period_id = "calendar_period".id
+		)::int AS phase_count`).
+		ColumnExpr(`(
+			SELECT COUNT(*) FROM activities.schedules s
+			WHERE s.calendar_period_id = "calendar_period".id
+		)::int AS schedule_count`)
+
+	if where, val, ok := base.TenantWhere(ctx, "calendar_period"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "usage counts",
+			Err: err,
+		}
+	}
+
+	usage := make(map[int64]schedule.CalendarPeriodUsage, len(rows))
+	for _, row := range rows {
+		if row.PhaseCount == 0 && row.ScheduleCount == 0 {
+			continue
+		}
+		usage[row.ID] = schedule.CalendarPeriodUsage{
+			EnrollmentPhases: row.PhaseCount,
+			Schedules:        row.ScheduleCount,
+		}
+	}
+	return usage, nil
+}
+
 // Update overrides the base Update method with nil guard
 func (r *CalendarPeriodRepository) Update(ctx context.Context, p *schedule.CalendarPeriod) error {
 	if p == nil {

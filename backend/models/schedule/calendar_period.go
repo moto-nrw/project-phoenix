@@ -132,6 +132,14 @@ func (p *CalendarPeriod) ContainsDate(date time.Time) bool {
 	return p.ContainsDay(timezone.DateFromTime(date))
 }
 
+// CalendarPeriodUsage aggregates how many planning objects reference a
+// calendar period. All FKs are ON DELETE SET NULL, so the counts are
+// advisory (shown in the admin UI and delete warnings), never blockers.
+type CalendarPeriodUsage struct {
+	EnrollmentPhases int
+	Schedules        int
+}
+
 // CalendarPeriodRepository defines operations for managing calendar periods
 type CalendarPeriodRepository interface {
 	base.Repository[*CalendarPeriod]
@@ -154,4 +162,9 @@ type CalendarPeriodRepository interface {
 	// whose [start_date, end_date] range overlaps [start, end] (inclusive on
 	// both ends), excluding the period with excludeID.
 	FindActiveOverlapping(ctx context.Context, start, end timezone.Date, excludeID int64) ([]*CalendarPeriod, error)
+
+	// UsageCounts returns, per calendar period of the current tenant, how many
+	// enrollment phases and activity schedules reference it. Periods without
+	// references are omitted from the map.
+	UsageCounts(ctx context.Context) (map[int64]CalendarPeriodUsage, error)
 }

@@ -37,7 +37,9 @@ type mockCalendarPeriodService struct {
 	overlapsErr       error                      // if set, FindActiveOverlaps fails
 	bootstrapPeriods  []*schedule.CalendarPeriod // returned by EnsureDefaultSchoolYear
 	bootstrapCreated  bool
-	bootstrapErr      error // if set, EnsureDefaultSchoolYear fails
+	bootstrapErr      error                                  // if set, EnsureDefaultSchoolYear fails
+	usage             map[int64]schedule.CalendarPeriodUsage // returned by GetUsageCounts
+	usageErr          error                                  // if set, GetUsageCounts fails
 }
 
 func (m *mockCalendarPeriodService) GetAllPeriods(_ context.Context) ([]*schedule.CalendarPeriod, error) {
@@ -95,6 +97,13 @@ func (m *mockCalendarPeriodService) FindActiveOverlaps(_ context.Context, _ *sch
 		return nil, m.overlapsErr
 	}
 	return m.overlaps, nil
+}
+
+func (m *mockCalendarPeriodService) GetUsageCounts(_ context.Context) (map[int64]schedule.CalendarPeriodUsage, error) {
+	if m.usageErr != nil {
+		return nil, m.usageErr
+	}
+	return m.usage, nil
 }
 
 // scheduleSvcErr is a minimal stand-in for services/schedule.ScheduleError.
@@ -386,6 +395,42 @@ func TestListPeriods(t *testing.T) {
 		w := executeRequest(router, http.MethodGet, "/", nil)
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+}
+
+func TestListPeriods_UsageCounts(t *testing.T) {
+	p1 := newTestPeriod()
+	p1.ID = int64(10)
+
+	t.Run("merges usage counts into responses", func(t *testing.T) {
+		mock := &mockCalendarPeriodService{
+			periods: []*schedule.CalendarPeriod{p1},
+			usage: map[int64]schedule.CalendarPeriodUsage{
+				p1.ID: {EnrollmentPhases: 2, Schedules: 3},
+			},
+		}
+		res := NewResource(Dependencies{CalendarPeriodService: mock})
+		router := setupTestRouter(res.listPeriods, http.MethodGet, false)
+
+		w := executeRequest(router, http.MethodGet, "/", nil)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), `"enrollment_phase_count":2`)
+		assert.Contains(t, w.Body.String(), `"schedule_count":3`)
+	})
+
+	t.Run("usage count failure does not break the list", func(t *testing.T) {
+		mock := &mockCalendarPeriodService{
+			periods:  []*schedule.CalendarPeriod{p1},
+			usageErr: errors.New("count failed"),
+		}
+		res := NewResource(Dependencies{CalendarPeriodService: mock})
+		router := setupTestRouter(res.listPeriods, http.MethodGet, false)
+
+		w := executeRequest(router, http.MethodGet, "/", nil)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), `"enrollment_phase_count":0`)
 	})
 }
 

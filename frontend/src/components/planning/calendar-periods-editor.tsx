@@ -22,6 +22,7 @@ import {
   type CalendarPeriod,
   PERIOD_TYPE_LABELS,
   formatPeriodRange,
+  formatPeriodUsage,
 } from "~/lib/calendar-period-helpers";
 import { todayISO } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -163,6 +164,25 @@ export function CalendarPeriodsEditor() {
         ),
       },
       {
+        key: "usage",
+        header: "Verwendung",
+        sortValue: (period) =>
+          (period.enrollmentPhaseCount ?? 0) + (period.scheduleCount ?? 0),
+        render: (period) => {
+          const usage = formatPeriodUsage(
+            period.enrollmentPhaseCount ?? 0,
+            period.scheduleCount ?? 0,
+          );
+          return usage ? (
+            <span className="text-sm whitespace-nowrap text-gray-600">
+              {usage}
+            </span>
+          ) : (
+            <span className="text-sm text-gray-400">Nicht verwendet</span>
+          );
+        },
+      },
+      {
         key: "status",
         header: "Status",
         sortValue: (period) => (period.isActive ? 0 : 1),
@@ -208,15 +228,10 @@ export function CalendarPeriodsEditor() {
 
       <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-base font-semibold text-gray-900">
-              Kalenderzeiträume
-            </h1>
-            <p className="mt-0.5 text-sm text-gray-600">
-              Halbjahre, Ferien und Sonderzeiträume als gemeinsame Basis für
-              Anmeldung und Betreuungsplan.
-            </p>
-          </div>
+          <p className="text-sm text-gray-600">
+            Halbjahre, Ferien und Sonderzeiträume als gemeinsame Basis für
+            Anmeldung und Betreuungsplan.
+          </p>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <button
               type="button"
@@ -276,6 +291,14 @@ export function CalendarPeriodsEditor() {
         onDeleted={() => void load()}
         initial={editing}
         createDefaults={createDefaults}
+        usage={
+          editing
+            ? {
+                enrollmentPhaseCount: editing.enrollmentPhaseCount ?? 0,
+                scheduleCount: editing.scheduleCount ?? 0,
+              }
+            : undefined
+        }
       />
     </div>
   );

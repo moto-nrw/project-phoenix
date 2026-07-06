@@ -466,6 +466,10 @@ export function PhasesEditor() {
   );
 
   const activePhaseCount = phases.filter((phase) => phase.is_active).length;
+  const periodNameById = useMemo(
+    () => new Map(periods.map((period) => [period.id, period.name])),
+    [periods],
+  );
   const columns = useMemo<DataTableColumn<Phase>[]>(
     () => [
       {
@@ -485,12 +489,24 @@ export function PhasesEditor() {
         key: "service_period",
         header: "Betreuungszeitraum",
         sortValue: (phase) => phase.service_start_date,
-        render: (phase) => (
-          <span className="text-sm text-gray-700">
-            {formatDate(phase.service_start_date)} bis{" "}
-            {formatDate(phase.service_end_date)}
-          </span>
-        ),
+        render: (phase) => {
+          const periodName = phase.calendar_period_id
+            ? periodNameById.get(phase.calendar_period_id)
+            : undefined;
+          return (
+            <div className="min-w-0">
+              <span className="text-sm text-gray-700">
+                {formatDate(phase.service_start_date)} bis{" "}
+                {formatDate(phase.service_end_date)}
+              </span>
+              <p
+                className={`mt-0.5 truncate text-xs ${periodName ? "text-gray-500" : "text-gray-400"}`}
+              >
+                {periodName ?? "Kein Kalenderzeitraum"}
+              </p>
+            </div>
+          );
+        },
       },
       {
         key: "enrollment_window",
@@ -553,6 +569,7 @@ export function PhasesEditor() {
       requestDelete,
       handleToggleActive,
       highlightActions,
+      periodNameById,
       rolloverSource,
       saving,
       schemaNameById,
@@ -1151,6 +1168,19 @@ function PhaseForm(props: PhaseFormProps) {
   const update = (patch: Partial<PhaseInput>) =>
     setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
 
+  // The linked period whose dates no longer match the phase's own service
+  // dates. Linking only prefills once, so the two can drift apart; the form
+  // surfaces the drift with a one-click "Daten übernehmen" re-sync.
+  const linkedPeriod = draft.calendar_period_id
+    ? periods.find((period) => period.id === draft.calendar_period_id)
+    : undefined;
+  const linkedPeriodDrift =
+    linkedPeriod &&
+    (draft.service_start_date !== linkedPeriod.startDate ||
+      draft.service_end_date !== linkedPeriod.endDate)
+      ? linkedPeriod
+      : undefined;
+
   useEffect(() => {
     if (!highlightFormSection) return;
     formSectionRef.current?.scrollIntoView({
@@ -1242,6 +1272,30 @@ function PhaseForm(props: PhaseFormProps) {
               Verknüpft die Anmeldephase mit einem Zeitraum aus der Planung und
               übernimmt dessen Beginn und Ende.
             </span>
+            {!draft.calendar_period_id && (
+              <span className="mt-1 block text-xs text-[#F78C10]">
+                Ohne Verknüpfung können Betreuungsplan und Dienstplan später
+                nicht auf diese Phase aufbauen.
+              </span>
+            )}
+            {linkedPeriodDrift && (
+              <span className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[#F78C10]">
+                Beginn und Ende weichen vom Kalenderzeitraum ab (
+                {formatPeriodRange(linkedPeriodDrift)}).
+                <button
+                  type="button"
+                  onClick={() =>
+                    update({
+                      service_start_date: linkedPeriodDrift.startDate,
+                      service_end_date: linkedPeriodDrift.endDate,
+                    })
+                  }
+                  className="font-medium text-gray-700 underline underline-offset-2 hover:text-gray-900"
+                >
+                  Daten übernehmen
+                </button>
+              </span>
+            )}
           </label>
         )}
         <div className="grid gap-3 sm:grid-cols-2">

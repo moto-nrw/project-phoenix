@@ -117,6 +117,10 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/substitutions")).toBe("Vertretungen");
       });
 
+      it("should return 'Kalenderzeiträume' for /calendar-periods", () => {
+        expect(getPageTitle("/calendar-periods")).toBe("Kalenderzeiträume");
+      });
+
       it("should return 'Einstellungen' for /settings", () => {
         expect(getPageTitle("/settings")).toBe("Einstellungen");
       });

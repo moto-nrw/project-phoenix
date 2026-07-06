@@ -304,6 +304,12 @@ type CalendarPeriodResponse struct {
 	CreatedAt       string          `json:"created_at"`
 	UpdatedAt       string          `json:"updated_at"`
 	Warnings        []PeriodWarning `json:"warnings,omitempty"`
+
+	// Advisory reference counts (list/detail only). All FKs are
+	// ON DELETE SET NULL, so these never block deletion — the frontend
+	// uses them for the "Verwendung" column and the delete warning.
+	EnrollmentPhaseCount int `json:"enrollment_phase_count"`
+	ScheduleCount        int `json:"schedule_count"`
 }
 
 func mapPeriodToResponse(p *schedule.CalendarPeriod) CalendarPeriodResponse {
@@ -398,6 +404,27 @@ func (rs *Resource) attachOverlapWarnings(ctx context.Context, period *schedule.
 
 // Handlers
 
+// periodUsageCounts loads the advisory reference counts for the tenant's
+// periods. Count failures must never break the period endpoints: errors are
+// logged at Warn and an empty map is returned (pattern: attachOverlapWarnings).
+func (rs *Resource) periodUsageCounts(ctx context.Context) map[int64]schedule.CalendarPeriodUsage {
+	usage, err := rs.calendarPeriodService.GetUsageCounts(ctx)
+	if err != nil {
+		rs.getLogger().Warn("calendar period usage count failed, omitting counts",
+			slog.String("error", err.Error()),
+		)
+		return nil
+	}
+	return usage
+}
+
+func applyPeriodUsage(resp *CalendarPeriodResponse, usage map[int64]schedule.CalendarPeriodUsage) {
+	if u, ok := usage[resp.ID]; ok {
+		resp.EnrollmentPhaseCount = u.EnrollmentPhases
+		resp.ScheduleCount = u.Schedules
+	}
+}
+
 func (rs *Resource) listPeriods(w http.ResponseWriter, r *http.Request) {
 	periods, err := rs.calendarPeriodService.GetAllPeriods(r.Context())
 	if err != nil {
@@ -405,9 +432,11 @@ func (rs *Resource) listPeriods(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	usage := rs.periodUsageCounts(r.Context())
 	responses := make([]CalendarPeriodResponse, len(periods))
 	for i, p := range periods {
 		responses[i] = mapPeriodToResponse(p)
+		applyPeriodUsage(&responses[i], usage)
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Calendar periods retrieved successfully")
@@ -430,7 +459,9 @@ func (rs *Resource) getPeriod(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, mapPeriodToResponse(period), "Calendar period retrieved successfully")
+	resp := mapPeriodToResponse(period)
+	applyPeriodUsage(&resp, rs.periodUsageCounts(r.Context()))
+	common.Respond(w, r, http.StatusOK, resp, "Calendar period retrieved successfully")
 }
 
 func (rs *Resource) createPeriod(w http.ResponseWriter, r *http.Request) {
