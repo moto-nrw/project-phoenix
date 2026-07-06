@@ -1,6 +1,8 @@
-import { createParentCalendarGetHandler } from "~/lib/parent/calendar-route-proxy.server";
+import { proxyGet } from "~/lib/parent/route-wrapper.server";
 
-export const GET = createParentCalendarGetHandler<unknown>((request) => {
-  const search = request.nextUrl.searchParams.toString();
-  return `/parent/me/calendar${search ? `?${search}` : ""}`;
-});
+/**
+ * Proxy GET /api/parent/calendar → backend /parent/me/calendar.
+ * The route-wrapper handles parent-session auth + 401 retry with a
+ * refreshed token, and forwards the query string automatically.
+ */
+export const GET = proxyGet<unknown>("/parent/me/calendar");

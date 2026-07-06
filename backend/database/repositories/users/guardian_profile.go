@@ -106,7 +106,10 @@ func (r *GuardianProfileRepository) FindByIDs(ctx context.Context, ids []int64) 
 }
 
 // FindActivePortalProfilesByIDs returns only guardian profiles that are linked
-// to an active parent portal account for the current tenant.
+// to an active parent portal account for the current tenant. Both the tenant
+// mapping (account_tenants.status) and the account itself (accounts.active)
+// must be active — a deactivated account can no longer log in even if its
+// tenant mapping row is still active, so it must not be treated as reachable.
 func (r *GuardianProfileRepository) FindActivePortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*users.GuardianProfile, error) {
 	if len(ids) == 0 {
 		return make(map[int64]*users.GuardianProfile), nil
@@ -117,9 +120,11 @@ func (r *GuardianProfileRepository) FindActivePortalProfilesByIDs(ctx context.Co
 		Model(&profiles).
 		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
 		Join(`INNER JOIN auth.account_tenants AS "account_tenant" ON "account_tenant".account_id = "guardian_profile".account_id AND "account_tenant".tenant_id = "guardian_profile".tenant_id`).
+		Join(`INNER JOIN auth.accounts AS "account" ON "account".id = "guardian_profile".account_id`).
 		Where(`"guardian_profile".id IN (?)`, bun.List(ids)).
 		Where(`"guardian_profile".account_id IS NOT NULL`).
-		Where(`"account_tenant".status = ?`, authModels.AccountTenantStatusActive)
+		Where(`"account_tenant".status = ?`, authModels.AccountTenantStatusActive).
+		Where(`"account".active = ?`, true)
 
 	if where, val, ok := repoBase.TenantWhere(ctx, "guardian_profile"); ok {
 		query = query.Where(where, val)
