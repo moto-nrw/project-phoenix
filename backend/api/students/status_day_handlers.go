@@ -6,13 +6,12 @@ import (
 	"errors"
 	"net/http"
 	"slices"
-	"strconv"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -97,7 +96,7 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 		if err := rs.clearOtherStatusDaysForDates(ctx, fresh.ID, req.Status, dates, now); err != nil {
 			return err
 		}
-		notePtr := normalizeSickReason(&req.Reason)
+		notePtr := strutil.TrimPtrToNil(&req.Reason)
 		for _, date := range dates {
 			if err := rs.StudentStatusDayService.UpsertReported(ctx, &active.StudentStatusDay{
 				StudentID:  fresh.ID,
@@ -188,7 +187,7 @@ func (rs *Resource) bulkCreateStudentStatusDays(w http.ResponseWriter, r *http.R
 			if err := rs.clearOtherStatusDaysForDates(ctx, fresh.ID, req.Status, dates, now); err != nil {
 				return err
 			}
-			notePtr := normalizeSickReason(&req.Reason)
+			notePtr := strutil.TrimPtrToNil(&req.Reason)
 			for _, date := range dates {
 				if err := rs.StudentStatusDayService.UpsertReported(ctx, &active.StudentStatusDay{
 					StudentID:  fresh.ID,
@@ -235,9 +234,8 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	statusDayID, err := strconv.ParseInt(chi.URLParam(r, "statusDayId"), 10, 64)
-	if err != nil || statusDayID <= 0 {
-		renderError(w, r, common.ErrorInvalidRequest(errors.New("invalid status day id")))
+	statusDayID, ok := common.ParsePositiveInt64IDWithError(w, r, "statusDayId", "invalid status day id")
+	if !ok {
 		return
 	}
 	if rs.StudentStatusDayService == nil {

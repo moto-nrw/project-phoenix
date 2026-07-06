@@ -5,9 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
@@ -239,10 +237,5 @@ func (rs *Resource) archiveTemplate(w http.ResponseWriter, r *http.Request) {
 }
 
 func templateIDFromRequest(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || id <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid template id")))
-		return 0, false
-	}
-	return id, true
+	return common.ParsePositiveInt64IDWithError(w, r, "id", "invalid template id")
 }

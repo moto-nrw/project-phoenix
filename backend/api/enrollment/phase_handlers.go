@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -186,14 +185,13 @@ func (rs *Resource) getPhase(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("phase service not configured")))
 		return
 	}
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || id <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid id")))
+	id, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
 
 	var phase *enrollmentModels.Phase
-	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		p, e := rs.PhaseService.GetByID(ctx, id)
 		phase = p
 		return e
@@ -243,9 +241,8 @@ func (rs *Resource) updatePhase(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("phase service not configured")))
 		return
 	}
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || id <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid id")))
+	id, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
 	req := &PhaseRequest{}
@@ -286,13 +283,12 @@ func (rs *Resource) deletePhase(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("phase service not configured")))
 		return
 	}
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || id <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid id")))
+	id, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
 
-	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		return rs.PhaseService.Delete(ctx, id)
 	})
 	if err != nil {
@@ -320,14 +316,13 @@ func (rs *Resource) getPhaseDeleteImpact(w http.ResponseWriter, r *http.Request)
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("phase service not configured")))
 		return
 	}
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || id <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid id")))
+	id, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
 
 	var impact *enrollmentService.PhaseDeleteImpact
-	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		i, e := rs.PhaseService.DeleteImpact(ctx, id)
 		impact = i
 		return e

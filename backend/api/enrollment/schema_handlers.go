@@ -247,9 +247,8 @@ func (rs *Resource) listPublicActiveSchema(w http.ResponseWriter, r *http.Reques
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("tenant slug is required")))
 		return
 	}
-	phaseID, err := strconv.ParseInt(chi.URLParam(r, "phaseId"), 10, 64)
-	if err != nil || phaseID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("phaseId is required")))
+	phaseID, ok := common.ParsePositiveInt64IDWithError(w, r, "phaseId", "phaseId is required")
+	if !ok {
 		return
 	}
 
@@ -531,9 +530,8 @@ func (rs *Resource) updateSchema(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || id <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid schema id")))
+	id, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid schema id")
+	if !ok {
 		return
 	}
 
@@ -621,9 +619,8 @@ func (rs *Resource) renameSchema(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || id <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid schema id")))
+	id, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid schema id")
+	if !ok {
 		return
 	}
 
@@ -663,13 +660,12 @@ func (rs *Resource) deleteSchema(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || id <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid schema id")))
+	id, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid schema id")
+	if !ok {
 		return
 	}
 
-	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		return rs.FormSchemaService.DeleteSchema(ctx, id)
 	})
 	if err != nil {

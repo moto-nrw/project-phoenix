@@ -208,13 +208,12 @@ func (rs *Resource) getCareOffering(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("care offering service not configured")))
 		return
 	}
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || id <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid id")))
+	id, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
 	var offering *enrollmentModels.CareOffering
-	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		o, e := rs.CareOfferingService.GetByID(ctx, id)
 		offering = o
 		return e
@@ -260,9 +259,8 @@ func (rs *Resource) updateCareOffering(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("care offering service not configured")))
 		return
 	}
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || id <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid id")))
+	id, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
 	req := &CareOfferingRequest{}
@@ -302,12 +300,11 @@ func (rs *Resource) deleteCareOffering(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("care offering service not configured")))
 		return
 	}
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || id <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid id")))
+	id, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
-	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		return rs.CareOfferingService.Delete(ctx, id)
 	})
 	if err != nil {
@@ -324,9 +321,8 @@ func (rs *Resource) cloneCareOffering(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("care offering service not configured")))
 		return
 	}
-	sourceID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || sourceID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid id")))
+	sourceID, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
 	req := &CloneCareOfferingRequest{}
@@ -336,7 +332,7 @@ func (rs *Resource) cloneCareOffering(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var clone *enrollmentModels.CareOffering
-	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		c, e := rs.CareOfferingService.Clone(ctx, sourceID, req.TargetPhaseID)
 		clone = c
 		return e
@@ -368,9 +364,8 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("tenant slug is required")))
 		return
 	}
-	phaseID, err := strconv.ParseInt(chi.URLParam(r, "phaseId"), 10, 64)
-	if err != nil || phaseID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("phaseId is required")))
+	phaseID, ok := common.ParsePositiveInt64IDWithError(w, r, "phaseId", "phaseId is required")
+	if !ok {
 		return
 	}
 
@@ -533,9 +528,8 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("tenant slug is required")))
 		return
 	}
-	phaseID, err := strconv.ParseInt(chi.URLParam(r, "phaseId"), 10, 64)
-	if err != nil || phaseID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("phaseId is required")))
+	phaseID, ok := common.ParsePositiveInt64IDWithError(w, r, "phaseId", "phaseId is required")
+	if !ok {
 		return
 	}
 

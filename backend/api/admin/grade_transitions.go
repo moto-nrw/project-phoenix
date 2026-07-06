@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -277,9 +276,8 @@ func (rs *GradeTransitionResource) create(w http.ResponseWriter, r *http.Request
 
 // getByID returns a single grade transition
 func (rs *GradeTransitionResource) getByID(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidTransition)))
+	id, ok := common.ParseInt64IDWithError(w, r, "id", errMsgInvalidTransition)
+	if !ok {
 		return
 	}
 
@@ -294,9 +292,8 @@ func (rs *GradeTransitionResource) getByID(w http.ResponseWriter, r *http.Reques
 
 // update updates a grade transition
 func (rs *GradeTransitionResource) update(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidTransition)))
+	id, ok := common.ParseInt64IDWithError(w, r, "id", errMsgInvalidTransition)
+	if !ok {
 		return
 	}
 
@@ -341,9 +338,8 @@ func (rs *GradeTransitionResource) update(w http.ResponseWriter, r *http.Request
 
 // delete deletes a grade transition
 func (rs *GradeTransitionResource) delete(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidTransition)))
+	id, ok := common.ParseInt64IDWithError(w, r, "id", errMsgInvalidTransition)
+	if !ok {
 		return
 	}
 
@@ -360,9 +356,8 @@ func (rs *GradeTransitionResource) delete(w http.ResponseWriter, r *http.Request
 
 // preview returns a preview of what will happen when the transition is applied
 func (rs *GradeTransitionResource) preview(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidTransition)))
+	id, ok := common.ParseInt64IDWithError(w, r, "id", errMsgInvalidTransition)
+	if !ok {
 		return
 	}
 
@@ -377,9 +372,8 @@ func (rs *GradeTransitionResource) preview(w http.ResponseWriter, r *http.Reques
 
 // apply executes the grade transition
 func (rs *GradeTransitionResource) apply(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidTransition)))
+	id, ok := common.ParseInt64IDWithError(w, r, "id", errMsgInvalidTransition)
+	if !ok {
 		return
 	}
 
@@ -407,9 +401,8 @@ func (rs *GradeTransitionResource) apply(w http.ResponseWriter, r *http.Request)
 
 // revert undoes an applied grade transition
 func (rs *GradeTransitionResource) revert(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidTransition)))
+	id, ok := common.ParseInt64IDWithError(w, r, "id", errMsgInvalidTransition)
+	if !ok {
 		return
 	}
 
@@ -459,9 +452,8 @@ func (rs *GradeTransitionResource) suggestMappings(w http.ResponseWriter, r *htt
 
 // getHistory returns the history records for a transition
 func (rs *GradeTransitionResource) getHistory(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidTransition)))
+	id, ok := common.ParseInt64IDWithError(w, r, "id", errMsgInvalidTransition)
+	if !ok {
 		return
 	}
 

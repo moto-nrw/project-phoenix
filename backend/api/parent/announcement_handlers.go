@@ -7,8 +7,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-
 	"github.com/moto-nrw/project-phoenix/api/common"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -48,12 +46,7 @@ func toAnnouncementResponse(item *usersModels.AnnouncementFeedItem) Announcement
 }
 
 func parseAnnouncementID(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "announcementId"), 10, 64)
-	if err != nil || id <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid announcement ID")))
-		return 0, false
-	}
-	return id, true
+	return common.ParsePositiveInt64IDWithError(w, r, "announcementId", "invalid announcement ID")
 }
 
 // stampRequest is the read/acknowledge body. published_at is the timestamp the

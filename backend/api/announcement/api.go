@@ -358,12 +358,7 @@ func decodeInput(w http.ResponseWriter, r *http.Request) (announcementService.In
 }
 
 func parseAnnouncementID(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "announcementId"), 10, 64)
-	if err != nil || id <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid announcement ID")))
-		return 0, false
-	}
-	return id, true
+	return common.ParsePositiveInt64IDWithError(w, r, "announcementId", "invalid announcement ID")
 }
 
 // renderAnnouncementError maps service sentinels to HTTP status codes.

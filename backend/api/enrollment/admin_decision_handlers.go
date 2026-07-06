@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/uptrace/bun"
 
@@ -237,14 +236,13 @@ func (rs *Resource) getAdminRequest(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("decision service not configured")))
 		return
 	}
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || id <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid id")))
+	id, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
 
 	var detail AdminRequestDetail
-	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		s, e := rs.DecisionService.Get(ctx, id)
 		if e != nil {
 			return e
@@ -268,14 +266,13 @@ func (rs *Resource) listAdminRequestsByStudent(w http.ResponseWriter, r *http.Re
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("decision service not configured")))
 		return
 	}
-	studentID, err := strconv.ParseInt(chi.URLParam(r, "studentId"), 10, 64)
-	if err != nil || studentID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid studentId")))
+	studentID, ok := common.ParsePositiveInt64IDWithError(w, r, "studentId", "invalid studentId")
+	if !ok {
 		return
 	}
 
 	var out []AdminRequestSummary
-	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		summaries, listErr := rs.DecisionService.ListByStudent(ctx, studentID)
 		if listErr != nil {
 			return listErr
@@ -377,14 +374,12 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("decision service not configured")))
 		return
 	}
-	requestID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || requestID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid id")))
+	requestID, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
-	childID, err := strconv.ParseInt(chi.URLParam(r, "childId"), 10, 64)
-	if err != nil || childID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid childId")))
+	childID, ok := common.ParsePositiveInt64IDWithError(w, r, "childId", "invalid childId")
+	if !ok {
 		return
 	}
 	body := &AdminDecideRequest{}
@@ -396,6 +391,7 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 	claims := jwt.ClaimsFromCtx(r.Context())
 	reviewedBy := int64(claims.ID)
 
+	var err error
 	var outcome *enrollmentService.DecideOutcome
 	for attempt := 0; attempt < 2; attempt++ {
 		outcome = nil
@@ -492,14 +488,12 @@ func (rs *Resource) updateAdminChildOfferings(w http.ResponseWriter, r *http.Req
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("decision service not configured")))
 		return
 	}
-	requestID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || requestID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid id")))
+	requestID, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
-	childID, err := strconv.ParseInt(chi.URLParam(r, "childId"), 10, 64)
-	if err != nil || childID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid childId")))
+	childID, ok := common.ParsePositiveInt64IDWithError(w, r, "childId", "invalid childId")
+	if !ok {
 		return
 	}
 	body := &AdminUpdateOfferingsRequest{}
@@ -523,7 +517,7 @@ func (rs *Resource) updateAdminChildOfferings(w http.ResponseWriter, r *http.Req
 	actorRole := actorRoleFromClaims(claims.Roles)
 
 	var updated *enrollmentModels.RequestChild
-	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		child, updateErr := rs.DecisionService.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
 			RequestID:      requestID,
 			ChildID:        childID,
@@ -584,18 +578,16 @@ func (rs *Resource) listAdminChildOfferingAdjustments(w http.ResponseWriter, r *
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("decision service not configured")))
 		return
 	}
-	requestID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || requestID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid id")))
+	requestID, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
-	childID, err := strconv.ParseInt(chi.URLParam(r, "childId"), 10, 64)
-	if err != nil || childID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid childId")))
+	childID, ok := common.ParsePositiveInt64IDWithError(w, r, "childId", "invalid childId")
+	if !ok {
 		return
 	}
 	var rows []*auditModels.EnrollmentOfferingAdjustment
-	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		list, listErr := rs.DecisionService.ListOfferingAdjustments(ctx, requestID, childID)
 		rows = list
 		return listErr

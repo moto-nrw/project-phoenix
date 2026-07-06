@@ -338,12 +338,7 @@ func (rs *Resource) listGuardians(w http.ResponseWriter, r *http.Request) {
 }
 
 func parseInt64Param(w http.ResponseWriter, r *http.Request, param, label string) (int64, bool) {
-	id, err := strconv.ParseInt(chi.URLParam(r, param), 10, 64)
-	if err != nil || id <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid "+label+" ID")))
-		return 0, false
-	}
-	return id, true
+	return common.ParsePositiveInt64IDWithError(w, r, param, "invalid "+label+" ID")
 }
 
 // renderMessagingError maps service sentinels to HTTP status codes.
