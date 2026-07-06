@@ -148,24 +148,6 @@ func (r *PermissionRepository) FindByRoleID(ctx context.Context, roleID int64) (
 	return permissions, nil
 }
 
-// RemovePermissionFromAccount removes a permission assignment from an account
-func (r *PermissionRepository) RemovePermissionFromAccount(ctx context.Context, accountID int64, permissionID int64) error {
-	_, err := base.GetDB(ctx, r.db).NewDelete().
-		Model((*auth.AccountPermission)(nil)).
-		ModelTableExpr(`auth.account_permissions AS "account_permission"`).
-		Where(whereAccountAndPermission, accountID, permissionID).
-		Exec(ctx)
-
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "remove permission from account",
-			Err: err,
-		}
-	}
-
-	return nil
-}
-
 // AssignPermissionToRole assigns a permission to a role
 func (r *PermissionRepository) AssignPermissionToRole(ctx context.Context, roleID int64, permissionID int64) error {
 	db := base.GetDB(ctx, r.db)

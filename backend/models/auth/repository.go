@@ -81,7 +81,6 @@ type PermissionRepository interface {
 	FindByAccountIDForTenant(ctx context.Context, accountID int64, tenantID int64) ([]*Permission, error)
 	FindDirectByAccountID(ctx context.Context, accountID int64) ([]*Permission, error)
 	FindByRoleID(ctx context.Context, roleID int64) ([]*Permission, error)
-	RemovePermissionFromAccount(ctx context.Context, accountID int64, permissionID int64) error
 	AssignPermissionToRole(ctx context.Context, roleID int64, permissionID int64) error
 	RemovePermissionFromRole(ctx context.Context, roleID int64, permissionID int64) error
 }
