@@ -557,7 +557,7 @@ func TestOperatorPasskeyCredentialServiceMethods(t *testing.T) {
 	repo.rows = nil
 	user, err = svc.passkeyUserForOperator(context.Background(), operator)
 	require.NoError(t, err)
-	assert.Len(t, user.WebAuthnID(), authService.PasskeyUserHandleBytesForPlatform())
+	assert.Len(t, user.WebAuthnID(), authService.PasskeyUserHandleBytes)
 
 	user, err = svc.passkeyUserForOperator(context.Background(), operator, []byte("session-handle"))
 	require.NoError(t, err)

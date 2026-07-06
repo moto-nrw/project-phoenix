@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -98,20 +99,20 @@ func (s *stubRequestSettings) ResolveInt(_ context.Context, key string) (int, er
 // can assert both confirmation emails were enqueued with the right kind.
 type recordingOutbox struct {
 	mu      sync.Mutex
-	entries []enrollmentService.OutboxEnqueueRequest
+	entries []platformModels.OutboxEnqueueRequest
 }
 
-func (r *recordingOutbox) Enqueue(_ context.Context, req enrollmentService.OutboxEnqueueRequest) error {
+func (r *recordingOutbox) EnqueueOutbox(_ context.Context, req platformModels.OutboxEnqueueRequest) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.entries = append(r.entries, req)
 	return nil
 }
 
-func (r *recordingOutbox) ByKind(kind string) []enrollmentService.OutboxEnqueueRequest {
+func (r *recordingOutbox) ByKind(kind string) []platformModels.OutboxEnqueueRequest {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	out := make([]enrollmentService.OutboxEnqueueRequest, 0, len(r.entries))
+	out := make([]platformModels.OutboxEnqueueRequest, 0, len(r.entries))
 	for _, e := range r.entries {
 		if e.Kind == kind {
 			out = append(out, e)

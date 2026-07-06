@@ -347,27 +347,12 @@ type RequestServiceConfig struct {
 	PhaseRepo                enrollmentModels.PhaseRepository
 	SchoolRepo               platformModels.SchoolRepository
 	RateLimitRepo            enrollmentModels.SubmissionRateLimitRepository
-	OutboxEnqueuer           OutboxEnqueuer
+	OutboxEnqueuer           platformModels.OutboxEnqueuer
 	Settings                 RequestSettingsResolver
 	FrontendURL              string // staff/admin URLs only (admin notification email link)
 	ParentsURL               string // parent-facing URLs (status link, logo). Falls back to FrontendURL when empty.
 	DB                       *bun.DB
 	Logger                   *slog.Logger
-}
-
-// OutboxEnqueuer mirrors the same shape used by services/auth so this
-// package doesn't import services/platform. Adapter wiring lives in
-// services/platform alongside the existing auth adapter.
-type OutboxEnqueuer interface {
-	Enqueue(ctx context.Context, req OutboxEnqueueRequest) error
-}
-
-// OutboxEnqueueRequest mirrors platform.EnqueueRequest.
-type OutboxEnqueueRequest struct {
-	Kind              string
-	Payload           map[string]any
-	RelatedEntityType string
-	RelatedEntityID   int64
 }
 
 type requestService struct {
@@ -2123,7 +2108,7 @@ func (s *requestService) enqueueSubmissionEmails(ctx context.Context, tenantID i
 		EnrollmentPayloadChildNames:        childNames,
 		EnrollmentPayloadRecipientEmail:    request.GuardianEmail,
 	}
-	if err := s.OutboxEnqueuer.Enqueue(ctx, OutboxEnqueueRequest{
+	if err := s.OutboxEnqueuer.EnqueueOutbox(ctx, platformModels.OutboxEnqueueRequest{
 		Kind:              platformModels.EmailKindEnrollmentSubmitted,
 		Payload:           parentPayload,
 		RelatedEntityType: platformModels.EmailRelatedTypeEnrollmentRequest,
@@ -2149,7 +2134,7 @@ func (s *requestService) enqueueSubmissionEmails(ctx context.Context, tenantID i
 		if request.GuardianPhone != nil {
 			adminPayload[EnrollmentPayloadGuardianPhone] = *request.GuardianPhone
 		}
-		if err := s.OutboxEnqueuer.Enqueue(ctx, OutboxEnqueueRequest{
+		if err := s.OutboxEnqueuer.EnqueueOutbox(ctx, platformModels.OutboxEnqueueRequest{
 			Kind:              platformModels.EmailKindEnrollmentAdminNotify,
 			Payload:           adminPayload,
 			RelatedEntityType: platformModels.EmailRelatedTypeEnrollmentRequest,

@@ -2,7 +2,9 @@ package policies
 
 import (
 	"context"
+	"slices"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/policy"
 	"github.com/moto-nrw/project-phoenix/services/active"
@@ -172,10 +174,8 @@ func hasRole(roles []string, role string) bool {
 }
 
 func hasPermission(permissions []string, permission string) bool {
-	for _, p := range permissions {
-		if p == permission || p == "*:*" || p == "admin:*" {
-			return true
-		}
+	if authorize.HasAdminWildcard(permissions) {
+		return true
 	}
-	return false
+	return slices.Contains(permissions, permission)
 }

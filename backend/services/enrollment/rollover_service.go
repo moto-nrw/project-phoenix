@@ -198,7 +198,7 @@ type RolloverServiceConfig struct {
 	RequestChildRepo         enrollmentModels.RequestChildRepository
 	RequestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
 	SchoolRepo               platformModels.SchoolRepository
-	OutboxEnqueuer           OutboxEnqueuer
+	OutboxEnqueuer           platformModels.OutboxEnqueuer
 	Settings                 RequestSettingsResolver
 	// DecisionService is consumed by RunDeadlineWorker only when a
 	// phase carries rollover_auto_approve = true. Optional — leave
@@ -496,7 +496,7 @@ func (s *rolloverService) enqueueRenewalEmail(ctx context.Context, newPhase *enr
 		EnrollmentPayloadRecipientEmail:    req.GuardianEmail,
 		EnrollmentPayloadRolloverDeadline:  deadlineStr,
 	}
-	if err := s.OutboxEnqueuer.Enqueue(ctx, OutboxEnqueueRequest{
+	if err := s.OutboxEnqueuer.EnqueueOutbox(ctx, platformModels.OutboxEnqueueRequest{
 		Kind:              kind,
 		Payload:           payload,
 		RelatedEntityType: platformModels.EmailRelatedTypeEnrollmentRequest,

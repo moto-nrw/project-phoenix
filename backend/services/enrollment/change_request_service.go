@@ -93,7 +93,7 @@ type ChangeRequestServiceConfig struct {
 	GuardianPhoneRepo        userModels.GuardianPhoneNumberRepository
 	DecisionService          ChangeRequestDecisionApplier
 	Settings                 RequestSettingsResolver
-	OutboxEnqueuer           OutboxEnqueuer
+	OutboxEnqueuer           platformModels.OutboxEnqueuer
 	FrontendURL              string
 	ParentsURL               string
 	DB                       *bun.DB
@@ -1510,7 +1510,7 @@ func (s *changeRequestService) enqueueAdminNotification(ctx context.Context, ten
 		for _, admin := range (&requestService{RequestServiceConfig: RequestServiceConfig{Settings: s.Settings}}).resolveAdminEmails(txCtx) {
 			payload := s.emailPayload(txCtx, req, changeRequestID, admin)
 			payload[EnrollmentPayloadAdminURL] = s.adminURL(changeRequestID)
-			if enqueueErr := s.OutboxEnqueuer.Enqueue(txCtx, OutboxEnqueueRequest{
+			if enqueueErr := s.OutboxEnqueuer.EnqueueOutbox(txCtx, platformModels.OutboxEnqueueRequest{
 				Kind:              kind,
 				Payload:           payload,
 				RelatedEntityType: platformModels.EmailRelatedTypeEnrollmentRequest,
@@ -1543,7 +1543,7 @@ func (s *changeRequestService) enqueueParentNotification(ctx context.Context, te
 			return nil
 		}
 		payload := s.emailPayload(txCtx, req, changeRequestID, req.GuardianEmail)
-		if enqueueErr := s.OutboxEnqueuer.Enqueue(txCtx, OutboxEnqueueRequest{
+		if enqueueErr := s.OutboxEnqueuer.EnqueueOutbox(txCtx, platformModels.OutboxEnqueueRequest{
 			Kind:              kind,
 			Payload:           payload,
 			RelatedEntityType: platformModels.EmailRelatedTypeEnrollmentRequest,

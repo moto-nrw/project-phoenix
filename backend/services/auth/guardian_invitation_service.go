@@ -52,23 +52,6 @@ const guardianTokenEnvVar = "GUARDIAN_INVITATION_TOKEN_EXPIRY_HOURS"
 const schoolLogoURLKey = "logoUrl"
 const schoolLoginImageURLKey = "loginImageUrl"
 
-// OutboxEnqueuer is the narrow contract the guardian invitation service
-// needs from the platform outbox. Defined here so services/auth doesn't
-// import services/platform.
-type OutboxEnqueuer interface {
-	Enqueue(ctx context.Context, req OutboxEnqueueRequest) error
-}
-
-// OutboxEnqueueRequest mirrors platform.EnqueueRequest. The platform
-// package owns the canonical type; we redeclare a parallel one here to
-// avoid an import cycle.
-type OutboxEnqueueRequest struct {
-	Kind              string
-	Payload           map[string]any
-	RelatedEntityType string
-	RelatedEntityID   int64
-}
-
 // GuardianInvitationServiceConfig is the dependency injection bundle for
 // NewGuardianInvitationService. All fields except SettingsResolver,
 // Dispatcher, and OutboxEnqueuer are required.
@@ -91,7 +74,7 @@ type GuardianInvitationServiceConfig struct {
 	SchoolRepo          platformModels.SchoolRepository
 	Mailer              email.Mailer
 	Dispatcher          *email.Dispatcher
-	OutboxEnqueuer      OutboxEnqueuer
+	OutboxEnqueuer      platformModels.OutboxEnqueuer
 	// EnrollmentBackfiller stamps guardian_account_id onto every
 	// pre-account enrollment.requests row matching the guardian's
 	// email, so requests submitted before invite acceptance show up in
@@ -589,7 +572,7 @@ func (s *guardianInvitationService) enqueueViaOutbox(ctx context.Context, invita
 		guardianPayloadExpiryHours:    expiryHours,
 	}
 
-	if err := s.OutboxEnqueuer.Enqueue(ctx, OutboxEnqueueRequest{
+	if err := s.OutboxEnqueuer.EnqueueOutbox(ctx, platformModels.OutboxEnqueueRequest{
 		Kind:              platformModels.EmailKindGuardianInvitation,
 		Payload:           payload,
 		RelatedEntityType: platformModels.EmailRelatedTypeGuardianInvitation,

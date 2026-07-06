@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -37,10 +38,10 @@ type guardianTestEnv struct {
 // callback writes email_sent_at back to the invitation row, racing any
 // assertion on those columns.
 type stubOutboxEnqueuer struct {
-	requests []authService.OutboxEnqueueRequest
+	requests []platformModels.OutboxEnqueueRequest
 }
 
-func (s *stubOutboxEnqueuer) Enqueue(_ context.Context, req authService.OutboxEnqueueRequest) error {
+func (s *stubOutboxEnqueuer) EnqueueOutbox(_ context.Context, req platformModels.OutboxEnqueueRequest) error {
 	s.requests = append(s.requests, req)
 	return nil
 }

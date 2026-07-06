@@ -96,10 +96,10 @@ func TestPasskeyTenantOriginValidation(t *testing.T) {
 }
 
 func TestPasskeyHelpers(t *testing.T) {
-	assert.Equal(t, "example.com", hostWithoutPort("https://Example.COM:443/ignored"))
-	assert.Equal(t, "school.localhost", hostWithoutPort("school.localhost:3000"))
+	assert.Equal(t, "example.com", HostWithoutPort("https://Example.COM:443/ignored"))
+	assert.Equal(t, "school.localhost", HostWithoutPort("school.localhost:3000"))
 
-	host, err := originHostWithoutPort("http://school.localhost:3000")
+	host, err := OriginHostWithoutPort("http://school.localhost:3000")
 	require.NoError(t, err)
 	assert.Equal(t, "school.localhost", host)
 
@@ -111,22 +111,22 @@ func TestPasskeyHelpers(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "example.com", rpID)
 
-	assert.Equal(t, "Short name", normalizePasskeyName("  Short name  "))
-	assert.Empty(t, normalizePasskeyName("   "))
-	assert.Len(t, normalizePasskeyName(strings.Repeat("a", 90)), 80)
+	assert.Equal(t, "Short name", NormalizePasskeyName("  Short name  "))
+	assert.Empty(t, NormalizePasskeyName("   "))
+	assert.Len(t, NormalizePasskeyName(strings.Repeat("a", 90)), 80)
 
-	req, err := passkeyResponseRequest(context.Background(), json.RawMessage(`{"id":"credential"}`))
+	req, err := PasskeyResponseRequest(context.Background(), json.RawMessage(`{"id":"credential"}`))
 	require.NoError(t, err)
 	assert.Equal(t, "application/json", req.Header.Get("Content-Type"))
 
-	_, err = passkeyResponseRequest(context.Background(), json.RawMessage(`{`))
+	_, err = PasskeyResponseRequest(context.Background(), json.RawMessage(`{`))
 	require.ErrorIs(t, err, ErrPasskeySessionInvalid)
 
-	platformReq, err := PasskeyResponseRequestForPlatform(context.Background(), json.RawMessage(`{"id":"platform"}`))
+	platformReq, err := PasskeyResponseRequest(context.Background(), json.RawMessage(`{"id":"platform"}`))
 	require.NoError(t, err)
 	assert.Equal(t, "application/json", platformReq.Header.Get("Content-Type"))
-	assert.Equal(t, normalizePasskeyName("Example"), NormalizePasskeyNameForPlatform("Example"))
-	assert.Equal(t, passkeyUserHandleBytes, PasskeyUserHandleBytesForPlatform())
+	assert.Equal(t, NormalizePasskeyName("Example"), NormalizePasskeyName("Example"))
+	assert.Equal(t, PasskeyUserHandleBytes, PasskeyUserHandleBytes)
 }
 
 func TestPasskeySummaryAndUser(t *testing.T) {
@@ -648,7 +648,7 @@ func TestPasskeyCredentialServiceMethods(t *testing.T) {
 	repo.rows = nil
 	user, err = svc.passkeyUserForAccount(context.Background(), account)
 	require.NoError(t, err)
-	assert.Len(t, user.WebAuthnID(), passkeyUserHandleBytes)
+	assert.Len(t, user.WebAuthnID(), PasskeyUserHandleBytes)
 
 	user, err = svc.passkeyUserForAccount(context.Background(), account, []byte("session-handle"))
 	require.NoError(t, err)

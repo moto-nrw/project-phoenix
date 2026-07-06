@@ -98,7 +98,7 @@ func NewOperatorPasskeyService(cfg OperatorPasskeyServiceConfig) (OperatorPasske
 	if rpID == "" {
 		return nil, errors.New("OperatorPasskeyServiceConfig.RPID is required")
 	}
-	originHost, err := authServiceOriginHost(cfg.OperatorFrontendURL)
+	originHost, err := authService.OriginHostWithoutPort(cfg.OperatorFrontendURL)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +116,7 @@ func NewOperatorPasskeyService(cfg OperatorPasskeyServiceConfig) (OperatorPasske
 		authService:        cfg.AuthService,
 		db:                 cfg.DB,
 		logger:             logger,
-		rpID:               authServiceHostWithoutPort(rpID),
+		rpID:               authService.HostWithoutPort(rpID),
 		rpName:             rpName,
 		operatorOriginHost: originHost,
 	}, nil
@@ -220,7 +220,7 @@ func (s *operatorPasskeyService) FinishRegistration(ctx context.Context, req Ope
 	if err != nil {
 		return nil, err
 	}
-	httpReq, err := authService.PasskeyResponseRequestForPlatform(ctx, req.CredentialResponse)
+	httpReq, err := authService.PasskeyResponseRequest(ctx, req.CredentialResponse)
 	if err != nil {
 		return nil, err
 	}
@@ -232,7 +232,7 @@ func (s *operatorPasskeyService) FinishRegistration(ctx context.Context, req Ope
 	if err != nil {
 		return nil, err
 	}
-	name := authService.NormalizePasskeyNameForPlatform(req.Name)
+	name := authService.NormalizePasskeyName(req.Name)
 	if name == "" {
 		name = "Passkey"
 	}
@@ -299,7 +299,7 @@ func (s *operatorPasskeyService) FinishLogin(ctx context.Context, req OperatorPa
 	if err != nil {
 		return nil, err
 	}
-	httpReq, err := authService.PasskeyResponseRequestForPlatform(ctx, req.CredentialResponse)
+	httpReq, err := authService.PasskeyResponseRequest(ctx, req.CredentialResponse)
 	if err != nil {
 		return nil, err
 	}
@@ -380,7 +380,7 @@ func (s *operatorPasskeyService) passkeyUserForOperator(ctx context.Context, ope
 		if len(sessionUserHandle) > 0 && len(sessionUserHandle[0]) > 0 {
 			userHandle = sessionUserHandle[0]
 		} else {
-			userHandle = make([]byte, authService.PasskeyUserHandleBytesForPlatform())
+			userHandle = make([]byte, authService.PasskeyUserHandleBytes)
 			if _, err := rand.Read(userHandle); err != nil {
 				return nil, err
 			}
@@ -424,7 +424,7 @@ func (s *operatorPasskeyService) rpIDForOrigin(origin string) (string, error) {
 }
 
 func (s *operatorPasskeyService) validateOperatorOrigin(origin string) error {
-	host, err := authServiceOriginHost(origin)
+	host, err := authService.OriginHostWithoutPort(origin)
 	if err != nil {
 		return authService.ErrPasskeyOriginInvalid
 	}
@@ -454,12 +454,4 @@ func summarizeOperatorPasskeyCredential(row *platform.OperatorPasskeyCredential)
 		CreatedAt:  row.CreatedAt,
 		LastUsedAt: row.LastUsedAt,
 	}
-}
-
-func authServiceOriginHost(origin string) (string, error) {
-	return authService.OriginHostWithoutPortForPlatform(origin)
-}
-
-func authServiceHostWithoutPort(value string) string {
-	return authService.HostWithoutPortForPlatform(value)
 }
