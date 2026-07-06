@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -1373,97 +1372,6 @@ func (rs *Resource) removeGuardianFromStudent(w http.ResponseWriter, r *http.Req
 	common.Respond(w, r, http.StatusOK, nil, "Guardian removed from student successfully")
 }
 
-// PUBLIC INVITATION ENDPOINTS (No authentication required)
-
-// GuardianInvitationAcceptRequest represents a request to accept a guardian invitation
-type GuardianInvitationAcceptRequest struct {
-	Password        string `json:"password"`
-	ConfirmPassword string `json:"confirm_password"`
-}
-
-// Bind validates the invitation accept request
-func (req *GuardianInvitationAcceptRequest) Bind(_ *http.Request) error {
-	if req.Password == "" {
-		return errors.New("password is required")
-	}
-	if req.ConfirmPassword == "" {
-		return errors.New("confirm_password is required")
-	}
-	if req.Password != req.ConfirmPassword {
-		return errors.New("passwords do not match")
-	}
-	return nil
-}
-
-// validateGuardianInvitation handles validating a guardian invitation token (PUBLIC)
-func (rs *Resource) validateGuardianInvitation(w http.ResponseWriter, r *http.Request) {
-	// Get token from URL
-	token := chi.URLParam(r, "token")
-	if token == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invitation token is required")))
-		return
-	}
-
-	// Validate invitation
-	result, err := rs.GuardianService.ValidateInvitation(r.Context(), token)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("invitation not found or expired")))
-		return
-	}
-
-	common.Respond(w, r, http.StatusOK, result, "Invitation is valid")
-}
-
-// acceptGuardianInvitation handles accepting a guardian invitation and creating an account (PUBLIC)
-func (rs *Resource) acceptGuardianInvitation(w http.ResponseWriter, r *http.Request) {
-	// Get token from URL
-	token := chi.URLParam(r, "token")
-	if token == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invitation token is required")))
-		return
-	}
-
-	// Parse request
-	req := &GuardianInvitationAcceptRequest{}
-	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
-	}
-
-	// Convert to service request
-	acceptReq := guardianSvc.GuardianInvitationAcceptRequest{
-		Token:           token,
-		Password:        req.Password,
-		ConfirmPassword: req.ConfirmPassword,
-	}
-
-	// Accept invitation
-	account, err := rs.GuardianService.AcceptInvitation(r.Context(), acceptReq)
-	if err != nil {
-		// Log the full error for debugging
-		slog.Default().Error("failed to accept invitation", slog.String("error", err.Error()))
-
-		// Return appropriate error (use Contains for wrapped errors)
-		errMsg := err.Error()
-		if strings.Contains(errMsg, "not found") || strings.Contains(errMsg, "has expired") {
-			common.RenderError(w, r, common.ErrorNotFound(err))
-		} else {
-			common.RenderError(w, r, common.ErrorInternalServer(err))
-		}
-		return
-	}
-
-	// Return account details (without password hash)
-	response := map[string]interface{}{
-		"id":       account.ID,
-		"email":    account.Email,
-		"username": account.Username,
-		"message":  "Account created successfully. You can now log in to the parent portal.",
-	}
-
-	common.Respond(w, r, http.StatusCreated, response, "Invitation accepted and account created successfully")
-}
-
 // =============================================================================
 // HANDLER ACCESSOR METHODS (for testing)
 // =============================================================================
@@ -1528,16 +1436,6 @@ func (rs *Resource) UpdateStudentGuardianRelationshipHandler() http.HandlerFunc 
 // RemoveGuardianFromStudentHandler returns the remove guardian from student handler
 func (rs *Resource) RemoveGuardianFromStudentHandler() http.HandlerFunc {
 	return rs.removeGuardianFromStudent
-}
-
-// ValidateGuardianInvitationHandler returns the validate invitation handler
-func (rs *Resource) ValidateGuardianInvitationHandler() http.HandlerFunc {
-	return rs.validateGuardianInvitation
-}
-
-// AcceptGuardianInvitationHandler returns the accept invitation handler
-func (rs *Resource) AcceptGuardianInvitationHandler() http.HandlerFunc {
-	return rs.acceptGuardianInvitation
 }
 
 // =============================================================================

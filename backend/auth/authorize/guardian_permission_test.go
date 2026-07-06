@@ -1,93 +1,11 @@
 package authorize
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
-// pgHasPermission is a test-local check that the guardian relationship's
-// permissions JSON grants the named permission (the production predicate was
-// deleted as dead code; grant/revoke are asserted directly on the JSON).
-func pgHasPermission(pg *users.PersonGuardian, permission string) bool {
-	perms := map[string]bool{}
-	if err := json.Unmarshal([]byte(pg.Permissions), &perms); err != nil {
-		return false
-	}
-	return perms[permission]
-}
-
-// Moved from models/users/person_guardian_test.go (TestPersonGuardian_GrantPermission).
-func TestPersonGuardianGrantPermission(t *testing.T) {
-	t.Run("grant permission on empty", func(t *testing.T) {
-		pg := &users.PersonGuardian{}
-		if err := PersonGuardianGrantPermission(pg, "view_grades"); err != nil {
-			t.Errorf("PersonGuardianGrantPermission() error = %v", err)
-		}
-		if !pgHasPermission(pg, "view_grades") {
-			t.Error("PersonGuardianGrantPermission() failed to grant permission")
-		}
-	})
-
-	t.Run("grant permission on existing", func(t *testing.T) {
-		pg := &users.PersonGuardian{Permissions: `{"contact_teachers": true}`}
-		if err := PersonGuardianGrantPermission(pg, "view_grades"); err != nil {
-			t.Errorf("PersonGuardianGrantPermission() error = %v", err)
-		}
-		if !pgHasPermission(pg, "view_grades") {
-			t.Error("PersonGuardianGrantPermission() failed to grant new permission")
-		}
-		if !pgHasPermission(pg, "contact_teachers") {
-			t.Error("PersonGuardianGrantPermission() removed existing permission")
-		}
-	})
-
-	t.Run("grant permission on invalid JSON resets permissions", func(t *testing.T) {
-		pg := &users.PersonGuardian{Permissions: "invalid json"}
-		if err := PersonGuardianGrantPermission(pg, "view_grades"); err != nil {
-			t.Errorf("PersonGuardianGrantPermission() error = %v", err)
-		}
-		if !pgHasPermission(pg, "view_grades") {
-			t.Error("PersonGuardianGrantPermission() failed to grant permission after resetting")
-		}
-	})
-}
-
-// Moved from models/users/person_guardian_test.go (TestPersonGuardian_RevokePermission).
-func TestPersonGuardianRevokePermission(t *testing.T) {
-	t.Run("revoke existing permission", func(t *testing.T) {
-		pg := &users.PersonGuardian{Permissions: `{"view_grades": true, "contact_teachers": true}`}
-		if err := PersonGuardianRevokePermission(pg, "view_grades"); err != nil {
-			t.Errorf("PersonGuardianRevokePermission() error = %v", err)
-		}
-		if pgHasPermission(pg, "view_grades") {
-			t.Error("PersonGuardianRevokePermission() failed to revoke permission")
-		}
-		if !pgHasPermission(pg, "contact_teachers") {
-			t.Error("PersonGuardianRevokePermission() incorrectly revoked other permission")
-		}
-	})
-
-	t.Run("revoke from empty permissions", func(t *testing.T) {
-		pg := &users.PersonGuardian{}
-		if err := PersonGuardianRevokePermission(pg, "view_grades"); err != nil {
-			t.Errorf("PersonGuardianRevokePermission() error = %v", err)
-		}
-	})
-
-	t.Run("revoke non-existent permission", func(t *testing.T) {
-		pg := &users.PersonGuardian{Permissions: `{"view_grades": true}`}
-		if err := PersonGuardianRevokePermission(pg, "contact_teachers"); err != nil {
-			t.Errorf("PersonGuardianRevokePermission() error = %v", err)
-		}
-		if !pgHasPermission(pg, "view_grades") {
-			t.Error("PersonGuardianRevokePermission() incorrectly affected other permission")
-		}
-	})
-}
-
-// Moved from models/users/student_guardian_test.go (TestStudentGuardian_HasPermission).
 func TestStudentGuardianHasPermission(t *testing.T) {
 	sg1 := &users.StudentGuardian{
 		StudentID:         1,

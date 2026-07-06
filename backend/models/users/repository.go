@@ -334,51 +334,6 @@ type ProfileRepository interface {
 	UpdateAvatar(ctx context.Context, id int64, avatar string) error
 }
 
-// PersonGuardianRepository defines operations for managing person-guardian relationships
-type PersonGuardianRepository interface {
-	// Create inserts a new person-guardian relationship into the database
-	Create(ctx context.Context, relationship *PersonGuardian) error
-
-	// FindByID retrieves a relationship by its ID
-	FindByID(ctx context.Context, id interface{}) (*PersonGuardian, error)
-
-	// FindByPersonID retrieves relationships by person ID
-	FindByPersonID(ctx context.Context, personID int64) ([]*PersonGuardian, error)
-
-	// FindByGuardianID retrieves relationships by guardian account ID
-	FindByGuardianID(ctx context.Context, guardianID int64) ([]*PersonGuardian, error)
-
-	// FindPrimaryByPersonID retrieves the primary guardian for a person
-	FindPrimaryByPersonID(ctx context.Context, personID int64) (*PersonGuardian, error)
-
-	// FindByRelationshipType retrieves relationships by relationship type
-	FindByRelationshipType(ctx context.Context, personID int64, relationshipType RelationshipType) ([]*PersonGuardian, error)
-
-	// Update updates an existing relationship
-	Update(ctx context.Context, relationship *PersonGuardian) error
-
-	// Delete removes a relationship
-	Delete(ctx context.Context, id interface{}) error
-
-	// List retrieves relationships matching the filters
-	List(ctx context.Context, filters map[string]interface{}) ([]*PersonGuardian, error)
-
-	// SetPrimary sets a guardian as the primary guardian for a person
-	SetPrimary(ctx context.Context, id int64, isPrimary bool) error
-
-	// UpdatePermissions updates a guardian's permissions
-	UpdatePermissions(ctx context.Context, id int64, permissions string) error
-
-	// FindWithPerson retrieves a relationship with the associated person loaded
-	FindWithPerson(ctx context.Context, id int64) (*PersonGuardian, error)
-
-	// GrantPermissionToGuardian grants a specific permission to a guardian
-	GrantPermissionToGuardian(ctx context.Context, id int64, permission string) error
-
-	// RevokePermissionFromGuardian revokes a specific permission from a guardian
-	RevokePermissionFromGuardian(ctx context.Context, id int64, permission string) error
-}
-
 // StudentGuardianRepository defines operations for managing student-guardian relationships
 // GuardianEmergencyContactRow is one (guardian, phone number) projection row
 // for the emergency contact list; the consumer aggregates rows per student.

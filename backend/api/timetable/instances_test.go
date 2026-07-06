@@ -198,9 +198,6 @@ func (m *instMockPersonService) UnlinkFromRFIDCard(_ context.Context, _ int64) e
 func (m *instMockPersonService) GetFullProfile(_ context.Context, _ int64) (*userModels.Person, error) {
 	return nil, nil
 }
-func (m *instMockPersonService) FindByGuardianID(_ context.Context, _ int64) ([]*userModels.Person, error) {
-	return nil, nil
-}
 func (m *instMockPersonService) ListAvailableRFIDCards(_ context.Context) ([]*userModels.RFIDCard, error) {
 	return nil, nil
 }

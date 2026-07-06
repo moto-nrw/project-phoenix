@@ -38,14 +38,13 @@ func setupPolicyServices(t *testing.T, db *bun.DB) (education.Service, users.Per
 
 	// Create users service
 	usersService := users.NewPersonService(users.PersonServiceDependencies{
-		PersonRepo:         repos.Person,
-		RFIDRepo:           repos.RFIDCard,
-		AccountRepo:        repos.Account,
-		PersonGuardianRepo: repos.PersonGuardian,
-		StudentRepo:        repos.Student,
-		StaffRepo:          repos.Staff,
-		TeacherRepo:        repos.Teacher,
-		DB:                 db,
+		PersonRepo:  repos.Person,
+		RFIDRepo:    repos.RFIDCard,
+		AccountRepo: repos.Account,
+		StudentRepo: repos.Student,
+		StaffRepo:   repos.Staff,
+		TeacherRepo: repos.Teacher,
+		DB:          db,
 	})
 
 	// Create active service (without broadcaster for tests)

@@ -38,13 +38,12 @@ const (
 // PersonServiceDependencies contains all dependencies required by the person service
 type PersonServiceDependencies struct {
 	// Repository dependencies
-	PersonRepo         userModels.PersonRepository
-	RFIDRepo           userModels.RFIDCardRepository
-	AccountRepo        auth.AccountRepository
-	PersonGuardianRepo userModels.PersonGuardianRepository
-	StudentRepo        userModels.StudentRepository
-	StaffRepo          userModels.StaffRepository
-	TeacherRepo        userModels.TeacherRepository
+	PersonRepo  userModels.PersonRepository
+	RFIDRepo    userModels.RFIDCardRepository
+	AccountRepo auth.AccountRepository
+	StudentRepo userModels.StudentRepository
+	StaffRepo   userModels.StaffRepository
+	TeacherRepo userModels.TeacherRepository
 
 	// Infrastructure
 	DB              *bun.DB
@@ -54,31 +53,29 @@ type PersonServiceDependencies struct {
 
 // personService implements the PersonService interface
 type personService struct {
-	personRepo         userModels.PersonRepository
-	rfidRepo           userModels.RFIDCardRepository
-	accountRepo        auth.AccountRepository
-	personGuardianRepo userModels.PersonGuardianRepository
-	studentRepo        userModels.StudentRepository
-	staffRepo          userModels.StaffRepository
-	teacherRepo        userModels.TeacherRepository
-	db                 *bun.DB
-	settings           configSvc.SettingsService
-	logger             *slog.Logger
+	personRepo  userModels.PersonRepository
+	rfidRepo    userModels.RFIDCardRepository
+	accountRepo auth.AccountRepository
+	studentRepo userModels.StudentRepository
+	staffRepo   userModels.StaffRepository
+	teacherRepo userModels.TeacherRepository
+	db          *bun.DB
+	settings    configSvc.SettingsService
+	logger      *slog.Logger
 }
 
 // NewPersonService creates a new person service
 func NewPersonService(deps PersonServiceDependencies) PersonService {
 	return &personService{
-		personRepo:         deps.PersonRepo,
-		rfidRepo:           deps.RFIDRepo,
-		accountRepo:        deps.AccountRepo,
-		personGuardianRepo: deps.PersonGuardianRepo,
-		studentRepo:        deps.StudentRepo,
-		staffRepo:          deps.StaffRepo,
-		teacherRepo:        deps.TeacherRepo,
-		db:                 deps.DB,
-		settings:           deps.SettingsService,
-		logger:             deps.Logger,
+		personRepo:  deps.PersonRepo,
+		rfidRepo:    deps.RFIDRepo,
+		accountRepo: deps.AccountRepo,
+		studentRepo: deps.StudentRepo,
+		staffRepo:   deps.StaffRepo,
+		teacherRepo: deps.TeacherRepo,
+		db:          deps.DB,
+		settings:    deps.SettingsService,
+		logger:      deps.Logger,
 	}
 }
 
@@ -393,38 +390,6 @@ func (s *personService) UnlinkFromRFIDCard(ctx context.Context, personID int64) 
 		return &UsersError{Op: "unlink from RFID card", Err: err}
 	}
 	return nil
-}
-
-// FindByGuardianID finds all persons with a guardian relationship to the specified account
-func (s *personService) FindByGuardianID(ctx context.Context, guardianAccountID int64) ([]*userModels.Person, error) {
-	// Get all person-guardian relationships for this guardian
-	// Changed from FindByGuardianAccountID to FindByGuardianID to match the repository interface
-	relationships, err := s.personGuardianRepo.FindByGuardianID(ctx, guardianAccountID)
-	if err != nil {
-		return nil, &UsersError{Op: "find by guardian ID", Err: err}
-	}
-
-	// Extract person IDs from relationships
-	personIDs := make([]interface{}, 0, len(relationships))
-	for _, rel := range relationships {
-		personIDs = append(personIDs, rel.PersonID)
-	}
-
-	// If no person IDs found, return empty slice
-	if len(personIDs) == 0 {
-		return []*userModels.Person{}, nil
-	}
-
-	// Create a filter to get persons by IDs
-	options := base.NewQueryOptions()
-	filter := base.NewFilter().In("id", personIDs...)
-	options.Filter = filter
-
-	persons, err := s.List(ctx, options)
-	if err != nil {
-		return nil, &UsersError{Op: "find by guardian ID", Err: err}
-	}
-	return persons, nil
 }
 
 // Entity lookups (issue #584). CONTRACT: repository results and errors are

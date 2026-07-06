@@ -28,22 +28,6 @@ type GuardianInvitationRequest struct {
 	CreatedBy         int64 // Staff/admin sending the invitation
 }
 
-// GuardianInvitationAcceptRequest represents data for accepting an invitation
-type GuardianInvitationAcceptRequest struct {
-	Token           string
-	Password        string
-	ConfirmPassword string
-}
-
-// GuardianInvitationValidationResult contains public-safe invitation details
-type GuardianInvitationValidationResult struct {
-	GuardianFirstName string   `json:"guardian_first_name"`
-	GuardianLastName  string   `json:"guardian_last_name"`
-	Email             string   `json:"email"`
-	StudentNames      []string `json:"student_names"`
-	ExpiresAt         string   `json:"expires_at"`
-}
-
 // StudentGuardianCreateRequest represents data for linking a guardian to a student
 type StudentGuardianCreateRequest struct {
 	StudentID          int64
@@ -180,12 +164,6 @@ type GuardianService interface {
 
 	// SendInvitation sends an invitation to a guardian
 	SendInvitation(ctx context.Context, req GuardianInvitationRequest) (*authModels.GuardianInvitation, error)
-
-	// ValidateInvitation validates an invitation token
-	ValidateInvitation(ctx context.Context, token string) (*GuardianInvitationValidationResult, error)
-
-	// AcceptInvitation accepts an invitation and creates a guardian account
-	AcceptInvitation(ctx context.Context, req GuardianInvitationAcceptRequest) (*authModels.AccountParent, error)
 
 	// GetStudentGuardians retrieves all guardians for a student
 	GetStudentGuardians(ctx context.Context, studentID int64) ([]*GuardianWithRelationship, error)

@@ -1699,32 +1699,6 @@ func CreateTestParentAccount(tb testing.TB, db *bun.DB, email string) *auth.Acco
 	return account
 }
 
-// CreateTestPersonGuardian creates a person-guardian relationship in the database.
-// The guardianAccountID should be a parent account ID (from CreateTestParentAccount).
-func CreateTestPersonGuardian(tb testing.TB, db *bun.DB, personID, guardianAccountID int64, relType string) *users.PersonGuardian {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	pg := &users.PersonGuardian{
-		PersonID:          personID,
-		GuardianAccountID: guardianAccountID,
-		RelationshipType:  users.RelationshipType(relType),
-		IsPrimary:         true,
-		Permissions:       "{}", // Valid empty JSON object
-	}
-	pg.SetTenantID(1)
-
-	err := db.NewInsert().
-		Model(pg).
-		ModelTableExpr(`users.persons_guardians`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test person guardian relationship")
-
-	return pg
-}
-
 // ============================================================================
 // Schedule Domain Fixtures
 // ============================================================================

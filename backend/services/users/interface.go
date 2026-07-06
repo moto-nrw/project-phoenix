@@ -54,9 +54,6 @@ type PersonService interface {
 	// UnlinkFromRFIDCard removes RFID card association from a person
 	UnlinkFromRFIDCard(ctx context.Context, personID int64) error
 
-	// FindByGuardianID finds all persons with a guardian relationship to the specified account
-	FindByGuardianID(ctx context.Context, guardianAccountID int64) ([]*userModels.Person, error)
-
 	// Entity lookups (issue #584). These replaced the now-deleted repository
 	// getters (StudentRepository/StaffRepository/TeacherRepository). CONTRACT: each method returns the
 	// repository result and error VERBATIM — no wrapping, no sentinel mapping —

@@ -840,48 +840,6 @@ func TestUsersErrorTypes(t *testing.T) {
 
 // ======== Additional Tests for Higher Coverage ========
 
-func TestPersonService_FindByGuardianID(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := setupPersonService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns empty list for nonexistent guardian", func(t *testing.T) {
-		// ACT
-		persons, err := service.FindByGuardianID(ctx, 99999999)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.Empty(t, persons)
-	})
-
-	t.Run("returns persons linked to guardian", func(t *testing.T) {
-		// ARRANGE
-		parentAccount := testpkg.CreateTestParentAccount(t, db, "guardian-test")
-		person := testpkg.CreateTestPerson(t, db, "GuardChild", "PersonTest")
-		testpkg.CreateTestPersonGuardian(t, db, person.ID, parentAccount.ID, "parent")
-		defer testpkg.CleanupActivityFixtures(t, db, person.ID, parentAccount.ID)
-		defer testpkg.CleanupParentAccountFixtures(t, db, parentAccount.ID)
-
-		// ACT
-		persons, err := service.FindByGuardianID(ctx, parentAccount.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-		require.NotEmpty(t, persons, "Should return persons linked to guardian")
-		// Find our specific person in the results
-		found := false
-		for _, p := range persons {
-			if p.ID == person.ID {
-				found = true
-				break
-			}
-		}
-		assert.True(t, found, "Expected to find person with ID %d in results", person.ID)
-	})
-}
-
 func TestPersonService_LinkToRFIDCard_PersonNotFound(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

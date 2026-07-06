@@ -51,14 +51,6 @@ var repoMethodZeroCallerAllowlist = map[string]string{
 	"DeleteAllByAccount":         "test helper: branch-independent MFA-override test teardown",
 	"FindByFamilyID":             "test helper: verifies live DeleteByFamilyID tests",
 
-	// PersonGuardian dead vertical (audit A-12 / data-layer-136) — deletion
-	// scheduled for slice A6; entries drop out with that slice.
-	"FindByRelationshipType":       "A6 pending: PersonGuardianRepository vertical",
-	"FindPrimaryByPersonID":        "A6 pending: PersonGuardianRepository vertical",
-	"GrantPermissionToGuardian":    "A6 pending: PersonGuardianRepository vertical",
-	"RevokePermissionFromGuardian": "A6 pending: PersonGuardianRepository vertical",
-	"UpdatePermissions":            "A6 pending: PersonGuardianRepository vertical",
-
 	// Parked endpoint verticals (owner decision 2026-07-05: keep, do not delete)
 	"FindByDescription": "parked: legacy /api/schedules vertical (Timeframe)",
 	"FindByMonthDay":    "parked: legacy /api/schedules vertical (RecurrenceRule)",

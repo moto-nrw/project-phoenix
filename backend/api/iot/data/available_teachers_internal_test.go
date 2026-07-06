@@ -93,9 +93,6 @@ func (s personServiceWithTeacherRepo) UnlinkFromRFIDCard(context.Context, int64)
 func (s personServiceWithTeacherRepo) GetFullProfile(context.Context, int64) (*userModels.Person, error) {
 	return nil, nil
 }
-func (s personServiceWithTeacherRepo) FindByGuardianID(context.Context, int64) ([]*userModels.Person, error) {
-	return nil, nil
-}
 func (s personServiceWithTeacherRepo) ListAvailableRFIDCards(context.Context) ([]*userModels.RFIDCard, error) {
 	return nil, nil
 }
