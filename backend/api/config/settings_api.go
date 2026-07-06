@@ -18,6 +18,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -96,23 +97,10 @@ func (rs *SettingsResource) OnValueSet(fn ValueSetCallback) {
 	rs.onValueSet = fn
 }
 
-// scheduleSettingsBroadcast queues a tenant_settings_changed SSE event to fire
-// after the OUTERMOST tenant tx commits. Cross-origin tabs (e.g. operator
-// changing a tenant setting from operator.<domain>) only receive change
-// notifications via SSE; same-origin tabs are covered by the
-// BroadcastChannel ping the frontend fires. Source carries the setting key
-// so the receiving tab can scope future selective invalidations and so log
-// review can attribute writes.
+// scheduleSettingsBroadcast delegates to the shared cross-portal helper; see
+// common.ScheduleTenantSettingsBroadcast for the SSE contract.
 func (rs *SettingsResource) scheduleSettingsBroadcast(ctx context.Context, tenantID int64, key string) {
-	if rs.broadcaster == nil || tenantID == 0 {
-		return
-	}
-	tenant.RegisterAfterCommit(ctx, func() {
-		event := realtime.NewEvent(realtime.EventTenantSettingsChanged, "", realtime.EventData{
-			Source: &key,
-		})
-		_ = rs.broadcaster.BroadcastToTenant(tenantID, event)
-	})
+	common.ScheduleTenantSettingsBroadcast(ctx, rs.broadcaster, tenantID, key)
 }
 
 // NewSettingsResource creates a new settings resource. broadcaster is
@@ -607,20 +595,13 @@ func (rs *SettingsResource) enrollmentLegalAGBDocumentReferenced(ctx context.Con
 	if rs.legalDocumentRefs == nil {
 		return false, errors.New("legal document reference repository is not configured")
 	}
-	publicURL := publicEnrollmentLegalDocumentURL(storedURL)
+	publicURL := enrollmentSvc.PublicEnrollmentLegalDocumentURL(storedURL)
 
 	referenced, err := rs.legalDocumentRefs.HasLegalDocumentReference(ctx, storedURL, publicURL)
 	if err != nil {
 		return false, fmt.Errorf("check AGB document references: %w", err)
 	}
 	return referenced, nil
-}
-
-func publicEnrollmentLegalDocumentURL(storedURL string) string {
-	if strings.HasPrefix(storedURL, legalAGBDocumentPrefix) {
-		return "/api/public/enrollment-legal-documents/" + strings.TrimPrefix(storedURL, legalAGBDocumentPrefix)
-	}
-	return storedURL
 }
 
 // --- Error rendering ---

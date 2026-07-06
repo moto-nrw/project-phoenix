@@ -12,7 +12,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/driver/pgdriver"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -563,7 +562,7 @@ func (s *service) SubmitCareException(ctx context.Context, accountID, studentID 
 		// Classify it as its own conflict (409) instead of leaking a 500 — and
 		// distinct from the staff-override conflict, since the fix differs
 		// (reload and retry vs. nothing the parent can do).
-		if isExceptionUniqueViolation(txErr) {
+		if base.IsUniqueViolation(txErr) {
 			return nil, ErrCareExceptionRaced
 		}
 		return nil, fmt.Errorf("parent: submit care exception: %w", txErr)
@@ -577,24 +576,6 @@ func (s *service) SubmitCareException(ctx context.Context, accountID, studentID 
 		slog.Bool("has_arrival", arrivalTime != nil),
 	)
 	return result, nil
-}
-
-// isExceptionUniqueViolation reports whether err (or a wrapped DatabaseError)
-// carries PostgreSQL code 23505 — a raced duplicate on the (student_id,
-// exception_date) unique index for a pickup/arrival exception.
-func isExceptionUniqueViolation(err error) bool {
-	if err == nil {
-		return false
-	}
-	var dbErr *base.DatabaseError
-	if errors.As(err, &dbErr) {
-		err = dbErr.Err
-	}
-	var pgErr pgdriver.Error
-	if errors.As(err, &pgErr) {
-		return pgErr.IntegrityViolation() && pgErr.Field('C') == "23505"
-	}
-	return false
 }
 
 // dayHasStaffException reports whether the pickup or arrival exception for the

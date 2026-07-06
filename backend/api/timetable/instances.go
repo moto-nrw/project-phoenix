@@ -19,6 +19,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
@@ -168,7 +169,7 @@ func renderInstanceLifecycleError(w http.ResponseWriter, r *http.Request, err er
 			errors.New("dieser Termin kann nicht einzeln gelöscht werden, weil die Vorlage an diesem Tag mehrere Termine hat"),
 			"ambiguous_template_instance_delete",
 		))
-	case isUniqueViolationOnConstraint(err, "idx_activity_instances_template_unique"):
+	case base.IsUniqueViolationOn(err, "idx_activity_instances_template_unique"):
 		common.RenderError(w, r, common.ErrorConflictWithCode(
 			errors.New("instance already exists for this template/date/start_time"),
 			"duplicate_instance",

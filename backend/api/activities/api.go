@@ -14,7 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
@@ -335,14 +335,7 @@ func newActivityResponse(group *activities.Group, enrollmentCount int) ActivityR
 func (rs *Resource) getStaffIDAndManagePermission(r *http.Request) (int64, bool, error) {
 	// Check if user has admin-level permission that bypasses ownership checks
 	// Note: "activities:manage" does NOT bypass ownership - only true admin permissions do
-	perms := jwt.PermissionsFromCtx(r.Context())
-	hasAdminPermission := false
-	for _, p := range perms {
-		if p == permissions.AdminWildcard || p == permissions.FullAccess {
-			hasAdminPermission = true
-			break
-		}
-	}
+	hasAdminPermission := authorize.HasAdminWildcard(jwt.PermissionsFromCtx(r.Context()))
 
 	// Get current staff
 	staff, err := rs.UserContextService.GetCurrentStaff(r.Context())

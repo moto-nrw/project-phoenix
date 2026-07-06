@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/seedtoken"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
@@ -357,7 +358,7 @@ func (rs *Resource) canModifyStudent(ctx context.Context, studentID int64) (bool
 	userPermissions := jwt.PermissionsFromCtx(ctx)
 
 	// Admin users have full access
-	if common.HasAdminPermissions(userPermissions) {
+	if authorize.HasAdminWildcard(userPermissions) {
 		return true, nil
 	}
 
@@ -399,7 +400,7 @@ func (rs *Resource) canModifyGuardian(ctx context.Context, guardianID int64) (bo
 	userPermissions := jwt.PermissionsFromCtx(ctx)
 
 	// Admin users have full access
-	if common.HasAdminPermissions(userPermissions) {
+	if authorize.HasAdminWildcard(userPermissions) {
 		return true, nil
 	}
 
@@ -562,7 +563,7 @@ func (rs *Resource) createGuardian(w http.ResponseWriter, r *http.Request) {
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 
 	// Admin users can create guardians without additional checks
-	isAdmin := common.HasAdminPermissions(userPermissions)
+	isAdmin := authorize.HasAdminWildcard(userPermissions)
 
 	// Non-admin users must be staff members with supervised groups
 	if !isAdmin {
@@ -788,7 +789,7 @@ func (rs *Resource) guardianDeletePreview(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if !common.HasAdminPermissions(jwt.PermissionsFromCtx(r.Context())) {
+	if !authorize.HasAdminWildcard(jwt.PermissionsFromCtx(r.Context())) {
 		common.RenderError(w, r, common.ErrorForbidden(errors.New("only administrators can preview a full guardian delete")))
 		return
 	}
@@ -859,7 +860,7 @@ func (rs *Resource) deleteGuardian(w http.ResponseWriter, r *http.Request) {
 	// affected children — the single-student unlink lives at
 	// DELETE /students/{id}/guardians/{gid}.
 	force := r.URL.Query().Get("force") == "true"
-	isAdmin := common.HasAdminPermissions(jwt.PermissionsFromCtx(r.Context()))
+	isAdmin := authorize.HasAdminWildcard(jwt.PermissionsFromCtx(r.Context()))
 
 	impact, err := rs.GuardianService.GetGuardianDeleteImpact(r.Context(), id)
 	if err != nil {

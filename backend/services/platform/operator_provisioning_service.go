@@ -174,7 +174,7 @@ func (s *operatorProvisioningService) CreateOrganization(ctx context.Context, or
 	}
 
 	var created *platform.Organization
-	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		existing, findErr := s.OrganizationRepo.FindBySlug(adminCtx, organization.Slug)
 		if findErr != nil {
 			return findErr
@@ -183,7 +183,7 @@ func (s *operatorProvisioningService) CreateOrganization(ctx context.Context, or
 			return &ConflictError{Err: fmt.Errorf("organization slug already exists")}
 		}
 		if createErr := s.OrganizationRepo.Create(adminCtx, organization); createErr != nil {
-			if isUniqueViolation(createErr) {
+			if modelBase.IsUniqueViolation(createErr) {
 				return &ConflictError{Err: fmt.Errorf("organization slug already exists")}
 			}
 			return createErr
@@ -207,7 +207,7 @@ func (s *operatorProvisioningService) ListOrganizations(ctx context.Context) ([]
 
 func (s *operatorProvisioningService) UpdateOrganization(ctx context.Context, id int64, req UpdateOrganizationRequest, operatorID int64, clientIP net.IP) (*platform.Organization, error) {
 	var updated *platform.Organization
-	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		// See locking contract on OrganizationRepository.FindByIDForShare.
 		existing, err := s.OrganizationRepo.FindByIDForShare(adminCtx, id)
 		if err != nil {
@@ -244,7 +244,7 @@ func (s *operatorProvisioningService) UpdateOrganization(ctx context.Context, id
 		existing.Active = req.Active
 
 		if updateErr := s.OrganizationRepo.Update(adminCtx, existing); updateErr != nil {
-			if isUniqueViolation(updateErr) {
+			if modelBase.IsUniqueViolation(updateErr) {
 				return &ConflictError{Err: fmt.Errorf("organization slug already exists")}
 			}
 			return &InvalidDataError{Err: updateErr}
@@ -269,12 +269,12 @@ func (s *operatorProvisioningService) CreateSchool(ctx context.Context, school *
 	}
 
 	var created *platform.School
-	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		if err := s.validateSchoolCreate(adminCtx, school); err != nil {
 			return err
 		}
 		if createErr := s.SchoolRepo.Create(adminCtx, school); createErr != nil {
-			if isUniqueViolation(createErr) {
+			if modelBase.IsUniqueViolation(createErr) {
 				return mapSchoolCreateConflict(adminCtx, s.SchoolRepo, school)
 			}
 			return createErr
@@ -306,7 +306,7 @@ func (s *operatorProvisioningService) ListSchools(ctx context.Context) ([]*platf
 
 func (s *operatorProvisioningService) UpdateSchool(ctx context.Context, id int64, req UpdateSchoolRequest, operatorID int64, clientIP net.IP) (*platform.School, error) {
 	var updated *platform.School
-	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		existing, err := s.SchoolRepo.FindByID(adminCtx, id)
 		if err != nil {
 			if isSchoolLookupNotFound(err) {
@@ -386,7 +386,7 @@ func (s *operatorProvisioningService) UpdateSchool(ctx context.Context, id int64
 		existing.Hidden = req.Hidden
 
 		if updateErr := s.SchoolRepo.Update(adminCtx, existing); updateErr != nil {
-			if isUniqueViolation(updateErr) {
+			if modelBase.IsUniqueViolation(updateErr) {
 				return mapSchoolCreateConflict(adminCtx, s.SchoolRepo, existing)
 			}
 			return &InvalidDataError{Err: updateErr}
@@ -404,7 +404,7 @@ func (s *operatorProvisioningService) UpdateSchool(ctx context.Context, id int64
 
 func (s *operatorProvisioningService) InviteSchoolAdmin(ctx context.Context, schoolID, operatorID int64, clientIP net.IP, req authSvc.InvitationRequest) (*authModels.InvitationToken, error) {
 	var invitation *authModels.InvitationToken
-	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		school, adminRole, err := s.resolveAdminInviteContext(adminCtx, schoolID)
 		if err != nil {
 			return err
@@ -433,7 +433,7 @@ func (s *operatorProvisioningService) InviteSchoolAdmin(ctx context.Context, sch
 
 func (s *operatorProvisioningService) CreateSchoolAccount(ctx context.Context, schoolID, operatorID int64, clientIP net.IP, req CreateSchoolAccountRequest) (*authModels.Account, error) {
 	var account *authModels.Account
-	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		school, err := s.loadActiveSchool(adminCtx, schoolID)
 		if err != nil {
 			return err
@@ -442,7 +442,7 @@ func (s *operatorProvisioningService) CreateSchoolAccount(ctx context.Context, s
 		roleID := req.RoleID
 		var selectedRole *authModels.Role
 		if roleID == nil {
-			adminRole, roleErr := s.resolveSystemRoleByName(adminCtx, "admin")
+			adminRole, roleErr := authSvc.ResolveSystemRoleByName(adminCtx, s.RoleRepo, "admin")
 			if roleErr != nil {
 				return roleErr
 			}
@@ -544,7 +544,7 @@ func (s *operatorProvisioningService) CreateSchoolAccount(ctx context.Context, s
 }
 
 func (s *operatorProvisioningService) ensureUserRole(ctx context.Context, accountID int64) error {
-	userRole, err := s.resolveSystemRoleByName(ctx, "user")
+	userRole, err := authSvc.ResolveSystemRoleByName(ctx, s.RoleRepo, "user")
 	if err != nil {
 		return err
 	}
@@ -557,7 +557,7 @@ func (s *operatorProvisioningService) ensureUserRole(ctx context.Context, accoun
 
 func (s *operatorProvisioningService) ListSystemRoles(ctx context.Context) ([]*authModels.Role, error) {
 	var result []*authModels.Role
-	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		roles, listErr := s.RoleRepo.List(adminCtx, map[string]interface{}{"is_system": true})
 		if listErr != nil {
 			return listErr
@@ -573,7 +573,7 @@ func (s *operatorProvisioningService) ListSystemRoles(ctx context.Context) ([]*a
 
 func (s *operatorProvisioningService) ListSchoolAccounts(ctx context.Context, schoolID int64) ([]authModels.TenantAccountInfo, error) {
 	var result []authModels.TenantAccountInfo
-	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		school, findErr := s.SchoolRepo.FindByID(adminCtx, schoolID)
 		if findErr != nil {
 			if isSchoolLookupNotFound(findErr) {
@@ -602,7 +602,7 @@ func (s *operatorProvisioningService) ListSchoolAccounts(ctx context.Context, sc
 
 func (s *operatorProvisioningService) ListOrganizationAccounts(ctx context.Context, organizationID int64) ([]authModels.OrgAccountInfo, error) {
 	var result []authModels.OrgAccountInfo
-	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		org, findErr := s.OrganizationRepo.FindByID(adminCtx, organizationID)
 		if findErr != nil {
 			return findErr
@@ -625,7 +625,7 @@ func (s *operatorProvisioningService) ListOrganizationAccounts(ctx context.Conte
 
 func (s *operatorProvisioningService) ListAllAccounts(ctx context.Context) ([]authModels.OrgAccountInfo, error) {
 	var result []authModels.OrgAccountInfo
-	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		accounts, listErr := s.AccountTenantRepo.ListAllAccounts(adminCtx)
 		if listErr != nil {
 			return listErr
@@ -651,7 +651,7 @@ func (s *operatorProvisioningService) queryDevices(adminCtx context.Context, fil
 
 func (s *operatorProvisioningService) ListAllDevices(ctx context.Context) ([]OperatorDeviceInfo, error) {
 	var result []OperatorDeviceInfo
-	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		var queryErr error
 		result, queryErr = s.queryDevices(adminCtx, platform.OperatorDeviceFilter{})
 		return queryErr
@@ -661,7 +661,7 @@ func (s *operatorProvisioningService) ListAllDevices(ctx context.Context) ([]Ope
 
 func (s *operatorProvisioningService) ListSchoolDevices(ctx context.Context, schoolID int64) ([]OperatorDeviceInfo, error) {
 	var result []OperatorDeviceInfo
-	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		school, findErr := s.SchoolRepo.FindByID(adminCtx, schoolID)
 		if findErr != nil {
 			if isSchoolLookupNotFound(findErr) {
@@ -684,7 +684,7 @@ func (s *operatorProvisioningService) ListSchoolDevices(ctx context.Context, sch
 
 func (s *operatorProvisioningService) ListOrganizationDevices(ctx context.Context, organizationID int64) ([]OperatorDeviceInfo, error) {
 	var result []OperatorDeviceInfo
-	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		org, findErr := s.OrganizationRepo.FindByID(adminCtx, organizationID)
 		if findErr != nil {
 			return findErr
@@ -775,7 +775,7 @@ func (s *operatorProvisioningService) CreateDevice(ctx context.Context, schoolID
 	isManual := apiKey != nil && *apiKey != ""
 
 	var result *OperatorDeviceInfo
-	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		school, findErr := s.SchoolRepo.FindByID(adminCtx, schoolID)
 		if findErr != nil {
 			if isSchoolLookupNotFound(findErr) {
@@ -816,7 +816,7 @@ func (s *operatorProvisioningService) CreateDevice(ctx context.Context, schoolID
 				created = true
 				break
 			}
-			if isUniqueViolation(createErr) {
+			if modelBase.IsUniqueViolation(createErr) {
 				if isAPIKeyConstraintViolation(createErr) {
 					if isManual {
 						return &ConflictError{Err: fmt.Errorf("api_key already in use")}
@@ -860,7 +860,7 @@ func (s *operatorProvisioningService) SetDeviceAPIKey(ctx context.Context, id in
 	isManual := apiKey != nil && *apiKey != ""
 
 	var result *OperatorDeviceInfo
-	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		// FindByID works cross-tenant in admin tx: applyTenantFilter (base.go:36-43)
 		// only adds WHERE when tenant.FromContext(ctx) > 0. WithAdminTx does not set
 		// tenant context (tenant/tx.go:63-75). Admin role bypasses RLS.
@@ -908,7 +908,7 @@ func (s *operatorProvisioningService) SetDeviceAPIKey(ctx context.Context, id in
 				updated = true
 				break
 			}
-			if isUniqueViolation(updateErr) && isAPIKeyConstraintViolation(updateErr) {
+			if modelBase.IsUniqueViolation(updateErr) && isAPIKeyConstraintViolation(updateErr) {
 				if isManual {
 					return &ConflictError{Err: fmt.Errorf("api_key already in use")}
 				}
@@ -945,7 +945,7 @@ func (s *operatorProvisioningService) DeleteDevice(ctx context.Context, id int64
 		return &InvalidDataError{Err: fmt.Errorf("device id is required")}
 	}
 
-	return s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	return tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		device, findErr := s.DeviceRepo.FindByID(adminCtx, id)
 		if findErr != nil {
 			if errors.Is(findErr, sql.ErrNoRows) {
@@ -987,7 +987,7 @@ func (s *operatorProvisioningService) DeleteDevice(ctx context.Context, id int64
 
 func (s *operatorProvisioningService) ListSchoolPersons(ctx context.Context, schoolID int64) ([]OperatorPersonInfo, error) {
 	var result []OperatorPersonInfo
-	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		school, findErr := s.SchoolRepo.FindByID(adminCtx, schoolID)
 		if findErr != nil {
 			if isSchoolLookupNotFound(findErr) {
@@ -1014,7 +1014,7 @@ func (s *operatorProvisioningService) SoftDeletePerson(ctx context.Context, pers
 		return &InvalidDataError{Err: fmt.Errorf("person id is required")}
 	}
 
-	return s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	return tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		// Find person. Cross-tenant by design: the admin context carries no
 		// tenant ID, so the repository's tenant filter is a no-op, and BUN's
 		// soft-delete handling auto-excludes deleted rows.
@@ -1141,7 +1141,7 @@ func (s *operatorProvisioningService) resolveAdminInviteContext(ctx context.Cont
 	if err != nil {
 		return nil, nil, err
 	}
-	adminRole, err := s.resolveSystemRoleByName(ctx, "admin")
+	adminRole, err := authSvc.ResolveSystemRoleByName(ctx, s.RoleRepo, "admin")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1199,7 +1199,7 @@ func (s *operatorProvisioningService) seedDefaultActivityCategories(ctx context.
 	for i := range defaults {
 		category := defaults[i]
 		if err := s.CategoryRepo.Create(categoryCtx, &category); err != nil {
-			if isUniqueViolation(err) {
+			if modelBase.IsUniqueViolation(err) {
 				continue
 			}
 			return err
@@ -1225,7 +1225,7 @@ func (s *operatorProvisioningService) createWebManualDevice(ctx context.Context,
 
 	deviceCtx := tenant.WithTenantID(ctx, tenantID)
 	if err := s.DeviceRepo.Create(deviceCtx, device); err != nil {
-		if isUniqueViolation(err) {
+		if modelBase.IsUniqueViolation(err) {
 			return nil
 		}
 		return fmt.Errorf("create web manual device for tenant %d: %w", tenantID, err)
@@ -1238,38 +1238,14 @@ func (s *operatorProvisioningService) createWebManualDevice(ctx context.Context,
 	return nil
 }
 
-func (s *operatorProvisioningService) withAdminTx(ctx context.Context, fn func(context.Context) error) error {
-	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
-		return fn(ctx)
+// adminDB returns the underlying *bun.DB, or nil when no tx handler is wired
+// (unit-test construction via &operatorProvisioningService{}). Passing nil to
+// WithAdminTxOrDirect makes it run fn directly, preserving the old shim's guard.
+func (s *operatorProvisioningService) adminDB() *bun.DB {
+	if s.txHandler == nil {
+		return nil
 	}
-	if s.txHandler == nil || s.txHandler.DB == nil {
-		return fn(ctx)
-	}
-	return tenant.WithAdminTx(ctx, s.txHandler.DB, func(adminCtx context.Context, _ bun.Tx) error {
-		return fn(adminCtx)
-	})
-}
-
-func (s *operatorProvisioningService) resolveSystemRoleByName(ctx context.Context, name string) (*authModels.Role, error) {
-	roles, err := s.RoleRepo.List(ctx, map[string]interface{}{
-		"name":      strings.TrimSpace(strings.ToLower(name)),
-		"is_system": true,
-	})
-	if err != nil {
-		return nil, err
-	}
-	for _, role := range roles {
-		if role == nil {
-			continue
-		}
-		if !strings.EqualFold(role.Name, name) {
-			continue
-		}
-		if role.TenantID == nil && role.IsSystem {
-			return role, nil
-		}
-	}
-	return nil, nil
+	return s.txHandler.DB
 }
 
 func (s *operatorProvisioningService) logAction(ctx context.Context, operatorID int64, action, resourceType string, resourceID *int64, clientIP net.IP, changes map[string]any) {
@@ -1353,7 +1329,7 @@ func isForeignKeyViolation(err error) bool {
 //   - Pending invitations: invalidated immediately (marked as used, so invite links can no
 //     longer be redeemed for the deleted school)
 func (s *operatorProvisioningService) SoftDeleteSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error {
-	return s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	return tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		school, err := s.SchoolRepo.FindByID(adminCtx, schoolID)
 		if err != nil {
 			if isSchoolLookupNotFound(err) {
@@ -1413,7 +1389,7 @@ func (s *operatorProvisioningService) SoftDeleteSchool(ctx context.Context, scho
 // RestoreSchool returns a soft-deleted school to its pre-deletion state.
 // The active field is preserved — a school that was inactive before deletion remains inactive after restore.
 func (s *operatorProvisioningService) RestoreSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error {
-	return s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	return tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		school, err := s.SchoolRepo.FindByID(adminCtx, schoolID)
 		if err != nil {
 			if isSchoolLookupNotFound(err) {
@@ -1462,7 +1438,7 @@ func (s *operatorProvisioningService) RestoreSchool(ctx context.Context, schoolI
 // SoftDeleteOrganization marks an organization as deleted. Blocked if the organization still
 // has non-deleted schools — the operator must delete each school individually first.
 func (s *operatorProvisioningService) SoftDeleteOrganization(ctx context.Context, organizationID, operatorID int64, clientIP net.IP) error {
-	return s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	return tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		// See locking contract on OrganizationRepository.FindByIDForShare — this
 		// FOR UPDATE serializes against concurrent school mutations that take FOR SHARE.
 		org, err := s.OrganizationRepo.FindByIDForUpdate(adminCtx, organizationID)
@@ -1502,7 +1478,7 @@ func (s *operatorProvisioningService) SoftDeleteOrganization(ctx context.Context
 
 // RestoreOrganization returns a soft-deleted organization to its pre-deletion state.
 func (s *operatorProvisioningService) RestoreOrganization(ctx context.Context, organizationID, operatorID int64, clientIP net.IP) error {
-	return s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	return tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		// Lock symmetry with SoftDeleteOrganization: FOR UPDATE serializes restore
 		// against a concurrent soft-delete of the same row.
 		org, err := s.OrganizationRepo.FindByIDForUpdate(adminCtx, organizationID)

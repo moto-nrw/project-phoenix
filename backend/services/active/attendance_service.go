@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -452,7 +453,7 @@ func (s *service) CheckTeacherStudentAccess(ctx context.Context, teacherID, stud
 	// Get student info
 	student, err := s.StudentRepo.FindByID(ctx, studentID)
 	if err != nil {
-		if isNotFoundError(err) {
+		if base.IsNoRows(err) {
 			return false, nil
 		}
 		return false, &ActiveError{Op: "CheckTeacherStudentAccess", Err: err}

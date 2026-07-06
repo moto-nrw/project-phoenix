@@ -185,18 +185,9 @@ func (a *Adapter) completeOperatorMFAVerify(ctx context.Context, challengeToken,
 	if err != nil {
 		return "", fmt.Errorf("mfa verify: %w", err)
 	}
-	var verifyResp struct {
-		Data struct {
-			AccessToken string `json:"access_token"`
-		} `json:"data"`
-		AccessToken string `json:"access_token"`
-	}
-	if err := json.Unmarshal(respBody, &verifyResp); err != nil {
+	token, err := parseLoginToken(respBody)
+	if err != nil {
 		return "", fmt.Errorf("decode mfa verify: %w", err)
-	}
-	token := verifyResp.Data.AccessToken
-	if token == "" {
-		token = verifyResp.AccessToken
 	}
 	if token == "" {
 		return "", fmt.Errorf("mfa verify returned no access token")
@@ -226,18 +217,9 @@ func (a *Adapter) completeOperatorMFAEnrollment(ctx context.Context, enrollmentT
 	if err != nil {
 		return "", fmt.Errorf("enroll confirm: %w", err)
 	}
-	var confirmResp struct {
-		Data struct {
-			AccessToken string `json:"access_token"`
-		} `json:"data"`
-		AccessToken string `json:"access_token"`
-	}
-	if err := json.Unmarshal(respBody, &confirmResp); err != nil {
+	token, err := parseLoginToken(respBody)
+	if err != nil {
 		return "", fmt.Errorf("decode enroll confirm: %w", err)
-	}
-	token := confirmResp.Data.AccessToken
-	if token == "" {
-		token = confirmResp.AccessToken
 	}
 	if token == "" {
 		return "", fmt.Errorf("enroll confirm returned no access token")

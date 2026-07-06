@@ -1194,7 +1194,7 @@ func TestInvitationHelpersCoverFallbacks(t *testing.T) {
 	var tx bun.Tx
 	ctxWithTx := baseModel.ContextWithTx(context.Background(), &tx)
 	called := false
-	require.NoError(t, svc.withAdminTx(ctxWithTx, func(context.Context) error {
+	require.NoError(t, tenant.WithAdminTxOrDirect(ctxWithTx, svc.db, func(context.Context) error {
 		called = true
 		return nil
 	}))

@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/collation"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 )
@@ -799,7 +800,7 @@ func buildCareUsageTableDocument(report *enrollmentService.CareUsageReport) list
 			"pickup_fri":       row.PickupByDay["fri"],
 			"guardian_name":    strings.TrimSpace(row.GuardianFirstName + " " + row.GuardianLastName),
 			"guardian_email":   row.GuardianEmail,
-			"guardian_phone":   strOrEmpty(row.GuardianPhone),
+			"guardian_phone":   base.Deref(row.GuardianPhone),
 		}})
 	}
 	return listexport.Document{
@@ -831,7 +832,7 @@ func buildCareUsageRecordDocument(report *enrollmentService.CareUsageReport) lis
 				{Label: "Gehzeiten", Value: careUsagePickupDayDetails(row.PickupByDay)},
 				{Label: "Eltern", Value: strings.TrimSpace(row.GuardianFirstName + " " + row.GuardianLastName)},
 				{Label: "E-Mail", Value: row.GuardianEmail},
-				{Label: "Telefon", Value: strOrEmpty(row.GuardianPhone)},
+				{Label: "Telefon", Value: base.Deref(row.GuardianPhone)},
 			},
 		})
 	}

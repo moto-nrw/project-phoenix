@@ -4,12 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 
 	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/driver/pgdriver"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -259,16 +257,5 @@ func trackBDepartureState(student *usersModels.Student, value json.RawMessage) (
 }
 
 func isPendingChangeRequestUniqueViolation(err error) bool {
-	if err == nil {
-		return false
-	}
-	var dbErr *modelBase.DatabaseError
-	if errors.As(err, &dbErr) {
-		err = dbErr.Err
-	}
-	var pgErr pgdriver.Error
-	if errors.As(err, &pgErr) {
-		return pgErr.Field('C') == "23505" && pgErr.Field('n') == pendingChangeRequestUniqueIndex
-	}
-	return false
+	return modelBase.IsUniqueViolationOn(err, pendingChangeRequestUniqueIndex)
 }

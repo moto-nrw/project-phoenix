@@ -15,6 +15,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -41,7 +42,7 @@ func DetermineStudentAccess(
 	logger *slog.Logger,
 ) *StudentAccessContext {
 	ctx := &StudentAccessContext{
-		IsAdmin: hasAdminPermission(jwt.PermissionsFromCtx(r.Context())),
+		IsAdmin: authorize.HasAdminWildcard(jwt.PermissionsFromCtx(r.Context())),
 	}
 
 	if ctx.IsAdmin {
@@ -96,15 +97,4 @@ func (a *StudentAccessContext) HasFullAccessToStudent(student *users.Student) bo
 		return false
 	}
 	return a.HasFullAccessByGroupID(student.GroupID)
-}
-
-// hasAdminPermission is intentionally inlined here so the common package does
-// not depend on api/students. The wildcard tokens are stable across the app.
-func hasAdminPermission(permissions []string) bool {
-	for _, perm := range permissions {
-		if perm == "admin:*" || perm == "*:*" {
-			return true
-		}
-	}
-	return false
 }

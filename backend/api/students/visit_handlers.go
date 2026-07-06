@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -75,7 +76,7 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 // Grants access to: admins, any staff when gdpr.student_data_scope = all_staff,
 // and the student's group supervisors. This endpoint is read-only.
 func (rs *Resource) checkGroupRoomAccessAuthorization(r *http.Request, studentGroupID int64) error {
-	if common.HasAdminPermissions(getPermissionsFromRequest(r)) {
+	if authorize.HasAdminWildcard(getPermissionsFromRequest(r)) {
 		return nil
 	}
 

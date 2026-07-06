@@ -19,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	authmodel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/config"
@@ -402,8 +403,11 @@ func (rs *Resource) loadAbsenceMap(ctx context.Context) map[int64]string {
 	return am
 }
 
-// loadAccountRoleMap batch-loads auth role names for all staff members (non-critical, returns empty map on error)
-func (rs *Resource) loadAccountRoleMap(ctx context.Context, staffMembers []*users.Staff) map[int64]string {
+// loadAccountMap batch-loads one per-account string attribute (role name,
+// email, avatar path) for all staff members. Non-critical: returns an empty
+// map when AuthService is missing, no staff member has an account, or the
+// fetch fails (logged as a warning).
+func (rs *Resource) loadAccountMap(ctx context.Context, staffMembers []*users.Staff, label string, fetch func(context.Context, []int64) (map[int64]string, error)) map[int64]string {
 	if rs.AuthService == nil {
 		return make(map[int64]string)
 	}
@@ -420,64 +424,12 @@ func (rs *Resource) loadAccountRoleMap(ctx context.Context, staffMembers []*user
 		return make(map[int64]string)
 	}
 
-	roleMap, err := rs.AuthService.GetAccountRoleNames(ctx, accountIDs)
+	m, err := fetch(ctx, accountIDs)
 	if err != nil {
-		rs.getLogger().Warn("failed to fetch account role map", slog.String("error", err.Error()))
+		rs.getLogger().Warn("failed to fetch account "+label+" map", slog.String("error", err.Error()))
 		return make(map[int64]string)
 	}
-	return roleMap
-}
-
-// loadAccountEmailMap batch-loads email addresses for all staff members (non-critical, returns empty map on error)
-func (rs *Resource) loadAccountEmailMap(ctx context.Context, staffMembers []*users.Staff) map[int64]string {
-	if rs.AuthService == nil {
-		return make(map[int64]string)
-	}
-
-	// Collect account IDs from staff members
-	accountIDs := make([]int64, 0, len(staffMembers))
-	for _, s := range staffMembers {
-		if s.Person != nil && s.Person.AccountID != nil {
-			accountIDs = append(accountIDs, *s.Person.AccountID)
-		}
-	}
-
-	if len(accountIDs) == 0 {
-		return make(map[int64]string)
-	}
-
-	emailMap, err := rs.AuthService.GetAccountEmailsByIDs(ctx, accountIDs)
-	if err != nil {
-		rs.getLogger().Warn("failed to fetch account email map", slog.String("error", err.Error()))
-		return make(map[int64]string)
-	}
-	return emailMap
-}
-
-// loadAccountAvatarMap batch-loads avatar paths for all staff members (non-critical, returns empty map on error)
-func (rs *Resource) loadAccountAvatarMap(ctx context.Context, staffMembers []*users.Staff) map[int64]string {
-	if rs.AuthService == nil {
-		return make(map[int64]string)
-	}
-
-	// Collect account IDs from staff members
-	accountIDs := make([]int64, 0, len(staffMembers))
-	for _, s := range staffMembers {
-		if s.Person != nil && s.Person.AccountID != nil {
-			accountIDs = append(accountIDs, *s.Person.AccountID)
-		}
-	}
-
-	if len(accountIDs) == 0 {
-		return make(map[int64]string)
-	}
-
-	avatarMap, err := rs.AuthService.GetAccountAvatarsByIDs(ctx, accountIDs)
-	if err != nil {
-		rs.getLogger().Warn("failed to fetch account avatar map", slog.String("error", err.Error()))
-		return make(map[int64]string)
-	}
-	return avatarMap
+	return m
 }
 
 // listStaff handles listing all staff members with optional filtering
@@ -525,9 +477,15 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 	absenceMap := rs.loadAbsenceMap(ctx)
 
 	// Batch-load account roles, emails, and avatars for all staff members (non-critical)
-	accountRoleMap := rs.loadAccountRoleMap(ctx, staffMembers)
-	accountEmailMap := rs.loadAccountEmailMap(ctx, staffMembers)
-	accountAvatarMap := rs.loadAccountAvatarMap(ctx, staffMembers)
+	accountRoleMap := rs.loadAccountMap(ctx, staffMembers, "role", func(ctx context.Context, ids []int64) (map[int64]string, error) {
+		return rs.AuthService.GetAccountRoleNames(ctx, ids)
+	})
+	accountEmailMap := rs.loadAccountMap(ctx, staffMembers, "email", func(ctx context.Context, ids []int64) (map[int64]string, error) {
+		return rs.AuthService.GetAccountEmailsByIDs(ctx, ids)
+	})
+	accountAvatarMap := rs.loadAccountMap(ctx, staffMembers, "avatar", func(ctx context.Context, ids []int64) (map[int64]string, error) {
+		return rs.AuthService.GetAccountAvatarsByIDs(ctx, ids)
+	})
 
 	// Build response objects using pre-loaded data
 	responses := make([]interface{}, 0, len(staffMembers))
@@ -1008,8 +966,8 @@ func matchesSearchTerm(person *users.Person, searchTerm string) bool {
 	if searchTerm == "" {
 		return true
 	}
-	return containsIgnoreCase(person.FirstName, searchTerm) ||
-		containsIgnoreCase(person.LastName, searchTerm)
+	return strutil.ContainsFold(person.FirstName, searchTerm) ||
+		strutil.ContainsFold(person.LastName, searchTerm)
 }
 
 // getAvailableForSubstitution handles getting staff available for substitution with their current status
@@ -1105,12 +1063,6 @@ func (rs *Resource) processTeacherForSubstitution(
 	subs := subsMap[teacher.Staff.ID]
 	result := rs.buildStaffSubstitutionStatus(ctx, teacher.Staff, teacher, subs)
 	return &result
-}
-
-// Helper function to check if a string contains another string, ignoring case
-func containsIgnoreCase(s, substr string) bool {
-	s, substr = strings.ToLower(s), strings.ToLower(substr)
-	return strings.Contains(s, substr)
 }
 
 // getPINStatus handles getting the current user's PIN status

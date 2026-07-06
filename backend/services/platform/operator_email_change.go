@@ -12,6 +12,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -160,7 +161,7 @@ func (s *operatorAuthService) InitiateEmailChange(ctx context.Context, operatorI
 		return nil
 	})
 	if err != nil {
-		if isUniqueViolation(err) {
+		if base.IsUniqueViolation(err) {
 			return &EmailChangeRateLimitError{}
 		}
 		return fmt.Errorf("failed to create email change token: %w", err)
@@ -270,7 +271,7 @@ func (s *operatorAuthService) ConfirmEmailChange(ctx context.Context, tokenStr s
 		newEmail = token.NewEmail
 		operator.Email = token.NewEmail
 		if err := s.OperatorRepo.Update(txCtx, operator); err != nil {
-			if isUniqueViolation(err) {
+			if base.IsUniqueViolation(err) {
 				return &EmailAlreadyInUseError{}
 			}
 			return fmt.Errorf("failed to update operator email: %w", err)

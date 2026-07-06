@@ -11,6 +11,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
@@ -109,7 +110,7 @@ func (s *operatorAuthService) InviteOperator(ctx context.Context, inviteeEmail s
 		}
 
 		if txErr := s.InvitationTokenRepo.Create(txCtx, token); txErr != nil {
-			if isUniqueViolation(txErr) {
+			if base.IsUniqueViolation(txErr) {
 				return &OperatorInvitationEmailExistsError{}
 			}
 			return fmt.Errorf("failed to create invitation token: %w", txErr)
@@ -213,7 +214,7 @@ func (s *operatorAuthService) AcceptOperatorInvitation(ctx context.Context, toke
 			Active:       true,
 		}
 		if createErr := s.OperatorRepo.Create(txCtx, operator); createErr != nil {
-			if isUniqueViolation(createErr) {
+			if base.IsUniqueViolation(createErr) {
 				return &OperatorInvitationEmailExistsError{}
 			}
 			return fmt.Errorf("failed to create operator: %w", createErr)

@@ -16,9 +16,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // Login authenticates a user and returns access and refresh tokens
@@ -1035,11 +1035,7 @@ func (s *Service) ensureRoleAssignment(ctx context.Context, accountID int64, rol
 
 // isDuplicateKeyError checks if a database error is a unique constraint violation (PG code 23505).
 func isDuplicateKeyError(err error) bool {
-	var pgErr pgdriver.Error
-	if errors.As(err, &pgErr) {
-		return pgErr.Field('C') == "23505"
-	}
-	return false
+	return modelBase.IsUniqueViolation(err)
 }
 
 // RefreshToken generates new token pair from a refresh token

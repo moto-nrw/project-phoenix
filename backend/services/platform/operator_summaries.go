@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Type aliases keep existing service callers (e.g. api/operator) referencing
@@ -19,7 +20,7 @@ type (
 // GetProvisioningStats returns platform-wide counts for the operator overview.
 func (s *operatorProvisioningService) GetProvisioningStats(ctx context.Context) (*ProvisioningStats, error) {
 	var result *ProvisioningStats
-	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		stats, scanErr := s.SummariesRepo.Stats(adminCtx)
 		if scanErr != nil {
 			return scanErr
@@ -37,7 +38,7 @@ func (s *operatorProvisioningService) GetProvisioningStats(ctx context.Context) 
 // with per-row aggregate counts. Counts only include non-deleted child entities.
 func (s *operatorProvisioningService) ListOrganizationSummaries(ctx context.Context) ([]*OrganizationSummary, error) {
 	var result []*OrganizationSummary
-	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		summaries, scanErr := s.SummariesRepo.OrganizationSummaries(adminCtx)
 		if scanErr != nil {
 			return scanErr
@@ -54,7 +55,7 @@ func (s *operatorProvisioningService) ListOrganizationSummaries(ctx context.Cont
 // ListSchoolSummaries returns all schools (global scope) with per-row counts.
 func (s *operatorProvisioningService) ListSchoolSummaries(ctx context.Context) ([]*SchoolSummary, error) {
 	var result []*SchoolSummary
-	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		summaries, scanErr := s.SummariesRepo.SchoolSummaries(adminCtx)
 		if scanErr != nil {
 			return scanErr
@@ -74,7 +75,7 @@ func (s *operatorProvisioningService) ListSchoolSummaries(ctx context.Context) (
 // does not exist.
 func (s *operatorProvisioningService) ListOrganizationSchoolSummaries(ctx context.Context, organizationID int64) ([]*SchoolSummary, error) {
 	var result []*SchoolSummary
-	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		org, findErr := s.OrganizationRepo.FindByID(adminCtx, organizationID)
 		if findErr != nil {
 			return findErr
@@ -101,7 +102,7 @@ func (s *operatorProvisioningService) ListOrganizationSchoolSummaries(ctx contex
 // client-side fan-out that issued one request per school.
 func (s *operatorProvisioningService) ListOrganizationPersons(ctx context.Context, organizationID int64) ([]OperatorPersonInfo, error) {
 	var result []OperatorPersonInfo
-	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
 		org, findErr := s.OrganizationRepo.FindByID(adminCtx, organizationID)
 		if findErr != nil {
 			return findErr

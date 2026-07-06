@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/driver/pgdriver"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
@@ -56,7 +56,7 @@ const rolloverSourceChildUniqueIndex = "uq_enrollment_request_children_rollover_
 // enrollment.phases. Race-safe: we don't pre-check, we just translate
 // the DB error into the sentinel so the handler can return 409.
 func isPhaseDuplicateName(err error) bool {
-	return isUniqueViolationOn(err, phaseNameUniqueConstraint)
+	return base.IsUniqueViolationOn(err, phaseNameUniqueConstraint)
 }
 
 // isRolloverSourceAlreadyRolled reports whether err is the 23505
@@ -64,24 +64,7 @@ func isPhaseDuplicateName(err error) bool {
 // at most one follow-up phase. Fallback for the race between the
 // vorab-Check and the actual INSERT.
 func isRolloverSourceAlreadyRolled(err error) bool {
-	return isUniqueViolationOn(err, rolloverSourceChildUniqueIndex)
-}
-
-// isUniqueViolationOn reports whether err is a PostgreSQL 23505 raised
-// by the named constraint or unique index. Mirrors the pattern used in
-// services/facilities/facility_service.go.
-func isUniqueViolationOn(err error, name string) bool {
-	if err == nil {
-		return false
-	}
-	var pgErr pgdriver.Error
-	if !errors.As(err, &pgErr) {
-		return false
-	}
-	if pgErr.Field('C') != "23505" {
-		return false
-	}
-	return pgErr.Field('n') == name
+	return base.IsUniqueViolationOn(err, rolloverSourceChildUniqueIndex)
 }
 
 // RolloverService creates a new phase from a source phase, carrying

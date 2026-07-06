@@ -2495,13 +2495,16 @@ func legalAGBBlockText(texts LegalTexts) string {
 		if texts.AGBDocumentURL == "" {
 			return ""
 		}
-		return fmt.Sprintf("Die AGB / Teilnahmebedingungen sind als PDF-Datei hinterlegt: [AGB-Dokument öffnen](%s)", publicEnrollmentLegalDocumentURL(texts.AGBDocumentURL))
+		return fmt.Sprintf("Die AGB / Teilnahmebedingungen sind als PDF-Datei hinterlegt: [AGB-Dokument öffnen](%s)", PublicEnrollmentLegalDocumentURL(texts.AGBDocumentURL))
 	default:
 		return texts.AGB
 	}
 }
 
-func publicEnrollmentLegalDocumentURL(storedURL string) string {
+// PublicEnrollmentLegalDocumentURL maps stored upload paths of enrollment
+// legal documents onto their public serving routes. Non-upload URLs pass
+// through unchanged. Shared with api/config's legal-AGB settings handler.
+func PublicEnrollmentLegalDocumentURL(storedURL string) string {
 	const globalUploadPrefix = "/uploads/enrollment-legal-documents/"
 	const globalPublicPrefix = "/api/public/enrollment-legal-documents/"
 	if strings.HasPrefix(storedURL, globalUploadPrefix) {
@@ -2544,7 +2547,7 @@ func templateLegalBlockText(block enrollmentModels.FormLegalBlock) string {
 	if block.Key == enrollmentModels.ConsentKeyAGB &&
 		block.DisplayMode == enrollmentModels.LegalBlockDisplayModePDF &&
 		strings.TrimSpace(block.DocumentURL) != "" {
-		return fmt.Sprintf("Die AGB / Teilnahmebedingungen sind als PDF-Datei hinterlegt: [AGB-Dokument öffnen](%s)", publicEnrollmentLegalDocumentURL(block.DocumentURL))
+		return fmt.Sprintf("Die AGB / Teilnahmebedingungen sind als PDF-Datei hinterlegt: [AGB-Dokument öffnen](%s)", PublicEnrollmentLegalDocumentURL(block.DocumentURL))
 	}
 	return block.Text
 }

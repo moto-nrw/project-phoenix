@@ -43,6 +43,12 @@ func TruncateRunes(s string, n int, suffix string) string {
 	return string(r[:n]) + suffix
 }
 
+// ContainsFold reports whether s contains substr, ignoring case (ToLower on
+// both sides — the search/filter semantics of the staff and student lists).
+func ContainsFold(s, substr string) bool {
+	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
+}
+
 // JoinUnique splits every value on ";", trims the parts, and joins the
 // non-empty ones on "; " with case-insensitive duplicates removed
 // (first occurrence wins, original casing kept).

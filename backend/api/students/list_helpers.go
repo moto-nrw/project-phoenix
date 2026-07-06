@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -209,18 +210,18 @@ func matchesSearchFilter(person *users.Person, studentID int64, search string) b
 	studentIDStr := strconv.FormatInt(studentID, 10)
 	fullName := person.FirstName + " " + person.LastName
 
-	return containsIgnoreCase(person.FirstName, search) ||
-		containsIgnoreCase(person.LastName, search) ||
-		containsIgnoreCase(studentIDStr, search) ||
-		containsIgnoreCase(fullName, search)
+	return strutil.ContainsFold(person.FirstName, search) ||
+		strutil.ContainsFold(person.LastName, search) ||
+		strutil.ContainsFold(studentIDStr, search) ||
+		strutil.ContainsFold(fullName, search)
 }
 
 // matchesNameFilters checks if a student matches the name filters
 func matchesNameFilters(person *users.Person, firstName, lastName string) bool {
-	if firstName != "" && !containsIgnoreCase(person.FirstName, firstName) {
+	if firstName != "" && !strutil.ContainsFold(person.FirstName, firstName) {
 		return false
 	}
-	if lastName != "" && !containsIgnoreCase(person.LastName, lastName) {
+	if lastName != "" && !strutil.ContainsFold(person.LastName, lastName) {
 		return false
 	}
 	return true

@@ -66,20 +66,30 @@ func (f *fakeStudentGuardianRepo) Delete(ctx context.Context, id interface{}) er
 
 type fakeStudentRepo struct {
 	users.StudentRepository
-	findByIDFn func(ctx context.Context, id interface{}) (*users.Student, error)
+	findByIDFn  func(ctx context.Context, id interface{}) (*users.Student, error)
+	findByIDsFn func(ctx context.Context, ids []int64) (map[int64]*users.Student, error)
 }
 
 func (f *fakeStudentRepo) FindByID(ctx context.Context, id interface{}) (*users.Student, error) {
 	return f.findByIDFn(ctx, id)
 }
 
+func (f *fakeStudentRepo) FindByIDs(ctx context.Context, ids []int64) (map[int64]*users.Student, error) {
+	return f.findByIDsFn(ctx, ids)
+}
+
 type fakePersonRepo struct {
 	users.PersonRepository
-	findByIDFn func(ctx context.Context, id interface{}) (*users.Person, error)
+	findByIDFn  func(ctx context.Context, id interface{}) (*users.Person, error)
+	findByIDsFn func(ctx context.Context, ids []int64) (map[int64]*users.Person, error)
 }
 
 func (f *fakePersonRepo) FindByID(ctx context.Context, id interface{}) (*users.Person, error) {
 	return f.findByIDFn(ctx, id)
+}
+
+func (f *fakePersonRepo) FindByIDs(ctx context.Context, ids []int64) (map[int64]*users.Person, error) {
+	return f.findByIDsFn(ctx, ids)
 }
 
 // --- unexported helpers ----------------------------------------------------
@@ -106,16 +116,16 @@ func TestSameInt64Set(t *testing.T) {
 
 func TestIsGuardianUniqueViolation(t *testing.T) {
 	t.Run("nil error is not a violation", func(t *testing.T) {
-		assert.False(t, isGuardianUniqueViolation(nil))
+		assert.False(t, base.IsUniqueViolation(nil))
 	})
 	t.Run("plain error is not a violation", func(t *testing.T) {
-		assert.False(t, isGuardianUniqueViolation(errors.New("boom")))
+		assert.False(t, base.IsUniqueViolation(errors.New("boom")))
 	})
 	t.Run("wrapped non-pg DatabaseError is not a violation", func(t *testing.T) {
 		// Exercises the DatabaseError-unwrap branch: it must unwrap and then
 		// still report false because the inner error is not a pg integrity error.
 		err := &base.DatabaseError{Op: "create", Err: errors.New("connection reset")}
-		assert.False(t, isGuardianUniqueViolation(err))
+		assert.False(t, base.IsUniqueViolation(err))
 	})
 }
 
@@ -236,7 +246,7 @@ func TestGetGuardianDeleteImpact_StudentLoadError(t *testing.T) {
 			return []*users.StudentGuardian{rel}, nil
 		},
 	}, StudentRepo: &fakeStudentRepo{
-		findByIDFn: func(_ context.Context, _ interface{}) (*users.Student, error) {
+		findByIDsFn: func(_ context.Context, _ []int64) (map[int64]*users.Student, error) {
 			return nil, errors.New("student gone")
 		},
 	}},
@@ -255,14 +265,14 @@ func TestGetGuardianDeleteImpact_NilPersonIsRejected(t *testing.T) {
 			return []*users.StudentGuardian{rel}, nil
 		},
 	}, StudentRepo: &fakeStudentRepo{
-		findByIDFn: func(_ context.Context, _ interface{}) (*users.Student, error) {
-			return student, nil
+		findByIDsFn: func(_ context.Context, _ []int64) (map[int64]*users.Student, error) {
+			return map[int64]*users.Student{7: student}, nil
 		},
 	}, PersonRepo: &fakePersonRepo{
-		// Some repositories return (nil, nil) for a missing row — the impact
+		// A missing row surfaces as an absent/nil map entry — the impact
 		// builder must treat that as a hard error, not a nil-pointer panic.
-		findByIDFn: func(_ context.Context, _ interface{}) (*users.Person, error) {
-			return nil, nil
+		findByIDsFn: func(_ context.Context, _ []int64) (map[int64]*users.Person, error) {
+			return map[int64]*users.Person{9: nil}, nil
 		},
 	}},
 	}

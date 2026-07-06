@@ -569,7 +569,7 @@ func (rs *Resource) resolveRoomHistorySupervisorFilter(
 	logger *slog.Logger,
 ) (*int64, bool) {
 	ctx := r.Context()
-	if common.HasAdminPermissions(jwt.PermissionsFromCtx(ctx)) {
+	if authorize.HasAdminWildcard(jwt.PermissionsFromCtx(ctx)) {
 		return nil, false
 	}
 

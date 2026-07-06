@@ -25,6 +25,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -298,7 +299,7 @@ func (rs *Resource) findOrCreateTimeframe(ctx context.Context, start, end time.T
 			// time.Time.Equal here: schedule.timeframes stores SQL TIME, and
 			// drivers may decode TIME with a different date anchor than the
 			// handler's parseClockTime uses.
-			if sameClockTime(tf.StartTime, start) && tf.EndTime != nil && sameClockTime(*tf.EndTime, end) {
+			if timezone.SameClockTime(tf.StartTime, start) && tf.EndTime != nil && timezone.SameClockTime(*tf.EndTime, end) {
 				return tf.ID, nil
 			}
 		}
@@ -316,13 +317,6 @@ func (rs *Resource) findOrCreateTimeframe(ctx context.Context, start, end time.T
 		return 0, fmt.Errorf("create timeframe: %w", err)
 	}
 	return tf.ID, nil
-}
-
-func sameClockTime(a, b time.Time) bool {
-	return a.Hour() == b.Hour() &&
-		a.Minute() == b.Minute() &&
-		a.Second() == b.Second() &&
-		a.Nanosecond() == b.Nanosecond()
 }
 
 // isValidActivityType matches the constants in models/activities/group.go.

@@ -16,8 +16,8 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // createInstanceRequest is the JSON body accepted by POST /instances.
@@ -189,7 +189,7 @@ func renderCreateInstanceError(w http.ResponseWriter, r *http.Request, err error
 	switch {
 	case errors.Is(err, scheduleSvc.ErrInvalidInstanceReference):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case isUniqueViolationOnConstraint(err, "idx_activity_instances_template_unique"):
+	case base.IsUniqueViolationOn(err, "idx_activity_instances_template_unique"):
 		common.RenderError(w, r, common.ErrorConflictWithCode(
 			errors.New("instance already exists for this template/date/start_time"),
 			"duplicate_instance",
@@ -198,15 +198,4 @@ func renderCreateInstanceError(w http.ResponseWriter, r *http.Request, err error
 		common.RenderError(w, r, common.ErrorInternalServerWrap(
 			"create instance failed", err))
 	}
-}
-
-func isUniqueViolationOnConstraint(err error, constraintName string) bool {
-	if err == nil {
-		return false
-	}
-	var pgErr pgdriver.Error
-	if !errors.As(err, &pgErr) {
-		return false
-	}
-	return pgErr.Field('C') == "23505" && pgErr.Field('n') == constraintName
 }

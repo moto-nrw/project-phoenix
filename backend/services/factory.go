@@ -2,6 +2,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -698,84 +699,28 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			DefaultFrom: defaultFrom,
 		})),
 	)
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentSubmitted,
-		platform.RendererFunc(enrollment.NewEnrollmentSubmittedRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentAdminNotify,
-		platform.RendererFunc(enrollment.NewEnrollmentAdminNotificationRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	// Per-status decision emails dispatched by the DecisionService
-	// (PR 8 slice 2). One renderer per kind keeps subjects + templates
-	// independent and makes future copy updates contained.
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentApproved,
-		platform.RendererFunc(enrollment.NewEnrollmentApprovedRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentWaitlisted,
-		platform.RendererFunc(enrollment.NewEnrollmentWaitlistedRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentRejected,
-		platform.RendererFunc(enrollment.NewEnrollmentRejectedRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentChangeRequestSubmitted,
-		platform.RendererFunc(enrollment.NewEnrollmentChangeRequestSubmittedRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentChangeRequestQuestion,
-		platform.RendererFunc(enrollment.NewEnrollmentChangeRequestQuestionRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentChangeRequestParentReply,
-		platform.RendererFunc(enrollment.NewEnrollmentChangeRequestParentReplyRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentChangeRequestApproved,
-		platform.RendererFunc(enrollment.NewEnrollmentChangeRequestApprovedRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentChangeRequestRejected,
-		platform.RendererFunc(enrollment.NewEnrollmentChangeRequestRejectedRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	// Rollover (annual phase renewal) emails. Slice 1 reuses the
-	// submission template as a placeholder. Proper branded copy lands
-	// in a follow-up PR.
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentRolloverOptIn,
-		platform.RendererFunc(enrollment.NewEnrollmentRolloverOptInRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentRolloverOptOut,
-		platform.RendererFunc(enrollment.NewEnrollmentRolloverOptOutRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
+	// Enrollment outbox renderers, one per EmailKind sharing the same config.
+	// Per-status decision emails (PR 8 slice 2) keep one renderer per kind so
+	// subjects + templates stay independent and copy updates stay contained.
+	// The rollover (annual phase renewal) pair reuses the submission template
+	// as a placeholder until proper branded copy lands in a follow-up PR.
+	enrollmentRendererCfg := enrollment.EmailRendererConfig{DefaultFrom: defaultFrom}
+	for kind, newRenderer := range map[string]func(enrollment.EmailRendererConfig) func(context.Context, *platformModels.EmailOutbox) (*email.Message, error){
+		platformModels.EmailKindEnrollmentSubmitted:                enrollment.NewEnrollmentSubmittedRenderer,
+		platformModels.EmailKindEnrollmentAdminNotify:              enrollment.NewEnrollmentAdminNotificationRenderer,
+		platformModels.EmailKindEnrollmentApproved:                 enrollment.NewEnrollmentApprovedRenderer,
+		platformModels.EmailKindEnrollmentWaitlisted:               enrollment.NewEnrollmentWaitlistedRenderer,
+		platformModels.EmailKindEnrollmentRejected:                 enrollment.NewEnrollmentRejectedRenderer,
+		platformModels.EmailKindEnrollmentChangeRequestSubmitted:   enrollment.NewEnrollmentChangeRequestSubmittedRenderer,
+		platformModels.EmailKindEnrollmentChangeRequestQuestion:    enrollment.NewEnrollmentChangeRequestQuestionRenderer,
+		platformModels.EmailKindEnrollmentChangeRequestParentReply: enrollment.NewEnrollmentChangeRequestParentReplyRenderer,
+		platformModels.EmailKindEnrollmentChangeRequestApproved:    enrollment.NewEnrollmentChangeRequestApprovedRenderer,
+		platformModels.EmailKindEnrollmentChangeRequestRejected:    enrollment.NewEnrollmentChangeRequestRejectedRenderer,
+		platformModels.EmailKindEnrollmentRolloverOptIn:            enrollment.NewEnrollmentRolloverOptInRenderer,
+		platformModels.EmailKindEnrollmentRolloverOptOut:           enrollment.NewEnrollmentRolloverOptOutRenderer,
+	} {
+		emailTemplateRegistry.Register(kind, platform.RendererFunc(newRenderer(enrollmentRendererCfg)))
+	}
 
 	caregiverCapabilityService := users.NewCaregiverCapabilityService(users.CaregiverCapabilityServiceDependencies{
 		AccountRepo:            repos.Account,

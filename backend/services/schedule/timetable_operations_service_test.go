@@ -907,7 +907,7 @@ func TestTimetableOperationHelpers(t *testing.T) {
 	planned, ok := findPlanned([]*scheduleModel.InstanceStudent{{StudentID: 556}}, 556)
 	require.True(t, ok)
 	assert.Equal(t, int64(556), planned.StudentID)
-	assert.False(t, isNoRows(errors.New("ordinary error")))
+	assert.False(t, modelBase.IsNoRows(errors.New("ordinary error")))
 }
 
 func TestTimetableOperationDirectHelperBranches(t *testing.T) {

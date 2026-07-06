@@ -18,7 +18,6 @@ import (
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 const (
@@ -130,7 +129,7 @@ func (s *guardianService) CreateGuardian(ctx context.Context, req GuardianCreate
 		// pre-check above and then race on the UNIQUE(tenant_id, email) index.
 		// The loser gets a raw 23505 — classify it as the same bad-input
 		// ValidationError (HTTP 400) the pre-check produces, never a 500.
-		if isGuardianUniqueViolation(err) && profile.Email != nil {
+		if base.IsUniqueViolation(err) && profile.Email != nil {
 			return nil, newEmailInUseError(*profile.Email)
 		}
 		return nil, fmt.Errorf("failed to create guardian profile: %w", err)
@@ -232,7 +231,7 @@ func (s *guardianService) UpdateGuardian(ctx context.Context, id int64, req Guar
 	if err := s.GuardianProfileRepo.Update(ctx, profile); err != nil {
 		// TOCTOU guard mirroring CreateGuardian: a concurrent writer can claim
 		// the email between the check above and this Update.
-		if isGuardianUniqueViolation(err) && profile.Email != nil {
+		if base.IsUniqueViolation(err) && profile.Email != nil {
 			return newEmailInUseError(*profile.Email)
 		}
 		return err
@@ -301,24 +300,6 @@ func sameInt64Set(a, b []int64) bool {
 	slices.Sort(aCopy)
 	slices.Sort(bCopy)
 	return slices.Equal(aCopy, bCopy)
-}
-
-// isGuardianUniqueViolation reports whether err (or a wrapped DatabaseError)
-// carries PostgreSQL code 23505 (unique_violation) — used to classify a raced
-// duplicate-email insert/update as bad input rather than a 500.
-func isGuardianUniqueViolation(err error) bool {
-	if err == nil {
-		return false
-	}
-	var dbErr *base.DatabaseError
-	if errors.As(err, &dbErr) {
-		err = dbErr.Err
-	}
-	var pgErr pgdriver.Error
-	if errors.As(err, &pgErr) {
-		return pgErr.IntegrityViolation() && pgErr.Field('C') == "23505"
-	}
-	return false
 }
 
 // SendInvitation sends an invitation to a guardian.
@@ -450,24 +431,37 @@ func (s *guardianService) getGuardianDeleteImpact(ctx context.Context, guardianP
 	}
 
 	linkIDs := make([]int64, 0, len(relationships))
-	studentNames := make([]string, 0, len(relationships))
+	studentIDs := make([]int64, 0, len(relationships))
 	for _, rel := range relationships {
 		linkIDs = append(linkIDs, rel.ID)
-		student, err := s.StudentRepo.FindByID(ctx, rel.StudentID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load student %d: %w", rel.StudentID, err)
-		}
+		studentIDs = append(studentIDs, rel.StudentID)
+	}
 
-		person, err := s.PersonRepo.FindByID(ctx, student.PersonID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load person %d for student %d: %w", student.PersonID, rel.StudentID, err)
-		}
+	// Batch-load students and their persons (replaces the per-relationship
+	// 2N+1 lookups). Missing rows stay hard errors, as before.
+	students, err := s.StudentRepo.FindByIDs(ctx, studentIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load students: %w", err)
+	}
+	personIDs := make([]int64, 0, len(students))
+	for _, student := range students {
+		personIDs = append(personIDs, student.PersonID)
+	}
+	persons, err := s.PersonRepo.FindByIDs(ctx, personIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load persons: %w", err)
+	}
 
-		// P1 FIX: Guard against nil person record (some repositories return (nil, nil) for missing rows)
-		if person == nil {
+	studentNames := make([]string, 0, len(relationships))
+	for _, rel := range relationships {
+		student, ok := students[rel.StudentID]
+		if !ok {
+			return nil, fmt.Errorf("failed to load student %d: record missing", rel.StudentID)
+		}
+		person, ok := persons[student.PersonID]
+		if !ok || person == nil {
 			return nil, fmt.Errorf("person record %d is missing for student %d", student.PersonID, rel.StudentID)
 		}
-
 		studentNames = append(studentNames, person.GetFullName())
 	}
 
@@ -484,10 +478,19 @@ func (s *guardianService) GetStudentGuardians(ctx context.Context, studentID int
 		return nil, err
 	}
 
+	profileIDs := make([]int64, 0, len(relationships))
+	for _, rel := range relationships {
+		profileIDs = append(profileIDs, rel.GuardianProfileID)
+	}
+	profiles, err := s.GuardianProfileRepo.FindByIDs(ctx, profileIDs)
+	if err != nil {
+		return nil, err
+	}
+
 	result := make([]*GuardianWithRelationship, 0, len(relationships))
 	for _, rel := range relationships {
-		profile, err := s.GuardianProfileRepo.FindByID(ctx, rel.GuardianProfileID)
-		if err != nil {
+		profile, ok := profiles[rel.GuardianProfileID]
+		if !ok {
 			continue // Skip if profile not found
 		}
 
@@ -539,10 +542,19 @@ func (s *guardianService) GetGuardianStudents(ctx context.Context, guardianProfi
 		return nil, err
 	}
 
+	studentIDs := make([]int64, 0, len(relationships))
+	for _, rel := range relationships {
+		studentIDs = append(studentIDs, rel.StudentID)
+	}
+	students, err := s.StudentRepo.FindByIDs(ctx, studentIDs)
+	if err != nil {
+		return nil, err
+	}
+
 	result := make([]*StudentWithRelationship, 0, len(relationships))
 	for _, rel := range relationships {
-		student, err := s.StudentRepo.FindByID(ctx, rel.StudentID)
-		if err != nil {
+		student, ok := students[rel.StudentID]
+		if !ok {
 			continue // Skip if student not found
 		}
 

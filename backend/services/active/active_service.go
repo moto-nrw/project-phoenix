@@ -25,7 +25,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // Broadcaster interface (re-exported from realtime for convenience)
@@ -471,34 +470,13 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 // so a future unrelated unique index on active.visits doesn't accidentally
 // translate into ErrStudentAlreadyActive.
 func isDuplicateActiveVisitViolation(err error) bool {
-	if err == nil {
-		return false
-	}
-	var dbErr *base.DatabaseError
-	if errors.As(err, &dbErr) {
-		err = dbErr.Err
-	}
-	var pgErr pgdriver.Error
-	if errors.As(err, &pgErr) {
-		return pgErr.Field('C') == "23505" &&
-			pgErr.Field('n') == "uniq_active_visits_open_per_student"
-	}
-	return false
-}
-
-// isNotFoundError checks if an error is due to "not found" (sql.ErrNoRows) vs. other database errors
-func isNotFoundError(err error) bool {
-	var dbErr *base.DatabaseError
-	if errors.As(err, &dbErr) {
-		return errors.Is(dbErr.Err, sql.ErrNoRows)
-	}
-	return false
+	return base.IsUniqueViolationOn(err, "uniq_active_visits_open_per_student")
 }
 
 // validateStudentExists checks if a student exists, returning appropriate errors
 func (s *service) validateStudentExists(ctx context.Context, studentID int64) error {
 	if _, err := s.StudentRepo.FindByID(ctx, studentID); err != nil {
-		if isNotFoundError(err) {
+		if base.IsNoRows(err) {
 			return ErrStudentNotFound
 		}
 		return err
@@ -509,7 +487,7 @@ func (s *service) validateStudentExists(ctx context.Context, studentID int64) er
 // validateActiveGroupExists checks if an active group exists, returning appropriate errors
 func (s *service) validateActiveGroupExists(ctx context.Context, groupID int64) error {
 	if _, err := s.GroupRepo.FindByID(ctx, groupID); err != nil {
-		if isNotFoundError(err) {
+		if base.IsNoRows(err) {
 			return ErrActiveGroupNotFound
 		}
 		return err
@@ -520,7 +498,7 @@ func (s *service) validateActiveGroupExists(ctx context.Context, groupID int64) 
 // validateStaffExists checks if a staff member exists, returning appropriate errors
 func (s *service) validateStaffExists(ctx context.Context, staffID int64) error {
 	if _, err := s.StaffRepo.FindByID(ctx, staffID); err != nil {
-		if isNotFoundError(err) {
+		if base.IsNoRows(err) {
 			return ErrStaffNotFound
 		}
 		return err
@@ -875,7 +853,7 @@ func (s *service) getRoomName(ctx context.Context, roomID int64) string {
 func (s *service) GetStudentCurrentVisit(ctx context.Context, studentID int64) (*active.Visit, error) {
 	visit, err := s.VisitRepo.GetCurrentByStudentID(ctx, studentID)
 	if err != nil {
-		if isNotFoundError(err) {
+		if base.IsNoRows(err) {
 			return nil, &ActiveError{Op: "GetStudentCurrentVisit", Err: ErrVisitNotFound}
 		}
 		return nil, &ActiveError{Op: "GetStudentCurrentVisit", Err: ErrDatabaseOperation}
@@ -891,7 +869,7 @@ func (s *service) GetStudentCurrentVisit(ctx context.Context, studentID int64) (
 func (s *service) GetStudentCurrentVisitWithRoom(ctx context.Context, studentID int64) (*active.Visit, error) {
 	visit, err := s.VisitRepo.GetCurrentByStudentIDWithRoom(ctx, studentID)
 	if err != nil {
-		if isNotFoundError(err) {
+		if base.IsNoRows(err) {
 			return nil, &ActiveError{Op: "GetStudentCurrentVisitWithRoom", Err: ErrVisitNotFound}
 		}
 		return nil, &ActiveError{Op: "GetStudentCurrentVisitWithRoom", Err: ErrDatabaseOperation}

@@ -243,7 +243,7 @@ func (s *invitationService) attachRoleAndCreator(ctx context.Context, invitation
 // ValidateInvitation returns the public details for a token if it is still usable.
 func (s *invitationService) ValidateInvitation(ctx context.Context, token string) (*InvitationValidationResult, error) {
 	var result *InvitationValidationResult
-	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.db, func(adminCtx context.Context) error {
 		invitation, fetchErr := s.fetchValidInvitation(adminCtx, token)
 		if fetchErr != nil {
 			return fetchErr
@@ -274,7 +274,7 @@ func (s *invitationService) ValidateInvitation(ctx context.Context, token string
 // AcceptInvitation converts a token into a real account & person record.
 func (s *invitationService) AcceptInvitation(ctx context.Context, token string, userData UserRegistrationData) (*authModels.Account, error) {
 	var createdAccount *authModels.Account
-	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.db, func(adminCtx context.Context) error {
 		invitation, fetchErr := s.fetchValidInvitation(adminCtx, token)
 		if fetchErr != nil {
 			return fetchErr
@@ -338,18 +338,6 @@ func (s *invitationService) findExistingAccountByEmail(ctx context.Context, emai
 		return nil, nil
 	}
 	return nil, err
-}
-
-func (s *invitationService) withAdminTx(ctx context.Context, fn func(context.Context) error) error {
-	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
-		return fn(ctx)
-	}
-	if s.db == nil {
-		return fn(ctx)
-	}
-	return tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
-		return fn(adminCtx)
-	})
 }
 
 // validateAndHashPassword validates password match and strength, then returns the hash.
@@ -591,7 +579,7 @@ func (s *invitationService) assignCaregiverRoleIfRequested(ctx context.Context, 
 		return nil
 	}
 
-	userRole, err := s.resolveSystemRoleByName(ctx, authModels.BaseRoleUser)
+	userRole, err := ResolveSystemRoleByName(ctx, s.roleRepo, authModels.BaseRoleUser)
 	if err != nil {
 		return &AuthError{Op: "assign caregiver role", Err: err}
 	}
@@ -602,8 +590,12 @@ func (s *invitationService) assignCaregiverRoleIfRequested(ctx context.Context, 
 	return s.assignRole(ctx, accountID, userRole.ID, invitation.TenantID)
 }
 
-func (s *invitationService) resolveSystemRoleByName(ctx context.Context, name string) (*authModels.Role, error) {
-	roles, err := s.roleRepo.List(ctx, map[string]interface{}{
+// ResolveSystemRoleByName looks up the system (tenant-independent) role with
+// the given name via repo, matching case-insensitively. Returns (nil, nil)
+// when no system role matches. Shared across the invitation, caregiver, and
+// operator-provisioning services (audit B7 — was three private copies).
+func ResolveSystemRoleByName(ctx context.Context, repo authModels.RoleRepository, name string) (*authModels.Role, error) {
+	roles, err := repo.List(ctx, map[string]interface{}{
 		"name":      strings.TrimSpace(strings.ToLower(name)),
 		"is_system": true,
 	})
@@ -894,7 +886,7 @@ func (s *invitationService) persistInvitationDelivery(ctx context.Context, meta 
 		errText = &msg
 	}
 
-	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, s.db, func(adminCtx context.Context) error {
 		return s.invitationRepo.UpdateDeliveryResult(adminCtx, meta.ReferenceID, sentAt, errText, retryCount)
 	})
 	if err != nil {

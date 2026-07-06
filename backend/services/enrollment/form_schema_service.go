@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -273,7 +274,7 @@ func (s *formSchemaService) RenameSchema(ctx context.Context, id int64, newName 
 		// between the check above and this update, the unique index
 		// (tenant_id, name, version) raises 23505. Translate it to the
 		// sentinel so the handler still returns 409, not a generic 400.
-		if isUniqueViolationOn(err, formSchemaNameVersionUniqueIndex) {
+		if base.IsUniqueViolationOn(err, formSchemaNameVersionUniqueIndex) {
 			return nil, ErrFormSchemaNameExists
 		}
 		return nil, fmt.Errorf("rename schema: %w", err)

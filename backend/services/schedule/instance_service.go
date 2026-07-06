@@ -24,7 +24,6 @@ package schedule
 import (
 	"cmp"
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -729,7 +728,7 @@ func (s *instanceService) validateInstanceReferences(
 		return fmt.Errorf("%w: invalid room_id", ErrInvalidInstanceReference)
 	}
 	if room, err := s.deps.RoomRepo.FindByID(ctx, roomID); err != nil || room == nil {
-		if err != nil && !isNotFoundDBError(err) {
+		if err != nil && !modelBase.IsNoRows(err) {
 			return fmt.Errorf("validate room_id: %w", err)
 		}
 		return fmt.Errorf("%w: invalid room_id", ErrInvalidInstanceReference)
@@ -741,7 +740,7 @@ func (s *instanceService) validateInstanceReferences(
 		}
 		group, err := s.deps.ActivityGroupRepo.FindByID(ctx, *activityGroupID)
 		if err != nil || group == nil {
-			if err != nil && !isNotFoundDBError(err) {
+			if err != nil && !modelBase.IsNoRows(err) {
 				return fmt.Errorf("validate activity_group_id: %w", err)
 			}
 			return fmt.Errorf("%w: invalid activity_group_id", ErrInvalidInstanceReference)
@@ -765,7 +764,7 @@ func (s *instanceService) validateInstanceReferences(
 		}
 		staff, err := s.deps.StaffRepo.FindByID(ctx, *createdByStaffID)
 		if err != nil || staff == nil {
-			if err != nil && !isNotFoundDBError(err) {
+			if err != nil && !modelBase.IsNoRows(err) {
 				return fmt.Errorf("validate created_by_staff_id: %w", err)
 			}
 			return fmt.Errorf("%w: invalid created_by_staff_id", ErrInvalidInstanceReference)
@@ -855,7 +854,7 @@ func (s *instanceService) ReplanWeek(ctx context.Context, from, to timezone.Date
 func (s *instanceService) loadForTransition(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error) {
 	instance, err := s.deps.InstanceRepo.FindByID(ctx, instanceID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) || isNotFoundDBError(err) {
+		if modelBase.IsNoRows(err) {
 			return nil, ErrInstanceNotFound
 		}
 		return nil, &ScheduleError{Op: "load instance", Err: err}
@@ -979,20 +978,6 @@ func instanceRefreshReason(eventType realtime.EventType) string {
 	default:
 		return "instance_changed"
 	}
-}
-
-// isNotFoundDBError unwraps models/base.DatabaseError and reports whether
-// the underlying error is sql.ErrNoRows. The repo layer wraps sql.ErrNoRows
-// in a DatabaseError; errors.Is(err, sql.ErrNoRows) alone misses that case.
-func isNotFoundDBError(err error) bool {
-	if err == nil {
-		return false
-	}
-	var dbErr *modelBase.DatabaseError
-	if errors.As(err, &dbErr) {
-		return errors.Is(dbErr.Err, sql.ErrNoRows)
-	}
-	return false
 }
 
 // GetPlannedStudentIDsByDate returns the unique student IDs (of the given

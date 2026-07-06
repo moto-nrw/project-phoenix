@@ -9,6 +9,7 @@ import (
 
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/tenant"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
@@ -86,7 +87,7 @@ func TestWithAdminTx_UsesExistingTxFromContext(t *testing.T) {
 	svc, _, ctx := newTestServiceWithTx(t)
 
 	called := false
-	err := svc.withAdminTx(ctx, func(ctx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, svc.DB, func(ctx context.Context) error {
 		called = true
 		// Verify the tx is still accessible in context
 		tx, ok := modelBase.TxFromContext(ctx)
@@ -103,7 +104,7 @@ func TestWithAdminTx_ExistingTx_PropagatesError(t *testing.T) {
 	svc, _, ctx := newTestServiceWithTx(t)
 
 	expectedErr := errors.New("fn error")
-	err := svc.withAdminTx(ctx, func(ctx context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, svc.DB, func(ctx context.Context) error {
 		return expectedErr
 	})
 

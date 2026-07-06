@@ -282,7 +282,7 @@ func (rs *Resource) isUserGroupLeader(ctx context.Context, teacherID int64, grou
 // Returns true if user is admin or supervises the group.
 func (rs *Resource) userHasGroupAccess(r *http.Request, groupID int64) bool {
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	if common.HasAdminPermissions(userPermissions) {
+	if authorize.HasAdminWildcard(userPermissions) {
 		return true
 	}
 

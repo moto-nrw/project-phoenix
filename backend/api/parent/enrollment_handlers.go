@@ -15,34 +15,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
-
-// EnrollmentProfileResponse mirrors the public form's autofill shape
-// (api/enrollment/me_handlers.go MeProfileResponse) so the same
-// EnrollmentForm component can consume it without branching. Children
-// are scoped to the tenant resolved from the {tenantSlug} path.
-type EnrollmentProfileResponse struct {
-	Guardian profileGuardian `json:"guardian"`
-	Children []profileChild  `json:"children"`
-}
-
-type profileGuardian struct {
-	FirstName string  `json:"first_name"`
-	LastName  string  `json:"last_name"`
-	Email     string  `json:"email"`
-	Phone     *string `json:"phone,omitempty"`
-}
-
-type profileChild struct {
-	ID          string `json:"id"`
-	FirstName   string `json:"first_name"`
-	LastName    string `json:"last_name"`
-	SchoolClass string `json:"school_class"`
-	GradeLevel  *int   `json:"grade_level,omitempty"`
-}
 
 // getEnrollmentProfile returns guardian + linked-children data for the
 // calling parent within the requested tenant. Tenant comes from the
@@ -82,7 +57,7 @@ func (rs *Resource) getEnrollmentProfile(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	resp := buildEnrollmentProfileResponse(claims, loaded)
+	resp := common.BuildGuardianProfileResponse(claims, loaded)
 	common.Respond(w, r, http.StatusOK, resp, "Profile retrieved")
 }
 
@@ -103,71 +78,6 @@ func (rs *Resource) resolveSchoolID(ctx context.Context, slug string) (int64, er
 		return 0, err
 	}
 	return out, nil
-}
-
-// buildEnrollmentProfileResponse merges the claims-derived defaults
-// with the (possibly nil) guardian profile loaded from the tenant.
-// Nil loaded → defaults only + empty children, matching the legacy
-// fall-through behavior.
-func buildEnrollmentProfileResponse(claims jwt.AppClaims, loaded *usersModels.GuardianProfileWithChildren) EnrollmentProfileResponse {
-	resp := EnrollmentProfileResponse{
-		Guardian: profileGuardian{
-			FirstName: claims.FirstName,
-			LastName:  claims.LastName,
-			Email:     claims.Sub,
-		},
-		Children: []profileChild{},
-	}
-	if loaded == nil || loaded.Profile == nil {
-		return resp
-	}
-	if loaded.Profile.FirstName != "" {
-		resp.Guardian.FirstName = loaded.Profile.FirstName
-	}
-	if loaded.Profile.LastName != "" {
-		resp.Guardian.LastName = loaded.Profile.LastName
-	}
-	if loaded.Profile.Email != nil && *loaded.Profile.Email != "" {
-		resp.Guardian.Email = *loaded.Profile.Email
-	}
-	if loaded.PrimaryPhone != "" {
-		phone := loaded.PrimaryPhone
-		resp.Guardian.Phone = &phone
-	}
-	for _, child := range loaded.Children {
-		entry := profileChild{
-			ID:          strconv.FormatInt(child.StudentID, 10),
-			FirstName:   child.FirstName,
-			LastName:    child.LastName,
-			SchoolClass: child.SchoolClass,
-		}
-		if grade := parseLeadingGrade(child.SchoolClass); grade > 0 {
-			entry.GradeLevel = &grade
-		}
-		resp.Children = append(resp.Children, entry)
-	}
-	return resp
-}
-
-// parseLeadingGrade extracts the leading integer from strings like "1a"
-// or "10". Mirrors api/enrollment/me_handlers.go parseGradeLevel.
-func parseLeadingGrade(schoolClass string) int {
-	digits := ""
-	for _, r := range schoolClass {
-		if r >= '0' && r <= '9' {
-			digits += string(r)
-			continue
-		}
-		break
-	}
-	if digits == "" {
-		return 0
-	}
-	n, err := strconv.Atoi(digits)
-	if err != nil {
-		return 0
-	}
-	return n
 }
 
 // submitParentChildRequest is the wire shape for one child within the

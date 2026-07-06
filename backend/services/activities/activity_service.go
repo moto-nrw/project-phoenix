@@ -86,12 +86,8 @@ func (s *Service) CreateCategory(ctx context.Context, category *activities.Categ
 func (s *Service) GetCategory(ctx context.Context, id int64) (*activities.Category, error) {
 	category, err := s.categoryRepo.FindByID(ctx, id)
 	if err != nil {
-		// Check for "no rows" error and convert to our own error
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &ActivityError{Op: opGetCategory, Err: ErrCategoryNotFound}
-		}
-		// Check if the wrapped database error contains sql.ErrNoRows
-		if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
+		// Convert "no rows" (bare or DatabaseError-wrapped) to our own error
+		if base.IsNoRows(err) {
 			return nil, &ActivityError{Op: opGetCategory, Err: ErrCategoryNotFound}
 		}
 		return nil, &ActivityError{Op: opGetCategory, Err: err}
@@ -203,12 +199,8 @@ func (s *Service) createSchedulesInTx(ctx context.Context, txService ActivitySer
 func (s *Service) GetGroup(ctx context.Context, id int64) (*activities.Group, error) {
 	group, err := s.groupRepo.FindByID(ctx, id)
 	if err != nil {
-		// Check for "no rows" error and convert to our own error
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &ActivityError{Op: opGetGroup, Err: ErrGroupNotFound}
-		}
-		// Check if the wrapped database error contains sql.ErrNoRows
-		if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
+		// Convert "no rows" (bare or DatabaseError-wrapped) to our own error
+		if base.IsNoRows(err) {
 			return nil, &ActivityError{Op: opGetGroup, Err: ErrGroupNotFound}
 		}
 		return nil, &ActivityError{Op: opGetGroup, Err: err}
@@ -411,12 +403,8 @@ func (s *Service) GetGroupWithDetails(ctx context.Context, id int64) (*activitie
 	// Get the group
 	group, err := s.groupRepo.FindByID(ctx, id)
 	if err != nil {
-		// Check for "no rows" error and convert to our own error
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil, nil, &ActivityError{Op: opGetGroup, Err: ErrGroupNotFound}
-		}
-		// Check if the wrapped database error contains sql.ErrNoRows
-		if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
+		// Convert "no rows" (bare or DatabaseError-wrapped) to our own error
+		if base.IsNoRows(err) {
 			return nil, nil, nil, &ActivityError{Op: opGetGroup, Err: ErrGroupNotFound}
 		}
 		return nil, nil, nil, &ActivityError{Op: opGetGroup, Err: err}

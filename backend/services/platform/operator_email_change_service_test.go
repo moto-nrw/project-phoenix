@@ -13,6 +13,7 @@ import (
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/email"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -319,11 +320,11 @@ func TestConfirmEmailChange_MissingTokenRepo(t *testing.T) {
 // =============================================================================
 
 func TestIsUniqueViolation_NilError(t *testing.T) {
-	assert.False(t, isUniqueViolation(nil))
+	assert.False(t, modelBase.IsUniqueViolation(nil))
 }
 
 func TestIsUniqueViolation_NonPgError(t *testing.T) {
-	assert.False(t, isUniqueViolation(errors.New("some generic error")))
+	assert.False(t, modelBase.IsUniqueViolation(errors.New("some generic error")))
 }
 
 // =============================================================================

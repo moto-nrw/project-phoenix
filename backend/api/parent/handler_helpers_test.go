@@ -24,35 +24,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// --- parseLeadingGrade ---------------------------------------------------
-
-func TestParseLeadingGrade_DigitsThenLetter(t *testing.T) {
-	assert.Equal(t, 1, parseLeadingGrade("1a"))
-	assert.Equal(t, 4, parseLeadingGrade("4b"))
-}
-
-func TestParseLeadingGrade_AllDigits(t *testing.T) {
-	assert.Equal(t, 10, parseLeadingGrade("10"))
-}
-
-func TestParseLeadingGrade_LeadingLetterIsZero(t *testing.T) {
-	// "a1" has no leading digit run → return 0 (the caller treats 0 as
-	// "couldn't determine grade", same as a malformed input).
-	assert.Equal(t, 0, parseLeadingGrade("a1"))
-}
-
-func TestParseLeadingGrade_EmptyIsZero(t *testing.T) {
-	assert.Equal(t, 0, parseLeadingGrade(""))
-}
-
-func TestParseLeadingGrade_PurePunctuationIsZero(t *testing.T) {
-	assert.Equal(t, 0, parseLeadingGrade("---"))
-}
-
-func TestParseLeadingGrade_MultiDigitThenLetter(t *testing.T) {
-	assert.Equal(t, 11, parseLeadingGrade("11x"))
-}
-
 // --- buildParentServiceRequest -------------------------------------------
 
 func TestBuildParentServiceRequest_StampsTenantAndAccount(t *testing.T) {

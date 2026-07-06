@@ -89,3 +89,36 @@ func WithAdminTx(ctx context.Context, db *bun.DB, fn func(ctx context.Context, t
 		return fn(ctx, tx)
 	})
 }
+
+// WithAdminTxOrDirect runs fn inside a phoenix_admin (BYPASSRLS) transaction
+// like WithAdminTx, degrading gracefully for test wiring: when the context
+// already carries a transaction, or db is nil/unusable (zero-value &bun.DB{}
+// stubs panic on any operation), fn runs directly instead. Replaces the
+// per-service private withAdminTx shims (audit B7).
+func WithAdminTxOrDirect(ctx context.Context, db *bun.DB, fn func(ctx context.Context) error) error {
+	if tx, ok := modelBase.TxFromContext(ctx); ok && tx != nil {
+		return fn(ctx)
+	}
+	if !usableDB(db) {
+		return fn(ctx)
+	}
+	return WithAdminTx(ctx, db, func(adminCtx context.Context, _ bun.Tx) error {
+		return fn(adminCtx)
+	})
+}
+
+// usableDB reports whether db is a real connection. A zero-value &bun.DB{}
+// (common in unit-test struct literals) panics on any operation; probe it
+// with a harmless stats call.
+func usableDB(db *bun.DB) (ok bool) {
+	if db == nil {
+		return false
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			ok = false
+		}
+	}()
+	_ = db.DBStats()
+	return true
+}

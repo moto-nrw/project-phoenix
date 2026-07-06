@@ -25,7 +25,6 @@ package schedule
 import (
 	"cmp"
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -34,6 +33,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -393,7 +393,7 @@ func validateSplitMaterializationWindow(in TemplateSplitInput) error {
 func (s *templateSplitService) loadTemplate(ctx context.Context, id int64) (*activitiesModel.Group, error) {
 	group, err := s.deps.GroupRepo.FindByID(ctx, id)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) || isNotFoundDBError(err) {
+		if modelBase.IsNoRows(err) {
 			return nil, ErrSplitTemplateNotFound
 		}
 		return nil, &ScheduleError{Op: "split template: load template", Err: err}

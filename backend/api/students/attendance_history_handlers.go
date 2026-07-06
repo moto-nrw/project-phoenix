@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -212,7 +213,7 @@ func (rs *Resource) attendanceHistoryLogger() *slog.Logger {
 // Admins always pass.
 func (rs *Resource) attendanceHistoryScopeAllows(r *http.Request, student *users.Student, scope string) bool {
 	perms := jwt.PermissionsFromCtx(r.Context())
-	if common.HasAdminPermissions(perms) {
+	if authorize.HasAdminWildcard(perms) {
 		return true
 	}
 	if scope == configModel.AttendanceLogScopeAllStaff {

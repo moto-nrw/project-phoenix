@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/joho/godotenv"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
+	"github.com/subosito/gotenv"
 	"github.com/uptrace/bun"
 )
 
@@ -65,7 +65,7 @@ func LoadTestEnv(t *testing.T) {
 	}
 
 	envPath := filepath.Join(projectRoot, ".env")
-	if err := godotenv.Load(envPath); err != nil {
+	if err := gotenv.Load(envPath); err != nil {
 		t.Logf("Warning: Could not load %s: %v", envPath, err)
 	}
 }

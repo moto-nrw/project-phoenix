@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -135,7 +136,7 @@ func evaluateWebCheckinAccess(mode string, supervisorHasAccess bool) error {
 // happens not to teach the student's group would get a 403 in
 // `group_supervisors` mode, which contradicts the rest of the admin model.
 func (rs *Resource) enforceWebCheckinAccess(ctx context.Context, staffID, studentID int64) error {
-	if common.HasAdminPermissions(jwt.PermissionsFromCtx(ctx)) {
+	if authorize.HasAdminWildcard(jwt.PermissionsFromCtx(ctx)) {
 		return nil
 	}
 

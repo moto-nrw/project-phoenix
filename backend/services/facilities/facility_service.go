@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // Operation name constants to avoid string duplication
@@ -151,7 +150,7 @@ func translateValidationError(err error) error {
 // constraint name is checked so other future unique indexes on the table do
 // not accidentally surface as "color already in use" toasts.
 func isUniqueColorViolation(err error) bool {
-	return isUniqueViolationOnIndex(err, facilities.RoomColorUniqueConstraintName)
+	return base.IsUniqueViolationOn(err, facilities.RoomColorUniqueConstraintName)
 }
 
 // isUniqueWCAliasViolation reports whether err is a PostgreSQL 23505 raised
@@ -159,29 +158,7 @@ func isUniqueColorViolation(err error) bool {
 // per tenant". Hit only on the TOCTOU race the application-level guard in
 // CreateRoom/UpdateRoom can't close — see migration 1.15.48.
 func isUniqueWCAliasViolation(err error) bool {
-	return isUniqueViolationOnIndex(err, facilities.RoomWCAliasUniqueConstraintName)
-}
-
-// isUniqueViolationOnIndex reports whether err is a PostgreSQL 23505 raised
-// by the named partial unique index. Pulled out of isUniqueColorViolation
-// because we now have two such indexes on facilities.rooms and the matching
-// logic is identical — only the index name differs.
-func isUniqueViolationOnIndex(err error, indexName string) bool {
-	if err == nil {
-		return false
-	}
-	var dbErr *base.DatabaseError
-	if errors.As(err, &dbErr) {
-		err = dbErr.Err
-	}
-	var pgErr pgdriver.Error
-	if !errors.As(err, &pgErr) {
-		return false
-	}
-	if pgErr.Field('C') != "23505" {
-		return false
-	}
-	return pgErr.Field('n') == indexName
+	return base.IsUniqueViolationOn(err, facilities.RoomWCAliasUniqueConstraintName)
 }
 
 // equalStringPtr compares two *string for equality treating nil as "no value"

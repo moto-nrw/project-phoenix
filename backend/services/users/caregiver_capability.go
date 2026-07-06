@@ -166,7 +166,7 @@ func (s *caregiverCapabilityService) EnableCaregiverCapability(
 			details["requested_position"] = input.Position
 		}
 
-		userRole, err := s.resolveSystemRoleByName(txCtx, "user")
+		userRole, err := authSvc.ResolveSystemRoleByName(txCtx, s.RoleRepo, "user")
 		if err != nil {
 			return err
 		}
@@ -240,7 +240,7 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 		}
 
 		for _, roleName := range roleNamesToRemove {
-			role, err := s.resolveSystemRoleByName(txCtx, roleName)
+			role, err := authSvc.ResolveSystemRoleByName(txCtx, s.RoleRepo, roleName)
 			if err != nil {
 				return err
 			}
@@ -546,28 +546,6 @@ func (s *caregiverCapabilityService) findStaffByPersonID(
 		return nil, err
 	}
 	return staff, nil
-}
-
-func (s *caregiverCapabilityService) resolveSystemRoleByName(
-	ctx context.Context,
-	name string,
-) (*authModels.Role, error) {
-	roles, err := s.RoleRepo.List(ctx, map[string]interface{}{
-		"name":      strings.TrimSpace(strings.ToLower(name)),
-		"is_system": true,
-	})
-	if err != nil {
-		return nil, err
-	}
-	for _, role := range roles {
-		if role == nil {
-			continue
-		}
-		if role.TenantID == nil && role.IsSystem && strings.EqualFold(role.Name, name) {
-			return role, nil
-		}
-	}
-	return nil, nil
 }
 
 func (s *caregiverCapabilityService) listDisableBlockers(

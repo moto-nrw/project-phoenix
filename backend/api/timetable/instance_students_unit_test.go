@@ -480,30 +480,6 @@ func TestMapAttendanceToResponse_WithoutCheckedInAt(t *testing.T) {
 }
 
 // -----------------------------------------------------------------------------
-// isNotFoundDBError — exhaustive matrix
-// -----------------------------------------------------------------------------
-
-func TestIsNotFoundDBError(t *testing.T) {
-	tests := []struct {
-		name string
-		err  error
-		want bool
-	}{
-		{"nil error", nil, false},
-		{"plain sql.ErrNoRows", sql.ErrNoRows, false}, // not wrapped in DatabaseError
-		{"DatabaseError wrapping ErrNoRows", &modelsBase.DatabaseError{Op: "find", Err: sql.ErrNoRows}, true},
-		{"DatabaseError wrapping other err", &modelsBase.DatabaseError{Op: "find", Err: errors.New("boom")}, false},
-		{"plain other error", errors.New("timeout"), false},
-		{"wrapped DatabaseError", fmt.Errorf("outer: %w", &modelsBase.DatabaseError{Op: "find", Err: sql.ErrNoRows}), true},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, isNotFoundDBError(tc.err))
-		})
-	}
-}
-
-// -----------------------------------------------------------------------------
 // parseAttendancePatchRequest — ensure each state reached
 // -----------------------------------------------------------------------------
 

@@ -217,12 +217,6 @@ func (rs *Resource) Router() chi.Router {
 	return r
 }
 
-// containsIgnoreCase checks if a string contains another string, ignoring case
-func containsIgnoreCase(s, substr string) bool {
-	s, substr = strings.ToLower(s), strings.ToLower(substr)
-	return strings.Contains(s, substr)
-}
-
 // parseAndGetStudent parses the student ID from the URL and fetches the student
 // Returns the student and true if successful, or renders an error and returns nil, false
 func (rs *Resource) parseAndGetStudent(w http.ResponseWriter, r *http.Request) (*users.Student, bool) {
@@ -303,7 +297,7 @@ func (rs *Resource) checkStudentReadAccess(r *http.Request, student *users.Stude
 // both read and write access paths (before scope overrides are applied).
 func (rs *Resource) isGroupSupervisorOrAdmin(r *http.Request, student *users.Student) bool {
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	if common.HasAdminPermissions(userPermissions) {
+	if authorize.HasAdminWildcard(userPermissions) {
 		return true
 	}
 
@@ -1024,7 +1018,7 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 
 	// Admin users creating students can see full data including detailed location
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	hasFullAccess := common.HasAdminPermissions(userPermissions)
+	hasFullAccess := authorize.HasAdminWildcard(userPermissions)
 
 	// Return the created student with person data
 	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
@@ -1329,7 +1323,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Track whether the user is admin or group supervisor
-	isAdmin := common.HasAdminPermissions(userPermissions)
+	isAdmin := authorize.HasAdminWildcard(userPermissions)
 	isGroupSupervisor := !isAdmin // If not admin but authorized, must be group supervisor
 
 	// Update person fields using helper function

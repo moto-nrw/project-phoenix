@@ -393,57 +393,21 @@ func (s *service) GetGroupTeachers(ctx context.Context, groupID int64) ([]*users
 		return []*users.Teacher{}, nil
 	}
 
-	// Extract teacher IDs
 	teacherIDs := make([]int64, 0, len(relations))
 	for _, rel := range relations {
 		teacherIDs = append(teacherIDs, rel.TeacherID)
 	}
-
 	if len(teacherIDs) == 0 {
 		return []*users.Teacher{}, nil
 	}
 
-	// Build query options with an IN filter for teacher IDs
-	options := base.NewQueryOptions()
-	filter := base.NewFilter()
-
-	// Convert int64 slice to []interface{}
-	interfaceIDs := make([]interface{}, len(teacherIDs))
-	for i, id := range teacherIDs {
-		interfaceIDs[i] = id
-	}
-
-	filter.In("id", interfaceIDs...)
-	options.Filter = filter
-
-	// Get teachers using the modern ListWithOptions method
-	teachers, err := s.teacherRepo.ListWithOptions(ctx, options)
+	// Batch fetch teachers with staff+person in one query — same path as
+	// GetTeachersForGroups; replaces the per-teacher N+1 enrichment.
+	teachers, err := s.teacherRepo.FindWithStaffAndPersonByIDs(ctx, teacherIDs)
 	if err != nil {
 		return nil, &EducationError{Op: "GetGroupTeachers", Err: err}
 	}
-
-	// Always filter to ensure we only return teachers that were requested
-	var filteredTeachers []*users.Teacher
-	idMap := make(map[int64]bool)
-	for _, id := range teacherIDs {
-		idMap[id] = true
-	}
-
-	// Fetch staff and person data for each teacher
-	for _, teacher := range teachers {
-		if idMap[teacher.ID] {
-			// Try to get teacher with staff and person data
-			fullTeacher, err := s.teacherRepo.FindWithStaffAndPerson(ctx, teacher.ID)
-			if err == nil {
-				filteredTeachers = append(filteredTeachers, fullTeacher)
-			} else {
-				// If fetch fails, use teacher without staff/person data
-				filteredTeachers = append(filteredTeachers, teacher)
-			}
-		}
-	}
-
-	return filteredTeachers, nil
+	return teachers, nil
 }
 
 // GetTeachersForGroups batch-loads all teachers for multiple groups in 2 queries

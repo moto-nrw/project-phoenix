@@ -25,6 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -173,7 +174,7 @@ func (rs *Resource) resolveStudentForRead(w http.ResponseWriter, r *http.Request
 
 	student, err := rs.PersonService.GetStudentByID(ctx, studentID)
 	if err != nil {
-		if isNotFoundDBError(err) {
+		if base.IsNoRows(err) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("student not found")))
 			return nil, false
 		}

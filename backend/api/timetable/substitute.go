@@ -31,6 +31,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -125,7 +126,7 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 	// --- 404 checks: both staff must exist in this tenant -----------------
 	absentStaff, err := rs.PersonService.GetStaffByID(ctx, req.AbsentStaffID)
 	if err != nil {
-		if isNotFoundDBError(err) {
+		if base.IsNoRows(err) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("absent staff not found")))
 			return
 		}
@@ -138,7 +139,7 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 	}
 	subStaff, err := rs.PersonService.GetStaffByID(ctx, req.SubstituteStaffID)
 	if err != nil {
-		if isNotFoundDBError(err) {
+		if base.IsNoRows(err) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("substitute staff not found")))
 			return
 		}

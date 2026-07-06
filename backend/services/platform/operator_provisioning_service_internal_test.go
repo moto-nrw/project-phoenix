@@ -20,6 +20,7 @@ import (
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -406,7 +407,7 @@ func TestMapSchoolCreateConflict_SubdomainConflict(t *testing.T) {
 func TestWithAdminTx_WithoutHandlerRunsCallback(t *testing.T) {
 	service := &operatorProvisioningService{}
 	called := false
-	err := service.withAdminTx(context.Background(), func(context.Context) error {
+	err := tenant.WithAdminTxOrDirect(context.Background(), service.adminDB(), func(context.Context) error {
 		called = true
 		return nil
 	})
@@ -541,7 +542,7 @@ func TestIsUniqueViolation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, isUniqueViolation(tt.err))
+			assert.Equal(t, tt.want, modelBase.IsUniqueViolation(tt.err))
 		})
 	}
 }
@@ -557,7 +558,7 @@ func TestResolveSystemRoleByName_NilRoleSkipped(t *testing.T) {
 		},
 	}},
 	}
-	role, err := svc.resolveSystemRoleByName(context.Background(), "admin")
+	role, err := authSvc.ResolveSystemRoleByName(context.Background(), svc.RoleRepo, "admin")
 	require.NoError(t, err)
 	assert.Nil(t, role)
 }
@@ -571,7 +572,7 @@ func TestResolveSystemRoleByName_NameMismatch(t *testing.T) {
 		},
 	}},
 	}
-	role, err := svc.resolveSystemRoleByName(context.Background(), "admin")
+	role, err := authSvc.ResolveSystemRoleByName(context.Background(), svc.RoleRepo, "admin")
 	require.NoError(t, err)
 	assert.Nil(t, role)
 }
@@ -586,7 +587,7 @@ func TestResolveSystemRoleByName_TenantSpecificSkipped(t *testing.T) {
 		},
 	}},
 	}
-	role, err := svc.resolveSystemRoleByName(context.Background(), "admin")
+	role, err := authSvc.ResolveSystemRoleByName(context.Background(), svc.RoleRepo, "admin")
 	require.NoError(t, err)
 	assert.Nil(t, role)
 }
@@ -600,7 +601,7 @@ func TestResolveSystemRoleByName_NonSystemSkipped(t *testing.T) {
 		},
 	}},
 	}
-	role, err := svc.resolveSystemRoleByName(context.Background(), "admin")
+	role, err := authSvc.ResolveSystemRoleByName(context.Background(), svc.RoleRepo, "admin")
 	require.NoError(t, err)
 	assert.Nil(t, role)
 }
@@ -612,7 +613,7 @@ func TestResolveSystemRoleByName_RepoError(t *testing.T) {
 		},
 	}},
 	}
-	role, err := svc.resolveSystemRoleByName(context.Background(), "admin")
+	role, err := authSvc.ResolveSystemRoleByName(context.Background(), svc.RoleRepo, "admin")
 	require.ErrorIs(t, err, assert.AnError)
 	assert.Nil(t, role)
 }
@@ -626,7 +627,7 @@ func TestResolveSystemRoleByName_Success(t *testing.T) {
 		},
 	}},
 	}
-	role, err := svc.resolveSystemRoleByName(context.Background(), "admin")
+	role, err := authSvc.ResolveSystemRoleByName(context.Background(), svc.RoleRepo, "admin")
 	require.NoError(t, err)
 	require.NotNil(t, role)
 	assert.Equal(t, int64(7), role.ID)
@@ -1079,7 +1080,7 @@ func TestWithAdminTx_ExistingTxInContext(t *testing.T) {
 	tx := bun.Tx{}
 	ctx := modelBase.ContextWithTx(context.Background(), &tx)
 	called := false
-	err := svc.withAdminTx(ctx, func(context.Context) error {
+	err := tenant.WithAdminTxOrDirect(ctx, svc.adminDB(), func(context.Context) error {
 		called = true
 		return nil
 	})

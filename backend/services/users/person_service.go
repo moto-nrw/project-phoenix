@@ -63,33 +63,18 @@ func NewPersonService(deps PersonServiceDependencies) PersonService {
 
 // Get retrieves a person by their ID
 func (s *personService) Get(ctx context.Context, id interface{}) (*userModels.Person, error) {
-	// Try to use FindWithAccount if repository supports it
-	if repo, ok := s.PersonRepo.(interface {
-		FindWithAccount(context.Context, int64) (*userModels.Person, error)
-	}); ok {
-		// Convert id to int64
-		var personID int64
-		switch v := id.(type) {
-		case int:
-			personID = int64(v)
-		case int64:
-			personID = v
-		default:
-			return nil, &UsersError{Op: opGetPerson, Err: fmt.Errorf("invalid ID type")}
-		}
-
-		person, err := repo.FindWithAccount(ctx, personID)
-		if err != nil {
-			return nil, &UsersError{Op: opGetPerson, Err: err}
-		}
-		if person == nil {
-			return nil, &UsersError{Op: opGetPerson, Err: ErrPersonNotFound}
-		}
-		return person, nil
+	// Convert id to int64
+	var personID int64
+	switch v := id.(type) {
+	case int:
+		personID = int64(v)
+	case int64:
+		personID = v
+	default:
+		return nil, &UsersError{Op: opGetPerson, Err: fmt.Errorf("invalid ID type")}
 	}
 
-	// Fallback to regular FindByID
-	person, err := s.PersonRepo.FindByID(ctx, id)
+	person, err := s.PersonRepo.FindWithAccount(ctx, personID)
 	if err != nil {
 		return nil, &UsersError{Op: opGetPerson, Err: err}
 	}
