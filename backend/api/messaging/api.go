@@ -17,10 +17,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	messagingService "github.com/moto-nrw/project-phoenix/services/messaging"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Resource is the staff messaging HTTP resource.
@@ -38,12 +36,7 @@ func NewResource(service messagingService.Service, db *bun.DB) *Resource {
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 
-	tokenAuth := jwt.MustNewTokenAuth()
-	r.Group(func(r chi.Router) {
-		r.Use(tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
-		r.Use(jwt.TenantMiddleware)
-		withTx := tenant.TenantTxMiddleware(rs.db)
+	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 
 		// users:read is the coarse gate; per-child access is enforced in the
 		// service via authorize.CanReadStudent. Starting/sending a thread

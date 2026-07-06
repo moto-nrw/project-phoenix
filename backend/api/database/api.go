@@ -10,9 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	databaseSvc "github.com/moto-nrw/project-phoenix/services/database"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Resource defines the database API resource
@@ -34,17 +32,10 @@ func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// Create JWT auth instance for middleware
-	tokenAuth := jwt.MustNewTokenAuth()
-
 	// Protected routes that require authentication and admin permissions
-	r.Group(func(r chi.Router) {
-		r.Use(tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
-		r.Use(jwt.TenantMiddleware)
+	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 
 		// Stats endpoint - requires system:manage permission (admin only)
-		withTx := tenant.TenantTxMiddleware(rs.db)
 		r.With(authorize.RequiresPermission("system:manage"), withTx).Get("/stats", rs.getStats)
 	})
 

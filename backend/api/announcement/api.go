@@ -20,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	announcementService "github.com/moto-nrw/project-phoenix/services/announcement"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Resource is the staff parent-announcement HTTP resource.
@@ -38,12 +37,7 @@ func NewResource(service announcementService.Service, db *bun.DB) *Resource {
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 
-	tokenAuth := jwt.MustNewTokenAuth()
-	r.Group(func(r chi.Router) {
-		r.Use(tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
-		r.Use(jwt.TenantMiddleware)
-		withTx := tenant.TenantTxMiddleware(rs.db)
+	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 
 		// Authoring parent broadcasts is ADMIN-ONLY in v1 (#1669 product
 		// decision, 2026-07-02: "nur Admins"). The route is the only audience
