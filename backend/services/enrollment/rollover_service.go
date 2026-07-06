@@ -205,21 +205,7 @@ type DecideReviewRequest struct {
 }
 
 type rolloverService struct {
-	phaseRepo                enrollmentModels.PhaseRepository
-	requestRepo              enrollmentModels.RequestRepository
-	requestChildRepo         enrollmentModels.RequestChildRepository
-	requestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
-	schoolRepo               platformModels.SchoolRepository
-	outboxEnqueuer           OutboxEnqueuer
-	settings                 RequestSettingsResolver
-	// Used only by RunDeadlineWorker when a phase has
-	// rollover_auto_approve = true — we route promoted rows through
-	// Decide(approved) so applyApprovalRollover updates the existing
-	// student instead of stamping out duplicates.
-	decisionService DecisionService
-	parentsURL      string
-	db              *bun.DB
-	logger          *slog.Logger
+	RolloverServiceConfig
 }
 
 // RolloverServiceConfig is the dependency-injection bundle.
@@ -244,23 +230,10 @@ type RolloverServiceConfig struct {
 // NewRolloverService builds the service. Nil logger falls back to
 // slog.Default().
 func NewRolloverService(cfg RolloverServiceConfig) RolloverService {
-	logger := cfg.Logger
-	if logger == nil {
-		logger = slog.Default()
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
 	}
-	return &rolloverService{
-		phaseRepo:                cfg.PhaseRepo,
-		requestRepo:              cfg.RequestRepo,
-		requestChildRepo:         cfg.RequestChildRepo,
-		requestChildOfferingRepo: cfg.RequestChildOfferingRepo,
-		schoolRepo:               cfg.SchoolRepo,
-		outboxEnqueuer:           cfg.OutboxEnqueuer,
-		settings:                 cfg.Settings,
-		decisionService:          cfg.DecisionService,
-		parentsURL:               cfg.ParentsURL,
-		db:                       cfg.DB,
-		logger:                   logger,
-	}
+	return &rolloverService{RolloverServiceConfig: cfg}
 }
 
 // CreatePhaseFromSource is the workhorse. Pseudocode:
@@ -289,7 +262,7 @@ func (s *rolloverService) CreatePhaseFromSource(ctx context.Context, req CreateP
 
 	// Whole rollover runs in one tenant tx. If any insert fails the
 	// caller sees "atomic" — either everything carried or nothing.
-	txErr := s.db.RunInTx(ctx, nil, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := s.DB.RunInTx(ctx, nil, func(txCtx context.Context, _ bun.Tx) error {
 		// Bridge tx into ctx for the repos.
 		// WithTenantTx already does this, but the caller wired the
 		// outer tenant tx for us — we just need an inner runtx for
@@ -304,7 +277,7 @@ func (s *rolloverService) CreatePhaseFromSource(ctx context.Context, req CreateP
 
 func (s *rolloverService) runCreate(ctx context.Context, tenantID int64, req CreatePhaseFromSourceRequest, maxGrade int, result *RolloverResult) error {
 	// 1. Source phase.
-	source, err := s.phaseRepo.FindByID(ctx, req.SourcePhaseID)
+	source, err := s.PhaseRepo.FindByID(ctx, req.SourcePhaseID)
 	if err != nil || source == nil {
 		return fmt.Errorf("%w: %d", ErrRolloverSourceNotFound, req.SourcePhaseID)
 	}
@@ -318,7 +291,7 @@ func (s *rolloverService) runCreate(ctx context.Context, tenantID int64, req Cre
 	// during the request_child insert, but doing the check up front
 	// gives a clean 409 before any rows are written and means the
 	// admin doesn't see a half-rolled phase.
-	exists, err := s.phaseRepo.ExistsByRolloverSourcePhaseID(ctx, source.ID)
+	exists, err := s.PhaseRepo.ExistsByRolloverSourcePhaseID(ctx, source.ID)
 	if err != nil {
 		return fmt.Errorf("rollover: check existing follow-up: %w", err)
 	}
@@ -356,7 +329,7 @@ func (s *rolloverService) runCreate(ctx context.Context, tenantID int64, req Cre
 	if err := newPhase.Validate(); err != nil {
 		return fmt.Errorf("%w: %v", ErrRolloverInvalidRequest, err)
 	}
-	if err := s.phaseRepo.Create(ctx, newPhase); err != nil {
+	if err := s.PhaseRepo.Create(ctx, newPhase); err != nil {
 		if isPhaseDuplicateName(err) {
 			return fmt.Errorf("%w: %q", ErrRolloverDuplicateName, req.Name)
 		}
@@ -369,7 +342,7 @@ func (s *rolloverService) runCreate(ctx context.Context, tenantID int64, req Cre
 	// generation and can't seed another rollover. An empty list is fine:
 	// the new phase is still created so admins keep one consistent
 	// "Anschlussphase erstellen" flow even when nothing carries forward.
-	sourceChildren, err := s.requestChildRepo.ListByPhaseAndStatuses(
+	sourceChildren, err := s.RequestChildRepo.ListByPhaseAndStatuses(
 		ctx, source.ID,
 		[]string{enrollmentModels.ChildStatusApproved},
 	)
@@ -390,7 +363,7 @@ func (s *rolloverService) runCreate(ctx context.Context, tenantID int64, req Cre
 	}
 
 	for _, sourceRequestID := range sourceRequestOrder {
-		sourceReq, err := s.requestRepo.FindByID(ctx, sourceRequestID)
+		sourceReq, err := s.RequestRepo.FindByID(ctx, sourceRequestID)
 		if err != nil {
 			return fmt.Errorf("rollover: load source request %d: %w", sourceRequestID, err)
 		}
@@ -434,7 +407,7 @@ func (s *rolloverService) rollOneRequest(
 		SubmittedAt:       time.Now(),
 	}
 	newReq.SetTenantID(tenantID)
-	if err := s.requestRepo.Create(ctx, newReq); err != nil {
+	if err := s.RequestRepo.Create(ctx, newReq); err != nil {
 		return fmt.Errorf("rollover: create request: %w", err)
 	}
 
@@ -470,7 +443,7 @@ func (s *rolloverService) rollOneRequest(
 			ReviewReason:          reviewReasonForRow,
 		}
 		child.SetTenantID(tenantID)
-		if err := s.requestChildRepo.Create(ctx, child); err != nil {
+		if err := s.RequestChildRepo.Create(ctx, child); err != nil {
 			if isRolloverSourceAlreadyRolled(err) {
 				return fmt.Errorf("%w: source child %d", ErrRolloverSourceAlreadyRolled, source.ID)
 			}
@@ -480,7 +453,7 @@ func (s *rolloverService) rollOneRequest(
 		// Copy care offerings. The source list is authoritative —
 		// admin can edit on the new row through the existing parent /
 		// admin flows.
-		offerings, err := s.requestChildOfferingRepo.ListByRequestChildID(ctx, source.ID)
+		offerings, err := s.RequestChildOfferingRepo.ListByRequestChildID(ctx, source.ID)
 		if err != nil {
 			return fmt.Errorf("rollover: list source offerings: %w", err)
 		}
@@ -490,7 +463,7 @@ func (s *rolloverService) rollOneRequest(
 				CareOfferingID: off.CareOfferingID,
 			}
 			copyRow.SetTenantID(tenantID)
-			if err := s.requestChildOfferingRepo.Create(ctx, copyRow); err != nil {
+			if err := s.RequestChildOfferingRepo.Create(ctx, copyRow); err != nil {
 				return fmt.Errorf("rollover: copy offering: %w", err)
 			}
 		}
@@ -507,7 +480,7 @@ func (s *rolloverService) rollOneRequest(
 }
 
 func (s *rolloverService) enqueueRenewalEmail(ctx context.Context, newPhase *enrollmentModels.Phase, req *enrollmentModels.Request, childNames []string, result *RolloverResult) {
-	if s.outboxEnqueuer == nil {
+	if s.OutboxEnqueuer == nil {
 		return
 	}
 	if req.GuardianEmail == "" {
@@ -520,8 +493,8 @@ func (s *rolloverService) enqueueRenewalEmail(ctx context.Context, newPhase *enr
 		kind = platformModels.EmailKindEnrollmentRolloverOptIn
 	}
 
-	schoolName, logoURL := emailBrandForSchool(ctx, s.schoolRepo, req.TenantID, s.parentsURL)
-	footerLogoURL := motoLogoURL(s.parentsURL)
+	schoolName, logoURL := emailBrandForSchool(ctx, s.SchoolRepo, req.TenantID, s.ParentsURL)
+	footerLogoURL := motoLogoURL(s.ParentsURL)
 	deadlineStr := ""
 	if newPhase.RolloverDeadline != nil {
 		deadlineStr = newPhase.RolloverDeadline.Format("02.01.2006")
@@ -540,13 +513,13 @@ func (s *rolloverService) enqueueRenewalEmail(ctx context.Context, newPhase *enr
 		EnrollmentPayloadRecipientEmail:    req.GuardianEmail,
 		EnrollmentPayloadRolloverDeadline:  deadlineStr,
 	}
-	if err := s.outboxEnqueuer.Enqueue(ctx, OutboxEnqueueRequest{
+	if err := s.OutboxEnqueuer.Enqueue(ctx, OutboxEnqueueRequest{
 		Kind:              kind,
 		Payload:           payload,
 		RelatedEntityType: platformModels.EmailRelatedTypeEnrollmentRequest,
 		RelatedEntityID:   req.ID,
 	}); err != nil {
-		s.logger.Warn("rollover: enqueue renewal email failed",
+		s.Logger.Warn("rollover: enqueue renewal email failed",
 			slog.Int64("request_id", req.ID),
 			slog.String("kind", kind),
 			slog.String("error", err.Error()),
@@ -557,7 +530,7 @@ func (s *rolloverService) enqueueRenewalEmail(ctx context.Context, newPhase *enr
 }
 
 func (s *rolloverService) parentStatusURL(token string) string {
-	host := s.parentsURL
+	host := s.ParentsURL
 	if host == "" {
 		host = "http://localhost:3000"
 	}
@@ -591,18 +564,18 @@ func (s *rolloverService) resolveMaxGrade(ctx context.Context) int {
 	// Default mirrors the registry default — the same setting drives
 	// both the public form's grade picker and the rollover grade cap.
 	const fallback = 4
-	if s.settings == nil {
+	if s.Settings == nil {
 		return fallback
 	}
-	if has, err := s.settings.HasTenantOverride(ctx, configModel.KeyEnrollmentGradeLevelMax); err == nil && has {
-		if v, err := s.settings.ResolveInt(ctx, configModel.KeyEnrollmentGradeLevelMax); err == nil && v > 0 {
+	if has, err := s.Settings.HasTenantOverride(ctx, configModel.KeyEnrollmentGradeLevelMax); err == nil && has {
+		if v, err := s.Settings.ResolveInt(ctx, configModel.KeyEnrollmentGradeLevelMax); err == nil && v > 0 {
 			return v
 		}
 	}
 	// No override — pull the registry default through Resolve so a
 	// future change to the registry value flows in without a code
 	// change.
-	if v, err := s.settings.ResolveInt(ctx, configModel.KeyEnrollmentGradeLevelMax); err == nil && v > 0 {
+	if v, err := s.Settings.ResolveInt(ctx, configModel.KeyEnrollmentGradeLevelMax); err == nil && v > 0 {
 		return v
 	}
 	return fallback
@@ -614,7 +587,7 @@ func (s *rolloverService) ListReviewQueue(ctx context.Context, phaseID int64) ([
 	if phaseID <= 0 {
 		return nil, fmt.Errorf("%w: phase_id is required", ErrRolloverInvalidRequest)
 	}
-	children, err := s.requestChildRepo.ListByPhaseAndStatuses(
+	children, err := s.RequestChildRepo.ListByPhaseAndStatuses(
 		ctx, phaseID,
 		[]string{enrollmentModels.ChildStatusPendingAdminReview},
 	)
@@ -623,9 +596,9 @@ func (s *rolloverService) ListReviewQueue(ctx context.Context, phaseID int64) ([
 	}
 	out := make([]*ReviewQueueItem, 0, len(children))
 	for _, c := range children {
-		req, reqErr := s.requestRepo.FindByID(ctx, c.RequestID)
+		req, reqErr := s.RequestRepo.FindByID(ctx, c.RequestID)
 		if reqErr != nil {
-			s.logger.Warn("rollover: review queue request lookup failed",
+			s.Logger.Warn("rollover: review queue request lookup failed",
 				slog.Int64("request_child_id", c.ID),
 				slog.String("error", reqErr.Error()))
 			continue
@@ -636,7 +609,7 @@ func (s *rolloverService) ListReviewQueue(ctx context.Context, phaseID int64) ([
 			// the RLS-bypass admin tx the handler wraps lets us read
 			// it. If we can't, the admin still gets a useful row —
 			// just without the prior-year context.
-			if src, srcErr := s.requestChildRepo.FindByID(ctx, *c.RolloverSourceChildID); srcErr == nil {
+			if src, srcErr := s.RequestChildRepo.FindByID(ctx, *c.RolloverSourceChildID); srcErr == nil {
 				item.SourceChild = src
 			}
 		}
@@ -661,7 +634,7 @@ func (s *rolloverService) DecideReview(ctx context.Context, req DecideReviewRequ
 		// worker will promote auto_renewed → submitted, then the
 		// admin's decision queue handles final approval. Class
 		// override (if any) is applied at the same time.
-		return s.requestChildRepo.UpdateRolloverReview(
+		return s.RequestChildRepo.UpdateRolloverReview(
 			ctx,
 			req.RequestChildID,
 			enrollmentModels.ChildStatusAutoRenewed,
@@ -671,7 +644,7 @@ func (s *rolloverService) DecideReview(ctx context.Context, req DecideReviewRequ
 		)
 	case ReviewDecisionDrop:
 		reason := "rollover_drop"
-		return s.requestChildRepo.UpdateRolloverReview(
+		return s.RequestChildRepo.UpdateRolloverReview(
 			ctx,
 			req.RequestChildID,
 			enrollmentModels.ChildStatusWithdrawn,
@@ -683,7 +656,7 @@ func (s *rolloverService) DecideReview(ctx context.Context, req DecideReviewRequ
 		// Defer means "I'll come back to it" — leave as-is. We still
 		// stamp reviewed_at via UpdateRolloverReview so the admin
 		// sees their last touch.
-		return s.requestChildRepo.UpdateRolloverReview(
+		return s.RequestChildRepo.UpdateRolloverReview(
 			ctx,
 			req.RequestChildID,
 			enrollmentModels.ChildStatusPendingAdminReview,
@@ -732,12 +705,12 @@ func renewalInitialStatus(mode string) string {
 // or CLI) wraps in WithTenantTx so the bulk updates run as
 // phoenix_tenant with RLS scoping to the current tenant.
 func (s *rolloverService) RunDeadlineWorker(ctx context.Context, asOf time.Time) (*DeadlineWorkerSummary, error) {
-	if s.phaseRepo == nil || s.requestChildRepo == nil {
+	if s.PhaseRepo == nil || s.RequestChildRepo == nil {
 		return nil, fmt.Errorf("rollover deadline: required repos not wired")
 	}
 
 	summary := &DeadlineWorkerSummary{}
-	phases, err := s.phaseRepo.ListWithExpiredRolloverDeadline(ctx, asOf)
+	phases, err := s.PhaseRepo.ListWithExpiredRolloverDeadline(ctx, asOf)
 	if err != nil {
 		return summary, fmt.Errorf("rollover deadline: list expired phases: %w", err)
 	}
@@ -755,13 +728,13 @@ func (s *rolloverService) RunDeadlineWorker(ctx context.Context, asOf time.Time)
 
 		// Opt-in side: pending_renewal → withdrawn. The parent
 		// didn't act before the deadline, so the renewal lapses.
-		pendingCount, err := s.requestChildRepo.BulkUpdateStatusByPhaseAndStatus(
+		pendingCount, err := s.RequestChildRepo.BulkUpdateStatusByPhaseAndStatus(
 			ctx, phase.ID,
 			enrollmentModels.ChildStatusPendingRenewal,
 			enrollmentModels.ChildStatusWithdrawn,
 		)
 		if err != nil {
-			s.logger.Error("rollover deadline: demote pending_renewal failed",
+			s.Logger.Error("rollover deadline: demote pending_renewal failed",
 				slog.Int64("phase_id", phase.ID),
 				slog.String("error", err.Error()),
 			)
@@ -770,7 +743,7 @@ func (s *rolloverService) RunDeadlineWorker(ctx context.Context, asOf time.Time)
 		summary.PendingRenewalToWithdrawn += pendingCount
 
 		if autoApproved > 0 || autoSubmitted > 0 || pendingCount > 0 {
-			s.logger.Info("rollover deadline: resolved phase",
+			s.Logger.Info("rollover deadline: resolved phase",
 				slog.Int64("phase_id", phase.ID),
 				slog.Int("auto_to_approved", autoApproved),
 				slog.Int("auto_to_submitted", autoSubmitted),
@@ -792,18 +765,18 @@ func (s *rolloverService) RunDeadlineWorker(ctx context.Context, asOf time.Time)
 // back to the bulk-promotion-to-submitted path so the worker still
 // completes — logs a warning so the gap is visible.
 func (s *rolloverService) resolveAutoRenewed(ctx context.Context, phase *enrollmentModels.Phase) (approved, submitted, errs int) {
-	if !phase.RolloverAutoApprove || s.decisionService == nil {
-		if phase.RolloverAutoApprove && s.decisionService == nil {
-			s.logger.Warn("rollover deadline: auto_approve=true but DecisionService not wired, falling back to submitted",
+	if !phase.RolloverAutoApprove || s.DecisionService == nil {
+		if phase.RolloverAutoApprove && s.DecisionService == nil {
+			s.Logger.Warn("rollover deadline: auto_approve=true but DecisionService not wired, falling back to submitted",
 				slog.Int64("phase_id", phase.ID))
 		}
-		count, err := s.requestChildRepo.BulkUpdateStatusByPhaseAndStatus(
+		count, err := s.RequestChildRepo.BulkUpdateStatusByPhaseAndStatus(
 			ctx, phase.ID,
 			enrollmentModels.ChildStatusAutoRenewed,
 			enrollmentModels.ChildStatusSubmitted,
 		)
 		if err != nil {
-			s.logger.Error("rollover deadline: promote auto_renewed failed",
+			s.Logger.Error("rollover deadline: promote auto_renewed failed",
 				slog.Int64("phase_id", phase.ID),
 				slog.String("error", err.Error()))
 			return 0, 0, 0
@@ -814,25 +787,25 @@ func (s *rolloverService) resolveAutoRenewed(ctx context.Context, phase *enrollm
 	// Auto-approve path: pull each auto_renewed row, call Decide so
 	// applyApprovalRollover runs (updates the existing student, fires
 	// the approval email, etc.).
-	rows, err := s.requestChildRepo.ListByPhaseAndStatuses(
+	rows, err := s.RequestChildRepo.ListByPhaseAndStatuses(
 		ctx, phase.ID,
 		[]string{enrollmentModels.ChildStatusAutoRenewed},
 	)
 	if err != nil {
-		s.logger.Error("rollover deadline: list auto_renewed failed",
+		s.Logger.Error("rollover deadline: list auto_renewed failed",
 			slog.Int64("phase_id", phase.ID),
 			slog.String("error", err.Error()))
 		return 0, 0, 0
 	}
 	for _, row := range rows {
-		_, decideErr := s.decisionService.Decide(ctx, DecideInput{
+		_, decideErr := s.DecisionService.Decide(ctx, DecideInput{
 			RequestID: row.RequestID,
 			ChildID:   row.ID,
 			Status:    DecisionApproved,
 		})
 		if decideErr != nil {
 			errs++
-			s.logger.Error("rollover deadline: auto-approve decide failed",
+			s.Logger.Error("rollover deadline: auto-approve decide failed",
 				slog.Int64("phase_id", phase.ID),
 				slog.Int64("request_child_id", row.ID),
 				slog.String("error", decideErr.Error()))

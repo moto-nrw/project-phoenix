@@ -186,35 +186,11 @@ type ReportServiceConfig struct {
 }
 
 type reportService struct {
-	requestRepo              enrollmentModels.RequestRepository
-	requestChildRepo         enrollmentModels.RequestChildRepository
-	requestGuardianRepo      enrollmentModels.RequestGuardianRepository
-	requestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
-	careOfferingRepo         enrollmentModels.CareOfferingRepository
-	formSchemaRepo           enrollmentModels.FormSchemaRepository
-	phaseRepo                enrollmentModels.PhaseRepository
-	dataAccessLogRepo        auditModels.DataAccessLogRepository
-	studentRepo              userModels.StudentRepository
-	studentGuardianRepo      userModels.StudentGuardianRepository
-	personRepo               userModels.PersonRepository
-	educationGroupRepo       educationModels.GroupRepository
+	ReportServiceConfig
 }
 
 func NewReportService(cfg ReportServiceConfig) ReportService {
-	return &reportService{
-		requestRepo:              cfg.RequestRepo,
-		requestChildRepo:         cfg.RequestChildRepo,
-		requestGuardianRepo:      cfg.RequestGuardianRepo,
-		requestChildOfferingRepo: cfg.RequestChildOfferingRepo,
-		careOfferingRepo:         cfg.CareOfferingRepo,
-		formSchemaRepo:           cfg.FormSchemaRepo,
-		phaseRepo:                cfg.PhaseRepo,
-		dataAccessLogRepo:        cfg.DataAccessLogRepo,
-		studentRepo:              cfg.StudentRepo,
-		studentGuardianRepo:      cfg.StudentGuardianRepo,
-		personRepo:               cfg.PersonRepo,
-		educationGroupRepo:       cfg.EducationGroupRepo,
-	}
+	return &reportService{ReportServiceConfig: cfg}
 }
 
 func (s *reportService) CareUsage(ctx context.Context, filters CareUsageFilters) (*CareUsageReport, error) {
@@ -226,11 +202,11 @@ func (s *reportService) CareUsage(ctx context.Context, filters CareUsageFilters)
 		return nil, fmt.Errorf("care usage report: phase_id required")
 	}
 
-	phase, err := s.phaseRepo.FindByID(ctx, filters.PhaseID)
+	phase, err := s.PhaseRepo.FindByID(ctx, filters.PhaseID)
 	if err != nil {
 		return nil, fmt.Errorf("care usage report: phase %d: %w", filters.PhaseID, ErrReportPhaseNotFound)
 	}
-	requests, err := s.requestRepo.ListAdmin(ctx, enrollmentModels.RequestListFilters{PhaseID: filters.PhaseID})
+	requests, err := s.RequestRepo.ListAdmin(ctx, enrollmentModels.RequestListFilters{PhaseID: filters.PhaseID})
 	if err != nil {
 		return nil, fmt.Errorf("care usage report: list requests: %w", err)
 	}
@@ -244,7 +220,7 @@ func (s *reportService) CareUsage(ctx context.Context, filters CareUsageFilters)
 		reqIDs = append(reqIDs, req.ID)
 		requestByID[req.ID] = req
 	}
-	children, err := s.requestChildRepo.ListByRequestIDs(ctx, reqIDs)
+	children, err := s.RequestChildRepo.ListByRequestIDs(ctx, reqIDs)
 	if err != nil {
 		return nil, fmt.Errorf("care usage report: list children: %w", err)
 	}
@@ -256,11 +232,11 @@ func (s *reportService) CareUsage(ctx context.Context, filters CareUsageFilters)
 	for _, child := range children {
 		childIDs = append(childIDs, child.ID)
 	}
-	links, err := s.requestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
 	if err != nil {
 		return nil, fmt.Errorf("care usage report: list child offerings: %w", err)
 	}
-	offerings, err := s.careOfferingRepo.ListByPhase(ctx, filters.PhaseID)
+	offerings, err := s.CareOfferingRepo.ListByPhase(ctx, filters.PhaseID)
 	if err != nil {
 		return nil, fmt.Errorf("care usage report: list offerings: %w", err)
 	}
@@ -365,10 +341,10 @@ func (s *reportService) loadCareUsageSchemas(ctx context.Context, requests []*en
 		if _, ok := schemas[*req.SchemaID]; ok {
 			continue
 		}
-		if s.formSchemaRepo == nil {
+		if s.FormSchemaRepo == nil {
 			return nil, fmt.Errorf("care usage report: form schema repo not configured")
 		}
-		schema, err := s.formSchemaRepo.FindByID(ctx, *req.SchemaID)
+		schema, err := s.FormSchemaRepo.FindByID(ctx, *req.SchemaID)
 		if err != nil {
 			return nil, fmt.Errorf("care usage report: load schema %d: %w", *req.SchemaID, err)
 		}
@@ -393,23 +369,23 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 	if err := validateClassRosterFilters(filters); err != nil {
 		return nil, err
 	}
-	if s.studentRepo == nil {
+	if s.StudentRepo == nil {
 		return nil, fmt.Errorf("class roster report: student repo not configured")
 	}
-	if s.personRepo == nil {
+	if s.PersonRepo == nil {
 		return nil, fmt.Errorf("class roster report: person repo not configured")
 	}
-	if s.educationGroupRepo == nil {
+	if s.EducationGroupRepo == nil {
 		return nil, fmt.Errorf("class roster report: education group repo not configured")
 	}
-	if s.studentGuardianRepo == nil {
+	if s.StudentGuardianRepo == nil {
 		return nil, fmt.Errorf("class roster report: student guardian repo not configured")
 	}
-	if s.requestGuardianRepo == nil {
+	if s.RequestGuardianRepo == nil {
 		return nil, fmt.Errorf("class roster report: request guardian repo not configured")
 	}
 
-	phase, err := s.phaseRepo.FindByID(ctx, filters.PhaseID)
+	phase, err := s.PhaseRepo.FindByID(ctx, filters.PhaseID)
 	if err != nil {
 		return nil, fmt.Errorf("class roster report: phase %d: %w", filters.PhaseID, ErrReportPhaseNotFound)
 	}
@@ -431,7 +407,7 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 	if err != nil {
 		return nil, err
 	}
-	persons, err := s.personRepo.FindByIDs(ctx, classRosterPersonIDs(students))
+	persons, err := s.PersonRepo.FindByIDs(ctx, classRosterPersonIDs(students))
 	if err != nil {
 		return nil, fmt.Errorf("class roster report: load persons: %w", err)
 	}
@@ -444,7 +420,7 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 	var children []*enrollmentModels.RequestChild
 	requestGuardiansByID := map[int64][]*enrollmentModels.RequestGuardian{}
 	if len(studentIDs) > 0 {
-		requests, err = s.requestRepo.ListAdmin(ctx, enrollmentModels.RequestListFilters{
+		requests, err = s.RequestRepo.ListAdmin(ctx, enrollmentModels.RequestListFilters{
 			PhaseID:           filters.PhaseID,
 			CreatedStudentIDs: studentIDs,
 		})
@@ -455,11 +431,11 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 			return nil, fmt.Errorf("class roster report: %d requests: %w", len(requests), ErrReportExportTooLarge)
 		}
 		requestIDs := classRosterRequestIDs(requests)
-		children, err = s.requestChildRepo.ListByRequestIDs(ctx, requestIDs)
+		children, err = s.RequestChildRepo.ListByRequestIDs(ctx, requestIDs)
 		if err != nil {
 			return nil, fmt.Errorf("class roster report: list children: %w", err)
 		}
-		requestGuardians, err := s.requestGuardianRepo.ListByRequestIDs(ctx, requestIDs)
+		requestGuardians, err := s.RequestGuardianRepo.ListByRequestIDs(ctx, requestIDs)
 		if err != nil {
 			return nil, fmt.Errorf("class roster report: list request guardians: %w", err)
 		}
@@ -471,7 +447,7 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 	}
 	requestByID := classRosterRequestsByID(requests)
 
-	offerings, err := s.careOfferingRepo.ListByPhase(ctx, filters.PhaseID)
+	offerings, err := s.CareOfferingRepo.ListByPhase(ctx, filters.PhaseID)
 	if err != nil {
 		return nil, fmt.Errorf("class roster report: list offerings: %w", err)
 	}
@@ -487,7 +463,7 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 	}
 
 	enrollmentsByStudent, approvedChildIDs := classRosterApprovedEnrollments(children, requestByID, studentByID)
-	links, err := s.requestChildOfferingRepo.ListByRequestChildIDs(ctx, approvedChildIDs)
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, approvedChildIDs)
 	if err != nil {
 		return nil, fmt.Errorf("class roster report: list child offerings: %w", err)
 	}
@@ -881,7 +857,7 @@ func (s *reportService) classRosterGroupNames(ctx context.Context, students []*u
 	if len(groupIDs) == 0 {
 		return nil, nil
 	}
-	groups, err := s.educationGroupRepo.FindByIDs(ctx, groupIDs)
+	groups, err := s.EducationGroupRepo.FindByIDs(ctx, groupIDs)
 	if err != nil {
 		return nil, fmt.Errorf("class roster report: load groups: %w", err)
 	}
@@ -893,13 +869,13 @@ func (s *reportService) classRosterGroupNames(ctx context.Context, students []*u
 // classes that have students, so empty classes never produce empty lists).
 func (s *reportService) classRosterStudents(ctx context.Context, filters ClassRosterFilters) ([]*userModels.Student, error) {
 	if !filters.AllClasses {
-		students, err := s.studentRepo.FindBySchoolClass(ctx, filters.SchoolClass)
+		students, err := s.StudentRepo.FindBySchoolClass(ctx, filters.SchoolClass)
 		if err != nil {
 			return nil, fmt.Errorf("class roster report: list students: %w", err)
 		}
 		return students, nil
 	}
-	classes, err := s.studentRepo.ListSchoolClasses(ctx)
+	classes, err := s.StudentRepo.ListSchoolClasses(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("class roster report: list school classes: %w", err)
 	}
@@ -914,7 +890,7 @@ func (s *reportService) classRosterStudents(ctx context.Context, filters ClassRo
 			continue
 		}
 		seen[key] = true
-		classStudents, err := s.studentRepo.FindBySchoolClass(ctx, class)
+		classStudents, err := s.StudentRepo.FindBySchoolClass(ctx, class)
 		if err != nil {
 			return nil, fmt.Errorf("class roster report: list students of class %q: %w", class, err)
 		}
@@ -1102,7 +1078,7 @@ func (s *reportService) classRosterStudentGuardianContacts(ctx context.Context, 
 	if len(studentIDs) == 0 {
 		return out, nil
 	}
-	rows, err := s.studentGuardianRepo.ListEmergencyContactRows(ctx, studentIDs)
+	rows, err := s.StudentGuardianRepo.ListEmergencyContactRows(ctx, studentIDs)
 	if err != nil {
 		return nil, fmt.Errorf("class roster report: load student guardians: %w", err)
 	}
@@ -1772,7 +1748,7 @@ func sortedPickupTimes(seen map[string]bool) []string {
 }
 
 func (s *reportService) recordCareUsageExportAudit(ctx context.Context, report *CareUsageReport, actorAccountID int64, actorRole, format string) error {
-	if s.dataAccessLogRepo == nil {
+	if s.DataAccessLogRepo == nil {
 		return fmt.Errorf("care usage report export audit: data access log repo not configured")
 	}
 	if report == nil {
@@ -1784,7 +1760,7 @@ func (s *reportService) recordCareUsageExportAudit(ctx context.Context, report *
 	if strings.TrimSpace(actorRole) == "" {
 		actorRole = "unknown"
 	}
-	phase, err := s.phaseRepo.FindByID(ctx, report.Phase.ID)
+	phase, err := s.PhaseRepo.FindByID(ctx, report.Phase.ID)
 	if err != nil {
 		return fmt.Errorf("care usage report export audit: phase %d: %w", report.Phase.ID, err)
 	}
@@ -1811,14 +1787,14 @@ func (s *reportService) recordCareUsageExportAudit(ctx context.Context, report *
 	entry.SetMetadata("pickup_time", report.Filters.PickupTime)
 	entry.SetMetadata("search", report.Filters.Search)
 	entry.SetMetadata("child_count", report.Totals.Children)
-	if err := s.dataAccessLogRepo.Create(ctx, entry); err != nil {
+	if err := s.DataAccessLogRepo.Create(ctx, entry); err != nil {
 		return fmt.Errorf("care usage report export audit write: %w", err)
 	}
 	return nil
 }
 
 func (s *reportService) recordClassRosterExportAudit(ctx context.Context, report *ClassRosterReport, actorAccountID int64, actorRole, format string) error {
-	if s.dataAccessLogRepo == nil {
+	if s.DataAccessLogRepo == nil {
 		return fmt.Errorf("class roster report export audit: data access log repo not configured")
 	}
 	if report == nil {
@@ -1830,7 +1806,7 @@ func (s *reportService) recordClassRosterExportAudit(ctx context.Context, report
 	if strings.TrimSpace(actorRole) == "" {
 		actorRole = "unknown"
 	}
-	phase, err := s.phaseRepo.FindByID(ctx, report.Phase.ID)
+	phase, err := s.PhaseRepo.FindByID(ctx, report.Phase.ID)
 	if err != nil {
 		return fmt.Errorf("class roster report export audit: phase %d: %w", report.Phase.ID, err)
 	}
@@ -1853,7 +1829,7 @@ func (s *reportService) recordClassRosterExportAudit(ctx context.Context, report
 	entry.SetMetadata("status_filter", report.Filters.Status)
 	entry.SetMetadata("student_count", report.Totals.Students)
 	entry.SetMetadata("registered_count", report.Totals.Registered)
-	if err := s.dataAccessLogRepo.Create(ctx, entry); err != nil {
+	if err := s.DataAccessLogRepo.Create(ctx, entry); err != nil {
 		return fmt.Errorf("class roster report export audit write: %w", err)
 	}
 	return nil

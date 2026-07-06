@@ -99,57 +99,19 @@ type ChangeRequestServiceConfig struct {
 }
 
 type changeRequestService struct {
-	changeRequestRepo        enrollmentModels.ChangeRequestRepository
-	messageRepo              enrollmentModels.ChangeRequestMessageRepository
-	requestRepo              enrollmentModels.RequestRepository
-	requestChildRepo         enrollmentModels.RequestChildRepository
-	requestGuardianRepo      enrollmentModels.RequestGuardianRepository
-	requestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
-	careOfferingRepo         enrollmentModels.CareOfferingRepository
-	formSchemaRepo           enrollmentModels.FormSchemaRepository
-	phaseRepo                enrollmentModels.PhaseRepository
-	schoolRepo               platformModels.SchoolRepository
-	guardianProfileRepo      userModels.GuardianProfileRepository
-	guardianPhoneRepo        userModels.GuardianPhoneNumberRepository
-	decisionService          ChangeRequestDecisionApplier
-	settings                 RequestSettingsResolver
-	outboxEnqueuer           OutboxEnqueuer
-	frontendURL              string
-	parentsURL               string
-	db                       *bun.DB
-	logger                   *slog.Logger
+	ChangeRequestServiceConfig
 }
 
 func NewChangeRequestService(cfg ChangeRequestServiceConfig) ChangeRequestService {
-	logger := cfg.Logger
-	if logger == nil {
-		logger = slog.Default()
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
 	}
-	parentsURL := strings.TrimRight(strings.TrimSpace(cfg.ParentsURL), "/")
-	if parentsURL == "" {
+	cfg.ParentsURL = strings.TrimRight(strings.TrimSpace(cfg.ParentsURL), "/")
+	if cfg.ParentsURL == "" {
 		panic("PARENTS_URL is required")
 	}
-	return &changeRequestService{
-		changeRequestRepo:        cfg.ChangeRequestRepo,
-		messageRepo:              cfg.MessageRepo,
-		requestRepo:              cfg.RequestRepo,
-		requestChildRepo:         cfg.RequestChildRepo,
-		requestGuardianRepo:      cfg.RequestGuardianRepo,
-		requestChildOfferingRepo: cfg.RequestChildOfferingRepo,
-		careOfferingRepo:         cfg.CareOfferingRepo,
-		formSchemaRepo:           cfg.FormSchemaRepo,
-		phaseRepo:                cfg.PhaseRepo,
-		schoolRepo:               cfg.SchoolRepo,
-		guardianProfileRepo:      cfg.GuardianProfileRepo,
-		guardianPhoneRepo:        cfg.GuardianPhoneRepo,
-		decisionService:          cfg.DecisionService,
-		settings:                 cfg.Settings,
-		outboxEnqueuer:           cfg.OutboxEnqueuer,
-		frontendURL:              strings.TrimRight(strings.TrimSpace(cfg.FrontendURL), "/"),
-		parentsURL:               parentsURL,
-		db:                       cfg.DB,
-		logger:                   logger,
-	}
+	cfg.FrontendURL = strings.TrimRight(strings.TrimSpace(cfg.FrontendURL), "/")
+	return &changeRequestService{ChangeRequestServiceConfig: cfg}
 }
 
 func (s *changeRequestService) Create(ctx context.Context, token string, input CreateChangeRequestInput) (*ChangeRequestAggregate, error) {
@@ -159,12 +121,12 @@ func (s *changeRequestService) Create(ctx context.Context, token string, input C
 	}
 
 	var created *enrollmentModels.ChangeRequest
-	err = tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		lockedReq, err := s.requestRepo.FindByStatusTokenForUpdate(txCtx, strings.TrimSpace(token))
+	err = tenant.WithTenantTx(ctx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		lockedReq, err := s.RequestRepo.FindByStatusTokenForUpdate(txCtx, strings.TrimSpace(token))
 		if err != nil {
 			return ErrRequestNotFound
 		}
-		children, err := s.requestChildRepo.ListByRequestIDForUpdate(txCtx, lockedReq.ID)
+		children, err := s.RequestChildRepo.ListByRequestIDForUpdate(txCtx, lockedReq.ID)
 		if err != nil {
 			return fmt.Errorf("change request: lock children: %w", err)
 		}
@@ -197,11 +159,11 @@ func (s *changeRequestService) Create(ctx context.Context, token string, input C
 			Diff:               snapshotDiff(baseSnapshot, proposedSnapshot),
 			CreatedByAccountID: input.CreatedByAccountID,
 		}
-		if err := s.changeRequestRepo.Create(txCtx, row); err != nil {
+		if err := s.ChangeRequestRepo.Create(txCtx, row); err != nil {
 			return err
 		}
 		if note != "" {
-			if err := s.messageRepo.Create(txCtx, &enrollmentModels.ChangeRequestMessage{
+			if err := s.MessageRepo.Create(txCtx, &enrollmentModels.ChangeRequestMessage{
 				ChangeRequestID: row.ID,
 				AuthorType:      enrollmentModels.ChangeRequestMessageAuthorParent,
 				AuthorAccountID: input.CreatedByAccountID,
@@ -226,8 +188,8 @@ func (s *changeRequestService) ListPublic(ctx context.Context, token string) ([]
 		return nil, err
 	}
 	var rows []*enrollmentModels.ChangeRequest
-	err = tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		list, listErr := s.changeRequestRepo.ListByRequestID(txCtx, req.ID)
+	err = tenant.WithTenantTx(ctx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		list, listErr := s.ChangeRequestRepo.ListByRequestID(txCtx, req.ID)
 		rows = list
 		return listErr
 	})
@@ -254,15 +216,15 @@ func (s *changeRequestService) ParentReply(ctx context.Context, token string, ch
 	if body == "" {
 		return nil, fmt.Errorf("%w: message body is required", ErrChangeRequestInvalidData)
 	}
-	err = tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		row, err := s.changeRequestRepo.FindByIDForUpdate(txCtx, changeRequestID)
+	err = tenant.WithTenantTx(ctx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		row, err := s.ChangeRequestRepo.FindByIDForUpdate(txCtx, changeRequestID)
 		if err != nil || row == nil || row.RequestID != req.ID {
 			return ErrChangeRequestNotFound
 		}
 		if row.Status != enrollmentModels.ChangeRequestStatusNeedsParentResponse {
 			return ErrChangeRequestInvalidStatus
 		}
-		if err := s.messageRepo.Create(txCtx, &enrollmentModels.ChangeRequestMessage{
+		if err := s.MessageRepo.Create(txCtx, &enrollmentModels.ChangeRequestMessage{
 			ChangeRequestID: row.ID,
 			AuthorType:      enrollmentModels.ChangeRequestMessageAuthorParent,
 			AuthorAccountID: nil,
@@ -270,7 +232,7 @@ func (s *changeRequestService) ParentReply(ctx context.Context, token string, ch
 		}); err != nil {
 			return err
 		}
-		return s.changeRequestRepo.SetStatus(txCtx, row.ID, enrollmentModels.ChangeRequestStatusPendingReview)
+		return s.ChangeRequestRepo.SetStatus(txCtx, row.ID, enrollmentModels.ChangeRequestStatusPendingReview)
 	})
 	if err != nil {
 		return nil, err
@@ -280,7 +242,7 @@ func (s *changeRequestService) ParentReply(ctx context.Context, token string, ch
 }
 
 func (s *changeRequestService) ListAdmin(ctx context.Context, filters ChangeRequestFilters) ([]*ChangeRequestAggregate, error) {
-	rows, err := s.changeRequestRepo.ListAdmin(ctx, enrollmentModels.ChangeRequestListFilters{
+	rows, err := s.ChangeRequestRepo.ListAdmin(ctx, enrollmentModels.ChangeRequestListFilters{
 		RequestID: filters.RequestID,
 		Status:    filters.Status,
 		Limit:     filters.Limit,
@@ -313,13 +275,13 @@ func (s *changeRequestService) AskQuestion(ctx context.Context, changeRequestID 
 		if row.Status != enrollmentModels.ChangeRequestStatusPendingReview {
 			return ErrChangeRequestInvalidStatus
 		}
-		loadedReq, err := s.requestRepo.FindByID(txCtx, row.RequestID)
+		loadedReq, err := s.RequestRepo.FindByID(txCtx, row.RequestID)
 		if err != nil {
 			return ErrRequestNotFound
 		}
 		req = loadedReq
 		actorID := input.ActorAccountID
-		if err := s.messageRepo.Create(txCtx, &enrollmentModels.ChangeRequestMessage{
+		if err := s.MessageRepo.Create(txCtx, &enrollmentModels.ChangeRequestMessage{
 			ChangeRequestID: row.ID,
 			AuthorType:      enrollmentModels.ChangeRequestMessageAuthorStaff,
 			AuthorAccountID: &actorID,
@@ -327,7 +289,7 @@ func (s *changeRequestService) AskQuestion(ctx context.Context, changeRequestID 
 		}); err != nil {
 			return err
 		}
-		return s.changeRequestRepo.SetStatus(txCtx, row.ID, enrollmentModels.ChangeRequestStatusNeedsParentResponse)
+		return s.ChangeRequestRepo.SetStatus(txCtx, row.ID, enrollmentModels.ChangeRequestStatusNeedsParentResponse)
 	})
 	if err != nil {
 		return nil, err
@@ -348,17 +310,17 @@ func (s *changeRequestService) Reject(ctx context.Context, changeRequestID int64
 		if row.Status != enrollmentModels.ChangeRequestStatusPendingReview {
 			return ErrChangeRequestInvalidStatus
 		}
-		loadedReq, err := s.requestRepo.FindByID(txCtx, row.RequestID)
+		loadedReq, err := s.RequestRepo.FindByID(txCtx, row.RequestID)
 		if err != nil {
 			return ErrRequestNotFound
 		}
 		req = loadedReq
 		now := time.Now()
-		if err := s.changeRequestRepo.MarkReviewed(txCtx, row.ID, enrollmentModels.ChangeRequestStatusRejected, &note, input.ActorAccountID, now); err != nil {
+		if err := s.ChangeRequestRepo.MarkReviewed(txCtx, row.ID, enrollmentModels.ChangeRequestStatusRejected, &note, input.ActorAccountID, now); err != nil {
 			return err
 		}
 		actorID := input.ActorAccountID
-		return s.messageRepo.Create(txCtx, &enrollmentModels.ChangeRequestMessage{
+		return s.MessageRepo.Create(txCtx, &enrollmentModels.ChangeRequestMessage{
 			ChangeRequestID: row.ID,
 			AuthorType:      enrollmentModels.ChangeRequestMessageAuthorStaff,
 			AuthorAccountID: &actorID,
@@ -384,7 +346,7 @@ func (s *changeRequestService) Approve(ctx context.Context, changeRequestID int6
 		if row.Status != enrollmentModels.ChangeRequestStatusPendingReview {
 			return ErrChangeRequestInvalidStatus
 		}
-		loadedReq, err := s.requestRepo.FindByID(txCtx, row.RequestID)
+		loadedReq, err := s.RequestRepo.FindByID(txCtx, row.RequestID)
 		if err != nil {
 			return ErrRequestNotFound
 		}
@@ -393,11 +355,11 @@ func (s *changeRequestService) Approve(ctx context.Context, changeRequestID int6
 			return err
 		}
 		now := time.Now()
-		if err := s.changeRequestRepo.MarkReviewed(txCtx, row.ID, enrollmentModels.ChangeRequestStatusApproved, &note, input.ActorAccountID, now); err != nil {
+		if err := s.ChangeRequestRepo.MarkReviewed(txCtx, row.ID, enrollmentModels.ChangeRequestStatusApproved, &note, input.ActorAccountID, now); err != nil {
 			return err
 		}
 		actorID := input.ActorAccountID
-		return s.messageRepo.Create(txCtx, &enrollmentModels.ChangeRequestMessage{
+		return s.MessageRepo.Create(txCtx, &enrollmentModels.ChangeRequestMessage{
 			ChangeRequestID: row.ID,
 			AuthorType:      enrollmentModels.ChangeRequestMessageAuthorStaff,
 			AuthorAccountID: &actorID,
@@ -419,8 +381,8 @@ func (s *changeRequestService) requestByToken(ctx context.Context, token string)
 		return nil, 0, ErrRequestNotFound
 	}
 	var req *enrollmentModels.Request
-	err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
-		loaded, err := s.requestRepo.FindByStatusToken(adminCtx, token)
+	err := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
+		loaded, err := s.RequestRepo.FindByStatusToken(adminCtx, token)
 		if err != nil {
 			return ErrRequestNotFound
 		}
@@ -437,11 +399,11 @@ func (s *changeRequestService) requestByToken(ctx context.Context, token string)
 }
 
 func (s *changeRequestService) ensureCanCreate(ctx context.Context, req *enrollmentModels.Request, children []*enrollmentModels.RequestChild) error {
-	rs := &requestService{settings: s.settings}
+	rs := &requestService{RequestServiceConfig: RequestServiceConfig{Settings: s.Settings}}
 	if err := rs.ensureChangeRequestDraftAvailable(ctx, req, children); err != nil {
 		return ErrChangeRequestNotAllowed
 	}
-	phase, err := s.phaseRepo.FindByID(ctx, req.PhaseID)
+	phase, err := s.PhaseRepo.FindByID(ctx, req.PhaseID)
 	if err != nil || phase == nil || !phase.IsActive {
 		return ErrChangeRequestNotAllowed
 	}
@@ -475,11 +437,11 @@ func (s *changeRequestService) prepareProposed(
 		return editReq, nil, nil, nil, err
 	}
 
-	phase, err := s.phaseRepo.FindByID(ctx, req.PhaseID)
+	phase, err := s.PhaseRepo.FindByID(ctx, req.PhaseID)
 	if err != nil || phase == nil || !phase.IsActive {
 		return editReq, nil, nil, nil, ErrEnrollmentDisabled
 	}
-	openOfferings, err := s.careOfferingRepo.ListActiveByPhase(ctx, phase.ID)
+	openOfferings, err := s.CareOfferingRepo.ListActiveByPhase(ctx, phase.ID)
 	if err != nil {
 		return editReq, nil, nil, nil, fmt.Errorf("change request: load phase offerings: %w", err)
 	}
@@ -509,7 +471,7 @@ func (s *changeRequestService) prepareProposed(
 	if err != nil {
 		return editReq, nil, nil, nil, err
 	}
-	rs := &requestService{settings: s.settings, formSchemaRepo: s.formSchemaRepo, logger: s.logger}
+	rs := &requestService{RequestServiceConfig: RequestServiceConfig{Settings: s.Settings, FormSchemaRepo: s.FormSchemaRepo, Logger: s.Logger}}
 	if err := normalizeAdditionalGuardians(&editReq); err != nil {
 		return editReq, nil, nil, nil, err
 	}
@@ -571,7 +533,7 @@ func (s *changeRequestService) changeRequestOfferingCatalogs(
 		childIndexByID[child.ID] = i
 	}
 
-	links, err := s.requestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
 	if err != nil {
 		return nil, nil, fmt.Errorf("change request: load current child offerings: %w", err)
 	}
@@ -601,7 +563,7 @@ func (s *changeRequestService) changeRequestOfferingCatalogs(
 		for id := range currentIDs {
 			ids = append(ids, id)
 		}
-		currentOfferings, err := s.careOfferingRepo.ListByIDs(ctx, ids)
+		currentOfferings, err := s.CareOfferingRepo.ListByIDs(ctx, ids)
 		if err != nil {
 			return nil, nil, fmt.Errorf("change request: load current inactive offerings: %w", err)
 		}
@@ -678,7 +640,7 @@ func (s *changeRequestService) schemaForRequest(ctx context.Context, req *enroll
 	if req.SchemaID == nil {
 		return nil, nil
 	}
-	schema, err := s.formSchemaRepo.FindByID(ctx, *req.SchemaID)
+	schema, err := s.FormSchemaRepo.FindByID(ctx, *req.SchemaID)
 	if err != nil {
 		return nil, fmt.Errorf("change request: load schema: %w", err)
 	}
@@ -686,7 +648,7 @@ func (s *changeRequestService) schemaForRequest(ctx context.Context, req *enroll
 }
 
 func (s *changeRequestService) legalBlocksForRequest(ctx context.Context, schema *enrollmentModels.FormSchema) ([]LegalBlock, error) {
-	texts, err := (&requestService{settings: s.settings}).LegalTexts(ctx)
+	texts, err := (&requestService{RequestServiceConfig: RequestServiceConfig{Settings: s.Settings}}).LegalTexts(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -699,7 +661,7 @@ func (s *changeRequestService) legalBlocksForRequest(ctx context.Context, schema
 }
 
 func (s *changeRequestService) currentSnapshot(ctx context.Context, req *enrollmentModels.Request, children []*enrollmentModels.RequestChild) (map[string]any, error) {
-	guardians, err := s.requestGuardianRepo.ListByRequestID(ctx, req.ID)
+	guardians, err := s.RequestGuardianRepo.ListByRequestID(ctx, req.ID)
 	if err != nil {
 		return nil, fmt.Errorf("change request: list guardians: %w", err)
 	}
@@ -707,7 +669,7 @@ func (s *changeRequestService) currentSnapshot(ctx context.Context, req *enrollm
 	for _, child := range children {
 		childIDs = append(childIDs, child.ID)
 	}
-	links, err := s.requestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
 	if err != nil {
 		return nil, fmt.Errorf("change request: list child offerings: %w", err)
 	}
@@ -719,11 +681,11 @@ func (s *changeRequestService) currentSnapshot(ctx context.Context, req *enrollm
 }
 
 func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enrollmentModels.ChangeRequest, input ReviewChangeRequestInput) error {
-	req, err := s.requestRepo.FindByID(ctx, row.RequestID)
+	req, err := s.RequestRepo.FindByID(ctx, row.RequestID)
 	if err != nil {
 		return ErrRequestNotFound
 	}
-	children, err := s.requestChildRepo.ListByRequestIDForUpdate(ctx, req.ID)
+	children, err := s.RequestChildRepo.ListByRequestIDForUpdate(ctx, req.ID)
 	if err != nil {
 		return fmt.Errorf("change request approve: lock children: %w", err)
 	}
@@ -751,8 +713,8 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 		return err
 	}
 	var previousGuardians []*enrollmentModels.RequestGuardian
-	if s.requestGuardianRepo != nil {
-		previousGuardians, err = s.requestGuardianRepo.ListByRequestID(ctx, req.ID)
+	if s.RequestGuardianRepo != nil {
+		previousGuardians, err = s.RequestGuardianRepo.ListByRequestID(ctx, req.ID)
 		if err != nil {
 			return fmt.Errorf("change request approve: list previous guardians: %w", err)
 		}
@@ -768,15 +730,15 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 	req.GuardianPhone = prepared.GuardianPhone
 	req.ConsentFlags = prepared.ConsentFlags
 	req.CustomData = prepared.CustomData
-	if err := s.requestRepo.UpdateGuardianDataWithEmail(ctx, req); err != nil {
+	if err := s.RequestRepo.UpdateGuardianDataWithEmail(ctx, req); err != nil {
 		return err
 	}
-	if s.requestGuardianRepo != nil {
-		if err := s.requestGuardianRepo.DeleteByRequestID(ctx, req.ID); err != nil {
+	if s.RequestGuardianRepo != nil {
+		if err := s.RequestGuardianRepo.DeleteByRequestID(ctx, req.ID); err != nil {
 			return err
 		}
 		for i, guardian := range prepared.AdditionalGuardians {
-			if err := s.requestGuardianRepo.Create(ctx, &enrollmentModels.RequestGuardian{
+			if err := s.RequestGuardianRepo.Create(ctx, &enrollmentModels.RequestGuardian{
 				RequestID:         req.ID,
 				FirstName:         guardian.FirstName,
 				LastName:          guardian.LastName,
@@ -798,7 +760,7 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 		existing.TargetGradeLevel = next.TargetGradeLevel
 		existing.CustomData = next.CustomData
 		existing.SortOrder = i
-		if err := s.requestChildRepo.UpdateData(ctx, existing); err != nil {
+		if err := s.RequestChildRepo.UpdateData(ctx, existing); err != nil {
 			return err
 		}
 		selections := materializedSelections[i]
@@ -816,10 +778,10 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 					SelectedDays: selection.SelectedDays,
 				})
 			}
-			if _, err := s.decisionService.UpdateChildOfferings(ctx, offeringInput); err != nil {
+			if _, err := s.DecisionService.UpdateChildOfferings(ctx, offeringInput); err != nil {
 				return err
 			}
-			if _, err := s.decisionService.SyncApprovedChildData(ctx, SyncApprovedChildDataInput{
+			if _, err := s.DecisionService.SyncApprovedChildData(ctx, SyncApprovedChildDataInput{
 				RequestID:                req.ID,
 				ChildID:                  existing.ID,
 				ActorAccountID:           input.ActorAccountID,
@@ -841,17 +803,17 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 				AutomaticSelectedDays: selection.AutomaticSelectedDays,
 			})
 		}
-		if err := s.requestChildOfferingRepo.ReplaceForRequestChild(ctx, existing.ID, replacement); err != nil {
+		if err := s.RequestChildOfferingRepo.ReplaceForRequestChild(ctx, existing.ID, replacement); err != nil {
 			return err
 		}
 		if status, ok := childStatusOverrides[i]; ok {
-			if err := s.requestChildRepo.UpdateStatus(ctx, existing.ID, status, nil, input.ActorAccountID); err != nil {
+			if err := s.RequestChildRepo.UpdateStatus(ctx, existing.ID, status, nil, input.ActorAccountID); err != nil {
 				return err
 			}
 			continue
 		}
 		if existing.Status == enrollmentModels.ChildStatusRejected && childSnapshotChanged(row.BaseSnapshot, row.ProposedSnapshot, existing.ID) {
-			if err := s.requestChildRepo.UpdateStatus(ctx, existing.ID, enrollmentModels.ChildStatusUnderReview, nil, input.ActorAccountID); err != nil {
+			if err := s.RequestChildRepo.UpdateStatus(ctx, existing.ID, enrollmentModels.ChildStatusUnderReview, nil, input.ActorAccountID); err != nil {
 				return err
 			}
 		}
@@ -868,7 +830,7 @@ func (s *changeRequestService) changeRequestCapacityOverrides(
 	openByID map[int64]*enrollmentModels.CareOffering,
 ) (map[int]string, error) {
 	overrides := make(map[int]string)
-	if s.requestChildOfferingRepo == nil || len(children) == 0 {
+	if s.RequestChildOfferingRepo == nil || len(children) == 0 {
 		return overrides, nil
 	}
 
@@ -895,7 +857,7 @@ func (s *changeRequestService) changeRequestCapacityOverrides(
 	}
 
 	preservedClaims := make(map[int64]int)
-	existingLinks, err := s.requestChildOfferingRepo.ListByRequestChildIDs(ctx, preservedChildIDs)
+	existingLinks, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, preservedChildIDs)
 	if err != nil {
 		return nil, fmt.Errorf("change request approve: load existing child offerings for capacity: %w", err)
 	}
@@ -903,7 +865,7 @@ func (s *changeRequestService) changeRequestCapacityOverrides(
 		preservedClaims[link.CareOfferingID]++
 	}
 
-	rs := &requestService{requestChildOfferingRepo: s.requestChildOfferingRepo}
+	rs := &requestService{RequestServiceConfig: RequestServiceConfig{RequestChildOfferingRepo: s.RequestChildOfferingRepo}}
 	candidateOverrides, err := rs.applyCapacityOverflowWithPreservedClaims(ctx, phase, candidates, openByID, preservedClaims)
 	if err != nil {
 		return nil, fmt.Errorf("change request approve: capacity overflow: %w", err)
@@ -921,7 +883,7 @@ func (s *changeRequestService) approvedChildUsesDecisionSync(child *enrollmentMo
 	return child != nil &&
 		child.Status == enrollmentModels.ChildStatusApproved &&
 		child.CreatedStudentID != nil &&
-		s.decisionService != nil
+		s.DecisionService != nil
 }
 
 func childStatusCountsForCapacity(status string) bool {
@@ -931,7 +893,7 @@ func childStatusCountsForCapacity(status string) bool {
 
 func (s *changeRequestService) ensureNoActiveDuplicateForApproval(ctx context.Context, req *enrollmentModels.Request, prepared SubmitRequest) error {
 	emailLC := strings.ToLower(strings.TrimSpace(req.GuardianEmail))
-	if err := s.requestRepo.AcquireSubmissionDedupLock(ctx, req.PhaseID, fnvHash64(emailLC)); err != nil {
+	if err := s.RequestRepo.AcquireSubmissionDedupLock(ctx, req.PhaseID, fnvHash64(emailLC)); err != nil {
 		return fmt.Errorf("change request approve: acquire duplicate lock: %w", err)
 	}
 
@@ -942,7 +904,7 @@ func (s *changeRequestService) ensureNoActiveDuplicateForApproval(ctx context.Co
 			LastName:  child.LastName,
 		})
 	}
-	dupes, err := s.requestRepo.FindActiveDuplicateExcludingRequest(ctx, req.PhaseID, req.GuardianEmail, dupKeys, req.ID)
+	dupes, err := s.RequestRepo.FindActiveDuplicateExcludingRequest(ctx, req.PhaseID, req.GuardianEmail, dupKeys, req.ID)
 	if err != nil {
 		return fmt.Errorf("change request approve: duplicate check: %w", err)
 	}
@@ -995,7 +957,7 @@ func normalizedProfileCarryValue(value string) string {
 }
 
 func (s *changeRequestService) ensureNoOpenChangeRequest(ctx context.Context, requestID int64) error {
-	rows, err := s.changeRequestRepo.ListByRequestID(ctx, requestID)
+	rows, err := s.ChangeRequestRepo.ListByRequestID(ctx, requestID)
 	if err != nil {
 		return err
 	}
@@ -1056,7 +1018,7 @@ func copySnapshotMapWithoutStatus(in map[string]any) map[string]any {
 }
 
 func (s *changeRequestService) validateAccountLinkedGuardianEdits(ctx context.Context, req *enrollmentModels.Request, editReq SubmitRequest) error {
-	if s.guardianProfileRepo == nil {
+	if s.GuardianProfileRepo == nil {
 		return nil
 	}
 	profile, err := s.primaryGuardianProfile(ctx, req)
@@ -1070,10 +1032,10 @@ func (s *changeRequestService) validateAccountLinkedGuardianEdits(ctx context.Co
 			return fmt.Errorf("%w: account-linked guardian profile details must be changed in the parent portal", ErrChangeRequestInvalidData)
 		}
 	}
-	if len(editReq.AdditionalGuardians) == 0 || s.requestGuardianRepo == nil {
+	if len(editReq.AdditionalGuardians) == 0 || s.RequestGuardianRepo == nil {
 		return nil
 	}
-	existing, err := s.requestGuardianRepo.ListByRequestID(ctx, req.ID)
+	existing, err := s.RequestGuardianRepo.ListByRequestID(ctx, req.ID)
 	if err != nil {
 		return fmt.Errorf("change request: list guardians for account guardrail: %w", err)
 	}
@@ -1082,7 +1044,7 @@ func (s *changeRequestService) validateAccountLinkedGuardianEdits(ctx context.Co
 		if email == "" {
 			continue
 		}
-		profile, err := s.guardianProfileRepo.FindByEmail(ctx, email)
+		profile, err := s.GuardianProfileRepo.FindByEmail(ctx, email)
 		if err != nil {
 			if errors.Is(err, userModels.ErrGuardianProfileNotFound) {
 				continue
@@ -1110,11 +1072,11 @@ func (s *changeRequestService) validateAccountLinkedGuardianEdits(ctx context.Co
 }
 
 func (s *changeRequestService) primaryGuardianProfile(ctx context.Context, req *enrollmentModels.Request) (*userModels.GuardianProfile, error) {
-	if s.guardianProfileRepo == nil || req == nil {
+	if s.GuardianProfileRepo == nil || req == nil {
 		return nil, nil
 	}
 	if req.GuardianAccountID != nil && *req.GuardianAccountID > 0 {
-		profile, err := s.guardianProfileRepo.FindByAccountID(ctx, *req.GuardianAccountID)
+		profile, err := s.GuardianProfileRepo.FindByAccountID(ctx, *req.GuardianAccountID)
 		if err == nil && profile != nil {
 			return profile, nil
 		}
@@ -1126,7 +1088,7 @@ func (s *changeRequestService) primaryGuardianProfile(ctx context.Context, req *
 	if email == "" {
 		return nil, nil
 	}
-	profile, err := s.guardianProfileRepo.FindByEmail(ctx, email)
+	profile, err := s.GuardianProfileRepo.FindByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, userModels.ErrGuardianProfileNotFound) {
 			return nil, nil
@@ -1157,10 +1119,10 @@ func (s *changeRequestService) submittedPhoneMatchesProfile(ctx context.Context,
 	if phone == "" {
 		return true
 	}
-	if s.guardianPhoneRepo == nil {
+	if s.GuardianPhoneRepo == nil {
 		return false
 	}
-	rows, err := s.guardianPhoneRepo.FindByGuardianID(ctx, profileID)
+	rows, err := s.GuardianPhoneRepo.FindByGuardianID(ctx, profileID)
 	if err != nil {
 		return false
 	}
@@ -1195,12 +1157,12 @@ func optionalLowerEmail(value *string) string {
 }
 
 func (s *changeRequestService) withLockedChangeRequest(ctx context.Context, id int64, fn func(context.Context, *enrollmentModels.ChangeRequest) error) error {
-	row, err := s.changeRequestRepo.FindByID(ctx, id)
+	row, err := s.ChangeRequestRepo.FindByID(ctx, id)
 	if err != nil || row == nil {
 		return ErrChangeRequestNotFound
 	}
-	return tenant.WithTenantTx(ctx, s.db, row.GetTenantID(), func(txCtx context.Context, _ bun.Tx) error {
-		locked, err := s.changeRequestRepo.FindByIDForUpdate(txCtx, id)
+	return tenant.WithTenantTx(ctx, s.DB, row.GetTenantID(), func(txCtx context.Context, _ bun.Tx) error {
+		locked, err := s.ChangeRequestRepo.FindByIDForUpdate(txCtx, id)
 		if err != nil || locked == nil {
 			return ErrChangeRequestNotFound
 		}
@@ -1209,7 +1171,7 @@ func (s *changeRequestService) withLockedChangeRequest(ctx context.Context, id i
 }
 
 func (s *changeRequestService) loadAggregate(ctx context.Context, id int64, includeInternal bool) (*ChangeRequestAggregate, error) {
-	row, err := s.changeRequestRepo.FindByID(ctx, id)
+	row, err := s.ChangeRequestRepo.FindByID(ctx, id)
 	if err != nil || row == nil {
 		return nil, ErrChangeRequestNotFound
 	}
@@ -1218,7 +1180,7 @@ func (s *changeRequestService) loadAggregate(ctx context.Context, id int64, incl
 
 func (s *changeRequestService) loadAggregateForTenant(ctx context.Context, tenantID int64, id int64, includeInternal bool) (*ChangeRequestAggregate, error) {
 	var agg *ChangeRequestAggregate
-	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(ctx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		loaded, err := s.loadAggregate(txCtx, id, includeInternal)
 		agg = loaded
 		return err
@@ -1227,21 +1189,21 @@ func (s *changeRequestService) loadAggregateForTenant(ctx context.Context, tenan
 }
 
 func (s *changeRequestService) aggregateFromRow(ctx context.Context, row *enrollmentModels.ChangeRequest, includeInternal bool) (*ChangeRequestAggregate, error) {
-	req, err := s.requestRepo.FindByID(ctx, row.RequestID)
+	req, err := s.RequestRepo.FindByID(ctx, row.RequestID)
 	if err != nil {
 		return nil, ErrRequestNotFound
 	}
-	children, err := s.requestChildRepo.ListByRequestID(ctx, req.ID)
+	children, err := s.RequestChildRepo.ListByRequestID(ctx, req.ID)
 	if err != nil {
 		return nil, fmt.Errorf("change request: list aggregate children: %w", err)
 	}
-	messages, err := s.messageRepo.ListByChangeRequestID(ctx, row.ID, includeInternal)
+	messages, err := s.MessageRepo.ListByChangeRequestID(ctx, row.ID, includeInternal)
 	if err != nil {
 		return nil, err
 	}
 	var phase *enrollmentModels.Phase
-	if s.phaseRepo != nil {
-		phase, _ = s.phaseRepo.FindByID(ctx, req.PhaseID)
+	if s.PhaseRepo != nil {
+		phase, _ = s.PhaseRepo.FindByID(ctx, req.PhaseID)
 	}
 	return &ChangeRequestAggregate{
 		ChangeRequest: row,
@@ -1529,26 +1491,26 @@ func stringSliceFromAny(v any) []string {
 }
 
 func (s *changeRequestService) emailNotificationsEnabled(ctx context.Context) bool {
-	if s.settings == nil {
+	if s.Settings == nil {
 		return false
 	}
-	enabled, err := s.settings.ResolveBool(ctx, configModel.KeyEnrollmentChangeRequestEmailNotificationsEnabled)
+	enabled, err := s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentChangeRequestEmailNotificationsEnabled)
 	return err == nil && enabled
 }
 
 func (s *changeRequestService) enqueueChangeRequestSubmitted(ctx context.Context, tenantID int64, req *enrollmentModels.Request, cr *enrollmentModels.ChangeRequest) {
-	if s.outboxEnqueuer == nil {
+	if s.OutboxEnqueuer == nil {
 		return
 	}
 	kind := platformModels.EmailKindEnrollmentChangeRequestSubmitted
-	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(ctx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		if !s.emailNotificationsEnabled(txCtx) {
 			return nil
 		}
-		for _, admin := range (&requestService{settings: s.settings}).resolveAdminEmails(txCtx) {
+		for _, admin := range (&requestService{RequestServiceConfig: RequestServiceConfig{Settings: s.Settings}}).resolveAdminEmails(txCtx) {
 			payload := s.emailPayload(txCtx, req, cr.ID, admin)
 			payload[EnrollmentPayloadAdminURL] = s.adminURL(cr.ID)
-			if enqueueErr := s.outboxEnqueuer.Enqueue(txCtx, OutboxEnqueueRequest{
+			if enqueueErr := s.OutboxEnqueuer.Enqueue(txCtx, OutboxEnqueueRequest{
 				Kind:              kind,
 				Payload:           payload,
 				RelatedEntityType: platformModels.EmailRelatedTypeEnrollmentRequest,
@@ -1565,18 +1527,18 @@ func (s *changeRequestService) enqueueChangeRequestSubmitted(ctx context.Context
 }
 
 func (s *changeRequestService) enqueueParentReply(ctx context.Context, tenantID int64, req *enrollmentModels.Request, changeRequestID int64) {
-	if s.outboxEnqueuer == nil {
+	if s.OutboxEnqueuer == nil {
 		return
 	}
 	kind := platformModels.EmailKindEnrollmentChangeRequestParentReply
-	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(ctx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		if !s.emailNotificationsEnabled(txCtx) {
 			return nil
 		}
-		for _, admin := range (&requestService{settings: s.settings}).resolveAdminEmails(txCtx) {
+		for _, admin := range (&requestService{RequestServiceConfig: RequestServiceConfig{Settings: s.Settings}}).resolveAdminEmails(txCtx) {
 			payload := s.emailPayload(txCtx, req, changeRequestID, admin)
 			payload[EnrollmentPayloadAdminURL] = s.adminURL(changeRequestID)
-			if enqueueErr := s.outboxEnqueuer.Enqueue(txCtx, OutboxEnqueueRequest{
+			if enqueueErr := s.OutboxEnqueuer.Enqueue(txCtx, OutboxEnqueueRequest{
 				Kind:              kind,
 				Payload:           payload,
 				RelatedEntityType: platformModels.EmailRelatedTypeEnrollmentRequest,
@@ -1601,15 +1563,15 @@ func (s *changeRequestService) enqueueReviewed(ctx context.Context, tenantID int
 }
 
 func (s *changeRequestService) enqueueParentNotification(ctx context.Context, tenantID int64, req *enrollmentModels.Request, changeRequestID int64, kind string) {
-	if s.outboxEnqueuer == nil {
+	if s.OutboxEnqueuer == nil {
 		return
 	}
-	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(ctx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		if !s.emailNotificationsEnabled(txCtx) {
 			return nil
 		}
 		payload := s.emailPayload(txCtx, req, changeRequestID, req.GuardianEmail)
-		if enqueueErr := s.outboxEnqueuer.Enqueue(txCtx, OutboxEnqueueRequest{
+		if enqueueErr := s.OutboxEnqueuer.Enqueue(txCtx, OutboxEnqueueRequest{
 			Kind:              kind,
 			Payload:           payload,
 			RelatedEntityType: platformModels.EmailRelatedTypeEnrollmentRequest,
@@ -1625,10 +1587,10 @@ func (s *changeRequestService) enqueueParentNotification(ctx context.Context, te
 }
 
 func (s *changeRequestService) logChangeRequestNotificationFailure(err error, tenantID, requestID, changeRequestID int64, kind, recipient, stage string) {
-	if err == nil || s.logger == nil {
+	if err == nil || s.Logger == nil {
 		return
 	}
-	s.logger.Warn("change request notification enqueue failed",
+	s.Logger.Warn("change request notification enqueue failed",
 		slog.String("stage", stage),
 		slog.Int64("tenant_id", tenantID),
 		slog.Int64("request_id", requestID),
@@ -1640,23 +1602,23 @@ func (s *changeRequestService) logChangeRequestNotificationFailure(err error, te
 }
 
 func (s *changeRequestService) emailPayload(ctx context.Context, req *enrollmentModels.Request, changeRequestID int64, recipient string) map[string]any {
-	schoolName, logoURL := emailBrandForSchool(ctx, s.schoolRepo, req.GetTenantID(), s.parentsURL)
+	schoolName, logoURL := emailBrandForSchool(ctx, s.SchoolRepo, req.GetTenantID(), s.ParentsURL)
 	return map[string]any{
 		EnrollmentPayloadGuardianFirstName: req.GuardianFirstName,
 		EnrollmentPayloadGuardianLastName:  req.GuardianLastName,
 		EnrollmentPayloadGuardianEmail:     req.GuardianEmail,
 		EnrollmentPayloadSchoolName:        schoolName,
-		EnrollmentPayloadStatusURL:         fmt.Sprintf("%s/enroll/status/%s", s.parentsURL, req.StatusToken),
+		EnrollmentPayloadStatusURL:         fmt.Sprintf("%s/enroll/status/%s", s.ParentsURL, req.StatusToken),
 		EnrollmentPayloadLogoURL:           logoURL,
-		EnrollmentPayloadMotoLogoURL:       motoLogoURL(s.parentsURL),
+		EnrollmentPayloadMotoLogoURL:       motoLogoURL(s.ParentsURL),
 		EnrollmentPayloadRecipientEmail:    recipient,
 		"change_request_id":                strconv.FormatInt(changeRequestID, 10),
 	}
 }
 
 func (s *changeRequestService) adminURL(changeRequestID int64) string {
-	if s.frontendURL == "" {
+	if s.FrontendURL == "" {
 		return ""
 	}
-	return fmt.Sprintf("%s/admin/enrollments/change-requests/%d", s.frontendURL, changeRequestID)
+	return fmt.Sprintf("%s/admin/enrollments/change-requests/%d", s.FrontendURL, changeRequestID)
 }

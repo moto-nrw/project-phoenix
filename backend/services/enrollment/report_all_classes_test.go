@@ -45,7 +45,7 @@ func allClassesTestService() *reportService {
 		14: {FirstName: "Emma", LastName: "Dreyer"},
 	}
 	svc := classRosterTestService(nil, persons, &fakeClassRosterRequestRepo{}, &fakeClassRosterChildRepo{})
-	svc.studentRepo = &fakeAllClassesStudentRepo{
+	svc.StudentRepo = &fakeAllClassesStudentRepo{
 		byClass: students,
 		classes: []string{"10a", "1a", "2b"},
 	}
@@ -108,7 +108,7 @@ func TestClassRosterAllClassesDeduplicatesCaseVariantClasses(t *testing.T) {
 		},
 		classes: []string{"1A", "1a", "2b"},
 	}
-	svc.studentRepo = repo
+	svc.StudentRepo = repo
 
 	report, err := svc.ClassRoster(context.Background(), ClassRosterFilters{PhaseID: 55, AllClasses: true})
 

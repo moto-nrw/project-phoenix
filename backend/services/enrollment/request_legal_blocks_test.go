@@ -210,14 +210,14 @@ func TestResolveRequiredConsents_AllDisabledTemplateFallsBackToSettings(t *testi
 	// A template whose blocks are ALL disabled must behave like a template
 	// without blocks: the tenant-wide settings contract stays in force, so
 	// the DSGVO acknowledgment cannot be erased by an empty snapshot.
-	svc := &requestService{settings: &legalSettingsStub{
+	svc := &requestService{RequestServiceConfig: RequestServiceConfig{Settings: &legalSettingsStub{
 		values: map[string]string{
 			configModel.KeyEnrollmentLegalDSGVOText: "DSGVO Text",
 		},
 		bools: map[string]bool{
 			configModel.KeyEnrollmentLegalDSGVOEnabled: true,
 		},
-	}}
+	}}}
 	schema := &enrollmentModels.FormSchema{
 		LegalBlocks: []enrollmentModels.FormLegalBlock{
 			{

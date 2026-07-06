@@ -326,87 +326,22 @@ type DecisionServiceConfig struct {
 }
 
 type decisionService struct {
-	requestRepo              enrollmentModels.RequestRepository
-	requestChildRepo         enrollmentModels.RequestChildRepository
-	requestGuardianRepo      enrollmentModels.RequestGuardianRepository
-	requestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
-	careOfferingRepo         enrollmentModels.CareOfferingRepository
-	phaseRepo                enrollmentModels.PhaseRepository
-	formSchemaRepo           enrollmentModels.FormSchemaRepository
-	dataAccessLogRepo        auditModels.DataAccessLogRepository
-	offeringAdjustmentRepo   auditModels.EnrollmentOfferingAdjustmentRepository
-	schoolRepo               platformModels.SchoolRepository
-	personRepo               users.PersonRepository
-	staffRepo                users.StaffRepository
-	studentRepo              users.StudentRepository
-	studentGuardianRepo      users.StudentGuardianRepository
-	guardianProfileRepo      users.GuardianProfileRepository
-	guardianPhoneRepo        users.GuardianPhoneNumberRepository
-	pickupScheduleRepo       scheduleModels.StudentPickupScheduleRepository
-	arrivalScheduleRepo      scheduleModels.StudentArrivalScheduleRepository
-	studentEnrollmentRepo    activities.StudentEnrollmentRepository
-	activityGroupRepo        activities.GroupRepository
-	activityScheduleRepo     activities.ScheduleRepository
-	calendarPeriodRepo       scheduleModels.CalendarPeriodRepository
-	accountRepo              authModels.AccountRepository
-	accountTenantRepo        authModels.AccountTenantRepository
-	accountRoleRepo          authModels.AccountRoleRepository
-	roleRepo                 authModels.RoleRepository
-	outboxEnqueuer           OutboxEnqueuer
-	frontendURL              string
-	parentsURL               string
-	settings                 DecisionSettingsResolver
-	logger                   *slog.Logger
+	DecisionServiceConfig
 }
 
 func NewDecisionService(cfg DecisionServiceConfig) DecisionService {
-	logger := cfg.Logger
-	if logger == nil {
-		logger = slog.Default()
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
 	}
-	return &decisionService{
-		requestRepo:              cfg.RequestRepo,
-		requestChildRepo:         cfg.RequestChildRepo,
-		requestGuardianRepo:      cfg.RequestGuardianRepo,
-		requestChildOfferingRepo: cfg.RequestChildOfferingRepo,
-		careOfferingRepo:         cfg.CareOfferingRepo,
-		phaseRepo:                cfg.PhaseRepo,
-		formSchemaRepo:           cfg.FormSchemaRepo,
-		dataAccessLogRepo:        cfg.DataAccessLogRepo,
-		offeringAdjustmentRepo:   cfg.OfferingAdjustmentRepo,
-		schoolRepo:               cfg.SchoolRepo,
-		personRepo:               cfg.PersonRepo,
-		staffRepo:                cfg.StaffRepo,
-		studentRepo:              cfg.StudentRepo,
-		studentGuardianRepo:      cfg.StudentGuardianRepo,
-		guardianProfileRepo:      cfg.GuardianProfileRepo,
-		guardianPhoneRepo:        cfg.GuardianPhoneRepo,
-		pickupScheduleRepo:       cfg.PickupScheduleRepo,
-		arrivalScheduleRepo:      cfg.ArrivalScheduleRepo,
-		studentEnrollmentRepo:    cfg.StudentEnrollmentRepo,
-		activityGroupRepo:        cfg.ActivityGroupRepo,
-		activityScheduleRepo:     cfg.ActivityScheduleRepo,
-		calendarPeriodRepo:       cfg.CalendarPeriodRepo,
-		accountRepo:              cfg.AccountRepo,
-		accountTenantRepo:        cfg.AccountTenantRepo,
-		accountRoleRepo:          cfg.AccountRoleRepo,
-		roleRepo:                 cfg.RoleRepo,
-		outboxEnqueuer:           cfg.OutboxEnqueuer,
-		frontendURL:              cfg.FrontendURL,
-		parentsURL: func() string {
-			parents := strings.TrimRight(strings.TrimSpace(cfg.ParentsURL), "/")
-			if parents != "" {
-				return parents
-			}
-			return strings.TrimRight(strings.TrimSpace(cfg.FrontendURL), "/")
-		}(),
-		settings: cfg.Settings,
-		logger:   logger,
+	cfg.ParentsURL = strings.TrimRight(strings.TrimSpace(cfg.ParentsURL), "/")
+	if cfg.ParentsURL == "" {
+		cfg.ParentsURL = strings.TrimRight(strings.TrimSpace(cfg.FrontendURL), "/")
 	}
+	return &decisionService{DecisionServiceConfig: cfg}
 }
 
 func (s *decisionService) List(ctx context.Context, filters RequestFilters) ([]*RequestSummary, error) {
-	requests, err := s.requestRepo.ListAdmin(ctx, enrollmentModels.RequestListFilters{
+	requests, err := s.RequestRepo.ListAdmin(ctx, enrollmentModels.RequestListFilters{
 		PhaseID:          filters.PhaseID,
 		ChildStatus:      filters.ChildStatus,
 		CreatedStudentID: 0,
@@ -430,7 +365,7 @@ func (s *decisionService) ListByStudent(ctx context.Context, studentID int64) ([
 	if studentID <= 0 {
 		return nil, fmt.Errorf("decision: student_id required")
 	}
-	requests, err := s.requestRepo.ListAdmin(ctx, enrollmentModels.RequestListFilters{
+	requests, err := s.RequestRepo.ListAdmin(ctx, enrollmentModels.RequestListFilters{
 		CreatedStudentID: studentID,
 	})
 	if err != nil {
@@ -465,7 +400,7 @@ func filterRequestSummaryChildren(summary *RequestSummary, studentID int64) {
 }
 
 func (s *decisionService) Get(ctx context.Context, requestID int64) (*RequestSummary, error) {
-	req, err := s.requestRepo.FindByID(ctx, requestID)
+	req, err := s.RequestRepo.FindByID(ctx, requestID)
 	if err != nil {
 		return nil, ErrDecisionRequestNotFound
 	}
@@ -473,23 +408,23 @@ func (s *decisionService) Get(ctx context.Context, requestID int64) (*RequestSum
 }
 
 func (s *decisionService) assemble(ctx context.Context, req *enrollmentModels.Request) (*RequestSummary, error) {
-	phase, err := s.phaseRepo.FindByID(ctx, req.PhaseID)
+	phase, err := s.PhaseRepo.FindByID(ctx, req.PhaseID)
 	if err != nil {
 		// Phase may have been deleted under us - surface as "phase
 		// missing" but don't drop the row from the list.
-		s.logger.Warn("decision: phase lookup failed",
+		s.Logger.Warn("decision: phase lookup failed",
 			slog.Int64("request_id", req.ID),
 			slog.Int64("phase_id", req.PhaseID),
 			slog.String("error", err.Error()))
 		phase = nil
 	}
-	children, err := s.requestChildRepo.ListByRequestID(ctx, req.ID)
+	children, err := s.RequestChildRepo.ListByRequestID(ctx, req.ID)
 	if err != nil {
 		return nil, fmt.Errorf("decision: list children for request %d: %w", req.ID, err)
 	}
 	var guardians []*enrollmentModels.RequestGuardian
-	if s.requestGuardianRepo != nil {
-		guardians, err = s.requestGuardianRepo.ListByRequestID(ctx, req.ID)
+	if s.RequestGuardianRepo != nil {
+		guardians, err = s.RequestGuardianRepo.ListByRequestID(ctx, req.ID)
 		if err != nil {
 			return nil, fmt.Errorf("decision: list guardians for request %d: %w", req.ID, err)
 		}
@@ -506,13 +441,13 @@ func (s *decisionService) ListChildOfferings(ctx context.Context, requestID int6
 	if requestID <= 0 {
 		return nil, fmt.Errorf("decision: request_id required")
 	}
-	children, err := s.requestChildRepo.ListByRequestID(ctx, requestID)
+	children, err := s.RequestChildRepo.ListByRequestID(ctx, requestID)
 	if err != nil {
 		return nil, fmt.Errorf("decision: list children for offerings: %w", err)
 	}
 	out := make(map[int64][]ChildOfferingRow, len(children))
 	for _, child := range children {
-		links, lerr := s.requestChildOfferingRepo.ListByRequestChildID(ctx, child.ID)
+		links, lerr := s.RequestChildOfferingRepo.ListByRequestChildID(ctx, child.ID)
 		if lerr != nil {
 			return nil, fmt.Errorf("decision: list offerings for child %d: %w", child.ID, lerr)
 		}
@@ -524,8 +459,8 @@ func (s *decisionService) ListChildOfferings(ctx context.Context, requestID int6
 				ManualSelectedDays:    link.ManualSelectedDays,
 				AutomaticSelectedDays: link.AutomaticSelectedDays,
 			}
-			if s.careOfferingRepo != nil {
-				if off, err := s.careOfferingRepo.FindByID(ctx, link.CareOfferingID); err == nil && off != nil {
+			if s.CareOfferingRepo != nil {
+				if off, err := s.CareOfferingRepo.FindByID(ctx, link.CareOfferingID); err == nil && off != nil {
 					row.OfferingName = off.Name
 					row.DaysOfWeekMode = off.DaysOfWeekMode
 					row.AvailableDays = off.AvailableDays
@@ -582,7 +517,7 @@ func (s *decisionService) exportData(ctx context.Context, phaseID int64, childSt
 		return nil, fmt.Errorf("decision: export: phase_id required")
 	}
 
-	requests, err := s.requestRepo.ListAdmin(ctx, enrollmentModels.RequestListFilters{PhaseID: phaseID})
+	requests, err := s.RequestRepo.ListAdmin(ctx, enrollmentModels.RequestListFilters{PhaseID: phaseID})
 	if err != nil {
 		return nil, fmt.Errorf("decision: export list requests: %w", err)
 	}
@@ -594,7 +529,7 @@ func (s *decisionService) exportData(ctx context.Context, phaseID int64, childSt
 		return nil, fmt.Errorf("decision: export phase %d has %d requests (max %d): %w",
 			phaseID, len(requests), maxExportRequests, ErrExportTooLarge)
 	}
-	phase, err := s.phaseRepo.FindByID(ctx, phaseID)
+	phase, err := s.PhaseRepo.FindByID(ctx, phaseID)
 	if err != nil {
 		// Map a missing/unreachable phase to the not-found sentinel so the
 		// handler can answer 404 rather than 500. Mirrors phaseService.GetByID,
@@ -607,7 +542,7 @@ func (s *decisionService) exportData(ctx context.Context, phaseID int64, childSt
 		reqIDs = append(reqIDs, req.ID)
 	}
 
-	children, err := s.requestChildRepo.ListByRequestIDs(ctx, reqIDs)
+	children, err := s.RequestChildRepo.ListByRequestIDs(ctx, reqIDs)
 	if err != nil {
 		return nil, fmt.Errorf("decision: export load children: %w", err)
 	}
@@ -616,12 +551,12 @@ func (s *decisionService) exportData(ctx context.Context, phaseID int64, childSt
 		childIDs = append(childIDs, c.ID)
 	}
 
-	links, err := s.requestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
 	if err != nil {
 		return nil, fmt.Errorf("decision: export load offerings: %w", err)
 	}
 
-	offerings, err := s.careOfferingRepo.ListByPhase(ctx, phaseID)
+	offerings, err := s.CareOfferingRepo.ListByPhase(ctx, phaseID)
 	if err != nil {
 		return nil, fmt.Errorf("decision: export load care offerings: %w", err)
 	}
@@ -657,8 +592,8 @@ func (s *decisionService) exportData(ctx context.Context, phaseID int64, childSt
 	// carries every submitted contact, matching the admin detail and the
 	// public status page. Defensive against an unwired repo.
 	guardiansByRequest := make(map[int64][]*enrollmentModels.RequestGuardian)
-	if s.requestGuardianRepo != nil {
-		guardians, gerr := s.requestGuardianRepo.ListByRequestIDs(ctx, reqIDs)
+	if s.RequestGuardianRepo != nil {
+		guardians, gerr := s.RequestGuardianRepo.ListByRequestIDs(ctx, reqIDs)
 		if gerr != nil {
 			return nil, fmt.Errorf("decision: export load co-guardians: %w", gerr)
 		}
@@ -676,7 +611,7 @@ func (s *decisionService) exportData(ctx context.Context, phaseID int64, childSt
 		if _, ok := schemas[*req.SchemaID]; ok {
 			continue
 		}
-		fs, ferr := s.formSchemaRepo.FindByID(ctx, *req.SchemaID)
+		fs, ferr := s.FormSchemaRepo.FindByID(ctx, *req.SchemaID)
 		if ferr != nil {
 			// Fail closed. The renderer only emits custom answers for fields
 			// found in the loaded schemas, so a missing schema would silently
@@ -690,7 +625,7 @@ func (s *decisionService) exportData(ctx context.Context, phaseID int64, childSt
 			// error (a retry succeeds) or data corruption (must be loud) —
 			// never an intentionally-removed schema. Abort before any audit
 			// row is written so no incomplete disclosure is recorded.
-			s.logger.Error("decision: export schema lookup failed, aborting export",
+			s.Logger.Error("decision: export schema lookup failed, aborting export",
 				slog.Int64("schema_id", *req.SchemaID),
 				slog.String("error", ferr.Error()))
 			return nil, fmt.Errorf("decision: export load schema %d: %w", *req.SchemaID, ferr)
@@ -726,17 +661,17 @@ func (s *decisionService) exportStudentData(ctx context.Context, studentID int64
 	if studentID <= 0 {
 		return nil, fmt.Errorf("decision: export student: student_id required")
 	}
-	if s.studentRepo == nil {
+	if s.StudentRepo == nil {
 		return nil, fmt.Errorf("decision: export student: student repo not configured")
 	}
-	if _, err := s.studentRepo.FindByID(ctx, studentID); err != nil {
+	if _, err := s.StudentRepo.FindByID(ctx, studentID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("decision: export student load student %d: %w", studentID, ErrDecisionStudentNotFound)
 		}
 		return nil, fmt.Errorf("decision: export student load student %d: %w", studentID, err)
 	}
 
-	requests, err := s.requestRepo.ListAdmin(ctx, enrollmentModels.RequestListFilters{CreatedStudentID: studentID})
+	requests, err := s.RequestRepo.ListAdmin(ctx, enrollmentModels.RequestListFilters{CreatedStudentID: studentID})
 	if err != nil {
 		return nil, fmt.Errorf("decision: export student list requests: %w", err)
 	}
@@ -752,7 +687,7 @@ func (s *decisionService) exportStudentData(ctx context.Context, studentID int64
 		phaseIDs[req.PhaseID] = struct{}{}
 	}
 
-	children, err := s.requestChildRepo.ListByRequestIDs(ctx, reqIDs)
+	children, err := s.RequestChildRepo.ListByRequestIDs(ctx, reqIDs)
 	if err != nil {
 		return nil, fmt.Errorf("decision: export student load children: %w", err)
 	}
@@ -766,14 +701,14 @@ func (s *decisionService) exportStudentData(ctx context.Context, studentID int64
 		childIDs = append(childIDs, child.ID)
 	}
 
-	links, err := s.requestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
 	if err != nil {
 		return nil, fmt.Errorf("decision: export student load offerings: %w", err)
 	}
 
 	offeringByID := make(map[int64]*enrollmentModels.CareOffering)
 	for phaseID := range phaseIDs {
-		offerings, err := s.careOfferingRepo.ListByPhase(ctx, phaseID)
+		offerings, err := s.CareOfferingRepo.ListByPhase(ctx, phaseID)
 		if err != nil {
 			return nil, fmt.Errorf("decision: export student load care offerings: %w", err)
 		}
@@ -805,7 +740,7 @@ func (s *decisionService) exportStudentData(ctx context.Context, studentID int64
 
 	phases := make(map[int64]*enrollmentModels.Phase, len(phaseIDs))
 	for phaseID := range phaseIDs {
-		phase, err := s.phaseRepo.FindByID(ctx, phaseID)
+		phase, err := s.PhaseRepo.FindByID(ctx, phaseID)
 		if err != nil {
 			return nil, fmt.Errorf("decision: export student load phase %d: %w", phaseID, err)
 		}
@@ -820,10 +755,10 @@ func (s *decisionService) exportStudentData(ctx context.Context, studentID int64
 		if _, ok := schemas[*req.SchemaID]; ok {
 			continue
 		}
-		if s.formSchemaRepo == nil {
+		if s.FormSchemaRepo == nil {
 			return nil, fmt.Errorf("decision: export student schema repo not configured")
 		}
-		schema, err := s.formSchemaRepo.FindByID(ctx, *req.SchemaID)
+		schema, err := s.FormSchemaRepo.FindByID(ctx, *req.SchemaID)
 		if err != nil {
 			return nil, fmt.Errorf("decision: export student load schema %d: %w", *req.SchemaID, err)
 		}
@@ -859,7 +794,7 @@ func (s *decisionService) exportStudentData(ctx context.Context, studentID int64
 // from the context's tenant transaction, so this must be called inside
 // one.
 func (s *decisionService) RecordPhaseExportAudit(ctx context.Context, actorAccountID int64, actorRole string, phase *enrollmentModels.Phase, format, statusFilter string, requestCount, childCount int) error {
-	if s.dataAccessLogRepo == nil {
+	if s.DataAccessLogRepo == nil {
 		return fmt.Errorf("decision: export audit: data access log repo not configured")
 	}
 	if phase == nil {
@@ -893,14 +828,14 @@ func (s *decisionService) RecordPhaseExportAudit(ctx context.Context, actorAccou
 	entry.SetMetadata("request_count", requestCount)
 	entry.SetMetadata("child_count", childCount)
 
-	if err := s.dataAccessLogRepo.Create(ctx, entry); err != nil {
+	if err := s.DataAccessLogRepo.Create(ctx, entry); err != nil {
 		return fmt.Errorf("decision: export audit write: %w", err)
 	}
 	return nil
 }
 
 func (s *decisionService) recordStudentExportAudit(ctx context.Context, actorAccountID int64, actorRole string, data *StudentEnrollmentExport, format string, requestCount, childCount int) error {
-	if s.dataAccessLogRepo == nil {
+	if s.DataAccessLogRepo == nil {
 		return fmt.Errorf("decision: student export audit: data access log repo not configured")
 	}
 	if data == nil || data.StudentID <= 0 {
@@ -943,7 +878,7 @@ func (s *decisionService) recordStudentExportAudit(ctx context.Context, actorAcc
 	entry.SetMetadata("request_count", requestCount)
 	entry.SetMetadata("child_count", childCount)
 
-	if err := s.dataAccessLogRepo.Create(ctx, entry); err != nil {
+	if err := s.DataAccessLogRepo.Create(ctx, entry); err != nil {
 		return fmt.Errorf("decision: student export audit write: %w", err)
 	}
 	return nil
@@ -972,16 +907,16 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 		return nil, fmt.Errorf("%w: %s", ErrDecisionInvalidStatus, input.Status)
 	}
 
-	request, err := s.requestRepo.FindByID(ctx, input.RequestID)
+	request, err := s.RequestRepo.FindByID(ctx, input.RequestID)
 	if err != nil {
 		return nil, ErrDecisionRequestNotFound
 	}
-	phase, err := s.phaseRepo.FindByID(ctx, request.PhaseID)
+	phase, err := s.PhaseRepo.FindByID(ctx, request.PhaseID)
 	if err != nil {
 		return nil, fmt.Errorf("decision: load phase: %w", err)
 	}
 
-	children, err := s.requestChildRepo.ListByRequestID(ctx, input.RequestID)
+	children, err := s.RequestChildRepo.ListByRequestID(ctx, input.RequestID)
 	if err != nil {
 		return nil, fmt.Errorf("decision: load children: %w", err)
 	}
@@ -1031,11 +966,11 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 		}
 	}
 
-	if err := s.requestChildRepo.UpdateStatus(ctx, target.ID, string(input.Status), reasonPtr, input.ReviewedBy); err != nil {
+	if err := s.RequestChildRepo.UpdateStatus(ctx, target.ID, string(input.Status), reasonPtr, input.ReviewedBy); err != nil {
 		return nil, fmt.Errorf("decision: update child status: %w", err)
 	}
 
-	s.logger.Info("enrollment decision applied",
+	s.Logger.Info("enrollment decision applied",
 		slog.Int64("request_id", input.RequestID),
 		slog.Int64("child_id", input.ChildID),
 		slog.String("status", string(input.Status)),
@@ -1081,12 +1016,12 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 // or momentarily-unreadable setting must never block a school from
 // approving a child.
 func (s *decisionService) resolveActivationMode(ctx context.Context) string {
-	if s.settings == nil {
+	if s.Settings == nil {
 		return configModel.EnrollmentActivationModeScheduled
 	}
-	mode, err := s.settings.ResolveString(ctx, configModel.KeyEnrollmentDefaultActivationMode)
+	mode, err := s.Settings.ResolveString(ctx, configModel.KeyEnrollmentDefaultActivationMode)
 	if err != nil {
-		s.logger.Warn("decision: resolve activation mode failed, defaulting to scheduled",
+		s.Logger.Warn("decision: resolve activation mode failed, defaulting to scheduled",
 			slog.String("key", configModel.KeyEnrollmentDefaultActivationMode),
 			slog.String("error", err.Error()),
 		)
@@ -1127,7 +1062,7 @@ func (s *decisionService) approvalActivationPlan(ctx context.Context, phase *enr
 }
 
 func (s *decisionService) stampActivationPlan(ctx context.Context, requestChildID int64, plan approvalActivationPlan) error {
-	if err := s.requestChildRepo.UpdateActivationPlan(ctx, requestChildID, plan.Mode, plan.ActivateOn); err != nil {
+	if err := s.RequestChildRepo.UpdateActivationPlan(ctx, requestChildID, plan.Mode, plan.ActivateOn); err != nil {
 		return fmt.Errorf("decision: stamp activation plan: %w", err)
 	}
 	return nil
@@ -1140,8 +1075,8 @@ func (s *decisionService) applyApproval(
 	phase *enrollmentModels.Phase,
 	reviewedBy int64,
 ) (*PendingGuardianInvite, error) {
-	if s.personRepo == nil || s.studentRepo == nil || s.guardianProfileRepo == nil ||
-		s.studentGuardianRepo == nil {
+	if s.PersonRepo == nil || s.StudentRepo == nil || s.GuardianProfileRepo == nil ||
+		s.StudentGuardianRepo == nil {
 		return nil, fmt.Errorf("decision: approval requires user repos (person/student/guardian)")
 	}
 
@@ -1191,7 +1126,7 @@ func (s *decisionService) applyApproval(
 			return nil, fmt.Errorf("decision: attach existing account: %w", err)
 		}
 		if linked {
-			s.logger.Info("decision: linked approval to existing global account",
+			s.Logger.Info("decision: linked approval to existing global account",
 				slog.Int64("guardian_profile_id", guardian.ID),
 				slog.Int64("tenant_id", tenant.FromContext(ctx)),
 				slog.Bool("profile_was_new", profileWasNew),
@@ -1211,7 +1146,7 @@ func (s *decisionService) applyApproval(
 	if err := person.Validate(); err != nil {
 		return nil, fmt.Errorf("decision: validate person: %w: %w", ErrDecisionInvalidData, err)
 	}
-	if err := s.personRepo.Create(ctx, person); err != nil {
+	if err := s.PersonRepo.Create(ctx, person); err != nil {
 		return nil, fmt.Errorf("decision: create person: %w", err)
 	}
 
@@ -1247,7 +1182,7 @@ func (s *decisionService) applyApproval(
 	if err := student.Validate(); err != nil {
 		return nil, fmt.Errorf("decision: validate student: %w: %w", ErrDecisionInvalidData, err)
 	}
-	if err := s.studentRepo.Create(ctx, student); err != nil {
+	if err := s.StudentRepo.Create(ctx, student); err != nil {
 		return nil, fmt.Errorf("decision: create student: %w", err)
 	}
 
@@ -1264,7 +1199,7 @@ func (s *decisionService) applyApproval(
 	if err := rel.Validate(); err != nil {
 		return nil, fmt.Errorf("decision: validate student_guardian: %w", err)
 	}
-	if err := s.studentGuardianRepo.Create(ctx, rel); err != nil {
+	if err := s.StudentGuardianRepo.Create(ctx, rel); err != nil {
 		return nil, fmt.Errorf("decision: create student_guardian: %w", err)
 	}
 
@@ -1287,7 +1222,7 @@ func (s *decisionService) applyApproval(
 	// philosophy the invitation-email enqueue uses elsewhere in this
 	// service.
 	if err := s.applyTargetedFields(ctx, request, child, student, guardian, reviewedBy, targetedFieldSyncOptions{}); err != nil {
-		s.logger.Warn("decision: targeted-field dispatch had errors",
+		s.Logger.Warn("decision: targeted-field dispatch had errors",
 			slog.Int64("request_id", request.ID),
 			slog.Int64("child_id", child.ID),
 			slog.String("error", err.Error()),
@@ -1322,7 +1257,7 @@ func (s *decisionService) applyApproval(
 	// answer: "when they already have an account we do not need to
 	// create a new one").
 	if !guardian.HasAccount && guardian.Email != nil && strings.TrimSpace(*guardian.Email) != "" {
-		s.logger.Debug("decision: scheduling guardian invitation",
+		s.Logger.Debug("decision: scheduling guardian invitation",
 			slog.Int64("guardian_profile_id", guardian.ID),
 			slog.Bool("profile_was_new", profileWasNew),
 		)
@@ -1349,9 +1284,9 @@ func (s *decisionService) applyApprovalRollover(
 	child *enrollmentModels.RequestChild,
 	phase *enrollmentModels.Phase,
 ) (*PendingGuardianInvite, error) {
-	source, err := s.requestChildRepo.FindByID(ctx, *child.RolloverSourceChildID)
+	source, err := s.RequestChildRepo.FindByID(ctx, *child.RolloverSourceChildID)
 	if err != nil || source == nil || source.CreatedStudentID == nil {
-		s.logger.Warn("decision: rollover source has no created_student, falling back to fresh approval",
+		s.Logger.Warn("decision: rollover source has no created_student, falling back to fresh approval",
 			slog.Int64("request_child_id", child.ID),
 			slog.Any("source_id", child.RolloverSourceChildID),
 		)
@@ -1369,7 +1304,7 @@ func (s *decisionService) applyApprovalRollover(
 	}
 
 	studentID := *source.CreatedStudentID
-	existing, err := s.studentRepo.FindByID(ctx, studentID)
+	existing, err := s.StudentRepo.FindByID(ctx, studentID)
 	if err != nil {
 		return nil, fmt.Errorf("decision: rollover load existing student %d: %w", studentID, err)
 	}
@@ -1388,7 +1323,7 @@ func (s *decisionService) applyApprovalRollover(
 	if existing.Status != users.StudentStatusActive {
 		existing.Status = activationPlan.StudentStatus
 	}
-	if err := s.studentRepo.Update(ctx, existing); err != nil {
+	if err := s.StudentRepo.Update(ctx, existing); err != nil {
 		return nil, fmt.Errorf("decision: rollover update student: %w", err)
 	}
 
@@ -1407,7 +1342,7 @@ func (s *decisionService) applyApprovalRollover(
 		return nil, fmt.Errorf("decision: rollover link student: %w", err)
 	}
 
-	s.logger.Info("decision: rollover approval — updated existing student",
+	s.Logger.Info("decision: rollover approval — updated existing student",
 		slog.Int64("request_child_id", child.ID),
 		slog.Int64("student_id", studentID),
 	)
@@ -1431,7 +1366,7 @@ func (s *decisionService) resolveGuardianProfile(
 	email := strings.TrimSpace(strings.ToLower(request.GuardianEmail))
 
 	if email != "" {
-		existing, err := s.guardianProfileRepo.FindByEmail(ctx, email)
+		existing, err := s.GuardianProfileRepo.FindByEmail(ctx, email)
 		if err == nil && existing != nil {
 			if err := s.applyStandaloneGuardianNameCorrection(ctx, existing, request); err != nil {
 				return nil, false, err
@@ -1459,7 +1394,7 @@ func (s *decisionService) resolveGuardianProfile(
 	if err := profile.Validate(); err != nil {
 		return nil, false, fmt.Errorf("decision: validate guardian profile: %w", err)
 	}
-	if err := s.guardianProfileRepo.Create(ctx, profile); err != nil {
+	if err := s.GuardianProfileRepo.Create(ctx, profile); err != nil {
 		return nil, false, fmt.Errorf("decision: create guardian profile: %w", err)
 	}
 	return profile, true, nil
@@ -1486,7 +1421,7 @@ func (s *decisionService) applyStandaloneGuardianProfileNameCorrection(ctx conte
 	if err := profile.Validate(); err != nil {
 		return fmt.Errorf("decision: validate guardian profile name correction: %w", err)
 	}
-	if err := s.guardianProfileRepo.Update(ctx, profile); err != nil {
+	if err := s.GuardianProfileRepo.Update(ctx, profile); err != nil {
 		return fmt.Errorf("decision: update guardian profile name correction: %w", err)
 	}
 	return nil
@@ -1508,10 +1443,10 @@ func (s *decisionService) linkAdditionalGuardians(
 	request *enrollmentModels.Request,
 	studentID int64,
 ) error {
-	if s.requestGuardianRepo == nil {
+	if s.RequestGuardianRepo == nil {
 		return nil
 	}
-	extras, err := s.requestGuardianRepo.ListByRequestID(ctx, request.ID)
+	extras, err := s.RequestGuardianRepo.ListByRequestID(ctx, request.ID)
 	if err != nil {
 		return fmt.Errorf("list additional guardians: %w", err)
 	}
@@ -1544,7 +1479,7 @@ func (s *decisionService) linkAdditionalGuardians(
 		// the primary path.
 		if extra.Phone != nil {
 			if err := s.createGuardianPhoneNumber(ctx, profileID, *extra.Phone); err != nil {
-				s.logger.Warn("decision: persist co-guardian phone failed",
+				s.Logger.Warn("decision: persist co-guardian phone failed",
 					slog.Int64("guardian_profile_id", profileID),
 					slog.String("error", err.Error()))
 			}
@@ -1562,10 +1497,10 @@ func (s *decisionService) reconcilePrimaryGuardianLink(
 	if err != nil {
 		return nil, err
 	}
-	if s.studentGuardianRepo == nil {
+	if s.StudentGuardianRepo == nil {
 		return guardian, nil
 	}
-	links, err := s.studentGuardianRepo.FindByStudentID(ctx, studentID)
+	links, err := s.StudentGuardianRepo.FindByStudentID(ctx, studentID)
 	if err != nil {
 		return nil, fmt.Errorf("decision: list approved child guardians: %w", err)
 	}
@@ -1592,11 +1527,11 @@ func (s *decisionService) reconcilePrimaryGuardianLink(
 		if err := currentLink.Validate(); err != nil {
 			return nil, fmt.Errorf("decision: validate current primary guardian link: %w", err)
 		}
-		if err := s.studentGuardianRepo.Update(ctx, currentLink); err != nil {
+		if err := s.StudentGuardianRepo.Update(ctx, currentLink); err != nil {
 			return nil, fmt.Errorf("decision: update current primary guardian link: %w", err)
 		}
 		if primaryLink != nil && primaryLink.ID != currentLink.ID {
-			if err := s.studentGuardianRepo.Delete(ctx, primaryLink.ID); err != nil {
+			if err := s.StudentGuardianRepo.Delete(ctx, primaryLink.ID); err != nil {
 				return nil, fmt.Errorf("decision: remove stale primary guardian link: %w", err)
 			}
 		}
@@ -1613,7 +1548,7 @@ func (s *decisionService) reconcilePrimaryGuardianLink(
 		if err := primaryLink.Validate(); err != nil {
 			return nil, fmt.Errorf("decision: validate primary guardian link: %w", err)
 		}
-		if err := s.studentGuardianRepo.Update(ctx, primaryLink); err != nil {
+		if err := s.StudentGuardianRepo.Update(ctx, primaryLink); err != nil {
 			return nil, fmt.Errorf("decision: update primary guardian link: %w", err)
 		}
 		return guardian, nil
@@ -1631,7 +1566,7 @@ func (s *decisionService) reconcilePrimaryGuardianLink(
 	if err := rel.Validate(); err != nil {
 		return nil, fmt.Errorf("decision: validate missing primary guardian link: %w", err)
 	}
-	if err := s.studentGuardianRepo.Create(ctx, rel); err != nil {
+	if err := s.StudentGuardianRepo.Create(ctx, rel); err != nil {
 		return nil, fmt.Errorf("decision: create missing primary guardian link: %w", err)
 	}
 	return guardian, nil
@@ -1644,13 +1579,13 @@ func (s *decisionService) reconcileApprovedChildGuardians(
 	previousGuardians []*enrollmentModels.RequestGuardian,
 ) (map[int64]bool, error) {
 	currentProfileIDs := map[int64]bool{}
-	if s.requestGuardianRepo == nil || s.studentGuardianRepo == nil {
+	if s.RequestGuardianRepo == nil || s.StudentGuardianRepo == nil {
 		return currentProfileIDs, nil
 	}
 	if err := s.linkAdditionalGuardians(ctx, request, studentID); err != nil {
 		return currentProfileIDs, fmt.Errorf("decision: relink additional guardians: %w", err)
 	}
-	current, err := s.requestGuardianRepo.ListByRequestID(ctx, request.ID)
+	current, err := s.RequestGuardianRepo.ListByRequestID(ctx, request.ID)
 	if err != nil {
 		return currentProfileIDs, fmt.Errorf("decision: list current additional guardians: %w", err)
 	}
@@ -1679,10 +1614,10 @@ func (s *decisionService) reconcileApprovedChildGuardians(
 }
 
 func (s *decisionService) deleteRemovedStudentGuardianLinks(ctx context.Context, studentID int64, previous, keep map[int64]bool) error {
-	if len(previous) == 0 || s.studentGuardianRepo == nil {
+	if len(previous) == 0 || s.StudentGuardianRepo == nil {
 		return nil
 	}
-	links, err := s.studentGuardianRepo.FindByStudentID(ctx, studentID)
+	links, err := s.StudentGuardianRepo.FindByStudentID(ctx, studentID)
 	if err != nil {
 		return err
 	}
@@ -1691,7 +1626,7 @@ func (s *decisionService) deleteRemovedStudentGuardianLinks(ctx context.Context,
 			continue
 		}
 		if previous[link.GuardianProfileID] && !keep[link.GuardianProfileID] {
-			if err := s.studentGuardianRepo.Delete(ctx, link.ID); err != nil {
+			if err := s.StudentGuardianRepo.Delete(ctx, link.ID); err != nil {
 				return err
 			}
 		}
@@ -1719,7 +1654,7 @@ func (s *decisionService) contactProfileIDsFromPreviousSnapshot(
 	fieldKey string,
 ) (map[int64]bool, error) {
 	out := map[int64]bool{}
-	if snapshot == nil || child == nil || s.guardianProfileRepo == nil {
+	if snapshot == nil || child == nil || s.GuardianProfileRepo == nil {
 		return out, nil
 	}
 	childRow := snapshotChildByID(snapshot, child.ID)
@@ -1749,7 +1684,7 @@ func (s *decisionService) contactProfileIDsFromPreviousSnapshot(
 			}
 			continue
 		}
-		profile, err := s.guardianProfileRepo.FindByEmail(ctx, email)
+		profile, err := s.GuardianProfileRepo.FindByEmail(ctx, email)
 		if err == nil && profile != nil && profile.ID > 0 {
 			out[profile.ID] = true
 			continue
@@ -1767,10 +1702,10 @@ func (s *decisionService) contactProfileIDsFromPreviousSnapshot(
 // guardian more than once while syncing targeted contact fields.
 func (s *decisionService) createGuardianPhoneNumber(ctx context.Context, profileID int64, phone string) error {
 	phone = strings.TrimSpace(phone)
-	if phone == "" || s.guardianPhoneRepo == nil {
+	if phone == "" || s.GuardianPhoneRepo == nil {
 		return nil
 	}
-	existing, err := s.guardianPhoneRepo.FindByGuardianID(ctx, profileID)
+	existing, err := s.GuardianPhoneRepo.FindByGuardianID(ctx, profileID)
 	if err != nil {
 		return fmt.Errorf("find existing guardian phone numbers: %w", err)
 	}
@@ -1785,7 +1720,7 @@ func (s *decisionService) createGuardianPhoneNumber(ctx context.Context, profile
 		PhoneType:         users.PhoneTypeMobile,
 		IsPrimary:         true,
 	}
-	if err := s.guardianPhoneRepo.Create(ctx, row); err != nil {
+	if err := s.GuardianPhoneRepo.Create(ctx, row); err != nil {
 		if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {
 			return nil
 		}
@@ -1815,7 +1750,7 @@ func (s *decisionService) resolveAdditionalGuardianProfile(
 
 	var profileID int64
 	if email != "" {
-		if existing, err := s.guardianProfileRepo.FindByEmail(ctx, email); err == nil && existing != nil {
+		if existing, err := s.GuardianProfileRepo.FindByEmail(ctx, email); err == nil && existing != nil {
 			if err := s.applyStandaloneGuardianProfileNameCorrection(ctx, existing, extra.FirstName, extra.LastName); err != nil {
 				return 0, err
 			}
@@ -1840,7 +1775,7 @@ func (s *decisionService) resolveAdditionalGuardianProfile(
 		if err := profile.Validate(); err != nil {
 			return 0, fmt.Errorf("validate co-guardian profile: %w", err)
 		}
-		if err := s.guardianProfileRepo.Create(ctx, profile); err != nil {
+		if err := s.GuardianProfileRepo.Create(ctx, profile); err != nil {
 			return 0, fmt.Errorf("create co-guardian profile: %w", err)
 		}
 		profileID = profile.ID
@@ -1849,8 +1784,8 @@ func (s *decisionService) resolveAdditionalGuardianProfile(
 	// Stamp the resolved profile back so the request's other children
 	// reuse it. Non-fatal on failure: the link is created regardless;
 	// worst case a later child creates a duplicate email-less profile.
-	if err := s.requestGuardianRepo.StampResolvedProfile(ctx, extra.ID, profileID); err != nil {
-		s.logger.Warn("decision: stamp co-guardian profile failed",
+	if err := s.RequestGuardianRepo.StampResolvedProfile(ctx, extra.ID, profileID); err != nil {
+		s.Logger.Warn("decision: stamp co-guardian profile failed",
 			slog.Int64("request_guardian_id", extra.ID),
 			slog.Int64("guardian_profile_id", profileID),
 			slog.String("error", err.Error()),
@@ -1879,18 +1814,18 @@ func (s *decisionService) materializeEnrollments(
 	requestChildID, studentID int64,
 	phase *enrollmentModels.Phase,
 ) error {
-	if s.requestChildOfferingRepo == nil || s.careOfferingRepo == nil ||
-		s.studentEnrollmentRepo == nil || s.activityGroupRepo == nil {
+	if s.RequestChildOfferingRepo == nil || s.CareOfferingRepo == nil ||
+		s.StudentEnrollmentRepo == nil || s.ActivityGroupRepo == nil {
 		// Wired without the offering repos: skip silently. Approvals
 		// will still create the student record; the admin can attach
 		// activity groups later via the activity admin UI.
-		s.logger.Warn("decision: enrollment repos missing; skipping activity materialization",
+		s.Logger.Warn("decision: enrollment repos missing; skipping activity materialization",
 			slog.Int64("request_child_id", requestChildID),
 			slog.Int64("student_id", studentID))
 		return nil
 	}
 
-	links, err := s.requestChildOfferingRepo.ListByRequestChildID(ctx, requestChildID)
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildID(ctx, requestChildID)
 	if err != nil {
 		return fmt.Errorf("decision: list child offerings: %w", err)
 	}
@@ -1906,7 +1841,7 @@ func (s *decisionService) materializeEnrollments(
 		seenOfferingIDs[link.CareOfferingID] = true
 		offeringIDs = append(offeringIDs, link.CareOfferingID)
 	}
-	offerings, err := s.careOfferingRepo.ListByIDs(ctx, offeringIDs)
+	offerings, err := s.CareOfferingRepo.ListByIDs(ctx, offeringIDs)
 	if err != nil {
 		return fmt.Errorf("decision: list linked care offerings: %w", err)
 	}
@@ -1928,7 +1863,7 @@ func (s *decisionService) materializeEnrollments(
 	for _, link := range links {
 		offering := offeringByID[link.CareOfferingID]
 		if offering == nil {
-			s.logger.Warn("decision: care offering missing for child link",
+			s.Logger.Warn("decision: care offering missing for child link",
 				slog.Int64("request_child_id", requestChildID),
 				slog.Int64("care_offering_id", link.CareOfferingID))
 			continue
@@ -1938,9 +1873,9 @@ func (s *decisionService) materializeEnrollments(
 			continue
 		}
 		group, period, err := resolveCareOfferingLinkedGroupPeriod(ctx, careOfferingTemplateDeps{
-			activityGroupRepo:    s.activityGroupRepo,
-			activityScheduleRepo: s.activityScheduleRepo,
-			calendarPeriodRepo:   s.calendarPeriodRepo,
+			activityGroupRepo:    s.ActivityGroupRepo,
+			activityScheduleRepo: s.ActivityScheduleRepo,
+			calendarPeriodRepo:   s.CalendarPeriodRepo,
 		}, *offering.ActivityGroupID)
 		if err != nil {
 			return fmt.Errorf("decision: validate linked activity group for care offering %d: %w", link.CareOfferingID, err)
@@ -2008,7 +1943,7 @@ func (s *decisionService) materializeEnrollments(
 		if err := row.Validate(); err != nil {
 			return fmt.Errorf("decision: validate enrollment: %w", err)
 		}
-		if err := s.studentEnrollmentRepo.Create(ctx, row); err != nil {
+		if err := s.StudentEnrollmentRepo.Create(ctx, row); err != nil {
 			return fmt.Errorf("decision: create enrollment: %w", err)
 		}
 	}
@@ -2073,7 +2008,7 @@ func sortedWeekdaySet(days map[int]bool) []int {
 // linkCreatedStudent stamps request_children.created_student_id so the
 // admin UI can link from a historical request back to the new student.
 func (s *decisionService) linkCreatedStudent(ctx context.Context, requestChildID, studentID int64) error {
-	return s.requestChildRepo.LinkCreatedStudent(ctx, requestChildID, studentID)
+	return s.RequestChildRepo.LinkCreatedStudent(ctx, requestChildID, studentID)
 }
 
 // enqueueDecisionEmail enqueues a parent decision email matching the
@@ -2087,7 +2022,7 @@ func (s *decisionService) enqueueDecisionEmail(
 	status DecisionStatus,
 	reason *string,
 ) {
-	if s.outboxEnqueuer == nil {
+	if s.OutboxEnqueuer == nil {
 		return
 	}
 
@@ -2105,9 +2040,9 @@ func (s *decisionService) enqueueDecisionEmail(
 		return
 	}
 
-	schoolName, logoURL := emailBrandForSchool(ctx, s.schoolRepo, request.TenantID, s.parentsURL)
-	footerLogoURL := motoLogoURL(s.parentsURL)
-	statusURL := fmt.Sprintf("%s/enroll/status/%s", s.parentsURL, request.StatusToken)
+	schoolName, logoURL := emailBrandForSchool(ctx, s.SchoolRepo, request.TenantID, s.ParentsURL)
+	footerLogoURL := motoLogoURL(s.ParentsURL)
+	statusURL := fmt.Sprintf("%s/enroll/status/%s", s.ParentsURL, request.StatusToken)
 	phaseName := ""
 	if phase != nil {
 		phaseName = phase.Name
@@ -2129,13 +2064,13 @@ func (s *decisionService) enqueueDecisionEmail(
 		payload["status_reason"] = *reason
 	}
 
-	if err := s.outboxEnqueuer.Enqueue(ctx, OutboxEnqueueRequest{
+	if err := s.OutboxEnqueuer.Enqueue(ctx, OutboxEnqueueRequest{
 		Kind:              kind,
 		Payload:           payload,
 		RelatedEntityType: platformModels.EmailRelatedTypeEnrollmentRequest,
 		RelatedEntityID:   request.ID,
 	}); err != nil {
-		s.logger.Error("decision: enqueue parent decision email failed",
+		s.Logger.Error("decision: enqueue parent decision email failed",
 			slog.Int64("request_id", request.ID),
 			slog.Int64("child_id", child.ID),
 			slog.String("kind", kind),
@@ -2144,7 +2079,7 @@ func (s *decisionService) enqueueDecisionEmail(
 }
 
 func (s *decisionService) findChildByID(ctx context.Context, requestID, childID int64) (*enrollmentModels.RequestChild, error) {
-	children, err := s.requestChildRepo.ListByRequestID(ctx, requestID)
+	children, err := s.RequestChildRepo.ListByRequestID(ctx, requestID)
 	if err != nil {
 		return nil, err
 	}
@@ -2175,8 +2110,8 @@ func (s *decisionService) attachExistingAccountIfPresent(
 	ctx context.Context,
 	guardian *users.GuardianProfile,
 ) (bool, error) {
-	if s.accountRepo == nil || s.accountTenantRepo == nil ||
-		s.accountRoleRepo == nil || s.roleRepo == nil {
+	if s.AccountRepo == nil || s.AccountTenantRepo == nil ||
+		s.AccountRoleRepo == nil || s.RoleRepo == nil {
 		// Auth repos not wired - fall back to the original invitation
 		// flow. Test factories that don't bring up the auth side will
 		// hit this path.
@@ -2187,7 +2122,7 @@ func (s *decisionService) attachExistingAccountIfPresent(
 	}
 
 	email := strings.TrimSpace(strings.ToLower(*guardian.Email))
-	account, err := s.accountRepo.FindByEmail(ctx, email)
+	account, err := s.AccountRepo.FindByEmail(ctx, email)
 	if err != nil {
 		// Not-found is the common case (parent has no portal account
 		// yet) - treat it as "nothing to attach", let the invitation
@@ -2195,7 +2130,7 @@ func (s *decisionService) attachExistingAccountIfPresent(
 		// detection here; instead we rely on the FindByEmail wrapper
 		// returning a typed DatabaseError on real failures. Logging
 		// at debug level covers both branches.
-		s.logger.Debug("decision: account lookup result",
+		s.Logger.Debug("decision: account lookup result",
 			slog.String("email", email),
 			slog.String("error", err.Error()),
 		)
@@ -2219,7 +2154,7 @@ func (s *decisionService) attachExistingAccountIfPresent(
 		Status:      authModels.AccountTenantStatusActive,
 		ActivatedAt: &now,
 	}
-	if err := s.accountTenantRepo.Create(ctx, mapping); err != nil {
+	if err := s.AccountTenantRepo.Create(ctx, mapping); err != nil {
 		return false, fmt.Errorf("attach: account_tenants: %w", err)
 	}
 
@@ -2233,7 +2168,7 @@ func (s *decisionService) attachExistingAccountIfPresent(
 	// 3. Link the per-tenant guardian profile row to the global
 	// account. LinkAccount also flips has_account=true so future
 	// approvals for the same profile see the linked state.
-	if err := s.guardianProfileRepo.LinkAccount(ctx, guardian.ID, account.ID); err != nil {
+	if err := s.GuardianProfileRepo.LinkAccount(ctx, guardian.ID, account.ID); err != nil {
 		return false, fmt.Errorf("attach: link profile: %w", err)
 	}
 	guardian.AccountID = &account.ID
@@ -2258,15 +2193,15 @@ func (s *decisionService) attachExistingAccountByID(
 	guardian *users.GuardianProfile,
 	accountID int64,
 ) (bool, error) {
-	if s.accountRepo == nil || s.accountTenantRepo == nil ||
-		s.accountRoleRepo == nil || s.roleRepo == nil {
+	if s.AccountRepo == nil || s.AccountTenantRepo == nil ||
+		s.AccountRoleRepo == nil || s.RoleRepo == nil {
 		return false, nil
 	}
-	account, err := s.accountRepo.FindByID(ctx, accountID)
+	account, err := s.AccountRepo.FindByID(ctx, accountID)
 	if err != nil || account == nil {
 		// Account was deleted between submission and decision - fall
 		// back to email lookup so the approval still goes through.
-		s.logger.Warn("decision: request guardian_account_id no longer resolvable, falling back to email",
+		s.Logger.Warn("decision: request guardian_account_id no longer resolvable, falling back to email",
 			slog.Int64("guardian_account_id", accountID),
 		)
 		if guardian.Email != nil && strings.TrimSpace(*guardian.Email) != "" {
@@ -2287,13 +2222,13 @@ func (s *decisionService) attachExistingAccountByID(
 		Status:      authModels.AccountTenantStatusActive,
 		ActivatedAt: &now,
 	}
-	if err := s.accountTenantRepo.Create(ctx, mapping); err != nil {
+	if err := s.AccountTenantRepo.Create(ctx, mapping); err != nil {
 		return false, fmt.Errorf("attach by id: account_tenants: %w", err)
 	}
 	if err := s.ensureGuardianRoleForTenant(ctx, account.ID); err != nil {
 		return false, err
 	}
-	if err := s.guardianProfileRepo.LinkAccount(ctx, guardian.ID, account.ID); err != nil {
+	if err := s.GuardianProfileRepo.LinkAccount(ctx, guardian.ID, account.ID); err != nil {
 		return false, fmt.Errorf("attach by id: link profile: %w", err)
 	}
 	guardian.AccountID = &account.ID
@@ -2307,7 +2242,7 @@ func (s *decisionService) attachExistingAccountByID(
 // gets the same role footprint as one who came in via the invite
 // accept flow.
 func (s *decisionService) ensureGuardianRoleForTenant(ctx context.Context, accountID int64) error {
-	role, err := s.roleRepo.FindByName(ctx, guardianRoleName)
+	role, err := s.RoleRepo.FindByName(ctx, guardianRoleName)
 	if err != nil {
 		return fmt.Errorf("attach: guardian role lookup: %w", err)
 	}
@@ -2315,7 +2250,7 @@ func (s *decisionService) ensureGuardianRoleForTenant(ctx context.Context, accou
 		return fmt.Errorf("attach: guardian role not found")
 	}
 
-	existing, err := s.accountRoleRepo.FindByAccountAndRole(ctx, accountID, role.ID)
+	existing, err := s.AccountRoleRepo.FindByAccountAndRole(ctx, accountID, role.ID)
 	if err == nil && existing != nil {
 		// Already assigned for this tenant (FindByAccountAndRole
 		// honours tenant scope) - nothing to do.
@@ -2326,7 +2261,7 @@ func (s *decisionService) ensureGuardianRoleForTenant(ctx context.Context, accou
 		AccountID: accountID,
 		RoleID:    role.ID,
 	}
-	if err := s.accountRoleRepo.Create(ctx, assignment); err != nil {
+	if err := s.AccountRoleRepo.Create(ctx, assignment); err != nil {
 		return fmt.Errorf("attach: create account_role: %w", err)
 	}
 	return nil
@@ -2355,10 +2290,10 @@ func (s *decisionService) applyTargetedFields(
 	reviewedBy int64,
 	options targetedFieldSyncOptions,
 ) error {
-	if s.formSchemaRepo == nil || request.SchemaID == nil {
+	if s.FormSchemaRepo == nil || request.SchemaID == nil {
 		return nil
 	}
-	schema, err := s.formSchemaRepo.FindByID(ctx, *request.SchemaID)
+	schema, err := s.FormSchemaRepo.FindByID(ctx, *request.SchemaID)
 	if err != nil || schema == nil {
 		return nil
 	}
@@ -2477,9 +2412,9 @@ func (s *decisionService) applyTargetedFields(
 				studentDirty = true
 			}
 		case enrollmentModels.TargetSchedulePickup:
-			if options.Replace && s.pickupScheduleRepo != nil && !pickupScheduleDeleted {
+			if options.Replace && s.PickupScheduleRepo != nil && !pickupScheduleDeleted {
 				pickupScheduleDeleted = true
-				if err := s.pickupScheduleRepo.DeleteByStudentID(ctx, student.ID); err != nil {
+				if err := s.PickupScheduleRepo.DeleteByStudentID(ctx, student.ID); err != nil {
 					errs = append(errs, fmt.Sprintf("%s: delete existing: %v", field.Target, err))
 					continue
 				}
@@ -2491,9 +2426,9 @@ func (s *decisionService) applyTargetedFields(
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
 			}
 		case enrollmentModels.TargetScheduleArrival:
-			if options.Replace && s.arrivalScheduleRepo != nil && !arrivalScheduleDeleted {
+			if options.Replace && s.ArrivalScheduleRepo != nil && !arrivalScheduleDeleted {
 				arrivalScheduleDeleted = true
-				if err := s.arrivalScheduleRepo.DeleteByStudentID(ctx, student.ID); err != nil {
+				if err := s.ArrivalScheduleRepo.DeleteByStudentID(ctx, student.ID); err != nil {
 					errs = append(errs, fmt.Sprintf("%s: delete existing: %v", field.Target, err))
 					continue
 				}
@@ -2626,7 +2561,7 @@ func (s *decisionService) applyTargetedFields(
 	}
 
 	if studentDirty {
-		if err := s.studentRepo.Update(ctx, student); err != nil {
+		if err := s.StudentRepo.Update(ctx, student); err != nil {
 			errs = append(errs, fmt.Sprintf("update student: %v", err))
 		}
 	}
@@ -2835,17 +2770,17 @@ func (s *decisionService) resolveReviewerStaffID(ctx context.Context, reviewerAc
 	if reviewerAccountID <= 0 {
 		return 0, fmt.Errorf("reviewer account id is required")
 	}
-	if s.personRepo == nil || s.staffRepo == nil {
+	if s.PersonRepo == nil || s.StaffRepo == nil {
 		return 0, fmt.Errorf("reviewer staff lookup is unavailable")
 	}
-	person, err := s.personRepo.FindByAccountID(ctx, reviewerAccountID)
+	person, err := s.PersonRepo.FindByAccountID(ctx, reviewerAccountID)
 	if err != nil {
 		return 0, fmt.Errorf("find reviewer person: %w", err)
 	}
 	if person == nil {
 		return 0, fmt.Errorf("reviewer account %d has no linked person", reviewerAccountID)
 	}
-	staff, err := s.staffRepo.FindByPersonID(ctx, person.ID)
+	staff, err := s.StaffRepo.FindByPersonID(ctx, person.ID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return 0, fmt.Errorf("reviewer account %d has no linked staff", reviewerAccountID)
@@ -2862,7 +2797,7 @@ func (s *decisionService) resolveReviewerStaffID(ctx context.Context, reviewerAc
 // per non-empty weekday entry. isPickup=true targets pickup_schedules,
 // false targets arrival_schedules.
 func (s *decisionService) dispatchWeekdaySchedule(ctx context.Context, raw any, studentID int64, reviewedBy int64, isPickup bool) error {
-	if (isPickup && s.pickupScheduleRepo == nil) || (!isPickup && s.arrivalScheduleRepo == nil) {
+	if (isPickup && s.PickupScheduleRepo == nil) || (!isPickup && s.ArrivalScheduleRepo == nil) {
 		return nil
 	}
 	var sched enrollmentModels.WeekdaySchedule
@@ -2900,7 +2835,7 @@ func (s *decisionService) dispatchWeekdaySchedule(ctx context.Context, raw any, 
 				PickupTime: t,
 				CreatedBy:  createdBy,
 			}
-			if err := s.pickupScheduleRepo.UpsertSchedule(ctx, row); err != nil {
+			if err := s.PickupScheduleRepo.UpsertSchedule(ctx, row); err != nil {
 				return fmt.Errorf("upsert pickup %s: %w", day, err)
 			}
 		} else {
@@ -2910,7 +2845,7 @@ func (s *decisionService) dispatchWeekdaySchedule(ctx context.Context, raw any, 
 				ExpectedArrival: t,
 				CreatedBy:       createdBy,
 			}
-			if err := s.arrivalScheduleRepo.Create(ctx, row); err != nil {
+			if err := s.ArrivalScheduleRepo.Create(ctx, row); err != nil {
 				return fmt.Errorf("create arrival %s: %w", day, err)
 			}
 		}
@@ -2954,9 +2889,9 @@ func (s *decisionService) phoneOnlyContactProfilesForStudent(
 	entry enrollmentModels.ContactEntry,
 ) ([]*users.GuardianProfile, error) {
 	if studentID <= 0 ||
-		s.studentGuardianRepo == nil ||
-		s.guardianProfileRepo == nil ||
-		s.guardianPhoneRepo == nil {
+		s.StudentGuardianRepo == nil ||
+		s.GuardianProfileRepo == nil ||
+		s.GuardianPhoneRepo == nil {
 		return nil, nil
 	}
 	firstName := contactIdentityName(entry.FirstName)
@@ -2966,7 +2901,7 @@ func (s *decisionService) phoneOnlyContactProfilesForStudent(
 		return nil, nil
 	}
 
-	links, err := s.studentGuardianRepo.FindByStudentID(ctx, studentID)
+	links, err := s.StudentGuardianRepo.FindByStudentID(ctx, studentID)
 	if err != nil {
 		return nil, err
 	}
@@ -2987,11 +2922,11 @@ func (s *decisionService) phoneOnlyContactProfilesForStudent(
 		return nil, nil
 	}
 
-	profiles, err := s.guardianProfileRepo.FindByIDs(ctx, profileIDs)
+	profiles, err := s.GuardianProfileRepo.FindByIDs(ctx, profileIDs)
 	if err != nil {
 		return nil, err
 	}
-	phonesByProfile, err := s.guardianPhoneRepo.FindByGuardianIDs(ctx, profileIDs)
+	phonesByProfile, err := s.GuardianPhoneRepo.FindByGuardianIDs(ctx, profileIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -3022,16 +2957,16 @@ func (s *decisionService) upsertContactStudentGuardianLink(ctx context.Context, 
 		return err
 	}
 
-	existing, err := s.studentGuardianRepo.FindByStudentAndGuardianForUpdate(ctx, rel.StudentID, rel.GuardianProfileID)
+	existing, err := s.StudentGuardianRepo.FindByStudentAndGuardianForUpdate(ctx, rel.StudentID, rel.GuardianProfileID)
 	if err != nil {
 		if !errors.Is(err, users.ErrStudentGuardianNotFound) {
 			return err
 		}
-		inserted, linkErr := s.studentGuardianRepo.LinkIfNotExists(ctx, rel)
+		inserted, linkErr := s.StudentGuardianRepo.LinkIfNotExists(ctx, rel)
 		if linkErr != nil || inserted {
 			return linkErr
 		}
-		existing, err = s.studentGuardianRepo.FindByStudentAndGuardianForUpdate(ctx, rel.StudentID, rel.GuardianProfileID)
+		existing, err = s.StudentGuardianRepo.FindByStudentAndGuardianForUpdate(ctx, rel.StudentID, rel.GuardianProfileID)
 		if err != nil {
 			return err
 		}
@@ -3046,7 +2981,7 @@ func (s *decisionService) upsertContactStudentGuardianLink(ctx context.Context, 
 	existing.EmergencyPriority = rel.EmergencyPriority
 	existing.GuardianRole = rel.GuardianRole
 	existing.Permissions = rel.Permissions
-	updated, err := s.studentGuardianRepo.UpdateColumns(
+	updated, err := s.StudentGuardianRepo.UpdateColumns(
 		ctx,
 		existing,
 		"relationship_type",
@@ -3067,7 +3002,7 @@ func (s *decisionService) upsertContactStudentGuardianLink(ctx context.Context, 
 
 func (s *decisionService) dispatchContactList(ctx context.Context, raw any, studentID int64) (map[int64]bool, error) {
 	linkedProfileIDs := map[int64]bool{}
-	if s.guardianProfileRepo == nil || s.studentGuardianRepo == nil {
+	if s.GuardianProfileRepo == nil || s.StudentGuardianRepo == nil {
 		return linkedProfileIDs, nil
 	}
 	var entries []enrollmentModels.ContactEntry
@@ -3083,7 +3018,7 @@ func (s *decisionService) dispatchContactList(ctx context.Context, raw any, stud
 		var profile *users.GuardianProfile
 		emailLC := strings.ToLower(strings.TrimSpace(c.Email))
 		if emailLC != "" {
-			existing, err := s.guardianProfileRepo.FindByEmail(ctx, emailLC)
+			existing, err := s.GuardianProfileRepo.FindByEmail(ctx, emailLC)
 			if err != nil && !errors.Is(err, users.ErrGuardianProfileNotFound) {
 				return linkedProfileIDs, fmt.Errorf("find contact profile by email: %w", err)
 			}
@@ -3109,14 +3044,14 @@ func (s *decisionService) dispatchContactList(ctx context.Context, raw any, stud
 			if emailLC != "" {
 				profile.Email = &emailLC
 			}
-			if err := s.guardianProfileRepo.Create(ctx, profile); err != nil {
+			if err := s.GuardianProfileRepo.Create(ctx, profile); err != nil {
 				return linkedProfileIDs, fmt.Errorf("create contact profile %s %s: %w", c.FirstName, c.LastName, err)
 			}
 		}
 		linkedProfileIDs[profile.ID] = true
 
 		// Phone numbers — append, dedup by unique index.
-		if s.guardianPhoneRepo != nil {
+		if s.GuardianPhoneRepo != nil {
 			for j := range c.PhoneNumbers {
 				p := c.PhoneNumbers[j]
 				label := p.Label
@@ -3129,7 +3064,7 @@ func (s *decisionService) dispatchContactList(ctx context.Context, raw any, stud
 				if label != "" {
 					phone.Label = &label
 				}
-				if err := s.guardianPhoneRepo.Create(ctx, phone); err != nil {
+				if err := s.GuardianPhoneRepo.Create(ctx, phone); err != nil {
 					if !strings.Contains(err.Error(), "unique") && !strings.Contains(err.Error(), "duplicate") {
 						return linkedProfileIDs, fmt.Errorf("create contact phone: %w", err)
 					}
