@@ -51,11 +51,7 @@ func registerEnrollmentMaster() {
 }
 
 func registerEnrollmentForm() {
-	dependsOnEnabled := &config.Dependency{
-		Key:       config.KeyEnrollmentEnabled,
-		Condition: "eq",
-		Value:     true,
-	}
+	dependsOnEnabled := config.DependsOnEq(config.KeyEnrollmentEnabled, true)
 
 	// enrollment.open_window_start / end were tenant-wide tunables in
 	// the pre-phase model. Phases now own the open/close window per
@@ -91,11 +87,7 @@ func registerEnrollmentForm() {
 }
 
 func registerEnrollmentCareOfferings() {
-	dependsOnEnabled := &config.Dependency{
-		Key:       config.KeyEnrollmentEnabled,
-		Condition: "eq",
-		Value:     true,
-	}
+	dependsOnEnabled := config.DependsOnEq(config.KeyEnrollmentEnabled, true)
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentCareOfferingsEnabled,
 		Label:           "Betreuungsangebote anbieten",
@@ -116,11 +108,7 @@ func registerEnrollmentCareOfferings() {
 }
 
 func registerEnrollmentNotifications() {
-	dependsOnEnabled := &config.Dependency{
-		Key:       config.KeyEnrollmentEnabled,
-		Condition: "eq",
-		Value:     true,
-	}
+	dependsOnEnabled := config.DependsOnEq(config.KeyEnrollmentEnabled, true)
 
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentNotificationEmails,
@@ -176,11 +164,7 @@ func registerEnrollmentNotifications() {
 }
 
 func registerEnrollmentSafety() {
-	dependsOnEnabled := &config.Dependency{
-		Key:       config.KeyEnrollmentEnabled,
-		Condition: "eq",
-		Value:     true,
-	}
+	dependsOnEnabled := config.DependsOnEq(config.KeyEnrollmentEnabled, true)
 
 	config.Register(config.Definition{
 		Key:         config.KeyEnrollmentRequireCaptcha,
@@ -220,8 +204,6 @@ func registerEnrollmentSafety() {
 		},
 	})
 
-	minRetention := float64(7)
-	maxRetention := float64(730)
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentRejectedRetentionDays,
 		Label:           "Aufbewahrung abgelehnter Anmeldungen (Tage)",
@@ -233,7 +215,7 @@ func registerEnrollmentSafety() {
 		Tab:             "enrollment",
 		Category:        "sicherheit",
 		SortOrder:       52,
-		Validation:      &config.ValidationRules{Min: &minRetention, Max: &maxRetention},
+		Validation:      config.Range(7, 730),
 		DependsOn:       dependsOnEnabled,
 	})
 
@@ -253,11 +235,7 @@ func registerEnrollmentSafety() {
 }
 
 func registerEnrollmentLifecycle() {
-	dependsOnEnabled := &config.Dependency{
-		Key:       config.KeyEnrollmentEnabled,
-		Condition: "eq",
-		Value:     true,
-	}
+	dependsOnEnabled := config.DependsOnEq(config.KeyEnrollmentEnabled, true)
 
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentDefaultActivationMode,
@@ -295,8 +273,6 @@ func registerEnrollmentLifecycle() {
 }
 
 func registerEnrollmentSystem() {
-	minAttempts := float64(1)
-	maxAttempts := float64(20)
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentOutboxMaxAttempts,
 		Label:           "E-Mail-Versand: maximale Versuche",
@@ -308,12 +284,10 @@ func registerEnrollmentSystem() {
 		Tab:             "system",
 		Category:        "anmeldung",
 		SortOrder:       70,
-		Validation:      &config.ValidationRules{Min: &minAttempts, Max: &maxAttempts},
+		Validation:      config.Range(1, 20),
 		AccessPolicy:    config.AccessOperatorOnly,
 	})
 
-	minWorkerInterval := float64(10)
-	maxWorkerInterval := float64(600)
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentOutboxWorkerIntervalSeconds,
 		Label:           "E-Mail-Versand: Worker-Intervall (Sekunden)",
@@ -325,12 +299,10 @@ func registerEnrollmentSystem() {
 		Tab:             "system",
 		Category:        "anmeldung",
 		SortOrder:       72,
-		Validation:      &config.ValidationRules{Min: &minWorkerInterval, Max: &maxWorkerInterval},
+		Validation:      config.Range(10, 600),
 		AccessPolicy:    config.AccessOperatorOnly,
 	})
 
-	minTokenTTL := float64(7)
-	maxTokenTTL := float64(1825)
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentStatusTokenTTLDays,
 		Label:           "Status-Link Gültigkeit (Tage)",
@@ -342,7 +314,7 @@ func registerEnrollmentSystem() {
 		Tab:             "system",
 		Category:        "anmeldung",
 		SortOrder:       71,
-		Validation:      &config.ValidationRules{Min: &minTokenTTL, Max: &maxTokenTTL},
+		Validation:      config.Range(7, 1825),
 		AccessPolicy:    config.AccessOperatorOnly,
 	})
 }
@@ -351,11 +323,7 @@ func registerEnrollmentSystem() {
 // grade-level cap, care-offering overflow mode. These are consumed by
 // the public submission flow.
 func registerEnrollmentPublicForm() {
-	dependsOnEnabled := &config.Dependency{
-		Key:       config.KeyEnrollmentEnabled,
-		Condition: "eq",
-		Value:     true,
-	}
+	dependsOnEnabled := config.DependsOnEq(config.KeyEnrollmentEnabled, true)
 
 	// Captcha site key - public, tenant-scoped. Embedded in the
 	// public form HTML so the parent's browser can challenge.
@@ -393,8 +361,6 @@ func registerEnrollmentPublicForm() {
 
 	// Grade level cap on the public form. Default 4 (OGS norm); a
 	// Gymnasium can extend up to 13.
-	minGrade := float64(1)
-	maxGrade := float64(13)
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentGradeLevelMax,
 		Label:           "Höchste Klassenstufe im Formular",
@@ -406,12 +372,8 @@ func registerEnrollmentPublicForm() {
 		Tab:             "enrollment",
 		Category:        "formular",
 		SortOrder:       22,
-		Validation:      &config.ValidationRules{Min: &minGrade, Max: &maxGrade},
-		DependsOn: &config.Dependency{
-			Key:       config.KeyEnrollmentCollectGradeLevel,
-			Condition: "eq",
-			Value:     true,
-		},
+		Validation:      config.Range(1, 13),
+		DependsOn:       config.DependsOnEq(config.KeyEnrollmentCollectGradeLevel, true),
 	})
 
 	// enrollment.care_overflow_mode moved to per-phase column - each
@@ -428,11 +390,7 @@ func registerEnrollmentPublicForm() {
 // legally binding documents with GDPR implications, so they sit at the
 // same permission level as the other security/GDPR enrollment settings.
 func registerEnrollmentLegalTexts() {
-	dependsOnEnabled := &config.Dependency{
-		Key:       config.KeyEnrollmentEnabled,
-		Condition: "eq",
-		Value:     true,
-	}
+	dependsOnEnabled := config.DependsOnEq(config.KeyEnrollmentEnabled, true)
 
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentLegalTermsEnabled,

@@ -96,6 +96,21 @@ type Dependency struct {
 	Value     any    `json:"value"`
 }
 
+// DependsOnEq builds a Dependency that shows the setting when key equals value.
+func DependsOnEq(key string, value any) *Dependency {
+	return &Dependency{Key: key, Condition: "eq", Value: value}
+}
+
+// DependsOnNeq builds a Dependency that shows the setting when key does not equal value.
+func DependsOnNeq(key string, value any) *Dependency {
+	return &Dependency{Key: key, Condition: "neq", Value: value}
+}
+
+// Range builds ValidationRules constraining a numeric setting to [minVal, maxVal].
+func Range(minVal, maxVal float64) *ValidationRules {
+	return &ValidationRules{Min: &minVal, Max: &maxVal}
+}
+
 // SelectOptions provides static choices for a FieldSelect setting.
 type SelectOptions struct {
 	Static []SelectOption `json:"static,omitempty"`

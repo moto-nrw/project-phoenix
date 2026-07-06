@@ -16,11 +16,7 @@ func init() {
 		Tab:             "devices",
 		Category:        "checkout",
 		SortOrder:       10,
-		DependsOn: &config.Dependency{
-			Key:       config.KeyAttendanceNFCEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
+		DependsOn:       config.DependsOnEq(config.KeyAttendanceNFCEnabled, true),
 	})
 
 	config.Register(config.Definition{
@@ -34,11 +30,7 @@ func init() {
 		Tab:             "devices",
 		Category:        "checkout",
 		SortOrder:       11,
-		DependsOn: &config.Dependency{
-			Key:       config.KeyAttendanceNFCEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
+		DependsOn:       config.DependsOnEq(config.KeyAttendanceNFCEnabled, true),
 	})
 
 	config.Register(config.Definition{
@@ -52,18 +44,12 @@ func init() {
 		Tab:             "devices",
 		Category:        "checkout",
 		SortOrder:       12,
-		DependsOn: &config.Dependency{
-			Key:       config.KeyAttendanceNFCEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
+		DependsOn:       config.DependsOnEq(config.KeyAttendanceNFCEnabled, true),
 	})
 
 	// Device online/offline window (issue #586 — Rule 12 extraction). The
 	// number of minutes a device's last_seen timestamp may be in the past
 	// before it is treated as offline for health monitoring.
-	minOnlineWindow := float64(1)
-	maxOnlineWindow := float64(60)
 	config.Register(config.Definition{
 		Key:             config.KeyDeviceOnlineWindowMinutes,
 		Label:           "Online-Fenster für Geräte (Minuten)",
@@ -75,7 +61,7 @@ func init() {
 		Tab:             "devices",
 		Category:        "monitoring",
 		SortOrder:       20,
-		Validation:      &config.ValidationRules{Min: &minOnlineWindow, Max: &maxOnlineWindow},
+		Validation:      config.Range(1, 60),
 		AccessPolicy:    config.AccessOperatorOnly,
 	})
 }
