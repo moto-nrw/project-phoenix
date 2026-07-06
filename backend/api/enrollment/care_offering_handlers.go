@@ -378,6 +378,7 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 		offerings      []*enrollmentModels.CareOffering
 		selectionMode  = enrollmentModels.PhaseCareOfferingSelectionOptional
 		schoolClassCfg PublicSchoolClassConfig
+		classErr       error
 	)
 	lateInviteToken := lateInviteTokenFromRequest(r)
 	schoolID, err := rs.resolvePublicTenantID(r.Context(), slug)
@@ -395,6 +396,10 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 			selectionMode = phase.CareOfferingSelectionMode
 			collectClasses, collectErr := rs.RequestService.CollectsSchoolClass(txCtx)
 			if collectErr != nil {
+				// A settings-resolution failure (corrupt override, repo
+				// error) is a server problem, not "not found" — flag it so
+				// the outer handler returns 500 instead of a misleading 404.
+				classErr = collectErr
 				return collectErr
 			}
 			schoolClassCfg = toPublicSchoolClassConfig(phase, collectClasses)
@@ -404,6 +409,10 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 		})
 	}
 	if err != nil {
+		if classErr != nil {
+			common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("resolve collect_school_class: %w", classErr)))
+			return
+		}
 		renderPublicEnrollmentError(w, r, err)
 		return
 	}
@@ -579,6 +588,7 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 		texts          enrollmentService.LegalTexts
 		captcha        PublicCaptchaConfigResponse
 		collectClasses bool
+		classErr       error
 		legalErr       error
 	)
 	lateInviteToken := lateInviteTokenFromRequest(r)
@@ -594,6 +604,9 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 			phase = loadedPhase
 			resolvedCollectClasses, collectErr := rs.RequestService.CollectsSchoolClass(txCtx)
 			if collectErr != nil {
+				// Settings-resolution failure is a server problem, not "not
+				// found" — flag it so the outer handler returns 500.
+				classErr = collectErr
 				return collectErr
 			}
 			collectClasses = resolvedCollectClasses
@@ -633,6 +646,10 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 		})
 	}
 	if resolveErr != nil {
+		if classErr != nil {
+			common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("resolve collect_school_class: %w", classErr)))
+			return
+		}
 		if legalErr != nil {
 			common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("resolve legal texts: %w", legalErr)))
 			return
