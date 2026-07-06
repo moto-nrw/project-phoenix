@@ -11,7 +11,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarDays, CalendarPlus, Plus } from "lucide-react";
 
-import { CalendarPeriodModal } from "~/components/timetable/calendar-period-modal";
+import {
+  CalendarPeriodModal,
+  type LinkablePhase,
+} from "~/components/timetable/calendar-period-modal";
 import {
   DataTable,
   DataTableStatusBadge,
@@ -19,11 +22,17 @@ import {
 } from "~/components/ui/data-table";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import {
+  type Phase,
+  listPhases,
+  setPhaseCalendarPeriod,
+} from "~/lib/enrollment-phase-api";
+import {
   type CalendarPeriod,
   PERIOD_TYPE_LABELS,
   formatPeriodRange,
   formatPeriodUsage,
 } from "~/lib/calendar-period-helpers";
+import { useToast } from "~/contexts/ToastContext";
 import { todayISO } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 
@@ -75,20 +84,40 @@ function nextSemesterDefaults(todayIso: string): SemesterDefaults {
 
 export function CalendarPeriodsEditor() {
   const [periods, setPeriods] = useState<CalendarPeriod[]>([]);
+  const [phases, setPhases] = useState<Phase[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<CalendarPeriod | null>(null);
   const [createDefaults, setCreateDefaults] =
     useState<Partial<SemesterDefaults>>();
+  const { success: toastSuccess, error: toastError } = useToast();
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  // silent: refresh data without the full-page loading state — used after
+  // phase-link toggles so the open modal doesn't get unmounted.
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     setError(null);
     try {
-      const data = await calendarPeriodService.list();
+      const [periodData, phaseData] = await Promise.all([
+        calendarPeriodService.list(),
+        // Phases power the bidirectional link section in the modal.
+        // Their failure must not take the periods page down.
+        listPhases().catch((err: unknown) => {
+          logger.warn("calendar_periods_phases_load_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+          return [] as Phase[];
+        }),
+      ]);
       setPeriods(
-        [...data].sort((a, b) => a.startDate.localeCompare(b.startDate)),
+        [...periodData].sort((a, b) => a.startDate.localeCompare(b.startDate)),
+      );
+      setPhases(phaseData);
+      // Keep the currently edited period fresh so the modal's usage-based
+      // delete warning reflects just-toggled phase links.
+      setEditing((prev) =>
+        prev ? (periodData.find((p) => p.id === prev.id) ?? prev) : prev,
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unbekannter Fehler";
@@ -114,6 +143,35 @@ export function CalendarPeriodsEditor() {
     setCreateDefaults(nextSemesterDefaults(todayISO()));
     setModalOpen(true);
   };
+
+  const handlePhaseLinkToggle = useCallback(
+    async (phase: LinkablePhase, link: boolean) => {
+      const target = editing;
+      const full = phases.find((p) => p.id === phase.id);
+      if (!target || !full) return;
+      try {
+        await setPhaseCalendarPeriod(full, link ? target.id : null);
+        toastSuccess(
+          link
+            ? `Anmeldephase "${full.name}" mit "${target.name}" verknüpft`
+            : `Verknüpfung von "${full.name}" entfernt`,
+        );
+      } catch (err) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Verknüpfung konnte nicht gespeichert werden";
+        logger.error("phase_link_toggle_failed", {
+          phase_id: phase.id,
+          error: message,
+        });
+        toastError(message);
+      } finally {
+        await load({ silent: true });
+      }
+    },
+    [editing, phases, load, toastSuccess, toastError],
+  );
 
   const beginEdit = useCallback((period: CalendarPeriod) => {
     setEditing(period);
@@ -299,6 +357,7 @@ export function CalendarPeriodsEditor() {
               }
             : undefined
         }
+        phaseLink={{ phases, onToggle: handlePhaseLinkToggle }}
       />
     </div>
   );

@@ -163,6 +163,79 @@ describe("CalendarPeriodModal", () => {
     expect(onDeleted).toHaveBeenCalledWith(period);
   });
 
+  it("manages phase links from the period side via the phaseLink prop", async () => {
+    const onToggle = vi.fn().mockResolvedValue(undefined);
+    render(
+      <CalendarPeriodModal
+        isOpen
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+        initial={period}
+        phaseLink={{
+          phases: [
+            {
+              id: "7",
+              name: "Demo Anmeldung",
+              calendar_period_id: period.id,
+              is_active: true,
+            },
+            {
+              id: "8",
+              name: "Ferienbetreuung",
+              calendar_period_id: "99",
+              is_active: false,
+            },
+          ],
+          onToggle,
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Verknüpfte Anmeldephasen")).toBeInTheDocument();
+    expect(
+      screen.getByText("Mit anderem Zeitraum verknüpft"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Inaktiv")).toBeInTheDocument();
+
+    const checkboxes = screen.getAllByRole("checkbox");
+    // [0] = "Zeitraum im Plan verwenden", [1] = linked phase, [2] = other
+    expect(checkboxes[1]).toBeChecked();
+    expect(checkboxes[2]).not.toBeChecked();
+
+    fireEvent.click(checkboxes[1]!);
+    await waitFor(() =>
+      expect(onToggle).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "7" }),
+        false,
+      ),
+    );
+  });
+
+  it("hides the phase link section in create mode", () => {
+    render(
+      <CalendarPeriodModal
+        isOpen
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+        phaseLink={{
+          phases: [
+            {
+              id: "7",
+              name: "Demo Anmeldung",
+              calendar_period_id: null,
+              is_active: true,
+            },
+          ],
+          onToggle: vi.fn(),
+        }}
+      />,
+    );
+
+    expect(
+      screen.queryByText("Verknüpfte Anmeldephasen"),
+    ).not.toBeInTheDocument();
+  });
+
   it("names the concrete usage in the delete warning when usage is provided", () => {
     render(
       <CalendarPeriodModal

@@ -32,6 +32,7 @@ import {
   deletePhase,
   getPhaseDeleteImpact,
   listPhases,
+  phaseToInput,
   updatePhase,
 } from "~/lib/enrollment-phase-api";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -106,23 +107,6 @@ function blankInput(): PhaseInput {
     care_overflow_mode: "waitlist",
     care_offering_selection_mode: "optional",
     is_active: true,
-  };
-}
-
-function phaseToInput(p: Phase): PhaseInput {
-  return {
-    name: p.name,
-    kind: p.kind,
-    service_start_date: p.service_start_date,
-    service_end_date: p.service_end_date,
-    enrollment_open_at: p.enrollment_open_at ?? null,
-    enrollment_close_at: p.enrollment_close_at ?? null,
-    form_schema_id: p.form_schema_id ?? null,
-    calendar_period_id: p.calendar_period_id ?? null,
-    show_status_reason_to_parent: p.show_status_reason_to_parent,
-    care_overflow_mode: p.care_overflow_mode,
-    care_offering_selection_mode: p.care_offering_selection_mode ?? "optional",
-    is_active: p.is_active,
   };
 }
 

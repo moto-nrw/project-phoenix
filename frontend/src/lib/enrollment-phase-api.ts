@@ -91,6 +91,42 @@ async function readError(response: Response, fallback: string): Promise<Error> {
   );
 }
 
+/**
+ * Maps a Phase back to the full PUT body. The backend rebuilds the whole
+ * phase from the request, so partial updates would blank fields — every
+ * caller that wants to change one field must send the complete input.
+ */
+export function phaseToInput(p: Phase): PhaseInput {
+  return {
+    name: p.name,
+    kind: p.kind,
+    service_start_date: p.service_start_date,
+    service_end_date: p.service_end_date,
+    enrollment_open_at: p.enrollment_open_at ?? null,
+    enrollment_close_at: p.enrollment_close_at ?? null,
+    form_schema_id: p.form_schema_id ?? null,
+    calendar_period_id: p.calendar_period_id ?? null,
+    show_status_reason_to_parent: p.show_status_reason_to_parent,
+    care_overflow_mode: p.care_overflow_mode,
+    care_offering_selection_mode: p.care_offering_selection_mode ?? "optional",
+    is_active: p.is_active,
+  };
+}
+
+/**
+ * Links or unlinks a phase to a calendar period (periodId null = unlink).
+ * Sends the full phase payload because the PUT endpoint replaces the row.
+ */
+export async function setPhaseCalendarPeriod(
+  phase: Phase,
+  periodId: string | null,
+): Promise<Phase> {
+  return updatePhase(phase.id, {
+    ...phaseToInput(phase),
+    calendar_period_id: periodId,
+  });
+}
+
 export async function listPhases(): Promise<Phase[]> {
   const response = await fetch(BASE, { cache: "no-store" });
   if (!response.ok) {
