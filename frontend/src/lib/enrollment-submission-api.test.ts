@@ -7,6 +7,7 @@ import {
   fetchEnrollmentEditBootstrap,
   fetchPublicCareOfferings,
   fetchPublicEnrollmentBootstrap,
+  EMPTY_SCHOOL_CLASS_CONFIG,
   fetchPublicPhases,
   fetchStatus,
   listEnrollmentChangeRequests,
@@ -90,6 +91,73 @@ describe("enrollment-submission-api", () => {
       offerings: [],
       careOfferingSelectionMode: "at_least_one",
       careRequired: true,
+    });
+  });
+
+  it("parses the concrete-class config when the backend sends it", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          offerings: [],
+          care_offering_selection_mode: "optional",
+          school_class: {
+            collect: true,
+            require: true,
+            // Non-string entries are filtered out.
+            available_classes: ["2a", "2b", 3, null, "3a"],
+          },
+        },
+      }),
+    );
+
+    await expect(
+      fetchPublicCareOfferings("tenant", "5"),
+    ).resolves.toMatchObject({
+      schoolClass: {
+        collect: true,
+        require: true,
+        available_classes: ["2a", "2b", "3a"],
+      },
+    });
+  });
+
+  it("coerces a malformed concrete-class config to safe defaults", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          offerings: [],
+          care_offering_selection_mode: "optional",
+          // collect/require missing, available_classes not an array.
+          school_class: { available_classes: "2a" },
+        },
+      }),
+    );
+
+    await expect(
+      fetchPublicCareOfferings("tenant", "5"),
+    ).resolves.toMatchObject({
+      schoolClass: {
+        collect: false,
+        require: false,
+        available_classes: [],
+      },
+    });
+  });
+
+  it("omits the concrete-class config when the backend does not send it", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        data: { offerings: [], care_offering_selection_mode: "optional" },
+      }),
+    );
+
+    const result = await fetchPublicCareOfferings("tenant", "5");
+    expect(result.schoolClass).toBeUndefined();
+    // The disabled default consumers fall back to.
+    expect(EMPTY_SCHOOL_CLASS_CONFIG).toEqual({
+      collect: false,
+      available_classes: [],
+      require: false,
     });
   });
 
