@@ -41,7 +41,7 @@ interface SemesterDefaults {
  * these are prefill suggestions only — the admin adjusts the dates in
  * the modal to match the actual school calendar.
  */
-export function nextSemesterDefaults(todayIso: string): SemesterDefaults {
+function nextSemesterDefaults(todayIso: string): SemesterDefaults {
   const year = Number(todayIso.slice(0, 4));
   const month = Number(todayIso.slice(5, 7));
 
