@@ -122,6 +122,24 @@ describe("useSidebarAccordion", () => {
     expect(result.current.expanded).toBe("enrollments");
   });
 
+  it("expands 'planning' section for planning paths", () => {
+    for (const path of [
+      "/calendar-periods",
+      "/timetables",
+      "/staff/dienstplan",
+    ]) {
+      const { result } = renderHook(() => useSidebarAccordion(path));
+      expect(result.current.expanded).toBe("planning");
+    }
+  });
+
+  it("expands 'planning' from fromParam on child pages", () => {
+    const { result } = renderHook(() =>
+      useSidebarAccordion("/students/123", "/calendar-periods"),
+    );
+    expect(result.current.expanded).toBe("planning");
+  });
+
   it("restores 'eltern' from localStorage when pathname does not determine section", () => {
     localStorageMock.getItem.mockReturnValueOnce("eltern");
 
