@@ -34,18 +34,7 @@ const dateLayout = "2006-01-02"
 // — the dependent handler will return 500 instead of panicking. Production
 // wiring must populate every field.
 type Resource struct {
-	calendarPeriodService  scheduleSvc.CalendarPeriodService
-	materializationService scheduleSvc.MaterializationService
-	instanceService        scheduleSvc.InstanceService
-	operationsService      scheduleSvc.TimetableOperationsService
-	templateSplitService   scheduleSvc.TemplateSplitService
-	personService          userSvc.PersonService
-	timetableData          scheduleSvc.TimetableDataService
-	userContextService     usercontextSvc.UserContextService
-	settingsService        configSvc.SettingsService
-	broadcaster            realtime.Broadcaster
-	logger                 *slog.Logger
-	db                     *bun.DB
+	Dependencies
 }
 
 // Dependencies bundles everything NewResource needs. Using a struct instead
@@ -71,20 +60,7 @@ type Dependencies struct {
 // Nil deps are tolerated at construction time; the dependent handler returns
 // 500 at request time if one of its deps is unset.
 func NewResource(deps Dependencies) *Resource {
-	return &Resource{
-		calendarPeriodService:  deps.CalendarPeriodService,
-		materializationService: deps.MaterializationService,
-		instanceService:        deps.InstanceService,
-		operationsService:      deps.OperationsService,
-		templateSplitService:   deps.TemplateSplitService,
-		personService:          deps.PersonService,
-		timetableData:          deps.TimetableData,
-		userContextService:     deps.UserContextService,
-		settingsService:        deps.SettingsService,
-		broadcaster:            deps.Broadcaster,
-		logger:                 deps.Logger,
-		db:                     deps.DB,
-	}
+	return &Resource{Dependencies: deps}
 }
 
 // Router returns a configured router for timetable endpoints
@@ -98,7 +74,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.TenantMiddleware)
-		withTx := tenant.TenantTxMiddleware(rs.db)
+		withTx := tenant.TenantTxMiddleware(rs.DB)
 
 		r.Route("/periods", func(r chi.Router) {
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).Get("/", rs.listPeriods)
@@ -373,7 +349,7 @@ func validatePeriodRules(w http.ResponseWriter, r *http.Request, req *CalendarPe
 // lookup failures are logged at Warn and the response simply ships without
 // warnings.
 func (rs *Resource) attachOverlapWarnings(ctx context.Context, period *schedule.CalendarPeriod, resp *CalendarPeriodResponse) {
-	overlaps, err := rs.calendarPeriodService.FindActiveOverlaps(ctx, period)
+	overlaps, err := rs.CalendarPeriodService.FindActiveOverlaps(ctx, period)
 	if err != nil {
 		rs.getLogger().Warn("calendar period overlap check failed, omitting warnings",
 			slog.Int64("period_id", period.ID),
@@ -399,7 +375,7 @@ func (rs *Resource) attachOverlapWarnings(ctx context.Context, period *schedule.
 // Handlers
 
 func (rs *Resource) listPeriods(w http.ResponseWriter, r *http.Request) {
-	periods, err := rs.calendarPeriodService.GetAllPeriods(r.Context())
+	periods, err := rs.CalendarPeriodService.GetAllPeriods(r.Context())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -420,7 +396,7 @@ func (rs *Resource) getPeriod(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	period, err := rs.calendarPeriodService.GetPeriodByID(r.Context(), id)
+	period, err := rs.CalendarPeriodService.GetPeriodByID(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("calendar period not found")))
@@ -459,7 +435,7 @@ func (rs *Resource) createPeriod(w http.ResponseWriter, r *http.Request) {
 		IsActive:        req.IsActive,
 	}
 
-	if err := rs.calendarPeriodService.CreatePeriod(r.Context(), period); err != nil {
+	if err := rs.CalendarPeriodService.CreatePeriod(r.Context(), period); err != nil {
 		if errors.Is(err, schedule.ErrCalendarPeriodNameConflict) {
 			common.RenderError(w, r, common.ErrorConflict(schedule.ErrCalendarPeriodNameConflict))
 		} else {
@@ -485,7 +461,7 @@ type bootstrapPeriodsResponse struct {
 // is always 200 with the tenant's periods plus a created flag — repeated
 // calls and concurrent calls never yield a 409.
 func (rs *Resource) bootstrapPeriods(w http.ResponseWriter, r *http.Request) {
-	periods, created, err := rs.calendarPeriodService.EnsureDefaultSchoolYear(r.Context())
+	periods, created, err := rs.CalendarPeriodService.EnsureDefaultSchoolYear(r.Context())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -509,7 +485,7 @@ func (rs *Resource) updatePeriod(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	existing, err := rs.calendarPeriodService.GetPeriodByID(r.Context(), id)
+	existing, err := rs.CalendarPeriodService.GetPeriodByID(r.Context(), id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("calendar period not found")))
@@ -542,7 +518,7 @@ func (rs *Resource) updatePeriod(w http.ResponseWriter, r *http.Request) {
 	existing.WeekCycleAnchor = anchor
 	existing.IsActive = req.IsActive
 
-	if err := rs.calendarPeriodService.UpdatePeriod(r.Context(), existing); err != nil {
+	if err := rs.CalendarPeriodService.UpdatePeriod(r.Context(), existing); err != nil {
 		if errors.Is(err, schedule.ErrCalendarPeriodNameConflict) {
 			common.RenderError(w, r, common.ErrorConflict(schedule.ErrCalendarPeriodNameConflict))
 		} else {
@@ -563,7 +539,7 @@ func (rs *Resource) deletePeriod(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := rs.calendarPeriodService.GetPeriodByID(r.Context(), id); err != nil {
+	if _, err := rs.CalendarPeriodService.GetPeriodByID(r.Context(), id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("calendar period not found")))
 		} else {
@@ -572,7 +548,7 @@ func (rs *Resource) deletePeriod(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := rs.calendarPeriodService.DeletePeriod(r.Context(), id); err != nil {
+	if err := rs.CalendarPeriodService.DeletePeriod(r.Context(), id); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}

@@ -176,10 +176,7 @@ func TestApplyStatusDaysForDateUsesRequestedDate(t *testing.T) {
 			},
 		},
 	}
-	resource := &Resource{
-		StudentStatusDayService: activeService.NewStudentStatusDayService(repo),
-		Logger:                  slog.Default(),
-	}
+	resource := &Resource{ResourceConfig: ResourceConfig{StudentStatusDayService: activeService.NewStudentStatusDayService(repo), Logger: slog.Default()}}
 	responses := []StudentResponse{{ID: 90}, {ID: 91}}
 
 	resource.applyStatusDaysForDate(context.Background(), responses, now)

@@ -85,16 +85,15 @@ func (m *configMockSettings) ClearLoginImageURL(_ context.Context, _ int64) (str
 func TestGetDeviceConfig_AllDefaults(t *testing.T) {
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
-	rs := &Resource{
-		SettingsService: &configMockSettings{
-			boolValues: map[string]bool{
-				"checkout.raumwechsel_enabled": true,
-				"checkout.schulhof_enabled":    true,
-				"checkout.wc_enabled":          true,
-				"feedback.enabled":             true,
-			},
-			stringValues: map[string]string{},
+	rs := &Resource{ServiceDependencies: ServiceDependencies{SettingsService: &configMockSettings{
+		boolValues: map[string]bool{
+			"checkout.raumwechsel_enabled": true,
+			"checkout.schulhof_enabled":    true,
+			"checkout.wc_enabled":          true,
+			"feedback.enabled":             true,
 		},
+		stringValues: map[string]string{},
+	}},
 	}
 
 	req := httptest.NewRequest("GET", "/api/iot/config", nil)
@@ -131,18 +130,17 @@ func TestGetDeviceConfig_AllDefaults(t *testing.T) {
 func TestGetDeviceConfig_PresenceModeBinary(t *testing.T) {
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
-	rs := &Resource{
-		SettingsService: &configMockSettings{
-			boolValues: map[string]bool{
-				"checkout.raumwechsel_enabled": false, // typically off in binary (no rooms)
-				"checkout.schulhof_enabled":    true,  // binary + schulhof → 3-button kiosk
-				"checkout.wc_enabled":          false, // WC is visit-only; hidden in binary
-				"feedback.enabled":             false,
-			},
-			stringValues: map[string]string{
-				"operations.presence_mode": "binary",
-			},
+	rs := &Resource{ServiceDependencies: ServiceDependencies{SettingsService: &configMockSettings{
+		boolValues: map[string]bool{
+			"checkout.raumwechsel_enabled": false, // typically off in binary (no rooms)
+			"checkout.schulhof_enabled":    true,  // binary + schulhof → 3-button kiosk
+			"checkout.wc_enabled":          false, // WC is visit-only; hidden in binary
+			"feedback.enabled":             false,
 		},
+		stringValues: map[string]string{
+			"operations.presence_mode": "binary",
+		},
+	}},
 	}
 
 	req := httptest.NewRequest("GET", "/api/iot/config", nil)
@@ -164,16 +162,15 @@ func TestGetDeviceConfig_PresenceModeBinary(t *testing.T) {
 func TestGetDeviceConfig_ButtonsDisabled(t *testing.T) {
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
-	rs := &Resource{
-		SettingsService: &configMockSettings{
-			boolValues: map[string]bool{
-				"checkout.raumwechsel_enabled": false,
-				"checkout.schulhof_enabled":    false,
-				"checkout.wc_enabled":          true,
-				"feedback.enabled":             false,
-			},
-			stringValues: map[string]string{},
+	rs := &Resource{ServiceDependencies: ServiceDependencies{SettingsService: &configMockSettings{
+		boolValues: map[string]bool{
+			"checkout.raumwechsel_enabled": false,
+			"checkout.schulhof_enabled":    false,
+			"checkout.wc_enabled":          true,
+			"feedback.enabled":             false,
 		},
+		stringValues: map[string]string{},
+	}},
 	}
 
 	req := httptest.NewRequest("GET", "/api/iot/config", nil)
@@ -201,18 +198,17 @@ func TestGetDeviceConfig_ButtonsDisabled(t *testing.T) {
 func TestGetDeviceConfig_WithDailyCheckoutTime(t *testing.T) {
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
-	rs := &Resource{
-		SettingsService: &configMockSettings{
-			boolValues: map[string]bool{
-				"checkout.raumwechsel_enabled": true,
-				"checkout.schulhof_enabled":    true,
-				"checkout.wc_enabled":          true,
-				"feedback.enabled":             true,
-			},
-			stringValues: map[string]string{
-				"operations.student_daily_checkout_time": "16:30",
-			},
+	rs := &Resource{ServiceDependencies: ServiceDependencies{SettingsService: &configMockSettings{
+		boolValues: map[string]bool{
+			"checkout.raumwechsel_enabled": true,
+			"checkout.schulhof_enabled":    true,
+			"checkout.wc_enabled":          true,
+			"feedback.enabled":             true,
 		},
+		stringValues: map[string]string{
+			"operations.student_daily_checkout_time": "16:30",
+		},
+	}},
 	}
 
 	req := httptest.NewRequest("GET", "/api/iot/config", nil)
@@ -236,16 +232,15 @@ func TestGetDeviceConfig_EnvVarFallback(t *testing.T) {
 	require.NoError(t, os.Setenv("STUDENT_DAILY_CHECKOUT_TIME", "14:00"))
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
-	rs := &Resource{
-		SettingsService: &configMockSettings{
-			boolValues: map[string]bool{
-				"checkout.raumwechsel_enabled": true,
-				"checkout.schulhof_enabled":    true,
-				"checkout.wc_enabled":          true,
-				"feedback.enabled":             true,
-			},
-			stringValues: map[string]string{},
+	rs := &Resource{ServiceDependencies: ServiceDependencies{SettingsService: &configMockSettings{
+		boolValues: map[string]bool{
+			"checkout.raumwechsel_enabled": true,
+			"checkout.schulhof_enabled":    true,
+			"checkout.wc_enabled":          true,
+			"feedback.enabled":             true,
 		},
+		stringValues: map[string]string{},
+	}},
 	}
 
 	req := httptest.NewRequest("GET", "/api/iot/config", nil)
@@ -280,9 +275,7 @@ func TestGetDeviceConfig_NoDeviceContext(t *testing.T) {
 func TestGetDeviceConfig_NilSettingsService(t *testing.T) {
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
-	rs := &Resource{
-		SettingsService: nil,
-	}
+	rs := &Resource{ServiceDependencies: ServiceDependencies{SettingsService: nil}}
 
 	req := httptest.NewRequest("GET", "/api/iot/config", nil)
 	ctx := context.WithValue(req.Context(), device.CtxDevice, &iot.Device{TenantModel: base.TenantModel{TenantID: 1}})

@@ -30,17 +30,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Resource defines the rooms API resource
+// Resource defines the rooms API resource. ActiveService, PersonService,
+// EducationService, and ListExportService are wired post-construction in
+// api/base.go.
 type Resource struct {
-	FacilityService    facilityService.Service
-	ActiveService      activeService.Service
-	PersonService      userService.PersonService
-	EducationService   educationService.Service
-	ListExportService  listexport.Service
-	SettingsService    configService.SettingsService
-	UserContextService userContextService.UserContextService
-	Logger             *slog.Logger
-	db                 *bun.DB
+	ResourceConfig
+	ActiveService     activeService.Service
+	PersonService     userService.PersonService
+	EducationService  educationService.Service
+	ListExportService listexport.Service
 }
 
 // ResourceConfig wires the rooms resource's collaborators. Kept as a struct
@@ -75,13 +73,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 	if cfg.DB == nil {
 		panic("rooms.NewResource: DB is required")
 	}
-	return &Resource{
-		FacilityService:    cfg.FacilityService,
-		SettingsService:    cfg.SettingsService,
-		UserContextService: cfg.UserContextService,
-		Logger:             cfg.Logger,
-		db:                 cfg.DB,
-	}
+	return &Resource{ResourceConfig: cfg}
 }
 
 // Router returns a configured router for room endpoints
@@ -97,7 +89,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.TenantMiddleware)
-		withTx := tenant.TenantTxMiddleware(rs.db)
+		withTx := tenant.TenantTxMiddleware(rs.DB)
 
 		// Read operations require rooms:read permission
 		r.With(authorize.RequiresPermission(permissions.RoomsRead), withTx).Get("/", rs.listRooms)
@@ -274,7 +266,7 @@ func (rs *Resource) createRoom(w http.ResponseWriter, r *http.Request) {
 
 	// Create room using service
 	tenantID := tenant.FromContext(r.Context())
-	err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.FacilityService.CreateRoom(ctx, room)
 	})
 	if err != nil {
@@ -322,7 +314,7 @@ func (rs *Resource) updateRoom(w http.ResponseWriter, r *http.Request) {
 
 	// Update room using service
 	tenantID := tenant.FromContext(r.Context())
-	err = tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	err = tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.FacilityService.UpdateRoom(ctx, room)
 	})
 	if err != nil {
@@ -345,7 +337,7 @@ func (rs *Resource) deleteRoom(w http.ResponseWriter, r *http.Request) {
 
 	// Delete room using service
 	tenantID := tenant.FromContext(r.Context())
-	err = tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	err = tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.FacilityService.DeleteRoom(ctx, id)
 	})
 	if err != nil {

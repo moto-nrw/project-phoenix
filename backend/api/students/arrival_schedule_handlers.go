@@ -395,7 +395,7 @@ func (rs *Resource) updateStudentArrivalSchedules(w http.ResponseWriter, r *http
 	schedules := toArrivalScheduleModels(req.Schedules, student.ID, staffID)
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.ArrivalScheduleService.UpsertBulkStudentArrivalSchedules(ctx, student.ID, schedules)
 	}); err != nil {
 		renderError(w, r, ErrorInternalServer(err))
@@ -441,8 +441,8 @@ func (rs *Resource) createStudentArrivalException(w http.ResponseWriter, r *http
 
 	var exception *schedule.StudentArrivalException
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if err := scheduleService.LockCareExceptionDay(ctx, rs.db, student.ID, exceptionDate); err != nil {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if err := scheduleService.LockCareExceptionDay(ctx, rs.DB, student.ID, exceptionDate); err != nil {
 			return err
 		}
 
@@ -540,8 +540,8 @@ func (rs *Resource) updateStudentArrivalException(w http.ResponseWriter, r *http
 	var exception *schedule.StudentArrivalException
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if err := scheduleService.LockCareExceptionDay(ctx, rs.db, student.ID, exceptionDate); err != nil {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if err := scheduleService.LockCareExceptionDay(ctx, rs.DB, student.ID, exceptionDate); err != nil {
 			return err
 		}
 		freshException, err := rs.ArrivalScheduleService.GetStudentArrivalExceptionByID(ctx, exceptionID)
@@ -627,8 +627,8 @@ func (rs *Resource) deleteStudentArrivalException(w http.ResponseWriter, r *http
 	}
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if err := scheduleService.LockCareExceptionDay(ctx, rs.db, student.ID, existingException.ExceptionDate); err != nil {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if err := scheduleService.LockCareExceptionDay(ctx, rs.DB, student.ID, existingException.ExceptionDate); err != nil {
 			return err
 		}
 		freshException, err := rs.ArrivalScheduleService.GetStudentArrivalExceptionByID(ctx, exceptionID)
@@ -679,7 +679,7 @@ func (rs *Resource) createStudentArrivalNote(w http.ResponseWriter, r *http.Requ
 	}
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.ArrivalScheduleService.CreateStudentArrivalNote(ctx, note)
 	}); err != nil {
 		renderError(w, r, ErrorInternalServer(err))
@@ -725,7 +725,7 @@ func (rs *Resource) updateStudentArrivalNote(w http.ResponseWriter, r *http.Requ
 	note.SetTenantID(existingNote.TenantID)
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.ArrivalScheduleService.UpdateStudentArrivalNote(ctx, note)
 	}); err != nil {
 		renderError(w, r, ErrorInternalServer(err))
@@ -754,7 +754,7 @@ func (rs *Resource) deleteStudentArrivalNote(w http.ResponseWriter, r *http.Requ
 	}
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.ArrivalScheduleService.DeleteStudentArrivalNote(ctx, noteID)
 	}); err != nil {
 		renderError(w, r, ErrorInternalServer(err))

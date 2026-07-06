@@ -84,7 +84,7 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 	now := time.Now()
 	today := timezone.TodayDate()
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		fresh, err := rs.StudentService.GetByIDForUpdate(ctx, student.ID)
 		if err != nil {
 			return err
@@ -175,7 +175,7 @@ func (rs *Resource) bulkCreateStudentStatusDays(w http.ResponseWriter, r *http.R
 	now := time.Now()
 	today := timezone.TodayDate()
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		for _, studentID := range req.StudentIDs {
 			fresh, err := rs.StudentService.GetByIDForUpdate(ctx, studentID)
 			if err != nil {
@@ -254,7 +254,7 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 	now := time.Now()
 	today := timezone.TodayDate()
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		row, err := rs.StudentStatusDayService.GetActiveByID(ctx, statusDayID)
 		if err != nil {
 			return err

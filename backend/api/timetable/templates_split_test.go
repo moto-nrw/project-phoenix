@@ -30,7 +30,7 @@ import (
 // materialization) into the test resource. Same package, so the unexported
 // field is assignable.
 func attachSplitService(s *templateSetup, mat scheduleSvc.MaterializationService) {
-	s.res.templateSplitService = scheduleSvc.NewTemplateSplitService(scheduleSvc.TemplateSplitDependencies{
+	s.res.TemplateSplitService = scheduleSvc.NewTemplateSplitService(scheduleSvc.TemplateSplitDependencies{
 		GroupRepo:       activitiesRepo.NewGroupRepository(s.db),
 		ScheduleRepo:    activitiesRepo.NewScheduleRepository(s.db),
 		EnrollmentRepo:  activitiesRepo.NewStudentEnrollmentRepository(s.db),

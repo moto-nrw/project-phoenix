@@ -641,7 +641,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 			CalendarPeriodID: &periodP.ID,
 		}
 		enrollment.SetTenantID(1)
-		require.NoError(t, s.res.timetableData.CreateStudentEnrollment(s.ctx, enrollment))
+		require.NoError(t, s.res.TimetableData.CreateStudentEnrollment(s.ctx, enrollment))
 	}
 	supervisor := &activitiesModel.SupervisorPlanned{
 		StaffID:          s.staffA,
@@ -650,7 +650,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 		CalendarPeriodID: &periodP.ID,
 	}
 	supervisor.SetTenantID(1)
-	require.NoError(t, s.res.timetableData.CreatePlannedSupervisor(s.ctx, supervisor))
+	require.NoError(t, s.res.TimetableData.CreatePlannedSupervisor(s.ctx, supervisor))
 
 	listFor := func(t *testing.T, periodID int64) map[int64]templateResponse {
 		t.Helper()

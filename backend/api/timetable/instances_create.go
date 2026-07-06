@@ -123,7 +123,7 @@ func bindCreateInstanceRequest(w http.ResponseWriter, r *http.Request) (*parsedC
 
 // createInstance handles POST /api/timetable/instances.
 func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
-	if rs.instanceService == nil || rs.timetableData == nil {
+	if rs.InstanceService == nil || rs.TimetableData == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(
 			errors.New("timetable resource not fully wired")))
 		return
@@ -142,7 +142,7 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 		createdByPtr = &createdByCopy
 	}
 
-	inst, err := rs.instanceService.Create(r.Context(), scheduleSvc.CreateInstanceInput{
+	inst, err := rs.InstanceService.Create(r.Context(), scheduleSvc.CreateInstanceInput{
 		Date:             parsed.date,
 		StartTime:        parsed.startTime,
 		EndTime:          parsed.endTime,

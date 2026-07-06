@@ -32,10 +32,10 @@ func (rs *Resource) templateRosterValidFrom(ctx context.Context, calendarPeriodI
 	if calendarPeriodID == nil {
 		return timezone.TodayDate(), nil
 	}
-	if rs.calendarPeriodService == nil {
+	if rs.CalendarPeriodService == nil {
 		return timezone.Date{}, errors.New("calendar period service not wired")
 	}
-	period, err := rs.calendarPeriodService.GetPeriodByID(ctx, *calendarPeriodID)
+	period, err := rs.CalendarPeriodService.GetPeriodByID(ctx, *calendarPeriodID)
 	if err != nil {
 		return timezone.Date{}, err
 	}
@@ -55,7 +55,7 @@ func (rs *Resource) replaceTemplateStudents(ctx context.Context, groupID int64, 
 	if tenantID <= 0 {
 		return nil
 	}
-	if err := rs.timetableData.CloseOpenEnrollmentsByGroupAndPeriod(ctx, groupID, calendarPeriodID, validFrom); err != nil {
+	if err := rs.TimetableData.CloseOpenEnrollmentsByGroupAndPeriod(ctx, groupID, calendarPeriodID, validFrom); err != nil {
 		return err
 	}
 	for _, studentID := range uniquePositiveIDs(studentIDs) {
@@ -66,7 +66,7 @@ func (rs *Resource) replaceTemplateStudents(ctx context.Context, groupID int64, 
 			CalendarPeriodID: calendarPeriodID,
 		}
 		row.SetTenantID(tenantID)
-		if err := rs.timetableData.CreateStudentEnrollment(ctx, row); err != nil {
+		if err := rs.TimetableData.CreateStudentEnrollment(ctx, row); err != nil {
 			return err
 		}
 	}
@@ -78,7 +78,7 @@ func (rs *Resource) replaceTemplateStaff(ctx context.Context, groupID int64, sta
 	if tenantID <= 0 {
 		return nil
 	}
-	if err := rs.timetableData.CloseOpenSupervisorsByGroupAndPeriod(ctx, groupID, calendarPeriodID, validFrom); err != nil {
+	if err := rs.TimetableData.CloseOpenSupervisorsByGroupAndPeriod(ctx, groupID, calendarPeriodID, validFrom); err != nil {
 		return err
 	}
 	for _, staffID := range uniquePositiveIDs(staffIDs) {
@@ -91,7 +91,7 @@ func (rs *Resource) replaceTemplateStaff(ctx context.Context, groupID int64, sta
 			CalendarPeriodID: calendarPeriodID,
 		}
 		row.SetTenantID(tenantID)
-		if err := rs.timetableData.CreatePlannedSupervisor(ctx, row); err != nil {
+		if err := rs.TimetableData.CreatePlannedSupervisor(ctx, row); err != nil {
 			return err
 		}
 	}

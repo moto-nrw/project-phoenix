@@ -323,7 +323,7 @@ func TestGetSchoolName_Success(t *testing.T) {
 			return &platform.School{Name: "OGS Musterstadt"}, nil
 		},
 	}
-	rs := &Resource{SchoolService: platformSvc.NewSchoolService(repo)}
+	rs := &Resource{ServiceDependencies: ServiceDependencies{SchoolService: platformSvc.NewSchoolService(repo)}}
 
 	req := httptest.NewRequest("GET", "/school-name", nil)
 	dev := &iotModel.Device{}
@@ -368,7 +368,7 @@ func TestGetSchoolName_SchoolNotFound(t *testing.T) {
 			return nil, errors.New("sql: no rows in result set")
 		},
 	}
-	rs := &Resource{SchoolService: platformSvc.NewSchoolService(repo)}
+	rs := &Resource{ServiceDependencies: ServiceDependencies{SchoolService: platformSvc.NewSchoolService(repo)}}
 
 	req := httptest.NewRequest("GET", "/school-name", nil)
 	dev := &iotModel.Device{}
@@ -392,7 +392,7 @@ func TestGetSchoolName_DatabaseError(t *testing.T) {
 			return nil, errors.New("connection refused")
 		},
 	}
-	rs := &Resource{SchoolService: platformSvc.NewSchoolService(repo)}
+	rs := &Resource{ServiceDependencies: ServiceDependencies{SchoolService: platformSvc.NewSchoolService(repo)}}
 
 	req := httptest.NewRequest("GET", "/school-name", nil)
 	dev := &iotModel.Device{}
@@ -411,7 +411,7 @@ func TestGetSchoolName_EmptySchoolName(t *testing.T) {
 			return &platform.School{Name: ""}, nil
 		},
 	}
-	rs := &Resource{SchoolService: platformSvc.NewSchoolService(repo)}
+	rs := &Resource{ServiceDependencies: ServiceDependencies{SchoolService: platformSvc.NewSchoolService(repo)}}
 
 	req := httptest.NewRequest("GET", "/school-name", nil)
 	dev := &iotModel.Device{}
@@ -440,7 +440,7 @@ func TestGetSchoolName_UsesTenantIDFromDevice(t *testing.T) {
 			return &platform.School{Name: "Test School"}, nil
 		},
 	}
-	rs := &Resource{SchoolService: platformSvc.NewSchoolService(repo)}
+	rs := &Resource{ServiceDependencies: ServiceDependencies{SchoolService: platformSvc.NewSchoolService(repo)}}
 
 	req := httptest.NewRequest("GET", "/school-name", nil)
 	dev := &iotModel.Device{}
@@ -460,7 +460,7 @@ func TestGetSchoolName_ResponseStructure(t *testing.T) {
 			return &platform.School{Name: "Grundschule am Park"}, nil
 		},
 	}
-	rs := &Resource{SchoolService: platformSvc.NewSchoolService(repo)}
+	rs := &Resource{ServiceDependencies: ServiceDependencies{SchoolService: platformSvc.NewSchoolService(repo)}}
 
 	req := httptest.NewRequest("GET", "/school-name", nil)
 	dev := &iotModel.Device{}

@@ -46,31 +46,7 @@ func renderError(w http.ResponseWriter, r *http.Request, errorResponse render.Re
 
 // Resource defines the students API resource
 type Resource struct {
-	PersonService           userService.PersonService
-	GuardianService         userService.GuardianService
-	EducationService        educationService.Service
-	UserContextService      userContextService.UserContextService
-	ActiveService           activeService.Service
-	IoTService              iotSvc.Service
-	PickupScheduleService   scheduleService.PickupScheduleService
-	ArrivalScheduleService  scheduleService.ArrivalScheduleService
-	InstanceService         scheduleService.InstanceService
-	SchoolService           platformSvc.SchoolService
-	SettingsService         configService.SettingsService
-	StudentService          userService.StudentService
-	MasterDataReviewService userService.MasterDataReviewService
-	CareRequestService      scheduleService.CareScheduleRequestService
-	StudentStatusDayService activeService.StudentStatusDayService
-	StudentHistoryService   activeService.StudentHistoryService
-	ActivityService         activityService.ActivityService
-	EnrollmentDecision      enrollmentService.DecisionService
-	EnrollmentFormSchema    enrollmentService.FormSchemaService
-	Broadcaster             realtime.Broadcaster
-	StudentPhotos           userService.StudentPhotoService
-	ListExportService       listexport.Service
-	Logger                  *slog.Logger
-	Now                     func() time.Time
-	db                      *bun.DB
+	ResourceConfig
 }
 
 // ResourceConfig holds all dependencies for creating a students Resource.
@@ -105,38 +81,10 @@ type ResourceConfig struct {
 
 // NewResource creates a new students resource from the provided configuration.
 func NewResource(cfg ResourceConfig) *Resource {
-	now := cfg.Now
-	if now == nil {
-		now = time.Now
+	if cfg.Now == nil {
+		cfg.Now = time.Now
 	}
-
-	return &Resource{
-		PersonService:           cfg.PersonService,
-		GuardianService:         cfg.GuardianService,
-		EducationService:        cfg.EducationService,
-		UserContextService:      cfg.UserContextService,
-		ActiveService:           cfg.ActiveService,
-		IoTService:              cfg.IoTService,
-		PickupScheduleService:   cfg.PickupScheduleService,
-		ArrivalScheduleService:  cfg.ArrivalScheduleService,
-		InstanceService:         cfg.InstanceService,
-		SchoolService:           cfg.SchoolService,
-		SettingsService:         cfg.SettingsService,
-		StudentService:          cfg.StudentService,
-		MasterDataReviewService: cfg.MasterDataReviewService,
-		CareRequestService:      cfg.CareRequestService,
-		StudentStatusDayService: cfg.StudentStatusDayService,
-		StudentHistoryService:   cfg.StudentHistoryService,
-		ActivityService:         cfg.ActivityService,
-		EnrollmentDecision:      cfg.EnrollmentDecision,
-		EnrollmentFormSchema:    cfg.EnrollmentFormSchema,
-		Broadcaster:             cfg.Broadcaster,
-		StudentPhotos:           cfg.StudentPhotos,
-		ListExportService:       cfg.ListExportService,
-		Logger:                  cfg.Logger,
-		Now:                     now,
-		db:                      cfg.DB,
-	}
+	return &Resource{ResourceConfig: cfg}
 }
 
 // Router returns a configured router for student endpoints
@@ -152,7 +100,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
 		r.Use(jwt.TenantMiddleware)
-		withTx := tenant.TenantTxMiddleware(rs.db)
+		withTx := tenant.TenantTxMiddleware(rs.DB)
 
 		// Routes requiring users:read permission
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listStudents)
@@ -258,7 +206,7 @@ func (rs *Resource) Router() chi.Router {
 	// (SET LOCAL ROLE phoenix_tenant + set_config) so RLS is enforced.
 	r.Group(func(r chi.Router) {
 		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.PersonService, rs.SchoolService, nil))
-		r.Use(tenant.TenantTxMiddleware(rs.db))
+		r.Use(tenant.TenantTxMiddleware(rs.DB))
 
 		// RFID tag assignment endpoint
 		r.Post("/{id}/rfid", rs.assignRFIDTag)
@@ -1018,7 +966,7 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		// Validate guardians BEFORE writing the student. This route runs inside
 		// TenantTxMiddleware, which only rolls back on 5xx; a guardian
 		// ValidationError renders 400, so the middleware would otherwise commit
@@ -1437,7 +1385,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	// concurrent photo upload can't have its photo_path clobbered by a stale
 	// snapshot write.
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		// Acquire the photo-feature advisory lock only when consent is
 		// actually toggling. Name/notes edits must not queue behind
 		// feature disable/purge.
@@ -1580,7 +1528,7 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 	// so a concurrent upload can't orphan a new file on disk. The unlink
 	// itself runs after the OUTER tenant tx commits.
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		// FOR UPDATE row-locks against any in-flight upload tx. We either
 		// observe its committed photo_path or it sees our deleted row and
 		// aborts.

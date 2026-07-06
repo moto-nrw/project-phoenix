@@ -105,7 +105,7 @@ type createTemplateResponse struct {
 
 // createTemplate handles POST /api/timetable/templates.
 func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
-	if rs.timetableData == nil {
+	if rs.TimetableData == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(
 			errors.New("timetable resource not fully wired")))
 		return
@@ -204,7 +204,7 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 		CreatedBy:        createdByPtr,
 	}
 	group.SetTenantID(tenantID)
-	if err := rs.timetableData.CreateActivityGroup(ctx, group); err != nil {
+	if err := rs.TimetableData.CreateActivityGroup(ctx, group); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap(
 			"create template failed", err))
 		return
@@ -224,7 +224,7 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 			CalendarPeriodID: req.CalendarPeriodID,
 		}
 		sched.SetTenantID(tenantID)
-		if err := rs.timetableData.CreateActivitySchedule(ctx, sched); err != nil {
+		if err := rs.TimetableData.CreateActivitySchedule(ctx, sched); err != nil {
 			common.RenderError(w, r, common.ErrorInternalServerWrap(
 				"create schedule failed", err))
 			return
@@ -252,11 +252,11 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 	// 4. Optionally materialize the visible window so the new template
 	//    yields instances that show up on the grid immediately.
 	if req.MaterializeFrom != nil && req.MaterializeTo != nil &&
-		rs.materializationService != nil {
+		rs.MaterializationService != nil {
 		from, ferr := berlinDate(*req.MaterializeFrom)
 		to, terr := berlinDate(*req.MaterializeTo)
 		if ferr == nil && terr == nil && !to.Before(from) {
-			mat, mErr := rs.materializationService.MaterializeForTenant(
+			mat, mErr := rs.MaterializationService.MaterializeForTenant(
 				ctx, from, to, scheduleSvc.MaterializationSourceManual,
 			)
 			if mErr != nil {
@@ -287,7 +287,7 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 // the template name on first creation as a debug hint, but is informational
 // only — lookups go by time window.
 func (rs *Resource) findOrCreateTimeframe(ctx context.Context, start, end time.Time, descHint string) (int64, error) {
-	existing, err := rs.timetableData.GetTimeframesByTimeRange(ctx, start, end)
+	existing, err := rs.TimetableData.GetTimeframesByTimeRange(ctx, start, end)
 	if err == nil {
 		for _, tf := range existing {
 			if tf == nil {
@@ -312,7 +312,7 @@ func (rs *Resource) findOrCreateTimeframe(ctx context.Context, start, end time.T
 		Description: fmt.Sprintf("auto: %s", descHint),
 	}
 	tf.SetTenantID(tenant.FromContext(ctx))
-	if err := rs.timetableData.CreateTimeframe(ctx, tf); err != nil {
+	if err := rs.TimetableData.CreateTimeframe(ctx, tf); err != nil {
 		return 0, fmt.Errorf("create timeframe: %w", err)
 	}
 	return tf.ID, nil

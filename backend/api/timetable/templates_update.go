@@ -69,7 +69,7 @@ func (rs *Resource) validateTemplateEducationGroup(ctx context.Context, groupID 
 	if tenantID <= 0 {
 		return errors.New("no tenant in context")
 	}
-	exists, err := rs.timetableData.EducationGroupExists(ctx, *groupID)
+	exists, err := rs.TimetableData.EducationGroupExists(ctx, *groupID)
 	if err != nil {
 		return fmt.Errorf("validate education_group_id: %w", err)
 	}
@@ -84,7 +84,7 @@ func (rs *Resource) getTemplate(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if rs.timetableData == nil {
+	if rs.TimetableData == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
 		return
 	}
@@ -105,7 +105,7 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if rs.timetableData == nil {
+	if rs.TimetableData == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
 		return
 	}
@@ -173,11 +173,11 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("resolve timeframe failed", err))
 		return
 	}
-	if _, err := rs.timetableData.UpdateTemplateFields(ctx, id, req.Name, req.Type, req.CategoryID, req.RoomID, req.EducationGroupID, maxParticipants); err != nil {
+	if _, err := rs.TimetableData.UpdateTemplateFields(ctx, id, req.Name, req.Type, req.CategoryID, req.RoomID, req.EducationGroupID, maxParticipants); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("update template failed", err))
 		return
 	}
-	if err := rs.timetableData.DeleteSchedulesByGroupID(ctx, id); err != nil {
+	if err := rs.TimetableData.DeleteSchedulesByGroupID(ctx, id); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("replace template schedules failed", err))
 		return
 	}
@@ -191,7 +191,7 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 			CalendarPeriodID: req.CalendarPeriodID,
 		}
 		sched.SetTenantID(tenantID)
-		if err := rs.timetableData.CreateActivitySchedule(ctx, sched); err != nil {
+		if err := rs.TimetableData.CreateActivitySchedule(ctx, sched); err != nil {
 			common.RenderError(w, r, common.ErrorInternalServerWrap("create schedule failed", err))
 			return
 		}
@@ -217,7 +217,7 @@ func (rs *Resource) archiveTemplate(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if rs.timetableData == nil {
+	if rs.TimetableData == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
 		return
 	}
@@ -226,7 +226,7 @@ func (rs *Resource) archiveTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("no tenant in context")))
 		return
 	}
-	n, err := rs.timetableData.ArchiveTemplate(r.Context(), id)
+	n, err := rs.TimetableData.ArchiveTemplate(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("archive template failed", err))
 		return
