@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"net/mail"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -2796,9 +2797,34 @@ func (s *requestService) validateAndNormalizeSchoolClasses(ctx context.Context, 
 		if _, ok := allowed[chosen]; !ok {
 			return fmt.Errorf("%w: child %d target_school_class %q not offered by this phase", ErrInvalidSubmission, i, chosen)
 		}
+		// The phase's pick list mixes classes from every grade
+		// ("2a", "2b", "3a"), and the client sends the whole list for
+		// every grade, so "in the list" is not enough: a grade-2 child
+		// must not be able to pick "3a". Concrete classes follow the
+		// grade-number convention gradeToClass produces, so the class's
+		// leading digits are the grade it belongs to. Reject when they
+		// disagree; classes without a numeric prefix carry no derivable
+		// grade and are left to the plain list check above.
+		if prefix := schoolClassGradePrefix(chosen); prefix != "" && prefix != strconv.Itoa(grade) {
+			return fmt.Errorf("%w: child %d target_school_class %q does not match target grade %d", ErrInvalidSubmission, i, chosen, grade)
+		}
 		children[i].TargetSchoolClass = &chosen
 	}
 	return nil
+}
+
+// schoolClassGradePrefix returns the leading run of digits in a school
+// class name ("2a" -> "2", "12b" -> "12"), or "" when the name has no
+// numeric prefix. Concrete class names follow the grade-number
+// convention gradeToClass produces, so the prefix is the grade the class
+// belongs to. Issue #1833.
+func schoolClassGradePrefix(class string) string {
+	class = strings.TrimSpace(class)
+	end := 0
+	for end < len(class) && class[end] >= '0' && class[end] <= '9' {
+		end++
+	}
+	return class[:end]
 }
 
 // resolveGradeMax reads the tenant setting and falls back to the current

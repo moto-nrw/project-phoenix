@@ -105,6 +105,31 @@ func TestValidateAndNormalizeSchoolClasses(t *testing.T) {
 			child:     SubmitChild{TargetGradeLevel: grade(2), TargetSchoolClass: classPtr("   ")},
 			wantClass: nil,
 		},
+		{
+			// The class is in the phase list but belongs to another
+			// grade; must be rejected, not written to the student (#1833).
+			name:    "grade 2 offered class from a different grade is rejected",
+			collect: true,
+			phase:   phaseWithClasses(classes, true),
+			child:   SubmitChild{TargetGradeLevel: grade(2), TargetSchoolClass: classPtr("3a")},
+			wantErr: true,
+		},
+		{
+			name:      "grade 3 keeps its own class from a mixed list",
+			collect:   true,
+			phase:     phaseWithClasses(classes, true),
+			child:     SubmitChild{TargetGradeLevel: grade(3), TargetSchoolClass: classPtr("3a")},
+			wantClass: classPtr("3a"),
+		},
+		{
+			// A class without a numeric prefix carries no derivable
+			// grade, so the plain list check governs and it is kept.
+			name:      "non-numeric class name is kept when offered",
+			collect:   true,
+			phase:     phaseWithClasses([]string{"Bienen", "2a"}, true),
+			child:     SubmitChild{TargetGradeLevel: grade(2), TargetSchoolClass: classPtr("Bienen")},
+			wantClass: classPtr("Bienen"),
+		},
 	}
 
 	for _, tc := range tests {

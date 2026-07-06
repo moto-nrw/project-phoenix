@@ -859,7 +859,8 @@
         "last_name": "Фамилия",
         "offering_days": "Дни ухода",
         "offering_ids": "Предложения ухода",
-        "target_grade_level": "Целевой класс"
+        "target_grade_level": "Целевой класс",
+        "target_school_class": "Класс"
       },
       "guardian": {
         "email": "E-mail",

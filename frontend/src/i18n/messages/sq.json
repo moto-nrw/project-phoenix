@@ -859,7 +859,8 @@
         "last_name": "Mbiemri",
         "offering_days": "Ditët e kujdesit",
         "offering_ids": "Ofertat e kujdesit",
-        "target_grade_level": "Klasa e synuar"
+        "target_grade_level": "Klasa e synuar",
+        "target_school_class": "Klasa"
       },
       "guardian": {
         "email": "E-mail",

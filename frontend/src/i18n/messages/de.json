@@ -859,7 +859,8 @@
         "last_name": "Nachname",
         "offering_days": "Betreuungstage",
         "offering_ids": "Betreuungsangebote",
-        "target_grade_level": "Zielklasse"
+        "target_grade_level": "Zielklasse",
+        "target_school_class": "Klasse"
       },
       "guardian": {
         "email": "E-Mail",

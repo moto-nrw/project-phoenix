@@ -730,6 +730,7 @@ function ChangeRequestsPanel({
         offering_days: t("diff.child.offering_days"),
         offering_ids: t("diff.child.offering_ids"),
         target_grade_level: t("diff.child.target_grade_level"),
+        target_school_class: t("diff.child.target_school_class"),
       },
       guardianSnapshotLabels: {
         email: t("diff.guardian.email"),

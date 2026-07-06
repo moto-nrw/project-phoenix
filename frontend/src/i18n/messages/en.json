@@ -859,7 +859,8 @@
         "last_name": "Last name",
         "offering_days": "Care days",
         "offering_ids": "Care offerings",
-        "target_grade_level": "Target grade"
+        "target_grade_level": "Target grade",
+        "target_school_class": "Class"
       },
       "guardian": {
         "email": "Email",
