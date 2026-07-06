@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	calendarOverviewVisibilityVersion     = "1.15.160"
+	calendarOverviewVisibilityVersion     = "1.15.168"
 	calendarOverviewVisibilityDescription = "Add attendee overview visibility to personal calendar appointments"
 )
 
@@ -21,7 +21,7 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.160: Adding calendar overview visibility...")
+			fmt.Println("Migration 1.15.168: Adding calendar overview visibility...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE calendar.appointments
 					ADD COLUMN IF NOT EXISTS overview_visibility TEXT NOT NULL DEFAULT 'organizer';
@@ -45,7 +45,7 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.160: Removing calendar overview visibility...")
+			fmt.Println("Rolling back migration 1.15.168: Removing calendar overview visibility...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE calendar.appointments
 					DROP CONSTRAINT IF EXISTS chk_calendar_appointments_overview_visibility;
