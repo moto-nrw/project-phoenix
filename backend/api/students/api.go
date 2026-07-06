@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/device"
@@ -843,63 +844,6 @@ func reconcilePickupFields(student *users.Student, status *string, days *users.P
 	}
 }
 
-// toNewStudentGuardians maps the request guardian DTOs onto the service input
-// used by GuardianService.AddGuardiansToStudent.
-func toNewStudentGuardians(inputs []GuardianInput) []userService.NewStudentGuardian {
-	if len(inputs) == 0 {
-		return nil
-	}
-
-	out := make([]userService.NewStudentGuardian, 0, len(inputs))
-	for i := range inputs {
-		in := inputs[i]
-		out = append(out, userService.NewStudentGuardian{
-			Profile: userService.GuardianCreateRequest{
-				FirstName:              strings.TrimSpace(in.FirstName),
-				LastName:               strings.TrimSpace(in.LastName),
-				Email:                  strutil.TrimToNil(in.Email),
-				AddressStreet:          strutil.TrimToNil(in.AddressStreet),
-				AddressCity:            strutil.TrimToNil(in.AddressCity),
-				AddressPostalCode:      strutil.TrimToNil(in.AddressPostalCode),
-				PreferredContactMethod: in.PreferredContactMethod,
-				LanguagePreference:     in.LanguagePreference,
-				Notes:                  strutil.TrimToNil(in.Notes),
-			},
-			Relationship: userService.StudentGuardianRelationship{
-				RelationshipType:   in.RelationshipType,
-				GuardianRole:       in.GuardianRole,
-				IsPrimary:          in.IsPrimary,
-				IsEmergencyContact: in.IsEmergencyContact,
-				CanPickup:          in.CanPickup,
-				PickupNotes:        strutil.TrimToNil(in.PickupNotes),
-				EmergencyPriority:  in.EmergencyPriority,
-			},
-			PhoneNumbers:      toPhoneRequests(in.PhoneNumbers),
-			ExistingProfileID: in.GuardianProfileID,
-		})
-	}
-	return out
-}
-
-// toPhoneRequests maps phone DTOs onto the service phone-number requests.
-func toPhoneRequests(phones []GuardianPhoneInput) []userService.PhoneNumberCreateRequest {
-	if len(phones) == 0 {
-		return nil
-	}
-
-	out := make([]userService.PhoneNumberCreateRequest, 0, len(phones))
-	for i := range phones {
-		p := phones[i]
-		out = append(out, userService.PhoneNumberCreateRequest{
-			PhoneNumber: strings.TrimSpace(p.PhoneNumber),
-			PhoneType:   p.PhoneType,
-			Label:       strutil.TrimToNil(p.Label),
-			IsPrimary:   p.IsPrimary,
-		})
-	}
-	return out
-}
-
 // createStudent handles creating a new student with their person record
 func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 	// Parse request
@@ -919,7 +863,7 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 	// Create person and student in tenant transaction
 	student := createStudentFromRequest(req, 0) // personID set after create
 
-	guardians := toNewStudentGuardians(req.Guardians)
+	guardians := guardiansAPI.ToNewStudentGuardians(req.Guardians)
 
 	// Resolve the acting staff once — weekly schedules are stamped with
 	// CreatedBy. Only required when schedules are supplied so plain student

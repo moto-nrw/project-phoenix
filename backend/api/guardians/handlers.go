@@ -1170,9 +1170,10 @@ func (rs *Resource) linkGuardianToStudent(w http.ResponseWriter, r *http.Request
 	common.Respond(w, r, http.StatusCreated, relationship, "Guardian linked to student successfully")
 }
 
-// toNewStudentGuardians maps the request DTOs onto the service input used by
-// GuardianService.AddGuardiansToStudent.
-func toNewStudentGuardians(inputs []GuardianWithRelationshipInput) []guardianSvc.NewStudentGuardian {
+// ToNewStudentGuardians maps the request DTOs onto the service input used by
+// GuardianService.AddGuardiansToStudent. Shared with api/students, whose
+// student-create flow accepts the same guardian rows.
+func ToNewStudentGuardians(inputs []GuardianWithRelationshipInput) []guardianSvc.NewStudentGuardian {
 	out := make([]guardianSvc.NewStudentGuardian, 0, len(inputs))
 	for i := range inputs {
 		in := inputs[i]
@@ -1255,7 +1256,7 @@ func (rs *Resource) createStudentGuardians(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	guardians := toNewStudentGuardians(req.Guardians)
+	guardians := ToNewStudentGuardians(req.Guardians)
 
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
