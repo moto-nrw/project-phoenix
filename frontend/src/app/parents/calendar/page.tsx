@@ -30,17 +30,19 @@ function messageFromError(error: unknown, fallback: string): string {
 function calendarRange(referenceDate: Date, viewMode: CalendarViewMode) {
   if (viewMode === "day") return { from: referenceDate, to: referenceDate };
   if (viewMode === "month") {
-    const first = new Date(
+    // Month view renders a 42-day grid starting at the week containing the 1st
+    // (see monthGridDays in personal-calendar.tsx). Fetch that full visible
+    // range so appointments on the leading/trailing adjacent-month days show,
+    // instead of only the calendar month itself.
+    const firstOfMonth = new Date(
       referenceDate.getFullYear(),
       referenceDate.getMonth(),
       1,
     );
-    const last = new Date(
-      referenceDate.getFullYear(),
-      referenceDate.getMonth() + 1,
-      0,
-    );
-    return { from: first, to: last };
+    const from = getWeekRange(firstOfMonth).from;
+    const to = new Date(from);
+    to.setDate(from.getDate() + 41);
+    return { from, to };
   }
   return getWeekRange(referenceDate);
 }

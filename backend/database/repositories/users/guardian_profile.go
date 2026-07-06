@@ -106,10 +106,14 @@ func (r *GuardianProfileRepository) FindByIDs(ctx context.Context, ids []int64) 
 }
 
 // FindActivePortalProfilesByIDs returns only guardian profiles that are linked
-// to an active parent portal account for the current tenant. Both the tenant
-// mapping (account_tenants.status) and the account itself (accounts.active)
-// must be active — a deactivated account can no longer log in even if its
-// tenant mapping row is still active, so it must not be treated as reachable.
+// to an account that can actually sign in to the parent portal for the current
+// tenant. Reachability mirrors the parent login flow (services/auth): the
+// tenant mapping (account_tenants.status) and the account itself
+// (accounts.active) must be active, AND the account must hold the guardian role
+// on that tenant. Parent login rejects accounts without the guardian role
+// (ErrAccountNoGuardianRole), so a profile whose account lacks it must not be
+// treated as reachable — otherwise staff could target a parent who can never
+// see or answer the invitation.
 func (r *GuardianProfileRepository) FindActivePortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*users.GuardianProfile, error) {
 	if len(ids) == 0 {
 		return make(map[int64]*users.GuardianProfile), nil
@@ -121,10 +125,15 @@ func (r *GuardianProfileRepository) FindActivePortalProfilesByIDs(ctx context.Co
 		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
 		Join(`INNER JOIN auth.account_tenants AS "account_tenant" ON "account_tenant".account_id = "guardian_profile".account_id AND "account_tenant".tenant_id = "guardian_profile".tenant_id`).
 		Join(`INNER JOIN auth.accounts AS "account" ON "account".id = "guardian_profile".account_id`).
+		Join(`INNER JOIN auth.account_roles AS "account_role" ON "account_role".account_id = "guardian_profile".account_id AND "account_role".tenant_id = "guardian_profile".tenant_id`).
+		Join(`INNER JOIN auth.roles AS "role" ON "role".id = "account_role".role_id`).
 		Where(`"guardian_profile".id IN (?)`, bun.List(ids)).
 		Where(`"guardian_profile".account_id IS NOT NULL`).
 		Where(`"account_tenant".status = ?`, authModels.AccountTenantStatusActive).
-		Where(`"account".active = ?`, true)
+		Where(`"account".active = ?`, true).
+		// Match the parent login guardian-role check (case-insensitive, mirrors
+		// strings.EqualFold in services/auth). Deduped by the result map below.
+		Where(`LOWER("role".name) = ?`, strings.ToLower(authModels.BaseRoleGuardian))
 
 	if where, val, ok := repoBase.TenantWhere(ctx, "guardian_profile"); ok {
 		query = query.Where(where, val)
