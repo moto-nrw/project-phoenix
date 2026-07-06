@@ -1384,16 +1384,20 @@ func (s *decisionService) applyApprovalRollover(
 	// school_class rules (issue #1833):
 	//   - rollover carries a concrete class (e.g. "3a") -> use it.
 	//   - no concrete class, but the student's class is still an
-	//     un-customized bare grade placeholder (e.g. "1", matching last
-	//     year's grade) -> re-derive the new grade number so grade bumps
-	//     still track ("1" -> "2"), preserving the historical behaviour.
+	//     un-customized bare grade placeholder (empty or all digits, e.g.
+	//     "1") -> re-derive the new grade number so grade bumps still
+	//     track ("1" -> "2"), preserving the historical behaviour. This
+	//     also covers legacy/admin-reviewed rows whose source grade is
+	//     nil or doesn't match the placeholder exactly.
 	//   - no concrete class and the class has been customised to a real
 	//     class like "2a" -> keep it. Clobbering it down to a bare grade
 	//     number would silently destroy the concrete class; the admin
 	//     reassigns it in the new grade ("manuell zuordnen").
+	//
+	// Mirrors the bare-placeholder check in SyncApprovedChildData (#1833).
 	if concrete := s.concreteSchoolClass(child); concrete != "" {
 		existing.SchoolClass = concrete
-	} else if existing.SchoolClass == "" || existing.SchoolClass == s.gradeToClass(source.TargetGradeLevel) {
+	} else if isBareGradePlaceholderClass(existing.SchoolClass) {
 		existing.SchoolClass = s.gradeToClass(child.TargetGradeLevel)
 	}
 	enrolledFrom := phase.ServiceStartDate
