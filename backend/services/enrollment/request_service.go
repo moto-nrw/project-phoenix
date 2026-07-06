@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -723,9 +724,9 @@ func (s *requestService) CreateLateInvite(ctx context.Context, input CreateLateI
 	if !expiresAt.After(time.Now()) {
 		return nil, fmt.Errorf("%w: expires_at must be in the future", ErrInvalidSubmission)
 	}
-	firstName := optionalTrimmedString(input.GuardianFirstName)
-	lastName := optionalTrimmedString(input.GuardianLastName)
-	reason := optionalTrimmedString(input.Reason)
+	firstName := strutil.TrimToNil(input.GuardianFirstName)
+	lastName := strutil.TrimToNil(input.GuardianLastName)
+	reason := strutil.TrimToNil(input.Reason)
 	invite := &enrollmentModels.LateInvite{
 		PhaseID:           phase.ID,
 		TokenHash:         lateInviteTokenHash(token),
@@ -2238,14 +2239,6 @@ func ensureRequiredConsentFlags(flags map[string]any, legalBlocks []LegalBlock) 
 		out[key] = true
 	}
 	return out
-}
-
-func optionalTrimmedString(value string) *string {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return nil
-	}
-	return &trimmed
 }
 
 func normalizeGuardianEmail(email string) (string, error) {

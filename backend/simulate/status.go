@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 )
 
@@ -103,7 +104,7 @@ func printActiveGroups(respBody []byte) {
 		if activity == "" {
 			activity = stringField(g, "name")
 		}
-		fmt.Printf("  %-4s %-20s %-20s %s\n", id, truncate(activity, 20), truncate(room, 20), supervisors)
+		fmt.Printf("  %-4s %-20s %-20s %s\n", id, strutil.TruncateBytes(activity, 20, "..."), strutil.TruncateBytes(room, 20, "..."), supervisors)
 	}
 	fmt.Printf("  Total: %d active sessions\n", len(groups))
 }

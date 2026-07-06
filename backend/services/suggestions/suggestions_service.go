@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/suggestions"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -45,17 +46,14 @@ func notificationContext(ctx context.Context) context.Context {
 	return context.WithoutCancel(ctx)
 }
 
+// truncateRunes caps value to limit runes with an ellipsis suffix. It keeps the
+// limit<=0 → "" guard (a zero/negative limit means "no room"); the rune-cutting
+// core is strutil.TruncateRunes.
 func truncateRunes(value string, limit int) string {
 	if limit <= 0 {
 		return ""
 	}
-
-	runes := []rune(value)
-	if len(runes) <= limit {
-		return value
-	}
-
-	return string(runes[:limit]) + "…"
+	return strutil.TruncateRunes(value, limit, "…")
 }
 
 // NewService creates a new suggestions service

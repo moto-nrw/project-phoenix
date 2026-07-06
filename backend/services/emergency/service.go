@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/collation"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
@@ -171,9 +173,9 @@ func buildSnapshotRows(
 			Name:            person.GetFullName(),
 			SchoolClass:     student.SchoolClass,
 			Location:        locations[id],
-			GuardianName:    ptrString(student.GuardianName),
-			GuardianContact: ptrString(student.GuardianContact),
-			GuardianPhone:   ptrString(student.GuardianPhone),
+			GuardianName:    base.Deref(student.GuardianName),
+			GuardianContact: base.Deref(student.GuardianContact),
+			GuardianPhone:   base.Deref(student.GuardianPhone),
 		}
 		if row.Location == "" {
 			row.Location = "Unterwegs"
@@ -182,8 +184,8 @@ func buildSnapshotRows(
 			row.ContactName = contact.Name
 			row.ContactPhone = contact.Phone
 		}
-		row.ContactName = joinUnique(row.ContactName, row.GuardianName)
-		row.ContactPhone = joinUnique(row.ContactPhone, row.GuardianPhone, row.GuardianContact)
+		row.ContactName = strutil.JoinUnique(row.ContactName, row.GuardianName)
+		row.ContactPhone = strutil.JoinUnique(row.ContactPhone, row.GuardianPhone, row.GuardianContact)
 		rows = append(rows, row)
 	}
 	return rows
@@ -247,8 +249,8 @@ func (s *service) loadGuardianContacts(ctx context.Context, studentIDs []int64) 
 	contacts := make(map[int64]guardianContact, len(rows))
 	for _, row := range rows {
 		current := contacts[row.StudentID]
-		current.Name = joinUnique(current.Name, strings.TrimSpace(row.FirstName.String+" "+row.LastName.String))
-		current.Phone = joinUnique(current.Phone, row.PhoneNumber.String)
+		current.Name = strutil.JoinUnique(current.Name, strings.TrimSpace(row.FirstName.String+" "+row.LastName.String))
+		current.Phone = strutil.JoinUnique(current.Phone, row.PhoneNumber.String)
 		contacts[row.StudentID] = current
 	}
 	return contacts, nil
@@ -266,31 +268,4 @@ func buildDocumentRows(rows []snapshotRow) []listexport.Row {
 		}})
 	}
 	return result
-}
-
-func joinUnique(values ...string) string {
-	seen := make(map[string]struct{}, len(values))
-	result := make([]string, 0, len(values))
-	for _, value := range values {
-		for _, part := range strings.Split(value, ";") {
-			trimmed := strings.TrimSpace(part)
-			if trimmed == "" {
-				continue
-			}
-			key := strings.ToLower(trimmed)
-			if _, ok := seen[key]; ok {
-				continue
-			}
-			seen[key] = struct{}{}
-			result = append(result, trimmed)
-		}
-	}
-	return strings.Join(result, "; ")
-}
-
-func ptrString(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return *value
 }

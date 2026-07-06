@@ -30,6 +30,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
@@ -464,7 +465,7 @@ func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (
 		return nil, &ScheduleError{Op: "create instance: insert", Err: err}
 	}
 
-	for _, staffID := range uniquePositiveInt64(req.StaffIDs) {
+	for _, staffID := range sliceutil.UniquePositive(req.StaffIDs) {
 		if staffID <= 0 {
 			continue
 		}
@@ -479,7 +480,7 @@ func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (
 			return nil, &ScheduleError{Op: "create instance: assign staff", Err: err}
 		}
 	}
-	for _, studentID := range uniquePositiveInt64(req.StudentIDs) {
+	for _, studentID := range sliceutil.UniquePositive(req.StudentIDs) {
 		if studentID <= 0 {
 			continue
 		}
@@ -574,14 +575,14 @@ func (s *instanceService) replaceInstanceAssignments(ctx context.Context, instan
 		return &ScheduleError{Op: "update instance: clear students", Err: err}
 	}
 	tenantID := tenant.FromContext(ctx)
-	for _, staffID := range uniquePositiveInt64(staffIDs) {
+	for _, staffID := range sliceutil.UniquePositive(staffIDs) {
 		row := &scheduleModel.InstanceStaff{InstanceID: instanceID, StaffID: staffID}
 		row.SetTenantID(tenantID)
 		if err := s.deps.InstanceStaffRepo.Create(ctx, row); err != nil {
 			return &ScheduleError{Op: "update instance: assign staff", Err: err}
 		}
 	}
-	for _, studentID := range uniquePositiveInt64(studentIDs) {
+	for _, studentID := range sliceutil.UniquePositive(studentIDs) {
 		row := &scheduleModel.InstanceStudent{
 			InstanceID: instanceID,
 			StudentID:  studentID,
@@ -747,7 +748,7 @@ func (s *instanceService) validateInstanceReferences(
 		}
 	}
 
-	uniqueStaffIDs := uniquePositiveInt64(staffIDs)
+	uniqueStaffIDs := sliceutil.UniquePositive(staffIDs)
 	if len(uniqueStaffIDs) > 0 {
 		found, err := s.deps.StaffRepo.FindByIDs(ctx, uniqueStaffIDs)
 		if err != nil {
@@ -771,7 +772,7 @@ func (s *instanceService) validateInstanceReferences(
 		}
 	}
 
-	uniqueStudentIDs := uniquePositiveInt64(studentIDs)
+	uniqueStudentIDs := sliceutil.UniquePositive(studentIDs)
 	if len(uniqueStudentIDs) > 0 {
 		found, err := s.deps.StudentRepo.FindByIDs(ctx, uniqueStudentIDs)
 		if err != nil {
@@ -783,25 +784,6 @@ func (s *instanceService) validateInstanceReferences(
 	}
 
 	return nil
-}
-
-func uniquePositiveInt64(ids []int64) []int64 {
-	if len(ids) == 0 {
-		return nil
-	}
-	seen := make(map[int64]struct{}, len(ids))
-	out := make([]int64, 0, len(ids))
-	for _, id := range ids {
-		if id <= 0 {
-			continue
-		}
-		if _, ok := seen[id]; ok {
-			continue
-		}
-		seen[id] = struct{}{}
-		out = append(out, id)
-	}
-	return out
 }
 
 // updateLifecycleColumns writes only the named columns on the given instance.

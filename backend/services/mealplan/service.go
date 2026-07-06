@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/mealplan"
 )
@@ -97,7 +98,7 @@ func (s *service) SetDay(ctx context.Context, date timezone.Date, dishes []DishI
 			Date:     date,
 			Position: pos,
 			Dish:     dish,
-			Note:     normalizeNote(d.Note),
+			Note:     strutil.TrimPtrToNil(d.Note),
 		})
 		pos++
 	}
@@ -109,17 +110,4 @@ func (s *service) Delete(ctx context.Context, date timezone.Date) error {
 		return errors.New("date is required")
 	}
 	return s.repo.DeleteByDate(ctx, date)
-}
-
-// normalizeNote trims the optional note and collapses an empty result to nil so
-// the column stores NULL rather than an empty string.
-func normalizeNote(note *string) *string {
-	if note == nil {
-		return nil
-	}
-	trimmed := strings.TrimSpace(*note)
-	if trimmed == "" {
-		return nil
-	}
-	return &trimmed
 }

@@ -8,6 +8,7 @@ import (
 	"net/mail"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
@@ -264,9 +265,9 @@ func (c *StaffImportConfig) Create(ctx context.Context, row importModels.StaffIm
 		Email:      email,
 		RoleID:     row.RoleID,
 		TenantID:   tenant.FromContext(ctx),
-		FirstName:  stringPtr(row.FirstName),
-		LastName:   stringPtr(row.LastName),
-		Position:   stringPtr(row.Position),
+		FirstName:  strutil.TrimToNil(row.FirstName),
+		LastName:   strutil.TrimToNil(row.LastName),
+		Position:   strutil.TrimToNil(row.Position),
 		CreatedBy:  ImporterIDFromContext(ctx),
 		SchoolName: c.schoolName,
 	}

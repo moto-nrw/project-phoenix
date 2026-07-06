@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/collation"
+	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -622,19 +624,8 @@ func makeIDSet(ids []int64) map[int64]bool {
 }
 
 func dedupePositiveInt64(ids []int64) []int64 {
-	if len(ids) == 0 {
-		return nil
-	}
-	seen := make(map[int64]bool, len(ids))
-	out := make([]int64, 0, len(ids))
-	for _, id := range ids {
-		if id <= 0 || seen[id] {
-			continue
-		}
-		seen[id] = true
-		out = append(out, id)
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	out := sliceutil.UniquePositive(ids)
+	slices.Sort(out)
 	return out
 }
 
@@ -1107,7 +1098,7 @@ func classRosterStudentGuardianContactsFromRows(rows []userModels.GuardianEmerge
 		if contact.Email == "" {
 			contact.Email = email
 		}
-		contact.Phone = classRosterJoinUnique(contact.Phone, phone)
+		contact.Phone = strutil.JoinUnique(contact.Phone, phone)
 		acc.contacts[key] = contact
 	}
 
@@ -1138,7 +1129,7 @@ func classRosterStudentGuardians(student *userModels.Student, linkedContacts []C
 		contacts = append(contacts, ClassRosterGuardian{
 			Name:  stringPtrValue(student.GuardianName),
 			Email: stringPtrValue(student.GuardianEmail),
-			Phone: classRosterJoinUnique(stringPtrValue(student.GuardianPhone), stringPtrValue(student.GuardianContact)),
+			Phone: strutil.JoinUnique(stringPtrValue(student.GuardianPhone), stringPtrValue(student.GuardianContact)),
 		})
 	}
 	return normalizeClassRosterGuardians(contacts)
@@ -1187,26 +1178,6 @@ func normalizeClassRosterGuardians(contacts []ClassRosterGuardian) []ClassRoster
 		out = append(out, contact)
 	}
 	return out
-}
-
-func classRosterJoinUnique(existing, next string) string {
-	parts := []string{}
-	seen := map[string]bool{}
-	for _, value := range []string{existing, next} {
-		for _, part := range strings.Split(value, ";") {
-			part = strings.TrimSpace(part)
-			if part == "" {
-				continue
-			}
-			key := strings.ToLower(part)
-			if seen[key] {
-				continue
-			}
-			seen[key] = true
-			parts = append(parts, part)
-		}
-	}
-	return strings.Join(parts, "; ")
 }
 
 func stringPtrValue(value *string) string {
@@ -1440,7 +1411,7 @@ func classRosterCompanionNote(child *enrollmentModels.RequestChild) *string {
 		return nil
 	}
 	if len([]rune(note)) > userModels.MaxDepartureCompanionNoteLen {
-		note = truncateRunes(note, userModels.MaxDepartureCompanionNoteLen)
+		note = strutil.TruncateRunes(note, userModels.MaxDepartureCompanionNoteLen, "")
 	}
 	return &note
 }

@@ -1,7 +1,6 @@
 package common
 
 import (
-	"crypto/rand"
 	"errors"
 	"io"
 	"log/slog"
@@ -11,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/randstr"
 )
 
 // AllowedImageTypes maps MIME types detected by http.DetectContentType to allowed image formats.
@@ -136,7 +137,7 @@ func SavePDF(file io.Reader, targetDir, prefix string) (string, error) {
 }
 
 func saveUploadedFile(file io.Reader, targetDir, prefix, ext string) (string, error) {
-	randomStr, err := generateRandomString(8)
+	randomStr, err := randstr.String(8, randstr.Alphanumeric)
 	if err != nil {
 		return "", errors.New("failed to generate filename")
 	}
@@ -311,19 +312,6 @@ func fileExtension(contentType string) string {
 	default:
 		return ""
 	}
-}
-
-// generateRandomString generates a cryptographically secure random string.
-func generateRandomString(length int) (string, error) {
-	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	b := make([]byte, length)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	for i := range b {
-		b[i] = charset[b[i]%byte(len(charset))]
-	}
-	return string(b), nil
 }
 
 var (

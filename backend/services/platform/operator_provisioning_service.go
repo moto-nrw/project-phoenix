@@ -3,18 +3,16 @@ package platform
 import (
 	"cmp"
 	"context"
-	"crypto/rand"
 	"database/sql"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
-	"math/big"
 	"net"
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/randstr"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
@@ -704,33 +702,19 @@ func (s *operatorProvisioningService) ListOrganizationDevices(ctx context.Contex
 	return result, err
 }
 
-// generateAPIKey creates a cryptographically random API key with "dev_" prefix.
-// Duplicated from services/iot/iot_service.go to avoid coupling operator service to IoT service.
-func (s *operatorProvisioningService) generateAPIKey() (string, error) {
-	bytes := make([]byte, 32)
-	if _, err := rand.Read(bytes); err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("dev_%s", hex.EncodeToString(bytes)), nil
-}
-
 // resolveAPIKey returns the provided key if non-empty, otherwise auto-generates one.
 func (s *operatorProvisioningService) resolveAPIKey(apiKey *string) (string, error) {
 	if apiKey != nil && *apiKey != "" {
 		return *apiKey, nil
 	}
-	return s.generateAPIKey()
+	return randstr.APIKey()
 }
 
-// generateRandomSuffix creates a cryptographically random alphanumeric string of the given length.
+// generateRandomSuffix creates a cryptographically random lowercase alphanumeric
+// string of the given length.
 func generateRandomSuffix(length int) string {
-	const chars = "abcdefghijklmnopqrstuvwxyz0123456789"
-	b := make([]byte, length)
-	for i := range b {
-		n, _ := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))
-		b[i] = chars[n.Int64()]
-	}
-	return string(b)
+	s, _ := randstr.String(length, randstr.LowerAlphanumeric)
+	return s
 }
 
 // shouldCreateTeacher returns true for roles that should have a Teacher record.

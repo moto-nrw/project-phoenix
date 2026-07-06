@@ -2,14 +2,13 @@ package iot
 
 import (
 	"context"
-	"crypto/rand"
 	"database/sql"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/randstr"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -101,18 +100,6 @@ func (s *service) DeviceOnlineWindow(ctx context.Context) time.Duration {
 	return time.Duration(minutes) * time.Minute
 }
 
-// generateAPIKey generates a secure random API key for device authentication
-func (s *service) generateAPIKey() (string, error) {
-	// Generate 32 random bytes
-	bytes := make([]byte, 32)
-	if _, err := rand.Read(bytes); err != nil {
-		return "", err
-	}
-
-	// Convert to hex string and add prefix
-	return fmt.Sprintf("dev_%s", hex.EncodeToString(bytes)), nil
-}
-
 // CreateDevice creates a new IoT device
 func (s *service) CreateDevice(ctx context.Context, device *iot.Device) error {
 	if device == nil {
@@ -137,7 +124,7 @@ func (s *service) CreateDevice(ctx context.Context, device *iot.Device) error {
 
 	// Generate API key if not provided
 	if device.APIKey == nil || *device.APIKey == "" {
-		apiKey, err := s.generateAPIKey()
+		apiKey, err := randstr.APIKey()
 		if err != nil {
 			return &IoTError{Op: "CreateDevice", Err: fmt.Errorf("failed to generate API key: %w", err)}
 		}

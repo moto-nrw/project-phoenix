@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/uptrace/bun"
@@ -220,7 +221,7 @@ func (r *OperatorInvitationTokenRepository) UpdateDeliveryResult(ctx context.Con
 	}
 
 	if emailError != nil {
-		update = update.Set("email_error = ?", truncateInvitationEmailError(*emailError))
+		update = update.Set("email_error = ?", strutil.TruncateRunes(*emailError, maxInvitationEmailErrorLength, ""))
 	} else {
 		update = update.Set("email_error = NULL")
 	}
@@ -279,15 +280,4 @@ func (r *OperatorInvitationTokenRepository) DeleteExpired(ctx context.Context) (
 	}
 
 	return int(affected), nil
-}
-
-func truncateInvitationEmailError(msg string) string {
-	if msg == "" {
-		return ""
-	}
-	runes := []rune(msg)
-	if len(runes) <= maxInvitationEmailErrorLength {
-		return msg
-	}
-	return string(runes[:maxInvitationEmailErrorLength])
 }

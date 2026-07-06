@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
@@ -21,7 +22,6 @@ import (
 )
 
 var (
-	emailRegex  = regexp.MustCompile(`^[A-Za-z0-9._+%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$`)
 	timeRegex   = regexp.MustCompile(`^([01]?[0-9]|2[0-3]):[0-5][0-9]$`)
 	dateLayouts = []string{
 		"2006-01-02",
@@ -444,7 +444,7 @@ func validateGuardianLanguage(num int, lang, fieldPrefix string) []importModels.
 
 // validateGuardianEmail validates email format
 func validateGuardianEmail(num int, email, fieldPrefix string) []importModels.ValidationError {
-	if email != "" && !emailRegex.MatchString(email) {
+	if email != "" && !users.IsValidEmailFormat(email) {
 		return []importModels.ValidationError{{
 			Field:    fmt.Sprintf("%s_email", fieldPrefix),
 			Message:  fmt.Sprintf("Ungültiges Email-Format für Erziehungsberechtigten %d: %s", num, email),
@@ -649,9 +649,9 @@ func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID
 		PersonID:        personID,
 		SchoolClass:     strings.TrimSpace(row.SchoolClass),
 		GroupID:         row.GroupID,
-		ExtraInfo:       stringPtr(row.ExtraInfo),
-		SupervisorNotes: stringPtr(row.SupervisorNotes),
-		HealthInfo:      stringPtr(row.HealthInfo),
+		ExtraInfo:       strutil.TrimToNil(row.ExtraInfo),
+		SupervisorNotes: strutil.TrimToNil(row.SupervisorNotes),
+		HealthInfo:      strutil.TrimToNil(row.HealthInfo),
 		// DepartureDays is the unified source of truth; the repository derives
 		// bus_days, pickup_days and pickup_status from it on persist (#1610).
 		DepartureDays: departurePlanFromImportRow(row),
@@ -807,11 +807,11 @@ func (c *StudentImportConfig) createOrFindGuardian(ctx context.Context, data imp
 	guardian := &users.GuardianProfile{
 		FirstName:          strings.TrimSpace(data.FirstName),
 		LastName:           strings.TrimSpace(data.LastName),
-		Email:              stringPtr(data.Email),
-		AddressStreet:      stringPtr(data.AddressStreet),
-		AddressCity:        stringPtr(data.AddressCity),
-		AddressPostalCode:  stringPtr(data.AddressPostalCode),
-		Notes:              stringPtr(data.Notes),
+		Email:              strutil.TrimToNil(data.Email),
+		AddressStreet:      strutil.TrimToNil(data.AddressStreet),
+		AddressCity:        strutil.TrimToNil(data.AddressCity),
+		AddressPostalCode:  strutil.TrimToNil(data.AddressPostalCode),
+		Notes:              strutil.TrimToNil(data.Notes),
 		LanguagePreference: guardianLanguagePreference(data.LanguagePreference),
 	}
 
@@ -834,19 +834,19 @@ func (c *StudentImportConfig) updateExistingGuardianProfile(ctx context.Context,
 	updated := false
 
 	if v := strings.TrimSpace(data.AddressStreet); v != "" && !ptrEquals(existing.AddressStreet, v) {
-		existing.AddressStreet = stringPtr(v)
+		existing.AddressStreet = strutil.TrimToNil(v)
 		updated = true
 	}
 	if v := strings.TrimSpace(data.AddressCity); v != "" && !ptrEquals(existing.AddressCity, v) {
-		existing.AddressCity = stringPtr(v)
+		existing.AddressCity = strutil.TrimToNil(v)
 		updated = true
 	}
 	if v := strings.TrimSpace(data.AddressPostalCode); v != "" && !ptrEquals(existing.AddressPostalCode, v) {
-		existing.AddressPostalCode = stringPtr(v)
+		existing.AddressPostalCode = strutil.TrimToNil(v)
 		updated = true
 	}
 	if v := strings.TrimSpace(data.Notes); v != "" && !ptrEquals(existing.Notes, v) {
-		existing.Notes = stringPtr(v)
+		existing.Notes = strutil.TrimToNil(v)
 		updated = true
 	}
 	if v := guardianLanguagePreference(data.LanguagePreference); data.LanguagePreference != "" && v != existing.LanguagePreference {
@@ -1039,15 +1039,6 @@ func parseOptionalDate(dateStr string) (*timezone.Date, error) {
 	return &d, nil
 }
 
-// stringPtr returns a pointer to a string, or nil if empty
-func stringPtr(s string) *string {
-	trimmed := strings.TrimSpace(s)
-	if trimmed == "" {
-		return nil
-	}
-	return &trimmed
-}
-
 // boundedNotePtr trims the value, truncates it to the companion-note cap by
 // rune count (multibyte-safe), and returns nil when empty. Import truncates
 // rather than rejecting the whole row, mirroring the enrollment intake (#1694).
@@ -1087,7 +1078,7 @@ func (c *StudentImportConfig) createArrivalSchedules(ctx context.Context, studen
 			StudentID:       studentID,
 			Weekday:         sched.Weekday,
 			ExpectedArrival: arrivalTime,
-			Notes:           stringPtr(sched.Notes),
+			Notes:           strutil.TrimToNil(sched.Notes),
 			CreatedBy:       ImporterIDFromContext(ctx),
 		}
 		record.SetTenantID(tenant.FromContext(ctx))
@@ -1118,7 +1109,7 @@ func (c *StudentImportConfig) createPickupSchedules(ctx context.Context, student
 			StudentID:  studentID,
 			Weekday:    sched.Weekday,
 			PickupTime: pickupTime,
-			Notes:      stringPtr(sched.Notes),
+			Notes:      strutil.TrimToNil(sched.Notes),
 			CreatedBy:  ImporterIDFromContext(ctx),
 		}
 		record.SetTenantID(tenant.FromContext(ctx))

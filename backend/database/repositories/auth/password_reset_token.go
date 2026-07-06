@@ -6,10 +6,15 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
+
+// maxEmailErrorLength caps the persisted email_error column (auth email
+// delivery bookkeeping) to a sane length before storing a failure message.
+const maxEmailErrorLength = 1024
 
 const (
 	passwordResetTokenTable      = "auth.password_reset_tokens"
@@ -121,7 +126,7 @@ func (r *PasswordResetTokenRepository) UpdateDeliveryResult(ctx context.Context,
 	}
 
 	if emailError != nil {
-		update = update.Set("email_error = ?", truncateError(*emailError))
+		update = update.Set("email_error = ?", strutil.TruncateBytes(*emailError, maxEmailErrorLength, ""))
 	} else {
 		update = update.Set("email_error = NULL")
 	}

@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net"
 	"net/mail"
-	"regexp"
 	"strings"
 	"time"
 
@@ -14,13 +13,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/models/platform"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
 const emailChangeRateLimit = 5
-
-var emailFormatRegex = regexp.MustCompile(`^[A-Za-z0-9._+%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$`)
 
 // InitiateEmailChange starts the email change flow: validates credentials,
 // creates a verification token, and dispatches emails to both old and new addresses.
@@ -69,7 +67,7 @@ func (s *operatorAuthService) InitiateEmailChange(ctx context.Context, operatorI
 	newEmail = parsed.Address
 
 	// 5b. Require a real domain with TLD (ParseAddress accepts "t@t" per RFC 5322)
-	if !emailFormatRegex.MatchString(newEmail) {
+	if !userModels.IsValidEmailFormat(newEmail) {
 		return &InvalidDataError{Err: fmt.Errorf("invalid email format")}
 	}
 

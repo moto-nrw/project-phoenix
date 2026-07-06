@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 )
 
 type AuthKind string
@@ -484,11 +486,7 @@ func parseHTTPError(method, path string, statusCode int, body []byte) error {
 }
 
 func truncateBody(body string) string {
-	body = strings.TrimSpace(body)
-	if len(body) <= 200 {
-		return body
-	}
-	return body[:200] + "..."
+	return strutil.TruncateBytes(strings.TrimSpace(body), 200, "...")
 }
 
 func authModeLabel(auth AuthRef) string {

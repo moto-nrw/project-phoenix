@@ -430,13 +430,6 @@ func isTruthy(raw any) bool {
 	}
 }
 
-func strOrEmpty(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
-}
-
 func timeOrEmpty(t *time.Time) string {
 	if t == nil {
 		return ""

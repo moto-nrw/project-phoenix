@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	modelAuth "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -352,7 +353,7 @@ func (r *InvitationTokenRepository) UpdateDeliveryResult(ctx context.Context, id
 	}
 
 	if emailError != nil {
-		update = update.Set(`email_error = ?`, truncateError(*emailError))
+		update = update.Set(`email_error = ?`, strutil.TruncateBytes(*emailError, maxEmailErrorLength, ""))
 	} else {
 		update = update.Set(`email_error = NULL`)
 	}

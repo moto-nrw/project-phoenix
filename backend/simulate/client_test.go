@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,19 +17,19 @@ import (
 // =============================================================================
 
 func TestTruncate_ShortString(t *testing.T) {
-	assert.Equal(t, "hello", truncate("hello", 10))
+	assert.Equal(t, "hello", strutil.TruncateBytes("hello", 10, "..."))
 }
 
 func TestTruncate_ExactLength(t *testing.T) {
-	assert.Equal(t, "hello", truncate("hello", 5))
+	assert.Equal(t, "hello", strutil.TruncateBytes("hello", 5, "..."))
 }
 
 func TestTruncate_LongString(t *testing.T) {
-	assert.Equal(t, "hel...", truncate("hello world", 3))
+	assert.Equal(t, "hel...", strutil.TruncateBytes("hello world", 3, "..."))
 }
 
 func TestTruncate_EmptyString(t *testing.T) {
-	assert.Equal(t, "", truncate("", 10))
+	assert.Equal(t, "", strutil.TruncateBytes("", 10, "..."))
 }
 
 // =============================================================================

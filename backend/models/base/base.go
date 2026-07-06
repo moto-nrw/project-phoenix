@@ -46,3 +46,12 @@ func Int64Ptr(i int64) *int64 { return &i }
 
 // TimePtr returns a pointer to the given time.Time.
 func TimePtr(t time.Time) *time.Time { return &t }
+
+// Deref returns the pointed-to value, or T's zero value when p is nil.
+func Deref[T any](p *T) T {
+	if p == nil {
+		var zero T
+		return zero
+	}
+	return *p
+}

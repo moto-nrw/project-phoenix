@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
@@ -2554,7 +2555,7 @@ func (s *decisionService) applyTargetedFields(
 	if child != nil && child.CustomData != nil &&
 		student.AllowedDepartureModes.HasMode(users.DepartureAccompanied) {
 		if note := strings.TrimSpace(stringValue(child.CustomData[enrollmentModels.TargetStudentDepartureCompanionNote])); note != "" {
-			note = truncateRunes(note, users.MaxDepartureCompanionNoteLen)
+			note = strutil.TruncateRunes(note, users.MaxDepartureCompanionNoteLen, "")
 			student.DepartureCompanionNote = &note
 			studentDirty = true
 		}
@@ -2605,16 +2606,6 @@ func structuredTargetValueHasEntries(raw any) bool {
 	default:
 		return true
 	}
-}
-
-// truncateRunes caps s to at most max runes (not bytes), preserving valid
-// UTF-8. Used to bound parent free-text that bypasses the client length limit.
-func truncateRunes(s string, max int) string {
-	r := []rune(s)
-	if len(r) <= max {
-		return s
-	}
-	return string(r[:max])
 }
 
 // decodeDepartureDays decodes a FormFieldWeekdayMode submission (mon..fri →

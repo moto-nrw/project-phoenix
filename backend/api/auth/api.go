@@ -23,6 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
@@ -1103,7 +1104,9 @@ type CreateRoleRequest struct {
 func (req *CreateRoleRequest) Bind(_ *http.Request) error {
 	req.Name = strings.TrimSpace(req.Name)
 	req.Description = strings.TrimSpace(req.Description)
-	req.BaseRole = normalizeBaseRole(req.BaseRole)
+	// Empty/blank base_role trims to nil, treated as "field not sent" (preserve
+	// existing value): once set, a base_role cannot be cleared back to NULL via the API.
+	req.BaseRole = strutil.TrimPtrToNil(req.BaseRole)
 
 	if err := validateBaseRole(req.BaseRole); err != nil {
 		return err
@@ -1127,7 +1130,7 @@ type UpdateRoleRequest struct {
 func (req *UpdateRoleRequest) Bind(_ *http.Request) error {
 	req.Name = strings.TrimSpace(req.Name)
 	req.Description = strings.TrimSpace(req.Description)
-	req.BaseRole = normalizeBaseRole(req.BaseRole)
+	req.BaseRole = strutil.TrimPtrToNil(req.BaseRole)
 
 	// Only validate base_role if the caller explicitly sent one.
 	if req.BaseRole != nil {
@@ -1140,21 +1143,6 @@ func (req *UpdateRoleRequest) Bind(_ *http.Request) error {
 		validation.Field(&req.Name, validation.Required, validation.Length(1, 100)),
 		validation.Field(&req.Description, validation.Length(0, 500)),
 	)
-}
-
-// normalizeBaseRole trims whitespace and converts empty strings to nil.
-// Intentionally: once a base_role is set, it cannot be cleared back to NULL via the API.
-// Empty string is treated as "field not sent" (preserve existing value), because every
-// custom role should have a base_role for announcement targeting to work correctly.
-func normalizeBaseRole(br *string) *string {
-	if br == nil {
-		return nil
-	}
-	trimmed := strings.TrimSpace(*br)
-	if trimmed == "" {
-		return nil
-	}
-	return &trimmed
 }
 
 // validateBaseRoleValue checks that a non-nil base_role value is one of the allowed system roles.

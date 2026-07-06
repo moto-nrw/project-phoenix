@@ -31,6 +31,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -505,7 +506,7 @@ func (s *templateSplitService) createSuccessorSchedules(ctx context.Context, gro
 func (s *templateSplitService) createStudentRoster(ctx context.Context, groupID int64, in TemplateSplitInput, carried []*activitiesModel.StudentEnrollment, tenantID int64) error {
 	rows := make([]*activitiesModel.StudentEnrollment, 0, len(carried))
 	if in.StudentIDs != nil {
-		for _, studentID := range uniquePositiveInt64(in.StudentIDs) {
+		for _, studentID := range sliceutil.UniquePositive(in.StudentIDs) {
 			rows = append(rows, &activitiesModel.StudentEnrollment{StudentID: studentID})
 		}
 	} else {
@@ -549,7 +550,7 @@ func (s *templateSplitService) createStudentRoster(ctx context.Context, groupID 
 func (s *templateSplitService) createStaffRoster(ctx context.Context, groupID int64, in TemplateSplitInput, carried []*activitiesModel.SupervisorPlanned, tenantID int64) error {
 	rows := make([]*activitiesModel.SupervisorPlanned, 0, len(carried))
 	if in.StaffIDs != nil {
-		for _, staffID := range uniquePositiveInt64(in.StaffIDs) {
+		for _, staffID := range sliceutil.UniquePositive(in.StaffIDs) {
 			rows = append(rows, &activitiesModel.SupervisorPlanned{
 				StaffID:   staffID,
 				IsPrimary: in.PrimaryStaffID != nil && *in.PrimaryStaffID == staffID,
@@ -672,7 +673,7 @@ func FindOrCreateTimeframe(ctx context.Context, repo scheduleModel.TimeframeRepo
 			// time.Time.Equal here: schedule.timeframes stores SQL TIME, and
 			// drivers may decode TIME with a different date anchor than the
 			// caller's HH:MM parser uses.
-			if sameClockTime(tf.StartTime, start) && tf.EndTime != nil && sameClockTime(*tf.EndTime, end) {
+			if timezone.SameClockTime(tf.StartTime, start) && tf.EndTime != nil && timezone.SameClockTime(*tf.EndTime, end) {
 				return tf.ID, nil
 			}
 		}
@@ -690,13 +691,4 @@ func FindOrCreateTimeframe(ctx context.Context, repo scheduleModel.TimeframeRepo
 		return 0, fmt.Errorf("create timeframe: %w", err)
 	}
 	return tf.ID, nil
-}
-
-// sameClockTime compares only the time-of-day components, ignoring the date
-// anchor and location a driver may have attached on scan.
-func sameClockTime(a, b time.Time) bool {
-	return a.Hour() == b.Hour() &&
-		a.Minute() == b.Minute() &&
-		a.Second() == b.Second() &&
-		a.Nanosecond() == b.Nanosecond()
 }

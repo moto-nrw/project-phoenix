@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/seedtoken"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -1168,16 +1169,6 @@ func (rs *Resource) linkGuardianToStudent(w http.ResponseWriter, r *http.Request
 	common.Respond(w, r, http.StatusCreated, relationship, "Guardian linked to student successfully")
 }
 
-// trimToNil returns a pointer to the trimmed string, or nil when empty, so
-// optional JSON fields map cleanly onto nullable model columns.
-func trimToNil(s string) *string {
-	trimmed := strings.TrimSpace(s)
-	if trimmed == "" {
-		return nil
-	}
-	return &trimmed
-}
-
 // toNewStudentGuardians maps the request DTOs onto the service input used by
 // GuardianService.AddGuardiansToStudent.
 func toNewStudentGuardians(inputs []GuardianWithRelationshipInput) []guardianSvc.NewStudentGuardian {
@@ -1188,13 +1179,13 @@ func toNewStudentGuardians(inputs []GuardianWithRelationshipInput) []guardianSvc
 			Profile: guardianSvc.GuardianCreateRequest{
 				FirstName:              strings.TrimSpace(in.FirstName),
 				LastName:               strings.TrimSpace(in.LastName),
-				Email:                  trimToNil(in.Email),
-				AddressStreet:          trimToNil(in.AddressStreet),
-				AddressCity:            trimToNil(in.AddressCity),
-				AddressPostalCode:      trimToNil(in.AddressPostalCode),
+				Email:                  strutil.TrimToNil(in.Email),
+				AddressStreet:          strutil.TrimToNil(in.AddressStreet),
+				AddressCity:            strutil.TrimToNil(in.AddressCity),
+				AddressPostalCode:      strutil.TrimToNil(in.AddressPostalCode),
 				PreferredContactMethod: in.PreferredContactMethod,
 				LanguagePreference:     in.LanguagePreference,
-				Notes:                  trimToNil(in.Notes),
+				Notes:                  strutil.TrimToNil(in.Notes),
 			},
 			Relationship: guardianSvc.StudentGuardianRelationship{
 				RelationshipType:   in.RelationshipType,
@@ -1202,7 +1193,7 @@ func toNewStudentGuardians(inputs []GuardianWithRelationshipInput) []guardianSvc
 				IsPrimary:          in.IsPrimary,
 				IsEmergencyContact: in.IsEmergencyContact,
 				CanPickup:          in.CanPickup,
-				PickupNotes:        trimToNil(in.PickupNotes),
+				PickupNotes:        strutil.TrimToNil(in.PickupNotes),
 				EmergencyPriority:  in.EmergencyPriority,
 			},
 			PhoneNumbers:      toPhoneCreateRequests(in.PhoneNumbers),
@@ -1223,7 +1214,7 @@ func toPhoneCreateRequests(phones []GuardianPhoneInput) []guardianSvc.PhoneNumbe
 		out = append(out, guardianSvc.PhoneNumberCreateRequest{
 			PhoneNumber: strings.TrimSpace(p.PhoneNumber),
 			PhoneType:   p.PhoneType,
-			Label:       trimToNil(p.Label),
+			Label:       strutil.TrimToNil(p.Label),
 			IsPrimary:   p.IsPrimary,
 		})
 	}

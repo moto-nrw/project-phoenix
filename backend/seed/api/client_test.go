@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
@@ -126,15 +127,15 @@ func TestExtractResponseSummary_MessageNotShownWhenSpecificFieldsPresent(t *test
 // =============================================================================
 
 func TestJoinStrings_Empty(t *testing.T) {
-	assert.Equal(t, "", joinStrings([]string{}, ", "))
+	assert.Equal(t, "", strings.Join([]string{}, ", "))
 }
 
 func TestJoinStrings_Single(t *testing.T) {
-	assert.Equal(t, "hello", joinStrings([]string{"hello"}, ", "))
+	assert.Equal(t, "hello", strings.Join([]string{"hello"}, ", "))
 }
 
 func TestJoinStrings_Multiple(t *testing.T) {
-	assert.Equal(t, "a, b, c", joinStrings([]string{"a", "b", "c"}, ", "))
+	assert.Equal(t, "a, b, c", strings.Join([]string{"a", "b", "c"}, ", "))
 }
 
 // =============================================================================

@@ -7,26 +7,11 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
-
-func uniquePositiveIDs(ids []int64) []int64 {
-	seen := make(map[int64]struct{}, len(ids))
-	out := make([]int64, 0, len(ids))
-	for _, id := range ids {
-		if id <= 0 {
-			continue
-		}
-		if _, ok := seen[id]; ok {
-			continue
-		}
-		seen[id] = struct{}{}
-		out = append(out, id)
-	}
-	return out
-}
 
 func (rs *Resource) templateRosterValidFrom(ctx context.Context, calendarPeriodID *int64) (timezone.Date, error) {
 	if calendarPeriodID == nil {
@@ -58,7 +43,7 @@ func (rs *Resource) replaceTemplateStudents(ctx context.Context, groupID int64, 
 	if err := rs.TimetableData.CloseOpenEnrollmentsByGroupAndPeriod(ctx, groupID, calendarPeriodID, validFrom); err != nil {
 		return err
 	}
-	for _, studentID := range uniquePositiveIDs(studentIDs) {
+	for _, studentID := range sliceutil.UniquePositive(studentIDs) {
 		row := &activitiesModel.StudentEnrollment{
 			StudentID:        studentID,
 			ActivityGroupID:  groupID,
@@ -81,7 +66,7 @@ func (rs *Resource) replaceTemplateStaff(ctx context.Context, groupID int64, sta
 	if err := rs.TimetableData.CloseOpenSupervisorsByGroupAndPeriod(ctx, groupID, calendarPeriodID, validFrom); err != nil {
 		return err
 	}
-	for _, staffID := range uniquePositiveIDs(staffIDs) {
+	for _, staffID := range sliceutil.UniquePositive(staffIDs) {
 		isPrimary := primaryStaffID != nil && *primaryStaffID == staffID
 		row := &activitiesModel.SupervisorPlanned{
 			StaffID:          staffID,

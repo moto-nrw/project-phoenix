@@ -117,7 +117,7 @@ func (g *GuardianProfile) GetPreferredContact() string {
 	if primary := g.GetPrimaryPhone(); primary != "" {
 		return primary
 	}
-	return ptrString(g.Email)
+	return base.Deref(g.Email)
 }
 
 // GetPrimaryPhone returns the primary phone number from PhoneNumbers relation
@@ -149,7 +149,7 @@ func (g *GuardianProfile) GetPhoneByType(phoneType PhoneType) string {
 func (g *GuardianProfile) getContactByMethod(method string) string {
 	switch method {
 	case "email":
-		return ptrString(g.Email)
+		return base.Deref(g.Email)
 	case "mobile", "sms":
 		return g.GetPhoneByType(PhoneTypeMobile)
 	case "phone":
@@ -157,14 +157,6 @@ func (g *GuardianProfile) getContactByMethod(method string) string {
 	default:
 		return ""
 	}
-}
-
-// ptrString safely dereferences a string pointer, returning empty string if nil
-func ptrString(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
 }
 
 // CanInvite checks if guardian can be invited to create an account

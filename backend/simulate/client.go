@@ -94,10 +94,3 @@ func (c *Client) doRequest(method, path string, body any, deviceAPIKey, devicePI
 	}
 	return respBody, nil
 }
-
-func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen] + "..."
-}

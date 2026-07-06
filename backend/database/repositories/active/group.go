@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -590,7 +591,7 @@ func (r *GroupRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64
 		return make(map[int64]*active.Group), nil
 	}
 
-	uniqueIDs := deduplicateIDs(ids)
+	uniqueIDs := sliceutil.Unique(ids)
 
 	groups, err := r.queryGroupsByIDs(ctx, uniqueIDs)
 	if err != nil {
@@ -626,19 +627,6 @@ func (r *GroupRepository) FindByIDForUpdate(ctx context.Context, id int64) (*act
 		}
 	}
 	return group, nil
-}
-
-// deduplicateIDs removes duplicate IDs from the slice
-func deduplicateIDs(ids []int64) []int64 {
-	seen := make(map[int64]struct{}, len(ids))
-	result := make([]int64, 0, len(ids))
-	for _, id := range ids {
-		if _, exists := seen[id]; !exists {
-			seen[id] = struct{}{}
-			result = append(result, id)
-		}
-	}
-	return result
 }
 
 // queryGroupsByIDs fetches groups by their IDs

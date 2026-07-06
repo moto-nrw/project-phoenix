@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
@@ -396,8 +397,8 @@ func buildExportRow(student StudentResponse, plan weeklySchedule, enrollmentSumm
 		listexport.ColumnWeeklyThursday:    weeklyCell(plan, schedule.WeekdayThursday),
 		listexport.ColumnWeeklyFriday:      weeklyCell(plan, schedule.WeekdayFriday),
 		listexport.ColumnDailyStatus:       dailyStatusExportCell(student),
-		listexport.ColumnPlannedArrival:    ptrValue(student.ArrivalTime),
-		listexport.ColumnPlannedPickup:     ptrValue(student.PickupTime),
+		listexport.ColumnPlannedArrival:    base.Deref(student.ArrivalTime),
+		listexport.ColumnPlannedPickup:     base.Deref(student.PickupTime),
 		listexport.ColumnDeparture:         departureExportCell(student),
 		listexport.ColumnDailyNotes:        dailyNotes(student),
 		listexport.ColumnCurrentLocation:   student.Location,
@@ -718,13 +719,6 @@ func exportStatus(student StudentResponse) string {
 func timeValue(value *string) string {
 	if value == nil || *value == "" {
 		return "99:99"
-	}
-	return *value
-}
-
-func ptrValue(value *string) string {
-	if value == nil {
-		return ""
 	}
 	return *value
 }

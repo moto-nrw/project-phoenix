@@ -93,3 +93,12 @@ func FormatBerlinClock(t *time.Time) *string {
 func WallClock(t time.Time) time.Time {
 	return time.Date(1, 1, 1, t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), time.UTC)
 }
+
+// SameClockTime compares only the time-of-day components, ignoring the date
+// anchor and location a driver may have attached on scan.
+func SameClockTime(a, b time.Time) bool {
+	return a.Hour() == b.Hour() &&
+		a.Minute() == b.Minute() &&
+		a.Second() == b.Second() &&
+		a.Nanosecond() == b.Nanosecond()
+}

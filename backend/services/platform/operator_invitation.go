@@ -12,6 +12,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/models/platform"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -52,7 +53,7 @@ func (s *operatorAuthService) InviteOperator(ctx context.Context, inviteeEmail s
 	}
 	inviteeEmail = parsed.Address
 
-	if !emailFormatRegex.MatchString(inviteeEmail) {
+	if !userModels.IsValidEmailFormat(inviteeEmail) {
 		return &InvalidDataError{Err: fmt.Errorf("invalid email format")}
 	}
 	if len(inviteeEmail) > 255 {

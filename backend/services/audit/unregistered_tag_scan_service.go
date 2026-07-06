@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -71,7 +72,7 @@ func (s *unregisteredTagScanService) Resolve(ctx context.Context, id, operatorID
 	var scan *auditModels.UnregisteredTagScan
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
 		var err error
-		scan, err = s.repo.Resolve(adminCtx, id, operatorID, normalizeNote(note))
+		scan, err = s.repo.Resolve(adminCtx, id, operatorID, strutil.TrimPtrToNil(note))
 		return err
 	})
 	return scan, err
@@ -82,17 +83,6 @@ func (s *unregisteredTagScanService) DeleteOlderThan(ctx context.Context, days i
 		days = UnregisteredTagScanRetentionDays
 	}
 	return s.repo.DeleteOlderThan(ctx, time.Now().AddDate(0, 0, -days))
-}
-
-func normalizeNote(note *string) *string {
-	if note == nil {
-		return nil
-	}
-	cleaned := strings.TrimSpace(*note)
-	if cleaned == "" {
-		return nil
-	}
-	return &cleaned
 }
 
 func (s *unregisteredTagScanService) withAdminTx(ctx context.Context, fn func(context.Context) error) error {

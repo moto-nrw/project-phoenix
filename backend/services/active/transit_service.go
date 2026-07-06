@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -70,7 +71,7 @@ func (s *service) AssignTransitStudentsToActiveGroup(ctx context.Context, studen
 		return nil, err
 	}
 
-	uniqueIDs := uniquePositiveInt64s(studentIDs)
+	uniqueIDs := sliceutil.UniquePositive(studentIDs)
 	if len(uniqueIDs) == 0 {
 		return nil, &ActiveError{Op: "AssignTransitStudentsToActiveGroup", Err: ErrInvalidData}
 	}
@@ -144,7 +145,7 @@ func (s *service) moveStudentsToActiveGroup(ctx context.Context, studentIDs []in
 		return nil, err
 	}
 
-	uniqueIDs := uniquePositiveInt64s(studentIDs)
+	uniqueIDs := sliceutil.UniquePositive(studentIDs)
 	if len(uniqueIDs) == 0 {
 		return nil, &ActiveError{Op: op, Err: ErrInvalidData}
 	}
@@ -235,7 +236,7 @@ func (s *service) moveStudentsToTransit(ctx context.Context, studentIDs []int64,
 		return nil, &ActiveError{Op: op, Err: ErrInvalidData}
 	}
 
-	uniqueIDs := uniquePositiveInt64s(studentIDs)
+	uniqueIDs := sliceutil.UniquePositive(studentIDs)
 	if len(uniqueIDs) == 0 {
 		return nil, &ActiveError{Op: op, Err: ErrInvalidData}
 	}
@@ -437,20 +438,4 @@ func (s *service) createVisitWithoutAttendanceMutation(ctx context.Context, visi
 	}
 	s.broadcastVisitCreated(ctx, visit, snapshot)
 	return nil
-}
-
-func uniquePositiveInt64s(ids []int64) []int64 {
-	seen := make(map[int64]struct{}, len(ids))
-	unique := make([]int64, 0, len(ids))
-	for _, id := range ids {
-		if id <= 0 {
-			continue
-		}
-		if _, ok := seen[id]; ok {
-			continue
-		}
-		seen[id] = struct{}{}
-		unique = append(unique, id)
-	}
-	return unique
 }

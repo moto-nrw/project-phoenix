@@ -14,6 +14,7 @@ import (
 	"github.com/uptrace/bun/driver/pgdriver"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
@@ -745,10 +746,10 @@ func snapshotGuardianContact(profile *usersModels.GuardianProfile, phones []*use
 	return guardianContactSnapshot{
 		firstName:  profile.FirstName,
 		lastName:   profile.LastName,
-		email:      derefString(profile.Email),
-		street:     derefString(profile.AddressStreet),
-		city:       derefString(profile.AddressCity),
-		postalCode: derefString(profile.AddressPostalCode),
+		email:      base.Deref(profile.Email),
+		street:     base.Deref(profile.AddressStreet),
+		city:       base.Deref(profile.AddressCity),
+		postalCode: base.Deref(profile.AddressPostalCode),
 		phones:     formatPhonesForAudit(phones),
 	}
 }
@@ -774,19 +775,12 @@ func (s *service) auditContactChanges(ctx context.Context, tenantID, accountID, 
 	}
 	add(auditModels.GuardianFieldFirstName, before.firstName, profile.FirstName)
 	add(auditModels.GuardianFieldLastName, before.lastName, profile.LastName)
-	add(auditModels.GuardianFieldEmail, before.email, derefString(profile.Email))
-	add(auditModels.GuardianFieldAddressStreet, before.street, derefString(profile.AddressStreet))
-	add(auditModels.GuardianFieldAddressCity, before.city, derefString(profile.AddressCity))
-	add(auditModels.GuardianFieldAddressPostalCode, before.postalCode, derefString(profile.AddressPostalCode))
+	add(auditModels.GuardianFieldEmail, before.email, base.Deref(profile.Email))
+	add(auditModels.GuardianFieldAddressStreet, before.street, base.Deref(profile.AddressStreet))
+	add(auditModels.GuardianFieldAddressCity, before.city, base.Deref(profile.AddressCity))
+	add(auditModels.GuardianFieldAddressPostalCode, before.postalCode, base.Deref(profile.AddressPostalCode))
 	add(auditModels.GuardianFieldPhones, before.phones, formatPhonesForAudit(newPhones))
 	return s.writeGuardianChanges(ctx, tenantID, accountID, studentID, guardianProfileID, changes)
-}
-
-func derefString(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
 }
 
 func boolAuditValue(b bool) *string {
@@ -1087,23 +1081,10 @@ func projectChildGuardian(profile *usersModels.GuardianProfile, link *usersModel
 func applyContactInput(profile *usersModels.GuardianProfile, input *GuardianContactInput) {
 	profile.FirstName = strings.TrimSpace(input.FirstName)
 	profile.LastName = strings.TrimSpace(input.LastName)
-	profile.Email = normalizeOptional(input.Email)
-	profile.AddressStreet = normalizeOptional(input.AddressStreet)
-	profile.AddressCity = normalizeOptional(input.AddressCity)
-	profile.AddressPostalCode = normalizeOptional(input.AddressPostalCode)
-}
-
-// normalizeOptional trims an optional string, returning nil for blank values so
-// a cleared field stores NULL rather than an empty string.
-func normalizeOptional(v *string) *string {
-	if v == nil {
-		return nil
-	}
-	trimmed := strings.TrimSpace(*v)
-	if trimmed == "" {
-		return nil
-	}
-	return &trimmed
+	profile.Email = strutil.TrimPtrToNil(input.Email)
+	profile.AddressStreet = strutil.TrimPtrToNil(input.AddressStreet)
+	profile.AddressCity = strutil.TrimPtrToNil(input.AddressCity)
+	profile.AddressPostalCode = strutil.TrimPtrToNil(input.AddressPostalCode)
 }
 
 func validateContactInput(input *GuardianContactInput) error {

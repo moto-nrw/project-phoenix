@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
 )
@@ -252,17 +253,5 @@ func extractResponseSummary(resp map[string]any) string {
 	if len(parts) == 0 {
 		return "ok"
 	}
-	return fmt.Sprintf("{%s}", joinStrings(parts, ", "))
-}
-
-// joinStrings joins strings with a separator
-func joinStrings(strs []string, sep string) string {
-	if len(strs) == 0 {
-		return ""
-	}
-	result := strs[0]
-	for i := 1; i < len(strs); i++ {
-		result += sep + strs[i]
-	}
-	return result
+	return fmt.Sprintf("{%s}", strings.Join(parts, ", "))
 }

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/internal/randstr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -84,12 +85,12 @@ func TestFileExtension_DerivedFromContentType(t *testing.T) {
 }
 
 func TestGenerateRandomString(t *testing.T) {
-	result, err := generateRandomString(8)
+	result, err := randstr.String(8, randstr.Alphanumeric)
 	assert.NoError(t, err)
 	assert.Len(t, result, 8)
 
 	// Uniqueness
-	result2, err := generateRandomString(8)
+	result2, err := randstr.String(8, randstr.Alphanumeric)
 	assert.NoError(t, err)
 	assert.NotEqual(t, result, result2)
 }

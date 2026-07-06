@@ -12,6 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/iot/attendance"
 	"github.com/moto-nrw/project-phoenix/api/iot/checkin"
+	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 var (
@@ -188,7 +189,7 @@ func (e *Engine) executeCheckIn(ctx context.Context, action ActionConfig) error 
 	resp, err := e.client.PerformCheckAction(ctx, deviceCfg, CheckActionPayload{
 		StudentRFID: selected.studentRFID,
 		Action:      "checkin",
-		RoomID:      ptrInt64(selected.roomID),
+		RoomID:      base.Int64Ptr(selected.roomID),
 	})
 	if err != nil {
 		e.handleCheckInError(selected, err)
@@ -311,7 +312,7 @@ func (e *Engine) updateStateAfterCheckIn(selected checkInCandidate, resp *checki
 		return
 	}
 
-	student.CurrentRoomID = ptrInt64(selected.roomID)
+	student.CurrentRoomID = base.Int64Ptr(selected.roomID)
 	student.CurrentPhase = selected.phase
 	student.LastEventAt = eventTime
 	student.HasActiveVisit = true
@@ -359,7 +360,7 @@ func (e *Engine) updateHeimatraumPhaseAfterCheckIn(student *StudentState, roomID
 	student.VisitedAGs = make(map[int64]time.Time)
 	student.AGHopTarget = generateAGHopTarget(e.cfg.Event)
 	student.NextPhase = RotationPhaseAG
-	student.HomeRoomID = ptrInt64(roomID)
+	student.HomeRoomID = base.Int64Ptr(roomID)
 	student.HomeDeviceID = deviceID
 }
 
@@ -556,7 +557,7 @@ func (e *Engine) executeSchulhofHop(ctx context.Context, action ActionConfig) er
 		Action:      selected.apiAction,
 	}
 	if selected.apiAction == "checkin" {
-		payload.RoomID = ptrInt64(selected.roomID)
+		payload.RoomID = base.Int64Ptr(selected.roomID)
 	}
 
 	_, err := e.client.PerformCheckAction(ctx, deviceCfg, payload)
@@ -701,7 +702,7 @@ func (e *Engine) updateStateAfterSchulhofHop(selected schulhofCandidate) {
 
 // applySchulhofCheckinState applies state changes for Schulhof check-in.
 func (e *Engine) applySchulhofCheckinState(student *StudentState, roomID int64, eventTime time.Time) {
-	student.CurrentRoomID = ptrInt64(roomID)
+	student.CurrentRoomID = base.Int64Ptr(roomID)
 	student.CurrentPhase = RotationPhaseSchulhof
 	student.NextPhase = RotationPhaseHeimatraum
 	student.LastEventAt = eventTime
@@ -1136,11 +1137,6 @@ func (e *Engine) randIntn(n int) int {
 	e.randMu.Lock()
 	defer e.randMu.Unlock()
 	return e.rand.Intn(n)
-}
-
-func ptrInt64(v int64) *int64 {
-	vv := v
-	return &vv
 }
 
 func isVisitMissingError(err error) bool {

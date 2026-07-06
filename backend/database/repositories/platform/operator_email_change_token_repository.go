@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/uptrace/bun"
@@ -94,7 +95,7 @@ func (r *OperatorEmailChangeTokenRepository) UpdateDeliveryResult(ctx context.Co
 	}
 
 	if emailError != nil {
-		update = update.Set("email_error = ?", truncateEmailChangeError(*emailError))
+		update = update.Set("email_error = ?", strutil.TruncateRunes(*emailError, maxEmailChangeErrorLength, ""))
 	} else {
 		update = update.Set("email_error = NULL")
 	}
@@ -186,15 +187,4 @@ func (r *OperatorEmailChangeTokenRepository) DeleteStaleTokens(ctx context.Conte
 	}
 
 	return int(affected), nil
-}
-
-func truncateEmailChangeError(msg string) string {
-	if msg == "" {
-		return ""
-	}
-	runes := []rune(msg)
-	if len(runes) <= maxEmailChangeErrorLength {
-		return msg
-	}
-	return string(runes[:maxEmailChangeErrorLength])
 }

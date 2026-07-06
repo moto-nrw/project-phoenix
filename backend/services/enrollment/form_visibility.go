@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -194,7 +195,7 @@ func sanitizeVisibleAnswers(
 			// the approved student row carry the same value. Normalizing to a
 			// string also prevents a non-string blob from riding the reserved key.
 			out[enrollmentModels.TargetStudentDepartureCompanionNote] =
-				truncateRunes(stringValue(note), users.MaxDepartureCompanionNoteLen)
+				strutil.TruncateRunes(stringValue(note), users.MaxDepartureCompanionNoteLen, "")
 		}
 	}
 	return out

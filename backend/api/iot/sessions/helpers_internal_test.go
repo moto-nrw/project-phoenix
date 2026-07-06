@@ -8,6 +8,7 @@ import (
 
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 
+	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -206,7 +207,7 @@ func TestMirrorHelperFallbacks(t *testing.T) {
 	require.NotNil(t, firstPositiveID([]int64{-1, 0, 88}))
 	assert.Equal(t, int64(88), *firstPositiveID([]int64{-1, 0, 88}))
 	assert.Nil(t, firstPositiveID([]int64{-1, 0}))
-	assert.Equal(t, []int64{88, 99}, uniquePositiveIDs([]int64{0, 88, 88, -1, 99}))
+	assert.Equal(t, []int64{88, 99}, sliceutil.UniquePositive([]int64{0, 88, 88, -1, 99}))
 }
 
 func TestMirrorSessionToTimetableSkipsWhenAlreadyMirroredOrLookupFails(t *testing.T) {

@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/education"
@@ -731,13 +732,13 @@ func createStudentFromRequest(req *StudentRequest, personID int64) *users.Studen
 		student.GroupID = req.GroupID
 	}
 	if req.AddressStreet != "" {
-		student.AddressStreet = optionalString(req.AddressStreet)
+		student.AddressStreet = strutil.TrimToNil(req.AddressStreet)
 	}
 	if req.AddressCity != "" {
-		student.AddressCity = optionalString(req.AddressCity)
+		student.AddressCity = strutil.TrimToNil(req.AddressCity)
 	}
 	if req.AddressPostalCode != "" {
-		student.AddressPostalCode = optionalString(req.AddressPostalCode)
+		student.AddressPostalCode = strutil.TrimToNil(req.AddressPostalCode)
 	}
 	if req.ExtraInfo != nil {
 		student.ExtraInfo = req.ExtraInfo
@@ -855,16 +856,6 @@ func reconcilePickupFields(student *users.Student, status *string, days *users.P
 	}
 }
 
-// optionalString returns a pointer to the trimmed string, or nil when empty,
-// so optional JSON fields map cleanly onto nullable model columns.
-func optionalString(s string) *string {
-	trimmed := strings.TrimSpace(s)
-	if trimmed == "" {
-		return nil
-	}
-	return &trimmed
-}
-
 // toNewStudentGuardians maps the request guardian DTOs onto the service input
 // used by GuardianService.AddGuardiansToStudent.
 func toNewStudentGuardians(inputs []GuardianInput) []userService.NewStudentGuardian {
@@ -879,13 +870,13 @@ func toNewStudentGuardians(inputs []GuardianInput) []userService.NewStudentGuard
 			Profile: userService.GuardianCreateRequest{
 				FirstName:              strings.TrimSpace(in.FirstName),
 				LastName:               strings.TrimSpace(in.LastName),
-				Email:                  optionalString(in.Email),
-				AddressStreet:          optionalString(in.AddressStreet),
-				AddressCity:            optionalString(in.AddressCity),
-				AddressPostalCode:      optionalString(in.AddressPostalCode),
+				Email:                  strutil.TrimToNil(in.Email),
+				AddressStreet:          strutil.TrimToNil(in.AddressStreet),
+				AddressCity:            strutil.TrimToNil(in.AddressCity),
+				AddressPostalCode:      strutil.TrimToNil(in.AddressPostalCode),
 				PreferredContactMethod: in.PreferredContactMethod,
 				LanguagePreference:     in.LanguagePreference,
-				Notes:                  optionalString(in.Notes),
+				Notes:                  strutil.TrimToNil(in.Notes),
 			},
 			Relationship: userService.StudentGuardianRelationship{
 				RelationshipType:   in.RelationshipType,
@@ -893,7 +884,7 @@ func toNewStudentGuardians(inputs []GuardianInput) []userService.NewStudentGuard
 				IsPrimary:          in.IsPrimary,
 				IsEmergencyContact: in.IsEmergencyContact,
 				CanPickup:          in.CanPickup,
-				PickupNotes:        optionalString(in.PickupNotes),
+				PickupNotes:        strutil.TrimToNil(in.PickupNotes),
 				EmergencyPriority:  in.EmergencyPriority,
 			},
 			PhoneNumbers:      toPhoneRequests(in.PhoneNumbers),
@@ -915,7 +906,7 @@ func toPhoneRequests(phones []GuardianPhoneInput) []userService.PhoneNumberCreat
 		out = append(out, userService.PhoneNumberCreateRequest{
 			PhoneNumber: strings.TrimSpace(p.PhoneNumber),
 			PhoneType:   p.PhoneType,
-			Label:       optionalString(p.Label),
+			Label:       strutil.TrimToNil(p.Label),
 			IsPrimary:   p.IsPrimary,
 		})
 	}
@@ -1182,13 +1173,13 @@ func applyOptionalStudentFields(req *UpdateStudentRequest, student *users.Studen
 		student.GroupID = req.GroupID
 	}
 	if req.AddressStreet != nil {
-		student.AddressStreet = optionalString(*req.AddressStreet)
+		student.AddressStreet = strutil.TrimToNil(*req.AddressStreet)
 	}
 	if req.AddressCity != nil {
-		student.AddressCity = optionalString(*req.AddressCity)
+		student.AddressCity = strutil.TrimToNil(*req.AddressCity)
 	}
 	if req.AddressPostalCode != nil {
-		student.AddressPostalCode = optionalString(*req.AddressPostalCode)
+		student.AddressPostalCode = strutil.TrimToNil(*req.AddressPostalCode)
 	}
 	if req.ExtraInfo != nil {
 		student.ExtraInfo = req.ExtraInfo
@@ -1434,7 +1425,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		effectiveConsent := reconcilePhotoConsentRequest(req.PhotoConsentGiven, student, fresh)
 		rs.StudentPhotos.ApplyConsentTransition(ctx, effectiveConsent, fresh)
 
-		if err := rs.persistStudentStatusHistory(ctx, fresh, wasSick, wasExcused, statusHistoryNow, normalizeSickReason(req.SickReason)); err != nil {
+		if err := rs.persistStudentStatusHistory(ctx, fresh, wasSick, wasExcused, statusHistoryNow, strutil.TrimPtrToNil(req.SickReason)); err != nil {
 			rs.logStatusHistoryError(student.ID, err)
 			return err
 		}

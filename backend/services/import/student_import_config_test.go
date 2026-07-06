@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
@@ -1377,23 +1378,23 @@ func TestStudentImportConfig_EntityName(t *testing.T) {
 
 func TestStringPtr(t *testing.T) {
 	t.Run("returns pointer to string", func(t *testing.T) {
-		result := stringPtr("test")
+		result := strutil.TrimToNil("test")
 		assert.NotNil(t, result)
 		assert.Equal(t, "test", *result)
 	})
 
 	t.Run("returns nil for empty string", func(t *testing.T) {
-		result := stringPtr("")
+		result := strutil.TrimToNil("")
 		assert.Nil(t, result)
 	})
 
 	t.Run("returns nil for whitespace-only string", func(t *testing.T) {
-		result := stringPtr("   ")
+		result := strutil.TrimToNil("   ")
 		assert.Nil(t, result)
 	})
 
 	t.Run("trims whitespace", func(t *testing.T) {
-		result := stringPtr("  test  ")
+		result := strutil.TrimToNil("  test  ")
 		assert.NotNil(t, result)
 		assert.Equal(t, "test", *result)
 	})
