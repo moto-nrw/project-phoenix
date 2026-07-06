@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
 	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -130,8 +131,8 @@ func TestBootstrapLiveState_Success(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
-	client.jwtToken = "jwt"
+	client := newClient(srv.URL, false)
+	client.BindAuth(phoenixapi.AuthRef{Kind: phoenixapi.AuthBearer, Label: "tenant", Token: "jwt"})
 
 	ls := &liveState{
 		checkedIn: make(map[int64]bool),
@@ -163,8 +164,8 @@ func TestBootstrapLiveState_NoRFID(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
-	client.jwtToken = "jwt"
+	client := newClient(srv.URL, false)
+	client.BindAuth(phoenixapi.AuthRef{Kind: phoenixapi.AuthBearer, Label: "tenant", Token: "jwt"})
 
 	ls := &liveState{
 		checkedIn: make(map[int64]bool),
@@ -185,8 +186,8 @@ func TestBootstrapLiveState_ServerError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
-	client.jwtToken = "jwt"
+	client := newClient(srv.URL, false)
+	client.BindAuth(phoenixapi.AuthRef{Kind: phoenixapi.AuthBearer, Label: "tenant", Token: "jwt"})
 
 	ls := &liveState{
 		checkedIn: make(map[int64]bool),
@@ -204,8 +205,8 @@ func TestBootstrapLiveState_InvalidJSON(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
-	client.jwtToken = "jwt"
+	client := newClient(srv.URL, false)
+	client.BindAuth(phoenixapi.AuthRef{Kind: phoenixapi.AuthBearer, Label: "tenant", Token: "jwt"})
 
 	ls := &liveState{
 		checkedIn: make(map[int64]bool),
@@ -225,8 +226,8 @@ func TestLiveRoomMove_Success(t *testing.T) {
 	srv := liveAPIMock(t)
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
-	client.jwtToken = "jwt"
+	client := newClient(srv.URL, false)
+	client.BindAuth(phoenixapi.AuthRef{Kind: phoenixapi.AuthBearer, Label: "tenant", Token: "jwt"})
 
 	state := minimalLiveState(srv.URL)
 	ls := &liveState{
@@ -244,7 +245,7 @@ func TestLiveRoomMove_Success(t *testing.T) {
 }
 
 func TestLiveRoomMove_NoCheckedIn(t *testing.T) {
-	client := NewClient("http://localhost:1", false)
+	client := newClient("http://localhost:1", false)
 	state := minimalLiveState("http://localhost:1")
 	ls := &liveState{
 		checkedIn: map[int64]bool{},
@@ -265,8 +266,8 @@ func TestLiveGoUnterwegs_Success(t *testing.T) {
 	srv := liveAPIMock(t)
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
-	client.jwtToken = "jwt"
+	client := newClient(srv.URL, false)
+	client.BindAuth(phoenixapi.AuthRef{Kind: phoenixapi.AuthBearer, Label: "tenant", Token: "jwt"})
 
 	state := minimalLiveState(srv.URL)
 	ls := &liveState{
@@ -284,7 +285,7 @@ func TestLiveGoUnterwegs_Success(t *testing.T) {
 }
 
 func TestLiveGoUnterwegs_NoCheckedIn(t *testing.T) {
-	client := NewClient("http://localhost:1", false)
+	client := newClient("http://localhost:1", false)
 	state := minimalLiveState("http://localhost:1")
 	ls := &liveState{
 		checkedIn: map[int64]bool{},
@@ -304,8 +305,8 @@ func TestLiveReturnFromUnterwegs_Success(t *testing.T) {
 	srv := liveAPIMock(t)
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
-	client.jwtToken = "jwt"
+	client := newClient(srv.URL, false)
+	client.BindAuth(phoenixapi.AuthRef{Kind: phoenixapi.AuthBearer, Label: "tenant", Token: "jwt"})
 
 	state := minimalLiveState(srv.URL)
 	ls := &liveState{
@@ -326,8 +327,8 @@ func TestLiveReturnFromUnterwegs_NobodyUnterwegs_FallsBackToRoomMove(t *testing.
 	srv := liveAPIMock(t)
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
-	client.jwtToken = "jwt"
+	client := newClient(srv.URL, false)
+	client.BindAuth(phoenixapi.AuthRef{Kind: phoenixapi.AuthBearer, Label: "tenant", Token: "jwt"})
 
 	state := minimalLiveState(srv.URL)
 	ls := &liveState{
@@ -351,8 +352,8 @@ func TestLiveToggleSick_MarkSick(t *testing.T) {
 	srv := liveAPIMock(t)
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
-	client.jwtToken = "jwt"
+	client := newClient(srv.URL, false)
+	client.BindAuth(phoenixapi.AuthRef{Kind: phoenixapi.AuthBearer, Label: "tenant", Token: "jwt"})
 
 	state := minimalLiveState(srv.URL)
 	ls := &liveState{
@@ -372,8 +373,8 @@ func TestLiveToggleSick_MarkHealthy(t *testing.T) {
 	srv := liveAPIMock(t)
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
-	client.jwtToken = "jwt"
+	client := newClient(srv.URL, false)
+	client.BindAuth(phoenixapi.AuthRef{Kind: phoenixapi.AuthBearer, Label: "tenant", Token: "jwt"})
 
 	state := minimalLiveState(srv.URL)
 	ls := &liveState{
@@ -386,7 +387,7 @@ func TestLiveToggleSick_MarkHealthy(t *testing.T) {
 }
 
 func TestLiveToggleSick_NoStudents(t *testing.T) {
-	client := NewClient("http://localhost:1", false)
+	client := newClient("http://localhost:1", false)
 	state := &seedapi.SeedState{Students: nil}
 	ls := &liveState{sick: make(map[int64]bool)}
 
@@ -402,8 +403,8 @@ func TestLiveToggleSick_ServerError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
-	client.jwtToken = "jwt"
+	client := newClient(srv.URL, false)
+	client.BindAuth(phoenixapi.AuthRef{Kind: phoenixapi.AuthBearer, Label: "tenant", Token: "jwt"})
 
 	state := minimalLiveState(srv.URL)
 	ls := &liveState{sick: make(map[int64]bool)}
@@ -420,8 +421,8 @@ func TestRunLiveTick_IncrementsCounts(t *testing.T) {
 	srv := liveAPIMock(t)
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
-	client.jwtToken = "jwt"
+	client := newClient(srv.URL, false)
+	client.BindAuth(phoenixapi.AuthRef{Kind: phoenixapi.AuthBearer, Label: "tenant", Token: "jwt"})
 
 	state := minimalLiveState(srv.URL)
 	ls := &liveState{

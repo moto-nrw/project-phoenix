@@ -26,7 +26,7 @@ func RunFullDay(ctx context.Context, opts FullDayOptions) error {
 		return fmt.Errorf("load seed state: %w", err)
 	}
 
-	client := NewClient(state.BaseURL, opts.Verbose)
+	client := newClient(state.BaseURL, opts.Verbose)
 	runtime := newRuntime(state, client, opts)
 	scenario := fullDayScenario(opts.Close)
 	if err := scenario.Run(ctx, runtime); err != nil {
@@ -224,7 +224,7 @@ func (middayActivityAction) Run(_ context.Context, rt *Runtime) error {
 	for i := 90; i < len(rt.State.Students) && i < 100; i++ {
 		student := rt.State.Students[i]
 		body := map[string]any{"sick": true}
-		_, err := rt.Client.AdminPut(fmt.Sprintf("/api/students/%d", student.ID), body)
+		_, err := rt.Client.Put(fmt.Sprintf("/api/students/%d", student.ID), body)
 		if err != nil {
 			if rt.Options.Verbose {
 				fmt.Printf("  WARNING: failed to mark student %d sick: %v\n", student.ID, err)

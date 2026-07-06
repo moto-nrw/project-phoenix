@@ -4,12 +4,18 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
 	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 )
 
+// newClient builds a seed/api client for the simulation flows.
+func newClient(baseURL string, verbose bool) *seedapi.Client {
+	return seedapi.NewClientWithAdapter(phoenixapi.New(baseURL, verbose), verbose)
+}
+
 type Runtime struct {
 	State         *seedapi.SeedState
-	Client        *Client
+	Client        *seedapi.Client
 	Options       FullDayOptions
 	RFIDTags      map[int64]string
 	ActiveRoomIDs []int64
@@ -71,7 +77,7 @@ func (s Scenario) Run(ctx context.Context, rt *Runtime) error {
 	return nil
 }
 
-func newRuntime(state *seedapi.SeedState, client *Client, opts FullDayOptions) *Runtime {
+func newRuntime(state *seedapi.SeedState, client *seedapi.Client, opts FullDayOptions) *Runtime {
 	return &Runtime{
 		State:    state,
 		Client:   client,

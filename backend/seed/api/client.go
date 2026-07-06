@@ -111,6 +111,11 @@ func (c *Client) PostWithAuthAndHeaders(auth phoenixapi.AuthRef, path string, bo
 	return c.doRequestWithExplicitAuth("POST", path, body, auth, headers)
 }
 
+// DevicePost makes a device-authenticated POST request (API key + PIN).
+func (c *Client) DevicePost(path string, body any, apiKey, pin string) ([]byte, error) {
+	return c.PostWithAuth(phoenixapi.DeviceAuth(apiKey, pin, apiKey), path, body)
+}
+
 // Get makes an authenticated GET request
 func (c *Client) Get(path string) ([]byte, error) {
 	return c.doRequestWithHeaders("GET", path, nil, true, nil)

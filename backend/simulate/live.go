@@ -42,7 +42,7 @@ func RunLive(ctx context.Context, opts LiveOptions) error {
 		return fmt.Errorf("load seed state: %w", err)
 	}
 
-	client := NewClient(state.BaseURL, opts.Verbose)
+	client := newClient(state.BaseURL, opts.Verbose)
 
 	// Login as admin
 	if len(state.Accounts.Admin) == 0 {
@@ -124,7 +124,7 @@ func RunLive(ctx context.Context, opts LiveOptions) error {
 	}
 }
 
-func runLiveTick(client *Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, counts *liveCounts) {
+func runLiveTick(client *seedapi.Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, counts *liveCounts) {
 	now := time.Now().Format("15:04:05")
 
 	// Keep session alive (mirrors PyrePortal's periodic ping)
@@ -167,7 +167,7 @@ func runLiveTick(client *Client, ls *liveState, state *seedapi.SeedState, device
 	}
 }
 
-func liveRoomMove(client *Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
+func liveRoomMove(client *seedapi.Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
 	studentID := randomFromSet(ls.checkedIn)
 	if studentID == 0 {
 		return fmt.Errorf("no checked-in students")
@@ -205,7 +205,7 @@ func liveRoomMove(client *Client, ls *liveState, state *seedapi.SeedState, devic
 	return nil
 }
 
-func liveGoUnterwegs(client *Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
+func liveGoUnterwegs(client *seedapi.Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
 	studentID := randomFromSet(ls.checkedIn)
 	if studentID == 0 {
 		return fmt.Errorf("no checked-in students")
@@ -228,7 +228,7 @@ func liveGoUnterwegs(client *Client, ls *liveState, state *seedapi.SeedState, de
 	return nil
 }
 
-func liveReturnFromUnterwegs(client *Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
+func liveReturnFromUnterwegs(client *seedapi.Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
 	studentID := randomFromSet(ls.unterwegs)
 	if studentID == 0 {
 		// Nobody unterwegs — check in a random checked-in student to a new room instead
@@ -255,14 +255,14 @@ func liveReturnFromUnterwegs(client *Client, ls *liveState, state *seedapi.SeedS
 	return nil
 }
 
-func liveToggleSick(client *Client, ls *liveState, state *seedapi.SeedState, now string) error {
+func liveToggleSick(client *seedapi.Client, ls *liveState, state *seedapi.SeedState, now string) error {
 	if len(state.Students) == 0 {
 		return fmt.Errorf("no students")
 	}
 	student := state.Students[rand.Intn(len(state.Students))]
 	newSick := !ls.sick[student.ID]
 
-	_, err := client.AdminPut(fmt.Sprintf("/api/students/%d", student.ID), map[string]any{
+	_, err := client.Put(fmt.Sprintf("/api/students/%d", student.ID), map[string]any{
 		"sick": newSick,
 	})
 	if err != nil {
@@ -279,8 +279,8 @@ func liveToggleSick(client *Client, ls *liveState, state *seedapi.SeedState, now
 	return nil
 }
 
-func bootstrapLiveState(client *Client, ls *liveState, students []seedapi.SeedStudent) error {
-	resp, err := client.AdminGet("/api/active/visits?active=true")
+func bootstrapLiveState(client *seedapi.Client, ls *liveState, students []seedapi.SeedStudent) error {
+	resp, err := client.Get("/api/active/visits?active=true")
 	if err != nil {
 		return err
 	}
