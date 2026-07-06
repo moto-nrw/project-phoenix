@@ -188,21 +188,6 @@ func (r *GroupRepository) EndSession(ctx context.Context, id int64) error {
 	return base.AssertRowsAffected(result, 1, "end session")
 }
 
-// Create overrides base Create to handle validation
-func (r *GroupRepository) Create(ctx context.Context, group *active.Group) error {
-	if group == nil {
-		return fmt.Errorf("group cannot be nil")
-	}
-
-	// Validate group
-	if err := group.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, group)
-}
-
 // List overrides the base List method to accept the new QueryOptions type
 func (r *GroupRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.Group, error) {
 	var groups []*active.Group

@@ -3,7 +3,6 @@ package education
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -123,36 +122,6 @@ func (r *GroupTeacherRepository) FindByGroupIDs(ctx context.Context, groupIDs []
 	}
 
 	return groupTeachers, nil
-}
-
-// Create overrides the base Create method to handle validation
-func (r *GroupTeacherRepository) Create(ctx context.Context, groupTeacher *education.GroupTeacher) error {
-	if groupTeacher == nil {
-		return fmt.Errorf("group teacher cannot be nil")
-	}
-
-	// Validate group teacher
-	if err := groupTeacher.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, groupTeacher)
-}
-
-// Update overrides the base Update method to handle validation
-func (r *GroupTeacherRepository) Update(ctx context.Context, groupTeacher *education.GroupTeacher) error {
-	if groupTeacher == nil {
-		return fmt.Errorf("group teacher cannot be nil")
-	}
-
-	// Validate group teacher
-	if err := groupTeacher.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Update method
-	return r.Repository.Update(ctx, groupTeacher)
 }
 
 // List retrieves group-teacher relationships matching the provided filters

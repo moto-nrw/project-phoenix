@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -28,16 +27,6 @@ func NewPasskeyCredentialRepository(db *bun.DB) auth.PasskeyCredentialRepository
 		Repository: base.NewRepository[*auth.PasskeyCredential](db, passkeyCredentialTable, "PasskeyCredential"),
 		db:         db,
 	}
-}
-
-func (r *PasskeyCredentialRepository) Create(ctx context.Context, credential *auth.PasskeyCredential) error {
-	if credential == nil {
-		return fmt.Errorf("passkey credential cannot be nil")
-	}
-	if err := credential.Validate(); err != nil {
-		return err
-	}
-	return r.Repository.Create(ctx, credential)
 }
 
 func (r *PasskeyCredentialRepository) FindActiveByAccountID(ctx context.Context, accountID int64) ([]*auth.PasskeyCredential, error) {
@@ -111,16 +100,6 @@ func NewPasskeySessionRepository(db *bun.DB) auth.PasskeySessionRepository {
 		Repository: base.NewRepository[*auth.PasskeySession](db, passkeySessionTable, "PasskeySession"),
 		db:         db,
 	}
-}
-
-func (r *PasskeySessionRepository) Create(ctx context.Context, session *auth.PasskeySession) error {
-	if session == nil {
-		return fmt.Errorf("passkey session cannot be nil")
-	}
-	if err := session.Validate(); err != nil {
-		return err
-	}
-	return r.Repository.Create(ctx, session)
 }
 
 func (r *PasskeySessionRepository) Consume(ctx context.Context, id, purpose string, now time.Time) (*auth.PasskeySession, error) {

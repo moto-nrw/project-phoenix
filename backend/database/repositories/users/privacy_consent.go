@@ -150,21 +150,6 @@ func (r *PrivacyConsentRepository) Revoke(ctx context.Context, id int64) error {
 	return base.AssertRowsAffected(result, 1, "revoke privacy_consent")
 }
 
-// Create overrides the base Create method to handle validation
-func (r *PrivacyConsentRepository) Create(ctx context.Context, consent *users.PrivacyConsent) error {
-	if consent == nil {
-		return fmt.Errorf("privacy consent cannot be nil")
-	}
-
-	// Validate consent
-	if err := consent.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, consent)
-}
-
 // Update overrides the base Update method to handle validation
 func (r *PrivacyConsentRepository) Update(ctx context.Context, consent *users.PrivacyConsent) error {
 	if consent == nil {

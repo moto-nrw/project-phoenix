@@ -83,21 +83,6 @@ func (r *CategoryRepository) ListAll(ctx context.Context) ([]*activities.Categor
 	return categories, nil
 }
 
-// Create overrides the base Create method to handle validation
-func (r *CategoryRepository) Create(ctx context.Context, category *activities.Category) error {
-	if category == nil {
-		return fmt.Errorf("category cannot be nil")
-	}
-
-	// Validate category
-	if err := category.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method which now uses ModelTableExpr
-	return r.Repository.Create(ctx, category)
-}
-
 // Update overrides the base Update method to handle validation
 func (r *CategoryRepository) Update(ctx context.Context, category *activities.Category) error {
 	if category == nil {

@@ -47,7 +47,7 @@ func TestAnnouncementRepository_Create(t *testing.T) {
 	t.Run("NilAnnouncement", func(t *testing.T) {
 		err := repo.Create(ctx, nil)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "announcement cannot be nil")
+		assert.Contains(t, err.Error(), "cannot be nil")
 	})
 
 	t.Run("ValidationError_EmptyTitle", func(t *testing.T) {
@@ -138,7 +138,7 @@ func TestAnnouncementRepository_Update(t *testing.T) {
 	t.Run("NilAnnouncement", func(t *testing.T) {
 		err := repo.Update(ctx, nil)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "announcement cannot be nil")
+		assert.Contains(t, err.Error(), "cannot be nil")
 	})
 
 	t.Run("ValidationError", func(t *testing.T) {

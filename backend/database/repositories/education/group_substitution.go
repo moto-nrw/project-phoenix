@@ -3,7 +3,6 @@ package education
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -203,36 +202,6 @@ func (r *GroupSubstitutionRepository) FindOverlapping(ctx context.Context, staff
 	}
 
 	return substitutions, nil
-}
-
-// Create overrides the base Create method to handle validation
-func (r *GroupSubstitutionRepository) Create(ctx context.Context, substitution *education.GroupSubstitution) error {
-	if substitution == nil {
-		return fmt.Errorf("group substitution cannot be nil")
-	}
-
-	// Validate group substitution
-	if err := substitution.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, substitution)
-}
-
-// Update overrides the base Update method to handle validation
-func (r *GroupSubstitutionRepository) Update(ctx context.Context, substitution *education.GroupSubstitution) error {
-	if substitution == nil {
-		return fmt.Errorf("group substitution cannot be nil")
-	}
-
-	// Validate group substitution
-	if err := substitution.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Update method
-	return r.Repository.Update(ctx, substitution)
 }
 
 // List retrieves group substitutions matching the provided filters

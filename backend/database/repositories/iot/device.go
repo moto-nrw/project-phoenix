@@ -2,7 +2,6 @@ package iot
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -363,36 +362,6 @@ func (r *DeviceRepository) CountDevicesByType(ctx context.Context) (map[string]i
 	}
 
 	return countMap, nil
-}
-
-// Create overrides the base Create method to handle validation
-func (r *DeviceRepository) Create(ctx context.Context, device *iot.Device) error {
-	if device == nil {
-		return fmt.Errorf("device cannot be nil")
-	}
-
-	// Validate device
-	if err := device.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, device)
-}
-
-// Update overrides the base Update method to handle validation
-func (r *DeviceRepository) Update(ctx context.Context, device *iot.Device) error {
-	if device == nil {
-		return fmt.Errorf("device cannot be nil")
-	}
-
-	// Validate device
-	if err := device.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Update method
-	return r.Repository.Update(ctx, device)
 }
 
 // List retrieves devices matching the provided filters

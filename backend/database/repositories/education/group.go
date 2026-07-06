@@ -3,7 +3,6 @@ package education
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -151,36 +150,6 @@ func (r *GroupRepository) FindWithRoom(ctx context.Context, groupID int64) (*edu
 	}
 
 	return group, nil
-}
-
-// Create overrides the base Create method to handle validation
-func (r *GroupRepository) Create(ctx context.Context, group *education.Group) error {
-	if group == nil {
-		return fmt.Errorf("group cannot be nil")
-	}
-
-	// Validate group
-	if err := group.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, group)
-}
-
-// Update overrides the base Update method to handle validation
-func (r *GroupRepository) Update(ctx context.Context, group *education.Group) error {
-	if group == nil {
-		return fmt.Errorf("group cannot be nil")
-	}
-
-	// Validate group
-	if err := group.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Update method
-	return r.Repository.Update(ctx, group)
 }
 
 // List retrieves groups matching the provided query options

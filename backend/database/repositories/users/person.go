@@ -291,21 +291,6 @@ func (r *PersonRepository) UnlinkFromRFIDCard(ctx context.Context, personID int6
 	return r.unlinkField(ctx, personID, "tag_id", "unlink from RFID card")
 }
 
-// Create overrides the base Create method to handle validation
-func (r *PersonRepository) Create(ctx context.Context, person *users.Person) error {
-	if person == nil {
-		return fmt.Errorf("person cannot be nil")
-	}
-
-	// Validate person
-	if err := person.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, person)
-}
-
 // Update overrides the base Update method to handle validation
 func (r *PersonRepository) Update(ctx context.Context, person *users.Person) error {
 	if person == nil {

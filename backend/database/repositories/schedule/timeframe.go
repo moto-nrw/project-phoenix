@@ -2,7 +2,6 @@ package schedule
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -102,36 +101,6 @@ func (r *TimeframeRepository) FindByDescription(ctx context.Context, description
 	return timeframes, nil
 }
 
-// Create overrides the base Create method to handle validation
-func (r *TimeframeRepository) Create(ctx context.Context, timeframe *schedule.Timeframe) error {
-	if timeframe == nil {
-		return fmt.Errorf("timeframe cannot be nil")
-	}
-
-	// Validate timeframe
-	if err := timeframe.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, timeframe)
-}
-
-// Update overrides the base Update method to handle validation
-func (r *TimeframeRepository) Update(ctx context.Context, timeframe *schedule.Timeframe) error {
-	if timeframe == nil {
-		return fmt.Errorf("timeframe cannot be nil")
-	}
-
-	// Validate timeframe
-	if err := timeframe.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Update method
-	return r.Repository.Update(ctx, timeframe)
-}
-
 // List retrieves timeframes matching the provided query options
 func (r *TimeframeRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.Timeframe, error) {
 	var timeframes []*schedule.Timeframe
@@ -157,28 +126,4 @@ func (r *TimeframeRepository) List(ctx context.Context, options *modelBase.Query
 	}
 
 	return timeframes, nil
-}
-
-// FindByID overrides base method to ensure schema qualification
-func (r *TimeframeRepository) FindByID(ctx context.Context, id interface{}) (*schedule.Timeframe, error) {
-	var timeframe schedule.Timeframe
-
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&timeframe).
-		ModelTableExpr(`schedule.timeframes AS "timeframe"`).
-		Where(`"timeframe".id = ?`, id)
-
-	if where, val, ok := base.TenantWhere(ctx, "timeframe"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by id",
-			Err: err,
-		}
-	}
-
-	return &timeframe, nil
 }

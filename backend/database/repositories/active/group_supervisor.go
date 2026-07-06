@@ -175,21 +175,6 @@ func (r *GroupSupervisorRepository) EndSupervision(ctx context.Context, id int64
 	return nil
 }
 
-// Create overrides base Create to handle validation
-func (r *GroupSupervisorRepository) Create(ctx context.Context, supervision *active.GroupSupervisor) error {
-	if supervision == nil {
-		return fmt.Errorf("group supervisor cannot be nil")
-	}
-
-	// Validate supervision
-	if err := supervision.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, supervision)
-}
-
 // Update overrides base Update to handle schema-qualified tables
 func (r *GroupSupervisorRepository) Update(ctx context.Context, supervision *active.GroupSupervisor) error {
 	if supervision == nil {

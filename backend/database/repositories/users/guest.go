@@ -3,7 +3,6 @@ package users
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -83,36 +82,6 @@ func (r *GuestRepository) FindActive(ctx context.Context) ([]*users.Guest, error
 	}
 
 	return guests, nil
-}
-
-// Create overrides the base Create method to handle validation
-func (r *GuestRepository) Create(ctx context.Context, guest *users.Guest) error {
-	if guest == nil {
-		return fmt.Errorf("guest cannot be nil")
-	}
-
-	// Validate guest
-	if err := guest.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, guest)
-}
-
-// Update overrides the base Update method to handle validation
-func (r *GuestRepository) Update(ctx context.Context, guest *users.Guest) error {
-	if guest == nil {
-		return fmt.Errorf("guest cannot be nil")
-	}
-
-	// Validate guest
-	if err := guest.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Update method
-	return r.Repository.Update(ctx, guest)
 }
 
 // Legacy method to maintain compatibility with old interface

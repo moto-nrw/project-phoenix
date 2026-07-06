@@ -202,21 +202,6 @@ func (r *ScheduleRepository) CapValidUntil(ctx context.Context, activityGroupID 
 	return rows, nil
 }
 
-// Create overrides the base Create method to handle validation
-func (r *ScheduleRepository) Create(ctx context.Context, schedule *activities.Schedule) error {
-	if schedule == nil {
-		return fmt.Errorf("schedule cannot be nil")
-	}
-
-	// Validate schedule
-	if err := schedule.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method which now uses ModelTableExpr
-	return r.Repository.Create(ctx, schedule)
-}
-
 // Update overrides the base Update method to handle validation
 func (r *ScheduleRepository) Update(ctx context.Context, schedule *activities.Schedule) error {
 	if schedule == nil {

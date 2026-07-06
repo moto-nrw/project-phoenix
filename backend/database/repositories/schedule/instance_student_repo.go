@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -20,8 +19,6 @@ const (
 	modelTblInstanceStudent = `schedule.instance_students AS "instance_student"`
 )
 
-var errInstanceStudentNil = fmt.Errorf("instance student row cannot be nil")
-
 // InstanceStudentRepository implements schedule.InstanceStudentRepository.
 type InstanceStudentRepository struct {
 	*base.Repository[*schedule.InstanceStudent]
@@ -36,28 +33,6 @@ func NewInstanceStudentRepository(db *bun.DB) schedule.InstanceStudentRepository
 		Repository: repo,
 		db:         db,
 	}
-}
-
-// Create inserts a new instance student row after running model-level validation.
-func (r *InstanceStudentRepository) Create(ctx context.Context, s *schedule.InstanceStudent) error {
-	if s == nil {
-		return errInstanceStudentNil
-	}
-	if err := s.Validate(); err != nil {
-		return err
-	}
-	return r.Repository.Create(ctx, s)
-}
-
-// Update writes the given instance student row back to the database.
-func (r *InstanceStudentRepository) Update(ctx context.Context, s *schedule.InstanceStudent) error {
-	if s == nil {
-		return errInstanceStudentNil
-	}
-	if err := s.Validate(); err != nil {
-		return err
-	}
-	return r.Repository.Update(ctx, s)
 }
 
 // FindByID overrides the base method to ensure schema-qualified queries.

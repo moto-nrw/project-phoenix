@@ -2,7 +2,6 @@ package active
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -33,19 +32,6 @@ func NewWorkSessionRepository(db *bun.DB) active.WorkSessionRepository {
 		Repository: repo,
 		db:         db,
 	}
-}
-
-// Create overrides base Create to handle validation
-func (r *WorkSessionRepository) Create(ctx context.Context, session *active.WorkSession) error {
-	if session == nil {
-		return fmt.Errorf("work session cannot be nil")
-	}
-
-	if err := session.Validate(); err != nil {
-		return err
-	}
-
-	return r.Repository.Create(ctx, session)
 }
 
 // GetByStaffAndDate returns the work session for a staff member on a given date

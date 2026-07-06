@@ -181,21 +181,6 @@ func (r *PasswordResetTokenRepository) InvalidateTokensByAccountID(ctx context.C
 	return nil
 }
 
-// Create overrides the base Create method to handle validation
-func (r *PasswordResetTokenRepository) Create(ctx context.Context, token *auth.PasswordResetToken) error {
-	if token == nil {
-		return fmt.Errorf("password reset token cannot be nil")
-	}
-
-	// Validate token
-	if err := token.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method which now uses ModelTableExpr
-	return r.Repository.Create(ctx, token)
-}
-
 // Update overrides the base Update method for schema consistency
 func (r *PasswordResetTokenRepository) Update(ctx context.Context, token *auth.PasswordResetToken) error {
 	if token == nil {

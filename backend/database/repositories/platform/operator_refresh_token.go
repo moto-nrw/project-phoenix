@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -28,16 +27,6 @@ func NewOperatorRefreshTokenRepository(db *bun.DB) platform.OperatorRefreshToken
 		Repository: base.NewRepository[*platform.OperatorRefreshToken](db, operatorRefreshTokenTable, "OperatorRefreshToken"),
 		db:         db,
 	}
-}
-
-func (r *OperatorRefreshTokenRepository) Create(ctx context.Context, token *platform.OperatorRefreshToken) error {
-	if token == nil {
-		return fmt.Errorf("operator refresh token cannot be nil")
-	}
-	if err := token.Validate(); err != nil {
-		return err
-	}
-	return r.Repository.Create(ctx, token)
 }
 
 func (r *OperatorRefreshTokenRepository) FindByTokenForUpdate(ctx context.Context, tokenValue string) (*platform.OperatorRefreshToken, error) {

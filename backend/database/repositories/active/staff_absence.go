@@ -3,7 +3,6 @@ package active
 import (
 	"context"
 	"database/sql"
-	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -36,19 +35,6 @@ func NewStaffAbsenceRepository(db *bun.DB) active.StaffAbsenceRepository {
 		Repository: repo,
 		db:         db,
 	}
-}
-
-// Create overrides base Create to handle validation
-func (r *StaffAbsenceRepository) Create(ctx context.Context, absence *active.StaffAbsence) error {
-	if absence == nil {
-		return fmt.Errorf("staff absence cannot be nil")
-	}
-
-	if err := absence.Validate(); err != nil {
-		return err
-	}
-
-	return r.Repository.Create(ctx, absence)
 }
 
 // List overrides base List to use QueryOptions

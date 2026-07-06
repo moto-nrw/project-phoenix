@@ -5,7 +5,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -183,21 +182,6 @@ func (r *CombinedGroupRepository) FindWithGroups(ctx context.Context, id int64) 
 	combinedGroup.ActiveGroups = activeGroups
 
 	return combinedGroup, nil
-}
-
-// Create overrides base Create to handle validation
-func (r *CombinedGroupRepository) Create(ctx context.Context, combinedGroup *active.CombinedGroup) error {
-	if combinedGroup == nil {
-		return fmt.Errorf("combined group cannot be nil")
-	}
-
-	// Validate combined group
-	if err := combinedGroup.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, combinedGroup)
 }
 
 // applyActiveOnlyFilter handles the special active_only filter for combined groups.

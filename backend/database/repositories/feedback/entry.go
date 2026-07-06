@@ -2,9 +2,6 @@ package feedback
 
 import (
 	"context"
-	"database/sql"
-	"errors"
-	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -42,30 +39,7 @@ func NewEntryRepository(db *bun.DB) feedback.EntryRepository {
 // FindByID retrieves a feedback entry by its ID
 // Returns (nil, nil) if no entry is found
 func (r *EntryRepository) FindByID(ctx context.Context, id interface{}) (*feedback.Entry, error) {
-	entry := new(feedback.Entry)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(entry).
-		ModelTableExpr(tableFeedbackEntriesAlias).
-		Where(`"entry".id = ?`, id)
-
-	if where, val, ok := base.TenantWhere(ctx, "entry"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		// Return (nil, nil) for not found to allow service layer to handle it
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by id",
-			Err: err,
-		}
-	}
-
-	return entry, nil
+	return r.FindByIDOrNil(ctx, id)
 }
 
 // FindByStudentID retrieves feedback entries by student ID
@@ -198,36 +172,6 @@ func (r *EntryRepository) FindByStudentAndDateRange(ctx context.Context, student
 	}
 
 	return entries, nil
-}
-
-// Create overrides the base Create method to handle validation
-func (r *EntryRepository) Create(ctx context.Context, entry *feedback.Entry) error {
-	if entry == nil {
-		return fmt.Errorf("entry cannot be nil")
-	}
-
-	// Validate entry
-	if err := entry.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, entry)
-}
-
-// Update overrides the base Update method to handle validation
-func (r *EntryRepository) Update(ctx context.Context, entry *feedback.Entry) error {
-	if entry == nil {
-		return fmt.Errorf("entry cannot be nil")
-	}
-
-	// Validate entry
-	if err := entry.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Update method
-	return r.Repository.Update(ctx, entry)
 }
 
 // List retrieves entries matching the provided filters

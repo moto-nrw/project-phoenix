@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -30,19 +29,6 @@ func NewAnnouncementRepository(db *bun.DB) platform.AnnouncementRepository {
 	}
 }
 
-// Create inserts a new announcement
-func (r *AnnouncementRepository) Create(ctx context.Context, announcement *platform.Announcement) error {
-	if announcement == nil {
-		return fmt.Errorf("announcement cannot be nil")
-	}
-
-	if err := announcement.Validate(); err != nil {
-		return err
-	}
-
-	return r.Repository.Create(ctx, announcement)
-}
-
 // FindByID retrieves an announcement by ID
 func (r *AnnouncementRepository) FindByID(ctx context.Context, id int64) (*platform.Announcement, error) {
 	announcement := new(platform.Announcement)
@@ -63,19 +49,6 @@ func (r *AnnouncementRepository) FindByID(ctx context.Context, id int64) (*platf
 	}
 
 	return announcement, nil
-}
-
-// Update updates an announcement
-func (r *AnnouncementRepository) Update(ctx context.Context, announcement *platform.Announcement) error {
-	if announcement == nil {
-		return fmt.Errorf("announcement cannot be nil")
-	}
-
-	if err := announcement.Validate(); err != nil {
-		return err
-	}
-
-	return r.Repository.Update(ctx, announcement)
 }
 
 // Delete removes an announcement by ID

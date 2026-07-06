@@ -48,21 +48,6 @@ func (r *RolePermissionRepository) FindByRoleID(ctx context.Context, roleID int6
 	return rolePermissions, nil
 }
 
-// Create overrides the base Create method to handle validation
-func (r *RolePermissionRepository) Create(ctx context.Context, rolePermission *auth.RolePermission) error {
-	if rolePermission == nil {
-		return fmt.Errorf("role permission cannot be nil")
-	}
-
-	// Validate rolePermission
-	if err := rolePermission.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method which now uses ModelTableExpr
-	return r.Repository.Create(ctx, rolePermission)
-}
-
 // Update overrides the base Update method for schema consistency
 func (r *RolePermissionRepository) Update(ctx context.Context, rolePermission *auth.RolePermission) error {
 	if rolePermission == nil {

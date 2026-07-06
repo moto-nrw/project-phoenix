@@ -5,7 +5,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
@@ -141,36 +140,6 @@ func (r *TeacherRepository) FindByGroupID(ctx context.Context, groupID int64) ([
 	}
 
 	return teachers, nil
-}
-
-// Create overrides the base Create method to handle validation
-func (r *TeacherRepository) Create(ctx context.Context, teacher *users.Teacher) error {
-	if teacher == nil {
-		return fmt.Errorf("teacher cannot be nil")
-	}
-
-	// Validate teacher
-	if err := teacher.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, teacher)
-}
-
-// Update overrides the base Update method to handle validation
-func (r *TeacherRepository) Update(ctx context.Context, teacher *users.Teacher) error {
-	if teacher == nil {
-		return fmt.Errorf("teacher cannot be nil")
-	}
-
-	// Validate teacher
-	if err := teacher.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Update method
-	return r.Repository.Update(ctx, teacher)
 }
 
 // Legacy method to maintain compatibility with old interface

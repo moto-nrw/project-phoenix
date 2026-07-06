@@ -320,21 +320,6 @@ func (r *GroupRepository) FindByStaffSupervisor(ctx context.Context, staffID int
 	return groups, nil
 }
 
-// Create overrides the base Create method to handle validation
-func (r *GroupRepository) Create(ctx context.Context, group *activities.Group) error {
-	if group == nil {
-		return fmt.Errorf("group cannot be nil")
-	}
-
-	// Validate group
-	if err := group.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method which now uses ModelTableExpr
-	return r.Repository.Create(ctx, group)
-}
-
 // Update overrides the base Update method to handle validation
 func (r *GroupRepository) Update(ctx context.Context, group *activities.Group) error {
 	if group == nil {

@@ -2,7 +2,6 @@ package users
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -71,36 +70,6 @@ func (r *ProfileRepository) UpdateAvatar(ctx context.Context, id int64, avatar s
 	}
 
 	return base.AssertRowsAffected(result, 1, "update avatar")
-}
-
-// Create overrides the base Create method to handle validation
-func (r *ProfileRepository) Create(ctx context.Context, profile *users.Profile) error {
-	if profile == nil {
-		return fmt.Errorf("profile cannot be nil")
-	}
-
-	// Validate profile
-	if err := profile.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, profile)
-}
-
-// Update overrides the base Update method to handle validation
-func (r *ProfileRepository) Update(ctx context.Context, profile *users.Profile) error {
-	if profile == nil {
-		return fmt.Errorf("profile cannot be nil")
-	}
-
-	// Validate profile
-	if err := profile.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Update method
-	return r.Repository.Update(ctx, profile)
 }
 
 // Delete overrides the base Delete method

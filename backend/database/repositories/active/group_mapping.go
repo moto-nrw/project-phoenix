@@ -5,7 +5,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -155,21 +154,6 @@ func (r *GroupMappingRepository) RemoveGroupFromCombination(ctx context.Context,
 	}
 
 	return nil
-}
-
-// Create overrides base Create to handle validation
-func (r *GroupMappingRepository) Create(ctx context.Context, mapping *active.GroupMapping) error {
-	if mapping == nil {
-		return fmt.Errorf("group mapping cannot be nil")
-	}
-
-	// Validate mapping
-	if err := mapping.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, mapping)
 }
 
 // List overrides the base List method to accept the new QueryOptions type

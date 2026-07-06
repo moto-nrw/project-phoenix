@@ -224,21 +224,6 @@ func (r *PermissionRepository) RemovePermissionFromRole(ctx context.Context, rol
 	return nil
 }
 
-// Create overrides the base Create method to handle validation
-func (r *PermissionRepository) Create(ctx context.Context, permission *auth.Permission) error {
-	if permission == nil {
-		return fmt.Errorf("permission cannot be nil")
-	}
-
-	// Validate permission - this will also normalize the name
-	if err := permission.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method which now uses ModelTableExpr
-	return r.Repository.Create(ctx, permission)
-}
-
 // Update overrides the base Update method for schema consistency
 func (r *PermissionRepository) Update(ctx context.Context, permission *auth.Permission) error {
 	if permission == nil {

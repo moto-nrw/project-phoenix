@@ -238,36 +238,6 @@ func (r *StudentGuardianRepository) SetPrimary(ctx context.Context, id int64, is
 	return base.AssertRowsAffected(result, 1, "set primary student_guardian")
 }
 
-// Create overrides the base Create method to handle validation
-func (r *StudentGuardianRepository) Create(ctx context.Context, relationship *users.StudentGuardian) error {
-	if relationship == nil {
-		return fmt.Errorf("student guardian relationship cannot be nil")
-	}
-
-	// Validate relationship
-	if err := relationship.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, relationship)
-}
-
-// Update overrides the base Update method to handle validation
-func (r *StudentGuardianRepository) Update(ctx context.Context, relationship *users.StudentGuardian) error {
-	if relationship == nil {
-		return fmt.Errorf("student guardian relationship cannot be nil")
-	}
-
-	// Validate relationship
-	if err := relationship.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Update method
-	return r.Repository.Update(ctx, relationship)
-}
-
 // Legacy method to maintain compatibility with old interface
 func (r *StudentGuardianRepository) List(ctx context.Context, filters map[string]interface{}) ([]*users.StudentGuardian, error) {
 	// Convert old filter format to new QueryOptions

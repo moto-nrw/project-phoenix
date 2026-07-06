@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -32,19 +31,6 @@ func NewOperatorEmailChangeTokenRepository(db *bun.DB) platform.OperatorEmailCha
 		Repository: base.NewRepository[*platform.OperatorEmailChangeToken](db, operatorEmailChangeTokenTable, "OperatorEmailChangeToken"),
 		db:         db,
 	}
-}
-
-// Create creates a new email change token
-func (r *OperatorEmailChangeTokenRepository) Create(ctx context.Context, token *platform.OperatorEmailChangeToken) error {
-	if token == nil {
-		return fmt.Errorf("email change token cannot be nil")
-	}
-
-	if err := token.Validate(); err != nil {
-		return err
-	}
-
-	return r.Repository.Create(ctx, token)
 }
 
 // ConsumeByToken atomically marks a valid token as used and returns it.

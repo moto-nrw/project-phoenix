@@ -39,17 +39,6 @@ func NewActivityInstanceRepository(db *bun.DB) schedule.ActivityInstanceReposito
 	}
 }
 
-// Create inserts a new activity instance after running model-level validation.
-func (r *ActivityInstanceRepository) Create(ctx context.Context, i *schedule.ActivityInstance) error {
-	if i == nil {
-		return errActivityInstanceNil
-	}
-	if err := i.Validate(); err != nil {
-		return err
-	}
-	return r.Repository.Create(ctx, i)
-}
-
 // CreateTemplateBackedIfAbsent inserts a template-backed activity instance,
 // absorbing the duplicate-template-slot race at the database layer. Catching a
 // 23505 after a plain INSERT would leave the surrounding PostgreSQL
@@ -91,17 +80,6 @@ func (r *ActivityInstanceRepository) CreateTemplateBackedIfAbsent(ctx context.Co
 		}
 	}
 	return affected > 0, nil
-}
-
-// Update writes the given activity instance back to the database.
-func (r *ActivityInstanceRepository) Update(ctx context.Context, i *schedule.ActivityInstance) error {
-	if i == nil {
-		return errActivityInstanceNil
-	}
-	if err := i.Validate(); err != nil {
-		return err
-	}
-	return r.Repository.Update(ctx, i)
 }
 
 // MarkCompleted updates only lifecycle columns. It intentionally avoids the

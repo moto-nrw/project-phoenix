@@ -4,7 +4,6 @@ package active
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -186,21 +185,6 @@ func (r *VisitRepository) EndVisit(ctx context.Context, id int64) error {
 	}
 
 	return base.AssertRowsAffected(result, 1, "end visit")
-}
-
-// Create overrides base Create to handle validation
-func (r *VisitRepository) Create(ctx context.Context, visit *active.Visit) error {
-	if visit == nil {
-		return fmt.Errorf("visit cannot be nil")
-	}
-
-	// Validate visit
-	if err := visit.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, visit)
 }
 
 // List overrides the base List method to accept the new QueryOptions type

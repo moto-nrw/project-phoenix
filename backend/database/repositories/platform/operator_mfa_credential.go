@@ -35,16 +35,6 @@ func NewOperatorMFACredentialRepository(db *bun.DB) platform.OperatorMFACredenti
 	}
 }
 
-func (r *OperatorMFACredentialRepository) Create(ctx context.Context, credential *platform.OperatorMFACredential) error {
-	if credential == nil {
-		return fmt.Errorf("operator mfa credential cannot be nil")
-	}
-	if err := credential.Validate(); err != nil {
-		return err
-	}
-	return r.Repository.Create(ctx, credential)
-}
-
 func (r *OperatorMFACredentialRepository) Update(ctx context.Context, credential *platform.OperatorMFACredential) error {
 	if credential == nil {
 		return fmt.Errorf("operator mfa credential cannot be nil")

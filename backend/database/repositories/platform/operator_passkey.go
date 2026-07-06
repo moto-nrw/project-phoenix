@@ -2,7 +2,6 @@ package platform
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -28,16 +27,6 @@ func NewOperatorPasskeyCredentialRepository(db *bun.DB) platform.OperatorPasskey
 		Repository: base.NewRepository[*platform.OperatorPasskeyCredential](db, operatorPasskeyCredentialTable, "OperatorPasskeyCredential"),
 		db:         db,
 	}
-}
-
-func (r *OperatorPasskeyCredentialRepository) Create(ctx context.Context, credential *platform.OperatorPasskeyCredential) error {
-	if credential == nil {
-		return fmt.Errorf("operator passkey credential cannot be nil")
-	}
-	if err := credential.Validate(); err != nil {
-		return err
-	}
-	return r.Repository.Create(ctx, credential)
 }
 
 func (r *OperatorPasskeyCredentialRepository) FindActiveByOperatorID(ctx context.Context, operatorID int64) ([]*platform.OperatorPasskeyCredential, error) {
@@ -111,16 +100,6 @@ func NewOperatorPasskeySessionRepository(db *bun.DB) platform.OperatorPasskeySes
 		Repository: base.NewRepository[*platform.OperatorPasskeySession](db, operatorPasskeySessionTable, "OperatorPasskeySession"),
 		db:         db,
 	}
-}
-
-func (r *OperatorPasskeySessionRepository) Create(ctx context.Context, session *platform.OperatorPasskeySession) error {
-	if session == nil {
-		return fmt.Errorf("operator passkey session cannot be nil")
-	}
-	if err := session.Validate(); err != nil {
-		return err
-	}
-	return r.Repository.Create(ctx, session)
 }
 
 func (r *OperatorPasskeySessionRepository) Consume(ctx context.Context, id, purpose string, now time.Time) (*platform.OperatorPasskeySession, error) {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -31,19 +30,6 @@ func NewOperatorInvitationTokenRepository(db *bun.DB) platform.OperatorInvitatio
 		Repository: base.NewRepository[*platform.OperatorInvitationToken](db, operatorInvitationTokenTable, "OperatorInvitationToken"),
 		db:         db,
 	}
-}
-
-// Create creates a new invitation token
-func (r *OperatorInvitationTokenRepository) Create(ctx context.Context, token *platform.OperatorInvitationToken) error {
-	if token == nil {
-		return fmt.Errorf("invitation token cannot be nil")
-	}
-
-	if err := token.Validate(); err != nil {
-		return err
-	}
-
-	return r.Repository.Create(ctx, token)
 }
 
 // FindByID retrieves an invitation token by its ID

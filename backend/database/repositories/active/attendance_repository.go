@@ -138,16 +138,6 @@ func (r *AttendanceRepository) GetStudentCurrentStatus(ctx context.Context, stud
 	return attendance, nil
 }
 
-// Create overrides base Create to handle validation
-func (r *AttendanceRepository) Create(ctx context.Context, attendance *active.Attendance) error {
-	if attendance == nil {
-		return fmt.Errorf("attendance cannot be nil")
-	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, attendance)
-}
-
 // CreateIfNoOpenForToday inserts the attendance row, deferring to the partial
 // unique index uniq_attendance_open_per_student_day on
 // (student_id, date) WHERE check_out_time IS NULL when a concurrent caller
@@ -227,16 +217,6 @@ func (r *AttendanceRepository) CloseOpenForToday(ctx context.Context, studentID 
 		return nil, &modelBase.DatabaseError{Op: "close_open_for_today", Err: err}
 	}
 	return row, nil
-}
-
-// Update overrides base Update to handle validation
-func (r *AttendanceRepository) Update(ctx context.Context, attendance *active.Attendance) error {
-	if attendance == nil {
-		return fmt.Errorf("attendance cannot be nil")
-	}
-
-	// Use the base Update method
-	return r.Repository.Update(ctx, attendance)
 }
 
 // FindByID overrides base FindByID to match the interface signature

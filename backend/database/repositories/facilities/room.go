@@ -34,23 +34,6 @@ func NewRoomRepository(db *bun.DB) facilities.RoomRepository {
 	}
 }
 
-// Create overrides the base Create method to handle validation
-func (r *RoomRepository) Create(ctx context.Context, room *facilities.Room) error {
-	if room == nil {
-		return fmt.Errorf("room cannot be nil")
-	}
-
-	// Validation lives in the service layer — see services/facilities/
-	// facility_service.go CreateRoom/UpdateRoom. The repo previously
-	// re-validated here, which collided with the system-room legacy-colour
-	// preserve path: that flow re-attaches an existing #4F46E5 (now
-	// reserved per migration 1.15.45) right before the repo write, and a
-	// second Validate would reject it. Keep validation in one place.
-
-	// Use the base Create method which now uses ModelTableExpr
-	return r.Repository.Create(ctx, room)
-}
-
 // Update overrides the base Update method for schema consistency
 func (r *RoomRepository) Update(ctx context.Context, room *facilities.Room) error {
 	if room == nil {

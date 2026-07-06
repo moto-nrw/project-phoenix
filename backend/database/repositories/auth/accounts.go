@@ -591,21 +591,6 @@ func (r *AccountRepository) mergePermissions(directPermissions, rolePermissions 
 	return allPermissions
 }
 
-// Create overrides the base Create method for validation
-func (r *AccountRepository) Create(ctx context.Context, account *auth.Account) error {
-	if account == nil {
-		return fmt.Errorf("account cannot be nil")
-	}
-
-	// Validate account - this will also normalize the email
-	if err := account.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method which now uses ModelTableExpr
-	return r.Repository.Create(ctx, account)
-}
-
 // Update overrides the base Update method to handle email normalization
 func (r *AccountRepository) Update(ctx context.Context, account *auth.Account) error {
 	if account == nil {

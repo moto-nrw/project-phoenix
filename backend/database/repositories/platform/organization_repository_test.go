@@ -41,7 +41,7 @@ func TestOrganizationRepository_Create(t *testing.T) {
 	t.Run("rejects nil organization", func(t *testing.T) {
 		err := repo.Create(ctx, nil)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "organization cannot be nil")
+		assert.Contains(t, err.Error(), "cannot be nil")
 	})
 
 	t.Run("rejects invalid organization", func(t *testing.T) {

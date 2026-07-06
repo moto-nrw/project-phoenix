@@ -3,7 +3,6 @@ package active
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -32,19 +31,6 @@ func NewWorkSessionBreakRepository(db *bun.DB) active.WorkSessionBreakRepository
 		Repository: repo,
 		db:         db,
 	}
-}
-
-// Create overrides base Create to handle validation
-func (r *WorkSessionBreakRepository) Create(ctx context.Context, brk *active.WorkSessionBreak) error {
-	if brk == nil {
-		return fmt.Errorf("work session break cannot be nil")
-	}
-
-	if err := brk.Validate(); err != nil {
-		return err
-	}
-
-	return r.Repository.Create(ctx, brk)
 }
 
 // List overrides base List to use QueryOptions

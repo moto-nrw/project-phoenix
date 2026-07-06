@@ -130,15 +130,6 @@ func (r *CalendarPeriodRepository) FindByID(ctx context.Context, id any) (*sched
 	return &period, nil
 }
 
-// Create overrides the base Create method with nil guard
-func (r *CalendarPeriodRepository) Create(ctx context.Context, p *schedule.CalendarPeriod) error {
-	if p == nil {
-		return errCalendarPeriodNil
-	}
-
-	return r.Repository.Create(ctx, p)
-}
-
 // CreateIfAbsent inserts the period unless a row with the same
 // (tenant_id, name) already exists (unique_calendar_period_name, migration
 // 1.15.33). It returns true when a new row was inserted and false when a
@@ -214,15 +205,6 @@ func (r *CalendarPeriodRepository) FindActiveOverlapping(ctx context.Context, st
 	}
 
 	return periods, nil
-}
-
-// Update overrides the base Update method with nil guard
-func (r *CalendarPeriodRepository) Update(ctx context.Context, p *schedule.CalendarPeriod) error {
-	if p == nil {
-		return errCalendarPeriodNil
-	}
-
-	return r.Repository.Update(ctx, p)
 }
 
 // List retrieves calendar periods matching the provided query options

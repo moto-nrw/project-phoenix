@@ -172,32 +172,6 @@ func (r *StudentArrivalScheduleRepository) DeleteByStudentID(ctx context.Context
 	return nil
 }
 
-// Create overrides the base Create method to handle validation
-func (r *StudentArrivalScheduleRepository) Create(ctx context.Context, s *schedule.StudentArrivalSchedule) error {
-	if s == nil {
-		return errArrivalScheduleNil
-	}
-
-	if err := s.Validate(); err != nil {
-		return err
-	}
-
-	return r.Repository.Create(ctx, s)
-}
-
-// Update overrides the base Update method to handle validation
-func (r *StudentArrivalScheduleRepository) Update(ctx context.Context, s *schedule.StudentArrivalSchedule) error {
-	if s == nil {
-		return errArrivalScheduleNil
-	}
-
-	if err := s.Validate(); err != nil {
-		return err
-	}
-
-	return r.Repository.Update(ctx, s)
-}
-
 // List retrieves arrival schedules matching the provided query options
 func (r *StudentArrivalScheduleRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.StudentArrivalSchedule, error) {
 	schedules := make([]*schedule.StudentArrivalSchedule, 0)
@@ -448,32 +422,6 @@ func (r *StudentArrivalExceptionRepository) DeletePastExceptions(ctx context.Con
 	return rowsAffected, nil
 }
 
-// Create overrides the base Create method to handle validation
-func (r *StudentArrivalExceptionRepository) Create(ctx context.Context, e *schedule.StudentArrivalException) error {
-	if e == nil {
-		return fmt.Errorf("exception cannot be nil")
-	}
-
-	if err := e.Validate(); err != nil {
-		return err
-	}
-
-	return r.Repository.Create(ctx, e)
-}
-
-// Update overrides the base Update method to handle validation
-func (r *StudentArrivalExceptionRepository) Update(ctx context.Context, e *schedule.StudentArrivalException) error {
-	if e == nil {
-		return fmt.Errorf("exception cannot be nil")
-	}
-
-	if err := e.Validate(); err != nil {
-		return err
-	}
-
-	return r.Repository.Update(ctx, e)
-}
-
 // List retrieves arrival exceptions matching the provided query options
 func (r *StudentArrivalExceptionRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.StudentArrivalException, error) {
 	exceptions := make([]*schedule.StudentArrivalException, 0)
@@ -667,32 +615,6 @@ func (r *StudentArrivalNoteRepository) DeletePastNotes(ctx context.Context, befo
 	}
 
 	return rowsAffected, nil
-}
-
-// Create overrides the base Create method to handle validation
-func (r *StudentArrivalNoteRepository) Create(ctx context.Context, n *schedule.StudentArrivalNote) error {
-	if n == nil {
-		return fmt.Errorf("note cannot be nil")
-	}
-
-	if err := n.Validate(); err != nil {
-		return err
-	}
-
-	return r.Repository.Create(ctx, n)
-}
-
-// Update overrides the base Update method to handle validation
-func (r *StudentArrivalNoteRepository) Update(ctx context.Context, n *schedule.StudentArrivalNote) error {
-	if n == nil {
-		return fmt.Errorf("note cannot be nil")
-	}
-
-	if err := n.Validate(); err != nil {
-		return err
-	}
-
-	return r.Repository.Update(ctx, n)
 }
 
 // List retrieves arrival notes matching the provided query options

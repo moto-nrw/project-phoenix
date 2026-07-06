@@ -211,21 +211,6 @@ func (r *RoleRepository) Delete(ctx context.Context, id any) error {
 	return nil
 }
 
-// Create overrides the base Create method to handle validation
-func (r *RoleRepository) Create(ctx context.Context, role *auth.Role) error {
-	if role == nil {
-		return fmt.Errorf("role cannot be nil")
-	}
-
-	// Validate role
-	if err := role.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method which now uses ModelTableExpr
-	return r.Repository.Create(ctx, role)
-}
-
 // Update overrides the base Update method for schema consistency
 func (r *RoleRepository) Update(ctx context.Context, role *auth.Role) error {
 	if role == nil {

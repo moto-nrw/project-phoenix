@@ -182,32 +182,6 @@ func (r *StudentPickupScheduleRepository) DeleteByStudentID(ctx context.Context,
 	return nil
 }
 
-// Create overrides the base Create method to handle validation
-func (r *StudentPickupScheduleRepository) Create(ctx context.Context, s *schedule.StudentPickupSchedule) error {
-	if s == nil {
-		return errScheduleNil
-	}
-
-	if err := s.Validate(); err != nil {
-		return err
-	}
-
-	return r.Repository.Create(ctx, s)
-}
-
-// Update overrides the base Update method to handle validation
-func (r *StudentPickupScheduleRepository) Update(ctx context.Context, s *schedule.StudentPickupSchedule) error {
-	if s == nil {
-		return errScheduleNil
-	}
-
-	if err := s.Validate(); err != nil {
-		return err
-	}
-
-	return r.Repository.Update(ctx, s)
-}
-
 // List retrieves pickup schedules matching the provided query options
 func (r *StudentPickupScheduleRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.StudentPickupSchedule, error) {
 	schedules := make([]*schedule.StudentPickupSchedule, 0)
@@ -462,32 +436,6 @@ func (r *StudentPickupExceptionRepository) DeletePastExceptions(ctx context.Cont
 	return rowsAffected, nil
 }
 
-// Create overrides the base Create method to handle validation
-func (r *StudentPickupExceptionRepository) Create(ctx context.Context, e *schedule.StudentPickupException) error {
-	if e == nil {
-		return fmt.Errorf("exception cannot be nil")
-	}
-
-	if err := e.Validate(); err != nil {
-		return err
-	}
-
-	return r.Repository.Create(ctx, e)
-}
-
-// Update overrides the base Update method to handle validation
-func (r *StudentPickupExceptionRepository) Update(ctx context.Context, e *schedule.StudentPickupException) error {
-	if e == nil {
-		return fmt.Errorf("exception cannot be nil")
-	}
-
-	if err := e.Validate(); err != nil {
-		return err
-	}
-
-	return r.Repository.Update(ctx, e)
-}
-
 // List retrieves pickup exceptions matching the provided query options
 func (r *StudentPickupExceptionRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.StudentPickupException, error) {
 	exceptions := make([]*schedule.StudentPickupException, 0)
@@ -683,32 +631,6 @@ func (r *StudentPickupNoteRepository) DeletePastNotes(ctx context.Context, befor
 	}
 
 	return rowsAffected, nil
-}
-
-// Create overrides the base Create method to handle validation
-func (r *StudentPickupNoteRepository) Create(ctx context.Context, n *schedule.StudentPickupNote) error {
-	if n == nil {
-		return fmt.Errorf("note cannot be nil")
-	}
-
-	if err := n.Validate(); err != nil {
-		return err
-	}
-
-	return r.Repository.Create(ctx, n)
-}
-
-// Update overrides the base Update method to handle validation
-func (r *StudentPickupNoteRepository) Update(ctx context.Context, n *schedule.StudentPickupNote) error {
-	if n == nil {
-		return fmt.Errorf("note cannot be nil")
-	}
-
-	if err := n.Validate(); err != nil {
-		return err
-	}
-
-	return r.Repository.Update(ctx, n)
 }
 
 // List retrieves pickup notes matching the provided query options

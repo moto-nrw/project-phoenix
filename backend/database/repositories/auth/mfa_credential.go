@@ -30,17 +30,6 @@ func NewMFACredentialRepository(db *bun.DB) auth.MFACredentialRepository {
 	}
 }
 
-// Create validates and persists a new credential.
-func (r *MFACredentialRepository) Create(ctx context.Context, credential *auth.MFACredential) error {
-	if credential == nil {
-		return fmt.Errorf("mfa credential cannot be nil")
-	}
-	if err := credential.Validate(); err != nil {
-		return err
-	}
-	return r.Repository.Create(ctx, credential)
-}
-
 // Update validates and persists modifications to an existing credential.
 func (r *MFACredentialRepository) Update(ctx context.Context, credential *auth.MFACredential) error {
 	if credential == nil {

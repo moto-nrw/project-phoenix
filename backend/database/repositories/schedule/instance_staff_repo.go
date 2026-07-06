@@ -2,7 +2,6 @@ package schedule
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -16,8 +15,6 @@ const (
 	aliasInstanceStaff    = "instance_staff"
 	modelTblInstanceStaff = `schedule.instance_staff AS "instance_staff"`
 )
-
-var errInstanceStaffNil = fmt.Errorf("instance staff assignment cannot be nil")
 
 // InstanceStaffRepository implements schedule.InstanceStaffRepository.
 type InstanceStaffRepository struct {
@@ -33,28 +30,6 @@ func NewInstanceStaffRepository(db *bun.DB) schedule.InstanceStaffRepository {
 		Repository: repo,
 		db:         db,
 	}
-}
-
-// Create inserts a new instance staff row after running model-level validation.
-func (r *InstanceStaffRepository) Create(ctx context.Context, s *schedule.InstanceStaff) error {
-	if s == nil {
-		return errInstanceStaffNil
-	}
-	if err := s.Validate(); err != nil {
-		return err
-	}
-	return r.Repository.Create(ctx, s)
-}
-
-// Update writes the given instance staff row back to the database.
-func (r *InstanceStaffRepository) Update(ctx context.Context, s *schedule.InstanceStaff) error {
-	if s == nil {
-		return errInstanceStaffNil
-	}
-	if err := s.Validate(); err != nil {
-		return err
-	}
-	return r.Repository.Update(ctx, s)
 }
 
 // FindByID overrides the base method to ensure schema-qualified queries.

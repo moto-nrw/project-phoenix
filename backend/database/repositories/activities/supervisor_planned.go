@@ -96,32 +96,6 @@ func NewSupervisorPlannedRepository(db *bun.DB) activities.SupervisorPlannedRepo
 	}
 }
 
-// FindByID overrides the base repository method to fix the alias issue
-func (r *SupervisorPlannedRepository) FindByID(ctx context.Context, id interface{}) (*activities.SupervisorPlanned, error) {
-	var supervisor activities.SupervisorPlanned
-
-	// Use the same alias as base repository: "supervisor_planned"
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&supervisor).
-		ModelTableExpr(`activities.supervisors AS "supervisor_planned"`).
-		Where(`"supervisor_planned".id = ?`, id)
-
-	if where, val, ok := base.TenantWhere(ctx, "supervisor_planned"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by id",
-			Err: err,
-		}
-	}
-
-	return &supervisor, nil
-}
-
 // CapActiveByGroup ends every still-active supervision (valid_until IS NULL)
 // of the given group at validUntil (exclusive). Returns the number of rows
 // changed. Custom method (backend-conventions Rule 2): multi-row bulk update
@@ -277,21 +251,6 @@ func (r *SupervisorPlannedRepository) SetPrimary(ctx context.Context, id int64) 
 	}
 
 	return base.AssertRowsAffected(result, 1, "set primary")
-}
-
-// Create overrides the base Create method to handle validation
-func (r *SupervisorPlannedRepository) Create(ctx context.Context, supervisor *activities.SupervisorPlanned) error {
-	if supervisor == nil {
-		return fmt.Errorf("supervisor cannot be nil")
-	}
-
-	// Validate supervisor
-	if err := supervisor.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method which now uses ModelTableExpr
-	return r.Repository.Create(ctx, supervisor)
 }
 
 // Update overrides the base Update method to handle validation
