@@ -3,6 +3,8 @@ package platform
 import (
 	"context"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // OperatorRepository defines operations for managing operators
@@ -155,14 +157,10 @@ type OperatorAuditLogRepository interface {
 // Mirror of auth.MFACredentialRepository for the platform.operator_*
 // schema.
 type OperatorMFACredentialRepository interface {
-	Create(ctx context.Context, credential *OperatorMFACredential) error
-	FindByID(ctx context.Context, id interface{}) (*OperatorMFACredential, error)
+	base.CRUDRepository[*OperatorMFACredential]
 	FindByOperatorID(ctx context.Context, operatorID int64) (*OperatorMFACredential, error)
-	Update(ctx context.Context, credential *OperatorMFACredential) error
 	UpdateLastUsedAt(ctx context.Context, id int64, when time.Time) error
-	Delete(ctx context.Context, id interface{}) error
 	DeleteByOperatorID(ctx context.Context, operatorID int64) error
-	List(ctx context.Context, filters map[string]interface{}) ([]*OperatorMFACredential, error)
 }
 
 // OperatorMFAEmailChallengeRepository persists time-limited 6-digit codes

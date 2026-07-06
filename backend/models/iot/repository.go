@@ -3,16 +3,13 @@ package iot
 import (
 	"context"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // DeviceRepository defines operations for managing IoT devices
 type DeviceRepository interface {
-	// Standard CRUD operations
-	Create(ctx context.Context, device *Device) error
-	FindByID(ctx context.Context, id interface{}) (*Device, error)
-	Update(ctx context.Context, device *Device) error
-	Delete(ctx context.Context, id interface{}) error
-	List(ctx context.Context, filters map[string]interface{}) ([]*Device, error)
+	base.CRUDRepository[*Device]
 
 	// Domain-specific operations
 	FindByDeviceID(ctx context.Context, deviceID string) (*Device, error)

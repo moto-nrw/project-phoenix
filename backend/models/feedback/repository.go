@@ -4,16 +4,12 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // EntryRepository defines operations for managing feedback entries
 type EntryRepository interface {
-	// Core CRUD operations
-	Create(ctx context.Context, entry *Entry) error
-	FindByID(ctx context.Context, id interface{}) (*Entry, error)
-	Update(ctx context.Context, entry *Entry) error
-	Delete(ctx context.Context, id interface{}) error
-	List(ctx context.Context, filters map[string]interface{}) ([]*Entry, error)
+	base.CRUDRepository[*Entry]
 
 	// Specialized query methods
 	FindByStudentID(ctx context.Context, studentID int64) ([]*Entry, error)

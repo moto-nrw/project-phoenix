@@ -41,6 +41,27 @@ type Repository[T Entity] interface {
 	List(ctx context.Context, options *QueryOptions) ([]T, error)
 }
 
+// CRUDRepository is the generic 5-method CRUD contract implemented by the
+// concrete database/repositories/base.Repository[T]. Repository interfaces
+// embed it instead of re-declaring the block. Unlike Repository[T Entity],
+// its List takes plain equality filters — matching the concrete generic.
+type CRUDRepository[T any] interface {
+	// Create inserts a new entity into the database
+	Create(ctx context.Context, entity T) error
+
+	// FindByID retrieves an entity by its ID
+	FindByID(ctx context.Context, id any) (T, error)
+
+	// Update updates an existing entity in the database
+	Update(ctx context.Context, entity T) error
+
+	// Delete removes an entity from the database
+	Delete(ctx context.Context, id any) error
+
+	// List retrieves all entities matching the provided equality filters
+	List(ctx context.Context, filters map[string]any) ([]T, error)
+}
+
 // DatabaseError represents database operation errors
 type DatabaseError struct {
 	Op  string // Operation that failed (e.g., "create", "update")
