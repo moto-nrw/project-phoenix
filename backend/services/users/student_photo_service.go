@@ -93,25 +93,11 @@ type StudentPhotoServiceDependencies struct {
 }
 
 type studentPhotoService struct {
-	repo        userModels.StudentRepository
-	settings    PhotoSettings
-	userCtx     PhotoUserContext
-	broadcaster PhotoBroadcaster
-	unlinker    PhotoUnlinker
-	db          *bun.DB
-	logger      *slog.Logger
+	StudentPhotoServiceDependencies
 }
 
 func NewStudentPhotoService(deps StudentPhotoServiceDependencies) StudentPhotoService {
-	return &studentPhotoService{
-		repo:        deps.StudentRepo,
-		settings:    deps.Settings,
-		userCtx:     deps.UserContext,
-		broadcaster: deps.Broadcaster,
-		unlinker:    deps.Unlinker,
-		db:          deps.DB,
-		logger:      deps.Logger,
-	}
+	return &studentPhotoService{StudentPhotoServiceDependencies: deps}
 }
 
 // CommitUpload validates feature/consent/access then swaps photo_path.
@@ -122,18 +108,18 @@ func (s *studentPhotoService) CommitUpload(ctx context.Context, req CommitUpload
 		return ErrPhotoNoTenant
 	}
 
-	return tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	return tenant.WithTenantTx(ctx, s.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		if err := s.requireFeatureEnabled(ctx); err != nil {
 			return err
 		}
-		student, err := s.repo.FindByID(ctx, req.StudentID)
+		student, err := s.StudentRepo.FindByID(ctx, req.StudentID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrPhotoStudentNotFound
 			}
 			return err
 		}
-		if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.userCtx); !ok {
+		if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.UserContext); !ok {
 			return ErrPhotoStudentForbidden
 		}
 		if student.PhotoConsentGivenAt == nil && !req.ConsentAck {
@@ -141,21 +127,21 @@ func (s *studentPhotoService) CommitUpload(ctx context.Context, req CommitUpload
 		}
 
 		// Serialize against feature-disable purge.
-		if err := s.repo.LockPhotoFeature(ctx); err != nil {
+		if err := s.StudentRepo.LockPhotoFeature(ctx); err != nil {
 			return err
 		}
 		if err := s.requireFeatureEnabled(ctx); err != nil {
 			return ErrPhotoFeatureDisabledMid
 		}
 
-		fresh, err := s.repo.FindByIDForUpdate(ctx, student.ID)
+		fresh, err := s.StudentRepo.FindByIDForUpdate(ctx, student.ID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrPhotoStudentNotFound
 			}
 			return err
 		}
-		if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), fresh, s.userCtx); !ok {
+		if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), fresh, s.UserContext); !ok {
 			return ErrPhotoStudentReassigned
 		}
 		if fresh.PhotoConsentGivenAt == nil && !req.ConsentAck {
@@ -171,7 +157,7 @@ func (s *studentPhotoService) CommitUpload(ctx context.Context, req CommitUpload
 		if req.ConsentAck && fresh.PhotoConsentGivenAt == nil {
 			s.stampConsent(ctx, fresh)
 		}
-		if err := s.repo.Update(ctx, fresh); err != nil {
+		if err := s.StudentRepo.Update(ctx, fresh); err != nil {
 			return err
 		}
 
@@ -180,8 +166,8 @@ func (s *studentPhotoService) CommitUpload(ctx context.Context, req CommitUpload
 		sid := student.ID
 		tid := tenantID
 		tenant.RegisterAfterCommit(ctx, func() {
-			if oldCopy != "" && oldCopy != newCopy && s.unlinker != nil {
-				s.unlinker.UnlinkStored(oldCopy)
+			if oldCopy != "" && oldCopy != newCopy && s.Unlinker != nil {
+				s.Unlinker.UnlinkStored(oldCopy)
 			}
 			s.broadcastStudentUpdated(tid, sid, photoSourceUploaded)
 		})
@@ -197,33 +183,33 @@ func (s *studentPhotoService) CommitDelete(ctx context.Context, studentID int64)
 	}
 
 	var clearedURL string
-	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(ctx, s.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		if err := s.requireFeatureEnabled(ctx); err != nil {
 			return err
 		}
 		// Pre-lock auth check on the snapshot.
-		snapshot, err := s.repo.FindByID(ctx, studentID)
+		snapshot, err := s.StudentRepo.FindByID(ctx, studentID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrPhotoStudentNotFound
 			}
 			return err
 		}
-		if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), snapshot, s.userCtx); !ok {
+		if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), snapshot, s.UserContext); !ok {
 			return ErrPhotoStudentForbidden
 		}
 
-		if err := s.repo.LockPhotoFeature(ctx); err != nil {
+		if err := s.StudentRepo.LockPhotoFeature(ctx); err != nil {
 			return err
 		}
-		fresh, err := s.repo.FindByIDForUpdate(ctx, studentID)
+		fresh, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrPhotoStudentNotFound
 			}
 			return err
 		}
-		if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), fresh, s.userCtx); !ok {
+		if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), fresh, s.UserContext); !ok {
 			return ErrPhotoStudentReassigned
 		}
 
@@ -232,7 +218,7 @@ func (s *studentPhotoService) CommitDelete(ctx context.Context, studentID int64)
 		}
 		clearedURL = *fresh.PhotoPath
 		fresh.PhotoPath = nil
-		if err := s.repo.Update(ctx, fresh); err != nil {
+		if err := s.StudentRepo.Update(ctx, fresh); err != nil {
 			return err
 		}
 
@@ -240,8 +226,8 @@ func (s *studentPhotoService) CommitDelete(ctx context.Context, studentID int64)
 		sid := studentID
 		tid := tenantID
 		tenant.RegisterAfterCommit(ctx, func() {
-			if s.unlinker != nil {
-				s.unlinker.UnlinkStored(urlCopy)
+			if s.Unlinker != nil {
+				s.Unlinker.UnlinkStored(urlCopy)
 			}
 			s.broadcastStudentUpdated(tid, sid, photoSourceDeleted)
 		})
@@ -264,11 +250,11 @@ func (s *studentPhotoService) LookupForRead(ctx context.Context, studentID int64
 	}
 
 	var storedURL string
-	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(ctx, s.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		if err := s.requireFeatureEnabled(ctx); err != nil {
 			return err
 		}
-		student, err := s.repo.FindByID(ctx, studentID)
+		student, err := s.StudentRepo.FindByID(ctx, studentID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrPhotoStudentNotFound
@@ -279,9 +265,9 @@ func (s *studentPhotoService) LookupForRead(ctx context.Context, studentID int64
 			ctx,
 			jwt.PermissionsFromCtx(ctx),
 			student,
-			s.userCtx,
-			s.settings,
-			s.logger,
+			s.UserContext,
+			s.Settings,
+			s.Logger,
 		) {
 			return ErrPhotoStudentForbidden
 		}
@@ -304,7 +290,7 @@ func (s *studentPhotoService) LookupForRead(ctx context.Context, studentID int64
 // PurgeAllPhotos clears photo_path inside the caller's tx and returns the
 // after-commit filesystem cleanup closure.
 func (s *studentPhotoService) PurgeAllPhotos(ctx context.Context, tenantID int64) (func(), error) {
-	urls, err := s.repo.PurgeAllPhotos(ctx)
+	urls, err := s.StudentRepo.PurgeAllPhotos(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -312,12 +298,12 @@ func (s *studentPhotoService) PurgeAllPhotos(ctx context.Context, tenantID int64
 	captured := append([]string(nil), urls...)
 	return func() {
 		for _, url := range captured {
-			if s.unlinker != nil {
-				s.unlinker.UnlinkStored(url)
+			if s.Unlinker != nil {
+				s.Unlinker.UnlinkStored(url)
 			}
 		}
-		if len(captured) > 0 && s.logger != nil {
-			s.logger.Info("student photos purged after feature disable",
+		if len(captured) > 0 && s.Logger != nil {
+			s.Logger.Info("student photos purged after feature disable",
 				slog.Int("cleared_count", len(captured)),
 			)
 		}
@@ -351,15 +337,15 @@ func (s *studentPhotoService) HandleFeatureToggle(ctx context.Context, tenantID 
 // tenant_settings_changed so tabs re-resolve tenant-scoped state.
 func (s *studentPhotoService) deferTenantSettingsChanged(tenantID int64, key string) func() {
 	return func() {
-		if s.broadcaster == nil {
+		if s.Broadcaster == nil {
 			return
 		}
 		source := key
 		event := realtime.NewEvent(realtime.EventTenantSettingsChanged, "", realtime.EventData{
 			Source: &source,
 		})
-		if err := s.broadcaster.BroadcastToTenant(tenantID, event); err != nil && s.logger != nil {
-			s.logger.Warn("tenant_settings_changed broadcast failed",
+		if err := s.Broadcaster.BroadcastToTenant(tenantID, event); err != nil && s.Logger != nil {
+			s.Logger.Warn("tenant_settings_changed broadcast failed",
 				slog.Int64("tenant_id", tenantID),
 				slog.String("key", key),
 				slog.String("error", err.Error()),
@@ -419,17 +405,17 @@ func (s *studentPhotoService) ScheduleUnlinkAfterCommit(ctx context.Context, sto
 	}
 	url := storedURL
 	tenant.RegisterAfterCommit(ctx, func() {
-		if s.unlinker != nil {
-			s.unlinker.UnlinkStored(url)
+		if s.Unlinker != nil {
+			s.Unlinker.UnlinkStored(url)
 		}
 	})
 }
 
 func (s *studentPhotoService) requireFeatureEnabled(ctx context.Context) error {
-	if s.settings == nil {
+	if s.Settings == nil {
 		return ErrPhotoFeatureDisabled
 	}
-	enabled, err := s.settings.ResolveBool(ctx, configModel.KeyStudentPhotosEnabled)
+	enabled, err := s.Settings.ResolveBool(ctx, configModel.KeyStudentPhotosEnabled)
 	if err != nil {
 		return fmt.Errorf("photo feature lookup failed: %w", err)
 	}
@@ -448,9 +434,9 @@ func (s *studentPhotoService) stampConsent(ctx context.Context, student *userMod
 }
 
 func (s *studentPhotoService) broadcastStudentUpdated(tenantID, studentID int64, source string) {
-	if s.broadcaster == nil || tenantID <= 0 {
-		if tenantID <= 0 && s.logger != nil {
-			s.logger.Warn("skipping student_updated broadcast — no tenant context",
+	if s.Broadcaster == nil || tenantID <= 0 {
+		if tenantID <= 0 && s.Logger != nil {
+			s.Logger.Warn("skipping student_updated broadcast — no tenant context",
 				slog.Int64("student_id", studentID),
 			)
 		}
@@ -460,8 +446,8 @@ func (s *studentPhotoService) broadcastStudentUpdated(tenantID, studentID int64,
 	event := realtime.NewEvent(realtime.EventStudentUpdated, "", realtime.EventData{
 		Source: &src,
 	})
-	if err := s.broadcaster.BroadcastToTenant(tenantID, event); err != nil && s.logger != nil {
-		s.logger.Warn("failed to broadcast student_updated",
+	if err := s.Broadcaster.BroadcastToTenant(tenantID, event); err != nil && s.Logger != nil {
+		s.Logger.Warn("failed to broadcast student_updated",
 			slog.Int64("tenant_id", tenantID),
 			slog.Int64("student_id", studentID),
 			slog.String("source", source),

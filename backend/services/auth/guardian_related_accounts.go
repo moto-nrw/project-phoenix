@@ -124,7 +124,7 @@ func (s *guardianInvitationService) InviteToStudent(ctx context.Context, req Inv
 // findOrCreateProfileByEmail returns the guardian profile for this email,
 // creating a fresh contact record when none exists.
 func (s *guardianInvitationService) findOrCreateProfileByEmail(ctx context.Context, email, firstName, lastName string, tenantID int64) (*relatedAccountProfileResolution, error) {
-	existing, err := s.guardianProfileRepo.FindByEmail(ctx, email)
+	existing, err := s.GuardianProfileRepo.FindByEmail(ctx, email)
 	if err == nil && existing != nil {
 		return &relatedAccountProfileResolution{profile: existing}, nil
 	}
@@ -146,17 +146,17 @@ func (s *guardianInvitationService) findOrCreateProfileByEmail(ctx context.Conte
 	if err := profile.Validate(); err != nil {
 		return nil, &AuthError{Op: opGuardianInviteToStudent, Err: err}
 	}
-	if err := s.guardianProfileRepo.Create(ctx, profile); err != nil {
+	if err := s.GuardianProfileRepo.Create(ctx, profile); err != nil {
 		return nil, &AuthError{Op: opGuardianInviteToStudent, Err: err}
 	}
 	return &relatedAccountProfileResolution{profile: profile, created: true}, nil
 }
 
 func (s *guardianInvitationService) attachExistingAccountByEmail(ctx context.Context, profile *userModels.GuardianProfile, email string, tenantID int64) error {
-	if profile.HasAccount || s.accountRepo == nil {
+	if profile.HasAccount || s.AccountRepo == nil {
 		return nil
 	}
-	account, err := s.accountRepo.FindByEmail(ctx, email)
+	account, err := s.AccountRepo.FindByEmail(ctx, email)
 	if err != nil {
 		if isNotFoundError(err) {
 			return nil
@@ -247,7 +247,7 @@ func (s *guardianInvitationService) ensureStudentLink(ctx context.Context, stude
 	if tenantID > 0 {
 		rel.SetTenantID(tenantID)
 	}
-	created, err := s.studentGuardianRepo.LinkIfNotExists(ctx, rel)
+	created, err := s.StudentGuardianRepo.LinkIfNotExists(ctx, rel)
 	if err != nil {
 		return false, &AuthError{Op: opGuardianInviteToStudent, Err: err}
 	}
@@ -272,7 +272,7 @@ func (s *guardianInvitationService) createStudentInvitation(ctx context.Context,
 			openInvitation.ExpiresAt = now.Add(s.resolveTokenExpiry(ctx))
 			openInvitation.EmailSentAt = nil
 			openInvitation.EmailError = nil
-			if err := s.invitationRepo.Update(ctx, openInvitation); err != nil {
+			if err := s.InvitationRepo.Update(ctx, openInvitation); err != nil {
 				return nil, &AuthError{Op: opGuardianInviteToStudent, Err: err}
 			}
 		}
@@ -289,7 +289,7 @@ func (s *guardianInvitationService) createStudentInvitation(ctx context.Context,
 		ProfileCreatedForInvitation: profileCreated,
 	}
 	invitation.SetTenantID(tenantID)
-	if err := s.invitationRepo.Create(ctx, invitation); err != nil {
+	if err := s.InvitationRepo.Create(ctx, invitation); err != nil {
 		return nil, &AuthError{Op: opGuardianInviteToStudent, Err: err}
 	}
 	return invitation, nil
@@ -310,7 +310,7 @@ func (s *guardianInvitationService) findOpenStudentInvitation(ctx context.Contex
 // child and either grants access to an existing account or dispatches the
 // invitation email.
 func (s *guardianInvitationService) ApproveInvitation(ctx context.Context, invitationID int64, approverAccountID int64) error {
-	invitation, err := s.invitationRepo.FindByID(ctx, invitationID)
+	invitation, err := s.InvitationRepo.FindByID(ctx, invitationID)
 	if err != nil {
 		if isNotFoundError(err) {
 			return &AuthError{Op: opGuardianInviteApprove, Err: ErrInvitationNotFound}
@@ -324,7 +324,7 @@ func (s *guardianInvitationService) ApproveInvitation(ctx context.Context, invit
 		return &AuthError{Op: opGuardianInviteApprove, Err: ErrInvitationExpired}
 	}
 
-	profile, err := s.guardianProfileRepo.FindByID(ctx, invitation.GuardianProfileID)
+	profile, err := s.GuardianProfileRepo.FindByID(ctx, invitation.GuardianProfileID)
 	if err != nil {
 		return &AuthError{Op: opGuardianInviteApprove, Err: err}
 	}
@@ -352,7 +352,7 @@ func (s *guardianInvitationService) ApproveInvitation(ctx context.Context, invit
 	// Existing account: access is granted by the link; close the invitation.
 	if profile.HasAccount {
 		invitation.AcceptedAt = &now
-		if err := s.invitationRepo.Update(ctx, invitation); err != nil {
+		if err := s.InvitationRepo.Update(ctx, invitation); err != nil {
 			return &AuthError{Op: opGuardianInviteApprove, Err: err}
 		}
 		s.getLogger().Info("guardian invitation approved (existing account)",
@@ -366,7 +366,7 @@ func (s *guardianInvitationService) ApproveInvitation(ctx context.Context, invit
 	invitation.ExpiresAt = now.Add(s.resolveTokenExpiry(ctx))
 	invitation.EmailSentAt = nil
 	invitation.EmailError = nil
-	if err := s.invitationRepo.Update(ctx, invitation); err != nil {
+	if err := s.InvitationRepo.Update(ctx, invitation); err != nil {
 		return &AuthError{Op: opGuardianInviteApprove, Err: err}
 	}
 
@@ -383,7 +383,7 @@ func (s *guardianInvitationService) ApproveInvitation(ctx context.Context, invit
 // access is granted. A profile created solely for this request (no account, no
 // other child links) is cleaned up.
 func (s *guardianInvitationService) RejectInvitation(ctx context.Context, invitationID int64, approverAccountID int64) error {
-	invitation, err := s.invitationRepo.FindByID(ctx, invitationID)
+	invitation, err := s.InvitationRepo.FindByID(ctx, invitationID)
 	if err != nil {
 		if isNotFoundError(err) {
 			return &AuthError{Op: opGuardianInviteReject, Err: ErrInvitationNotFound}
@@ -401,7 +401,7 @@ func (s *guardianInvitationService) RejectInvitation(ctx context.Context, invita
 	invitation.ApprovalStatus = authModels.GuardianInvitationApprovalRejected
 	invitation.ApprovedBy = &approverAccountID
 	invitation.ApprovedAt = &now
-	if err := s.invitationRepo.Update(ctx, invitation); err != nil {
+	if err := s.InvitationRepo.Update(ctx, invitation); err != nil {
 		return &AuthError{Op: opGuardianInviteReject, Err: err}
 	}
 
@@ -418,7 +418,7 @@ func (s *guardianInvitationService) RejectInvitation(ctx context.Context, invita
 // request. Staff handlers use it for the same per-student authorization gate
 // as direct relationship mutations before approve/reject mutates anything.
 func (s *guardianInvitationService) PendingInvitationStudentID(ctx context.Context, invitationID int64) (int64, error) {
-	invitation, err := s.invitationRepo.FindByID(ctx, invitationID)
+	invitation, err := s.InvitationRepo.FindByID(ctx, invitationID)
 	if err != nil {
 		if isNotFoundError(err) {
 			return 0, &AuthError{Op: opGuardianInviteApprove, Err: ErrInvitationNotFound}
@@ -445,11 +445,11 @@ func (s *guardianInvitationService) cleanupOrphanProfile(ctx context.Context, in
 		return
 	}
 	guardianProfileID := invitation.GuardianProfileID
-	profile, err := s.guardianProfileRepo.FindByID(ctx, guardianProfileID)
+	profile, err := s.GuardianProfileRepo.FindByID(ctx, guardianProfileID)
 	if err != nil || profile == nil || profile.HasAccount {
 		return
 	}
-	links, err := s.studentGuardianRepo.FindByGuardianProfileID(ctx, guardianProfileID)
+	links, err := s.StudentGuardianRepo.FindByGuardianProfileID(ctx, guardianProfileID)
 	if err != nil {
 		s.getLogger().Warn("guardian invitation reject: orphan-profile link check failed",
 			slog.Int64("guardian_profile_id", guardianProfileID),
@@ -459,7 +459,7 @@ func (s *guardianInvitationService) cleanupOrphanProfile(ctx context.Context, in
 	if len(links) > 0 {
 		return
 	}
-	invitations, err := s.invitationRepo.FindByGuardianProfileID(ctx, guardianProfileID)
+	invitations, err := s.InvitationRepo.FindByGuardianProfileID(ctx, guardianProfileID)
 	if err != nil {
 		s.getLogger().Warn("guardian invitation reject: orphan-profile invitation check failed",
 			slog.Int64("guardian_profile_id", guardianProfileID),
@@ -475,7 +475,7 @@ func (s *guardianInvitationService) cleanupOrphanProfile(ctx context.Context, in
 			return
 		}
 	}
-	if err := s.guardianProfileRepo.Delete(ctx, guardianProfileID); err != nil {
+	if err := s.GuardianProfileRepo.Delete(ctx, guardianProfileID); err != nil {
 		s.getLogger().Warn("guardian invitation reject: orphan-profile cleanup failed",
 			slog.Int64("guardian_profile_id", guardianProfileID),
 			slog.String("error", err.Error()))
@@ -500,7 +500,7 @@ func guardianInvitationNonFinal(inv *authModels.GuardianInvitation, now time.Tim
 }
 
 func (s *guardianInvitationService) openStudentInvitations(ctx context.Context, guardianProfileID, studentID int64, now time.Time) ([]*authModels.GuardianInvitation, error) {
-	invitations, err := s.invitationRepo.FindByGuardianProfileID(ctx, guardianProfileID)
+	invitations, err := s.InvitationRepo.FindByGuardianProfileID(ctx, guardianProfileID)
 	if err != nil {
 		return nil, err
 	}
@@ -522,7 +522,7 @@ func (s *guardianInvitationService) expireInvitations(ctx context.Context, invit
 		if inv.ApprovalStatus == authModels.GuardianInvitationApprovalPending {
 			inv.ApprovalStatus = authModels.GuardianInvitationApprovalRejected
 		}
-		if err := s.invitationRepo.Update(ctx, inv); err != nil {
+		if err := s.InvitationRepo.Update(ctx, inv); err != nil {
 			return err
 		}
 	}
@@ -548,7 +548,7 @@ type PendingApprovalView struct {
 // and requester names resolved. The queue is short (one row per outstanding
 // request), so the per-row lookups are acceptable.
 func (s *guardianInvitationService) ListPendingApprovalsDetailed(ctx context.Context) ([]*PendingApprovalView, error) {
-	invitations, err := s.invitationRepo.FindPendingApproval(ctx)
+	invitations, err := s.InvitationRepo.FindPendingApproval(ctx)
 	if err != nil {
 		return nil, &AuthError{Op: opGuardianInviteApprove, Err: err}
 	}
@@ -567,7 +567,7 @@ func (s *guardianInvitationService) ListPendingApprovalsDetailed(ctx context.Con
 			view.StudentName = s.resolveStudentName(ctx, *inv.StudentID)
 		}
 		if inv.RequestedByAccountID != nil {
-			if acc, accErr := s.accountRepo.FindByID(ctx, *inv.RequestedByAccountID); accErr == nil && acc != nil {
+			if acc, accErr := s.AccountRepo.FindByID(ctx, *inv.RequestedByAccountID); accErr == nil && acc != nil {
 				view.RequestedByEmail = acc.Email
 			}
 		}
@@ -578,7 +578,7 @@ func (s *guardianInvitationService) ListPendingApprovalsDetailed(ctx context.Con
 
 // fillGuardianFields populates the guardian name + email on the view.
 func (s *guardianInvitationService) fillGuardianFields(ctx context.Context, guardianProfileID int64, view *PendingApprovalView) {
-	profile, err := s.guardianProfileRepo.FindByID(ctx, guardianProfileID)
+	profile, err := s.GuardianProfileRepo.FindByID(ctx, guardianProfileID)
 	if err != nil || profile == nil {
 		return
 	}
@@ -591,14 +591,14 @@ func (s *guardianInvitationService) fillGuardianFields(ctx context.Context, guar
 // resolveStudentName resolves a child's display name via student → person.
 // Best-effort: returns "" when the lookup fails.
 func (s *guardianInvitationService) resolveStudentName(ctx context.Context, studentID int64) string {
-	if s.studentRepo == nil {
+	if s.StudentRepo == nil {
 		return ""
 	}
-	student, err := s.studentRepo.FindByID(ctx, studentID)
+	student, err := s.StudentRepo.FindByID(ctx, studentID)
 	if err != nil || student == nil {
 		return ""
 	}
-	person, err := s.personRepo.FindByID(ctx, student.PersonID)
+	person, err := s.PersonRepo.FindByID(ctx, student.PersonID)
 	if err != nil || person == nil {
 		return ""
 	}
@@ -613,7 +613,7 @@ func (s *guardianInvitationService) RevokeAccess(ctx context.Context, req Revoke
 		return &AuthError{Op: opGuardianRevokeAccess, Err: fmt.Errorf("student and guardian profile IDs are required")}
 	}
 
-	links, err := s.studentGuardianRepo.FindByStudentID(ctx, req.StudentID)
+	links, err := s.StudentGuardianRepo.FindByStudentID(ctx, req.StudentID)
 	if err != nil {
 		return &AuthError{Op: opGuardianRevokeAccess, Err: err}
 	}
@@ -632,7 +632,7 @@ func (s *guardianInvitationService) RevokeAccess(ctx context.Context, req Revoke
 	}
 	deleteLink := true
 	if req.ByParent {
-		profile, err := s.guardianProfileRepo.FindByID(ctx, req.GuardianProfileID)
+		profile, err := s.GuardianProfileRepo.FindByID(ctx, req.GuardianProfileID)
 		if err != nil {
 			return &AuthError{Op: opGuardianRevokeAccess, Err: err}
 		}
@@ -677,7 +677,7 @@ func (s *guardianInvitationService) RevokeAccess(ctx context.Context, req Revoke
 		return nil
 	}
 
-	if err := s.studentGuardianRepo.Delete(ctx, link.ID); err != nil {
+	if err := s.StudentGuardianRepo.Delete(ctx, link.ID); err != nil {
 		return &AuthError{Op: opGuardianRevokeAccess, Err: err}
 	}
 

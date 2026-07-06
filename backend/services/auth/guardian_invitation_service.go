@@ -114,71 +114,33 @@ type EnrollmentBackfiller interface {
 }
 
 type guardianInvitationService struct {
-	invitationRepo       authModels.GuardianInvitationRepository
-	accountRepo          authModels.AccountRepository
-	accountTenantRepo    authModels.AccountTenantRepository
-	accountRoleRepo      authModels.AccountRoleRepository
-	roleRepo             authModels.RoleRepository
-	personRepo           userModels.PersonRepository
-	guardianProfileRepo  userModels.GuardianProfileRepository
-	studentGuardianRepo  userModels.StudentGuardianRepository
-	studentRepo          userModels.StudentRepository
-	schoolRepo           platformModels.SchoolRepository
-	dispatcher           *email.Dispatcher
-	outboxEnqueuer       OutboxEnqueuer
-	enrollmentBackfiller EnrollmentBackfiller
-	settingsResolver     GuardianSettingsResolver
-	frontendURL          string
-	defaultFrom          email.Email
-	fallbackExpiry       time.Duration
-	db                   *bun.DB
-	txHandler            *modelBase.TxHandler
-	logger               *slog.Logger
+	GuardianInvitationServiceConfig
+	txHandler *modelBase.TxHandler
 }
 
 // NewGuardianInvitationService builds a guardian invitation service. The
 // dispatcher is auto-derived from the mailer when not provided. A nil logger
 // falls back to slog.Default().
 func NewGuardianInvitationService(cfg GuardianInvitationServiceConfig) GuardianInvitationService {
-	logger := cfg.Logger
-	if logger == nil {
-		logger = slog.Default()
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
 	}
-	dispatcher := cfg.Dispatcher
-	if dispatcher == nil && cfg.Mailer != nil {
-		dispatcher = email.NewDispatcher(cfg.Mailer, logger.With("component", "email"))
+	if cfg.Dispatcher == nil && cfg.Mailer != nil {
+		cfg.Dispatcher = email.NewDispatcher(cfg.Mailer, cfg.Logger.With("component", "email"))
 	}
-	expiry := cfg.FallbackExpiry
-	if expiry <= 0 {
-		expiry = guardianTokenExpiryFallback
+	if cfg.FallbackExpiry <= 0 {
+		cfg.FallbackExpiry = guardianTokenExpiryFallback
 	}
+	cfg.FrontendURL = strings.TrimRight(strings.TrimSpace(cfg.FrontendURL), "/")
 	return &guardianInvitationService{
-		invitationRepo:       cfg.InvitationRepo,
-		accountRepo:          cfg.AccountRepo,
-		accountTenantRepo:    cfg.AccountTenantRepo,
-		accountRoleRepo:      cfg.AccountRoleRepo,
-		roleRepo:             cfg.RoleRepo,
-		personRepo:           cfg.PersonRepo,
-		guardianProfileRepo:  cfg.GuardianProfileRepo,
-		studentGuardianRepo:  cfg.StudentGuardianRepo,
-		studentRepo:          cfg.StudentRepo,
-		schoolRepo:           cfg.SchoolRepo,
-		dispatcher:           dispatcher,
-		outboxEnqueuer:       cfg.OutboxEnqueuer,
-		enrollmentBackfiller: cfg.EnrollmentBackfiller,
-		settingsResolver:     cfg.SettingsResolver,
-		frontendURL:          strings.TrimRight(strings.TrimSpace(cfg.FrontendURL), "/"),
-		defaultFrom:          cfg.DefaultFrom,
-		fallbackExpiry:       expiry,
-		db:                   cfg.DB,
-		txHandler:            modelBase.NewTxHandler(cfg.DB),
-		logger:               logger,
+		GuardianInvitationServiceConfig: cfg,
+		txHandler:                       modelBase.NewTxHandler(cfg.DB),
 	}
 }
 
 func (s *guardianInvitationService) getLogger() *slog.Logger {
-	if s.logger != nil {
-		return s.logger
+	if s.Logger != nil {
+		return s.Logger
 	}
 	return slog.Default()
 }
@@ -187,14 +149,14 @@ func (s *guardianInvitationService) getLogger() *slog.Logger {
 // env var → fallback chain. Returns a duration in hours.
 func (s *guardianInvitationService) resolveTokenExpiry(ctx context.Context) time.Duration {
 	hours := 0
-	if s.settingsResolver != nil {
-		if has, err := s.settingsResolver.HasTenantOverride(ctx, configModel.KeyGuardianInvitationTokenExpiryHours); err != nil {
+	if s.SettingsResolver != nil {
+		if has, err := s.SettingsResolver.HasTenantOverride(ctx, configModel.KeyGuardianInvitationTokenExpiryHours); err != nil {
 			s.getLogger().Warn("guardian invitation: settings override check failed",
 				slog.String("key", configModel.KeyGuardianInvitationTokenExpiryHours),
 				slog.String("error", err.Error()),
 			)
 		} else if has {
-			if v, err := s.settingsResolver.ResolveInt(ctx, configModel.KeyGuardianInvitationTokenExpiryHours); err == nil && v > 0 {
+			if v, err := s.SettingsResolver.ResolveInt(ctx, configModel.KeyGuardianInvitationTokenExpiryHours); err == nil && v > 0 {
 				hours = v
 			}
 		}
@@ -207,7 +169,7 @@ func (s *guardianInvitationService) resolveTokenExpiry(ctx context.Context) time
 		}
 	}
 	if hours <= 0 {
-		return s.fallbackExpiry
+		return s.FallbackExpiry
 	}
 	return time.Duration(hours) * time.Hour
 }
@@ -222,7 +184,7 @@ func (s *guardianInvitationService) Create(ctx context.Context, req GuardianInvi
 		return nil, &AuthError{Op: opGuardianInviteCreate, Err: fmt.Errorf("created_by is required")}
 	}
 
-	profile, err := s.guardianProfileRepo.FindByID(ctx, req.GuardianProfileID)
+	profile, err := s.GuardianProfileRepo.FindByID(ctx, req.GuardianProfileID)
 	if err != nil {
 		if isNotFoundError(err) {
 			return nil, &AuthError{Op: opGuardianInviteCreate, Err: fmt.Errorf("guardian profile not found")}
@@ -244,7 +206,7 @@ func (s *guardianInvitationService) Create(ctx context.Context, req GuardianInvi
 	}
 	invitation.SetTenantID(tenant.FromContext(ctx))
 
-	if err := s.invitationRepo.Create(ctx, invitation); err != nil {
+	if err := s.InvitationRepo.Create(ctx, invitation); err != nil {
 		return nil, &AuthError{Op: opGuardianInviteCreate, Err: err}
 	}
 
@@ -268,7 +230,7 @@ func (s *guardianInvitationService) Validate(ctx context.Context, token string) 
 		return nil, err
 	}
 
-	profile, err := s.guardianProfileRepo.FindByID(ctx, invitation.GuardianProfileID)
+	profile, err := s.GuardianProfileRepo.FindByID(ctx, invitation.GuardianProfileID)
 	if err != nil {
 		return nil, &AuthError{Op: opGuardianInviteValidate, Err: err}
 	}
@@ -286,10 +248,10 @@ func (s *guardianInvitationService) Validate(ctx context.Context, token string) 
 }
 
 func (s *guardianInvitationService) applySchoolBranding(ctx context.Context, tenantID int64, result *GuardianInvitationValidation) {
-	if tenantID <= 0 || s.schoolRepo == nil || result == nil {
+	if tenantID <= 0 || s.SchoolRepo == nil || result == nil {
 		return
 	}
-	school, err := s.schoolRepo.FindByID(ctx, tenantID)
+	school, err := s.SchoolRepo.FindByID(ctx, tenantID)
 	if err != nil || school == nil || school.IsDeleted() {
 		return
 	}
@@ -333,8 +295,8 @@ func (s *guardianInvitationService) Accept(ctx context.Context, token string, da
 	}
 
 	// Reject invitations for soft-deleted schools. Mirrors staff service.
-	if invitation.TenantID > 0 && s.schoolRepo != nil {
-		school, schoolErr := s.schoolRepo.FindByIDForShare(ctx, invitation.TenantID)
+	if invitation.TenantID > 0 && s.SchoolRepo != nil {
+		school, schoolErr := s.SchoolRepo.FindByIDForShare(ctx, invitation.TenantID)
 		if schoolErr != nil {
 			return nil, &AuthError{Op: opGuardianInviteAccept, Err: schoolErr}
 		}
@@ -343,7 +305,7 @@ func (s *guardianInvitationService) Accept(ctx context.Context, token string, da
 		}
 	}
 
-	profile, err := s.guardianProfileRepo.FindByID(ctx, invitation.GuardianProfileID)
+	profile, err := s.GuardianProfileRepo.FindByID(ctx, invitation.GuardianProfileID)
 	if err != nil {
 		return nil, &AuthError{Op: opGuardianInviteAccept, Err: err}
 	}
@@ -368,7 +330,7 @@ func (s *guardianInvitationService) Accept(ctx context.Context, token string, da
 		if innerErr := s.linkProfileToAccount(txCtx, profile, acc.ID, invitation.TenantID, opGuardianInviteAccept); innerErr != nil {
 			return innerErr
 		}
-		if innerErr := s.invitationRepo.MarkAsAccepted(txCtx, invitation.ID); innerErr != nil {
+		if innerErr := s.InvitationRepo.MarkAsAccepted(txCtx, invitation.ID); innerErr != nil {
 			return &AuthError{Op: opGuardianInviteAccept, Err: innerErr}
 		}
 		account = acc
@@ -390,9 +352,9 @@ func (s *guardianInvitationService) Accept(ctx context.Context, token string, da
 	// even if this fails. Runs in its own admin tx; the parent's
 	// /me/enrollments query reads via guardian_account_id, so without
 	// this step legacy submissions wouldn't surface in the dashboard.
-	if s.enrollmentBackfiller != nil {
-		backfillErr := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
-			n, err := s.enrollmentBackfiller.BackfillGuardianAccountID(adminCtx, account.ID, emailAddress)
+	if s.EnrollmentBackfiller != nil {
+		backfillErr := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
+			n, err := s.EnrollmentBackfiller.BackfillGuardianAccountID(adminCtx, account.ID, emailAddress)
 			if err != nil {
 				return err
 			}
@@ -418,7 +380,7 @@ func (s *guardianInvitationService) Accept(ctx context.Context, token string, da
 // createOrFindAccount returns the existing auth.accounts row for this email
 // or creates a new one.
 func (s *guardianInvitationService) createOrFindAccount(ctx context.Context, emailAddress, passwordHash string) (*authModels.Account, error) {
-	existing, err := s.accountRepo.FindByEmail(ctx, emailAddress)
+	existing, err := s.AccountRepo.FindByEmail(ctx, emailAddress)
 	if err == nil && existing != nil {
 		return existing, nil
 	}
@@ -431,7 +393,7 @@ func (s *guardianInvitationService) createOrFindAccount(ctx context.Context, ema
 		Active:       true,
 		PasswordHash: &passwordHash,
 	}
-	if err := s.accountRepo.Create(ctx, account); err != nil {
+	if err := s.AccountRepo.Create(ctx, account); err != nil {
 		return nil, &AuthError{Op: opGuardianInviteAccept, Err: err}
 	}
 	return account, nil
@@ -441,7 +403,7 @@ func (s *guardianInvitationService) createOrFindAccount(ctx context.Context, ema
 // guardian profile linkage for this tenant. Splits out so Accept stays under
 // gocognit 15.
 func (s *guardianInvitationService) linkProfileToAccount(ctx context.Context, profile *userModels.GuardianProfile, accountID, tenantID int64, op string) error {
-	role, err := s.roleRepo.FindByName(ctx, guardianRoleBaseName)
+	role, err := s.RoleRepo.FindByName(ctx, guardianRoleBaseName)
 	if err != nil {
 		return &AuthError{Op: op, Err: fmt.Errorf("guardian role lookup failed: %w", err)}
 	}
@@ -451,12 +413,12 @@ func (s *guardianInvitationService) linkProfileToAccount(ctx context.Context, pr
 
 	roleAssignment := &authModels.AccountRole{AccountID: accountID, RoleID: role.ID}
 	roleAssignment.SetTenantID(tenantID)
-	existingRole, err := s.accountRoleRepo.FindByAccountAndRole(ctx, accountID, role.ID)
+	existingRole, err := s.AccountRoleRepo.FindByAccountAndRole(ctx, accountID, role.ID)
 	if err != nil && !isNotFoundError(err) {
 		return &AuthError{Op: op, Err: fmt.Errorf("find guardian role assignment: %w", err)}
 	}
 	if existingRole == nil {
-		if err := s.accountRoleRepo.Create(ctx, roleAssignment); err != nil {
+		if err := s.AccountRoleRepo.Create(ctx, roleAssignment); err != nil {
 			return &AuthError{Op: op, Err: fmt.Errorf("assign guardian role: %w", err)}
 		}
 	}
@@ -468,11 +430,11 @@ func (s *guardianInvitationService) linkProfileToAccount(ctx context.Context, pr
 		Status:      authModels.AccountTenantStatusActive,
 		ActivatedAt: &now,
 	}
-	if err := s.accountTenantRepo.EnsureActive(ctx, mapping); err != nil {
+	if err := s.AccountTenantRepo.EnsureActive(ctx, mapping); err != nil {
 		return &AuthError{Op: op, Err: fmt.Errorf("link account to tenant: %w", err)}
 	}
 
-	if err := s.guardianProfileRepo.LinkAccount(ctx, profile.ID, accountID); err != nil {
+	if err := s.GuardianProfileRepo.LinkAccount(ctx, profile.ID, accountID); err != nil {
 		return &AuthError{Op: op, Err: fmt.Errorf("link guardian profile to account: %w", err)}
 	}
 	return nil
@@ -482,7 +444,7 @@ func (s *guardianInvitationService) linkProfileToAccount(ctx context.Context, pr
 // email. Does NOT issue a new token, same token, same expiry. If the
 // invitation has expired, callers should issue a new one via Create.
 func (s *guardianInvitationService) Resend(ctx context.Context, invitationID int64, actorAccountID int64) error {
-	invitation, err := s.invitationRepo.FindByID(ctx, invitationID)
+	invitation, err := s.InvitationRepo.FindByID(ctx, invitationID)
 	if err != nil {
 		if isNotFoundError(err) {
 			return &AuthError{Op: opGuardianInviteResend, Err: ErrInvitationNotFound}
@@ -496,7 +458,7 @@ func (s *guardianInvitationService) Resend(ctx context.Context, invitationID int
 		return &AuthError{Op: opGuardianInviteResend, Err: ErrInvitationExpired}
 	}
 
-	profile, err := s.guardianProfileRepo.FindByID(ctx, invitation.GuardianProfileID)
+	profile, err := s.GuardianProfileRepo.FindByID(ctx, invitation.GuardianProfileID)
 	if err != nil {
 		return &AuthError{Op: opGuardianInviteResend, Err: err}
 	}
@@ -504,7 +466,7 @@ func (s *guardianInvitationService) Resend(ctx context.Context, invitationID int
 	invitation.EmailSentAt = nil
 	invitation.EmailError = nil
 	invitation.UpdatedAt = time.Now()
-	if err := s.invitationRepo.Update(ctx, invitation); err != nil {
+	if err := s.InvitationRepo.Update(ctx, invitation); err != nil {
 		return &AuthError{Op: opGuardianInviteResend, Err: err}
 	}
 
@@ -523,7 +485,7 @@ func (s *guardianInvitationService) fetchValidInvitation(ctx context.Context, to
 	if token == "" {
 		return nil, &AuthError{Op: opGuardianInviteFetch, Err: ErrInvitationNotFound}
 	}
-	invitation, err := s.invitationRepo.FindByToken(ctx, token)
+	invitation, err := s.InvitationRepo.FindByToken(ctx, token)
 	if err != nil {
 		if isNotFoundError(err) || errors.Is(err, sql.ErrNoRows) {
 			return nil, &AuthError{Op: opGuardianInviteFetch, Err: ErrInvitationNotFound}
@@ -557,10 +519,10 @@ func guardianInvitationTokenConsumable(invitation *authModels.GuardianInvitation
 // lookupSchoolName resolves the tenant display name for inclusion in the
 // invitation email subject. Best-effort, empty string on failure.
 func (s *guardianInvitationService) lookupSchoolName(ctx context.Context, tenantID int64) string {
-	if tenantID == 0 || s.schoolRepo == nil {
+	if tenantID == 0 || s.SchoolRepo == nil {
 		return ""
 	}
-	school, err := s.schoolRepo.FindByID(ctx, tenantID)
+	school, err := s.SchoolRepo.FindByID(ctx, tenantID)
 	if err != nil || school == nil || school.IsDeleted() {
 		return ""
 	}
@@ -586,7 +548,7 @@ var guardianInvitationEmailBackoff = []time.Duration{
 // per-invitation delivery state should query the outbox by
 // (related_entity_type='guardian_invitation', related_entity_id=invitationID).
 func (s *guardianInvitationService) enqueueEmail(ctx context.Context, invitation *authModels.GuardianInvitation, profile *userModels.GuardianProfile, schoolName string) {
-	if s.outboxEnqueuer != nil {
+	if s.OutboxEnqueuer != nil {
 		s.enqueueViaOutbox(ctx, invitation, profile, schoolName)
 		return
 	}
@@ -597,7 +559,7 @@ func (s *guardianInvitationService) enqueueEmail(ctx context.Context, invitation
 // outbox. The renderer (services/auth/guardian_invitation_renderer.go)
 // turns the payload into an email.Message at dispatch time.
 func (s *guardianInvitationService) enqueueViaOutbox(ctx context.Context, invitation *authModels.GuardianInvitation, profile *userModels.GuardianProfile, schoolName string) {
-	frontend := s.frontendURL
+	frontend := s.FrontendURL
 	if frontend == "" {
 		frontend = "http://localhost:3000"
 	}
@@ -629,7 +591,7 @@ func (s *guardianInvitationService) enqueueViaOutbox(ctx context.Context, invita
 		guardianPayloadExpiryHours:    expiryHours,
 	}
 
-	if err := s.outboxEnqueuer.Enqueue(ctx, OutboxEnqueueRequest{
+	if err := s.OutboxEnqueuer.Enqueue(ctx, OutboxEnqueueRequest{
 		Kind:              platformModels.EmailKindGuardianInvitation,
 		Payload:           payload,
 		RelatedEntityType: platformModels.EmailRelatedTypeGuardianInvitation,
@@ -642,14 +604,14 @@ func (s *guardianInvitationService) enqueueViaOutbox(ctx context.Context, invita
 }
 
 func (s *guardianInvitationService) dispatchEmail(invitation *authModels.GuardianInvitation, profile *userModels.GuardianProfile, schoolName string) {
-	if s.dispatcher == nil {
+	if s.Dispatcher == nil {
 		s.getLogger().Warn("guardian invitation: email dispatcher unavailable",
 			slog.Int64("invitation_id", invitation.ID),
 		)
 		return
 	}
 
-	frontend := s.frontendURL
+	frontend := s.FrontendURL
 	if frontend == "" {
 		frontend = "http://localhost:3000"
 	}
@@ -677,7 +639,7 @@ func (s *guardianInvitationService) dispatchEmail(invitation *authModels.Guardia
 	}
 
 	message := email.Message{
-		From:     s.defaultFrom,
+		From:     s.DefaultFrom,
 		To:       email.NewEmail("", recipientEmail),
 		Subject:  subject,
 		Template: "guardian-invitation.html",
@@ -700,7 +662,7 @@ func (s *guardianInvitationService) dispatchEmail(invitation *authModels.Guardia
 
 	baseRetry := invitation.EmailRetryCount
 
-	s.dispatcher.Dispatch(context.Background(), email.DeliveryRequest{
+	s.Dispatcher.Dispatch(context.Background(), email.DeliveryRequest{
 		Message:       message,
 		Metadata:      meta,
 		BackoffPolicy: guardianInvitationEmailBackoff,
@@ -725,11 +687,11 @@ func (s *guardianInvitationService) persistDeliveryResult(ctx context.Context, m
 	}
 
 	updateCtx := ctx
-	if s.db != nil {
+	if s.DB != nil {
 		// Persist via admin tx, the dispatcher's callback runs detached from
 		// the request context, so it has no tenant transaction available.
-		err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
-			return s.invitationRepo.UpdateEmailStatus(adminCtx, meta.ReferenceID, sentAt, errText, retryCount)
+		err := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
+			return s.InvitationRepo.UpdateEmailStatus(adminCtx, meta.ReferenceID, sentAt, errText, retryCount)
 		})
 		if err != nil {
 			s.getLogger().Error("guardian invitation: persist delivery failed",
@@ -755,15 +717,15 @@ func (s *guardianInvitationService) persistDeliveryResult(ctx context.Context, m
 // token. Best-effort; returns "" on error.
 func (s *guardianInvitationService) GetTenantSlugForToken(ctx context.Context, token string) string {
 	var slug string
-	_ = tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
-		invitation, err := s.invitationRepo.FindByToken(txCtx, token)
+	_ = tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
+		invitation, err := s.InvitationRepo.FindByToken(txCtx, token)
 		if err != nil {
 			return err
 		}
 		if invitation == nil {
 			return nil
 		}
-		school, err := s.schoolRepo.FindByID(txCtx, invitation.TenantID)
+		school, err := s.SchoolRepo.FindByID(txCtx, invitation.TenantID)
 		if err != nil {
 			return err
 		}

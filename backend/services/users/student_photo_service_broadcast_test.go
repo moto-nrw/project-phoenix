@@ -56,16 +56,16 @@ func TestNewStudentPhotoService_WiresAllFields(t *testing.T) {
 
 	concrete, ok := svc.(*studentPhotoService)
 	require.True(t, ok, "NewStudentPhotoService must return *studentPhotoService")
-	assert.Same(t, broadcaster, concrete.broadcaster)
-	assert.Same(t, unlinker, concrete.unlinker)
-	assert.Equal(t, settings, concrete.settings)
-	assert.Same(t, logger, concrete.logger)
+	assert.Same(t, broadcaster, concrete.Broadcaster)
+	assert.Same(t, unlinker, concrete.Unlinker)
+	assert.Equal(t, settings, concrete.Settings)
+	assert.Same(t, logger, concrete.Logger)
 }
 
 // --- broadcastStudentUpdated -------------------------------------------
 
 func TestBroadcastStudentUpdated_NilBroadcasterIsNoOp(t *testing.T) {
-	svc := &studentPhotoService{broadcaster: nil}
+	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{Broadcaster: nil}}
 	require.NotPanics(t, func() {
 		svc.broadcastStudentUpdated(1, 2, photoSourceUploaded)
 	})
@@ -75,7 +75,7 @@ func TestBroadcastStudentUpdated_NonPositiveTenantSkipsAndLogs(t *testing.T) {
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	b := &recordingBroadcaster{}
-	svc := &studentPhotoService{broadcaster: b, logger: logger}
+	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{Broadcaster: b, Logger: logger}}
 
 	svc.broadcastStudentUpdated(0, 42, photoSourceDeleted)
 
@@ -85,7 +85,7 @@ func TestBroadcastStudentUpdated_NonPositiveTenantSkipsAndLogs(t *testing.T) {
 
 func TestBroadcastStudentUpdated_HappyPath(t *testing.T) {
 	b := &recordingBroadcaster{}
-	svc := &studentPhotoService{broadcaster: b, logger: slog.Default()}
+	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{Broadcaster: b, Logger: slog.Default()}}
 
 	svc.broadcastStudentUpdated(7, 99, photoSourceUploaded)
 
@@ -100,7 +100,7 @@ func TestBroadcastStudentUpdated_ErrorIsLoggedNotPropagated(t *testing.T) {
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	b := &recordingBroadcaster{err: errors.New("hub stopped")}
-	svc := &studentPhotoService{broadcaster: b, logger: logger}
+	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{Broadcaster: b, Logger: logger}}
 
 	require.NotPanics(t, func() {
 		svc.broadcastStudentUpdated(1, 2, photoSourceDeleted)
@@ -112,14 +112,14 @@ func TestBroadcastStudentUpdated_ErrorIsLoggedNotPropagated(t *testing.T) {
 // --- deferTenantSettingsChanged ----------------------------------------
 
 func TestDeferTenantSettingsChanged_NilBroadcasterIsNoOp(t *testing.T) {
-	svc := &studentPhotoService{broadcaster: nil}
+	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{Broadcaster: nil}}
 	notify := svc.deferTenantSettingsChanged(1, configModel.KeyStudentPhotosEnabled)
 	require.NotPanics(t, notify)
 }
 
 func TestDeferTenantSettingsChanged_BroadcastsAndCarriesKey(t *testing.T) {
 	b := &recordingBroadcaster{}
-	svc := &studentPhotoService{broadcaster: b, logger: slog.Default()}
+	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{Broadcaster: b, Logger: slog.Default()}}
 
 	notify := svc.deferTenantSettingsChanged(13, configModel.KeyStudentPhotosEnabled)
 	notify()
@@ -135,7 +135,7 @@ func TestDeferTenantSettingsChanged_BroadcastErrorLogged(t *testing.T) {
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	b := &recordingBroadcaster{err: errors.New("hub overflow")}
-	svc := &studentPhotoService{broadcaster: b, logger: logger}
+	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{Broadcaster: b, Logger: logger}}
 
 	notify := svc.deferTenantSettingsChanged(1, "operations.student_photos_enabled")
 	require.NotPanics(t, notify)
@@ -149,7 +149,7 @@ func TestHandleFeatureToggle_NonBoolValueTreatedAsEnable(t *testing.T) {
 	// Anything that isn't a bool falls through the "enable" branch — the
 	// service never tries to purge.
 	b := &recordingBroadcaster{}
-	svc := &studentPhotoService{broadcaster: b, logger: slog.Default()}
+	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{Broadcaster: b, Logger: slog.Default()}}
 
 	post, err := svc.HandleFeatureToggle(context.Background(), 9, "not-a-bool")
 	require.NoError(t, err)
@@ -166,7 +166,7 @@ func TestHandleFeatureToggle_NonBoolValueTreatedAsEnable(t *testing.T) {
 
 func TestHandleFeatureToggle_TrueEmitsEnableBroadcasts(t *testing.T) {
 	b := &recordingBroadcaster{}
-	svc := &studentPhotoService{broadcaster: b, logger: slog.Default()}
+	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{Broadcaster: b, Logger: slog.Default()}}
 
 	post, err := svc.HandleFeatureToggle(context.Background(), 5, true)
 	require.NoError(t, err)
@@ -261,7 +261,7 @@ func (s *stubRepo) PurgeAllPhotos(_ context.Context) ([]string, error) {
 }
 
 func TestPurgeAllPhotos_RepoErrorPropagates(t *testing.T) {
-	svc := &studentPhotoService{repo: &stubRepo{err: errors.New("boom")}}
+	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{StudentRepo: &stubRepo{err: errors.New("boom")}}}
 	post, err := svc.PurgeAllPhotos(context.Background(), 7)
 	assert.Nil(t, post)
 	require.Error(t, err)
@@ -270,12 +270,7 @@ func TestPurgeAllPhotos_RepoErrorPropagates(t *testing.T) {
 func TestPurgeAllPhotos_UnlinksAndBroadcasts(t *testing.T) {
 	u := &recordingUnlinker{}
 	b := &recordingBroadcaster{}
-	svc := &studentPhotoService{
-		repo:        &stubRepo{urls: []string{"/uploads/student-photos/a.jpg", "/uploads/student-photos/b.jpg"}},
-		unlinker:    u,
-		broadcaster: b,
-		logger:      slog.Default(),
-	}
+	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{StudentRepo: &stubRepo{urls: []string{"/uploads/student-photos/a.jpg", "/uploads/student-photos/b.jpg"}}, Unlinker: u, Broadcaster: b, Logger: slog.Default()}}
 	post, err := svc.PurgeAllPhotos(context.Background(), 7)
 	require.NoError(t, err)
 	require.NotNil(t, post)
@@ -288,12 +283,7 @@ func TestPurgeAllPhotos_UnlinksAndBroadcasts(t *testing.T) {
 func TestHandleFeatureToggle_FalsePurgesAndBroadcasts(t *testing.T) {
 	u := &recordingUnlinker{}
 	b := &recordingBroadcaster{}
-	svc := &studentPhotoService{
-		repo:        &stubRepo{urls: []string{"/uploads/student-photos/x.jpg"}},
-		unlinker:    u,
-		broadcaster: b,
-		logger:      slog.Default(),
-	}
+	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{StudentRepo: &stubRepo{urls: []string{"/uploads/student-photos/x.jpg"}}, Unlinker: u, Broadcaster: b, Logger: slog.Default()}}
 	post, err := svc.HandleFeatureToggle(context.Background(), 9, false)
 	require.NoError(t, err)
 	require.NotNil(t, post)
