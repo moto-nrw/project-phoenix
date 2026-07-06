@@ -45,9 +45,7 @@ func (r *ScheduleRepository) FindByGroupID(ctx context.Context, groupID int64) (
 		// Removed Timeframe relation since it's not properly defined in the model
 		Where("activity_group_id = ?", groupID)
 
-	if where, val, ok := base.TenantWhere(ctx, "schedule"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "schedule")
 
 	err := query.
 		Order("weekday").
@@ -74,9 +72,7 @@ func (r *ScheduleRepository) FindByWeekday(ctx context.Context, weekday string) 
 		// The caller should load ActivityGroup separately if needed
 		Where("weekday = ?", weekday)
 
-	if where, val, ok := base.TenantWhere(ctx, "schedule"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "schedule")
 
 	err := query.
 		Order("timeframe_id").
@@ -187,9 +183,7 @@ func (r *ScheduleRepository) CapValidUntil(ctx context.Context, activityGroupID 
 		Where(`"schedule".activity_group_id = ?`, activityGroupID).
 		Where(`("schedule".valid_until IS NULL OR "schedule".valid_until > ?)`, validUntil)
 
-	if where, val, ok := base.TenantWhere(ctx, "schedule"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "schedule")
 
 	res, err := query.Exec(ctx)
 	if err != nil {
@@ -240,9 +234,7 @@ func (r *ScheduleRepository) List(ctx context.Context, options *modelBase.QueryO
 	var schedules []*activities.Schedule
 	query := base.GetDB(ctx, r.db).NewSelect().Model(&schedules).ModelTableExpr(tableExprActivitiesSchedulesAsSch)
 
-	if where, val, ok := base.TenantWhere(ctx, "schedule"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "schedule")
 
 	// Apply query options
 	if options != nil {

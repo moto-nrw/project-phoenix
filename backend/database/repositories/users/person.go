@@ -25,9 +25,7 @@ func (r *PersonRepository) unlinkField(ctx context.Context, personID int64, fiel
 		Set(fieldName+" = NULL").
 		Where(`"person".id = ?`, personID)
 
-	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "person")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -82,9 +80,7 @@ func (r *PersonRepository) FindByTagID(ctx context.Context, tagID string) (*user
 		ModelTableExpr(`users.persons AS "person"`).
 		Where(`"person".tag_id = ?`, normalizedTagID)
 
-	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "person")
 
 	err := query.Scan(ctx)
 
@@ -110,9 +106,7 @@ func (r *PersonRepository) FindByAccountID(ctx context.Context, accountID int64)
 		ModelTableExpr(`users.persons AS "person"`).
 		Where(`"person".account_id = ?`, accountID)
 
-	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "person")
 
 	err := query.Scan(ctx)
 
@@ -142,9 +136,7 @@ func (r *PersonRepository) FindByIDForUpdate(ctx context.Context, id int64) (*us
 		Where(`"person".id = ?`, id).
 		For("UPDATE")
 
-	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "person")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find person for update", Err: err}
@@ -164,9 +156,7 @@ func (r *PersonRepository) FindByIDs(ctx context.Context, ids []int64) (map[int6
 		ModelTableExpr(`users.persons AS "person"`).
 		Where(`"person".id IN (?)`, bun.List(ids))
 
-	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "person")
 
 	err := query.Scan(ctx)
 
@@ -194,9 +184,7 @@ func (r *PersonRepository) LinkToAccount(ctx context.Context, personID int64, ac
 		Set("account_id = ?", accountID).
 		Where(`"person".id = ?`, personID)
 
-	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "person")
 
 	result, err := query.Exec(ctx)
 
@@ -255,9 +243,7 @@ func (r *PersonRepository) LinkToRFIDCard(ctx context.Context, personID int64, t
 		Set("tag_id = ?", normalizedTagID).
 		Where(`"person".id = ?`, personID)
 
-	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "person")
 
 	result, err := query.Exec(ctx)
 
@@ -309,9 +295,7 @@ func (r *PersonRepository) Update(ctx context.Context, person *users.Person) err
 		Column("first_name", "last_name", "birthday", "tag_id", "account_id").
 		WherePK()
 
-	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "person")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -328,9 +312,7 @@ func (r *PersonRepository) ListWithOptions(ctx context.Context, options *modelBa
 		Model(&persons).
 		ModelTableExpr(`users.persons AS "person"`)
 
-	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "person")
 
 	// Apply query options
 	if options != nil {
@@ -380,9 +362,7 @@ func (r *PersonRepository) FindWithAccount(ctx context.Context, id int64) (*user
 		Where(`"person".id = ?`, id).
 		Where(`"person".deleted_at IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "person")
 
 	err := query.Scan(ctx)
 
@@ -430,9 +410,7 @@ func (r *PersonRepository) FindWithRFIDCard(ctx context.Context, id int64) (*use
 		Where(`"person".id = ?`, id).
 		Where(`"person".deleted_at IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "person")
 
 	err := query.Scan(ctx)
 
@@ -515,9 +493,7 @@ func (r *PersonRepository) AnonymizeAndSoftDelete(ctx context.Context, personID 
 		Set(`deleted_at = NOW()`).
 		Where(`"person".id = ?`, personID)
 
-	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "person")
 
 	if _, err := query.Exec(ctx); err != nil {
 		return &modelBase.DatabaseError{

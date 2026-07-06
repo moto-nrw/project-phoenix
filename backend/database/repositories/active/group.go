@@ -48,9 +48,7 @@ func (r *GroupRepository) FindActiveByRoomID(ctx context.Context, roomID int64) 
 		ModelTableExpr(`active.groups AS "group"`).
 		Where(`"group".room_id = ? AND "group".end_time IS NULL`, roomID)
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group")
 
 	err := query.Scan(ctx)
 
@@ -97,9 +95,7 @@ func (r *GroupRepository) FindActiveByGroupID(ctx context.Context, groupID int64
 		ModelTableExpr(`active.groups AS "group"`).
 		Where(`"group".group_id = ? AND "group".end_time IS NULL`, groupID)
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group")
 
 	err := query.Scan(ctx)
 
@@ -125,9 +121,7 @@ func (r *GroupRepository) FindActiveByGroupIDs(ctx context.Context, groupIDs []i
 		ModelTableExpr(`active.groups AS "group"`).
 		Where(`"group".group_id IN (?) AND "group".end_time IS NULL`, bun.List(groupIDs))
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group")
 
 	err := query.Scan(ctx)
 
@@ -149,9 +143,7 @@ func (r *GroupRepository) FindByTimeRange(ctx context.Context, start, end time.T
 		ModelTableExpr(`active.groups AS "group"`).
 		Where("start_time <= ? AND (end_time IS NULL OR end_time >= ?)", end, start)
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group")
 
 	err := query.Scan(ctx)
 
@@ -173,9 +165,7 @@ func (r *GroupRepository) EndSession(ctx context.Context, id int64) error {
 		Set("end_time = ?", time.Now()).
 		Where(`"group".id = ? AND "group".end_time IS NULL`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -195,9 +185,7 @@ func (r *GroupRepository) List(ctx context.Context, options *modelBase.QueryOpti
 		Model(&groups).
 		ModelTableExpr(`active.groups AS "group"`)
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group")
 
 	// Apply query options with table alias
 	if options != nil {
@@ -227,9 +215,7 @@ func (r *GroupRepository) FindWithSupervisors(ctx context.Context, id int64) (*a
 		ModelTableExpr(`active.groups AS "group"`).
 		Where(`"group".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		groupQuery = groupQuery.Where(where, val)
-	}
+	groupQuery = base.WithTenantFilter(ctx, groupQuery, "group")
 
 	err := groupQuery.Scan(ctx)
 
@@ -247,9 +233,7 @@ func (r *GroupRepository) FindWithSupervisors(ctx context.Context, id int64) (*a
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
 		Where(`"group_supervisor".group_id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
-		supQuery = supQuery.Where(where, val)
-	}
+	supQuery = base.WithTenantFilter(ctx, supQuery, "group_supervisor")
 
 	err = supQuery.Scan(ctx)
 
@@ -425,9 +409,7 @@ func (r *GroupRepository) CheckRoomConflict(ctx context.Context, roomID int64, e
 		query = query.Where(`"group".id != ?`, excludeGroupID)
 	}
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -454,9 +436,7 @@ func (r *GroupRepository) UpdateLastActivity(ctx context.Context, id int64, last
 		Set("updated_at = ?", time.Now()).
 		Where(`"group".id = ? AND "group".end_time IS NULL`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -588,9 +568,7 @@ func (r *GroupRepository) FindActiveGroups(ctx context.Context) ([]*active.Group
 		ModelTableExpr(`active.groups AS "group"`).
 		Where(`"group".end_time IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group")
 
 	err := query.
 		Order(`start_time ASC`).
@@ -636,9 +614,7 @@ func (r *GroupRepository) FindByIDForUpdate(ctx context.Context, id int64) (*act
 		Where(`"group".id = ?`, id).
 		For("UPDATE")
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group")
 
 	if err := query.Scan(ctx); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -673,9 +649,7 @@ func (r *GroupRepository) queryGroupsByIDs(ctx context.Context, ids []int64) ([]
 		ModelTableExpr(`active.groups AS "group"`).
 		Where(`"group".id IN (?)`, bun.List(ids))
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -778,9 +752,7 @@ func (r *GroupRepository) queryUnclaimedGroups(ctx context.Context) ([]*active.G
 		Where(`"sup"."id" IS NULL`).
 		Where(`"room"."name" = ?`, "Schulhof")
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group")
 
 	err := query.
 		Order("start_time DESC").
@@ -936,9 +908,7 @@ func (r *GroupRepository) EndSessionsByIDs(ctx context.Context, ids []int64) (in
 		Where(`"group".id IN (?)`, bun.List(ids)).
 		Where(`"group".end_time IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group")
 
 	result, err := query.Exec(ctx)
 

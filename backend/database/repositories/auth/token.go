@@ -37,9 +37,7 @@ func (r *TokenRepository) FindByToken(ctx context.Context, token string) (*auth.
 		ModelTableExpr(`auth.tokens AS "token"`).
 		Where(`"token".token = ?`, token)
 
-	if where, val, ok := base.TenantWhere(ctx, "token"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "token")
 
 	err := query.Scan(ctx)
 
@@ -62,9 +60,7 @@ func (r *TokenRepository) FindByTokenForUpdate(ctx context.Context, token string
 		ModelTableExpr(`auth.tokens AS "token"`).
 		Where(`"token".token = ?`, token)
 
-	if where, val, ok := base.TenantWhere(ctx, "token"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "token")
 
 	err := query.
 		For("UPDATE").
@@ -88,9 +84,7 @@ func (r *TokenRepository) FindByAccountID(ctx context.Context, accountID int64) 
 		ModelTableExpr(`auth.tokens AS "token"`).
 		Where(`"token".account_id = ?`, accountID)
 
-	if where, val, ok := base.TenantWhere(ctx, "token"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "token")
 
 	err := query.Scan(ctx)
 
@@ -111,9 +105,7 @@ func (r *TokenRepository) DeleteExpiredTokens(ctx context.Context) (int, error) 
 		ModelTableExpr(`auth.tokens AS "token"`).
 		Where(`"token".expiry < ?`, time.Now())
 
-	if where, val, ok := base.TenantWhere(ctx, "token"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "token")
 
 	res, err := query.Exec(ctx)
 
@@ -142,9 +134,7 @@ func (r *TokenRepository) DeleteByAccountID(ctx context.Context, accountID int64
 		ModelTableExpr(`auth.tokens AS "token"`).
 		Where(`"token".account_id = ?`, accountID)
 
-	if where, val, ok := base.TenantWhere(ctx, "token"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "token")
 
 	_, err := query.Exec(ctx)
 
@@ -217,9 +207,7 @@ func (r *TokenRepository) Delete(ctx context.Context, id interface{}) error {
 		ModelTableExpr(`auth.tokens AS "token"`).
 		Where(`"token".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "token"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "token")
 
 	_, err := query.Exec(ctx)
 	if err != nil {
@@ -239,9 +227,7 @@ func (r *TokenRepository) List(ctx context.Context, filters map[string]interface
 		Model(&tokens).
 		ModelTableExpr(`auth.tokens AS "token"`)
 
-	if where, val, ok := base.TenantWhere(ctx, "token"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "token")
 
 	// Apply filters
 	for field, value := range filters {
@@ -302,9 +288,7 @@ func (r *TokenRepository) CleanupOldTokensForAccount(ctx context.Context, accoun
 		Where(`"token".account_id = ?`, accountID).
 		OrderExpr(`"token".id DESC`) // Assuming ID is auto-incrementing, so higher ID = newer
 
-	if where, val, ok := base.TenantWhere(ctx, "token"); ok {
-		selectQuery = selectQuery.Where(where, val)
-	}
+	selectQuery = base.WithTenantFilter(ctx, selectQuery, "token")
 
 	err := selectQuery.Scan(ctx)
 
@@ -330,9 +314,7 @@ func (r *TokenRepository) CleanupOldTokensForAccount(ctx context.Context, accoun
 				ModelTableExpr(`auth.tokens AS "token"`).
 				Where(`"token".id IN (?)`, bun.List(idsToDelete))
 
-			if where, val, ok := base.TenantWhere(ctx, "token"); ok {
-				delQuery = delQuery.Where(where, val)
-			}
+			delQuery = base.WithTenantFilter(ctx, delQuery, "token")
 
 			_, err = delQuery.Exec(ctx)
 
@@ -355,9 +337,7 @@ func (r *TokenRepository) DeleteByFamilyID(ctx context.Context, familyID string)
 		ModelTableExpr(`auth.tokens AS "token"`).
 		Where(`"token".family_id = ?`, familyID)
 
-	if where, val, ok := base.TenantWhere(ctx, "token"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "token")
 
 	_, err := query.Exec(ctx)
 
@@ -380,9 +360,7 @@ func (r *TokenRepository) GetLatestTokenInFamily(ctx context.Context, familyID s
 		ModelTableExpr(`auth.tokens AS "token"`).
 		Where(`"token".family_id = ?`, familyID)
 
-	if where, val, ok := base.TenantWhere(ctx, "token"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "token")
 
 	err := query.
 		OrderExpr(`"token".generation DESC`).
@@ -414,9 +392,7 @@ func (r *TokenRepository) FindByFamilyID(ctx context.Context, familyID string) (
 		ModelTableExpr(`auth.tokens AS "token"`).
 		Where(`"token".family_id = ?`, familyID)
 
-	if where, val, ok := base.TenantWhere(ctx, "token"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "token")
 
 	err := query.
 		OrderExpr(`"token".generation DESC`).

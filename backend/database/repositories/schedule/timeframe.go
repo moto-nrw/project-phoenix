@@ -34,9 +34,7 @@ func (r *TimeframeRepository) FindActive(ctx context.Context) ([]*schedule.Timef
 		ModelTableExpr(`schedule.timeframes AS "timeframe"`).
 		Where("is_active = ?", true)
 
-	if where, val, ok := base.TenantWhere(ctx, "timeframe"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "timeframe")
 
 	err := query.Scan(ctx)
 
@@ -59,9 +57,7 @@ func (r *TimeframeRepository) FindByTimeRange(ctx context.Context, startTime, en
 		ModelTableExpr(`schedule.timeframes AS "timeframe"`).
 		Where("start_time <= ?", endTime)
 
-	if where, val, ok := base.TenantWhere(ctx, "timeframe"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "timeframe")
 
 	// Handle open-ended timeframes (no end_time) differently
 	query = query.Where("(end_time IS NULL OR end_time >= ?)", startTime)
@@ -85,9 +81,7 @@ func (r *TimeframeRepository) FindByDescription(ctx context.Context, description
 		ModelTableExpr(`schedule.timeframes AS "timeframe"`).
 		Where("LOWER(description) LIKE LOWER(?)", "%"+description+"%")
 
-	if where, val, ok := base.TenantWhere(ctx, "timeframe"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "timeframe")
 
 	err := query.Scan(ctx)
 
@@ -108,9 +102,7 @@ func (r *TimeframeRepository) List(ctx context.Context, options *modelBase.Query
 		Model(&timeframes).
 		ModelTableExpr(`schedule.timeframes AS "timeframe"`)
 
-	if where, val, ok := base.TenantWhere(ctx, "timeframe"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "timeframe")
 
 	// Apply query options
 	if options != nil {

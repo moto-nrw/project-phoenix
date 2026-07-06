@@ -44,9 +44,7 @@ func (r *StaffAbsenceRepository) List(ctx context.Context, options *modelBase.Qu
 		Model(&absences).
 		ModelTableExpr(tableExprActiveStaffAbsencesAsStaffAbsence)
 
-	if where, val, ok := base.TenantWhere(ctx, "staff_absence"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "staff_absence")
 
 	if options != nil {
 		query = options.ApplyToQuery(query)
@@ -74,9 +72,7 @@ func (r *StaffAbsenceRepository) GetByStaffAndDateRange(ctx context.Context, sta
 		Where(`"staff_absence".date_end >= ?`, from).
 		OrderExpr(`"staff_absence".date_start ASC`)
 
-	if where, val, ok := base.TenantWhere(ctx, "staff_absence"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "staff_absence")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -101,9 +97,7 @@ func (r *StaffAbsenceRepository) GetByStaffAndDate(ctx context.Context, staffID 
 		Where(`"staff_absence".status IN (?)`, bun.List(effectiveStaffAbsenceStatuses)).
 		Limit(1)
 
-	if where, val, ok := base.TenantWhere(ctx, "staff_absence"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "staff_absence")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -130,9 +124,7 @@ func (r *StaffAbsenceRepository) GetTodayAbsenceMap(ctx context.Context) (map[in
 		Where(`"staff_absence".date_end >= CURRENT_DATE`).
 		Where(`"staff_absence".status IN (?)`, bun.List(effectiveStaffAbsenceStatuses))
 
-	if where, val, ok := base.TenantWhere(ctx, "staff_absence"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "staff_absence")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -170,9 +162,7 @@ func (r *StaffAbsenceRepository) ListByStatus(ctx context.Context, status string
 		Where(`"staff_absence".status = ?`, status).
 		OrderExpr(`"staff_absence".requested_at ASC`)
 
-	if where, val, ok := base.TenantWhere(ctx, "staff_absence"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "staff_absence")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list absences by status", Err: err}
@@ -191,9 +181,7 @@ func (r *StaffAbsenceRepository) DeleteNonHistoricalByStaffID(ctx context.Contex
 		Where(`"staff_absence".staff_id = ?`, staffID).
 		Where(`("staff_absence".status = ? OR "staff_absence".date_end >= ?)`, active.AbsenceStatusRequested, from)
 
-	if where, val, ok := base.TenantWhere(ctx, "staff_absence"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "staff_absence")
 
 	result, err := query.Exec(ctx)
 	if err != nil {

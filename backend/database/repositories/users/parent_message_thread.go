@@ -46,9 +46,7 @@ func (r *ParentMessageThreadRepository) FindByStudentGuardian(ctx context.Contex
 		Where(`"parent_message_thread".guardian_account_id = ?`, guardianAccountID).
 		Limit(1)
 
-	if where, val, ok := base.TenantWhere(ctx, "parent_message_thread"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "parent_message_thread")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -135,9 +133,7 @@ func (r *ParentMessageThreadRepository) TouchLastMessage(ctx context.Context, th
 				AND ("parent_message_thread".last_message_id IS NULL
 					OR "parent_message_thread".last_message_id < ?)))`, at, at, messageID)
 
-	if where, val, ok := base.TenantWhere(ctx, "parent_message_thread"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "parent_message_thread")
 
 	if _, err := query.Exec(ctx); err != nil {
 		return &modelBase.DatabaseError{Op: "touch parent message thread last message", Err: err}
@@ -181,9 +177,7 @@ func (r *ParentMessageThreadRepository) ListGuardiansForStudent(ctx context.Cont
 		Where(`sg.permissions @> ?::jsonb`, `{"parent_portal.access": true}`).
 		OrderExpr("sg.is_primary DESC, name ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, "sg"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "sg")
 
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list guardians for student", Err: err}

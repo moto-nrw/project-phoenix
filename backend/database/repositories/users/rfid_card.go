@@ -39,9 +39,7 @@ func (r *RFIDCardRepository) Delete(ctx context.Context, id string) error {
 		ModelTableExpr(`users.rfid_cards AS "rfid_card"`).
 		Where(`"rfid_card".id = ?`, normalizedID)
 
-	if where, val, ok := base.TenantWhere(ctx, "rfid_card"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "rfid_card")
 
 	_, err := query.Exec(ctx)
 	if err != nil {
@@ -79,9 +77,7 @@ func (r *RFIDCardRepository) FindByID(ctx context.Context, id string) (*users.RF
 		ModelTableExpr(`users.rfid_cards AS "rfid_card"`).
 		Where(`"rfid_card".id = ?`, normalizedID)
 
-	if where, val, ok := base.TenantWhere(ctx, "rfid_card"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "rfid_card")
 
 	err := query.Scan(ctx)
 
@@ -109,9 +105,7 @@ func (r *RFIDCardRepository) Deactivate(ctx context.Context, id string) error {
 		Set("active = ?", false).
 		Where(`"rfid_card".id = ?`, normalizedID)
 
-	if where, val, ok := base.TenantWhere(ctx, "rfid_card"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "rfid_card")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -154,9 +148,7 @@ func (r *RFIDCardRepository) ListWithOptions(ctx context.Context, options *model
 		Model(&cards).
 		ModelTableExpr(`users.rfid_cards AS "rfid_card"`)
 
-	if where, val, ok := base.TenantWhere(ctx, "rfid_card"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "rfid_card")
 
 	// Apply query options
 	if options != nil {
@@ -192,9 +184,7 @@ func (r *RFIDCardRepository) FindCardWithPerson(ctx context.Context, id string) 
 		ModelTableExpr(`users.persons AS "person"`).
 		Where(`"person".tag_id = ?`, normalizedID)
 
-	if where, val, ok := base.TenantWhere(ctx, "person"); ok {
-		personQuery = personQuery.Where(where, val)
-	}
+	personQuery = base.WithTenantFilter(ctx, personQuery, "person")
 
 	err = personQuery.Scan(ctx)
 

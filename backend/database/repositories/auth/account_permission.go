@@ -40,9 +40,7 @@ func (r *AccountPermissionRepository) FindByAccountID(ctx context.Context, accou
 		ModelTableExpr(accountPermissionTableAlias).
 		Where(`"account_permission".account_id = ?`, accountID)
 
-	if where, val, ok := base.TenantWhere(ctx, "account_permission"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "account_permission")
 
 	err := query.Scan(ctx)
 
@@ -66,9 +64,7 @@ func (r *AccountPermissionRepository) GrantPermission(ctx context.Context, accou
 		ModelTableExpr(accountPermissionTableAlias).
 		Where(`"account_permission".account_id = ? AND "account_permission".permission_id = ?`, accountID, permissionID)
 
-	if where, val, ok := base.TenantWhere(ctx, "account_permission"); ok {
-		existsQuery = existsQuery.Where(where, val)
-	}
+	existsQuery = base.WithTenantFilter(ctx, existsQuery, "account_permission")
 
 	exists, err := existsQuery.Exists(ctx)
 
@@ -87,9 +83,7 @@ func (r *AccountPermissionRepository) GrantPermission(ctx context.Context, accou
 			Set("granted = ?", true).
 			Where(`"account_permission".account_id = ? AND "account_permission".permission_id = ?`, accountID, permissionID)
 
-		if where, val, ok := base.TenantWhere(ctx, "account_permission"); ok {
-			updateQuery = updateQuery.Where(where, val)
-		}
+		updateQuery = base.WithTenantFilter(ctx, updateQuery, "account_permission")
 
 		_, err = updateQuery.Exec(ctx)
 	} else {
@@ -126,9 +120,7 @@ func (r *AccountPermissionRepository) DenyPermission(ctx context.Context, accoun
 		ModelTableExpr(accountPermissionTableAlias).
 		Where(`"account_permission".account_id = ? AND "account_permission".permission_id = ?`, accountID, permissionID)
 
-	if where, val, ok := base.TenantWhere(ctx, "account_permission"); ok {
-		existsQuery = existsQuery.Where(where, val)
-	}
+	existsQuery = base.WithTenantFilter(ctx, existsQuery, "account_permission")
 
 	exists, err := existsQuery.Exists(ctx)
 
@@ -147,9 +139,7 @@ func (r *AccountPermissionRepository) DenyPermission(ctx context.Context, accoun
 			Set("granted = ?", false).
 			Where(`"account_permission".account_id = ? AND "account_permission".permission_id = ?`, accountID, permissionID)
 
-		if where, val, ok := base.TenantWhere(ctx, "account_permission"); ok {
-			updateQuery = updateQuery.Where(where, val)
-		}
+		updateQuery = base.WithTenantFilter(ctx, updateQuery, "account_permission")
 
 		_, err = updateQuery.Exec(ctx)
 	} else {
@@ -178,9 +168,7 @@ func (r *AccountPermissionRepository) RemovePermission(ctx context.Context, acco
 		ModelTableExpr(accountPermissionTableAlias).
 		Where(`"account_permission".account_id = ? AND "account_permission".permission_id = ?`, accountID, permissionID)
 
-	if where, val, ok := base.TenantWhere(ctx, "account_permission"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "account_permission")
 
 	_, err := query.Exec(ctx)
 
@@ -201,9 +189,7 @@ func (r *AccountPermissionRepository) DeleteByPermissionID(ctx context.Context, 
 		ModelTableExpr(accountPermissionTableAlias).
 		Where(`"account_permission".permission_id = ?`, permissionID)
 
-	if where, val, ok := base.TenantWhere(ctx, "account_permission"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "account_permission")
 
 	_, err := query.Exec(ctx)
 
@@ -226,9 +212,7 @@ func (r *AccountPermissionRepository) DeleteByAccountID(ctx context.Context, acc
 		ModelTableExpr(accountPermissionTableAlias).
 		Where(`"account_permission".account_id = ?`, accountID)
 
-	if where, val, ok := base.TenantWhere(ctx, "account_permission"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "account_permission")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -306,9 +290,7 @@ func (r *AccountPermissionRepository) List(ctx context.Context, filters map[stri
 		Model(&accountPermissions).
 		ModelTableExpr(accountPermissionTableAlias)
 
-	if where, val, ok := base.TenantWhere(ctx, "account_permission"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "account_permission")
 
 	// Apply filters with proper table alias prefix
 	for field, value := range filters {
@@ -341,9 +323,7 @@ func (r *AccountPermissionRepository) FindByPermissionID(ctx context.Context, pe
 		ModelTableExpr(accountPermissionTableAlias).
 		Where(`"account_permission".permission_id = ?`, permissionID)
 
-	if where, val, ok := base.TenantWhere(ctx, "account_permission"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "account_permission")
 
 	err := query.Scan(ctx)
 
@@ -365,9 +345,7 @@ func (r *AccountPermissionRepository) FindByAccountAndPermission(ctx context.Con
 		ModelTableExpr(accountPermissionTableAlias).
 		Where(`"account_permission".account_id = ? AND "account_permission".permission_id = ?`, accountID, permissionID)
 
-	if where, val, ok := base.TenantWhere(ctx, "account_permission"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "account_permission")
 
 	err := query.Scan(ctx)
 

@@ -37,9 +37,7 @@ func (r *GroupSupervisorRepository) FindActiveByStaffID(ctx context.Context, sta
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
 		Where("staff_id = ? AND (end_date IS NULL OR end_date > NOW())", staffID)
 
-	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_supervisor")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -64,9 +62,7 @@ func (r *GroupSupervisorRepository) FindStaleOpen(ctx context.Context, before ti
 		Where(`"group_supervisor".start_date < ?`, before).
 		Where(`"group_supervisor".end_date IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_supervisor")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -98,9 +94,7 @@ func (r *GroupSupervisorRepository) FindByActiveGroupID(ctx context.Context, act
 		query = query.Where(`"group_supervisor".end_date IS NULL`)
 	}
 
-	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_supervisor")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -137,9 +131,7 @@ func (r *GroupSupervisorRepository) FindByActiveGroupIDs(ctx context.Context, ac
 		query = query.Where(`"group_supervisor".end_date IS NULL`)
 	}
 
-	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_supervisor")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -160,9 +152,7 @@ func (r *GroupSupervisorRepository) EndSupervision(ctx context.Context, id int64
 		Set("end_date = ?", timezone.TodayDate()).
 		Where(`"group_supervisor".id = ? AND "group_supervisor".end_date IS NULL`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_supervisor")
 
 	_, err := query.Exec(ctx)
 	if err != nil {
@@ -192,9 +182,7 @@ func (r *GroupSupervisorRepository) Update(ctx context.Context, supervision *act
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
 		WherePK()
 
-	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_supervisor")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -237,9 +225,7 @@ func (r *GroupSupervisorRepository) List(ctx context.Context, options *modelBase
 		Model(&supervisions).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`)
 
-	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_supervisor")
 
 	if options != nil {
 		if options.Filter != nil {
@@ -270,9 +256,7 @@ func (r *GroupSupervisorRepository) EndAllActiveByStaffID(ctx context.Context, s
 		Set("end_date = CURRENT_DATE").
 		Where(`"group_supervisor".staff_id = ? AND "group_supervisor".end_date IS NULL`, staffID)
 
-	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_supervisor")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -305,9 +289,7 @@ func (r *GroupSupervisorRepository) EndByActiveGroupAndStaffID(ctx context.Conte
 		Where(`"group_supervisor".staff_id = ?`, staffID).
 		Where(`"group_supervisor".end_date IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_supervisor")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -342,9 +324,7 @@ func (r *GroupSupervisorRepository) EndSupervisionsByActiveGroupIDs(ctx context.
 		Where(`"group_supervisor".group_id IN (?)`, bun.List(activeGroupIDs)).
 		Where(`"group_supervisor".end_date IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_supervisor")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -387,9 +367,7 @@ func (r *GroupSupervisorRepository) GetStaffIDsWithSupervisionToday(ctx context.
 			)
 		)`)
 
-	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_supervisor")
 
 	err := query.Scan(ctx, &staffIDs)
 	if err != nil {

@@ -42,9 +42,7 @@ func (r *CategoryRepository) FindByName(ctx context.Context, name string) (*acti
 		ModelTableExpr(tableExprActivitiesCategoriesAsCat).
 		Where("LOWER(name) = LOWER(?)", name)
 
-	if where, val, ok := base.TenantWhere(ctx, "category"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "category")
 
 	err := query.Scan(ctx)
 
@@ -65,9 +63,7 @@ func (r *CategoryRepository) ListAll(ctx context.Context) ([]*activities.Categor
 		Model(&categories).
 		ModelTableExpr(tableExprActivitiesCategoriesAsCat)
 
-	if where, val, ok := base.TenantWhere(ctx, "category"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "category")
 
 	err := query.
 		Order("name ASC").
@@ -123,9 +119,7 @@ func (r *CategoryRepository) List(ctx context.Context, options *modelBase.QueryO
 		Model(&categories).
 		ModelTableExpr(`activities.categories AS "category"`)
 
-	if where, val, ok := base.TenantWhere(ctx, "category"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "category")
 
 	// Apply query options
 	if options != nil {

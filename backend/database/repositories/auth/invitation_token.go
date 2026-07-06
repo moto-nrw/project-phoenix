@@ -41,9 +41,7 @@ func (r *InvitationTokenRepository) FindByToken(ctx context.Context, token strin
 		ModelTableExpr(invitationTableAlias).
 		Where(`"invitation_token".token = ?`, token)
 
-	if where, val, ok := base.TenantWhere(ctx, "invitation_token"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "invitation_token")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -64,9 +62,7 @@ func (r *InvitationTokenRepository) FindByID(ctx context.Context, id interface{}
 		ModelTableExpr(invitationTableAlias).
 		Where(`"invitation_token".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "invitation_token"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "invitation_token")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -88,9 +84,7 @@ func (r *InvitationTokenRepository) Update(ctx context.Context, token *modelAuth
 		ModelTableExpr(invitationTableAlias).
 		WherePK()
 
-	if where, val, ok := base.TenantWhere(ctx, "invitation_token"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "invitation_token")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -113,9 +107,7 @@ func (r *InvitationTokenRepository) FindValidByToken(ctx context.Context, token 
 		Where(`"invitation_token".expires_at > ?`, now).
 		Where(`"invitation_token".used_at IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "invitation_token"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "invitation_token")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -136,9 +128,7 @@ func (r *InvitationTokenRepository) FindByEmail(ctx context.Context, email strin
 		ModelTableExpr(invitationTableAlias).
 		Where(`LOWER("invitation_token".email) = LOWER(?)`, email)
 
-	if where, val, ok := base.TenantWhere(ctx, "invitation_token"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "invitation_token")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -277,9 +267,7 @@ func (r *InvitationTokenRepository) List(ctx context.Context, filters map[string
 		Join(`LEFT JOIN auth.roles AS "role" ON "role"."id" = "invitation_token"."role_id"`).
 		Join(`LEFT JOIN auth.accounts AS "creator" ON "creator"."id" = "invitation_token"."created_by"`)
 
-	if where, val, ok := base.TenantWhere(ctx, "invitation_token"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "invitation_token")
 
 	now := time.Now()
 

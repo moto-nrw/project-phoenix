@@ -73,9 +73,7 @@ func (r *RoleRepository) FindByAccountID(ctx context.Context, accountID int64) (
 		Join("JOIN auth.account_roles ar ON ar.role_id = role.id").
 		Where("ar.account_id = ?", accountID)
 
-	if where, val, ok := base.TenantWhere(ctx, "ar"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "ar")
 
 	err := query.Scan(ctx)
 
@@ -110,9 +108,7 @@ func (r *RoleRepository) FindRoleNamesByAccountIDs(ctx context.Context, accountI
 		Where("ar.account_id IN (?)", bun.List(accountIDs)).
 		OrderExpr("ar.created_at ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, "ar"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "ar")
 
 	err := query.Scan(ctx, &rows)
 

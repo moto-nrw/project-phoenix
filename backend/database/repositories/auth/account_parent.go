@@ -44,9 +44,7 @@ func (r *AccountParentRepository) FindByEmail(ctx context.Context, email string)
 		ModelTableExpr(accountParentTableAlias).
 		Where(`LOWER("account_parent".email) = LOWER(?)`, email)
 
-	if where, val, ok := base.TenantWhere(ctx, "account_parent"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "account_parent")
 
 	err := query.Scan(ctx)
 
@@ -70,9 +68,7 @@ func (r *AccountParentRepository) FindByUsername(ctx context.Context, username s
 		ModelTableExpr(accountParentTableAlias).
 		Where(`LOWER("account_parent".username) = LOWER(?)`, username)
 
-	if where, val, ok := base.TenantWhere(ctx, "account_parent"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "account_parent")
 
 	err := query.Scan(ctx)
 
@@ -141,9 +137,7 @@ func (r *AccountParentRepository) List(ctx context.Context, filters map[string]i
 		Model(&accounts).
 		ModelTableExpr(accountParentTableAlias)
 
-	if where, val, ok := base.TenantWhere(ctx, "account_parent"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "account_parent")
 
 	// Apply filters
 	for field, value := range filters {

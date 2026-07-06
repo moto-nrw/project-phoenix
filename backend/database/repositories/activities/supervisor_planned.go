@@ -121,9 +121,7 @@ func (r *SupervisorPlannedRepository) CapActiveByGroup(ctx context.Context, grou
 			Where(`"supervisor_planned".valid_until IS NULL`).
 			Where(`"supervisor_planned".is_primary = ?`, isPrimary)
 
-		if where, val, ok := base.TenantWhere(ctx, "supervisor_planned"); ok {
-			query = query.Where(where, val)
-		}
+		query = base.WithTenantFilter(ctx, query, "supervisor_planned")
 
 		res, err := query.Exec(ctx)
 		if err != nil {
@@ -147,9 +145,7 @@ func (r *SupervisorPlannedRepository) FindByStaffID(ctx context.Context, staffID
 		ModelTableExpr(tableExprSupervisorPlanned).
 		Where("staff_id = ?", staffID)
 
-	if where, val, ok := base.TenantWhere(ctx, "supervisor_planned"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "supervisor_planned")
 
 	err := query.
 		Order("is_primary DESC").
@@ -188,9 +184,7 @@ func (r *SupervisorPlannedRepository) FindByGroupID(ctx context.Context, groupID
 		Where(`"supervisor".group_id = ?`, groupID).
 		Order("supervisor.is_primary DESC")
 
-	if where, val, ok := base.TenantWhere(ctx, "supervisor"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "supervisor")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -214,9 +208,7 @@ func (r *SupervisorPlannedRepository) FindByGroupIDs(ctx context.Context, groupI
 		Where(`"supervisor".group_id IN (?)`, bun.List(groupIDs)).
 		Order("supervisor.is_primary DESC")
 
-	if where, val, ok := base.TenantWhere(ctx, "supervisor"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "supervisor")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -237,9 +229,7 @@ func (r *SupervisorPlannedRepository) SetPrimary(ctx context.Context, id int64) 
 		Set("is_primary = true").
 		Where(whereSupervisorIDEquals, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "supervisor"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "supervisor")
 
 	result, err := query.Exec(ctx)
 
@@ -295,9 +285,7 @@ func (r *SupervisorPlannedRepository) Delete(ctx context.Context, id interface{}
 		ModelTableExpr(`activities.supervisors AS "supervisor_planned"`).
 		Where(`"supervisor_planned".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "supervisor_planned"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "supervisor_planned")
 
 	_, err := query.Exec(ctx)
 
@@ -320,9 +308,7 @@ func (r *SupervisorPlannedRepository) DeleteByStaffID(ctx context.Context, staff
 		ModelTableExpr(tableExprSupervisorPlanned).
 		Where(`"supervisor_planned".staff_id = ?`, staffID)
 
-	if where, val, ok := base.TenantWhere(ctx, "supervisor_planned"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "supervisor_planned")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -340,9 +326,7 @@ func (r *SupervisorPlannedRepository) List(ctx context.Context, options *modelBa
 	supervisors := make([]*activities.SupervisorPlanned, 0)
 	query := base.GetDB(ctx, r.db).NewSelect().Model(&supervisors).ModelTableExpr(tableExprSupervisorPlanned)
 
-	if where, val, ok := base.TenantWhere(ctx, "supervisor_planned"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "supervisor_planned")
 
 	// Apply query options
 	if options != nil {

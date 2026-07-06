@@ -48,9 +48,7 @@ func (r *StudentArrivalScheduleRepository) FindByStudentID(ctx context.Context, 
 		Where(`"student_arrival_schedule".student_id = ?`, studentID).
 		Order("weekday ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, "student_arrival_schedule"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_arrival_schedule")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -72,9 +70,7 @@ func (r *StudentArrivalScheduleRepository) FindByStudentIDAndWeekday(ctx context
 		Where(`"student_arrival_schedule".student_id = ?`, studentID).
 		Where(`"student_arrival_schedule".weekday = ?`, weekday)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_arrival_schedule"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_arrival_schedule")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -103,9 +99,7 @@ func (r *StudentArrivalScheduleRepository) FindByStudentIDsAndWeekday(ctx contex
 		Where(`"student_arrival_schedule".student_id IN (?)`, bun.List(studentIDs)).
 		Where(`"student_arrival_schedule".weekday = ?`, weekday)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_arrival_schedule"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_arrival_schedule")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -157,9 +151,7 @@ func (r *StudentArrivalScheduleRepository) DeleteByStudentID(ctx context.Context
 		ModelTableExpr(`schedule.student_arrival_schedules AS "student_arrival_schedule"`).
 		Where(`"student_arrival_schedule".student_id = ?`, studentID)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_arrival_schedule"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_arrival_schedule")
 
 	_, err := query.Exec(ctx)
 	if err != nil {
@@ -179,9 +171,7 @@ func (r *StudentArrivalScheduleRepository) List(ctx context.Context, options *mo
 		Model(&schedules).
 		ModelTableExpr(`schedule.student_arrival_schedules AS "student_arrival_schedule"`)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_arrival_schedule"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_arrival_schedule")
 
 	if options != nil {
 		query = options.ApplyToQuery(query)
@@ -207,9 +197,7 @@ func (r *StudentArrivalScheduleRepository) FindByID(ctx context.Context, id any)
 		ModelTableExpr(`schedule.student_arrival_schedules AS "student_arrival_schedule"`).
 		Where(`"student_arrival_schedule".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_arrival_schedule"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_arrival_schedule")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -247,9 +235,7 @@ func (r *StudentArrivalExceptionRepository) FindByStudentID(ctx context.Context,
 		Where(`"student_arrival_exception".student_id = ?`, studentID).
 		Order("exception_date ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, "student_arrival_exception"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_arrival_exception")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -274,9 +260,7 @@ func (r *StudentArrivalExceptionRepository) FindUpcomingByStudentID(ctx context.
 		Where(`"student_arrival_exception".exception_date >= ?`, today).
 		Order("exception_date ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, "student_arrival_exception"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_arrival_exception")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -299,9 +283,7 @@ func (r *StudentArrivalExceptionRepository) FindByStudentIDAndDate(ctx context.C
 		Where(`"student_arrival_exception".student_id = ?`, studentID).
 		Where(`"student_arrival_exception".exception_date = ?`, date)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_arrival_exception"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_arrival_exception")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -331,9 +313,7 @@ func (r *StudentArrivalExceptionRepository) FindByStudentIDsAndDate(ctx context.
 		Where(`"student_arrival_exception".student_id IN (?)`, bun.List(studentIDs)).
 		Where(`"student_arrival_exception".exception_date = ?`, date)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_arrival_exception"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_arrival_exception")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -360,9 +340,7 @@ func (r *StudentArrivalExceptionRepository) FindByStudentIDAndDateRange(
 		Where(`"student_arrival_exception".exception_date <= ?`, to).
 		Order("exception_date ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, "student_arrival_exception"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_arrival_exception")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -380,9 +358,7 @@ func (r *StudentArrivalExceptionRepository) DeleteByStudentID(ctx context.Contex
 		ModelTableExpr(`schedule.student_arrival_exceptions AS "student_arrival_exception"`).
 		Where(`"student_arrival_exception".student_id = ?`, studentID)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_arrival_exception"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_arrival_exception")
 
 	_, err := query.Exec(ctx)
 	if err != nil {
@@ -402,9 +378,7 @@ func (r *StudentArrivalExceptionRepository) DeletePastExceptions(ctx context.Con
 		ModelTableExpr(`schedule.student_arrival_exceptions AS "student_arrival_exception"`).
 		Where(`"student_arrival_exception".exception_date < ?`, beforeDate)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_arrival_exception"); ok {
-		delQuery = delQuery.Where(where, val)
-	}
+	delQuery = base.WithTenantFilter(ctx, delQuery, "student_arrival_exception")
 
 	result, err := delQuery.Exec(ctx)
 	if err != nil {
@@ -429,9 +403,7 @@ func (r *StudentArrivalExceptionRepository) List(ctx context.Context, options *m
 		Model(&exceptions).
 		ModelTableExpr(`schedule.student_arrival_exceptions AS "student_arrival_exception"`)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_arrival_exception"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_arrival_exception")
 
 	if options != nil {
 		query = options.ApplyToQuery(query)
@@ -457,9 +429,7 @@ func (r *StudentArrivalExceptionRepository) FindByID(ctx context.Context, id any
 		ModelTableExpr(`schedule.student_arrival_exceptions AS "student_arrival_exception"`).
 		Where(`"student_arrival_exception".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_arrival_exception"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_arrival_exception")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -497,9 +467,7 @@ func (r *StudentArrivalNoteRepository) FindByStudentID(ctx context.Context, stud
 		Where(`"student_arrival_note".student_id = ?`, studentID).
 		Order("note_date ASC", orderCreatedAtASC)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_arrival_note"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_arrival_note")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -523,9 +491,7 @@ func (r *StudentArrivalNoteRepository) FindByStudentIDAndDate(ctx context.Contex
 		Where(`"student_arrival_note".note_date = ?`, date).
 		Order(orderCreatedAtASC)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_arrival_note"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_arrival_note")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -553,9 +519,7 @@ func (r *StudentArrivalNoteRepository) FindByStudentIDsAndDate(ctx context.Conte
 		Where(`"student_arrival_note".note_date = ?`, date).
 		Order(orderCreatedAtASC)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_arrival_note"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_arrival_note")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -575,9 +539,7 @@ func (r *StudentArrivalNoteRepository) DeleteByStudentID(ctx context.Context, st
 		ModelTableExpr(`schedule.student_arrival_notes AS "student_arrival_note"`).
 		Where(`"student_arrival_note".student_id = ?`, studentID)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_arrival_note"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_arrival_note")
 
 	_, err := query.Exec(ctx)
 	if err != nil {
@@ -597,9 +559,7 @@ func (r *StudentArrivalNoteRepository) DeletePastNotes(ctx context.Context, befo
 		ModelTableExpr(`schedule.student_arrival_notes AS "student_arrival_note"`).
 		Where(`"student_arrival_note".note_date < ?`, beforeDate)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_arrival_note"); ok {
-		delQuery = delQuery.Where(where, val)
-	}
+	delQuery = base.WithTenantFilter(ctx, delQuery, "student_arrival_note")
 
 	result, err := delQuery.Exec(ctx)
 	if err != nil {
@@ -624,9 +584,7 @@ func (r *StudentArrivalNoteRepository) List(ctx context.Context, options *modelB
 		Model(&notes).
 		ModelTableExpr(`schedule.student_arrival_notes AS "student_arrival_note"`)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_arrival_note"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_arrival_note")
 
 	if options != nil {
 		query = options.ApplyToQuery(query)
@@ -652,9 +610,7 @@ func (r *StudentArrivalNoteRepository) FindByID(ctx context.Context, id any) (*s
 		ModelTableExpr(`schedule.student_arrival_notes AS "student_arrival_note"`).
 		Where(`"student_arrival_note".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_arrival_note"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_arrival_note")
 
 	err := query.Scan(ctx)
 	if err != nil {

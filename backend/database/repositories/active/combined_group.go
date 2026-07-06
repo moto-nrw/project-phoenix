@@ -44,9 +44,7 @@ func (r *CombinedGroupRepository) FindActive(ctx context.Context) ([]*active.Com
 		ModelTableExpr(tableExprCombinedGroupsAsCG).
 		Where("end_time IS NULL")
 
-	if where, val, ok := base.TenantWhere(ctx, "combined_group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "combined_group")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -67,9 +65,7 @@ func (r *CombinedGroupRepository) FindByTimeRange(ctx context.Context, start, en
 		ModelTableExpr(tableExprCombinedGroupsAsCG).
 		Where("start_time <= ? AND (end_time IS NULL OR end_time >= ?)", end, start)
 
-	if where, val, ok := base.TenantWhere(ctx, "combined_group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "combined_group")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -112,9 +108,7 @@ func (r *CombinedGroupRepository) FindWithGroups(ctx context.Context, id int64) 
 		ModelTableExpr(tableExprCombinedGroupsAsCG).
 		Where("id = ?", id)
 
-	if where, val, ok := base.TenantWhere(ctx, "combined_group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "combined_group")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -131,9 +125,7 @@ func (r *CombinedGroupRepository) FindWithGroups(ctx context.Context, id int64) 
 		ModelTableExpr(`active.group_mappings AS "group_mapping"`).
 		Where("active_combined_group_id = ?", id)
 
-	if where, val, ok := base.TenantWhere(ctx, "group_mapping"); ok {
-		mappingQuery = mappingQuery.Where(where, val)
-	}
+	mappingQuery = base.WithTenantFilter(ctx, mappingQuery, "group_mapping")
 
 	err = mappingQuery.Scan(ctx)
 	if err != nil {
@@ -152,9 +144,7 @@ func (r *CombinedGroupRepository) FindWithGroups(ctx context.Context, id int64) 
 				ModelTableExpr(`active.groups AS "group"`).
 				Where("id = ?", mapping.ActiveGroupID)
 
-			if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-				agQuery = agQuery.Where(where, val)
-			}
+			agQuery = base.WithTenantFilter(ctx, agQuery, "group")
 
 			agErr := agQuery.Scan(ctx)
 			if agErr == nil {
@@ -213,9 +203,7 @@ func (r *CombinedGroupRepository) List(ctx context.Context, options *modelBase.Q
 	var groups []*active.CombinedGroup
 	query := base.GetDB(ctx, r.db).NewSelect().Model(&groups).ModelTableExpr(tableExprCombinedGroupsAsCG)
 
-	if where, val, ok := base.TenantWhere(ctx, "combined_group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "combined_group")
 
 	if options != nil {
 		if options.Filter != nil {

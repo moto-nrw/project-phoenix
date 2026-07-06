@@ -120,9 +120,7 @@ func (r *ActivityInstanceRepository) FindByID(ctx context.Context, id any) (*sch
 		ModelTableExpr(modelTblActivityInstance).
 		Where(`"activity_instance".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, aliasActivityInstance); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasActivityInstance)
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -141,9 +139,7 @@ func (r *ActivityInstanceRepository) List(ctx context.Context, options *modelBas
 		Model(&instances).
 		ModelTableExpr(modelTblActivityInstance)
 
-	if where, val, ok := base.TenantWhere(ctx, aliasActivityInstance); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasActivityInstance)
 
 	if options != nil {
 		query = options.ApplyToQuery(query)
@@ -168,9 +164,7 @@ func (r *ActivityInstanceRepository) FindByTenantAndDate(ctx context.Context, da
 		Where(`"activity_instance".date = ?`, date).
 		Order("start_time ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, aliasActivityInstance); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasActivityInstance)
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -192,9 +186,7 @@ func (r *ActivityInstanceRepository) FindByTenantAndDateRange(ctx context.Contex
 		Where(`"activity_instance".date <= ?`, to).
 		Order("date ASC", "start_time ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, aliasActivityInstance); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasActivityInstance)
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -216,9 +208,7 @@ func (r *ActivityInstanceRepository) FindByActivityGroupAndDate(ctx context.Cont
 		Where(`"activity_instance".date = ?`, date).
 		Order("start_time ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, aliasActivityInstance); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasActivityInstance)
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -242,9 +232,7 @@ func (r *ActivityInstanceRepository) FindByActiveGroupID(ctx context.Context, ac
 		ModelTableExpr(modelTblActivityInstance).
 		Where(`"activity_instance".active_group_id = ?`, activeGroupID)
 
-	if where, val, ok := base.TenantWhere(ctx, aliasActivityInstance); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasActivityInstance)
 
 	err := query.Limit(1).Scan(ctx)
 	if err != nil {
@@ -278,9 +266,7 @@ func (r *ActivityInstanceRepository) CompleteActiveByActiveGroupIDs(ctx context.
 		Where(`"activity_instance".status = ?`, schedule.InstanceStatusActive).
 		Where(`"activity_instance".active_group_id IN (?)`, bun.List(activeGroupIDs))
 
-	if where, val, ok := base.TenantWhere(ctx, aliasActivityInstance); ok {
-		q = q.Where(where, val)
-	}
+	q = base.WithTenantFilter(ctx, q, aliasActivityInstance)
 
 	res, err := q.Exec(ctx)
 	if err != nil {
@@ -326,9 +312,7 @@ func (r *ActivityInstanceRepository) DeletePlannedNonSpontaneousInWindow(ctx con
 		q = q.Where(`"activity_instance".activity_group_id = ?`, *activityGroupID)
 	}
 
-	if where, val, ok := base.TenantWhere(ctx, aliasActivityInstance); ok {
-		q = q.Where(where, val)
-	}
+	q = base.WithTenantFilter(ctx, q, aliasActivityInstance)
 
 	res, err := q.Exec(ctx)
 	if err != nil {

@@ -41,9 +41,7 @@ func (r *CalendarPeriodRepository) FindByTenantID(ctx context.Context) ([]*sched
 		ModelTableExpr(`schedule.calendar_periods AS "calendar_period"`).
 		Order("start_date ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, "calendar_period"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "calendar_period")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -65,9 +63,7 @@ func (r *CalendarPeriodRepository) FindActiveByTenantID(ctx context.Context) ([]
 		Where(`"calendar_period".is_active = ?`, true).
 		Order("start_date ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, "calendar_period"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "calendar_period")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -88,9 +84,7 @@ func (r *CalendarPeriodRepository) FindByName(ctx context.Context, name string) 
 		ModelTableExpr(`schedule.calendar_periods AS "calendar_period"`).
 		Where(`"calendar_period".name = ?`, name)
 
-	if where, val, ok := base.TenantWhere(ctx, "calendar_period"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "calendar_period")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -115,9 +109,7 @@ func (r *CalendarPeriodRepository) FindByID(ctx context.Context, id any) (*sched
 		ModelTableExpr(`schedule.calendar_periods AS "calendar_period"`).
 		Where(`"calendar_period".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "calendar_period"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "calendar_period")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -192,9 +184,7 @@ func (r *CalendarPeriodRepository) FindActiveOverlapping(ctx context.Context, st
 		Where(`"calendar_period".id != ?`, excludeID).
 		Order("start_date ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, "calendar_period"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "calendar_period")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -214,9 +204,7 @@ func (r *CalendarPeriodRepository) List(ctx context.Context, options *modelBase.
 		Model(&periods).
 		ModelTableExpr(`schedule.calendar_periods AS "calendar_period"`)
 
-	if where, val, ok := base.TenantWhere(ctx, "calendar_period"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "calendar_period")
 
 	if options != nil {
 		query = options.ApplyToQuery(query)

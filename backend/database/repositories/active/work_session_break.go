@@ -40,9 +40,7 @@ func (r *WorkSessionBreakRepository) List(ctx context.Context, options *modelBas
 		Model(&breaks).
 		ModelTableExpr(tableExprActiveWorkSessionBreaksAsWorkSessionBreak)
 
-	if where, val, ok := base.TenantWhere(ctx, "work_session_break"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "work_session_break")
 
 	if options != nil {
 		query = options.ApplyToQuery(query)
@@ -68,9 +66,7 @@ func (r *WorkSessionBreakRepository) GetBySessionID(ctx context.Context, session
 		Where(`"work_session_break".session_id = ?`, sessionID).
 		OrderExpr(`"work_session_break".started_at ASC`)
 
-	if where, val, ok := base.TenantWhere(ctx, "work_session_break"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "work_session_break")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -92,9 +88,7 @@ func (r *WorkSessionBreakRepository) GetActiveBySessionID(ctx context.Context, s
 		Where(`"work_session_break".session_id = ?`, sessionID).
 		Where(`"work_session_break".ended_at IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "work_session_break"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "work_session_break")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -168,9 +162,7 @@ func (r *WorkSessionBreakRepository) GetExpiredBreaks(ctx context.Context, befor
 		Where(`"work_session_break".planned_end_time IS NOT NULL`).
 		Where(`"work_session_break".planned_end_time <= ?`, before)
 
-	if where, val, ok := base.TenantWhere(ctx, "work_session_break"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "work_session_break")
 
 	err := query.Scan(ctx)
 	if err != nil {

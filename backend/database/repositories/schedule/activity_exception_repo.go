@@ -42,9 +42,7 @@ func (r *ActivityExceptionRepository) FindByID(ctx context.Context, id any) (*sc
 		ModelTableExpr(modelTblActivityException).
 		Where(`"activity_exception".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, aliasActivityException); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasActivityException)
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -63,9 +61,7 @@ func (r *ActivityExceptionRepository) List(ctx context.Context, options *modelBa
 		Model(&rows).
 		ModelTableExpr(modelTblActivityException)
 
-	if where, val, ok := base.TenantWhere(ctx, aliasActivityException); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasActivityException)
 
 	if options != nil {
 		query = options.ApplyToQuery(query)
@@ -90,9 +86,7 @@ func (r *ActivityExceptionRepository) FindByActivityGroupID(ctx context.Context,
 		Where(`"activity_exception".activity_group_id = ?`, activityGroupID).
 		Order("exception_date ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, aliasActivityException); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasActivityException)
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -114,9 +108,7 @@ func (r *ActivityExceptionRepository) FindByActivityGroupAndDate(ctx context.Con
 		Where(`"activity_exception".activity_group_id = ?`, activityGroupID).
 		Where(`"activity_exception".exception_date = ?`, date)
 
-	if where, val, ok := base.TenantWhere(ctx, aliasActivityException); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasActivityException)
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -141,9 +133,7 @@ func (r *ActivityExceptionRepository) FindByDateRange(ctx context.Context, from,
 		Where(`"activity_exception".exception_date <= ?`, to).
 		Order("exception_date ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, aliasActivityException); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasActivityException)
 
 	err := query.Scan(ctx)
 	if err != nil {

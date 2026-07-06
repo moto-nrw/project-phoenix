@@ -49,9 +49,7 @@ func (r *RoomRepository) Update(ctx context.Context, room *facilities.Room) erro
 		Where("id = ?", room.ID).
 		ModelTableExpr(tableExprFacilitiesRoomsAsRoom)
 
-	if where, val, ok := base.TenantWhere(ctx, "room"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "room")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -71,9 +69,7 @@ func (r *RoomRepository) FindByName(ctx context.Context, name string) (*faciliti
 		ModelTableExpr(tableExprFacilitiesRoomsAsRoom).
 		Where("LOWER(name) = LOWER(?)", name)
 
-	if where, val, ok := base.TenantWhere(ctx, "room"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "room")
 
 	err := query.Scan(ctx, room)
 
@@ -95,9 +91,7 @@ func (r *RoomRepository) FindByCategory(ctx context.Context, category string) ([
 		ModelTableExpr(tableExprFacilitiesRoomsAsRoom).
 		Where("LOWER(category) = LOWER(?)", category)
 
-	if where, val, ok := base.TenantWhere(ctx, "room"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "room")
 
 	err := query.Scan(ctx)
 
@@ -120,9 +114,7 @@ func (r *RoomRepository) List(ctx context.Context, filters map[string]interface{
 		Model(&rooms).
 		ModelTableExpr(tableExprFacilitiesRoomsAsRoom)
 
-	if where, val, ok := base.TenantWhere(ctx, "room"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "room")
 
 	// Apply filters
 	for field, value := range filters {
@@ -187,9 +179,7 @@ func (r *RoomRepository) ListWithOptions(ctx context.Context, options *modelBase
 		Model(&rooms).
 		ModelTableExpr(tableExprFacilitiesRoomsAsRoom) // Use proper table alias
 
-	if where, val, ok := base.TenantWhere(ctx, "room"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "room")
 
 	// Apply query options
 	if options != nil {
@@ -215,9 +205,7 @@ func (r *RoomRepository) FindWithCapacity(ctx context.Context, minCapacity int) 
 		ModelTableExpr(tableExprFacilitiesRoomsAsRoom).
 		Where("capacity >= ?", minCapacity)
 
-	if where, val, ok := base.TenantWhere(ctx, "room"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "room")
 
 	err := query.Scan(ctx)
 
@@ -246,9 +234,7 @@ func (r *RoomRepository) SearchByText(ctx context.Context, searchText string) ([
 		Where("LOWER(name) LIKE ? OR LOWER(building) LIKE ? OR LOWER(category) LIKE ?",
 			searchPattern, searchPattern, searchPattern)
 
-	if where, val, ok := base.TenantWhere(ctx, "room"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "room")
 
 	err := query.Scan(ctx)
 
@@ -312,9 +298,7 @@ func (r *RoomRepository) FindWithOccupancy(ctx context.Context, id int64) (*faci
 		TableExpr("facilities.rooms AS r")).
 		Where("r.id = ?", id)
 
-	if where, val, ok := base.TenantWhere(ctx, "r"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "r")
 
 	if err := query.Scan(ctx, &result); err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -333,9 +317,7 @@ func (r *RoomRepository) ListWithOccupancy(ctx context.Context, options *modelBa
 		TableExpr("facilities.rooms AS r")).
 		OrderExpr("r.name ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, "r"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "r")
 
 	if options != nil && options.Filter != nil {
 		options.Filter.WithTableAlias("r")

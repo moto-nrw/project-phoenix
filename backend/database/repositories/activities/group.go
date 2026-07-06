@@ -47,9 +47,7 @@ func (r *GroupRepository) FindByName(ctx context.Context, name string) (*activit
 		Where(`LOWER(TRIM("group".name)) = LOWER(TRIM(?))`, name).
 		Where(`"group".archived_at IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -69,9 +67,7 @@ func (r *GroupRepository) FindByCategory(ctx context.Context, categoryID int64) 
 		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
 		Where("category_id = ?", categoryID)
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group")
 
 	err := query.
 		Order(orderByNameAsc).
@@ -95,9 +91,7 @@ func (r *GroupRepository) FindOpenGroups(ctx context.Context) ([]*activities.Gro
 		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
 		Where("is_open = ?", true)
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group")
 
 	err := query.
 		Order(orderByNameAsc).
@@ -123,9 +117,7 @@ func (r *GroupRepository) FindAllTemplates(ctx context.Context) ([]*activities.G
 		Where(`"group".is_template = ?`, true).
 		Where(`"group".archived_at IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group")
 
 	err := query.
 		Order(orderByNameAsc).
@@ -148,9 +140,7 @@ func (r *GroupRepository) FindWithEnrollmentCounts(ctx context.Context) ([]*acti
 		Model(&groups).
 		ModelTableExpr(tableExprActivitiesGroupsAsGrp)
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		groupQuery = groupQuery.Where(where, val)
-	}
+	groupQuery = base.WithTenantFilter(ctx, groupQuery, "group")
 
 	err := groupQuery.
 		Order(orderByNameAsc).
@@ -252,9 +242,7 @@ func (r *GroupRepository) FindWithSupervisors(ctx context.Context, groupID int64
 		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
 		Where(whereIDEquals, groupID)
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		groupQuery = groupQuery.Where(where, val)
-	}
+	groupQuery = base.WithTenantFilter(ctx, groupQuery, "group")
 
 	err := groupQuery.Scan(ctx)
 
@@ -272,9 +260,7 @@ func (r *GroupRepository) FindWithSupervisors(ctx context.Context, groupID int64
 		ModelTableExpr(`activities.supervisors AS "supervisor_planned"`).
 		Where("group_id = ?", groupID)
 
-	if where, val, ok := base.TenantWhere(ctx, "supervisor_planned"); ok {
-		supQuery = supQuery.Where(where, val)
-	}
+	supQuery = base.WithTenantFilter(ctx, supQuery, "supervisor_planned")
 
 	err = supQuery.
 		Order("is_primary DESC").
@@ -304,9 +290,7 @@ func (r *GroupRepository) FindByStaffSupervisor(ctx context.Context, staffID int
 		Join("JOIN activities.supervisors AS s ON s.group_id = \"group\".id").
 		Where("s.staff_id = ?", staffID)
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group")
 
 	err := query.Scan(ctx)
 
@@ -368,9 +352,7 @@ func (r *GroupRepository) List(ctx context.Context, options *modelBase.QueryOpti
 		ColumnExpr(`"category"."color" AS "category__color"`).
 		Join(`LEFT JOIN activities.categories AS "category" ON "category"."id" = "group"."category_id"`)
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group")
 
 	// Apply query options with table alias to avoid ambiguous column references
 	// (both "group" and "category" have "id" columns)

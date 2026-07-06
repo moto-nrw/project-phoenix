@@ -48,9 +48,7 @@ func (r *RequestChildOfferingRepository) ReplaceForRequestChild(ctx context.Cont
 		Model((*enrollment.RequestChildOffering)(nil)).
 		ModelTableExpr(requestChildOfferingTableExpr).
 		Where(`"request_child_offering".request_child_id = ?`, requestChildID)
-	if where, val, ok := base.TenantWhere(ctx, "request_child_offering"); ok {
-		deleteQuery = deleteQuery.Where(where, val)
-	}
+	deleteQuery = base.WithTenantFilter(ctx, deleteQuery, "request_child_offering")
 	if _, err := deleteQuery.Exec(ctx); err != nil {
 		return fmt.Errorf("failed to delete request child offerings: %w", err)
 	}

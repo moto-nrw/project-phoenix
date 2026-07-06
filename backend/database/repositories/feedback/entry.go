@@ -50,9 +50,7 @@ func (r *EntryRepository) FindByStudentID(ctx context.Context, studentID int64) 
 		ModelTableExpr(tableFeedbackEntriesAlias).
 		Where("student_id = ?", studentID)
 
-	if where, val, ok := base.TenantWhere(ctx, "entry"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "entry")
 
 	err := query.
 		Order(orderDayDesc).
@@ -77,9 +75,7 @@ func (r *EntryRepository) FindByDay(ctx context.Context, day timezone.Date) ([]*
 		ModelTableExpr(tableFeedbackEntriesAlias).
 		Where("day = ?", day)
 
-	if where, val, ok := base.TenantWhere(ctx, "entry"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "entry")
 
 	err := query.Order(orderTimeDesc).Scan(ctx)
 
@@ -101,9 +97,7 @@ func (r *EntryRepository) FindByDateRange(ctx context.Context, startDate, endDat
 		ModelTableExpr(tableFeedbackEntriesAlias).
 		Where("day >= ? AND day <= ?", startDate, endDate)
 
-	if where, val, ok := base.TenantWhere(ctx, "entry"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "entry")
 
 	err := query.
 		Order(orderDayDesc).
@@ -128,9 +122,7 @@ func (r *EntryRepository) FindMensaFeedback(ctx context.Context, isMensaFeedback
 		ModelTableExpr(tableFeedbackEntriesAlias).
 		Where(whereIsMensaFeedback, isMensaFeedback)
 
-	if where, val, ok := base.TenantWhere(ctx, "entry"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "entry")
 
 	err := query.
 		Order(orderDayDesc).
@@ -155,9 +147,7 @@ func (r *EntryRepository) FindByStudentAndDateRange(ctx context.Context, student
 		ModelTableExpr(tableFeedbackEntriesAlias).
 		Where("student_id = ? AND day >= ? AND day <= ?", studentID, startDate, endDate)
 
-	if where, val, ok := base.TenantWhere(ctx, "entry"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "entry")
 
 	err := query.
 		Order(orderDayDesc).
@@ -179,9 +169,7 @@ func (r *EntryRepository) List(ctx context.Context, filters map[string]interface
 	var entries []*feedback.Entry
 	query := base.GetDB(ctx, r.db).NewSelect().Model(&entries).ModelTableExpr(tableFeedbackEntriesAlias)
 
-	if where, val, ok := base.TenantWhere(ctx, "entry"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "entry")
 
 	query = applyFeedbackFilters(query, filters)
 	query = query.Order(orderDayDesc).Order(orderTimeDesc)

@@ -43,9 +43,7 @@ func (r *WorkSessionRepository) GetByStaffAndDate(ctx context.Context, staffID i
 		Where(`"work_session".staff_id = ?`, staffID).
 		Where(`"work_session".date = ?`, date)
 
-	if where, val, ok := base.TenantWhere(ctx, "work_session"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "work_session")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -79,9 +77,7 @@ func (r *WorkSessionRepository) getCurrentByStaffID(ctx context.Context, staffID
 		Where(`"work_session".date = ?`, today).
 		Where(`"work_session".check_out_time IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "work_session"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "work_session")
 	if forUpdate {
 		query = query.For("UPDATE")
 	}
@@ -107,9 +103,7 @@ func (r *WorkSessionRepository) LockOpenByIDForUpdate(ctx context.Context, id in
 		Where(`"work_session".check_out_time IS NULL`).
 		For("UPDATE")
 
-	if where, val, ok := base.TenantWhere(ctx, "work_session"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "work_session")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -133,9 +127,7 @@ func (r *WorkSessionRepository) GetHistoryByStaffID(ctx context.Context, staffID
 		Where(`"work_session".date <= ?`, to).
 		OrderExpr(`"work_session".date ASC`)
 
-	if where, val, ok := base.TenantWhere(ctx, "work_session"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "work_session")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -157,9 +149,7 @@ func (r *WorkSessionRepository) GetOpenSessions(ctx context.Context, beforeDate 
 		Where(`"work_session".date < ?`, beforeDate).
 		Where(`"work_session".check_out_time IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "work_session"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "work_session")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -189,9 +179,7 @@ func (r *WorkSessionRepository) GetTodayPresenceMap(ctx context.Context) (map[in
 		ColumnExpr(`"work_session".check_out_time`).
 		Where(`"work_session".date = ?`, today)
 
-	if where, val, ok := base.TenantWhere(ctx, "work_session"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "work_session")
 
 	err := query.Scan(ctx, &results)
 	if err != nil {
@@ -224,9 +212,7 @@ func (r *WorkSessionRepository) List(ctx context.Context, options *modelBase.Que
 		Model(&sessions).
 		ModelTableExpr(tableExprActiveWorkSessionsAsSession)
 
-	if where, val, ok := base.TenantWhere(ctx, "work_session"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "work_session")
 
 	if options != nil {
 		query = options.ApplyToQuery(query)

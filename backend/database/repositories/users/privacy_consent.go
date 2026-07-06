@@ -36,9 +36,7 @@ func (r *PrivacyConsentRepository) FindByStudentID(ctx context.Context, studentI
 		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`).
 		Where(`"privacy_consent".student_id = ?`, studentID)
 
-	if where, val, ok := base.TenantWhere(ctx, "privacy_consent"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "privacy_consent")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -61,9 +59,7 @@ func (r *PrivacyConsentRepository) FindActiveByStudentID(ctx context.Context, st
 		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`).
 		Where(`"privacy_consent".student_id = ? AND "privacy_consent".accepted = TRUE AND ("privacy_consent".expires_at IS NULL OR "privacy_consent".expires_at > ?)`, studentID, now)
 
-	if where, val, ok := base.TenantWhere(ctx, "privacy_consent"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "privacy_consent")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -89,9 +85,7 @@ func (r *PrivacyConsentRepository) ListAcceptedRetentionSettings(ctx context.Con
 		Where(`"privacy_consent".accepted = TRUE`).
 		OrderExpr(`"privacy_consent".student_id`)
 
-	if where, val, ok := base.TenantWhere(ctx, "privacy_consent"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "privacy_consent")
 
 	if err := query.Scan(ctx, &settings); err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -112,9 +106,7 @@ func (r *PrivacyConsentRepository) Accept(ctx context.Context, id int64, accepte
 		Set("accepted_at = ?", acceptedAt).
 		Where(`"privacy_consent".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "privacy_consent"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "privacy_consent")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -135,9 +127,7 @@ func (r *PrivacyConsentRepository) Revoke(ctx context.Context, id int64) error {
 		Set("accepted = FALSE").
 		Where(`"privacy_consent".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "privacy_consent"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "privacy_consent")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -167,9 +157,7 @@ func (r *PrivacyConsentRepository) Update(ctx context.Context, consent *users.Pr
 		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`).
 		WherePK()
 
-	if where, val, ok := base.TenantWhere(ctx, "privacy_consent"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "privacy_consent")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -234,9 +222,7 @@ func (r *PrivacyConsentRepository) ListWithOptions(ctx context.Context, options 
 		Model(&consents).
 		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`)
 
-	if where, val, ok := base.TenantWhere(ctx, "privacy_consent"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "privacy_consent")
 
 	// Apply query options
 	if options != nil {

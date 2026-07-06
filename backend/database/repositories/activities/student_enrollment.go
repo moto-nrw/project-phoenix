@@ -48,9 +48,7 @@ func (r *StudentEnrollmentRepository) CapActiveByGroup(ctx context.Context, grou
 		Where(`"student_enrollment".activity_group_id = ?`, groupID).
 		Where(`"student_enrollment".valid_until IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_enrollment"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_enrollment")
 
 	res, err := query.Exec(ctx)
 	if err != nil {
@@ -73,9 +71,7 @@ func (r *StudentEnrollmentRepository) FindByStudentID(ctx context.Context, stude
 		// The caller should load ActivityGroup and ActivityGroup.Category separately if needed
 		Where("student_id = ?", studentID)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_enrollment"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_enrollment")
 
 	err := query.
 		Order("valid_from DESC").
@@ -138,9 +134,7 @@ func (r *StudentEnrollmentRepository) FindActiveByStudentIDs(ctx context.Context
 		Where(`"student_enrollment".valid_from <= ?`, onDate).
 		Where(`("student_enrollment".valid_until IS NULL OR "student_enrollment".valid_until > ?)`, onDate)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_enrollment"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_enrollment")
 
 	if err := query.
 		OrderExpr(`"student_enrollment".student_id ASC`).
@@ -212,9 +206,7 @@ func (r *StudentEnrollmentRepository) FindByGroupID(ctx context.Context, groupID
 		// Filter by group ID
 		Where(`"student_enrollment".activity_group_id = ?`, groupID)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_enrollment"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_enrollment")
 
 	err := query.
 		Order("student_enrollment.valid_from DESC").
@@ -284,9 +276,7 @@ func (r *StudentEnrollmentRepository) BackfillEnrollmentRequestChildSource(ctx c
 					)
 				)
 		)`, requestChildID, bun.List(groupIDs))
-	if where, val, ok := base.TenantWhere(ctx, "student_enrollment"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_enrollment")
 	result, err := query.Exec(ctx)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "backfill enrollment request child source", Err: err}
@@ -309,9 +299,7 @@ func (r *StudentEnrollmentRepository) DeleteByEnrollmentRequestChild(ctx context
 		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
 		Where(`"student_enrollment".student_id = ?`, studentID).
 		Where(`"student_enrollment".enrollment_request_child_id = ?`, requestChildID)
-	if where, val, ok := base.TenantWhere(ctx, "student_enrollment"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_enrollment")
 	result, err := query.Exec(ctx)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "delete by enrollment request child", Err: err}
@@ -390,9 +378,7 @@ func (r *StudentEnrollmentRepository) List(ctx context.Context, options *modelBa
 	enrollments := make([]*activities.StudentEnrollment, 0)
 	query := base.GetDB(ctx, r.db).NewSelect().Model(&enrollments).ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_enrollment"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_enrollment")
 
 	// Apply query options
 	if options != nil {

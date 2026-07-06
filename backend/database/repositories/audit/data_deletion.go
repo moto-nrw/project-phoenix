@@ -62,9 +62,7 @@ func (r *DataDeletionRepository) FindByStudentID(ctx context.Context, studentID 
 		ModelTableExpr(`audit.data_deletions AS "data_deletion"`).
 		Where("student_id = ?", studentID)
 
-	if where, val, ok := base.TenantWhere(ctx, "data_deletion"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "data_deletion")
 
 	err := query.Order(orderByDeletedAtDesc).Scan(ctx)
 
@@ -87,9 +85,7 @@ func (r *DataDeletionRepository) FindByDateRange(ctx context.Context, startDate,
 		Where("deleted_at >= ?", startDate).
 		Where("deleted_at <= ?", endDate)
 
-	if where, val, ok := base.TenantWhere(ctx, "data_deletion"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "data_deletion")
 
 	err := query.Order(orderByDeletedAtDesc).Scan(ctx)
 
@@ -111,9 +107,7 @@ func (r *DataDeletionRepository) FindByType(ctx context.Context, deletionType st
 		ModelTableExpr(`audit.data_deletions AS "data_deletion"`).
 		Where(whereDeletionTypeEquals, deletionType)
 
-	if where, val, ok := base.TenantWhere(ctx, "data_deletion"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "data_deletion")
 
 	err := query.Order(orderByDeletedAtDesc).Scan(ctx)
 
@@ -134,9 +128,7 @@ func (r *DataDeletionRepository) List(ctx context.Context, filters map[string]in
 		Model(&deletions).
 		ModelTableExpr(`audit.data_deletions AS "data_deletion"`)
 
-	if where, val, ok := base.TenantWhere(ctx, "data_deletion"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "data_deletion")
 
 	query = query.Order(orderByDeletedAtDesc)
 

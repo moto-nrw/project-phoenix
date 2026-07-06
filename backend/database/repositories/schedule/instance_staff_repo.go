@@ -40,9 +40,7 @@ func (r *InstanceStaffRepository) FindByID(ctx context.Context, id any) (*schedu
 		ModelTableExpr(modelTblInstanceStaff).
 		Where(`"instance_staff".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStaff); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasInstanceStaff)
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -61,9 +59,7 @@ func (r *InstanceStaffRepository) List(ctx context.Context, options *modelBase.Q
 		Model(&rows).
 		ModelTableExpr(modelTblInstanceStaff)
 
-	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStaff); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasInstanceStaff)
 
 	if options != nil {
 		query = options.ApplyToQuery(query)
@@ -88,9 +84,7 @@ func (r *InstanceStaffRepository) FindByInstanceID(ctx context.Context, instance
 		Where(`"instance_staff".instance_id = ?`, instanceID).
 		Order(orderCreatedAtASC)
 
-	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStaff); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasInstanceStaff)
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -120,9 +114,7 @@ func (r *InstanceStaffRepository) FindByInstanceIDs(ctx context.Context, instanc
 		Where(`"instance_staff".instance_id IN (?)`, bun.List(instanceIDs)).
 		OrderExpr(`"instance_staff".instance_id ASC, "instance_staff".id ASC`)
 
-	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStaff); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasInstanceStaff)
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -146,9 +138,7 @@ func (r *InstanceStaffRepository) FindByStaffAndDate(ctx context.Context, staffI
 		Where(`"activity_instance".date = ?`, date).
 		OrderExpr(`"activity_instance".start_time ASC`)
 
-	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStaff); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasInstanceStaff)
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -175,9 +165,7 @@ func (r *InstanceStaffRepository) DeleteUpcomingByStaffID(ctx context.Context, s
 			SELECT id FROM schedule.activity_instances WHERE date > ? OR (date = ? AND status = ?)
 		)`, after, after, schedule.InstanceStatusPlanned)
 
-	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStaff); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasInstanceStaff)
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -211,9 +199,7 @@ func (r *InstanceStaffRepository) CountNonAbsentByInstanceIDs(ctx context.Contex
 		Where(`"instance_staff".is_absent = ?`, false).
 		GroupExpr(`"instance_staff".instance_id`)
 
-	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStaff); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasInstanceStaff)
 
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -237,9 +223,7 @@ func (r *InstanceStaffRepository) DeleteByInstanceID(ctx context.Context, instan
 		ModelTableExpr(modelTblInstanceStaff).
 		Where(`"instance_staff".instance_id = ?`, instanceID)
 
-	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStaff); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasInstanceStaff)
 
 	_, err := query.Exec(ctx)
 	if err != nil {

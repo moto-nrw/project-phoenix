@@ -37,9 +37,7 @@ func (r *StaffRepository) FindByPersonID(ctx context.Context, personID int64) (*
 		ModelTableExpr(`users.staff AS "staff"`).
 		Where(`"staff".person_id = ?`, personID)
 
-	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "staff")
 
 	err := query.Scan(ctx)
 
@@ -63,9 +61,7 @@ func (r *StaffRepository) ClearWorkTimeModel(ctx context.Context, id int64) erro
 		Set(`work_time_model_id = NULL`).
 		Where(`"staff".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "staff")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -102,9 +98,7 @@ func (r *StaffRepository) ListWithOptions(ctx context.Context, options *modelBas
 		Model(&staffMembers).
 		ModelTableExpr(`users.staff AS "staff"`)
 
-	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "staff")
 
 	// Apply query options
 	if options != nil {
@@ -150,9 +144,7 @@ func (r *StaffRepository) ListAllWithPerson(ctx context.Context) ([]*users.Staff
 		Join(`LEFT JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
 		Where(`"staff".deleted_at IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "staff")
 
 	err := query.Scan(ctx)
 
@@ -184,9 +176,7 @@ func (r *StaffRepository) FindWithPerson(ctx context.Context, id int64) (*users.
 		ModelTableExpr(`users.staff AS "staff"`).
 		Where(`"staff".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
-		staffQuery = staffQuery.Where(where, val)
-	}
+	staffQuery = base.WithTenantFilter(ctx, staffQuery, "staff")
 
 	err := staffQuery.Scan(ctx)
 	if err != nil {
@@ -204,9 +194,7 @@ func (r *StaffRepository) FindWithPerson(ctx context.Context, id int64) (*users.
 			ModelTableExpr(`users.persons AS "person"`).
 			Where(`"person".id = ?`, staff.PersonID)
 
-		if where, val, ok := base.TenantWhere(ctx, "person"); ok {
-			personQuery = personQuery.Where(where, val)
-		}
+		personQuery = base.WithTenantFilter(ctx, personQuery, "person")
 
 		personErr := personQuery.Scan(ctx)
 
@@ -238,9 +226,7 @@ func (r *StaffRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64
 		ModelTableExpr(`users.staff AS "staff"`).
 		Where(`"staff".id IN (?)`, bun.List(ids))
 
-	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "staff")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -291,9 +277,7 @@ func (r *StaffRepository) FindWithPersonByIDs(ctx context.Context, ids []int64) 
 		Join(`LEFT JOIN users.persons AS "person" ON "person".id = "staff".person_id AND "person".deleted_at IS NULL`).
 		Where(`"staff".id IN (?)`, bun.List(ids))
 
-	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "staff")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -342,9 +326,7 @@ func (r *StaffRepository) ListStaffByRoles(ctx context.Context, roles []string) 
 		Where(`LOWER("role".name) IN (?)`, bun.List(lowerRoles)).
 		Where(`"staff".deleted_at IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "staff")
 
 	err := query.Scan(ctx, &results)
 
@@ -376,9 +358,7 @@ func (r *StaffRepository) AddNotes(ctx context.Context, id int64, notes string) 
 		Column(`"staff".staff_notes`).
 		WherePK()
 
-	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
-		updateQuery = updateQuery.Where(where, val)
-	}
+	updateQuery = base.WithTenantFilter(ctx, updateQuery, "staff")
 
 	result, err := updateQuery.Exec(ctx)
 	if err != nil {

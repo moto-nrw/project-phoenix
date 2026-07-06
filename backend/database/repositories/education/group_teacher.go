@@ -36,9 +36,7 @@ func (r *GroupTeacherRepository) DeleteByTeacherID(ctx context.Context, teacherI
 		ModelTableExpr(`education.group_teacher AS "group_teacher"`).
 		Where(`"group_teacher".teacher_id = ?`, teacherID)
 
-	if where, val, ok := base.TenantWhere(ctx, "group_teacher"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_teacher")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -59,9 +57,7 @@ func (r *GroupTeacherRepository) FindByGroup(ctx context.Context, groupID int64)
 		ModelTableExpr(`education.group_teacher AS "group_teacher"`).
 		Where("group_id = ?", groupID)
 
-	if where, val, ok := base.TenantWhere(ctx, "group_teacher"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_teacher")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -82,9 +78,7 @@ func (r *GroupTeacherRepository) FindByTeacher(ctx context.Context, teacherID in
 		ModelTableExpr(`education.group_teacher AS "group_teacher"`).
 		Where("teacher_id = ?", teacherID)
 
-	if where, val, ok := base.TenantWhere(ctx, "group_teacher"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_teacher")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -109,9 +103,7 @@ func (r *GroupTeacherRepository) FindByGroupIDs(ctx context.Context, groupIDs []
 		ModelTableExpr(`education.group_teacher AS "group_teacher"`).
 		Where(`"group_teacher".group_id IN (?)`, bun.List(groupIDs))
 
-	if where, val, ok := base.TenantWhere(ctx, "group_teacher"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_teacher")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -149,9 +141,7 @@ func (r *GroupTeacherRepository) ListWithOptions(ctx context.Context, options *m
 		Model(&groupTeachers).
 		ModelTableExpr(`education.group_teacher AS "group_teacher"`)
 
-	if where, val, ok := base.TenantWhere(ctx, "group_teacher"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_teacher")
 
 	// Apply query options
 	if options != nil {

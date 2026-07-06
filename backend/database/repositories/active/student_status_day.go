@@ -150,9 +150,7 @@ func (r *StudentStatusDayRepository) FindActiveByID(ctx context.Context, id int6
 		Where(`"student_status_day".id = ?`, id).
 		Where(`"student_status_day".cleared_at IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_status_day"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_status_day")
 
 	if err := query.Scan(ctx); err != nil {
 		if err == sql.ErrNoRows {
@@ -186,9 +184,7 @@ func (r *StudentStatusDayRepository) FindActiveByStudentIDsAndDate(ctx context.C
 		OrderExpr(`"student_status_day".student_id ASC`).
 		OrderExpr(`"student_status_day".reported_at DESC`)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_status_day"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_status_day")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find active student status days by student ids and date", Err: err}
@@ -216,9 +212,7 @@ func (r *StudentStatusDayRepository) findByStudentAndDateRange(ctx context.Conte
 		query = query.Where(`"student_status_day".cleared_at IS NULL`)
 	}
 
-	if where, val, ok := base.TenantWhere(ctx, "student_status_day"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_status_day")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find student status days by date range", Err: err}
@@ -311,9 +305,7 @@ func (r *StudentStatusDayRepository) CountEffectiveDashboardAbsences(ctx context
 		`, date).
 		Where(`"student".status = ?`, string(usersModels.StudentStatusActive)).
 		GroupExpr(`"student".id, "student".sick, "student".excused`)
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		perStudent = perStudent.Where(where, val)
-	}
+	perStudent = base.WithTenantFilter(ctx, perStudent, "student")
 
 	query := db.NewSelect().
 		TableExpr(`(?) AS "effective_student_status"`, perStudent).

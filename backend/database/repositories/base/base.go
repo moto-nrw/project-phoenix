@@ -430,6 +430,15 @@ func TenantWhere(ctx context.Context, alias string) (string, int64, bool) {
 	return "", 0, false
 }
 
+// WithTenantFilter applies the TenantWhere defense-in-depth tenant_id filter
+// for alias to q, returning q unchanged when no tenant is in ctx.
+func WithTenantFilter[Q interface{ Where(string, ...any) Q }](ctx context.Context, q Q, alias string) Q {
+	if where, val, ok := TenantWhere(ctx, alias); ok {
+		return q.Where(where, val)
+	}
+	return q
+}
+
 // toSnakeCase converts a CamelCase string to snake_case
 // Example: "StudentGuardian" -> "student_guardian"
 func toSnakeCase(s string) string {

@@ -98,9 +98,7 @@ func (r *StudentGuardianRepository) FindByStudentID(ctx context.Context, student
 		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
 		Where(`"student_guardian".student_id = ?`, studentID)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_guardian"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_guardian")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -121,9 +119,7 @@ func (r *StudentGuardianRepository) FindByGuardianProfileID(ctx context.Context,
 		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
 		Where(`"student_guardian".guardian_profile_id = ?`, guardianProfileID)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_guardian"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_guardian")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -196,9 +192,7 @@ func (r *StudentGuardianRepository) FindByStudentAndGuardianForUpdate(ctx contex
 		Where(`"student_guardian".guardian_profile_id = ?`, guardianProfileID).
 		For("UPDATE")
 
-	if where, val, ok := base.TenantWhere(ctx, "student_guardian"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_guardian")
 
 	if err := query.Scan(ctx); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -223,9 +217,7 @@ func (r *StudentGuardianRepository) SetPrimary(ctx context.Context, id int64, is
 		Set("is_primary = ?", isPrimary).
 		Where(`"student_guardian".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_guardian"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_guardian")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -276,9 +268,7 @@ func (r *StudentGuardianRepository) ListWithOptions(ctx context.Context, options
 		Model(&relationships).
 		ModelTableExpr(`users.students_guardians AS "student_guardian"`)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_guardian"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_guardian")
 
 	// Apply query options
 	if options != nil {

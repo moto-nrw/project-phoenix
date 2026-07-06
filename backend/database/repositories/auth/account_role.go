@@ -43,9 +43,7 @@ func (r *AccountRoleRepository) FindByAccountID(ctx context.Context, accountID i
 		ColumnExpr(`"role".id AS "role__id", "role".created_at AS "role__created_at", "role".updated_at AS "role__updated_at", "role".name AS "role__name", "role".description AS "role__description"`).
 		Where(`"account_role".account_id = ?`, accountID)
 
-	if where, val, ok := base.TenantWhere(ctx, "account_role"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "account_role")
 
 	err := query.Scan(ctx)
 
@@ -74,8 +72,8 @@ func (r *AccountRoleRepository) FindByAccountIDForTenant(ctx context.Context, ac
 
 	if tenantID > 0 {
 		query = query.Where(`"account_role".tenant_id = ?`, tenantID)
-	} else if where, val, ok := base.TenantWhere(ctx, "account_role"); ok {
-		query = query.Where(where, val)
+	} else {
+		query = base.WithTenantFilter(ctx, query, "account_role")
 	}
 
 	err := query.Scan(ctx)
@@ -97,9 +95,7 @@ func (r *AccountRoleRepository) FindByRoleID(ctx context.Context, roleID int64) 
 		ModelTableExpr(accountRoleTableAlias).
 		Where(`"account_role".role_id = ?`, roleID)
 
-	if where, val, ok := base.TenantWhere(ctx, "account_role"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "account_role")
 
 	err := query.Scan(ctx)
 
@@ -121,9 +117,7 @@ func (r *AccountRoleRepository) FindByAccountAndRole(ctx context.Context, accoun
 		ModelTableExpr(accountRoleTableAlias).
 		Where(`"account_role".account_id = ? AND "account_role".role_id = ?`, accountID, roleID)
 
-	if where, val, ok := base.TenantWhere(ctx, "account_role"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "account_role")
 
 	err := query.Scan(ctx)
 
@@ -202,9 +196,7 @@ func (r *AccountRoleRepository) DeleteByAccountAndRole(ctx context.Context, acco
 		ModelTableExpr(accountRoleTableAlias).
 		Where(`"account_role".account_id = ? AND "account_role".role_id = ?`, accountID, roleID)
 
-	if where, val, ok := base.TenantWhere(ctx, "account_role"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "account_role")
 
 	_, err := query.Exec(ctx)
 
@@ -225,9 +217,7 @@ func (r *AccountRoleRepository) DeleteByAccountID(ctx context.Context, accountID
 		ModelTableExpr(accountRoleTableAlias).
 		Where(`"account_role".account_id = ?`, accountID)
 
-	if where, val, ok := base.TenantWhere(ctx, "account_role"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "account_role")
 
 	_, err := query.Exec(ctx)
 
@@ -248,9 +238,7 @@ func (r *AccountRoleRepository) DeleteByRoleID(ctx context.Context, roleID int64
 		ModelTableExpr(accountRoleTableAlias).
 		Where(`"account_role".role_id = ?`, roleID)
 
-	if where, val, ok := base.TenantWhere(ctx, "account_role"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "account_role")
 
 	_, err := query.Exec(ctx)
 
@@ -271,9 +259,7 @@ func (r *AccountRoleRepository) List(ctx context.Context, filters map[string]any
 		Model(&accountRoles).
 		ModelTableExpr(accountRoleTableAlias)
 
-	if where, val, ok := base.TenantWhere(ctx, "account_role"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "account_role")
 
 	// Apply filters
 	for field, value := range filters {

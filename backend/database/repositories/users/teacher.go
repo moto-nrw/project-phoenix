@@ -39,9 +39,7 @@ func (r *TeacherRepository) FindByStaffID(ctx context.Context, staffID int64) (*
 		ModelTableExpr(`users.teachers AS "teacher"`).
 		Where(`"teacher".staff_id = ?`, staffID)
 
-	if where, val, ok := base.TenantWhere(ctx, "teacher"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "teacher")
 
 	err := query.Scan(ctx)
 
@@ -71,9 +69,7 @@ func (r *TeacherRepository) FindByStaffIDs(ctx context.Context, staffIDs []int64
 		ModelTableExpr(`users.teachers AS "teacher"`).
 		Where(`"teacher".staff_id IN (?)`, bun.List(staffIDs))
 
-	if where, val, ok := base.TenantWhere(ctx, "teacher"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "teacher")
 
 	err := query.Scan(ctx)
 
@@ -101,9 +97,7 @@ func (r *TeacherRepository) FindBySpecialization(ctx context.Context, specializa
 		ModelTableExpr(`users.teachers AS "teacher"`).
 		Where("LOWER(specialization) = LOWER(?)", specialization)
 
-	if where, val, ok := base.TenantWhere(ctx, "teacher"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "teacher")
 
 	err := query.Scan(ctx)
 
@@ -126,9 +120,7 @@ func (r *TeacherRepository) FindByGroupID(ctx context.Context, groupID int64) ([
 		Join(`JOIN education.group_teacher gt ON gt.teacher_id = "teacher".id`).
 		Where("gt.group_id = ?", groupID)
 
-	if where, val, ok := base.TenantWhere(ctx, "teacher"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "teacher")
 
 	err := query.Scan(ctx)
 
@@ -185,9 +177,7 @@ func (r *TeacherRepository) ListWithOptions(ctx context.Context, options *modelB
 		Model(&teachers).
 		ModelTableExpr(`users.teachers AS "teacher"`)
 
-	if where, val, ok := base.TenantWhere(ctx, "teacher"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "teacher")
 
 	// Apply query options
 	if options != nil {
@@ -240,9 +230,7 @@ func (r *TeacherRepository) FindWithStaffAndPerson(ctx context.Context, id int64
 		Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
 		Where(`"teacher".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "teacher"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "teacher")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -295,9 +283,7 @@ func (r *TeacherRepository) ListAllWithStaffAndPerson(ctx context.Context) ([]*u
 		Where(`"teacher".deleted_at IS NULL`).
 		Where(`"staff".deleted_at IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "teacher"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "teacher")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -355,9 +341,7 @@ func (r *TeacherRepository) FindWithStaffAndPersonByIDs(ctx context.Context, ids
 		Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
 		Where(`"teacher".id IN (?)`, bun.List(ids))
 
-	if where, val, ok := base.TenantWhere(ctx, "teacher"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "teacher")
 
 	err := query.Scan(ctx)
 	if err != nil {

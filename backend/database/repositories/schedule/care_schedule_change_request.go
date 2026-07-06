@@ -48,9 +48,7 @@ func (r *CareScheduleChangeRequestRepository) GetPendingForStudent(ctx context.C
 		Where(`"care_schedule_change_request".student_id = ?`, studentID).
 		Where(`"care_schedule_change_request".status = ?`, schedule.CareRequestStatusPending)
 
-	if where, val, ok := base.TenantWhere(ctx, "care_schedule_change_request"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "care_schedule_change_request")
 
 	if err := query.Scan(ctx); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -70,9 +68,7 @@ func (r *CareScheduleChangeRequestRepository) ListPendingForTenant(ctx context.C
 		ModelTableExpr(tableExprCareScheduleChangeRequestsAsReq).
 		Where(`"care_schedule_change_request".status = ?`, schedule.CareRequestStatusPending)
 
-	if where, val, ok := base.TenantWhere(ctx, "care_schedule_change_request"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "care_schedule_change_request")
 	query = query.
 		OrderExpr(`"care_schedule_change_request".created_at DESC`).
 		OrderExpr(`"care_schedule_change_request".id DESC`)
@@ -95,9 +91,7 @@ func (r *CareScheduleChangeRequestRepository) FindPendingByIDForUpdate(ctx conte
 		Where(`"care_schedule_change_request".id = ?`, id).
 		For("UPDATE")
 
-	if where, val, ok := base.TenantWhere(ctx, "care_schedule_change_request"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "care_schedule_change_request")
 
 	if err := query.Scan(ctx); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -125,9 +119,7 @@ func (r *CareScheduleChangeRequestRepository) FindByIDForUpdate(ctx context.Cont
 		Where(`"care_schedule_change_request".id = ?`, id).
 		For("UPDATE")
 
-	if where, val, ok := base.TenantWhere(ctx, "care_schedule_change_request"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "care_schedule_change_request")
 
 	if err := query.Scan(ctx); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -159,9 +151,7 @@ func (r *CareScheduleChangeRequestRepository) Decide(ctx context.Context, id int
 	if applied {
 		q = q.Set("applied_at = ?", now)
 	}
-	if where, val, ok := base.TenantWhere(ctx, "care_schedule_change_request"); ok {
-		q = q.Where(where, val)
-	}
+	q = base.WithTenantFilter(ctx, q, "care_schedule_change_request")
 
 	res, err := q.Exec(ctx)
 	if err != nil {

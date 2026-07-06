@@ -33,9 +33,7 @@ func (r *ProfileRepository) FindByAccountID(ctx context.Context, accountID int64
 		ModelTableExpr(`users.profiles AS "profile"`).
 		Where(`"profile".account_id = ?`, accountID)
 
-	if where, val, ok := base.TenantWhere(ctx, "profile"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "profile")
 
 	err := query.Scan(ctx)
 
@@ -57,9 +55,7 @@ func (r *ProfileRepository) UpdateAvatar(ctx context.Context, id int64, avatar s
 		Set("avatar = ?", avatar).
 		Where(`"profile".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "profile"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "profile")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -84,9 +80,7 @@ func (r *ProfileRepository) List(ctx context.Context, filters map[string]interfa
 		Model(&profiles).
 		ModelTableExpr(`users.profiles AS "profile"`)
 
-	if where, val, ok := base.TenantWhere(ctx, "profile"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "profile")
 
 	// Apply filters
 	for field, value := range filters {

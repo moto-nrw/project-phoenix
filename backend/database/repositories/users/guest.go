@@ -42,9 +42,7 @@ func (r *GuestRepository) FindByStaffID(ctx context.Context, staffID int64) (*us
 		ModelTableExpr(tableExprGuestsAsGuest).
 		Where("staff_id = ?", staffID)
 
-	if where, val, ok := base.TenantWhere(ctx, "guest"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "guest")
 
 	err := query.Scan(ctx)
 
@@ -68,9 +66,7 @@ func (r *GuestRepository) FindActive(ctx context.Context) ([]*users.Guest, error
 		ModelTableExpr(tableExprGuestsAsGuest).
 		Where("(start_date IS NULL OR start_date <= ?) AND (end_date IS NULL OR end_date >= ?)", today, today)
 
-	if where, val, ok := base.TenantWhere(ctx, "guest"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "guest")
 
 	err := query.Scan(ctx)
 
@@ -157,9 +153,7 @@ func (r *GuestRepository) ListWithOptions(ctx context.Context, options *modelBas
 	var guests []*users.Guest
 	query := base.GetDB(ctx, r.db).NewSelect().Model(&guests).ModelTableExpr(tableExprGuestsAsGuest)
 
-	if where, val, ok := base.TenantWhere(ctx, "guest"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "guest")
 
 	// Apply query options
 	if options != nil {
@@ -187,9 +181,7 @@ func (r *GuestRepository) FindWithStaffAndPerson(ctx context.Context, id int64) 
 		Relation("Staff.Person").
 		Where(`"guest".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "guest"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "guest")
 
 	err := query.Scan(ctx)
 
