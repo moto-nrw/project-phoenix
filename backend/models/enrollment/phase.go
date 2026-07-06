@@ -130,6 +130,18 @@ type Phase struct {
 	RolloverAutoApprove   bool       `bun:"rollover_auto_approve,notnull" json:"rollover_auto_approve"`
 	RolloverDeadline      *time.Time `bun:"rollover_deadline" json:"rollover_deadline,omitempty"`
 	RolloverBumpsGrade    bool       `bun:"rollover_bumps_grade,notnull" json:"rollover_bumps_grade"`
+
+	// Concrete-class config (migration 1.15.167, issue #1833). Only
+	// meaningful when the tenant setting enrollment.collect_school_class
+	// is on. AvailableSchoolClasses is the admin-managed pick list the
+	// public form offers for grade >= 2 (e.g. ["2a","2b","3a"]);
+	// RequireSchoolClass makes that pick mandatory for grade >= 2 (grade
+	// 1 is always exempt because the concrete class isn't known yet).
+	//
+	// RequireSchoolClass intentionally omits the bun `default:` directive
+	// for the same reason as the bool fields above — see the note there.
+	AvailableSchoolClasses []string `bun:"available_school_classes,type:jsonb,notnull" json:"available_school_classes"`
+	RequireSchoolClass     bool     `bun:"require_school_class,notnull" json:"require_school_class"`
 }
 
 // IsRollover reports whether this phase was created from a source
@@ -192,6 +204,12 @@ func (p *Phase) Validate() error {
 	// neither. Half-set is a programmer bug.
 	if (p.RolloverSourcePhaseID == nil) != (p.RolloverMode == nil) {
 		return errors.New("rollover_source_phase_id and rollover_mode must be set together or both omitted")
+	}
+	// available_school_classes is NOT NULL jsonb; a nil slice would bind
+	// NULL and violate the constraint. Coalesce so every create/update
+	// path (admin form, rollover, tests) stores '[]' rather than NULL.
+	if p.AvailableSchoolClasses == nil {
+		p.AvailableSchoolClasses = []string{}
 	}
 	return nil
 }

@@ -94,6 +94,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		// enrollment.phases - they're no longer tenant-wide settings.
 		"enrollment.enabled",
 		"enrollment.collect_grade_level",
+		"enrollment.collect_school_class",
 		"enrollment.care_offerings_enabled",
 		"enrollment.default_activation_mode",
 		"enrollment.notification_emails",
@@ -540,6 +541,7 @@ func TestEnrollmentSettings_AllRegistered_OnEnrollmentTab(t *testing.T) {
 	enrollmentTabKeys := []string{
 		config.KeyEnrollmentEnabled,
 		config.KeyEnrollmentCollectGradeLevel,
+		config.KeyEnrollmentCollectSchoolClass,
 		config.KeyEnrollmentCareOfferingsEnabled,
 		config.KeyEnrollmentDefaultActivationMode,
 		config.KeyEnrollmentNotificationEmails,

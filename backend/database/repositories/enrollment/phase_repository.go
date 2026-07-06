@@ -80,6 +80,8 @@ func (r *PhaseRepository) Update(ctx context.Context, phase *enrollment.Phase) e
 		Set("care_overflow_mode = ?", phase.CareOverflowMode).
 		Set("care_offering_selection_mode = ?", phase.CareOfferingSelectionMode).
 		Set("is_active = ?", phase.IsActive).
+		Set("available_school_classes = ?", phase.AvailableSchoolClasses).
+		Set("require_school_class = ?", phase.RequireSchoolClass).
 		Set("updated_at = NOW()").
 		Where(`"phase".id = ?`, phase.ID).
 		Exec(ctx)

@@ -240,7 +240,12 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 		return nil, fmt.Errorf("decision: sync approved child person: %w", err)
 	}
 
-	student.SchoolClass = s.gradeToClass(child.TargetGradeLevel)
+	// Only overwrite the concrete class when the edit carries one;
+	// otherwise preserve the existing hand-assigned class instead of
+	// reducing "2a" to a bare grade number (issue #1833).
+	if concrete := s.concreteSchoolClass(child); concrete != "" {
+		student.SchoolClass = concrete
+	}
 	guardianEmail := strings.TrimSpace(strings.ToLower(req.GuardianEmail))
 	if guardianEmail != "" {
 		student.GuardianEmail = &guardianEmail

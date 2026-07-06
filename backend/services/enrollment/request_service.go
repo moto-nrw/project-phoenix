@@ -153,14 +153,15 @@ type SubmitGuardian struct {
 // NULL on the resulting request_child_offerings row. The service
 // validates subset/non-empty before inserting.
 type SubmitChild struct {
-	ID               int64
-	FirstName        string
-	LastName         string
-	DateOfBirth      timezone.Date
-	TargetGradeLevel *int16
-	CustomData       map[string]any
-	OfferingIDs      []int64
-	OfferingDays     []SubmitOfferingDays
+	ID                int64
+	FirstName         string
+	LastName          string
+	DateOfBirth       timezone.Date
+	TargetGradeLevel  *int16
+	TargetSchoolClass *string
+	CustomData        map[string]any
+	OfferingIDs       []int64
+	OfferingDays      []SubmitOfferingDays
 }
 
 // SubmitOfferingDays is one row of SubmitChild.OfferingDays.
@@ -513,6 +514,12 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	if err := s.validateSubmission(ctx, req, legalBlocks); err != nil {
 		return nil, err
 	}
+	// Concrete-class rules need the phase (pick list + require flag) and
+	// the tenant setting, so they run here rather than in validateSubmission.
+	// Mutates req.Children[i].TargetSchoolClass to the persisted value.
+	if err := s.validateAndNormalizeSchoolClasses(ctx, phase, req.Children); err != nil {
+		return nil, err
+	}
 	// consent_flags is legally meaningful data: persist only keys the
 	// resolved legal-block contract declares so a stale or manipulated
 	// client cannot smuggle arbitrary consent entries into the request.
@@ -675,15 +682,16 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 				status = override
 			}
 			row := &enrollmentModels.RequestChild{
-				RequestID:        request.ID,
-				FirstName:        strings.TrimSpace(child.FirstName),
-				LastName:         strings.TrimSpace(child.LastName),
-				DateOfBirth:      child.DateOfBirth,
-				TargetGradeLevel: child.TargetGradeLevel,
-				CustomData:       child.CustomData,
-				Status:           status,
-				ActivationMode:   enrollmentModels.ChildActivationScheduled,
-				SortOrder:        i,
+				RequestID:         request.ID,
+				FirstName:         strings.TrimSpace(child.FirstName),
+				LastName:          strings.TrimSpace(child.LastName),
+				DateOfBirth:       child.DateOfBirth,
+				TargetGradeLevel:  child.TargetGradeLevel,
+				TargetSchoolClass: child.TargetSchoolClass,
+				CustomData:        child.CustomData,
+				Status:            status,
+				ActivationMode:    enrollmentModels.ChildActivationScheduled,
+				SortOrder:         i,
 			}
 			if err := s.requestChildRepo.Create(txCtx, row); err != nil {
 				return fmt.Errorf("submit: create request child %d: %w", i, err)
@@ -1717,6 +1725,9 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 		if err := s.validateSubmission(txCtx, editReq, legalBlocks); err != nil {
 			return err
 		}
+		if err := s.validateAndNormalizeSchoolClasses(txCtx, phase, editReq.Children); err != nil {
+			return err
+		}
 		editReq.ConsentFlags = filterConsentFlags(editReq.ConsentFlags, legalBlocks)
 		if err := s.validateRequiredCustomFields(schema, editReq, openByID); err != nil {
 			return err
@@ -1841,15 +1852,16 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 				status = override
 			}
 			row := &enrollmentModels.RequestChild{
-				RequestID:        req.ID,
-				FirstName:        strings.TrimSpace(child.FirstName),
-				LastName:         strings.TrimSpace(child.LastName),
-				DateOfBirth:      child.DateOfBirth,
-				TargetGradeLevel: child.TargetGradeLevel,
-				CustomData:       child.CustomData,
-				Status:           status,
-				ActivationMode:   enrollmentModels.ChildActivationScheduled,
-				SortOrder:        i,
+				RequestID:         req.ID,
+				FirstName:         strings.TrimSpace(child.FirstName),
+				LastName:          strings.TrimSpace(child.LastName),
+				DateOfBirth:       child.DateOfBirth,
+				TargetGradeLevel:  child.TargetGradeLevel,
+				TargetSchoolClass: child.TargetSchoolClass,
+				CustomData:        child.CustomData,
+				Status:            status,
+				ActivationMode:    enrollmentModels.ChildActivationScheduled,
+				SortOrder:         i,
 			}
 			if i < len(children) {
 				row.ActivationMode = children[i].ActivationMode
@@ -2700,6 +2712,72 @@ func filterConsentFlags(flags map[string]any, blocks []LegalBlock) map[string]an
 		}
 	}
 	return out
+}
+
+// collectSchoolClass reports whether the tenant collects the concrete
+// future class (e.g. "2a") in addition to the grade level. Brand-new
+// setting with no env-var backward-compat, so ResolveBool alone (which
+// returns the registry default when there's no tenant override) is
+// sufficient; default is false.
+func (s *requestService) collectSchoolClass(ctx context.Context) bool {
+	if s.settings == nil {
+		return false
+	}
+	v, err := s.settings.ResolveBool(ctx, configModel.KeyEnrollmentCollectSchoolClass)
+	if err != nil {
+		return false
+	}
+	return v
+}
+
+// validateAndNormalizeSchoolClasses enforces the concrete-class rules
+// (issue #1833) and mutates each child's TargetSchoolClass in place to
+// the value that should be persisted:
+//
+//   - setting off: the concrete class is never collected -> force nil.
+//   - grade < 2: grade 1 (and grade-less rows) stay grade-level only ->
+//     force nil regardless of what the client sent.
+//   - grade >= 2, value provided: must be one of the phase's
+//     AvailableSchoolClasses (exact, trimmed) -> else reject.
+//   - grade >= 2, value empty: allowed as "Klasse offen" unless the
+//     phase's RequireSchoolClass makes it mandatory -> then reject.
+//
+// Trims and collapses empty strings to nil so "" never reaches the DB.
+func (s *requestService) validateAndNormalizeSchoolClasses(ctx context.Context, phase *enrollmentModels.Phase, children []SubmitChild) error {
+	collect := s.collectSchoolClass(ctx)
+	allowed := make(map[string]struct{}, len(phase.AvailableSchoolClasses))
+	for _, c := range phase.AvailableSchoolClasses {
+		if t := strings.TrimSpace(c); t != "" {
+			allowed[t] = struct{}{}
+		}
+	}
+	for i := range children {
+		// Trim + collapse to nil first so downstream only sees a real value.
+		var chosen string
+		if children[i].TargetSchoolClass != nil {
+			chosen = strings.TrimSpace(*children[i].TargetSchoolClass)
+		}
+		grade := 0
+		if children[i].TargetGradeLevel != nil {
+			grade = int(*children[i].TargetGradeLevel)
+		}
+		if !collect || grade < 2 {
+			children[i].TargetSchoolClass = nil
+			continue
+		}
+		if chosen == "" {
+			if phase.RequireSchoolClass {
+				return fmt.Errorf("%w: child %d missing target_school_class", ErrInvalidSubmission, i)
+			}
+			children[i].TargetSchoolClass = nil
+			continue
+		}
+		if _, ok := allowed[chosen]; !ok {
+			return fmt.Errorf("%w: child %d target_school_class %q not offered by this phase", ErrInvalidSubmission, i, chosen)
+		}
+		children[i].TargetSchoolClass = &chosen
+	}
+	return nil
 }
 
 // resolveGradeMax reads the tenant setting and falls back to the current

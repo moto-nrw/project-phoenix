@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -41,8 +42,14 @@ type PhaseResponse struct {
 	RolloverAutoApprove   bool    `json:"rollover_auto_approve"`
 	RolloverDeadline      *string `json:"rollover_deadline,omitempty"`
 	RolloverBumpsGrade    bool    `json:"rollover_bumps_grade"`
-	CreatedAt             string  `json:"created_at"`
-	UpdatedAt             string  `json:"updated_at"`
+	// Concrete-class config (migration 1.15.167, issue #1833). The pick
+	// list the public form offers for grade >= 2, and whether choosing is
+	// mandatory. Only meaningful when the tenant setting
+	// enrollment.collect_school_class is on.
+	AvailableSchoolClasses []string `json:"available_school_classes"`
+	RequireSchoolClass     bool     `json:"require_school_class"`
+	CreatedAt              string   `json:"created_at"`
+	UpdatedAt              string   `json:"updated_at"`
 }
 
 func toPhaseResponse(p *enrollmentModels.Phase) PhaseResponse {
@@ -85,6 +92,12 @@ func toPhaseResponse(p *enrollmentModels.Phase) PhaseResponse {
 		resp.RolloverDeadline = &s
 	}
 	resp.RolloverBumpsGrade = p.RolloverBumpsGrade
+	resp.AvailableSchoolClasses = p.AvailableSchoolClasses
+	if resp.AvailableSchoolClasses == nil {
+		// Emit [] rather than null so the frontend list binding is stable.
+		resp.AvailableSchoolClasses = []string{}
+	}
+	resp.RequireSchoolClass = p.RequireSchoolClass
 	return resp
 }
 
@@ -94,17 +107,19 @@ func toPhaseResponse(p *enrollmentModels.Phase) PhaseResponse {
 // row, or omitted/empty for "no custom fields" (the parent form
 // renders core fields only).
 type PhaseRequest struct {
-	Name                      string  `json:"name"`
-	Kind                      string  `json:"kind"`
-	ServiceStartDate          string  `json:"service_start_date"`
-	ServiceEndDate            string  `json:"service_end_date"`
-	EnrollmentOpenAt          *string `json:"enrollment_open_at,omitempty"`
-	EnrollmentCloseAt         *string `json:"enrollment_close_at,omitempty"`
-	FormSchemaID              *string `json:"form_schema_id,omitempty"`
-	ShowStatusReasonToParent  bool    `json:"show_status_reason_to_parent"`
-	CareOverflowMode          string  `json:"care_overflow_mode"`
-	CareOfferingSelectionMode string  `json:"care_offering_selection_mode"`
-	IsActive                  bool    `json:"is_active"`
+	Name                      string   `json:"name"`
+	Kind                      string   `json:"kind"`
+	ServiceStartDate          string   `json:"service_start_date"`
+	ServiceEndDate            string   `json:"service_end_date"`
+	EnrollmentOpenAt          *string  `json:"enrollment_open_at,omitempty"`
+	EnrollmentCloseAt         *string  `json:"enrollment_close_at,omitempty"`
+	FormSchemaID              *string  `json:"form_schema_id,omitempty"`
+	ShowStatusReasonToParent  bool     `json:"show_status_reason_to_parent"`
+	CareOverflowMode          string   `json:"care_overflow_mode"`
+	CareOfferingSelectionMode string   `json:"care_offering_selection_mode"`
+	IsActive                  bool     `json:"is_active"`
+	AvailableSchoolClasses    []string `json:"available_school_classes,omitempty"`
+	RequireSchoolClass        bool     `json:"require_school_class"`
 }
 
 func (req *PhaseRequest) Bind(_ *http.Request) error { return nil }
@@ -131,6 +146,8 @@ func (req *PhaseRequest) toModel(existingID int64) (*enrollmentModels.Phase, err
 		CareOverflowMode:          req.CareOverflowMode,
 		CareOfferingSelectionMode: req.CareOfferingSelectionMode,
 		IsActive:                  req.IsActive,
+		AvailableSchoolClasses:    normalizeSchoolClasses(req.AvailableSchoolClasses),
+		RequireSchoolClass:        req.RequireSchoolClass,
 	}
 	if req.EnrollmentOpenAt != nil && *req.EnrollmentOpenAt != "" {
 		t, parseErr := time.Parse(time.RFC3339, *req.EnrollmentOpenAt)
@@ -155,6 +172,26 @@ func (req *PhaseRequest) toModel(existingID int64) (*enrollmentModels.Phase, err
 	}
 	p.ID = existingID
 	return p, nil
+}
+
+// normalizeSchoolClasses trims each entry, drops empties, and dedups
+// case-sensitively while preserving admin-entered order. Returns a
+// non-nil empty slice so the jsonb column stores '[]' rather than null.
+func normalizeSchoolClasses(in []string) []string {
+	out := make([]string, 0, len(in))
+	seen := make(map[string]struct{}, len(in))
+	for _, c := range in {
+		t := strings.TrimSpace(c)
+		if t == "" {
+			continue
+		}
+		if _, ok := seen[t]; ok {
+			continue
+		}
+		seen[t] = struct{}{}
+		out = append(out, t)
+	}
+	return out
 }
 
 func (rs *Resource) listPhases(w http.ResponseWriter, r *http.Request) {

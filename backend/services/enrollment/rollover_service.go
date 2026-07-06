@@ -455,6 +455,18 @@ func (s *rolloverService) rollOneRequest(
 			result.RolledCount++
 		}
 
+		// Concrete class (issue #1833): only carry it forward when the
+		// grade stays the same (half-year rollover). When the grade
+		// bumps, last year's class letter (e.g. "2a") is stale for the
+		// new grade, so drop it and let the parent/admin re-pick in the
+		// new phase. Either way no data is lost: on approval the decision
+		// service preserves the student's existing class instead of
+		// clobbering it.
+		var carriedClass *string
+		if !newPhase.RolloverBumpsGrade {
+			carriedClass = source.TargetSchoolClass
+		}
+
 		sourceID := source.ID
 		child := &enrollmentModels.RequestChild{
 			RequestID:             newReq.ID,
@@ -462,6 +474,7 @@ func (s *rolloverService) rollOneRequest(
 			LastName:              source.LastName,
 			DateOfBirth:           source.DateOfBirth,
 			TargetGradeLevel:      newGradePtr,
+			TargetSchoolClass:     carriedClass,
 			CustomData:            source.CustomData,
 			Status:                status,
 			ActivationMode:        source.ActivationMode,

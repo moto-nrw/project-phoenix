@@ -56,6 +56,18 @@ func gradeLabel(grade *int16) string {
 	return strconv.Itoa(int(*grade)) + ". Klasse"
 }
 
+// schoolClassLabel is what the "Klasse"/"Zielklasse" export cell shows:
+// the concrete class (e.g. "2a") when the parent picked one, otherwise
+// the grade-level label ("N. Klasse") as a fallback (issue #1833).
+func schoolClassLabel(concrete *string, grade *int16) string {
+	if concrete != nil {
+		if t := strings.TrimSpace(*concrete); t != "" {
+			return t
+		}
+	}
+	return gradeLabel(grade)
+}
+
 var consentLabelsDE = []struct {
 	Key   string
 	Label string

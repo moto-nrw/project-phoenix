@@ -796,6 +796,7 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 		existing.LastName = strings.TrimSpace(next.LastName)
 		existing.DateOfBirth = next.DateOfBirth
 		existing.TargetGradeLevel = next.TargetGradeLevel
+		existing.TargetSchoolClass = next.TargetSchoolClass
 		existing.CustomData = next.CustomData
 		existing.SortOrder = i
 		if err := s.requestChildRepo.UpdateData(ctx, existing); err != nil {
@@ -1267,13 +1268,14 @@ func submitSnapshot(req SubmitRequest) map[string]any {
 			})
 		}
 		row := map[string]any{
-			"first_name":         child.FirstName,
-			"last_name":          child.LastName,
-			"date_of_birth":      child.DateOfBirth.String(),
-			"target_grade_level": child.TargetGradeLevel,
-			"custom_data":        child.CustomData,
-			"offering_ids":       offeringIDs,
-			"offering_days":      offeringDays,
+			"first_name":          child.FirstName,
+			"last_name":           child.LastName,
+			"date_of_birth":       child.DateOfBirth.String(),
+			"target_grade_level":  child.TargetGradeLevel,
+			"target_school_class": child.TargetSchoolClass,
+			"custom_data":         child.CustomData,
+			"offering_ids":        offeringIDs,
+			"offering_days":       offeringDays,
 		}
 		if child.ID > 0 {
 			row["id"] = strconv.FormatInt(child.ID, 10)
@@ -1328,11 +1330,12 @@ func persistedSnapshot(
 	}
 	for _, child := range children {
 		next := SubmitChild{
-			FirstName:        child.FirstName,
-			LastName:         child.LastName,
-			DateOfBirth:      child.DateOfBirth,
-			TargetGradeLevel: child.TargetGradeLevel,
-			CustomData:       child.CustomData,
+			FirstName:         child.FirstName,
+			LastName:          child.LastName,
+			DateOfBirth:       child.DateOfBirth,
+			TargetGradeLevel:  child.TargetGradeLevel,
+			TargetSchoolClass: child.TargetSchoolClass,
+			CustomData:        child.CustomData,
 		}
 		for _, link := range linksByChild[child.ID] {
 			next.OfferingIDs = append(next.OfferingIDs, link.CareOfferingID)
@@ -1419,12 +1422,13 @@ func snapshotToSubmitRequest(snapshot map[string]any) (SubmitRequest, error) {
 			return out, fmt.Errorf("%w: child %d date_of_birth", ErrChangeRequestInvalidData, i)
 		}
 		child := SubmitChild{
-			ID:               int64FromAny(row["id"]),
-			FirstName:        stringFromAny(row["first_name"]),
-			LastName:         stringFromAny(row["last_name"]),
-			DateOfBirth:      dob,
-			TargetGradeLevel: int16PtrFromAny(row["target_grade_level"]),
-			CustomData:       mapFromAny(row["custom_data"]),
+			ID:                int64FromAny(row["id"]),
+			FirstName:         stringFromAny(row["first_name"]),
+			LastName:          stringFromAny(row["last_name"]),
+			DateOfBirth:       dob,
+			TargetGradeLevel:  int16PtrFromAny(row["target_grade_level"]),
+			TargetSchoolClass: optionalStringFromAny(row["target_school_class"]),
+			CustomData:        mapFromAny(row["custom_data"]),
 		}
 		for _, rawID := range sliceFromAny(row["offering_ids"]) {
 			if id := int64FromAny(rawID); id > 0 {

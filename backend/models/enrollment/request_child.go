@@ -54,20 +54,27 @@ const (
 type RequestChild struct {
 	base.Model `bun:"schema:enrollment,table:request_children"`
 	base.TenantModel
-	RequestID        int64          `bun:"request_id,notnull" json:"request_id"`
-	FirstName        string         `bun:"first_name,notnull" json:"first_name"`
-	LastName         string         `bun:"last_name,notnull" json:"last_name"`
-	DateOfBirth      timezone.Date  `bun:"date_of_birth,notnull,type:date" json:"date_of_birth"`
-	TargetGradeLevel *int16         `bun:"target_grade_level" json:"target_grade_level,omitempty"`
-	CustomData       map[string]any `bun:"custom_data,type:jsonb,notnull,default:'{}'" json:"custom_data"`
-	Status           string         `bun:"status,notnull,default:'submitted'" json:"status"`
-	StatusReason     *string        `bun:"status_reason" json:"status_reason,omitempty"`
-	ActivationMode   string         `bun:"activation_mode,notnull,default:'scheduled'" json:"activation_mode"`
-	ActivateOn       *timezone.Date `bun:"activate_on,type:date" json:"activate_on,omitempty"`
-	ReviewedAt       *time.Time     `bun:"reviewed_at" json:"reviewed_at,omitempty"`
-	ReviewedBy       *int64         `bun:"reviewed_by" json:"reviewed_by,omitempty"`
-	CreatedStudentID *int64         `bun:"created_student_id" json:"created_student_id,omitempty"`
-	SortOrder        int            `bun:"sort_order,notnull,default:0" json:"sort_order"`
+	RequestID        int64         `bun:"request_id,notnull" json:"request_id"`
+	FirstName        string        `bun:"first_name,notnull" json:"first_name"`
+	LastName         string        `bun:"last_name,notnull" json:"last_name"`
+	DateOfBirth      timezone.Date `bun:"date_of_birth,notnull,type:date" json:"date_of_birth"`
+	TargetGradeLevel *int16        `bun:"target_grade_level" json:"target_grade_level,omitempty"`
+	// TargetSchoolClass is the concrete future class (e.g. "2a") chosen at
+	// enrollment (migration 1.15.168, issue #1833). NULL/empty means
+	// grade-only ("Klasse offen"); on approval a non-empty value lands
+	// verbatim in users.students.school_class, otherwise the grade-derived
+	// fallback is used. Only collected for grade >= 2 when the tenant
+	// setting enrollment.collect_school_class is on.
+	TargetSchoolClass *string        `bun:"target_school_class" json:"target_school_class,omitempty"`
+	CustomData        map[string]any `bun:"custom_data,type:jsonb,notnull,default:'{}'" json:"custom_data"`
+	Status            string         `bun:"status,notnull,default:'submitted'" json:"status"`
+	StatusReason      *string        `bun:"status_reason" json:"status_reason,omitempty"`
+	ActivationMode    string         `bun:"activation_mode,notnull,default:'scheduled'" json:"activation_mode"`
+	ActivateOn        *timezone.Date `bun:"activate_on,type:date" json:"activate_on,omitempty"`
+	ReviewedAt        *time.Time     `bun:"reviewed_at" json:"reviewed_at,omitempty"`
+	ReviewedBy        *int64         `bun:"reviewed_by" json:"reviewed_by,omitempty"`
+	CreatedStudentID  *int64         `bun:"created_student_id" json:"created_student_id,omitempty"`
+	SortOrder         int            `bun:"sort_order,notnull,default:0" json:"sort_order"`
 
 	// Rollover columns (migration 1.15.62). NULL on rows created via
 	// the public form; set by RolloverService when a previous-year
