@@ -240,17 +240,14 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 		return nil, fmt.Errorf("decision: sync approved child person: %w", err)
 	}
 
-	// The concrete class carried by the edit wins. Otherwise only re-derive
-	// from the grade when the student's class is still a bare grade
-	// placeholder ("1"): a grade change then keeps it in sync ("1" -> "2"),
-	// while a hand-assigned concrete class ("2a") is preserved rather than
-	// reduced to a bare grade number. Mirrors the rollover approval path
-	// (issue #1833).
-	if concrete := s.concreteSchoolClass(child); concrete != "" {
-		student.SchoolClass = concrete
-	} else if isBareGradePlaceholderClass(student.SchoolClass) {
-		student.SchoolClass = s.gradeToClass(child.TargetGradeLevel)
-	}
+	// Re-derive the school_class exactly like the rollover approval path:
+	// the concrete class carried by the edit wins; otherwise a bare grade
+	// placeholder tracks a grade change ("1" -> "2"), a concrete class whose
+	// grade still matches is kept ("3b" at grade 3), and a concrete class
+	// stranded on a now-stale grade ("2a" while the edit bumps to grade 3)
+	// falls back to the new bare grade rather than leaving the student in a
+	// mismatched class. Issue #1833.
+	student.SchoolClass = s.resolveRolloverSchoolClass(child, student.SchoolClass)
 	guardianEmail := strings.TrimSpace(strings.ToLower(req.GuardianEmail))
 	if guardianEmail != "" {
 		student.GuardianEmail = &guardianEmail
