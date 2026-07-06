@@ -153,7 +153,7 @@ router := resource.Router()
 router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/staff", nil))
 ```
 
-~294 such wrappers exist today (unratcheted). They're dead code from the production server's perspective (CI's `deadcode -test` run keeps them alive only because tests call them).
+All 308 such wrappers were deleted in the 2026-07 audit B3 batch; tests drive the resource's public `Router()` with minted JWTs (`api/testutil`: `SeedTestJWTConfig` + `MintTestJWT` + `WithJWTBearer`) or, for internal-package tests, call the private handler directly. `TestHandlerLayerRatchet` (R5) now fails any new niladic method returning `http.HandlerFunc` under `api/` — the shape is CI-ratcheted to zero regardless of method name.
 
 ---
 
