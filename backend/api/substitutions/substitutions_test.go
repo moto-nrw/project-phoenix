@@ -23,14 +23,25 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
+// init seeds JWT viper defaults before any test (and before setupTestContext
+// constructs a Resource via jwt.MustNewTokenAuth). CI runs without a .env so
+// AUTH_JWT_SECRET is unset; without a secret jwx refuses HMAC signing.
+func init() {
+	testutil.SeedTestJWTConfig()
+}
+
 // testContext holds shared test dependencies.
 type testContext struct {
 	db       *bun.DB
 	services *services.Factory
 	resource *substitutionsAPI.Resource
+	router   chi.Router
 }
 
-// setupTestContext initializes test database, services, and resource.
+// setupTestContext initializes test database, services, and resource. The
+// router mounts the production Resource.Router() at /substitutions, so requests
+// run through the real middleware chain (Verifier → Authenticator →
+// TenantMiddleware → RequiresPermission → TenantTxMiddleware).
 func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
@@ -38,10 +49,14 @@ func setupTestContext(t *testing.T) *testContext {
 
 	resource := substitutionsAPI.NewResource(svc.Education, db)
 
+	router := chi.NewRouter()
+	router.Mount("/substitutions", resource.Router())
+
 	return &testContext{
 		db:       db,
 		services: svc,
 		resource: resource,
+		router:   router,
 	}
 }
 
@@ -62,14 +77,11 @@ func TestListSubstitutions_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/substitutions", ctx.resource.ListHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/substitutions", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
@@ -82,14 +94,11 @@ func TestListSubstitutions_WithPagination(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/substitutions", ctx.resource.ListHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/substitutions?page=1&page_size=10", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -102,14 +111,11 @@ func TestListActiveSubstitutions_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/substitutions/active", ctx.resource.ListActiveHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/substitutions/active", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
@@ -122,14 +128,11 @@ func TestListActiveSubstitutions_WithDate(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/substitutions/active", ctx.resource.ListActiveHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/substitutions/active?date=2026-01-15", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -138,14 +141,11 @@ func TestListActiveSubstitutions_BadRequest_InvalidDate(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/substitutions/active", ctx.resource.ListActiveHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/substitutions/active?date=invalid", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -158,14 +158,11 @@ func TestGetSubstitution_NotFound(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/substitutions/{id}", ctx.resource.GetHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/substitutions/99999", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertNotFound(t, rr)
 }
@@ -174,14 +171,11 @@ func TestGetSubstitution_InvalidID(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Get("/substitutions/{id}", ctx.resource.GetHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/substitutions/invalid", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -202,9 +196,6 @@ func TestCreateSubstitution_Success(t *testing.T) {
 	group := testpkg.CreateTestEducationGroup(t, ctx.db, "SubstitutionCreate")
 	defer testpkg.CleanupTableRecords(t, ctx.db, "education.groups", group.ID)
 
-	router := chi.NewRouter()
-	router.Post("/substitutions", ctx.resource.CreateHandler())
-
 	// Use future dates to avoid backdating error
 	startDate := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
 	endDate := time.Now().AddDate(0, 0, 7).Format("2006-01-02")
@@ -218,10 +209,10 @@ func TestCreateSubstitution_Success(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/substitutions", body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
@@ -240,9 +231,6 @@ func TestCreateSubstitution_BadRequest_MissingGroupID(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Post("/substitutions", ctx.resource.CreateHandler())
-
 	body := map[string]interface{}{
 		"substitute_staff_id": 1,
 		"start_date":          "2026-01-15",
@@ -250,10 +238,10 @@ func TestCreateSubstitution_BadRequest_MissingGroupID(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/substitutions", body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -262,9 +250,6 @@ func TestCreateSubstitution_BadRequest_MissingSubstituteStaffID(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Post("/substitutions", ctx.resource.CreateHandler())
-
 	body := map[string]interface{}{
 		"group_id":   1,
 		"start_date": "2026-01-15",
@@ -272,10 +257,10 @@ func TestCreateSubstitution_BadRequest_MissingSubstituteStaffID(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/substitutions", body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -283,9 +268,6 @@ func TestCreateSubstitution_BadRequest_MissingSubstituteStaffID(t *testing.T) {
 func TestCreateSubstitution_BadRequest_InvalidStartDate(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
-
-	router := chi.NewRouter()
-	router.Post("/substitutions", ctx.resource.CreateHandler())
 
 	body := map[string]interface{}{
 		"group_id":            1,
@@ -295,10 +277,10 @@ func TestCreateSubstitution_BadRequest_InvalidStartDate(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/substitutions", body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -306,9 +288,6 @@ func TestCreateSubstitution_BadRequest_InvalidStartDate(t *testing.T) {
 func TestCreateSubstitution_BadRequest_InvalidEndDate(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
-
-	router := chi.NewRouter()
-	router.Post("/substitutions", ctx.resource.CreateHandler())
 
 	startDate := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
 
@@ -320,10 +299,10 @@ func TestCreateSubstitution_BadRequest_InvalidEndDate(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/substitutions", body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -331,9 +310,6 @@ func TestCreateSubstitution_BadRequest_InvalidEndDate(t *testing.T) {
 func TestCreateSubstitution_BadRequest_StartDateAfterEndDate(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
-
-	router := chi.NewRouter()
-	router.Post("/substitutions", ctx.resource.CreateHandler())
 
 	// Start date is after end date
 	startDate := time.Now().AddDate(0, 0, 7).Format("2006-01-02")
@@ -347,10 +323,10 @@ func TestCreateSubstitution_BadRequest_StartDateAfterEndDate(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/substitutions", body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -358,9 +334,6 @@ func TestCreateSubstitution_BadRequest_StartDateAfterEndDate(t *testing.T) {
 func TestCreateSubstitution_BadRequest_BackdatedStartDate(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
-
-	router := chi.NewRouter()
-	router.Post("/substitutions", ctx.resource.CreateHandler())
 
 	// Start date is in the past
 	startDate := time.Now().AddDate(0, 0, -7).Format("2006-01-02")
@@ -374,10 +347,10 @@ func TestCreateSubstitution_BadRequest_BackdatedStartDate(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/substitutions", body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -386,15 +359,12 @@ func TestCreateSubstitution_BadRequest_InvalidJSON(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Post("/substitutions", ctx.resource.CreateHandler())
-
 	// Create request with invalid JSON (nil body gets JSON encoded to "null")
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/substitutions", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	// With nil body, the JSON decoder gets "null" which decodes to empty struct
 	// This results in missing required fields (group_id = 0)
@@ -409,9 +379,6 @@ func TestUpdateSubstitution_NotFound(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Put("/substitutions/{id}", ctx.resource.UpdateHandler())
-
 	// Update handler decodes directly into GroupSubstitution model
 	// which expects "YYYY-MM-DD" format for timezone.Date fields
 	startDate := timezone.TodayDate().AddDays(1).String()
@@ -425,10 +392,10 @@ func TestUpdateSubstitution_NotFound(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/substitutions/99999", body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertNotFound(t, rr)
 }
@@ -436,9 +403,6 @@ func TestUpdateSubstitution_NotFound(t *testing.T) {
 func TestUpdateSubstitution_InvalidID(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
-
-	router := chi.NewRouter()
-	router.Put("/substitutions/{id}", ctx.resource.UpdateHandler())
 
 	// Update handler decodes directly into GroupSubstitution model
 	// which expects "YYYY-MM-DD" format for timezone.Date fields
@@ -453,10 +417,10 @@ func TestUpdateSubstitution_InvalidID(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/substitutions/invalid", body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -469,14 +433,11 @@ func TestDeleteSubstitution_NotFound(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Delete("/substitutions/{id}", ctx.resource.DeleteHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/substitutions/99999", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertNotFound(t, rr)
 }
@@ -485,14 +446,11 @@ func TestDeleteSubstitution_InvalidID(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Delete("/substitutions/{id}", ctx.resource.DeleteHandler())
-
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/substitutions/invalid", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
 	)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := testutil.ExecuteRequest(ctx.router, req)
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -513,11 +471,6 @@ func TestSubstitutionCRUDWorkflow(t *testing.T) {
 	group := testpkg.CreateTestEducationGroup(t, ctx.db, "SubstitutionCRUD")
 	defer testpkg.CleanupTableRecords(t, ctx.db, "education.groups", group.ID)
 
-	router := chi.NewRouter()
-	router.Post("/substitutions", ctx.resource.CreateHandler())
-	router.Get("/substitutions/{id}", ctx.resource.GetHandler())
-	router.Delete("/substitutions/{id}", ctx.resource.DeleteHandler())
-
 	// Step 1: Create
 	startDate := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
 	endDate := time.Now().AddDate(0, 0, 7).Format("2006-01-02")
@@ -531,9 +484,9 @@ func TestSubstitutionCRUDWorkflow(t *testing.T) {
 	}
 
 	createReq := testutil.NewAuthenticatedRequest(t, "POST", "/substitutions", createBody,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
 	)
-	createRR := testutil.ExecuteRequest(router, createReq)
+	createRR := testutil.ExecuteRequest(ctx.router, createReq)
 	testutil.AssertSuccessResponse(t, createRR, http.StatusCreated)
 
 	createResponse := testutil.ParseJSONResponse(t, createRR.Body.Bytes())
@@ -544,9 +497,9 @@ func TestSubstitutionCRUDWorkflow(t *testing.T) {
 
 	// Step 2: Get
 	getReq := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/substitutions/%d", subID), nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
 	)
-	getRR := testutil.ExecuteRequest(router, getReq)
+	getRR := testutil.ExecuteRequest(ctx.router, getReq)
 	testutil.AssertSuccessResponse(t, getRR, http.StatusOK)
 
 	getResponse := testutil.ParseJSONResponse(t, getRR.Body.Bytes())
@@ -558,15 +511,15 @@ func TestSubstitutionCRUDWorkflow(t *testing.T) {
 
 	// Step 3: Delete
 	deleteReq := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/substitutions/%d", subID), nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
 	)
-	deleteRR := testutil.ExecuteRequest(router, deleteReq)
+	deleteRR := testutil.ExecuteRequest(ctx.router, deleteReq)
 	assert.Equal(t, http.StatusNoContent, deleteRR.Code)
 
 	// Step 4: Verify deleted
 	verifyReq := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/substitutions/%d", subID), nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, testutil.DefaultTestClaims())),
 	)
-	verifyRR := testutil.ExecuteRequest(router, verifyReq)
+	verifyRR := testutil.ExecuteRequest(ctx.router, verifyReq)
 	testutil.AssertNotFound(t, verifyRR)
 }

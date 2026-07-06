@@ -440,25 +440,3 @@ func (rs *Resource) delete(w http.ResponseWriter, r *http.Request) {
 
 	common.RespondNoContent(w, r)
 }
-
-// =============================================================================
-// HANDLER ACCESSOR METHODS (for testing)
-// =============================================================================
-
-// ListHandler returns the list handler
-func (rs *Resource) ListHandler() http.HandlerFunc { return rs.list }
-
-// ListActiveHandler returns the list active handler
-func (rs *Resource) ListActiveHandler() http.HandlerFunc { return rs.listActive }
-
-// GetHandler returns the get handler
-func (rs *Resource) GetHandler() http.HandlerFunc { return rs.get }
-
-// CreateHandler returns the create handler
-func (rs *Resource) CreateHandler() http.HandlerFunc { return rs.create }
-
-// UpdateHandler returns the update handler
-func (rs *Resource) UpdateHandler() http.HandlerFunc { return rs.update }
-
-// DeleteHandler returns the delete handler
-func (rs *Resource) DeleteHandler() http.HandlerFunc { return rs.delete }

@@ -1,8 +1,6 @@
 package users
 
 import (
-	"net/http"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
@@ -53,33 +51,4 @@ func (rs *Resource) Router() chi.Router {
 	})
 
 	return r
-}
-
-// =============================================================================
-// EXPORTED HANDLER METHODS FOR TESTING
-// =============================================================================
-
-// ListPersonsHandler returns the listPersons handler for testing
-func (rs *Resource) ListPersonsHandler() http.HandlerFunc {
-	return rs.listPersons
-}
-
-// GetPersonHandler returns the getPerson handler for testing
-func (rs *Resource) GetPersonHandler() http.HandlerFunc {
-	return rs.getPerson
-}
-
-// CreatePersonHandler returns the createPerson handler for testing
-func (rs *Resource) CreatePersonHandler() http.HandlerFunc {
-	return rs.createPerson
-}
-
-// UpdatePersonHandler returns the updatePerson handler for testing
-func (rs *Resource) UpdatePersonHandler() http.HandlerFunc {
-	return rs.updatePerson
-}
-
-// DeletePersonHandler returns the deletePerson handler for testing
-func (rs *Resource) DeletePersonHandler() http.HandlerFunc {
-	return rs.deletePerson
 }
