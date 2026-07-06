@@ -24,15 +24,20 @@ import (
 
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/services"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
+
+// init seeds JWT viper defaults before any test builds a Resource (which calls
+// jwt.MustNewTokenAuth) or mints a token. CI runs without a .env, so without a
+// seeded secret jwx refuses HMAC signing.
+func init() {
+	testutil.SeedTestJWTConfig()
+}
 
 // testContext holds shared test resources
 type testContext struct {
@@ -81,166 +86,29 @@ func setupPublicRouterWithDB(t *testing.T) (*bun.DB, chi.Router) {
 	return tc.db, router
 }
 
-// setupProtectedRouter creates a router for testing protected endpoints
-// This bypasses JWT verification by using permission middleware only
+// setupProtectedRouter mounts the resource's real Router() under /auth, so
+// tests exercise the production middleware chain (Verifier → Authenticator →
+// TenantMiddleware → RequiresPermission → TenantTxMiddleware). Requests carry a
+// signed JWT minted by executeWithAuth.
 func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 	t.Helper()
 
 	tc := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(tc.db)
-
-	// Mount routes without JWT middleware for testing
-	// We'll set context values directly in tests
-	router.Route("/auth", func(r chi.Router) {
-		// Account endpoint
-		r.With(authorize.RequiresPermission("")).Get("/account", tc.resource.GetAccountHandler())
-
-		// Role management
-		r.Route("/roles", func(r chi.Router) {
-			r.With(authorize.RequiresPermission("roles:read")).Get("/", tc.resource.ListRolesHandler())
-			r.With(authorize.RequiresPermission("roles:create")).Post("/", tc.resource.CreateRoleHandler())
-			r.With(authorize.RequiresPermission("roles:read")).Get("/{id}", tc.resource.GetRoleByIDHandler())
-			r.With(authorize.RequiresPermission("roles:delete")).Delete("/{id}", tc.resource.DeleteRoleHandler())
-		})
-
-		// Permission management
-		r.Route("/permissions", func(r chi.Router) {
-			r.With(authorize.RequiresPermission("permissions:read")).Get("/", tc.resource.ListPermissionsHandler())
-			r.With(authorize.RequiresPermission("permissions:create")).Post("/", tc.resource.CreatePermissionHandler())
-			r.With(authorize.RequiresPermission("permissions:read")).Get("/{id}", tc.resource.GetPermissionByIDHandler())
-		})
-
-		// Account management
-		r.Route("/accounts", func(r chi.Router) {
-			r.With(authorize.RequiresPermission("users:list")).Get("/", tc.resource.ListAccountsHandler())
-		})
-
-		// Password change (no permission required, just auth)
-		r.Post("/password", tc.resource.ChangePasswordHandler())
-	})
+	router.Mount("/auth", tc.resource.Router())
 
 	return tc, router
 }
 
-// executeWithAuth executes a request with JWT context values set
-func executeWithAuth(router chi.Router, req *http.Request, claims jwt.AppClaims, permissions []string) *httptest.ResponseRecorder {
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
-	ctx = context.WithValue(ctx, jwt.CtxPermissions, permissions)
-	if claims.TenantID != 0 {
-		ctx = tenant.WithTenantID(ctx, claims.TenantID)
-	}
-	req = req.WithContext(ctx)
-
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
-	return rr
-}
-
-// setupExtendedProtectedRouter creates a router with all protected endpoints for testing
-func setupExtendedProtectedRouter(t *testing.T) (*testContext, chi.Router) {
+// executeWithAuth signs a JWT carrying the given claims (with permissions folded
+// in, matching what the production Authenticator reads from the token) and
+// executes the request through the real router.
+func executeWithAuth(t *testing.T, router chi.Router, req *http.Request, claims jwt.AppClaims, permissions []string) *httptest.ResponseRecorder {
 	t.Helper()
-
-	tc := setupTestContext(t)
-
-	router := testutil.NewTenantRouter(tc.db)
-
-	// Mount routes without JWT middleware for testing
-	router.Route("/auth", func(r chi.Router) {
-		// Account endpoint
-		r.With(authorize.RequiresPermission("")).Get("/account", tc.resource.GetAccountHandler())
-
-		// Role management
-		r.Route("/roles", func(r chi.Router) {
-			r.With(authorize.RequiresPermission("roles:read")).Get("/", tc.resource.ListRolesHandler())
-			r.With(authorize.RequiresPermission("roles:create")).Post("/", tc.resource.CreateRoleHandler())
-			r.With(authorize.RequiresPermission("roles:read")).Get("/{id}", tc.resource.GetRoleByIDHandler())
-			r.With(authorize.RequiresPermission("roles:update")).Put("/{id}", tc.resource.UpdateRoleHandler())
-			r.With(authorize.RequiresPermission("roles:delete")).Delete("/{id}", tc.resource.DeleteRoleHandler())
-		})
-
-		// Role permission management
-		r.Route("/roles/{roleId}/permissions", func(r chi.Router) {
-			r.With(authorize.RequiresPermission("roles:manage")).Get("/", tc.resource.GetRolePermissionsHandler())
-			r.With(authorize.RequiresPermission("roles:manage")).Post("/{permissionId}", tc.resource.AssignPermissionToRoleHandler())
-			r.With(authorize.RequiresPermission("roles:manage")).Delete("/{permissionId}", tc.resource.RemovePermissionFromRoleHandler())
-		})
-
-		// Permission management
-		r.Route("/permissions", func(r chi.Router) {
-			r.With(authorize.RequiresPermission("permissions:read")).Get("/", tc.resource.ListPermissionsHandler())
-			r.With(authorize.RequiresPermission("permissions:create")).Post("/", tc.resource.CreatePermissionHandler())
-			r.With(authorize.RequiresPermission("permissions:read")).Get("/{id}", tc.resource.GetPermissionByIDHandler())
-			r.With(authorize.RequiresPermission("permissions:update")).Put("/{id}", tc.resource.UpdatePermissionHandler())
-			r.With(authorize.RequiresPermission("permissions:delete")).Delete("/{id}", tc.resource.DeletePermissionHandler())
-		})
-
-		// Account management
-		r.Route("/accounts", func(r chi.Router) {
-			r.With(authorize.RequiresPermission("users:list")).Get("/", tc.resource.ListAccountsHandler())
-			r.With(authorize.RequiresPermission("users:read")).Get("/by-role/{roleName}", tc.resource.GetAccountsByRoleHandler())
-
-			r.Route("/{accountId}", func(r chi.Router) {
-				r.With(authorize.RequiresPermission("users:update")).Put("/", tc.resource.UpdateAccountHandler())
-				r.With(authorize.RequiresPermission("users:update")).Put("/activate", tc.resource.ActivateAccountHandler())
-				r.With(authorize.RequiresPermission("users:update")).Put("/deactivate", tc.resource.DeactivateAccountHandler())
-
-				// Role assignments
-				r.Route("/roles", func(r chi.Router) {
-					r.With(authorize.RequiresPermission("users:manage")).Get("/", tc.resource.GetAccountRolesHandler())
-					r.With(authorize.RequiresPermission("users:manage")).Post("/{roleId}", tc.resource.AssignRoleToAccountHandler())
-					r.With(authorize.RequiresPermission("users:manage")).Delete("/{roleId}", tc.resource.RemoveRoleFromAccountHandler())
-				})
-
-				// Permission assignments
-				r.Route("/permissions", func(r chi.Router) {
-					r.With(authorize.RequiresPermission("users:manage")).Get("/", tc.resource.GetAccountPermissionsHandler())
-					r.With(authorize.RequiresPermission("users:manage")).Get("/direct", tc.resource.GetAccountDirectPermissionsHandler())
-					r.With(authorize.RequiresPermission("users:manage")).Post("/{permissionId}/grant", tc.resource.GrantPermissionToAccountHandler())
-					r.With(authorize.RequiresPermission("users:manage")).Post("/{permissionId}/deny", tc.resource.DenyPermissionToAccountHandler())
-					r.With(authorize.RequiresPermission("users:manage")).Delete("/{permissionId}", tc.resource.RemovePermissionFromAccountHandler())
-				})
-
-				// Token management
-				r.Route("/tokens", func(r chi.Router) {
-					r.With(authorize.RequiresPermission("users:manage")).Get("/", tc.resource.GetActiveTokensHandler())
-					r.With(authorize.RequiresPermission("users:manage")).Delete("/", tc.resource.RevokeAllTokensHandler())
-				})
-			})
-		})
-
-		// Token cleanup
-		r.Route("/tokens", func(r chi.Router) {
-			r.With(authorize.RequiresPermission("admin:*")).Delete("/expired", tc.resource.CleanupExpiredTokensHandler())
-		})
-
-		// Invitation management
-		r.Route("/invitations", func(r chi.Router) {
-			r.With(authorize.RequiresPermission("users:create")).Post("/", tc.resource.CreateInvitationHandler())
-			r.With(authorize.RequiresPermission("users:list")).Get("/", tc.resource.ListPendingInvitationsHandler())
-			r.Route("/{id}", func(r chi.Router) {
-				r.With(authorize.RequiresPermission("users:manage")).Post("/resend", tc.resource.ResendInvitationHandler())
-				r.With(authorize.RequiresPermission("users:manage")).Delete("/", tc.resource.RevokeInvitationHandler())
-			})
-		})
-
-		// Parent account management
-		r.Route("/parent-accounts", func(r chi.Router) {
-			r.With(authorize.RequiresPermission("users:create")).Post("/", tc.resource.CreateParentAccountHandler())
-			r.With(authorize.RequiresPermission("users:list")).Get("/", tc.resource.ListParentAccountsHandler())
-			r.Route("/{id}", func(r chi.Router) {
-				r.With(authorize.RequiresPermission("users:read")).Get("/", tc.resource.GetParentAccountByIDHandler())
-				r.With(authorize.RequiresPermission("users:update")).Put("/", tc.resource.UpdateParentAccountHandler())
-				r.With(authorize.RequiresPermission("users:update")).Put("/activate", tc.resource.ActivateParentAccountHandler())
-				r.With(authorize.RequiresPermission("users:update")).Put("/deactivate", tc.resource.DeactivateParentAccountHandler())
-			})
-		})
-
-		// Password change
-		r.Post("/password", tc.resource.ChangePasswordHandler())
-	})
-
-	return tc, router
+	claims.Permissions = permissions
+	req.Header.Set("Authorization", "Bearer "+testutil.MintTestJWT(t, claims))
+	return testutil.ExecuteRequest(router, req)
 }
 
 // cleanupRoleRecords removes roles and their associations
@@ -908,7 +776,7 @@ func TestGetAccount(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "GET", "/auth/account", nil)
-		rr := executeWithAuth(router, req, claims, []string{"users:read"})
+		rr := executeWithAuth(t, router, req, claims, []string{"users:read"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
@@ -930,7 +798,7 @@ func TestGetAccount(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "GET", "/auth/account", nil)
-		rr := executeWithAuth(router, req, claims, []string{"admin:*", "users:manage", "roles:manage"})
+		rr := executeWithAuth(t, router, req, claims, []string{"admin:*", "users:manage", "roles:manage"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
@@ -967,7 +835,7 @@ func TestChangePassword(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/auth/password", body)
-		rr := executeWithAuth(router, req, claims, []string{})
+		rr := executeWithAuth(t, router, req, claims, []string{})
 
 		testutil.AssertUnauthorized(t, rr)
 	})
@@ -991,7 +859,7 @@ func TestChangePassword(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/auth/password", body)
-		rr := executeWithAuth(router, req, claims, []string{})
+		rr := executeWithAuth(t, router, req, claims, []string{})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -1015,7 +883,7 @@ func TestChangePassword(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/auth/password", body)
-		rr := executeWithAuth(router, req, claims, []string{})
+		rr := executeWithAuth(t, router, req, claims, []string{})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -1029,7 +897,7 @@ func TestRoleManagement(t *testing.T) {
 
 	t.Run("list roles with permission", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/auth/roles", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"roles:read"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"roles:read"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
@@ -1041,7 +909,7 @@ func TestRoleManagement(t *testing.T) {
 
 	t.Run("list roles forbidden without permission", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/auth/roles", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{})
 
 		testutil.AssertForbidden(t, rr)
 	})
@@ -1055,7 +923,7 @@ func TestRoleManagement(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/auth/roles", body)
-		rr := executeWithAuth(router, req, adminClaims, []string{"roles:create"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"roles:create"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
@@ -1072,14 +940,14 @@ func TestRoleManagement(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/auth/roles", body)
-		rr := executeWithAuth(router, req, adminClaims, []string{"roles:create"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"roles:create"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
 
 	t.Run("get role not found", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/auth/roles/99999", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"roles:read"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"roles:read"})
 
 		testutil.AssertNotFound(t, rr)
 	})
@@ -1094,7 +962,7 @@ func TestRoleManagement(t *testing.T) {
 		}
 
 		createReq := testutil.NewJSONRequest(t, "POST", "/auth/roles", body)
-		createRr := executeWithAuth(router, createReq, adminClaims, []string{"roles:create"})
+		createRr := executeWithAuth(t, router, createReq, adminClaims, []string{"roles:create"})
 		require.Equal(t, http.StatusCreated, createRr.Code, "Role creation failed: %s", createRr.Body.String())
 
 		createResp := testutil.ParseJSONResponse(t, createRr.Body.Bytes())
@@ -1103,7 +971,7 @@ func TestRoleManagement(t *testing.T) {
 
 		// Now get the role
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/auth/roles/%d", roleID), nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"roles:read"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"roles:read"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
@@ -1111,7 +979,7 @@ func TestRoleManagement(t *testing.T) {
 
 // TestRoleManagement_BaseRole tests base_role validation on role endpoints.
 func TestRoleManagement_BaseRole(t *testing.T) {
-	tc, router := setupExtendedProtectedRouter(t)
+	tc, router := setupProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
 	t.Run("create without base_role returns 400", func(t *testing.T) {
@@ -1120,7 +988,7 @@ func TestRoleManagement_BaseRole(t *testing.T) {
 			"description": "Missing base_role",
 		}
 		req := testutil.NewJSONRequest(t, "POST", "/auth/roles", body)
-		rr := executeWithAuth(router, req, adminClaims, []string{"roles:create"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"roles:create"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -1132,7 +1000,7 @@ func TestRoleManagement_BaseRole(t *testing.T) {
 			"base_role":   "superadmin",
 		}
 		req := testutil.NewJSONRequest(t, "POST", "/auth/roles", body)
-		rr := executeWithAuth(router, req, adminClaims, []string{"roles:create"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"roles:create"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -1145,7 +1013,7 @@ func TestRoleManagement_BaseRole(t *testing.T) {
 			"base_role":   "guardian",
 		}
 		req := testutil.NewJSONRequest(t, "POST", "/auth/roles", body)
-		rr := executeWithAuth(router, req, adminClaims, []string{"roles:create"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"roles:create"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
@@ -1178,12 +1046,12 @@ func TestRoleManagement_BaseRole(t *testing.T) {
 			"description": "Updated desc",
 		}
 		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/roles/%d", role.ID), body)
-		rr := executeWithAuth(router, req, adminClaims, []string{"roles:update"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"roles:update"})
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Body: %s", rr.Body.String())
 
 		// Verify base_role was preserved
 		getReq := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/auth/roles/%d", role.ID), nil)
-		getRr := executeWithAuth(router, getReq, adminClaims, []string{"roles:read"})
+		getRr := executeWithAuth(t, router, getReq, adminClaims, []string{"roles:read"})
 		testutil.AssertSuccessResponse(t, getRr, http.StatusOK)
 
 		getResp := testutil.ParseJSONResponse(t, getRr.Body.Bytes())
@@ -1209,7 +1077,7 @@ func TestRoleManagement_BaseRole(t *testing.T) {
 			"base_role":   "guardian",
 		}
 		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/roles/%d", systemRole.ID), body)
-		rr := executeWithAuth(router, req, adminClaims, []string{"roles:update"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"roles:update"})
 
 		assert.Equal(t, http.StatusForbidden, rr.Code,
 			"system roles must not accept updates including base_role")
@@ -1234,12 +1102,12 @@ func TestRoleManagement_BaseRole(t *testing.T) {
 			"base_role":   "guardian",
 		}
 		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/roles/%d", role.ID), body)
-		rr := executeWithAuth(router, req, adminClaims, []string{"roles:update"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"roles:update"})
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Body: %s", rr.Body.String())
 
 		// Verify base_role was changed
 		getReq := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/auth/roles/%d", role.ID), nil)
-		getRr := executeWithAuth(router, getReq, adminClaims, []string{"roles:read"})
+		getRr := executeWithAuth(t, router, getReq, adminClaims, []string{"roles:read"})
 		testutil.AssertSuccessResponse(t, getRr, http.StatusOK)
 
 		getResp := testutil.ParseJSONResponse(t, getRr.Body.Bytes())
@@ -1256,7 +1124,7 @@ func TestPermissionManagement(t *testing.T) {
 
 	t.Run("list permissions with permission", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/auth/permissions", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"permissions:read"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"permissions:read"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
@@ -1268,7 +1136,7 @@ func TestPermissionManagement(t *testing.T) {
 
 	t.Run("list permissions forbidden without permission", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/auth/permissions", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{})
 
 		testutil.AssertForbidden(t, rr)
 	})
@@ -1285,7 +1153,7 @@ func TestPermissionManagement(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/auth/permissions", body)
-		rr := executeWithAuth(router, req, adminClaims, []string{"permissions:create"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"permissions:create"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
@@ -1309,14 +1177,14 @@ func TestPermissionManagement(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/auth/permissions", body)
-		rr := executeWithAuth(router, req, adminClaims, []string{"permissions:create"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"permissions:create"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
 
 	t.Run("get permission not found", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/auth/permissions/99999", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"permissions:read"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"permissions:read"})
 
 		testutil.AssertNotFound(t, rr)
 	})
@@ -1330,7 +1198,7 @@ func TestAccountManagement(t *testing.T) {
 
 	t.Run("list accounts with permission", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/auth/accounts", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:list"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"users:list"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
@@ -1342,21 +1210,21 @@ func TestAccountManagement(t *testing.T) {
 
 	t.Run("list accounts forbidden without permission", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/auth/accounts", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{})
 
 		testutil.AssertForbidden(t, rr)
 	})
 
 	t.Run("list accounts with email filter", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/auth/accounts?email=admin", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:list"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"users:list"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("list accounts with active filter", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/auth/accounts?active=true", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:list"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"users:list"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
@@ -1368,7 +1236,7 @@ func TestAccountManagement(t *testing.T) {
 
 // TestRoleUpdate tests role update endpoint
 func TestRoleUpdate(t *testing.T) {
-	tc, router := setupExtendedProtectedRouter(t)
+	tc, router := setupProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
 	t.Run("update role with permission", func(t *testing.T) {
@@ -1382,7 +1250,7 @@ func TestRoleUpdate(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/roles/%d", role.ID), body)
-		rr := executeWithAuth(router, req, adminClaims, []string{"roles:update"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"roles:update"})
 
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Body: %s", rr.Body.String())
 	})
@@ -1394,7 +1262,7 @@ func TestRoleUpdate(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "PUT", "/auth/roles/99999", body)
-		rr := executeWithAuth(router, req, adminClaims, []string{"roles:update"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"roles:update"})
 
 		testutil.AssertNotFound(t, rr)
 	})
@@ -1406,7 +1274,7 @@ func TestRoleUpdate(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "PUT", "/auth/roles/1", body)
-		rr := executeWithAuth(router, req, adminClaims, []string{})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{})
 
 		testutil.AssertForbidden(t, rr)
 	})
@@ -1414,7 +1282,7 @@ func TestRoleUpdate(t *testing.T) {
 
 // TestRolePermissionAssignment tests role permission assignment endpoints
 func TestRolePermissionAssignment(t *testing.T) {
-	tc, router := setupExtendedProtectedRouter(t)
+	tc, router := setupProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
 	t.Run("get role permissions", func(t *testing.T) {
@@ -1422,14 +1290,14 @@ func TestRolePermissionAssignment(t *testing.T) {
 		defer cleanupRoleRecords(t, tc.db, role.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/auth/roles/%d/permissions", role.ID), nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"roles:manage"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"roles:manage"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("get role permissions forbidden without permission", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/auth/roles/1/permissions", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{})
 
 		testutil.AssertForbidden(t, rr)
 	})
@@ -1442,12 +1310,12 @@ func TestRolePermissionAssignment(t *testing.T) {
 
 		// Assign permission
 		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/auth/roles/%d/permissions/%d", role.ID, permission.ID), nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"roles:manage"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"roles:manage"})
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Assign failed: %s", rr.Body.String())
 
 		// Remove permission
 		req = testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/auth/roles/%d/permissions/%d", role.ID, permission.ID), nil)
-		rr = executeWithAuth(router, req, adminClaims, []string{"roles:manage"})
+		rr = executeWithAuth(t, router, req, adminClaims, []string{"roles:manage"})
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Remove failed: %s", rr.Body.String())
 	})
 }
@@ -1458,7 +1326,7 @@ func TestRolePermissionAssignment(t *testing.T) {
 
 // TestPermissionUpdate tests permission update endpoint
 func TestPermissionUpdate(t *testing.T) {
-	tc, router := setupExtendedProtectedRouter(t)
+	tc, router := setupProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
 	t.Run("update permission with permission", func(t *testing.T) {
@@ -1473,7 +1341,7 @@ func TestPermissionUpdate(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/permissions/%d", permission.ID), body)
-		rr := executeWithAuth(router, req, adminClaims, []string{"permissions:update"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"permissions:update"})
 
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Body: %s", rr.Body.String())
 	})
@@ -1487,7 +1355,7 @@ func TestPermissionUpdate(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "PUT", "/auth/permissions/99999", body)
-		rr := executeWithAuth(router, req, adminClaims, []string{"permissions:update"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"permissions:update"})
 
 		testutil.AssertNotFound(t, rr)
 	})
@@ -1495,21 +1363,21 @@ func TestPermissionUpdate(t *testing.T) {
 
 // TestPermissionDelete tests permission delete endpoint
 func TestPermissionDelete(t *testing.T) {
-	tc, router := setupExtendedProtectedRouter(t)
+	tc, router := setupProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
 	t.Run("delete permission with permission", func(t *testing.T) {
 		permission := testpkg.CreateTestPermission(t, tc.db, "DeletePerm", "testres", "read")
 
 		req := testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/auth/permissions/%d", permission.ID), nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"permissions:delete"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"permissions:delete"})
 
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Body: %s", rr.Body.String())
 	})
 
 	t.Run("delete permission forbidden without permission", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "DELETE", "/auth/permissions/1", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{})
 
 		testutil.AssertForbidden(t, rr)
 	})
@@ -1521,7 +1389,7 @@ func TestPermissionDelete(t *testing.T) {
 
 // TestAccountRoleAssignment tests account role assignment endpoints
 func TestAccountRoleAssignment(t *testing.T) {
-	tc, router := setupExtendedProtectedRouter(t)
+	tc, router := setupProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
 	t.Run("get account roles", func(t *testing.T) {
@@ -1529,14 +1397,14 @@ func TestAccountRoleAssignment(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/auth/accounts/%d/roles", account.ID), nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:manage"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"users:manage"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("get account roles forbidden without permission", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/auth/accounts/1/roles", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{})
 
 		testutil.AssertForbidden(t, rr)
 	})
@@ -1549,12 +1417,12 @@ func TestAccountRoleAssignment(t *testing.T) {
 
 		// Assign role
 		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/auth/accounts/%d/roles/%d", account.ID, role.ID), nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:manage"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"users:manage"})
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Assign failed: %s", rr.Body.String())
 
 		// Remove role
 		req = testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/auth/accounts/%d/roles/%d", account.ID, role.ID), nil)
-		rr = executeWithAuth(router, req, adminClaims, []string{"users:manage"})
+		rr = executeWithAuth(t, router, req, adminClaims, []string{"users:manage"})
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Remove failed: %s", rr.Body.String())
 	})
 }
@@ -1565,7 +1433,7 @@ func TestAccountRoleAssignment(t *testing.T) {
 
 // TestAccountPermissionManagement tests account permission management endpoints
 func TestAccountPermissionManagement(t *testing.T) {
-	tc, router := setupExtendedProtectedRouter(t)
+	tc, router := setupProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
 	t.Run("get account permissions", func(t *testing.T) {
@@ -1573,7 +1441,7 @@ func TestAccountPermissionManagement(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/auth/accounts/%d/permissions", account.ID), nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:manage"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"users:manage"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
@@ -1583,7 +1451,7 @@ func TestAccountPermissionManagement(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/auth/accounts/%d/permissions/direct", account.ID), nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:manage"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"users:manage"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
@@ -1596,12 +1464,12 @@ func TestAccountPermissionManagement(t *testing.T) {
 
 		// Grant permission
 		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/auth/accounts/%d/permissions/%d/grant", account.ID, permission.ID), nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:manage"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"users:manage"})
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Grant failed: %s", rr.Body.String())
 
 		// Remove permission
 		req = testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/auth/accounts/%d/permissions/%d", account.ID, permission.ID), nil)
-		rr = executeWithAuth(router, req, adminClaims, []string{"users:manage"})
+		rr = executeWithAuth(t, router, req, adminClaims, []string{"users:manage"})
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Remove failed: %s", rr.Body.String())
 	})
 
@@ -1609,7 +1477,7 @@ func TestAccountPermissionManagement(t *testing.T) {
 		// Note: Deny permission has a known database schema issue
 		// This test just verifies the endpoint is accessible
 		req := testutil.NewJSONRequest(t, "POST", "/auth/accounts/1/permissions/1/deny", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:manage"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"users:manage"})
 		// Accept 204 (success) or 500 (known schema issue)
 		assert.True(t, rr.Code == http.StatusNoContent || rr.Code == http.StatusInternalServerError,
 			"Expected 204 or 500, got %d: %s", rr.Code, rr.Body.String())
@@ -1617,7 +1485,7 @@ func TestAccountPermissionManagement(t *testing.T) {
 
 	t.Run("permission operations forbidden without permission", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/auth/accounts/1/permissions", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{})
 		testutil.AssertForbidden(t, rr)
 	})
 }
@@ -1628,7 +1496,7 @@ func TestAccountPermissionManagement(t *testing.T) {
 
 // TestAccountActivation tests account activation/deactivation endpoints
 func TestAccountActivation(t *testing.T) {
-	tc, router := setupExtendedProtectedRouter(t)
+	tc, router := setupProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
 	t.Run("activate account", func(t *testing.T) {
@@ -1636,7 +1504,7 @@ func TestAccountActivation(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
 		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/accounts/%d/activate", account.ID), nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:update"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"users:update"})
 
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Body: %s", rr.Body.String())
 	})
@@ -1646,21 +1514,21 @@ func TestAccountActivation(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
 		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/accounts/%d/deactivate", account.ID), nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:update"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"users:update"})
 
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Body: %s", rr.Body.String())
 	})
 
 	t.Run("activation forbidden without permission", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "PUT", "/auth/accounts/1/activate", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{})
 		testutil.AssertForbidden(t, rr)
 	})
 }
 
 // TestAccountUpdate tests account update endpoint
 func TestAccountUpdate(t *testing.T) {
-	tc, router := setupExtendedProtectedRouter(t)
+	tc, router := setupProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
 	t.Run("update account", func(t *testing.T) {
@@ -1676,7 +1544,7 @@ func TestAccountUpdate(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/accounts/%d", account.ID), body)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:update"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"users:update"})
 
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Body: %s", rr.Body.String())
 	})
@@ -1687,7 +1555,7 @@ func TestAccountUpdate(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "PUT", "/auth/accounts/99999", body)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:update"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"users:update"})
 
 		testutil.AssertNotFound(t, rr)
 	})
@@ -1698,7 +1566,7 @@ func TestAccountUpdate(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "PUT", "/auth/accounts/1", body)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:update"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"users:update"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -1706,19 +1574,19 @@ func TestAccountUpdate(t *testing.T) {
 
 // TestGetAccountsByRole tests get accounts by role endpoint
 func TestGetAccountsByRole(t *testing.T) {
-	_, router := setupExtendedProtectedRouter(t)
+	_, router := setupProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
 	t.Run("get accounts by role", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/auth/accounts/by-role/admin", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:read"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"users:read"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("get accounts by role forbidden without permission", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/auth/accounts/by-role/admin", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{})
 
 		testutil.AssertForbidden(t, rr)
 	})
@@ -1730,7 +1598,7 @@ func TestGetAccountsByRole(t *testing.T) {
 
 // TestTokenManagement tests token management endpoints
 func TestTokenManagement(t *testing.T) {
-	tc, router := setupExtendedProtectedRouter(t)
+	tc, router := setupProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
 	t.Run("get active tokens", func(t *testing.T) {
@@ -1738,7 +1606,7 @@ func TestTokenManagement(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/auth/accounts/%d/tokens", account.ID), nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:manage"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"users:manage"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
@@ -1748,21 +1616,21 @@ func TestTokenManagement(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
 		req := testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/auth/accounts/%d/tokens", account.ID), nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:manage"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"users:manage"})
 
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Body: %s", rr.Body.String())
 	})
 
 	t.Run("cleanup expired tokens", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "DELETE", "/auth/tokens/expired", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"admin:*"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"admin:*"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("token operations forbidden without permission", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/auth/accounts/1/tokens", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{})
 		testutil.AssertForbidden(t, rr)
 	})
 }
@@ -1773,19 +1641,19 @@ func TestTokenManagement(t *testing.T) {
 
 // TestInvitationManagement tests invitation management endpoints
 func TestInvitationManagement(t *testing.T) {
-	_, router := setupExtendedProtectedRouter(t)
+	_, router := setupProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
 	t.Run("list pending invitations", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/auth/invitations", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:list"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"users:list"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("list invitations forbidden without permission", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/auth/invitations", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{})
 
 		testutil.AssertForbidden(t, rr)
 	})
@@ -1799,14 +1667,14 @@ func TestInvitationManagement(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/auth/invitations", body)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:create"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"users:create"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
 
 	t.Run("revoke invitation not found", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "DELETE", "/auth/invitations/99999", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:manage"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"users:manage"})
 
 		// Either 404 or 500 (depending on error handling)
 		assert.True(t, rr.Code == http.StatusNotFound || rr.Code == http.StatusInternalServerError,
@@ -1815,7 +1683,7 @@ func TestInvitationManagement(t *testing.T) {
 
 	t.Run("resend invitation not found", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "POST", "/auth/invitations/99999/resend", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:manage"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"users:manage"})
 
 		assert.True(t, rr.Code == http.StatusNotFound || rr.Code == http.StatusInternalServerError,
 			"Expected 404 or 500, got %d. Body: %s", rr.Code, rr.Body.String())
@@ -1828,19 +1696,19 @@ func TestInvitationManagement(t *testing.T) {
 
 // TestParentAccountManagement tests parent account management endpoints
 func TestParentAccountManagement(t *testing.T) {
-	tc, router := setupExtendedProtectedRouter(t)
+	tc, router := setupProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
 	t.Run("list parent accounts", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/auth/parent-accounts", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:list"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"users:list"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("list parent accounts with filters", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/auth/parent-accounts?active=true", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:list"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"users:list"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
@@ -1856,7 +1724,7 @@ func TestParentAccountManagement(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/auth/parent-accounts", body)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:create"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"users:create"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
@@ -1877,14 +1745,14 @@ func TestParentAccountManagement(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/auth/parent-accounts", body)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:create"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"users:create"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
 
 	t.Run("get parent account not found", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/auth/parent-accounts/99999", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:read"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"users:read"})
 
 		testutil.AssertNotFound(t, rr)
 	})
@@ -1895,14 +1763,14 @@ func TestParentAccountManagement(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "PUT", "/auth/parent-accounts/99999", body)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:update"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"users:update"})
 
 		testutil.AssertNotFound(t, rr)
 	})
 
 	t.Run("parent account operations forbidden without permission", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/auth/parent-accounts", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{})
 		testutil.AssertForbidden(t, rr)
 	})
 
@@ -1919,7 +1787,7 @@ func TestParentAccountManagement(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/auth/parent-accounts", body)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:create"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"users:create"})
 		require.Equal(t, http.StatusCreated, rr.Code, "Create failed: %s", rr.Body.String())
 
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
@@ -1933,12 +1801,12 @@ func TestParentAccountManagement(t *testing.T) {
 
 		// Deactivate
 		req = testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/parent-accounts/%d/deactivate", parentID), nil)
-		rr = executeWithAuth(router, req, adminClaims, []string{"users:update"})
+		rr = executeWithAuth(t, router, req, adminClaims, []string{"users:update"})
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Deactivate failed: %s", rr.Body.String())
 
 		// Activate
 		req = testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/parent-accounts/%d/activate", parentID), nil)
-		rr = executeWithAuth(router, req, adminClaims, []string{"users:update"})
+		rr = executeWithAuth(t, router, req, adminClaims, []string{"users:update"})
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Activate failed: %s", rr.Body.String())
 	})
 }
@@ -1949,7 +1817,7 @@ func TestParentAccountManagement(t *testing.T) {
 
 // TestDeleteRole tests role deletion endpoint
 func TestDeleteRole(t *testing.T) {
-	tc, router := setupExtendedProtectedRouter(t)
+	tc, router := setupProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
 	t.Run("delete role with permission", func(t *testing.T) {
@@ -1957,14 +1825,14 @@ func TestDeleteRole(t *testing.T) {
 		role := testpkg.CreateTestRole(t, tc.db, fmt.Sprintf("DeleteTestRole%d", time.Now().UnixNano()))
 
 		req := testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/auth/roles/%d", role.ID), nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"roles:delete"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"roles:delete"})
 
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Delete failed: %s", rr.Body.String())
 	})
 
 	t.Run("delete role not found returns error", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "DELETE", "/auth/roles/99999", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"roles:delete"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"roles:delete"})
 
 		// DeleteRole validates role existence (to check IsSystem), so non-existent roles return 404
 		assert.Equal(t, http.StatusNotFound, rr.Code, "Body: %s", rr.Body.String())
@@ -1972,14 +1840,14 @@ func TestDeleteRole(t *testing.T) {
 
 	t.Run("delete role bad request with invalid id", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "DELETE", "/auth/roles/invalid", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"roles:delete"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"roles:delete"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
 
 	t.Run("delete role forbidden without permission", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "DELETE", "/auth/roles/1", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{})
 
 		testutil.AssertForbidden(t, rr)
 	})
@@ -2157,13 +2025,7 @@ func TestInvitationCreateSuccess(t *testing.T) {
 	tc := setupTestContextWithSchoolRepo(t)
 
 	router := testutil.NewTenantRouter(tc.db)
-	router.Route("/auth", func(r chi.Router) {
-		r.Route("/invitations", func(r chi.Router) {
-			r.With(authorize.RequiresPermission("users:create")).Post("/", tc.resource.CreateInvitationHandler())
-			r.With(authorize.RequiresPermission("users:list")).Get("/", tc.resource.ListPendingInvitationsHandler())
-			r.With(authorize.RequiresPermission("users:manage")).Delete("/{id}", tc.resource.RevokeInvitationHandler())
-		})
-	})
+	router.Mount("/auth", tc.resource.Router())
 
 	// Create a test account to act as the invitation creator
 	account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("inv-creator-%d@test.local", time.Now().UnixNano()))
@@ -2192,7 +2054,7 @@ func TestInvitationCreateSuccess(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/auth/invitations", body)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:create"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"users:create"})
 
 		require.Equal(t, http.StatusCreated, rr.Code,
 			"Expected 201 Created, got %d. Body: %s", rr.Code, rr.Body.String())
@@ -2215,7 +2077,7 @@ func TestInvitationCreateSuccess(t *testing.T) {
 
 	t.Run("list pending invitations through tenant transaction", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/auth/invitations", nil)
-		rr := executeWithAuth(router, req, adminClaims, []string{"users:list"})
+		rr := executeWithAuth(t, router, req, adminClaims, []string{"users:list"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
@@ -2231,7 +2093,7 @@ func TestInvitationCreateSuccess(t *testing.T) {
 		}
 
 		createReq := testutil.NewJSONRequest(t, "POST", "/auth/invitations", createBody)
-		createRR := executeWithAuth(router, createReq, adminClaims, []string{"users:create"})
+		createRR := executeWithAuth(t, router, createReq, adminClaims, []string{"users:create"})
 		require.Equal(t, http.StatusCreated, createRR.Code)
 
 		// Extract token from created invitation

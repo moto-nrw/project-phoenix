@@ -1,8 +1,6 @@
 package students_test
 
 import (
-	"context"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -10,18 +8,16 @@ import (
 
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -110,31 +106,15 @@ func setupTestContext(t *testing.T) *testContext {
 	}
 }
 
-// setupRouter creates a Chi router with the given handler.
-func setupRouter(handler http.HandlerFunc, urlParam string) chi.Router {
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
-	if urlParam != "" {
-		router.Get(fmt.Sprintf("/{%s}", urlParam), handler)
-		router.Put(fmt.Sprintf("/{%s}", urlParam), handler)
-		router.Delete(fmt.Sprintf("/{%s}", urlParam), handler)
-		router.Post(fmt.Sprintf("/{%s}", urlParam), handler)
-	} else {
-		router.Get("/", handler)
-		router.Post("/", handler)
-	}
-	return router
-}
-
-// executeWithAuth executes a request with JWT claims and permissions.
-func executeWithAuth(router chi.Router, req *http.Request, claims jwt.AppClaims, permissions []string) *httptest.ResponseRecorder {
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
-	ctx = context.WithValue(ctx, jwt.CtxPermissions, permissions)
-	if claims.TenantID != 0 {
-		ctx = tenant.WithTenantID(ctx, claims.TenantID)
-	}
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
-	return rr
+// authExec signs a JWT carrying claims (narrowed to perms) and runs the request
+// through the production Router() so the full middleware chain executes exactly
+// as the real server does (Verifier → Authenticator → TenantMiddleware →
+// RequiresPermission → TenantTxMiddleware). It replaces the old
+// setupRouter+executeWithAuth context-injection pattern: paths must be the real
+// route paths and perms must be the permission the endpoint actually gates on.
+func authExec(t *testing.T, tc *testContext, req *http.Request, claims jwt.AppClaims, perms []string) *httptest.ResponseRecorder {
+	t.Helper()
+	claims.Permissions = perms
+	req.Header.Set("Authorization", "Bearer "+testutil.MintTestJWT(t, claims))
+	return testutil.ExecuteRequest(tc.resource.Router(), req)
 }

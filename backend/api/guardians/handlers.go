@@ -1373,72 +1373,6 @@ func (rs *Resource) removeGuardianFromStudent(w http.ResponseWriter, r *http.Req
 }
 
 // =============================================================================
-// HANDLER ACCESSOR METHODS (for testing)
-// =============================================================================
-
-// ListGuardiansHandler returns the list guardians handler
-func (rs *Resource) ListGuardiansHandler() http.HandlerFunc { return rs.listGuardians }
-
-// SearchGuardiansForPickerHandler returns the guardian picker search handler.
-func (rs *Resource) SearchGuardiansForPickerHandler() http.HandlerFunc {
-	return rs.searchGuardiansForPicker
-}
-
-// GetGuardianHandler returns the get guardian handler
-func (rs *Resource) GetGuardianHandler() http.HandlerFunc { return rs.getGuardian }
-
-// CreateGuardianHandler returns the create guardian handler
-func (rs *Resource) CreateGuardianHandler() http.HandlerFunc { return rs.createGuardian }
-
-// UpdateGuardianHandler returns the update guardian handler
-func (rs *Resource) UpdateGuardianHandler() http.HandlerFunc { return rs.updateGuardian }
-
-// DeleteGuardianHandler returns the delete guardian handler
-func (rs *Resource) DeleteGuardianHandler() http.HandlerFunc { return rs.deleteGuardian }
-
-// GuardianDeletePreviewHandler returns the guardian delete-preview handler.
-func (rs *Resource) GuardianDeletePreviewHandler() http.HandlerFunc {
-	return rs.guardianDeletePreview
-}
-
-// ListGuardiansWithoutAccountHandler returns the list guardians without account handler
-func (rs *Resource) ListGuardiansWithoutAccountHandler() http.HandlerFunc {
-	return rs.listGuardiansWithoutAccount
-}
-
-// ListInvitableGuardiansHandler returns the list invitable guardians handler
-func (rs *Resource) ListInvitableGuardiansHandler() http.HandlerFunc {
-	return rs.listInvitableGuardians
-}
-
-// SendInvitationHandler returns the send invitation handler
-func (rs *Resource) SendInvitationHandler() http.HandlerFunc { return rs.sendInvitation }
-
-// ListPendingInvitationsHandler returns the list pending invitations handler
-func (rs *Resource) ListPendingInvitationsHandler() http.HandlerFunc {
-	return rs.listPendingInvitations
-}
-
-// GetStudentGuardiansHandler returns the get student guardians handler
-func (rs *Resource) GetStudentGuardiansHandler() http.HandlerFunc { return rs.getStudentGuardians }
-
-// GetGuardianStudentsHandler returns the get guardian students handler
-func (rs *Resource) GetGuardianStudentsHandler() http.HandlerFunc { return rs.getGuardianStudents }
-
-// LinkGuardianToStudentHandler returns the link guardian to student handler
-func (rs *Resource) LinkGuardianToStudentHandler() http.HandlerFunc { return rs.linkGuardianToStudent }
-
-// UpdateStudentGuardianRelationshipHandler returns the update relationship handler
-func (rs *Resource) UpdateStudentGuardianRelationshipHandler() http.HandlerFunc {
-	return rs.updateStudentGuardianRelationship
-}
-
-// RemoveGuardianFromStudentHandler returns the remove guardian from student handler
-func (rs *Resource) RemoveGuardianFromStudentHandler() http.HandlerFunc {
-	return rs.removeGuardianFromStudent
-}
-
-// =============================================================================
 // PHONE NUMBER HANDLERS
 // =============================================================================
 
@@ -1623,20 +1557,3 @@ func (rs *Resource) setPrimaryPhone(w http.ResponseWriter, r *http.Request) {
 
 	common.Respond(w, r, http.StatusOK, newPhoneNumberResponse(updatedPhone), "Phone number set as primary successfully")
 }
-
-// ListGuardianPhoneNumbersHandler returns the list phone numbers handler
-func (rs *Resource) ListGuardianPhoneNumbersHandler() http.HandlerFunc {
-	return rs.listGuardianPhoneNumbers
-}
-
-// AddPhoneNumberHandler returns the add phone number handler
-func (rs *Resource) AddPhoneNumberHandler() http.HandlerFunc { return rs.addPhoneNumber }
-
-// UpdatePhoneNumberHandler returns the update phone number handler
-func (rs *Resource) UpdatePhoneNumberHandler() http.HandlerFunc { return rs.updatePhoneNumber }
-
-// DeletePhoneNumberHandler returns the delete phone number handler
-func (rs *Resource) DeletePhoneNumberHandler() http.HandlerFunc { return rs.deletePhoneNumber }
-
-// SetPrimaryPhoneHandler returns the set primary phone handler
-func (rs *Resource) SetPrimaryPhoneHandler() http.HandlerFunc { return rs.setPrimaryPhone }

@@ -7,8 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -30,11 +28,9 @@ func TestGetStudentPickupSchedules(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, tc.db, "PickupGet", "Test", "PG1")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-	router := setupRouter(tc.resource.GetStudentPickupSchedulesHandler(), "id")
-
 	t.Run("success_returns_empty_schedules", func(t *testing.T) {
-		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/pickup-schedules", student.ID), nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "schedules")
@@ -93,8 +89,8 @@ func TestGetStudentPickupSchedules(t *testing.T) {
 				Exec(context.Background())
 		}()
 
-		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", studentWithData.ID), nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/pickup-schedules", studentWithData.ID), nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		// Verify schedules data
@@ -108,8 +104,8 @@ func TestGetStudentPickupSchedules(t *testing.T) {
 	})
 
 	t.Run("not_found_for_nonexistent_student", func(t *testing.T) {
-		req := testutil.NewRequest("GET", "/999999", nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewRequest("GET", "/999999/pickup-schedules", nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertNotFound(t, rr)
 	})
@@ -119,9 +115,9 @@ func TestGetStudentPickupSchedules(t *testing.T) {
 		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoAccess", "Staff")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, staff.ID)
 
-		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
+		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/pickup-schedules", student.ID), nil)
 		claims := testutil.TeacherTestClaims(int(account.ID))
-		rr := executeWithAuth(router, req, claims, []string{"students:read"})
+		rr := authExec(t, tc, req, claims, []string{"users:read"})
 
 		assert.Equal(t, http.StatusForbidden, rr.Code, "Non-supervisor should be forbidden with default scope. Body: %s", rr.Body.String())
 	})
@@ -133,9 +129,9 @@ func TestGetStudentPickupSchedules(t *testing.T) {
 		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "AllStaff", "Reader")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, staff.ID)
 
-		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
+		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/pickup-schedules", student.ID), nil)
 		claims := testutil.TeacherTestClaims(int(account.ID))
-		rr := executeWithAuth(router, req, claims, []string{"students:read"})
+		rr := authExec(t, tc, req, claims, []string{"users:read"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Any staff should read pickup schedules with all_staff scope. Body: %s", rr.Body.String())
 	})
@@ -147,8 +143,6 @@ func TestGetStudentPickupSchedules(t *testing.T) {
 
 func TestUpdateStudentPickupSchedules(t *testing.T) {
 	tc := setupTestContext(t)
-
-	router := setupRouterWithMethods(tc.resource.UpdateStudentPickupSchedulesHandler(), "id", []string{"PUT"})
 
 	t.Run("success_updates_schedules_as_teacher", func(t *testing.T) {
 		// Create a student
@@ -165,8 +159,8 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 				{"weekday": 3, "pickup_time": "16:00"},
 			},
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/pickup-schedules", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "15:30", "Should contain first pickup time")
@@ -203,8 +197,8 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 		body := map[string]any{
 			"schedules": []map[string]any{},
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/pickup-schedules", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 
@@ -225,8 +219,8 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 				{"weekday": 7, "pickup_time": "15:30"},
 			},
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/pickup-schedules", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -240,8 +234,8 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 				{"weekday": 0, "pickup_time": "15:30"},
 			},
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/pickup-schedules", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -255,8 +249,8 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 				{"weekday": 1, "pickup_time": "invalid"},
 			},
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/pickup-schedules", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -270,8 +264,8 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 				{"weekday": 1},
 			},
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/pickup-schedules", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -289,8 +283,8 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 				{"weekday": 1, "pickup_time": "15:30", "notes": string(longNotes)},
 			},
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/pickup-schedules", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -305,9 +299,9 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 				{"weekday": 1, "pickup_time": "15:30"},
 			},
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/pickup-schedules", student.ID), body)
 		claims := testutil.TeacherTestClaims(int(account.ID))
-		rr := executeWithAuth(router, req, claims, []string{"students:write"})
+		rr := authExec(t, tc, req, claims, []string{"users:update"})
 
 		testutil.AssertForbidden(t, rr)
 	})
@@ -319,8 +313,6 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 
 func TestCreateStudentPickupException(t *testing.T) {
 	tc := setupTestContext(t)
-
-	router := setupRouterWithMethods(tc.resource.CreateStudentPickupExceptionHandler(), "id", []string{"POST"})
 
 	t.Run("success_creates_exception_as_teacher", func(t *testing.T) {
 		// Create a student
@@ -336,8 +328,8 @@ func TestCreateStudentPickupException(t *testing.T) {
 			"pickup_time":    "12:00",
 			"reason":         "Doctor appointment",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/pickup-exceptions", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "2026-03-15", "Should contain exception date")
@@ -367,8 +359,8 @@ func TestCreateStudentPickupException(t *testing.T) {
 			"pickup_time":    "14:30",
 			"reason":         "Source check",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/pickup-exceptions", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), `"source":"staff"`,
@@ -394,8 +386,8 @@ func TestCreateStudentPickupException(t *testing.T) {
 			"exception_date": "2026-03-16",
 			"reason":         "Student is sick",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/pickup-exceptions", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "2026-03-16", "Should contain exception date")
@@ -441,8 +433,8 @@ func TestCreateStudentPickupException(t *testing.T) {
 			"pickup_time":    "13:45",
 			"reason":         "Staff created over parent",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", chain.StudentID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/pickup-exceptions", chain.StudentID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created (not a 500 on the unique index). Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), scheduleModel.ExceptionSourceStaff)
@@ -506,8 +498,8 @@ func TestCreateStudentPickupException(t *testing.T) {
 			"pickup_time":    "13:45",
 			"reason":         "Staff created over staff",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", chain.StudentID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/pickup-exceptions", chain.StudentID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusConflict, rr.Code, "staff-on-staff create must be a 409, not a silent overwrite. Body: %s", rr.Body.String())
 
@@ -537,8 +529,8 @@ func TestCreateStudentPickupException(t *testing.T) {
 			"pickup_time": "12:00",
 			"reason":      "Test reason",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/pickup-exceptions", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -552,8 +544,8 @@ func TestCreateStudentPickupException(t *testing.T) {
 			"pickup_time":    "12:00",
 			"reason":         "Test reason",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/pickup-exceptions", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -571,8 +563,8 @@ func TestCreateStudentPickupException(t *testing.T) {
 			"pickup_time":    "invalid",
 			"reason":         "Test reason",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/pickup-exceptions", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -588,8 +580,8 @@ func TestCreateStudentPickupException(t *testing.T) {
 			"exception_date": "2026-02-15",
 			"pickup_time":    "12:00",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/pickup-exceptions", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		// Should NOT be a bad request (reason is optional). The actual status
 		// depends on account setup, but it must not be 400.
@@ -610,8 +602,8 @@ func TestCreateStudentPickupException(t *testing.T) {
 			"pickup_time":    "12:00",
 			"reason":         string(longReason),
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/pickup-exceptions", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -626,9 +618,9 @@ func TestCreateStudentPickupException(t *testing.T) {
 			"pickup_time":    "12:00",
 			"reason":         "Test reason",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/pickup-exceptions", student.ID), body)
 		claims := testutil.TeacherTestClaims(int(account.ID))
-		rr := executeWithAuth(router, req, claims, []string{"students:write"})
+		rr := authExec(t, tc, req, claims, []string{"users:update"})
 
 		testutil.AssertForbidden(t, rr)
 	})
@@ -674,15 +666,13 @@ func TestUpdateStudentPickupException(t *testing.T) {
 				Exec(context.Background())
 		}()
 
-		router := setupExceptionRouter(tc.resource.UpdateStudentPickupExceptionHandler(), "PUT")
-
 		body := map[string]any{
 			"exception_date": "2026-04-15",
 			"pickup_time":    "11:00",
 			"reason":         "Updated reason",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/%d", student.ID, exception.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/pickup-exceptions/%d", student.ID, exception.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "11:00", "Should contain updated pickup time")
@@ -712,15 +702,13 @@ func TestUpdateStudentPickupException(t *testing.T) {
 			Exec(context.Background())
 		require.NoError(t, err)
 
-		router := setupExceptionRouter(tc.resource.UpdateStudentPickupExceptionHandler(), "PUT")
-
 		body := map[string]any{
 			"exception_date": "2026-04-16",
 			"pickup_time":    "13:45",
 			"reason":         "Staff adjusted time",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/%d", chain.StudentID, exception.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/pickup-exceptions/%d", chain.StudentID, exception.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), scheduleModel.ExceptionSourceStaff)
@@ -772,15 +760,13 @@ func TestUpdateStudentPickupException(t *testing.T) {
 				Exec(context.Background())
 		}()
 
-		router := setupExceptionRouter(tc.resource.UpdateStudentPickupExceptionHandler(), "PUT")
-
 		body := map[string]any{
 			"exception_date": "2026-05-15",
 			"reason":         "Updated",
 		}
 		// Try to update student2's exception using student1's URL
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/%d", student1.ID, exception.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/pickup-exceptions/%d", student1.ID, exception.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertForbidden(t, rr)
 	})
@@ -789,15 +775,13 @@ func TestUpdateStudentPickupException(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionUpdateInvalid", "Test", "EUI1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupExceptionRouter(tc.resource.UpdateStudentPickupExceptionHandler(), "PUT")
-
 		body := map[string]any{
 			"exception_date": "2026-02-15",
 			"pickup_time":    "12:00",
 			"reason":         "Updated reason",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/abc", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/pickup-exceptions/abc", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -806,16 +790,14 @@ func TestUpdateStudentPickupException(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionUpdateNotFound", "Test", "EUNF1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupExceptionRouter(tc.resource.UpdateStudentPickupExceptionHandler(), "PUT")
-
 		body := map[string]any{
 			"exception_date": "2026-02-15",
 			"pickup_time":    "12:00",
 			"reason":         "Updated reason",
 		}
 		// Use a valid but nonexistent exception ID
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/999999", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/pickup-exceptions/999999", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertNotFound(t, rr)
 	})
@@ -825,16 +807,14 @@ func TestUpdateStudentPickupException(t *testing.T) {
 		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoAccess", "UpdateExcStaff")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
 
-		router := setupExceptionRouter(tc.resource.UpdateStudentPickupExceptionHandler(), "PUT")
-
 		body := map[string]any{
 			"exception_date": "2026-02-15",
 			"pickup_time":    "12:00",
 			"reason":         "Updated reason",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/1", student.ID), body)
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/pickup-exceptions/1", student.ID), body)
 		claims := testutil.TeacherTestClaims(int(account.ID))
-		rr := executeWithAuth(router, req, claims, []string{"students:write"})
+		rr := authExec(t, tc, req, claims, []string{"users:update"})
 
 		testutil.AssertForbidden(t, rr)
 	})
@@ -868,10 +848,8 @@ func TestDeleteStudentPickupException(t *testing.T) {
 			Exec(context.Background())
 		require.NoError(t, err)
 
-		router := setupExceptionRouter(tc.resource.DeleteStudentPickupExceptionHandler(), "DELETE")
-
-		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/%d", student.ID, exception.ID), nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/pickup-exceptions/%d", student.ID, exception.ID), nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "deleted successfully")
@@ -903,10 +881,8 @@ func TestDeleteStudentPickupException(t *testing.T) {
 			Exec(context.Background())
 		require.NoError(t, err)
 
-		router := setupExceptionRouter(tc.resource.DeleteStudentPickupExceptionHandler(), "DELETE")
-
-		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/%d", chain.StudentID, exception.ID), nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/pickup-exceptions/%d", chain.StudentID, exception.ID), nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 
@@ -947,11 +923,9 @@ func TestDeleteStudentPickupException(t *testing.T) {
 				Exec(context.Background())
 		}()
 
-		router := setupExceptionRouter(tc.resource.DeleteStudentPickupExceptionHandler(), "DELETE")
-
 		// Try to delete student2's exception using student1's URL
-		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/%d", student1.ID, exception.ID), nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/pickup-exceptions/%d", student1.ID, exception.ID), nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertForbidden(t, rr)
 	})
@@ -960,10 +934,8 @@ func TestDeleteStudentPickupException(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionDeleteInvalid", "Test", "EDI1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupExceptionRouter(tc.resource.DeleteStudentPickupExceptionHandler(), "DELETE")
-
-		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/invalid", student.ID), nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/pickup-exceptions/invalid", student.ID), nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -972,11 +944,9 @@ func TestDeleteStudentPickupException(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionDeleteNotFound", "Test", "EDNF1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupExceptionRouter(tc.resource.DeleteStudentPickupExceptionHandler(), "DELETE")
-
 		// Use a valid but nonexistent exception ID
-		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/999999", student.ID), nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/pickup-exceptions/999999", student.ID), nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertNotFound(t, rr)
 	})
@@ -986,11 +956,9 @@ func TestDeleteStudentPickupException(t *testing.T) {
 		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoAccess", "DeleteExcStaff")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
 
-		router := setupExceptionRouter(tc.resource.DeleteStudentPickupExceptionHandler(), "DELETE")
-
-		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/1", student.ID), nil)
+		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/pickup-exceptions/1", student.ID), nil)
 		claims := testutil.TeacherTestClaims(int(account.ID))
-		rr := executeWithAuth(router, req, claims, []string{"students:write"})
+		rr := authExec(t, tc, req, claims, []string{"users:update"})
 
 		testutil.AssertForbidden(t, rr)
 	})
@@ -1003,16 +971,12 @@ func TestDeleteStudentPickupException(t *testing.T) {
 func TestGetBulkPickupTimes(t *testing.T) {
 	tc := setupTestContext(t)
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
-	router.Post("/", tc.resource.GetBulkPickupTimesHandler())
-
 	t.Run("bad_request_empty_student_ids", func(t *testing.T) {
 		body := map[string]any{
 			"student_ids": []int64{},
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/pickup-times/bulk", body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -1025,8 +989,8 @@ func TestGetBulkPickupTimes(t *testing.T) {
 		body := map[string]any{
 			"student_ids": ids,
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/pickup-times/bulk", body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -1036,8 +1000,8 @@ func TestGetBulkPickupTimes(t *testing.T) {
 			"student_ids": []int64{1, 2, 3},
 			"date":        "27-01-2026",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/pickup-times/bulk", body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -1050,8 +1014,8 @@ func TestGetBulkPickupTimes(t *testing.T) {
 		body := map[string]any{
 			"student_ids": []int64{student1.ID, student2.ID},
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/pickup-times/bulk", body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})
@@ -1064,8 +1028,8 @@ func TestGetBulkPickupTimes(t *testing.T) {
 			"student_ids": []int64{student.ID},
 			"date":        "2026-01-27",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/pickup-times/bulk", body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})
@@ -1082,9 +1046,9 @@ func TestGetBulkPickupTimes(t *testing.T) {
 		body := map[string]any{
 			"student_ids": []int64{student.ID},
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/pickup-times/bulk", body)
 		claims := testutil.TeacherTestClaims(int(account.ID))
-		rr := executeWithAuth(router, req, claims, []string{"students:read"})
+		rr := authExec(t, tc, req, claims, []string{"users:read"})
 
 		// Should return 200 OK with empty data (no authorized students)
 		assert.Equal(t, http.StatusOK, rr.Code)
@@ -1096,8 +1060,8 @@ func TestGetBulkPickupTimes(t *testing.T) {
 		body := map[string]any{
 			"student_ids": []int64{999998, 999999}, // Non-existent IDs
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/pickup-times/bulk", body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})
@@ -1135,8 +1099,8 @@ func TestGetBulkPickupTimes(t *testing.T) {
 			"student_ids": []int64{student.ID},
 			"date":        "2026-01-26", // Monday
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/pickup-times/bulk", body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 		assert.Contains(t, rr.Body.String(), "14:30", "Should contain pickup time")
@@ -1197,8 +1161,8 @@ func TestGetBulkPickupTimes(t *testing.T) {
 			"student_ids": []int64{student.ID},
 			"date":        "2026-01-26",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/pickup-times/bulk", body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 		// Exception should override base time
@@ -1214,8 +1178,6 @@ func TestGetBulkPickupTimes(t *testing.T) {
 func TestCreateStudentPickupNote(t *testing.T) {
 	tc := setupTestContext(t)
 
-	router := setupRouterWithMethods(tc.resource.CreateStudentPickupNoteHandler(), "id", []string{"POST"})
-
 	t.Run("success_creates_note_as_teacher", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "NoteCreate", "Test", "NCT1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
@@ -1227,8 +1189,8 @@ func TestCreateStudentPickupNote(t *testing.T) {
 			"note_date": "2026-03-15",
 			"content":   "Please call before pickup today",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/pickup-notes", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "2026-03-15", "Should contain note date")
@@ -1248,8 +1210,8 @@ func TestCreateStudentPickupNote(t *testing.T) {
 		body := map[string]any{
 			"content": "Test content",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/pickup-notes", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 		assert.Contains(t, rr.Body.String(), "note_date is required")
@@ -1263,8 +1225,8 @@ func TestCreateStudentPickupNote(t *testing.T) {
 			"note_date": "15-03-2026",
 			"content":   "Test content",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/pickup-notes", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 		assert.Contains(t, rr.Body.String(), "invalid note_date format")
@@ -1278,8 +1240,8 @@ func TestCreateStudentPickupNote(t *testing.T) {
 			"note_date": "2026-03-15",
 			"content":   "",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/pickup-notes", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 		assert.Contains(t, rr.Body.String(), "content is required")
@@ -1297,8 +1259,8 @@ func TestCreateStudentPickupNote(t *testing.T) {
 			"note_date": "2026-03-15",
 			"content":   string(longContent),
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/pickup-notes", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 		assert.Contains(t, rr.Body.String(), "content cannot exceed 500 characters")
@@ -1313,9 +1275,9 @@ func TestCreateStudentPickupNote(t *testing.T) {
 			"note_date": "2026-03-15",
 			"content":   "Test note",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d", student.ID), body)
+		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/pickup-notes", student.ID), body)
 		claims := testutil.TeacherTestClaims(int(account.ID))
-		rr := executeWithAuth(router, req, claims, []string{"students:write"})
+		rr := authExec(t, tc, req, claims, []string{"users:update"})
 
 		testutil.AssertForbidden(t, rr)
 	})
@@ -1357,14 +1319,12 @@ func TestUpdateStudentPickupNote(t *testing.T) {
 				Exec(context.Background())
 		}()
 
-		router := setupNoteRouter(tc.resource.UpdateStudentPickupNoteHandler(), "PUT")
-
 		body := map[string]any{
 			"note_date": "2026-04-15",
 			"content":   "Updated content",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/%d", student.ID, note.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/pickup-notes/%d", student.ID, note.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "Updated content", "Should contain updated content")
@@ -1397,15 +1357,13 @@ func TestUpdateStudentPickupNote(t *testing.T) {
 				Exec(context.Background())
 		}()
 
-		router := setupNoteRouter(tc.resource.UpdateStudentPickupNoteHandler(), "PUT")
-
 		body := map[string]any{
 			"note_date": "2026-05-15",
 			"content":   "Updated",
 		}
 		// Try to update student2's note using student1's URL
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/%d", student1.ID, note.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/pickup-notes/%d", student1.ID, note.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertForbidden(t, rr)
 	})
@@ -1414,14 +1372,12 @@ func TestUpdateStudentPickupNote(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "NoteUpdateInvalid", "Test", "NUI1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupNoteRouter(tc.resource.UpdateStudentPickupNoteHandler(), "PUT")
-
 		body := map[string]any{
 			"note_date": "2026-02-15",
 			"content":   "Updated content",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/abc", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/pickup-notes/abc", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -1430,14 +1386,12 @@ func TestUpdateStudentPickupNote(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "NoteUpdateNotFound", "Test", "NUNF1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupNoteRouter(tc.resource.UpdateStudentPickupNoteHandler(), "PUT")
-
 		body := map[string]any{
 			"note_date": "2026-02-15",
 			"content":   "Updated content",
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/999999", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/pickup-notes/999999", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertNotFound(t, rr)
 	})
@@ -1470,10 +1424,8 @@ func TestDeleteStudentPickupNote(t *testing.T) {
 			Exec(context.Background())
 		require.NoError(t, err)
 
-		router := setupNoteRouter(tc.resource.DeleteStudentPickupNoteHandler(), "DELETE")
-
-		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/%d", student.ID, note.ID), nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/pickup-notes/%d", student.ID, note.ID), nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "deleted successfully")
@@ -1506,11 +1458,9 @@ func TestDeleteStudentPickupNote(t *testing.T) {
 				Exec(context.Background())
 		}()
 
-		router := setupNoteRouter(tc.resource.DeleteStudentPickupNoteHandler(), "DELETE")
-
 		// Try to delete student2's note using student1's URL
-		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/%d", student1.ID, note.ID), nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/pickup-notes/%d", student1.ID, note.ID), nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertForbidden(t, rr)
 	})
@@ -1519,10 +1469,8 @@ func TestDeleteStudentPickupNote(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "NoteDeleteInvalid", "Test", "NDI1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupNoteRouter(tc.resource.DeleteStudentPickupNoteHandler(), "DELETE")
-
-		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/invalid", student.ID), nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/pickup-notes/invalid", student.ID), nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -1531,72 +1479,9 @@ func TestDeleteStudentPickupNote(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "NoteDeleteNotFound", "Test", "NDNF1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupNoteRouter(tc.resource.DeleteStudentPickupNoteHandler(), "DELETE")
-
-		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/999999", student.ID), nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/pickup-notes/999999", student.ID), nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertNotFound(t, rr)
 	})
-}
-
-// =============================================================================
-// Note-specific Helper Functions
-// =============================================================================
-
-// setupNoteRouter creates a router for note endpoints with nested URL params
-func setupNoteRouter(handler http.HandlerFunc, method string) chi.Router {
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
-	switch method {
-	case "GET":
-		router.Get("/{id}/{noteId}", handler)
-	case "POST":
-		router.Post("/{id}/{noteId}", handler)
-	case "PUT":
-		router.Put("/{id}/{noteId}", handler)
-	case "DELETE":
-		router.Delete("/{id}/{noteId}", handler)
-	}
-	return router
-}
-
-// =============================================================================
-// Helper functions
-// =============================================================================
-
-// setupRouterWithMethods creates a router that only handles specific HTTP methods
-func setupRouterWithMethods(handler http.HandlerFunc, urlParam string, methods []string) chi.Router {
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
-	for _, method := range methods {
-		switch method {
-		case "GET":
-			router.Get(fmt.Sprintf("/{%s}", urlParam), handler)
-		case "POST":
-			router.Post(fmt.Sprintf("/{%s}", urlParam), handler)
-		case "PUT":
-			router.Put(fmt.Sprintf("/{%s}", urlParam), handler)
-		case "DELETE":
-			router.Delete(fmt.Sprintf("/{%s}", urlParam), handler)
-		}
-	}
-	return router
-}
-
-// setupExceptionRouter creates a router for exception endpoints with nested URL params
-func setupExceptionRouter(handler http.HandlerFunc, method string) chi.Router {
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
-	switch method {
-	case "GET":
-		router.Get("/{id}/{exceptionId}", handler)
-	case "POST":
-		router.Post("/{id}/{exceptionId}", handler)
-	case "PUT":
-		router.Put("/{id}/{exceptionId}", handler)
-	case "DELETE":
-		router.Delete("/{id}/{exceptionId}", handler)
-	}
-	return router
 }

@@ -155,9 +155,3 @@ func (rs *Resource) studentEnrollmentExtraFieldsForChild(r *http.Request, schema
 	}
 	return out, nil
 }
-
-// GetStudentEnrollmentExtraFieldsHandler returns the handler for getting
-// per-child enrollment extra fields linked to a student.
-func (rs *Resource) GetStudentEnrollmentExtraFieldsHandler() http.HandlerFunc {
-	return rs.getStudentEnrollmentExtraFields
-}

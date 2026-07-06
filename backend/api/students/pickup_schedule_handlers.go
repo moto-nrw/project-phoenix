@@ -882,53 +882,6 @@ func (rs *Resource) getBulkPickupTimes(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, responses, "Bulk pickup times retrieved successfully")
 }
 
-// Handler accessor methods for testing
-
-// GetStudentPickupSchedulesHandler returns the handler for getting pickup schedules
-func (rs *Resource) GetStudentPickupSchedulesHandler() http.HandlerFunc {
-	return rs.getStudentPickupSchedules
-}
-
-// UpdateStudentPickupSchedulesHandler returns the handler for updating pickup schedules
-func (rs *Resource) UpdateStudentPickupSchedulesHandler() http.HandlerFunc {
-	return rs.updateStudentPickupSchedules
-}
-
-// CreateStudentPickupExceptionHandler returns the handler for creating pickup exceptions
-func (rs *Resource) CreateStudentPickupExceptionHandler() http.HandlerFunc {
-	return rs.createStudentPickupException
-}
-
-// UpdateStudentPickupExceptionHandler returns the handler for updating pickup exceptions
-func (rs *Resource) UpdateStudentPickupExceptionHandler() http.HandlerFunc {
-	return rs.updateStudentPickupException
-}
-
-// DeleteStudentPickupExceptionHandler returns the handler for deleting pickup exceptions
-func (rs *Resource) DeleteStudentPickupExceptionHandler() http.HandlerFunc {
-	return rs.deleteStudentPickupException
-}
-
-// GetBulkPickupTimesHandler returns the handler for getting bulk pickup times
-func (rs *Resource) GetBulkPickupTimesHandler() http.HandlerFunc {
-	return rs.getBulkPickupTimes
-}
-
-// CreateStudentPickupNoteHandler returns the handler for creating pickup notes
-func (rs *Resource) CreateStudentPickupNoteHandler() http.HandlerFunc {
-	return rs.createStudentPickupNote
-}
-
-// UpdateStudentPickupNoteHandler returns the handler for updating pickup notes
-func (rs *Resource) UpdateStudentPickupNoteHandler() http.HandlerFunc {
-	return rs.updateStudentPickupNote
-}
-
-// DeleteStudentPickupNoteHandler returns the handler for deleting pickup notes
-func (rs *Resource) DeleteStudentPickupNoteHandler() http.HandlerFunc {
-	return rs.deleteStudentPickupNote
-}
-
 // filterAuthorizedStudentIDs filters the requested student IDs to only those
 // the current user has read access to. Respects the gdpr.student_data_scope
 // setting: admins see all, all_staff scope lets any verified staff see all,

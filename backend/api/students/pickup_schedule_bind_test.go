@@ -767,47 +767,47 @@ func TestHandlerAccessorMethods(t *testing.T) {
 	rs := &Resource{}
 
 	t.Run("GetStudentPickupSchedulesHandler returns handler", func(t *testing.T) {
-		handler := rs.GetStudentPickupSchedulesHandler()
+		handler := rs.getStudentPickupSchedules
 		assert.NotNil(t, handler, "Handler should not be nil")
 	})
 
 	t.Run("UpdateStudentPickupSchedulesHandler returns handler", func(t *testing.T) {
-		handler := rs.UpdateStudentPickupSchedulesHandler()
+		handler := rs.updateStudentPickupSchedules
 		assert.NotNil(t, handler, "Handler should not be nil")
 	})
 
 	t.Run("CreateStudentPickupExceptionHandler returns handler", func(t *testing.T) {
-		handler := rs.CreateStudentPickupExceptionHandler()
+		handler := rs.createStudentPickupException
 		assert.NotNil(t, handler, "Handler should not be nil")
 	})
 
 	t.Run("UpdateStudentPickupExceptionHandler returns handler", func(t *testing.T) {
-		handler := rs.UpdateStudentPickupExceptionHandler()
+		handler := rs.updateStudentPickupException
 		assert.NotNil(t, handler, "Handler should not be nil")
 	})
 
 	t.Run("DeleteStudentPickupExceptionHandler returns handler", func(t *testing.T) {
-		handler := rs.DeleteStudentPickupExceptionHandler()
+		handler := rs.deleteStudentPickupException
 		assert.NotNil(t, handler, "Handler should not be nil")
 	})
 
 	t.Run("GetBulkPickupTimesHandler returns handler", func(t *testing.T) {
-		handler := rs.GetBulkPickupTimesHandler()
+		handler := rs.getBulkPickupTimes
 		assert.NotNil(t, handler, "Handler should not be nil")
 	})
 
 	t.Run("CreateStudentPickupNoteHandler returns handler", func(t *testing.T) {
-		handler := rs.CreateStudentPickupNoteHandler()
+		handler := rs.createStudentPickupNote
 		assert.NotNil(t, handler, "Handler should not be nil")
 	})
 
 	t.Run("UpdateStudentPickupNoteHandler returns handler", func(t *testing.T) {
-		handler := rs.UpdateStudentPickupNoteHandler()
+		handler := rs.updateStudentPickupNote
 		assert.NotNil(t, handler, "Handler should not be nil")
 	})
 
 	t.Run("DeleteStudentPickupNoteHandler returns handler", func(t *testing.T) {
-		handler := rs.DeleteStudentPickupNoteHandler()
+		handler := rs.deleteStudentPickupNote
 		assert.NotNil(t, handler, "Handler should not be nil")
 	})
 }
