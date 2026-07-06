@@ -9,7 +9,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -353,4 +355,86 @@ func TestPhaseService_GetByID_NotFoundSentinel(t *testing.T) {
 	_, err := svc.GetByID(ctx, 999_999_999)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentService.ErrPhaseNotFound))
+}
+
+// phaseServiceWithCalendarPeriods wires the optional CalendarPeriods dep
+// on top of the standard setup so the link validation actually runs.
+func phaseServiceWithCalendarPeriods(t *testing.T) (enrollmentService.PhaseService, *repositories.Factory, *bun.DB, func()) {
+	t.Helper()
+	_, repoFactory, db, cleanup := setupPhaseTest(t)
+	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
+		Repo:             repoFactory.Phase,
+		RequestRepo:      repoFactory.Request,
+		RequestChildRepo: repoFactory.RequestChild,
+		CareOfferingRepo: repoFactory.CareOffering,
+		CalendarPeriods:  scheduleService.NewCalendarPeriodService(repoFactory.CalendarPeriod, slog.Default()),
+		DB:               db,
+		Logger:           slog.Default(),
+	})
+	return svc, repoFactory, db, cleanup
+}
+
+func TestPhaseService_Create_WithCalendarPeriodLink(t *testing.T) {
+	svc, repoFactory, db, cleanup := phaseServiceWithCalendarPeriods(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	period := &scheduleModels.CalendarPeriod{
+		Name:            "period-" + t.Name(),
+		PeriodType:      scheduleModels.PeriodTypeSemester,
+		StartDate:       timezone.NewDate(2026, 8, 1),
+		EndDate:         timezone.NewDate(2027, 1, 31),
+		WeekCycleLength: 1,
+		IsActive:        true,
+	}
+	period.SetTenantID(1)
+	require.NoError(t, repoFactory.CalendarPeriod.Create(ctx, period))
+	defer func() {
+		_, _ = db.NewDelete().
+			TableExpr("schedule.calendar_periods").
+			Where("id = ?", period.ID).
+			Exec(context.Background())
+	}()
+
+	phase := minimalPhase(t.Name())
+	phase.CalendarPeriodID = &period.ID
+
+	created, err := svc.Create(ctx, phase)
+	require.NoError(t, err)
+	require.NotNil(t, created.CalendarPeriodID)
+	assert.Equal(t, period.ID, *created.CalendarPeriodID)
+
+	fetched, err := svc.GetByID(ctx, created.ID)
+	require.NoError(t, err)
+	require.NotNil(t, fetched.CalendarPeriodID)
+	assert.Equal(t, period.ID, *fetched.CalendarPeriodID)
+}
+
+func TestPhaseService_Create_RejectsUnknownCalendarPeriod(t *testing.T) {
+	svc, _, _, cleanup := phaseServiceWithCalendarPeriods(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	phase := minimalPhase(t.Name())
+	missing := int64(999_999_999)
+	phase.CalendarPeriodID = &missing
+
+	_, err := svc.Create(ctx, phase)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrInvalidPhase))
+}
+
+func TestPhaseService_Update_RejectsUnknownCalendarPeriod(t *testing.T) {
+	svc, _, _, cleanup := phaseServiceWithCalendarPeriods(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	created, err := svc.Create(ctx, minimalPhase(t.Name()))
+	require.NoError(t, err)
+
+	missing := int64(999_999_999)
+	created.CalendarPeriodID = &missing
+	err = svc.Update(ctx, created)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrInvalidPhase))
 }

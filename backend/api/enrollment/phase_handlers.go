@@ -29,6 +29,7 @@ type PhaseResponse struct {
 	EnrollmentOpenAt          *string `json:"enrollment_open_at,omitempty"`
 	EnrollmentCloseAt         *string `json:"enrollment_close_at,omitempty"`
 	FormSchemaID              *string `json:"form_schema_id,omitempty"`
+	CalendarPeriodID          *string `json:"calendar_period_id,omitempty"`
 	ShowStatusReasonToParent  bool    `json:"show_status_reason_to_parent"`
 	CareOverflowMode          string  `json:"care_overflow_mode"`
 	CareOfferingSelectionMode string  `json:"care_offering_selection_mode"`
@@ -71,6 +72,10 @@ func toPhaseResponse(p *enrollmentModels.Phase) PhaseResponse {
 		s := strconv.FormatInt(*p.FormSchemaID, 10)
 		resp.FormSchemaID = &s
 	}
+	if p.CalendarPeriodID != nil {
+		s := strconv.FormatInt(*p.CalendarPeriodID, 10)
+		resp.CalendarPeriodID = &s
+	}
 	if p.RolloverSourcePhaseID != nil {
 		s := strconv.FormatInt(*p.RolloverSourcePhaseID, 10)
 		resp.RolloverSourcePhaseID = &s
@@ -101,6 +106,7 @@ type PhaseRequest struct {
 	EnrollmentOpenAt          *string `json:"enrollment_open_at,omitempty"`
 	EnrollmentCloseAt         *string `json:"enrollment_close_at,omitempty"`
 	FormSchemaID              *string `json:"form_schema_id,omitempty"`
+	CalendarPeriodID          *string `json:"calendar_period_id,omitempty"`
 	ShowStatusReasonToParent  bool    `json:"show_status_reason_to_parent"`
 	CareOverflowMode          string  `json:"care_overflow_mode"`
 	CareOfferingSelectionMode string  `json:"care_offering_selection_mode"`
@@ -152,6 +158,13 @@ func (req *PhaseRequest) toModel(existingID int64) (*enrollmentModels.Phase, err
 			return nil, errors.New("form_schema_id must be a positive integer string")
 		}
 		p.FormSchemaID = &id
+	}
+	if req.CalendarPeriodID != nil && *req.CalendarPeriodID != "" {
+		id, parseErr := strconv.ParseInt(*req.CalendarPeriodID, 10, 64)
+		if parseErr != nil || id <= 0 {
+			return nil, errors.New("calendar_period_id must be a positive integer string")
+		}
+		p.CalendarPeriodID = &id
 	}
 	p.ID = existingID
 	return p, nil

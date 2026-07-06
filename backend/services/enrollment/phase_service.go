@@ -9,6 +9,7 @@ import (
 
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/uptrace/bun"
 )
 
@@ -66,8 +67,12 @@ type PhaseServiceConfig struct {
 	RequestRepo      enrollmentModels.RequestRepository
 	RequestChildRepo enrollmentModels.RequestChildRepository
 	CareOfferingRepo enrollmentModels.CareOfferingRepository
-	DB               *bun.DB
-	Logger           *slog.Logger
+	// CalendarPeriods validates phase→calendar-period links on
+	// Create/Update. Optional: when nil (unit tests with mocks), the
+	// link is accepted unvalidated and the FK constraint still holds.
+	CalendarPeriods scheduleService.CalendarPeriodService
+	DB              *bun.DB
+	Logger          *slog.Logger
 }
 
 type phaseService struct {
@@ -75,6 +80,7 @@ type phaseService struct {
 	requestRepo      enrollmentModels.RequestRepository
 	requestChildRepo enrollmentModels.RequestChildRepository
 	careOfferingRepo enrollmentModels.CareOfferingRepository
+	calendarPeriods  scheduleService.CalendarPeriodService
 	txHandler        *modelBase.TxHandler
 	logger           *slog.Logger
 }
@@ -93,9 +99,24 @@ func NewPhaseService(cfg PhaseServiceConfig) PhaseService {
 		requestRepo:      cfg.RequestRepo,
 		requestChildRepo: cfg.RequestChildRepo,
 		careOfferingRepo: cfg.CareOfferingRepo,
+		calendarPeriods:  cfg.CalendarPeriods,
 		txHandler:        txHandler,
 		logger:           logger,
 	}
+}
+
+// validateCalendarPeriodLink checks that a linked calendar period exists
+// for the current tenant. The lookup runs inside the tenant transaction,
+// so RLS scopes it — this is what actually blocks cross-tenant links,
+// because FK constraint checks bypass RLS.
+func (s *phaseService) validateCalendarPeriodLink(ctx context.Context, phase *enrollmentModels.Phase) error {
+	if phase.CalendarPeriodID == nil || s.calendarPeriods == nil {
+		return nil
+	}
+	if _, err := s.calendarPeriods.GetPeriodByID(ctx, *phase.CalendarPeriodID); err != nil {
+		return fmt.Errorf("%w: calendar period %d not found", ErrInvalidPhase, *phase.CalendarPeriodID)
+	}
+	return nil
 }
 
 func (s *phaseService) List(ctx context.Context) ([]*enrollmentModels.Phase, error) {
@@ -124,6 +145,9 @@ func (s *phaseService) Create(ctx context.Context, phase *enrollmentModels.Phase
 	if phase == nil {
 		return nil, fmt.Errorf("%w: phase is required", ErrInvalidPhase)
 	}
+	if err := s.validateCalendarPeriodLink(ctx, phase); err != nil {
+		return nil, err
+	}
 	if err := s.repo.Create(ctx, phase); err != nil {
 		return nil, err
 	}
@@ -137,6 +161,9 @@ func (s *phaseService) Create(ctx context.Context, phase *enrollmentModels.Phase
 func (s *phaseService) Update(ctx context.Context, phase *enrollmentModels.Phase) error {
 	if phase == nil || phase.ID <= 0 {
 		return fmt.Errorf("%w: phase with valid id is required", ErrInvalidPhase)
+	}
+	if err := s.validateCalendarPeriodLink(ctx, phase); err != nil {
+		return err
 	}
 	if err := s.repo.Update(ctx, phase); err != nil {
 		return err

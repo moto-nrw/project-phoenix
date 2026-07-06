@@ -429,3 +429,34 @@ func TestPhaseDeleteImpactHandler_NotFoundReturns404(t *testing.T) {
 	w := executePhaseJSON(t, router, http.MethodGet, "/enrollment/phases/1234/delete-impact", nil)
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
+
+func TestCreatePhaseHandler_CalendarPeriodIDRoundtrip(t *testing.T) {
+	created := makePhaseModel(1234, "Schuljahr 2026")
+	periodID := int64(42)
+	created.CalendarPeriodID = &periodID
+	mock := &mockPhaseService{createResult: created}
+	router := buildPhaseRouter(mock)
+
+	body := validPhaseBody("Schuljahr 2026")
+	body["calendar_period_id"] = "42"
+	w := executePhaseJSON(t, router, http.MethodPost, "/enrollment/phases", body)
+	require.Equal(t, http.StatusCreated, w.Code)
+	require.NotNil(t, mock.createInput)
+	require.NotNil(t, mock.createInput.CalendarPeriodID)
+	assert.Equal(t, int64(42), *mock.createInput.CalendarPeriodID)
+
+	var envelope struct {
+		Data PhaseResponse `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &envelope))
+	require.NotNil(t, envelope.Data.CalendarPeriodID)
+	assert.Equal(t, "42", *envelope.Data.CalendarPeriodID)
+}
+
+func TestCreatePhaseHandler_BadCalendarPeriodIDReturns400(t *testing.T) {
+	router := buildPhaseRouter(&mockPhaseService{})
+	body := validPhaseBody("X")
+	body["calendar_period_id"] = "not-a-number"
+	w := executePhaseJSON(t, router, http.MethodPost, "/enrollment/phases", body)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
