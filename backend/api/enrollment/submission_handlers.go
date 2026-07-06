@@ -158,7 +158,7 @@ func (rs *Resource) submitEnrollment(w http.ResponseWriter, r *http.Request) {
 				return submitErr
 			}
 
-			serviceReq, parseErr := buildServiceRequest(wireReq, schoolID, remoteIP)
+			serviceReq, parseErr := BuildServiceRequest(wireReq, schoolID, remoteIP)
 			if parseErr != nil {
 				submitErr = parseErr
 				return submitErr
@@ -178,7 +178,7 @@ func (rs *Resource) submitEnrollment(w http.ResponseWriter, r *http.Request) {
 	// submitErr wins over resolveErr: when the closure failed, resolveErr
 	// carries the same error and the submit-specific mapping applies.
 	if submitErr != nil {
-		mapSubmitError(w, r, submitErr)
+		MapSubmitError(w, r, submitErr)
 		return
 	}
 	if resolveErr != nil {
@@ -193,9 +193,9 @@ func (rs *Resource) submitEnrollment(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusCreated, resp, "Enrollment submitted")
 }
 
-// buildServiceRequest converts the wire request into the service-layer
+// BuildServiceRequest converts the wire request into the service-layer
 // shape. Parses date strings; surfaces a typed error on bad input.
-func buildServiceRequest(wireReq *SubmitEnrollmentRequest, tenantID int64, remoteIP string) (enrollmentService.SubmitRequest, error) {
+func BuildServiceRequest(wireReq *SubmitEnrollmentRequest, tenantID int64, remoteIP string) (enrollmentService.SubmitRequest, error) {
 	out := enrollmentService.SubmitRequest{
 		TenantID:          tenantID,
 		PhaseID:           wireReq.PhaseID,
@@ -264,9 +264,9 @@ const (
 	ErrCodeEnrollmentLateInviteInvalid           = "enrollment.late_invite_invalid"
 )
 
-// mapSubmitError translates service-layer sentinel errors into HTTP
+// MapSubmitError translates service-layer sentinel errors into HTTP
 // status codes. Unknown errors fall through to 500.
-func mapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
+func MapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, enrollmentService.ErrEnrollmentDisabled),
 		errors.Is(err, enrollmentService.ErrEnrollmentWindowClosed):
@@ -682,9 +682,9 @@ func (rs *Resource) replaceStatus(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	serviceReq, err := buildServiceRequest(wireReq, 0, "")
+	serviceReq, err := BuildServiceRequest(wireReq, 0, "")
 	if err != nil {
-		mapSubmitError(w, r, err)
+		MapSubmitError(w, r, err)
 		return
 	}
 	result, err := rs.RequestService.ReplaceEditable(r.Context(), token, serviceReq)
@@ -705,7 +705,7 @@ func mapEditError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, enrollmentService.ErrEditNotAllowed):
 		common.RenderError(w, r, common.ErrorForbidden(err))
 	default:
-		mapSubmitError(w, r, err)
+		MapSubmitError(w, r, err)
 	}
 }
 

@@ -78,9 +78,9 @@ func (rs *Resource) createChangeRequest(w http.ResponseWriter, r *http.Request) 
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	serviceReq, err := buildServiceRequest(&body.SubmitEnrollmentRequest, 0, "")
+	serviceReq, err := BuildServiceRequest(&body.SubmitEnrollmentRequest, 0, "")
 	if err != nil {
-		mapSubmitError(w, r, err)
+		MapSubmitError(w, r, err)
 		return
 	}
 	agg, err := rs.ChangeRequestService.Create(r.Context(), token, enrollmentService.CreateChangeRequestInput{

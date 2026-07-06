@@ -236,28 +236,32 @@ func (rs *Resource) createPhase(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusCreated, toPhaseResponse(created), "Phase created")
 }
 
-func (rs *Resource) updatePhase(w http.ResponseWriter, r *http.Request) {
-	if rs.PhaseService == nil {
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("phase service not configured")))
+// updateWithRefetch is the shared decode -> update -> refetch -> respond body
+// of updatePhase and updateCareOffering. decode binds the request and maps it
+// to the update model; both bind and mapping failures render as 400.
+func updateWithRefetch[M, E any](rs *Resource, w http.ResponseWriter, r *http.Request,
+	serviceMissing bool, missingMsg string,
+	decode func(r *http.Request, id int64) (M, error),
+	update func(ctx context.Context, model M) error,
+	refetch func(ctx context.Context, id int64) (E, error),
+	toResponse func(E) any, successMsg string,
+) {
+	if serviceMissing {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New(missingMsg)))
 		return
 	}
 	id, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
 	if !ok {
 		return
 	}
-	req := &PhaseRequest{}
-	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
-	}
-	model, err := req.toModel(id)
+	model, err := decode(r, id)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {
-		return rs.PhaseService.Update(ctx, model)
+		return update(ctx, model)
 	})
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
@@ -266,16 +270,35 @@ func (rs *Resource) updatePhase(w http.ResponseWriter, r *http.Request) {
 
 	// Refetch so the response carries DB-managed timestamps + applied
 	// defaults (e.g. care_overflow_mode normalisation in Validate).
-	var refreshed *enrollmentModels.Phase
+	var refreshed E
 	if fetchErr := rs.runInTenantTx(r, func(ctx context.Context) error {
-		p, e := rs.PhaseService.GetByID(ctx, id)
-		refreshed = p
-		return e
+		e, err := refetch(ctx, id)
+		refreshed = e
+		return err
 	}); fetchErr != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(fetchErr))
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toPhaseResponse(refreshed), "Phase updated")
+	common.Respond(w, r, http.StatusOK, toResponse(refreshed), successMsg)
+}
+
+func (rs *Resource) updatePhase(w http.ResponseWriter, r *http.Request) {
+	updateWithRefetch(rs, w, r, rs.PhaseService == nil, "phase service not configured",
+		func(r *http.Request, id int64) (*enrollmentModels.Phase, error) {
+			req := &PhaseRequest{}
+			if err := render.Bind(r, req); err != nil {
+				return nil, err
+			}
+			return req.toModel(id)
+		},
+		func(ctx context.Context, model *enrollmentModels.Phase) error {
+			return rs.PhaseService.Update(ctx, model)
+		},
+		func(ctx context.Context, id int64) (*enrollmentModels.Phase, error) {
+			return rs.PhaseService.GetByID(ctx, id)
+		},
+		func(p *enrollmentModels.Phase) any { return toPhaseResponse(p) },
+		"Phase updated")
 }
 
 func (rs *Resource) deletePhase(w http.ResponseWriter, r *http.Request) {

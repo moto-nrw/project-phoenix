@@ -255,44 +255,22 @@ func (rs *Resource) createCareOffering(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) updateCareOffering(w http.ResponseWriter, r *http.Request) {
-	if rs.CareOfferingService == nil {
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("care offering service not configured")))
-		return
-	}
-	id, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
-	if !ok {
-		return
-	}
-	req := &CareOfferingRequest{}
-	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
-	}
-	model, err := req.toModel(id)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
-	}
-
-	err = rs.runInTenantTx(r, func(ctx context.Context) error {
-		return rs.CareOfferingService.Update(ctx, model)
-	})
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
-	}
-
-	// Refetch so the response reflects DB-side timestamps.
-	var refreshed *enrollmentModels.CareOffering
-	if fetchErr := rs.runInTenantTx(r, func(ctx context.Context) error {
-		o, e := rs.CareOfferingService.GetByID(ctx, id)
-		refreshed = o
-		return e
-	}); fetchErr != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(fetchErr))
-		return
-	}
-	common.Respond(w, r, http.StatusOK, toCareOfferingResponse(refreshed), "Care offering updated")
+	updateWithRefetch(rs, w, r, rs.CareOfferingService == nil, "care offering service not configured",
+		func(r *http.Request, id int64) (*enrollmentModels.CareOffering, error) {
+			req := &CareOfferingRequest{}
+			if err := render.Bind(r, req); err != nil {
+				return nil, err
+			}
+			return req.toModel(id)
+		},
+		func(ctx context.Context, model *enrollmentModels.CareOffering) error {
+			return rs.CareOfferingService.Update(ctx, model)
+		},
+		func(ctx context.Context, id int64) (*enrollmentModels.CareOffering, error) {
+			return rs.CareOfferingService.GetByID(ctx, id)
+		},
+		func(o *enrollmentModels.CareOffering) any { return toCareOfferingResponse(o) },
+		"Care offering updated")
 }
 
 func (rs *Resource) deleteCareOffering(w http.ResponseWriter, r *http.Request) {

@@ -13,8 +13,8 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -80,60 +80,6 @@ func (rs *Resource) resolveSchoolID(ctx context.Context, slug string) (int64, er
 	return out, nil
 }
 
-// submitParentChildRequest is the wire shape for one child within the
-// parent submit body. Mirrors api/enrollment.SubmitChildRequest — kept
-// duplicate (vs. importing the public type) so the parent route stays
-// independent of the public API package.
-type submitParentChildRequest struct {
-	FirstName        string                          `json:"first_name"`
-	LastName         string                          `json:"last_name"`
-	DateOfBirth      string                          `json:"date_of_birth"`
-	TargetGradeLevel *int16                          `json:"target_grade_level,omitempty"`
-	CustomData       map[string]any                  `json:"custom_data,omitempty"`
-	OfferingIDs      []int64                         `json:"offering_ids,omitempty"`
-	OfferingDays     []submitParentOfferingDaysEntry `json:"offering_days,omitempty"`
-}
-
-// submitParentOfferingDaysEntry mirrors api/enrollment.SubmitOfferingDaysRow.
-type submitParentOfferingDaysEntry struct {
-	OfferingID   int64    `json:"offering_id"`
-	SelectedDays []string `json:"selected_days"`
-}
-
-// submitParentGuardianEntry mirrors api/enrollment.SubmitGuardianRequest —
-// one additional guardian (co-guardian) beyond the primary. Names
-// required; email/phone optional.
-type submitParentGuardianEntry struct {
-	FirstName string  `json:"first_name"`
-	LastName  string  `json:"last_name"`
-	Email     *string `json:"email,omitempty"`
-	Phone     *string `json:"phone,omitempty"`
-}
-
-// submitParentEnrollmentRequest is the parent-authenticated submit
-// body. Captcha is intentionally absent — the parent JWT IS the
-// anti-bot signal; we skip captcha verification end-to-end.
-type submitParentEnrollmentRequest struct {
-	PhaseID             int64                       `json:"phase_id"`
-	GuardianFirstName   string                      `json:"guardian_first_name"`
-	GuardianLastName    string                      `json:"guardian_last_name"`
-	GuardianEmail       string                      `json:"guardian_email"`
-	GuardianPhone       *string                     `json:"guardian_phone,omitempty"`
-	AdditionalGuardians []submitParentGuardianEntry `json:"additional_guardians,omitempty"`
-	ConsentFlags        map[string]any              `json:"consent_flags,omitempty"`
-	CustomData          map[string]any              `json:"custom_data,omitempty"`
-	Children            []submitParentChildRequest  `json:"children"`
-	LateInviteToken     string                      `json:"late_invite_token,omitempty"`
-}
-
-// submitParentResponse is what the embedded form receives after a
-// successful authenticated submit. Same shape as the public path —
-// intentional, so the form can share its onSubmitted handler.
-type submitParentResponse struct {
-	RequestID string `json:"request_id"`
-	StatusURL string `json:"status_url"`
-}
-
 // submitParentEnrollment handles a parent-authenticated submission.
 // The handler resolves the slug to a tenant via admin-tx, verifies the
 // calling account is mapped to that tenant via auth.account_tenants
@@ -165,20 +111,15 @@ func (rs *Resource) submitParentEnrollment(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	wireReq := &submitParentEnrollmentRequest{}
+	// Reuse the public submit wire shape. The parent path has no captcha
+	// (the JWT is the trust signal) and never sends child ids; both extra
+	// fields decode inertly. Bind() defaults nil maps/slices.
+	wireReq := &enrollmentAPI.SubmitEnrollmentRequest{}
 	if err := json.NewDecoder(r.Body).Decode(wireReq); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	if wireReq.ConsentFlags == nil {
-		wireReq.ConsentFlags = map[string]any{}
-	}
-	if wireReq.CustomData == nil {
-		wireReq.CustomData = map[string]any{}
-	}
-	if wireReq.Children == nil {
-		wireReq.Children = []submitParentChildRequest{}
-	}
+	_ = wireReq.Bind(r)
 	if wireReq.LateInviteToken == "" {
 		wireReq.LateInviteToken = strings.TrimSpace(r.URL.Query().Get("late_invite"))
 	}
@@ -209,11 +150,12 @@ func (rs *Resource) submitParentEnrollment(w http.ResponseWriter, r *http.Reques
 
 		tenantCtx := tenant.WithTenantID(adminCtx, school.ID)
 
-		serviceReq, parseErr := buildParentServiceRequest(wireReq, school.ID, accountID, getClientIP(r))
+		serviceReq, parseErr := enrollmentAPI.BuildServiceRequest(wireReq, school.ID, getClientIP(r))
 		if parseErr != nil {
 			submitErr = parseErr
 			return nil
 		}
+		serviceReq.GuardianAccountID = &accountID
 		res, err := rs.RequestService.Submit(tenantCtx, serviceReq)
 		if err != nil {
 			submitErr = err
@@ -231,108 +173,13 @@ func (rs *Resource) submitParentEnrollment(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if submitErr != nil {
-		mapParentSubmitError(w, r, submitErr)
+		enrollmentAPI.MapSubmitError(w, r, submitErr)
 		return
 	}
 
-	resp := submitParentResponse{
+	resp := enrollmentAPI.SubmitEnrollmentResponse{
 		RequestID: strconv.FormatInt(result.Request.ID, 10),
 		StatusURL: result.StatusURL,
 	}
 	common.Respond(w, r, http.StatusCreated, resp, "Enrollment submitted")
-}
-
-// buildParentServiceRequest converts the wire request to the
-// enrollment.RequestService input. Mirrors api/enrollment.buildServiceRequest,
-// stamps GuardianAccountID from the JWT, and now also forwards the
-// caller's IP so per-IP rate limiting applies on top of per-email
-// and per-account checks.
-func buildParentServiceRequest(wireReq *submitParentEnrollmentRequest, tenantID, accountID int64, remoteIP string) (enrollmentService.SubmitRequest, error) {
-	out := enrollmentService.SubmitRequest{
-		TenantID:          tenantID,
-		PhaseID:           wireReq.PhaseID,
-		GuardianFirstName: wireReq.GuardianFirstName,
-		GuardianLastName:  wireReq.GuardianLastName,
-		GuardianEmail:     wireReq.GuardianEmail,
-		GuardianPhone:     wireReq.GuardianPhone,
-		ConsentFlags:      wireReq.ConsentFlags,
-		CustomData:        wireReq.CustomData,
-		GuardianAccountID: &accountID,
-		RemoteIP:          remoteIP,
-		LateInviteToken:   wireReq.LateInviteToken,
-	}
-	for _, g := range wireReq.AdditionalGuardians {
-		out.AdditionalGuardians = append(out.AdditionalGuardians, enrollmentService.SubmitGuardian{
-			FirstName: g.FirstName,
-			LastName:  g.LastName,
-			Email:     g.Email,
-			Phone:     g.Phone,
-		})
-	}
-	for i, c := range wireReq.Children {
-		dob, err := timezone.ParseDate(c.DateOfBirth)
-		if err != nil {
-			return out, fmt.Errorf("child %d: invalid date_of_birth (expected YYYY-MM-DD)", i)
-		}
-		offeringDays := make([]enrollmentService.SubmitOfferingDays, 0, len(c.OfferingDays))
-		for _, row := range c.OfferingDays {
-			offeringDays = append(offeringDays, enrollmentService.SubmitOfferingDays{
-				OfferingID:   row.OfferingID,
-				SelectedDays: row.SelectedDays,
-			})
-		}
-		out.Children = append(out.Children, enrollmentService.SubmitChild{
-			FirstName:        c.FirstName,
-			LastName:         c.LastName,
-			DateOfBirth:      dob,
-			TargetGradeLevel: c.TargetGradeLevel,
-			CustomData:       c.CustomData,
-			OfferingIDs:      c.OfferingIDs,
-			OfferingDays:     offeringDays,
-		})
-	}
-	return out, nil
-}
-
-// mapParentSubmitError mirrors mapSubmitError in api/enrollment, minus
-// the captcha branch (parents never trigger captcha-shaped errors).
-func mapParentSubmitError(w http.ResponseWriter, r *http.Request, err error) {
-	switch {
-	case errors.Is(err, enrollmentService.ErrEnrollmentDisabled),
-		errors.Is(err, enrollmentService.ErrEnrollmentWindowClosed):
-		common.RenderError(w, r, common.ErrorForbidden(err))
-	case errors.Is(err, enrollmentService.ErrLateInviteInvalid):
-		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "enrollment.late_invite_invalid"))
-	// Phone/email validation must precede the generic ErrInvalidSubmission
-	// branch below: ErrInvalidGuardianEmail wraps ErrInvalidSubmission, and
-	// ErrInvalidGuardianPhone does NOT wrap it at all — without these cases an
-	// invalid optional co-guardian phone would fall through to 500. Codes
-	// mirror enrollment.ErrCodeEnrollmentInvalidPhone / InvalidEmail so the
-	// shared EnrollmentForm renders the same German message as the public form.
-	case errors.Is(err, enrollmentService.ErrInvalidGuardianPhone):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "enrollment.invalid_phone"))
-	case errors.Is(err, enrollmentService.ErrInvalidGuardianEmail):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "enrollment.invalid_email"))
-	// Must precede the generic ErrInvalidSubmission branch: ErrPickupTimeNotAllowed
-	// wraps it. Code mirrors enrollment.ErrCodeEnrollmentPickupTimeNotAllowed so the
-	// shared EnrollmentForm renders the same German message as the public form.
-	case errors.Is(err, enrollmentService.ErrPickupTimeNotAllowed):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "enrollment.pickup_time_not_allowed"))
-	case errors.Is(err, enrollmentService.ErrCareOfferingClosed),
-		errors.Is(err, enrollmentService.ErrInvalidSubmission):
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case errors.Is(err, enrollmentService.ErrCareOfferingFull):
-		// Mirror the public submit handler: JSON envelope + stable code
-		// so the parent portal form renders the friendly German message
-		// instead of "(HTTP 409)". Code matches
-		// enrollment.ErrCodeEnrollmentCareOfferingFull.
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.care_offering_full"))
-	case errors.Is(err, enrollmentService.ErrDuplicateEnrollment):
-		common.RenderError(w, r, common.ErrorConflictMessage("Für dieses Kind liegt in dieser Phase bereits eine Anmeldung vor."))
-	case errors.Is(err, enrollmentService.ErrRateLimited):
-		w.Header().Set("Retry-After", "3600")
-		http.Error(w, err.Error(), http.StatusTooManyRequests)
-	default:
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-	}
 }

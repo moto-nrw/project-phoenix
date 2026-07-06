@@ -156,7 +156,7 @@ func (rs *Resource) createManualApprovedEnrollment(w http.ResponseWriter, r *htt
 	}
 
 	body.PhaseID = phaseID
-	serviceReq, parseErr := buildServiceRequest(&body.SubmitEnrollmentRequest, tenantID, remoteIPFromRequest(r))
+	serviceReq, parseErr := BuildServiceRequest(&body.SubmitEnrollmentRequest, tenantID, remoteIPFromRequest(r))
 	if parseErr != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(parseErr))
 		return
@@ -332,6 +332,6 @@ func mapManualEnrollmentError(w http.ResponseWriter, r *http.Request, err error)
 	case common.IsTransientDatabaseError(err):
 		common.RenderError(w, r, common.ErrorServiceUnavailable(err))
 	default:
-		mapSubmitError(w, r, err)
+		MapSubmitError(w, r, err)
 	}
 }
