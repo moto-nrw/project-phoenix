@@ -1885,6 +1885,21 @@ func (s *decisionService) gradeToClass(grade *int16) string {
 	return strconv.Itoa(int(*grade))
 }
 
+// isBareGradePlaceholderClass reports whether a student's school_class is an
+// un-customized grade placeholder — empty or all digits ("", "1", "2"), as
+// produced by gradeToClass — rather than a concrete class an admin assigned
+// ("2a"). Bare placeholders may be safely re-derived from a changed grade;
+// concrete classes must be preserved. Issue #1833.
+func isBareGradePlaceholderClass(class string) bool {
+	class = strings.TrimSpace(class)
+	for _, r := range class {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 // concreteSchoolClass returns the trimmed concrete class the parent
 // chose at enrollment (e.g. "2a"), or "" when none was collected
 // ("Klasse offen"). Issue #1833.

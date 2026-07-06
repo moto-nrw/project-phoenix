@@ -345,12 +345,21 @@ func (s *rolloverService) runCreate(ctx context.Context, tenantID int64, req Cre
 		ShowStatusReasonToParent:  source.ShowStatusReasonToParent,
 		CareOverflowMode:          source.CareOverflowMode,
 		CareOfferingSelectionMode: source.CareOfferingSelectionMode,
-		IsActive:                  true,
-		RolloverSourcePhaseID:     &source.ID,
-		RolloverMode:              &mode,
-		RolloverAutoApprove:       req.RolloverAutoApprove,
-		RolloverDeadline:          &deadline,
-		RolloverBumpsGrade:        req.RolloverBumpsGrade,
+		// Carry the concrete-class config forward (issue #1833). A
+		// half-year rollover carries each child's class (e.g. "2a") into
+		// the new phase; without copying the offered-class list the submit
+		// validator would reject that carried value as "not offered by this
+		// phase", blocking the parent's opt-in/edit. Copying the source
+		// config keeps carried classes valid and preserves the source's
+		// require-class policy.
+		AvailableSchoolClasses: source.AvailableSchoolClasses,
+		RequireSchoolClass:     source.RequireSchoolClass,
+		IsActive:               true,
+		RolloverSourcePhaseID:  &source.ID,
+		RolloverMode:           &mode,
+		RolloverAutoApprove:    req.RolloverAutoApprove,
+		RolloverDeadline:       &deadline,
+		RolloverBumpsGrade:     req.RolloverBumpsGrade,
 	}
 	newPhase.SetTenantID(tenantID)
 	if err := newPhase.Validate(); err != nil {

@@ -211,7 +211,25 @@ func (p *Phase) Validate() error {
 	if p.AvailableSchoolClasses == nil {
 		p.AvailableSchoolClasses = []string{}
 	}
+	// A phase that makes the concrete class mandatory must offer at least
+	// one class to pick. Otherwise every grade >= 2 submission is
+	// unsatisfiable: the submit validator rejects both an empty value and
+	// any value not in the (empty) offered list. Issue #1833.
+	if p.RequireSchoolClass && !hasNonEmptySchoolClass(p.AvailableSchoolClasses) {
+		return errors.New("require_school_class needs at least one available_school_class")
+	}
 	return nil
+}
+
+// hasNonEmptySchoolClass reports whether the list contains at least one
+// non-blank class entry.
+func hasNonEmptySchoolClass(classes []string) bool {
+	for _, c := range classes {
+		if strings.TrimSpace(c) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // PhaseRepository is the DB contract the phase service consumes. PR A

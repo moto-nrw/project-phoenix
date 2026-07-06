@@ -172,3 +172,23 @@ func TestDecisionService_ResolveSchoolClass(t *testing.T) {
 		})
 	}
 }
+
+func TestIsBareGradePlaceholderClass(t *testing.T) {
+	tests := []struct {
+		in   string
+		want bool
+	}{
+		{"", true},    // no class assigned yet
+		{"  ", true},  // whitespace-only placeholder
+		{"1", true},   // bare grade number
+		{"12", true},  // still all digits
+		{"2a", false}, // hand-assigned concrete class
+		{"Klasse", false},
+		{" 2a ", false},
+	}
+	for _, tc := range tests {
+		if got := isBareGradePlaceholderClass(tc.in); got != tc.want {
+			t.Fatalf("isBareGradePlaceholderClass(%q) = %v, want %v", tc.in, got, tc.want)
+		}
+	}
+}
