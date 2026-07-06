@@ -20,6 +20,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -129,25 +130,15 @@ func (s *guardianInvitationService) getLogger() *slog.Logger {
 // resolveTokenExpiry follows the documented HasTenantOverride → ResolveInt →
 // env var → fallback chain. Returns a duration in hours.
 func (s *guardianInvitationService) resolveTokenExpiry(ctx context.Context) time.Duration {
-	hours := 0
-	if s.SettingsResolver != nil {
-		if has, err := s.SettingsResolver.HasTenantOverride(ctx, configModel.KeyGuardianInvitationTokenExpiryHours); err != nil {
-			s.getLogger().Warn("guardian invitation: settings override check failed",
-				slog.String("key", configModel.KeyGuardianInvitationTokenExpiryHours),
-				slog.String("error", err.Error()),
-			)
-		} else if has {
-			if v, err := s.SettingsResolver.ResolveInt(ctx, configModel.KeyGuardianInvitationTokenExpiryHours); err == nil && v > 0 {
-				hours = v
-			}
+	fallback := 0
+	if env := strings.TrimSpace(os.Getenv(guardianTokenEnvVar)); env != "" {
+		if parsed, err := strconv.Atoi(env); err == nil && parsed > 0 {
+			fallback = parsed
 		}
 	}
+	hours := configSvc.ResolveIntOrDefault(ctx, s.SettingsResolver, configModel.KeyGuardianInvitationTokenExpiryHours, fallback, s.getLogger())
 	if hours <= 0 {
-		if env := strings.TrimSpace(os.Getenv(guardianTokenEnvVar)); env != "" {
-			if parsed, err := strconv.Atoi(env); err == nil && parsed > 0 {
-				hours = parsed
-			}
-		}
+		hours = fallback
 	}
 	if hours <= 0 {
 		return s.FallbackExpiry

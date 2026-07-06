@@ -12,6 +12,7 @@ import (
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -125,28 +126,9 @@ func (s *service) clearCheckoutOnReentry(ctx context.Context, studentID int64, a
 
 // resolveClearMode resolves the configured clear mode for a status flag,
 // falling back to the provided default when the settings resolver is unavailable
-// or has no tenant override. Registry defaults are populated via SetValue flow,
-// not via Resolve* — so we check HasTenantOverride explicitly.
+// or has no tenant override.
 func (s *service) resolveClearMode(ctx context.Context, key, fallback string) string {
-	if s.settings == nil {
-		return fallback
-	}
-	hasOverride, err := s.settings.HasTenantOverride(ctx, key)
-	if err != nil {
-		s.getLogger().Warn("settings override check failed, using default",
-			slog.String("key", key),
-			slog.String("error", err.Error()),
-		)
-		return fallback
-	}
-	if !hasOverride {
-		return fallback
-	}
-	val, err := s.settings.ResolveString(ctx, key)
-	if err != nil || val == "" {
-		return fallback
-	}
-	return val
+	return config.ResolveStringOrDefault(ctx, s.settings, key, fallback, s.getLogger())
 }
 
 // autoClearStudentSickness clears the sickness flag on student check-in when

@@ -12,12 +12,12 @@ import (
 	"time"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // CaptchaSettingsResolver is the narrow contract the captcha service
-// needs from the platform settings service. Defined locally so this
-// package doesn't import services/config (which would create a cycle
-// once config wants to read enrollment-side state).
+// needs from the platform settings service, keeping the DI surface small
+// and test stubs cheap.
 type CaptchaSettingsResolver interface {
 	HasTenantOverride(ctx context.Context, key string) (bool, error)
 	ResolveBool(ctx context.Context, key string) (bool, error)
@@ -80,15 +80,8 @@ func (s *CaptchaService) IsEnabled(ctx context.Context) bool {
 	if s.settings == nil {
 		return false
 	}
-	if has, err := s.settings.HasTenantOverride(ctx, configModel.KeyEnrollmentRequireCaptcha); err == nil && has {
-		if v, err := s.settings.ResolveBool(ctx, configModel.KeyEnrollmentRequireCaptcha); err == nil {
-			return v
-		}
-	}
-	if env := strings.TrimSpace(os.Getenv("ENROLLMENT_REQUIRE_CAPTCHA")); env != "" {
-		return env == "true"
-	}
-	return false
+	fallback := strings.TrimSpace(os.Getenv("ENROLLMENT_REQUIRE_CAPTCHA")) == "true"
+	return config.ResolveBoolOrDefault(ctx, s.settings, configModel.KeyEnrollmentRequireCaptcha, fallback, nil)
 }
 
 // Verify validates `token` against the configured provider for the tenant in
@@ -145,14 +138,8 @@ func (s *CaptchaService) Verify(ctx context.Context, token, remoteIP string) err
 }
 
 func (s *CaptchaService) resolveSecret(ctx context.Context) string {
-	if s.settings != nil {
-		if has, err := s.settings.HasTenantOverride(ctx, configModel.KeyEnrollmentCaptchaSecretKey); err == nil && has {
-			if v, err := s.settings.ResolveString(ctx, configModel.KeyEnrollmentCaptchaSecretKey); err == nil && v != "" {
-				return v
-			}
-		}
-	}
-	return strings.TrimSpace(os.Getenv("ENROLLMENT_CAPTCHA_SECRET_KEY"))
+	fallback := strings.TrimSpace(os.Getenv("ENROLLMENT_CAPTCHA_SECRET_KEY"))
+	return config.ResolveStringOrDefault(ctx, s.settings, configModel.KeyEnrollmentCaptchaSecretKey, fallback, nil)
 }
 
 // SiteKey returns the public Cloudflare Turnstile site key for the tenant in
@@ -161,12 +148,6 @@ func (s *CaptchaService) resolveSecret(ctx context.Context) string {
 // to expose on a public endpoint — it's the same value that lives in the
 // rendered widget markup.
 func (s *CaptchaService) SiteKey(ctx context.Context) string {
-	if s.settings != nil {
-		if has, err := s.settings.HasTenantOverride(ctx, configModel.KeyEnrollmentCaptchaSiteKey); err == nil && has {
-			if v, err := s.settings.ResolveString(ctx, configModel.KeyEnrollmentCaptchaSiteKey); err == nil && v != "" {
-				return v
-			}
-		}
-	}
-	return strings.TrimSpace(os.Getenv("ENROLLMENT_CAPTCHA_SITE_KEY"))
+	fallback := strings.TrimSpace(os.Getenv("ENROLLMENT_CAPTCHA_SITE_KEY"))
+	return config.ResolveStringOrDefault(ctx, s.settings, configModel.KeyEnrollmentCaptchaSiteKey, fallback, nil)
 }

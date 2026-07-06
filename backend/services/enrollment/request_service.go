@@ -25,6 +25,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -2273,16 +2274,7 @@ func fnvHash64(s string) uint64 {
 }
 
 func (s *requestService) isEnrollmentEnabled(ctx context.Context) bool {
-	if s.Settings == nil {
-		return false
-	}
-	if has, err := s.Settings.HasTenantOverride(ctx, configModel.KeyEnrollmentEnabled); err == nil && has {
-		v, err := s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentEnabled)
-		if err == nil {
-			return v
-		}
-	}
-	return false
+	return config.ResolveBoolOrDefault(ctx, s.Settings, configModel.KeyEnrollmentEnabled, false, nil)
 }
 
 // LegalTexts resolves configured legal Markdown for the tenant in context
@@ -2618,50 +2610,27 @@ func filterConsentFlags(flags map[string]any, blocks []LegalBlock) map[string]an
 // resolveGradeMax reads the tenant setting and falls back to the current
 // registry default when unset or unreadable.
 func (s *requestService) resolveGradeMax(ctx context.Context) int {
-	if s.Settings == nil {
-		return 4
-	}
-	if has, err := s.Settings.HasTenantOverride(ctx, configModel.KeyEnrollmentGradeLevelMax); err == nil && has {
-		if v, err := s.Settings.ResolveInt(ctx, configModel.KeyEnrollmentGradeLevelMax); err == nil && v > 0 {
-			return v
-		}
+	if v := config.ResolveIntOrDefault(ctx, s.Settings, configModel.KeyEnrollmentGradeLevelMax, 4, nil); v > 0 {
+		return v
 	}
 	return 4
 }
 
 func (s *requestService) allowSubmissionEdit(ctx context.Context) bool {
-	if s.Settings == nil {
-		return true
-	}
-	if has, err := s.Settings.HasTenantOverride(ctx, configModel.KeyEnrollmentAllowSubmissionEdit); err == nil && has {
-		v, err := s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentAllowSubmissionEdit)
-		if err == nil {
-			return v
-		}
-	}
-	return true
+	return config.ResolveBoolOrDefault(ctx, s.Settings, configModel.KeyEnrollmentAllowSubmissionEdit, true, nil)
 }
 
 func (s *requestService) resolveStatusTokenExpiry(ctx context.Context) time.Duration {
 	const defaultDays = 365
-	if s.Settings == nil {
-		return time.Duration(defaultDays) * 24 * time.Hour
+	days := config.ResolveIntOrDefault(ctx, s.Settings, configModel.KeyEnrollmentStatusTokenTTLDays, defaultDays, nil)
+	if days <= 0 {
+		days = defaultDays
 	}
-	if has, err := s.Settings.HasTenantOverride(ctx, configModel.KeyEnrollmentStatusTokenTTLDays); err == nil && has {
-		if v, err := s.Settings.ResolveInt(ctx, configModel.KeyEnrollmentStatusTokenTTLDays); err == nil && v > 0 {
-			return time.Duration(v) * 24 * time.Hour
-		}
-	}
-	return time.Duration(defaultDays) * 24 * time.Hour
+	return time.Duration(days) * 24 * time.Hour
 }
 
 func (s *requestService) resolveSettingString(ctx context.Context, key, fallback string) string {
-	if has, err := s.Settings.HasTenantOverride(ctx, key); err == nil && has {
-		if v, err := s.Settings.ResolveString(ctx, key); err == nil && v != "" {
-			return v
-		}
-	}
-	return fallback
+	return config.ResolveStringOrDefault(ctx, s.Settings, key, fallback, nil)
 }
 
 // resolveAdminEmails parses the comma-separated notification_emails

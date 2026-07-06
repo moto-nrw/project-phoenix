@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/randstr"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -79,22 +80,8 @@ func (s *service) IsDeviceOnlineAt(ctx context.Context, device *iot.Device, now 
 // DeviceOnlineWindow resolves the per-tenant device-online window, falling back
 // to defaultDeviceOnlineWindow when no override exists or the lookup fails.
 func (s *service) DeviceOnlineWindow(ctx context.Context) time.Duration {
-	if s.settings == nil {
-		return defaultDeviceOnlineWindow
-	}
-	has, err := s.settings.HasTenantOverride(ctx, configModel.KeyDeviceOnlineWindowMinutes)
-	if err != nil {
-		slog.WarnContext(ctx, "device online window override check failed, using default",
-			slog.String("key", configModel.KeyDeviceOnlineWindowMinutes),
-			slog.String("error", err.Error()),
-		)
-		return defaultDeviceOnlineWindow
-	}
-	if !has {
-		return defaultDeviceOnlineWindow
-	}
-	minutes, err := s.settings.ResolveInt(ctx, configModel.KeyDeviceOnlineWindowMinutes)
-	if err != nil || minutes <= 0 {
+	minutes := config.ResolveIntOrDefault(ctx, s.settings, configModel.KeyDeviceOnlineWindowMinutes, 0, slog.Default())
+	if minutes <= 0 {
 		return defaultDeviceOnlineWindow
 	}
 	return time.Duration(minutes) * time.Minute

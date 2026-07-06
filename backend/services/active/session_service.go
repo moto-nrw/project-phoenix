@@ -16,9 +16,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -1174,27 +1176,10 @@ func (s *service) isDeviceOnline(ctx context.Context, device *iotModels.Device, 
 }
 
 // deviceOnlineWindow resolves the per-tenant device-online window, falling back
-// to defaultDeviceOnlineWindow. The key string is inlined (rather than
-// imported from models/config) to avoid a dependency cycle through the factory,
-// matching the GetPresenceMode convention in this package.
+// to defaultDeviceOnlineWindow.
 func (s *service) deviceOnlineWindow(ctx context.Context) time.Duration {
-	const keyDeviceOnlineWindowMinutes = "iot.device_online_window_minutes"
-	if s.settings == nil {
-		return defaultDeviceOnlineWindow
-	}
-	has, err := s.settings.HasTenantOverride(ctx, keyDeviceOnlineWindowMinutes)
-	if err != nil {
-		s.getLogger().WarnContext(ctx, "device online window override check failed, using default",
-			slog.String("key", keyDeviceOnlineWindowMinutes),
-			slog.String("error", err.Error()),
-		)
-		return defaultDeviceOnlineWindow
-	}
-	if !has {
-		return defaultDeviceOnlineWindow
-	}
-	minutes, err := s.settings.ResolveInt(ctx, keyDeviceOnlineWindowMinutes)
-	if err != nil || minutes <= 0 {
+	minutes := config.ResolveIntOrDefault(ctx, s.settings, configModel.KeyDeviceOnlineWindowMinutes, 0, s.getLogger())
+	if minutes <= 0 {
 		return defaultDeviceOnlineWindow
 	}
 	return time.Duration(minutes) * time.Minute

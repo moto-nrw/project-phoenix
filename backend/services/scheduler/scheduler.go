@@ -19,6 +19,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/services/config"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -1293,88 +1294,50 @@ func (s *Scheduler) checkAndRunAutoCheckout(task *ScheduledTask) {
 
 // resolveStringSetting resolves a setting via the settings service with env var fallback.
 func (s *Scheduler) resolveStringSetting(ctx context.Context, key string, envVar string, defaultVal string) string {
-	if s.settings != nil {
-		if hasOverride, err := s.settings.HasTenantOverride(ctx, key); err != nil {
-			s.getLogger().Warn("settings override check failed, falling back",
-				slog.String("key", key),
-				slog.String("error", err.Error()),
-			)
-		} else if hasOverride {
-			if val, err := s.settings.ResolveString(ctx, key); err == nil && val != "" {
-				return val
-			}
-		}
-	}
+	fallback := defaultVal
 	if val := os.Getenv(envVar); val != "" {
-		return val
+		fallback = val
 	}
-	return defaultVal
+	return config.ResolveStringOrDefault(ctx, s.settings, key, fallback, s.getLogger())
 }
 
 // resolveBoolSetting resolves a boolean setting via the settings service with env var fallback.
 func (s *Scheduler) resolveBoolSetting(ctx context.Context, key string, envVar string, defaultVal bool) bool {
-	if s.settings != nil {
-		if hasOverride, err := s.settings.HasTenantOverride(ctx, key); err != nil {
-			s.getLogger().Warn("settings override check failed, falling back",
-				slog.String("key", key),
-				slog.String("error", err.Error()),
-			)
-		} else if hasOverride {
-			if val, err := s.settings.ResolveBool(ctx, key); err == nil {
-				return val
-			}
-		}
-	}
+	fallback := defaultVal
 	if val := os.Getenv(envVar); val != "" {
-		return val == "true"
+		fallback = val == "true"
 	}
-	return defaultVal
+	return config.ResolveBoolOrDefault(ctx, s.settings, key, fallback, s.getLogger())
 }
 
 // resolveIntSetting resolves an integer setting via the settings service with env var fallback.
 func (s *Scheduler) resolveIntSetting(ctx context.Context, key string, envVar string, defaultVal int) int {
-	if s.settings != nil {
-		if hasOverride, err := s.settings.HasTenantOverride(ctx, key); err != nil {
-			s.getLogger().Warn("settings override check failed, falling back",
-				slog.String("key", key),
-				slog.String("error", err.Error()),
-			)
-		} else if hasOverride {
-			if val, err := s.settings.ResolveInt(ctx, key); err == nil && val > 0 {
-				return val
-			}
-		}
-	}
+	fallback := defaultVal
 	if val := os.Getenv(envVar); val != "" {
 		if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 {
-			return parsed
+			fallback = parsed
 		}
 	}
-	return defaultVal
+	if val := config.ResolveIntOrDefault(ctx, s.settings, key, fallback, s.getLogger()); val > 0 {
+		return val
+	}
+	return fallback
 }
 
 // resolveNonNegativeIntSetting is resolveIntSetting for settings where zero is
 // a meaningful value (e.g. tracking.auto_checkout_grace_minutes = 0 means
 // checkout exactly at the planned shift end).
 func (s *Scheduler) resolveNonNegativeIntSetting(ctx context.Context, key string, envVar string, defaultVal int) int {
-	if s.settings != nil {
-		if hasOverride, err := s.settings.HasTenantOverride(ctx, key); err != nil {
-			s.getLogger().Warn("settings override check failed, falling back",
-				slog.String("key", key),
-				slog.String("error", err.Error()),
-			)
-		} else if hasOverride {
-			if val, err := s.settings.ResolveInt(ctx, key); err == nil && val >= 0 {
-				return val
-			}
-		}
-	}
+	fallback := defaultVal
 	if val := os.Getenv(envVar); val != "" {
 		if parsed, err := strconv.Atoi(val); err == nil && parsed >= 0 {
-			return parsed
+			fallback = parsed
 		}
 	}
-	return defaultVal
+	if val := config.ResolveIntOrDefault(ctx, s.settings, key, fallback, s.getLogger()); val >= 0 {
+		return val
+	}
+	return fallback
 }
 
 // waitUntilNextMinute blocks until the start of the next wall-clock minute,
