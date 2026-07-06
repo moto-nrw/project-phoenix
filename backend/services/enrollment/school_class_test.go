@@ -209,6 +209,74 @@ func TestDecisionService_ResolveSchoolClass(t *testing.T) {
 	}
 }
 
+func TestDecisionService_ResolveRolloverSchoolClass(t *testing.T) {
+	s := &decisionService{}
+
+	tests := []struct {
+		name          string
+		child         *enrollmentModels.RequestChild
+		existingClass string
+		want          string
+	}{
+		{
+			name:          "carried concrete class wins",
+			child:         &enrollmentModels.RequestChild{TargetGradeLevel: grade(3), TargetSchoolClass: classPtr("3a")},
+			existingClass: "2a",
+			want:          "3a",
+		},
+		{
+			name:          "bare placeholder re-derives to bumped grade",
+			child:         &enrollmentModels.RequestChild{TargetGradeLevel: grade(2)},
+			existingClass: "1",
+			want:          "2",
+		},
+		{
+			name:          "empty placeholder re-derives to grade",
+			child:         &enrollmentModels.RequestChild{TargetGradeLevel: grade(2)},
+			existingClass: "",
+			want:          "2",
+		},
+		{
+			name:          "stale concrete class from old grade falls back to placeholder on grade bump",
+			child:         &enrollmentModels.RequestChild{TargetGradeLevel: grade(3)},
+			existingClass: "2a",
+			want:          "3",
+		},
+		{
+			name:          "concrete class already matching target grade is kept",
+			child:         &enrollmentModels.RequestChild{TargetGradeLevel: grade(3)},
+			existingClass: "3b",
+			want:          "3b",
+		},
+		{
+			name:          "concrete class kept on half-year rollover (no grade change)",
+			child:         &enrollmentModels.RequestChild{TargetGradeLevel: grade(2)},
+			existingClass: "2a",
+			want:          "2a",
+		},
+		{
+			name:          "named class without numeric prefix is left untouched",
+			child:         &enrollmentModels.RequestChild{TargetGradeLevel: grade(3)},
+			existingClass: "Bienen",
+			want:          "Bienen",
+		},
+		{
+			name:          "nil target grade keeps existing concrete class",
+			child:         &enrollmentModels.RequestChild{},
+			existingClass: "2a",
+			want:          "2a",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := s.resolveRolloverSchoolClass(tc.child, tc.existingClass); got != tc.want {
+				t.Fatalf("resolveRolloverSchoolClass(%q) = %q, want %q", tc.existingClass, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestIsBareGradePlaceholderClass(t *testing.T) {
 	tests := []struct {
 		in   string
