@@ -125,7 +125,12 @@ func personalCalendarUp(ctx context.Context, db *bun.DB) error {
 			appointment_id      BIGINT NOT NULL,
 			recipient_type      TEXT NOT NULL,
 			staff_id            BIGINT REFERENCES users.staff(id),
-			guardian_profile_id BIGINT REFERENCES users.guardian_profiles(id),
+			-- ON DELETE CASCADE: a guardian profile deletion (e.g. GDPR account
+			-- removal via DeleteGuardianWithLinks) must not fail on this FK.
+			-- Removing the guardian drops their recipient rows (and the
+			-- recipient_students rows cascade from appointment_recipients below);
+			-- the appointment itself is retained.
+			guardian_profile_id BIGINT REFERENCES users.guardian_profiles(id) ON DELETE CASCADE,
 			status              TEXT NOT NULL,
 			responded_at        TIMESTAMPTZ,
 			created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),

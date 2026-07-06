@@ -87,6 +87,11 @@ func TestRecurrenceRuleValidate(t *testing.T) {
 		{name: "invalid interval", rule: RecurrenceRule{AppointmentID: 1, Frequency: RecurrenceFrequencyDaily}, wantErr: "interval_count must be positive"},
 		{name: "two end modes", rule: RecurrenceRule{AppointmentID: 1, Frequency: RecurrenceFrequencyWeekly, IntervalCount: 1, EndsOn: &endsOn, OccurrenceCount: &count}, wantErr: "only one recurrence end mode is allowed"},
 		{name: "invalid count", rule: RecurrenceRule{AppointmentID: 1, Frequency: RecurrenceFrequencyWeekly, IntervalCount: 1, OccurrenceCount: new(int)}, wantErr: "occurrence_count must be positive"},
+		{name: "valid weekdays", rule: RecurrenceRule{AppointmentID: 1, Frequency: RecurrenceFrequencyWeekly, IntervalCount: 1, Weekdays: []string{"monday", "Friday"}}},
+		{name: "invalid weekday", rule: RecurrenceRule{AppointmentID: 1, Frequency: RecurrenceFrequencyWeekly, IntervalCount: 1, Weekdays: []string{"foo"}}, wantErr: "weekdays must be valid day names (monday–sunday)"},
+		{name: "valid month days", rule: RecurrenceRule{AppointmentID: 1, Frequency: RecurrenceFrequencyMonthly, IntervalCount: 1, MonthDays: []int{1, 15, 31}}},
+		{name: "month day zero", rule: RecurrenceRule{AppointmentID: 1, Frequency: RecurrenceFrequencyMonthly, IntervalCount: 1, MonthDays: []int{0}}, wantErr: "month_days must be between 1 and 31"},
+		{name: "month day too large", rule: RecurrenceRule{AppointmentID: 1, Frequency: RecurrenceFrequencyMonthly, IntervalCount: 1, MonthDays: []int{32}}, wantErr: "month_days must be between 1 and 31"},
 	}
 
 	for _, tt := range tests {

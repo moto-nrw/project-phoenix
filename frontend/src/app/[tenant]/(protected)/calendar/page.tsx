@@ -81,10 +81,6 @@ function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
 
-function startOfCurrentWeek(): Date {
-  return getWeekRange(new Date()).from;
-}
-
 function weekdayName(dateISO: string): string {
   const date = new Date(`${dateISO}T00:00:00`);
   return date.toLocaleDateString("en-US", { weekday: "long" }).toLowerCase();
@@ -238,7 +234,10 @@ export default function StaffCalendarPage() {
   const toast = useToast();
   const { data: session } = useSession();
   const canManageCalendar = hasPermission(session, "calendar:manage");
-  const [referenceDate, setReferenceDate] = useState(startOfCurrentWeek);
+  // Focal date defaults to today; the calendar component derives the week
+  // range for week view, so today shows the current week / month / day
+  // correctly (not the start of the week or the wrong month at boundaries).
+  const [referenceDate, setReferenceDate] = useState(() => new Date());
   const [viewMode, setViewMode] = useState<CalendarViewMode>("week");
   const [formOpen, setFormOpen] = useState(false);
   const [title, setTitle] = useState("");

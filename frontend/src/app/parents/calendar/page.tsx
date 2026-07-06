@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   CalendarOverviewList,
@@ -18,10 +18,6 @@ import {
 } from "~/lib/personal-calendar-api";
 import { toISODate } from "~/lib/date-helpers";
 import { getWeekRange } from "~/lib/timetable-helpers";
-
-function startOfCurrentWeek(): Date {
-  return getWeekRange(new Date()).from;
-}
 
 function messageFromError(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
@@ -49,7 +45,10 @@ function calendarRange(referenceDate: Date, viewMode: CalendarViewMode) {
 
 export default function ParentCalendarPage() {
   const toast = useToast();
-  const [referenceDate, setReferenceDate] = useState(startOfCurrentWeek);
+  // Focal date defaults to today; the calendar component derives the week
+  // range for week view, so today shows the current week / month / day
+  // correctly (not the start of the week or the wrong month at boundaries).
+  const [referenceDate, setReferenceDate] = useState(() => new Date());
   const [viewMode, setViewMode] = useState<CalendarViewMode>("week");
   const [data, setData] = useState<CalendarResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -68,20 +67,30 @@ export default function ParentCalendarPage() {
   );
   const rangeKey = `${viewMode}-${toISODate(range.from)}-${toISODate(range.to)}`;
 
+  // Guards against out-of-order responses: quickly switching views/ranges can
+  // leave an older getParentCalendar request in flight that resolves last and
+  // overwrites the current range's events. Only the most recently issued load
+  // is allowed to touch state.
+  const latestRequestRef = useRef(0);
   const load = useCallback(
     async (options?: { readonly silent?: boolean }) => {
       const silent = options?.silent ?? false;
+      const requestId = ++latestRequestRef.current;
       if (!silent) setLoading(true);
       try {
         const response = await getParentCalendar(range.from, range.to);
+        if (requestId !== latestRequestRef.current) return;
         setData(response);
         setError(null);
       } catch (err) {
+        if (requestId !== latestRequestRef.current) return;
         setError(
           messageFromError(err, "Kalender konnte nicht geladen werden."),
         );
       } finally {
-        if (!silent) setLoading(false);
+        if (!silent && requestId === latestRequestRef.current) {
+          setLoading(false);
+        }
       }
     },
     [range.from, range.to],

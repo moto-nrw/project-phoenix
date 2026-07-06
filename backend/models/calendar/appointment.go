@@ -42,6 +42,21 @@ const (
 	RecurrenceFrequencyYearly  = "yearly"
 )
 
+// validRecurrenceWeekdays holds the lowercase day names produced by
+// time.Weekday.String(). The occurrence matcher (services/calendar) compares
+// candidate.Weekday().String() lowercased against the rule's weekdays, so a
+// value outside this set silently matches nothing — reject it at validation
+// time instead of letting the appointment appear to have no occurrences.
+var validRecurrenceWeekdays = map[string]bool{
+	"monday":    true,
+	"tuesday":   true,
+	"wednesday": true,
+	"thursday":  true,
+	"friday":    true,
+	"saturday":  true,
+	"sunday":    true,
+}
+
 type Appointment struct {
 	base.Model `bun:"schema:calendar,table:appointments"`
 	base.TenantModel
@@ -147,6 +162,16 @@ func (r *RecurrenceRule) Validate() error {
 	}
 	if r.OccurrenceCount != nil && *r.OccurrenceCount <= 0 {
 		return errors.New("occurrence_count must be positive")
+	}
+	for _, weekday := range r.Weekdays {
+		if !validRecurrenceWeekdays[strings.ToLower(strings.TrimSpace(weekday))] {
+			return errors.New("weekdays must be valid day names (monday–sunday)")
+		}
+	}
+	for _, day := range r.MonthDays {
+		if day < 1 || day > 31 {
+			return errors.New("month_days must be between 1 and 31")
+		}
 	}
 	return nil
 }

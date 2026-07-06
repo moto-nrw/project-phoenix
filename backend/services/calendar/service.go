@@ -26,6 +26,12 @@ const (
 	EventSourceTimetable   = calModels.EventSourceTimetable
 
 	maxCalendarWindowDays = 92
+
+	// parentSearchCandidateFactor over-fetches guardian text matches in
+	// RecipientOptions so that reachability/visibility filtering does not
+	// truncate reachable parents ranked after unreachable matches. limit is
+	// capped at 50, so the candidate pool stays bounded (≤ 250 rows).
+	parentSearchCandidateFactor = 5
 )
 
 var (
@@ -540,7 +546,12 @@ func (s *service) RecipientOptions(ctx context.Context, query string, limit int)
 		}
 	}
 
-	parents, err := s.cfg.GuardianProfileRepo.SearchByText(ctx, query, limit)
+	// Over-fetch text matches before filtering: reachability (active portal
+	// account + guardian role) and student visibility are applied below, so
+	// capping SearchByText at `limit` would let unreachable matches consume the
+	// budget and hide reachable parents ranked later. Fetch a larger candidate
+	// pool, then cap the filtered result at `limit`.
+	parents, err := s.cfg.GuardianProfileRepo.SearchByText(ctx, query, limit*parentSearchCandidateFactor)
 	if err != nil {
 		return nil, err
 	}
@@ -552,8 +563,11 @@ func (s *service) RecipientOptions(ctx context.Context, query string, limit int)
 	if err != nil {
 		return nil, err
 	}
-	parentOptions := make([]ParentOption, 0, len(parents))
+	parentOptions := make([]ParentOption, 0, min(limit, len(parents)))
 	for _, parent := range parents {
+		if len(parentOptions) >= limit {
+			break
+		}
 		if _, ok := activeParents[parent.ID]; !ok {
 			continue
 		}
