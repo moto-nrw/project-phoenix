@@ -126,23 +126,8 @@ func enrichDeviceInfo(devices []OperatorDeviceInfo) []OperatorDeviceInfo {
 }
 
 type operatorProvisioningService struct {
-	organizationRepo    platform.OrganizationRepository
-	schoolRepo          platform.SchoolRepository
-	summariesRepo       platform.OperatorSummariesRepository
-	categoryRepo        activityModels.CategoryRepository
-	deviceRepo          iotModels.DeviceRepository
-	roleRepo            authModels.RoleRepository
-	accountTenantRepo   authModels.AccountTenantRepository
-	personRepo          userModels.PersonRepository
-	staffRepo           userModels.StaffRepository
-	accountRepo         authModels.AccountRepository
-	teacherRepo         userModels.TeacherRepository
-	groupSupervisorRepo activeModels.GroupSupervisorRepository
-	invitationService   authSvc.InvitationService
-	authService         authSvc.AuthService
-	auditLogRepo        platform.OperatorAuditLogRepository
-	txHandler           *modelBase.TxHandler
-	logger              *slog.Logger
+	OperatorProvisioningServiceConfig
+	txHandler *modelBase.TxHandler
 }
 
 // OperatorProvisioningServiceConfig holds dependencies for operator provisioning.
@@ -172,29 +157,14 @@ func NewOperatorProvisioningService(cfg OperatorProvisioningServiceConfig) Opera
 		panic("operator provisioning service: SummariesRepo is required")
 	}
 	return &operatorProvisioningService{
-		organizationRepo:    cfg.OrganizationRepo,
-		schoolRepo:          cfg.SchoolRepo,
-		summariesRepo:       cfg.SummariesRepo,
-		categoryRepo:        cfg.CategoryRepo,
-		deviceRepo:          cfg.DeviceRepo,
-		roleRepo:            cfg.RoleRepo,
-		accountTenantRepo:   cfg.AccountTenantRepo,
-		personRepo:          cfg.PersonRepo,
-		staffRepo:           cfg.StaffRepo,
-		accountRepo:         cfg.AccountRepo,
-		teacherRepo:         cfg.TeacherRepo,
-		groupSupervisorRepo: cfg.GroupSupervisorRepo,
-		invitationService:   cfg.InvitationService,
-		authService:         cfg.AuthService,
-		auditLogRepo:        cfg.AuditLogRepo,
-		txHandler:           modelBase.NewTxHandler(cfg.DB),
-		logger:              cfg.Logger,
+		OperatorProvisioningServiceConfig: cfg,
+		txHandler:                         modelBase.NewTxHandler(cfg.DB),
 	}
 }
 
 func (s *operatorProvisioningService) getLogger() *slog.Logger {
-	if s.logger != nil {
-		return s.logger
+	if s.Logger != nil {
+		return s.Logger
 	}
 	return slog.Default()
 }
@@ -209,14 +179,14 @@ func (s *operatorProvisioningService) CreateOrganization(ctx context.Context, or
 
 	var created *platform.Organization
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		existing, findErr := s.organizationRepo.FindBySlug(adminCtx, organization.Slug)
+		existing, findErr := s.OrganizationRepo.FindBySlug(adminCtx, organization.Slug)
 		if findErr != nil {
 			return findErr
 		}
 		if existing != nil {
 			return &ConflictError{Err: fmt.Errorf("organization slug already exists")}
 		}
-		if createErr := s.organizationRepo.Create(adminCtx, organization); createErr != nil {
+		if createErr := s.OrganizationRepo.Create(adminCtx, organization); createErr != nil {
 			if isUniqueViolation(createErr) {
 				return &ConflictError{Err: fmt.Errorf("organization slug already exists")}
 			}
@@ -236,14 +206,14 @@ func (s *operatorProvisioningService) CreateOrganization(ctx context.Context, or
 }
 
 func (s *operatorProvisioningService) ListOrganizations(ctx context.Context) ([]*platform.Organization, error) {
-	return s.organizationRepo.List(ctx)
+	return s.OrganizationRepo.List(ctx)
 }
 
 func (s *operatorProvisioningService) UpdateOrganization(ctx context.Context, id int64, req UpdateOrganizationRequest, operatorID int64, clientIP net.IP) (*platform.Organization, error) {
 	var updated *platform.Organization
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
 		// See locking contract on OrganizationRepository.FindByIDForShare.
-		existing, err := s.organizationRepo.FindByIDForShare(adminCtx, id)
+		existing, err := s.OrganizationRepo.FindByIDForShare(adminCtx, id)
 		if err != nil {
 			return err
 		}
@@ -257,7 +227,7 @@ func (s *operatorProvisioningService) UpdateOrganization(ctx context.Context, id
 		changes := map[string]any{}
 
 		if req.Slug != existing.Slug {
-			taken, findErr := s.organizationRepo.FindBySlug(adminCtx, req.Slug)
+			taken, findErr := s.OrganizationRepo.FindBySlug(adminCtx, req.Slug)
 			if findErr != nil {
 				return findErr
 			}
@@ -277,7 +247,7 @@ func (s *operatorProvisioningService) UpdateOrganization(ctx context.Context, id
 		existing.Slug = req.Slug
 		existing.Active = req.Active
 
-		if updateErr := s.organizationRepo.Update(adminCtx, existing); updateErr != nil {
+		if updateErr := s.OrganizationRepo.Update(adminCtx, existing); updateErr != nil {
 			if isUniqueViolation(updateErr) {
 				return &ConflictError{Err: fmt.Errorf("organization slug already exists")}
 			}
@@ -307,9 +277,9 @@ func (s *operatorProvisioningService) CreateSchool(ctx context.Context, school *
 		if err := s.validateSchoolCreate(adminCtx, school); err != nil {
 			return err
 		}
-		if createErr := s.schoolRepo.Create(adminCtx, school); createErr != nil {
+		if createErr := s.SchoolRepo.Create(adminCtx, school); createErr != nil {
 			if isUniqueViolation(createErr) {
-				return mapSchoolCreateConflict(adminCtx, s.schoolRepo, school)
+				return mapSchoolCreateConflict(adminCtx, s.SchoolRepo, school)
 			}
 			return createErr
 		}
@@ -335,13 +305,13 @@ func (s *operatorProvisioningService) CreateSchool(ctx context.Context, school *
 }
 
 func (s *operatorProvisioningService) ListSchools(ctx context.Context) ([]*platform.School, error) {
-	return s.schoolRepo.List(ctx)
+	return s.SchoolRepo.List(ctx)
 }
 
 func (s *operatorProvisioningService) UpdateSchool(ctx context.Context, id int64, req UpdateSchoolRequest, operatorID int64, clientIP net.IP) (*platform.School, error) {
 	var updated *platform.School
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		existing, err := s.schoolRepo.FindByID(adminCtx, id)
+		existing, err := s.SchoolRepo.FindByID(adminCtx, id)
 		if err != nil {
 			if isSchoolLookupNotFound(err) {
 				return &SchoolNotFoundError{SchoolID: id}
@@ -359,7 +329,7 @@ func (s *operatorProvisioningService) UpdateSchool(ctx context.Context, id int64
 
 		if req.OrganizationID != existing.OrganizationID {
 			// See locking contract on OrganizationRepository.FindByIDForShare.
-			org, orgErr := s.organizationRepo.FindByIDForShare(adminCtx, req.OrganizationID)
+			org, orgErr := s.OrganizationRepo.FindByIDForShare(adminCtx, req.OrganizationID)
 			if orgErr != nil {
 				return orgErr
 			}
@@ -374,7 +344,7 @@ func (s *operatorProvisioningService) UpdateSchool(ctx context.Context, id int64
 
 		targetOrgID := req.OrganizationID
 		if req.Slug != existing.Slug || req.OrganizationID != existing.OrganizationID {
-			taken, findErr := s.schoolRepo.FindByOrganizationAndSlug(adminCtx, targetOrgID, req.Slug)
+			taken, findErr := s.SchoolRepo.FindByOrganizationAndSlug(adminCtx, targetOrgID, req.Slug)
 			if findErr != nil {
 				return findErr
 			}
@@ -387,7 +357,7 @@ func (s *operatorProvisioningService) UpdateSchool(ctx context.Context, id int64
 		}
 
 		if req.Subdomain != existing.Subdomain {
-			taken, findErr := s.schoolRepo.FindBySubdomain(adminCtx, req.Subdomain)
+			taken, findErr := s.SchoolRepo.FindBySubdomain(adminCtx, req.Subdomain)
 			if findErr != nil {
 				return findErr
 			}
@@ -419,9 +389,9 @@ func (s *operatorProvisioningService) UpdateSchool(ctx context.Context, id int64
 		existing.Active = req.Active
 		existing.Hidden = req.Hidden
 
-		if updateErr := s.schoolRepo.Update(adminCtx, existing); updateErr != nil {
+		if updateErr := s.SchoolRepo.Update(adminCtx, existing); updateErr != nil {
 			if isUniqueViolation(updateErr) {
-				return mapSchoolCreateConflict(adminCtx, s.schoolRepo, existing)
+				return mapSchoolCreateConflict(adminCtx, s.SchoolRepo, existing)
 			}
 			return &InvalidDataError{Err: updateErr}
 		}
@@ -447,7 +417,7 @@ func (s *operatorProvisioningService) InviteSchoolAdmin(ctx context.Context, sch
 		req = normalizeAdminInviteRequest(req, adminRole.ID, school.ID)
 
 		invitationCtx := tenant.WithTenantID(adminCtx, school.ID)
-		created, createErr := s.invitationService.CreateInvitation(invitationCtx, req)
+		created, createErr := s.InvitationService.CreateInvitation(invitationCtx, req)
 		if createErr != nil {
 			return createErr
 		}
@@ -487,7 +457,7 @@ func (s *operatorProvisioningService) CreateSchoolAccount(ctx context.Context, s
 			selectedRole = adminRole
 		} else {
 			// Validate that the provided role is a supported system role.
-			role, roleErr := s.roleRepo.FindByID(adminCtx, *roleID)
+			role, roleErr := s.RoleRepo.FindByID(adminCtx, *roleID)
 			if roleErr != nil {
 				return fmt.Errorf("lookup role: %w", roleErr)
 			}
@@ -516,7 +486,7 @@ func (s *operatorProvisioningService) CreateSchoolAccount(ctx context.Context, s
 
 		// Step 1: Create Account
 		tenantCtx := tenant.WithTenantID(adminCtx, school.ID)
-		created, createErr := s.authService.Register(tenantCtx, req.Email, username, req.Password, roleID, school.ID)
+		created, createErr := s.AuthService.Register(tenantCtx, req.Email, username, req.Password, roleID, school.ID)
 		if createErr != nil {
 			return createErr
 		}
@@ -528,12 +498,12 @@ func (s *operatorProvisioningService) CreateSchoolAccount(ctx context.Context, s
 			LastName:  req.LastName,
 		}
 		person.SetTenantID(school.ID)
-		if err := s.personRepo.Create(tenantCtx, person); err != nil {
+		if err := s.PersonRepo.Create(tenantCtx, person); err != nil {
 			return fmt.Errorf("create person: %w", err)
 		}
 
 		// Link person to account
-		if err := s.personRepo.LinkToAccount(tenantCtx, person.ID, account.ID); err != nil {
+		if err := s.PersonRepo.LinkToAccount(tenantCtx, person.ID, account.ID); err != nil {
 			return fmt.Errorf("link person to account: %w", err)
 		}
 
@@ -541,7 +511,7 @@ func (s *operatorProvisioningService) CreateSchoolAccount(ctx context.Context, s
 		if selectedRole != nil && selectedRole.IsSystem {
 			staff := &userModels.Staff{PersonID: person.ID}
 			staff.SetTenantID(school.ID)
-			if err := s.staffRepo.Create(tenantCtx, staff); err != nil {
+			if err := s.StaffRepo.Create(tenantCtx, staff); err != nil {
 				return fmt.Errorf("create staff: %w", err)
 			}
 
@@ -559,7 +529,7 @@ func (s *operatorProvisioningService) CreateSchoolAccount(ctx context.Context, s
 				if req.Position != "" {
 					teacher.Role = req.Position
 				}
-				if err := s.teacherRepo.Create(tenantCtx, teacher); err != nil {
+				if err := s.TeacherRepo.Create(tenantCtx, teacher); err != nil {
 					return fmt.Errorf("create teacher: %w", err)
 				}
 			}
@@ -586,13 +556,13 @@ func (s *operatorProvisioningService) ensureUserRole(ctx context.Context, accoun
 		return fmt.Errorf("user role not found")
 	}
 
-	return s.authService.AssignRoleToAccount(ctx, int(accountID), int(userRole.ID))
+	return s.AuthService.AssignRoleToAccount(ctx, int(accountID), int(userRole.ID))
 }
 
 func (s *operatorProvisioningService) ListSystemRoles(ctx context.Context) ([]*authModels.Role, error) {
 	var result []*authModels.Role
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		roles, listErr := s.roleRepo.List(adminCtx, map[string]interface{}{"is_system": true})
+		roles, listErr := s.RoleRepo.List(adminCtx, map[string]interface{}{"is_system": true})
 		if listErr != nil {
 			return listErr
 		}
@@ -608,7 +578,7 @@ func (s *operatorProvisioningService) ListSystemRoles(ctx context.Context) ([]*a
 func (s *operatorProvisioningService) ListSchoolAccounts(ctx context.Context, schoolID int64) ([]authModels.TenantAccountInfo, error) {
 	var result []authModels.TenantAccountInfo
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		school, findErr := s.schoolRepo.FindByID(adminCtx, schoolID)
+		school, findErr := s.SchoolRepo.FindByID(adminCtx, schoolID)
 		if findErr != nil {
 			if isSchoolLookupNotFound(findErr) {
 				return &SchoolNotFoundError{SchoolID: schoolID}
@@ -621,7 +591,7 @@ func (s *operatorProvisioningService) ListSchoolAccounts(ctx context.Context, sc
 		if school.IsDeleted() {
 			return &SchoolAlreadyDeletedError{SchoolID: schoolID}
 		}
-		accounts, listErr := s.accountTenantRepo.ListAccountsByTenantID(adminCtx, schoolID)
+		accounts, listErr := s.AccountTenantRepo.ListAccountsByTenantID(adminCtx, schoolID)
 		if listErr != nil {
 			return listErr
 		}
@@ -637,14 +607,14 @@ func (s *operatorProvisioningService) ListSchoolAccounts(ctx context.Context, sc
 func (s *operatorProvisioningService) ListOrganizationAccounts(ctx context.Context, organizationID int64) ([]authModels.OrgAccountInfo, error) {
 	var result []authModels.OrgAccountInfo
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		org, findErr := s.organizationRepo.FindByID(adminCtx, organizationID)
+		org, findErr := s.OrganizationRepo.FindByID(adminCtx, organizationID)
 		if findErr != nil {
 			return findErr
 		}
 		if org == nil {
 			return &OrganizationNotFoundError{OrganizationID: organizationID}
 		}
-		accounts, listErr := s.accountTenantRepo.ListAccountsByOrganizationID(adminCtx, organizationID)
+		accounts, listErr := s.AccountTenantRepo.ListAccountsByOrganizationID(adminCtx, organizationID)
 		if listErr != nil {
 			return listErr
 		}
@@ -660,7 +630,7 @@ func (s *operatorProvisioningService) ListOrganizationAccounts(ctx context.Conte
 func (s *operatorProvisioningService) ListAllAccounts(ctx context.Context) ([]authModels.OrgAccountInfo, error) {
 	var result []authModels.OrgAccountInfo
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		accounts, listErr := s.accountTenantRepo.ListAllAccounts(adminCtx)
+		accounts, listErr := s.AccountTenantRepo.ListAllAccounts(adminCtx)
 		if listErr != nil {
 			return listErr
 		}
@@ -676,7 +646,7 @@ func (s *operatorProvisioningService) ListAllAccounts(ctx context.Context) ([]au
 // queryDevices runs the shared device listing through the summaries
 // repository and computes the derived presentation fields.
 func (s *operatorProvisioningService) queryDevices(adminCtx context.Context, filter platform.OperatorDeviceFilter) ([]OperatorDeviceInfo, error) {
-	result, err := s.summariesRepo.ListDeviceRows(adminCtx, filter)
+	result, err := s.SummariesRepo.ListDeviceRows(adminCtx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -696,7 +666,7 @@ func (s *operatorProvisioningService) ListAllDevices(ctx context.Context) ([]Ope
 func (s *operatorProvisioningService) ListSchoolDevices(ctx context.Context, schoolID int64) ([]OperatorDeviceInfo, error) {
 	var result []OperatorDeviceInfo
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		school, findErr := s.schoolRepo.FindByID(adminCtx, schoolID)
+		school, findErr := s.SchoolRepo.FindByID(adminCtx, schoolID)
 		if findErr != nil {
 			if isSchoolLookupNotFound(findErr) {
 				return &SchoolNotFoundError{SchoolID: schoolID}
@@ -719,7 +689,7 @@ func (s *operatorProvisioningService) ListSchoolDevices(ctx context.Context, sch
 func (s *operatorProvisioningService) ListOrganizationDevices(ctx context.Context, organizationID int64) ([]OperatorDeviceInfo, error) {
 	var result []OperatorDeviceInfo
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		org, findErr := s.organizationRepo.FindByID(adminCtx, organizationID)
+		org, findErr := s.OrganizationRepo.FindByID(adminCtx, organizationID)
 		if findErr != nil {
 			return findErr
 		}
@@ -824,7 +794,7 @@ func (s *operatorProvisioningService) CreateDevice(ctx context.Context, schoolID
 
 	var result *OperatorDeviceInfo
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		school, findErr := s.schoolRepo.FindByID(adminCtx, schoolID)
+		school, findErr := s.SchoolRepo.FindByID(adminCtx, schoolID)
 		if findErr != nil {
 			if isSchoolLookupNotFound(findErr) {
 				return &SchoolNotFoundError{SchoolID: schoolID}
@@ -859,7 +829,7 @@ func (s *operatorProvisioningService) CreateDevice(ctx context.Context, schoolID
 			}
 			device.APIKey = &key
 
-			createErr := s.deviceRepo.Create(deviceCtx, device)
+			createErr := s.DeviceRepo.Create(deviceCtx, device)
 			if createErr == nil {
 				created = true
 				break
@@ -912,7 +882,7 @@ func (s *operatorProvisioningService) SetDeviceAPIKey(ctx context.Context, id in
 		// FindByID works cross-tenant in admin tx: applyTenantFilter (base.go:36-43)
 		// only adds WHERE when tenant.FromContext(ctx) > 0. WithAdminTx does not set
 		// tenant context (tenant/tx.go:63-75). Admin role bypasses RLS.
-		device, findErr := s.deviceRepo.FindByID(adminCtx, id)
+		device, findErr := s.DeviceRepo.FindByID(adminCtx, id)
 		if findErr != nil {
 			if errors.Is(findErr, sql.ErrNoRows) {
 				return &OperatorDeviceNotFoundError{DeviceID: id}
@@ -928,7 +898,7 @@ func (s *operatorProvisioningService) SetDeviceAPIKey(ctx context.Context, id in
 		}
 
 		// Reject key rotation for devices in inactive schools.
-		school, schoolErr := s.schoolRepo.FindByID(adminCtx, device.TenantID)
+		school, schoolErr := s.SchoolRepo.FindByID(adminCtx, device.TenantID)
 		if schoolErr != nil {
 			return fmt.Errorf("SetDeviceAPIKey: lookup school: %w", schoolErr)
 		}
@@ -951,7 +921,7 @@ func (s *operatorProvisioningService) SetDeviceAPIKey(ctx context.Context, id in
 			device.APIKey = &key
 
 			// Update also works cross-tenant in admin context (base.go:142-146, WherePK).
-			updateErr := s.deviceRepo.Update(adminCtx, device)
+			updateErr := s.DeviceRepo.Update(adminCtx, device)
 			if updateErr == nil {
 				updated = true
 				break
@@ -994,7 +964,7 @@ func (s *operatorProvisioningService) DeleteDevice(ctx context.Context, id int64
 	}
 
 	return s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		device, findErr := s.deviceRepo.FindByID(adminCtx, id)
+		device, findErr := s.DeviceRepo.FindByID(adminCtx, id)
 		if findErr != nil {
 			if errors.Is(findErr, sql.ErrNoRows) {
 				return &OperatorDeviceNotFoundError{DeviceID: id}
@@ -1014,7 +984,7 @@ func (s *operatorProvisioningService) DeleteDevice(ctx context.Context, id int64
 			return &DeviceProtectedError{DeviceID: id, Reason: "system device required for manual web check-ins"}
 		}
 
-		deleteErr := s.deviceRepo.Delete(adminCtx, id)
+		deleteErr := s.DeviceRepo.Delete(adminCtx, id)
 		if deleteErr != nil {
 			// ON DELETE RESTRICT on active.attendance / active.groups → FK violation.
 			if isForeignKeyViolation(deleteErr) {
@@ -1036,7 +1006,7 @@ func (s *operatorProvisioningService) DeleteDevice(ctx context.Context, id int64
 func (s *operatorProvisioningService) ListSchoolPersons(ctx context.Context, schoolID int64) ([]OperatorPersonInfo, error) {
 	var result []OperatorPersonInfo
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		school, findErr := s.schoolRepo.FindByID(adminCtx, schoolID)
+		school, findErr := s.SchoolRepo.FindByID(adminCtx, schoolID)
 		if findErr != nil {
 			if isSchoolLookupNotFound(findErr) {
 				return &SchoolNotFoundError{SchoolID: schoolID}
@@ -1047,7 +1017,7 @@ func (s *operatorProvisioningService) ListSchoolPersons(ctx context.Context, sch
 			return &SchoolNotFoundError{SchoolID: schoolID}
 		}
 
-		persons, scanErr := s.summariesRepo.PersonsBySchool(adminCtx, schoolID)
+		persons, scanErr := s.SummariesRepo.PersonsBySchool(adminCtx, schoolID)
 		if scanErr != nil {
 			return scanErr
 		}
@@ -1066,7 +1036,7 @@ func (s *operatorProvisioningService) SoftDeletePerson(ctx context.Context, pers
 		// Find person. Cross-tenant by design: the admin context carries no
 		// tenant ID, so the repository's tenant filter is a no-op, and BUN's
 		// soft-delete handling auto-excludes deleted rows.
-		person, err := s.personRepo.FindByID(adminCtx, personID)
+		person, err := s.PersonRepo.FindByID(adminCtx, personID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return &PersonNotFoundError{PersonID: personID}
@@ -1075,11 +1045,11 @@ func (s *operatorProvisioningService) SoftDeletePerson(ctx context.Context, pers
 		}
 
 		// If person is staff, check for active supervisions
-		staff, staffErr := s.staffRepo.FindByPersonID(adminCtx, personID)
+		staff, staffErr := s.StaffRepo.FindByPersonID(adminCtx, personID)
 		if staffErr == nil && staff != nil {
 			// Staff exists — check active supervisions
-			if s.groupSupervisorRepo != nil {
-				supervisors, supErr := s.groupSupervisorRepo.FindActiveByStaffID(adminCtx, staff.ID)
+			if s.GroupSupervisorRepo != nil {
+				supervisors, supErr := s.GroupSupervisorRepo.FindActiveByStaffID(adminCtx, staff.ID)
 				if supErr != nil {
 					s.getLogger().Warn("soft_delete_supervision_check_failed",
 						slog.Int64("person_id", personID),
@@ -1094,7 +1064,7 @@ func (s *operatorProvisioningService) SoftDeletePerson(ctx context.Context, pers
 
 		// Unlink RFID card
 		if person.TagID != nil {
-			if err := s.personRepo.UnlinkFromRFIDCard(adminCtx, personID); err != nil {
+			if err := s.PersonRepo.UnlinkFromRFIDCard(adminCtx, personID); err != nil {
 				return fmt.Errorf("SoftDeletePerson: unlink rfid: %w", err)
 			}
 		}
@@ -1104,7 +1074,7 @@ func (s *operatorProvisioningService) SoftDeletePerson(ctx context.Context, pers
 			accountID := *person.AccountID
 
 			// Deactivate account and delete tokens
-			if deactivateErr := s.authService.DeactivateAccount(adminCtx, int(accountID)); deactivateErr != nil {
+			if deactivateErr := s.AuthService.DeactivateAccount(adminCtx, int(accountID)); deactivateErr != nil {
 				s.getLogger().Warn("soft_delete_account_deactivation_failed",
 					slog.Int64("person_id", personID),
 					slog.Int64("account_id", accountID),
@@ -1114,18 +1084,18 @@ func (s *operatorProvisioningService) SoftDeletePerson(ctx context.Context, pers
 
 			// Anonymize email
 			anonymizedEmail := fmt.Sprintf("deleted-%d@anonymized.local", personID)
-			if err := s.accountRepo.AnonymizeForDeletion(adminCtx, accountID, anonymizedEmail); err != nil {
+			if err := s.AccountRepo.AnonymizeForDeletion(adminCtx, accountID, anonymizedEmail); err != nil {
 				return fmt.Errorf("SoftDeletePerson: anonymize account: %w", err)
 			}
 
 			// Unlink account from person
-			if err := s.personRepo.UnlinkFromAccount(adminCtx, personID); err != nil {
+			if err := s.PersonRepo.UnlinkFromAccount(adminCtx, personID); err != nil {
 				return fmt.Errorf("SoftDeletePerson: unlink account: %w", err)
 			}
 		}
 
 		// Anonymize PII and soft delete
-		if err := s.personRepo.AnonymizeAndSoftDelete(adminCtx, personID); err != nil {
+		if err := s.PersonRepo.AnonymizeAndSoftDelete(adminCtx, personID); err != nil {
 			return fmt.Errorf("SoftDeletePerson: anonymize and soft delete: %w", err)
 		}
 
@@ -1146,7 +1116,7 @@ func (s *operatorProvisioningService) SoftDeletePerson(ctx context.Context, pers
 
 func (s *operatorProvisioningService) validateSchoolCreate(ctx context.Context, school *platform.School) error {
 	// See locking contract on OrganizationRepository.FindByIDForShare.
-	org, err := s.organizationRepo.FindByIDForShare(ctx, school.OrganizationID)
+	org, err := s.OrganizationRepo.FindByIDForShare(ctx, school.OrganizationID)
 	if err != nil {
 		return err
 	}
@@ -1163,7 +1133,7 @@ func (s *operatorProvisioningService) validateSchoolCreate(ctx context.Context, 
 }
 
 func (s *operatorProvisioningService) ensureSchoolSlugAvailable(ctx context.Context, organizationID int64, slug string) error {
-	existing, err := s.schoolRepo.FindByOrganizationAndSlug(ctx, organizationID, slug)
+	existing, err := s.SchoolRepo.FindByOrganizationAndSlug(ctx, organizationID, slug)
 	if err != nil {
 		return err
 	}
@@ -1174,7 +1144,7 @@ func (s *operatorProvisioningService) ensureSchoolSlugAvailable(ctx context.Cont
 }
 
 func (s *operatorProvisioningService) ensureSchoolSubdomainAvailable(ctx context.Context, subdomain string) error {
-	existing, err := s.schoolRepo.FindBySubdomain(ctx, subdomain)
+	existing, err := s.SchoolRepo.FindBySubdomain(ctx, subdomain)
 	if err != nil {
 		return err
 	}
@@ -1200,7 +1170,7 @@ func (s *operatorProvisioningService) resolveAdminInviteContext(ctx context.Cont
 }
 
 func (s *operatorProvisioningService) loadActiveSchool(ctx context.Context, schoolID int64) (*platform.School, error) {
-	school, err := s.schoolRepo.FindByID(ctx, schoolID)
+	school, err := s.SchoolRepo.FindByID(ctx, schoolID)
 	if err != nil {
 		if isSchoolLookupNotFound(err) {
 			return nil, &SchoolNotFoundError{SchoolID: schoolID}
@@ -1227,7 +1197,7 @@ func normalizeAdminInviteRequest(req authSvc.InvitationRequest, roleID, tenantID
 }
 
 func (s *operatorProvisioningService) seedDefaultActivityCategories(ctx context.Context, tenantID int64) error {
-	if s.categoryRepo == nil || tenantID <= 0 {
+	if s.CategoryRepo == nil || tenantID <= 0 {
 		return nil
 	}
 
@@ -1246,7 +1216,7 @@ func (s *operatorProvisioningService) seedDefaultActivityCategories(ctx context.
 	categoryCtx := tenant.WithTenantID(ctx, tenantID)
 	for i := range defaults {
 		category := defaults[i]
-		if err := s.categoryRepo.Create(categoryCtx, &category); err != nil {
+		if err := s.CategoryRepo.Create(categoryCtx, &category); err != nil {
 			if isUniqueViolation(err) {
 				continue
 			}
@@ -1258,7 +1228,7 @@ func (s *operatorProvisioningService) seedDefaultActivityCategories(ctx context.
 }
 
 func (s *operatorProvisioningService) createWebManualDevice(ctx context.Context, tenantID int64) error {
-	if s.deviceRepo == nil || tenantID <= 0 {
+	if s.DeviceRepo == nil || tenantID <= 0 {
 		return nil
 	}
 
@@ -1272,7 +1242,7 @@ func (s *operatorProvisioningService) createWebManualDevice(ctx context.Context,
 	device.SetTenantID(tenantID)
 
 	deviceCtx := tenant.WithTenantID(ctx, tenantID)
-	if err := s.deviceRepo.Create(deviceCtx, device); err != nil {
+	if err := s.DeviceRepo.Create(deviceCtx, device); err != nil {
 		if isUniqueViolation(err) {
 			return nil
 		}
@@ -1299,7 +1269,7 @@ func (s *operatorProvisioningService) withAdminTx(ctx context.Context, fn func(c
 }
 
 func (s *operatorProvisioningService) resolveSystemRoleByName(ctx context.Context, name string) (*authModels.Role, error) {
-	roles, err := s.roleRepo.List(ctx, map[string]interface{}{
+	roles, err := s.RoleRepo.List(ctx, map[string]interface{}{
 		"name":      strings.TrimSpace(strings.ToLower(name)),
 		"is_system": true,
 	})
@@ -1333,7 +1303,7 @@ func (s *operatorProvisioningService) logAction(ctx context.Context, operatorID 
 			entry.Changes = payload
 		}
 	}
-	if err := s.auditLogRepo.Create(ctx, entry); err != nil {
+	if err := s.AuditLogRepo.Create(ctx, entry); err != nil {
 		s.getLogger().Error(
 			"failed to create operator audit log",
 			slog.Any("error", err),
@@ -1402,7 +1372,7 @@ func isForeignKeyViolation(err error) bool {
 //     longer be redeemed for the deleted school)
 func (s *operatorProvisioningService) SoftDeleteSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error {
 	return s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		school, err := s.schoolRepo.FindByID(adminCtx, schoolID)
+		school, err := s.SchoolRepo.FindByID(adminCtx, schoolID)
 		if err != nil {
 			if isSchoolLookupNotFound(err) {
 				return &SchoolNotFoundError{SchoolID: schoolID}
@@ -1416,7 +1386,7 @@ func (s *operatorProvisioningService) SoftDeleteSchool(ctx context.Context, scho
 			return &SchoolAlreadyDeletedError{SchoolID: schoolID}
 		}
 
-		if err := s.schoolRepo.SoftDelete(adminCtx, schoolID); err != nil {
+		if err := s.SchoolRepo.SoftDelete(adminCtx, schoolID); err != nil {
 			// If another operator concurrently deleted this school between our read and
 			// update, the WHERE deleted_at IS NULL clause matches zero rows. Map that
 			// race to the same conflict error the pre-check would have returned.
@@ -1431,8 +1401,8 @@ func (s *operatorProvisioningService) SoftDeleteSchool(ctx context.Context, scho
 		// These steps are fatal: if they fail the transaction rolls back so we
 		// never commit a soft-delete without actually revoking access.
 		var revokedTokens int
-		if s.authService != nil {
-			revokedTokens, err = s.authService.RevokeTokensByTenantID(adminCtx, schoolID)
+		if s.AuthService != nil {
+			revokedTokens, err = s.AuthService.RevokeTokensByTenantID(adminCtx, schoolID)
 			if err != nil {
 				return fmt.Errorf("revoke tokens for school %d: %w", schoolID, err)
 			}
@@ -1440,8 +1410,8 @@ func (s *operatorProvisioningService) SoftDeleteSchool(ctx context.Context, scho
 
 		// Invalidate all pending invitations so they cannot be redeemed after deletion.
 		var invalidatedInvitations int
-		if s.invitationService != nil {
-			invalidatedInvitations, err = s.invitationService.InvalidatePendingInvitationsByTenantID(adminCtx, schoolID)
+		if s.InvitationService != nil {
+			invalidatedInvitations, err = s.InvitationService.InvalidatePendingInvitationsByTenantID(adminCtx, schoolID)
 			if err != nil {
 				return fmt.Errorf("invalidate invitations for school %d: %w", schoolID, err)
 			}
@@ -1462,7 +1432,7 @@ func (s *operatorProvisioningService) SoftDeleteSchool(ctx context.Context, scho
 // The active field is preserved — a school that was inactive before deletion remains inactive after restore.
 func (s *operatorProvisioningService) RestoreSchool(ctx context.Context, schoolID, operatorID int64, clientIP net.IP) error {
 	return s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		school, err := s.schoolRepo.FindByID(adminCtx, schoolID)
+		school, err := s.SchoolRepo.FindByID(adminCtx, schoolID)
 		if err != nil {
 			if isSchoolLookupNotFound(err) {
 				return &SchoolNotFoundError{SchoolID: schoolID}
@@ -1477,7 +1447,7 @@ func (s *operatorProvisioningService) RestoreSchool(ctx context.Context, schoolI
 		}
 
 		// See locking contract on OrganizationRepository.FindByIDForShare.
-		parentOrg, orgErr := s.organizationRepo.FindByIDForShare(adminCtx, school.OrganizationID)
+		parentOrg, orgErr := s.OrganizationRepo.FindByIDForShare(adminCtx, school.OrganizationID)
 		if orgErr != nil {
 			return orgErr
 		}
@@ -1488,7 +1458,7 @@ func (s *operatorProvisioningService) RestoreSchool(ctx context.Context, schoolI
 			return &OrganizationDeletedError{OrganizationID: school.OrganizationID}
 		}
 
-		if err := s.schoolRepo.Restore(adminCtx, schoolID); err != nil {
+		if err := s.SchoolRepo.Restore(adminCtx, schoolID); err != nil {
 			// If another operator concurrently restored this school between our read and
 			// update, the WHERE deleted_at IS NOT NULL clause matches zero rows. Map that
 			// race to the same conflict error the pre-check would have returned.
@@ -1513,7 +1483,7 @@ func (s *operatorProvisioningService) SoftDeleteOrganization(ctx context.Context
 	return s.withAdminTx(ctx, func(adminCtx context.Context) error {
 		// See locking contract on OrganizationRepository.FindByIDForShare — this
 		// FOR UPDATE serializes against concurrent school mutations that take FOR SHARE.
-		org, err := s.organizationRepo.FindByIDForUpdate(adminCtx, organizationID)
+		org, err := s.OrganizationRepo.FindByIDForUpdate(adminCtx, organizationID)
 		if err != nil {
 			return err
 		}
@@ -1525,7 +1495,7 @@ func (s *operatorProvisioningService) SoftDeleteOrganization(ctx context.Context
 		}
 
 		// Block deletion if the organization still has non-deleted schools.
-		schoolCount, err := s.schoolRepo.CountNonDeletedByOrganizationID(adminCtx, organizationID)
+		schoolCount, err := s.SchoolRepo.CountNonDeletedByOrganizationID(adminCtx, organizationID)
 		if err != nil {
 			return fmt.Errorf("count schools for organization %d: %w", organizationID, err)
 		}
@@ -1533,7 +1503,7 @@ func (s *operatorProvisioningService) SoftDeleteOrganization(ctx context.Context
 			return &OrganizationHasSchoolsError{OrganizationID: organizationID, SchoolCount: schoolCount}
 		}
 
-		if err := s.organizationRepo.SoftDelete(adminCtx, organizationID); err != nil {
+		if err := s.OrganizationRepo.SoftDelete(adminCtx, organizationID); err != nil {
 			if isRowsAffectedMismatch(err) {
 				return &OrganizationAlreadyDeletedError{OrganizationID: organizationID}
 			}
@@ -1553,7 +1523,7 @@ func (s *operatorProvisioningService) RestoreOrganization(ctx context.Context, o
 	return s.withAdminTx(ctx, func(adminCtx context.Context) error {
 		// Lock symmetry with SoftDeleteOrganization: FOR UPDATE serializes restore
 		// against a concurrent soft-delete of the same row.
-		org, err := s.organizationRepo.FindByIDForUpdate(adminCtx, organizationID)
+		org, err := s.OrganizationRepo.FindByIDForUpdate(adminCtx, organizationID)
 		if err != nil {
 			return err
 		}
@@ -1564,7 +1534,7 @@ func (s *operatorProvisioningService) RestoreOrganization(ctx context.Context, o
 			return &OrganizationNotDeletedError{OrganizationID: organizationID}
 		}
 
-		if err := s.organizationRepo.Restore(adminCtx, organizationID); err != nil {
+		if err := s.OrganizationRepo.Restore(adminCtx, organizationID); err != nil {
 			if isRowsAffectedMismatch(err) {
 				return &OrganizationNotDeletedError{OrganizationID: organizationID}
 			}

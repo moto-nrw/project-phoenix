@@ -57,13 +57,7 @@ type Dependencies struct {
 }
 
 type service struct {
-	attendanceRepo      attendanceReader
-	studentRepo         studentReader
-	personRepo          personReader
-	visitRepo           visitLocationReader
-	studentGuardianRepo guardianContactReader
-	activeService       activePresenceReader
-	listExport          listexport.Service
+	Dependencies
 }
 
 type snapshotRow struct {
@@ -79,15 +73,7 @@ type snapshotRow struct {
 }
 
 func NewService(deps Dependencies) Service {
-	return &service{
-		attendanceRepo:      deps.AttendanceRepo,
-		studentRepo:         deps.StudentRepo,
-		personRepo:          deps.PersonRepo,
-		visitRepo:           deps.VisitRepo,
-		studentGuardianRepo: deps.StudentGuardianRepo,
-		activeService:       deps.ActiveService,
-		listExport:          deps.ListExport,
-	}
+	return &service{Dependencies: deps}
 }
 
 func (s *service) RenderSnapshot(ctx context.Context) (listexport.File, error) {
@@ -95,15 +81,15 @@ func (s *service) RenderSnapshot(ctx context.Context) (listexport.File, error) {
 	if err != nil {
 		return listexport.File{}, err
 	}
-	return s.listExport.Render(doc, listexport.FormatPDF, "notfallliste")
+	return s.ListExport.Render(doc, listexport.FormatPDF, "notfallliste")
 }
 
 func (s *service) BuildSnapshotDocument(ctx context.Context, generatedAt time.Time) (listexport.Document, error) {
-	if s.attendanceRepo == nil || s.studentRepo == nil || s.personRepo == nil || s.listExport == nil || s.visitRepo == nil || s.studentGuardianRepo == nil {
+	if s.AttendanceRepo == nil || s.StudentRepo == nil || s.PersonRepo == nil || s.ListExport == nil || s.VisitRepo == nil || s.StudentGuardianRepo == nil {
 		return listexport.Document{}, fmt.Errorf("emergency snapshot service is not configured")
 	}
 
-	studentIDs, err := s.attendanceRepo.ListOpenStudentIDsForDate(ctx, timezone.TodayDate())
+	studentIDs, err := s.AttendanceRepo.ListOpenStudentIDsForDate(ctx, timezone.TodayDate())
 	if err != nil {
 		return listexport.Document{}, err
 	}
@@ -133,7 +119,7 @@ func (s *service) loadSnapshotRows(ctx context.Context, studentIDs []int64) ([]s
 		return []snapshotRow{}, nil
 	}
 
-	students, err := s.studentRepo.FindByIDs(ctx, studentIDs)
+	students, err := s.StudentRepo.FindByIDs(ctx, studentIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +129,7 @@ func (s *service) loadSnapshotRows(ctx context.Context, studentIDs []int64) ([]s
 		personIDs = append(personIDs, student.PersonID)
 	}
 
-	persons, err := s.personRepo.FindByIDs(ctx, personIDs)
+	persons, err := s.PersonRepo.FindByIDs(ctx, personIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -213,15 +199,15 @@ func sortSnapshotRows(rows []snapshotRow) {
 }
 
 func (s *service) loadCurrentLocations(ctx context.Context, studentIDs []int64) (map[int64]string, error) {
-	if s.activeService != nil && s.activeService.GetPresenceMode(ctx) == presenceModeBinary {
+	if s.ActiveService != nil && s.ActiveService.GetPresenceMode(ctx) == presenceModeBinary {
 		return s.loadBinaryLocations(ctx, studentIDs)
 	}
 
-	return s.visitRepo.GetCurrentRoomNamesForStudents(ctx, studentIDs)
+	return s.VisitRepo.GetCurrentRoomNamesForStudents(ctx, studentIDs)
 }
 
 func (s *service) loadBinaryLocations(ctx context.Context, studentIDs []int64) (map[int64]string, error) {
-	statuses, err := s.activeService.GetStudentsAttendanceStatuses(ctx, studentIDs)
+	statuses, err := s.ActiveService.GetStudentsAttendanceStatuses(ctx, studentIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -253,7 +239,7 @@ type guardianContact struct {
 }
 
 func (s *service) loadGuardianContacts(ctx context.Context, studentIDs []int64) (map[int64]guardianContact, error) {
-	rows, err := s.studentGuardianRepo.ListEmergencyContactRows(ctx, studentIDs)
+	rows, err := s.StudentGuardianRepo.ListEmergencyContactRows(ctx, studentIDs)
 	if err != nil {
 		return nil, err
 	}

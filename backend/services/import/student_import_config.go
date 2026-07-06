@@ -83,16 +83,8 @@ func MapRelationshipType(germanType string) string {
 
 // StudentImportConfig implements ImportConfig for student imports
 type StudentImportConfig struct {
-	personRepo          users.PersonRepository
-	studentRepo         users.StudentRepository
-	guardianRepo        users.GuardianProfileRepository
-	guardianPhoneRepo   users.GuardianPhoneNumberRepository
-	relationRepo        users.StudentGuardianRepository
-	privacyRepo         users.PrivacyConsentRepository
-	arrivalScheduleRepo scheduleModels.StudentArrivalScheduleRepository
-	pickupScheduleRepo  scheduleModels.StudentPickupScheduleRepository
-	resolver            *RelationshipResolver
-	txHandler           *base.TxHandler
+	StudentImportDeps
+	txHandler *base.TxHandler
 }
 
 // StudentImportDeps contains dependencies for StudentImportConfig
@@ -112,23 +104,15 @@ type StudentImportDeps struct {
 // Note: RFID cards are not supported in CSV import and must be assigned separately
 func NewStudentImportConfig(deps StudentImportDeps, db *bun.DB) *StudentImportConfig {
 	return &StudentImportConfig{
-		personRepo:          deps.PersonRepo,
-		studentRepo:         deps.StudentRepo,
-		guardianRepo:        deps.GuardianRepo,
-		guardianPhoneRepo:   deps.GuardianPhoneRepo,
-		relationRepo:        deps.RelationRepo,
-		privacyRepo:         deps.PrivacyRepo,
-		arrivalScheduleRepo: deps.ArrivalScheduleRepo,
-		pickupScheduleRepo:  deps.PickupScheduleRepo,
-		resolver:            deps.Resolver,
-		txHandler:           base.NewTxHandler(db),
+		StudentImportDeps: deps,
+		txHandler:         base.NewTxHandler(db),
 	}
 }
 
 // PreloadReferenceData loads all reference data (groups) for relationship resolution
 func (c *StudentImportConfig) PreloadReferenceData(ctx context.Context) error {
 	// Pre-load all groups for relationship resolution
-	return c.resolver.PreloadGroups(ctx)
+	return c.Resolver.PreloadGroups(ctx)
 }
 
 // Validate validates a single row of student import data
@@ -178,7 +162,7 @@ func (c *StudentImportConfig) Validate(ctx context.Context, row *importModels.St
 
 	// 4. OPTIONAL: Group resolution (with fuzzy matching)
 	if row.GroupName != "" {
-		groupID, groupErrors := c.resolver.ResolveGroup(ctx, row.GroupName)
+		groupID, groupErrors := c.Resolver.ResolveGroup(ctx, row.GroupName)
 		if len(groupErrors) > 0 {
 			errors = append(errors, groupErrors...)
 		} else if groupID != nil {
@@ -522,7 +506,7 @@ func validateGuardianPhoneNumbers(num int, phones []importModels.PhoneImportData
 // FindExisting checks if a student already exists (for duplicate detection)
 func (c *StudentImportConfig) FindExisting(ctx context.Context, row importModels.StudentImportRow) (*int64, error) {
 	// Strategy: Find by exact first_name + last_name + school_class match
-	students, err := c.studentRepo.FindByNameAndClass(ctx, row.FirstName, row.LastName, row.SchoolClass)
+	students, err := c.StudentRepo.FindByNameAndClass(ctx, row.FirstName, row.LastName, row.SchoolClass)
 	if err != nil {
 		return nil, err
 	}
@@ -607,7 +591,7 @@ func (c *StudentImportConfig) createPersonFromRow(ctx context.Context, row impor
 	}
 	person.SetTenantID(tenant.FromContext(ctx))
 
-	if err := c.personRepo.Create(ctx, person); err != nil {
+	if err := c.PersonRepo.Create(ctx, person); err != nil {
 		return nil, fmt.Errorf("create person: %w", err)
 	}
 
@@ -693,7 +677,7 @@ func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID
 
 	student.SetTenantID(tenant.FromContext(ctx))
 
-	if err := c.studentRepo.Create(ctx, student); err != nil {
+	if err := c.StudentRepo.Create(ctx, student); err != nil {
 		return nil, fmt.Errorf("create student: %w", err)
 	}
 
@@ -732,7 +716,7 @@ func (c *StudentImportConfig) createSingleGuardianRelationship(ctx context.Conte
 	authorize.ApplyDefaultStudentGuardianRole(relationship)
 	relationship.SetTenantID(tenant.FromContext(ctx))
 
-	if err := c.relationRepo.Create(ctx, relationship); err != nil {
+	if err := c.RelationRepo.Create(ctx, relationship); err != nil {
 		return fmt.Errorf("create relationship %d: %w", index, err)
 	}
 
@@ -749,7 +733,7 @@ func (c *StudentImportConfig) createPrivacyConsentIfNeeded(ctx context.Context, 
 	}
 
 	consent := buildPrivacyConsent(studentID, row)
-	if err := c.privacyRepo.Create(ctx, consent); err != nil {
+	if err := c.PrivacyRepo.Create(ctx, consent); err != nil {
 		return fmt.Errorf("create privacy consent: %w", err)
 	}
 
@@ -790,7 +774,7 @@ func validateRetentionDays(days int) int {
 func (c *StudentImportConfig) createOrFindGuardian(ctx context.Context, data importModels.GuardianImportData) (int64, error) {
 	// Deduplication strategy: Email is unique identifier
 	if data.Email != "" {
-		existing, err := c.guardianRepo.FindByEmail(ctx, data.Email)
+		existing, err := c.GuardianRepo.FindByEmail(ctx, data.Email)
 		// CRITICAL: Distinguish between "not found" and real DB errors
 		// The repository converts sql.ErrNoRows to "guardian profile not found" message
 		// This is NORMAL and means we should create a new guardian
@@ -831,7 +815,7 @@ func (c *StudentImportConfig) createOrFindGuardian(ctx context.Context, data imp
 		LanguagePreference: guardianLanguagePreference(data.LanguagePreference),
 	}
 
-	if err := c.guardianRepo.Create(ctx, guardian); err != nil {
+	if err := c.GuardianRepo.Create(ctx, guardian); err != nil {
 		return 0, err
 	}
 
@@ -875,7 +859,7 @@ func (c *StudentImportConfig) updateExistingGuardianProfile(ctx context.Context,
 	}
 
 	// Best-effort update — don't fail the import if profile update fails
-	_ = c.guardianRepo.Update(ctx, existing)
+	_ = c.GuardianRepo.Update(ctx, existing)
 }
 
 // ptrEquals checks if a *string equals a plain string value
@@ -908,7 +892,7 @@ func (c *StudentImportConfig) createGuardianPhoneNumbers(ctx context.Context, gu
 			Priority:          i + 1, // Priority based on order in import
 		}
 
-		if err := c.guardianPhoneRepo.Create(ctx, phone); err != nil {
+		if err := c.GuardianPhoneRepo.Create(ctx, phone); err != nil {
 			return fmt.Errorf("phone %d: %w", i+1, err)
 		}
 	}
@@ -1088,7 +1072,7 @@ func guardianLanguagePreference(val string) string {
 
 // createArrivalSchedules creates weekly arrival schedule records for a student
 func (c *StudentImportConfig) createArrivalSchedules(ctx context.Context, studentID int64, schedules []importModels.ArrivalScheduleImportData) error {
-	if len(schedules) == 0 || c.arrivalScheduleRepo == nil {
+	if len(schedules) == 0 || c.ArrivalScheduleRepo == nil {
 		return nil
 	}
 
@@ -1108,7 +1092,7 @@ func (c *StudentImportConfig) createArrivalSchedules(ctx context.Context, studen
 		}
 		record.SetTenantID(tenant.FromContext(ctx))
 
-		if err := c.arrivalScheduleRepo.Create(ctx, record); err != nil {
+		if err := c.ArrivalScheduleRepo.Create(ctx, record); err != nil {
 			return fmt.Errorf("create arrival schedule (weekday %d): %w", sched.Weekday, err)
 		}
 	}
@@ -1118,7 +1102,7 @@ func (c *StudentImportConfig) createArrivalSchedules(ctx context.Context, studen
 
 // createPickupSchedules creates weekly pickup schedule records for a student
 func (c *StudentImportConfig) createPickupSchedules(ctx context.Context, studentID int64, schedules []importModels.PickupScheduleImportData) error {
-	if len(schedules) == 0 || c.pickupScheduleRepo == nil {
+	if len(schedules) == 0 || c.PickupScheduleRepo == nil {
 		return nil
 	}
 
@@ -1139,7 +1123,7 @@ func (c *StudentImportConfig) createPickupSchedules(ctx context.Context, student
 		}
 		record.SetTenantID(tenant.FromContext(ctx))
 
-		if err := c.pickupScheduleRepo.Create(ctx, record); err != nil {
+		if err := c.PickupScheduleRepo.Create(ctx, record); err != nil {
 			return fmt.Errorf("create pickup schedule (weekday %d): %w", sched.Weekday, err)
 		}
 	}

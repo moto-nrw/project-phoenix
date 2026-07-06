@@ -53,12 +53,8 @@ type AutoStartDependencies struct {
 }
 
 type autoStartService struct {
-	instanceRepo      scheduleModel.ActivityInstanceRepository
-	instanceStaffRepo scheduleModel.InstanceStaffRepository
-	instanceService   InstanceService
-	conflictDeps      ConflictDependencies
-	detectConflicts   AutoStartConflictDetector
-	logger            *slog.Logger
+	AutoStartDependencies
+	conflictDeps ConflictDependencies
 }
 
 // NewAutoStartService creates the tenant-scoped auto-start service. It is
@@ -74,8 +70,7 @@ func NewAutoStartService(deps AutoStartDependencies) AutoStartService {
 	if deps.InstanceService == nil {
 		panic("schedule auto-start: InstanceService is required")
 	}
-	detector := deps.ConflictDetector
-	if detector == nil {
+	if deps.ConflictDetector == nil {
 		if deps.ActiveGroupRepo == nil {
 			panic("schedule auto-start: ActiveGroupRepo is required")
 		}
@@ -88,16 +83,13 @@ func NewAutoStartService(deps AutoStartDependencies) AutoStartService {
 		if deps.InstanceStudents == nil {
 			panic("schedule auto-start: InstanceStudents is required")
 		}
-		detector = DetectStartConflicts
+		deps.ConflictDetector = DetectStartConflicts
 	}
-	logger := deps.Logger
-	if logger == nil {
-		logger = slog.Default()
+	if deps.Logger == nil {
+		deps.Logger = slog.Default()
 	}
 	return &autoStartService{
-		instanceRepo:      deps.InstanceRepo,
-		instanceStaffRepo: deps.InstanceStaffRepo,
-		instanceService:   deps.InstanceService,
+		AutoStartDependencies: deps,
 		conflictDeps: ConflictDependencies{
 			GroupRepo:         deps.ActiveGroupRepo,
 			SupervisorRepo:    deps.SupervisorRepo,
@@ -105,8 +97,6 @@ func NewAutoStartService(deps AutoStartDependencies) AutoStartService {
 			InstanceStaffRepo: deps.InstanceStaffRepo,
 			InstanceStudents:  deps.InstanceStudents,
 		},
-		detectConflicts: detector,
-		logger:          logger,
 	}
 }
 
@@ -118,7 +108,7 @@ func (s *autoStartService) RunForTenant(ctx context.Context, now time.Time) (*Au
 	}()
 
 	today := timezone.DateFromTime(now)
-	instances, err := s.instanceRepo.FindByTenantAndDate(ctx, today)
+	instances, err := s.InstanceRepo.FindByTenantAndDate(ctx, today)
 	if err != nil {
 		return result, fmt.Errorf("load today's activity instances: %w", err)
 	}
@@ -129,7 +119,7 @@ func (s *autoStartService) RunForTenant(ctx context.Context, now time.Time) (*Au
 			plannedIDs = append(plannedIDs, inst.ID)
 		}
 	}
-	staffCounts, err := s.instanceStaffRepo.CountNonAbsentByInstanceIDs(ctx, plannedIDs)
+	staffCounts, err := s.InstanceStaffRepo.CountNonAbsentByInstanceIDs(ctx, plannedIDs)
 	if err != nil {
 		return result, fmt.Errorf("count assigned staff for auto-start: %w", err)
 	}
@@ -156,17 +146,17 @@ func (s *autoStartService) RunForTenant(ctx context.Context, now time.Time) (*Au
 			continue
 		}
 
-		warnings := s.detectConflicts(ctx, s.conflictDeps, inst, s.logger)
+		warnings := s.ConflictDetector(ctx, s.conflictDeps, inst, s.Logger)
 		if len(warnings) > 0 {
 			result.SkippedConflict++
-			s.logger.Warn("auto-start skipped planned instance with conflicts",
+			s.Logger.Warn("auto-start skipped planned instance with conflicts",
 				slog.Int64("instance_id", inst.ID),
 				slog.Int("warning_count", len(warnings)),
 			)
 			continue
 		}
 
-		if _, err := s.instanceService.Start(ctx, inst.ID, 0); err != nil {
+		if _, err := s.InstanceService.Start(ctx, inst.ID, 0); err != nil {
 			result.Failed++
 			return result, fmt.Errorf("auto-start instance %d: %w", inst.ID, err)
 		}

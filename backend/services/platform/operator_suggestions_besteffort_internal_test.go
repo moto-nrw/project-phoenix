@@ -32,9 +32,7 @@ func newTestServiceWithTx(t *testing.T) (*operatorSuggestionsService, sqlmock.Sq
 
 	ctx := modelBase.ContextWithTx(context.Background(), &tx)
 
-	svc := &operatorSuggestionsService{
-		logger: slog.Default(),
-	}
+	svc := &operatorSuggestionsService{OperatorSuggestionsServiceConfig: OperatorSuggestionsServiceConfig{Logger: slog.Default()}}
 
 	return svc, mock, ctx
 }
@@ -113,16 +111,13 @@ func TestWithAdminTx_ExistingTx_PropagatesError(t *testing.T) {
 }
 
 func TestGetLogger_NilLogger_ReturnsSlogDefault(t *testing.T) {
-	svc := &operatorSuggestionsService{logger: nil}
+	svc := &operatorSuggestionsService{OperatorSuggestionsServiceConfig: OperatorSuggestionsServiceConfig{Logger: nil}}
 	logger := svc.getLogger()
 	assert.Equal(t, slog.Default(), logger)
 }
 
 func TestLogAction_SetChangesError(t *testing.T) {
-	svc := &operatorSuggestionsService{
-		auditLogRepo: &noopAuditLogRepo{},
-		logger:       slog.Default(),
-	}
+	svc := &operatorSuggestionsService{OperatorSuggestionsServiceConfig: OperatorSuggestionsServiceConfig{AuditLogRepo: &noopAuditLogRepo{}, Logger: slog.Default()}}
 
 	ctx := context.Background()
 	postID := int64(1)
@@ -138,11 +133,9 @@ func TestLogAction_SetChangesError(t *testing.T) {
 
 func TestLogAction_NilChanges(t *testing.T) {
 	createCalled := false
-	svc := &operatorSuggestionsService{
-		auditLogRepo: &noopAuditLogRepo{
-			createFn: func() { createCalled = true },
-		},
-		logger: slog.Default(),
+	svc := &operatorSuggestionsService{OperatorSuggestionsServiceConfig: OperatorSuggestionsServiceConfig{AuditLogRepo: &noopAuditLogRepo{
+		createFn: func() { createCalled = true },
+	}, Logger: slog.Default()},
 	}
 
 	ctx := context.Background()
@@ -179,7 +172,7 @@ func (r *noopAuditLogRepo) FindByDateRange(_ context.Context, _, _ time.Time, _ 
 
 func TestGetLogger_WithLogger_ReturnsInjected(t *testing.T) {
 	injected := slog.Default().With("test", true)
-	svc := &operatorSuggestionsService{logger: injected}
+	svc := &operatorSuggestionsService{OperatorSuggestionsServiceConfig: OperatorSuggestionsServiceConfig{Logger: injected}}
 	logger := svc.getLogger()
 	assert.Equal(t, injected, logger)
 }

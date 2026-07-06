@@ -20,7 +20,7 @@ type (
 func (s *operatorProvisioningService) GetProvisioningStats(ctx context.Context) (*ProvisioningStats, error) {
 	var result *ProvisioningStats
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		stats, scanErr := s.summariesRepo.Stats(adminCtx)
+		stats, scanErr := s.SummariesRepo.Stats(adminCtx)
 		if scanErr != nil {
 			return scanErr
 		}
@@ -38,7 +38,7 @@ func (s *operatorProvisioningService) GetProvisioningStats(ctx context.Context) 
 func (s *operatorProvisioningService) ListOrganizationSummaries(ctx context.Context) ([]*OrganizationSummary, error) {
 	var result []*OrganizationSummary
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		summaries, scanErr := s.summariesRepo.OrganizationSummaries(adminCtx)
+		summaries, scanErr := s.SummariesRepo.OrganizationSummaries(adminCtx)
 		if scanErr != nil {
 			return scanErr
 		}
@@ -55,7 +55,7 @@ func (s *operatorProvisioningService) ListOrganizationSummaries(ctx context.Cont
 func (s *operatorProvisioningService) ListSchoolSummaries(ctx context.Context) ([]*SchoolSummary, error) {
 	var result []*SchoolSummary
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		summaries, scanErr := s.summariesRepo.SchoolSummaries(adminCtx)
+		summaries, scanErr := s.SummariesRepo.SchoolSummaries(adminCtx)
 		if scanErr != nil {
 			return scanErr
 		}
@@ -75,14 +75,14 @@ func (s *operatorProvisioningService) ListSchoolSummaries(ctx context.Context) (
 func (s *operatorProvisioningService) ListOrganizationSchoolSummaries(ctx context.Context, organizationID int64) ([]*SchoolSummary, error) {
 	var result []*SchoolSummary
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		org, findErr := s.organizationRepo.FindByID(adminCtx, organizationID)
+		org, findErr := s.OrganizationRepo.FindByID(adminCtx, organizationID)
 		if findErr != nil {
 			return findErr
 		}
 		if org == nil {
 			return &OrganizationNotFoundError{OrganizationID: organizationID}
 		}
-		summaries, scanErr := s.summariesRepo.SchoolSummariesByOrganization(adminCtx, organizationID)
+		summaries, scanErr := s.SummariesRepo.SchoolSummariesByOrganization(adminCtx, organizationID)
 		if scanErr != nil {
 			return scanErr
 		}
@@ -102,14 +102,14 @@ func (s *operatorProvisioningService) ListOrganizationSchoolSummaries(ctx contex
 func (s *operatorProvisioningService) ListOrganizationPersons(ctx context.Context, organizationID int64) ([]OperatorPersonInfo, error) {
 	var result []OperatorPersonInfo
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		org, findErr := s.organizationRepo.FindByID(adminCtx, organizationID)
+		org, findErr := s.OrganizationRepo.FindByID(adminCtx, organizationID)
 		if findErr != nil {
 			return findErr
 		}
 		if org == nil {
 			return &OrganizationNotFoundError{OrganizationID: organizationID}
 		}
-		persons, scanErr := s.summariesRepo.PersonsByOrganization(adminCtx, organizationID)
+		persons, scanErr := s.SummariesRepo.PersonsByOrganization(adminCtx, organizationID)
 		if scanErr != nil {
 			return scanErr
 		}

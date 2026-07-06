@@ -134,58 +134,39 @@ type Dependencies struct {
 }
 
 type service struct {
-	settings    settingsResolver
-	attendance  attendanceReader
-	pickup      pickupReader
-	instance    instanceReader
-	student     studentReader
-	person      personReader
-	supervision supervisionReader
-	groups      groupReader
-	logger      *slog.Logger
+	Dependencies
 }
 
 // NewService builds the reminder service.
 func NewService(deps Dependencies) Service {
-	logger := deps.Logger
-	if logger == nil {
-		logger = slog.Default()
+	if deps.Logger == nil {
+		deps.Logger = slog.Default()
 	}
-	return &service{
-		settings:    deps.Settings,
-		attendance:  deps.Attendance,
-		pickup:      deps.Pickup,
-		instance:    deps.Instance,
-		student:     deps.Student,
-		person:      deps.Person,
-		supervision: deps.Supervision,
-		groups:      deps.Groups,
-		logger:      logger,
-	}
+	return &service{Dependencies: deps}
 }
 
 func (s *service) Compute(ctx context.Context, scope Scope) (*Result, error) {
 	empty := &Result{Reminders: []Reminder{}}
-	if s.settings == nil {
+	if s.Settings == nil {
 		return empty, nil
 	}
 
 	// A resolution failure (DB/RLS/tenant-tx error) must surface, not be treated
 	// as "disabled" — otherwise a broken config read looks like a healthy empty
 	// result and silently hides reminders the tenant switched on.
-	pickupUpcoming, err := s.settings.ResolveBool(ctx, configModel.KeyRemindersPickupUpcomingEnabled)
+	pickupUpcoming, err := s.Settings.ResolveBool(ctx, configModel.KeyRemindersPickupUpcomingEnabled)
 	if err != nil {
 		return nil, fmt.Errorf("resolve %s: %w", configModel.KeyRemindersPickupUpcomingEnabled, err)
 	}
-	pickupOverdue, err := s.settings.ResolveBool(ctx, configModel.KeyRemindersPickupOverdueEnabled)
+	pickupOverdue, err := s.Settings.ResolveBool(ctx, configModel.KeyRemindersPickupOverdueEnabled)
 	if err != nil {
 		return nil, fmt.Errorf("resolve %s: %w", configModel.KeyRemindersPickupOverdueEnabled, err)
 	}
-	activityStart, err := s.settings.ResolveBool(ctx, configModel.KeyRemindersActivityStartEnabled)
+	activityStart, err := s.Settings.ResolveBool(ctx, configModel.KeyRemindersActivityStartEnabled)
 	if err != nil {
 		return nil, fmt.Errorf("resolve %s: %w", configModel.KeyRemindersActivityStartEnabled, err)
 	}
-	activityOverdue, err := s.settings.ResolveBool(ctx, configModel.KeyRemindersActivityOverdueEnabled)
+	activityOverdue, err := s.Settings.ResolveBool(ctx, configModel.KeyRemindersActivityOverdueEnabled)
 	if err != nil {
 		return nil, fmt.Errorf("resolve %s: %w", configModel.KeyRemindersActivityOverdueEnabled, err)
 	}
@@ -300,10 +281,10 @@ func (s *service) pickupScopeStudentIDs(ctx context.Context, scope Scope, today 
 // row today. Used for admins (all present children) and for caregivers in
 // binary mode, where room-scoped visit rows do not exist.
 func (s *service) presentStudentIDsFromAttendance(ctx context.Context, today timezone.Date) ([]int64, error) {
-	if s.attendance == nil {
+	if s.Attendance == nil {
 		return nil, nil
 	}
-	return s.attendance.ListOpenStudentIDsForDate(ctx, today)
+	return s.Attendance.ListOpenStudentIDsForDate(ctx, today)
 }
 
 // binaryMode reports whether the tenant runs the binary presence mode, in which
@@ -311,10 +292,10 @@ func (s *service) presentStudentIDsFromAttendance(ctx context.Context, today tim
 // active.visits. A settings resolution error is surfaced, consistent with the
 // rest of the service — a broken read must not silently pick a presence source.
 func (s *service) binaryMode(ctx context.Context) (bool, error) {
-	if s.settings == nil {
+	if s.Settings == nil {
 		return false, nil
 	}
-	v, err := s.settings.ResolveString(ctx, configModel.KeyPresenceMode)
+	v, err := s.Settings.ResolveString(ctx, configModel.KeyPresenceMode)
 	if err != nil {
 		return false, fmt.Errorf("resolve %s: %w", configModel.KeyPresenceMode, err)
 	}
@@ -323,11 +304,11 @@ func (s *service) binaryMode(ctx context.Context) (bool, error) {
 
 // supervisedRoomIDs returns the room IDs the caregiver currently supervises.
 func (s *service) supervisedRoomIDs(ctx context.Context, scope Scope) ([]int64, error) {
-	if s.supervision == nil {
+	if s.Supervision == nil {
 		return nil, nil
 	}
 
-	supervisions, err := s.supervision.GetStaffActiveSupervisions(ctx, scope.StaffID)
+	supervisions, err := s.Supervision.GetStaffActiveSupervisions(ctx, scope.StaffID)
 	if err != nil {
 		return nil, err
 	}
@@ -341,7 +322,7 @@ func (s *service) supervisedRoomIDs(ctx context.Context, scope Scope) ([]int64, 
 		return nil, nil
 	}
 
-	groups, err := s.supervision.GetActiveGroupsByIDs(ctx, groupIDs)
+	groups, err := s.Supervision.GetActiveGroupsByIDs(ctx, groupIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -361,12 +342,12 @@ func (s *service) supervisedRoomIDs(ctx context.Context, scope Scope) ([]int64, 
 // presentStudentsInRooms returns the deduplicated IDs of students currently
 // present in any of the given rooms.
 func (s *service) presentStudentsInRooms(ctx context.Context, roomIDs []int64) ([]int64, error) {
-	if s.supervision == nil || len(roomIDs) == 0 {
+	if s.Supervision == nil || len(roomIDs) == 0 {
 		return nil, nil
 	}
 	studentSet := make(map[int64]struct{})
 	for _, roomID := range roomIDs {
-		present, err := s.supervision.ListStudentsPresentInRoom(ctx, roomID)
+		present, err := s.Supervision.ListStudentsPresentInRoom(ctx, roomID)
 		if err != nil {
 			return nil, err
 		}
@@ -383,10 +364,10 @@ func (s *service) presentStudentsInRooms(ctx context.Context, roomIDs []int64) (
 
 func (s *service) pickupReminders(ctx context.Context, scope Scope, studentIDs []int64, today timezone.Date, nowMin, lead int, upcoming, overdue bool) ([]Reminder, int, error) {
 	nextChange := -1
-	if len(studentIDs) == 0 || s.pickup == nil {
+	if len(studentIDs) == 0 || s.Pickup == nil {
 		return nil, nextChange, nil
 	}
-	times, err := s.pickup.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, today)
+	times, err := s.Pickup.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, today)
 	if err != nil {
 		return nil, nextChange, err
 	}
@@ -495,8 +476,8 @@ func (s *service) pickupReminders(ctx context.Context, scope Scope, studentIDs [
 			// attendance row). A reminder with a blank title is an unidentifiable
 			// card, so skip it: this upholds the same "no unusable empty-title
 			// reminders" guarantee the person-read-error path enforces by failing.
-			if s.logger != nil {
-				s.logger.Debug("skipping pickup reminder with unresolved name", "student_id", d.id)
+			if s.Logger != nil {
+				s.Logger.Debug("skipping pickup reminder with unresolved name", "student_id", d.id)
 			}
 			continue
 		}
@@ -518,10 +499,10 @@ func (s *service) pickupReminders(ctx context.Context, scope Scope, studentIDs [
 
 func (s *service) activityReminders(ctx context.Context, scope Scope, roomIDs []int64, today timezone.Date, nowMin, lead, overdueThreshold int, upcoming, overdue bool) ([]Reminder, int, error) {
 	nextChange := -1
-	if s.instance == nil {
+	if s.Instance == nil {
 		return nil, nextChange, nil
 	}
-	instances, err := s.instance.FindByTenantAndDate(ctx, today)
+	instances, err := s.Instance.FindByTenantAndDate(ctx, today)
 	if err != nil {
 		return nil, nextChange, err
 	}
@@ -609,13 +590,13 @@ type studentNameInfo struct {
 // treated as no-access, so a broken read fails the request instead of silently
 // hiding (or exposing) reminders.
 func (s *service) readableStudents(ctx context.Context, scope Scope, ids []int64) (map[int64]*userModel.Student, error) {
-	if s.student == nil {
+	if s.Student == nil {
 		// Without a student reader we can neither verify read access nor build a
 		// title. Fail closed (return nothing) rather than expose unverified data.
 		return map[int64]*userModel.Student{}, nil
 	}
 
-	students, err := s.student.FindReadScopeByIDs(ctx, ids)
+	students, err := s.Student.FindReadScopeByIDs(ctx, ids)
 	if err != nil {
 		return nil, fmt.Errorf("load students: %w", err)
 	}
@@ -650,9 +631,9 @@ func (s *service) hydrateNames(ctx context.Context, readable map[int64]*userMode
 	}
 
 	var persons map[int64]*userModel.Person
-	if s.person != nil && len(personIDs) > 0 {
+	if s.Person != nil && len(personIDs) > 0 {
 		var err error
-		persons, err = s.person.FindByIDs(ctx, personIDs)
+		persons, err = s.Person.FindByIDs(ctx, personIDs)
 		if err != nil {
 			return nil, fmt.Errorf("load persons for student names: %w", err)
 		}
@@ -689,11 +670,11 @@ func (s *service) pickupReadPredicate(ctx context.Context, scope Scope) (func(*u
 	}
 
 	scopeVal := configModel.StudentDataScopeGroupSupervisorsOnly
-	if s.settings != nil {
+	if s.Settings != nil {
 		// ResolveString returns the registry default (group_supervisors_only)
 		// when the tenant has no override, so there is no env-var fallback to
 		// consider here.
-		v, err := s.settings.ResolveString(ctx, configModel.KeyStudentDataScope)
+		v, err := s.Settings.ResolveString(ctx, configModel.KeyStudentDataScope)
 		if err != nil {
 			return nil, fmt.Errorf("resolve %s: %w", configModel.KeyStudentDataScope, err)
 		}
@@ -706,8 +687,8 @@ func (s *service) pickupReadPredicate(ctx context.Context, scope Scope) (func(*u
 	}
 
 	groupSet := make(map[int64]struct{})
-	if s.groups != nil {
-		eduGroups, err := s.groups.GetMyGroups(ctx)
+	if s.Groups != nil {
+		eduGroups, err := s.Groups.GetMyGroups(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("load supervised groups: %w", err)
 		}
@@ -732,7 +713,7 @@ func (s *service) pickupReadPredicate(ctx context.Context, scope Scope) (func(*u
 // configured value is a valid input that normalizes to the registry default.
 func (s *service) leadMinutes(ctx context.Context, key string) (int, error) {
 	const fallback = 10
-	v, err := s.settings.ResolveInt(ctx, key)
+	v, err := s.Settings.ResolveInt(ctx, key)
 	if err != nil {
 		return 0, fmt.Errorf("resolve %s: %w", key, err)
 	}
@@ -748,7 +729,7 @@ func (s *service) leadMinutes(ctx context.Context, key string) (int, error) {
 // As with leadMinutes, a resolution error is surfaced rather than defaulted.
 func (s *service) overdueThresholdMinutes(ctx context.Context) (int, error) {
 	const fallback = 5
-	v, err := s.settings.ResolveInt(ctx, configModel.KeyTimetableOverdueThresholdMinutes)
+	v, err := s.Settings.ResolveInt(ctx, configModel.KeyTimetableOverdueThresholdMinutes)
 	if err != nil {
 		return 0, fmt.Errorf("resolve %s: %w", configModel.KeyTimetableOverdueThresholdMinutes, err)
 	}
