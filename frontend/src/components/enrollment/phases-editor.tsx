@@ -35,6 +35,11 @@ import {
   updatePhase,
 } from "~/lib/enrollment-phase-api";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import { calendarPeriodService } from "~/lib/calendar-period-api";
+import {
+  type CalendarPeriod,
+  formatPeriodRange,
+} from "~/lib/calendar-period-helpers";
 import {
   latestSchemasByName,
   listSchemas,
@@ -96,6 +101,7 @@ function blankInput(): PhaseInput {
     enrollment_open_at: null,
     enrollment_close_at: null,
     form_schema_id: null,
+    calendar_period_id: null,
     show_status_reason_to_parent: false,
     care_overflow_mode: "waitlist",
     care_offering_selection_mode: "optional",
@@ -112,6 +118,7 @@ function phaseToInput(p: Phase): PhaseInput {
     enrollment_open_at: p.enrollment_open_at ?? null,
     enrollment_close_at: p.enrollment_close_at ?? null,
     form_schema_id: p.form_schema_id ?? null,
+    calendar_period_id: p.calendar_period_id ?? null,
     show_status_reason_to_parent: p.show_status_reason_to_parent,
     care_overflow_mode: p.care_overflow_mode,
     care_offering_selection_mode: p.care_offering_selection_mode ?? "optional",
@@ -159,6 +166,7 @@ export function PhasesEditor() {
   const searchParams = useSearchParams();
   const [phases, setPhases] = useState<Phase[]>([]);
   const [schemas, setSchemas] = useState<FormSchema[]>([]);
+  const [periods, setPeriods] = useState<CalendarPeriod[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -207,12 +215,16 @@ export function PhasesEditor() {
     setLoading(true);
     setError(null);
     try {
-      const [phasesData, schemasData] = await Promise.all([
+      const [phasesData, schemasData, periodsData] = await Promise.all([
         listPhases(),
         listSchemas().catch(() => [] as FormSchema[]),
+        // Calendar periods are optional context for the phase form —
+        // a load failure must not block phase management.
+        calendarPeriodService.list().catch(() => [] as CalendarPeriod[]),
       ]);
       setPhases(phasesData);
       setSchemas(schemasData);
+      setPeriods(periodsData);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unbekannter Fehler";
       logger.error("phases_load_failed", { error: message });
@@ -612,6 +624,7 @@ export function PhasesEditor() {
         <PhaseForm
           draft={draft}
           setDraft={setDraft}
+          periods={periods}
           schemas={latestSchemas}
           schemaSource={schemaSource}
           setSchemaSource={setSchemaSource}
@@ -706,6 +719,7 @@ export function PhasesEditor() {
 interface PhaseFormProps {
   readonly draft: PhaseInput;
   readonly setDraft: React.Dispatch<React.SetStateAction<PhaseInput | null>>;
+  readonly periods: CalendarPeriod[];
   readonly schemas: FormSchema[];
   readonly schemaSource: SchemaSource;
   readonly setSchemaSource: React.Dispatch<React.SetStateAction<SchemaSource>>;
@@ -1122,6 +1136,7 @@ function PhaseForm(props: PhaseFormProps) {
   const {
     draft,
     setDraft,
+    periods,
     schemas,
     schemaSource,
     setSchemaSource,
@@ -1188,6 +1203,47 @@ function PhaseForm(props: PhaseFormProps) {
         <legend className="px-1 text-xs font-medium text-gray-700">
           Betreuungszeitraum
         </legend>
+        {periods.length > 0 && (
+          <label className="mb-3 block" htmlFor="phase-calendar-period">
+            <span className="text-xs text-gray-600">
+              Kalenderzeitraum (optional)
+            </span>
+            <CustomSelect
+              id="phase-calendar-period"
+              value={draft.calendar_period_id ?? ""}
+              onChange={(value) => {
+                if (!value) {
+                  update({ calendar_period_id: null });
+                  return;
+                }
+                const period = periods.find((p) => p.id === value);
+                update({
+                  calendar_period_id: value,
+                  // Prefill the service dates from the linked period —
+                  // the admin can still adjust them afterwards.
+                  ...(period
+                    ? {
+                        service_start_date: period.startDate,
+                        service_end_date: period.endDate,
+                      }
+                    : {}),
+                });
+              }}
+              className="mt-1"
+              options={[
+                { value: "", label: "Kein Kalenderzeitraum" },
+                ...periods.map((period) => ({
+                  value: period.id,
+                  label: `${period.name} (${formatPeriodRange(period)})`,
+                })),
+              ]}
+            />
+            <span className="mt-1 block text-xs text-gray-500">
+              Verknüpft die Anmeldephase mit einem Zeitraum aus der Planung und
+              übernimmt dessen Beginn und Ende.
+            </span>
+          </label>
+        )}
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block">
             <span className="text-xs text-gray-600">Beginn</span>

@@ -6,9 +6,7 @@ const logger = createLogger({ component: "EnrollmentPhaseAPI" });
 export type PhaseKind = "school_year" | "holiday" | "custom";
 export type PhaseCareOverflowMode = "waitlist" | "reject" | "allow";
 export type PhaseCareOfferingSelectionMode =
-  | "optional"
-  | "at_least_one"
-  | "exactly_one";
+  "optional" | "at_least_one" | "exactly_one";
 
 export interface Phase {
   id: string;
@@ -19,6 +17,7 @@ export interface Phase {
   enrollment_open_at?: string | null; // RFC3339
   enrollment_close_at?: string | null; // RFC3339
   form_schema_id?: string | null;
+  calendar_period_id?: string | null;
   show_status_reason_to_parent: boolean;
   care_overflow_mode: PhaseCareOverflowMode;
   care_offering_selection_mode: PhaseCareOfferingSelectionMode;
@@ -53,6 +52,7 @@ export interface PhaseInput {
   enrollment_open_at?: string | null;
   enrollment_close_at?: string | null;
   form_schema_id?: string | null;
+  calendar_period_id?: string | null;
   show_status_reason_to_parent: boolean;
   care_overflow_mode: PhaseCareOverflowMode;
   care_offering_selection_mode: PhaseCareOfferingSelectionMode;
