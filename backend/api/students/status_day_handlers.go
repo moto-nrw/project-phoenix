@@ -29,7 +29,7 @@ func (rs *Resource) getStudentStatusDays(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if !rs.checkStudentReadAccess(r, student) {
-		renderError(w, r, ErrorForbidden(errors.New("full access required")))
+		renderError(w, r, common.ErrorForbidden(errors.New("full access required")))
 		return
 	}
 	if rs.StudentStatusDayService == nil {
@@ -39,7 +39,7 @@ func (rs *Resource) getStudentStatusDays(w http.ResponseWriter, r *http.Request)
 
 	from, to, err := parseStatusDayRange(r)
 	if err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -60,24 +60,24 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 
 	req := &CreateStudentStatusDaysRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 	if rs.StudentStatusDayService == nil {
-		renderError(w, r, ErrorInternalServer(errors.New("student status day repository not configured")))
+		renderError(w, r, common.ErrorInternalServer(errors.New("student status day repository not configured")))
 		return
 	}
 
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 	authorized, authErr := canUpdateStudent(r.Context(), userPermissions, student, rs.UserContextService)
 	if !authorized {
-		renderError(w, r, ErrorForbidden(authErr))
+		renderError(w, r, common.ErrorForbidden(authErr))
 		return
 	}
 
 	dates, err := parseStatusDayDates(req.Dates)
 	if err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -124,7 +124,7 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 		return nil
 	}); err != nil {
 		if errors.Is(err, errStudentStatusDayReassigned) {
-			renderError(w, r, ErrorForbidden(err))
+			renderError(w, r, common.ErrorForbidden(err))
 			return
 		}
 		renderError(w, r, common.ErrorInternalServerWrap("failed to create student status days", err))
@@ -143,30 +143,30 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 func (rs *Resource) bulkCreateStudentStatusDays(w http.ResponseWriter, r *http.Request) {
 	req := &BulkCreateStudentStatusDaysRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 	if rs.StudentStatusDayService == nil {
-		renderError(w, r, ErrorInternalServer(errors.New("student status day repository not configured")))
+		renderError(w, r, common.ErrorInternalServer(errors.New("student status day repository not configured")))
 		return
 	}
 
 	from, err := timezone.ParseDate(req.From)
 	if err != nil {
-		renderError(w, r, ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
+		renderError(w, r, common.ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
 		return
 	}
 	to, err := timezone.ParseDate(req.To)
 	if err != nil {
-		renderError(w, r, ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
+		renderError(w, r, common.ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
 		return
 	}
 	if to.Before(from) {
-		renderError(w, r, ErrorInvalidRequest(errors.New("to must be after from")))
+		renderError(w, r, common.ErrorInvalidRequest(errors.New("to must be after from")))
 		return
 	}
 	if to.After(from.AddDays(maxStudentStatusDayRangeDays - 1)) {
-		renderError(w, r, ErrorInvalidRequest(errors.New("date range cannot exceed 31 days")))
+		renderError(w, r, common.ErrorInvalidRequest(errors.New("date range cannot exceed 31 days")))
 		return
 	}
 	dates := datesBetweenInclusive(from, to)
@@ -215,7 +215,7 @@ func (rs *Resource) bulkCreateStudentStatusDays(w http.ResponseWriter, r *http.R
 		return nil
 	}); err != nil {
 		if errors.Is(err, errStudentStatusDayReassigned) {
-			renderError(w, r, ErrorForbidden(err))
+			renderError(w, r, common.ErrorForbidden(err))
 			return
 		}
 		renderError(w, r, common.ErrorInternalServerWrap("failed to bulk create student status days", err))
@@ -236,18 +236,18 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 
 	statusDayID, err := strconv.ParseInt(chi.URLParam(r, "statusDayId"), 10, 64)
 	if err != nil || statusDayID <= 0 {
-		renderError(w, r, ErrorInvalidRequest(errors.New("invalid status day id")))
+		renderError(w, r, common.ErrorInvalidRequest(errors.New("invalid status day id")))
 		return
 	}
 	if rs.StudentStatusDayService == nil {
-		renderError(w, r, ErrorInternalServer(errors.New("student status day repository not configured")))
+		renderError(w, r, common.ErrorInternalServer(errors.New("student status day repository not configured")))
 		return
 	}
 
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 	authorized, authErr := canUpdateStudent(r.Context(), userPermissions, student, rs.UserContextService)
 	if !authorized {
-		renderError(w, r, ErrorForbidden(authErr))
+		renderError(w, r, common.ErrorForbidden(authErr))
 		return
 	}
 
@@ -289,11 +289,11 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 		return nil
 	}); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			renderError(w, r, ErrorNotFound(errors.New("student status day not found")))
+			renderError(w, r, common.ErrorNotFound(errors.New("student status day not found")))
 			return
 		}
 		if errors.Is(err, errStudentStatusDayReassigned) {
-			renderError(w, r, ErrorForbidden(err))
+			renderError(w, r, common.ErrorForbidden(err))
 			return
 		}
 		renderError(w, r, common.ErrorInternalServerWrap("failed to delete student status day", err))

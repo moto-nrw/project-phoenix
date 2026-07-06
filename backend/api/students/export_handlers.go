@@ -55,27 +55,27 @@ type weeklySchedule struct {
 
 func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 	if rs.ListExportService == nil {
-		renderError(w, r, ErrorInternalServer(errors.New("list export service is not configured")))
+		renderError(w, r, common.ErrorInternalServer(errors.New("list export service is not configured")))
 		return
 	}
 
 	req, err := decodeStudentExportRequest(r)
 	if err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	params := exportRequestToListParams(req)
 	students, _, err := rs.fetchStudentsForList(r, params)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
 	studentIDs, personIDs, groupIDs := collectIDsFromStudents(students)
 	dataSnapshot, err := common.LoadStudentDataSnapshot(r.Context(), rs.PersonService, rs.EducationService, rs.ActiveService, studentIDs, personIDs, groupIDs)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -94,7 +94,7 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 	today := rs.Now()
 	rs.applyStatusDaysForDate(r.Context(), responses, today)
 	if err := rs.enrichWithDayPlanning(r.Context(), responses, today, attendanceMapFromSnapshot(dataSnapshot)); err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 	rs.enrichWithPickupTimes(r.Context(), responses, fullAccessIDs, today)
@@ -108,13 +108,13 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 
 	weekly, err := rs.loadWeeklySchedules(r, collectResponseIDs(responses))
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 	columns := listexport.ResolveColumns(req.Columns, req.Preset)
 	enrollmentSummaries, err := rs.loadActiveEnrollmentSummaries(r, collectResponseIDs(responses), timezone.DateFromTime(today), columns)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -135,7 +135,7 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 
 	file, err := rs.ListExportService.Render(doc, req.Format, doc.Title)
 	if err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 

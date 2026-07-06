@@ -73,12 +73,12 @@ func toCareRequestResponse(item *scheduleService.CareRequestReviewItem) CareRequ
 // care-schedule change requests for the staff review queue.
 func (rs *Resource) listCareScheduleChangeRequests(w http.ResponseWriter, r *http.Request) {
 	if rs.CareRequestService == nil {
-		renderError(w, r, ErrorInternalServer(errors.New("care request service not configured")))
+		renderError(w, r, common.ErrorInternalServer(errors.New("care request service not configured")))
 		return
 	}
 	items, err := rs.CareRequestService.ListPending(r.Context())
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 	out := make([]CareRequestResponse, 0, len(items))
@@ -99,21 +99,21 @@ type DecideCareRequestBody struct {
 // rejects (reason required) one pending request.
 func (rs *Resource) decideCareScheduleChangeRequest(w http.ResponseWriter, r *http.Request) {
 	if rs.CareRequestService == nil {
-		renderError(w, r, ErrorInternalServer(errors.New("care request service not configured")))
+		renderError(w, r, common.ErrorInternalServer(errors.New("care request service not configured")))
 		return
 	}
 	requestID, err := strconv.ParseInt(chi.URLParam(r, "requestId"), 10, 64)
 	if err != nil || requestID <= 0 {
-		renderError(w, r, ErrorInvalidRequest(errors.New("invalid request id")))
+		renderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request id")))
 		return
 	}
 	var body DecideCareRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		renderError(w, r, ErrorInvalidRequest(errors.New("invalid request body")))
+		renderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
 		return
 	}
 	if body.Approve == nil {
-		renderError(w, r, ErrorInvalidRequest(errors.New("approve is required")))
+		renderError(w, r, common.ErrorInvalidRequest(errors.New("approve is required")))
 		return
 	}
 
@@ -127,21 +127,21 @@ func (rs *Resource) decideCareScheduleChangeRequest(w http.ResponseWriter, r *ht
 	if err != nil {
 		switch {
 		case errors.Is(err, scheduleModels.ErrCareRequestNotFound):
-			renderError(w, r, ErrorNotFound(err))
+			renderError(w, r, common.ErrorNotFound(err))
 		case errors.Is(err, scheduleModels.ErrCareRequestNotPending):
-			renderError(w, r, ErrorConflictWithCode(err, "change_request_not_pending"))
+			renderError(w, r, common.ErrorConflictWithCode(err, "change_request_not_pending"))
 		case errors.Is(err, scheduleService.ErrCareRequestGuardianAccessRevoked):
-			renderError(w, r, ErrorConflictWithCode(err, "guardian_access_revoked"))
+			renderError(w, r, common.ErrorConflictWithCode(err, "guardian_access_revoked"))
 		case errors.Is(err, scheduleService.ErrCareRequestMessagingDisabled):
-			renderError(w, r, ErrorConflictWithCode(err, "messaging_disabled"))
+			renderError(w, r, common.ErrorConflictWithCode(err, "messaging_disabled"))
 		case errors.Is(err, scheduleService.ErrCareRequestForbidden):
-			renderError(w, r, ErrorForbidden(err))
+			renderError(w, r, common.ErrorForbidden(err))
 		case errors.Is(err, scheduleService.ErrCareRequestRejectReasonRequired),
 			errors.Is(err, scheduleService.ErrCareRequestRejectReasonTooLong),
 			errors.Is(err, scheduleService.ErrInvalidCareRequestPayload):
-			renderError(w, r, ErrorInvalidRequest(err))
+			renderError(w, r, common.ErrorInvalidRequest(err))
 		default:
-			renderError(w, r, ErrorInternalServer(err))
+			renderError(w, r, common.ErrorInternalServer(err))
 		}
 		return
 	}

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 )
 
@@ -35,56 +34,21 @@ var (
 	ErrExceptionDayConflict = errors.New("schedule exception for this day was just changed")
 )
 
-// ErrorInvalidRequest returns a 400 Bad Request error response
-func ErrorInvalidRequest(err error) render.Renderer {
-	return common.ErrorInvalidRequest(err)
-}
-
-// ErrorInternalServer returns a 500 Internal Server Error response
-func ErrorInternalServer(err error) render.Renderer {
-	return common.ErrorInternalServer(err)
-}
-
-// ErrorNotFound returns a 404 Not Found error response
-func ErrorNotFound(err error) render.Renderer {
-	return common.ErrorNotFound(err)
-}
-
-// ErrorUnauthorized returns a 401 Unauthorized error response
-func ErrorUnauthorized(err error) render.Renderer {
-	return common.ErrorUnauthorized(err)
-}
-
-// ErrorForbidden returns a 403 Forbidden error response
-func ErrorForbidden(err error) render.Renderer {
-	return common.ErrorForbidden(err)
-}
-
-// ErrorConflictWithCode returns a 409 Conflict with a stable error code.
-func ErrorConflictWithCode(err error, code string) render.Renderer {
-	return common.ErrorConflictWithCode(err, code)
-}
-
-// ErrorForbiddenWithCode returns a 403 Forbidden with a stable error code.
-func ErrorForbiddenWithCode(err error, code string) render.Renderer {
-	return common.ErrorForbiddenWithCode(err, code)
-}
-
 // renderExceptionWriteError maps the sentinel errors a pickup/arrival exception
 // write transaction can return to precise HTTP statuses. Anything unrecognized
 // stays a 500 so genuine infrastructure failures are not masked as 4xx.
 func renderExceptionWriteError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, ErrStaffProfileRequired):
-		renderError(w, r, ErrorForbiddenWithCode(err, "staff_profile_required"))
+		renderError(w, r, common.ErrorForbiddenWithCode(err, "staff_profile_required"))
 	case errors.Is(err, ErrExceptionNotFound):
-		renderError(w, r, ErrorNotFound(err))
+		renderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, ErrExceptionWrongStudent):
-		renderError(w, r, ErrorForbidden(err))
+		renderError(w, r, common.ErrorForbidden(err))
 	case errors.Is(err, ErrExceptionDayConflict):
-		renderError(w, r, ErrorConflictWithCode(err, "care_exception_raced"))
+		renderError(w, r, common.ErrorConflictWithCode(err, "care_exception_raced"))
 	default:
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 	}
 }
 

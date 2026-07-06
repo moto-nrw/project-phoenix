@@ -114,7 +114,7 @@ func (rs *Resource) passkeyLoginOptions(w http.ResponseWriter, r *http.Request) 
 	}
 	school, err := rs.SchoolService.GetSchoolBySubdomain(r.Context(), req.TenantSlug)
 	if err != nil || school == nil || school.IsDeleted() || !school.Active {
-		common.RenderError(w, r, ErrorNotFound(authService.ErrTenantNotFound))
+		common.RenderError(w, r, common.ErrorNotFound(authService.ErrTenantNotFound))
 		return
 	}
 	options, err := rs.PasskeyService.BeginLogin(r.Context(), authService.PasskeyLoginStartRequest{
@@ -191,7 +191,7 @@ func (rs *Resource) passkeyRegisterOptions(w http.ResponseWriter, r *http.Reques
 	}
 	school, err := rs.SchoolService.GetSchoolByID(r.Context(), claims.TenantID)
 	if err != nil || school == nil || school.IsDeleted() || !school.Active {
-		common.RenderError(w, r, ErrorNotFound(authService.ErrTenantNotFound))
+		common.RenderError(w, r, common.ErrorNotFound(authService.ErrTenantNotFound))
 		return
 	}
 	options, err := rs.PasskeyService.BeginRegistration(r.Context(), authService.PasskeyRegistrationStartRequest{

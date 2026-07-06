@@ -227,13 +227,13 @@ func containsIgnoreCase(s, substr string) bool {
 func (rs *Resource) parseAndGetStudent(w http.ResponseWriter, r *http.Request) (*users.Student, bool) {
 	id, err := common.ParseID(r)
 	if err != nil {
-		renderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
+		renderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
 		return nil, false
 	}
 
 	student, err := rs.PersonService.GetStudentByID(r.Context(), id)
 	if err != nil {
-		renderError(w, r, ErrorNotFound(errors.New("student not found")))
+		renderError(w, r, common.ErrorNotFound(errors.New("student not found")))
 		return nil, false
 	}
 
@@ -350,10 +350,10 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	students, totalCount, err := rs.fetchStudentsForList(r, params)
 	if err != nil {
 		if errors.Is(err, ErrInvalidRequest) {
-			renderError(w, r, ErrorInvalidRequest(err))
+			renderError(w, r, common.ErrorInvalidRequest(err))
 			return
 		}
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -370,7 +370,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		slog.Default().Error("failed to load student data snapshot", slog.String("error", err.Error()))
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -384,7 +384,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	rs.applyStatusDaysForDate(r.Context(), responses, now)
 	if err := rs.enrichWithDayPlanning(r.Context(), responses, now, attendanceMapFromSnapshot(dataSnapshot)); err != nil {
 		slog.Default().Error("failed to enrich student day planning", slog.String("error", err.Error()))
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 	responses = applyDayPlanningFilter(responses, params.dayStatus)
@@ -538,7 +538,7 @@ func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListPar
 func (rs *Resource) listSchoolClasses(w http.ResponseWriter, r *http.Request) {
 	classes, err := rs.StudentService.ListSchoolClasses(r.Context())
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 	common.Respond(w, r, http.StatusOK, classes, "School classes retrieved successfully")
@@ -663,7 +663,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 		if err := rs.enrichWithDayPlanning(r.Context(), single, now, map[int64]*activeService.AttendanceStatus{
 			student.ID: attendanceStatus,
 		}); err != nil {
-			renderError(w, r, ErrorInternalServer(err))
+			renderError(w, r, common.ErrorInternalServer(err))
 			return
 		}
 		response.StudentResponse = single[0]
@@ -927,14 +927,14 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &StudentRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	// Create person from request
 	person, err := createPersonFromStudentRequest(req)
 	if err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -955,12 +955,12 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 	var staffID int64
 	if len(req.ArrivalSchedules) > 0 || len(req.PickupSchedules) > 0 {
 		if !authorize.HasPermission(permissions.UsersUpdate, jwt.PermissionsFromCtx(r.Context())) {
-			renderError(w, r, ErrorForbidden(errors.New("users:update permission required to create student schedules")))
+			renderError(w, r, common.ErrorForbidden(errors.New("users:update permission required to create student schedules")))
 			return
 		}
 		staffID, err = rs.getStaffIDFromJWT(r)
 		if err != nil {
-			renderError(w, r, ErrorForbidden(err))
+			renderError(w, r, common.ErrorForbidden(err))
 			return
 		}
 	}
@@ -1021,10 +1021,10 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 		// transaction has already rolled back, so no partial data survives.
 		var validationErr *userService.ValidationError
 		if errors.As(err, &validationErr) {
-			renderError(w, r, ErrorInvalidRequest(validationErr))
+			renderError(w, r, common.ErrorInvalidRequest(validationErr))
 			return
 		}
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1319,7 +1319,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &UpdateStudentRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -1333,7 +1333,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 	authorized, authErr := canUpdateStudent(r.Context(), userPermissions, student, rs.UserContextService)
 	if !authorized {
-		renderError(w, r, ErrorForbidden(authErr))
+		renderError(w, r, common.ErrorForbidden(authErr))
 		return
 	}
 
@@ -1344,7 +1344,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	// Update person fields using helper function
 	personResult := applyPersonUpdates(req, person)
 	if personResult.err != nil {
-		renderError(w, r, ErrorInvalidRequest(personResult.err))
+		renderError(w, r, common.ErrorInvalidRequest(personResult.err))
 		return
 	}
 
@@ -1352,7 +1352,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	// states simultaneously. The frontend uses the SICK_EXCUSED_CONFLICT code
 	// to prompt the user to switch states rather than hold both.
 	if err := checkSickExcusedConflict(req, student); err != nil {
-		renderError(w, r, ErrorConflictWithCode(err, ErrCodeSickExcusedConflict))
+		renderError(w, r, common.ErrorConflictWithCode(err, ErrCodeSickExcusedConflict))
 		return
 	}
 
@@ -1452,18 +1452,18 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		return nil
 	}); err != nil {
 		if errors.Is(err, errSickExcusedConflict) {
-			renderError(w, r, ErrorConflictWithCode(
+			renderError(w, r, common.ErrorConflictWithCode(
 				errors.New("a student cannot be both sick and excused at the same time"),
 				ErrCodeSickExcusedConflict,
 			))
 			return
 		}
 		if errors.Is(err, errStudentReassigned) {
-			renderError(w, r, ErrorForbidden(errors.New("you can only update students in groups you supervise")))
+			renderError(w, r, common.ErrorForbidden(errors.New("you can only update students in groups you supervise")))
 			return
 		}
 		if errors.Is(err, errStudentNotFoundUnderLock) {
-			renderError(w, r, ErrorNotFound(errors.New("student not found")))
+			renderError(w, r, common.ErrorNotFound(errors.New("student not found")))
 			return
 		}
 		// The merged plan (request modes applied onto the stored row) can violate
@@ -1473,17 +1473,17 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		// (#1694). The binder cannot catch this on update: only here is the
 		// stored note visible to fall back on.
 		if errors.Is(err, users.ErrDepartureCompanionNoteRequired) {
-			renderError(w, r, ErrorInvalidRequest(err))
+			renderError(w, r, common.ErrorInvalidRequest(err))
 			return
 		}
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
 	// Get updated student with person data
 	updatedStudent, err := rs.PersonService.GetStudentByID(r.Context(), student.ID)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1520,7 +1520,7 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 	authorized, authErr := canDeleteStudent(r.Context(), userPermissions, student, rs.UserContextService)
 	if !authorized {
-		renderError(w, r, ErrorForbidden(authErr))
+		renderError(w, r, common.ErrorForbidden(authErr))
 		return
 	}
 
@@ -1560,7 +1560,7 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 			renderError(w, r, common.ErrorConflictMessage("Kind kann nicht gelöscht werden: Kind hat aktive Besuche, Einschreibungen oder andere verknüpfte Daten"))
 			return
 		}
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 

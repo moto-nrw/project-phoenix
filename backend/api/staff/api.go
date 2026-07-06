@@ -293,13 +293,13 @@ func newPersonResponse(person *users.Person, email string, avatar string) *Perso
 func (rs *Resource) parseAndGetStaff(w http.ResponseWriter, r *http.Request) (*users.Staff, bool) {
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStaffID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidStaffID)))
 		return nil, false
 	}
 
 	staff, err := rs.PersonService.GetStaffByID(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgStaffNotFound)))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New(common.MsgStaffNotFound)))
 		return nil, false
 	}
 
@@ -491,7 +491,7 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 	// Get all staff members with person data in a single query (avoids N+1)
 	staffMembers, err := rs.PersonService.ListStaffWithPerson(ctx)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -504,7 +504,7 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 	// Batch-load all teachers in a single query (avoids N+1)
 	teacherMap, err := rs.PersonService.GetTeachersByStaffIDs(ctx, staffIDs)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -552,7 +552,7 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 	// Get staff member with person data using FindWithPerson method
 	staff, err := rs.PersonService.GetStaffWithPerson(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgStaffNotFound)))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New(common.MsgStaffNotFound)))
 		return
 	}
 
@@ -641,14 +641,14 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &StaffRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	// Verify person exists
 	person, err := rs.PersonService.Get(r.Context(), req.PersonID)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New("person not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("person not found")))
 		return
 	}
 
@@ -662,7 +662,7 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 		Qualifications: req.Qualifications,
 	})
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 	isTeacher := teacher != nil
@@ -706,13 +706,13 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 
 	req := &StaffRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	staff, err := rs.PersonService.GetStaffByID(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New(common.MsgStaffNotFound)))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New(common.MsgStaffNotFound)))
 		return
 	}
 
@@ -722,14 +722,14 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 	// Handle person ID change
 	if staff.PersonID != req.PersonID {
 		if rs.updateStaffPerson(r.Context(), staff, req.PersonID) != nil {
-			common.RenderError(w, r, ErrorNotFound(errors.New("person not found")))
+			common.RenderError(w, r, common.ErrorNotFound(errors.New("person not found")))
 			return
 		}
 	}
 
 	teacher, action, err := rs.PersonService.UpdateStaffWithTeacher(r.Context(), staff, req.IsTeacher, req.Specialization, req.Role, req.Qualifications)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -785,7 +785,7 @@ func (rs *Resource) deleteStaff(w http.ResponseWriter, r *http.Request) {
 			common.RenderError(w, r, common.ErrorConflictMessage("Personal kann nicht gelöscht werden: Mitarbeiter/in wird noch in anderen Bereichen referenziert"))
 			return
 		}
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -847,14 +847,14 @@ func (rs *Resource) getStaffGroups(w http.ResponseWriter, r *http.Request) {
 	// Check if we have a reference to the Education service
 	if rs.EducationService == nil {
 		// If not, return an error
-		common.RenderError(w, r, ErrorInternalServer(errors.New("education service not available")))
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("education service not available")))
 		return
 	}
 
 	// Get groups for this teacher
 	groups, err := rs.EducationService.GetTeacherGroups(r.Context(), teacher.ID)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -878,7 +878,7 @@ func (rs *Resource) getAvailableStaff(w http.ResponseWriter, r *http.Request) {
 	// Get all teachers with staff and person data in a single query (avoids N+1)
 	teachers, err := rs.PersonService.ListTeachersWithStaffAndPerson(ctx)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -909,14 +909,14 @@ func (rs *Resource) getStaffSubstitutions(w http.ResponseWriter, r *http.Request
 	// Check if we have a reference to the Education service
 	if rs.EducationService == nil {
 		// If not, return an error
-		common.RenderError(w, r, ErrorInternalServer(errors.New("education service not available")))
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("education service not available")))
 		return
 	}
 
 	// Get substitutions where this staff member is the substitute
 	substitutions, err := rs.EducationService.GetStaffSubstitutions(r.Context(), staff.ID, false)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1030,14 +1030,14 @@ func (rs *Resource) getAvailableForSubstitution(w http.ResponseWriter, r *http.R
 
 	caregivers, err := rs.listActiveCaregivers(ctx)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
 	// Keep the richer teacher payload, but only for canonical caregivers.
 	teachers, err := rs.PersonService.ListTeachersWithStaffAndPerson(ctx)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1120,14 +1120,14 @@ func (rs *Resource) getPINStatus(w http.ResponseWriter, r *http.Request) {
 	// Get user from JWT context
 	userClaims := jwt.ClaimsFromCtx(r.Context())
 	if userClaims.ID == 0 {
-		common.RenderError(w, r, ErrorUnauthorized(errors.New("invalid token")))
+		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("invalid token")))
 		return
 	}
 
 	// Get account directly
 	account, err := rs.AuthService.GetAccountByID(r.Context(), userClaims.ID)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New("account not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("account not found")))
 		return
 	}
 
@@ -1135,7 +1135,7 @@ func (rs *Resource) getPINStatus(w http.ResponseWriter, r *http.Request) {
 	person, err := rs.PersonService.FindByAccountID(r.Context(), int64(account.ID))
 	if err == nil && person != nil {
 		if _, err := rs.PersonService.GetStaffByPersonID(r.Context(), person.ID); err != nil {
-			common.RenderError(w, r, ErrorForbidden(errors.New("only staff members can access PIN settings")))
+			common.RenderError(w, r, common.ErrorForbidden(errors.New("only staff members can access PIN settings")))
 			return
 		}
 	}
@@ -1157,19 +1157,19 @@ func (rs *Resource) getPINStatus(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
 	req := &PINUpdateRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	userClaims := jwt.ClaimsFromCtx(r.Context())
 	if userClaims.ID == 0 {
-		common.RenderError(w, r, ErrorUnauthorized(errors.New("invalid token")))
+		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("invalid token")))
 		return
 	}
 
 	account, err := rs.AuthService.GetAccountByID(r.Context(), userClaims.ID)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New("account not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("account not found")))
 		return
 	}
 
@@ -1201,7 +1201,7 @@ func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
 
 	// Set new PIN
 	if account.HashPIN(req.NewPIN) != nil {
-		common.RenderError(w, r, ErrorInternalServer(errors.New("failed to hash PIN")))
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to hash PIN")))
 		return
 	}
 
@@ -1214,7 +1214,7 @@ func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
 		// the in-memory account and persisting it again.
 		return rs.AuthService.ResetPINLockout(ctx, int64(account.ID))
 	}); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1229,7 +1229,7 @@ func (rs *Resource) updatePIN(w http.ResponseWriter, r *http.Request) {
 // (issue #586, Rule 12).
 func (rs *Resource) checkAccountLocked(_ context.Context, account *authmodel.Account) render.Renderer {
 	if rs.AuthService.IsPINLocked(account, time.Now()) {
-		return ErrorForbidden(errors.New("account is temporarily locked due to failed PIN attempts"))
+		return common.ErrorForbidden(errors.New("account is temporarily locked due to failed PIN attempts"))
 	}
 	return nil
 }
@@ -1242,7 +1242,7 @@ func (rs *Resource) checkStaffPINAccess(ctx context.Context, accountID int64) re
 	}
 
 	if _, err := rs.PersonService.GetStaffByPersonID(ctx, person.ID); err != nil {
-		return ErrorForbidden(errors.New("only staff members can manage PIN settings"))
+		return common.ErrorForbidden(errors.New("only staff members can manage PIN settings"))
 	}
 	return nil
 }
@@ -1268,11 +1268,11 @@ func verifyCurrentPIN(account interface {
 	}
 
 	if currentPIN == nil || *currentPIN == "" {
-		return pinVerificationMissingInput, ErrorInvalidRequest(errors.New("current PIN is required when updating existing PIN"))
+		return pinVerificationMissingInput, common.ErrorInvalidRequest(errors.New("current PIN is required when updating existing PIN"))
 	}
 
 	if !account.VerifyPIN(*currentPIN) {
-		return pinVerificationFailed, ErrorUnauthorized(errors.New("current PIN is incorrect"))
+		return pinVerificationFailed, common.ErrorUnauthorized(errors.New("current PIN is incorrect"))
 	}
 	return pinVerificationPassed, nil
 }
@@ -1313,7 +1313,7 @@ func (rs *Resource) getStaffByRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(roles) == 0 {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("role or roles parameter is required")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("role or roles parameter is required")))
 		return
 	}
 
@@ -1322,7 +1322,7 @@ func (rs *Resource) getStaffByRole(w http.ResponseWriter, r *http.Request) {
 	if requestedCaregiverPool(roles) {
 		caregivers, err := rs.listActiveCaregivers(ctx)
 		if err != nil {
-			common.RenderError(w, r, ErrorInternalServer(err))
+			common.RenderError(w, r, common.ErrorInternalServer(err))
 			return
 		}
 
@@ -1349,7 +1349,7 @@ func (rs *Resource) getStaffByRole(w http.ResponseWriter, r *http.Request) {
 
 	staffByRoles, err := rs.PersonService.ListStaffByRoles(ctx, roles)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 

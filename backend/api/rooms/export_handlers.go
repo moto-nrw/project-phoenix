@@ -51,7 +51,7 @@ func (rs *Resource) exportSnapshot(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeRoomSnapshotExportRequest(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -89,7 +89,7 @@ func (rs *Resource) exportSnapshot(w http.ResponseWriter, r *http.Request) {
 
 	file, err := rs.ListExportService.Render(doc, req.Format, doc.Title)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 

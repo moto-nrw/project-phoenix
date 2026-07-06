@@ -56,7 +56,7 @@ func (rs *Resource) getStats(w http.ResponseWriter, r *http.Request) {
 	stats, err := rs.DatabaseService.GetStats(r.Context())
 	if err != nil {
 		slog.Default().Error("failed to get database stats", slog.String("error", err.Error()))
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServerWrap("Internal server error", err))
 		return
 	}
 

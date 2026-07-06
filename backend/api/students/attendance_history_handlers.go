@@ -90,14 +90,14 @@ func (rs *Resource) getStudentAttendanceHistory(w http.ResponseWriter, r *http.R
 
 	// 1. Feature gate
 	if !configService.ResolveBoolOrDefault(ctx, rs.SettingsService, configModel.KeyAttendanceLogEnabled, false, logger) {
-		renderError(w, r, ErrorForbidden(errors.New("feature_disabled")))
+		renderError(w, r, common.ErrorForbidden(errors.New("feature_disabled")))
 		return
 	}
 
 	// 2. Scope check
 	scope := configService.ResolveStringOrDefault(ctx, rs.SettingsService, configModel.KeyAttendanceLogScope, configModel.AttendanceLogScopeGroupSupervisorsOnly, logger)
 	if !rs.attendanceHistoryScopeAllows(r, student, scope) {
-		renderError(w, r, ErrorForbidden(errors.New("not_group_supervisor")))
+		renderError(w, r, common.ErrorForbidden(errors.New("not_group_supervisor")))
 		return
 	}
 
@@ -116,7 +116,7 @@ func (rs *Resource) getStudentAttendanceHistory(w http.ResponseWriter, r *http.R
 
 	start, end, err := parseAttendanceHistoryRange(r, defaultStart, endOfToday)
 	if err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 

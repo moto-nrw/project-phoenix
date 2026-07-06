@@ -259,11 +259,11 @@ func mapNoteToResponse(n *schedule.StudentPickupNote) PickupNoteResponse {
 func (rs *Resource) verifyExceptionOwnership(w http.ResponseWriter, r *http.Request, exceptionID, studentID int64) *schedule.StudentPickupException {
 	exception, err := rs.PickupScheduleService.GetStudentPickupExceptionByID(r.Context(), exceptionID)
 	if err != nil || exception == nil {
-		renderError(w, r, ErrorNotFound(errors.New("pickup exception not found")))
+		renderError(w, r, common.ErrorNotFound(errors.New("pickup exception not found")))
 		return nil
 	}
 	if exception.StudentID != studentID {
-		renderError(w, r, ErrorForbidden(errors.New("exception does not belong to this student")))
+		renderError(w, r, common.ErrorForbidden(errors.New("exception does not belong to this student")))
 		return nil
 	}
 	return exception
@@ -274,11 +274,11 @@ func (rs *Resource) verifyExceptionOwnership(w http.ResponseWriter, r *http.Requ
 func (rs *Resource) verifyNoteOwnership(w http.ResponseWriter, r *http.Request, noteID, studentID int64) *schedule.StudentPickupNote {
 	note, err := rs.PickupScheduleService.GetStudentPickupNoteByID(r.Context(), noteID)
 	if err != nil || note == nil {
-		renderError(w, r, ErrorNotFound(errors.New("pickup note not found")))
+		renderError(w, r, common.ErrorNotFound(errors.New("pickup note not found")))
 		return nil
 	}
 	if note.StudentID != studentID {
-		renderError(w, r, ErrorForbidden(errors.New("note does not belong to this student")))
+		renderError(w, r, common.ErrorForbidden(errors.New("note does not belong to this student")))
 		return nil
 	}
 	return note
@@ -316,7 +316,7 @@ func (rs *Resource) requirePickupReadAccess(w http.ResponseWriter, r *http.Reque
 		return nil
 	}
 	if !rs.checkStudentReadAccess(r, student) {
-		renderError(w, r, ErrorForbidden(fmt.Errorf("read access required to view pickup schedules")))
+		renderError(w, r, common.ErrorForbidden(fmt.Errorf("read access required to view pickup schedules")))
 		return nil
 	}
 	return student
@@ -331,7 +331,7 @@ func (rs *Resource) requirePickupWriteAccess(w http.ResponseWriter, r *http.Requ
 		return nil
 	}
 	if !rs.checkStudentFullAccess(r, student) {
-		renderError(w, r, ErrorForbidden(fmt.Errorf("full access required to %s", action)))
+		renderError(w, r, common.ErrorForbidden(fmt.Errorf("full access required to %s", action)))
 		return nil
 	}
 	return student
@@ -343,7 +343,7 @@ func parseEntityID(w http.ResponseWriter, r *http.Request, param string, label s
 	idStr := chi.URLParam(r, param)
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		renderError(w, r, ErrorInvalidRequest(fmt.Errorf("invalid %s ID", label)))
+		renderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("invalid %s ID", label)))
 		return 0, false
 	}
 	return id, true
@@ -359,7 +359,7 @@ func (rs *Resource) getStudentPickupSchedules(w http.ResponseWriter, r *http.Req
 
 	data, err := rs.PickupScheduleService.GetStudentPickupData(r.Context(), student.ID)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -398,14 +398,14 @@ func (rs *Resource) updateStudentPickupSchedules(w http.ResponseWriter, r *http.
 
 	req := &BulkPickupScheduleRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	// Get staff ID from JWT
 	staffID, err := rs.getStaffIDFromJWT(r)
 	if err != nil {
-		renderError(w, r, ErrorForbidden(err))
+		renderError(w, r, common.ErrorForbidden(err))
 		return
 	}
 
@@ -416,14 +416,14 @@ func (rs *Resource) updateStudentPickupSchedules(w http.ResponseWriter, r *http.
 	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.PickupScheduleService.UpsertBulkStudentPickupSchedules(ctx, student.ID, schedules)
 	}); err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
 	// Fetch updated data
 	data, err := rs.PickupScheduleService.GetStudentPickupData(r.Context(), student.ID)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -441,13 +441,13 @@ func (rs *Resource) createStudentPickupException(w http.ResponseWriter, r *http.
 
 	req := &PickupExceptionRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	staffID, err := rs.getStaffIDFromJWT(r)
 	if err != nil {
-		renderError(w, r, ErrorForbidden(err))
+		renderError(w, r, common.ErrorForbidden(err))
 		return
 	}
 
@@ -548,7 +548,7 @@ func (rs *Resource) updateStudentPickupException(w http.ResponseWriter, r *http.
 
 	req := &PickupExceptionRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -676,13 +676,13 @@ func (rs *Resource) createStudentPickupNote(w http.ResponseWriter, r *http.Reque
 
 	req := &PickupNoteRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	staffID, err := rs.getStaffIDFromJWT(r)
 	if err != nil {
-		renderError(w, r, ErrorForbidden(err))
+		renderError(w, r, common.ErrorForbidden(err))
 		return
 	}
 
@@ -698,7 +698,7 @@ func (rs *Resource) createStudentPickupNote(w http.ResponseWriter, r *http.Reque
 	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.PickupScheduleService.CreateStudentPickupNote(ctx, note)
 	}); err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -724,7 +724,7 @@ func (rs *Resource) updateStudentPickupNote(w http.ResponseWriter, r *http.Reque
 
 	req := &PickupNoteRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -743,7 +743,7 @@ func (rs *Resource) updateStudentPickupNote(w http.ResponseWriter, r *http.Reque
 	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.PickupScheduleService.UpdateStudentPickupNote(ctx, note)
 	}); err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -771,7 +771,7 @@ func (rs *Resource) deleteStudentPickupNote(w http.ResponseWriter, r *http.Reque
 	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.PickupScheduleService.DeleteStudentPickupNote(ctx, noteID)
 	}); err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -822,14 +822,14 @@ type BulkPickupTimeResponse struct {
 func (rs *Resource) getBulkPickupTimes(w http.ResponseWriter, r *http.Request) {
 	req := &BulkPickupTimeRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	// Filter student IDs to only those the user has access to
 	authorizedIDs, err := rs.filterAuthorizedStudentIDs(r, req.StudentIDs)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -849,7 +849,7 @@ func (rs *Resource) getBulkPickupTimes(w http.ResponseWriter, r *http.Request) {
 	// Use bulk service method (O(2) queries instead of O(N))
 	pickupTimes, err := rs.PickupScheduleService.GetBulkEffectivePickupTimesForDate(r.Context(), authorizedIDs, date)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 

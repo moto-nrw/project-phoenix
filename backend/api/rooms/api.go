@@ -498,7 +498,7 @@ func (rs *Resource) GetRoomHistory(w http.ResponseWriter, r *http.Request) {
 	if startStr := r.URL.Query().Get("start"); startStr != "" {
 		parsedStart, parseErr := time.Parse(time.RFC3339, startStr)
 		if parseErr != nil {
-			common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid start parameter, expected RFC3339")))
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid start parameter, expected RFC3339")))
 			return
 		}
 		startTime = parsedStart
@@ -507,14 +507,14 @@ func (rs *Resource) GetRoomHistory(w http.ResponseWriter, r *http.Request) {
 	if endStr := r.URL.Query().Get("end"); endStr != "" {
 		parsedEnd, parseErr := time.Parse(time.RFC3339, endStr)
 		if parseErr != nil {
-			common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid end parameter, expected RFC3339")))
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid end parameter, expected RFC3339")))
 			return
 		}
 		endTime = parsedEnd
 	}
 
 	if startTime.After(endTime) {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("start must be before end")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("start must be before end")))
 		return
 	}
 

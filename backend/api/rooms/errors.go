@@ -62,8 +62,3 @@ func ErrorRenderer(err error) render.Renderer {
 
 	return common.ErrorInternalServer(err)
 }
-
-// ErrorInvalidRequest returns a 400 Bad Request error response
-func ErrorInvalidRequest(err error) render.Renderer {
-	return common.ErrorInvalidRequest(err)
-}

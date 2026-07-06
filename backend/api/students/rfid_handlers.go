@@ -16,7 +16,7 @@ import (
 func (rs *Resource) checkDeviceAuth(w http.ResponseWriter, r *http.Request) (*iot.Device, bool) {
 	deviceCtx := device.DeviceFromCtx(r.Context())
 	if deviceCtx == nil {
-		renderError(w, r, ErrorUnauthorized(errors.New("device authentication required")))
+		renderError(w, r, common.ErrorUnauthorized(errors.New("device authentication required")))
 		return nil, false
 	}
 	return deviceCtx, true
@@ -39,7 +39,7 @@ func (rs *Resource) assignRFIDTag(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &RFIDAssignmentRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -60,7 +60,7 @@ func (rs *Resource) assignRFIDTag(w http.ResponseWriter, r *http.Request) {
 
 	// Assign the RFID tag (this handles unlinking old assignments automatically)
 	if err := rs.PersonService.LinkToRFIDCard(r.Context(), person.ID, req.RFIDTag); err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -110,7 +110,7 @@ func (rs *Resource) unassignRFIDTag(w http.ResponseWriter, r *http.Request) {
 
 	// Check if student has an RFID tag assigned
 	if person.TagID == nil {
-		renderError(w, r, ErrorNotFound(errors.New("student has no RFID tag assigned")))
+		renderError(w, r, common.ErrorNotFound(errors.New("student has no RFID tag assigned")))
 		return
 	}
 
@@ -119,7 +119,7 @@ func (rs *Resource) unassignRFIDTag(w http.ResponseWriter, r *http.Request) {
 
 	// Unlink the RFID tag
 	if err := rs.PersonService.UnlinkFromRFIDCard(r.Context(), person.ID); err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 

@@ -198,31 +198,6 @@ func TestErrorRenderer_UnknownError(t *testing.T) {
 	assert.NotNil(t, renderer)
 }
 
-// Test Error Builder Functions
-func TestErrorInvalidRequest(t *testing.T) {
-	testErr := errors.New("invalid input")
-	renderer := iotCommon.ErrorInvalidRequest(testErr)
-	assert.NotNil(t, renderer)
-}
-
-func TestErrorInternalServer(t *testing.T) {
-	testErr := errors.New("database error")
-	renderer := iotCommon.ErrorInternalServer(testErr)
-	assert.NotNil(t, renderer)
-}
-
-func TestErrorNotFound(t *testing.T) {
-	testErr := errors.New("not found")
-	renderer := iotCommon.ErrorNotFound(testErr)
-	assert.NotNil(t, renderer)
-}
-
-func TestErrorConflict(t *testing.T) {
-	testErr := errors.New("conflict")
-	renderer := iotCommon.ErrorConflict(testErr)
-	assert.NotNil(t, renderer)
-}
-
 // Test Capacity Error Response Render
 func TestCapacityErrorResponse_Render(t *testing.T) {
 	resp := &iotCommon.CapacityErrorResponse{

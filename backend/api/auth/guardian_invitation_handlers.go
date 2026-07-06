@@ -61,13 +61,13 @@ type AcceptGuardianInvitationResponse struct {
 
 func (rs *Resource) validateGuardianInvitation(w http.ResponseWriter, r *http.Request) {
 	if rs.GuardianInvitationService == nil {
-		common.RenderError(w, r, ErrorInternalServer(errors.New(errGuardianInvitationServiceUnavailable)))
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New(errGuardianInvitationServiceUnavailable)))
 		return
 	}
 
 	token := strings.TrimSpace(chi.URLParam(r, "token"))
 	if token == "" {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("token is required")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("token is required")))
 		return
 	}
 
@@ -86,7 +86,7 @@ func (rs *Resource) validateGuardianInvitation(w http.ResponseWriter, r *http.Re
 		if renderInvitationError(w, r, err) {
 			return
 		}
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -104,19 +104,19 @@ func (rs *Resource) validateGuardianInvitation(w http.ResponseWriter, r *http.Re
 
 func (rs *Resource) acceptGuardianInvitation(w http.ResponseWriter, r *http.Request) {
 	if rs.GuardianInvitationService == nil {
-		common.RenderError(w, r, ErrorInternalServer(errors.New(errGuardianInvitationServiceUnavailable)))
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New(errGuardianInvitationServiceUnavailable)))
 		return
 	}
 
 	token := strings.TrimSpace(chi.URLParam(r, "token"))
 	if token == "" {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("token is required")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("token is required")))
 		return
 	}
 
 	req := &AcceptGuardianInvitationRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -138,7 +138,7 @@ func (rs *Resource) acceptGuardianInvitation(w http.ResponseWriter, r *http.Requ
 	}
 	if err != nil {
 		if !renderAcceptError(w, r, err) {
-			common.RenderError(w, r, ErrorInternalServer(err))
+			common.RenderError(w, r, common.ErrorInternalServer(err))
 		}
 		return
 	}
@@ -167,14 +167,14 @@ func (rs *Resource) lookupTenantSlugForGuardianInvitation(ctx context.Context, t
 
 func (rs *Resource) resendGuardianInvitation(w http.ResponseWriter, r *http.Request) {
 	if rs.GuardianInvitationService == nil {
-		common.RenderError(w, r, ErrorInternalServer(errors.New(errGuardianInvitationServiceUnavailable)))
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New(errGuardianInvitationServiceUnavailable)))
 		return
 	}
 
 	idParam := chi.URLParam(r, "id")
 	invitationID, err := strconv.ParseInt(idParam, 10, 64)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid invitation id")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid invitation id")))
 		return
 	}
 
@@ -190,13 +190,13 @@ func (rs *Resource) resendGuardianInvitation(w http.ResponseWriter, r *http.Requ
 	}
 	if err != nil {
 		if errors.Is(err, authService.ErrInvitationExpired) {
-			common.RenderError(w, r, ErrorInvalidRequest(authService.ErrInvitationExpired))
+			common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrInvitationExpired))
 			return
 		}
 		if renderInvitationError(w, r, err) {
 			return
 		}
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 

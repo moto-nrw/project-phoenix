@@ -364,23 +364,23 @@ type TenantResolveResponse struct {
 func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 	slug := strings.TrimSpace(r.URL.Query().Get("slug"))
 	if slug == "" {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("slug query parameter is required")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("slug query parameter is required")))
 		return
 	}
 
 	school, err := rs.SchoolService.GetSchoolBySubdomain(r.Context(), slug)
 	if err != nil || school == nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New("tenant not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("tenant not found")))
 		return
 	}
 
 	if school.IsDeleted() {
-		common.RenderError(w, r, ErrorNotFound(errors.New("tenant not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("tenant not found")))
 		return
 	}
 
 	if !school.Active {
-		common.RenderError(w, r, ErrorNotFound(errors.New("tenant not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("tenant not found")))
 		return
 	}
 
@@ -461,7 +461,7 @@ func (req *SwitchTenantRequest) Bind(_ *http.Request) error {
 func (rs *Resource) switchTenant(w http.ResponseWriter, r *http.Request) {
 	req := &SwitchTenantRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -474,19 +474,19 @@ func (rs *Resource) switchTenant(w http.ResponseWriter, r *http.Request) {
 		if errors.As(err, &authErr) {
 			switch {
 			case errors.Is(authErr.Err, authService.ErrAccountNotFound):
-				common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountNotFound))
+				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrAccountNotFound))
 			case errors.Is(authErr.Err, authService.ErrAccountInactive):
-				common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountInactive))
+				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrAccountInactive))
 			case errors.Is(authErr.Err, authService.ErrTenantNotFound):
-				common.RenderError(w, r, ErrorNotFound(authService.ErrTenantNotFound))
+				common.RenderError(w, r, common.ErrorNotFound(authService.ErrTenantNotFound))
 			case errors.Is(authErr.Err, authService.ErrTenantAccessDenied):
-				common.RenderError(w, r, ErrorUnauthorized(authService.ErrTenantAccessDenied))
+				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTenantAccessDenied))
 			default:
-				common.RenderError(w, r, ErrorInternalServer(err))
+				common.RenderError(w, r, common.ErrorInternalServer(err))
 			}
 			return
 		}
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -513,7 +513,7 @@ func (rs *Resource) listAccountTenants(w http.ResponseWriter, r *http.Request) {
 
 	schools, err := rs.SchoolService.ListActiveSchoolsByAccountID(r.Context(), int64(claims.ID))
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -552,7 +552,7 @@ type PublicTenantResponse struct {
 func (rs *Resource) listTenants(w http.ResponseWriter, r *http.Request) {
 	schools, err := rs.SchoolService.ListPublicSchools(r.Context())
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -641,7 +641,7 @@ type LoginResponse struct {
 func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 	req := &LoginRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -700,16 +700,16 @@ func (rs *Resource) handleLoginError(w http.ResponseWriter, r *http.Request, err
 	if errors.As(err, &authErr) {
 		switch {
 		case errors.Is(authErr.Err, authService.ErrInvalidCredentials):
-			common.RenderError(w, r, ErrorUnauthorized(authService.ErrInvalidCredentials))
+			common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrInvalidCredentials))
 		case errors.Is(authErr.Err, authService.ErrAccountNotFound):
 			// Mask the specific error so attackers can't enumerate accounts.
-			common.RenderError(w, r, ErrorUnauthorized(authService.ErrInvalidCredentials))
+			common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrInvalidCredentials))
 		case errors.Is(authErr.Err, authService.ErrAccountInactive):
-			common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountInactive))
+			common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrAccountInactive))
 		case errors.Is(authErr.Err, authService.ErrTenantNotFound):
-			common.RenderError(w, r, ErrorNotFound(authService.ErrTenantNotFound))
+			common.RenderError(w, r, common.ErrorNotFound(authService.ErrTenantNotFound))
 		case errors.Is(authErr.Err, authService.ErrTenantAccessDenied):
-			common.RenderError(w, r, ErrorUnauthorized(authService.ErrTenantAccessDenied))
+			common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTenantAccessDenied))
 		case errors.Is(authErr.Err, authService.ErrParentMustUseParentPortal):
 			common.RenderError(w, r, common.ErrorForbidden(authService.ErrParentMustUseParentPortal))
 		case errors.Is(authErr.Err, authService.ErrMFARateLimited):
@@ -729,11 +729,11 @@ func (rs *Resource) handleLoginError(w http.ResponseWriter, r *http.Request, err
 			// retry — the frontend renders it as "Bitte versuche es erneut".
 			common.RenderError(w, r, common.ErrorServiceUnavailable(authErr.Err))
 		default:
-			common.RenderError(w, r, ErrorInternalServer(err))
+			common.RenderError(w, r, common.ErrorInternalServer(err))
 		}
 		return
 	}
-	common.RenderError(w, r, ErrorInternalServer(err))
+	common.RenderError(w, r, common.ErrorInternalServer(err))
 }
 
 // RegisterRequest represents the register request payload
@@ -777,7 +777,7 @@ type AccountResponse struct {
 func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
 	req := &RegisterRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -815,7 +815,7 @@ func (req *LinkToTenantRequest) Bind(_ *http.Request) error {
 func (rs *Resource) linkToTenant(w http.ResponseWriter, r *http.Request) {
 	req := &LinkToTenantRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -831,15 +831,15 @@ func (rs *Resource) linkToTenant(w http.ResponseWriter, r *http.Request) {
 		if errors.As(err, &authErr) {
 			switch {
 			case errors.Is(authErr.Err, authService.ErrAccountNotFound):
-				common.RenderError(w, r, ErrorNotFound(authErr.Err))
+				common.RenderError(w, r, common.ErrorNotFound(authErr.Err))
 			case errors.Is(authErr.Err, authService.ErrAccountInactive):
 				common.RenderError(w, r, common.ErrorConflict(authErr.Err))
 			default:
-				common.RenderError(w, r, ErrorInternalServer(err))
+				common.RenderError(w, r, common.ErrorInternalServer(err))
 			}
 			return
 		}
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -858,13 +858,13 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 	claims := jwt.ClaimsFromCtx(r.Context())
 
 	if requestedRoleID == nil || *requestedRoleID <= 0 {
-		common.RenderError(w, r, ErrorInvalidRequest(
+		common.RenderError(w, r, common.ErrorInvalidRequest(
 			errors.New("role_id is required when creating accounts")))
 		return nil, 0, true
 	}
 
 	if claims.TenantID <= 0 {
-		common.RenderError(w, r, ErrorInvalidRequest(
+		common.RenderError(w, r, common.ErrorInvalidRequest(
 			authService.ErrTenantRequiredForRoleAssignment))
 		return nil, 0, true
 	}
@@ -872,7 +872,7 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 	// Verify the role exists — TenantTxMiddleware ensures RLS sees tenant-scoped roles
 	if _, err := rs.AuthService.GetRoleByID(r.Context(), int(*requestedRoleID)); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			common.RenderError(w, r, ErrorInvalidRequest(
+			common.RenderError(w, r, common.ErrorInvalidRequest(
 				errors.New("specified role does not exist")))
 		} else {
 			slog.Default().Error("role lookup failed",
@@ -891,21 +891,21 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 func (rs *Resource) handleRegistrationError(w http.ResponseWriter, r *http.Request, err error) {
 	var authErr *authService.AuthError
 	if !errors.As(err, &authErr) {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
 	switch {
 	case errors.Is(authErr.Err, authService.ErrEmailAlreadyExists):
-		common.RenderError(w, r, ErrorInvalidRequest(authService.ErrEmailAlreadyExists))
+		common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrEmailAlreadyExists))
 	case errors.Is(authErr.Err, authService.ErrUsernameAlreadyExists):
-		common.RenderError(w, r, ErrorInvalidRequest(authService.ErrUsernameAlreadyExists))
+		common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrUsernameAlreadyExists))
 	case errors.Is(authErr.Err, authService.ErrPasswordTooWeak):
-		common.RenderError(w, r, ErrorInvalidRequest(authService.ErrPasswordTooWeak))
+		common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrPasswordTooWeak))
 	case errors.Is(authErr.Err, authService.ErrTenantRequiredForRoleAssignment):
-		common.RenderError(w, r, ErrorInvalidRequest(authService.ErrTenantRequiredForRoleAssignment))
+		common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrTenantRequiredForRoleAssignment))
 	default:
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 	}
 }
 
@@ -945,23 +945,23 @@ func (rs *Resource) refreshToken(w http.ResponseWriter, r *http.Request) {
 		if errors.As(err, &authErr) {
 			switch {
 			case errors.Is(authErr.Err, authService.ErrInvalidToken):
-				common.RenderError(w, r, ErrorUnauthorized(authService.ErrInvalidToken))
+				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrInvalidToken))
 			case errors.Is(authErr.Err, authService.ErrTokenExpired):
-				common.RenderError(w, r, ErrorUnauthorized(authService.ErrTokenExpired))
+				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTokenExpired))
 			case errors.Is(authErr.Err, authService.ErrTokenNotFound):
-				common.RenderError(w, r, ErrorUnauthorized(authService.ErrTokenNotFound))
+				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTokenNotFound))
 			case errors.Is(authErr.Err, authService.ErrAccountNotFound):
-				common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountNotFound))
+				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrAccountNotFound))
 			case errors.Is(authErr.Err, authService.ErrAccountInactive):
-				common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountInactive))
+				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrAccountInactive))
 			case errors.Is(authErr.Err, authService.ErrTenantNotFound):
-				common.RenderError(w, r, ErrorUnauthorized(authService.ErrTenantNotFound))
+				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTenantNotFound))
 			default:
-				common.RenderError(w, r, ErrorInternalServer(err))
+				common.RenderError(w, r, common.ErrorInternalServer(err))
 			}
 			return
 		}
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1019,7 +1019,7 @@ func (req *ChangePasswordRequest) Bind(_ *http.Request) error {
 func (rs *Resource) changePassword(w http.ResponseWriter, r *http.Request) {
 	req := &ChangePasswordRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -1032,17 +1032,17 @@ func (rs *Resource) changePassword(w http.ResponseWriter, r *http.Request) {
 		if errors.As(err, &authErr) {
 			switch {
 			case errors.Is(authErr.Err, authService.ErrInvalidCredentials):
-				common.RenderError(w, r, ErrorUnauthorized(authService.ErrInvalidCredentials))
+				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrInvalidCredentials))
 			case errors.Is(authErr.Err, authService.ErrAccountNotFound):
-				common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountNotFound))
+				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrAccountNotFound))
 			case errors.Is(authErr.Err, authService.ErrPasswordTooWeak):
-				common.RenderError(w, r, ErrorInvalidRequest(authService.ErrPasswordTooWeak))
+				common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrPasswordTooWeak))
 			default:
-				common.RenderError(w, r, ErrorInternalServer(err))
+				common.RenderError(w, r, common.ErrorInternalServer(err))
 			}
 			return
 		}
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1059,11 +1059,11 @@ func (rs *Resource) getAccount(w http.ResponseWriter, r *http.Request) {
 		var authErr *authService.AuthError
 		if errors.As(err, &authErr) {
 			if errors.Is(authErr.Err, authService.ErrAccountNotFound) {
-				common.RenderError(w, r, ErrorNotFound(authService.ErrAccountNotFound))
+				common.RenderError(w, r, common.ErrorNotFound(authService.ErrAccountNotFound))
 				return
 			}
 		}
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1365,13 +1365,13 @@ type ParentAccountResponse struct {
 func (rs *Resource) createRole(w http.ResponseWriter, r *http.Request) {
 	req := &CreateRoleRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	role, err := rs.AuthService.CreateRole(r.Context(), req.Name, req.Description, req.BaseRole)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1387,7 +1387,7 @@ func (rs *Resource) getRoleByID(w http.ResponseWriter, r *http.Request) {
 
 	role, err := rs.AuthService.GetRoleByID(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New("role not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("role not found")))
 		return
 	}
 
@@ -1413,13 +1413,13 @@ func (rs *Resource) updateRole(w http.ResponseWriter, r *http.Request) {
 
 	req := &UpdateRoleRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	role, err := rs.AuthService.GetRoleByID(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New("role not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("role not found")))
 		return
 	}
 
@@ -1463,17 +1463,17 @@ func renderRoleMutationError(err error) render.Renderer {
 	var authErr *authService.AuthError
 	if errors.As(err, &authErr) {
 		if errors.Is(authErr.Err, authService.ErrSystemRoleImmutable) {
-			return ErrorForbidden(authErr.Err)
+			return common.ErrorForbidden(authErr.Err)
 		}
 		if errors.Is(authErr.Err, authService.ErrRoleNotFound) {
-			return ErrorNotFound(authErr.Err)
+			return common.ErrorNotFound(authErr.Err)
 		}
 	}
 	// FindByID failures (sql.ErrNoRows wrapped in DatabaseError) → 404
 	if errors.Is(err, sql.ErrNoRows) {
-		return ErrorNotFound(errors.New("role not found"))
+		return common.ErrorNotFound(errors.New("role not found"))
 	}
-	return ErrorInternalServer(err)
+	return common.ErrorInternalServer(err)
 }
 
 // listRoles handles listing roles
@@ -1487,7 +1487,7 @@ func (rs *Resource) listRoles(w http.ResponseWriter, r *http.Request) {
 
 	roles, err := rs.AuthService.ListRoles(r.Context(), filters)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1512,7 +1512,7 @@ func (rs *Resource) assignRoleToAccount(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err := rs.AuthService.AssignRoleToAccount(r.Context(), accountID, roleID); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1532,7 +1532,7 @@ func (rs *Resource) removeRoleFromAccount(w http.ResponseWriter, r *http.Request
 	}
 
 	if err := rs.AuthService.RemoveRoleFromAccount(r.Context(), accountID, roleID); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1548,7 +1548,7 @@ func (rs *Resource) getAccountRoles(w http.ResponseWriter, r *http.Request) {
 
 	roles, err := rs.AuthService.GetAccountRoles(r.Context(), accountID)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1562,7 +1562,7 @@ func (rs *Resource) getAccountRoles(w http.ResponseWriter, r *http.Request) {
 
 func (rs *Resource) getCaregiverCapability(w http.ResponseWriter, r *http.Request) {
 	if rs.CaregiverCapabilityService == nil {
-		common.RenderError(w, r, ErrorInternalServer(errors.New("caregiver capability service is not configured")))
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("caregiver capability service is not configured")))
 		return
 	}
 
@@ -1582,7 +1582,7 @@ func (rs *Resource) getCaregiverCapability(w http.ResponseWriter, r *http.Reques
 
 func (rs *Resource) enableCaregiverCapability(w http.ResponseWriter, r *http.Request) {
 	if rs.CaregiverCapabilityService == nil {
-		common.RenderError(w, r, ErrorInternalServer(errors.New("caregiver capability service is not configured")))
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("caregiver capability service is not configured")))
 		return
 	}
 
@@ -1593,7 +1593,7 @@ func (rs *Resource) enableCaregiverCapability(w http.ResponseWriter, r *http.Req
 
 	req := &EnableCaregiverCapabilityRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -1612,7 +1612,7 @@ func (rs *Resource) enableCaregiverCapability(w http.ResponseWriter, r *http.Req
 
 func (rs *Resource) disableCaregiverCapability(w http.ResponseWriter, r *http.Request) {
 	if rs.CaregiverCapabilityService == nil {
-		common.RenderError(w, r, ErrorInternalServer(errors.New("caregiver capability service is not configured")))
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("caregiver capability service is not configured")))
 		return
 	}
 
@@ -1644,13 +1644,13 @@ func caregiverCapabilityErrorRenderer(err error) render.Renderer {
 			blockedErr.Reasons,
 		)
 	case errors.Is(err, authService.ErrAccountNotFound), errors.As(err, &accountTenantErr):
-		return ErrorNotFound(errors.New("account not found"))
+		return common.ErrorNotFound(errors.New("account not found"))
 	case errors.As(err, &usersErr) && errors.As(err, &validationErr):
-		return ErrorInvalidRequest(validationErr)
+		return common.ErrorInvalidRequest(validationErr)
 	case errors.As(err, &usersErr):
-		return ErrorInternalServer(usersErr.Err)
+		return common.ErrorInternalServer(usersErr.Err)
 	default:
-		return ErrorInternalServer(err)
+		return common.ErrorInternalServer(err)
 	}
 }
 
@@ -1660,13 +1660,13 @@ func caregiverCapabilityErrorRenderer(err error) render.Renderer {
 func (rs *Resource) createPermission(w http.ResponseWriter, r *http.Request) {
 	req := &CreatePermissionRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	permission, err := rs.AuthService.CreatePermission(r.Context(), req.Name, req.Description, req.Resource, req.Action)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1692,7 +1692,7 @@ func (rs *Resource) getPermissionByID(w http.ResponseWriter, r *http.Request) {
 
 	permission, err := rs.AuthService.GetPermissionByID(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New("permission not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("permission not found")))
 		return
 	}
 
@@ -1718,13 +1718,13 @@ func (rs *Resource) updatePermission(w http.ResponseWriter, r *http.Request) {
 
 	req := &UpdatePermissionRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	permission, err := rs.AuthService.GetPermissionByID(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New("permission not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("permission not found")))
 		return
 	}
 
@@ -1734,7 +1734,7 @@ func (rs *Resource) updatePermission(w http.ResponseWriter, r *http.Request) {
 	permission.Action = req.Action
 
 	if err := rs.AuthService.UpdatePermission(r.Context(), permission); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1753,7 +1753,7 @@ func (rs *Resource) deletePermission(w http.ResponseWriter, r *http.Request) {
 			common.RenderError(w, r, common.ErrorConflictMessage("Berechtigung kann nicht gelöscht werden: Berechtigung ist aktuell Rollen oder Konten zugewiesen"))
 			return
 		}
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1775,7 +1775,7 @@ func (rs *Resource) listPermissions(w http.ResponseWriter, r *http.Request) {
 
 	permissions, err := rs.AuthService.ListPermissions(r.Context(), filters)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1809,7 +1809,7 @@ func (rs *Resource) grantPermissionToAccount(w http.ResponseWriter, r *http.Requ
 	}
 
 	if err := rs.AuthService.GrantPermissionToAccount(r.Context(), accountID, permissionID); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1829,7 +1829,7 @@ func (rs *Resource) denyPermissionToAccount(w http.ResponseWriter, r *http.Reque
 	}
 
 	if err := rs.AuthService.DenyPermissionToAccount(r.Context(), accountID, permissionID); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1849,7 +1849,7 @@ func (rs *Resource) removePermissionFromAccount(w http.ResponseWriter, r *http.R
 	}
 
 	if err := rs.AuthService.RemovePermissionFromAccount(r.Context(), accountID, permissionID); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1865,7 +1865,7 @@ func (rs *Resource) getAccountPermissions(w http.ResponseWriter, r *http.Request
 
 	permissions, err := rs.AuthService.GetAccountPermissions(r.Context(), accountID)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1895,7 +1895,7 @@ func (rs *Resource) getAccountDirectPermissions(w http.ResponseWriter, r *http.R
 
 	permissions, err := rs.AuthService.GetAccountDirectPermissions(r.Context(), accountID)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1965,7 +1965,7 @@ func (rs *Resource) getRolePermissions(w http.ResponseWriter, r *http.Request) {
 
 	permissions, err := rs.AuthService.GetRolePermissions(r.Context(), roleID)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1996,7 +1996,7 @@ func (rs *Resource) activateAccount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rs.AuthService.ActivateAccount(r.Context(), id); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -2011,7 +2011,7 @@ func (rs *Resource) deactivateAccount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rs.AuthService.DeactivateAccount(r.Context(), id); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -2027,13 +2027,13 @@ func (rs *Resource) updateAccount(w http.ResponseWriter, r *http.Request) {
 
 	req := &UpdateAccountRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	account, err := rs.AuthService.GetAccountByID(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New("account not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("account not found")))
 		return
 	}
 
@@ -2044,7 +2044,7 @@ func (rs *Resource) updateAccount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rs.AuthService.UpdateAccount(r.Context(), account); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -2071,7 +2071,7 @@ func (rs *Resource) listAccounts(w http.ResponseWriter, r *http.Request) {
 
 	accounts, err := rs.AuthService.ListAccounts(r.Context(), filters)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -2099,7 +2099,7 @@ func (rs *Resource) getAccountsByRole(w http.ResponseWriter, r *http.Request) {
 
 	accounts, err := rs.AuthService.GetAccountsByRole(r.Context(), roleName)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -2127,7 +2127,7 @@ func (rs *Resource) getAccountsByRole(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) initiatePasswordReset(w http.ResponseWriter, r *http.Request) {
 	req := &PasswordResetRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -2148,7 +2148,7 @@ func (rs *Resource) initiatePasswordReset(w http.ResponseWriter, r *http.Request
 			return
 		}
 
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -2161,7 +2161,7 @@ func (rs *Resource) initiatePasswordReset(w http.ResponseWriter, r *http.Request
 func (rs *Resource) resetPassword(w http.ResponseWriter, r *http.Request) {
 	req := &PasswordResetConfirmRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -2174,15 +2174,15 @@ func (rs *Resource) resetPassword(w http.ResponseWriter, r *http.Request) {
 			case errors.Is(authErr.Err, authService.ErrInvalidToken),
 				errors.Is(authErr.Err, sql.ErrNoRows):
 				// Both cases indicate the token is invalid or not found
-				common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid or expired reset token")))
+				common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid or expired reset token")))
 				return
 			case errors.Is(authErr.Err, authService.ErrPasswordTooWeak):
-				common.RenderError(w, r, ErrorInvalidRequest(authService.ErrPasswordTooWeak))
+				common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrPasswordTooWeak))
 				return
 			}
 		}
 
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -2197,7 +2197,7 @@ func (rs *Resource) resetPassword(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) cleanupExpiredTokens(w http.ResponseWriter, r *http.Request) {
 	count, err := rs.AuthService.CleanupExpiredTokens(r.Context())
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -2213,7 +2213,7 @@ func (rs *Resource) revokeAllTokens(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rs.AuthService.RevokeAllTokens(r.Context(), accountID); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -2229,7 +2229,7 @@ func (rs *Resource) getActiveTokens(w http.ResponseWriter, r *http.Request) {
 
 	tokens, err := rs.AuthService.GetActiveTokens(r.Context(), accountID)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -2268,7 +2268,7 @@ func (rs *Resource) getActiveTokens(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) createParentAccount(w http.ResponseWriter, r *http.Request) {
 	req := &CreateParentAccountRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -2278,15 +2278,15 @@ func (rs *Resource) createParentAccount(w http.ResponseWriter, r *http.Request) 
 		if errors.As(err, &authErr) {
 			switch {
 			case errors.Is(authErr.Err, authService.ErrEmailAlreadyExists):
-				common.RenderError(w, r, ErrorInvalidRequest(authService.ErrEmailAlreadyExists))
+				common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrEmailAlreadyExists))
 			case errors.Is(authErr.Err, authService.ErrUsernameAlreadyExists):
-				common.RenderError(w, r, ErrorInvalidRequest(authService.ErrUsernameAlreadyExists))
+				common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrUsernameAlreadyExists))
 			default:
-				common.RenderError(w, r, ErrorInternalServer(err))
+				common.RenderError(w, r, common.ErrorInternalServer(err))
 			}
 			return
 		}
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -2314,7 +2314,7 @@ func (rs *Resource) getParentAccountByID(w http.ResponseWriter, r *http.Request)
 
 	parentAccount, err := rs.AuthService.GetParentAccountByID(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New("parent account not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("parent account not found")))
 		return
 	}
 
@@ -2342,13 +2342,13 @@ func (rs *Resource) updateParentAccount(w http.ResponseWriter, r *http.Request) 
 
 	req := &UpdateAccountRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	parentAccount, err := rs.AuthService.GetParentAccountByID(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New("parent account not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("parent account not found")))
 		return
 	}
 
@@ -2359,7 +2359,7 @@ func (rs *Resource) updateParentAccount(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err := rs.AuthService.UpdateParentAccount(r.Context(), parentAccount); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -2374,7 +2374,7 @@ func (rs *Resource) activateParentAccount(w http.ResponseWriter, r *http.Request
 	}
 
 	if err := rs.AuthService.ActivateParentAccount(r.Context(), id); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -2389,7 +2389,7 @@ func (rs *Resource) deactivateParentAccount(w http.ResponseWriter, r *http.Reque
 	}
 
 	if err := rs.AuthService.DeactivateParentAccount(r.Context(), id); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -2416,7 +2416,7 @@ func (rs *Resource) listParentAccounts(w http.ResponseWriter, r *http.Request) {
 
 	parentAccounts, err := rs.AuthService.ListParentAccounts(r.Context(), filters)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
