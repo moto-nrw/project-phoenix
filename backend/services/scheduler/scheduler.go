@@ -397,6 +397,96 @@ func (s *Scheduler) Stop() {
 	s.getLogger().Info("scheduler service stopped")
 }
 
+// registerTask records the task in the registry and starts its polling
+// goroutine.
+func (s *Scheduler) registerTask(name, schedule string, runner func(*ScheduledTask)) {
+	task := &ScheduledTask{
+		Name:     name,
+		Schedule: schedule,
+	}
+
+	s.mu.Lock()
+	s.tasks[task.Name] = task
+	s.mu.Unlock()
+
+	s.wg.Add(1)
+	go runner(task)
+}
+
+// runMinutePolling is the shared runner for tasks that check per-tenant
+// settings once per minute. It checks immediately on startup so the current
+// minute isn't missed after a restart, then aligns to the minute boundary so
+// ticks land at HH:MM:00. panicName and startupMsg are passed verbatim so the
+// per-task log output stays byte-identical (Loki dashboards match on them).
+func (s *Scheduler) runMinutePolling(task *ScheduledTask, panicName, startupMsg string, check func(*ScheduledTask)) {
+	defer s.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("%s: %v", panicName, r)
+			s.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
+			sentry.CurrentHub().Recover(r)
+			sentry.Flush(2 * time.Second)
+		}
+	}()
+
+	s.getLogger().Info(startupMsg)
+
+	// Immediate check on startup so we don't miss the current minute after a restart.
+	check(task)
+
+	// Align to the next minute boundary so ticks land at HH:MM:00.
+	if !s.waitUntilNextMinute() {
+		return
+	}
+
+	ticker := time.NewTicker(60 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			check(task)
+		case <-s.done:
+			return
+		}
+	}
+}
+
+// runIntervalPolling is the shared runner for tasks that tick at a fixed or
+// settings-driven interval. The startup delay honors s.done so shutdown during
+// boot stays responsive; interval() is re-resolved on every tick so admins can
+// change the cadence without a restart. panicName, startupMsg, and
+// startupAttrs are passed verbatim so log output stays byte-identical.
+func (s *Scheduler) runIntervalPolling(task *ScheduledTask, panicName, startupMsg string, startupDelay time.Duration, interval func() time.Duration, check func(*ScheduledTask), startupAttrs ...any) {
+	defer s.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("%s: %v", panicName, r)
+			s.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
+			sentry.CurrentHub().Recover(r)
+			sentry.Flush(2 * time.Second)
+		}
+	}()
+
+	s.getLogger().Info(startupMsg, startupAttrs...)
+
+	select {
+	case <-time.After(startupDelay):
+	case <-s.done:
+		return
+	}
+	check(task)
+
+	for {
+		select {
+		case <-time.After(interval()):
+			check(task)
+		case <-s.done:
+			return
+		}
+	}
+}
+
 // scheduleCleanupTask schedules the daily cleanup task using minute-polling.
 // Each minute, it checks each tenant's configured cleanup time and fires if matched.
 func (s *Scheduler) scheduleCleanupTask() {
@@ -411,56 +501,25 @@ func (s *Scheduler) scheduleCleanupTask() {
 		return
 	}
 
-	task := &ScheduledTask{
-		Name:     "visit-cleanup",
-		Schedule: "1m-poll",
-	}
-
-	s.mu.Lock()
-	s.tasks[task.Name] = task
-	s.mu.Unlock()
-
-	s.wg.Add(1)
-	go s.runCleanupTaskPolling(task)
+	s.registerTask("visit-cleanup", "1m-poll", s.runCleanupTaskPolling)
 }
 
 // runCleanupTaskPolling checks every minute if any tenant's cleanup time matches now.
 func (s *Scheduler) runCleanupTaskPolling(task *ScheduledTask) {
-	defer s.wg.Done()
-	defer func() {
-		if r := recover(); r != nil {
-			err := fmt.Errorf("panic in cleanup task: %v", r)
-			s.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
-			sentry.CurrentHub().Recover(r)
-			sentry.Flush(2 * time.Second)
-		}
-	}()
-
-	s.getLogger().Info("cleanup task using minute-polling for per-tenant scheduling")
-
-	// Immediate check on startup so we don't miss the current minute after a restart.
-	s.checkAndRunCleanup(task)
-
-	// Align to the next minute boundary so ticks land at HH:MM:00.
-	if !s.waitUntilNextMinute() {
-		return
-	}
-
-	ticker := time.NewTicker(60 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			s.checkAndRunCleanup(task)
-		case <-s.done:
-			return
-		}
-	}
+	s.runMinutePolling(task, "panic in cleanup task",
+		"cleanup task using minute-polling for per-tenant scheduling",
+		s.checkAndRunCleanup)
 }
 
-// checkAndRunCleanup evaluates each tenant's cleanup settings and runs if time matches.
-func (s *Scheduler) checkAndRunCleanup(task *ScheduledTask) {
+// checkAndRunDailyGDPRCleanup is the shared per-tenant gate for the nightly
+// retention jobs (visits, timetable, time-tracking). All three share
+// KeyDataCleanupEnabled + KeyDataCleanupTime — one admin switch and one
+// nightly window for all retention. dayCache dedupes per tenant per day; the
+// today-mark is set immediately to prevent double-fire from concurrent ticks
+// and cleared again when runForTenant reports failure so the tenant retries
+// on the next matching minute. runForTenant performs the actual cleanup and
+// owns its own logging.
+func (s *Scheduler) checkAndRunDailyGDPRCleanup(task *ScheduledTask, dayCache *sync.Map, opName string, runForTenant func(ctx context.Context, tenantID int64, cleanupTime string) bool) {
 	task.mu.Lock()
 	if task.Running {
 		task.mu.Unlock()
@@ -477,7 +536,7 @@ func (s *Scheduler) checkAndRunCleanup(task *ScheduledTask) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
 	defer cancel()
 
-	s.forEachTenantSettings(ctx, "cleanup-check", func(tenantCtx context.Context, tenantID int64) error {
+	s.forEachTenantSettings(ctx, opName, func(tenantCtx context.Context, tenantID int64) error {
 		enabled := s.resolveBoolSetting(tenantCtx, configModel.KeyDataCleanupEnabled, "CLEANUP_SCHEDULER_ENABLED", true)
 		if !enabled {
 			return nil
@@ -488,13 +547,24 @@ func (s *Scheduler) checkAndRunCleanup(task *ScheduledTask) {
 			return nil
 		}
 
-		if wasRunToday(&s.lastDataCleanup, tenantID) {
+		if wasRunToday(dayCache, tenantID) {
 			return nil
 		}
 
 		// Mark immediately to prevent double-fire from concurrent ticks
-		markRunToday(&s.lastDataCleanup, tenantID)
+		markRunToday(dayCache, tenantID)
 
+		if !runForTenant(tenantCtx, tenantID, cleanupTime) {
+			// Clear mark so cleanup retries on next matching minute
+			dayCache.Delete(tenantID)
+		}
+		return nil
+	})
+}
+
+// checkAndRunCleanup evaluates each tenant's cleanup settings and runs if time matches.
+func (s *Scheduler) checkAndRunCleanup(task *ScheduledTask) {
+	s.checkAndRunDailyGDPRCleanup(task, &s.lastDataCleanup, "cleanup-check", func(tenantCtx context.Context, tenantID int64, cleanupTime string) bool {
 		s.getLogger().Info("running data cleanup for tenant",
 			slog.Int64("tenant_id", tenantID),
 			slog.String("cleanup_time", cleanupTime),
@@ -504,11 +574,7 @@ func (s *Scheduler) checkAndRunCleanup(task *ScheduledTask) {
 		cleanupCtx, cleanupCancel := context.WithTimeout(tenantCtx, time.Duration(timeoutMinutes)*time.Minute)
 		defer cleanupCancel()
 
-		if !s.executeCleanupForTenant(cleanupCtx, tenantID) {
-			// Clear mark so cleanup retries on next matching minute
-			s.lastDataCleanup.Delete(tenantID)
-		}
-		return nil
+		return s.executeCleanupForTenant(cleanupCtx, tenantID)
 	})
 }
 
@@ -616,84 +682,6 @@ func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64)
 	return true
 }
 
-// executeCleanup runs the cleanup task for all tenants (backward-compatible wrapper).
-// Used by existing tests and the legacy code path.
-func (s *Scheduler) executeCleanup(task *ScheduledTask) {
-	task.mu.Lock()
-	if task.Running {
-		task.mu.Unlock()
-		s.getLogger().Warn("cleanup task already running, skipping")
-		return
-	}
-	task.Running = true
-	task.LastRun = time.Now()
-	task.mu.Unlock()
-
-	defer func() {
-		task.mu.Lock()
-		task.Running = false
-		task.NextRun = time.Now().Add(24 * time.Hour)
-		task.mu.Unlock()
-	}()
-
-	timeoutMinutes := s.resolveIntSetting(context.Background(), configModel.KeyDataCleanupTimeoutMinutes, "CLEANUP_SCHEDULER_TIMEOUT_MINUTES", 30)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMinutes)*time.Minute)
-	defer cancel()
-
-	_ = s.forEachTenant(ctx, "cleanup-visits", func(tenantCtx context.Context) error {
-		s.executeCleanupForTenant(tenantCtx, 0)
-		return nil
-	})
-}
-
-// executeSessionEnd runs session end for all tenants (backward-compatible wrapper).
-// Used by existing tests and the legacy code path.
-func (s *Scheduler) executeSessionEnd(task *ScheduledTask) {
-	task.mu.Lock()
-	if task.Running {
-		task.mu.Unlock()
-		s.getLogger().Warn("session end task already running, skipping")
-		return
-	}
-	task.Running = true
-	task.LastRun = time.Now()
-	task.mu.Unlock()
-
-	defer func() {
-		task.mu.Lock()
-		task.Running = false
-		task.NextRun = time.Now().Add(24 * time.Hour)
-		task.mu.Unlock()
-	}()
-
-	timeoutMinutes := s.resolveIntSetting(context.Background(), configModel.KeySessionEndTimeoutMinutes, "SESSION_END_TIMEOUT_MINUTES", 10)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMinutes)*time.Minute)
-	defer cancel()
-
-	_ = s.forEachTenant(ctx, "session-end", func(tenantCtx context.Context) error {
-		result, err := s.activeService.EndDailySessions(tenantCtx)
-		if err != nil {
-			s.getLogger().Error("session end failed", "error", err)
-			return nil
-		}
-		timetableCompleted, err := s.completeTimetableInstancesForEndedSessions(tenantCtx, result)
-		if err != nil {
-			s.getLogger().Error("session end timetable sync failed",
-				slog.String("error", err.Error()),
-			)
-			return err
-		}
-		if result.SessionsEnded > 0 {
-			s.getLogger().Info("session end completed",
-				slog.Int("sessions_ended", result.SessionsEnded),
-				slog.Int("visits_ended", result.VisitsEnded),
-				slog.Int("timetable_instances_completed", timetableCompleted),
-			)
-		}
-		return nil
-	})
-}
-
 // completeTimetableInstancesForEndedSessions closes the schedule-side rows
 // linked to active.groups that the daily session-end job just closed.
 //
@@ -723,55 +711,9 @@ func (s *Scheduler) completeTimetableInstancesForEndedSessions(ctx context.Conte
 	return int(rows), nil
 }
 
-// executeSessionCleanup runs session cleanup for all tenants (backward-compatible wrapper).
-// Used by existing tests. Parameters are kept for signature compatibility.
-func (s *Scheduler) executeSessionCleanup(task *ScheduledTask, _ int, thresholdMinutes int) {
-	task.mu.Lock()
-	if task.Running {
-		task.mu.Unlock()
-		return
-	}
-	task.Running = true
-	task.LastRun = time.Now()
-	task.mu.Unlock()
-
-	defer func() {
-		task.mu.Lock()
-		task.Running = false
-		task.mu.Unlock()
-	}()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
-	defer cancel()
-
-	threshold := time.Duration(thresholdMinutes) * time.Minute
-	_ = s.forEachTenant(ctx, "session-cleanup", func(tenantCtx context.Context) error {
-		count, err := s.activeService.CleanupAbandonedSessions(tenantCtx, threshold)
-		if err != nil {
-			return err
-		}
-		if count > 0 {
-			s.getLogger().Info("session cleanup completed",
-				slog.Int("abandoned_sessions", count),
-			)
-		}
-		return nil
-	})
-}
-
 // scheduleTokenCleanupTask schedules hourly token cleanup
 func (s *Scheduler) scheduleTokenCleanupTask() {
-	task := &ScheduledTask{
-		Name:     "token-cleanup",
-		Schedule: "1h", // Run every hour
-	}
-
-	s.mu.Lock()
-	s.tasks[task.Name] = task
-	s.mu.Unlock()
-
-	s.wg.Add(1)
-	go s.runTokenCleanupTask(task)
+	s.registerTask("token-cleanup", "1h", s.runTokenCleanupTask)
 }
 
 // runTokenCleanupTask runs the token cleanup task on schedule
@@ -952,52 +894,14 @@ func (s *Scheduler) scheduleSessionEndTask() {
 		return
 	}
 
-	task := &ScheduledTask{
-		Name:     "session-end",
-		Schedule: "1m-poll",
-	}
-
-	s.mu.Lock()
-	s.tasks[task.Name] = task
-	s.mu.Unlock()
-
-	s.wg.Add(1)
-	go s.runSessionEndTaskPolling(task)
+	s.registerTask("session-end", "1m-poll", s.runSessionEndTaskPolling)
 }
 
 // runSessionEndTaskPolling checks every minute if any tenant's session end time matches now.
 func (s *Scheduler) runSessionEndTaskPolling(task *ScheduledTask) {
-	defer s.wg.Done()
-	defer func() {
-		if r := recover(); r != nil {
-			err := fmt.Errorf("panic in session end task: %v", r)
-			s.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
-			sentry.CurrentHub().Recover(r)
-			sentry.Flush(2 * time.Second)
-		}
-	}()
-
-	s.getLogger().Info("session end task using minute-polling for per-tenant scheduling")
-
-	// Immediate check on startup so we don't miss the current minute after a restart.
-	s.checkAndRunSessionEnd(task)
-
-	// Align to the next minute boundary so ticks land at HH:MM:00.
-	if !s.waitUntilNextMinute() {
-		return
-	}
-
-	ticker := time.NewTicker(60 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			s.checkAndRunSessionEnd(task)
-		case <-s.done:
-			return
-		}
-	}
+	s.runMinutePolling(task, "panic in session end task",
+		"session end task using minute-polling for per-tenant scheduling",
+		s.checkAndRunSessionEnd)
 }
 
 // checkAndRunSessionEnd evaluates each tenant's session end settings and runs if time matches.
@@ -1038,38 +942,54 @@ func (s *Scheduler) checkAndRunSessionEnd(task *ScheduledTask) {
 			slog.String("session_end_time", endTime),
 		)
 
-		timeoutMinutes := s.resolveIntSetting(tenantCtx, configModel.KeySessionEndTimeoutMinutes, "SESSION_END_TIMEOUT_MINUTES", 10)
-		endCtx, endCancel := context.WithTimeout(tenantCtx, time.Duration(timeoutMinutes)*time.Minute)
-		defer endCancel()
-
-		result, err := s.activeService.EndDailySessions(endCtx)
+		ok, err := s.executeSessionEndForTenant(tenantCtx, tenantID)
 		if err != nil {
-			s.getLogger().Error("session end failed for tenant",
-				slog.Int64("tenant_id", tenantID),
-				slog.String("error", err.Error()),
-			)
-			return nil // don't fail other tenants
-		}
-		timetableCompleted, err := s.completeTimetableInstancesForEndedSessions(endCtx, result)
-		if err != nil {
-			s.getLogger().Error("session end timetable sync failed for tenant",
-				slog.Int64("tenant_id", tenantID),
-				slog.String("error", err.Error()),
-			)
 			return err
 		}
-
-		s.getLogger().Info("session end completed for tenant",
-			slog.Int64("tenant_id", tenantID),
-			slog.Int("sessions_ended", result.SessionsEnded),
-			slog.Int("visits_ended", result.VisitsEnded),
-			slog.Int("supervisors_ended", result.SupervisorsEnded),
-			slog.Int("timetable_instances_completed", timetableCompleted),
-		)
+		if !ok {
+			return nil // failure already logged; retry on the next matching minute
+		}
 
 		markRunToday(&s.lastSessionEnd, tenantID)
 		return nil
 	})
+}
+
+// executeSessionEndForTenant ends the tenant's daily sessions and completes
+// the linked timetable instances. Session-end errors are logged and swallowed
+// (ok=false, nil error) so other tenants still run; timetable-sync errors are
+// returned so the caller's tenant transaction rolls back. ok is true only on
+// full success — callers use it to decide whether to mark today as done.
+func (s *Scheduler) executeSessionEndForTenant(ctx context.Context, tenantID int64) (bool, error) {
+	timeoutMinutes := s.resolveIntSetting(ctx, configModel.KeySessionEndTimeoutMinutes, "SESSION_END_TIMEOUT_MINUTES", 10)
+	endCtx, endCancel := context.WithTimeout(ctx, time.Duration(timeoutMinutes)*time.Minute)
+	defer endCancel()
+
+	result, err := s.activeService.EndDailySessions(endCtx)
+	if err != nil {
+		s.getLogger().Error("session end failed for tenant",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("error", err.Error()),
+		)
+		return false, nil // don't fail other tenants
+	}
+	timetableCompleted, err := s.completeTimetableInstancesForEndedSessions(endCtx, result)
+	if err != nil {
+		s.getLogger().Error("session end timetable sync failed for tenant",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("error", err.Error()),
+		)
+		return false, err
+	}
+
+	s.getLogger().Info("session end completed for tenant",
+		slog.Int64("tenant_id", tenantID),
+		slog.Int("sessions_ended", result.SessionsEnded),
+		slog.Int("visits_ended", result.VisitsEnded),
+		slog.Int("supervisors_ended", result.SupervisorsEnded),
+		slog.Int("timetable_instances_completed", timetableCompleted),
+	)
+	return true, nil
 }
 
 // scheduleSessionCleanupTask schedules the abandoned session cleanup task.
@@ -1095,17 +1015,7 @@ func (s *Scheduler) scheduleSessionCleanupTask() {
 		}
 	}
 
-	task := &ScheduledTask{
-		Name:     "session-cleanup",
-		Schedule: "5m-poll",
-	}
-
-	s.mu.Lock()
-	s.tasks[task.Name] = task
-	s.mu.Unlock()
-
-	s.wg.Add(1)
-	go s.runSessionCleanupTaskPolling(task)
+	s.registerTask("session-cleanup", "5m-poll", s.runSessionCleanupTaskPolling)
 }
 
 // runSessionCleanupTaskPolling checks every 5 minutes if any tenant needs session cleanup.
@@ -1216,17 +1126,7 @@ func (s *Scheduler) scheduleBreakAutoEndTask() {
 		}
 	}
 
-	task := &ScheduledTask{
-		Name:     "break-auto-end",
-		Schedule: fmt.Sprintf("%ds-poll", s.breakAutoEndIntervalSeconds),
-	}
-
-	s.mu.Lock()
-	s.tasks[task.Name] = task
-	s.mu.Unlock()
-
-	s.wg.Add(1)
-	go s.runBreakAutoEndTaskPolling(task)
+	s.registerTask("break-auto-end", fmt.Sprintf("%ds-poll", s.breakAutoEndIntervalSeconds), s.runBreakAutoEndTaskPolling)
 }
 
 // runBreakAutoEndTaskPolling runs break auto-end check at the configured interval for all tenants.
@@ -1310,17 +1210,7 @@ func (s *Scheduler) scheduleAutoCheckoutTask() {
 		return
 	}
 
-	task := &ScheduledTask{
-		Name:     "auto-checkout",
-		Schedule: "60s-poll",
-	}
-
-	s.mu.Lock()
-	s.tasks[task.Name] = task
-	s.mu.Unlock()
-
-	s.wg.Add(1)
-	go s.runAutoCheckoutTaskPolling(task)
+	s.registerTask("auto-checkout", "60s-poll", s.runAutoCheckoutTaskPolling)
 }
 
 // runAutoCheckoutTaskPolling runs the auto-checkout check every 60 seconds.
@@ -1552,51 +1442,15 @@ func (s *Scheduler) scheduleStatusFlagClearTask() {
 		return
 	}
 
-	task := &ScheduledTask{
-		Name:     "status-flag-clear",
-		Schedule: "1m-poll",
-	}
-
-	s.mu.Lock()
-	s.tasks[task.Name] = task
-	s.mu.Unlock()
-
-	s.wg.Add(1)
-	go s.runStatusFlagClearTaskPolling(task)
+	s.registerTask("status-flag-clear", "1m-poll", s.runStatusFlagClearTaskPolling)
 }
 
 // runStatusFlagClearTaskPolling checks every minute if any tenant's status
 // flag clear time matches now and clears the configured end_of_day flags.
 func (s *Scheduler) runStatusFlagClearTaskPolling(task *ScheduledTask) {
-	defer s.wg.Done()
-	defer func() {
-		if r := recover(); r != nil {
-			err := fmt.Errorf("panic in status flag clear task: %v", r)
-			s.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
-			sentry.CurrentHub().Recover(r)
-			sentry.Flush(2 * time.Second)
-		}
-	}()
-
-	s.getLogger().Info("status flag clear task using minute-polling for per-tenant scheduling")
-
-	s.checkAndRunStatusFlagClear(task)
-
-	if !s.waitUntilNextMinute() {
-		return
-	}
-
-	ticker := time.NewTicker(60 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			s.checkAndRunStatusFlagClear(task)
-		case <-s.done:
-			return
-		}
-	}
+	s.runMinutePolling(task, "panic in status flag clear task",
+		"status flag clear task using minute-polling for per-tenant scheduling",
+		s.checkAndRunStatusFlagClear)
 }
 
 // checkAndRunStatusFlagClear evaluates each tenant's clear_mode settings and
@@ -1715,54 +1569,16 @@ func (s *Scheduler) scheduleMaterializationTask() {
 		return
 	}
 
-	task := &ScheduledTask{
-		Name:     "timetable-materialization",
-		Schedule: "1m-poll",
-	}
-
-	s.mu.Lock()
-	s.tasks[task.Name] = task
-	s.mu.Unlock()
-
-	s.wg.Add(1)
-	go s.runMaterializationTaskPolling(task)
+	s.registerTask("timetable-materialization", "1m-poll", s.runMaterializationTaskPolling)
 }
 
 // runMaterializationTaskPolling ticks every minute and delegates to
 // checkAndRunMaterialization. Minute alignment matches the other scheduler
 // tasks so HH:MM:00 ticks land deterministically.
 func (s *Scheduler) runMaterializationTaskPolling(task *ScheduledTask) {
-	defer s.wg.Done()
-	defer func() {
-		if r := recover(); r != nil {
-			err := fmt.Errorf("panic in materialization task: %v", r)
-			s.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
-			sentry.CurrentHub().Recover(r)
-			sentry.Flush(2 * time.Second)
-		}
-	}()
-
-	s.getLogger().Info("timetable materialization using minute-polling for per-tenant scheduling")
-
-	// Startup check — covers the case of the server booting on the scheduled
-	// weekday after the minute has already passed.
-	s.checkAndRunMaterialization(task)
-
-	if !s.waitUntilNextMinute() {
-		return
-	}
-
-	ticker := time.NewTicker(60 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			s.checkAndRunMaterialization(task)
-		case <-s.done:
-			return
-		}
-	}
+	s.runMinutePolling(task, "panic in materialization task",
+		"timetable materialization using minute-polling for per-tenant scheduling",
+		s.checkAndRunMaterialization)
 }
 
 // checkAndRunMaterialization iterates active tenants and fires materialization
@@ -1865,49 +1681,13 @@ func (s *Scheduler) scheduleAutoStartTask() {
 		return
 	}
 
-	task := &ScheduledTask{
-		Name:     "timetable-auto-start",
-		Schedule: "1m-poll",
-	}
-
-	s.mu.Lock()
-	s.tasks[task.Name] = task
-	s.mu.Unlock()
-
-	s.wg.Add(1)
-	go s.runAutoStartTaskPolling(task)
+	s.registerTask("timetable-auto-start", "1m-poll", s.runAutoStartTaskPolling)
 }
 
 func (s *Scheduler) runAutoStartTaskPolling(task *ScheduledTask) {
-	defer s.wg.Done()
-	defer func() {
-		if r := recover(); r != nil {
-			err := fmt.Errorf("panic in timetable auto-start task: %v", r)
-			s.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
-			sentry.CurrentHub().Recover(r)
-			sentry.Flush(2 * time.Second)
-		}
-	}()
-
-	s.getLogger().Info("timetable auto-start tick using minute-polling")
-
-	s.checkAndRunAutoStart(task)
-
-	if !s.waitUntilNextMinute() {
-		return
-	}
-
-	ticker := time.NewTicker(60 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			s.checkAndRunAutoStart(task)
-		case <-s.done:
-			return
-		}
-	}
+	s.runMinutePolling(task, "panic in timetable auto-start task",
+		"timetable auto-start tick using minute-polling",
+		s.checkAndRunAutoStart)
 }
 
 func (s *Scheduler) checkAndRunAutoStart(task *ScheduledTask) {
@@ -1984,52 +1764,16 @@ func (s *Scheduler) scheduleInstanceOverdueTask() {
 		return
 	}
 
-	task := &ScheduledTask{
-		Name:     "instance-overdue",
-		Schedule: "1m-poll",
-	}
-
-	s.mu.Lock()
-	s.tasks[task.Name] = task
-	s.mu.Unlock()
-
-	s.wg.Add(1)
-	go s.runInstanceOverdueTaskPolling(task)
+	s.registerTask("instance-overdue", "1m-poll", s.runInstanceOverdueTaskPolling)
 }
 
 // runInstanceOverdueTaskPolling mirrors the minute-polling loops used by
 // cleanup / session-end / materialization. Startup check + minute alignment
 // + 60 s ticker + done-signal exit.
 func (s *Scheduler) runInstanceOverdueTaskPolling(task *ScheduledTask) {
-	defer s.wg.Done()
-	defer func() {
-		if r := recover(); r != nil {
-			err := fmt.Errorf("panic in instance overdue task: %v", r)
-			s.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
-			sentry.CurrentHub().Recover(r)
-			sentry.Flush(2 * time.Second)
-		}
-	}()
-
-	s.getLogger().Info("instance overdue tick using minute-polling")
-
-	s.checkAndRunOverdue(task)
-
-	if !s.waitUntilNextMinute() {
-		return
-	}
-
-	ticker := time.NewTicker(60 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			s.checkAndRunOverdue(task)
-		case <-s.done:
-			return
-		}
-	}
+	s.runMinutePolling(task, "panic in instance overdue task",
+		"instance overdue tick using minute-polling",
+		s.checkAndRunOverdue)
 }
 
 // checkAndRunOverdue rotates the day-cache when midnight has been crossed,
@@ -2185,52 +1929,16 @@ func (s *Scheduler) scheduleTimetableCleanupTask() {
 		return
 	}
 
-	task := &ScheduledTask{
-		Name:     "timetable-cleanup",
-		Schedule: "1m-poll",
-	}
-
-	s.mu.Lock()
-	s.tasks[task.Name] = task
-	s.mu.Unlock()
-
-	s.wg.Add(1)
-	go s.runTimetableCleanupTaskPolling(task)
+	s.registerTask("timetable-cleanup", "1m-poll", s.runTimetableCleanupTaskPolling)
 }
 
 // runTimetableCleanupTaskPolling ticks every minute and defers to
 // checkAndRunTimetableCleanup. Minute-aligned so HH:MM:00 ticks land
 // deterministically.
 func (s *Scheduler) runTimetableCleanupTaskPolling(task *ScheduledTask) {
-	defer s.wg.Done()
-	defer func() {
-		if r := recover(); r != nil {
-			err := fmt.Errorf("panic in timetable cleanup task: %v", r)
-			s.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
-			sentry.CurrentHub().Recover(r)
-			sentry.Flush(2 * time.Second)
-		}
-	}()
-
-	s.getLogger().Info("timetable cleanup task using minute-polling for per-tenant scheduling")
-
-	s.checkAndRunTimetableCleanup(task)
-
-	if !s.waitUntilNextMinute() {
-		return
-	}
-
-	ticker := time.NewTicker(60 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			s.checkAndRunTimetableCleanup(task)
-		case <-s.done:
-			return
-		}
-	}
+	s.runMinutePolling(task, "panic in timetable cleanup task",
+		"timetable cleanup task using minute-polling for per-tenant scheduling",
+		s.checkAndRunTimetableCleanup)
 }
 
 // checkAndRunTimetableCleanup evaluates each tenant's cleanup settings and
@@ -2238,40 +1946,7 @@ func (s *Scheduler) runTimetableCleanupTaskPolling(task *ScheduledTask) {
 // KeyDataCleanupEnabled + KeyDataCleanupTime + KeyDataCleanupTimeoutMinutes
 // with the visits cleanup task — one admin switch for all nightly retention.
 func (s *Scheduler) checkAndRunTimetableCleanup(task *ScheduledTask) {
-	task.mu.Lock()
-	if task.Running {
-		task.mu.Unlock()
-		return
-	}
-	task.Running = true
-	task.mu.Unlock()
-	defer func() {
-		task.mu.Lock()
-		task.Running = false
-		task.mu.Unlock()
-	}()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
-	defer cancel()
-
-	s.forEachTenantSettings(ctx, "timetable-cleanup-check", func(tenantCtx context.Context, tenantID int64) error {
-		enabled := s.resolveBoolSetting(tenantCtx, configModel.KeyDataCleanupEnabled, "CLEANUP_SCHEDULER_ENABLED", true)
-		if !enabled {
-			return nil
-		}
-
-		cleanupTime := s.resolveStringSetting(tenantCtx, configModel.KeyDataCleanupTime, "CLEANUP_SCHEDULER_TIME", "02:00")
-		if !timeMatchesNow(cleanupTime) {
-			return nil
-		}
-
-		if wasRunToday(&s.lastTimetableCleanup, tenantID) {
-			return nil
-		}
-
-		// Mark immediately to prevent double-fire from concurrent ticks
-		markRunToday(&s.lastTimetableCleanup, tenantID)
-
+	s.checkAndRunDailyGDPRCleanup(task, &s.lastTimetableCleanup, "timetable-cleanup-check", func(tenantCtx context.Context, tenantID int64, cleanupTime string) bool {
 		s.getLogger().Info("running timetable GDPR cleanup for tenant",
 			slog.Int64("tenant_id", tenantID),
 			slog.String("cleanup_time", cleanupTime),
@@ -2287,9 +1962,7 @@ func (s *Scheduler) checkAndRunTimetableCleanup(task *ScheduledTask) {
 				slog.Int64("tenant_id", tenantID),
 				slog.String("error", err.Error()),
 			)
-			// Clear today-mark so retry on next matching minute succeeds.
-			s.lastTimetableCleanup.Delete(tenantID)
-			return nil
+			return false
 		}
 
 		if result.InstancesDeleted > 0 || result.ExceptionsDeleted > 0 {
@@ -2302,7 +1975,7 @@ func (s *Scheduler) checkAndRunTimetableCleanup(task *ScheduledTask) {
 				slog.Int64("duration_ms", result.DurationMS),
 			)
 		}
-		return nil
+		return true
 	})
 }
 
@@ -2321,52 +1994,16 @@ func (s *Scheduler) scheduleTimeTrackingCleanupTask() {
 		return
 	}
 
-	task := &ScheduledTask{
-		Name:     "time-tracking-cleanup",
-		Schedule: "1m-poll",
-	}
-
-	s.mu.Lock()
-	s.tasks[task.Name] = task
-	s.mu.Unlock()
-
-	s.wg.Add(1)
-	go s.runTimeTrackingCleanupTaskPolling(task)
+	s.registerTask("time-tracking-cleanup", "1m-poll", s.runTimeTrackingCleanupTaskPolling)
 }
 
 // runTimeTrackingCleanupTaskPolling ticks every minute and defers to
 // checkAndRunTimeTrackingCleanup. Minute-aligned so HH:MM:00 ticks land
 // deterministically.
 func (s *Scheduler) runTimeTrackingCleanupTaskPolling(task *ScheduledTask) {
-	defer s.wg.Done()
-	defer func() {
-		if r := recover(); r != nil {
-			err := fmt.Errorf("panic in time-tracking cleanup task: %v", r)
-			s.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
-			sentry.CurrentHub().Recover(r)
-			sentry.Flush(2 * time.Second)
-		}
-	}()
-
-	s.getLogger().Info("time-tracking cleanup task using minute-polling for per-tenant scheduling")
-
-	s.checkAndRunTimeTrackingCleanup(task)
-
-	if !s.waitUntilNextMinute() {
-		return
-	}
-
-	ticker := time.NewTicker(60 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			s.checkAndRunTimeTrackingCleanup(task)
-		case <-s.done:
-			return
-		}
-	}
+	s.runMinutePolling(task, "panic in time-tracking cleanup task",
+		"time-tracking cleanup task using minute-polling for per-tenant scheduling",
+		s.checkAndRunTimeTrackingCleanup)
 }
 
 // checkAndRunTimeTrackingCleanup evaluates each tenant's cleanup settings and
@@ -2375,40 +2012,7 @@ func (s *Scheduler) runTimeTrackingCleanupTaskPolling(task *ScheduledTask) {
 // with the visits and timetable cleanup tasks — one admin switch for all
 // nightly retention.
 func (s *Scheduler) checkAndRunTimeTrackingCleanup(task *ScheduledTask) {
-	task.mu.Lock()
-	if task.Running {
-		task.mu.Unlock()
-		return
-	}
-	task.Running = true
-	task.mu.Unlock()
-	defer func() {
-		task.mu.Lock()
-		task.Running = false
-		task.mu.Unlock()
-	}()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
-	defer cancel()
-
-	s.forEachTenantSettings(ctx, "time-tracking-cleanup-check", func(tenantCtx context.Context, tenantID int64) error {
-		enabled := s.resolveBoolSetting(tenantCtx, configModel.KeyDataCleanupEnabled, "CLEANUP_SCHEDULER_ENABLED", true)
-		if !enabled {
-			return nil
-		}
-
-		cleanupTime := s.resolveStringSetting(tenantCtx, configModel.KeyDataCleanupTime, "CLEANUP_SCHEDULER_TIME", "02:00")
-		if !timeMatchesNow(cleanupTime) {
-			return nil
-		}
-
-		if wasRunToday(&s.lastTimeTrackingCleanup, tenantID) {
-			return nil
-		}
-
-		// Mark immediately to prevent double-fire from concurrent ticks.
-		markRunToday(&s.lastTimeTrackingCleanup, tenantID)
-
+	s.checkAndRunDailyGDPRCleanup(task, &s.lastTimeTrackingCleanup, "time-tracking-cleanup-check", func(tenantCtx context.Context, tenantID int64, cleanupTime string) bool {
 		s.getLogger().Info("running time-tracking GDPR cleanup for tenant",
 			slog.Int64("tenant_id", tenantID),
 			slog.String("cleanup_time", cleanupTime),
@@ -2424,9 +2028,7 @@ func (s *Scheduler) checkAndRunTimeTrackingCleanup(task *ScheduledTask) {
 				slog.Int64("tenant_id", tenantID),
 				slog.String("error", err.Error()),
 			)
-			// Clear today-mark so retry on next matching minute succeeds.
-			s.lastTimeTrackingCleanup.Delete(tenantID)
-			return nil
+			return false
 		}
 
 		if result.SessionsDeleted > 0 || result.AbsencesDeleted > 0 {
@@ -2439,6 +2041,6 @@ func (s *Scheduler) checkAndRunTimeTrackingCleanup(task *ScheduledTask) {
 				slog.Int64("duration_ms", result.DurationMS),
 			)
 		}
-		return nil
+		return true
 	})
 }

@@ -1297,169 +1297,7 @@ func (m *mockCleanupService) PreviewSupervisorCleanup(_ context.Context) (*activ
 // Execute Tests
 // =============================================================================
 
-func TestExecuteCleanup_Success(t *testing.T) {
-	cleanupSvc := &mockCleanupService{
-		cleanupResult: &activeService.CleanupResult{
-			StudentsProcessed: 10,
-			RecordsDeleted:    100,
-			Success:           true,
-		},
-	}
-
-	s := &Scheduler{
-		cleanupService: cleanupSvc,
-		done:           make(chan struct{}),
-	}
-
-	task := &ScheduledTask{Name: "test-cleanup"}
-
-	// Execute cleanup
-	s.executeCleanup(task)
-
-	// Verify cleanup was called
-	cleanupSvc.mu.Lock()
-	assert.Equal(t, 1, cleanupSvc.cleanupCalls)
-	cleanupSvc.mu.Unlock()
-
-	// Verify task state
-	task.mu.Lock()
-	assert.False(t, task.Running, "Task should not be running after completion")
-	assert.False(t, task.LastRun.IsZero(), "LastRun should be set")
-	task.mu.Unlock()
-}
-
-func TestExecuteCleanup_Error(t *testing.T) {
-	cleanupSvc := &mockCleanupService{
-		cleanupErr: errors.New("cleanup failed"),
-	}
-
-	s := &Scheduler{
-		cleanupService: cleanupSvc,
-		done:           make(chan struct{}),
-	}
-
-	task := &ScheduledTask{Name: "test-cleanup"}
-
-	// Execute cleanup (should handle error gracefully)
-	s.executeCleanup(task)
-
-	// Verify cleanup was called
-	cleanupSvc.mu.Lock()
-	assert.Equal(t, 1, cleanupSvc.cleanupCalls)
-	cleanupSvc.mu.Unlock()
-}
-
-func TestExecuteCleanup_WithErrors(t *testing.T) {
-	cleanupSvc := &mockCleanupService{
-		cleanupResult: &activeService.CleanupResult{
-			StudentsProcessed: 10,
-			RecordsDeleted:    90,
-			Success:           true,
-			Errors: []activeService.CleanupError{
-				{StudentID: 1, Error: "error 1"},
-				{StudentID: 2, Error: "error 2"},
-			},
-		},
-	}
-
-	s := &Scheduler{
-		cleanupService: cleanupSvc,
-		done:           make(chan struct{}),
-	}
-
-	task := &ScheduledTask{Name: "test-cleanup"}
-
-	// Execute cleanup
-	s.executeCleanup(task)
-
-	// Verify cleanup was called
-	cleanupSvc.mu.Lock()
-	assert.Equal(t, 1, cleanupSvc.cleanupCalls)
-	cleanupSvc.mu.Unlock()
-}
-
-func TestExecuteCleanup_WithManyErrors(t *testing.T) {
-	// Test that more than 10 errors are truncated in logging
-	var errors []activeService.CleanupError
-	for i := 0; i < 15; i++ {
-		errors = append(errors, activeService.CleanupError{StudentID: int64(i), Error: "error"})
-	}
-
-	cleanupSvc := &mockCleanupService{
-		cleanupResult: &activeService.CleanupResult{
-			StudentsProcessed: 20,
-			RecordsDeleted:    50,
-			Success:           true,
-			Errors:            errors,
-		},
-	}
-
-	s := &Scheduler{
-		cleanupService: cleanupSvc,
-		done:           make(chan struct{}),
-	}
-
-	task := &ScheduledTask{Name: "test-cleanup"}
-
-	// Execute cleanup
-	s.executeCleanup(task)
-
-	// Verify cleanup was called
-	cleanupSvc.mu.Lock()
-	assert.Equal(t, 1, cleanupSvc.cleanupCalls)
-	cleanupSvc.mu.Unlock()
-}
-
-func TestExecuteCleanup_AlreadyRunning(t *testing.T) {
-	cleanupSvc := &mockCleanupService{}
-
-	s := &Scheduler{
-		cleanupService: cleanupSvc,
-		done:           make(chan struct{}),
-	}
-
-	task := &ScheduledTask{Name: "test-cleanup", Running: true}
-
-	// Execute cleanup (should skip because already running)
-	s.executeCleanup(task)
-
-	// Verify cleanup was NOT called
-	cleanupSvc.mu.Lock()
-	assert.Equal(t, 0, cleanupSvc.cleanupCalls)
-	cleanupSvc.mu.Unlock()
-}
-
-func TestExecuteCleanup_CustomTimeout(t *testing.T) {
-	require.NoError(t, os.Setenv("CLEANUP_SCHEDULER_TIMEOUT_MINUTES", "60"))
-	defer func() {
-		_ = os.Unsetenv("CLEANUP_SCHEDULER_TIMEOUT_MINUTES")
-	}()
-
-	cleanupSvc := &mockCleanupService{
-		cleanupResult: &activeService.CleanupResult{
-			StudentsProcessed: 5,
-			RecordsDeleted:    50,
-			Success:           true,
-		},
-	}
-
-	s := &Scheduler{
-		cleanupService: cleanupSvc,
-		done:           make(chan struct{}),
-	}
-
-	task := &ScheduledTask{Name: "test-cleanup"}
-
-	// Execute cleanup
-	s.executeCleanup(task)
-
-	// Verify cleanup was called
-	cleanupSvc.mu.Lock()
-	assert.Equal(t, 1, cleanupSvc.cleanupCalls)
-	cleanupSvc.mu.Unlock()
-}
-
-func TestExecuteSessionEnd_Success(t *testing.T) {
+func TestExecuteSessionEndForTenant_Success(t *testing.T) {
 	activeSvc := &mockActiveService{
 		endDailySessionsResult: &activeService.DailySessionCleanupResult{
 			SessionsEnded:    5,
@@ -1474,23 +1312,17 @@ func TestExecuteSessionEnd_Success(t *testing.T) {
 		done:          make(chan struct{}),
 	}
 
-	task := &ScheduledTask{Name: "test-session-end"}
-
-	// Execute session end
-	s.executeSessionEnd(task)
+	ok, err := s.executeSessionEndForTenant(context.Background(), 0)
+	require.NoError(t, err)
+	assert.True(t, ok, "session end should report success")
 
 	// Verify service was called
 	activeSvc.mu.Lock()
 	assert.Equal(t, 1, activeSvc.endDailySessionsCalls)
 	activeSvc.mu.Unlock()
-
-	// Verify task state
-	task.mu.Lock()
-	assert.False(t, task.Running, "Task should not be running after completion")
-	task.mu.Unlock()
 }
 
-func TestExecuteSessionEnd_Error(t *testing.T) {
+func TestExecuteSessionEndForTenant_Error(t *testing.T) {
 	activeSvc := &mockActiveService{
 		endDailySessionsErr: errors.New("session end failed"),
 	}
@@ -1500,10 +1332,11 @@ func TestExecuteSessionEnd_Error(t *testing.T) {
 		done:          make(chan struct{}),
 	}
 
-	task := &ScheduledTask{Name: "test-session-end"}
-
-	// Execute session end (should handle error gracefully)
-	s.executeSessionEnd(task)
+	// Session-end errors are swallowed (other tenants must still run) but
+	// reported as ok=false so the day-mark is not set.
+	ok, err := s.executeSessionEndForTenant(context.Background(), 0)
+	require.NoError(t, err)
+	assert.False(t, ok, "failed session end must not report success")
 
 	// Verify service was called
 	activeSvc.mu.Lock()
@@ -1511,7 +1344,7 @@ func TestExecuteSessionEnd_Error(t *testing.T) {
 	activeSvc.mu.Unlock()
 }
 
-func TestExecuteSessionEnd_WithErrors(t *testing.T) {
+func TestExecuteSessionEndForTenant_WithErrors(t *testing.T) {
 	activeSvc := &mockActiveService{
 		endDailySessionsResult: &activeService.DailySessionCleanupResult{
 			SessionsEnded:    5,
@@ -1527,10 +1360,9 @@ func TestExecuteSessionEnd_WithErrors(t *testing.T) {
 		done:          make(chan struct{}),
 	}
 
-	task := &ScheduledTask{Name: "test-session-end"}
-
-	// Execute session end
-	s.executeSessionEnd(task)
+	ok, err := s.executeSessionEndForTenant(context.Background(), 0)
+	require.NoError(t, err)
+	assert.True(t, ok)
 
 	// Verify service was called
 	activeSvc.mu.Lock()
@@ -1538,7 +1370,7 @@ func TestExecuteSessionEnd_WithErrors(t *testing.T) {
 	activeSvc.mu.Unlock()
 }
 
-func TestExecuteSessionEnd_WithManyErrors(t *testing.T) {
+func TestExecuteSessionEndForTenant_WithManyErrors(t *testing.T) {
 	var errors []string
 	for i := 0; i < 15; i++ {
 		errors = append(errors, "error")
@@ -1557,10 +1389,9 @@ func TestExecuteSessionEnd_WithManyErrors(t *testing.T) {
 		done:          make(chan struct{}),
 	}
 
-	task := &ScheduledTask{Name: "test-session-end"}
-
-	// Execute session end
-	s.executeSessionEnd(task)
+	ok, err := s.executeSessionEndForTenant(context.Background(), 0)
+	require.NoError(t, err)
+	assert.True(t, ok)
 
 	// Verify service was called
 	activeSvc.mu.Lock()
@@ -1568,7 +1399,7 @@ func TestExecuteSessionEnd_WithManyErrors(t *testing.T) {
 	activeSvc.mu.Unlock()
 }
 
-func TestExecuteSessionEnd_AlreadyRunning(t *testing.T) {
+func TestCheckAndRunSessionEnd_AlreadyRunning(t *testing.T) {
 	activeSvc := &mockActiveService{}
 
 	s := &Scheduler{
@@ -1578,8 +1409,8 @@ func TestExecuteSessionEnd_AlreadyRunning(t *testing.T) {
 
 	task := &ScheduledTask{Name: "test-session-end", Running: true}
 
-	// Execute session end (should skip because already running)
-	s.executeSessionEnd(task)
+	// Check session end (should skip because already running)
+	s.checkAndRunSessionEnd(task)
 
 	// Verify service was NOT called
 	activeSvc.mu.Lock()
@@ -1587,7 +1418,7 @@ func TestExecuteSessionEnd_AlreadyRunning(t *testing.T) {
 	activeSvc.mu.Unlock()
 }
 
-func TestExecuteSessionEnd_CustomTimeout(t *testing.T) {
+func TestExecuteSessionEndForTenant_CustomTimeout(t *testing.T) {
 	require.NoError(t, os.Setenv("SESSION_END_TIMEOUT_MINUTES", "30"))
 	defer func() {
 		_ = os.Unsetenv("SESSION_END_TIMEOUT_MINUTES")
@@ -1605,10 +1436,9 @@ func TestExecuteSessionEnd_CustomTimeout(t *testing.T) {
 		done:          make(chan struct{}),
 	}
 
-	task := &ScheduledTask{Name: "test-session-end"}
-
-	// Execute session end
-	s.executeSessionEnd(task)
+	ok, err := s.executeSessionEndForTenant(context.Background(), 0)
+	require.NoError(t, err)
+	assert.True(t, ok)
 
 	// Verify service was called
 	activeSvc.mu.Lock()
@@ -1677,7 +1507,7 @@ func TestExecuteTokenCleanup_Error(t *testing.T) {
 	auth.mu.Unlock()
 }
 
-func TestExecuteSessionCleanup_Success(t *testing.T) {
+func TestCheckAndRunSessionCleanup_Success(t *testing.T) {
 	activeSvc := &mockActiveService{
 		cleanupAbandonedResult: 5,
 	}
@@ -1689,8 +1519,8 @@ func TestExecuteSessionCleanup_Success(t *testing.T) {
 
 	task := &ScheduledTask{Name: "session-cleanup"}
 
-	// Execute session cleanup
-	s.executeSessionCleanup(task, 15, 60)
+	// Run session cleanup (threshold falls back to the 60-minute default)
+	s.checkAndRunSessionCleanup(task)
 
 	// Verify service was called
 	activeSvc.mu.Lock()
@@ -1704,7 +1534,9 @@ func TestExecuteSessionCleanup_Success(t *testing.T) {
 	task.mu.Unlock()
 }
 
-func TestExecuteSessionCleanup_NoAbandoned(t *testing.T) {
+func TestCheckAndRunSessionCleanup_NoAbandoned(t *testing.T) {
+	t.Setenv("SESSION_ABANDONED_THRESHOLD_MINUTES", "30")
+
 	activeSvc := &mockActiveService{
 		cleanupAbandonedResult: 0,
 	}
@@ -1716,17 +1548,17 @@ func TestExecuteSessionCleanup_NoAbandoned(t *testing.T) {
 
 	task := &ScheduledTask{Name: "session-cleanup"}
 
-	// Execute session cleanup
-	s.executeSessionCleanup(task, 15, 30)
+	// Run session cleanup
+	s.checkAndRunSessionCleanup(task)
 
-	// Verify service was called
+	// Verify service was called with the env-configured threshold
 	activeSvc.mu.Lock()
 	assert.Equal(t, 1, activeSvc.cleanupAbandonedCalls)
 	assert.Equal(t, 30*time.Minute, activeSvc.cleanupAbandonedDuration)
 	activeSvc.mu.Unlock()
 }
 
-func TestExecuteSessionCleanup_Error(t *testing.T) {
+func TestCheckAndRunSessionCleanup_Error(t *testing.T) {
 	activeSvc := &mockActiveService{
 		cleanupAbandonedErr: errors.New("cleanup failed"),
 	}
@@ -1738,8 +1570,8 @@ func TestExecuteSessionCleanup_Error(t *testing.T) {
 
 	task := &ScheduledTask{Name: "session-cleanup"}
 
-	// Execute session cleanup (should handle error gracefully)
-	s.executeSessionCleanup(task, 15, 60)
+	// Run session cleanup (should handle error gracefully)
+	s.checkAndRunSessionCleanup(task)
 
 	// Verify service was called
 	activeSvc.mu.Lock()
@@ -1747,7 +1579,7 @@ func TestExecuteSessionCleanup_Error(t *testing.T) {
 	activeSvc.mu.Unlock()
 }
 
-func TestExecuteSessionCleanup_AlreadyRunning(t *testing.T) {
+func TestCheckAndRunSessionCleanup_AlreadyRunning(t *testing.T) {
 	activeSvc := &mockActiveService{}
 
 	s := &Scheduler{
@@ -1757,8 +1589,8 @@ func TestExecuteSessionCleanup_AlreadyRunning(t *testing.T) {
 
 	task := &ScheduledTask{Name: "session-cleanup", Running: true}
 
-	// Execute session cleanup (should skip because already running)
-	s.executeSessionCleanup(task, 15, 60)
+	// Run session cleanup (should skip because already running)
+	s.checkAndRunSessionCleanup(task)
 
 	// Verify service was NOT called
 	activeSvc.mu.Lock()
