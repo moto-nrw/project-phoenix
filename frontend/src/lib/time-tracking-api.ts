@@ -34,6 +34,7 @@ interface ApiResponse<T> {
  * UpdateSession (Issue #1368).
  */
 export const REOPEN_STATUS_CONFLICT_CODE = "reopen_status_conflict";
+export const PLANNED_START_NOT_REACHED_CODE = "planned_start_not_reached";
 
 /**
  * Update session request body

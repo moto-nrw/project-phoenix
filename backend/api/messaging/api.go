@@ -54,11 +54,6 @@ func (rs *Resource) Router() chi.Router {
 		// — an accepted, signed-off policy (the guardian always sees the sender as
 		// "OGS <Schule>", never an individual).
 		read := authorize.RequiresPermission(permissions.UsersRead)
-		// Confirming a request applies permanent schedule/master-data changes and
-		// rejecting terminally decides it, so the decision endpoints require
-		// users:update — the same coarse gate as the student mutation routes.
-		// CanUpdateStudent (group supervision) alone does not imply that permission.
-		write := authorize.RequiresPermission(permissions.UsersUpdate)
 		r.With(read, withTx).Get("/", rs.listInbox)
 		r.With(read, withTx).Get("/unread-count", rs.unreadCount)
 		r.With(read, withTx).Post("/threads", rs.startThread)
@@ -67,8 +62,6 @@ func (rs *Resource) Router() chi.Router {
 		r.With(read, withTx).Post("/threads/{threadId}", rs.postMessage)
 		r.With(read, withTx).Get("/students/{studentId}/guardians", rs.listGuardians)
 		r.With(read, withTx).Get("/students/{studentId}/threads", rs.listStudentThreads)
-		r.With(write, withTx).Post("/requests/{requestId}/confirm", rs.confirmRequest)
-		r.With(write, withTx).Post("/requests/{requestId}/reject", rs.rejectRequest)
 	})
 
 	return r
@@ -88,7 +81,6 @@ type InboxThreadResponse struct {
 	LastSenderKind   string     `json:"last_sender_kind,omitempty"`
 	LastMessageBody  string     `json:"last_message_body,omitempty"`
 	UnreadCount      int        `json:"unread_count"`
-	OpenRequestCount int        `json:"open_request_count"`
 }
 
 type MessageResponse struct {
@@ -109,15 +101,6 @@ type MessageResponse struct {
 	DecisionReason string         `json:"decision_reason,omitempty"`
 	ReadByStaff    bool           `json:"read_by_staff,omitempty"`
 	ReadByGuardian bool           `json:"read_by_guardian,omitempty"`
-	Diff           []DiffEntry    `json:"diff,omitempty"`
-}
-
-// DiffEntry is one field an open request would change, shown to staff as
-// "current → requested" so they can review before confirming.
-type DiffEntry struct {
-	Label string `json:"label"`
-	Old   string `json:"old"`
-	New   string `json:"new"`
 }
 
 type ThreadDetailResponse struct {
@@ -146,16 +129,12 @@ type PostMessageRequest struct {
 	Body string `json:"body"`
 }
 
-type RejectRequestRequest struct {
-	Reason string `json:"reason"`
-}
-
 type OpenThreadRequest struct {
 	StudentID         string `json:"student_id"`
 	GuardianAccountID string `json:"guardian_account_id"`
 }
 
-func toMessageResponses(messages []*usersModels.ParentMessage, diffs map[int64][]messagingService.RequestDiffEntry) []MessageResponse {
+func toMessageResponses(messages []*usersModels.ParentMessage) []MessageResponse {
 	out := make([]MessageResponse, 0, len(messages))
 	for _, m := range messages {
 		refID := ""
@@ -165,10 +144,6 @@ func toMessageResponses(messages []*usersModels.ParentMessage, diffs map[int64][
 		appliedBy := ""
 		if m.AppliedBy != nil {
 			appliedBy = strconv.FormatInt(*m.AppliedBy, 10)
-		}
-		var diff []DiffEntry
-		for _, d := range diffs[m.ID] {
-			diff = append(diff, DiffEntry{Label: d.Label, Old: d.Old, New: d.New})
 		}
 		out = append(out, MessageResponse{
 			ID:             strconv.FormatInt(m.ID, 10),
@@ -188,7 +163,6 @@ func toMessageResponses(messages []*usersModels.ParentMessage, diffs map[int64][
 			DecisionReason: m.DecisionReason,
 			ReadByStaff:    m.ReadByStaff,
 			ReadByGuardian: m.ReadByGuardian,
-			Diff:           diff,
 		})
 	}
 	return out
@@ -201,7 +175,7 @@ func toThreadDetail(d *messagingService.ThreadDetail) ThreadDetailResponse {
 		StudentName:      d.StudentName,
 		GuardianName:     d.GuardianName,
 		RelationshipType: d.RelationshipType,
-		Messages:         toMessageResponses(d.Messages, d.Diffs),
+		Messages:         toMessageResponses(d.Messages),
 	}
 }
 
@@ -209,7 +183,6 @@ func (rs *Resource) listInbox(w http.ResponseWriter, r *http.Request) {
 	rows, err := rs.Service.ListInbox(
 		r.Context(),
 		r.URL.Query().Get("unread") == "true",
-		r.URL.Query().Get("open_requests") == "true",
 	)
 	if err != nil {
 		renderMessagingError(w, r, err)
@@ -233,7 +206,6 @@ func toInboxThreadResponses(rows []*usersModels.InboxThread) []InboxThreadRespon
 			LastSenderKind:   t.LastSenderKind,
 			LastMessageBody:  t.LastMessageBody,
 			UnreadCount:      t.UnreadCount,
-			OpenRequestCount: t.OpenRequestCount,
 		})
 	}
 	return out
@@ -277,37 +249,6 @@ func (rs *Resource) getThread(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, toThreadDetail(detail), "Thread retrieved")
 }
 
-func (rs *Resource) confirmRequest(w http.ResponseWriter, r *http.Request) {
-	requestID, ok := parseInt64Param(w, r, "requestId", "request")
-	if !ok {
-		return
-	}
-	messages, diffs, err := rs.Service.ConfirmRequest(r.Context(), requestID)
-	if err != nil {
-		renderMessagingError(w, r, err)
-		return
-	}
-	common.Respond(w, r, http.StatusOK, toMessageResponses(messages, diffs), "Request confirmed")
-}
-
-func (rs *Resource) rejectRequest(w http.ResponseWriter, r *http.Request) {
-	requestID, ok := parseInt64Param(w, r, "requestId", "request")
-	if !ok {
-		return
-	}
-	var req RejectRequestRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
-		return
-	}
-	messages, diffs, err := rs.Service.RejectRequest(r.Context(), requestID, req.Reason)
-	if err != nil {
-		renderMessagingError(w, r, err)
-		return
-	}
-	common.Respond(w, r, http.StatusOK, toMessageResponses(messages, diffs), "Request rejected")
-}
-
 func (rs *Resource) postMessage(w http.ResponseWriter, r *http.Request) {
 	threadID, ok := parseInt64Param(w, r, "threadId", "thread")
 	if !ok {
@@ -318,12 +259,12 @@ func (rs *Resource) postMessage(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
 		return
 	}
-	messages, diffs, err := rs.Service.PostMessage(r.Context(), threadID, req.Body)
+	messages, err := rs.Service.PostMessage(r.Context(), threadID, req.Body)
 	if err != nil {
 		renderMessagingError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusCreated, toMessageResponses(messages, diffs), "Message sent")
+	common.Respond(w, r, http.StatusCreated, toMessageResponses(messages), "Message sent")
 }
 
 func (rs *Resource) startThread(w http.ResponseWriter, r *http.Request) {
@@ -410,21 +351,12 @@ func renderMessagingError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, messagingService.ErrThreadNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, messagingService.ErrRequestNotFound):
-		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, messagingService.ErrForbidden), errors.Is(err, messagingService.ErrMessagingDisabled):
 		common.RenderError(w, r, common.ErrorForbidden(err))
 	case errors.Is(err, messagingService.ErrEmptyBody),
 		errors.Is(err, messagingService.ErrBodyTooLong),
-		errors.Is(err, messagingService.ErrInvalidGuardian),
-		errors.Is(err, messagingService.ErrInvalidRequestStatus),
-		errors.Is(err, messagingService.ErrRejectReasonRequired),
-		errors.Is(err, messagingService.ErrRejectReasonTooLong),
-		errors.Is(err, messagingService.ErrInvalidRequestType),
-		errors.Is(err, messagingService.ErrInvalidRequestPayload):
+		errors.Is(err, messagingService.ErrInvalidGuardian):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case errors.Is(err, messagingService.ErrRequestNoLongerPossible):
-		common.RenderError(w, r, common.ErrorConflictMessage("Anfrage ist nicht mehr möglich. Bitte prüfen Sie die aktuellen Daten."))
 	case errors.Is(err, messagingService.ErrGuardianAccessRevoked):
 		common.RenderError(w, r, common.ErrorConflictMessage("Der Empfänger hat keinen Zugriff mehr auf dieses Kind."))
 	default:

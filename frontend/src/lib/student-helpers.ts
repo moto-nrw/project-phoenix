@@ -416,6 +416,9 @@ export interface BackendStudent {
   guardian_phone?: string;
   group_id?: number;
   group_name?: string;
+  address_street?: string;
+  address_city?: string;
+  address_postal_code?: string;
   scheduled_checkout?: ScheduledCheckoutInfo;
   extra_info?: string;
   departure_companion_note?: string;
@@ -544,6 +547,9 @@ export interface Student {
   contact_lg?: string;
   guardian_email?: string;
   guardian_phone?: string;
+  address_street?: string;
+  address_city?: string;
+  address_postal_code?: string;
   custom_users_id?: string;
   // Privacy consent data (fetched separately)
   privacy_consent?: PrivacyConsent;
@@ -649,6 +655,9 @@ export function mapStudentResponse(
     contact_lg: backendStudent.guardian_contact ?? undefined,
     guardian_email: backendStudent.guardian_email,
     guardian_phone: backendStudent.guardian_phone,
+    address_street: backendStudent.address_street,
+    address_city: backendStudent.address_city,
+    address_postal_code: backendStudent.address_postal_code,
     custom_users_id: undefined, // Not provided by backend
     extra_info: backendStudent.extra_info,
     departure_companion_note: backendStudent.departure_companion_note,
@@ -721,6 +730,9 @@ export function prepareStudentForBackend(
     tag_id?: string;
     guardian_email?: string;
     guardian_phone?: string;
+    address_street?: string;
+    address_city?: string;
+    address_postal_code?: string;
     extra_info?: string;
     departure_companion_note?: string;
     birthday?: string;
@@ -767,6 +779,9 @@ export function prepareStudentForBackend(
     tag_id: student.tag_id,
     guardian_email: student.guardian_email,
     guardian_phone: student.guardian_phone,
+    address_street: student.address_street,
+    address_city: student.address_city,
+    address_postal_code: student.address_postal_code,
     extra_info: student.extra_info,
     departure_companion_note: student.departure_companion_note,
     // Convert empty string to undefined for date fields (Go backend expects null or valid date)
@@ -798,6 +813,9 @@ export interface UpdateStudentRequest {
   tag_id?: string;
   guardian_email?: string;
   guardian_phone?: string;
+  address_street?: string;
+  address_city?: string;
+  address_postal_code?: string;
   extra_info?: string;
   departure_companion_note?: string;
   birthday?: string;
@@ -831,6 +849,9 @@ export interface BackendUpdateRequest {
   guardian_contact?: string;
   guardian_email?: string;
   guardian_phone?: string;
+  address_street?: string;
+  address_city?: string;
+  address_postal_code?: string;
   group_id?: number;
   extra_info?: string;
   departure_companion_note?: string;
@@ -889,6 +910,9 @@ const DIRECT_FIELD_MAPPINGS: FieldMapping[] = [
   { source: "contact_lg", target: "guardian_contact" },
   { source: "guardian_email", target: "guardian_email" },
   { source: "guardian_phone", target: "guardian_phone" },
+  { source: "address_street", target: "address_street" },
+  { source: "address_city", target: "address_city" },
+  { source: "address_postal_code", target: "address_postal_code" },
   { source: "extra_info", target: "extra_info" },
   { source: "departure_companion_note", target: "departure_companion_note" },
   { source: "birthday", target: "birthday" },

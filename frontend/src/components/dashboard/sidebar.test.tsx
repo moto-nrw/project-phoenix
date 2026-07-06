@@ -310,6 +310,19 @@ describe("Sidebar", () => {
       expect(activitiesLink).toHaveClass("bg-gray-100");
     });
 
+    it("highlights Dienstplan without also highlighting Mitarbeiter", () => {
+      mockUsePathname.mockReturnValue("/staff/dienstplan");
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+
+      render(<Sidebar />);
+
+      const dienstplanLink = screen.getByText("Dienstplan").closest("a");
+      const staffLink = screen.getByText("Mitarbeiter").closest("a");
+      expect(dienstplanLink).toHaveClass("bg-gray-100");
+      expect(staffLink).not.toHaveClass("bg-gray-100");
+    });
+
     it("does not highlight dashboard for non-dashboard paths", () => {
       mockUsePathname.mockReturnValue("/activities");
       mockIsAdmin.mockReturnValue(true);
@@ -465,7 +478,10 @@ describe("Sidebar", () => {
       const nachrichtenElement = screen.getByText("Nachrichten");
       const link = nachrichtenElement.closest("a");
       expect(link).not.toBeNull();
-      expect(link).toHaveAttribute("href", "/messages");
+      // Eltern sub-page links are tenant-aware: in path-routing mode (the test
+      // setup mocks tenantSlug="test-tenant", routingMode="path") the href is
+      // prefixed with the tenant segment, matching the /eltern hub card links.
+      expect(link).toHaveAttribute("href", "/test-tenant/messages");
     });
 
     it("does not show the old Dienstpläne placeholder for admins", () => {

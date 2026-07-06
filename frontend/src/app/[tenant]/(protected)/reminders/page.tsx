@@ -75,9 +75,7 @@ export default function RemindersPage() {
 
       {isLoading && !reminders.length ? (
         <Loading message="Erinnerungen werden geladen…" fullPage={false} />
-      ) : error &&
-        !data ? // here would read like a successful empty result, which it is not. // whole story. Rendering the "Keine aktiven Erinnerungen" empty state // First load failed with nothing cached: the error alert above is the
-      null : count === 0 ? (
+      ) : error && !data ? null : count === 0 ? ( // here would read like a successful empty result, which it is not. // whole story. Rendering the "Keine aktiven Erinnerungen" empty state // First load failed with nothing cached: the error alert above is the
         <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center shadow-sm">
           <p className="font-medium text-gray-900">
             Keine aktiven Erinnerungen

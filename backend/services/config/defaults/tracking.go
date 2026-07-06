@@ -82,4 +82,43 @@ func init() {
 			Value:     true,
 		},
 	})
+
+	// --- Automatic checkout at planned shift end (#1798) ---
+	// Opt-in: staff who forget to clock out are checked out automatically at
+	// the end of their planned shift (schedule.staff_shifts) plus a grace
+	// window. Staff without a planned shift are untouched.
+
+	config.Register(config.Definition{
+		Key:             config.KeyTrackingAutoCheckoutEnabled,
+		Label:           "Automatische Ausstempelung",
+		Description:     "Stempelt Mitarbeitende automatisch zum geplanten Dienstende aus, wenn sie vergessen haben, sich abzumelden. Gilt nur für Mitarbeitende mit geplanter Schicht im Dienstplan.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "zeiterfassung",
+		SortOrder:       2,
+	})
+
+	graceMin := float64(0)
+	graceMax := float64(240)
+	config.Register(config.Definition{
+		Key:             config.KeyTrackingAutoCheckoutGraceMinutes,
+		Label:           "Karenzzeit (Minuten)",
+		Description:     "Wartezeit nach dem geplanten Dienstende, bevor automatisch ausgestempelt wird",
+		Type:            config.FieldNumber,
+		Default:         15,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "zeiterfassung",
+		SortOrder:       3,
+		Validation:      &config.ValidationRules{Min: &graceMin, Max: &graceMax},
+		DependsOn: &config.Dependency{
+			Key:       config.KeyTrackingAutoCheckoutEnabled,
+			Condition: "eq",
+			Value:     true,
+		},
+	})
 }

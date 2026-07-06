@@ -2,7 +2,6 @@ package parent
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -13,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	messagingService "github.com/moto-nrw/project-phoenix/services/messaging"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -31,28 +29,6 @@ type MessageThreadView struct {
 	StudentName string
 	SchoolName  string
 	Messages    []*usersModels.ParentMessage
-	// Diffs maps an open request's message ID to its "current → requested"
-	// comparison so the guardian sees what they asked to change, not just a
-	// status. Computed by the shared messaging diff builder; nil when no diff
-	// builder is wired or no request is open.
-	Diffs map[int64][]messagingService.RequestDiffEntry
-}
-
-// requestDiffBuilder is the read-only slice of the staff messaging service the
-// parent portal reuses to compute request diffs, so the guardian's own request
-// card shows the same "current → requested" view staff see.
-type requestDiffBuilder interface {
-	BuildRequestDiffs(ctx context.Context, studentID int64, messages []*usersModels.ParentMessage) map[int64][]messagingService.RequestDiffEntry
-}
-
-// attachMessages sets the view's messages and, when a diff builder is wired,
-// the per-request diffs. Must run inside the child's tenant transaction so the
-// diff builder's reads are tenant-scoped.
-func (s *service) attachMessages(ctx context.Context, view *MessageThreadView, studentID int64, messages []*usersModels.ParentMessage) {
-	view.Messages = messages
-	if s.diffBuilder != nil {
-		view.Diffs = s.diffBuilder.BuildRequestDiffs(ctx, studentID, messages)
-	}
 }
 
 // decorateReadReceipts stamps the "OGS hat gelesen" indicator (ReadByStaff) on
@@ -271,7 +247,7 @@ func (s *service) GetChildConversation(ctx context.Context, accountID, studentID
 		// "OGS hat gelesen" receipt — decorate the snapshot through the shared path
 		// so the write side (PostChildMessage) renders identical markers.
 		s.decorateReadReceipts(txCtx, thread.ID, accountID, messages)
-		s.attachMessages(txCtx, view, studentID, messages)
+		view.Messages = messages
 		// Mark read only up to the newest message actually returned, never NOW().
 		// The mark-to-newest invariant (and the empty-conversation skip) lives in
 		// parentmessaging.MarkReadToNewest, shared with the staff side so the two
@@ -353,7 +329,7 @@ func (s *service) PostChildMessage(ctx context.Context, accountID, studentID int
 		// carry the same "OGS hat gelesen" markers GetChildConversation produces —
 		// otherwise existing receipts blink off until the next full GET/SSE refresh.
 		s.decorateReadReceipts(txCtx, thread.ID, accountID, messages)
-		s.attachMessages(txCtx, view, studentID, messages)
+		view.Messages = messages
 		// Advance the guardian's read cursor over this returned snapshot, exactly as
 		// GetChildConversation does. The guardian is now viewing this list, so any
 		// staff message that became visible since the last GET (e.g. a reply that
@@ -401,217 +377,6 @@ func (s *service) appendGuardianMessage(ctx context.Context, thread *usersModels
 	}
 	msg.SetTenantID(thread.TenantID)
 	return parentmessaging.AppendMessage(ctx, s.messageRepo, s.messageThreadRepo, msg)
-}
-
-// CreateChildRequest appends a structured parent change request to the child's
-// conversation. The request body is immutable; staff status changes update the
-// request row and append separate system events.
-func (s *service) CreateChildRequest(ctx context.Context, accountID, studentID int64, requestType string, payload map[string]any) (*MessageThreadView, error) {
-	if !messagingService.IsKnownRequestType(requestType) {
-		return nil, ErrInvalidParentRequestType
-	}
-	// Validate AND canonicalize: persist only the sanitized payload, never the raw
-	// guardian-supplied map. A direct API client can send valid fields/weekdays
-	// plus unknown keys or a large list of duplicate weekday entries; storing that
-	// verbatim as JSONB lets an authenticated guardian persist ignored junk that
-	// every later thread load echoes back. The canonical form is exactly what the
-	// apply path re-derives, so staff confirmation is unaffected.
-	canonicalPayload, err := messagingService.CanonicalizeRequestPayload(requestType, payload)
-	if err != nil {
-		return nil, err
-	}
-	// A change-request OVERWRITES the child's master data / care schedule once staff
-	// confirm, so it requires parent_portal.request.submit — NOT parent_portal.notes.write
-	// (plain chat). Sending a message must not by itself grant authority to mutate
-	// master data; the two are separate per .claude/rules/guardian-parent-permissions.md.
-	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionRequestSubmit)
-	if err != nil {
-		return nil, err
-	}
-	// Fail OPEN on a transient resolve error (via the shared helper) so a config-DB
-	// blip does not 500 a guardian's request while the badge and thread list keep
-	// rendering. A genuine disabled flag still returns ErrNotesDisabled.
-	if !parentmessaging.MessagingEnabledForTenant(ctx, s.settings, child.tenantID, s.logger) {
-		return nil, ErrNotesDisabled
-	}
-
-	senderName, err := s.resolveGuardianName(ctx, child.tenantID, accountID)
-	if err != nil {
-		return nil, err
-	}
-	view := &MessageThreadView{
-		StudentID:   studentID,
-		StudentName: child.studentName,
-		SchoolName:  child.schoolName,
-	}
-	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		thread, err := s.messageThreadRepo.GetOrCreate(txCtx, child.tenantID, studentID, accountID)
-		if err != nil {
-			return err
-		}
-		if err := s.appendGuardianRequest(txCtx, thread, accountID, senderName, requestType, canonicalPayload); err != nil {
-			return err
-		}
-		view.ThreadID = thread.ID
-		messages, err := s.messageRepo.ListByThread(txCtx, thread.ID, 0)
-		if err != nil {
-			return err
-		}
-		// Same as PostChildMessage: the returned view replaces frontend state, so it
-		// must keep the existing staff read receipts instead of dropping them, and
-		// carry the request diffs so the guardian's card renders alt→neu.
-		s.decorateReadReceipts(txCtx, thread.ID, accountID, messages)
-		s.attachMessages(txCtx, view, studentID, messages)
-		// Advance the guardian's read cursor over this returned snapshot, bounded to
-		// the newest staff row (never NOW(), never our own request), exactly as
-		// PostChildMessage does. See parentmessaging.MarkReadToNewest.
-		if _, err := parentmessaging.MarkReadToNewest(txCtx, s.messageReadRepo, thread.TenantID, thread.ID, accountID, false, messages); err != nil {
-			return err
-		}
-		captured := child.tenantID
-		capturedThread := view.ThreadID
-		tenant.RegisterAfterCommit(txCtx, func() {
-			s.broadcastParentMessage(captured, accountID, capturedThread, studentID)
-		})
-		return nil
-	})
-	if txErr != nil {
-		return nil, fmt.Errorf("parent: create child request: %w", txErr)
-	}
-	s.logger.Info("parent created request",
-		slog.Int64("account_id", accountID),
-		slog.Int64("student_id", studentID),
-		slog.Int64("tenant_id", child.tenantID),
-		slog.String("request_type", requestType),
-	)
-	return view, nil
-}
-
-// WithdrawChildRequest flips an open guardian request to 'zurueckgezogen' and
-// appends a parent-visible system event recording the withdrawal.
-func (s *service) WithdrawChildRequest(ctx context.Context, accountID, studentID, requestID int64) (*MessageThreadView, error) {
-	// Withdrawing flips the request status and appends a parent-visible system
-	// event — a per-child WRITE on a structured request — so it requires
-	// parent_portal.request.submit, symmetric with creating the request.
-	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionRequestSubmit)
-	if err != nil {
-		return nil, err
-	}
-	// Deliberately no enabled-check here: a parent must be able to withdraw an
-	// outstanding request even after an admin turns messaging OFF, so requests
-	// left open at the moment of disabling can still be wound down rather than
-	// frozen. Creating new requests/messages stays gated above.
-	view := &MessageThreadView{
-		StudentID:   studentID,
-		StudentName: child.studentName,
-		SchoolName:  child.schoolName,
-	}
-	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		thread, err := s.messageThreadRepo.FindByStudentGuardian(txCtx, studentID, accountID)
-		if err != nil {
-			return err
-		}
-		if thread == nil {
-			return ErrParentRequestNotFound
-		}
-		request, err := s.messageRepo.FindByIDForUpdate(txCtx, requestID)
-		if err != nil {
-			return err
-		}
-		if request == nil || request.ThreadID != thread.ID || request.Kind != usersModels.ParentMessageKindRequest {
-			return ErrParentRequestNotFound
-		}
-		if request.RequestStatus != usersModels.ParentMessageRequestStatusOpen {
-			return ErrParentRequestNotOpen
-		}
-		request.RequestStatus = usersModels.ParentMessageRequestStatusWithdrawn
-		if err := s.messageRepo.Update(txCtx, request); err != nil {
-			return err
-		}
-		if err := s.appendParentSystemEvent(txCtx, thread, accountID, "request_status", "Anfrage zurückgezogen", usersModels.ParentMessageRequestStatusWithdrawn, nil, ""); err != nil {
-			return err
-		}
-		view.ThreadID = thread.ID
-		messages, err := s.messageRepo.ListByThread(txCtx, thread.ID, 0)
-		if err != nil {
-			return err
-		}
-		// Same as PostChildMessage: the returned view replaces frontend state, so it
-		// must keep the existing staff read receipts instead of dropping them.
-		s.decorateReadReceipts(txCtx, thread.ID, accountID, messages)
-		s.attachMessages(txCtx, view, studentID, messages)
-		// The guardian is now viewing this snapshot — advance the read cursor over it
-		// (bounded to the newest staff row; the withdrawal event is the guardian's own
-		// row and is skipped), exactly as PostChildMessage does.
-		if _, err := parentmessaging.MarkReadToNewest(txCtx, s.messageReadRepo, thread.TenantID, thread.ID, accountID, false, messages); err != nil {
-			return err
-		}
-		captured := child.tenantID
-		capturedThread := view.ThreadID
-		tenant.RegisterAfterCommit(txCtx, func() {
-			s.broadcastParentMessage(captured, accountID, capturedThread, studentID)
-		})
-		return nil
-	})
-	if txErr != nil {
-		if errors.Is(txErr, ErrParentRequestNotFound) || errors.Is(txErr, ErrParentRequestNotOpen) {
-			return nil, txErr
-		}
-		return nil, fmt.Errorf("parent: withdraw child request: %w", txErr)
-	}
-	return view, nil
-}
-
-// appendGuardianRequest writes a guardian change-request message into the thread
-// and updates the thread's last-activity fields. Like appendGuardianMessage it
-// delegates the append + thread-touch to parentmessaging.AppendMessage (one home
-// for the "drive off the DB-stamped created_at, do not move the sender's cursor"
-// rule); the caller advances the read cursor over the returned snapshot.
-func (s *service) appendGuardianRequest(ctx context.Context, thread *usersModels.ParentMessageThread, accountID int64, senderName, requestType string, payload map[string]any) error {
-	msg := &usersModels.ParentMessage{
-		ThreadID:        thread.ID,
-		StudentID:       thread.StudentID,
-		SenderAccountID: accountID,
-		SenderKind:      usersModels.ParentMessageSenderGuardian,
-		SenderName:      senderName,
-		Body:            messagingService.RequestBody(requestType),
-		Kind:            usersModels.ParentMessageKindRequest,
-		RequestType:     requestType,
-		RequestStatus:   usersModels.ParentMessageRequestStatusOpen,
-		Payload:         payload,
-	}
-	msg.SetTenantID(thread.TenantID)
-	return parentmessaging.AppendMessage(ctx, s.messageRepo, s.messageThreadRepo, msg)
-}
-
-// appendParentSystemEvent writes a guardian-triggered system event (e.g. a
-// withdrawal) into the thread and touches the thread's last-activity fields with
-// the event's own DB-stamped created_at. The thread is stamped as last-touched
-// by the GUARDIAN side (not "system") so the staff inbox unread/awaiting-reply
-// signal fires correctly even for a dual-role account — mirrors the staff side's
-// appendSystemEvent, which stamps its decisions as staff.
-func (s *service) appendParentSystemEvent(ctx context.Context, thread *usersModels.ParentMessageThread, actorAccountID int64, eventType, body, requestStatus string, refID *int64, refTable string) error {
-	msg := &usersModels.ParentMessage{
-		ThreadID:        thread.ID,
-		StudentID:       thread.StudentID,
-		SenderAccountID: actorAccountID,
-		SenderKind:      usersModels.ParentMessageSenderSystem,
-		SenderName:      "System",
-		Body:            body,
-		Kind:            usersModels.ParentMessageKindEvent,
-		EventType:       eventType,
-		// Structured outcome for the localized parents portal (it renders from this
-		// instead of the German Body). Empty for non-request events.
-		RequestStatus:  requestStatus,
-		EventActorKind: usersModels.ParentMessageSenderGuardian,
-		RefID:          refID,
-		RefTable:       refTable,
-	}
-	msg.SetTenantID(thread.TenantID)
-	if err := s.messageRepo.Create(ctx, msg); err != nil {
-		return err
-	}
-	return s.messageThreadRepo.TouchLastMessage(ctx, thread.ID, msg.CreatedAt, msg.ID, usersModels.ParentMessageSenderGuardian, body)
 }
 
 // resolveGuardianName returns the guardian's display name for the child's

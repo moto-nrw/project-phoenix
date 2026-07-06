@@ -98,6 +98,12 @@ const (
 	KeyTrackingIndicator3        = "tracking.indicator_3"
 )
 
+// Time-tracking auto-checkout settings (#1798).
+const (
+	KeyTrackingAutoCheckoutEnabled      = "tracking.auto_checkout_enabled"
+	KeyTrackingAutoCheckoutGraceMinutes = "tracking.auto_checkout_grace_minutes"
+)
+
 // Operations settings.
 const (
 	KeySessionEndEnabled               = "operations.session_end_enabled"
@@ -132,6 +138,7 @@ const (
 	KeyParentMasterDataRequestEnabled  = "operations.parent_master_data_request_enabled"
 	KeyParentNewsEnabled               = "operations.parent_news_enabled"
 	KeyTimeTrackingAccountStartDate    = "operations.time_tracking_account_start_date"
+	KeyTimeTrackingEnforcePlannedStart = "operations.time_tracking_enforce_planned_start"
 	KeyMealPlanEnabled                 = "operations.meal_plan_enabled"
 )
 

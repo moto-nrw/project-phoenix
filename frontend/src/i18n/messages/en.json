@@ -310,19 +310,10 @@
         "label": "Pickup for one day",
         "shortLabel": "Pickup",
         "hint": "Adjust the pickup or arrival time for a single day"
-      },
-      "care_schedule": {
-        "label": "Change care times permanently",
-        "shortLabel": "Care times",
-        "hint": "Adjust the weekly schedule (Mon–Fri)"
       }
     },
     "request": {
       "submit": "Send request",
-      "entryLabel": "Permanent change",
-      "entryHint": "Request a permanent change. The school confirms it.",
-      "chooserTitle": "Request a change",
-      "chooserIntro": "The school reviews your request and only applies it after confirmation. Nothing changes until then.",
       "sendError": "The request could not be sent.",
       "careSchedule": {
         "title": "Change care times",
@@ -920,7 +911,8 @@
       "child": "Child details",
       "health": "Health",
       "contact": "Your contact details",
-      "departure": "Permanent ways home"
+      "departure": "Permanent ways home",
+      "careSchedule": "Care times"
     },
     "fields": {
       "firstName": "First name",
@@ -958,11 +950,24 @@
       "wed": "Wed",
       "thu": "Thu",
       "fri": "Fri"
+    },
+    "careSchedule": {
+      "hint": "Your current weekly schedule. Permanent changes are reviewed by the team before they apply.",
+      "arrival": "Drop-off time",
+      "pickup": "Pick-up time",
+      "modes": "Way home",
+      "loadError": "The care times could not be loaded. Please refresh the page.",
+      "pendingBadge": "Under review",
+      "pendingNotice": "Your request is being reviewed by the team. The current schedule applies until it is confirmed.",
+      "requestedAt": "Requested on {date}",
+      "withdraw": "Withdraw",
+      "withdrawError": "The request could not be withdrawn.",
+      "withdrawConfirmTitle": "Withdraw request?",
+      "withdrawConfirmBody": "Do you really want to withdraw your change request? The current schedule stays unchanged."
     }
   },
   "parentOgsMessaging": {
     "readByStaff": "Read",
-    "requestWithdraw": "Withdraw",
     "requestTypeCareSchedule": "Request: Change recurring care times",
     "requestTitleFallback": "Request",
     "statusOpen": "Open",
@@ -971,6 +976,9 @@
     "statusWithdrawn": "Withdrawn",
     "eventRequestConfirmed": "Request confirmed",
     "eventRequestConfirmedCareSchedule": "Request confirmed, care times applied",
+    "eventRequestCreatedCareSchedule": "Care times change requested",
+    "eventRequestCreatedMasterData": "Master data change requested",
+    "eventRequestConfirmedMasterData": "Request confirmed, master data applied",
     "eventRequestRejected": "Request rejected",
     "eventRequestRejectedReason": "Request rejected: {reason}",
     "eventRequestWithdrawn": "Request withdrawn",

@@ -208,6 +208,83 @@ func TestParentMessaging_UnreadCreatedAtTie(t *testing.T) {
 	assert.Equal(t, 0, count)
 }
 
+// newRequestCreatedPill builds a "request created" event pill as the emitter
+// stores it: a system event attributed to the GUARDIAN side (event_actor_kind),
+// so it counts as unread to a staff reader. actorAccountID is the submitting
+// guardian's account (the emitter stamps the actor in sender_account_id).
+func newRequestCreatedPill(threadID, studentID, actorAccountID int64, at time.Time) *usersModels.ParentMessage {
+	m := &usersModels.ParentMessage{
+		ThreadID:        threadID,
+		StudentID:       studentID,
+		SenderAccountID: actorAccountID,
+		SenderKind:      usersModels.ParentMessageSenderSystem,
+		SenderName:      "System",
+		Body:            "Anfrage gestellt",
+		Kind:            usersModels.ParentMessageKindEvent,
+		EventType:       "request_created",
+		EventActorKind:  usersModels.ParentMessageSenderGuardian,
+	}
+	m.CreatedAt, m.UpdatedAt = at, at
+	m.SetTenantID(1)
+	return m
+}
+
+// TestParentMessaging_RequestCreatedPillNotCounted pins the #1803 duplicate-signal
+// fix: a request_created pill is a queue notice surfaced on the Änderungsanfragen
+// badge, not an unread chat message, so it must NOT inflate the staff Nachrichten
+// unread count — while a plain guardian message in the SAME thread still does. It
+// also asserts the per-thread unread_count column agrees with the aggregate badge,
+// the invariant the exclusion is baked into counterpartUnread to preserve.
+func TestParentMessaging_RequestCreatedPillNotCounted(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
+	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
+	defer testpkg.CleanupAuthFixtures(t, db, staffAccount.ID)
+	defer testpkg.CleanupParentMessagingForAccount(t, db, staffAccount.ID)
+
+	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
+	msgRepo := usersRepo.NewParentMessageRepository(db)
+	readRepo := usersRepo.NewParentMessageReadRepository(db)
+	ctx := tenantCtx()
+
+	thread := newThread(chain.StudentID, chain.AccountID)
+	require.NoError(t, threadRepo.Create(ctx, thread))
+
+	base := time.Now().Truncate(time.Microsecond)
+	// A request_created pill (guardian-side system event) alone must leave the
+	// staff badge at zero — it belongs on the Änderungsanfragen queue count.
+	pill := newRequestCreatedPill(thread.ID, chain.StudentID, chain.AccountID, base)
+	require.NoError(t, msgRepo.Create(ctx, pill))
+
+	count, err := readRepo.UnreadMessageCountForStaff(ctx, staffAccount.ID, true, nil)
+	require.NoError(t, err)
+	assert.Equal(t, 0, count, "a request_created pill must not count toward the staff Nachrichten badge")
+
+	inbox, err := readRepo.ListInboxForStaff(ctx, staffAccount.ID, true, nil, false)
+	require.NoError(t, err)
+	require.Len(t, inbox, 1, "the thread is still listed — it has a message")
+	assert.Equal(t, 0, inbox[0].UnreadCount, "per-thread unread_count agrees with the badge: pill excluded")
+
+	// A plain guardian chat message in the same thread DOES count — the exclusion
+	// is specific to request_created, not a blanket mute of the thread.
+	chat := newMessage(thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, "Frage")
+	chat.CreatedAt, chat.UpdatedAt = base.Add(time.Second), base.Add(time.Second)
+	require.NoError(t, msgRepo.Create(ctx, chat))
+
+	count, err = readRepo.UnreadMessageCountForStaff(ctx, staffAccount.ID, true, nil)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count, "a plain guardian message still counts; only the pill is excluded")
+
+	inbox, err = readRepo.ListInboxForStaff(ctx, staffAccount.ID, true, nil, false)
+	require.NoError(t, err)
+	require.Len(t, inbox, 1)
+	assert.Equal(t, 1, inbox[0].UnreadCount, "per-thread count still matches the badge")
+}
+
 // TestParentMessaging_OneThreadPerGuardian verifies the chat model: exactly one
 // conversation per (child, guardian). A second create for the same pair is
 // rejected by the unique constraint, and FindByStudentGuardian returns the

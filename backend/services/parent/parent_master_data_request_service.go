@@ -16,6 +16,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -107,6 +108,38 @@ func (s *service) SubmitMasterDataChangeRequest(ctx context.Context, accountID, 
 				return createErr
 			}
 			created = append(created, row)
+		}
+		if len(created) > 0 {
+			// One "Anfrage erstellt" pill PER created row, each referencing its
+			// OWN row. A multi-field submit is decided field-by-field
+			// (master_data_review.Decide runs per row and emits a decision pill
+			// keyed on THAT row's id), so per-row created pills keep every
+			// created↔decision ref paired: the thread timeline and the deep-link
+			// into the Änderungsanfragen queue resolve the exact row for any
+			// field, not just created[0]. Best-effort, after commit.
+			capturedTenant := child.tenantID
+			refIDs := make([]int64, len(created))
+			for i, row := range created {
+				refIDs[i] = row.ID
+			}
+			tenant.RegisterAfterCommit(txCtx, func() {
+				if s.emitter == nil {
+					return
+				}
+				for i := range refIDs {
+					refID := refIDs[i]
+					s.emitter.EmitChildEvent(capturedTenant, studentID, accountID, parentmessaging.ChildEvent{
+						EventType:      "request_created",
+						ActorKind:      usersModels.ParentMessageSenderGuardian,
+						ActorAccountID: accountID,
+						Body:           "Anfrage: Stammdaten ändern",
+						RequestType:    usersModels.ParentMessageRequestMasterData,
+						RequestStatus:  usersModels.ParentMessageRequestStatusOpen,
+						RefTable:       "users.student_data_change_requests",
+						RefID:          &refID,
+					})
+				}
+			})
 		}
 		return nil
 	})

@@ -39,6 +39,7 @@ type WorkSession struct {
 	Source         string        `bun:"source,notnull,default:'app'" json:"source"`
 	CheckInTime    time.Time     `bun:"check_in_time,notnull" json:"check_in_time"`
 	CheckOutTime   *time.Time    `bun:"check_out_time" json:"check_out_time,omitempty"`
+	ReopenedAt     *time.Time    `bun:"reopened_at" json:"-"`
 	BreakMinutes   int           `bun:"break_minutes,notnull,default:0" json:"break_minutes"`
 	Notes          string        `bun:"notes" json:"notes,omitempty"`
 	AutoCheckedOut bool          `bun:"auto_checked_out,notnull,default:false" json:"auto_checked_out"`

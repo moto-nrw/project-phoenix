@@ -107,6 +107,21 @@ vi.mock("./student-form-fields", () => ({
         value={formData.first_name ?? ""}
         onChange={(e) => onChange("first_name", e.target.value)}
       />
+      <input
+        data-testid="address-street"
+        value={formData.address_street ?? ""}
+        onChange={(e) => onChange("address_street", e.target.value)}
+      />
+      <input
+        data-testid="address-postal-code"
+        value={formData.address_postal_code ?? ""}
+        onChange={(e) => onChange("address_postal_code", e.target.value)}
+      />
+      <input
+        data-testid="address-city"
+        value={formData.address_city ?? ""}
+        onChange={(e) => onChange("address_city", e.target.value)}
+      />
     </div>
   ),
   DepartureSection: ({
@@ -224,6 +239,55 @@ describe("StudentStammdatenTab", () => {
     });
 
     expect(screen.getByRole("button", { name: /Speichern/ })).toBeEnabled();
+  });
+
+  it("renders persisted address fields in the editable draft", () => {
+    render(
+      <StudentStammdatenTab
+        student={makeStudent({
+          address_street: "Musterstraße 12",
+          address_postal_code: "50667",
+          address_city: "Köln",
+        })}
+        groups={[]}
+        onSave={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId<HTMLInputElement>("address-street").value).toBe(
+      "Musterstraße 12",
+    );
+    expect(
+      screen.getByTestId<HTMLInputElement>("address-postal-code").value,
+    ).toBe("50667");
+    expect(screen.getByTestId<HTMLInputElement>("address-city").value).toBe(
+      "Köln",
+    );
+  });
+
+  it("enables submit and persists address-only edits", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <StudentStammdatenTab
+        student={makeStudent({ address_city: "Köln" })}
+        groups={[]}
+        onSave={onSave}
+      />,
+    );
+
+    fireEvent.change(screen.getByTestId("address-city"), {
+      target: { value: "Bonn" },
+    });
+
+    const saveButton = screen.getByRole("button", { name: /Speichern/ });
+    expect(saveButton).toBeEnabled();
+    fireEvent.click(saveButton);
+
+    await waitFor(() => {
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({ address_city: "Bonn" }),
+      );
+    });
   });
 
   it("renders linked per-child enrollment extra fields read-only", async () => {

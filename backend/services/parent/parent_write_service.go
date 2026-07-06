@@ -83,14 +83,6 @@ var (
 	// on the unique index (e.g. a double-click); the change was not saved and
 	// the caller should reload and retry.
 	ErrCareExceptionRaced = errors.New("parent: this day was just changed, please reload and try again")
-	// ErrInvalidParentRequestType means the change-request type is not registered.
-	ErrInvalidParentRequestType = errors.New("parent: invalid request type")
-	// ErrParentRequestNotFound means the request row does not exist in the
-	// guardian's conversation for this child.
-	ErrParentRequestNotFound = errors.New("parent: request not found")
-	// ErrParentRequestNotOpen means the request was already decided/withdrawn and
-	// can no longer be withdrawn.
-	ErrParentRequestNotOpen = errors.New("parent: request is not open")
 )
 
 // resolveOwnedChild validates the account is a guardian of the student
@@ -263,7 +255,10 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 		result = filtered
 
 		capturedTenant := child.tenantID
+		pillBody := sickNoteEventBody(status, dates)
+		pillRefID := firstStatusID(filtered)
 		tenant.RegisterAfterCommit(txCtx, func() {
+			s.emitSelfServicePill(capturedTenant, studentID, accountID, "sick_note", pillBody, "active.student_status_days", pillRefID)
 			s.broadcastStudentUpdated(capturedTenant, studentID)
 		})
 		return nil
@@ -332,6 +327,7 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 	}
 	canEditMasterData := masterEdit && child.hasPermission(authorize.GuardianPermissionMasterDataEdit)
 	return ChildFeatureFlags{
+		HasOpenChangeRequest:         s.hasOpenChangeRequest(ctx, child.tenantID, studentID),
 		SickNoteEnabled:              sick && child.hasPermission(authorize.GuardianPermissionSickNoteSubmit),
 		NotesEnabled:                 notes && child.hasPermission(authorize.GuardianPermissionNotesWrite),
 		RequestSubmitEnabled:         notes && child.hasPermission(authorize.GuardianPermissionRequestSubmit),
@@ -344,6 +340,50 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 		MealPlanEnabled:              mealPlan,
 		NewsEnabled:                  news,
 	}, nil
+}
+
+// hasOpenChangeRequest reports whether the child has a pending change request
+// (care schedule OR master data) awaiting an OGS decision, so the parent
+// overview can badge the Stammdaten entry. The lookups hit tenant-scoped/RLS
+// tables, so they must run inside a tenant transaction — ChildFeatures is only
+// parent-authenticated and carries no tenant context otherwise. Best-effort: a
+// query error logs and yields false so a transient failure never shows a
+// phantom badge.
+func (s *service) hasOpenChangeRequest(ctx context.Context, tenantID, studentID int64) bool {
+	open := false
+	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if s.careRequests != nil {
+			if req, _, err := s.careRequests.GetPendingForStudent(txCtx, studentID); err != nil {
+				s.logger.Warn("parent: pending care-request check failed",
+					slog.Int64("student_id", studentID),
+					slog.String("error", err.Error()),
+				)
+			} else if req != nil {
+				open = true
+				return nil
+			}
+		}
+		if s.changeRequestRepo != nil {
+			pending, err := s.changeRequestRepo.ListByStudent(txCtx, studentID, []string{usersModels.DataChangeStatusPending}, 0)
+			if err != nil {
+				s.logger.Warn("parent: pending master-data check failed",
+					slog.Int64("student_id", studentID),
+					slog.String("error", err.Error()),
+				)
+			} else if len(pending) > 0 {
+				open = true
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		s.logger.Warn("parent: open change-request check failed",
+			slog.Int64("student_id", studentID),
+			slog.String("error", err.Error()),
+		)
+		return false
+	}
+	return open
 }
 
 // ListSickDays returns the child's active parent-facing absences in [from, to]:
@@ -507,7 +547,10 @@ func (s *service) SubmitCareException(ctx context.Context, accountID, studentID 
 		result = merged
 
 		capturedTenant := child.tenantID
+		pillBody := careExceptionEventBody(date, pickupTime, arrivalTime)
+		pillRefTable, pillRefID := s.careExceptionRef(txCtx, studentID, date)
 		tenant.RegisterAfterCommit(txCtx, func() {
+			s.emitSelfServicePill(capturedTenant, studentID, accountID, "care_exception", pillBody, pillRefTable, pillRefID)
 			s.broadcastStudentUpdated(capturedTenant, studentID)
 		})
 		return nil
@@ -734,7 +777,7 @@ func (s *service) DeleteCareException(ctx context.Context, accountID, studentID 
 		return ErrPastCareDate
 	}
 
-	deleted := false
+	pickupDeleted, arrivalDeleted := false, false
 	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		if err := scheduleService.LockCareExceptionDay(txCtx, s.db, studentID, date); err != nil {
 			return err
@@ -748,7 +791,7 @@ func (s *service) DeleteCareException(ctx context.Context, accountID, studentID 
 			if err := s.pickupExceptionRepo.Delete(txCtx, pickup.ID); err != nil {
 				return err
 			}
-			deleted = true
+			pickupDeleted = true
 		}
 		arrival, err := s.arrivalExceptionRepo.FindByStudentIDAndDate(txCtx, studentID, date)
 		if err != nil {
@@ -758,11 +801,23 @@ func (s *service) DeleteCareException(ctx context.Context, accountID, studentID 
 			if err := s.arrivalExceptionRepo.Delete(txCtx, arrival.ID); err != nil {
 				return err
 			}
-			deleted = true
+			arrivalDeleted = true
 		}
-		if deleted {
+		if pickupDeleted || arrivalDeleted {
 			capturedTenant := child.tenantID
+			// Name the leg(s) actually removed: an arrival-only deletion must not
+			// be recorded as a withdrawn pickup. Both legs collapse to a neutral
+			// "Betreuungszeit" label.
+			leg := "Betreuungszeit"
+			switch {
+			case pickupDeleted && !arrivalDeleted:
+				leg = "Abholung"
+			case arrivalDeleted && !pickupDeleted:
+				leg = "Ankunft"
+			}
+			pillBody := "Korrektur: " + leg + " " + date.Format("02.01.") + " zurückgezogen"
 			tenant.RegisterAfterCommit(txCtx, func() {
+				s.emitSelfServicePill(capturedTenant, studentID, accountID, "care_exception_correction", pillBody, "", nil)
 				s.broadcastStudentUpdated(capturedTenant, studentID)
 			})
 		}

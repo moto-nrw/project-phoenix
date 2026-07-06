@@ -1,29 +1,50 @@
 // Breadcrumb utilities for header navigation
 // Extracted to reduce cognitive complexity in header.tsx
 
-/**
- * Get page title based on pathname
- */
+const exactPageTitles: Record<string, string> = {
+  "/staff/dienstplan": "Dienstplan",
+  "/admin/guardian-approvals": "Konto-Anfragen",
+  "/admin/change-requests": "Änderungsanfragen",
+  "/parent-announcements": "Elternmitteilungen",
+  "/meal-plan": "Essensplan",
+  "/students/search": "Kindersuche",
+};
+
+const segmentPageTitles: Record<string, string> = {
+  "/messages": "Nachrichten",
+};
+
+const detailRouteTitles: Array<{
+  basePath: string;
+  rootPath: string;
+  title: string;
+}> = [
+  {
+    basePath: "/staff/",
+    rootPath: "/staff",
+    title: "Mitarbeiter Details",
+  },
+  {
+    basePath: "/rooms/",
+    rootPath: "/rooms",
+    title: "Raum Details",
+  },
+];
+
 export function getPageTitle(pathname: string): string {
-  // Check for /students/search first before other /students/ paths
-  if (pathname === "/students/search") {
-    return "Kindersuche";
-  }
+  const exactTitle = exactPageTitles[pathname];
+  if (exactTitle) return exactTitle;
+
+  const segmentTitle = getSegmentPageTitle(pathname);
+  if (segmentTitle) return segmentTitle;
 
   // Handle student detail pages
   if (pathname.startsWith("/students/") && pathname !== "/students") {
     return getStudentPageTitle(pathname);
   }
 
-  // Handle staff detail pages
-  if (pathname.startsWith("/staff/") && pathname !== "/staff") {
-    return "Mitarbeiter Details";
-  }
-
-  // Handle room detail pages
-  if (pathname.startsWith("/rooms/") && pathname !== "/rooms") {
-    return "Raum Details";
-  }
+  const detailTitle = getDetailRouteTitle(pathname);
+  if (detailTitle) return detailTitle;
 
   // Handle database sub-pages
   if (pathname.startsWith("/database/")) {
@@ -44,6 +65,25 @@ function getStudentPageTitle(pathname: string): string {
   if (pathname.includes("/feedback-history")) return "Feedback Historie";
   if (pathname.includes("/room-history")) return "Anwesenheitsprotokoll";
   return "Kinder Details";
+}
+
+function getSegmentPageTitle(pathname: string): string | null {
+  for (const [basePath, title] of Object.entries(segmentPageTitles)) {
+    if (matchesPathSegment(pathname, basePath)) return title;
+  }
+  return null;
+}
+
+function getDetailRouteTitle(pathname: string): string | null {
+  const route = detailRouteTitles.find(
+    ({ basePath, rootPath }) =>
+      pathname.startsWith(basePath) && pathname !== rootPath,
+  );
+  return route?.title ?? null;
+}
+
+function matchesPathSegment(pathname: string, basePath: string): boolean {
+  return pathname === basePath || pathname.startsWith(`${basePath}/`);
 }
 
 function getDatabasePageTitle(pathname: string): string {
@@ -72,12 +112,14 @@ function getMainRouteTitle(pathname: string): string {
     "/ogs-groups": "Meine Gruppe",
     "/active-supervisions": "Aktuelle Aufsicht",
     "/staff": "Mitarbeiter",
+    "/staff/dienstplan": "Dienstplan",
     "/rooms": "Räume",
     "/activities": "Aktivitäten",
     "/reminders": "Erinnerungen",
     "/substitutions": "Vertretungen",
     "/timetables": "Betreuungsplan",
     "/database": "Datenverwaltung",
+    "/eltern": "Eltern",
     "/emergency": "Notfall",
     "/settings": "Einstellungen",
     "/profile": "Profil",
@@ -87,8 +129,19 @@ function getMainRouteTitle(pathname: string): string {
     "/care-offerings": "Betreuungsangebote",
     "/enrollment-form": "Anmeldeformulare",
     "/time-tracking": "Zeiterfassung",
+    "/suggestions": "Feedback",
     "/operator/suggestions": "Vorschläge",
     "/operator/announcements": "Ankündigungen",
+    "/operator/organizations": "Träger",
+    "/operator/schools": "Schulen",
+    "/operator/accounts": "Konten",
+    "/operator/devices": "Geräte",
+    "/operator/persons": "Personen",
+    "/operator/unregistered-tags": "Unbekannte RFID",
+    "/operator/operators": "Operatoren",
+    "/parents/messages": "Nachrichten",
+    "/parents/news": "Neuigkeiten",
+    "/parents/meal-plan": "Essensplan",
   };
 
   return mainRoutes[pathname] ?? "Home";
@@ -168,7 +221,9 @@ export function getPageTypeInfo(pathname: string): PageTypeInfo {
       pathname.includes("/room-history"));
 
   const isStaffDetailPage =
-    pathname.startsWith("/staff/") && pathname !== "/staff";
+    pathname.startsWith("/staff/") &&
+    pathname !== "/staff" &&
+    pathname !== "/staff/dienstplan";
 
   const isRoomDetailPage =
     pathname.startsWith("/rooms/") && pathname !== "/rooms";

@@ -72,6 +72,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.group_mode",
 		"operations.care_concept",
 		"operations.time_tracking_account_start_date",
+		"operations.time_tracking_enforce_planned_start",
 		// Student photo feature (Datenverwaltung): per-school opt-in toggle.
 		"operations.student_photos_enabled",
 		// 2FA / MFA work package (issue #1308): mode toggle + trusted-device pair.
@@ -284,6 +285,17 @@ func TestTimeTrackingAccountStartDateSetting(t *testing.T) {
 	require.NotNil(t, def, "operations.time_tracking_account_start_date should be registered")
 	assert.Equal(t, config.FieldDate, def.Type)
 	assert.Equal(t, "", def.Default)
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "zeiterfassung", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
+}
+
+func TestTimeTrackingEnforcePlannedStartSetting(t *testing.T) {
+	def := config.GetDefinition(config.KeyTimeTrackingEnforcePlannedStart)
+	require.NotNil(t, def, "operations.time_tracking_enforce_planned_start should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default, "planned-start enforcement must be opt-in")
 	assert.Equal(t, config.AccessShared, def.AccessPolicy)
 	assert.Equal(t, "operations", def.Tab)
 	assert.Equal(t, "zeiterfassung", def.Category)
@@ -1167,6 +1179,8 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"tracking.indicator_1", ""},
 		{"tracking.indicator_2", ""},
 		{"tracking.indicator_3", ""},
+		{"tracking.auto_checkout_enabled", false},
+		{"tracking.auto_checkout_grace_minutes", 15},
 		{"attendance.web_spontaneous_activities_enabled", true},
 		{"operations.student_photos_enabled", false},
 	}
@@ -1245,4 +1259,32 @@ func TestTrackingIndicator_Validation(t *testing.T) {
 	enabledDef := config.GetDefinition("tracking.indicators_enabled")
 	require.NotNil(t, enabledDef)
 	assert.Nil(t, enabledDef.Validation, "boolean toggle should have no validation")
+}
+
+// TestAutoCheckoutSettings guards the #1798 auto-checkout pair: opt-in toggle
+// (must default to OFF so no school auto-closes sessions without consent) and
+// a grace-minutes number gated behind the toggle.
+func TestAutoCheckoutSettings(t *testing.T) {
+	enabled := config.GetDefinition(config.KeyTrackingAutoCheckoutEnabled)
+	require.NotNil(t, enabled, "tracking.auto_checkout_enabled should be registered")
+	assert.Equal(t, config.FieldBoolean, enabled.Type)
+	assert.Equal(t, false, enabled.Default, "must default to false - pure opt-in")
+	assert.Equal(t, "operations", enabled.Tab)
+	assert.Equal(t, "zeiterfassung", enabled.Category)
+	assert.Equal(t, "config:update", enabled.WritePermission)
+	assert.Nil(t, enabled.DependsOn)
+
+	grace := config.GetDefinition(config.KeyTrackingAutoCheckoutGraceMinutes)
+	require.NotNil(t, grace, "tracking.auto_checkout_grace_minutes should be registered")
+	assert.Equal(t, config.FieldNumber, grace.Type)
+	assert.Equal(t, 15, grace.Default)
+	require.NotNil(t, grace.DependsOn, "grace minutes should be gated behind the toggle")
+	assert.Equal(t, config.KeyTrackingAutoCheckoutEnabled, grace.DependsOn.Key)
+	assert.Equal(t, "eq", grace.DependsOn.Condition)
+	assert.Equal(t, true, grace.DependsOn.Value)
+	require.NotNil(t, grace.Validation)
+	require.NotNil(t, grace.Validation.Min)
+	require.NotNil(t, grace.Validation.Max)
+	assert.Equal(t, float64(0), *grace.Validation.Min)
+	assert.Equal(t, float64(240), *grace.Validation.Max)
 }

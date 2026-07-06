@@ -115,6 +115,24 @@ export function PersonalInfoSection({
           value={formData.birthday ?? ""}
           onChange={(v) => onChange("birthday", v)}
         />
+        <TextInput
+          label="Straße und Hausnummer"
+          value={formData.address_street ?? ""}
+          onChange={(v) => onChange("address_street", v)}
+          placeholder="Musterstraße 12"
+        />
+        <TextInput
+          label="PLZ"
+          value={formData.address_postal_code ?? ""}
+          onChange={(v) => onChange("address_postal_code", v)}
+          placeholder="50667"
+        />
+        <TextInput
+          label="Ort"
+          value={formData.address_city ?? ""}
+          onChange={(v) => onChange("address_city", v)}
+          placeholder="Köln"
+        />
       </div>
     </div>
   );

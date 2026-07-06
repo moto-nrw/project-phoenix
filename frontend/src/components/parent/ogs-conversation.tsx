@@ -3,37 +3,28 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { ArrowLeft, ChevronRight, Pencil } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { MessageComposer } from "~/components/messaging/message-composer";
 import { ChatBubble, ChatEventCard } from "~/components/messaging/chat-bubble";
-import { RequestDiffPanel } from "~/components/messaging/request-diff-panel";
 import { RequestStatusBadge } from "~/components/messaging/request-status-badge";
 import { useChatViewportLock } from "~/lib/hooks/use-chat-viewport-lock";
 import { getApiErrorMessage } from "~/lib/api-error-message";
 import {
-  PARENT_DEPARTURE_MODE_I18N_KEYS,
-  PARENT_DIFF_CARE_KIND_I18N_KEYS,
   parentEventI18nDescriptor,
   parentRequestStatusI18nKey,
   parentRequestTypeI18nKey,
-  type RequestDiffEntry,
 } from "~/lib/messaging-status";
 import {
   type ChildFeatures,
   type ParentMessage,
   type ThreadView,
-  createChildRequest,
   getChildConversation,
   postChildMessage,
-  withdrawChildRequest,
 } from "~/lib/parent-api";
 import {
-  CareScheduleRequestModal,
   PickupTimeModal,
-  RequestChooserModal,
   SickNoteModal,
   getOgsActions,
   useChildCare,
@@ -83,7 +74,6 @@ export function OgsConversation({
   const [draft, setDraft] = useState("");
   const care = useChildCare(studentId);
   const [activeModal, setActiveModal] = useState<OgsActionKey | null>(null);
-  const [requestChooserOpen, setRequestChooserOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -210,48 +200,6 @@ export function OgsConversation({
     }
   }, [draft, sending, studentId, applyThread]);
 
-  // The request modals own their form state and error display; this just
-  // performs the API call and updates the thread. Throwing propagates back to
-  // the modal so it can surface the message and stay open.
-  const submitRequest = useCallback(
-    async (type: "care_schedule", payload: Record<string, unknown>) => {
-      const view = await createChildRequest(studentId, type, payload);
-      // Claim the token AFTER the request resolves so this authoritative result wins.
-      applyThread(++applySeqRef.current, view);
-      // Submitting a request advances the guardian read cursor server-side
-      // (MarkReadToNewest), so any prior staff messages are now read — nudge the
-      // sidebar badge so it drops them instead of going stale until an unrelated
-      // refresh, matching handleSend.
-      nudgeUnreadBadge();
-    },
-    [studentId, applyThread],
-  );
-
-  const withdrawRequest = useCallback(
-    async (requestId: string) => {
-      setSendError(null);
-      try {
-        const view = await withdrawChildRequest(studentId, requestId);
-        // Claim the token AFTER the request resolves so this authoritative result wins.
-        applyThread(++applySeqRef.current, view);
-        // Withdrawing also advances the read cursor server-side, so nudge the
-        // badge like submitRequest/handleSend rather than leaving it stale.
-        nudgeUnreadBadge();
-      } catch (err) {
-        if (!mountedRef.current) return;
-        setSendError(
-          getApiErrorMessage(
-            err,
-            "zurückziehen",
-            "Anfrage",
-            "Die Anfrage konnte nicht zurückgezogen werden.",
-          ),
-        );
-      }
-    },
-    [studentId, applyThread],
-  );
-
   return (
     <div
       ref={containerRef}
@@ -302,11 +250,7 @@ export function OgsConversation({
                   createdAt={message.created_at}
                 />
               ) : message.kind === "request" ? (
-                <RequestItem
-                  key={message.id}
-                  message={message}
-                  onWithdraw={() => void withdrawRequest(message.id)}
-                />
+                <RequestItem key={message.id} message={message} />
               ) : (
                 <ChatBubble
                   key={message.id}
@@ -346,7 +290,6 @@ export function OgsConversation({
             features={care.features}
             loading={care.loading}
             onPick={(key) => setActiveModal(key)}
-            onOpenRequests={() => setRequestChooserOpen(true)}
           />
           {/* Only show the free-text composer when the school has parent notes
               enabled AND this relationship grants notes.write (both folded into
@@ -375,16 +318,6 @@ export function OgsConversation({
         </div>
       </section>
 
-      {requestChooserOpen && (
-        <RequestChooserModal
-          features={care.features}
-          onClose={() => setRequestChooserOpen(false)}
-          onPick={(key) => {
-            setRequestChooserOpen(false);
-            setActiveModal(key);
-          }}
-        />
-      )}
       {/* Self-service actions (sick note, pickup change) apply IMMEDIATELY and are
           NOT chat messages — the write endpoints update status/exception rows and
           fire only a student-updated cache SSE, they create no parent_messages
@@ -414,56 +347,18 @@ export function OgsConversation({
           }}
         />
       )}
-      {activeModal === "care_schedule" && (
-        <CareScheduleRequestModal
-          onClose={() => setActiveModal(null)}
-          onSubmit={(payload) => submitRequest("care_schedule", payload)}
-        />
-      )}
     </div>
   );
 }
 
-function RequestItem({
-  message,
-  onWithdraw,
-}: Readonly<{ message: ParentMessage; onWithdraw: () => void }>) {
+// Historical change-request card. Since #1803 the chat no longer CREATES
+// requests (the Stammdaten page owns that) — but past kind="request" rows still
+// arrive in the timeline and must render read-only: title + status + timestamp,
+// no diff (messages no longer carry one) and no withdraw button (withdrawal now
+// happens on the Stammdaten page). New request activity shows up as
+// non-interactive "event" pills instead.
+function RequestItem({ message }: Readonly<{ message: ParentMessage }>) {
   const t = useTranslations("parentOgsMessaging");
-  // The backend builds each diff label as a German string ("Montag ·
-  // Bringzeit"). Re-derive it from the entry's structured fields so it renders
-  // in the guardian's language; fall back to the German label only when the
-  // backend sent no structured discriminators (legacy payloads).
-  const localizeDiffLabel = (entry: RequestDiffEntry): string => {
-    const careKey = entry.care_kind
-      ? PARENT_DIFF_CARE_KIND_I18N_KEYS[entry.care_kind]
-      : undefined;
-    if (entry.weekday && careKey) {
-      return `${t(`diffWeekday${entry.weekday}`)} · ${t(careKey)}`;
-    }
-    return entry.label;
-  };
-  // The backend's old/new for a departure_mode row are German labels ("Geht
-  // alleine", "Wird abgeholt"). Re-derive them from the raw mode keys so they
-  // render in the guardian's language; fall back to the raw key only for a mode
-  // we don't have a translation for. old_modes carries the allowed set ("alone"
-  // standing in for an empty set), joined the same way the backend joins them.
-  const localizeMode = (key: string): string => {
-    const modeKey = PARENT_DEPARTURE_MODE_I18N_KEYS[key];
-    return modeKey ? t(modeKey) : key;
-  };
-  const localizedDiff = message.diff?.map((entry) => {
-    const localized = { ...entry, label: localizeDiffLabel(entry) };
-    if (entry.care_kind !== "departure_mode") {
-      return localized;
-    }
-    return {
-      ...localized,
-      old: entry.old_modes?.length
-        ? entry.old_modes.map(localizeMode).join(" / ")
-        : entry.old,
-      new: entry.new_mode ? localizeMode(entry.new_mode) : entry.new,
-    };
-  });
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
@@ -480,18 +375,6 @@ function RequestItem({
           label={t(parentRequestStatusI18nKey(message.request_status))}
         />
       </div>
-      <RequestDiffPanel diff={localizedDiff} heading={t("diffHeading")} />
-      {message.request_status === "offen" ? (
-        <Button
-          type="button"
-          variant="outline"
-          size="md"
-          className="mt-3"
-          onClick={onWithdraw}
-        >
-          {t("requestWithdraw")}
-        </Button>
-      ) : null}
     </div>
   );
 }
@@ -500,16 +383,11 @@ function RequestItem({
 // an unlabelled "+", so parents rarely discovered them and typed the same thing
 // as free text instead, which silently loses the auto-apply.
 //
-// The two groups are deliberately NOT shown alike, because they are not alike:
-//   - Immediate self-service (sick note, pickup-for-a-day) → white action pills.
-//     Frequent, low-stakes, take effect at once. One tap, one thing.
-//   - Change requests (care schedule, master data) → a single, equally large
-//     "Dauerhafte Änderung" pill that opens a chooser. Rare, consequential,
-//     confirmed by the OGS.
-// The request pill is set apart by its wording alone plus a trailing chevron
-// that reads as "opens options" rather than "does it now". The chooser then
-// spells out "the OGS confirms before it takes effect" in full, where there is
-// room, so it can never be misread. Feature flags still gate the pills.
+// These are all immediate self-service actions (sick note, pickup-for-a-day) —
+// frequent, low-stakes, one tap and it takes effect at once. Permanent change
+// requests (care schedule, master data) are NOT reachable from the chat since
+// #1803; they live on the Stammdaten page, which owns the create/withdraw flow.
+// Feature flags still gate the pills.
 //
 // Pills render only once the per-child feature flags have loaded: the pickup
 // flag arrives async (defaults off), so rendering early made "Abholung" pop in a
@@ -519,39 +397,19 @@ function QuickActions({
   features,
   loading,
   onPick,
-  onOpenRequests,
 }: Readonly<{
   features: ChildFeatures;
   loading: boolean;
   onPick: (key: OgsActionKey) => void;
-  onOpenRequests: () => void;
 }>) {
-  const t = useTranslations("parentChildCare");
   if (loading) return <div className="mb-3 h-9" aria-hidden="true" />;
   const actions = getOgsActions(features).filter((action) => action.enabled);
-  const direct = actions.filter((action) => action.group === "direct");
-  const hasRequests = actions.some((action) => action.group === "request");
-  if (direct.length === 0 && !hasRequests) return null;
+  if (actions.length === 0) return null;
   return (
     <div className="mb-3 flex flex-wrap gap-2">
-      {direct.map((action) => (
+      {actions.map((action) => (
         <QuickActionPill key={action.key} action={action} onPick={onPick} />
       ))}
-      {hasRequests ? (
-        <button
-          type="button"
-          onClick={onOpenRequests}
-          title={t("request.entryHint")}
-          className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-        >
-          <Pencil className="h-4 w-4 text-gray-400" aria-hidden="true" />
-          {t("request.entryLabel")}
-          <ChevronRight
-            className="-mr-1 h-4 w-4 text-gray-400"
-            aria-hidden="true"
-          />
-        </button>
-      ) : null}
     </div>
   );
 }

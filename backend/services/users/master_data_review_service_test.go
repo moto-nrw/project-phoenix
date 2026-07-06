@@ -12,13 +12,23 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
+
+// reviewNotesSettings stubs the parentmessaging settings resolver so the emitter
+// treats messaging as enabled (or not) for the decision-pill tests.
+type reviewNotesSettings struct{ enabled bool }
+
+func (s reviewNotesSettings) ResolveBoolForTenant(context.Context, int64, string) (bool, error) {
+	return s.enabled, nil
+}
 
 type reviewRecordingBroadcaster struct {
 	events []realtime.Event
@@ -41,6 +51,14 @@ func (b *reviewRecordingBroadcaster) BroadcastParentMessage(_ int64, _ int64, _ 
 	return nil
 }
 
+// authorizedCtx stamps admin permissions so the per-child write gate in
+// ListPending/Decide short-circuits. These tests exercise decide LOGIC (apply,
+// staleness, concurrency), not authorization; the scope gate itself is covered
+// by TestMasterDataReview_ScopedToSupervisedChildren.
+func authorizedCtx(ctx context.Context) context.Context {
+	return context.WithValue(ctx, jwt.CtxPermissions, []string{"admin:*"})
+}
+
 func insertPendingChange(t *testing.T, db *bun.DB, repos *repositories.Factory, c testpkg.ParentChain, target, field string, oldVal, newVal string) *userModels.StudentDataChangeRequest {
 	t.Helper()
 	row := &userModels.StudentDataChangeRequest{
@@ -60,13 +78,49 @@ func insertPendingChange(t *testing.T, db *bun.DB, repos *repositories.Factory, 
 	return row
 }
 
+// TestMasterDataReview_ScopedToSupervisedChildren proves the per-child write
+// gate: a staffer with users:update but neither admin nor supervision of the
+// child cannot see the request in the scoped queue and cannot decide it — while
+// the admin path sees and decides the same request.
+func TestMasterDataReview_ScopedToSupervisedChildren(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() {
+		require.NoError(t, db.Close())
+	}()
+	repos := repositories.NewFactory(db)
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
+
+	denyBase := context.WithValue(context.Background(), jwt.CtxPermissions, []string{"users:update"})
+	err := tenant.WithTenantTx(denyBase, db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		items, e := svc.ListPending(txCtx)
+		require.NoError(t, e)
+		assert.Empty(t, items, "a non-writable child's request must not appear in the queue")
+		_, e = svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true})
+		return e
+	})
+	assert.ErrorIs(t, err, userService.ErrReviewForbidden)
+
+	err = tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		items, e := svc.ListPending(txCtx)
+		require.NoError(t, e)
+		require.Len(t, items, 1)
+		_, e = svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: false, Reason: "closing", ReviewedBy: chain.AccountID})
+		return e
+	})
+	require.NoError(t, err)
+}
+
 func TestMasterDataReview_ApproveAppliesNameChange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() {
 		require.NoError(t, db.Close())
 	}()
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -74,7 +128,7 @@ func TestMasterDataReview_ApproveAppliesNameChange(t *testing.T) {
 	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Maximilian"`)
 
 	var decided *userService.MasterDataReviewItem
-	err := tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		d, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true})
 		decided = d
 		return e
@@ -96,7 +150,7 @@ func TestMasterDataReview_ApproveAppliesOtherPersonFields(t *testing.T) {
 		require.NoError(t, db.Close())
 	}()
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -104,7 +158,7 @@ func TestMasterDataReview_ApproveAppliesOtherPersonFields(t *testing.T) {
 	lastName := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "last_name", `"Schneider"`, `"Müller"`)
 	birthday := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "birthday", `null`, `"2017-12-24"`)
 
-	err := tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		if _, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: lastName.ID, Approve: true}); e != nil {
 			return e
 		}
@@ -126,7 +180,7 @@ func TestMasterDataReview_ConcurrentPersonFieldApprovalsDoNotOverwrite(t *testin
 		require.NoError(t, db.Close())
 	}()
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -140,7 +194,7 @@ func TestMasterDataReview_ConcurrentPersonFieldApprovalsDoNotOverwrite(t *testin
 		wg.Add(1)
 		go func(idx int, req *userModels.StudentDataChangeRequest) {
 			defer wg.Done()
-			errs[idx] = tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+			errs[idx] = tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 				_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: req.ID, Approve: true})
 				return e
 			})
@@ -162,7 +216,7 @@ func TestMasterDataReview_ConcurrentDecisionsKeepStatusAndRecordConsistent(t *te
 		require.NoError(t, db.Close())
 	}()
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -176,7 +230,7 @@ func TestMasterDataReview_ConcurrentDecisionsKeepStatusAndRecordConsistent(t *te
 		wg.Add(1)
 		go func(idx int, approve bool) {
 			defer wg.Done()
-			errs[idx] = tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+			errs[idx] = tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 				_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: approve})
 				return e
 			})
@@ -220,7 +274,7 @@ func TestMasterDataReview_ListPendingEnrichesStudentNames(t *testing.T) {
 		require.NoError(t, db.Close())
 	}()
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil)
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -228,7 +282,7 @@ func TestMasterDataReview_ListPendingEnrichesStudentNames(t *testing.T) {
 	insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "last_name", `"Schneider"`, `"Müller"`)
 
 	var items []*userService.MasterDataReviewItem
-	err := tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var e error
 		items, e = svc.ListPending(txCtx)
 		return e
@@ -248,12 +302,12 @@ func TestMasterDataReview_ListPendingEmptyAndInvalidRequestID(t *testing.T) {
 		require.NoError(t, db.Close())
 	}()
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
-	err := tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		items, e := svc.ListPending(txCtx)
 		require.NoError(t, e)
 		assert.Empty(t, items)
@@ -263,7 +317,7 @@ func TestMasterDataReview_ListPendingEmptyAndInvalidRequestID(t *testing.T) {
 	})
 	assert.ErrorIs(t, err, userService.ErrReviewNotFound)
 
-	err = tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: 999_999_999, Approve: true})
 		return e
 	})
@@ -276,13 +330,13 @@ func TestMasterDataReview_ApproveAppliesDepartureModes(t *testing.T) {
 		require.NoError(t, db.Close())
 	}()
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetDeparture, "allowed_departure_modes", `{}`, `{"mon":["bus"],"wed":["pickup"]}`)
 
-	err := tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true, ReviewedBy: chain.AccountID})
 		return e
 	})
@@ -300,7 +354,7 @@ func TestMasterDataReview_StalePersonApprovalConflicts(t *testing.T) {
 		require.NoError(t, db.Close())
 	}()
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -311,7 +365,7 @@ func TestMasterDataReview_StalePersonApprovalConflicts(t *testing.T) {
 	person.FirstName = "StaffEdit"
 	require.NoError(t, repos.Person.Update(context.Background(), person))
 
-	err = tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true})
 		return e
 	})
@@ -328,7 +382,7 @@ func TestMasterDataReview_StaleDepartureApprovalConflicts(t *testing.T) {
 		require.NoError(t, db.Close())
 	}()
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -341,7 +395,7 @@ func TestMasterDataReview_StaleDepartureApprovalConflicts(t *testing.T) {
 	}
 	require.NoError(t, repos.Student.Update(context.Background(), student))
 
-	err = tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true})
 		return e
 	})
@@ -360,13 +414,13 @@ func TestMasterDataReview_ApprovalBroadcastsStudentUpdatedAfterCommit(t *testing
 	}()
 	repos := repositories.NewFactory(db)
 	broadcaster := &reviewRecordingBroadcaster{}
-	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default(), broadcaster)
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default(), broadcaster)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
 
-	err := tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true, ReviewedBy: chain.AccountID})
 		assert.Empty(t, broadcaster.events, "broadcast must wait until the transaction commits")
 		return e
@@ -382,14 +436,14 @@ func TestMasterDataReview_RejectLeavesRecordUnchanged(t *testing.T) {
 		require.NoError(t, db.Close())
 	}()
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Maximilian"`)
 
-	err := tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: false, Reason: "Bitte Nachweis"})
 		return e
 	})
@@ -406,7 +460,7 @@ func TestMasterDataReview_DecideNonPendingRejected(t *testing.T) {
 		require.NoError(t, db.Close())
 	}()
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -414,13 +468,13 @@ func TestMasterDataReview_DecideNonPendingRejected(t *testing.T) {
 	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Maximilian"`)
 
 	// First decision approves; the second must fail as not-pending.
-	err := tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true})
 		return e
 	})
 	require.NoError(t, err)
 
-	err = tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true})
 		return e
 	})
@@ -433,7 +487,7 @@ func TestMasterDataReview_ApproveInvalidRowsRejected(t *testing.T) {
 		require.NoError(t, db.Close())
 	}()
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, slog.Default())
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
 
 	tests := []struct {
 		name   string
@@ -457,11 +511,104 @@ func TestMasterDataReview_ApproveInvalidRowsRejected(t *testing.T) {
 			defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 			row := insertPendingChange(t, db, repos, chain, tt.target, tt.field, `null`, tt.value)
-			err := tenant.WithTenantTx(context.Background(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+			err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 				_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true})
 				return e
 			})
 			assert.ErrorIs(t, err, tt.want)
 		})
 	}
+}
+
+// findRequestStatusPill returns the request_status pill written into the
+// (student, guardian) thread by the emitter after a master-data decision, or
+// nil when none was written. Runs inside the tenant tx so RLS admits the rows.
+func findRequestStatusPill(t *testing.T, db *bun.DB, repos *repositories.Factory, c testpkg.ParentChain) *userModels.ParentMessage {
+	t.Helper()
+	var pill *userModels.ParentMessage
+	err := tenant.WithTenantTx(context.Background(), db, c.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		thread, ferr := repos.ParentMessageThread.FindByStudentGuardian(txCtx, c.StudentID, c.AccountID)
+		if ferr != nil || thread == nil {
+			return ferr
+		}
+		msgs, merr := repos.ParentMessage.ListByThread(txCtx, thread.ID, 50)
+		if merr != nil {
+			return merr
+		}
+		for _, m := range msgs {
+			if m.EventType == userModels.ParentMessageEventRequestStatus {
+				pill = m
+			}
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	return pill
+}
+
+// TestMasterDataReview_ApproveEmitsDecisionPill wires a REAL emitter (not the
+// nil the logic-only tests use) so the after-commit decision pill actually
+// lands: approving a master-data change must drop a "bestätigt" request_status
+// pill, stamped staff/master_data, into the submitting guardian's thread.
+func TestMasterDataReview_ApproveEmitsDecisionPill(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { require.NoError(t, db.Close()) }()
+	repos := repositories.NewFactory(db)
+
+	broadcaster := &reviewRecordingBroadcaster{}
+	emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
+		reviewNotesSettings{enabled: true}, broadcaster, slog.Default())
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, emitter, slog.Default(), broadcaster)
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Maximilian"`)
+
+	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true, ReviewedBy: chain.AccountID})
+		return e
+	})
+	require.NoError(t, err)
+
+	pill := findRequestStatusPill(t, db, repos, chain)
+	require.NotNil(t, pill, "an approved master-data request must drop a decision pill")
+	assert.Equal(t, userModels.ParentMessageRequestStatusDone, pill.RequestStatus)
+	assert.Equal(t, "Anfrage bestätigt, Stammdaten übernommen", pill.Body)
+	assert.Equal(t, userModels.ParentMessageSenderStaff, pill.EventActorKind)
+}
+
+// TestMasterDataReview_RejectEmitsPillWithReason covers the rejection branch of
+// the decision pill: a rejected request carries the "abgelehnt: <reason>" body
+// and the rejected status, never the applied one.
+func TestMasterDataReview_RejectEmitsPillWithReason(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { require.NoError(t, db.Close()) }()
+	repos := repositories.NewFactory(db)
+
+	broadcaster := &reviewRecordingBroadcaster{}
+	emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
+		reviewNotesSettings{enabled: true}, broadcaster, slog.Default())
+	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, emitter, slog.Default(), broadcaster)
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetPerson, "last_name", `"Schneider"`, `"Müller"`)
+
+	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: false, Reason: "Nachweis fehlt", ReviewedBy: chain.AccountID})
+		return e
+	})
+	require.NoError(t, err)
+
+	pill := findRequestStatusPill(t, db, repos, chain)
+	require.NotNil(t, pill, "a rejected request must drop a decision pill")
+	assert.Equal(t, userModels.ParentMessageRequestStatusRejected, pill.RequestStatus)
+	assert.Equal(t, "Anfrage abgelehnt: Nachweis fehlt", pill.Body)
+
+	// The rejection must NOT have touched the live record.
+	person, err := repos.Person.FindByID(context.Background(), chain.PersonID)
+	require.NoError(t, err)
+	assert.Equal(t, "Schneider", person.LastName)
 }

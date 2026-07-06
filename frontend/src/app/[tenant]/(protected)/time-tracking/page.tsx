@@ -30,7 +30,10 @@ import { StaffSessionTable } from "~/components/staff/staff-session-table";
 import { StaffExportButton } from "~/components/staff/staff-export-button";
 import { LeaveRequestsCard } from "~/components/time-tracking/leave-requests-card";
 import type { StaffHistorySession, StaffAbsenceRow } from "~/lib/staff-api";
+import { ownShiftService } from "~/lib/shift-api";
+import type { StaffShift } from "~/lib/shift-helpers";
 import { toISODate } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useToast } from "~/contexts/ToastContext";
 import { useSWRAuth } from "~/lib/swr";
 import { useSWRConfig } from "swr";
@@ -42,6 +45,7 @@ import {
   toDateKey,
 } from "~/lib/staff-metrics-helpers";
 import {
+  PLANNED_START_NOT_REACHED_CODE,
   REOPEN_STATUS_CONFLICT_CODE,
   timeTrackingService,
 } from "~/lib/time-tracking-api";
@@ -82,6 +86,7 @@ function adaptHistorySessionForMetrics(
     auto_checked_out: session.autoCheckedOut,
     notes: session.notes || undefined,
     edit_count: session.editCount,
+    audit_count: session.auditCount,
   };
 }
 
@@ -171,6 +176,9 @@ function friendlyError(err: unknown, fallback: string): string {
   }
   if (code.startsWith("invalid session data:")) {
     return "Bitte prüfe Start- und Endzeit.";
+  }
+  if (code === "planned start not reached") {
+    return "Einstempeln ist noch nicht möglich. Bitte prüfe deine geplante Startzeit.";
   }
 
   return fallback;
@@ -468,6 +476,7 @@ function ClockInCard({
   weeklyMinutes,
   onAddAbsence,
   metrics,
+  plannedShifts,
 }: {
   readonly currentSession: WorkSession | null;
   readonly breaks: WorkSessionBreak[];
@@ -478,6 +487,7 @@ function ClockInCard({
   readonly weeklyMinutes: number;
   readonly onAddAbsence: () => void;
   readonly metrics?: ReturnType<typeof computeStaffMetrics> | null;
+  readonly plannedShifts?: readonly StaffShift[];
 }) {
   // Null until the staff member explicitly picks Vor Ort / Homeoffice / Abwesend.
   // No pre-selection per Issue #1368 — silent defaults are unacceptable for an
@@ -651,6 +661,19 @@ function ClockInCard({
             </span>
           )}
         </div>
+
+        {/* Heute geplante Schichten (Dienstplan) — dezente Zeile unter dem
+            Titel. Geteilte Dienste zeigen alle Zeitbereiche des Tages. */}
+        {plannedShifts && plannedShifts.length > 0 && (
+          <p className="-mt-3 mb-5 text-sm text-gray-500 tabular-nums">
+            Geplant:{" "}
+            {plannedShifts
+              .map((s) => `${s.startTime}–${s.endTime}`)
+              .join(" · ")}
+            {plannedShifts.reduce((sum, s) => sum + s.breakMinutes, 0) > 0 &&
+              ` · Pause ${plannedShifts.reduce((sum, s) => sum + s.breakMinutes, 0)} min`}
+          </p>
+        )}
 
         {/* ── Not checked in: start controls ── */}
         {!isCheckedIn && !isCheckedOut && (
@@ -2672,6 +2695,7 @@ function TimeTrackingContent() {
   });
 
   const toast = useToast();
+  const todayISO = useBerlinToday();
   // WeekChart shows trailing 10 workdays from today; no UI to navigate it
   // anymore (the table owns its own range state). Kept as a constant so the
   // chart's data window stays anchored at "now".
@@ -2794,9 +2818,25 @@ function TimeTrackingContent() {
   const absences = absencesData ?? [];
 
   // Check if today has an absence (for check-in warning)
-  const todayISO = toISODate(new Date());
   const todayAbsence = absences.find(
     (a) => a.dateStart <= todayISO && a.dateEnd >= todayISO,
+  );
+
+  // Today's own planned shifts (Dienstplan) — shown as a quiet
+  // "Geplant: 08:00–16:00" line in the Stempeluhr card. Fetched for today
+  // only, independent of the viewed chart week, so navigating to another
+  // week never hides today's planned shifts.
+  const { data: ownTodayShifts } = useSWRAuth<StaffShift[]>(
+    `time-tracking-own-shifts-today-${todayISO}`,
+    () => ownShiftService.getOwnShifts(todayISO, todayISO),
+    { revalidateOnFocus: false, errorRetryCount: 1 },
+  );
+  const todayShifts = useMemo(
+    () =>
+      (ownTodayShifts ?? [])
+        .filter((s) => s.date === todayISO)
+        .sort((a, b) => a.startTime.localeCompare(b.startTime)),
+    [ownTodayShifts, todayISO],
   );
 
   // --- MA-Saldo-Widget (Tranche 1.5) ----------------------------------------
@@ -2989,6 +3029,18 @@ function TimeTrackingContent() {
           });
           toast.error(
             "Heute liegt bereits eine Sitzung vor. Bitte kurz warten und erneut versuchen.",
+          );
+          return;
+        }
+        if (apiErr.code === PLANNED_START_NOT_REACHED_CODE) {
+          const plannedStart =
+            typeof apiErr.details?.planned_start_time === "string"
+              ? apiErr.details.planned_start_time
+              : undefined;
+          toast.error(
+            plannedStart
+              ? `Einstempeln ist erst ab ${plannedStart} Uhr möglich.`
+              : "Einstempeln ist noch nicht möglich.",
           );
           return;
         }
@@ -3273,6 +3325,7 @@ function TimeTrackingContent() {
           weeklyMinutes={weeklyCompletedMinutes}
           onAddAbsence={() => setAbsenceModalOpen(true)}
           metrics={ownMetrics ?? null}
+          plannedShifts={todayShifts}
         />
         <WeekChart
           history={history}

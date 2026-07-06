@@ -53,6 +53,9 @@ const sampleBackendStudent = buildBackendStudent({
   guardian_contact: "+49 123 456789",
   guardian_email: "hans@example.com",
   guardian_phone: "+49 987 654321",
+  address_street: "Musterstraße 12",
+  address_city: "Köln",
+  address_postal_code: "50667",
   group_id: 5,
   group_name: "Klasse 3a",
   extra_info: "Allergies: None",
@@ -282,6 +285,9 @@ describe("mapStudentResponse", () => {
     expect(result.contact_lg).toBe("+49 123 456789"); // guardian_contact → contact_lg
     expect(result.guardian_email).toBe("hans@example.com");
     expect(result.guardian_phone).toBe("+49 987 654321");
+    expect(result.address_street).toBe("Musterstraße 12");
+    expect(result.address_city).toBe("Köln");
+    expect(result.address_postal_code).toBe("50667");
     expect(result.extra_info).toBe("Allergies: None");
     expect(result.birthday).toBe("2015-06-15");
   });
@@ -510,6 +516,9 @@ describe("prepareStudentForBackend", () => {
       group_id: "5",
       tag_id: "RFID-12345",
       guardian_email: "test@example.com",
+      address_street: "Musterstraße 12",
+      address_city: "Köln",
+      address_postal_code: "50667",
       birthday: "2015-06-15",
     };
 
@@ -526,6 +535,9 @@ describe("prepareStudentForBackend", () => {
     expect(result.group_id).toBe(5); // string → number
     expect(result.tag_id).toBe("RFID-12345");
     expect(result.guardian_email).toBe("test@example.com");
+    expect(result.address_street).toBe("Musterstraße 12");
+    expect(result.address_city).toBe("Köln");
+    expect(result.address_postal_code).toBe("50667");
     expect(result.birthday).toBe("2015-06-15");
   });
 
@@ -649,6 +661,9 @@ describe("mapUpdateRequestToBackend", () => {
       tag_id: "RFID-12345",
       guardian_email: "hans@example.com",
       guardian_phone: "+49 987 654321",
+      address_street: "Musterstraße 12",
+      address_city: "Köln",
+      address_postal_code: "50667",
       extra_info: "Notes",
       birthday: "2015-06-15",
       health_info: "None",
@@ -668,6 +683,9 @@ describe("mapUpdateRequestToBackend", () => {
     expect(result.guardian_name).toBe("Hans Mustermann"); // name_lg → guardian_name
     expect(result.guardian_contact).toBe("+49 123 456789"); // contact_lg → guardian_contact
     expect(result.tag_id).toBe("RFID-12345");
+    expect(result.address_street).toBe("Musterstraße 12");
+    expect(result.address_city).toBe("Köln");
+    expect(result.address_postal_code).toBe("50667");
     expect(result.guardian_email).toBe("hans@example.com");
     expect(result.guardian_phone).toBe("+49 987 654321");
     expect(result.extra_info).toBe("Notes");

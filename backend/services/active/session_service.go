@@ -96,6 +96,16 @@ func (s *service) assignSupervisorNonCritical(ctx context.Context, groupID, staf
 		s.runBestEffortDB(ctx, "nfc_auto_checkin", func() error {
 			session, err := s.workSessionService.EnsureCheckedIn(ctx, staffID, active.WorkSessionSourceNFC)
 			if err != nil {
+				var plannedStart *PlannedStartNotReachedError
+				if errors.As(err, &plannedStart) {
+					s.getLogger().InfoContext(ctx, "NFC auto-check-in skipped: planned start not reached",
+						slog.Int64("staff_id", staffID),
+						slog.Int64("group_id", groupID),
+						slog.String("planned_start_time", plannedStart.PlannedStartTime),
+						slog.String("current_time", plannedStart.CurrentTime),
+					)
+					return nil
+				}
 				return err
 			}
 			if session == nil {
@@ -310,6 +320,16 @@ func (s *service) assignMultipleSupervisorsNonCritical(ctx context.Context, grou
 			s.runBestEffortDB(ctx, "nfc_auto_checkin", func() error {
 				session, err := s.workSessionService.EnsureCheckedIn(ctx, staffID, active.WorkSessionSourceNFC)
 				if err != nil {
+					var plannedStart *PlannedStartNotReachedError
+					if errors.As(err, &plannedStart) {
+						s.getLogger().InfoContext(ctx, "NFC auto-check-in skipped: planned start not reached",
+							slog.Int64("staff_id", staffID),
+							slog.Int64("group_id", groupID),
+							slog.String("planned_start_time", plannedStart.PlannedStartTime),
+							slog.String("current_time", plannedStart.CurrentTime),
+						)
+						return nil
+					}
 					return err
 				}
 				if session == nil {

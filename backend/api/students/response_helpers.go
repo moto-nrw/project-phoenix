@@ -128,6 +128,18 @@ func populateSensitiveStudentFields(response *StudentResponse, student *users.St
 	}
 }
 
+func populateStudentAddressFields(response *StudentResponse, student *users.Student) {
+	if student.AddressStreet != nil {
+		response.AddressStreet = *student.AddressStreet
+	}
+	if student.AddressCity != nil {
+		response.AddressCity = *student.AddressCity
+	}
+	if student.AddressPostalCode != nil {
+		response.AddressPostalCode = *student.AddressPostalCode
+	}
+}
+
 // populatePhotoFields fills the response with photo URL + consent metadata.
 // Visible to all authenticated staff so any list view can render the avatar.
 //
@@ -352,6 +364,9 @@ func newStudentResponseWithOpts(ctx context.Context, opts StudentResponseOpts, s
 
 	// Sensitive student fields (notes, sickness) are now visible to all authenticated staff
 	populateSensitiveStudentFields(&response, student)
+	if hasFullAccess {
+		populateStudentAddressFields(&response, student)
+	}
 
 	// Photo + consent metadata. Suppressed entirely when the feature is
 	// off; PhotoURL additionally requires hasFullAccess so we never hand
@@ -397,6 +412,9 @@ func newStudentResponseFromSnapshot(_ context.Context, student *users.Student, p
 
 	// Sensitive student fields (notes, sickness) are now visible to all authenticated staff
 	populateSnapshotSensitiveFields(&response, student)
+	if hasFullAccess {
+		populateStudentAddressFields(&response, student)
+	}
 
 	// Photo + consent metadata — same rationale as in newStudentResponseWithOpts.
 	populatePhotoFields(&response, student, photosEnabled, hasFullAccess)

@@ -403,7 +403,7 @@ func TestToMessageResponses_StaffNameMaskedUnlessVisible(t *testing.T) {
 		},
 	}
 
-	out := toMessageResponses(messages, counterpart, nil)
+	out := toMessageResponses(messages, counterpart)
 	require.Len(t, out, 3)
 	assert.Equal(t, counterpart, out[0].SenderName, "masked staff reply collapses to the OGS label")
 	assert.Equal(t, "Sabine S.", out[1].SenderName, "visible staff reply shows first name + last initial")

@@ -111,11 +111,15 @@ func (f *fakeParentService) PostChildMessage(context.Context, int64, int64, stri
 	return nil, nil
 }
 
-func (f *fakeParentService) CreateChildRequest(context.Context, int64, int64, string, map[string]any) (*parentService.MessageThreadView, error) {
+func (f *fakeParentService) GetChildCareSchedule(context.Context, int64, int64) (*parentService.ChildCareSchedule, error) {
 	return nil, nil
 }
 
-func (f *fakeParentService) WithdrawChildRequest(context.Context, int64, int64, int64) (*parentService.MessageThreadView, error) {
+func (f *fakeParentService) CreateCareScheduleRequest(context.Context, int64, int64, map[string]any) (*parentService.ChildCareSchedule, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) WithdrawCareScheduleRequest(context.Context, int64, int64, int64) (*parentService.ChildCareSchedule, error) {
 	return nil, nil
 }
 

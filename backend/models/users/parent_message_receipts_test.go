@@ -98,4 +98,23 @@ func TestIsCounterpartMessage(t *testing.T) {
 	assert.False(t, IsCounterpartMessage(guardianMsg, false), "a guardian message is not the guardian reader's counterpart")
 	assert.True(t, IsCounterpartMessage(staffEvent, false), "a staff-triggered system event is the guardian reader's counterpart")
 	assert.False(t, IsCounterpartMessage(guardianEvent, false), "a guardian-triggered system event is not the guardian reader's counterpart")
+
+	// A request_created pill (guardian-triggered system event) is EXCLUDED for
+	// both readers — in lock-step with counterpartUnread's
+	// `event_type IS DISTINCT FROM 'request_created'`. Otherwise MarkReadToNewest
+	// would advance the staff read cursor onto it and skip an earlier, still
+	// committing guardian message the unread SQL never counted.
+	requestCreated := receiptMsg(5, now, ParentMessageSenderSystem)
+	requestCreated.EventActorKind = ParentMessageSenderGuardian
+	requestCreated.EventType = ParentMessageEventRequestCreated
+	assert.False(t, IsCounterpartMessage(requestCreated, true), "a request_created pill is never the staff reader's counterpart (queue badge, not unread chat)")
+	assert.False(t, IsCounterpartMessage(requestCreated, false), "a request_created pill is not the guardian reader's counterpart either")
+
+	// A request_status pill (the closing event) stays counted like any other
+	// system event, attributed by EventActorKind.
+	requestStatus := receiptMsg(6, now, ParentMessageSenderSystem)
+	requestStatus.EventActorKind = ParentMessageSenderStaff
+	requestStatus.EventType = ParentMessageEventRequestStatus
+	assert.True(t, IsCounterpartMessage(requestStatus, false), "a staff-triggered request_status pill is the guardian reader's counterpart")
+	assert.False(t, IsCounterpartMessage(requestStatus, true), "a staff-triggered request_status pill is not the staff reader's own counterpart")
 }
