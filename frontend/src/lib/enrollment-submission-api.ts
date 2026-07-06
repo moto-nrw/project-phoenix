@@ -251,7 +251,12 @@ export interface PublicCareOfferingsResult {
   offerings: PublicCareOffering[];
   careOfferingSelectionMode: CareOfferingSelectionMode;
   careRequired: boolean;
-  schoolClass: PublicSchoolClassConfig;
+  /**
+   * Concrete-class config (#1833). Present only when the backend
+   * includes `school_class` in the response; consumers coalesce to
+   * EMPTY_SCHOOL_CLASS_CONFIG when absent.
+   */
+  schoolClass?: PublicSchoolClassConfig;
 }
 
 export interface LateInviteFetchOptions {
@@ -301,7 +306,12 @@ export async function fetchPublicCareOfferings(
     offerings: Array.isArray(payload?.offerings) ? payload.offerings : [],
     careOfferingSelectionMode: mode,
     careRequired: mode !== "optional",
-    schoolClass: parseSchoolClassConfig(payload?.school_class),
+    // Attach the config only when the backend actually sent it, so the
+    // normalized shape for a payload without `school_class` is unchanged.
+    schoolClass:
+      payload?.school_class == null
+        ? undefined
+        : parseSchoolClassConfig(payload.school_class),
   };
 }
 

@@ -387,6 +387,7 @@ export function EnrollmentForm({
                 offerings: [],
                 careOfferingSelectionMode: "optional" as const,
                 careRequired: false,
+                schoolClass: EMPTY_SCHOOL_CLASS_CONFIG,
               }),
           profileLoader().catch(() => null),
           // Skip the captcha config when the caller already authenticated
