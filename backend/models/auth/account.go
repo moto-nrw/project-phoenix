@@ -39,17 +39,23 @@ type Account struct {
 
 // Validate ensures account data is valid
 func (a *Account) Validate() error {
-	if a.Email == "" {
+	return validateAccountEmail(&a.Email)
+}
+
+// validateAccountEmail is the shared required/format/lowercase email rule
+// of Account and AccountParent. It normalizes the address in place.
+func validateAccountEmail(email *string) error {
+	if *email == "" {
 		return errors.New("email is required")
 	}
 
 	// Validate email format
-	if _, err := mail.ParseAddress(a.Email); err != nil {
+	if _, err := mail.ParseAddress(*email); err != nil {
 		return errors.New("invalid email format")
 	}
 
 	// Convert email to lowercase for consistency
-	a.Email = strings.ToLower(a.Email)
+	*email = strings.ToLower(*email)
 
 	return nil
 }

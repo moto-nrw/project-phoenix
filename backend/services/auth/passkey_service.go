@@ -177,7 +177,7 @@ func (s *passkeyService) StartEnrollmentChallenge(ctx context.Context, accountID
 	}
 	return &PasskeyEnrollmentChallenge{
 		ChallengeToken: challengeToken,
-		MaskedEmail:    maskEmailForUX(account.Email),
+		MaskedEmail:    MaskEmailForUX(account.Email),
 	}, nil
 }
 

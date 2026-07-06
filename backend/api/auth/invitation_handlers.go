@@ -383,7 +383,17 @@ func (rs *Resource) resendInvitation(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New(errInvitationServiceUnavailable)))
 		return
 	}
+	rs.resendInvitationHandler(w, r,
+		rs.InvitationService.ResendInvitation,
+		"invitation resend requested", "Invitation resent", "Invitation resent successfully")
+}
 
+// resendInvitationHandler is the shared body of the staff and guardian
+// invitation resend endpoints: parse id, run the resend inside the tenant
+// tx (when a DB is wired), map expired/known errors, log, respond.
+// The response strings are passed verbatim per endpoint. Callers must
+// nil-check their service before delegating (svcCall is a bound method).
+func (rs *Resource) resendInvitationHandler(w http.ResponseWriter, r *http.Request, svcCall func(ctx context.Context, invitationID, actorID int64) error, logMsg, message, respondMsg string) {
 	idParam := chi.URLParam(r, "id")
 	invitationID, err := strconv.ParseInt(idParam, 10, 64)
 	if err != nil {
@@ -396,10 +406,10 @@ func (rs *Resource) resendInvitation(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if rs.db != nil {
 		err = tenant.WithTenantTx(ctx, rs.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
-			return rs.InvitationService.ResendInvitation(txCtx, invitationID, int64(claims.ID))
+			return svcCall(txCtx, invitationID, int64(claims.ID))
 		})
 	} else {
-		err = rs.InvitationService.ResendInvitation(ctx, invitationID, int64(claims.ID))
+		err = svcCall(ctx, invitationID, int64(claims.ID))
 	}
 	if err != nil {
 		if errors.Is(err, authService.ErrInvitationExpired) {
@@ -413,10 +423,10 @@ func (rs *Resource) resendInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slog.Default().Info("invitation resend requested",
+	slog.Default().Info(logMsg,
 		slog.Int64("invitation_id", invitationID),
 		slog.Int64("account_id", int64(claims.ID)))
-	common.Respond(w, r, http.StatusOK, map[string]string{"message": "Invitation resent"}, "Invitation resent successfully")
+	common.Respond(w, r, http.StatusOK, map[string]string{"message": message}, respondMsg)
 }
 
 func (rs *Resource) revokeInvitation(w http.ResponseWriter, r *http.Request) {

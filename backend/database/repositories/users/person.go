@@ -5,7 +5,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelAuth "github.com/moto-nrw/project-phoenix/models/auth"
@@ -72,7 +71,7 @@ func NewPersonRepository(db *bun.DB) users.PersonRepository {
 // FindByTagID retrieves a person by their RFID tag ID
 func (r *PersonRepository) FindByTagID(ctx context.Context, tagID string) (*users.Person, error) {
 	// Normalize the tag ID to match the stored format
-	normalizedTagID := normalizeTagID(tagID)
+	normalizedTagID := users.NormalizeTagID(tagID)
 
 	person := new(users.Person)
 	query := base.GetDB(ctx, r.db).NewSelect().
@@ -218,24 +217,10 @@ func (r *PersonRepository) UnlinkFromAccount(ctx context.Context, personID int64
 	return r.unlinkField(ctx, personID, "account_id", "unlink from account")
 }
 
-// normalizeTagID normalizes RFID tag ID format (same logic as RFIDCard.Validate)
-func normalizeTagID(tagID string) string {
-	// Trim spaces
-	tagID = strings.TrimSpace(tagID)
-
-	// Remove common separators
-	tagID = strings.ReplaceAll(tagID, ":", "")
-	tagID = strings.ReplaceAll(tagID, "-", "")
-	tagID = strings.ReplaceAll(tagID, " ", "")
-
-	// Convert to uppercase
-	return strings.ToUpper(tagID)
-}
-
 // LinkToRFIDCard associates a person with an RFID card
 func (r *PersonRepository) LinkToRFIDCard(ctx context.Context, personID int64, tagID string) error {
 	// Normalize the tag ID to match RFID card format
-	normalizedTagID := normalizeTagID(tagID)
+	normalizedTagID := users.NormalizeTagID(tagID)
 
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.Person)(nil)).

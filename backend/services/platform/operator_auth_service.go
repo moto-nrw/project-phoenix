@@ -237,7 +237,7 @@ func (s *operatorAuthService) LoginWithMFAGate(
 			Status:                OperatorLoginStatusMFAEnrollmentRequired,
 			AccessToken:           enrollmentToken,
 			Operator:              operator,
-			MaskedEmail:           maskOperatorEmailForUX(operator.Email),
+			MaskedEmail:           authSvc.MaskEmailForUX(operator.Email),
 			MFAEnrollmentRequired: true,
 		}, nil
 	}
@@ -261,7 +261,7 @@ func (s *operatorAuthService) LoginWithMFAGate(
 		return &OperatorLoginResult{
 			Status:               OperatorLoginStatusMFARequired,
 			ChallengeToken:       challenge,
-			MaskedEmail:          maskOperatorEmailForUX(operator.Email),
+			MaskedEmail:          authSvc.MaskEmailForUX(operator.Email),
 			TrustedDeviceEnabled: true,
 			TrustedDeviceDays:    int(OperatorMFATrustedDeviceDuration.Hours() / 24),
 		}, nil
@@ -338,22 +338,6 @@ func (s *operatorAuthService) IssueTokensForAuthenticatedOperator(
 		return "", "", &OperatorInactiveError{OperatorID: operatorID}
 	}
 	return s.issueOperatorTokenPair(ctx, operator, parseClientIPForOperator(ipAddress))
-}
-
-// maskOperatorEmailForUX mirrors auth.maskEmailForUX so the operator UX
-// matches the tenant one — show users which mailbox just received a code
-// without leaking the full address.
-func maskOperatorEmailForUX(email string) string {
-	at := strings.IndexByte(email, '@')
-	if at <= 0 {
-		return email
-	}
-	local := email[:at]
-	domain := email[at:]
-	if len(local) <= 1 {
-		return local + "***" + domain
-	}
-	return string(local[0]) + "***" + domain
 }
 
 // parseClientIPForOperator wraps net.ParseIP with the empty-string guard

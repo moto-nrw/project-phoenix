@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -15,7 +14,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -170,38 +168,7 @@ func (rs *Resource) resendGuardianInvitation(w http.ResponseWriter, r *http.Requ
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New(errGuardianInvitationServiceUnavailable)))
 		return
 	}
-
-	idParam := chi.URLParam(r, "id")
-	invitationID, err := strconv.ParseInt(idParam, 10, 64)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid invitation id")))
-		return
-	}
-
-	claims := jwt.ClaimsFromCtx(r.Context())
-
-	ctx := r.Context()
-	if rs.db != nil {
-		err = tenant.WithTenantTx(ctx, rs.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
-			return rs.GuardianInvitationService.Resend(txCtx, invitationID, int64(claims.ID))
-		})
-	} else {
-		err = rs.GuardianInvitationService.Resend(ctx, invitationID, int64(claims.ID))
-	}
-	if err != nil {
-		if errors.Is(err, authService.ErrInvitationExpired) {
-			common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrInvitationExpired))
-			return
-		}
-		if renderInvitationError(w, r, err) {
-			return
-		}
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-
-	slog.Default().Info("guardian invitation resend requested",
-		slog.Int64("invitation_id", invitationID),
-		slog.Int64("account_id", int64(claims.ID)))
-	common.Respond(w, r, http.StatusOK, map[string]string{"message": "Guardian invitation resent"}, "Guardian invitation resent successfully")
+	rs.resendInvitationHandler(w, r,
+		rs.GuardianInvitationService.Resend,
+		"guardian invitation resend requested", "Guardian invitation resent", "Guardian invitation resent successfully")
 }

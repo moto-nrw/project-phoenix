@@ -284,52 +284,36 @@ func (s *Service) DeleteGroup(ctx context.Context, id int64, requestingStaffID i
 	return nil
 }
 
-// deleteGroupEnrollments deletes all enrollments for a group
-func deleteGroupEnrollments(ctx context.Context, service *Service, groupID int64) error {
-	enrollments, err := service.enrollmentRepo.FindByGroupID(ctx, groupID)
+// deleteGroupRows deletes every row FindByGroupID returns, one delete per
+// row (per-row deletes keep the historical query pattern and repo hooks).
+func deleteGroupRows[E interface{ GetID() any }](ctx context.Context, groupID int64, find func(context.Context, int64) ([]E, error), del func(context.Context, any) error) error {
+	rows, err := find(ctx, groupID)
 	if err != nil {
 		return err
 	}
 
-	for _, enrollment := range enrollments {
-		if err := service.enrollmentRepo.Delete(ctx, enrollment.ID); err != nil {
+	for _, row := range rows {
+		if err := del(ctx, row.GetID()); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+// deleteGroupEnrollments deletes all enrollments for a group
+func deleteGroupEnrollments(ctx context.Context, service *Service, groupID int64) error {
+	return deleteGroupRows(ctx, groupID, service.enrollmentRepo.FindByGroupID, service.enrollmentRepo.Delete)
 }
 
 // deleteGroupSupervisors deletes all supervisors for a group
 func deleteGroupSupervisors(ctx context.Context, service *Service, groupID int64) error {
-	supervisors, err := service.supervisorRepo.FindByGroupID(ctx, groupID)
-	if err != nil {
-		return err
-	}
-
-	for _, supervisor := range supervisors {
-		if err := service.supervisorRepo.Delete(ctx, supervisor.ID); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return deleteGroupRows(ctx, groupID, service.supervisorRepo.FindByGroupID, service.supervisorRepo.Delete)
 }
 
 // deleteGroupSchedules deletes all schedules for a group
 func deleteGroupSchedules(ctx context.Context, service *Service, groupID int64) error {
-	schedules, err := service.scheduleRepo.FindByGroupID(ctx, groupID)
-	if err != nil {
-		return err
-	}
-
-	for _, schedule := range schedules {
-		if err := service.scheduleRepo.Delete(ctx, schedule.ID); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return deleteGroupRows(ctx, groupID, service.scheduleRepo.FindByGroupID, service.scheduleRepo.Delete)
 }
 
 // ListGroups lists activity groups with optional filters

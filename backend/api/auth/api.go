@@ -748,15 +748,22 @@ type RegisterRequest struct {
 
 // Bind validates the register request
 func (req *RegisterRequest) Bind(_ *http.Request) error {
-	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
-	req.Username = strings.TrimSpace(req.Username)
+	return validateAccountCredentialFields(req, &req.Email, &req.Username, &req.Password, &req.ConfirmPassword)
+}
 
-	return validation.ValidateStruct(req,
-		validation.Field(&req.Email, validation.Required, is.Email),
-		validation.Field(&req.Username, validation.Required, validation.Length(3, 30)),
-		validation.Field(&req.Password, validation.Required, validation.Length(8, 0)),
-		validation.Field(&req.ConfirmPassword, validation.Required, validation.By(func(value interface{}) error {
-			if req.Password != req.ConfirmPassword {
+// validateAccountCredentialFields normalizes and validates the shared
+// email/username/password(+confirmation) fields of the account-creation
+// payloads (staff registration and parent accounts).
+func validateAccountCredentialFields(structPtr any, email, username, password, confirmPassword *string) error {
+	*email = strings.TrimSpace(strings.ToLower(*email))
+	*username = strings.TrimSpace(*username)
+
+	return validation.ValidateStruct(structPtr,
+		validation.Field(email, validation.Required, is.Email),
+		validation.Field(username, validation.Required, validation.Length(3, 30)),
+		validation.Field(password, validation.Required, validation.Length(8, 0)),
+		validation.Field(confirmPassword, validation.Required, validation.By(func(value interface{}) error {
+			if *password != *confirmPassword {
 				return errors.New(errPasswordsNotMatch)
 			}
 			return nil
@@ -1212,28 +1219,10 @@ func (req *CreatePermissionRequest) Bind(_ *http.Request) error {
 	)
 }
 
-// UpdatePermissionRequest represents the update permission request payload
-type UpdatePermissionRequest struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Resource    string `json:"resource"`
-	Action      string `json:"action"`
-}
-
-// Bind validates the update permission request
-func (req *UpdatePermissionRequest) Bind(_ *http.Request) error {
-	req.Name = strings.TrimSpace(req.Name)
-	req.Description = strings.TrimSpace(req.Description)
-	req.Resource = strings.TrimSpace(strings.ToLower(req.Resource))
-	req.Action = strings.TrimSpace(strings.ToLower(req.Action))
-
-	return validation.ValidateStruct(req,
-		validation.Field(&req.Name, validation.Required, validation.Length(1, 100)),
-		validation.Field(&req.Description, validation.Length(0, 500)),
-		validation.Field(&req.Resource, validation.Required, validation.Length(1, 50)),
-		validation.Field(&req.Action, validation.Required, validation.Length(1, 50)),
-	)
-}
+// UpdatePermissionRequest represents the update permission request payload.
+// Field set, JSON tags, and Bind validation are identical to the create
+// payload, so it is a type alias.
+type UpdatePermissionRequest = CreatePermissionRequest
 
 // PermissionResponse represents a permission response
 type PermissionResponse struct {
@@ -1321,20 +1310,7 @@ type CreateParentAccountRequest struct {
 
 // Bind validates the create parent account request
 func (req *CreateParentAccountRequest) Bind(_ *http.Request) error {
-	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
-	req.Username = strings.TrimSpace(req.Username)
-
-	return validation.ValidateStruct(req,
-		validation.Field(&req.Email, validation.Required, is.Email),
-		validation.Field(&req.Username, validation.Required, validation.Length(3, 30)),
-		validation.Field(&req.Password, validation.Required, validation.Length(8, 0)),
-		validation.Field(&req.ConfirmPassword, validation.Required, validation.By(func(value interface{}) error {
-			if req.Password != req.ConfirmPassword {
-				return errors.New(errPasswordsNotMatch)
-			}
-			return nil
-		})),
-	)
+	return validateAccountCredentialFields(req, &req.Email, &req.Username, &req.Password, &req.ConfirmPassword)
 }
 
 // ParentAccountResponse represents a parent account response

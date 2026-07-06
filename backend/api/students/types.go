@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
+	rfidAPI "github.com/moto-nrw/project-phoenix/api/iot/rfid"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -287,10 +288,9 @@ type UpdateStudentRequest struct {
 	PhotoConsentGiven *bool `json:"photo_consent_given,omitempty"`
 }
 
-// RFIDAssignmentRequest represents an RFID tag assignment request
-type RFIDAssignmentRequest struct {
-	RFIDTag string `json:"rfid_tag"`
-}
+// RFIDAssignmentRequest is the RFID tag assignment payload, shared with
+// the device-auth endpoint in api/iot/rfid (single declaration site).
+type RFIDAssignmentRequest = rfidAPI.RFIDAssignmentRequest
 
 // RFIDAssignmentResponse represents an RFID tag assignment response
 type RFIDAssignmentResponse struct {
@@ -521,20 +521,6 @@ func isValidStudentStatusDayStatus(status string) bool {
 	default:
 		return false
 	}
-}
-
-// Bind validates the RFID assignment request
-func (req *RFIDAssignmentRequest) Bind(_ *http.Request) error {
-	if req.RFIDTag == "" {
-		return errors.New("rfid_tag is required")
-	}
-	if len(req.RFIDTag) < 8 {
-		return errors.New("rfid_tag must be at least 8 characters")
-	}
-	if len(req.RFIDTag) > 64 {
-		return errors.New("rfid_tag must be at most 64 characters")
-	}
-	return nil
 }
 
 // Bind validates the privacy consent request

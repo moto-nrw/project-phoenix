@@ -133,7 +133,7 @@ func (s *operatorPasskeyService) StartEnrollmentChallenge(ctx context.Context, o
 	}
 	return &OperatorPasskeyEnrollmentChallenge{
 		ChallengeToken: challengeToken,
-		MaskedEmail:    maskOperatorEmailForUX(operator.Email),
+		MaskedEmail:    authService.MaskEmailForUX(operator.Email),
 	}, nil
 }
 

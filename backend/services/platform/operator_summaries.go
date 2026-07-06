@@ -17,56 +17,39 @@ type (
 	SchoolSummary       = platform.SchoolSummary
 )
 
-// GetProvisioningStats returns platform-wide counts for the operator overview.
-func (s *operatorProvisioningService) GetProvisioningStats(ctx context.Context) (*ProvisioningStats, error) {
-	var result *ProvisioningStats
+// adminTxValue runs fn inside WithAdminTxOrDirect and captures its value —
+// the shared capture-and-return wrapper of the operator summary readers.
+func adminTxValue[T any](ctx context.Context, s *operatorProvisioningService, fn func(adminCtx context.Context) (T, error)) (T, error) {
+	var result T
 	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
-		stats, scanErr := s.SummariesRepo.Stats(adminCtx)
-		if scanErr != nil {
-			return scanErr
+		v, fnErr := fn(adminCtx)
+		if fnErr != nil {
+			return fnErr
 		}
-		result = stats
+		result = v
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		var zero T
+		return zero, err
 	}
 	return result, nil
+}
+
+// GetProvisioningStats returns platform-wide counts for the operator overview.
+func (s *operatorProvisioningService) GetProvisioningStats(ctx context.Context) (*ProvisioningStats, error) {
+	return adminTxValue(ctx, s, s.SummariesRepo.Stats)
 }
 
 // ListOrganizationSummaries returns all organizations (including soft-deleted)
 // with per-row aggregate counts. Counts only include non-deleted child entities.
 func (s *operatorProvisioningService) ListOrganizationSummaries(ctx context.Context) ([]*OrganizationSummary, error) {
-	var result []*OrganizationSummary
-	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
-		summaries, scanErr := s.SummariesRepo.OrganizationSummaries(adminCtx)
-		if scanErr != nil {
-			return scanErr
-		}
-		result = summaries
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
+	return adminTxValue(ctx, s, s.SummariesRepo.OrganizationSummaries)
 }
 
 // ListSchoolSummaries returns all schools (global scope) with per-row counts.
 func (s *operatorProvisioningService) ListSchoolSummaries(ctx context.Context) ([]*SchoolSummary, error) {
-	var result []*SchoolSummary
-	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
-		summaries, scanErr := s.SummariesRepo.SchoolSummaries(adminCtx)
-		if scanErr != nil {
-			return scanErr
-		}
-		result = summaries
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
+	return adminTxValue(ctx, s, s.SummariesRepo.SchoolSummaries)
 }
 
 // ListOrganizationSchoolSummaries returns schools under a specific organization
@@ -74,26 +57,16 @@ func (s *operatorProvisioningService) ListSchoolSummaries(ctx context.Context) (
 // can show them in the Papierkorb. Returns OrganizationNotFoundError if the org
 // does not exist.
 func (s *operatorProvisioningService) ListOrganizationSchoolSummaries(ctx context.Context, organizationID int64) ([]*SchoolSummary, error) {
-	var result []*SchoolSummary
-	err := tenant.WithAdminTxOrDirect(ctx, s.adminDB(), func(adminCtx context.Context) error {
+	return adminTxValue(ctx, s, func(adminCtx context.Context) ([]*SchoolSummary, error) {
 		org, findErr := s.OrganizationRepo.FindByID(adminCtx, organizationID)
 		if findErr != nil {
-			return findErr
+			return nil, findErr
 		}
 		if org == nil {
-			return &OrganizationNotFoundError{OrganizationID: organizationID}
+			return nil, &OrganizationNotFoundError{OrganizationID: organizationID}
 		}
-		summaries, scanErr := s.SummariesRepo.SchoolSummariesByOrganization(adminCtx, organizationID)
-		if scanErr != nil {
-			return scanErr
-		}
-		result = summaries
-		return nil
+		return s.SummariesRepo.SchoolSummariesByOrganization(adminCtx, organizationID)
 	})
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
 }
 
 // ListOrganizationPersons returns all persons across every school belonging to

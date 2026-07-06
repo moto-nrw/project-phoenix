@@ -166,46 +166,45 @@ func (s *personService) Update(ctx context.Context, person *userModels.Person) e
 	return nil
 }
 
-// validateAccountIfChanged validates account exists if AccountID is being changed
-func (s *personService) validateAccountIfChanged(ctx context.Context, person, existingPerson *userModels.Person) error {
-	if person.AccountID == nil {
+// validateChangedRef checks that a re-pointed reference (account, RFID card)
+// still resolves to an existing row. Skips when the new value is unset or
+// unchanged; find reports whether the referenced row exists.
+func validateChangedRef[T comparable](ctx context.Context, newID, oldID *T, find func(context.Context, T) (bool, error), notFound error) error {
+	if newID == nil {
 		return nil
 	}
 
-	if existingPerson.AccountID != nil && *existingPerson.AccountID == *person.AccountID {
+	if oldID != nil && *oldID == *newID {
 		return nil
 	}
 
-	account, err := s.AccountRepo.FindByID(ctx, *person.AccountID)
+	found, err := find(ctx, *newID)
 	if err != nil {
 		return &UsersError{Op: opUpdatePerson, Err: err}
 	}
-	if account == nil {
-		return &UsersError{Op: opUpdatePerson, Err: ErrAccountNotFound}
+	if !found {
+		return &UsersError{Op: opUpdatePerson, Err: notFound}
 	}
 
 	return nil
 }
 
+// validateAccountIfChanged validates account exists if AccountID is being changed
+func (s *personService) validateAccountIfChanged(ctx context.Context, person, existingPerson *userModels.Person) error {
+	return validateChangedRef(ctx, person.AccountID, existingPerson.AccountID,
+		func(ctx context.Context, id int64) (bool, error) {
+			account, err := s.AccountRepo.FindByID(ctx, id)
+			return account != nil, err
+		}, ErrAccountNotFound)
+}
+
 // validateRFIDCardIfChanged validates RFID card exists if TagID is being changed
 func (s *personService) validateRFIDCardIfChanged(ctx context.Context, person, existingPerson *userModels.Person) error {
-	if person.TagID == nil {
-		return nil
-	}
-
-	if existingPerson.TagID != nil && *existingPerson.TagID == *person.TagID {
-		return nil
-	}
-
-	card, err := s.RFIDRepo.FindByID(ctx, *person.TagID)
-	if err != nil {
-		return &UsersError{Op: opUpdatePerson, Err: err}
-	}
-	if card == nil {
-		return &UsersError{Op: opUpdatePerson, Err: ErrRFIDCardNotFound}
-	}
-
-	return nil
+	return validateChangedRef(ctx, person.TagID, existingPerson.TagID,
+		func(ctx context.Context, id string) (bool, error) {
+			card, err := s.RFIDRepo.FindByID(ctx, id)
+			return card != nil, err
+		}, ErrRFIDCardNotFound)
 }
 
 // Delete removes a person

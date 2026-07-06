@@ -1,9 +1,6 @@
 package auth
 
 import (
-	"errors"
-	"net/mail"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -22,19 +19,7 @@ type AccountParent struct {
 
 // Validate ensures account parent data is valid
 func (a *AccountParent) Validate() error {
-	if a.Email == "" {
-		return errors.New("email is required")
-	}
-
-	// Validate email format
-	if _, err := mail.ParseAddress(a.Email); err != nil {
-		return errors.New("invalid email format")
-	}
-
-	// Convert email to lowercase for consistency
-	a.Email = strings.ToLower(a.Email)
-
-	return nil
+	return validateAccountEmail(&a.Email)
 }
 
 // IsActive returns whether the account is active

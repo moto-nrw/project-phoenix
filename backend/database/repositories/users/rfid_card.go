@@ -5,7 +5,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -32,7 +31,7 @@ func NewRFIDCardRepository(db *bun.DB) users.RFIDCardRepository {
 // Delete overrides the base Delete method to match the interface
 func (r *RFIDCardRepository) Delete(ctx context.Context, id string) error {
 	// Normalize the tag ID to match stored format
-	normalizedID := normalizeRFIDTagID(id)
+	normalizedID := users.NormalizeTagID(id)
 
 	query := base.GetDB(ctx, r.db).NewDelete().
 		Model((*users.RFIDCard)(nil)).
@@ -52,24 +51,10 @@ func (r *RFIDCardRepository) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-// normalizeRFIDTagID normalizes RFID tag ID format (same logic as RFIDCard.Validate)
-func normalizeRFIDTagID(tagID string) string {
-	// Trim spaces
-	tagID = strings.TrimSpace(tagID)
-
-	// Remove common separators
-	tagID = strings.ReplaceAll(tagID, ":", "")
-	tagID = strings.ReplaceAll(tagID, "-", "")
-	tagID = strings.ReplaceAll(tagID, " ", "")
-
-	// Convert to uppercase
-	return strings.ToUpper(tagID)
-}
-
 // FindByID overrides the base FindByID method to match the interface
 func (r *RFIDCardRepository) FindByID(ctx context.Context, id string) (*users.RFIDCard, error) {
 	// Normalize the tag ID to match stored format
-	normalizedID := normalizeRFIDTagID(id)
+	normalizedID := users.NormalizeTagID(id)
 
 	card := new(users.RFIDCard)
 	query := base.GetDB(ctx, r.db).NewSelect().
@@ -97,7 +82,7 @@ func (r *RFIDCardRepository) FindByID(ctx context.Context, id string) (*users.RF
 // Deactivate sets an RFID card as inactive
 func (r *RFIDCardRepository) Deactivate(ctx context.Context, id string) error {
 	// Normalize the tag ID to match stored format
-	normalizedID := normalizeRFIDTagID(id)
+	normalizedID := users.NormalizeTagID(id)
 
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.RFIDCard)(nil)).
@@ -144,7 +129,7 @@ func (r *RFIDCardRepository) List(ctx context.Context, filters map[string]interf
 // FindCardWithPerson retrieves an RFID card with associated person data
 func (r *RFIDCardRepository) FindCardWithPerson(ctx context.Context, id string) (*users.RFIDCard, error) {
 	// Normalize the tag ID to match stored format
-	normalizedID := normalizeRFIDTagID(id)
+	normalizedID := users.NormalizeTagID(id)
 
 	// First get the card
 	card, err := r.FindByID(ctx, id)

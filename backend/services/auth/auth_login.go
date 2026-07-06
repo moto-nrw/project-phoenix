@@ -190,7 +190,7 @@ func (s *Service) LoginWithMFAGate(
 		return &LoginResult{
 			Status:                LoginStatusMFAEnrollmentRequired,
 			AccessToken:           enrollmentToken,
-			MaskedEmail:           maskEmailForUX(account.Email),
+			MaskedEmail:           MaskEmailForUX(account.Email),
 			MFAEnrollmentRequired: true,
 		}, nil
 	}
@@ -213,7 +213,7 @@ func (s *Service) LoginWithMFAGate(
 		return &LoginResult{
 			Status:               LoginStatusMFARequired,
 			ChallengeToken:       challenge,
-			MaskedEmail:          maskEmailForUX(account.Email),
+			MaskedEmail:          MaskEmailForUX(account.Email),
 			TrustedDeviceEnabled: s.mfaService.IsTrustedDeviceEnabled(ctx, metadata.tenantID),
 			TrustedDeviceDays:    s.mfaService.TrustedDeviceDays(ctx, metadata.tenantID),
 		}, nil
@@ -237,10 +237,11 @@ func (s *Service) LoginWithMFAGate(
 	}, nil
 }
 
-// maskEmailForUX renders an email address as `j***@example.com` so the
+// MaskEmailForUX renders an email address as `j***@example.com` so the
 // frontend can show the user *which* mailbox just received a code without
-// leaking the full address (e.g. in shared-screen scenarios).
-func maskEmailForUX(email string) string {
+// leaking the full address (e.g. in shared-screen scenarios). Shared with
+// the operator login flow in services/platform.
+func MaskEmailForUX(email string) string {
 	at := strings.IndexByte(email, '@')
 	if at <= 0 {
 		return email

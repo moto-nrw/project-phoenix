@@ -607,71 +607,96 @@ func (s *service) dayHasStaffException(ctx context.Context, studentID int64, dat
 // protects against a staff row appearing mid-transaction — a staff leg is never
 // touched (neither overwritten nor deleted).
 func (s *service) applyGuardianPickupException(ctx context.Context, studentID, tenantID int64, date timezone.Date, pickupTime *time.Time, guardianID int64) error {
-	existing, err := s.PickupExceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
-	if err != nil {
-		return err
-	}
-	if existing != nil && existing.Source == scheduleModels.ExceptionSourceStaff {
-		return ErrCareExceptionConflict
-	}
-	if pickupTime == nil {
-		if existing != nil {
-			return s.PickupExceptionRepo.Delete(ctx, existing.ID)
-		}
-		return nil
-	}
-	if existing != nil {
-		existing.PickupTime = pickupTime
-		existing.Reason = nil
-		existing.Source = scheduleModels.ExceptionSourceGuardian
-		existing.CreatedBy = 0
-		existing.CreatedByGuardian = &guardianID
-		return s.PickupExceptionRepo.Update(ctx, existing)
-	}
-	entity := &scheduleModels.StudentPickupException{
-		StudentID:         studentID,
-		ExceptionDate:     date,
-		PickupTime:        pickupTime,
-		Source:            scheduleModels.ExceptionSourceGuardian,
-		CreatedByGuardian: &guardianID,
-	}
-	entity.SetTenantID(tenantID)
-	return s.PickupExceptionRepo.Create(ctx, entity)
+	return applyGuardianTimeException(ctx, pickupTime,
+		func(ctx context.Context) (*scheduleModels.StudentPickupException, error) {
+			return s.PickupExceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
+		},
+		func(e *scheduleModels.StudentPickupException) string { return e.Source },
+		func(ctx context.Context, e *scheduleModels.StudentPickupException) error {
+			return s.PickupExceptionRepo.Delete(ctx, e.ID)
+		},
+		func(ctx context.Context, e *scheduleModels.StudentPickupException) error {
+			e.PickupTime = pickupTime
+			e.Reason = nil
+			e.Source = scheduleModels.ExceptionSourceGuardian
+			e.CreatedBy = 0
+			e.CreatedByGuardian = &guardianID
+			return s.PickupExceptionRepo.Update(ctx, e)
+		},
+		func(ctx context.Context) error {
+			entity := &scheduleModels.StudentPickupException{
+				StudentID:         studentID,
+				ExceptionDate:     date,
+				PickupTime:        pickupTime,
+				Source:            scheduleModels.ExceptionSourceGuardian,
+				CreatedByGuardian: &guardianID,
+			}
+			entity.SetTenantID(tenantID)
+			return s.PickupExceptionRepo.Create(ctx, entity)
+		})
 }
 
 // applyGuardianArrivalException mirrors applyGuardianPickupException for the
 // arrival leg.
 func (s *service) applyGuardianArrivalException(ctx context.Context, studentID, tenantID int64, date timezone.Date, arrivalTime *time.Time, guardianID int64) error {
-	existing, err := s.ArrivalExceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
+	return applyGuardianTimeException(ctx, arrivalTime,
+		func(ctx context.Context) (*scheduleModels.StudentArrivalException, error) {
+			return s.ArrivalExceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
+		},
+		func(e *scheduleModels.StudentArrivalException) string { return e.Source },
+		func(ctx context.Context, e *scheduleModels.StudentArrivalException) error {
+			return s.ArrivalExceptionRepo.Delete(ctx, e.ID)
+		},
+		func(ctx context.Context, e *scheduleModels.StudentArrivalException) error {
+			e.ExpectedArrival = arrivalTime
+			e.Reason = nil
+			e.Source = scheduleModels.ExceptionSourceGuardian
+			e.CreatedBy = 0
+			e.CreatedByGuardian = &guardianID
+			return s.ArrivalExceptionRepo.Update(ctx, e)
+		},
+		func(ctx context.Context) error {
+			entity := &scheduleModels.StudentArrivalException{
+				StudentID:         studentID,
+				ExceptionDate:     date,
+				ExpectedArrival:   arrivalTime,
+				Source:            scheduleModels.ExceptionSourceGuardian,
+				CreatedByGuardian: &guardianID,
+			}
+			entity.SetTenantID(tenantID)
+			return s.ArrivalExceptionRepo.Create(ctx, entity)
+		})
+}
+
+// applyGuardianTimeException is the shared control flow of the guardian
+// pickup/arrival leg appliers: a staff-owned row is never touched (neither
+// overwritten nor deleted), a nil time removes any existing guardian row
+// (the parent cleared that leg), and a non-nil time creates or updates the
+// guardian row.
+func applyGuardianTimeException[P any, E *P](ctx context.Context, t *time.Time,
+	find func(context.Context) (E, error),
+	sourceOf func(E) string,
+	del func(context.Context, E) error,
+	stampAndUpdate func(context.Context, E) error,
+	create func(context.Context) error,
+) error {
+	existing, err := find(ctx)
 	if err != nil {
 		return err
 	}
-	if existing != nil && existing.Source == scheduleModels.ExceptionSourceStaff {
+	if existing != nil && sourceOf(existing) == scheduleModels.ExceptionSourceStaff {
 		return ErrCareExceptionConflict
 	}
-	if arrivalTime == nil {
+	if t == nil {
 		if existing != nil {
-			return s.ArrivalExceptionRepo.Delete(ctx, existing.ID)
+			return del(ctx, existing)
 		}
 		return nil
 	}
 	if existing != nil {
-		existing.ExpectedArrival = arrivalTime
-		existing.Reason = nil
-		existing.Source = scheduleModels.ExceptionSourceGuardian
-		existing.CreatedBy = 0
-		existing.CreatedByGuardian = &guardianID
-		return s.ArrivalExceptionRepo.Update(ctx, existing)
+		return stampAndUpdate(ctx, existing)
 	}
-	entity := &scheduleModels.StudentArrivalException{
-		StudentID:         studentID,
-		ExceptionDate:     date,
-		ExpectedArrival:   arrivalTime,
-		Source:            scheduleModels.ExceptionSourceGuardian,
-		CreatedByGuardian: &guardianID,
-	}
-	entity.SetTenantID(tenantID)
-	return s.ArrivalExceptionRepo.Create(ctx, entity)
+	return create(ctx)
 }
 
 // loadCareException merges the pickup and arrival exceptions for one date into

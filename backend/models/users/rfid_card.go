@@ -25,22 +25,25 @@ type RFIDCard struct {
 	Active bool `bun:"active,notnull,default:true" json:"active"`
 }
 
+// NormalizeTagID normalizes an RFID tag ID: trims spaces, removes the
+// common separators (: - space), and uppercases. Canonical implementation
+// shared by RFIDCard.Validate, the users repositories, and api/iot.
+func NormalizeTagID(tagID string) string {
+	tagID = strings.TrimSpace(tagID)
+	tagID = strings.ReplaceAll(tagID, ":", "")
+	tagID = strings.ReplaceAll(tagID, "-", "")
+	tagID = strings.ReplaceAll(tagID, " ", "")
+	return strings.ToUpper(tagID)
+}
+
 // Validate ensures the RFID card data is valid
 func (r *RFIDCard) Validate() error {
 	if r.ID == "" {
 		return errors.New("RFID card ID is required")
 	}
 
-	// Trim spaces from ID
-	r.ID = strings.TrimSpace(r.ID)
-
-	// Normalize RFID tag format - remove common separators
-	r.ID = strings.ReplaceAll(r.ID, ":", "")
-	r.ID = strings.ReplaceAll(r.ID, "-", "")
-	r.ID = strings.ReplaceAll(r.ID, " ", "")
-
-	// Convert to uppercase for consistency
-	r.ID = strings.ToUpper(r.ID)
+	// Normalize the RFID tag format for consistency
+	r.ID = NormalizeTagID(r.ID)
 
 	// Validate ID length after normalization
 	idLength := len(r.ID)
