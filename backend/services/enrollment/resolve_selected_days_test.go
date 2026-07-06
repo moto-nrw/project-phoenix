@@ -1,6 +1,7 @@
 package enrollment
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -64,6 +65,35 @@ func TestResolveSelectedDays_ParentChoiceDedupes(t *testing.T) {
 	got, err := resolveSelectedDays(parentChoiceOffering("mon", "tue", "wed"), []string{"mon", "mon", "tue"})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"mon", "tue"}, got, "duplicate parent picks must collapse")
+}
+
+// Day-validation failures on parent input must map to a 400 at the HTTP
+// layer. mapSubmitError does that by matching ErrInvalidSubmission, so
+// these errors have to wrap it — otherwise a bad day pick surfaces as a
+// 500 (looks like a server bug, and the frontend has no German message).
+func TestResolveSelectedDays_ParentInputErrorsWrapInvalidSubmission(t *testing.T) {
+	cases := map[string]func() error{
+		"subset violation": func() error {
+			_, err := resolveSelectedDays(parentChoiceOffering("mon", "tue"), []string{"sat"})
+			return err
+		},
+		"missing picks": func() error {
+			_, err := resolveSelectedDays(parentChoiceOffering("mon", "tue"), nil)
+			return err
+		},
+		"fixed rejects picks": func() error {
+			_, err := resolveSelectedDays(fixedOffering("mon"), []string{"mon"})
+			return err
+		},
+	}
+	for name, run := range cases {
+		t.Run(name, func(t *testing.T) {
+			err := run()
+			require.Error(t, err)
+			assert.True(t, errors.Is(err, ErrInvalidSubmission),
+				"parent day-validation error must wrap ErrInvalidSubmission so it maps to 400, got %q", err)
+		})
+	}
 }
 
 func TestResolveSelectedDays_RejectsUnknownMode(t *testing.T) {
