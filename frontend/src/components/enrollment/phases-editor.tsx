@@ -19,6 +19,7 @@ import {
   Power,
   Trash2,
   UserCheck,
+  X,
 } from "lucide-react";
 import {
   type Phase,
@@ -100,6 +101,8 @@ function blankInput(): PhaseInput {
     care_overflow_mode: "waitlist",
     care_offering_selection_mode: "optional",
     is_active: true,
+    available_school_classes: [],
+    require_school_class: false,
   };
 }
 
@@ -116,6 +119,8 @@ function phaseToInput(p: Phase): PhaseInput {
     care_overflow_mode: p.care_overflow_mode,
     care_offering_selection_mode: p.care_offering_selection_mode ?? "optional",
     is_active: p.is_active,
+    available_school_classes: p.available_school_classes ?? [],
+    require_school_class: p.require_school_class ?? false,
   };
 }
 
@@ -1440,6 +1445,30 @@ function PhaseForm(props: PhaseFormProps) {
         </div>
       </div>
 
+      <fieldset className="rounded-xl border border-gray-200 p-4">
+        <legend className="px-1 text-xs font-medium text-gray-700">
+          Konkrete Klassen
+        </legend>
+        <p className="text-xs leading-5 text-gray-500">
+          Ab der 2. Klasse können Eltern die konkrete Klasse (z. B. 2a) aus
+          dieser Liste wählen. Für die 1. Klasse wird weiterhin nur die
+          Klassenstufe erfasst. Nur wirksam, wenn „Konkrete Klasse abfragen“ in
+          den Einstellungen aktiviert ist.
+        </p>
+        <SchoolClassListEditor
+          value={draft.available_school_classes ?? []}
+          onChange={(list) => update({ available_school_classes: list })}
+        />
+        <div className="mt-3">
+          <PhaseCheckbox
+            checked={draft.require_school_class ?? false}
+            onChange={(checked) => update({ require_school_class: checked })}
+            label="Konkrete Klasse verpflichtend (ab Klasse 2)"
+            hint="(Eltern müssen ab der 2. Klasse eine Klasse wählen)"
+          />
+        </div>
+      </fieldset>
+
       <div className="flex justify-end gap-2">
         <button
           type="button"
@@ -1458,6 +1487,77 @@ function PhaseForm(props: PhaseFormProps) {
         </button>
       </div>
     </form>
+  );
+}
+
+// SchoolClassListEditor edits the phase's admin-managed list of concrete
+// classes offered to parents from grade 2 (#1833). A text input adds an
+// entry (Enter or the button); entries render as removable chips. Trims,
+// drops empties, and dedups case-sensitively.
+function SchoolClassListEditor({
+  value,
+  onChange,
+}: Readonly<{ value: string[]; onChange: (next: string[]) => void }>) {
+  const [entry, setEntry] = useState("");
+  const add = () => {
+    const trimmed = entry.trim();
+    if (!trimmed || value.includes(trimmed)) {
+      setEntry("");
+      return;
+    }
+    onChange([...value, trimmed]);
+    setEntry("");
+  };
+  return (
+    <div className="mt-2">
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={entry}
+          onChange={(e) => setEntry(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              add();
+            }
+          }}
+          placeholder="z. B. 2a"
+          aria-label="Klasse hinzufügen"
+          className="h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        />
+        <button
+          type="button"
+          onClick={add}
+          className="inline-flex h-10 shrink-0 items-center rounded-lg border border-gray-200 px-3 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        >
+          Hinzufügen
+        </button>
+      </div>
+      {value.length > 0 ? (
+        <ul className="mt-2 flex flex-wrap gap-2">
+          {value.map((cls) => (
+            <li
+              key={cls}
+              className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 py-1 pr-1 pl-3 text-sm font-medium text-gray-700"
+            >
+              {cls}
+              <button
+                type="button"
+                onClick={() => onChange(value.filter((c) => c !== cls))}
+                aria-label={`Klasse ${cls} entfernen`}
+                className="flex h-5 w-5 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              >
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-xs text-gray-400">
+          Noch keine Klassen hinterlegt.
+        </p>
+      )}
+    </div>
   );
 }
 

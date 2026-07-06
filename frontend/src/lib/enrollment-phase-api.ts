@@ -6,9 +6,7 @@ const logger = createLogger({ component: "EnrollmentPhaseAPI" });
 export type PhaseKind = "school_year" | "holiday" | "custom";
 export type PhaseCareOverflowMode = "waitlist" | "reject" | "allow";
 export type PhaseCareOfferingSelectionMode =
-  | "optional"
-  | "at_least_one"
-  | "exactly_one";
+  "optional" | "at_least_one" | "exactly_one";
 
 export interface Phase {
   id: string;
@@ -30,6 +28,12 @@ export interface Phase {
   rollover_auto_approve?: boolean;
   rollover_deadline?: string | null;
   rollover_bumps_grade?: boolean;
+  // Concrete-class config (#1833). available_school_classes is the pick
+  // list the public form offers from grade 2; require_school_class makes
+  // choosing mandatory. Only meaningful when enrollment.collect_school_class
+  // is on.
+  available_school_classes?: string[];
+  require_school_class?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -57,6 +61,8 @@ export interface PhaseInput {
   care_overflow_mode: PhaseCareOverflowMode;
   care_offering_selection_mode: PhaseCareOfferingSelectionMode;
   is_active: boolean;
+  available_school_classes?: string[];
+  require_school_class?: boolean;
 }
 
 interface BackendEnvelope<T> {

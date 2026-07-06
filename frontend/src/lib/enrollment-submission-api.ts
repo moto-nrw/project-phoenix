@@ -47,6 +47,12 @@ export interface SubmitChildPayload {
   last_name: string;
   date_of_birth: string; // YYYY-MM-DD
   target_grade_level: number;
+  /**
+   * Concrete future class (e.g. "2a"), collected from grade 2 upwards
+   * when the tenant enables it (#1833). Omitted for grade 1 or when the
+   * parent leaves it open ("Klasse offen").
+   */
+  target_school_class?: string;
   custom_data?: Record<string, unknown>;
   offering_ids?: number[];
   /**
@@ -106,6 +112,7 @@ interface EnrollmentEditDraftChild {
   last_name: string;
   date_of_birth: string;
   target_grade_level?: number;
+  target_school_class?: string;
   custom_data?: Record<string, unknown>;
   offering_ids: string[];
   offering_days?: EnrollmentEditDraftOfferingDays[];
@@ -211,10 +218,40 @@ async function readError(response: Response, fallback: string): Promise<Error> {
   );
 }
 
+/**
+ * Concrete-class config for a phase (#1833): whether the tenant collects
+ * a concrete class at all, the phase's pick list, and whether it is
+ * mandatory from grade 2. Mirrors the backend PublicSchoolClassConfig
+ * (`school_class` on the bootstrap + care-offerings responses).
+ */
+export interface PublicSchoolClassConfig {
+  collect: boolean;
+  available_classes: string[];
+  require: boolean;
+}
+
+export const EMPTY_SCHOOL_CLASS_CONFIG: PublicSchoolClassConfig = {
+  collect: false,
+  available_classes: [],
+  require: false,
+};
+
+function parseSchoolClassConfig(raw: unknown): PublicSchoolClassConfig {
+  const obj = (raw ?? {}) as Partial<PublicSchoolClassConfig>;
+  return {
+    collect: obj.collect === true,
+    available_classes: Array.isArray(obj.available_classes)
+      ? obj.available_classes.filter((c): c is string => typeof c === "string")
+      : [],
+    require: obj.require === true,
+  };
+}
+
 export interface PublicCareOfferingsResult {
   offerings: PublicCareOffering[];
   careOfferingSelectionMode: CareOfferingSelectionMode;
   careRequired: boolean;
+  schoolClass: PublicSchoolClassConfig;
 }
 
 export interface LateInviteFetchOptions {
@@ -255,6 +292,7 @@ export async function fetchPublicCareOfferings(
     offerings?: PublicCareOffering[];
     care_offering_selection_mode?: CareOfferingSelectionMode;
     care_required?: boolean;
+    school_class?: unknown;
   }>(response);
   const mode =
     payload?.care_offering_selection_mode ??
@@ -263,6 +301,7 @@ export async function fetchPublicCareOfferings(
     offerings: Array.isArray(payload?.offerings) ? payload.offerings : [],
     careOfferingSelectionMode: mode,
     careRequired: mode !== "optional",
+    schoolClass: parseSchoolClassConfig(payload?.school_class),
   };
 }
 
@@ -321,6 +360,7 @@ export interface PublicEnrollmentBootstrap {
   offerings: PublicCareOffering[];
   care_offering_selection_mode: CareOfferingSelectionMode;
   care_required: boolean;
+  school_class?: PublicSchoolClassConfig;
   captcha_config: PublicCaptchaConfig | null;
   legal_texts: PublicLegalTexts;
   profile?: MeProfileResponse | null;

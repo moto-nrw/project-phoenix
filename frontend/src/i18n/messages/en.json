@@ -544,6 +544,9 @@
       "emailPlain": "Email",
       "dateOfBirth": "Date of birth *",
       "gradeLevel": "Grade level *",
+      "schoolClass": "Class",
+      "schoolClassRequired": "Class *",
+      "schoolClassOpen": "Class not yet assigned",
       "choose": "Please choose",
       "grade": "Grade {grade}"
     },
@@ -556,6 +559,7 @@
       "validPhone": "Please enter a valid phone number.",
       "dob": "Please enter the date of birth.",
       "grade": "Please select a grade level.",
+      "schoolClass": "Please select a class.",
       "agb": "Please accept the terms.",
       "data": "Please consent to data processing.",
       "emailContact": "Please consent to email contact.",

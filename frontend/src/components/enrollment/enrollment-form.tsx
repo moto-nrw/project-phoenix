@@ -18,6 +18,8 @@ import {
   type SubmitChildPayload,
   type SubmitGuardianPayload,
   type EnrollmentEditDraft,
+  type PublicSchoolClassConfig,
+  EMPTY_SCHOOL_CLASS_CONFIG,
 } from "~/lib/enrollment-submission-api";
 import {
   fetchPublicActiveSchema,
@@ -67,6 +69,12 @@ interface ChildDraft {
   last_name: string;
   date_of_birth: string;
   target_grade_level: string;
+  /**
+   * Concrete future class (e.g. "2a"), collected from grade 2 upwards
+   * when the tenant enables it (#1833). Empty string = grade 1, feature
+   * off, or "Klasse offen".
+   */
+  target_school_class: string;
   offering_ids: Set<string>;
   /**
    * Per-offering day picks for offerings whose days_of_week_mode is
@@ -147,6 +155,8 @@ export interface EnrollmentFormPrefetchedData {
   captchaConfig: PublicCaptchaConfig | null;
   legalTexts: PublicLegalTexts;
   profile?: MeProfileResponse | null;
+  /** Concrete-class config (#1833); absent falls back to disabled. */
+  schoolClass?: PublicSchoolClassConfig;
 }
 
 /**
@@ -197,6 +207,14 @@ export function EnrollmentForm({
   const [careOfferingSelectionMode, setCareOfferingSelectionMode] =
     useState<CareOfferingSelectionMode>(
       prefetchedData?.careOfferingSelectionMode ?? "optional",
+    );
+  // Concrete-class config (#1833): whether to collect a concrete class,
+  // the phase's pick list, and whether it is mandatory from grade 2.
+  // Seeded from prefetched data (public page) or fetched in load()
+  // (parent portal). Defaults to disabled so the field stays hidden.
+  const [schoolClassConfig, setSchoolClassConfig] =
+    useState<PublicSchoolClassConfig>(
+      prefetchedData?.schoolClass ?? EMPTY_SCHOOL_CLASS_CONFIG,
     );
   // Offerings the school flagged as mandatory. These are pre-selected and
   // locked in the UI so every child carries them.
@@ -397,6 +415,9 @@ export function EnrollmentForm({
         setSchema(schemaResult);
         setOfferings(offeringsResult.offerings);
         setCareOfferingSelectionMode(offeringsResult.careOfferingSelectionMode);
+        setSchoolClassConfig(
+          offeringsResult.schoolClass ?? EMPTY_SCHOOL_CLASS_CONFIG,
+        );
         // Seed mandatory offerings into the children that already exist
         // (the initial blank slot is created before offerings load).
         const requiredIDs = offeringsResult.offerings
@@ -701,6 +722,18 @@ export function EnrollmentForm({
       if (!c.target_grade_level) {
         newFieldErrors[`children_${i}_target_grade_level`] = tr("errors.grade");
       }
+      // Concrete class is only required when the tenant collects it, the
+      // phase makes it mandatory, and the child is grade 2 or higher
+      // (grade 1 never shows the field). Mirror the backend gate (#1833).
+      if (
+        schoolClassConfig.collect &&
+        schoolClassConfig.require &&
+        Number(c.target_grade_level) >= 2 &&
+        !c.target_school_class.trim()
+      ) {
+        newFieldErrors[`children_${i}_target_school_class`] =
+          tr("errors.schoolClass");
+      }
       for (const field of schema?.fields.filter((f) => f.applies_to_child) ??
         []) {
         if (field.type === "information" || !field.required) continue;
@@ -961,6 +994,15 @@ export function EnrollmentForm({
         last_name: c.last_name.trim(),
         date_of_birth: c.date_of_birth,
         target_grade_level: Number(c.target_grade_level),
+        // Only send a concrete class when the feature is on, the grade is
+        // 2+, and a class was actually chosen; the backend re-validates
+        // and normalises (#1833). Empty/grade-1 -> omitted ("Klasse offen").
+        target_school_class:
+          schoolClassConfig.collect &&
+          Number(c.target_grade_level) >= 2 &&
+          c.target_school_class.trim()
+            ? c.target_school_class.trim()
+            : undefined,
         custom_data: customData,
         offering_ids: Array.from(c.offering_ids).map((id) => Number(id)),
         offering_days:
@@ -1315,6 +1357,14 @@ export function EnrollmentForm({
               newSlot.last_name = child.last_name;
               newSlot.target_grade_level =
                 child.grade_level != null ? String(child.grade_level) : "";
+              // Prefill the concrete class only when it matches one of the
+              // phase's offered classes, so re-enrolling an existing "2a"
+              // child defaults sensibly without injecting a stale/unknown
+              // value into the dropdown (#1833).
+              newSlot.target_school_class =
+                schoolClassConfig.available_classes.includes(child.school_class)
+                  ? child.school_class
+                  : "";
               setChildren((prev) => {
                 // Replace the first empty slot if one exists, otherwise
                 // append. Avoids leaving a stranded empty card after
@@ -1395,6 +1445,20 @@ export function EnrollmentForm({
                   error={fieldErrors[`children_${i}_target_grade_level`]}
                   tr={tr}
                 />
+                {schoolClassConfig.collect &&
+                  Number(child.target_grade_level) >= 2 && (
+                    <SchoolClassSelect
+                      id={`children-${i}-target-school-class`}
+                      value={child.target_school_class}
+                      onChange={(v) =>
+                        updateChild(i, { target_school_class: v })
+                      }
+                      classes={schoolClassConfig.available_classes}
+                      required={schoolClassConfig.require}
+                      error={fieldErrors[`children_${i}_target_school_class`]}
+                      tr={tr}
+                    />
+                  )}
               </div>
 
               {offerings.length > 0 && (
@@ -1781,6 +1845,7 @@ function blankChild(requiredOfferingIDs: readonly string[] = []): ChildDraft {
     last_name: "",
     date_of_birth: "",
     target_grade_level: "",
+    target_school_class: "",
     // Required offerings are pre-selected and locked; seed them so a new
     // child slot starts compliant.
     offering_ids: new Set(requiredOfferingIDs),
@@ -1827,6 +1892,7 @@ function draftChildren(
       last_name: child.last_name,
       date_of_birth: child.date_of_birth,
       target_grade_level: child.target_grade_level?.toString() ?? "",
+      target_school_class: child.target_school_class ?? "",
       offering_ids: offeringIDs,
       offering_days: offeringDays,
       custom: child.custom_data ?? {},
@@ -2277,6 +2343,52 @@ function GradeLevelSelect({
               label: tr("fields.grade", { grade: n + 1 }),
             };
           }),
+        ]}
+      />
+      {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
+    </label>
+  );
+}
+
+// SchoolClassSelect renders the concrete-class dropdown shown for grade
+// >= 2 when the tenant collects it (#1833). Options come from the phase's
+// admin-managed list. When the phase does not require a class, a "Klasse
+// offen" option (value "") lets the parent leave it unassigned; when it
+// is required, the empty option is a disabled placeholder instead.
+function SchoolClassSelect({
+  id,
+  value,
+  onChange,
+  classes,
+  required,
+  error,
+  tr,
+}: {
+  readonly id: string;
+  readonly value: string;
+  readonly onChange: (v: string) => void;
+  readonly classes: readonly string[];
+  readonly required: boolean;
+  readonly error?: string;
+  readonly tr: EnrollmentFormTranslator;
+}) {
+  return (
+    <label className="block" htmlFor={id}>
+      <span className="block text-sm font-semibold text-gray-700">
+        {tr(required ? "fields.schoolClassRequired" : "fields.schoolClass")}
+      </span>
+      <CustomSelect
+        id={id}
+        value={value}
+        required={required}
+        onChange={onChange}
+        invalid={Boolean(error)}
+        className="mt-1"
+        options={[
+          required
+            ? { value: "", label: tr("fields.choose"), disabled: true }
+            : { value: "", label: tr("fields.schoolClassOpen") },
+          ...classes.map((c) => ({ value: c, label: c })),
         ]}
       />
       {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}

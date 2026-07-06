@@ -263,6 +263,13 @@ type RequestService interface {
 	// per-tenant override.
 	IsEnrollmentEnabled(ctx context.Context) bool
 
+	// CollectsSchoolClass reports whether the tenant collects the
+	// concrete future class (e.g. "2a") in addition to the grade level
+	// (enrollment.collect_school_class setting, issue #1833). Public
+	// form-load endpoints call this to decide whether to surface the
+	// class field. Caller must already be inside a tenant-tx.
+	CollectsSchoolClass(ctx context.Context) bool
+
 	// LegalTexts returns the tenant's configured legal texts and derived
 	// public blocks for the enrollment form. Empty strings mean the admin
 	// hasn't filled the text in; such blocks are not rendered.
@@ -2712,6 +2719,12 @@ func filterConsentFlags(flags map[string]any, blocks []LegalBlock) map[string]an
 		}
 	}
 	return out
+}
+
+// CollectsSchoolClass is the exported form of collectSchoolClass for the
+// RequestService interface (public form-load endpoints).
+func (s *requestService) CollectsSchoolClass(ctx context.Context) bool {
+	return s.collectSchoolClass(ctx)
 }
 
 // collectSchoolClass reports whether the tenant collects the concrete
