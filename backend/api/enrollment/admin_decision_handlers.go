@@ -104,17 +104,18 @@ type AdminRequestSchemaFieldOption struct {
 // AdminRequestChild is one child within an admin summary/detail
 // payload.
 type AdminRequestChild struct {
-	ID               string         `json:"id"`
-	FirstName        string         `json:"first_name"`
-	LastName         string         `json:"last_name"`
-	DateOfBirth      string         `json:"date_of_birth"`
-	TargetGradeLevel *int16         `json:"target_grade_level,omitempty"`
-	Status           string         `json:"status"`
-	StatusReason     *string        `json:"status_reason,omitempty"`
-	ReviewedAt       *time.Time     `json:"reviewed_at,omitempty"`
-	ReviewedBy       *int64         `json:"reviewed_by,omitempty"`
-	ActivationMode   string         `json:"activation_mode"`
-	CustomData       map[string]any `json:"custom_data,omitempty"`
+	ID                string         `json:"id"`
+	FirstName         string         `json:"first_name"`
+	LastName          string         `json:"last_name"`
+	DateOfBirth       string         `json:"date_of_birth"`
+	TargetGradeLevel  *int16         `json:"target_grade_level,omitempty"`
+	TargetSchoolClass *string        `json:"target_school_class,omitempty"`
+	Status            string         `json:"status"`
+	StatusReason      *string        `json:"status_reason,omitempty"`
+	ReviewedAt        *time.Time     `json:"reviewed_at,omitempty"`
+	ReviewedBy        *int64         `json:"reviewed_by,omitempty"`
+	ActivationMode    string         `json:"activation_mode"`
+	CustomData        map[string]any `json:"custom_data,omitempty"`
 	// Offerings is the per-child Betreuungsangebote selection.
 	// Populated only on the detail endpoint (listing endpoints leave
 	// it empty to keep the payload small).
@@ -167,17 +168,18 @@ func toAdminRequestSummary(s *enrollmentService.RequestSummary) AdminRequestSumm
 	out.Children = make([]AdminRequestChild, 0, len(s.Children))
 	for _, c := range s.Children {
 		out.Children = append(out.Children, AdminRequestChild{
-			ID:               strconv.FormatInt(c.ID, 10),
-			FirstName:        c.FirstName,
-			LastName:         c.LastName,
-			DateOfBirth:      c.DateOfBirth.String(),
-			TargetGradeLevel: c.TargetGradeLevel,
-			Status:           c.Status,
-			StatusReason:     c.StatusReason,
-			ReviewedAt:       c.ReviewedAt,
-			ReviewedBy:       c.ReviewedBy,
-			ActivationMode:   c.ActivationMode,
-			CustomData:       c.CustomData,
+			ID:                strconv.FormatInt(c.ID, 10),
+			FirstName:         c.FirstName,
+			LastName:          c.LastName,
+			DateOfBirth:       c.DateOfBirth.String(),
+			TargetGradeLevel:  c.TargetGradeLevel,
+			TargetSchoolClass: c.TargetSchoolClass,
+			Status:            c.Status,
+			StatusReason:      c.StatusReason,
+			ReviewedAt:        c.ReviewedAt,
+			ReviewedBy:        c.ReviewedBy,
+			ActivationMode:    c.ActivationMode,
+			CustomData:        c.CustomData,
 		})
 	}
 	out.AdditionalGuardians = make([]AdminRequestGuardian, 0, len(s.Guardians))
@@ -462,16 +464,17 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 
 	updated := outcome.Child
 	common.Respond(w, r, http.StatusOK, AdminRequestChild{
-		ID:               strconv.FormatInt(updated.ID, 10),
-		FirstName:        updated.FirstName,
-		LastName:         updated.LastName,
-		DateOfBirth:      updated.DateOfBirth.String(),
-		TargetGradeLevel: updated.TargetGradeLevel,
-		Status:           updated.Status,
-		StatusReason:     updated.StatusReason,
-		ReviewedAt:       updated.ReviewedAt,
-		ReviewedBy:       updated.ReviewedBy,
-		ActivationMode:   updated.ActivationMode,
+		ID:                strconv.FormatInt(updated.ID, 10),
+		FirstName:         updated.FirstName,
+		LastName:          updated.LastName,
+		DateOfBirth:       updated.DateOfBirth.String(),
+		TargetGradeLevel:  updated.TargetGradeLevel,
+		TargetSchoolClass: updated.TargetSchoolClass,
+		Status:            updated.Status,
+		StatusReason:      updated.StatusReason,
+		ReviewedAt:        updated.ReviewedAt,
+		ReviewedBy:        updated.ReviewedBy,
+		ActivationMode:    updated.ActivationMode,
 	}, "Decision applied")
 }
 
@@ -552,17 +555,18 @@ func (rs *Resource) updateAdminChildOfferings(w http.ResponseWriter, r *http.Req
 		return
 	}
 	out := AdminRequestChild{
-		ID:               strconv.FormatInt(updated.ID, 10),
-		FirstName:        updated.FirstName,
-		LastName:         updated.LastName,
-		DateOfBirth:      updated.DateOfBirth.String(),
-		TargetGradeLevel: updated.TargetGradeLevel,
-		Status:           updated.Status,
-		StatusReason:     updated.StatusReason,
-		ReviewedAt:       updated.ReviewedAt,
-		ReviewedBy:       updated.ReviewedBy,
-		ActivationMode:   updated.ActivationMode,
-		CustomData:       updated.CustomData,
+		ID:                strconv.FormatInt(updated.ID, 10),
+		FirstName:         updated.FirstName,
+		LastName:          updated.LastName,
+		DateOfBirth:       updated.DateOfBirth.String(),
+		TargetGradeLevel:  updated.TargetGradeLevel,
+		TargetSchoolClass: updated.TargetSchoolClass,
+		Status:            updated.Status,
+		StatusReason:      updated.StatusReason,
+		ReviewedAt:        updated.ReviewedAt,
+		ReviewedBy:        updated.ReviewedBy,
+		ActivationMode:    updated.ActivationMode,
+		CustomData:        updated.CustomData,
 	}
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {
 		rowsByChild, listErr := rs.DecisionService.ListChildOfferings(ctx, requestID)
