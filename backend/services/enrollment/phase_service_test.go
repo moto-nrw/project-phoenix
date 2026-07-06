@@ -410,6 +410,51 @@ func TestPhaseService_Create_WithCalendarPeriodLink(t *testing.T) {
 	assert.Equal(t, period.ID, *fetched.CalendarPeriodID)
 }
 
+// Regression: the repo's explicit Set() list in Update() was missing
+// calendar_period_id, so linking an EXISTING phase to a period silently
+// persisted nothing (create worked, update didn't).
+func TestPhaseService_Update_PersistsCalendarPeriodLink(t *testing.T) {
+	svc, repoFactory, db, cleanup := phaseServiceWithCalendarPeriods(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	period := &scheduleModels.CalendarPeriod{
+		Name:            "period-" + t.Name(),
+		PeriodType:      scheduleModels.PeriodTypeSemester,
+		StartDate:       timezone.NewDate(2026, 8, 1),
+		EndDate:         timezone.NewDate(2027, 1, 31),
+		WeekCycleLength: 1,
+		IsActive:        true,
+	}
+	period.SetTenantID(1)
+	require.NoError(t, repoFactory.CalendarPeriod.Create(ctx, period))
+	defer func() {
+		_, _ = db.NewDelete().
+			TableExpr("schedule.calendar_periods").
+			Where("id = ?", period.ID).
+			Exec(context.Background())
+	}()
+
+	created, err := svc.Create(ctx, minimalPhase(t.Name()))
+	require.NoError(t, err)
+	require.Nil(t, created.CalendarPeriodID)
+
+	created.CalendarPeriodID = &period.ID
+	require.NoError(t, svc.Update(ctx, created))
+
+	fetched, err := svc.GetByID(ctx, created.ID)
+	require.NoError(t, err)
+	require.NotNil(t, fetched.CalendarPeriodID, "update must persist the calendar period link")
+	assert.Equal(t, period.ID, *fetched.CalendarPeriodID)
+
+	// Unlinking must persist too (NULL round-trip).
+	fetched.CalendarPeriodID = nil
+	require.NoError(t, svc.Update(ctx, fetched))
+	unlinked, err := svc.GetByID(ctx, created.ID)
+	require.NoError(t, err)
+	assert.Nil(t, unlinked.CalendarPeriodID)
+}
+
 func TestPhaseService_Create_RejectsUnknownCalendarPeriod(t *testing.T) {
 	svc, _, _, cleanup := phaseServiceWithCalendarPeriods(t)
 	defer cleanup()

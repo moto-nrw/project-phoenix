@@ -76,6 +76,7 @@ func (r *PhaseRepository) Update(ctx context.Context, phase *enrollment.Phase) e
 		Set("enrollment_open_at = ?", phase.EnrollmentOpenAt).
 		Set("enrollment_close_at = ?", phase.EnrollmentCloseAt).
 		Set("form_schema_id = ?", phase.FormSchemaID).
+		Set("calendar_period_id = ?", phase.CalendarPeriodID).
 		Set("show_status_reason_to_parent = ?", phase.ShowStatusReasonToParent).
 		Set("care_overflow_mode = ?", phase.CareOverflowMode).
 		Set("care_offering_selection_mode = ?", phase.CareOfferingSelectionMode).
