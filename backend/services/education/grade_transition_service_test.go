@@ -19,7 +19,7 @@ import (
 )
 
 // setupGradeTransitionServiceTest creates service and returns cleanup function
-func setupGradeTransitionServiceTest(t *testing.T) (educationService.GradeTransitionService, *bun.DB, func()) {
+func setupGradeTransitionServiceTest(t *testing.T) (*educationService.GradeTransitionService, *bun.DB, func()) {
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)

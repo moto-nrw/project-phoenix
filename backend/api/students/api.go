@@ -55,7 +55,7 @@ type Resource struct {
 // Using a config struct instead of individual parameters improves maintainability.
 type ResourceConfig struct {
 	PersonService           userService.PersonService
-	GuardianService         userService.GuardianService
+	GuardianService         *userService.GuardianService
 	EducationService        educationService.Service
 	UserContextService      userContextService.UserContextService
 	ActiveService           activeService.Service
@@ -68,14 +68,14 @@ type ResourceConfig struct {
 	StudentService          userService.StudentService
 	MasterDataReviewService userService.MasterDataReviewService
 	CareRequestService      scheduleService.CareScheduleRequestService
-	StudentStatusDayService activeService.StudentStatusDayService
+	StudentStatusDayService *activeService.StudentStatusDayService
 	StudentHistoryService   activeService.StudentHistoryService
 	ActivityService         activityService.ActivityService
 	EnrollmentDecision      enrollmentService.DecisionService
 	EnrollmentFormSchema    enrollmentService.FormSchemaService
 	Broadcaster             realtime.Broadcaster
 	StudentPhotos           userService.StudentPhotoService
-	ListExportService       listexport.Service
+	ListExportService       *listexport.RendererService
 	Logger                  *slog.Logger
 	Now                     func() time.Time
 	DB                      *bun.DB

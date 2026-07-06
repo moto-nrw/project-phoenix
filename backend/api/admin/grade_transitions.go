@@ -27,12 +27,12 @@ const (
 
 // GradeTransitionResource handles grade transition API endpoints
 type GradeTransitionResource struct {
-	service educationService.GradeTransitionService
+	service *educationService.GradeTransitionService
 	db      *bun.DB
 }
 
 // NewGradeTransitionResource creates a new grade transition resource
-func NewGradeTransitionResource(service educationService.GradeTransitionService, db *bun.DB) *GradeTransitionResource {
+func NewGradeTransitionResource(service *educationService.GradeTransitionService, db *bun.DB) *GradeTransitionResource {
 	return &GradeTransitionResource{
 		service: service,
 		db:      db,

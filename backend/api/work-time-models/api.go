@@ -25,13 +25,13 @@ import (
 
 // Resource bundles the dependencies needed by the work-time-model HTTP handlers.
 type Resource struct {
-	Service configSvc.WorkTimeModelService
+	Service *configSvc.WorkTimeModelService
 	db      *bun.DB
 	logger  *slog.Logger
 }
 
 // NewResource wires the dependencies.
-func NewResource(service configSvc.WorkTimeModelService, db *bun.DB, logger *slog.Logger) *Resource {
+func NewResource(service *configSvc.WorkTimeModelService, db *bun.DB, logger *slog.Logger) *Resource {
 	return &Resource{Service: service, db: db, logger: logger}
 }
 

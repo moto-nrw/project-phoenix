@@ -644,7 +644,7 @@ type fakeOperationRoomRepo struct {
 	err  error
 }
 
-func operationTimetableData(deps scheduleSvc.TimetableDataDependencies) scheduleSvc.TimetableDataService {
+func operationTimetableData(deps scheduleSvc.TimetableDataDependencies) *scheduleSvc.TimetableDataService {
 	if deps.ActiveGroupRepo == nil {
 		deps.ActiveGroupRepo = &fakeOperationActiveGroupRepo{}
 	}

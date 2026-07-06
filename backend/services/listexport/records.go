@@ -5,8 +5,11 @@ import (
 	"strings"
 )
 
-// RenderRecords lays out one block per record on A4 portrait pages.
-// It reuses the same low-level PDF primitives as the flat-table
+// RenderRecords renders one block per record as a print-friendly PDF
+// (A4 portrait). Use this instead of the flat-table Render when each
+// record carries hierarchical/variable data (e.g. one enrollment with
+// N children, offerings, consents and per-phase custom fields) that a
+// fixed-column table can't lay out legibly. It reuses the same low-level PDF primitives as the flat-table
 // renderer (writePDFText, drawPDFRect, buildPDF, the WinAnsi font) so
 // there is a single PDF code path in this package.
 //

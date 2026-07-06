@@ -109,7 +109,7 @@ func (fakePersons) FindByAccountID(context.Context, int64) (*usersModels.Person,
 	return nil, nil
 }
 
-func errSvc(tr usersModels.ParentMessageThreadRepository, mr usersModels.ParentMessageRepository, rr usersModels.ParentMessageReadRepository) messaging.Service {
+func errSvc(tr usersModels.ParentMessageThreadRepository, mr usersModels.ParentMessageRepository, rr usersModels.ParentMessageReadRepository) *messaging.Service {
 	return messaging.NewService(messaging.Config{
 		ThreadRepo:  tr,
 		MessageRepo: mr,

@@ -23,12 +23,12 @@ import (
 
 // Resource is the staff messaging HTTP resource.
 type Resource struct {
-	Service messagingService.Service
+	Service *messagingService.Service
 	db      *bun.DB
 }
 
 // NewResource wires the staff messaging resource.
-func NewResource(service messagingService.Service, db *bun.DB) *Resource {
+func NewResource(service *messagingService.Service, db *bun.DB) *Resource {
 	return &Resource{Service: service, db: db}
 }
 

@@ -165,7 +165,7 @@ func parsePhaseExportRequest(r *http.Request) (listexport.Format, string, error)
 	return format, childStatus, nil
 }
 
-func buildPhaseExportFile(svc listexport.Service, data *enrollmentService.PhaseExport, format listexport.Format, childStatus string) (listexport.File, error) {
+func buildPhaseExportFile(svc *listexport.RendererService, data *enrollmentService.PhaseExport, format listexport.Format, childStatus string) (listexport.File, error) {
 	// The document heading is the phase name on its own (no separator
 	// punctuation); "Anmeldungen" lives in the subtitle counts + the
 	// download filename. The filename base stays descriptive regardless.
@@ -241,7 +241,7 @@ func (rs *Resource) exportStudentEnrollmentRequests(w http.ResponseWriter, r *ht
 	_, _ = w.Write(file.Data)
 }
 
-func buildStudentEnrollmentExportFile(svc listexport.Service, data *enrollmentService.StudentEnrollmentExport, format listexport.Format) (listexport.File, error) {
+func buildStudentEnrollmentExportFile(svc *listexport.RendererService, data *enrollmentService.StudentEnrollmentExport, format listexport.Format) (listexport.File, error) {
 	heading := studentEnrollmentExportHeading(data)
 	filename := heading
 	switch format {

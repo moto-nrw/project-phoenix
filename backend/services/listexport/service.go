@@ -6,9 +6,11 @@ import (
 	"time"
 )
 
+// RendererService renders list/record documents to PDF, XLSX, and DOCX files.
 type RendererService struct{}
 
-func NewService() Service {
+// NewService creates the document renderer.
+func NewService() *RendererService {
 	return &RendererService{}
 }
 

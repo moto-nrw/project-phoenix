@@ -38,7 +38,7 @@ func isProfileLockTimeout(err error) bool {
 }
 
 // setupGuardianService creates a GuardianService with real database connection
-func setupGuardianService(t *testing.T, db *bun.DB) users.GuardianService {
+func setupGuardianService(t *testing.T, db *bun.DB) *users.GuardianService {
 	repoFactory := repositories.NewFactory(db)
 	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
@@ -1489,7 +1489,7 @@ func TestGuardianService_CleanupExpiredInvitations(t *testing.T) {
 // =============================================================================
 
 // setupGuardianServiceWithMailer creates a GuardianService with injected mailer for testing email flows
-func setupGuardianServiceWithMailer(db *bun.DB, mailer *testpkg.CapturingMailer) users.GuardianService {
+func setupGuardianServiceWithMailer(db *bun.DB, mailer *testpkg.CapturingMailer) *users.GuardianService {
 	repoFactory := repositories.NewFactory(db)
 
 	// Create dispatcher from the capturing mailer

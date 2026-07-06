@@ -108,7 +108,7 @@ func (b *captureBroadcaster) countOf(t realtime.EventType) int {
 
 type fixture struct {
 	db           *bun.DB
-	svc          messaging.Service
+	svc          *messaging.Service
 	bc           *captureBroadcaster
 	chain        testpkg.ParentChain
 	staffAccount int64
@@ -125,7 +125,7 @@ func newPersons(repos *repositories.Factory, db *bun.DB) usersService.PersonServ
 	})
 }
 
-func buildMessagingWithSettings(t *testing.T, settings stubSettings) (messaging.Service, *captureBroadcaster, *repositories.Factory, *bun.DB) {
+func buildMessagingWithSettings(t *testing.T, settings stubSettings) (*messaging.Service, *captureBroadcaster, *repositories.Factory, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })

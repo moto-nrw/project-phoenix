@@ -188,8 +188,8 @@ func templateEndUnitService(
 	enrollmentRepo *templateEndUnitEnrollmentRepo,
 	supervisorRepo *templateEndUnitSupervisorRepo,
 	instanceRepo *templateEndUnitInstanceRepo,
-) *templateSplitService {
-	return &templateSplitService{deps: TemplateSplitDependencies{
+) *TemplateSplitService {
+	return &TemplateSplitService{deps: TemplateSplitDependencies{
 		GroupRepo:      groupRepo,
 		ScheduleRepo:   scheduleRepo,
 		EnrollmentRepo: enrollmentRepo,

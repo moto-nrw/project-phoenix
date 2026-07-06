@@ -104,17 +104,6 @@ type File struct {
 	Filename    string
 }
 
-type Service interface {
-	Render(doc Document, format Format, filenameBase string) (File, error)
-	// RenderRecords renders one block per record as a print-friendly
-	// PDF (A4 portrait). Use this instead of the flat-table Render when
-	// each record carries hierarchical/variable data (e.g. one
-	// enrollment with N children, offerings, consents and per-phase
-	// custom fields) that a fixed-column table can't lay out legibly.
-	RenderRecords(doc RecordDocument, filenameBase string) (File, error)
-	RenderRecordsDOCX(doc RecordDocument, filenameBase string) (File, error)
-}
-
 // Field is one label/value pair inside a record or sub-record block.
 type Field struct {
 	Label string

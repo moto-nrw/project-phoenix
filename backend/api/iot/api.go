@@ -55,7 +55,7 @@ type ServiceDependencies struct {
 	FeedbackService       feedbackSvc.Service
 	PickupScheduleService scheduleSvc.PickupScheduleService
 	SchoolService         platformSvc.SchoolService
-	TimetableDataService  scheduleSvc.TimetableDataService
+	TimetableDataService  *scheduleSvc.TimetableDataService
 	UnregisteredTagScans  auditSvc.UnregisteredTagScanService
 	Broadcaster           realtime.Broadcaster
 	Logger                *slog.Logger

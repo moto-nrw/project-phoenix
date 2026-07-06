@@ -15,11 +15,11 @@ import (
 )
 
 type Resource struct {
-	EmergencyService emergencyService.Service
+	EmergencyService *emergencyService.Service
 	db               *bun.DB
 }
 
-func NewResource(service emergencyService.Service, db *bun.DB) *Resource {
+func NewResource(service *emergencyService.Service, db *bun.DB) *Resource {
 	return &Resource{
 		EmergencyService: service,
 		db:               db,

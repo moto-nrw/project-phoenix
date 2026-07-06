@@ -27,19 +27,19 @@ type Resource struct {
 	FormSchemaService         enrollmentService.FormSchemaService
 	CareOfferingService       enrollmentService.CareOfferingService
 	RequestService            enrollmentService.RequestService
-	CaptchaService            enrollmentService.CaptchaService
+	CaptchaService            *enrollmentService.CaptchaService
 	PhaseService              enrollmentService.PhaseService
 	DecisionService           enrollmentService.DecisionService
 	ReportService             enrollmentService.ReportService
 	RolloverService           enrollmentService.RolloverService
 	ChangeRequestService      enrollmentService.ChangeRequestService
 	GuardianInvitationService authService.GuardianInvitationService
-	GuardianProfileLoader     usersService.GuardianProfileLoader
+	GuardianProfileLoader     *usersService.GuardianProfileLoader
 	SchoolService             platformSvc.SchoolService
 	// ListExportService renders the compact per-phase registration
 	// export (PDF blocks + XLSX flat table). Set as a field after
 	// construction (mirrors api/rooms), not via the constructor.
-	ListExportService    listexport.Service
+	ListExportService    *listexport.RendererService
 	db                   *bun.DB
 	legalDocumentRefs    legalDocumentReferenceRepository
 	runInTenantTxForTest func(r *http.Request, fn func(ctx context.Context) error) error
@@ -55,14 +55,14 @@ func NewResource(
 	formSchemaSvc enrollmentService.FormSchemaService,
 	careOfferingSvc enrollmentService.CareOfferingService,
 	requestSvc enrollmentService.RequestService,
-	captchaSvc enrollmentService.CaptchaService,
+	captchaSvc *enrollmentService.CaptchaService,
 	phaseSvc enrollmentService.PhaseService,
 	decisionSvc enrollmentService.DecisionService,
 	reportSvc enrollmentService.ReportService,
 	rolloverSvc enrollmentService.RolloverService,
 	changeRequestSvc enrollmentService.ChangeRequestService,
 	guardianInvitationSvc authService.GuardianInvitationService,
-	guardianProfileLoader usersService.GuardianProfileLoader,
+	guardianProfileLoader *usersService.GuardianProfileLoader,
 	schoolService platformSvc.SchoolService,
 	db *bun.DB,
 	legalDocumentRefs ...legalDocumentReferenceRepository,

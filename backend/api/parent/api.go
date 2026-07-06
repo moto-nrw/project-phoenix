@@ -37,7 +37,7 @@ type Resource struct {
 	AuthService           authService.AuthService
 	ParentService         parentService.Service
 	RequestService        enrollmentService.RequestService
-	GuardianProfileLoader usersService.GuardianProfileLoader
+	GuardianProfileLoader *usersService.GuardianProfileLoader
 	SchoolService         platformSvc.SchoolService
 	db                    *bun.DB
 	authRateLimiter       func(http.Handler) http.Handler
@@ -55,7 +55,7 @@ func NewResource(
 	auth authService.AuthService,
 	parent parentService.Service,
 	requestSvc enrollmentService.RequestService,
-	guardianProfileLoader usersService.GuardianProfileLoader,
+	guardianProfileLoader *usersService.GuardianProfileLoader,
 	schoolService platformSvc.SchoolService,
 	db *bun.DB,
 ) *Resource {

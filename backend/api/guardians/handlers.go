@@ -986,7 +986,7 @@ func (rs *Resource) sendInvitation(w http.ResponseWriter, r *http.Request) {
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		var txErr error
-		invitation, txErr = rs.GuardianService.SendInvitation(ctx, invitationReq)
+		invitation, txErr = rs.GuardianService.SendInvitation(ctx, invitationReq) //nolint:staticcheck // deprecated twin stays until audit A-13 deletes the whole flow
 		return txErr
 	}); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))

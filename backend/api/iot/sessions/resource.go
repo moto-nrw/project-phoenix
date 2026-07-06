@@ -21,7 +21,7 @@ type Resource struct {
 	ActivitiesService activitiesSvc.ActivityService
 	FacilityService   facilitiesSvc.Service
 	EducationService  educationSvc.Service
-	TimetableData     scheduleSvc.TimetableDataService
+	TimetableData     *scheduleSvc.TimetableDataService
 	Broadcaster       realtime.Broadcaster
 }
 
@@ -47,7 +47,7 @@ func NewResource(
 // ConfigureTimetableMirror wires optional repositories used to mirror
 // PyrePortal/RFID activity sessions into the timetable instance layer.
 func (rs *Resource) ConfigureTimetableMirror(
-	timetableData scheduleSvc.TimetableDataService,
+	timetableData *scheduleSvc.TimetableDataService,
 	broadcaster realtime.Broadcaster,
 ) {
 	rs.TimetableData = timetableData

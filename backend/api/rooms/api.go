@@ -38,7 +38,7 @@ type Resource struct {
 	ActiveService     activeService.Service
 	PersonService     userService.PersonService
 	EducationService  educationService.Service
-	ListExportService listexport.Service
+	ListExportService *listexport.RendererService
 }
 
 // ResourceConfig wires the rooms resource's collaborators. Kept as a struct

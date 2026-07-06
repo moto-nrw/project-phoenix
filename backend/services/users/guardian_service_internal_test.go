@@ -133,7 +133,7 @@ func TestIsGuardianUniqueViolation(t *testing.T) {
 
 func TestCreateGuardian_NonUniqueCreateErrorIsWrapped(t *testing.T) {
 	email := "new-guardian@example.com"
-	svc := &guardianService{GuardianServiceDependencies: GuardianServiceDependencies{
+	svc := &GuardianService{GuardianServiceDependencies: GuardianServiceDependencies{
 
 		// Pre-check finds no existing guardian, so creation proceeds.
 		GuardianProfileRepo: &fakeProfileRepo{
@@ -162,7 +162,7 @@ func TestCreateGuardian_NonUniqueCreateErrorIsWrapped(t *testing.T) {
 
 func TestUpdateGuardian_NonUniqueUpdateErrorIsReturned(t *testing.T) {
 	email := "edited@example.com"
-	svc := &guardianService{GuardianServiceDependencies: GuardianServiceDependencies{
+	svc := &GuardianService{GuardianServiceDependencies: GuardianServiceDependencies{
 
 		// UpdateGuardian now locks the profile row FOR UPDATE before reading
 		// it (serializes with the parents-portal contact path — #1667 review);
@@ -194,7 +194,7 @@ func TestUpdateGuardian_NonUniqueUpdateErrorIsReturned(t *testing.T) {
 }
 
 func TestDeleteGuardianWithLinks_LockError(t *testing.T) {
-	svc := &guardianService{GuardianServiceDependencies: GuardianServiceDependencies{GuardianProfileRepo: &fakeProfileRepo{
+	svc := &GuardianService{GuardianServiceDependencies: GuardianServiceDependencies{GuardianProfileRepo: &fakeProfileRepo{
 		lockFn: func(_ context.Context, _ int64) error { return errors.New("lock timeout") },
 	}},
 	}
@@ -204,7 +204,7 @@ func TestDeleteGuardianWithLinks_LockError(t *testing.T) {
 }
 
 func TestDeleteGuardianWithLinks_LoadLinksError(t *testing.T) {
-	svc := &guardianService{GuardianServiceDependencies: GuardianServiceDependencies{GuardianProfileRepo: &fakeProfileRepo{
+	svc := &GuardianService{GuardianServiceDependencies: GuardianServiceDependencies{GuardianProfileRepo: &fakeProfileRepo{
 		lockFn: func(_ context.Context, _ int64) error { return nil },
 	}, StudentGuardianRepo: &fakeStudentGuardianRepo{
 		findByGuardianFn: func(_ context.Context, _ int64) ([]*users.StudentGuardian, error) {
@@ -220,7 +220,7 @@ func TestDeleteGuardianWithLinks_LoadLinksError(t *testing.T) {
 func TestDeleteGuardianWithLinks_LinkDeleteError(t *testing.T) {
 	link := &users.StudentGuardian{StudentID: 7, GuardianProfileID: 1}
 	link.ID = 5
-	svc := &guardianService{GuardianServiceDependencies: GuardianServiceDependencies{GuardianProfileRepo: &fakeProfileRepo{
+	svc := &GuardianService{GuardianServiceDependencies: GuardianServiceDependencies{GuardianProfileRepo: &fakeProfileRepo{
 		lockFn: func(_ context.Context, _ int64) error { return nil },
 	}, StudentGuardianRepo: &fakeStudentGuardianRepo{
 		findByGuardianFn: func(_ context.Context, _ int64) ([]*users.StudentGuardian, error) {
@@ -241,7 +241,7 @@ func TestDeleteGuardianWithLinks_LinkDeleteError(t *testing.T) {
 func TestGetGuardianDeleteImpact_StudentLoadError(t *testing.T) {
 	rel := &users.StudentGuardian{StudentID: 7, GuardianProfileID: 1}
 	rel.ID = 5
-	svc := &guardianService{GuardianServiceDependencies: GuardianServiceDependencies{StudentGuardianRepo: &fakeStudentGuardianRepo{
+	svc := &GuardianService{GuardianServiceDependencies: GuardianServiceDependencies{StudentGuardianRepo: &fakeStudentGuardianRepo{
 		findByGuardianFn: func(_ context.Context, _ int64) ([]*users.StudentGuardian, error) {
 			return []*users.StudentGuardian{rel}, nil
 		},
@@ -260,7 +260,7 @@ func TestGetGuardianDeleteImpact_NilPersonIsRejected(t *testing.T) {
 	rel := &users.StudentGuardian{StudentID: 7, GuardianProfileID: 1}
 	rel.ID = 5
 	student := &users.Student{PersonID: 9}
-	svc := &guardianService{GuardianServiceDependencies: GuardianServiceDependencies{StudentGuardianRepo: &fakeStudentGuardianRepo{
+	svc := &GuardianService{GuardianServiceDependencies: GuardianServiceDependencies{StudentGuardianRepo: &fakeStudentGuardianRepo{
 		findByGuardianFn: func(_ context.Context, _ int64) ([]*users.StudentGuardian, error) {
 			return []*users.StudentGuardian{rel}, nil
 		},

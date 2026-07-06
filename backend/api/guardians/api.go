@@ -15,7 +15,7 @@ import (
 
 // Resource defines the guardians API resource
 type Resource struct {
-	GuardianService    guardianSvc.GuardianService
+	GuardianService    *guardianSvc.GuardianService
 	InvitationService  authSvc.GuardianInvitationService
 	PersonService      guardianSvc.PersonService
 	EducationService   educationSvc.Service
@@ -25,7 +25,7 @@ type Resource struct {
 
 // NewResource creates a new guardians resource
 func NewResource(
-	guardianService guardianSvc.GuardianService,
+	guardianService *guardianSvc.GuardianService,
 	invitationService authSvc.GuardianInvitationService,
 	personService guardianSvc.PersonService,
 	educationService educationSvc.Service,

@@ -167,7 +167,7 @@ func (rs *Resource) getCareUsageReport(w http.ResponseWriter, r *http.Request) {
 func exportReport[F, R any](rs *Resource, w http.ResponseWriter, r *http.Request,
 	parse func(*http.Request) (listexport.Format, F, error),
 	fetch func(ctx context.Context, filters F, actorAccountID int64, actorRole, format string) (R, error),
-	build func(svc listexport.Service, report R, format listexport.Format) (listexport.File, error),
+	build func(svc *listexport.RendererService, report R, format listexport.Format) (listexport.File, error),
 ) {
 	if rs.ReportService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("report service not configured")))
@@ -519,7 +519,7 @@ func toCareUsageReportResponse(report *enrollmentService.CareUsageReport) *careU
 	return out
 }
 
-func buildCareUsageExportFile(svc listexport.Service, report *enrollmentService.CareUsageReport, format listexport.Format) (listexport.File, error) {
+func buildCareUsageExportFile(svc *listexport.RendererService, report *enrollmentService.CareUsageReport, format listexport.Format) (listexport.File, error) {
 	filename := "Anmelde-Auswertung " + strings.TrimSpace(report.Phase.Name)
 	if strings.TrimSpace(report.Phase.Name) == "" {
 		filename = "Anmelde-Auswertung"
@@ -536,7 +536,7 @@ func buildCareUsageExportFile(svc listexport.Service, report *enrollmentService.
 	}
 }
 
-func buildClassRosterExportFile(svc listexport.Service, report *enrollmentService.ClassRosterReport, format listexport.Format) (listexport.File, error) {
+func buildClassRosterExportFile(svc *listexport.RendererService, report *enrollmentService.ClassRosterReport, format listexport.Format) (listexport.File, error) {
 	filename := "Klassenliste " + strings.TrimSpace(report.Filters.SchoolClass)
 	if report.Filters.AllClasses {
 		filename = "Klassenlisten"

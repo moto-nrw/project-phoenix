@@ -44,9 +44,9 @@ type Dependencies struct {
 	MaterializationService scheduleSvc.MaterializationService
 	InstanceService        scheduleSvc.InstanceService
 	OperationsService      scheduleSvc.TimetableOperationsService
-	TemplateSplitService   scheduleSvc.TemplateSplitService
+	TemplateSplitService   *scheduleSvc.TemplateSplitService
 	PersonService          userSvc.PersonService
-	TimetableData          scheduleSvc.TimetableDataService
+	TimetableData          *scheduleSvc.TimetableDataService
 	UserContextService     usercontextSvc.UserContextService
 	SettingsService        configSvc.SettingsService
 	Broadcaster            realtime.Broadcaster

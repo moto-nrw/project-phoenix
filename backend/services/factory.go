@@ -61,7 +61,7 @@ type Factory struct {
 	StaffAbsence             active.StaffAbsenceService
 	Activities               activities.ActivityService
 	Education                education.Service
-	GradeTransition          education.GradeTransitionService
+	GradeTransition          *education.GradeTransitionService
 	Facilities               facilities.Service
 	Schulhof                 facilities.SchulhofService
 	WC                       facilities.WCService
@@ -78,7 +78,7 @@ type Factory struct {
 	ArrivalSchedule          schedule.ArrivalScheduleService
 	CalendarPeriod           schedule.CalendarPeriodService
 	Materialization          schedule.MaterializationService
-	TemplateSplit            schedule.TemplateSplitService
+	TemplateSplit            *schedule.TemplateSplitService
 	TimetableCleanup         schedule.TimetableCleanupService
 	TimeTrackingCleanup      active.TimeTrackingCleanupService
 	Instance                 schedule.InstanceService
@@ -87,14 +87,14 @@ type Factory struct {
 	Users                    users.PersonService
 	StaffOffboarding         users.StaffOffboardingService
 	CaregiverCapability      users.CaregiverCapabilityService
-	Guardian                 users.GuardianService
-	GuardianProfileLoader    users.GuardianProfileLoader
+	Guardian                 *users.GuardianService
+	GuardianProfileLoader    *users.GuardianProfileLoader
 	UserContext              usercontext.UserContextService
 	Database                 database.DatabaseService
 	Import                   *importService.ImportService[importModels.StudentImportRow] // Student import service
 	StaffImport              *importService.ImportService[importModels.StaffImportRow]   // Staff (Mitarbeiter) import service
-	ListExport               listexport.Service
-	Emergency                emergency.Service
+	ListExport               *listexport.RendererService
+	Emergency                *emergency.Service
 	Reminders                reminders.Service
 	RealtimeHub              *realtime.Hub // SSE event hub (shared by services and API)
 	Mailer                   email.Mailer
@@ -109,13 +109,13 @@ type Factory struct {
 	OperatorProvisioning platform.OperatorProvisioningService
 	Announcement         platform.AnnouncementService
 	Schools              platform.SchoolService
-	WorkTimeModels       config.WorkTimeModelService
+	WorkTimeModels       *config.WorkTimeModelService
 	Students             users.StudentService
 	MasterDataReview     users.MasterDataReviewService
 	CareRequests         schedule.CareScheduleRequestService
-	StudentStatusDays    active.StudentStatusDayService
+	StudentStatusDays    *active.StudentStatusDayService
 	StudentHistory       active.StudentHistoryService
-	TimetableData        schedule.TimetableDataService
+	TimetableData        *schedule.TimetableDataService
 	OperatorSuggestions  platform.OperatorSuggestionsService
 	OperatorMFA          platform.OperatorMFAService
 	OperatorPasskey      platform.OperatorPasskeyService
@@ -132,7 +132,7 @@ type Factory struct {
 	// Enrollment domain (parent-enrollment PR 5+).
 	EnrollmentFormSchema    enrollment.FormSchemaService
 	EnrollmentCareOffering  enrollment.CareOfferingService
-	EnrollmentCaptcha       enrollment.CaptchaService
+	EnrollmentCaptcha       *enrollment.CaptchaService
 	EnrollmentRequest       enrollment.RequestService
 	EnrollmentPhase         enrollment.PhaseService
 	EnrollmentDecision      enrollment.DecisionService
@@ -144,7 +144,7 @@ type Factory struct {
 	Parent parent.Service
 
 	// Messaging (staff-side parent-OGS inbox / threads)
-	Messaging messaging.Service
+	Messaging *messaging.Service
 
 	// ParentAnnouncement (staff-side parent broadcast news authoring, #1669)
 	ParentAnnouncement announcement.Service
