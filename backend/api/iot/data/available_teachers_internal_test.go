@@ -202,7 +202,7 @@ func TestGetAvailableTeachers_RendersTeacherRepositoryErrors(t *testing.T) {
 		},
 	}
 	router := chi.NewRouter()
-	router.Get("/teachers", resource.GetAvailableTeachersHandler())
+	router.Get("/teachers", resource.getAvailableTeachers)
 
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, requestWithDeviceContext())
@@ -235,7 +235,7 @@ func TestGetAvailableTeachers_UsesTeacherRoster(t *testing.T) {
 		},
 	}
 	router := chi.NewRouter()
-	router.Get("/teachers", resource.GetAvailableTeachersHandler())
+	router.Get("/teachers", resource.getAvailableTeachers)
 
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, requestWithDeviceContext())

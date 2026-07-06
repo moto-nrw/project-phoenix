@@ -12,7 +12,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -112,8 +111,7 @@ func TestSubmitFeedback_NoDevice(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Post("/feedback", ctx.resource.SubmitFeedbackHandler())
+	router := ctx.resource.Router()
 
 	body := map[string]interface{}{
 		"student_id": 1,
@@ -134,8 +132,7 @@ func TestSubmitFeedback_InvalidJSON(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-1")
 
-	router := chi.NewRouter()
-	router.Post("/feedback", ctx.resource.SubmitFeedbackHandler())
+	router := ctx.resource.Router()
 
 	// Send invalid JSON body
 	req := httptest.NewRequest("POST", "/feedback", bytes.NewBufferString("invalid json"))
@@ -155,8 +152,7 @@ func TestSubmitFeedback_MissingStudentID(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-2")
 
-	router := chi.NewRouter()
-	router.Post("/feedback", ctx.resource.SubmitFeedbackHandler())
+	router := ctx.resource.Router()
 
 	body := map[string]interface{}{
 		"value": "positive",
@@ -177,8 +173,7 @@ func TestSubmitFeedback_MissingValue(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-3")
 
-	router := chi.NewRouter()
-	router.Post("/feedback", ctx.resource.SubmitFeedbackHandler())
+	router := ctx.resource.Router()
 
 	body := map[string]interface{}{
 		"student_id": 1,
@@ -199,8 +194,7 @@ func TestSubmitFeedback_InvalidStudentID(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-4")
 
-	router := chi.NewRouter()
-	router.Post("/feedback", ctx.resource.SubmitFeedbackHandler())
+	router := ctx.resource.Router()
 
 	body := map[string]interface{}{
 		"student_id": 0, // Invalid - must be positive
@@ -222,8 +216,7 @@ func TestSubmitFeedback_StudentNotFound(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-5")
 
-	router := chi.NewRouter()
-	router.Post("/feedback", ctx.resource.SubmitFeedbackHandler())
+	router := ctx.resource.Router()
 
 	body := map[string]interface{}{
 		"student_id": 99999, // Non-existent student
@@ -246,8 +239,7 @@ func TestSubmitFeedback_Success(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-6")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student", "1a")
 
-	router := chi.NewRouter()
-	router.Post("/feedback", ctx.resource.SubmitFeedbackHandler())
+	router := ctx.resource.Router()
 
 	body := map[string]interface{}{
 		"student_id": student.ID,
@@ -270,8 +262,7 @@ func TestSubmitFeedback_NeutralValue(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-7")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student2", "1b")
 
-	router := chi.NewRouter()
-	router.Post("/feedback", ctx.resource.SubmitFeedbackHandler())
+	router := ctx.resource.Router()
 
 	body := map[string]interface{}{
 		"student_id": student.ID,
@@ -294,8 +285,7 @@ func TestSubmitFeedback_NegativeValue(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-8")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student3", "1c")
 
-	router := chi.NewRouter()
-	router.Post("/feedback", ctx.resource.SubmitFeedbackHandler())
+	router := ctx.resource.Router()
 
 	body := map[string]interface{}{
 		"student_id": student.ID,
@@ -318,8 +308,7 @@ func TestSubmitFeedback_InvalidValue(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-9")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student4", "1d")
 
-	router := chi.NewRouter()
-	router.Post("/feedback", ctx.resource.SubmitFeedbackHandler())
+	router := ctx.resource.Router()
 
 	body := map[string]interface{}{
 		"student_id": student.ID,
@@ -360,8 +349,7 @@ func TestSubmitFeedback_FeedbackDisabled(t *testing.T) {
 		disabledSettings,
 	)
 
-	router := chi.NewRouter()
-	router.Post("/feedback", resource.SubmitFeedbackHandler())
+	router := resource.Router()
 
 	body := map[string]interface{}{
 		"student_id": student.ID,
@@ -410,8 +398,7 @@ func TestSubmitFeedback_FeedbackEnabled(t *testing.T) {
 		enabledSettings,
 	)
 
-	router := chi.NewRouter()
-	router.Post("/feedback", resource.SubmitFeedbackHandler())
+	router := resource.Router()
 
 	body := map[string]interface{}{
 		"student_id": student.ID,

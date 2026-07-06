@@ -2,7 +2,6 @@ package checkin
 
 import (
 	"log/slog"
-	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -85,19 +84,3 @@ func (rs *Resource) Router() chi.Router {
 
 	return r
 }
-
-// =============================================================================
-// EXPORTED HANDLERS FOR TESTING
-// =============================================================================
-
-// DeviceCheckinHandler returns the deviceCheckin handler for testing.
-func (rs *Resource) DeviceCheckinHandler() http.HandlerFunc { return rs.deviceCheckin }
-
-// DevicePingHandler returns the devicePing handler for testing.
-func (rs *Resource) DevicePingHandler() http.HandlerFunc { return rs.devicePing }
-
-// DeviceStatusHandler returns the deviceStatus handler for testing.
-func (rs *Resource) DeviceStatusHandler() http.HandlerFunc { return rs.deviceStatus }
-
-// DevicePickupQueryHandler returns the devicePickupQuery handler for testing.
-func (rs *Resource) DevicePickupQueryHandler() http.HandlerFunc { return rs.devicePickupQuery }

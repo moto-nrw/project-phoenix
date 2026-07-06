@@ -369,20 +369,11 @@ func TestCompleteMirroredTimetableInstanceStopsWhenMarkCompletedFails(t *testing
 	assert.False(t, bc.called)
 }
 
-func TestResourceRouterAndAccessorsAreWired(t *testing.T) {
+func TestResourceRouterIsWired(t *testing.T) {
 	rs := NewResource(nil, nil, nil, nil, nil, nil)
 	router := rs.Router()
 
 	require.NotNil(t, router)
-	require.NotNil(t, rs.StartSessionHandler())
-	require.NotNil(t, rs.EndSessionHandler())
-	require.NotNil(t, rs.GetCurrentSessionHandler())
-	require.NotNil(t, rs.CheckConflictHandler())
-	require.NotNil(t, rs.UpdateSupervisorsHandler())
-	require.NotNil(t, rs.ProcessTimeoutHandler())
-	require.NotNil(t, rs.UpdateActivityHandler())
-	require.NotNil(t, rs.ValidateTimeoutHandler())
-	require.NotNil(t, rs.GetTimeoutInfoHandler())
 }
 
 func TestConfigureTimetableMirrorStoresDependencies(t *testing.T) {
