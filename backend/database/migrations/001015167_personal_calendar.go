@@ -59,6 +59,13 @@ func personalCalendarUp(ctx context.Context, db *bun.DB) error {
 		CREATE TABLE IF NOT EXISTS calendar.appointments (
 			id                 BIGSERIAL PRIMARY KEY,
 			tenant_id          BIGINT NOT NULL REFERENCES platform.schools(id) ON DELETE CASCADE,
+			-- No ON DELETE action needed: users.staff is soft-deleted
+			-- (deleted_at, bun soft_delete tag). Offboarding sets deleted_at and
+			-- leaves the row in place (see services/users/staff_offboarding.go —
+			-- "before the soft delete"), so this FK is never violated. Staff rows
+			-- are not hard-deleted anywhere, so CASCADE/SET NULL would be dead
+			-- (and CASCADE is undesirable here — a departed organizer must not
+			-- silently delete their appointments).
 			organizer_staff_id BIGINT NOT NULL REFERENCES users.staff(id),
 			title              TEXT NOT NULL,
 			description        TEXT,
@@ -124,6 +131,9 @@ func personalCalendarUp(ctx context.Context, db *bun.DB) error {
 			tenant_id           BIGINT NOT NULL REFERENCES platform.schools(id) ON DELETE CASCADE,
 			appointment_id      BIGINT NOT NULL,
 			recipient_type      TEXT NOT NULL,
+			-- No ON DELETE action: users.staff is soft-deleted (see the note on
+			-- appointments.organizer_staff_id above), so a staff recipient row is
+			-- never orphaned by a hard delete.
 			staff_id            BIGINT REFERENCES users.staff(id),
 			-- ON DELETE CASCADE: a guardian profile deletion (e.g. GDPR account
 			-- removal via DeleteGuardianWithLinks) must not fail on this FK.

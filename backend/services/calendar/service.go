@@ -485,6 +485,13 @@ func (s *service) RespondToParentInvitation(ctx context.Context, accountID, reci
 	if err != nil {
 		return err
 	}
+	// recipientID is globally unique (calendar.appointment_recipients.id is a
+	// BIGSERIAL PRIMARY KEY, not per-tenant), so it exists in exactly one
+	// tenant. Scanning the parent's tenants is safe: RLS inside each
+	// WithTenantTx returns the row only in its owning tenant, and allowedProfiles
+	// then confirms it belongs to THIS parent there. There is no cross-tenant ID
+	// collision — a foreign recipient id simply resolves to nil or fails the
+	// allowedProfiles check.
 	for tenantID, tenantChildren := range groupChildrenByTenant(children) {
 		allowedProfiles := int64Set(distinctGuardianProfileIDs(tenantChildren))
 		allowedStudentIDs := int64Set(distinctChildStudentIDs(tenantChildren))

@@ -114,6 +114,14 @@ func (r *GuardianProfileRepository) FindByIDs(ctx context.Context, ids []int64) 
 // (ErrAccountNoGuardianRole), so a profile whose account lacks it must not be
 // treated as reachable — otherwise staff could target a parent who can never
 // see or answer the invitation.
+//
+// Runtime-role note: this runs under phoenix_tenant (the staff calendar routes
+// use TenantTxMiddleware). That role has SELECT on every auth table via the
+// "GRANT SELECT ON ALL TABLES IN SCHEMA auth TO phoenix_tenant" in migration
+// 1.14.1 (no later revoke), and RLS permits the reads with app.current_tenant_id
+// set: auth.roles allows tenant_id IS NULL (the guardian base role), and
+// auth.account_roles / auth.account_tenants rows match the current tenant.
+// It is NOT limited to phoenix_auth — these joins do not need an admin tx.
 func (r *GuardianProfileRepository) FindActivePortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*users.GuardianProfile, error) {
 	if len(ids) == 0 {
 		return make(map[int64]*users.GuardianProfile), nil
