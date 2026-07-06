@@ -388,11 +388,10 @@ func (s *Service) newRefreshToken(accountID int64) *auth.Token {
 // so we switch to phoenix_admin for the token write.
 func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.Account, token *auth.Token, tenantID int64) error {
 	return tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(*Service)
 
 		// Clean up old tokens (keep 5 most recent)
 		const maxTokensPerAccount = 5
-		if err := txService.repos.Token.CleanupOldTokensForAccount(ctx, account.ID, maxTokensPerAccount); err != nil {
+		if err := s.repos.Token.CleanupOldTokensForAccount(ctx, account.ID, maxTokensPerAccount); err != nil {
 			s.getLogger().Warn("failed to clean up old tokens",
 				slog.Int64("account_id", account.ID),
 				slog.Any("error", err),
@@ -403,7 +402,7 @@ func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.A
 		token.SetTenantID(tenantID)
 
 		// Create new token
-		if err := txService.repos.Token.Create(ctx, token); err != nil {
+		if err := s.repos.Token.Create(ctx, token); err != nil {
 			if s.isTokenFamilyConflict(err) {
 				return err // Will retry with new family ID
 			}
@@ -413,7 +412,7 @@ func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.A
 		// Update last login
 		loginTime := time.Now()
 		account.LastLogin = &loginTime
-		return txService.repos.Account.Update(ctx, account)
+		return s.repos.Account.Update(ctx, account)
 	})
 }
 
@@ -451,25 +450,24 @@ func (s *Service) loadAccountMetadata(ctx context.Context, account *auth.Account
 	// queries return zero rows and the JWT gets empty permissions.
 	var result *accountMetadata
 	err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(*Service)
 
 		// Step 1: Resolve tenant FIRST — roles/permissions depend on the target tenant.
-		tenantID, orgID, err := txService.resolveAccountTenant(ctx, account.ID, tenantSlug)
+		tenantID, orgID, err := s.resolveAccountTenant(ctx, account.ID, tenantSlug)
 		if err != nil {
 			return err
 		}
 
 		// Step 2: Load roles scoped to the resolved tenant (D13 §6.1 step 6).
-		txService.ensureAccountRolesLoadedForTenant(ctx, account, tenantID)
+		s.ensureAccountRolesLoadedForTenant(ctx, account, tenantID)
 
 		// Step 3: Load permissions scoped to the resolved tenant (D13 §6.1 step 7).
-		permissions := txService.loadAccountPermissionsForTenant(ctx, account.ID, tenantID)
-		roleNames := txService.extractRoleNames(account.Roles)
-		permissionStrs := txService.extractPermissionNames(permissions)
+		permissions := s.loadAccountPermissionsForTenant(ctx, account.ID, tenantID)
+		roleNames := s.extractRoleNames(account.Roles)
+		permissionStrs := s.extractPermissionNames(permissions)
 
-		username := txService.extractUsername(account)
-		firstName, lastName := txService.loadPersonNames(ctx, account.ID)
-		isAdmin := txService.checkRoleFlags(roleNames)
+		username := s.extractUsername(account)
+		firstName, lastName := s.loadPersonNames(ctx, account.ID)
+		isAdmin := s.checkRoleFlags(roleNames)
 
 		result = &accountMetadata{
 			roleNames:      roleNames,
@@ -495,12 +493,11 @@ func (s *Service) loadAccountMetadata(ctx context.Context, account *auth.Account
 func (s *Service) loadAccountMetadataForTenant(ctx context.Context, account *auth.Account, tenantID int64) (*accountMetadata, error) {
 	var result *accountMetadata
 	err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(*Service)
 
 		// Look up the school's organization ID for the JWT org_id claim.
 		var orgID int64
 		if tenantID > 0 {
-			school, err := txService.repos.School.FindByID(ctx, tenantID)
+			school, err := s.repos.School.FindByID(ctx, tenantID)
 			if err != nil {
 				// Distinguish "not found" from transient DB errors so the caller
 				// returns 401 (re-login) instead of 500 (retry) when the school
@@ -517,14 +514,14 @@ func (s *Service) loadAccountMetadataForTenant(ctx context.Context, account *aut
 		}
 
 		// Load roles and permissions scoped to the preserved tenant.
-		txService.ensureAccountRolesLoadedForTenant(ctx, account, tenantID)
-		permissions := txService.loadAccountPermissionsForTenant(ctx, account.ID, tenantID)
-		roleNames := txService.extractRoleNames(account.Roles)
-		permissionStrs := txService.extractPermissionNames(permissions)
+		s.ensureAccountRolesLoadedForTenant(ctx, account, tenantID)
+		permissions := s.loadAccountPermissionsForTenant(ctx, account.ID, tenantID)
+		roleNames := s.extractRoleNames(account.Roles)
+		permissionStrs := s.extractPermissionNames(permissions)
 
-		username := txService.extractUsername(account)
-		firstName, lastName := txService.loadPersonNames(ctx, account.ID)
-		isAdmin := txService.checkRoleFlags(roleNames)
+		username := s.extractUsername(account)
+		firstName, lastName := s.loadPersonNames(ctx, account.ID)
+		isAdmin := s.checkRoleFlags(roleNames)
 
 		result = &accountMetadata{
 			roleNames:      roleNames,
@@ -917,15 +914,14 @@ func (s *Service) persistAccountWithRole(ctx context.Context, account *auth.Acco
 	if tenantID <= 0 {
 		// No tenant context (e.g. tests) — fall back to admin tx for the account insert only.
 		return tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
-			return s.WithTx(tx).(*Service).repos.Account.Create(ctx, account)
+			return s.repos.Account.Create(ctx, account)
 		})
 	}
 
 	return tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(*Service)
 
 		// Create account (auth.accounts has no tenant_id, no RLS — plain INSERT)
-		if err := txService.repos.Account.Create(ctx, account); err != nil {
+		if err := s.repos.Account.Create(ctx, account); err != nil {
 			return err
 		}
 
@@ -937,7 +933,7 @@ func (s *Service) persistAccountWithRole(ctx context.Context, account *auth.Acco
 			Status:      auth.AccountTenantStatusActive,
 			ActivatedAt: &now,
 		}
-		if err := txService.repos.AccountTenant.Create(ctx, mapping); err != nil {
+		if err := s.repos.AccountTenant.Create(ctx, mapping); err != nil {
 			return fmt.Errorf("failed to create account-tenant mapping: %w", err)
 		}
 
@@ -948,7 +944,7 @@ func (s *Service) persistAccountWithRole(ctx context.Context, account *auth.Acco
 				RoleID:    *roleID,
 			}
 			accountRole.SetTenantID(tenantID)
-			if err := txService.repos.AccountRole.Create(ctx, accountRole); err != nil {
+			if err := s.repos.AccountRole.Create(ctx, accountRole); err != nil {
 				return fmt.Errorf("failed to assign role to account: %w", err)
 			}
 		}
@@ -994,12 +990,11 @@ func (s *Service) LinkAccountToTenant(ctx context.Context, email string, roleID 
 // performAccountTenantLink creates a tenant mapping and role assignment for an existing account.
 func (s *Service) performAccountTenantLink(ctx context.Context, account *auth.Account, roleID *int64, tenantID int64) error {
 	return tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(*Service)
 
-		if err := txService.ensureTenantMapping(ctx, account.ID, tenantID); err != nil {
+		if err := s.ensureTenantMapping(ctx, account.ID, tenantID); err != nil {
 			return err
 		}
-		return txService.ensureRoleAssignment(ctx, account.ID, roleID, tenantID)
+		return s.ensureRoleAssignment(ctx, account.ID, roleID, tenantID)
 	})
 }
 

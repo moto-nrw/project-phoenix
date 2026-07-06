@@ -330,11 +330,11 @@ func newActivityResponse(group *activities.Group, enrollmentCount int) ActivityR
 
 // getStaffIDAndManagePermission extracts the current staff ID and checks for admin-level permission.
 // Returns (staffID, hasAdminPermission, error). If user is not staff, returns (0, hasAdminPermission, error).
-// Note: Only AdminWildcard and FullAccess bypass ownership checks, NOT ActivitiesManage.
-// ActivitiesManage allows creating/editing activities, but ownership rules still apply.
+// Note: Only AdminWildcard and FullAccess bypass ownership checks, NOT "activities:manage".
+// "activities:manage" allows creating/editing activities, but ownership rules still apply.
 func (rs *Resource) getStaffIDAndManagePermission(r *http.Request) (int64, bool, error) {
 	// Check if user has admin-level permission that bypasses ownership checks
-	// Note: ActivitiesManage does NOT bypass ownership - only true admin permissions do
+	// Note: "activities:manage" does NOT bypass ownership - only true admin permissions do
 	perms := jwt.PermissionsFromCtx(r.Context())
 	hasAdminPermission := false
 	for _, p := range perms {

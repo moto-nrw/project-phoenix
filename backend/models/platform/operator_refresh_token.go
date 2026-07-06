@@ -18,8 +18,6 @@ type OperatorRefreshToken struct {
 	Expiry     time.Time `bun:"expiry,notnull" json:"expiry"`
 	FamilyID   string    `bun:"family_id,notnull" json:"family_id"`
 	Generation int       `bun:"generation,notnull,default:0" json:"generation"`
-
-	Operator *Operator `bun:"rel:belongs-to,join:operator_id=id" json:"operator,omitempty"`
 }
 
 func (t *OperatorRefreshToken) Validate() error {

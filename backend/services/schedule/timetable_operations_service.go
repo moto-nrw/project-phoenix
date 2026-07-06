@@ -124,13 +124,12 @@ type OperationRoster struct {
 }
 
 type OperationRosterInstance struct {
-	ID            int64   `json:"id"`
-	Title         string  `json:"title"`
-	Status        string  `json:"status"`
-	IsSpontaneous bool    `json:"is_spontaneous"`
-	ActiveGroupID *int64  `json:"active_group_id,omitempty"`
-	RoomID        int64   `json:"room_id"`
-	RoomName      *string `json:"room_name,omitempty"`
+	ID            int64  `json:"id"`
+	Title         string `json:"title"`
+	Status        string `json:"status"`
+	IsSpontaneous bool   `json:"is_spontaneous"`
+	ActiveGroupID *int64 `json:"active_group_id,omitempty"`
+	RoomID        int64  `json:"room_id"`
 }
 
 type OperationRosterRow struct {

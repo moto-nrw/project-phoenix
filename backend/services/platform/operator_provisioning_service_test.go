@@ -303,7 +303,6 @@ func (m *mockInvitationService) GetTenantSlugForToken(_ context.Context, _ strin
 	return ""
 }
 
-func (m *mockInvitationService) WithTx(tx bun.Tx) interface{} { return m }
 func (m *mockInvitationService) CreateInvitation(_ context.Context, req authSvc.InvitationRequest) (*authModels.InvitationToken, error) {
 	m.req = req
 	return &authModels.InvitationToken{
@@ -348,7 +347,6 @@ func (m *mockAuthService) VerifyAccountTenantMembership(_ context.Context, _, _ 
 	return true, nil
 }
 
-func (m *mockAuthService) WithTx(_ bun.Tx) interface{} { return m }
 func (m *mockAuthService) Login(context.Context, string, string) (string, string, error) {
 	return "", "", nil
 }

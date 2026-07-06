@@ -16,8 +16,6 @@ type WorkSessionBreak struct {
 	EndedAt         *time.Time `bun:"ended_at" json:"ended_at,omitempty"`
 	DurationMinutes int        `bun:"duration_minutes,notnull,default:0" json:"duration_minutes"`
 	PlannedEndTime  *time.Time `bun:"planned_end_time" json:"planned_end_time,omitempty"`
-
-	Session *WorkSession `bun:"rel:belongs-to,join:session_id=id" json:"session,omitempty"`
 }
 
 // Validate validates the break record

@@ -40,8 +40,7 @@ type StudentGuardian struct {
 	Permissions        map[string]interface{} `bun:"permissions,type:jsonb,nullzero" json:"permissions,omitempty"`
 
 	// Relations not stored in the database
-	Student         *Student         `bun:"rel:belongs-to,join:student_id=id" json:"student,omitempty"`
-	GuardianProfile *GuardianProfile `bun:"rel:belongs-to,join:guardian_profile_id=id" json:"guardian_profile,omitempty"`
+	Student *Student `bun:"rel:belongs-to,join:student_id=id" json:"student,omitempty"`
 }
 
 // Validate ensures student guardian data is valid

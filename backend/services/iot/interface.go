@@ -52,6 +52,4 @@ type Service interface {
 
 	// Targeted last-seen update by PK (skips existence check and full-model update)
 	UpdateDeviceLastSeenAt(ctx context.Context, id int64, lastSeen time.Time) error
-
-	// Transaction support is provided by base.TransactionalService
 }

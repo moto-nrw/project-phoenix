@@ -10,28 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestAuthErrorVariables(t *testing.T) {
-	assert.NotNil(t, auth.ErrInvalidRequest)
-	assert.NotNil(t, auth.ErrInvalidLogin)
-	assert.NotNil(t, auth.ErrUnauthorized)
-	assert.NotNil(t, auth.ErrForbidden)
-	assert.NotNil(t, auth.ErrInternalServer)
-	assert.NotNil(t, auth.ErrResourceNotFound)
-}
-
-func TestAuthErrorVariables_DistinctMessages(t *testing.T) {
-	errs := []error{
-		auth.ErrInvalidRequest, auth.ErrInvalidLogin,
-		auth.ErrUnauthorized, auth.ErrForbidden,
-		auth.ErrInternalServer, auth.ErrResourceNotFound,
-	}
-	msgs := make(map[string]bool)
-	for _, e := range errs {
-		assert.False(t, msgs[e.Error()], "duplicate: %s", e.Error())
-		msgs[e.Error()] = true
-	}
-}
-
 func TestAuthErrorInvalidRequest(t *testing.T) {
 	err := errors.New("bad")
 	renderer := auth.ErrorInvalidRequest(err)

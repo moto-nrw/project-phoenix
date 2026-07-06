@@ -19,13 +19,6 @@ const (
 // ActivityExceptionReasonMaxLength is the maximum length of the reason field.
 const ActivityExceptionReasonMaxLength = 500
 
-// Sentinel errors for the activity exception domain.
-var (
-	// ErrActivityExceptionDateConflict is returned when a create or update
-	// would violate the per-template per-date uniqueness rule.
-	ErrActivityExceptionDateConflict = errors.New("activity exception for this date already exists")
-)
-
 // ActivityException records a per-date deviation from a template's normal
 // schedule: either a cancellation or a modification (time/room override).
 // Consumed by the materialization service (E8).

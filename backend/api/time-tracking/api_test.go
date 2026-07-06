@@ -76,7 +76,6 @@ type mockPersonService struct {
 	staffRepo         *mockStaffRepo
 }
 
-func (m *mockPersonService) WithTx(_ bun.Tx) interface{} { return m }
 func (m *mockPersonService) Get(_ context.Context, _ any) (*userModels.Person, error) {
 	return nil, nil
 }

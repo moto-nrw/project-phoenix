@@ -5,7 +5,6 @@ import (
 	"net/mail"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
@@ -56,7 +55,6 @@ type GuardianProfile struct {
 	// Relations (not stored in database)
 	// Account links to auth.accounts (FK repointed from the deprecated
 	// auth.accounts_parents table by migration 1.15.57).
-	Account      *auth.Account          `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
 	PhoneNumbers []*GuardianPhoneNumber `bun:"rel:has-many,join:id=guardian_profile_id" json:"phone_numbers,omitempty"`
 }
 

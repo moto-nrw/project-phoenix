@@ -35,7 +35,6 @@ const (
 	ActionMFAVerified           = "mfa_verified"
 	ActionMFAFailed             = "mfa_failed"
 	ActionMFALocked             = "mfa_locked"
-	ActionMFARecoveryUsed       = "mfa_recovery_used"
 	ActionMFAEnrolled           = "mfa_enrolled"
 	ActionMFADisabled           = "mfa_disabled"
 	ActionMFATrustedDeviceAdded = "mfa_trusted_device_added"
@@ -73,7 +72,6 @@ type OperatorAuditLog struct {
 	CreatedAt    time.Time       `bun:"created_at,notnull,default:current_timestamp" json:"created_at"`
 
 	// Relations
-	Operator *Operator `bun:"rel:belongs-to,join:operator_id=id" json:"operator,omitempty"`
 }
 
 // SetChanges sets the changes field from a map

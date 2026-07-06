@@ -20,7 +20,6 @@ type OperatorEmailChangeToken struct {
 	EmailRetryCount int        `bun:"email_retry_count,notnull,default:0" json:"email_retry_count"`
 
 	// Relations
-	Operator *Operator `bun:"rel:belongs-to,join:operator_id=id" json:"operator,omitempty"`
 }
 
 // Validate ensures the token data is valid

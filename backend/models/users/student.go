@@ -23,7 +23,6 @@ const (
 	StudentStatusPending  StudentStatus = "pending"
 	StudentStatusActive   StudentStatus = "active"
 	StudentStatusInactive StudentStatus = "inactive"
-	StudentStatusAlumnus  StudentStatus = "alumnus"
 )
 
 // MaxDepartureCompanionNoteLen caps the free-text "mit wem" companion note for

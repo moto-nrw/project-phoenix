@@ -114,12 +114,6 @@ type NewStudentGuardian struct {
 	ExistingProfileID *int64
 }
 
-// GuardianWithStudents represents a guardian with their associated students
-type GuardianWithStudents struct {
-	Profile  *users.GuardianProfile
-	Students []*StudentWithRelationship
-}
-
 // GuardianPickerMatch is one result from the guardian picker search: a guardian
 // profile plus the children currently linked to it. Backs GET /guardians/search
 // (sibling case, #1513). The handler projects only id/name/email + a COUNT of

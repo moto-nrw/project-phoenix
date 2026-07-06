@@ -18,7 +18,6 @@ import (
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 type mockInvitationService struct {
@@ -52,7 +51,6 @@ func (m *mockInvitationService) InvalidatePendingInvitationsByTenantID(context.C
 func (m *mockInvitationService) CleanupExpiredInvitations(context.Context) (int, error) {
 	return 0, nil
 }
-func (m *mockInvitationService) WithTx(_ bun.Tx) interface{} { return m }
 
 func decodeJSONBody(t *testing.T, rr *httptest.ResponseRecorder) map[string]any {
 	t.Helper()

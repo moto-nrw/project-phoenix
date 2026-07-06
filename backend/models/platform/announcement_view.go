@@ -12,5 +12,4 @@ type AnnouncementView struct {
 	Dismissed      bool      `bun:"dismissed,notnull,default:false" json:"dismissed"`
 
 	// Relations
-	Announcement *Announcement `bun:"rel:belongs-to,join:announcement_id=id" json:"announcement,omitempty"`
 }

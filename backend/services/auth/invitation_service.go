@@ -125,62 +125,6 @@ func NewInvitationService(config InvitationServiceConfig) InvitationService {
 	}
 }
 
-// WithTx clones the service with repositories bound to the provided transaction when supported.
-func (s *invitationService) WithTx(tx bun.Tx) interface{} {
-	var invitationRepo = s.invitationRepo
-	var accountRepo = s.accountRepo
-	var accountTenantRepo = s.accountTenantRepo
-	var roleRepo = s.roleRepo
-	var accountRoleRepo = s.accountRoleRepo
-	var personRepo = s.personRepo
-	var staffRepo = s.staffRepo
-	var teacherRepo = s.teacherRepo
-
-	if txRepo, ok := s.invitationRepo.(modelBase.TransactionalRepository); ok {
-		invitationRepo = txRepo.WithTx(tx).(authModels.InvitationTokenRepository)
-	}
-	if txRepo, ok := s.accountRepo.(modelBase.TransactionalRepository); ok {
-		accountRepo = txRepo.WithTx(tx).(authModels.AccountRepository)
-	}
-	if txRepo, ok := s.accountTenantRepo.(modelBase.TransactionalRepository); ok {
-		accountTenantRepo = txRepo.WithTx(tx).(authModels.AccountTenantRepository)
-	}
-	if txRepo, ok := s.roleRepo.(modelBase.TransactionalRepository); ok {
-		roleRepo = txRepo.WithTx(tx).(authModels.RoleRepository)
-	}
-	if txRepo, ok := s.accountRoleRepo.(modelBase.TransactionalRepository); ok {
-		accountRoleRepo = txRepo.WithTx(tx).(authModels.AccountRoleRepository)
-	}
-	if txRepo, ok := s.personRepo.(modelBase.TransactionalRepository); ok {
-		personRepo = txRepo.WithTx(tx).(userModels.PersonRepository)
-	}
-	if txRepo, ok := s.staffRepo.(modelBase.TransactionalRepository); ok {
-		staffRepo = txRepo.WithTx(tx).(userModels.StaffRepository)
-	}
-	if txRepo, ok := s.teacherRepo.(modelBase.TransactionalRepository); ok {
-		teacherRepo = txRepo.WithTx(tx).(userModels.TeacherRepository)
-	}
-
-	return &invitationService{
-		invitationRepo:    invitationRepo,
-		accountRepo:       accountRepo,
-		accountTenantRepo: accountTenantRepo,
-		roleRepo:          roleRepo,
-		accountRoleRepo:   accountRoleRepo,
-		personRepo:        personRepo,
-		staffRepo:         staffRepo,
-		teacherRepo:       teacherRepo,
-		schoolRepo:        s.schoolRepo,
-		dispatcher:        s.dispatcher,
-		frontendURL:       s.frontendURL,
-		defaultFrom:       s.defaultFrom,
-		invitationExpiry:  s.invitationExpiry,
-		db:                s.db,
-		txHandler:         s.txHandler.WithTx(tx),
-		logger:            s.logger,
-	}
-}
-
 // CreateInvitation creates an invitation token and queues the invitation email.
 func (s *invitationService) CreateInvitation(ctx context.Context, req InvitationRequest) (*authModels.InvitationToken, error) {
 	emailAddress, err := s.validateInvitationRequest(ctx, req)
@@ -366,12 +310,11 @@ func (s *invitationService) AcceptInvitation(ctx context.Context, token string, 
 
 		invitationCtx := tenant.WithTenantID(adminCtx, invitation.TenantID)
 		return s.txHandler.RunInTx(invitationCtx, func(txCtx context.Context, tx bun.Tx) error {
-			txService := s.WithTx(tx).(*invitationService)
-			account, accountErr := txService.findExistingAccountByEmail(txCtx, invitation.Email)
+			account, accountErr := s.findExistingAccountByEmail(txCtx, invitation.Email)
 			if accountErr != nil {
 				return &AuthError{Op: opAcceptInvitation, Err: accountErr}
 			}
-			created, txErr := txService.createAccountWithRole(txCtx, invitation, passwordHash, firstName, lastName, account)
+			created, txErr := s.createAccountWithRole(txCtx, invitation, passwordHash, firstName, lastName, account)
 			if txErr != nil {
 				return txErr
 			}

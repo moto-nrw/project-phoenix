@@ -9,7 +9,6 @@ import (
 // tenant; operator writes (`operator`) can be platform-wide (TenantID
 // nil) and act across every tenant the account belongs to.
 const (
-	MFAOverrideSetByTypeAccount  = "account"
 	MFAOverrideSetByTypeOperator = "operator"
 )
 

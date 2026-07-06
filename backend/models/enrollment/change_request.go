@@ -12,13 +12,11 @@ const (
 	ChangeRequestStatusNeedsParentResponse = "needs_parent_response"
 	ChangeRequestStatusApproved            = "approved"
 	ChangeRequestStatusRejected            = "rejected"
-	ChangeRequestStatusCancelled           = "cancelled"
 )
 
 const (
 	ChangeRequestMessageAuthorParent = "parent"
 	ChangeRequestMessageAuthorStaff  = "staff"
-	ChangeRequestMessageAuthorSystem = "system"
 )
 
 // ChangeRequest stores a parent-proposed full-form correction for an

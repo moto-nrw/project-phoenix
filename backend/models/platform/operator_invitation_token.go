@@ -21,7 +21,6 @@ type OperatorInvitationToken struct {
 	EmailRetryCount int        `bun:"email_retry_count,notnull,default:0" json:"email_retry_count"`
 
 	// Relations
-	Creator *Operator `bun:"rel:belongs-to,join:created_by=id" json:"creator,omitempty"`
 }
 
 // Validate ensures the token data is valid

@@ -8,11 +8,7 @@ import (
 type Action string
 
 const (
-	ActionView   Action = "view"
-	ActionEdit   Action = "edit"
-	ActionCreate Action = "create"
-	ActionDelete Action = "delete"
-	ActionManage Action = "manage"
+	ActionView Action = "view"
 )
 
 // Resource represents a resource that can be accessed

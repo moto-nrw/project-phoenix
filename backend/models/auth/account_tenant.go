@@ -26,7 +26,6 @@ type AccountTenant struct {
 	DeactivatedAt *time.Time `bun:"deactivated_at" json:"deactivated_at,omitempty"`
 
 	// Relations
-	Account *Account `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
 }
 
 // Validate ensures account tenant data is valid

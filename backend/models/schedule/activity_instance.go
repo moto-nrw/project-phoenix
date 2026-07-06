@@ -18,15 +18,6 @@ const (
 	InstanceStatusCancelled = "cancelled"
 )
 
-// Sentinel errors for the activity instance domain. Callers should compare via
-// errors.Is rather than matching on error strings.
-var (
-	// ErrActivityInstanceTimeConflict is returned when an attempted create or
-	// update collides with an existing template-backed instance on the same
-	// (tenant, date, activity_group, start_time).
-	ErrActivityInstanceTimeConflict = errors.New("activity instance time conflict")
-)
-
 // ActivityInstanceTitleMaxLength is the maximum length of the title field.
 const ActivityInstanceTitleMaxLength = 255
 

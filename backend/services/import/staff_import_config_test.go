@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 const (
@@ -212,7 +211,6 @@ func (s *stubStaffInvitationService) GetTenantSlugForToken(_ context.Context, _ 
 	return ""
 }
 
-func (s *stubStaffInvitationService) WithTx(bun.Tx) interface{} { return s }
 func (s *stubStaffInvitationService) CreateInvitation(_ context.Context, req authsvc.InvitationRequest) (*authModels.InvitationToken, error) {
 	s.req = req
 	if s.err != nil {

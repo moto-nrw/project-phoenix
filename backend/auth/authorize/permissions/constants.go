@@ -53,11 +53,6 @@ const (
 	ActivitiesUpdate = ResourceActivities + ":" + ActionUpdate
 	ActivitiesDelete = ResourceActivities + ":" + ActionDelete
 	ActivitiesList   = ResourceActivities + ":" + ActionList
-	ActivitiesManage = ResourceActivities + ":" + ActionManage
-
-	// Special activity actions
-	ActivitiesEnroll = ResourceActivities + ":enroll"
-	ActivitiesAssign = ResourceActivities + ":assign"
 )
 
 // Room permissions
@@ -67,7 +62,6 @@ const (
 	RoomsUpdate = ResourceRooms + ":" + ActionUpdate
 	RoomsDelete = ResourceRooms + ":" + ActionDelete
 	RoomsList   = ResourceRooms + ":" + ActionList
-	RoomsManage = ResourceRooms + ":" + ActionManage
 )
 
 // Group permissions
@@ -77,7 +71,6 @@ const (
 	GroupsUpdate = ResourceGroups + ":" + ActionUpdate
 	GroupsDelete = ResourceGroups + ":" + ActionDelete
 	GroupsList   = ResourceGroups + ":" + ActionList
-	GroupsManage = ResourceGroups + ":" + ActionManage
 
 	// Special group actions
 	GroupsAssign = ResourceGroups + ":assign"
@@ -88,8 +81,6 @@ const (
 	FeedbackCreate = ResourceFeedback + ":" + ActionCreate
 	FeedbackRead   = ResourceFeedback + ":" + ActionRead
 	FeedbackDelete = ResourceFeedback + ":" + ActionDelete
-	FeedbackList   = ResourceFeedback + ":" + ActionList
-	FeedbackManage = ResourceFeedback + ":" + ActionManage
 )
 
 // Config permissions
@@ -126,8 +117,6 @@ const (
 	SubstitutionsRead   = ResourceSubstitutions + ":" + ActionRead
 	SubstitutionsUpdate = ResourceSubstitutions + ":" + ActionUpdate
 	SubstitutionsDelete = ResourceSubstitutions + ":" + ActionDelete
-	SubstitutionsList   = ResourceSubstitutions + ":" + ActionList
-	SubstitutionsManage = ResourceSubstitutions + ":" + ActionManage
 )
 
 // Suggestions permissions
@@ -139,7 +128,6 @@ const (
 	SuggestionsUpdate = ResourceSuggestions + ":" + ActionUpdate
 	SuggestionsDelete = ResourceSuggestions + ":" + ActionDelete
 	SuggestionsList   = ResourceSuggestions + ":" + ActionList
-	SuggestionsManage = ResourceSuggestions + ":" + ActionManage
 )
 
 // Visit permissions
@@ -148,7 +136,6 @@ const (
 	VisitsRead   = "visits:read"
 	VisitsUpdate = "visits:update"
 	VisitsDelete = "visits:delete"
-	VisitsList   = "visits:list"
 	VisitsManage = "visits:manage"
 )
 

@@ -20,7 +20,6 @@ import (
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // =============================================================================
@@ -996,9 +995,6 @@ func (m *mockActiveService) CleanupAbandonedSessions(_ context.Context, olderTha
 }
 
 // Implement remaining Service interface methods (not used by scheduler)
-func (m *mockActiveService) WithTx(_ bun.Tx) interface{} {
-	return m
-}
 func (m *mockActiveService) GetActiveGroup(_ context.Context, _ int64) (*active.Group, error) {
 	return nil, nil
 }

@@ -9,13 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 )
 
-// Common error variables
-var (
-	ErrInvalidRequest   = errors.New("invalid request")
-	ErrInternalServer   = errors.New("internal server error")
-	ErrResourceNotFound = errors.New("resource not found")
-)
-
 // ErrorRenderer maps service-layer errors to appropriate HTTP responses.
 //
 // The branches are ordered:

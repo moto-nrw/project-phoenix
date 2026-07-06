@@ -601,29 +601,6 @@ func TestTxHandler_GetTx_NewTransaction(t *testing.T) {
 	_ = tx.Rollback()
 }
 
-func TestTxHandler_WithTx(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	ctx := testpkg.TenantContext(1)
-
-	// Start a transaction manually
-	tx, err := db.BeginTx(ctx, nil)
-	require.NoError(t, err)
-	defer func() { _ = tx.Rollback() }()
-
-	handler := base.NewTxHandler(db)
-	handlerWithTx := handler.WithTx(tx)
-
-	require.NotNil(t, handlerWithTx)
-
-	// The handler with tx should reuse the existing transaction
-	gotTx, isNew, err := handlerWithTx.GetTx(ctx)
-	require.NoError(t, err)
-	assert.False(t, isNew, "Should reuse existing transaction")
-	assert.NotNil(t, gotTx)
-}
-
 func TestTxHandler_RunInTx_ReusesContextTransaction(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

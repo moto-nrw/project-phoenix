@@ -477,7 +477,6 @@ func TestActiveGroupResponse_Fields(t *testing.T) {
 		StartTime:       now,
 		EndTime:         &endTime,
 		IsActive:        true,
-		Notes:           "Test notes",
 		VisitCount:      5,
 		SupervisorCount: 2,
 		Supervisors: []GroupSupervisorSimple{
@@ -497,7 +496,6 @@ func TestActiveGroupResponse_Fields(t *testing.T) {
 	}
 	assert.Equal(t, int64(20), resp.RoomID)
 	assert.True(t, resp.IsActive)
-	assert.Equal(t, "Test notes", resp.Notes)
 	assert.Equal(t, 5, resp.VisitCount)
 	assert.Equal(t, 2, resp.SupervisorCount)
 	assert.Len(t, resp.Supervisors, 1)
@@ -535,7 +533,6 @@ func TestVisitResponse_Fields(t *testing.T) {
 		CheckInTime:     now,
 		CheckOutTime:    &checkOutTime,
 		IsActive:        false,
-		Notes:           "Visit notes",
 		StudentName:     "John Doe",
 		ActiveGroupName: "Activity A",
 		CreatedAt:       now,

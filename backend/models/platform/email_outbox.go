@@ -26,7 +26,6 @@ const (
 	EmailKindParentAnnouncement                 = "parent_announcement"
 	EmailKindEnrollmentSubmitted                = "enrollment_submitted"
 	EmailKindEnrollmentAdminNotify              = "enrollment_admin_notification"
-	EmailKindEnrollmentDecisionDigest           = "enrollment_decision_digest"
 	EmailKindEnrollmentApproved                 = "enrollment_approved"
 	EmailKindEnrollmentWaitlisted               = "enrollment_waitlisted"
 	EmailKindEnrollmentRejected                 = "enrollment_rejected"

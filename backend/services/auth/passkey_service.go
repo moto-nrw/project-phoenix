@@ -30,7 +30,6 @@ const passkeyUserHandleBytes = 32
 const PasskeyCeremonyTimeout = 10 * time.Minute
 
 var (
-	ErrPasskeyUnavailable    = errors.New("passkey service is unavailable")
 	ErrPasskeyOriginInvalid  = errors.New("passkey origin is invalid")
 	ErrPasskeySessionInvalid = errors.New("passkey session is invalid")
 	ErrPasskeyNotFound       = errors.New("passkey not found")

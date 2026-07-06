@@ -130,7 +130,7 @@ func TestAuthorizeResource_Denied(t *testing.T) {
 		ID:   int64(42),
 	}
 
-	allowed, err := svc.AuthorizeResource(context.Background(), subject, resource, policy.ActionEdit, nil)
+	allowed, err := svc.AuthorizeResource(context.Background(), subject, resource, policy.Action("edit"), nil)
 	require.NoError(t, err)
 	assert.False(t, allowed)
 }
@@ -171,7 +171,7 @@ func TestAuthorizeResource_WithError(t *testing.T) {
 	subject := policy.Subject{AccountID: 1}
 	resource := policy.Resource{Type: "student", ID: int64(42)}
 
-	_, err := svc.AuthorizeResource(context.Background(), subject, resource, policy.ActionDelete, nil)
+	_, err := svc.AuthorizeResource(context.Background(), subject, resource, policy.Action("delete"), nil)
 	assert.Error(t, err)
 }
 

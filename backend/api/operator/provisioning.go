@@ -23,8 +23,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const seedTokenHeader = seedtoken.Header
-
 // ProvisioningResource handles operator tenant provisioning endpoints.
 type ProvisioningResource struct {
 	service                    platformSvc.OperatorProvisioningService

@@ -147,7 +147,6 @@ type SupervisorContact struct {
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
 	Email     string `json:"email,omitempty"`
-	Phone     string `json:"phone,omitempty"`
 	Role      string `json:"role"` // "teacher" or "staff"
 }
 

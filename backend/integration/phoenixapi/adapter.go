@@ -14,7 +14,6 @@ import (
 type AuthKind string
 
 const (
-	AuthNone   AuthKind = "none"
 	AuthBearer AuthKind = "bearer"
 	AuthDevice AuthKind = "device"
 )

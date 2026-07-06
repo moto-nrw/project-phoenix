@@ -10,10 +10,9 @@ import (
 )
 
 const (
-	tableWorkTimeModels        = "config.work_time_models"
-	tableWorkTimeModelEntries  = "config.work_time_model_entries"
-	WorkTimeModelMaxRotation   = 4
-	WorkTimeModelDefaultRotate = 1
+	tableWorkTimeModels       = "config.work_time_models"
+	tableWorkTimeModelEntries = "config.work_time_model_entries"
+	WorkTimeModelMaxRotation  = 4
 	// WorkTimeModelMaxDailyMinutes caps a single day's target working time at
 	// 12 hours (720 minutes). Shared with StaffWorkSchedule validation.
 	WorkTimeModelMaxDailyMinutes = 720

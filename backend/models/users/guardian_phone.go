@@ -46,7 +46,6 @@ type GuardianPhoneNumber struct {
 	Priority          int       `bun:"priority,notnull,default:1" json:"priority"`
 
 	// Relations (not stored in database)
-	GuardianProfile *GuardianProfile `bun:"rel:belongs-to,join:guardian_profile_id=id" json:"guardian_profile,omitempty"`
 }
 
 // Validate ensures guardian phone number data is valid

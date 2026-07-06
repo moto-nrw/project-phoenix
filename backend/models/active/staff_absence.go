@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // Absence duration constants.
@@ -72,8 +71,6 @@ type StaffAbsence struct {
 	DecisionNote      string        `bun:"decision_note" json:"decision_note,omitempty"`
 	RequestedAt       time.Time     `bun:"requested_at,notnull,default:current_timestamp" json:"requested_at"`
 	SubstituteStaffID *int64        `bun:"substitute_staff_id" json:"substitute_staff_id,omitempty"`
-
-	Staff *users.Staff `bun:"rel:belongs-to,join:staff_id=id" json:"staff,omitempty"`
 }
 
 // Validate validates the absence record

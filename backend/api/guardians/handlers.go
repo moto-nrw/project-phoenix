@@ -181,12 +181,6 @@ func (req *PhoneNumberUpdateRequest) Bind(_ *http.Request) error {
 	return nil
 }
 
-// GuardianWithStudentsResponse represents a guardian with their students
-type GuardianWithStudentsResponse struct {
-	Guardian *GuardianResponse          `json:"guardian"`
-	Students []*StudentWithRelationship `json:"students"`
-}
-
 // StudentWithRelationship represents a student with guardian relationship details
 type StudentWithRelationship struct {
 	StudentID          int64   `json:"student_id"`

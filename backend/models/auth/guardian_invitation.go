@@ -38,7 +38,6 @@ type GuardianInvitation struct {
 	ProfileCreatedForInvitation bool `bun:"profile_created_for_invitation,notnull,default:false" json:"profile_created_for_invitation"`
 
 	// Relations (not stored in database)
-	Creator *Account `bun:"rel:belongs-to,join:created_by=id" json:"creator,omitempty"`
 }
 
 // Approval-status values for GuardianInvitation.ApprovalStatus.

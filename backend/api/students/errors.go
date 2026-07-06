@@ -8,12 +8,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 )
 
-// Common error variables
-var (
-	ErrInvalidRequest   = errors.New("invalid request")
-	ErrInternalServer   = errors.New("internal server error")
-	ErrResourceNotFound = errors.New("resource not found")
-)
+// ErrInvalidRequest is returned by request Bind validation.
+var ErrInvalidRequest = errors.New("invalid request")
 
 // Sentinel errors returned from the pickup/arrival exception write transactions
 // so the closure can signal a precise HTTP status instead of every in-tx

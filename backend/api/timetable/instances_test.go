@@ -26,7 +26,6 @@ import (
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // -----------------------------------------------------------------------------
@@ -165,7 +164,6 @@ type instMockPersonService struct {
 	staffRepo         userModels.StaffRepository
 }
 
-func (m *instMockPersonService) WithTx(_ bun.Tx) any { return m }
 func (m *instMockPersonService) Get(_ context.Context, _ any) (*userModels.Person, error) {
 	return nil, nil
 }

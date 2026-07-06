@@ -112,7 +112,6 @@ func TestEmailKind_StableValues(t *testing.T) {
 	assert.Equal(t, "guardian_invitation", EmailKindGuardianInvitation)
 	assert.Equal(t, "enrollment_submitted", EmailKindEnrollmentSubmitted)
 	assert.Equal(t, "enrollment_admin_notification", EmailKindEnrollmentAdminNotify)
-	assert.Equal(t, "enrollment_decision_digest", EmailKindEnrollmentDecisionDigest)
 	assert.Equal(t, "enrollment_approved", EmailKindEnrollmentApproved)
 	assert.Equal(t, "enrollment_waitlisted", EmailKindEnrollmentWaitlisted)
 	assert.Equal(t, "enrollment_rejected", EmailKindEnrollmentRejected)

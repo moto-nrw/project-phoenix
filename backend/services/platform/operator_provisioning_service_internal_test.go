@@ -1058,8 +1058,6 @@ func (f *failingInvitationServiceStub) GetTenantSlugForToken(_ context.Context, 
 	return ""
 }
 
-func (f *failingInvitationServiceStub) WithTx(_ bun.Tx) interface{} { return f } //nolint:unused
-
 // ---------------------------------------------------------------------------
 // ensureSchoolSlugAvailable / ensureSchoolSubdomainAvailable — repo errors
 // ---------------------------------------------------------------------------

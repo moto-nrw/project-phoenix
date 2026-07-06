@@ -7,13 +7,7 @@ import (
 )
 
 // SecurityEvent types
-const (
-	EventAuthFailure      = "AUTH_FAILURE"
-	EventRateLimitExceed  = "RATE_LIMIT_EXCEEDED"
-	EventSuspiciousAccess = "SUSPICIOUS_ACCESS"
-	EventAccountLocked    = "ACCOUNT_LOCKED"
-	EventInvalidToken     = "INVALID_TOKEN"
-)
+const EventRateLimitExceed = "RATE_LIMIT_EXCEEDED"
 
 // SecurityLogger provides structured security event logging
 type SecurityLogger struct {

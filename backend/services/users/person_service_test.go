@@ -828,10 +828,7 @@ func TestUsersErrorTypes(t *testing.T) {
 			users.ErrAccountNotFound,
 			users.ErrRFIDCardNotFound,
 			users.ErrAccountAlreadyLinked,
-			users.ErrGuardianNotFound,
-			users.ErrStaffNotFound,
 			users.ErrTeacherNotFound,
-			users.ErrInvalidPIN,
 		}
 
 		for _, err := range errors {
@@ -1314,7 +1311,7 @@ func TestUsersError_Unwrap(t *testing.T) {
 		// ARRANGE
 		err := &users.UsersError{
 			Op:  "TestOperation",
-			Err: users.ErrStaffNotFound,
+			Err: users.ErrTeacherNotFound,
 		}
 
 		// ACT
@@ -1322,6 +1319,6 @@ func TestUsersError_Unwrap(t *testing.T) {
 
 		// ASSERT
 		assert.Contains(t, msg, "TestOperation")
-		assert.Contains(t, msg, "staff")
+		assert.Contains(t, msg, "teacher")
 	})
 }

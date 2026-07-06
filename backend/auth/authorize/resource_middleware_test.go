@@ -86,7 +86,7 @@ func TestResourceAuthorizer_RequiresResourceAccess(t *testing.T) {
 		{
 			name:         "returns error when policy errors",
 			resourceType: "student",
-			action:       policy.ActionEdit,
+			action:       policy.Action("edit"),
 			claims: jwt.AppClaims{
 				ID:       1,
 				TenantID: 1,

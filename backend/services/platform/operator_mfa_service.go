@@ -45,7 +45,6 @@ var (
 	ErrOperatorMFACodeInvalid           = authService.ErrMFACodeInvalid
 	ErrOperatorMFALocked                = authService.ErrMFALocked
 	ErrOperatorMFARateLimited           = authService.ErrMFARateLimited
-	ErrOperatorMFANotEnrolled           = authService.ErrMFANotEnrolled
 	ErrOperatorMFAAlreadyEnrolled       = authService.ErrMFAAlreadyEnrolled
 	ErrOperatorMFAPermissionDenied      = authService.ErrMFAPermissionDenied
 )

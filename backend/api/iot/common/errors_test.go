@@ -22,9 +22,6 @@ func TestErrorVariables(t *testing.T) {
 		name string
 		err  error
 	}{
-		{"ErrInvalidRequest", iotCommon.ErrInvalidRequest},
-		{"ErrInternalServer", iotCommon.ErrInternalServer},
-		{"ErrResourceNotFound", iotCommon.ErrResourceNotFound},
 		{"ErrRoomCapacityExceeded", iotCommon.ErrRoomCapacityExceeded},
 		{"ErrActivityCapacityExceeded", iotCommon.ErrActivityCapacityExceeded},
 	}
@@ -39,8 +36,6 @@ func TestErrorVariables(t *testing.T) {
 
 // Test Error Message Constants
 func TestErrorMessageConstants(t *testing.T) {
-	assert.NotEmpty(t, iotCommon.ErrMsgInvalidDeviceID)
-	assert.NotEmpty(t, iotCommon.ErrMsgDeviceIDRequired)
 	assert.NotEmpty(t, iotCommon.ErrMsgPersonNotStudent)
 	assert.NotEmpty(t, iotCommon.ErrMsgRFIDTagNotFound)
 }

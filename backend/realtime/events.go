@@ -98,8 +98,6 @@ type EventData struct {
 	// Student-related fields (for check-in/check-out events)
 	StudentID   *string `json:"student_id,omitempty"`
 	StudentName *string `json:"student_name,omitempty"`
-	SchoolClass *string `json:"school_class,omitempty"`
-	GroupName   *string `json:"group_name,omitempty"` // Student's OGS group, not active group
 
 	// StudentIDs carries the affected students on a bulk_student_checkout event
 	// (whole-session end). The client adds each to its per-student

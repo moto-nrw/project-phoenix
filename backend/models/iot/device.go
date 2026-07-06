@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // DeviceStatus represents the status of an IoT device
@@ -39,7 +38,6 @@ type Device struct {
 	RoomID         *int64       `bun:"room_id" json:"room_id,omitempty"`
 
 	// Relations
-	RegisteredBy *users.Person `bun:"-" json:"registered_by,omitempty"`
 
 	// Transient fields populated by JOINs (ignored by INSERT/UPDATE)
 	RoomName *string `bun:"room_name,scanonly" json:"room_name,omitempty"`
