@@ -52,34 +52,30 @@ func TestResolveSessionTimeout(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("per-session TimeoutMinutes wins", func(t *testing.T) {
-		s := &service{logger: slog.Default()}
+		s := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default()}}
 		group := &activeModels.Group{TimeoutMinutes: 45}
 		assert.Equal(t, 45*time.Minute, s.ResolveSessionTimeout(ctx, group))
 	})
 
 	t.Run("nil settings falls back to default", func(t *testing.T) {
-		s := &service{logger: slog.Default()}
+		s := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default()}}
 		group := &activeModels.Group{TimeoutMinutes: 0}
 		assert.Equal(t, DefaultSessionInactivityTimeout, s.ResolveSessionTimeout(ctx, group))
 	})
 
 	t.Run("tenant override resolved from settings", func(t *testing.T) {
-		s := &service{
-			logger: slog.Default(),
-			settings: &stubSettingsResolver{
-				intValues: map[string]int{configModel.KeySessionInactivityTimeoutMin: 20},
-			},
+		s := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default()}, settings: &stubSettingsResolver{
+			intValues: map[string]int{configModel.KeySessionInactivityTimeoutMin: 20},
+		},
 		}
 		group := &activeModels.Group{TimeoutMinutes: 0}
 		assert.Equal(t, 20*time.Minute, s.ResolveSessionTimeout(ctx, group))
 	})
 
 	t.Run("zero from settings degrades to default", func(t *testing.T) {
-		s := &service{
-			logger: slog.Default(),
-			settings: &stubSettingsResolver{
-				intValues: map[string]int{configModel.KeySessionInactivityTimeoutMin: 0},
-			},
+		s := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default()}, settings: &stubSettingsResolver{
+			intValues: map[string]int{configModel.KeySessionInactivityTimeoutMin: 0},
+		},
 		}
 		group := &activeModels.Group{TimeoutMinutes: 0}
 		assert.Equal(t, DefaultSessionInactivityTimeout, s.ResolveSessionTimeout(ctx, group))
@@ -89,7 +85,8 @@ func TestResolveSessionTimeout(t *testing.T) {
 func TestIsSessionTimedOut(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
-	s := &service{logger: slog.Default()} // nil settings → 30 min default
+	s := &service{ServiceDependencies: ServiceDependencies{ // nil settings → 30 min default
+		Logger: slog.Default()}}
 
 	t.Run("active session within window is not timed out", func(t *testing.T) {
 		group := &activeModels.Group{LastActivity: now.Add(-10 * time.Minute)}
@@ -127,7 +124,8 @@ func TestIsSessionTimedOut(t *testing.T) {
 func TestSessionTimeUntilTimeout(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
-	s := &service{logger: slog.Default()} // nil settings → 30 min default
+	s := &service{ServiceDependencies: ServiceDependencies{ // nil settings → 30 min default
+		Logger: slog.Default()}}
 
 	t.Run("positive when within window", func(t *testing.T) {
 		group := &activeModels.Group{LastActivity: now.Add(-20 * time.Minute)}

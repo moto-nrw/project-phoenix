@@ -102,8 +102,8 @@ func (s *service) resolvePermittedChild(ctx context.Context, accountID, studentI
 	}
 
 	var resolved *parentChild
-	err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
-		child, findErr := s.childRepo.FindForAccount(adminCtx, accountID, studentID)
+	err := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
+		child, findErr := s.ChildRepo.FindForAccount(adminCtx, accountID, studentID)
 		if findErr != nil {
 			return findErr
 		}
@@ -177,7 +177,7 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 		return nil, err
 	}
 
-	enabled, err := s.settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentSickNoteEnabled)
+	enabled, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentSickNoteEnabled)
 	if err != nil {
 		return nil, fmt.Errorf("parent: resolve sick-note setting: %w", err)
 	}
@@ -200,14 +200,14 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 	}
 
 	var result []*activeModels.StudentStatusDay
-	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		for _, other := range activeModels.StudentStatusDayStatusesExcept(status) {
-			if err := s.statusDayRepo.MarkClearedForDates(txCtx, studentID, other, dates, now, activeModels.StudentStatusSourceParent); err != nil {
+			if err := s.StatusDayRepo.MarkClearedForDates(txCtx, studentID, other, dates, now, activeModels.StudentStatusSourceParent); err != nil {
 				return err
 			}
 		}
 		for _, d := range dates {
-			if err := s.statusDayRepo.UpsertReported(txCtx, &activeModels.StudentStatusDay{
+			if err := s.StatusDayRepo.UpsertReported(txCtx, &activeModels.StudentStatusDay{
 				StudentID:  studentID,
 				Date:       d,
 				Status:     status,
@@ -220,17 +220,17 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 		}
 
 		if containsDate(dates, today) {
-			fresh, err := s.studentRepo.FindByIDForUpdate(txCtx, studentID)
+			fresh, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 			if err != nil {
 				return err
 			}
 			applyLiveStatusForParentToday(fresh, status, now)
-			if err := s.studentRepo.Update(txCtx, fresh); err != nil {
+			if err := s.StudentRepo.Update(txCtx, fresh); err != nil {
 				return err
 			}
 		}
 
-		rows, err := s.statusDayRepo.FindActiveByStudentAndDateRange(txCtx, studentID, minDate(dates), maxDate(dates))
+		rows, err := s.StatusDayRepo.FindActiveByStudentAndDateRange(txCtx, studentID, minDate(dates), maxDate(dates))
 		if err != nil {
 			return err
 		}
@@ -267,7 +267,7 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 		return nil, fmt.Errorf("parent: submit sick note: %w", txErr)
 	}
 
-	s.logger.Info("parent submitted absence",
+	s.Logger.Info("parent submitted absence",
 		slog.Int64("account_id", accountID),
 		slog.Int64("student_id", studentID),
 		slog.Int64("tenant_id", child.tenantID),
@@ -285,39 +285,39 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 	if err != nil {
 		return ChildFeatureFlags{}, err
 	}
-	sick, err := s.settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentSickNoteEnabled)
+	sick, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentSickNoteEnabled)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve sick-note setting: %w", err)
 	}
-	notes, err := s.settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentNotesEnabled)
+	notes, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentNotesEnabled)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve notes setting: %w", err)
 	}
-	pickupChange, err := s.settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentPickupChangeEnabled)
+	pickupChange, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentPickupChangeEnabled)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve pickup-change setting: %w", err)
 	}
-	inviteMode, err := s.settings.ResolveStringForTenant(ctx, child.tenantID, configModels.KeyGuardianParentInviteMode)
+	inviteMode, err := s.Settings.ResolveStringForTenant(ctx, child.tenantID, configModels.KeyGuardianParentInviteMode)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve invite mode: %w", err)
 	}
-	canRemove, err := s.settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyGuardianParentCanRemove)
+	canRemove, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyGuardianParentCanRemove)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve remove setting: %w", err)
 	}
-	masterEdit, err := s.settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentMasterDataEditEnabled)
+	masterEdit, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentMasterDataEditEnabled)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve master-data edit setting: %w", err)
 	}
-	masterRequest, err := s.settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentMasterDataRequestEnabled)
+	masterRequest, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentMasterDataRequestEnabled)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve master-data request setting: %w", err)
 	}
-	mealPlan, err := s.settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyMealPlanEnabled)
+	mealPlan, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyMealPlanEnabled)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve meal-plan setting: %w", err)
 	}
-	news, err := s.settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentNewsEnabled)
+	news, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentNewsEnabled)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve parent-news setting: %w", err)
 	}
@@ -351,10 +351,10 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 // phantom badge.
 func (s *service) hasOpenChangeRequest(ctx context.Context, tenantID, studentID int64) bool {
 	open := false
-	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		if s.careRequests != nil {
-			if req, _, err := s.careRequests.GetPendingForStudent(txCtx, studentID); err != nil {
-				s.logger.Warn("parent: pending care-request check failed",
+	err := tenant.WithTenantTx(ctx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if s.CareRequests != nil {
+			if req, _, err := s.CareRequests.GetPendingForStudent(txCtx, studentID); err != nil {
+				s.Logger.Warn("parent: pending care-request check failed",
 					slog.Int64("student_id", studentID),
 					slog.String("error", err.Error()),
 				)
@@ -363,10 +363,10 @@ func (s *service) hasOpenChangeRequest(ctx context.Context, tenantID, studentID 
 				return nil
 			}
 		}
-		if s.changeRequestRepo != nil {
-			pending, err := s.changeRequestRepo.ListByStudent(txCtx, studentID, []string{usersModels.DataChangeStatusPending}, 0)
+		if s.ChangeRequestRepo != nil {
+			pending, err := s.ChangeRequestRepo.ListByStudent(txCtx, studentID, []string{usersModels.DataChangeStatusPending}, 0)
 			if err != nil {
-				s.logger.Warn("parent: pending master-data check failed",
+				s.Logger.Warn("parent: pending master-data check failed",
 					slog.Int64("student_id", studentID),
 					slog.String("error", err.Error()),
 				)
@@ -377,7 +377,7 @@ func (s *service) hasOpenChangeRequest(ctx context.Context, tenantID, studentID 
 		return nil
 	})
 	if err != nil {
-		s.logger.Warn("parent: open change-request check failed",
+		s.Logger.Warn("parent: open change-request check failed",
 			slog.Int64("student_id", studentID),
 			slog.String("error", err.Error()),
 		)
@@ -399,8 +399,8 @@ func (s *service) ListSickDays(ctx context.Context, accountID, studentID int64, 
 	}
 
 	var out []*activeModels.StudentStatusDay
-	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		rows, err := s.statusDayRepo.FindActiveByStudentAndDateRange(txCtx, studentID, from, to)
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		rows, err := s.StatusDayRepo.FindActiveByStudentAndDateRange(txCtx, studentID, from, to)
 		if err != nil {
 			return err
 		}
@@ -436,7 +436,7 @@ func (s *service) MealPlanWeek(ctx context.Context, accountID, studentID int64, 
 		return nil, err
 	}
 
-	enabled, err := s.settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyMealPlanEnabled)
+	enabled, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyMealPlanEnabled)
 	if err != nil {
 		return nil, fmt.Errorf("parent: resolve meal-plan setting: %w", err)
 	}
@@ -456,8 +456,8 @@ func (s *service) MealPlanWeek(ctx context.Context, accountID, studentID int64, 
 	}
 
 	var out []*mealplanModels.MealPlanEntry
-	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		rows, findErr := s.mealPlanRepo.FindByDateRange(txCtx, monday, friday)
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		rows, findErr := s.MealPlanRepo.FindByDateRange(txCtx, monday, friday)
 		if findErr != nil {
 			return findErr
 		}
@@ -491,7 +491,7 @@ func (s *service) SubmitCareException(ctx context.Context, accountID, studentID 
 		return nil, err
 	}
 
-	enabled, err := s.settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentPickupChangeEnabled)
+	enabled, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentPickupChangeEnabled)
 	if err != nil {
 		return nil, fmt.Errorf("parent: resolve pickup-change setting: %w", err)
 	}
@@ -513,8 +513,8 @@ func (s *service) SubmitCareException(ctx context.Context, accountID, studentID 
 
 	guardianID := accountID
 	var result *CareException
-	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		if err := scheduleService.LockCareExceptionDay(txCtx, s.db, studentID, date); err != nil {
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if err := scheduleService.LockCareExceptionDay(txCtx, s.DB, studentID, date); err != nil {
 			return err
 		}
 
@@ -568,7 +568,7 @@ func (s *service) SubmitCareException(ctx context.Context, accountID, studentID 
 		return nil, fmt.Errorf("parent: submit care exception: %w", txErr)
 	}
 
-	s.logger.Info("parent submitted care exception",
+	s.Logger.Info("parent submitted care exception",
 		slog.Int64("account_id", accountID),
 		slog.Int64("student_id", studentID),
 		slog.Int64("tenant_id", child.tenantID),
@@ -600,14 +600,14 @@ func isExceptionUniqueViolation(err error) bool {
 // date was authored by staff. A staff override on a single leg locks the whole
 // day against parent edits.
 func (s *service) dayHasStaffException(ctx context.Context, studentID int64, date timezone.Date) (bool, error) {
-	pickup, err := s.pickupExceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
+	pickup, err := s.PickupExceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
 	if err != nil {
 		return false, err
 	}
 	if pickup != nil && pickup.Source == scheduleModels.ExceptionSourceStaff {
 		return true, nil
 	}
-	arrival, err := s.arrivalExceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
+	arrival, err := s.ArrivalExceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
 	if err != nil {
 		return false, err
 	}
@@ -625,7 +625,7 @@ func (s *service) dayHasStaffException(ctx context.Context, studentID int64, dat
 // protects against a staff row appearing mid-transaction — a staff leg is never
 // touched (neither overwritten nor deleted).
 func (s *service) applyGuardianPickupException(ctx context.Context, studentID, tenantID int64, date timezone.Date, pickupTime *time.Time, guardianID int64) error {
-	existing, err := s.pickupExceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
+	existing, err := s.PickupExceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
 	if err != nil {
 		return err
 	}
@@ -634,7 +634,7 @@ func (s *service) applyGuardianPickupException(ctx context.Context, studentID, t
 	}
 	if pickupTime == nil {
 		if existing != nil {
-			return s.pickupExceptionRepo.Delete(ctx, existing.ID)
+			return s.PickupExceptionRepo.Delete(ctx, existing.ID)
 		}
 		return nil
 	}
@@ -644,7 +644,7 @@ func (s *service) applyGuardianPickupException(ctx context.Context, studentID, t
 		existing.Source = scheduleModels.ExceptionSourceGuardian
 		existing.CreatedBy = 0
 		existing.CreatedByGuardian = &guardianID
-		return s.pickupExceptionRepo.Update(ctx, existing)
+		return s.PickupExceptionRepo.Update(ctx, existing)
 	}
 	entity := &scheduleModels.StudentPickupException{
 		StudentID:         studentID,
@@ -654,13 +654,13 @@ func (s *service) applyGuardianPickupException(ctx context.Context, studentID, t
 		CreatedByGuardian: &guardianID,
 	}
 	entity.SetTenantID(tenantID)
-	return s.pickupExceptionRepo.Create(ctx, entity)
+	return s.PickupExceptionRepo.Create(ctx, entity)
 }
 
 // applyGuardianArrivalException mirrors applyGuardianPickupException for the
 // arrival leg.
 func (s *service) applyGuardianArrivalException(ctx context.Context, studentID, tenantID int64, date timezone.Date, arrivalTime *time.Time, guardianID int64) error {
-	existing, err := s.arrivalExceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
+	existing, err := s.ArrivalExceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
 	if err != nil {
 		return err
 	}
@@ -669,7 +669,7 @@ func (s *service) applyGuardianArrivalException(ctx context.Context, studentID, 
 	}
 	if arrivalTime == nil {
 		if existing != nil {
-			return s.arrivalExceptionRepo.Delete(ctx, existing.ID)
+			return s.ArrivalExceptionRepo.Delete(ctx, existing.ID)
 		}
 		return nil
 	}
@@ -679,7 +679,7 @@ func (s *service) applyGuardianArrivalException(ctx context.Context, studentID, 
 		existing.Source = scheduleModels.ExceptionSourceGuardian
 		existing.CreatedBy = 0
 		existing.CreatedByGuardian = &guardianID
-		return s.arrivalExceptionRepo.Update(ctx, existing)
+		return s.ArrivalExceptionRepo.Update(ctx, existing)
 	}
 	entity := &scheduleModels.StudentArrivalException{
 		StudentID:         studentID,
@@ -689,17 +689,17 @@ func (s *service) applyGuardianArrivalException(ctx context.Context, studentID, 
 		CreatedByGuardian: &guardianID,
 	}
 	entity.SetTenantID(tenantID)
-	return s.arrivalExceptionRepo.Create(ctx, entity)
+	return s.ArrivalExceptionRepo.Create(ctx, entity)
 }
 
 // loadCareException merges the pickup and arrival exceptions for one date into
 // the parent-facing projection. Returns nil if neither leg has a row.
 func (s *service) loadCareException(ctx context.Context, studentID int64, date timezone.Date) (*CareException, error) {
-	pickup, err := s.pickupExceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
+	pickup, err := s.PickupExceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
 	if err != nil {
 		return nil, err
 	}
-	arrival, err := s.arrivalExceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
+	arrival, err := s.ArrivalExceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
 	if err != nil {
 		return nil, err
 	}
@@ -744,12 +744,12 @@ func (s *service) ListCareExceptions(ctx context.Context, accountID, studentID i
 	}
 
 	var out []*CareException
-	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		pickups, err := s.pickupExceptionRepo.FindByStudentIDAndDateRange(txCtx, studentID, from, to)
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		pickups, err := s.PickupExceptionRepo.FindByStudentIDAndDateRange(txCtx, studentID, from, to)
 		if err != nil {
 			return err
 		}
-		arrivals, err := s.arrivalExceptionRepo.FindByStudentIDAndDateRange(txCtx, studentID, from, to)
+		arrivals, err := s.ArrivalExceptionRepo.FindByStudentIDAndDateRange(txCtx, studentID, from, to)
 		if err != nil {
 			return err
 		}
@@ -778,27 +778,27 @@ func (s *service) DeleteCareException(ctx context.Context, accountID, studentID 
 	}
 
 	pickupDeleted, arrivalDeleted := false, false
-	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		if err := scheduleService.LockCareExceptionDay(txCtx, s.db, studentID, date); err != nil {
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if err := scheduleService.LockCareExceptionDay(txCtx, s.DB, studentID, date); err != nil {
 			return err
 		}
 
-		pickup, err := s.pickupExceptionRepo.FindByStudentIDAndDate(txCtx, studentID, date)
+		pickup, err := s.PickupExceptionRepo.FindByStudentIDAndDate(txCtx, studentID, date)
 		if err != nil {
 			return err
 		}
 		if pickup != nil && pickup.Source == scheduleModels.ExceptionSourceGuardian {
-			if err := s.pickupExceptionRepo.Delete(txCtx, pickup.ID); err != nil {
+			if err := s.PickupExceptionRepo.Delete(txCtx, pickup.ID); err != nil {
 				return err
 			}
 			pickupDeleted = true
 		}
-		arrival, err := s.arrivalExceptionRepo.FindByStudentIDAndDate(txCtx, studentID, date)
+		arrival, err := s.ArrivalExceptionRepo.FindByStudentIDAndDate(txCtx, studentID, date)
 		if err != nil {
 			return err
 		}
 		if arrival != nil && arrival.Source == scheduleModels.ExceptionSourceGuardian {
-			if err := s.arrivalExceptionRepo.Delete(txCtx, arrival.ID); err != nil {
+			if err := s.ArrivalExceptionRepo.Delete(txCtx, arrival.ID); err != nil {
 				return err
 			}
 			arrivalDeleted = true
@@ -875,13 +875,13 @@ func mergeCareExceptions(pickups []*scheduleModels.StudentPickupException, arriv
 // so supervisors' live views refresh after a parent-side change. Mirrors
 // the staff handler's broadcast; fire-and-forget.
 func (s *service) broadcastStudentUpdated(tenantID, studentID int64) {
-	if s.broadcaster == nil || tenantID <= 0 {
+	if s.Broadcaster == nil || tenantID <= 0 {
 		return
 	}
 	source := activeModels.StudentStatusSourceParent
 	event := realtime.NewEvent(realtime.EventStudentUpdated, "", realtime.EventData{Source: &source})
-	if err := s.broadcaster.BroadcastToTenant(tenantID, event); err != nil {
-		s.logger.Warn("parent: failed to broadcast student update",
+	if err := s.Broadcaster.BroadcastToTenant(tenantID, event); err != nil {
+		s.Logger.Warn("parent: failed to broadcast student update",
 			slog.Int64("tenant_id", tenantID),
 			slog.Int64("student_id", studentID),
 			slog.String("error", err.Error()),

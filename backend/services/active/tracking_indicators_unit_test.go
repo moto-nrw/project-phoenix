@@ -35,7 +35,7 @@ func TestGetTrackingIndicators_RepoError(t *testing.T) {
 		},
 	}
 
-	svc := &service{visitRepo: visitRepo}
+	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: visitRepo}}
 
 	result, err := svc.GetTrackingIndicators(context.Background(), []int64{100}, []string{"Mensa"})
 
@@ -51,7 +51,7 @@ func TestGetTrackingIndicators_NoVisits(t *testing.T) {
 		},
 	}
 
-	svc := &service{visitRepo: visitRepo}
+	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: visitRepo}}
 
 	result, err := svc.GetTrackingIndicators(context.Background(), []int64{100, 200}, []string{"Mensa", "Hausaufgaben"})
 
@@ -71,7 +71,7 @@ func TestGetTrackingIndicators_SubstringMatching(t *testing.T) {
 		},
 	}
 
-	svc := &service{visitRepo: visitRepo}
+	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: visitRepo}}
 
 	result, err := svc.GetTrackingIndicators(context.Background(), []int64{100}, []string{"Hausaufgaben"})
 
@@ -88,7 +88,7 @@ func TestGetTrackingIndicators_CaseInsensitive(t *testing.T) {
 		},
 	}
 
-	svc := &service{visitRepo: visitRepo}
+	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: visitRepo}}
 
 	result, err := svc.GetTrackingIndicators(context.Background(), []int64{100}, []string{"mensa"})
 
@@ -105,7 +105,7 @@ func TestGetTrackingIndicators_MatchesRoomName(t *testing.T) {
 		},
 	}
 
-	svc := &service{visitRepo: visitRepo}
+	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: visitRepo}}
 
 	result, err := svc.GetTrackingIndicators(context.Background(), []int64{100}, []string{"Mensa"})
 
@@ -123,7 +123,7 @@ func TestGetTrackingIndicators_MultipleLabelsPartialMatch(t *testing.T) {
 		},
 	}
 
-	svc := &service{visitRepo: visitRepo}
+	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: visitRepo}}
 
 	result, err := svc.GetTrackingIndicators(
 		context.Background(),
@@ -145,7 +145,7 @@ func TestGetTrackingIndicators_MultipleStudents(t *testing.T) {
 		},
 	}
 
-	svc := &service{visitRepo: visitRepo}
+	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: visitRepo}}
 
 	result, err := svc.GetTrackingIndicators(
 		context.Background(),
@@ -169,7 +169,7 @@ func TestGetTrackingIndicators_StudentWithNoVisits(t *testing.T) {
 		},
 	}
 
-	svc := &service{visitRepo: visitRepo}
+	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: visitRepo}}
 
 	result, err := svc.GetTrackingIndicators(
 		context.Background(),
@@ -191,7 +191,7 @@ func TestGetTrackingIndicators_WhitespaceInLabels(t *testing.T) {
 		},
 	}
 
-	svc := &service{visitRepo: visitRepo}
+	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: visitRepo}}
 
 	result, err := svc.GetTrackingIndicators(
 		context.Background(),

@@ -24,7 +24,7 @@ func TestCountActiveVisitsByRoomID_Success(t *testing.T) {
 		},
 	}
 
-	svc := &service{visitRepo: visitRepo}
+	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: visitRepo}}
 	count, err := svc.CountActiveVisitsByRoomID(context.Background(), 42)
 
 	require.NoError(t, err)
@@ -38,7 +38,7 @@ func TestCountActiveVisitsByRoomID_Error(t *testing.T) {
 		},
 	}
 
-	svc := &service{visitRepo: visitRepo}
+	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: visitRepo}}
 	count, err := svc.CountActiveVisitsByRoomID(context.Background(), 42)
 
 	require.Error(t, err)
@@ -53,7 +53,7 @@ func TestCountActiveVisitsByRoomID_ZeroCount(t *testing.T) {
 		},
 	}
 
-	svc := &service{visitRepo: visitRepo}
+	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: visitRepo}}
 	count, err := svc.CountActiveVisitsByRoomID(context.Background(), 1)
 
 	require.NoError(t, err)
@@ -71,7 +71,7 @@ func TestCountActiveVisitsByActiveGroupID_Success(t *testing.T) {
 		},
 	}
 
-	svc := &service{visitRepo: visitRepo}
+	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: visitRepo}}
 	count, err := svc.CountActiveVisitsByActiveGroupID(context.Background(), 10)
 
 	require.NoError(t, err)
@@ -85,7 +85,7 @@ func TestCountActiveVisitsByActiveGroupID_Error(t *testing.T) {
 		},
 	}
 
-	svc := &service{visitRepo: visitRepo}
+	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: visitRepo}}
 	count, err := svc.CountActiveVisitsByActiveGroupID(context.Background(), 10)
 
 	require.Error(t, err)
@@ -100,7 +100,7 @@ func TestCountActiveVisitsByActiveGroupID_ZeroCount(t *testing.T) {
 		},
 	}
 
-	svc := &service{visitRepo: visitRepo}
+	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: visitRepo}}
 	count, err := svc.CountActiveVisitsByActiveGroupID(context.Background(), 10)
 
 	require.NoError(t, err)
@@ -122,7 +122,7 @@ func TestGetStudentCurrentVisit_Success(t *testing.T) {
 		},
 	}
 
-	svc := &service{visitRepo: visitRepo}
+	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: visitRepo}}
 	visit, err := svc.GetStudentCurrentVisit(context.Background(), testStudentID)
 
 	require.NoError(t, err)
@@ -138,7 +138,7 @@ func TestGetStudentCurrentVisit_NotFound(t *testing.T) {
 		},
 	}
 
-	svc := &service{visitRepo: visitRepo}
+	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: visitRepo}}
 	visit, err := svc.GetStudentCurrentVisit(context.Background(), 1)
 
 	require.Error(t, err)
@@ -153,7 +153,7 @@ func TestGetStudentCurrentVisit_DatabaseError(t *testing.T) {
 		},
 	}
 
-	svc := &service{visitRepo: visitRepo}
+	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: visitRepo}}
 	visit, err := svc.GetStudentCurrentVisit(context.Background(), 1)
 
 	require.Error(t, err)
@@ -168,7 +168,7 @@ func TestGetStudentCurrentVisit_NilVisit(t *testing.T) {
 		},
 	}
 
-	svc := &service{visitRepo: visitRepo}
+	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: visitRepo}}
 	visit, err := svc.GetStudentCurrentVisit(context.Background(), 1)
 
 	require.Error(t, err)
@@ -194,7 +194,7 @@ func TestGetStudentCurrentVisitWithRoom_Success(t *testing.T) {
 		},
 	}
 
-	svc := &service{visitRepo: visitRepo}
+	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: visitRepo}}
 	visit, err := svc.GetStudentCurrentVisitWithRoom(context.Background(), 1)
 
 	require.NoError(t, err)
@@ -212,7 +212,7 @@ func TestGetStudentCurrentVisitWithRoom_NotFound(t *testing.T) {
 		},
 	}
 
-	svc := &service{visitRepo: visitRepo}
+	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: visitRepo}}
 	visit, err := svc.GetStudentCurrentVisitWithRoom(context.Background(), 1)
 
 	require.Error(t, err)
@@ -227,7 +227,7 @@ func TestGetStudentCurrentVisitWithRoom_DatabaseError(t *testing.T) {
 		},
 	}
 
-	svc := &service{visitRepo: visitRepo}
+	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: visitRepo}}
 	visit, err := svc.GetStudentCurrentVisitWithRoom(context.Background(), 1)
 
 	require.Error(t, err)
@@ -242,7 +242,7 @@ func TestGetStudentCurrentVisitWithRoom_NilVisit(t *testing.T) {
 		},
 	}
 
-	svc := &service{visitRepo: visitRepo}
+	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: visitRepo}}
 	visit, err := svc.GetStudentCurrentVisitWithRoom(context.Background(), 1)
 
 	require.Error(t, err)
@@ -267,7 +267,7 @@ func TestListStudentsPresentInRoom_ReturnsIDsFromRepo(t *testing.T) {
 		},
 	}
 
-	svc := &service{visitRepo: visitRepo}
+	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: visitRepo}}
 	ids, err := svc.ListStudentsPresentInRoom(context.Background(), 42)
 
 	require.NoError(t, err)
@@ -282,7 +282,7 @@ func TestListStudentsPresentInRoom_EmptyResult(t *testing.T) {
 		},
 	}
 
-	svc := &service{visitRepo: visitRepo}
+	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: visitRepo}}
 	ids, err := svc.ListStudentsPresentInRoom(context.Background(), 1)
 
 	require.NoError(t, err)
@@ -297,7 +297,7 @@ func TestListStudentsPresentInRoom_WrapsRepoError(t *testing.T) {
 		},
 	}
 
-	svc := &service{visitRepo: visitRepo}
+	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: visitRepo}}
 	ids, err := svc.ListStudentsPresentInRoom(context.Background(), 1)
 
 	require.Error(t, err)

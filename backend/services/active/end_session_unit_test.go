@@ -490,12 +490,7 @@ func TestEndActivitySession_FindByActiveGroupIDError(t *testing.T) {
 	}
 
 	// Create service with mocks
-	svc := &service{
-		groupRepo:      groupRepo,
-		visitRepo:      visitRepo,
-		supervisorRepo: supervisorRepo,
-		broadcaster:    nil,
-	}
+	svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: groupRepo, VisitRepo: visitRepo, SupervisorRepo: supervisorRepo, Broadcaster: nil}}
 
 	// ACT
 	err = svc.EndActivitySession(ctx, 1)
@@ -524,9 +519,7 @@ func TestAssignMultipleSupervisorsNonCritical_PreservesBestEffortAssignments(t *
 		},
 	}
 
-	svc := &service{
-		supervisorRepo: supervisorRepo,
-	}
+	svc := &service{ServiceDependencies: ServiceDependencies{SupervisorRepo: supervisorRepo}}
 
 	svc.assignMultipleSupervisorsNonCritical(ctx, 77, []int64{11, 22, 33, 11}, time.Now())
 
@@ -584,12 +577,7 @@ func TestEndActivitySession_EndSupervisionError(t *testing.T) {
 	}
 
 	// Create service with mocks
-	svc := &service{
-		groupRepo:      groupRepo,
-		visitRepo:      visitRepo,
-		supervisorRepo: supervisorRepo,
-		broadcaster:    nil,
-	}
+	svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: groupRepo, VisitRepo: visitRepo, SupervisorRepo: supervisorRepo, Broadcaster: nil}}
 
 	// ACT
 	err = svc.EndActivitySession(ctx, 1)

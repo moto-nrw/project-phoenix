@@ -22,7 +22,7 @@ const WebManualDeviceCode = iotModels.WebManualDeviceID
 
 // ensureStudentHasNoActiveVisit checks that the student doesn't already have an active visit
 func (s *service) ensureStudentHasNoActiveVisit(ctx context.Context, studentID int64) error {
-	visits, err := s.visitRepo.FindActiveByStudentID(ctx, studentID)
+	visits, err := s.VisitRepo.FindActiveByStudentID(ctx, studentID)
 	if err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: ErrDatabaseOperation}
 	}
@@ -48,7 +48,7 @@ func (s *service) resolveStaffIDForAttendance(ctx context.Context, staffID, devi
 // ensureOrUpdateAttendance handles attendance creation or re-entry update
 func (s *service) ensureOrUpdateAttendance(ctx context.Context, visit *active.Visit, staffID, deviceID int64) error {
 	visitDate := timezone.DateFromTime(visit.EntryTime)
-	attendanceRecords, err := s.attendanceRepo.FindByStudentAndDate(ctx, visit.StudentID, visitDate)
+	attendanceRecords, err := s.AttendanceRepo.FindByStudentAndDate(ctx, visit.StudentID, visitDate)
 	if err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: err}
 	}
@@ -76,7 +76,7 @@ func (s *service) createAttendanceRecord(ctx context.Context, visit *active.Visi
 	}
 
 	attendance.SetTenantID(tenant.FromContext(ctx))
-	if _, err := s.attendanceRepo.CreateIfNoOpenForToday(ctx, attendance); err != nil {
+	if _, err := s.AttendanceRepo.CreateIfNoOpenForToday(ctx, attendance); err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: err}
 	}
 	return nil
@@ -90,7 +90,7 @@ func (s *service) resolveDeviceIDForAttendance(ctx context.Context, deviceID int
 	}
 
 	// Look up the web manual device for manual check-ins
-	webDevice, err := s.deviceRepo.FindByDeviceID(ctx, WebManualDeviceCode)
+	webDevice, err := s.DeviceRepo.FindByDeviceID(ctx, WebManualDeviceCode)
 	if err == nil && webDevice != nil {
 		return webDevice.ID
 	}
@@ -113,7 +113,7 @@ func (s *service) clearCheckoutOnReentry(ctx context.Context, studentID int64, a
 
 		attendance.CheckOutTime = nil
 		attendance.CheckedOutBy = nil
-		if err := s.attendanceRepo.Update(ctx, attendance); err != nil {
+		if err := s.AttendanceRepo.Update(ctx, attendance); err != nil {
 			s.getLogger().Warn("failed to clear check_out_time on re-entry",
 				slog.Int64("student_id", studentID),
 				slog.Int64("attendance_id", attendance.ID),
@@ -157,7 +157,7 @@ func (s *service) autoClearStudentSickness(ctx context.Context, studentID int64)
 		return
 	}
 
-	student, err := s.studentRepo.FindByID(ctx, studentID)
+	student, err := s.StudentRepo.FindByID(ctx, studentID)
 	if err != nil || student == nil {
 		return
 	}
@@ -173,7 +173,7 @@ func (s *service) autoClearStudentSickness(ctx context.Context, studentID int64)
 	student.Sick = &falseVal
 	student.SickSince = nil
 
-	if err := s.studentRepo.Update(ctx, student); err != nil {
+	if err := s.StudentRepo.Update(ctx, student); err != nil {
 		s.getLogger().Warn("failed to auto-clear sickness on check-in",
 			slog.Int64("student_id", studentID),
 			slog.String("error", err.Error()),
@@ -194,7 +194,7 @@ func (s *service) autoClearStudentExcused(ctx context.Context, studentID int64) 
 		return
 	}
 
-	student, err := s.studentRepo.FindByID(ctx, studentID)
+	student, err := s.StudentRepo.FindByID(ctx, studentID)
 	if err != nil || student == nil {
 		return
 	}
@@ -210,7 +210,7 @@ func (s *service) autoClearStudentExcused(ctx context.Context, studentID int64) 
 	student.Excused = &falseVal
 	student.ExcusedSince = nil
 
-	if err := s.studentRepo.Update(ctx, student); err != nil {
+	if err := s.StudentRepo.Update(ctx, student); err != nil {
 		s.getLogger().Warn("failed to auto-clear excused on check-in",
 			slog.Int64("student_id", studentID),
 			slog.String("error", err.Error()),
@@ -224,7 +224,7 @@ func (s *service) autoClearStudentExcused(ctx context.Context, studentID int64) 
 }
 
 func (s *service) recordStudentStatusForClear(ctx context.Context, studentID int64, status string, since *time.Time, now time.Time, source string) {
-	if s.studentStatusRepo == nil {
+	if s.StudentStatusRepo == nil {
 		return
 	}
 	reportedAt := now
@@ -232,7 +232,7 @@ func (s *service) recordStudentStatusForClear(ctx context.Context, studentID int
 		reportedAt = *since
 	}
 	today := timezone.DateFromTime(now)
-	if err := s.studentStatusRepo.UpsertReported(ctx, &active.StudentStatusDay{
+	if err := s.StudentStatusRepo.UpsertReported(ctx, &active.StudentStatusDay{
 		StudentID:  studentID,
 		Date:       today,
 		Status:     status,
@@ -246,7 +246,7 @@ func (s *service) recordStudentStatusForClear(ctx context.Context, studentID int
 		)
 		return
 	}
-	if err := s.studentStatusRepo.MarkCleared(ctx, studentID, status, today, now, source); err != nil {
+	if err := s.StudentStatusRepo.MarkCleared(ctx, studentID, status, today, now, source); err != nil {
 		s.getLogger().Warn("failed to close student status history on auto-clear",
 			slog.Int64("student_id", studentID),
 			slog.String("status", status),
@@ -256,13 +256,13 @@ func (s *service) recordStudentStatusForClear(ctx context.Context, studentID int
 }
 
 func (s *service) autoClearPlannedStudentStatuses(ctx context.Context, studentID int64) {
-	if s.studentStatusRepo == nil {
+	if s.StudentStatusRepo == nil {
 		return
 	}
 
 	now := time.Now()
 	today := timezone.DateFromTime(now)
-	rows, err := s.studentStatusRepo.FindActiveByStudentAndDateRange(ctx, studentID, today, today)
+	rows, err := s.StudentStatusRepo.FindActiveByStudentAndDateRange(ctx, studentID, today, today)
 	if err != nil {
 		s.getLogger().Warn("failed to load planned student status days on check-in",
 			slog.Int64("student_id", studentID),
@@ -282,7 +282,7 @@ func (s *service) autoClearPlannedStudentStatuses(ctx context.Context, studentID
 			row.Source != active.StudentStatusSourceParent {
 			continue
 		}
-		if err := s.studentStatusRepo.MarkClearedByID(ctx, row.ID, now, active.StudentStatusSourceNextCheckin); err != nil {
+		if err := s.StudentStatusRepo.MarkClearedByID(ctx, row.ID, now, active.StudentStatusSourceNextCheckin); err != nil {
 			s.getLogger().Warn("failed to clear planned student status day on check-in",
 				slog.Int64("student_id", studentID),
 				slog.String("status", row.Status),
@@ -302,7 +302,7 @@ func (s *service) autoClearPlannedStudentStatuses(ctx context.Context, studentID
 		return
 	}
 
-	student, err := s.studentRepo.FindByID(ctx, studentID)
+	student, err := s.StudentRepo.FindByID(ctx, studentID)
 	if err != nil || student == nil {
 		return
 	}
@@ -316,7 +316,7 @@ func (s *service) autoClearPlannedStudentStatuses(ctx context.Context, studentID
 		student.Excused = &falseVal
 		student.ExcusedSince = nil
 	}
-	if err := s.studentRepo.Update(ctx, student); err != nil {
+	if err := s.StudentRepo.Update(ctx, student); err != nil {
 		s.getLogger().Warn("failed to clear planned student flags on check-in",
 			slog.Int64("student_id", studentID),
 			slog.String("error", err.Error()),
@@ -329,7 +329,7 @@ func (s *service) autoClearPlannedStudentStatuses(ctx context.Context, studentID
 // attendance_status/substatus/note so subscribers see the flipped attendance
 // state alongside the check-in line.
 func (s *service) broadcastVisitCreated(ctx context.Context, visit *active.Visit, snapshot *AttendanceSnapshot) {
-	if s.broadcaster == nil {
+	if s.Broadcaster == nil {
 		return
 	}
 
@@ -350,7 +350,7 @@ func (s *service) broadcastVisitCreated(ctx context.Context, visit *active.Visit
 		data,
 	)
 
-	if err := s.broadcaster.BroadcastToGroup(tenant.FromContext(ctx), activeGroupID, event); err != nil {
+	if err := s.Broadcaster.BroadcastToGroup(tenant.FromContext(ctx), activeGroupID, event); err != nil {
 		s.getLogger().Error("SSE broadcast failed",
 			slog.String("error", err.Error()),
 			slog.String("event_type", "student_checkin"),
@@ -362,18 +362,18 @@ func (s *service) broadcastVisitCreated(ctx context.Context, visit *active.Visit
 	s.broadcastToEducationalGroup(ctx, studentRec, event)
 
 	// Notify all clients so dashboard counts refresh
-	_ = s.broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
+	_ = s.Broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
 	s.broadcastActiveSupervisionChanged(ctx, activeGroupID, studentID, activeSupervisionReasonStudentMoved)
 }
 
 // getStudentDisplayData fetches student name for display
 func (s *service) getStudentDisplayData(ctx context.Context, studentID int64) (string, *userModels.Student) {
-	student, err := s.studentRepo.FindByID(ctx, studentID)
+	student, err := s.StudentRepo.FindByID(ctx, studentID)
 	if err != nil || student == nil {
 		return "", nil
 	}
 
-	person, err := s.personRepo.FindByID(ctx, student.PersonID)
+	person, err := s.PersonRepo.FindByID(ctx, student.PersonID)
 	if err != nil || person == nil {
 		return "", student
 	}

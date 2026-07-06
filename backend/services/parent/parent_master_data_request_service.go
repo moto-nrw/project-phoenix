@@ -57,7 +57,7 @@ func (s *service) SubmitMasterDataChangeRequest(ctx context.Context, accountID, 
 		return nil, err
 	}
 
-	enabled, err := s.settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentMasterDataRequestEnabled)
+	enabled, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentMasterDataRequestEnabled)
 	if err != nil {
 		return nil, fmt.Errorf("parent: resolve master-data request setting: %w", err)
 	}
@@ -66,12 +66,12 @@ func (s *service) SubmitMasterDataChangeRequest(ctx context.Context, accountID, 
 	}
 
 	var created []*usersModels.StudentDataChangeRequest
-	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		student, loadErr := s.studentRepo.FindByID(txCtx, studentID)
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		student, loadErr := s.StudentRepo.FindByID(txCtx, studentID)
 		if loadErr != nil {
 			return loadErr
 		}
-		person, loadErr := s.personRepo.FindByID(txCtx, student.PersonID)
+		person, loadErr := s.PersonRepo.FindByID(txCtx, student.PersonID)
 		if loadErr != nil {
 			return loadErr
 		}
@@ -84,7 +84,7 @@ func (s *service) SubmitMasterDataChangeRequest(ctx context.Context, accountID, 
 			if !changed {
 				continue
 			}
-			has, hasErr := s.changeRequestRepo.HasPendingForField(txCtx, studentID, c.Target, c.FieldKey)
+			has, hasErr := s.ChangeRequestRepo.HasPendingForField(txCtx, studentID, c.Target, c.FieldKey)
 			if hasErr != nil {
 				return hasErr
 			}
@@ -101,7 +101,7 @@ func (s *service) SubmitMasterDataChangeRequest(ctx context.Context, accountID, 
 				Status:      usersModels.DataChangeStatusPending,
 			}
 			row.SetTenantID(child.tenantID)
-			if createErr := s.changeRequestRepo.Create(txCtx, row); createErr != nil {
+			if createErr := s.ChangeRequestRepo.Create(txCtx, row); createErr != nil {
 				if isPendingChangeRequestUniqueViolation(createErr) {
 					return ErrMasterDataDuplicatePending
 				}
@@ -123,12 +123,12 @@ func (s *service) SubmitMasterDataChangeRequest(ctx context.Context, accountID, 
 				refIDs[i] = row.ID
 			}
 			tenant.RegisterAfterCommit(txCtx, func() {
-				if s.emitter == nil {
+				if s.Emitter == nil {
 					return
 				}
 				for i := range refIDs {
 					refID := refIDs[i]
-					s.emitter.EmitChildEvent(capturedTenant, studentID, accountID, parentmessaging.ChildEvent{
+					s.Emitter.EmitChildEvent(capturedTenant, studentID, accountID, parentmessaging.ChildEvent{
 						EventType:      "request_created",
 						ActorKind:      usersModels.ParentMessageSenderGuardian,
 						ActorAccountID: accountID,
@@ -150,7 +150,7 @@ func (s *service) SubmitMasterDataChangeRequest(ctx context.Context, accountID, 
 		return nil, ErrMasterDataNoChanges
 	}
 
-	s.logger.Info("parent submitted master data change request",
+	s.Logger.Info("parent submitted master data change request",
 		slog.Int64("account_id", accountID),
 		slog.Int64("student_id", studentID),
 		slog.Int64("tenant_id", child.tenantID),
@@ -169,8 +169,8 @@ func (s *service) ListMyMasterDataRequests(ctx context.Context, accountID, stude
 		return nil, err
 	}
 	var out []*usersModels.StudentDataChangeRequest
-	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		rows, listErr := s.changeRequestRepo.ListParentVisibleByStudent(txCtx, studentID, 0)
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		rows, listErr := s.ChangeRequestRepo.ListParentVisibleByStudent(txCtx, studentID, 0)
 		if listErr != nil {
 			return listErr
 		}

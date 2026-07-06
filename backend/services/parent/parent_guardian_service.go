@@ -198,12 +198,12 @@ func (s *service) ListChildGuardians(ctx context.Context, accountID, studentID i
 		}
 	}
 	var out []*ChildGuardian
-	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		callerStudents, err := s.callerFamilyStudentSet(txCtx, accountID)
 		if err != nil {
 			return err
 		}
-		links, err := s.studentGuardianRepo.FindByStudentID(txCtx, studentID)
+		links, err := s.StudentGuardianRepo.FindByStudentID(txCtx, studentID)
 		if err != nil {
 			return err
 		}
@@ -213,11 +213,11 @@ func (s *service) ListChildGuardians(ctx context.Context, accountID, studentID i
 		for _, link := range links {
 			profileIDs = append(profileIDs, link.GuardianProfileID)
 		}
-		profiles, err := s.guardianProfileRepo.FindByIDs(txCtx, profileIDs)
+		profiles, err := s.GuardianProfileRepo.FindByIDs(txCtx, profileIDs)
 		if err != nil {
 			return err
 		}
-		phonesByProfile, err := s.guardianPhoneRepo.FindByGuardianIDs(txCtx, profileIDs)
+		phonesByProfile, err := s.GuardianPhoneRepo.FindByGuardianIDs(txCtx, profileIDs)
 		if err != nil {
 			return err
 		}
@@ -234,7 +234,7 @@ func (s *service) ListChildGuardians(ctx context.Context, accountID, studentID i
 				// Surface it as an internal error (→ 500, caught by 5xx alerting)
 				// instead of masking it as ErrGuardianNotLinked (403), which would
 				// hide the inconsistency from monitoring.
-				s.logger.Error("parent child guardian link points to missing profile",
+				s.Logger.Error("parent child guardian link points to missing profile",
 					slog.Int64("tenant_id", child.tenantID),
 					slog.Int64("student_id", studentID),
 					slog.Int64("student_guardian_id", link.ID),
@@ -268,12 +268,12 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 		return nil, err
 	}
 	var result *ChildGuardian
-	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		// Lock the profile row so concurrent contact edits of the same guardian
 		// serialize: the read-modify-write below plus the wholesale phone-list
 		// replace (delete-all then re-insert) would otherwise race under
 		// read-committed and could lose an update or duplicate phone rows.
-		if err := s.guardianProfileRepo.LockByIDForUpdate(txCtx, guardianProfileID); err != nil {
+		if err := s.GuardianProfileRepo.LockByIDForUpdate(txCtx, guardianProfileID); err != nil {
 			if errors.Is(err, usersModels.ErrGuardianProfileNotFound) {
 				return ErrGuardianNotLinked
 			}
@@ -296,7 +296,7 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 		if err != nil {
 			return err
 		}
-		profile, err := s.guardianProfileRepo.FindByID(txCtx, guardianProfileID)
+		profile, err := s.GuardianProfileRepo.FindByID(txCtx, guardianProfileID)
 		if err != nil {
 			if errors.Is(err, usersModels.ErrGuardianProfileNotFound) {
 				return ErrGuardianNotLinked
@@ -339,7 +339,7 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 		// caller's) and the post-commit broadcast (a contact edit is shared across
 		// all the profile's children, so every sibling's parent view must refresh,
 		// not just the one the edit was routed through).
-		profileLinks, err := s.studentGuardianRepo.FindByGuardianProfileID(txCtx, guardianProfileID)
+		profileLinks, err := s.StudentGuardianRepo.FindByGuardianProfileID(txCtx, guardianProfileID)
 		if err != nil {
 			return err
 		}
@@ -353,7 +353,7 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 
 		// Snapshot the pre-edit contact state (incl. phones) so the change can be
 		// audited field-by-field after the wholesale replace below.
-		oldPhones, err := s.guardianPhoneRepo.FindByGuardianID(txCtx, profile.ID)
+		oldPhones, err := s.GuardianPhoneRepo.FindByGuardianID(txCtx, profile.ID)
 		if err != nil {
 			return err
 		}
@@ -374,7 +374,7 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 		// runs in the tenant tx, so it is RLS-scoped to this school.
 		if input.Email != nil {
 			if email := strings.TrimSpace(*input.Email); email != "" {
-				existing, ferr := s.guardianProfileRepo.FindByEmail(txCtx, email)
+				existing, ferr := s.GuardianProfileRepo.FindByEmail(txCtx, email)
 				// Only the clean not-found sentinel means "no conflicting profile".
 				// Any other error (DB/RLS failure) MUST abort the edit, not be
 				// swallowed as "no conflict": treating a lookup failure as success
@@ -391,14 +391,14 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 		}
 
 		applyContactInput(profile, &input)
-		if err := s.guardianProfileRepo.Update(txCtx, profile); err != nil {
+		if err := s.GuardianProfileRepo.Update(txCtx, profile); err != nil {
 			return err
 		}
 		if err := s.replaceGuardianPhones(txCtx, profile, input.Phones); err != nil {
 			return err
 		}
 
-		phones, err := s.guardianPhoneRepo.FindByGuardianID(txCtx, profile.ID)
+		phones, err := s.GuardianPhoneRepo.FindByGuardianID(txCtx, profile.ID)
 		if err != nil {
 			return err
 		}
@@ -429,7 +429,7 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 		return nil, txErr
 	}
 
-	s.logger.Info("parent updated guardian contact",
+	s.Logger.Info("parent updated guardian contact",
 		slog.Int64("account_id", accountID),
 		slog.Int64("student_id", studentID),
 		slog.Int64("guardian_profile_id", guardianProfileID),
@@ -476,14 +476,14 @@ func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 		return nil, ErrGuardianPermissionDenied
 	}
 	var result *ChildGuardian
-	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		// Lock the guardian profile row for the duration of the tx. The link
 		// update below is a read-modify-write on the students_guardians row, and
 		// the same profile lock guards the contact path; taking it here serializes
 		// concurrent relationship edits (and relationship-vs-contact edits) of the
 		// same guardian so independent field writes can't clobber each other in a
 		// lost update under read-committed.
-		if err := s.guardianProfileRepo.LockByIDForUpdate(txCtx, guardianProfileID); err != nil {
+		if err := s.GuardianProfileRepo.LockByIDForUpdate(txCtx, guardianProfileID); err != nil {
 			if errors.Is(err, usersModels.ErrGuardianProfileNotFound) {
 				return ErrGuardianNotLinked
 			}
@@ -504,7 +504,7 @@ func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 		if err != nil {
 			return err
 		}
-		profile, err := s.guardianProfileRepo.FindByID(txCtx, guardianProfileID)
+		profile, err := s.GuardianProfileRepo.FindByID(txCtx, guardianProfileID)
 		if err != nil {
 			if errors.Is(err, usersModels.ErrGuardianProfileNotFound) {
 				return ErrGuardianNotLinked
@@ -604,7 +604,7 @@ func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 		}
 		// cols is guaranteed non-empty: the all-nil input guard at the top of the
 		// function already returned ErrGuardianNoChange.
-		updated, err := s.studentGuardianRepo.UpdateColumns(txCtx, link, cols...)
+		updated, err := s.StudentGuardianRepo.UpdateColumns(txCtx, link, cols...)
 		if err != nil {
 			return err
 		}
@@ -618,7 +618,7 @@ func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 			return err
 		}
 
-		phones, err := s.guardianPhoneRepo.FindByGuardianID(txCtx, profile.ID)
+		phones, err := s.GuardianPhoneRepo.FindByGuardianID(txCtx, profile.ID)
 		if err != nil {
 			return err
 		}
@@ -640,7 +640,7 @@ func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 		return nil, txErr
 	}
 
-	s.logger.Info("parent updated guardian relationship",
+	s.Logger.Info("parent updated guardian relationship",
 		slog.Int64("account_id", accountID),
 		slog.Int64("student_id", studentID),
 		slog.Int64("guardian_profile_id", guardianProfileID),
@@ -655,7 +655,7 @@ func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 // contact/pickup management feature switched on
 // (operations.parent_guardian_management_enabled).
 func (s *service) guardianManagementEnabled(ctx context.Context, tenantID int64) (bool, error) {
-	enabled, err := s.settings.ResolveBoolForTenant(ctx, tenantID, configModels.KeyParentGuardianManagementEnabled)
+	enabled, err := s.Settings.ResolveBoolForTenant(ctx, tenantID, configModels.KeyParentGuardianManagementEnabled)
 	if err != nil {
 		return false, fmt.Errorf("parent: resolve guardian-management setting: %w", err)
 	}
@@ -689,7 +689,7 @@ type guardianChangeEntry struct {
 // no-op. Must run inside the same tenant transaction as the change so the trail
 // is atomic with it.
 func (s *service) writeGuardianChanges(ctx context.Context, tenantID, accountID, studentID, guardianProfileID int64, changes []guardianChangeEntry) error {
-	if s.guardianChangeAuditRepo == nil || len(changes) == 0 {
+	if s.GuardianChangeAuditRepo == nil || len(changes) == 0 {
 		return nil
 	}
 	actorName, actorEmail := s.actorSnapshot(ctx, accountID)
@@ -707,7 +707,7 @@ func (s *service) writeGuardianChanges(ctx context.Context, tenantID, accountID,
 			NewValue:           c.newValue,
 		}
 		entry.SetTenantID(tenantID)
-		if err := s.guardianChangeAuditRepo.Create(ctx, entry); err != nil {
+		if err := s.GuardianChangeAuditRepo.Create(ctx, entry); err != nil {
 			return err
 		}
 	}
@@ -828,7 +828,7 @@ func formatPhonesForAudit(phones []*usersModels.GuardianPhoneNumber) string {
 // it survives a later account deletion. Best-effort: a missing profile yields
 // nils rather than failing the audited operation.
 func (s *service) actorSnapshot(ctx context.Context, accountID int64) (*string, *string) {
-	actor, err := s.guardianProfileRepo.FindByAccountID(ctx, accountID)
+	actor, err := s.GuardianProfileRepo.FindByAccountID(ctx, accountID)
 	if err != nil || actor == nil {
 		return nil, nil
 	}
@@ -846,7 +846,7 @@ func (s *service) actorSnapshot(ctx context.Context, accountID int64) (*string, 
 // cannot change role, account, or existence between the authorization checks and
 // the write.
 func (s *service) findChildGuardianLinkForUpdate(ctx context.Context, studentID, guardianProfileID int64) (*usersModels.StudentGuardian, error) {
-	link, err := s.studentGuardianRepo.FindByStudentAndGuardianForUpdate(ctx, studentID, guardianProfileID)
+	link, err := s.StudentGuardianRepo.FindByStudentAndGuardianForUpdate(ctx, studentID, guardianProfileID)
 	if err != nil {
 		if errors.Is(err, usersModels.ErrStudentGuardianNotFound) {
 			return nil, ErrGuardianNotLinked
@@ -860,7 +860,7 @@ func (s *service) findChildGuardianLinkForUpdate(ctx context.Context, studentID,
 // submitted set. A wholesale replace keeps the edit atomic and avoids per-row
 // diffing the portal would otherwise have to drive.
 func (s *service) replaceGuardianPhones(ctx context.Context, profile *usersModels.GuardianProfile, phones []GuardianPhoneInput) error {
-	if err := s.guardianPhoneRepo.DeleteByGuardianID(ctx, profile.ID); err != nil {
+	if err := s.GuardianPhoneRepo.DeleteByGuardianID(ctx, profile.ID); err != nil {
 		return err
 	}
 	submittedPrimary := hasSubmittedPrimaryPhone(phones)
@@ -890,7 +890,7 @@ func (s *service) replaceGuardianPhones(ctx context.Context, profile *usersModel
 			Priority:          i + 1,
 		}
 		entity.SetTenantID(profile.TenantID)
-		if err := s.guardianPhoneRepo.Create(ctx, entity); err != nil {
+		if err := s.GuardianPhoneRepo.Create(ctx, entity); err != nil {
 			return err
 		}
 	}
@@ -918,7 +918,7 @@ func hasSubmittedPrimaryPhone(phones []GuardianPhoneInput) bool {
 // so the caller's family is precisely the students linked to that profile.
 // MUST run inside the tenant transaction — both reads are RLS-scoped.
 func (s *service) callerFamilyStudentSet(ctx context.Context, accountID int64) (map[int64]bool, error) {
-	profile, err := s.guardianProfileRepo.FindByAccountID(ctx, accountID)
+	profile, err := s.GuardianProfileRepo.FindByAccountID(ctx, accountID)
 	if err != nil {
 		// The caller resolved a permitted child in this tenant, so their profile
 		// exists; treat a missing one defensively as an empty family (fail-safe:
@@ -928,7 +928,7 @@ func (s *service) callerFamilyStudentSet(ctx context.Context, accountID int64) (
 		}
 		return nil, err
 	}
-	links, err := s.studentGuardianRepo.FindByGuardianProfileID(ctx, profile.ID)
+	links, err := s.StudentGuardianRepo.FindByGuardianProfileID(ctx, profile.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -944,7 +944,7 @@ func (s *service) callerFamilyStudentSet(ctx context.Context, accountID int64) (
 // contact data must not be editable by this caller. Must run inside the tenant
 // transaction (FindByGuardianProfileID is tenant-filtered).
 func (s *service) profileEscapesFamily(ctx context.Context, guardianProfileID int64, callerStudents map[int64]bool) (bool, error) {
-	links, err := s.studentGuardianRepo.FindByGuardianProfileID(ctx, guardianProfileID)
+	links, err := s.StudentGuardianRepo.FindByGuardianProfileID(ctx, guardianProfileID)
 	if err != nil {
 		return false, err
 	}
@@ -966,7 +966,7 @@ func (s *service) profilesEscapingFamily(ctx context.Context, profileIDs []int64
 	if len(profileIDs) == 0 {
 		return escapes, nil
 	}
-	rows, err := s.studentGuardianRepo.ListLinkedChildrenForGuardians(ctx, profileIDs)
+	rows, err := s.StudentGuardianRepo.ListLinkedChildrenForGuardians(ctx, profileIDs)
 	if err != nil {
 		return nil, err
 	}

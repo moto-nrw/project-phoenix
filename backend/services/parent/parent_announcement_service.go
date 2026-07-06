@@ -54,8 +54,8 @@ func (s *service) ListAnnouncements(ctx context.Context, accountID int64) ([]*us
 		return []*usersModels.AnnouncementFeedItem{}, nil
 	}
 	var out []*usersModels.AnnouncementFeedItem
-	if txErr := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
-		rows, err := s.announcementRepo.ListFeedForAccount(adminCtx, accountID, tenantIDs)
+	if txErr := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
+		rows, err := s.AnnouncementRepo.ListFeedForAccount(adminCtx, accountID, tenantIDs)
 		if err != nil {
 			return err
 		}
@@ -82,8 +82,8 @@ func (s *service) UnreadAnnouncementCount(ctx context.Context, accountID int64) 
 		return 0, nil
 	}
 	var count int
-	if txErr := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
-		n, err := s.announcementRepo.CountUnreadForAccount(adminCtx, accountID, tenantIDs)
+	if txErr := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
+		n, err := s.AnnouncementRepo.CountUnreadForAccount(adminCtx, accountID, tenantIDs)
 		if err != nil {
 			return err
 		}
@@ -129,8 +129,8 @@ func (s *service) stampAnnouncement(ctx context.Context, accountID, announcement
 	var announcementTenantID int64
 	var requiresAck bool
 	var announcementPublishedAt time.Time
-	if err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
-		a, err := s.announcementRepo.FindByID(adminCtx, announcementID)
+	if err := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
+		a, err := s.AnnouncementRepo.FindByID(adminCtx, announcementID)
 		if err != nil {
 			return fmt.Errorf("parent: load announcement: %w", err)
 		}
@@ -141,7 +141,7 @@ func (s *service) stampAnnouncement(ctx context.Context, accountID, announcement
 		// must always get 404 so a parent token cannot enumerate live announcement
 		// IDs (or their ack flags) by distinguishing ack-not-required (400) from
 		// not-found (404) responses across tenants.
-		matched, err := s.announcementRepo.AccountMatchesAnnouncement(adminCtx, a.GetTenantID(), announcementID, accountID)
+		matched, err := s.AnnouncementRepo.AccountMatchesAnnouncement(adminCtx, a.GetTenantID(), announcementID, accountID)
 		if err != nil {
 			return fmt.Errorf("parent: match announcement audience: %w", err)
 		}
@@ -167,12 +167,12 @@ func (s *service) stampAnnouncement(ctx context.Context, accountID, announcement
 	// OUTSIDE the admin tx because ResolveBoolForTenant opens its own tenant tx.
 	// Fails CLOSED: an unwired settings service or a resolve error excludes the
 	// school just like the feed does.
-	if s.settings == nil {
+	if s.Settings == nil {
 		return ErrAnnouncementNotFound
 	}
-	on, err := s.settings.ResolveBoolForTenant(ctx, announcementTenantID, configModel.KeyParentNewsEnabled)
+	on, err := s.Settings.ResolveBoolForTenant(ctx, announcementTenantID, configModel.KeyParentNewsEnabled)
 	if err != nil {
-		s.logger.Warn("parent: resolve parent_news_enabled failed, refusing stamp",
+		s.Logger.Warn("parent: resolve parent_news_enabled failed, refusing stamp",
 			slog.Int64("tenant_id", announcementTenantID),
 			slog.Int64("announcement_id", announcementID),
 			slog.String("error", err.Error()),
@@ -204,22 +204,22 @@ func (s *service) stampAnnouncement(ctx context.Context, accountID, announcement
 	// must surface as ErrAnnouncementStale (409) — not a silent 200 that would let
 	// the client mark the retracted wording read/acknowledged locally while the DB
 	// and staff stats stay unchanged.
-	return tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
+	return tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
 		if ack {
-			applied, err := s.announcementRepo.MarkAcknowledged(adminCtx, announcementTenantID, announcementID, accountID, expectedPublishedAt)
+			applied, err := s.AnnouncementRepo.MarkAcknowledged(adminCtx, announcementTenantID, announcementID, accountID, expectedPublishedAt)
 			if err != nil {
 				return err
 			}
 			if !applied {
 				return ErrAnnouncementStale
 			}
-			s.logger.Info("parent acknowledged announcement",
+			s.Logger.Info("parent acknowledged announcement",
 				slog.Int64("account_id", accountID),
 				slog.Int64("announcement_id", announcementID),
 			)
 			return nil
 		}
-		applied, err := s.announcementRepo.MarkRead(adminCtx, announcementTenantID, announcementID, accountID, expectedPublishedAt)
+		applied, err := s.AnnouncementRepo.MarkRead(adminCtx, announcementTenantID, announcementID, accountID, expectedPublishedAt)
 		if err != nil {
 			return err
 		}
@@ -260,15 +260,15 @@ func (s *service) newsEnabledTenants(ctx context.Context, accountID int64) ([]in
 			allTenantIDs = append(allTenantIDs, id)
 		}
 	}
-	if txErr := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
-		children, err := s.childRepo.ListByAccount(adminCtx, accountID)
+	if txErr := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
+		children, err := s.ChildRepo.ListByAccount(adminCtx, accountID)
 		if err != nil {
 			return err
 		}
 		for _, id := range distinctTenantIDs(children) {
 			add(id)
 		}
-		requests, err := s.enrollmentRequestRepo.ListByAccount(adminCtx, accountID)
+		requests, err := s.EnrollmentRequestRepo.ListByAccount(adminCtx, accountID)
 		if err != nil {
 			return err
 		}
@@ -282,16 +282,16 @@ func (s *service) newsEnabledTenants(ctx context.Context, accountID int64) ([]in
 	}); txErr != nil {
 		return nil, fmt.Errorf("parent: resolve news tenants: %w", txErr)
 	}
-	if len(allTenantIDs) == 0 || s.settings == nil {
+	if len(allTenantIDs) == 0 || s.Settings == nil {
 		return nil, nil
 	}
 	enabled := make([]int64, 0, len(allTenantIDs))
 	for _, tenantID := range allTenantIDs {
-		on, err := s.settings.ResolveBoolForTenant(ctx, tenantID, configModel.KeyParentNewsEnabled)
+		on, err := s.Settings.ResolveBoolForTenant(ctx, tenantID, configModel.KeyParentNewsEnabled)
 		if err != nil {
 			// Fail CLOSED on a resolve error: news is opt-in (default off), so a
 			// transient settings hiccup must not surface a school's announcements.
-			s.logger.Warn("parent: resolve parent_news_enabled failed, excluding tenant",
+			s.Logger.Warn("parent: resolve parent_news_enabled failed, excluding tenant",
 				slog.Int64("tenant_id", tenantID),
 				slog.String("error", err.Error()),
 			)

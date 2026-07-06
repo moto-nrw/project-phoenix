@@ -21,7 +21,7 @@ const (
 // ListStudentsInTransit returns students who are checked in today but do not
 // currently have an open room visit.
 func (s *service) ListStudentsInTransit(ctx context.Context) ([]int64, error) {
-	openAttendanceIDs, err := s.attendanceRepo.ListOpenStudentIDsForDate(ctx, timezone.TodayDate())
+	openAttendanceIDs, err := s.AttendanceRepo.ListOpenStudentIDsForDate(ctx, timezone.TodayDate())
 	if err != nil {
 		return nil, &ActiveError{Op: "ListStudentsInTransit", Err: ErrDatabaseOperation}
 	}
@@ -29,7 +29,7 @@ func (s *service) ListStudentsInTransit(ctx context.Context) ([]int64, error) {
 		return []int64{}, nil
 	}
 
-	currentVisits, err := s.visitRepo.GetCurrentByStudentIDs(ctx, openAttendanceIDs)
+	currentVisits, err := s.VisitRepo.GetCurrentByStudentIDs(ctx, openAttendanceIDs)
 	if err != nil {
 		return nil, &ActiveError{Op: "ListStudentsInTransit", Err: ErrDatabaseOperation}
 	}
@@ -48,7 +48,7 @@ func (s *service) ListStudentsInTransit(ctx context.Context) ([]int64, error) {
 // ListStudentsPresentToday returns students with open attendance today,
 // regardless of whether they currently have an open room visit.
 func (s *service) ListStudentsPresentToday(ctx context.Context) ([]int64, error) {
-	ids, err := s.attendanceRepo.ListOpenStudentIDsForDate(ctx, timezone.TodayDate())
+	ids, err := s.AttendanceRepo.ListOpenStudentIDsForDate(ctx, timezone.TodayDate())
 	if err != nil {
 		return nil, &ActiveError{Op: "ListStudentsPresentToday", Err: ErrDatabaseOperation}
 	}
@@ -75,11 +75,11 @@ func (s *service) AssignTransitStudentsToActiveGroup(ctx context.Context, studen
 		return nil, &ActiveError{Op: "AssignTransitStudentsToActiveGroup", Err: ErrInvalidData}
 	}
 
-	openAttendance, err := s.attendanceRepo.GetOpenTodayByStudentIDsForUpdate(ctx, uniqueIDs)
+	openAttendance, err := s.AttendanceRepo.GetOpenTodayByStudentIDsForUpdate(ctx, uniqueIDs)
 	if err != nil {
 		return nil, &ActiveError{Op: "AssignTransitStudentsToActiveGroup", Err: ErrDatabaseOperation}
 	}
-	currentVisits, err := s.visitRepo.GetCurrentByStudentIDs(ctx, uniqueIDs)
+	currentVisits, err := s.VisitRepo.GetCurrentByStudentIDs(ctx, uniqueIDs)
 	if err != nil {
 		return nil, &ActiveError{Op: "AssignTransitStudentsToActiveGroup", Err: ErrDatabaseOperation}
 	}
@@ -312,12 +312,12 @@ func newStudentMoveResult(activeGroupID, roomID *int64) *StudentMoveResult {
 }
 
 func (s *service) loadMoveState(ctx context.Context, studentIDs []int64, op string) (map[int64]*active.Attendance, map[int64]*active.Visit, error) {
-	openAttendance, err := s.attendanceRepo.GetOpenTodayByStudentIDsForUpdate(ctx, studentIDs)
+	openAttendance, err := s.AttendanceRepo.GetOpenTodayByStudentIDsForUpdate(ctx, studentIDs)
 	if err != nil {
 		return nil, nil, &ActiveError{Op: op, Err: ErrDatabaseOperation}
 	}
 
-	currentVisits, err := s.visitRepo.GetCurrentByStudentIDs(ctx, studentIDs)
+	currentVisits, err := s.VisitRepo.GetCurrentByStudentIDs(ctx, studentIDs)
 	if err != nil {
 		return nil, nil, &ActiveError{Op: op, Err: ErrDatabaseOperation}
 	}
@@ -399,7 +399,7 @@ func studentMoveForbidden(op string) error {
 }
 
 func (s *service) lockActiveGroupForMove(ctx context.Context, activeGroupID int64, op string) (*active.Group, error) {
-	group, err := s.groupRepo.FindByIDForUpdate(ctx, activeGroupID)
+	group, err := s.GroupRepo.FindByIDForUpdate(ctx, activeGroupID)
 	if err != nil {
 		return nil, &ActiveError{Op: op, Err: ErrDatabaseOperation}
 	}
@@ -424,7 +424,7 @@ func (s *service) createVisitWithoutAttendanceMutation(ctx context.Context, visi
 	}
 
 	visit.SetTenantID(tenant.FromContext(ctx))
-	if err := s.visitRepo.Create(ctx, visit); err != nil {
+	if err := s.VisitRepo.Create(ctx, visit); err != nil {
 		if isDuplicateActiveVisitViolation(err) {
 			return &ActiveError{Op: "CreateMoveVisit", Err: ErrStudentAlreadyActive}
 		}
@@ -432,8 +432,8 @@ func (s *service) createVisitWithoutAttendanceMutation(ctx context.Context, visi
 	}
 
 	var snapshot *AttendanceSnapshot
-	if s.attendanceSyncer != nil {
-		snapshot = s.attendanceSyncer.MirrorCheckInForVisit(ctx, visit)
+	if s.AttendanceSyncer != nil {
+		snapshot = s.AttendanceSyncer.MirrorCheckInForVisit(ctx, visit)
 	}
 	s.broadcastVisitCreated(ctx, visit, snapshot)
 	return nil
