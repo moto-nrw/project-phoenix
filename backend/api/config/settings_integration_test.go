@@ -8,8 +8,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/go-chi/chi/v5"
-
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
@@ -19,12 +17,39 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// init seeds JWT viper defaults before any test so SettingsRouter() (which
+// calls jwt.MustNewTokenAuth) and MintTestJWT share the same signing secret.
+// CI runs without a .env, so AUTH_JWT_SECRET is otherwise unset.
+func init() {
+	testutil.SeedTestJWTConfig()
+}
+
+// mint signs a JWT for the given claims and returns a RequestOption that sets
+// the Authorization: Bearer header. Tests drive SettingsRouter() through the
+// production middleware chain (Verifier → Authenticator → TenantMiddleware →
+// RequiresPermission → TenantTxMiddleware), which rejects unsigned requests.
+func mint(t *testing.T, claims jwt.AppClaims) testutil.RequestOption {
+	t.Helper()
+	return testutil.WithJWTBearer(testutil.MintTestJWT(t, claims))
+}
+
 // adminClaimsWithConfigPerms returns admin claims with explicit config permissions.
 // While "admin:*" now works via wildcard matching, explicit permissions make
 // tests clearer about which permissions are being exercised.
 func adminClaimsWithConfigPerms() jwt.AppClaims {
 	claims := testutil.DefaultTestClaims()
 	claims.Permissions = append(claims.Permissions, permissions.ConfigRead, permissions.ConfigUpdate, permissions.ConfigManage)
+	return claims
+}
+
+// teacherClaimsWithConfigRead returns teacher (read-only) claims carrying
+// config:read — the permission a teacher role holds in production (added in
+// the consolidated roles migration). The route-level RequiresPermission checks
+// in SettingsRouter() reject a teacher token without it; the handler still
+// reports can_edit=false because the teacher lacks config:update/config:manage.
+func teacherClaimsWithConfigRead() jwt.AppClaims {
+	claims := testutil.TeacherTestClaims(2)
+	claims.Permissions = append(claims.Permissions, permissions.ConfigRead)
 	return claims
 }
 
@@ -55,11 +80,10 @@ func TestSettingsGetSchema_Success(t *testing.T) {
 	ctx := setupSettingsTest(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/schema", ctx.resource.GetSchema())
+	router := ctx.resource.SettingsRouter()
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/schema", nil,
-		testutil.WithClaims(adminClaimsWithConfigPerms()),
+		mint(t, adminClaimsWithConfigPerms()),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -78,12 +102,11 @@ func TestSettingsGetSchema_NoPermission(t *testing.T) {
 	ctx := setupSettingsTest(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/schema", ctx.resource.GetSchema())
+	router := ctx.resource.SettingsRouter()
 
 	// Request without config:read permission
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/schema", nil,
-		testutil.WithClaims(testutil.TeacherTestClaims(2)),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, teacherClaimsWithConfigRead())),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -100,15 +123,14 @@ func TestSettingsSetValue_Success(t *testing.T) {
 	ctx := setupSettingsTest(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Put("/values/{key}", ctx.resource.SetValue())
+	router := ctx.resource.SettingsRouter()
 
 	body := map[string]interface{}{
 		"value": "18:30",
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/operations.student_daily_checkout_time", body,
-		testutil.WithClaims(adminClaimsWithConfigPerms()),
+		mint(t, adminClaimsWithConfigPerms()),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -119,15 +141,14 @@ func TestSettingsSetValue_InvalidKey(t *testing.T) {
 	ctx := setupSettingsTest(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Put("/values/{key}", ctx.resource.SetValue())
+	router := ctx.resource.SettingsRouter()
 
 	body := map[string]interface{}{
 		"value": "test",
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/nonexistent.key", body,
-		testutil.WithClaims(adminClaimsWithConfigPerms()),
+		mint(t, adminClaimsWithConfigPerms()),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -138,15 +159,14 @@ func TestSettingsSetValue_InvalidValue(t *testing.T) {
 	ctx := setupSettingsTest(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Put("/values/{key}", ctx.resource.SetValue())
+	router := ctx.resource.SettingsRouter()
 
 	body := map[string]interface{}{
 		"value": "not-a-boolean",
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.raumwechsel_enabled", body,
-		testutil.WithClaims(adminClaimsWithConfigPerms()),
+		mint(t, adminClaimsWithConfigPerms()),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -157,8 +177,7 @@ func TestSettingsSetValue_WithConfigManage(t *testing.T) {
 	ctx := setupSettingsTest(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Put("/values/{key}", ctx.resource.SetValue())
+	router := ctx.resource.SettingsRouter()
 
 	body := map[string]interface{}{
 		"value": "17:00",
@@ -169,7 +188,7 @@ func TestSettingsSetValue_WithConfigManage(t *testing.T) {
 	manageClaims := testutil.DefaultTestClaims()
 	manageClaims.Permissions = append(manageClaims.Permissions, permissions.ConfigRead, permissions.ConfigManage)
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/gdpr.data_cleanup_time", body,
-		testutil.WithClaims(manageClaims),
+		mint(t, manageClaims),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -184,11 +203,10 @@ func TestSettingsResetValue_Success(t *testing.T) {
 	ctx := setupSettingsTest(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Delete("/values/{key}", ctx.resource.ResetValue())
+	router := ctx.resource.SettingsRouter()
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/values/operations.student_daily_checkout_time", nil,
-		testutil.WithClaims(adminClaimsWithConfigPerms()),
+		mint(t, adminClaimsWithConfigPerms()),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -199,11 +217,10 @@ func TestSettingsResetValue_InvalidKey(t *testing.T) {
 	ctx := setupSettingsTest(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Delete("/values/{key}", ctx.resource.ResetValue())
+	router := ctx.resource.SettingsRouter()
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/values/nonexistent.key", nil,
-		testutil.WithClaims(adminClaimsWithConfigPerms()),
+		mint(t, adminClaimsWithConfigPerms()),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -218,11 +235,10 @@ func TestSettingsGetLoginImage_Success(t *testing.T) {
 	ctx := setupSettingsTest(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/login-image", ctx.resource.GetLoginImage())
+	router := ctx.resource.SettingsRouter()
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/login-image", nil,
-		testutil.WithClaims(adminClaimsWithConfigPerms()),
+		mint(t, adminClaimsWithConfigPerms()),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -239,12 +255,11 @@ func TestSettingsGetLoginImage_ReadOnlyUser(t *testing.T) {
 	ctx := setupSettingsTest(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/login-image", ctx.resource.GetLoginImage())
+	router := ctx.resource.SettingsRouter()
 
 	// Teacher has config:read but not config:update or config:manage
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/login-image", nil,
-		testutil.WithClaims(testutil.TeacherTestClaims(2)),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, teacherClaimsWithConfigRead())),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -265,8 +280,7 @@ func TestSettingsUploadLoginImage_Success(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// uploadLoginImage uses WithAdminTx internally — no tenant tx middleware
-	router := chi.NewRouter()
-	router.Post("/login-image", ctx.resource.UploadLoginImage())
+	router := ctx.resource.SettingsRouter()
 
 	// Minimal valid PNG (1x1 pixel)
 	pngContent := string([]byte{
@@ -283,7 +297,7 @@ func TestSettingsUploadLoginImage_Success(t *testing.T) {
 
 	req := testutil.NewMultipartRequest(t, "POST", "/login-image",
 		"login_image", "test-login.png", pngContent,
-		testutil.WithClaims(adminClaimsWithConfigPerms()),
+		mint(t, adminClaimsWithConfigPerms()),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -307,8 +321,7 @@ func TestSettingsUploadLoginImage_ReplacesOldImage(t *testing.T) {
 	ctx := setupSettingsTest(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Post("/login-image", ctx.resource.UploadLoginImage())
+	router := ctx.resource.SettingsRouter()
 
 	// Minimal valid PNG (1x1 pixel)
 	pngContent := string([]byte{
@@ -326,7 +339,7 @@ func TestSettingsUploadLoginImage_ReplacesOldImage(t *testing.T) {
 	// Upload first image
 	req1 := testutil.NewMultipartRequest(t, "POST", "/login-image",
 		"login_image", "first.png", pngContent,
-		testutil.WithClaims(adminClaimsWithConfigPerms()),
+		mint(t, adminClaimsWithConfigPerms()),
 	)
 	rr1 := testutil.ExecuteRequest(router, req1)
 	assert.Equal(t, http.StatusOK, rr1.Code, "first upload should succeed. Body: %s", rr1.Body.String())
@@ -343,7 +356,7 @@ func TestSettingsUploadLoginImage_ReplacesOldImage(t *testing.T) {
 	// Upload second image (should replace the first)
 	req2 := testutil.NewMultipartRequest(t, "POST", "/login-image",
 		"login_image", "second.png", pngContent,
-		testutil.WithClaims(adminClaimsWithConfigPerms()),
+		mint(t, adminClaimsWithConfigPerms()),
 	)
 	rr2 := testutil.ExecuteRequest(router, req2)
 	assert.Equal(t, http.StatusOK, rr2.Code, "second upload should succeed. Body: %s", rr2.Body.String())
@@ -371,13 +384,12 @@ func TestSettingsUploadLoginImage_InvalidFileType(t *testing.T) {
 	ctx := setupSettingsTest(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Post("/login-image", ctx.resource.UploadLoginImage())
+	router := ctx.resource.SettingsRouter()
 
 	// Plain text content — not an allowed image type
 	req := testutil.NewMultipartRequest(t, "POST", "/login-image",
 		"login_image", "not-an-image.txt", "this is not an image",
-		testutil.WithClaims(adminClaimsWithConfigPerms()),
+		mint(t, adminClaimsWithConfigPerms()),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -393,11 +405,10 @@ func TestSettingsDeleteLoginImage_NoExistingImage(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// deleteLoginImage uses WithAdminTx internally — no tenant tx middleware
-	router := chi.NewRouter()
-	router.Delete("/login-image", ctx.resource.DeleteLoginImage())
+	router := ctx.resource.SettingsRouter()
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/login-image", nil,
-		testutil.WithClaims(adminClaimsWithConfigPerms()),
+		mint(t, adminClaimsWithConfigPerms()),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -422,15 +433,14 @@ func TestSettingsSetValue_OnValueSetCallbackInvoked(t *testing.T) {
 		return nil, nil
 	})
 
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Put("/values/{key}", ctx.resource.SetValue())
+	router := ctx.resource.SettingsRouter()
 
 	body := map[string]interface{}{
 		"value": true,
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.schulhof_enabled", body,
-		testutil.WithClaims(adminClaimsWithConfigPerms()),
+		mint(t, adminClaimsWithConfigPerms()),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -449,8 +459,7 @@ func TestSettingsSetValue_OnValueSetCallbackErrorRollsBack(t *testing.T) {
 		return nil, errors.New("hook failed")
 	})
 
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Put("/values/{key}", ctx.resource.SetValue())
+	router := ctx.resource.SettingsRouter()
 
 	body := map[string]interface{}{
 		"value": "17:45",
@@ -458,7 +467,7 @@ func TestSettingsSetValue_OnValueSetCallbackErrorRollsBack(t *testing.T) {
 
 	claims := adminClaimsWithConfigPerms()
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/operations.student_daily_checkout_time", body,
-		testutil.WithClaims(claims),
+		mint(t, claims),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -483,15 +492,14 @@ func TestSettingsSetValue_OnValueSetNotCalledOnError(t *testing.T) {
 		return nil, nil
 	})
 
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Put("/values/{key}", ctx.resource.SetValue())
+	router := ctx.resource.SettingsRouter()
 
 	body := map[string]interface{}{
 		"value": "not-a-boolean",
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.schulhof_enabled", body,
-		testutil.WithClaims(adminClaimsWithConfigPerms()),
+		mint(t, adminClaimsWithConfigPerms()),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -516,12 +524,11 @@ func TestSettingsSetValue_PostCommitRunsOnSuccess(t *testing.T) {
 		}, nil
 	})
 
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Put("/values/{key}", ctx.resource.SetValue())
+	router := ctx.resource.SettingsRouter()
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.schulhof_enabled",
 		map[string]interface{}{"value": true},
-		testutil.WithClaims(adminClaimsWithConfigPerms()),
+		mint(t, adminClaimsWithConfigPerms()),
 	)
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
@@ -548,12 +555,11 @@ func TestSettingsSetValue_PostCommitSkippedOnHookError(t *testing.T) {
 		}, errors.New("hook failed")
 	})
 
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Put("/values/{key}", ctx.resource.SetValue())
+	router := ctx.resource.SettingsRouter()
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.schulhof_enabled",
 		map[string]interface{}{"value": true},
-		testutil.WithClaims(adminClaimsWithConfigPerms()),
+		mint(t, adminClaimsWithConfigPerms()),
 	)
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
@@ -566,15 +572,14 @@ func TestSettingsSetValue_NilCallbackDoesNotPanic(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	// No OnValueSet registered — should not panic
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Put("/values/{key}", ctx.resource.SetValue())
+	router := ctx.resource.SettingsRouter()
 
 	body := map[string]interface{}{
 		"value": true,
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.wc_enabled", body,
-		testutil.WithClaims(adminClaimsWithConfigPerms()),
+		mint(t, adminClaimsWithConfigPerms()),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -590,13 +595,11 @@ func TestSettingsResetValue_OnValueSetCallbackInvoked(t *testing.T) {
 	ctx := setupSettingsTest(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Put("/values/{key}", ctx.resource.SetValue())
-	router.Delete("/values/{key}", ctx.resource.ResetValue())
+	router := ctx.resource.SettingsRouter()
 
 	seed := testutil.NewAuthenticatedRequest(t, "PUT", "/values/operations.student_photos_enabled", map[string]interface{}{
 		"value": true,
-	}, testutil.WithClaims(adminClaimsWithConfigPerms()))
+	}, mint(t, adminClaimsWithConfigPerms()))
 	rr := testutil.ExecuteRequest(router, seed)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
@@ -612,7 +615,7 @@ func TestSettingsResetValue_OnValueSetCallbackInvoked(t *testing.T) {
 	})
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/values/operations.student_photos_enabled", nil,
-		testutil.WithClaims(adminClaimsWithConfigPerms()),
+		mint(t, adminClaimsWithConfigPerms()),
 	)
 	rr = testutil.ExecuteRequest(router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusNoContent)
@@ -626,13 +629,11 @@ func TestSettingsResetValue_NonPhotoKeyDoesNotInvokeOnValueSet(t *testing.T) {
 	ctx := setupSettingsTest(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Put("/values/{key}", ctx.resource.SetValue())
-	router.Delete("/values/{key}", ctx.resource.ResetValue())
+	router := ctx.resource.SettingsRouter()
 
 	seed := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.schulhof_enabled", map[string]interface{}{
 		"value": true,
-	}, testutil.WithClaims(adminClaimsWithConfigPerms()))
+	}, mint(t, adminClaimsWithConfigPerms()))
 	rr := testutil.ExecuteRequest(router, seed)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
@@ -643,7 +644,7 @@ func TestSettingsResetValue_NonPhotoKeyDoesNotInvokeOnValueSet(t *testing.T) {
 	})
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/values/checkout.schulhof_enabled", nil,
-		testutil.WithClaims(adminClaimsWithConfigPerms()),
+		mint(t, adminClaimsWithConfigPerms()),
 	)
 	rr = testutil.ExecuteRequest(router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusNoContent)
@@ -658,14 +659,12 @@ func TestSettingsResetValue_OnValueSetCallbackErrorRollsBack(t *testing.T) {
 	ctx := setupSettingsTest(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Put("/values/{key}", ctx.resource.SetValue())
-	router.Delete("/values/{key}", ctx.resource.ResetValue())
+	router := ctx.resource.SettingsRouter()
 
 	claims := adminClaimsWithConfigPerms()
 	seed := testutil.NewAuthenticatedRequest(t, "PUT", "/values/operations.student_photos_enabled", map[string]interface{}{
 		"value": true,
-	}, testutil.WithClaims(claims))
+	}, mint(t, claims))
 	rr := testutil.ExecuteRequest(router, seed)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
@@ -674,7 +673,7 @@ func TestSettingsResetValue_OnValueSetCallbackErrorRollsBack(t *testing.T) {
 	})
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/values/operations.student_photos_enabled", nil,
-		testutil.WithClaims(claims),
+		mint(t, claims),
 	)
 	rr = testutil.ExecuteRequest(router, req)
 	testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
@@ -693,14 +692,13 @@ func TestSettingsDeleteLoginImage_NoTenantContext(t *testing.T) {
 	ctx := setupSettingsTest(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Delete("/login-image", ctx.resource.DeleteLoginImage())
+	router := ctx.resource.SettingsRouter()
 
 	// Claims with TenantID=0 — no tenant context
 	claims := adminClaimsWithConfigPerms()
 	claims.TenantID = 0
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/login-image", nil,
-		testutil.WithClaims(claims),
+		mint(t, claims),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -715,15 +713,14 @@ func TestSettingsSetValue_OperatorOnlyForbidden(t *testing.T) {
 	ctx := setupSettingsTest(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Put("/values/{key}", ctx.resource.SetValue())
+	router := ctx.resource.SettingsRouter()
 
 	// operations.session_end_time is AccessOperatorOnly — tenant admins must not
 	// write it even if they hold config:update. The UI hides these keys; this
 	// test guards the direct-API path.
 	body := map[string]interface{}{"value": "19:00"}
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/operations.session_end_time", body,
-		testutil.WithClaims(adminClaimsWithConfigPerms()),
+		mint(t, adminClaimsWithConfigPerms()),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -734,11 +731,10 @@ func TestSettingsResetValue_OperatorOnlyForbidden(t *testing.T) {
 	ctx := setupSettingsTest(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Delete("/values/{key}", ctx.resource.ResetValue())
+	router := ctx.resource.SettingsRouter()
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/values/operations.session_end_time", nil,
-		testutil.WithClaims(adminClaimsWithConfigPerms()),
+		mint(t, adminClaimsWithConfigPerms()),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -749,11 +745,10 @@ func TestSettingsGetSchema_HidesOperatorOnly(t *testing.T) {
 	ctx := setupSettingsTest(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/schema", ctx.resource.GetSchema())
+	router := ctx.resource.SettingsRouter()
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/schema", nil,
-		testutil.WithClaims(adminClaimsWithConfigPerms()),
+		mint(t, adminClaimsWithConfigPerms()),
 	)
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)

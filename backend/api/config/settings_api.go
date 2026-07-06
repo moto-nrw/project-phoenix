@@ -623,39 +623,6 @@ func publicEnrollmentLegalDocumentURL(storedURL string) string {
 	return storedURL
 }
 
-// --- Handler accessors for testing ---
-
-// GetSchema returns the getSchema handler for external test access.
-func (rs *SettingsResource) GetSchema() http.HandlerFunc { return rs.getSchema }
-
-// RevealValue returns the revealValue handler for external test access.
-func (rs *SettingsResource) RevealValue() http.HandlerFunc { return rs.revealValue }
-
-// SetValue returns the setValue handler for external test access.
-func (rs *SettingsResource) SetValue() http.HandlerFunc { return rs.setValue }
-
-// ResetValue returns the resetValue handler for external test access.
-func (rs *SettingsResource) ResetValue() http.HandlerFunc { return rs.resetValue }
-
-// GetLoginImage returns the getLoginImage handler for external test access.
-func (rs *SettingsResource) GetLoginImage() http.HandlerFunc { return rs.getLoginImage }
-
-// UploadLoginImage returns the uploadLoginImage handler for external test access.
-func (rs *SettingsResource) UploadLoginImage() http.HandlerFunc { return rs.uploadLoginImage }
-
-// DeleteLoginImage returns the deleteLoginImage handler for external test access.
-func (rs *SettingsResource) DeleteLoginImage() http.HandlerFunc { return rs.deleteLoginImage }
-
-// UploadEnrollmentLegalAGBDocument returns the AGB document upload handler for external test access.
-func (rs *SettingsResource) UploadEnrollmentLegalAGBDocument() http.HandlerFunc {
-	return rs.uploadEnrollmentLegalAGBDocument
-}
-
-// DeleteEnrollmentLegalAGBDocument returns the AGB document delete handler for external test access.
-func (rs *SettingsResource) DeleteEnrollmentLegalAGBDocument() http.HandlerFunc {
-	return rs.deleteEnrollmentLegalAGBDocument
-}
-
 // --- Error rendering ---
 
 func renderSettingsError(w http.ResponseWriter, r *http.Request, err error) {
