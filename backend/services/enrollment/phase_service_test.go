@@ -31,6 +31,7 @@ func setupPhaseTest(t *testing.T) (enrollmentService.PhaseService, *repositories
 		RequestRepo:      repoFactory.Request,
 		RequestChildRepo: repoFactory.RequestChild,
 		CareOfferingRepo: repoFactory.CareOffering,
+		FormSchemaRepo:   repoFactory.FormSchema,
 		DB:               db,
 		Logger:           slog.Default(),
 	})
@@ -117,6 +118,21 @@ func TestPhaseService_Create_RejectsDuplicateName(t *testing.T) {
 	second := minimalPhase(t.Name() + "-dup")
 	_, err = svc.Create(ctx, second)
 	require.Error(t, err, "UNIQUE(tenant_id, name) must reject duplicate")
+	assert.True(t, errors.Is(err, enrollmentService.ErrPhaseDuplicateName))
+}
+
+func TestPhaseService_Create_RejectsUnknownFormSchema(t *testing.T) {
+	svc, _, _, cleanup := setupPhaseTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	phase := minimalPhase(t.Name())
+	missing := int64(999_999_999)
+	phase.FormSchemaID = &missing
+
+	_, err := svc.Create(ctx, phase)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrInvalidPhase))
 }
 
 func TestPhaseService_Update_AppliesChanges(t *testing.T) {
@@ -137,6 +153,50 @@ func TestPhaseService_Update_AppliesChanges(t *testing.T) {
 	assert.Equal(t, "phase-"+t.Name()+"-renamed", refreshed.Name)
 	assert.False(t, refreshed.IsActive)
 	assert.Equal(t, enrollmentModels.PhaseCareOverflowReject, refreshed.CareOverflowMode)
+}
+
+func TestPhaseService_Update_RejectsDuplicateName(t *testing.T) {
+	svc, _, _, cleanup := setupPhaseTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	first, err := svc.Create(ctx, minimalPhase(t.Name()+"-first"))
+	require.NoError(t, err)
+	second, err := svc.Create(ctx, minimalPhase(t.Name()+"-second"))
+	require.NoError(t, err)
+
+	second.Name = first.Name
+	err = svc.Update(ctx, second)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrPhaseDuplicateName))
+}
+
+func TestPhaseService_Update_RejectsUnknownFormSchema(t *testing.T) {
+	svc, _, _, cleanup := setupPhaseTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	created, err := svc.Create(ctx, minimalPhase(t.Name()))
+	require.NoError(t, err)
+
+	missing := int64(999_999_999)
+	created.FormSchemaID = &missing
+	err = svc.Update(ctx, created)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrInvalidPhase))
+}
+
+func TestPhaseService_Update_MissingPhaseReturnsNotFound(t *testing.T) {
+	svc, _, _, cleanup := setupPhaseTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	phase := minimalPhase(t.Name())
+	phase.ID = 999_999_999
+
+	err := svc.Update(ctx, phase)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentService.ErrPhaseNotFound))
 }
 
 func TestPhaseService_ListPublicOpen_FiltersInactiveAndClosedWindow(t *testing.T) {
@@ -367,6 +427,7 @@ func phaseServiceWithCalendarPeriods(t *testing.T) (enrollmentService.PhaseServi
 		RequestRepo:      repoFactory.Request,
 		RequestChildRepo: repoFactory.RequestChild,
 		CareOfferingRepo: repoFactory.CareOffering,
+		FormSchemaRepo:   repoFactory.FormSchema,
 		CalendarPeriods:  scheduleService.NewCalendarPeriodService(repoFactory.CalendarPeriod, slog.Default()),
 		DB:               db,
 		Logger:           slog.Default(),

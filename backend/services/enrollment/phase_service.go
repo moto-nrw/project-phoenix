@@ -12,13 +12,15 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // PhaseService sentinel errors. The HTTP layer maps these to status
 // codes; tests assert on them via errors.Is.
 var (
-	ErrPhaseNotFound = errors.New("phase not found")
-	ErrInvalidPhase  = errors.New("invalid phase")
+	ErrPhaseNotFound      = errors.New("phase not found")
+	ErrInvalidPhase       = errors.New("invalid phase")
+	ErrPhaseDuplicateName = errors.New("phase name already exists")
 )
 
 // PhaseDeleteImpact summarizes what a phase delete will remove vs keep.
@@ -68,6 +70,7 @@ type PhaseServiceConfig struct {
 	RequestRepo      enrollmentModels.RequestRepository
 	RequestChildRepo enrollmentModels.RequestChildRepository
 	CareOfferingRepo enrollmentModels.CareOfferingRepository
+	FormSchemaRepo   enrollmentModels.FormSchemaRepository
 	// CalendarPeriods validates phase→calendar-period links on
 	// Create/Update. Optional: when nil (unit tests with mocks), the
 	// link is accepted unvalidated and the FK constraint still holds.
@@ -81,6 +84,7 @@ type phaseService struct {
 	requestRepo      enrollmentModels.RequestRepository
 	requestChildRepo enrollmentModels.RequestChildRepository
 	careOfferingRepo enrollmentModels.CareOfferingRepository
+	formSchemaRepo   enrollmentModels.FormSchemaRepository
 	calendarPeriods  scheduleService.CalendarPeriodService
 	txHandler        *modelBase.TxHandler
 	logger           *slog.Logger
@@ -100,6 +104,7 @@ func NewPhaseService(cfg PhaseServiceConfig) PhaseService {
 		requestRepo:      cfg.RequestRepo,
 		requestChildRepo: cfg.RequestChildRepo,
 		careOfferingRepo: cfg.CareOfferingRepo,
+		formSchemaRepo:   cfg.FormSchemaRepo,
 		calendarPeriods:  cfg.CalendarPeriods,
 		txHandler:        txHandler,
 		logger:           logger,
@@ -121,6 +126,53 @@ func (s *phaseService) validateCalendarPeriodLink(ctx context.Context, phase *en
 		return fmt.Errorf("validate calendar period link: %w", err)
 	}
 	return nil
+}
+
+func (s *phaseService) validateFormSchemaLink(ctx context.Context, phase *enrollmentModels.Phase) error {
+	if phase.FormSchemaID == nil || s.formSchemaRepo == nil {
+		return nil
+	}
+	if _, err := s.formSchemaRepo.FindByID(ctx, *phase.FormSchemaID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("%w: form schema %d not found", ErrInvalidPhase, *phase.FormSchemaID)
+		}
+		return fmt.Errorf("validate form schema link: %w", err)
+	}
+	return nil
+}
+
+func translatePhaseWriteError(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case isPhaseDuplicateName(err):
+		return fmt.Errorf("%w: %v", ErrPhaseDuplicateName, err)
+	case errors.Is(err, sql.ErrNoRows):
+		return fmt.Errorf("%w: %v", ErrPhaseNotFound, err)
+	case isPhaseReferenceViolation(err):
+		return fmt.Errorf("%w: %v", ErrInvalidPhase, err)
+	default:
+		return err
+	}
+}
+
+func isPhaseReferenceViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	var pgErr pgdriver.Error
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+	if pgErr.Field('C') != "23503" {
+		return false
+	}
+	switch pgErr.Field('n') {
+	case "phases_form_schema_id_fkey", "phases_calendar_period_id_fkey":
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *phaseService) List(ctx context.Context) ([]*enrollmentModels.Phase, error) {
@@ -155,8 +207,11 @@ func (s *phaseService) Create(ctx context.Context, phase *enrollmentModels.Phase
 	if err := s.validateCalendarPeriodLink(ctx, phase); err != nil {
 		return nil, err
 	}
-	if err := s.repo.Create(ctx, phase); err != nil {
+	if err := s.validateFormSchemaLink(ctx, phase); err != nil {
 		return nil, err
+	}
+	if err := s.repo.Create(ctx, phase); err != nil {
+		return nil, translatePhaseWriteError(err)
 	}
 	s.logger.Info("phase created",
 		slog.Int64("phase_id", phase.ID),
@@ -175,8 +230,11 @@ func (s *phaseService) Update(ctx context.Context, phase *enrollmentModels.Phase
 	if err := s.validateCalendarPeriodLink(ctx, phase); err != nil {
 		return err
 	}
-	if err := s.repo.Update(ctx, phase); err != nil {
+	if err := s.validateFormSchemaLink(ctx, phase); err != nil {
 		return err
+	}
+	if err := s.repo.Update(ctx, phase); err != nil {
+		return translatePhaseWriteError(err)
 	}
 	s.logger.Info("phase updated", slog.Int64("phase_id", phase.ID))
 	return nil

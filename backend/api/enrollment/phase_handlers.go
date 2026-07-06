@@ -263,6 +263,10 @@ func (rs *Resource) createPhase(w http.ResponseWriter, r *http.Request) {
 		return e
 	})
 	if err != nil {
+		if errors.Is(err, enrollmentService.ErrPhaseDuplicateName) {
+			common.RenderError(w, r, common.ErrorConflict(err))
+			return
+		}
 		if errors.Is(err, enrollmentService.ErrInvalidPhase) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
 			return
@@ -295,16 +299,20 @@ func (rs *Resource) updatePhase(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+		existing, getErr := rs.PhaseService.GetByID(ctx, id)
+		if getErr != nil {
+			return getErr
+		}
 		if !req.calendarPeriodIDPresent {
-			existing, getErr := rs.PhaseService.GetByID(ctx, id)
-			if getErr != nil {
-				return getErr
-			}
 			model.CalendarPeriodID = existing.CalendarPeriodID
 		}
 		return rs.PhaseService.Update(ctx, model)
 	})
 	if err != nil {
+		if errors.Is(err, enrollmentService.ErrPhaseDuplicateName) {
+			common.RenderError(w, r, common.ErrorConflict(err))
+			return
+		}
 		if errors.Is(err, enrollmentService.ErrPhaseNotFound) {
 			common.RenderError(w, r, common.ErrorNotFound(err))
 			return

@@ -89,7 +89,7 @@ func (r *PhaseRepository) Update(ctx context.Context, phase *enrollment.Phase) e
 	}
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
-		return fmt.Errorf("phase %d not found", phase.ID)
+		return fmt.Errorf("phase %d not found: %w", phase.ID, sql.ErrNoRows)
 	}
 	return nil
 }

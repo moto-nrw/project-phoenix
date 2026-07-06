@@ -34,7 +34,10 @@ type mockPhaseService struct {
 	listErr           error
 	listPublicOpenRes []*enrollmentModels.Phase
 	listPublicOpenErr error
+	getByIDCalls      int
 	getByIDID         int64
+	getByIDResults    []*enrollmentModels.Phase
+	getByIDErrs       []error
 	getByIDResult     *enrollmentModels.Phase
 	getByIDErr        error
 	createInput       *enrollmentModels.Phase
@@ -56,7 +59,15 @@ func (m *mockPhaseService) ListPublicOpen(_ context.Context, _ time.Time) ([]*en
 	return m.listPublicOpenRes, m.listPublicOpenErr
 }
 func (m *mockPhaseService) GetByID(_ context.Context, id int64) (*enrollmentModels.Phase, error) {
+	m.getByIDCalls++
 	m.getByIDID = id
+	idx := m.getByIDCalls - 1
+	if idx < len(m.getByIDErrs) && m.getByIDErrs[idx] != nil {
+		return nil, m.getByIDErrs[idx]
+	}
+	if idx < len(m.getByIDResults) && m.getByIDResults[idx] != nil {
+		return m.getByIDResults[idx], nil
+	}
 	return m.getByIDResult, m.getByIDErr
 }
 func (m *mockPhaseService) Create(_ context.Context, phase *enrollmentModels.Phase) (*enrollmentModels.Phase, error) {
@@ -321,6 +332,13 @@ func TestCreatePhaseHandler_InvalidPhaseReturns400(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestCreatePhaseHandler_DuplicateNameReturns409(t *testing.T) {
+	mock := &mockPhaseService{createErr: enrollmentService.ErrPhaseDuplicateName}
+	router := buildPhaseRouter(mock)
+	w := executePhaseJSON(t, router, http.MethodPost, "/enrollment/phases", validPhaseBody("X"))
+	assert.Equal(t, http.StatusConflict, w.Code)
+}
+
 func TestCreatePhaseHandler_ServiceErrorReturns500(t *testing.T) {
 	mock := &mockPhaseService{createErr: errors.New("synthetic boom")}
 	router := buildPhaseRouter(mock)
@@ -380,6 +398,18 @@ func TestUpdatePhaseHandler_NullCalendarPeriodIDUnlinks(t *testing.T) {
 	assert.Nil(t, mock.updateInput.CalendarPeriodID)
 }
 
+func TestUpdatePhaseHandler_NullCalendarPeriodIDMissingPhaseReturns404(t *testing.T) {
+	mock := &mockPhaseService{getByIDErr: enrollmentService.ErrPhaseNotFound}
+	router := buildPhaseRouter(mock)
+	body := validPhaseBody("Updated")
+	body["calendar_period_id"] = nil
+
+	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", body)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Nil(t, mock.updateInput, "stale update must fail before PhaseService.Update")
+}
+
 func TestUpdatePhaseHandler_BadDateReturns400(t *testing.T) {
 	router := buildPhaseRouter(&mockPhaseService{})
 	body := validPhaseBody("X")
@@ -398,6 +428,16 @@ func TestUpdatePhaseHandler_InvalidPhaseReturns400(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestUpdatePhaseHandler_DuplicateNameReturns409(t *testing.T) {
+	mock := &mockPhaseService{
+		getByIDResult: makePhaseModel(1234, "Updated"),
+		updateErr:     enrollmentService.ErrPhaseDuplicateName,
+	}
+	router := buildPhaseRouter(mock)
+	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", validPhaseBody("X"))
+	assert.Equal(t, http.StatusConflict, w.Code)
+}
+
 func TestUpdatePhaseHandler_UpdateErrorReturns500(t *testing.T) {
 	mock := &mockPhaseService{
 		getByIDResult: makePhaseModel(1234, "Updated"),
@@ -409,12 +449,16 @@ func TestUpdatePhaseHandler_UpdateErrorReturns500(t *testing.T) {
 }
 
 func TestUpdatePhaseHandler_RefetchErrorReturns500(t *testing.T) {
-	mock := &mockPhaseService{getByIDErr: errors.New("synthetic refetch boom")}
+	mock := &mockPhaseService{
+		getByIDResults: []*enrollmentModels.Phase{makePhaseModel(1234, "Updated")},
+		getByIDErrs:    []error{nil, errors.New("synthetic refetch boom")},
+	}
 	router := buildPhaseRouter(mock)
 	body := validPhaseBody("X")
 	body["calendar_period_id"] = "42"
 	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", body)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, 2, mock.getByIDCalls)
 }
 
 // --- deletePhase ------------------------------------------------------
