@@ -97,25 +97,5 @@ func (r *TimeframeRepository) FindByDescription(ctx context.Context, description
 
 // List retrieves timeframes matching the provided query options
 func (r *TimeframeRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.Timeframe, error) {
-	var timeframes []*schedule.Timeframe
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&timeframes).
-		ModelTableExpr(`schedule.timeframes AS "timeframe"`)
-
-	query = base.WithTenantFilter(ctx, query, "timeframe")
-
-	// Apply query options
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
-	}
-
-	return timeframes, nil
+	return r.ListWithOptions(ctx, options)
 }

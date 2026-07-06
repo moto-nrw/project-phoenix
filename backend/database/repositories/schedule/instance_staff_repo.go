@@ -54,25 +54,7 @@ func (r *InstanceStaffRepository) FindByID(ctx context.Context, id any) (*schedu
 
 // List retrieves instance staff rows matching the provided query options.
 func (r *InstanceStaffRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.InstanceStaff, error) {
-	var rows []*schedule.InstanceStaff
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&rows).
-		ModelTableExpr(modelTblInstanceStaff)
-
-	query = base.WithTenantFilter(ctx, query, aliasInstanceStaff)
-
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
-	}
-	return rows, nil
+	return r.ListWithOptions(ctx, options)
 }
 
 // FindByInstanceID returns all staff assignments for an instance.

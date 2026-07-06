@@ -172,31 +172,6 @@ func applyCaseInsensitiveLikeMatch(query *bun.SelectQuery, column string, value 
 	return query
 }
 
-// ListWithOptions retrieves rooms with the new type-safe query options system
-func (r *RoomRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*facilities.Room, error) {
-	var rooms []*facilities.Room
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&rooms).
-		ModelTableExpr(tableExprFacilitiesRoomsAsRoom) // Use proper table alias
-
-	query = base.WithTenantFilter(ctx, query, "room")
-
-	// Apply query options
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list with options",
-			Err: err,
-		}
-	}
-
-	return rooms, nil
-}
-
 // FindWithCapacity retrieves rooms with at least the specified capacity
 func (r *RoomRepository) FindWithCapacity(ctx context.Context, minCapacity int) ([]*facilities.Room, error) {
 	var rooms []*facilities.Room

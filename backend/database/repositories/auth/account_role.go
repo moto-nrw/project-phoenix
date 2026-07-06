@@ -89,24 +89,7 @@ func (r *AccountRoleRepository) FindByAccountIDForTenant(ctx context.Context, ac
 
 // FindByRoleID retrieves all account-role mappings for a role
 func (r *AccountRoleRepository) FindByRoleID(ctx context.Context, roleID int64) ([]*auth.AccountRole, error) {
-	var accountRoles []*auth.AccountRole
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&accountRoles).
-		ModelTableExpr(accountRoleTableAlias).
-		Where(`"account_role".role_id = ?`, roleID)
-
-	query = base.WithTenantFilter(ctx, query, "account_role")
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by role ID",
-			Err: err,
-		}
-	}
-
-	return accountRoles, nil
+	return r.List(ctx, map[string]any{"role_id": roleID})
 }
 
 // FindByAccountAndRole retrieves a specific account-role mapping
@@ -250,31 +233,4 @@ func (r *AccountRoleRepository) DeleteByRoleID(ctx context.Context, roleID int64
 	}
 
 	return nil
-}
-
-// List retrieves account-role mappings matching the provided filters
-func (r *AccountRoleRepository) List(ctx context.Context, filters map[string]any) ([]*auth.AccountRole, error) {
-	var accountRoles []*auth.AccountRole
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&accountRoles).
-		ModelTableExpr(accountRoleTableAlias)
-
-	query = base.WithTenantFilter(ctx, query, "account_role")
-
-	// Apply filters
-	for field, value := range filters {
-		if value != nil {
-			query = query.Where(`"account_role".? = ?`, bun.Ident(field), value)
-		}
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
-	}
-
-	return accountRoles, nil
 }

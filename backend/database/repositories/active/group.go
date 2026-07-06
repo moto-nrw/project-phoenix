@@ -181,30 +181,7 @@ func (r *GroupRepository) EndSession(ctx context.Context, id int64) error {
 
 // List overrides the base List method to accept the new QueryOptions type
 func (r *GroupRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.Group, error) {
-	var groups []*active.Group
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&groups).
-		ModelTableExpr(`active.groups AS "group"`)
-
-	query = base.WithTenantFilter(ctx, query, "group")
-
-	// Apply query options with table alias
-	if options != nil {
-		if options.Filter != nil {
-			options.Filter.WithTableAlias("group")
-		}
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
-	}
-
-	return groups, nil
+	return r.ListWithOptions(ctx, options)
 }
 
 // FindWithSupervisors retrieves a group with its associated supervisors

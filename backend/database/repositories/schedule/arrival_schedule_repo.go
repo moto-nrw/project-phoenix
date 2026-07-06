@@ -166,26 +166,14 @@ func (r *StudentArrivalScheduleRepository) DeleteByStudentID(ctx context.Context
 
 // List retrieves arrival schedules matching the provided query options
 func (r *StudentArrivalScheduleRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.StudentArrivalSchedule, error) {
-	schedules := make([]*schedule.StudentArrivalSchedule, 0)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&schedules).
-		ModelTableExpr(`schedule.student_arrival_schedules AS "student_arrival_schedule"`)
-
-	query = base.WithTenantFilter(ctx, query, "student_arrival_schedule")
-
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
+	rows, err := r.ListWithOptions(ctx, options)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
+		return nil, err
 	}
-
-	return schedules, nil
+	if rows == nil {
+		rows = make([]*schedule.StudentArrivalSchedule, 0)
+	}
+	return rows, nil
 }
 
 // FindByID overrides base method to ensure schema qualification
@@ -398,26 +386,14 @@ func (r *StudentArrivalExceptionRepository) DeletePastExceptions(ctx context.Con
 
 // List retrieves arrival exceptions matching the provided query options
 func (r *StudentArrivalExceptionRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.StudentArrivalException, error) {
-	exceptions := make([]*schedule.StudentArrivalException, 0)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&exceptions).
-		ModelTableExpr(`schedule.student_arrival_exceptions AS "student_arrival_exception"`)
-
-	query = base.WithTenantFilter(ctx, query, "student_arrival_exception")
-
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
+	rows, err := r.ListWithOptions(ctx, options)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
+		return nil, err
 	}
-
-	return exceptions, nil
+	if rows == nil {
+		rows = make([]*schedule.StudentArrivalException, 0)
+	}
+	return rows, nil
 }
 
 // FindByID overrides base method to ensure schema qualification
@@ -579,26 +555,14 @@ func (r *StudentArrivalNoteRepository) DeletePastNotes(ctx context.Context, befo
 
 // List retrieves arrival notes matching the provided query options
 func (r *StudentArrivalNoteRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.StudentArrivalNote, error) {
-	notes := make([]*schedule.StudentArrivalNote, 0)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&notes).
-		ModelTableExpr(`schedule.student_arrival_notes AS "student_arrival_note"`)
-
-	query = base.WithTenantFilter(ctx, query, "student_arrival_note")
-
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
+	rows, err := r.ListWithOptions(ctx, options)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
+		return nil, err
 	}
-
-	return notes, nil
+	if rows == nil {
+		rows = make([]*schedule.StudentArrivalNote, 0)
+	}
+	return rows, nil
 }
 
 // FindByID overrides base method to ensure schema qualification

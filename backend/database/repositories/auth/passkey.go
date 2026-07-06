@@ -121,17 +121,6 @@ func (r *PasskeySessionRepository) Consume(ctx context.Context, id, purpose stri
 }
 
 func (r *PasskeySessionRepository) DeleteExpired(ctx context.Context, now time.Time) (int, error) {
-	res, err := base.GetDB(ctx, r.db).NewDelete().
-		Model((*auth.PasskeySession)(nil)).
-		ModelTableExpr(passkeySessionTable).
-		Where("expires_at < ?", now).
-		Exec(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete expired passkey sessions", Err: err}
-	}
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "rows affected for delete expired passkey sessions", Err: err}
-	}
-	return int(affected), nil
+	deleted, err := r.DeleteBefore(ctx, "expires_at", now, "delete expired passkey sessions")
+	return int(deleted), err
 }

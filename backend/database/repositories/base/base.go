@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -241,6 +242,40 @@ func (r *Repository[T]) List(ctx context.Context, filters map[string]any) ([]T, 
 	return entities, nil
 }
 
+// ListWithOptions retrieves entities matching the query options, supporting
+// the full Filter operator set plus sorting and pagination. The single-table
+// twin of the hand-rolled per-repo List(QueryOptions) copies; returns a nil
+// slice when nothing matches (callers that must serialize JSON [] coerce).
+func (r *Repository[T]) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]T, error) {
+	var entities []T
+
+	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
+	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
+
+	query := GetDB(ctx, r.DB).NewSelect().
+		Model(&entities).
+		ModelTableExpr(tableExpr).
+		ColumnExpr(fmt.Sprintf(`"%s".*`, entityName))
+
+	query = r.applyTenantFilter(ctx, query, entityName)
+
+	if options != nil {
+		if options.Filter != nil {
+			options.Filter.WithTableAlias(entityName)
+		}
+		query = options.ApplyToQuery(query)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list with options",
+			Err: err,
+		}
+	}
+
+	return entities, nil
+}
+
 // CountWithOptions returns the number of entities matching the query options.
 // Unlike Count, it supports the full Filter operator set (LessThan, IsNull,
 // In, ...). Sorting and pagination are ignored — they cannot change a count.
@@ -341,6 +376,42 @@ func (r *Repository[T]) DeleteOlderThan(ctx context.Context, dateColumn string, 
 			Op:  "delete older than",
 			Err: err,
 		}
+	}
+
+	return deleted, nil
+}
+
+// DeleteBefore deletes all matching rows whose column (a TIMESTAMPTZ instant)
+// is strictly before cutoff and returns the number of rows deleted. The
+// time.Time twin of DeleteOlderThan for expiry-style cleanup jobs. op becomes
+// the DatabaseError Op so per-repo cleanup wrappers keep their exact error
+// strings (they surface in scheduler failure logs, which are frozen).
+// column must be a compile-time constant column name, never user input.
+func (r *Repository[T]) DeleteBefore(ctx context.Context, column string, cutoff time.Time, op string) (int64, error) {
+	entityVal := r.newEntityValue()
+
+	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
+	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
+
+	query := GetDB(ctx, r.DB).NewDelete().
+		Model(entityVal).
+		ModelTableExpr(tableExpr).
+		Where("? < ?", bun.Ident(column), cutoff)
+
+	if r.TenantScoped {
+		if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+			query = query.Where(fmt.Sprintf(`"%s".tenant_id = ?`, entityName), tenantID)
+		}
+	}
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: op, Err: err}
+	}
+
+	deleted, err := result.RowsAffected()
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: op, Err: err}
 	}
 
 	return deleted, nil

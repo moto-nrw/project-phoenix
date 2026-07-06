@@ -244,27 +244,14 @@ func applyReasonLikeFilter(filter *modelBase.Filter, value interface{}) {
 
 // ListWithOptions provides a type-safe way to list group substitutions with query options
 func (r *GroupSubstitutionRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*education.GroupSubstitution, error) {
-	substitutions := make([]*education.GroupSubstitution, 0)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&substitutions).
-		ModelTableExpr(tableExprGroupSubstitutionAsGS)
-
-	query = base.WithTenantFilter(ctx, query, "group_substitution")
-
-	// Apply query options
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
+	rows, err := r.Repository.ListWithOptions(ctx, options)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list with options",
-			Err: err,
-		}
+		return nil, err
 	}
-
-	return substitutions, nil
+	if rows == nil {
+		rows = make([]*education.GroupSubstitution, 0)
+	}
+	return rows, nil
 }
 
 // FindByIDWithRelations retrieves a substitution by ID with all related data loaded

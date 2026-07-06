@@ -152,24 +152,13 @@ func (r *GroupMappingRepository) RemoveGroupFromCombination(ctx context.Context,
 
 // List overrides the base List method to accept the new QueryOptions type
 func (r *GroupMappingRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.GroupMapping, error) {
-	mappings := make([]*active.GroupMapping, 0)
-	query := base.GetDB(ctx, r.db).NewSelect().Model(&mappings).ModelTableExpr(tableExprGroupMappingsAsGM)
-
-	query = base.WithTenantFilter(ctx, query, "group_mapping")
-
-	// Apply query options
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
+	mappings, err := r.ListWithOptions(ctx, options)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
+		return nil, err
 	}
-
+	if mappings == nil {
+		mappings = make([]*active.GroupMapping, 0)
+	}
 	return mappings, nil
 }
 

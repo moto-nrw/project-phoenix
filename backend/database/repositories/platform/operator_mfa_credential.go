@@ -30,7 +30,7 @@ type OperatorMFACredentialRepository struct {
 // MFA credential records.
 func NewOperatorMFACredentialRepository(db *bun.DB) platform.OperatorMFACredentialRepository {
 	return &OperatorMFACredentialRepository{
-		Repository: base.NewRepository[*platform.OperatorMFACredential](db, operatorMFACredentialTable, "OperatorMFACredential"),
+		Repository: base.NewRepository[*platform.OperatorMFACredential](db, operatorMFACredentialTable, "OperatorMfaCredential"),
 		db:         db,
 	}
 }
@@ -68,16 +68,9 @@ func (r *OperatorMFACredentialRepository) FindByOperatorID(ctx context.Context, 
 }
 
 func (r *OperatorMFACredentialRepository) UpdateLastUsedAt(ctx context.Context, id int64, when time.Time) error {
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*platform.OperatorMFACredential)(nil)).
-		ModelTableExpr(operatorMFACredentialTable).
-		Set("last_used_at = ?", when).
-		Where(platformWhereID, id).
-		Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{Op: "update operator mfa credential last_used_at", Err: err}
-	}
-	return nil
+	credential := &platform.OperatorMFACredential{Model: modelBase.Model{ID: id}, LastUsedAt: &when}
+	_, err := r.UpdateColumns(ctx, credential, "last_used_at")
+	return err
 }
 
 func (r *OperatorMFACredentialRepository) DeleteByOperatorID(ctx context.Context, operatorID int64) error {

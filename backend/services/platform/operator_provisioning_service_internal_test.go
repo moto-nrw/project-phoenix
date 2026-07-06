@@ -228,12 +228,6 @@ func (s *internalDeviceRepoStub) UpdateRoomID(context.Context, int64, int64) err
 func (s *internalDeviceRepoStub) UpdateStatus(context.Context, string, iotModels.DeviceStatus) error {
 	return nil
 }
-func (s *internalDeviceRepoStub) FindActiveDevices(context.Context) ([]*iotModels.Device, error) {
-	return nil, nil
-}
-func (s *internalDeviceRepoStub) FindDevicesRequiringMaintenance(context.Context) ([]*iotModels.Device, error) {
-	return nil, nil
-}
 func (s *internalDeviceRepoStub) FindOfflineDevices(context.Context, time.Duration) ([]*iotModels.Device, error) {
 	return nil, nil
 }

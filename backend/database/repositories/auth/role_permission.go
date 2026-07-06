@@ -31,21 +31,7 @@ func NewRolePermissionRepository(db *bun.DB) auth.RolePermissionRepository {
 
 // FindByRoleID retrieves all role-permission mappings for a role
 func (r *RolePermissionRepository) FindByRoleID(ctx context.Context, roleID int64) ([]*auth.RolePermission, error) {
-	var rolePermissions []*auth.RolePermission
-	err := base.GetDB(ctx, r.db).NewSelect().
-		Model(&rolePermissions).
-		ModelTableExpr(rolePermissionTableAlias).
-		Where(`"role_permission".role_id = ?`, roleID).
-		Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by role ID",
-			Err: err,
-		}
-	}
-
-	return rolePermissions, nil
+	return r.List(ctx, map[string]any{"role_id": roleID})
 }
 
 // Update overrides the base Update method for schema consistency
@@ -108,29 +94,4 @@ func (r *RolePermissionRepository) DeleteByPermissionID(ctx context.Context, per
 	}
 
 	return nil
-}
-
-// List retrieves role-permission mappings matching the provided filters
-func (r *RolePermissionRepository) List(ctx context.Context, filters map[string]any) ([]*auth.RolePermission, error) {
-	var rolePermissions []*auth.RolePermission
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&rolePermissions).
-		ModelTableExpr(rolePermissionTableAlias)
-
-	// Apply filters with proper table alias prefix
-	for field, value := range filters {
-		if value != nil {
-			query = query.Where(`"role_permission".? = ?`, bun.Ident(field), value)
-		}
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
-	}
-
-	return rolePermissions, nil
 }

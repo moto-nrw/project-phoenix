@@ -134,25 +134,7 @@ func (r *ActivityInstanceRepository) FindByID(ctx context.Context, id any) (*sch
 
 // List retrieves activity instances matching the provided query options.
 func (r *ActivityInstanceRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.ActivityInstance, error) {
-	var instances []*schedule.ActivityInstance
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&instances).
-		ModelTableExpr(modelTblActivityInstance)
-
-	query = base.WithTenantFilter(ctx, query, aliasActivityInstance)
-
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
-	}
-	return instances, nil
+	return r.ListWithOptions(ctx, options)
 }
 
 // FindByTenantAndDate returns instances for the current tenant on a given date.

@@ -22,8 +22,6 @@ type DeviceRepository interface {
 	UpdateStatus(ctx context.Context, deviceID string, status DeviceStatus) error
 
 	// Specialized queries
-	FindActiveDevices(ctx context.Context) ([]*Device, error)
-	FindDevicesRequiringMaintenance(ctx context.Context) ([]*Device, error)
 	FindOfflineDevices(ctx context.Context, offlineSince time.Duration) ([]*Device, error)
 	CountDevicesByType(ctx context.Context) (map[string]int, error)
 }

@@ -35,26 +35,7 @@ func NewWorkSessionBreakRepository(db *bun.DB) active.WorkSessionBreakRepository
 
 // List overrides base List to use QueryOptions
 func (r *WorkSessionBreakRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.WorkSessionBreak, error) {
-	var breaks []*active.WorkSessionBreak
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&breaks).
-		ModelTableExpr(tableExprActiveWorkSessionBreaksAsWorkSessionBreak)
-
-	query = base.WithTenantFilter(ctx, query, "work_session_break")
-
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
-	}
-
-	return breaks, nil
+	return r.ListWithOptions(ctx, options)
 }
 
 // GetBySessionID returns all breaks for a given session ordered by started_at
@@ -130,26 +111,9 @@ func (r *WorkSessionBreakRepository) EndBreak(ctx context.Context, id int64, end
 
 // UpdateDuration updates the duration and ended_at of a completed break
 func (r *WorkSessionBreakRepository) UpdateDuration(ctx context.Context, id int64, durationMinutes int, endedAt time.Time) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Table(tableActiveWorkSessionBreaks).
-		Set("duration_minutes = ?", durationMinutes).
-		Set("ended_at = ?", endedAt).
-		Set("updated_at = ?", time.Now()).
-		Where("id = ?", id)
-
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-		query = query.Where("tenant_id = ?", tenantID)
-	}
-
-	_, err := query.Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "update break duration",
-			Err: err,
-		}
-	}
-
-	return nil
+	brk := &active.WorkSessionBreak{Model: modelBase.Model{ID: id, UpdatedAt: time.Now()}, DurationMinutes: durationMinutes, EndedAt: &endedAt}
+	_, err := r.UpdateColumns(ctx, brk, "duration_minutes", "ended_at", "updated_at")
+	return err
 }
 
 // GetExpiredBreaks returns all active breaks with planned_end_time <= before

@@ -114,25 +114,5 @@ func (r *CategoryRepository) Update(ctx context.Context, category *activities.Ca
 
 // List overrides the base List method to accept the new QueryOptions type
 func (r *CategoryRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*activities.Category, error) {
-	var categories []*activities.Category
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&categories).
-		ModelTableExpr(`activities.categories AS "category"`)
-
-	query = base.WithTenantFilter(ctx, query, "category")
-
-	// Apply query options
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
-	}
-
-	return categories, nil
+	return r.ListWithOptions(ctx, options)
 }

@@ -231,25 +231,7 @@ func (r *ScheduleRepository) Update(ctx context.Context, schedule *activities.Sc
 
 // List overrides the base List method to accept the new QueryOptions type
 func (r *ScheduleRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*activities.Schedule, error) {
-	var schedules []*activities.Schedule
-	query := base.GetDB(ctx, r.db).NewSelect().Model(&schedules).ModelTableExpr(tableExprActivitiesSchedulesAsSch)
-
-	query = base.WithTenantFilter(ctx, query, "schedule")
-
-	// Apply query options
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
-	}
-
-	return schedules, nil
+	return r.ListWithOptions(ctx, options)
 }
 
 // DeleteByGroupID removes all schedules of an activity group (issue #584:

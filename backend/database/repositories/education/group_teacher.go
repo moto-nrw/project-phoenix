@@ -134,31 +134,6 @@ func (r *GroupTeacherRepository) List(ctx context.Context, filters map[string]in
 	return r.ListWithOptions(ctx, options)
 }
 
-// ListWithOptions provides a type-safe way to list group-teacher relationships with query options
-func (r *GroupTeacherRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*education.GroupTeacher, error) {
-	var groupTeachers []*education.GroupTeacher
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&groupTeachers).
-		ModelTableExpr(`education.group_teacher AS "group_teacher"`)
-
-	query = base.WithTenantFilter(ctx, query, "group_teacher")
-
-	// Apply query options
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list with options",
-			Err: err,
-		}
-	}
-
-	return groupTeachers, nil
-}
-
 // ListGroupTeacherBlockers returns the teacher's group assignments as
 // caregiver-capability blocker rows, including the full teacher set per
 // group (for sole-teacher detection). Custom raw-SQL method

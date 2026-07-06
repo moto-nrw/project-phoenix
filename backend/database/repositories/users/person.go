@@ -305,31 +305,6 @@ func (r *PersonRepository) Update(ctx context.Context, person *users.Person) err
 	return base.AssertRowsAffected(result, 1, "update person")
 }
 
-// ListWithOptions retrieves persons matching the provided query options
-func (r *PersonRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.Person, error) {
-	var persons []*users.Person
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&persons).
-		ModelTableExpr(`users.persons AS "person"`)
-
-	query = base.WithTenantFilter(ctx, query, "person")
-
-	// Apply query options
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
-	}
-
-	return persons, nil
-}
-
 // FindWithAccount retrieves a person with their associated account
 func (r *PersonRepository) FindWithAccount(ctx context.Context, id int64) (*users.Person, error) {
 	// Use a more explicit approach with result struct to avoid table name conflicts

@@ -141,31 +141,6 @@ func (r *RFIDCardRepository) List(ctx context.Context, filters map[string]interf
 	return r.ListWithOptions(ctx, options)
 }
 
-// ListWithOptions provides a type-safe way to list RFID cards with query options
-func (r *RFIDCardRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.RFIDCard, error) {
-	var cards []*users.RFIDCard
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&cards).
-		ModelTableExpr(`users.rfid_cards AS "rfid_card"`)
-
-	query = base.WithTenantFilter(ctx, query, "rfid_card")
-
-	// Apply query options
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list with options",
-			Err: err,
-		}
-	}
-
-	return cards, nil
-}
-
 // FindCardWithPerson retrieves an RFID card with associated person data
 func (r *RFIDCardRepository) FindCardWithPerson(ctx context.Context, id string) (*users.RFIDCard, error) {
 	// Normalize the tag ID to match stored format

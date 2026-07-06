@@ -105,17 +105,6 @@ func (r *OperatorRefreshTokenRepository) GetLatestTokenInFamily(ctx context.Cont
 }
 
 func (r *OperatorRefreshTokenRepository) DeleteExpired(ctx context.Context, now time.Time) (int, error) {
-	res, err := base.GetDB(ctx, r.db).NewDelete().
-		Model((*platform.OperatorRefreshToken)(nil)).
-		ModelTableExpr(operatorRefreshTokenTableAlias).
-		Where(`"operator_refresh_token".expiry < ?`, now).
-		Exec(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete expired operator refresh tokens", Err: err}
-	}
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "count expired operator refresh tokens", Err: err}
-	}
-	return int(affected), nil
+	deleted, err := r.DeleteBefore(ctx, "expiry", now, "delete expired operator refresh tokens")
+	return int(deleted), err
 }

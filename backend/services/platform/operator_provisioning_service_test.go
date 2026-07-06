@@ -212,12 +212,6 @@ func (m *mockDeviceRepo) UpdateRoomID(context.Context, int64, int64) error      
 func (m *mockDeviceRepo) UpdateStatus(context.Context, string, iotModels.DeviceStatus) error {
 	return nil
 }
-func (m *mockDeviceRepo) FindActiveDevices(context.Context) ([]*iotModels.Device, error) {
-	return nil, nil
-}
-func (m *mockDeviceRepo) FindDevicesRequiringMaintenance(context.Context) ([]*iotModels.Device, error) {
-	return nil, nil
-}
 func (m *mockDeviceRepo) FindOfflineDevices(context.Context, time.Duration) ([]*iotModels.Device, error) {
 	return nil, nil
 }

@@ -181,27 +181,7 @@ func (r *VisitRepository) EndVisit(ctx context.Context, id int64) error {
 
 // List overrides the base List method to accept the new QueryOptions type
 func (r *VisitRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.Visit, error) {
-	var visits []*active.Visit
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&visits).
-		ModelTableExpr(`active.visits AS "visit"`)
-
-	query = base.WithTenantFilter(ctx, query, "visit")
-
-	// Apply query options
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
-	}
-
-	return visits, nil
+	return r.ListWithOptions(ctx, options)
 }
 
 // TransferVisitsFromRecentSessions transfers active visits from recent ended sessions on the same device to a new session

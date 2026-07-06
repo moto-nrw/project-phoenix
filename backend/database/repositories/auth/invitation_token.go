@@ -336,35 +336,21 @@ func (r *InvitationTokenRepository) applyUsedFilter(query *bun.SelectQuery, valu
 
 // UpdateDeliveryResult updates the email delivery metadata for an invitation token.
 func (r *InvitationTokenRepository) UpdateDeliveryResult(ctx context.Context, id int64, sentAt *time.Time, emailError *string, retryCount int) error {
-	update := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*modelAuth.InvitationToken)(nil)).
-		ModelTableExpr(invitationTable).
-		Where(`id = ?`, id).
-		Set(`email_retry_count = ?`, retryCount)
-
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-		update = update.Where("tenant_id = ?", tenantID)
-	}
-
-	if sentAt != nil {
-		update = update.Set(`email_sent_at = ?`, *sentAt)
-	} else {
-		update = update.Set(`email_sent_at = NULL`)
-	}
-
+	token := &modelAuth.InvitationToken{Model: modelBase.Model{ID: id}, EmailSentAt: sentAt, EmailRetryCount: retryCount}
 	if emailError != nil {
-		update = update.Set(`email_error = ?`, strutil.TruncateBytes(*emailError, maxEmailErrorLength, ""))
-	} else {
-		update = update.Set(`email_error = NULL`)
+		truncated := strutil.TruncateBytes(*emailError, maxEmailErrorLength, "")
+		token.EmailError = &truncated
 	}
 
-	result, err := update.Exec(ctx)
+	n, err := r.UpdateColumns(ctx, token, "email_sent_at", "email_error", "email_retry_count")
 	if err != nil {
+		return err
+	}
+	if n != 1 {
 		return &modelBase.DatabaseError{
 			Op:  "update invitation delivery result",
-			Err: err,
+			Err: fmt.Errorf("expected 1 rows affected, got %d", n),
 		}
 	}
-
-	return base.AssertRowsAffected(result, 1, "update invitation delivery result")
+	return nil
 }

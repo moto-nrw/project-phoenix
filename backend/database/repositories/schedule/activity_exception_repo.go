@@ -56,25 +56,7 @@ func (r *ActivityExceptionRepository) FindByID(ctx context.Context, id any) (*sc
 
 // List retrieves activity exceptions matching the provided query options.
 func (r *ActivityExceptionRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.ActivityException, error) {
-	var rows []*schedule.ActivityException
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&rows).
-		ModelTableExpr(modelTblActivityException)
-
-	query = base.WithTenantFilter(ctx, query, aliasActivityException)
-
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
-	}
-	return rows, nil
+	return r.ListWithOptions(ctx, options)
 }
 
 // FindByActivityGroupID returns all exceptions for the given template.

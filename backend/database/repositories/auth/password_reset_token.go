@@ -113,32 +113,14 @@ func (r *PasswordResetTokenRepository) MarkAsUsed(ctx context.Context, tokenID i
 
 // UpdateDeliveryResult updates the delivery metadata for a password reset token.
 func (r *PasswordResetTokenRepository) UpdateDeliveryResult(ctx context.Context, tokenID int64, sentAt *time.Time, emailError *string, retryCount int) error {
-	update := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*auth.PasswordResetToken)(nil)).
-		ModelTableExpr(passwordResetTokenTable).
-		Where(whereID, tokenID).
-		Set("email_retry_count = ?", retryCount)
-
-	if sentAt != nil {
-		update = update.Set("email_sent_at = ?", *sentAt)
-	} else {
-		update = update.Set("email_sent_at = NULL")
-	}
-
+	token := &auth.PasswordResetToken{Model: modelBase.Model{ID: tokenID}, EmailSentAt: sentAt, EmailRetryCount: retryCount}
 	if emailError != nil {
-		update = update.Set("email_error = ?", strutil.TruncateBytes(*emailError, maxEmailErrorLength, ""))
-	} else {
-		update = update.Set("email_error = NULL")
+		truncated := strutil.TruncateBytes(*emailError, maxEmailErrorLength, "")
+		token.EmailError = &truncated
 	}
 
-	if _, err := update.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "update password reset delivery result",
-			Err: err,
-		}
-	}
-
-	return nil
+	_, err := r.UpdateColumns(ctx, token, "email_sent_at", "email_error", "email_retry_count")
+	return err
 }
 
 // DeleteExpiredTokens removes all expired or used tokens

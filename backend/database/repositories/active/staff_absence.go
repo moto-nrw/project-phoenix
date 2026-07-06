@@ -39,26 +39,7 @@ func NewStaffAbsenceRepository(db *bun.DB) active.StaffAbsenceRepository {
 
 // List overrides base List to use QueryOptions
 func (r *StaffAbsenceRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.StaffAbsence, error) {
-	var absences []*active.StaffAbsence
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&absences).
-		ModelTableExpr(tableExprActiveStaffAbsencesAsStaffAbsence)
-
-	query = base.WithTenantFilter(ctx, query, "staff_absence")
-
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
-	}
-
-	return absences, nil
+	return r.ListWithOptions(ctx, options)
 }
 
 // GetByStaffAndDateRange returns absences for a staff member overlapping the given date range

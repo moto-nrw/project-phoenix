@@ -176,26 +176,14 @@ func (r *StudentPickupScheduleRepository) DeleteByStudentID(ctx context.Context,
 
 // List retrieves pickup schedules matching the provided query options
 func (r *StudentPickupScheduleRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.StudentPickupSchedule, error) {
-	schedules := make([]*schedule.StudentPickupSchedule, 0)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&schedules).
-		ModelTableExpr(`schedule.student_pickup_schedules AS "student_pickup_schedule"`)
-
-	query = base.WithTenantFilter(ctx, query, "student_pickup_schedule")
-
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
+	rows, err := r.ListWithOptions(ctx, options)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
+		return nil, err
 	}
-
-	return schedules, nil
+	if rows == nil {
+		rows = make([]*schedule.StudentPickupSchedule, 0)
+	}
+	return rows, nil
 }
 
 // FindByID overrides base method to ensure schema qualification
@@ -412,26 +400,14 @@ func (r *StudentPickupExceptionRepository) DeletePastExceptions(ctx context.Cont
 
 // List retrieves pickup exceptions matching the provided query options
 func (r *StudentPickupExceptionRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.StudentPickupException, error) {
-	exceptions := make([]*schedule.StudentPickupException, 0)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&exceptions).
-		ModelTableExpr(`schedule.student_pickup_exceptions AS "student_pickup_exception"`)
-
-	query = base.WithTenantFilter(ctx, query, "student_pickup_exception")
-
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
+	rows, err := r.ListWithOptions(ctx, options)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
+		return nil, err
 	}
-
-	return exceptions, nil
+	if rows == nil {
+		rows = make([]*schedule.StudentPickupException, 0)
+	}
+	return rows, nil
 }
 
 // FindByID overrides base method to ensure schema qualification
@@ -595,26 +571,14 @@ func (r *StudentPickupNoteRepository) DeletePastNotes(ctx context.Context, befor
 
 // List retrieves pickup notes matching the provided query options
 func (r *StudentPickupNoteRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.StudentPickupNote, error) {
-	notes := make([]*schedule.StudentPickupNote, 0)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&notes).
-		ModelTableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`)
-
-	query = base.WithTenantFilter(ctx, query, "student_pickup_note")
-
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
+	rows, err := r.ListWithOptions(ctx, options)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
+		return nil, err
 	}
-
-	return notes, nil
+	if rows == nil {
+		rows = make([]*schedule.StudentPickupNote, 0)
+	}
+	return rows, nil
 }
 
 // FindByID overrides base method to ensure schema qualification

@@ -91,42 +91,19 @@ func (r *StaffRepository) List(ctx context.Context, filters map[string]interface
 	return r.ListWithOptions(ctx, options)
 }
 
-// ListWithOptions provides a type-safe way to list staff with query options
-func (r *StaffRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.Staff, error) {
-	var staffMembers []*users.Staff
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&staffMembers).
-		ModelTableExpr(`users.staff AS "staff"`)
-
-	query = base.WithTenantFilter(ctx, query, "staff")
-
-	// Apply query options
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list with options",
-			Err: err,
-		}
-	}
-
-	return staffMembers, nil
+// staffResult is the scan target for staffWithPersonQuery.
+type staffResult struct {
+	Staff  *users.Staff  `bun:"staff"`
+	Person *users.Person `bun:"person"`
 }
 
-// ListAllWithPerson retrieves all staff members with their associated person data in a single query
-func (r *StaffRepository) ListAllWithPerson(ctx context.Context) ([]*users.Staff, error) {
-	type staffResult struct {
-		Staff  *users.Staff  `bun:"staff"`
-		Person *users.Person `bun:"person"`
-	}
-
-	var results []staffResult
-
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&results).
+// staffWithPersonQuery builds the shared staff→person LEFT JOIN with the
+// explicit ColumnExpr aliasing stanza. Callers add their WHERE clauses and
+// the tenant filter. joinSuffix appends extra join conditions (e.g.
+// `AND "person".deleted_at IS NULL` for FindWithPersonByIDs).
+func (r *StaffRepository) staffWithPersonQuery(ctx context.Context, results *[]staffResult, joinSuffix string) *bun.SelectQuery {
+	return base.GetDB(ctx, r.db).NewSelect().
+		Model(results).
 		ModelTableExpr(`users.staff AS "staff"`).
 		ColumnExpr(`"staff".id AS "staff__id"`).
 		ColumnExpr(`"staff".created_at AS "staff__created_at"`).
@@ -141,14 +118,19 @@ func (r *StaffRepository) ListAllWithPerson(ctx context.Context) ([]*users.Staff
 		ColumnExpr(`"person".last_name AS "person__last_name"`).
 		ColumnExpr(`"person".tag_id AS "person__tag_id"`).
 		ColumnExpr(`"person".account_id AS "person__account_id"`).
-		Join(`LEFT JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
+		Join(`LEFT JOIN users.persons AS "person" ON "person".id = "staff".person_id` + joinSuffix)
+}
+
+// ListAllWithPerson retrieves all staff members with their associated person data in a single query
+func (r *StaffRepository) ListAllWithPerson(ctx context.Context) ([]*users.Staff, error) {
+	var results []staffResult
+
+	query := r.staffWithPersonQuery(ctx, &results, "").
 		Where(`"staff".deleted_at IS NULL`)
 
 	query = base.WithTenantFilter(ctx, query, "staff")
 
-	err := query.Scan(ctx)
-
-	if err != nil {
+	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list all with person",
 			Err: err,
@@ -251,30 +233,9 @@ func (r *StaffRepository) FindWithPersonByIDs(ctx context.Context, ids []int64) 
 		return make(map[int64]*users.Staff), nil
 	}
 
-	type staffResult struct {
-		Staff  *users.Staff  `bun:"staff"`
-		Person *users.Person `bun:"person"`
-	}
-
 	var results []staffResult
 
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&results).
-		ModelTableExpr(`users.staff AS "staff"`).
-		ColumnExpr(`"staff".id AS "staff__id"`).
-		ColumnExpr(`"staff".created_at AS "staff__created_at"`).
-		ColumnExpr(`"staff".updated_at AS "staff__updated_at"`).
-		ColumnExpr(`"staff".tenant_id AS "staff__tenant_id"`).
-		ColumnExpr(`"staff".person_id AS "staff__person_id"`).
-		ColumnExpr(`"staff".staff_notes AS "staff__staff_notes"`).
-		ColumnExpr(`"person".id AS "person__id"`).
-		ColumnExpr(`"person".created_at AS "person__created_at"`).
-		ColumnExpr(`"person".updated_at AS "person__updated_at"`).
-		ColumnExpr(`"person".first_name AS "person__first_name"`).
-		ColumnExpr(`"person".last_name AS "person__last_name"`).
-		ColumnExpr(`"person".tag_id AS "person__tag_id"`).
-		ColumnExpr(`"person".account_id AS "person__account_id"`).
-		Join(`LEFT JOIN users.persons AS "person" ON "person".id = "staff".person_id AND "person".deleted_at IS NULL`).
+	query := r.staffWithPersonQuery(ctx, &results, ` AND "person".deleted_at IS NULL`).
 		Where(`"staff".id IN (?)`, bun.List(ids))
 
 	query = base.WithTenantFilter(ctx, query, "staff")

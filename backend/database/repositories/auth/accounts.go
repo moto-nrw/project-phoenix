@@ -72,41 +72,18 @@ func (r *AccountRepository) FindByUsername(ctx context.Context, username string)
 
 // UpdateLastLogin updates the last login timestamp for an account
 func (r *AccountRepository) UpdateLastLogin(ctx context.Context, id int64) error {
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*auth.Account)(nil)).
-		ModelTableExpr(accountTable).
-		Set("last_login = ?", time.Now()).
-		Where(whereID, id).
-		Exec(ctx)
-
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "update last login",
-			Err: err,
-		}
-	}
-
-	return nil
+	now := time.Now()
+	account := &auth.Account{Model: modelBase.Model{ID: id}, LastLogin: &now}
+	_, err := r.UpdateColumns(ctx, account, "last_login")
+	return err
 }
 
-// UpdatePassword updates the password hash for an account
+// UpdatePassword updates the password hash for an account and resets the
+// OTP flag (a permanent password replaces any one-time password).
 func (r *AccountRepository) UpdatePassword(ctx context.Context, id int64, passwordHash string) error {
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*auth.Account)(nil)).
-		ModelTableExpr(accountTable).
-		Set("password_hash = ?", passwordHash).
-		Set("is_password_otp = ?", false). // Reset OTP flag when setting a permanent password
-		Where(whereID, id).
-		Exec(ctx)
-
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "update password",
-			Err: err,
-		}
-	}
-
-	return nil
+	account := &auth.Account{Model: modelBase.Model{ID: id}, PasswordHash: &passwordHash, IsPasswordOTP: false}
+	_, err := r.UpdateColumns(ctx, account, "password_hash", "is_password_otp")
+	return err
 }
 
 // IncrementMFAAttempts atomically bumps mfa_attempts by one and sets
@@ -251,21 +228,9 @@ func (r *AccountRepository) SetActive(ctx context.Context, id int64, active bool
 
 // UpdateAvatar updates the global avatar path for an account.
 func (r *AccountRepository) UpdateAvatar(ctx context.Context, id int64, avatar string) error {
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*auth.Account)(nil)).
-		ModelTableExpr(accountTable).
-		Set("avatar = ?", avatar).
-		Where(whereID, id).
-		Exec(ctx)
-
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "update avatar",
-			Err: err,
-		}
-	}
-
-	return nil
+	account := &auth.Account{Model: modelBase.Model{ID: id}, Avatar: avatar}
+	_, err := r.UpdateColumns(ctx, account, "avatar")
+	return err
 }
 
 // FindByRole retrieves accounts that have a specific role

@@ -375,24 +375,13 @@ func (r *StudentEnrollmentRepository) Update(ctx context.Context, enrollment *ac
 
 // List overrides the base List method to accept the new QueryOptions type
 func (r *StudentEnrollmentRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*activities.StudentEnrollment, error) {
-	enrollments := make([]*activities.StudentEnrollment, 0)
-	query := base.GetDB(ctx, r.db).NewSelect().Model(&enrollments).ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment)
-
-	query = base.WithTenantFilter(ctx, query, "student_enrollment")
-
-	// Apply query options
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
+	enrollments, err := r.ListWithOptions(ctx, options)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
+		return nil, err
 	}
-
+	if enrollments == nil {
+		enrollments = make([]*activities.StudentEnrollment, 0)
+	}
 	return enrollments, nil
 }
 

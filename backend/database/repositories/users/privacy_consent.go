@@ -214,28 +214,3 @@ func applyPrivacyConsentFilterField(filter *modelBase.Filter, field string, valu
 		filter.Equal(field, value)
 	}
 }
-
-// ListWithOptions provides a type-safe way to list privacy consents with query options
-func (r *PrivacyConsentRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.PrivacyConsent, error) {
-	var consents []*users.PrivacyConsent
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&consents).
-		ModelTableExpr(`users.privacy_consents AS "privacy_consent"`)
-
-	query = base.WithTenantFilter(ctx, query, "privacy_consent")
-
-	// Apply query options
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list with options",
-			Err: err,
-		}
-	}
-
-	return consents, nil
-}

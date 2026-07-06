@@ -182,19 +182,7 @@ func (r *OperatorRepository) ResetMFAAttempts(ctx context.Context, id int64) err
 // UpdateLastLogin updates the last login timestamp
 func (r *OperatorRepository) UpdateLastLogin(ctx context.Context, id int64) error {
 	now := time.Now()
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*platform.Operator)(nil)).
-		ModelTableExpr(tablePlatformOperators).
-		Set("last_login = ?", now).
-		Where("id = ?", id).
-		Exec(ctx)
-
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "update operator last login",
-			Err: err,
-		}
-	}
-
-	return nil
+	operator := &platform.Operator{Model: modelBase.Model{ID: id}, LastLogin: &now}
+	_, err := r.UpdateColumns(ctx, operator, "last_login")
+	return err
 }

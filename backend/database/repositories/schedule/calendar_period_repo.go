@@ -199,24 +199,5 @@ func (r *CalendarPeriodRepository) FindActiveOverlapping(ctx context.Context, st
 
 // List retrieves calendar periods matching the provided query options
 func (r *CalendarPeriodRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.CalendarPeriod, error) {
-	var periods []*schedule.CalendarPeriod
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&periods).
-		ModelTableExpr(`schedule.calendar_periods AS "calendar_period"`)
-
-	query = base.WithTenantFilter(ctx, query, "calendar_period")
-
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
-	}
-
-	return periods, nil
+	return r.ListWithOptions(ctx, options)
 }

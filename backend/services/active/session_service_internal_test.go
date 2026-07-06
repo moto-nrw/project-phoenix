@@ -68,12 +68,6 @@ func (d *deviceRepoForSessionUnitTest) UpdateRoomID(ctx context.Context, id int6
 func (d *deviceRepoForSessionUnitTest) UpdateStatus(context.Context, string, iotModels.DeviceStatus) error {
 	return nil
 }
-func (d *deviceRepoForSessionUnitTest) FindActiveDevices(context.Context) ([]*iotModels.Device, error) {
-	return nil, nil
-}
-func (d *deviceRepoForSessionUnitTest) FindDevicesRequiringMaintenance(context.Context) ([]*iotModels.Device, error) {
-	return nil, nil
-}
 func (d *deviceRepoForSessionUnitTest) FindOfflineDevices(context.Context, time.Duration) ([]*iotModels.Device, error) {
 	return nil, nil
 }

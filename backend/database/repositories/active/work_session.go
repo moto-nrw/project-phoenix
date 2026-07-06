@@ -2,6 +2,7 @@ package active
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -207,49 +208,23 @@ func (r *WorkSessionRepository) GetTodayPresenceMap(ctx context.Context) (map[in
 
 // List overrides base List to use QueryOptions and proper table alias
 func (r *WorkSessionRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.WorkSession, error) {
-	var sessions []*active.WorkSession
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&sessions).
-		ModelTableExpr(tableExprActiveWorkSessionsAsSession)
-
-	query = base.WithTenantFilter(ctx, query, "work_session")
-
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
-	}
-
-	return sessions, nil
+	return r.ListWithOptions(ctx, options)
 }
 
 // UpdateBreakMinutes sets the break_minutes cache field on a session
 func (r *WorkSessionRepository) UpdateBreakMinutes(ctx context.Context, id int64, breakMinutes int) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Table(tableActiveWorkSessions).
-		Set("break_minutes = ?", breakMinutes).
-		Set("updated_at = ?", time.Now()).
-		Where("id = ?", id)
-
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-		query = query.Where("tenant_id = ?", tenantID)
-	}
-
-	result, err := query.Exec(ctx)
+	session := &active.WorkSession{Model: modelBase.Model{ID: id, UpdatedAt: time.Now()}, BreakMinutes: breakMinutes}
+	n, err := r.UpdateColumns(ctx, session, "break_minutes", "updated_at")
 	if err != nil {
+		return err
+	}
+	if n != 1 {
 		return &modelBase.DatabaseError{
 			Op:  "update break minutes",
-			Err: err,
+			Err: fmt.Errorf("expected 1 rows affected, got %d", n),
 		}
 	}
-
-	return base.AssertRowsAffected(result, 1, "update break minutes")
+	return nil
 }
 
 // CloseSession sets the check-out time and auto_checked_out flag.

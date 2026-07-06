@@ -148,29 +148,6 @@ func applyHasOrganizationFilter(filter *modelBase.Filter, value interface{}) {
 	}
 }
 
-// ListWithOptions provides a type-safe way to list guests with query options
-func (r *GuestRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.Guest, error) {
-	var guests []*users.Guest
-	query := base.GetDB(ctx, r.db).NewSelect().Model(&guests).ModelTableExpr(tableExprGuestsAsGuest)
-
-	query = base.WithTenantFilter(ctx, query, "guest")
-
-	// Apply query options
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list with options",
-			Err: err,
-		}
-	}
-
-	return guests, nil
-}
-
 // FindWithStaffAndPerson retrieves a guest with their associated staff and person data
 func (r *GuestRepository) FindWithStaffAndPerson(ctx context.Context, id int64) (*users.Guest, error) {
 	guest := new(users.Guest)

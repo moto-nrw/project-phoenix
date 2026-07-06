@@ -100,31 +100,8 @@ func (r *TokenRepository) FindByAccountID(ctx context.Context, accountID int64) 
 
 // DeleteExpiredTokens removes all expired tokens
 func (r *TokenRepository) DeleteExpiredTokens(ctx context.Context) (int, error) {
-	query := base.GetDB(ctx, r.db).NewDelete().
-		Model((*auth.Token)(nil)).
-		ModelTableExpr(`auth.tokens AS "token"`).
-		Where(`"token".expiry < ?`, time.Now())
-
-	query = base.WithTenantFilter(ctx, query, "token")
-
-	res, err := query.Exec(ctx)
-
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "delete expired tokens",
-			Err: err,
-		}
-	}
-
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "count affected rows",
-			Err: err,
-		}
-	}
-
-	return int(affected), nil
+	deleted, err := r.DeleteBefore(ctx, "expiry", time.Now(), "delete expired tokens")
+	return int(deleted), err
 }
 
 // DeleteByAccountID removes all tokens for an account

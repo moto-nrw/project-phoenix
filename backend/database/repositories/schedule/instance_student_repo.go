@@ -57,25 +57,7 @@ func (r *InstanceStudentRepository) FindByID(ctx context.Context, id any) (*sche
 
 // List retrieves instance student rows matching the provided query options.
 func (r *InstanceStudentRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.InstanceStudent, error) {
-	var rows []*schedule.InstanceStudent
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&rows).
-		ModelTableExpr(modelTblInstanceStudent)
-
-	query = base.WithTenantFilter(ctx, query, aliasInstanceStudent)
-
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
-	}
-	return rows, nil
+	return r.ListWithOptions(ctx, options)
 }
 
 // FindByInstanceID returns all attendance rows for an instance.

@@ -393,7 +393,7 @@ func (s *service) GetDevicesByRegisteredBy(ctx context.Context, personID int64) 
 
 // GetActiveDevices retrieves all active devices
 func (s *service) GetActiveDevices(ctx context.Context) ([]*iot.Device, error) {
-	devices, err := s.deviceRepo.FindActiveDevices(ctx)
+	devices, err := s.deviceRepo.FindByStatus(ctx, iot.DeviceStatusActive)
 	if err != nil {
 		return nil, &IoTError{Op: "GetActiveDevices", Err: err}
 	}
@@ -403,7 +403,7 @@ func (s *service) GetActiveDevices(ctx context.Context) ([]*iot.Device, error) {
 
 // GetDevicesRequiringMaintenance retrieves all devices requiring maintenance
 func (s *service) GetDevicesRequiringMaintenance(ctx context.Context) ([]*iot.Device, error) {
-	devices, err := s.deviceRepo.FindDevicesRequiringMaintenance(ctx)
+	devices, err := s.deviceRepo.FindByStatus(ctx, iot.DeviceStatusMaintenance)
 	if err != nil {
 		return nil, &IoTError{Op: "GetDevicesRequiringMaintenance", Err: err}
 	}

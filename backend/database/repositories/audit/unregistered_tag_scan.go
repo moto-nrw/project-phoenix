@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -78,19 +77,11 @@ func (r *unregisteredTagScanRepository) Resolve(ctx context.Context, id, operato
 }
 
 func (r *unregisteredTagScanRepository) DeleteOlderThan(ctx context.Context, cutoff time.Time) (int, error) {
-	result, err := base.GetDB(ctx, r.db).NewDelete().
-		Model((*auditModels.UnregisteredTagScan)(nil)).
-		ModelTableExpr("audit.unregistered_tag_scans").
-		Where("scanned_at < ?", cutoff).
-		Exec(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete old unregistered tag scans", Err: err}
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return 0, fmt.Errorf("delete old unregistered tag scans rows affected: %w", err)
-	}
-	return int(affected), nil
+	// The generic adds the TenantScoped tenant_id filter the hand-rolled
+	// delete lacked; equivalent because FORCE RLS on audit.unregistered_tag_scans
+	// already scoped scheduler deletes to the tenant transaction.
+	deleted, err := r.DeleteBefore(ctx, "scanned_at", cutoff, "delete old unregistered tag scans")
+	return int(deleted), err
 }
 
 func (r *unregisteredTagScanRepository) operatorBaseQuery(ctx context.Context) *bun.SelectQuery {

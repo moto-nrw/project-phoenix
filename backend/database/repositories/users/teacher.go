@@ -170,52 +170,29 @@ func applyTeacherStringLikeFilter(filter *modelBase.Filter, column string, value
 	}
 }
 
-// ListWithOptions provides a type-safe way to list teachers with query options
-func (r *TeacherRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.Teacher, error) {
-	var teachers []*users.Teacher
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&teachers).
-		ModelTableExpr(`users.teachers AS "teacher"`)
-
-	query = base.WithTenantFilter(ctx, query, "teacher")
-
-	// Apply query options
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list with options",
-			Err: err,
-		}
-	}
-
-	return teachers, nil
+// teacherResult is the scan target for teacherWithStaffPersonQuery.
+type teacherResult struct {
+	Teacher *users.Teacher `bun:"teacher"`
+	Staff   *users.Staff   `bun:"staff"`
+	Person  *users.Person  `bun:"person"`
 }
 
-// FindWithStaffAndPerson retrieves a teacher with their associated staff and person data
-func (r *TeacherRepository) FindWithStaffAndPerson(ctx context.Context, id int64) (*users.Teacher, error) {
-	// Use explicit JOINs similar to the group repository's FindWithRoom approach
-	type teacherResult struct {
-		Teacher *users.Teacher `bun:"teacher"`
-		Staff   *users.Staff   `bun:"staff"`
-		Person  *users.Person  `bun:"person"`
-	}
-
-	result := &teacherResult{
-		Teacher: new(users.Teacher),
-		Staff:   new(users.Staff),
-		Person:  new(users.Person),
-	}
-
+// teacherWithStaffPersonQuery builds the shared teacher→staff→person JOIN
+// with the explicit ColumnExpr aliasing stanza. Callers add their WHERE
+// clauses and the tenant filter. includeTenantID controls the teacher
+// tenant_id projection: FindWithStaffAndPersonByIDs historically omits it
+// (Teacher.TenantID serializes as json "tenant_id", so projecting it there
+// would be a wire change), the other callers include it.
+func (r *TeacherRepository) teacherWithStaffPersonQuery(ctx context.Context, model any, includeTenantID bool) *bun.SelectQuery {
 	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(result).
+		Model(model).
 		ModelTableExpr(`users.teachers AS "teacher"`).
 		// Teacher columns with proper aliasing
-		ColumnExpr(`"teacher".id AS "teacher__id", "teacher".created_at AS "teacher__created_at", "teacher".updated_at AS "teacher__updated_at"`).
-		ColumnExpr(`"teacher".tenant_id AS "teacher__tenant_id"`).
+		ColumnExpr(`"teacher".id AS "teacher__id", "teacher".created_at AS "teacher__created_at", "teacher".updated_at AS "teacher__updated_at"`)
+	if includeTenantID {
+		query = query.ColumnExpr(`"teacher".tenant_id AS "teacher__tenant_id"`)
+	}
+	return query.
 		ColumnExpr(`"teacher".staff_id AS "teacher__staff_id", "teacher".specialization AS "teacher__specialization"`).
 		ColumnExpr(`"teacher".role AS "teacher__role", "teacher".qualifications AS "teacher__qualifications"`).
 		// Staff columns
@@ -227,20 +204,11 @@ func (r *TeacherRepository) FindWithStaffAndPerson(ctx context.Context, id int64
 		ColumnExpr(`"person".tag_id AS "person__tag_id", "person".account_id AS "person__account_id"`).
 		// JOINs
 		Join(`INNER JOIN users.staff AS "staff" ON "staff".id = "teacher".staff_id`).
-		Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
-		Where(`"teacher".id = ?`, id)
+		Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`)
+}
 
-	query = base.WithTenantFilter(ctx, query, "teacher")
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find with staff and person",
-			Err: err,
-		}
-	}
-
-	// Map result to teacher
+// attachTeacherStaffPerson wires the scanned staff/person rows onto the teacher.
+func attachTeacherStaffPerson(result teacherResult) *users.Teacher {
 	teacher := result.Teacher
 	if result.Staff != nil && result.Staff.ID != 0 {
 		teacher.Staff = result.Staff
@@ -248,64 +216,59 @@ func (r *TeacherRepository) FindWithStaffAndPerson(ctx context.Context, id int64
 			teacher.Staff.Person = result.Person
 		}
 	}
+	return teacher
+}
 
-	return teacher, nil
+// mapTeacherResults converts scanned rows to Teacher objects with Staff and Person attached.
+func mapTeacherResults(results []teacherResult) []*users.Teacher {
+	teachers := make([]*users.Teacher, len(results))
+	for i, result := range results {
+		teachers[i] = attachTeacherStaffPerson(result)
+	}
+	return teachers
+}
+
+// FindWithStaffAndPerson retrieves a teacher with their associated staff and person data
+func (r *TeacherRepository) FindWithStaffAndPerson(ctx context.Context, id int64) (*users.Teacher, error) {
+	result := &teacherResult{
+		Teacher: new(users.Teacher),
+		Staff:   new(users.Staff),
+		Person:  new(users.Person),
+	}
+
+	query := r.teacherWithStaffPersonQuery(ctx, result, true).
+		Where(`"teacher".id = ?`, id)
+
+	query = base.WithTenantFilter(ctx, query, "teacher")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find with staff and person",
+			Err: err,
+		}
+	}
+
+	return attachTeacherStaffPerson(*result), nil
 }
 
 // ListAllWithStaffAndPerson retrieves all teachers with their staff and person data in a single query
 func (r *TeacherRepository) ListAllWithStaffAndPerson(ctx context.Context) ([]*users.Teacher, error) {
-	type teacherResult struct {
-		Teacher *users.Teacher `bun:"teacher"`
-		Staff   *users.Staff   `bun:"staff"`
-		Person  *users.Person  `bun:"person"`
-	}
-
 	var results []teacherResult
 
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&results).
-		ModelTableExpr(`users.teachers AS "teacher"`).
-		// Teacher columns with proper aliasing
-		ColumnExpr(`"teacher".id AS "teacher__id", "teacher".created_at AS "teacher__created_at", "teacher".updated_at AS "teacher__updated_at"`).
-		ColumnExpr(`"teacher".tenant_id AS "teacher__tenant_id"`).
-		ColumnExpr(`"teacher".staff_id AS "teacher__staff_id", "teacher".specialization AS "teacher__specialization"`).
-		ColumnExpr(`"teacher".role AS "teacher__role", "teacher".qualifications AS "teacher__qualifications"`).
-		// Staff columns
-		ColumnExpr(`"staff".id AS "staff__id", "staff".created_at AS "staff__created_at", "staff".updated_at AS "staff__updated_at"`).
-		ColumnExpr(`"staff".person_id AS "staff__person_id", "staff".staff_notes AS "staff__staff_notes"`).
-		// Person columns
-		ColumnExpr(`"person".id AS "person__id", "person".created_at AS "person__created_at", "person".updated_at AS "person__updated_at"`).
-		ColumnExpr(`"person".first_name AS "person__first_name", "person".last_name AS "person__last_name"`).
-		ColumnExpr(`"person".tag_id AS "person__tag_id", "person".account_id AS "person__account_id"`).
-		// JOINs
-		Join(`INNER JOIN users.staff AS "staff" ON "staff".id = "teacher".staff_id`).
-		Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
+	query := r.teacherWithStaffPersonQuery(ctx, &results, true).
 		Where(`"teacher".deleted_at IS NULL`).
 		Where(`"staff".deleted_at IS NULL`)
 
 	query = base.WithTenantFilter(ctx, query, "teacher")
 
-	err := query.Scan(ctx)
-	if err != nil {
+	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list all with staff and person",
 			Err: err,
 		}
 	}
 
-	// Convert results to Teacher objects with Staff and Person attached
-	teachers := make([]*users.Teacher, len(results))
-	for i, result := range results {
-		teachers[i] = result.Teacher
-		if result.Staff != nil && result.Staff.ID != 0 {
-			result.Teacher.Staff = result.Staff
-			if result.Person != nil && result.Person.ID != 0 {
-				result.Staff.Person = result.Person
-			}
-		}
-	}
-
-	return teachers, nil
+	return mapTeacherResults(results), nil
 }
 
 // FindWithStaffAndPersonByIDs retrieves teachers with staff and person data for multiple IDs in a single query
@@ -314,56 +277,21 @@ func (r *TeacherRepository) FindWithStaffAndPersonByIDs(ctx context.Context, ids
 		return []*users.Teacher{}, nil
 	}
 
-	type teacherResult struct {
-		Teacher *users.Teacher `bun:"teacher"`
-		Staff   *users.Staff   `bun:"staff"`
-		Person  *users.Person  `bun:"person"`
-	}
-
 	var results []teacherResult
 
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&results).
-		ModelTableExpr(`users.teachers AS "teacher"`).
-		// Teacher columns with proper aliasing
-		ColumnExpr(`"teacher".id AS "teacher__id", "teacher".created_at AS "teacher__created_at", "teacher".updated_at AS "teacher__updated_at"`).
-		ColumnExpr(`"teacher".staff_id AS "teacher__staff_id", "teacher".specialization AS "teacher__specialization"`).
-		ColumnExpr(`"teacher".role AS "teacher__role", "teacher".qualifications AS "teacher__qualifications"`).
-		// Staff columns
-		ColumnExpr(`"staff".id AS "staff__id", "staff".created_at AS "staff__created_at", "staff".updated_at AS "staff__updated_at"`).
-		ColumnExpr(`"staff".person_id AS "staff__person_id", "staff".staff_notes AS "staff__staff_notes"`).
-		// Person columns
-		ColumnExpr(`"person".id AS "person__id", "person".created_at AS "person__created_at", "person".updated_at AS "person__updated_at"`).
-		ColumnExpr(`"person".first_name AS "person__first_name", "person".last_name AS "person__last_name"`).
-		ColumnExpr(`"person".tag_id AS "person__tag_id", "person".account_id AS "person__account_id"`).
-		// JOINs
-		Join(`INNER JOIN users.staff AS "staff" ON "staff".id = "teacher".staff_id`).
-		Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
+	query := r.teacherWithStaffPersonQuery(ctx, &results, false).
 		Where(`"teacher".id IN (?)`, bun.List(ids))
 
 	query = base.WithTenantFilter(ctx, query, "teacher")
 
-	err := query.Scan(ctx)
-	if err != nil {
+	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find with staff and person by IDs",
 			Err: err,
 		}
 	}
 
-	// Convert results to Teacher objects with Staff and Person attached
-	teachers := make([]*users.Teacher, len(results))
-	for i, result := range results {
-		teachers[i] = result.Teacher
-		if result.Staff != nil && result.Staff.ID != 0 {
-			result.Teacher.Staff = result.Staff
-			if result.Person != nil && result.Person.ID != 0 {
-				result.Staff.Person = result.Person
-			}
-		}
-	}
-
-	return teachers, nil
+	return mapTeacherResults(results), nil
 }
 
 // activeCaregiverQuery builds the canonical operational caregiver lookup:

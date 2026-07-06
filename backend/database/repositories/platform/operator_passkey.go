@@ -121,17 +121,6 @@ func (r *OperatorPasskeySessionRepository) Consume(ctx context.Context, id, purp
 }
 
 func (r *OperatorPasskeySessionRepository) DeleteExpired(ctx context.Context, now time.Time) (int, error) {
-	res, err := base.GetDB(ctx, r.db).NewDelete().
-		Model((*platform.OperatorPasskeySession)(nil)).
-		ModelTableExpr(operatorPasskeySessionTable).
-		Where("expires_at < ?", now).
-		Exec(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete expired operator passkey sessions", Err: err}
-	}
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "rows affected for delete expired operator passkey sessions", Err: err}
-	}
-	return int(affected), nil
+	deleted, err := r.DeleteBefore(ctx, "expires_at", now, "delete expired operator passkey sessions")
+	return int(deleted), err
 }

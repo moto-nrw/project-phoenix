@@ -261,34 +261,6 @@ func (r *StudentGuardianRepository) List(ctx context.Context, filters map[string
 	return r.ListWithOptions(ctx, options)
 }
 
-// ListWithOptions provides a type-safe way to list student guardian relationships with query options
-func (r *StudentGuardianRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.StudentGuardian, error) {
-	var relationships []*users.StudentGuardian
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&relationships).
-		ModelTableExpr(`users.students_guardians AS "student_guardian"`)
-
-	query = base.WithTenantFilter(ctx, query, "student_guardian")
-
-	// Apply query options
-	if options != nil {
-		if options.Filter != nil {
-			options.Filter.WithTableAlias("student_guardian")
-		}
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list with options",
-			Err: err,
-		}
-	}
-
-	return relationships, nil
-}
-
 // ListEmergencyContactRows returns one row per (guardian, phone number) for
 // the given students, ordered so that emergency contacts, primary guardians,
 // and primary/priority phone numbers come first. The caller aggregates the

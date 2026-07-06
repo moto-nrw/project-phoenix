@@ -323,24 +323,13 @@ func (r *SupervisorPlannedRepository) DeleteByStaffID(ctx context.Context, staff
 
 // List overrides the base List method to accept the new QueryOptions type
 func (r *SupervisorPlannedRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*activities.SupervisorPlanned, error) {
-	supervisors := make([]*activities.SupervisorPlanned, 0)
-	query := base.GetDB(ctx, r.db).NewSelect().Model(&supervisors).ModelTableExpr(tableExprSupervisorPlanned)
-
-	query = base.WithTenantFilter(ctx, query, "supervisor_planned")
-
-	// Apply query options
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
+	supervisors, err := r.ListWithOptions(ctx, options)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
+		return nil, err
 	}
-
+	if supervisors == nil {
+		supervisors = make([]*activities.SupervisorPlanned, 0)
+	}
 	return supervisors, nil
 }
 

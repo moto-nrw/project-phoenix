@@ -208,32 +208,14 @@ func (r *OperatorInvitationTokenRepository) InvalidateByEmail(ctx context.Contex
 
 // UpdateDeliveryResult updates the email delivery metadata for a token
 func (r *OperatorInvitationTokenRepository) UpdateDeliveryResult(ctx context.Context, tokenID int64, sentAt *time.Time, emailError *string, retryCount int) error {
-	update := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*platform.OperatorInvitationToken)(nil)).
-		ModelTableExpr(operatorInvitationTokenTable).
-		Where("id = ?", tokenID).
-		Set("email_retry_count = ?", retryCount)
-
-	if sentAt != nil {
-		update = update.Set("email_sent_at = ?", *sentAt)
-	} else {
-		update = update.Set("email_sent_at = NULL")
-	}
-
+	token := &platform.OperatorInvitationToken{Model: modelBase.Model{ID: tokenID}, EmailSentAt: sentAt, EmailRetryCount: retryCount}
 	if emailError != nil {
-		update = update.Set("email_error = ?", strutil.TruncateRunes(*emailError, maxInvitationEmailErrorLength, ""))
-	} else {
-		update = update.Set("email_error = NULL")
+		truncated := strutil.TruncateRunes(*emailError, maxInvitationEmailErrorLength, "")
+		token.EmailError = &truncated
 	}
 
-	if _, err := update.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "update invitation delivery result",
-			Err: err,
-		}
-	}
-
-	return nil
+	_, err := r.UpdateColumns(ctx, token, "email_sent_at", "email_error", "email_retry_count")
+	return err
 }
 
 // CountRecentByCreatedBy counts tokens created after `since` by the given

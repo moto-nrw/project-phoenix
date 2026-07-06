@@ -2,6 +2,7 @@ package iot
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -176,43 +177,34 @@ func (r *DeviceRepository) FindByRegisteredBy(ctx context.Context, personID int6
 // Uses the integer PK (globally unique) rather than device_id (unique per tenant)
 // to ensure cross-tenant safety when called from device auth without tenant context.
 func (r *DeviceRepository) UpdateLastSeen(ctx context.Context, id int64, lastSeen time.Time) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*iot.Device)(nil)).
-		ModelTableExpr(tableIoTDevices).
-		Set("last_seen = ?", lastSeen).
-		Where("id = ?", id)
-
-	result, err := query.Exec(ctx)
-
+	device := &iot.Device{Model: modelBase.Model{ID: id}, LastSeen: &lastSeen}
+	n, err := r.UpdateColumns(ctx, device, "last_seen")
 	if err != nil {
+		return err
+	}
+	if n != 1 {
 		return &modelBase.DatabaseError{
 			Op:  "update last seen",
-			Err: err,
+			Err: fmt.Errorf("expected 1 rows affected, got %d", n),
 		}
 	}
-
-	return base.AssertRowsAffected(result, 1, "update last seen")
+	return nil
 }
 
 // UpdateRoomID updates the room_id for a device by its primary key.
 func (r *DeviceRepository) UpdateRoomID(ctx context.Context, id int64, roomID int64) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*iot.Device)(nil)).
-		ModelTableExpr(tableIoTDevices).
-		Set("room_id = ?", roomID).
-		Set("updated_at = ?", time.Now()).
-		Where("id = ?", id)
-
-	result, err := query.Exec(ctx)
-
+	device := &iot.Device{Model: modelBase.Model{ID: id, UpdatedAt: time.Now()}, RoomID: &roomID}
+	n, err := r.UpdateColumns(ctx, device, "room_id", "updated_at")
 	if err != nil {
+		return err
+	}
+	if n != 1 {
 		return &modelBase.DatabaseError{
 			Op:  "update room id",
-			Err: err,
+			Err: fmt.Errorf("expected 1 rows affected, got %d", n),
 		}
 	}
-
-	return base.AssertRowsAffected(result, 1, "update room id")
+	return nil
 }
 
 // UpdateStatus updates the status for a device
@@ -237,50 +229,6 @@ func (r *DeviceRepository) UpdateStatus(ctx context.Context, deviceID string, st
 	}
 
 	return base.AssertRowsAffected(result, 1, "update status")
-}
-
-// FindActiveDevices retrieves all active devices
-func (r *DeviceRepository) FindActiveDevices(ctx context.Context) ([]*iot.Device, error) {
-	var devices []*iot.Device
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&devices).
-		ModelTableExpr(`iot.devices AS "device"`).
-		Where(whereStatusEqual, iot.DeviceStatusActive)
-
-	query = base.WithTenantFilter(ctx, query, "device")
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find active devices",
-			Err: err,
-		}
-	}
-
-	return devices, nil
-}
-
-// FindDevicesRequiringMaintenance retrieves all devices requiring maintenance
-func (r *DeviceRepository) FindDevicesRequiringMaintenance(ctx context.Context) ([]*iot.Device, error) {
-	var devices []*iot.Device
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&devices).
-		ModelTableExpr(`iot.devices AS "device"`).
-		Where(whereStatusEqual, iot.DeviceStatusMaintenance)
-
-	query = base.WithTenantFilter(ctx, query, "device")
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find devices requiring maintenance",
-			Err: err,
-		}
-	}
-
-	return devices, nil
 }
 
 // FindOfflineDevices retrieves devices that have been offline for at least the specified duration
