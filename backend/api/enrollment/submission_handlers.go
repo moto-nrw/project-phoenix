@@ -387,6 +387,7 @@ type EditBootstrapResponse struct {
 	Offerings                 []CareOfferingResponse    `json:"offerings"`
 	CareOfferingSelectionMode string                    `json:"care_offering_selection_mode"`
 	CareRequired              bool                      `json:"care_required"`
+	SchoolClass               PublicSchoolClassConfig   `json:"school_class"`
 	LegalTexts                PublicLegalTextsResponse  `json:"legal_texts"`
 	Draft                     EditDraftResponse         `json:"draft"`
 	EditMode                  string                    `json:"edit_mode"`
@@ -544,6 +545,7 @@ func (rs *Resource) getEditBootstrap(w http.ResponseWriter, r *http.Request) {
 		Offerings:                 offerings,
 		CareOfferingSelectionMode: draft.Phase.CareOfferingSelectionMode,
 		CareRequired:              draft.Phase.CareOfferingSelectionMode != enrollmentModels.PhaseCareOfferingSelectionOptional,
+		SchoolClass:               toPublicSchoolClassConfig(draft.Phase, draft.CollectSchoolClass),
 		LegalTexts: PublicLegalTextsResponse{
 			AGB:                 draft.LegalTexts.AGB,
 			DSGVO:               draft.LegalTexts.DSGVO,

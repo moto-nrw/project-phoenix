@@ -516,6 +516,14 @@ func (s *changeRequestService) prepareProposed(
 	if err := rs.validateSubmission(ctx, editReq, legalBlocks); err != nil {
 		return editReq, nil, nil, nil, err
 	}
+	// Concrete-class rules (#1833) hang off the tenant setting + phase, so
+	// they run here rather than in validateSubmission - mirroring Submit and
+	// ReplaceEditable. Without this a status-linked parent could propose an
+	// unoffered target_school_class (or omit a required one for grade >= 2)
+	// and staff approval would persist the invalid value.
+	if err := rs.validateAndNormalizeSchoolClasses(ctx, phase, editReq.Children); err != nil {
+		return editReq, nil, nil, nil, err
+	}
 	if err := s.validateAccountLinkedGuardianEdits(ctx, req, editReq); err != nil {
 		return editReq, nil, nil, nil, err
 	}

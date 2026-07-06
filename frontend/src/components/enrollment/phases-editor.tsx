@@ -1141,6 +1141,8 @@ function PhaseForm(props: PhaseFormProps) {
   const update = (patch: Partial<PhaseInput>) =>
     setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
 
+  const hasSchoolClasses = (draft.available_school_classes ?? []).length > 0;
+
   useEffect(() => {
     if (!highlightFormSection) return;
     formSectionRef.current?.scrollIntoView({
@@ -1457,12 +1459,27 @@ function PhaseForm(props: PhaseFormProps) {
         </p>
         <SchoolClassListEditor
           value={draft.available_school_classes ?? []}
-          onChange={(list) => update({ available_school_classes: list })}
+          onChange={(list) =>
+            // Clearing the list must also clear "verpflichtend": a mandatory
+            // phase with no offered classes is impossible - grade >= 2 parents
+            // would be required to pick a class from an empty dropdown and the
+            // backend would reject every submission (#1833).
+            update(
+              list.length === 0
+                ? {
+                    available_school_classes: list,
+                    require_school_class: false,
+                  }
+                : { available_school_classes: list },
+            )
+          }
         />
         <div className="mt-3">
           <PhaseCheckbox
-            checked={draft.require_school_class ?? false}
+            // Only meaningful once at least one class is offered.
+            checked={hasSchoolClasses && (draft.require_school_class ?? false)}
             onChange={(checked) => update({ require_school_class: checked })}
+            disabled={!hasSchoolClasses}
             label="Konkrete Klasse verpflichtend (ab Klasse 2)"
             hint="(Eltern müssen ab der 2. Klasse eine Klasse wählen)"
           />
@@ -1566,23 +1583,28 @@ function PhaseCheckbox({
   onChange,
   label,
   hint,
+  disabled = false,
 }: Readonly<{
   checked: boolean;
   onChange: (checked: boolean) => void;
   label: string;
   hint: string;
+  disabled?: boolean;
 }>) {
   return (
     <label
-      className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-2xl border px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors focus-within:ring-2 focus-within:ring-gray-300 ${
-        checked
-          ? "border-gray-300 bg-gray-50"
-          : "border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50"
+      className={`flex min-h-11 items-center gap-3 rounded-2xl border px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors focus-within:ring-2 focus-within:ring-gray-300 ${
+        disabled
+          ? "cursor-not-allowed border-gray-100 bg-gray-50 opacity-60"
+          : checked
+            ? "cursor-pointer border-gray-300 bg-gray-50"
+            : "cursor-pointer border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50"
       }`}
     >
       <input
         type="checkbox"
         checked={checked}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.checked)}
         className="sr-only"
       />

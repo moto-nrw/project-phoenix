@@ -151,6 +151,8 @@ export interface EnrollmentEditBootstrap {
   offerings: PublicCareOffering[];
   care_offering_selection_mode: CareOfferingSelectionMode;
   care_required: boolean;
+  /** Concrete-class config (#1833) so reopened edits keep the class field. */
+  school_class?: PublicSchoolClassConfig;
   legal_texts: PublicLegalTexts;
   draft: EnrollmentEditDraft;
 }

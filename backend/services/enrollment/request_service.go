@@ -212,6 +212,11 @@ type EditDraft struct {
 	OpenOfferings    []*enrollmentModels.CareOffering
 	LegalTexts       LegalTexts
 	EditMode         string
+	// CollectSchoolClass mirrors the tenant's enrollment.collect_school_class
+	// setting (#1833) so the reopened form knows whether to show the
+	// concrete-class field. Combined with the phase's AvailableSchoolClasses
+	// / RequireSchoolClass it forms the public concrete-class config.
+	CollectSchoolClass bool
 }
 
 const (
@@ -1548,13 +1553,15 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 	}
 
 	var (
-		phase         *enrollmentModels.Phase
-		schema        *enrollmentModels.FormSchema
-		openOfferings []*enrollmentModels.CareOffering
-		legalTexts    LegalTexts
-		editMode      string
+		phase              *enrollmentModels.Phase
+		schema             *enrollmentModels.FormSchema
+		openOfferings      []*enrollmentModels.CareOffering
+		legalTexts         LegalTexts
+		editMode           string
+		collectSchoolClass bool
 	)
 	if err := tenant.WithTenantTx(ctx, s.db, req.GetTenantID(), func(txCtx context.Context, _ bun.Tx) error {
+		collectSchoolClass = s.collectSchoolClass(txCtx)
 		editMode = editModeForChildren(children)
 		if editMode == EditModeDirectEdit {
 			if err := s.ensureRequestEditable(txCtx, req, children); err != nil {
@@ -1629,16 +1636,17 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 	}
 
 	return &EditDraft{
-		Request:          req,
-		Children:         children,
-		Guardians:        guardians,
-		OfferingsByChild: linksByChild,
-		Phase:            phase,
-		School:           school,
-		Schema:           schema,
-		OpenOfferings:    openOfferings,
-		LegalTexts:       legalTexts,
-		EditMode:         editMode,
+		Request:            req,
+		Children:           children,
+		Guardians:          guardians,
+		OfferingsByChild:   linksByChild,
+		Phase:              phase,
+		School:             school,
+		Schema:             schema,
+		OpenOfferings:      openOfferings,
+		LegalTexts:         legalTexts,
+		EditMode:           editMode,
+		CollectSchoolClass: collectSchoolClass,
 	}, nil
 }
 
