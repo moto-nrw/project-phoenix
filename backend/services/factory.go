@@ -11,8 +11,6 @@ import (
 	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/policies"
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
@@ -757,26 +755,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DB:                     db,
 		Logger:                 logger.With("service", "staff_offboarding"),
 	})
-
-	// Initialize authorization
-	authorizationService := authorize.NewAuthorizationService()
-
-	// Create policy registry
-	policyRegistry := policies.NewPolicyRegistry(
-		educationService,
-		usersService,
-		activeService,
-	)
-
-	// Register all policies
-	if err := policyRegistry.RegisterAll(authorizationService); err != nil {
-		return nil, err
-	}
-
-	// Set global resource authorizer
-	authorize.SetResourceAuthorizer(
-		authorize.NewResourceAuthorizer(authorizationService),
-	)
 
 	// Initialize user context service
 	userContextService := usercontext.NewUserContextServiceWithRepos(usercontext.UserContextRepositories{
