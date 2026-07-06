@@ -678,7 +678,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		return nil, txErr
 	}
 
-	statusURL := s.statusURL(statusToken)
+	statusURL := enrollmentStatusURL(s.ParentsURL, statusToken)
 	if !req.SuppressSubmissionEmails {
 		s.enqueueSubmissionEmails(ctx, req.TenantID, createdRequest, createdChildren, statusURL)
 	}
@@ -1843,7 +1843,7 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 	return &SubmitResult{
 		Request:   updatedRequest,
 		Children:  createdChildren,
-		StatusURL: s.statusURL(updatedRequest.StatusToken),
+		StatusURL: enrollmentStatusURL(s.ParentsURL, updatedRequest.StatusToken),
 	}, nil
 }
 
@@ -1925,12 +1925,22 @@ func (s *requestService) legalTextsForEditableRequest(ctx context.Context, schem
 	if err != nil {
 		return LegalTexts{}, err
 	}
+	return applyTemplateLegalBlocks(texts, schema), nil
+}
+
+// applyTemplateLegalBlocks replaces the settings-derived legal blocks with the
+// template's blocks. Template blocks win only when at least one of them is
+// enabled: a template whose blocks are all disabled (saved before the
+// Rechtstexte were configured, or via the API) must not erase the tenant's
+// consent contract - that would let parents submit without the expected DSGVO
+// acknowledgment.
+func applyTemplateLegalBlocks(texts LegalTexts, schema *enrollmentModels.FormSchema) LegalTexts {
 	if schema != nil && len(schema.LegalBlocks) > 0 {
 		if blocks := buildTemplateLegalBlocks(schema.LegalBlocks); len(blocks) > 0 {
 			texts.Blocks = blocks
 		}
 	}
-	return texts, nil
+	return texts
 }
 
 func (s *requestService) legalBlocksForEditableRequest(ctx context.Context, schema *enrollmentModels.FormSchema) ([]LegalBlock, error) {
@@ -2252,10 +2262,10 @@ func normalizeGuardianEmail(email string) (string, error) {
 	return trimmed, nil
 }
 
-func (s *requestService) statusURL(token string) string {
-	// Status link is parent-facing - sent in the submitted/approved/
-	// waitlisted/rejected emails. Routes to the parents portal.
-	host := s.ParentsURL
+// enrollmentStatusURL builds the parent-facing status link - sent in the
+// submitted/approved/waitlisted/rejected emails. Routes to the parents portal.
+func enrollmentStatusURL(parentsURL, token string) string {
+	host := parentsURL
 	if host == "" {
 		host = "http://localhost:3000"
 	}
@@ -2385,17 +2395,7 @@ func (s *requestService) legalTextsForLoadedPhase(ctx context.Context, phase *en
 	if err != nil {
 		return LegalTexts{}, err
 	}
-	// Template blocks replace the settings-derived blocks only when at
-	// least one of them is enabled. A template whose blocks are all
-	// disabled (saved before the Rechtstexte were configured, or via the
-	// API) must not erase the tenant's consent contract — that would let
-	// parents submit without the expected DSGVO acknowledgment.
-	if schema != nil && len(schema.LegalBlocks) > 0 {
-		if blocks := buildTemplateLegalBlocks(schema.LegalBlocks); len(blocks) > 0 {
-			texts.Blocks = blocks
-		}
-	}
-	return texts, nil
+	return applyTemplateLegalBlocks(texts, schema), nil
 }
 
 func (s *requestService) LoadPublicPhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentModels.Phase, error) {

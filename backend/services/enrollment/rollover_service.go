@@ -489,7 +489,7 @@ func (s *rolloverService) enqueueRenewalEmail(ctx context.Context, newPhase *enr
 		EnrollmentPayloadGuardianEmail:     req.GuardianEmail,
 		EnrollmentPayloadSchoolName:        schoolName,
 		EnrollmentPayloadPhaseName:         newPhase.Name,
-		EnrollmentPayloadStatusURL:         s.parentStatusURL(req.StatusToken),
+		EnrollmentPayloadStatusURL:         enrollmentStatusURL(s.ParentsURL, req.StatusToken),
 		EnrollmentPayloadLogoURL:           logoURL,
 		EnrollmentPayloadMotoLogoURL:       footerLogoURL,
 		EnrollmentPayloadChildNames:        childNames,
@@ -510,14 +510,6 @@ func (s *rolloverService) enqueueRenewalEmail(ctx context.Context, newPhase *enr
 		return
 	}
 	result.EnqueuedEmails++
-}
-
-func (s *rolloverService) parentStatusURL(token string) string {
-	host := s.ParentsURL
-	if host == "" {
-		host = "http://localhost:3000"
-	}
-	return fmt.Sprintf("%s/enroll/status/%s", host, token)
 }
 
 func (s *rolloverService) validateCreateRequest(req CreatePhaseFromSourceRequest) error {

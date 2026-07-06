@@ -566,28 +566,10 @@ func (s *decisionService) exportData(ctx context.Context, phaseID int64, childSt
 		offeringByID[off.ID] = off
 	}
 
-	// Group offering links per child, resolving each to its catalog name/days.
-	offeringsByChild := make(map[int64][]ChildOfferingRow, len(childIDs))
-	for _, link := range links {
-		row := ChildOfferingRow{
-			OfferingID:            link.CareOfferingID,
-			SelectedDays:          link.SelectedDays,
-			ManualSelectedDays:    link.ManualSelectedDays,
-			AutomaticSelectedDays: link.AutomaticSelectedDays,
-		}
-		if off := offeringByID[link.CareOfferingID]; off != nil {
-			row.OfferingName = off.Name
-			row.DaysOfWeekMode = off.DaysOfWeekMode
-			row.AvailableDays = off.AvailableDays
-		}
-		offeringsByChild[link.RequestChildID] = append(offeringsByChild[link.RequestChildID], row)
-	}
-
-	// Group children per request.
-	childrenByRequest := make(map[int64][]*enrollmentModels.RequestChild, len(reqIDs))
-	for _, c := range children {
-		childrenByRequest[c.RequestID] = append(childrenByRequest[c.RequestID], c)
-	}
+	// Group offering links per child, resolving each to its catalog
+	// name/days, and children per request.
+	offeringsByChild := groupOfferingsByChild(links, offeringByID, len(childIDs))
+	childrenByRequest := groupChildrenByRequest(children, len(reqIDs))
 
 	// Load + group the additional guardians (co-guardians) so the export
 	// carries every submitted contact, matching the admin detail and the
@@ -718,26 +700,8 @@ func (s *decisionService) exportStudentData(ctx context.Context, studentID int64
 		}
 	}
 
-	offeringsByChild := make(map[int64][]ChildOfferingRow, len(childIDs))
-	for _, link := range links {
-		row := ChildOfferingRow{
-			OfferingID:            link.CareOfferingID,
-			SelectedDays:          link.SelectedDays,
-			ManualSelectedDays:    link.ManualSelectedDays,
-			AutomaticSelectedDays: link.AutomaticSelectedDays,
-		}
-		if off := offeringByID[link.CareOfferingID]; off != nil {
-			row.OfferingName = off.Name
-			row.DaysOfWeekMode = off.DaysOfWeekMode
-			row.AvailableDays = off.AvailableDays
-		}
-		offeringsByChild[link.RequestChildID] = append(offeringsByChild[link.RequestChildID], row)
-	}
-
-	childrenByRequest := make(map[int64][]*enrollmentModels.RequestChild, len(reqIDs))
-	for _, child := range filteredChildren {
-		childrenByRequest[child.RequestID] = append(childrenByRequest[child.RequestID], child)
-	}
+	offeringsByChild := groupOfferingsByChild(links, offeringByID, len(childIDs))
+	childrenByRequest := groupChildrenByRequest(filteredChildren, len(reqIDs))
 
 	phases := make(map[int64]*enrollmentModels.Phase, len(phaseIDs))
 	for phaseID := range phaseIDs {
@@ -794,19 +758,44 @@ func (s *decisionService) exportStudentData(ctx context.Context, studentID int64
 // file when this errors. The DataAccessLog repo populates tenant_id
 // from the context's tenant transaction, so this must be called inside
 // one.
+
+// groupOfferingsByChild resolves each child->offering link against the
+// offering catalog and groups the rows per request child. Shared by the
+// phase export and the per-student export.
+func groupOfferingsByChild(links []*enrollmentModels.RequestChildOffering, offeringByID map[int64]*enrollmentModels.CareOffering, childCount int) map[int64][]ChildOfferingRow {
+	offeringsByChild := make(map[int64][]ChildOfferingRow, childCount)
+	for _, link := range links {
+		row := ChildOfferingRow{
+			OfferingID:            link.CareOfferingID,
+			SelectedDays:          link.SelectedDays,
+			ManualSelectedDays:    link.ManualSelectedDays,
+			AutomaticSelectedDays: link.AutomaticSelectedDays,
+		}
+		if off := offeringByID[link.CareOfferingID]; off != nil {
+			row.OfferingName = off.Name
+			row.DaysOfWeekMode = off.DaysOfWeekMode
+			row.AvailableDays = off.AvailableDays
+		}
+		offeringsByChild[link.RequestChildID] = append(offeringsByChild[link.RequestChildID], row)
+	}
+	return offeringsByChild
+}
+
+// groupChildrenByRequest groups request children per request id.
+func groupChildrenByRequest(children []*enrollmentModels.RequestChild, requestCount int) map[int64][]*enrollmentModels.RequestChild {
+	childrenByRequest := make(map[int64][]*enrollmentModels.RequestChild, requestCount)
+	for _, c := range children {
+		childrenByRequest[c.RequestID] = append(childrenByRequest[c.RequestID], c)
+	}
+	return childrenByRequest
+}
+
 func (s *decisionService) RecordPhaseExportAudit(ctx context.Context, actorAccountID int64, actorRole string, phase *enrollmentModels.Phase, format, statusFilter string, requestCount, childCount int) error {
 	if s.DataAccessLogRepo == nil {
 		return fmt.Errorf("decision: export audit: data access log repo not configured")
 	}
 	if phase == nil {
 		return fmt.Errorf("decision: export audit: phase required")
-	}
-	if actorAccountID <= 0 {
-		return fmt.Errorf("decision: export audit: actor account id required")
-	}
-	// actor_role is NOT NULL; the column never carries an empty string.
-	if strings.TrimSpace(actorRole) == "" {
-		actorRole = "unknown"
 	}
 	// An empty filter means the export covered every child — record it as
 	// "all" so the audit trail is explicit about the disclosed scope.
@@ -815,13 +804,11 @@ func (s *decisionService) RecordPhaseExportAudit(ctx context.Context, actorAccou
 		statusFilterLabel = "all"
 	}
 
-	entry := &auditModels.DataAccessLog{
-		ActorAccountID: actorAccountID,
-		ActorRole:      actorRole,
-		ResourceType:   auditModels.ResourceTypeEnrollmentPhaseExport,
-		RangeStart:     phase.ServiceStartDate.BerlinMidnight(),
-		RangeEnd:       phase.ServiceEndDate.EndOfDay(),
-		AccessedAt:     time.Now(),
+	entry, err := exportAuditEntry("decision: export audit", actorAccountID, actorRole,
+		auditModels.ResourceTypeEnrollmentPhaseExport,
+		phase.ServiceStartDate.BerlinMidnight(), phase.ServiceEndDate.EndOfDay(), time.Now())
+	if err != nil {
+		return err
 	}
 	entry.SetMetadata("phase_id", phase.ID)
 	entry.SetMetadata("format", format)
@@ -829,10 +816,7 @@ func (s *decisionService) RecordPhaseExportAudit(ctx context.Context, actorAccou
 	entry.SetMetadata("request_count", requestCount)
 	entry.SetMetadata("child_count", childCount)
 
-	if err := s.DataAccessLogRepo.Create(ctx, entry); err != nil {
-		return fmt.Errorf("decision: export audit write: %w", err)
-	}
-	return nil
+	return writeExportAudit(ctx, s.DataAccessLogRepo, entry, "decision: export audit")
 }
 
 func (s *decisionService) recordStudentExportAudit(ctx context.Context, actorAccountID int64, actorRole string, data *StudentEnrollmentExport, format string, requestCount, childCount int) error {
@@ -842,13 +826,6 @@ func (s *decisionService) recordStudentExportAudit(ctx context.Context, actorAcc
 	if data == nil || data.StudentID <= 0 {
 		return fmt.Errorf("decision: student export audit: student required")
 	}
-	if actorAccountID <= 0 {
-		return fmt.Errorf("decision: student export audit: actor account id required")
-	}
-	if strings.TrimSpace(actorRole) == "" {
-		actorRole = "unknown"
-	}
-
 	now := time.Now()
 	rangeStart := now
 	rangeEnd := now
@@ -866,23 +843,17 @@ func (s *decisionService) recordStudentExportAudit(ctx context.Context, actorAcc
 		}
 	}
 
-	entry := &auditModels.DataAccessLog{
-		ActorAccountID: actorAccountID,
-		ActorRole:      actorRole,
-		ResourceType:   auditModels.ResourceTypeEnrollmentStudentExport,
-		StudentID:      &data.StudentID,
-		RangeStart:     rangeStart,
-		RangeEnd:       rangeEnd,
-		AccessedAt:     now,
+	entry, err := exportAuditEntry("decision: student export audit", actorAccountID, actorRole,
+		auditModels.ResourceTypeEnrollmentStudentExport, rangeStart, rangeEnd, now)
+	if err != nil {
+		return err
 	}
+	entry.StudentID = &data.StudentID
 	entry.SetMetadata("format", format)
 	entry.SetMetadata("request_count", requestCount)
 	entry.SetMetadata("child_count", childCount)
 
-	if err := s.DataAccessLogRepo.Create(ctx, entry); err != nil {
-		return fmt.Errorf("decision: student export audit write: %w", err)
-	}
-	return nil
+	return writeExportAudit(ctx, s.DataAccessLogRepo, entry, "decision: student export audit")
 }
 
 // Decide updates a single child's status. When status==approved the
@@ -2141,9 +2112,23 @@ func (s *decisionService) attachExistingAccountIfPresent(
 		return false, nil
 	}
 
+	return s.attachAccountToGuardian(ctx, guardian, account, "attach")
+}
+
+// attachAccountToGuardian runs the shared attach tail for both account
+// resolution paths: account_tenants mapping (idempotent create), guardian
+// role for this tenant, and LinkAccount on the per-tenant profile.
+// errPrefix keeps the historical per-path error wording ("attach" /
+// "attach by id").
+func (s *decisionService) attachAccountToGuardian(
+	ctx context.Context,
+	guardian *users.GuardianProfile,
+	account *authModels.Account,
+	errPrefix string,
+) (bool, error) {
 	tenantID := tenant.FromContext(ctx)
 	if tenantID == 0 {
-		return false, fmt.Errorf("attach: tenant not in context")
+		return false, fmt.Errorf("%s: tenant not in context", errPrefix)
 	}
 
 	// 1. account_tenants mapping. Create is idempotent (ON CONFLICT
@@ -2156,7 +2141,7 @@ func (s *decisionService) attachExistingAccountIfPresent(
 		ActivatedAt: &now,
 	}
 	if err := s.AccountTenantRepo.Create(ctx, mapping); err != nil {
-		return false, fmt.Errorf("attach: account_tenants: %w", err)
+		return false, fmt.Errorf("%s: account_tenants: %w", errPrefix, err)
 	}
 
 	// 2. Guardian role for this tenant. AccountRoleRepo.Create has no
@@ -2170,7 +2155,7 @@ func (s *decisionService) attachExistingAccountIfPresent(
 	// account. LinkAccount also flips has_account=true so future
 	// approvals for the same profile see the linked state.
 	if err := s.GuardianProfileRepo.LinkAccount(ctx, guardian.ID, account.ID); err != nil {
-		return false, fmt.Errorf("attach: link profile: %w", err)
+		return false, fmt.Errorf("%s: link profile: %w", errPrefix, err)
 	}
 	guardian.AccountID = &account.ID
 	guardian.HasAccount = true
@@ -2211,30 +2196,7 @@ func (s *decisionService) attachExistingAccountByID(
 		return false, nil
 	}
 
-	tenantID := tenant.FromContext(ctx)
-	if tenantID == 0 {
-		return false, fmt.Errorf("attach by id: tenant not in context")
-	}
-
-	now := time.Now()
-	mapping := &authModels.AccountTenant{
-		AccountID:   account.ID,
-		TenantID:    tenantID,
-		Status:      authModels.AccountTenantStatusActive,
-		ActivatedAt: &now,
-	}
-	if err := s.AccountTenantRepo.Create(ctx, mapping); err != nil {
-		return false, fmt.Errorf("attach by id: account_tenants: %w", err)
-	}
-	if err := s.ensureGuardianRoleForTenant(ctx, account.ID); err != nil {
-		return false, err
-	}
-	if err := s.GuardianProfileRepo.LinkAccount(ctx, guardian.ID, account.ID); err != nil {
-		return false, fmt.Errorf("attach by id: link profile: %w", err)
-	}
-	guardian.AccountID = &account.ID
-	guardian.HasAccount = true
-	return true, nil
+	return s.attachAccountToGuardian(ctx, guardian, account, "attach by id")
 }
 
 // ensureGuardianRoleForTenant assigns the guardian base role for the
@@ -2662,6 +2624,14 @@ func decodeBusDays(raw any) (users.BusDays, error) {
 	if enabled, ok := raw.(bool); ok {
 		return users.BusDaysFromLegacyFlag(enabled), nil
 	}
+	return decodeWeekdayBooleanDays[users.BusDays](raw, users.BusDayOrder)
+}
+
+// decodeWeekdayBooleanDays decodes a weekday_boolean map and projects it
+// onto the given day order. Shared core of the bus and pickup decoders;
+// their divergent legacy branches (bool flag vs pickup answer string)
+// stay with each decoder.
+func decodeWeekdayBooleanDays[M ~map[string]bool](raw any, order []string) (M, error) {
 	var days enrollmentModels.WeekdayBoolean
 	if err := decodeStructured(raw, &days); err != nil {
 		return nil, fmt.Errorf("decode weekday_boolean: %w", err)
@@ -2669,8 +2639,8 @@ func decodeBusDays(raw any) (users.BusDays, error) {
 	if err := days.Validate(); err != nil {
 		return nil, err
 	}
-	out := users.BusDays{}
-	for _, day := range users.BusDayOrder {
+	out := M{}
+	for _, day := range order {
 		if days[day] {
 			out[day] = true
 		}
@@ -2686,20 +2656,7 @@ func decodePickupDays(raw any) (users.PickupDays, error) {
 	if str, ok := raw.(string); ok {
 		return pickupDaysFromLegacyPickupAnswer(str), nil
 	}
-	var days enrollmentModels.WeekdayBoolean
-	if err := decodeStructured(raw, &days); err != nil {
-		return nil, fmt.Errorf("decode weekday_boolean: %w", err)
-	}
-	if err := days.Validate(); err != nil {
-		return nil, err
-	}
-	out := users.PickupDays{}
-	for _, day := range users.PickupDayOrder {
-		if days[day] {
-			out[day] = true
-		}
-	}
-	return out, nil
+	return decodeWeekdayBooleanDays[users.PickupDays](raw, users.PickupDayOrder)
 }
 
 // pickupDaysFromLegacyPickupAnswer maps a pending pre-migration submission's

@@ -303,45 +303,36 @@ func (s *changeRequestService) AskQuestion(ctx context.Context, changeRequestID 
 }
 
 func (s *changeRequestService) Reject(ctx context.Context, changeRequestID int64, input ReviewChangeRequestInput) (*ChangeRequestAggregate, error) {
-	note := strings.TrimSpace(input.Note)
-	if note == "" {
-		return nil, fmt.Errorf("%w: rejection note is required", ErrChangeRequestInvalidData)
-	}
-	var req *enrollmentModels.Request
-	err := s.withLockedChangeRequest(ctx, changeRequestID, func(txCtx context.Context, row *enrollmentModels.ChangeRequest) error {
-		if row.Status != enrollmentModels.ChangeRequestStatusPendingReview {
-			return ErrChangeRequestInvalidStatus
-		}
-		loadedReq, err := s.RequestRepo.FindByID(txCtx, row.RequestID)
-		if err != nil {
-			return ErrRequestNotFound
-		}
-		req = loadedReq
-		now := time.Now()
-		if err := s.ChangeRequestRepo.MarkReviewed(txCtx, row.ID, enrollmentModels.ChangeRequestStatusRejected, &note, input.ActorAccountID, now); err != nil {
-			return err
-		}
-		actorID := input.ActorAccountID
-		return s.MessageRepo.Create(txCtx, &enrollmentModels.ChangeRequestMessage{
-			ChangeRequestID: row.ID,
-			AuthorType:      enrollmentModels.ChangeRequestMessageAuthorStaff,
-			AuthorAccountID: &actorID,
-			Body:            note,
-		})
+	return s.review(ctx, changeRequestID, input, reviewOutcome{
+		noteRequiredMsg: "rejection note is required",
+		status:          enrollmentModels.ChangeRequestStatusRejected,
+		emailKind:       platformModels.EmailKindEnrollmentChangeRequestRejected,
 	})
-	if err != nil {
-		return nil, err
-	}
-	if req != nil {
-		s.enqueueReviewed(ctx, req.GetTenantID(), req, changeRequestID, platformModels.EmailKindEnrollmentChangeRequestRejected)
-	}
-	return s.loadAggregate(ctx, changeRequestID, true)
 }
 
 func (s *changeRequestService) Approve(ctx context.Context, changeRequestID int64, input ReviewChangeRequestInput) (*ChangeRequestAggregate, error) {
+	return s.review(ctx, changeRequestID, input, reviewOutcome{
+		noteRequiredMsg: "approval note is required",
+		status:          enrollmentModels.ChangeRequestStatusApproved,
+		emailKind:       platformModels.EmailKindEnrollmentChangeRequestApproved,
+		apply:           s.applyApprovedChange,
+	})
+}
+
+// reviewOutcome parameterizes the shared Approve/Reject review flow. apply,
+// when set, mutates the underlying request inside the locked transaction
+// before the change request is marked reviewed (approval path only).
+type reviewOutcome struct {
+	noteRequiredMsg string
+	status          string
+	emailKind       string
+	apply           func(ctx context.Context, row *enrollmentModels.ChangeRequest, input ReviewChangeRequestInput) error
+}
+
+func (s *changeRequestService) review(ctx context.Context, changeRequestID int64, input ReviewChangeRequestInput, outcome reviewOutcome) (*ChangeRequestAggregate, error) {
 	note := strings.TrimSpace(input.Note)
 	if note == "" {
-		return nil, fmt.Errorf("%w: approval note is required", ErrChangeRequestInvalidData)
+		return nil, fmt.Errorf("%w: %s", ErrChangeRequestInvalidData, outcome.noteRequiredMsg)
 	}
 	var req *enrollmentModels.Request
 	err := s.withLockedChangeRequest(ctx, changeRequestID, func(txCtx context.Context, row *enrollmentModels.ChangeRequest) error {
@@ -353,11 +344,13 @@ func (s *changeRequestService) Approve(ctx context.Context, changeRequestID int6
 			return ErrRequestNotFound
 		}
 		req = loadedReq
-		if err := s.applyApprovedChange(txCtx, row, input); err != nil {
-			return err
+		if outcome.apply != nil {
+			if err := outcome.apply(txCtx, row, input); err != nil {
+				return err
+			}
 		}
 		now := time.Now()
-		if err := s.ChangeRequestRepo.MarkReviewed(txCtx, row.ID, enrollmentModels.ChangeRequestStatusApproved, &note, input.ActorAccountID, now); err != nil {
+		if err := s.ChangeRequestRepo.MarkReviewed(txCtx, row.ID, outcome.status, &note, input.ActorAccountID, now); err != nil {
 			return err
 		}
 		actorID := input.ActorAccountID
@@ -372,7 +365,7 @@ func (s *changeRequestService) Approve(ctx context.Context, changeRequestID int6
 		return nil, err
 	}
 	if req != nil {
-		s.enqueueReviewed(ctx, req.GetTenantID(), req, changeRequestID, platformModels.EmailKindEnrollmentChangeRequestApproved)
+		s.enqueueReviewed(ctx, req.GetTenantID(), req, changeRequestID, outcome.emailKind)
 	}
 	return s.loadAggregate(ctx, changeRequestID, true)
 }
@@ -651,12 +644,7 @@ func (s *changeRequestService) legalBlocksForRequest(ctx context.Context, schema
 	if err != nil {
 		return nil, err
 	}
-	if schema != nil && len(schema.LegalBlocks) > 0 {
-		if blocks := buildTemplateLegalBlocks(schema.LegalBlocks); len(blocks) > 0 {
-			texts.Blocks = blocks
-		}
-	}
-	return texts.Blocks, nil
+	return applyTemplateLegalBlocks(texts, schema).Blocks, nil
 }
 
 func (s *changeRequestService) currentSnapshot(ctx context.Context, req *enrollmentModels.Request, children []*enrollmentModels.RequestChild) (map[string]any, error) {
@@ -1501,35 +1489,20 @@ func (s *changeRequestService) enqueueChangeRequestSubmitted(ctx context.Context
 	if s.OutboxEnqueuer == nil {
 		return
 	}
-	kind := platformModels.EmailKindEnrollmentChangeRequestSubmitted
-	err := tenant.WithTenantTx(ctx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		if !s.emailNotificationsEnabled(txCtx) {
-			return nil
-		}
-		for _, admin := range (&requestService{RequestServiceConfig: RequestServiceConfig{Settings: s.Settings}}).resolveAdminEmails(txCtx) {
-			payload := s.emailPayload(txCtx, req, cr.ID, admin)
-			payload[EnrollmentPayloadAdminURL] = s.adminURL(cr.ID)
-			if enqueueErr := s.OutboxEnqueuer.Enqueue(txCtx, OutboxEnqueueRequest{
-				Kind:              kind,
-				Payload:           payload,
-				RelatedEntityType: platformModels.EmailRelatedTypeEnrollmentRequest,
-				RelatedEntityID:   req.ID,
-			}); enqueueErr != nil {
-				s.logChangeRequestNotificationFailure(enqueueErr, tenantID, req.ID, cr.ID, kind, admin, "enqueue")
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		s.logChangeRequestNotificationFailure(err, tenantID, req.ID, cr.ID, kind, "", "tenant_tx")
-	}
+	s.enqueueAdminNotification(ctx, tenantID, req, cr.ID, platformModels.EmailKindEnrollmentChangeRequestSubmitted)
 }
 
 func (s *changeRequestService) enqueueParentReply(ctx context.Context, tenantID int64, req *enrollmentModels.Request, changeRequestID int64) {
+	s.enqueueAdminNotification(ctx, tenantID, req, changeRequestID, platformModels.EmailKindEnrollmentChangeRequestParentReply)
+}
+
+// enqueueAdminNotification fans a change-request email out to every resolved
+// admin recipient (with the admin deep link in the payload). Counterpart of
+// enqueueParentNotification, which addresses the single guardian instead.
+func (s *changeRequestService) enqueueAdminNotification(ctx context.Context, tenantID int64, req *enrollmentModels.Request, changeRequestID int64, kind string) {
 	if s.OutboxEnqueuer == nil {
 		return
 	}
-	kind := platformModels.EmailKindEnrollmentChangeRequestParentReply
 	err := tenant.WithTenantTx(ctx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		if !s.emailNotificationsEnabled(txCtx) {
 			return nil

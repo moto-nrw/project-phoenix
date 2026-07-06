@@ -691,31 +691,19 @@ func careUsageRow(req *enrollmentModels.Request, child *enrollmentModels.Request
 }
 
 func careUsageBookedPickupDays(row CareUsageRow, filters CareUsageFilters) []string {
-	daySet := map[string]bool{}
-	includedOfferingIDs := makeIDSet(filters.CareOfferingIDs)
-	for _, offering := range row.Offerings {
-		if filters.CareOfferingIDsSet && !includedOfferingIDs[offering.ID] {
-			continue
-		}
-		for _, day := range offering.Days {
-			day = strings.ToLower(strings.TrimSpace(day))
-			if day != "" && strings.TrimSpace(row.PickupByDay[day]) != "" {
-				daySet[day] = true
-			}
-		}
-	}
-	if len(daySet) == 0 {
-		for _, day := range row.EffectiveDays {
-			day = strings.ToLower(strings.TrimSpace(day))
-			if day != "" && strings.TrimSpace(row.PickupByDay[day]) != "" {
-				daySet[day] = true
-			}
-		}
-	}
-	return sortedDayCodes(slices.Collect(maps.Keys(daySet)))
+	return careUsageDays(row, filters, func(day string) bool {
+		return strings.TrimSpace(row.PickupByDay[day]) != ""
+	})
 }
 
 func careUsageBookedDays(row CareUsageRow, filters CareUsageFilters) []string {
+	return careUsageDays(row, filters, func(string) bool { return true })
+}
+
+// careUsageDays collects the booked day codes from the row's (filtered)
+// offerings, falling back to the effective days when none match; include
+// narrows the set (e.g. to days that carry a pickup time).
+func careUsageDays(row CareUsageRow, filters CareUsageFilters, include func(day string) bool) []string {
 	daySet := map[string]bool{}
 	includedOfferingIDs := makeIDSet(filters.CareOfferingIDs)
 	for _, offering := range row.Offerings {
@@ -724,7 +712,7 @@ func careUsageBookedDays(row CareUsageRow, filters CareUsageFilters) []string {
 		}
 		for _, day := range offering.Days {
 			day = strings.ToLower(strings.TrimSpace(day))
-			if day != "" {
+			if day != "" && include(day) {
 				daySet[day] = true
 			}
 		}
@@ -732,7 +720,7 @@ func careUsageBookedDays(row CareUsageRow, filters CareUsageFilters) []string {
 	if len(daySet) == 0 {
 		for _, day := range row.EffectiveDays {
 			day = strings.ToLower(strings.TrimSpace(day))
-			if day != "" {
+			if day != "" && include(day) {
 				daySet[day] = true
 			}
 		}
@@ -1706,23 +1694,15 @@ func (s *reportService) recordCareUsageExportAudit(ctx context.Context, report *
 	if report == nil {
 		return fmt.Errorf("care usage report export audit: report required")
 	}
-	if actorAccountID <= 0 {
-		return fmt.Errorf("care usage report export audit: actor account id required")
-	}
-	if strings.TrimSpace(actorRole) == "" {
-		actorRole = "unknown"
-	}
 	phase, err := s.PhaseRepo.FindByID(ctx, report.Phase.ID)
 	if err != nil {
 		return fmt.Errorf("care usage report export audit: phase %d: %w", report.Phase.ID, err)
 	}
-	entry := &auditModels.DataAccessLog{
-		ActorAccountID: actorAccountID,
-		ActorRole:      actorRole,
-		ResourceType:   auditModels.ResourceTypeEnrollmentPhaseExport,
-		RangeStart:     phase.ServiceStartDate.BerlinMidnight(),
-		RangeEnd:       phase.ServiceEndDate.EndOfDay(),
-		AccessedAt:     time.Now(),
+	entry, err := exportAuditEntry("care usage report export audit", actorAccountID, actorRole,
+		auditModels.ResourceTypeEnrollmentPhaseExport,
+		phase.ServiceStartDate.BerlinMidnight(), phase.ServiceEndDate.EndOfDay(), time.Now())
+	if err != nil {
+		return err
 	}
 	entry.SetMetadata("phase_id", report.Phase.ID)
 	entry.SetMetadata("report", "care_usage")
@@ -1739,10 +1719,7 @@ func (s *reportService) recordCareUsageExportAudit(ctx context.Context, report *
 	entry.SetMetadata("pickup_time", report.Filters.PickupTime)
 	entry.SetMetadata("search", report.Filters.Search)
 	entry.SetMetadata("child_count", report.Totals.Children)
-	if err := s.DataAccessLogRepo.Create(ctx, entry); err != nil {
-		return fmt.Errorf("care usage report export audit write: %w", err)
-	}
-	return nil
+	return writeExportAudit(ctx, s.DataAccessLogRepo, entry, "care usage report export audit")
 }
 
 func (s *reportService) recordClassRosterExportAudit(ctx context.Context, report *ClassRosterReport, actorAccountID int64, actorRole, format string) error {
@@ -1752,23 +1729,15 @@ func (s *reportService) recordClassRosterExportAudit(ctx context.Context, report
 	if report == nil {
 		return fmt.Errorf("class roster report export audit: report required")
 	}
-	if actorAccountID <= 0 {
-		return fmt.Errorf("class roster report export audit: actor account id required")
-	}
-	if strings.TrimSpace(actorRole) == "" {
-		actorRole = "unknown"
-	}
 	phase, err := s.PhaseRepo.FindByID(ctx, report.Phase.ID)
 	if err != nil {
 		return fmt.Errorf("class roster report export audit: phase %d: %w", report.Phase.ID, err)
 	}
-	entry := &auditModels.DataAccessLog{
-		ActorAccountID: actorAccountID,
-		ActorRole:      actorRole,
-		ResourceType:   auditModels.ResourceTypeEnrollmentPhaseExport,
-		RangeStart:     phase.ServiceStartDate.BerlinMidnight(),
-		RangeEnd:       phase.ServiceEndDate.EndOfDay(),
-		AccessedAt:     time.Now(),
+	entry, err := exportAuditEntry("class roster report export audit", actorAccountID, actorRole,
+		auditModels.ResourceTypeEnrollmentPhaseExport,
+		phase.ServiceStartDate.BerlinMidnight(), phase.ServiceEndDate.EndOfDay(), time.Now())
+	if err != nil {
+		return err
 	}
 	entry.SetMetadata("phase_id", report.Phase.ID)
 	entry.SetMetadata("report", "class_roster")
@@ -1781,8 +1750,5 @@ func (s *reportService) recordClassRosterExportAudit(ctx context.Context, report
 	entry.SetMetadata("status_filter", report.Filters.Status)
 	entry.SetMetadata("student_count", report.Totals.Students)
 	entry.SetMetadata("registered_count", report.Totals.Registered)
-	if err := s.DataAccessLogRepo.Create(ctx, entry); err != nil {
-		return fmt.Errorf("class roster report export audit write: %w", err)
-	}
-	return nil
+	return writeExportAudit(ctx, s.DataAccessLogRepo, entry, "class roster report export audit")
 }
