@@ -393,7 +393,11 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 				return phaseErr
 			}
 			selectionMode = phase.CareOfferingSelectionMode
-			schoolClassCfg = toPublicSchoolClassConfig(phase, rs.RequestService.CollectsSchoolClass(txCtx))
+			collectClasses, collectErr := rs.RequestService.CollectsSchoolClass(txCtx)
+			if collectErr != nil {
+				return collectErr
+			}
+			schoolClassCfg = toPublicSchoolClassConfig(phase, collectClasses)
 			list, listErr := rs.CareOfferingService.ListActiveByPhase(txCtx, phaseID)
 			offerings = list
 			return listErr
@@ -588,7 +592,11 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 				return phaseErr
 			}
 			phase = loadedPhase
-			collectClasses = rs.RequestService.CollectsSchoolClass(txCtx)
+			resolvedCollectClasses, collectErr := rs.RequestService.CollectsSchoolClass(txCtx)
+			if collectErr != nil {
+				return collectErr
+			}
+			collectClasses = resolvedCollectClasses
 			if phase.FormSchemaID != nil {
 				if rs.FormSchemaService == nil {
 					return errors.New("form schema service not configured")

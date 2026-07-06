@@ -301,6 +301,13 @@ export function EnrollmentForm({
     setAdditionalGuardians(draftGuardians(initialDraft));
     setCustomData(initialDraft.custom_data ?? {});
   }, [initialDraft, requiredOfferingIDs]);
+  // Once the phase's class config is known (prefetched or fetched in load()),
+  // drop any hydrated class an edit draft carries that the phase no longer
+  // offers so it collapses to "Klasse offen" instead of being silently
+  // resubmitted and rejected by the backend validator (#1833).
+  useEffect(() => {
+    setChildren((prev) => sanitizeDraftSchoolClasses(prev, schoolClassConfig));
+  }, [schoolClassConfig]);
   const [captchaToken, setCaptchaToken] = useState("");
   const [captchaConfig, setCaptchaConfig] =
     useState<PublicCaptchaConfig | null>(prefetchedData?.captchaConfig ?? null);
@@ -1940,6 +1947,34 @@ function draftChildren(
       custom: child.custom_data ?? {},
     };
   });
+}
+
+// sanitizeDraftSchoolClasses collapses any hydrated target_school_class the
+// current phase no longer offers (admin renamed or removed it, or it belongs
+// to another grade) back to "" ("Klasse offen"). An edit draft carries the
+// class value the request was last saved with; if the phase's list changed
+// since, that stale value has no matching dropdown option, passes the client's
+// required-only check, and is then rejected by the backend validator as "not
+// offered by this phase" — blocking otherwise valid edits. Mirrors the
+// profile-adoption guard (#1833). Returns the same array reference when
+// nothing changed so the reconcile effect bails out.
+function sanitizeDraftSchoolClasses(
+  children: ChildDraft[],
+  config: PublicSchoolClassConfig,
+): ChildDraft[] {
+  let changed = false;
+  const next = children.map((c) => {
+    const value = c.target_school_class.trim();
+    if (value === "") return c;
+    const offered =
+      config.collect &&
+      config.available_classes.includes(value) &&
+      classMatchesGrade(value, c.target_grade_level);
+    if (offered) return c;
+    changed = true;
+    return { ...c, target_school_class: "" };
+  });
+  return changed ? next : children;
 }
 
 function draftGuardians(draft?: EnrollmentEditDraft): GuardianDraft[] {

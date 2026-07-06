@@ -250,7 +250,11 @@ func (rs *Resource) getManualEnrollmentBootstrap(w http.ResponseWriter, r *http.
 			return phaseErr
 		}
 		phase = loadedPhase
-		collectSchoolClass = rs.RequestService.CollectsSchoolClass(ctx)
+		collect, collectErr := rs.RequestService.CollectsSchoolClass(ctx)
+		if collectErr != nil {
+			return collectErr
+		}
+		collectSchoolClass = collect
 		if phase.FormSchemaID != nil {
 			loadedSchema, schemaErr := rs.FormSchemaService.GetByID(ctx, *phase.FormSchemaID)
 			if schemaErr != nil {

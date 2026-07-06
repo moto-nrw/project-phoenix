@@ -273,8 +273,9 @@ type RequestService interface {
 	// concrete future class (e.g. "2a") in addition to the grade level
 	// (enrollment.collect_school_class setting, issue #1833). Public
 	// form-load endpoints call this to decide whether to surface the
-	// class field. Caller must already be inside a tenant-tx.
-	CollectsSchoolClass(ctx context.Context) bool
+	// class field. Caller must already be inside a tenant-tx. A settings
+	// resolution failure is returned, not swallowed as "disabled".
+	CollectsSchoolClass(ctx context.Context) (bool, error)
 
 	// LegalTexts returns the tenant's configured legal texts and derived
 	// public blocks for the enrollment form. Empty strings mean the admin
@@ -1562,7 +1563,11 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 		collectSchoolClass bool
 	)
 	if err := tenant.WithTenantTx(ctx, s.db, req.GetTenantID(), func(txCtx context.Context, _ bun.Tx) error {
-		collectSchoolClass = s.collectSchoolClass(txCtx)
+		collect, collectErr := s.collectSchoolClass(txCtx)
+		if collectErr != nil {
+			return fmt.Errorf("edit draft: resolve collect_school_class: %w", collectErr)
+		}
+		collectSchoolClass = collect
 		editMode = editModeForChildren(children)
 		if editMode == EditModeDirectEdit {
 			if err := s.ensureRequestEditable(txCtx, req, children); err != nil {
@@ -2732,7 +2737,7 @@ func filterConsentFlags(flags map[string]any, blocks []LegalBlock) map[string]an
 
 // CollectsSchoolClass is the exported form of collectSchoolClass for the
 // RequestService interface (public form-load endpoints).
-func (s *requestService) CollectsSchoolClass(ctx context.Context) bool {
+func (s *requestService) CollectsSchoolClass(ctx context.Context) (bool, error) {
 	return s.collectSchoolClass(ctx)
 }
 
@@ -2741,15 +2746,16 @@ func (s *requestService) CollectsSchoolClass(ctx context.Context) bool {
 // setting with no env-var backward-compat, so ResolveBool alone (which
 // returns the registry default when there's no tenant override) is
 // sufficient; default is false.
-func (s *requestService) collectSchoolClass(ctx context.Context) bool {
+//
+// A resolution error is returned rather than swallowed as "disabled": a
+// corrupt setting value or repository failure must not silently hide the
+// class field on form bootstrap or strip a submitted, possibly-required
+// class in validateAndNormalizeSchoolClasses (issue #1833).
+func (s *requestService) collectSchoolClass(ctx context.Context) (bool, error) {
 	if s.settings == nil {
-		return false
+		return false, nil
 	}
-	v, err := s.settings.ResolveBool(ctx, configModel.KeyEnrollmentCollectSchoolClass)
-	if err != nil {
-		return false
-	}
-	return v
+	return s.settings.ResolveBool(ctx, configModel.KeyEnrollmentCollectSchoolClass)
 }
 
 // validateAndNormalizeSchoolClasses enforces the concrete-class rules
@@ -2766,7 +2772,10 @@ func (s *requestService) collectSchoolClass(ctx context.Context) bool {
 //
 // Trims and collapses empty strings to nil so "" never reaches the DB.
 func (s *requestService) validateAndNormalizeSchoolClasses(ctx context.Context, phase *enrollmentModels.Phase, children []SubmitChild) error {
-	collect := s.collectSchoolClass(ctx)
+	collect, err := s.collectSchoolClass(ctx)
+	if err != nil {
+		return fmt.Errorf("resolve collect_school_class: %w", err)
+	}
 	allowed := make(map[string]struct{}, len(phase.AvailableSchoolClasses))
 	for _, c := range phase.AvailableSchoolClasses {
 		if t := strings.TrimSpace(c); t != "" {
