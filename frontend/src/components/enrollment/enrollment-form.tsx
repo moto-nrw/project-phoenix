@@ -1363,7 +1363,13 @@ export function EnrollmentForm({
               // child defaults sensibly without injecting a stale/unknown
               // value into the dropdown (#1833).
               newSlot.target_school_class =
-                schoolClassConfig.available_classes.includes(child.school_class)
+                schoolClassConfig.available_classes.includes(
+                  child.school_class,
+                ) &&
+                classMatchesGrade(
+                  child.school_class,
+                  newSlot.target_grade_level,
+                )
                   ? child.school_class
                   : "";
               setChildren((prev) => {
@@ -1441,7 +1447,22 @@ export function EnrollmentForm({
                 <GradeLevelSelect
                   id={`children-${i}-target-grade-level`}
                   value={child.target_grade_level}
-                  onChange={(v) => updateChild(i, { target_grade_level: v })}
+                  onChange={(v) => {
+                    const patch: Partial<ChildDraft> = {
+                      target_grade_level: v,
+                    };
+                    // Drop a concrete class that no longer belongs to the
+                    // newly selected grade, so switching from grade 3 to
+                    // grade 2 can't leave a stale "3a" the backend rejects
+                    // on submit (#1833).
+                    if (
+                      child.target_school_class &&
+                      !classMatchesGrade(child.target_school_class, v)
+                    ) {
+                      patch.target_school_class = "";
+                    }
+                    updateChild(i, patch);
+                  }}
                   max={gradeLevelMax}
                   error={fieldErrors[`children_${i}_target_grade_level`]}
                   tr={tr}
@@ -1454,7 +1475,9 @@ export function EnrollmentForm({
                       onChange={(v) =>
                         updateChild(i, { target_school_class: v })
                       }
-                      classes={schoolClassConfig.available_classes}
+                      classes={schoolClassConfig.available_classes.filter((c) =>
+                        classMatchesGrade(c, child.target_grade_level),
+                      )}
                       required={schoolClassConfig.require}
                       error={fieldErrors[`children_${i}_target_school_class`]}
                       tr={tr}
@@ -2349,6 +2372,27 @@ function GradeLevelSelect({
       {error && <p className="mt-1 text-xs text-[#FF3130]">{error}</p>}
     </label>
   );
+}
+
+// schoolClassGradePrefix returns the leading run of digits in a school
+// class name ("2a" -> "2", "12b" -> "12"), or "" when the name has no
+// numeric prefix. Mirrors the backend helper of the same name: concrete
+// class names follow the grade-number convention, so the prefix is the
+// grade the class belongs to (#1833).
+function schoolClassGradePrefix(schoolClass: string): string {
+  const match = /^\s*(\d+)/.exec(schoolClass);
+  return match?.[1] ?? "";
+}
+
+// classMatchesGrade decides whether a concrete class may be offered to a
+// child in the given grade. The phase's pick list mixes classes from
+// every grade ("2a", "2b", "3a") and the whole list is sent for every
+// grade, so a grade-2 child must not see "3a" — the backend validator
+// rejects that mismatch on submit. Classes without a numeric prefix carry
+// no derivable grade and stay available for every grade (#1833).
+function classMatchesGrade(schoolClass: string, gradeLevel: string): boolean {
+  const prefix = schoolClassGradePrefix(schoolClass);
+  return prefix === "" || prefix === gradeLevel.trim();
 }
 
 // SchoolClassSelect renders the concrete-class dropdown shown for grade
