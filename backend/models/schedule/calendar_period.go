@@ -136,8 +136,11 @@ func (p *CalendarPeriod) ContainsDate(date time.Time) bool {
 // calendar period. All FKs are ON DELETE SET NULL, so the counts are
 // advisory (shown in the admin UI and delete warnings), never blockers.
 type CalendarPeriodUsage struct {
-	EnrollmentPhases int
-	Schedules        int
+	EnrollmentPhases   int
+	Schedules          int
+	StudentEnrollments int
+	Supervisors        int
+	ActivityInstances  int
 }
 
 // CalendarPeriodRepository defines operations for managing calendar periods
@@ -164,7 +167,7 @@ type CalendarPeriodRepository interface {
 	FindActiveOverlapping(ctx context.Context, start, end timezone.Date, excludeID int64) ([]*CalendarPeriod, error)
 
 	// UsageCounts returns, per calendar period of the current tenant, how many
-	// enrollment phases and activity schedules reference it. Periods without
+	// rows reference it through nullable calendar_period_id FKs. Periods without
 	// references are omitted from the map.
 	UsageCounts(ctx context.Context) (map[int64]CalendarPeriodUsage, error)
 }

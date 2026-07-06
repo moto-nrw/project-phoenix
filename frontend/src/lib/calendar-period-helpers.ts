@@ -64,6 +64,9 @@ export interface BackendCalendarPeriod {
    */
   enrollment_phase_count?: number;
   schedule_count?: number;
+  student_enrollment_count?: number;
+  supervisor_count?: number;
+  activity_instance_count?: number;
 }
 
 /** Frontend shape (camelCase, string IDs). */
@@ -86,6 +89,12 @@ export interface CalendarPeriod {
   enrollmentPhaseCount?: number;
   /** How many Regeltermine (activities.schedules) reference this period (advisory). */
   scheduleCount?: number;
+  /** How many student roster rows reference this period (advisory). */
+  studentEnrollmentCount?: number;
+  /** How many staff roster rows reference this period (advisory). */
+  supervisorCount?: number;
+  /** How many materialized appointments reference this period (advisory). */
+  activityInstanceCount?: number;
 }
 
 /** POST/PUT body — backend expects YYYY-MM-DD strings, not Date objects. */
@@ -114,6 +123,9 @@ export function mapPeriod(raw: BackendCalendarPeriod): CalendarPeriod {
     updatedAt: raw.updated_at,
     enrollmentPhaseCount: raw.enrollment_phase_count ?? 0,
     scheduleCount: raw.schedule_count ?? 0,
+    studentEnrollmentCount: raw.student_enrollment_count ?? 0,
+    supervisorCount: raw.supervisor_count ?? 0,
+    activityInstanceCount: raw.activity_instance_count ?? 0,
   };
 }
 
@@ -195,6 +207,11 @@ export function formatPeriodUsage(
   enrollmentPhaseCount: number,
   scheduleCount: number,
   separator = " · ",
+  extra?: {
+    studentEnrollmentCount?: number;
+    supervisorCount?: number;
+    activityInstanceCount?: number;
+  },
 ): string {
   const parts: string[] = [];
   if (enrollmentPhaseCount > 0) {
@@ -207,6 +224,30 @@ export function formatPeriodUsage(
   if (scheduleCount > 0) {
     parts.push(
       scheduleCount === 1 ? "1 Regeltermin" : `${scheduleCount} Regeltermine`,
+    );
+  }
+  const studentEnrollmentCount = extra?.studentEnrollmentCount ?? 0;
+  if (studentEnrollmentCount > 0) {
+    parts.push(
+      studentEnrollmentCount === 1
+        ? "1 Schülerzuordnung"
+        : `${studentEnrollmentCount} Schülerzuordnungen`,
+    );
+  }
+  const supervisorCount = extra?.supervisorCount ?? 0;
+  if (supervisorCount > 0) {
+    parts.push(
+      supervisorCount === 1
+        ? "1 Mitarbeitenden-Zuordnung"
+        : `${supervisorCount} Mitarbeitenden-Zuordnungen`,
+    );
+  }
+  const activityInstanceCount = extra?.activityInstanceCount ?? 0;
+  if (activityInstanceCount > 0) {
+    parts.push(
+      activityInstanceCount === 1
+        ? "1 Termininstanz"
+        : `${activityInstanceCount} Termininstanzen`,
     );
   }
   return parts.join(separator);

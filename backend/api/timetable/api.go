@@ -308,8 +308,11 @@ type CalendarPeriodResponse struct {
 	// Advisory reference counts (list/detail only). All FKs are
 	// ON DELETE SET NULL, so these never block deletion — the frontend
 	// uses them for the "Verwendung" column and the delete warning.
-	EnrollmentPhaseCount int `json:"enrollment_phase_count"`
-	ScheduleCount        int `json:"schedule_count"`
+	EnrollmentPhaseCount   int `json:"enrollment_phase_count"`
+	ScheduleCount          int `json:"schedule_count"`
+	StudentEnrollmentCount int `json:"student_enrollment_count"`
+	SupervisorCount        int `json:"supervisor_count"`
+	ActivityInstanceCount  int `json:"activity_instance_count"`
 }
 
 func mapPeriodToResponse(p *schedule.CalendarPeriod) CalendarPeriodResponse {
@@ -422,6 +425,9 @@ func applyPeriodUsage(resp *CalendarPeriodResponse, usage map[int64]schedule.Cal
 	if u, ok := usage[resp.ID]; ok {
 		resp.EnrollmentPhaseCount = u.EnrollmentPhases
 		resp.ScheduleCount = u.Schedules
+		resp.StudentEnrollmentCount = u.StudentEnrollments
+		resp.SupervisorCount = u.Supervisors
+		resp.ActivityInstanceCount = u.ActivityInstances
 	}
 }
 

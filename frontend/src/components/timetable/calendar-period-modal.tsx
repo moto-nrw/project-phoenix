@@ -47,7 +47,13 @@ interface CalendarPeriodModalProps {
    * delete confirmation names the concrete usage instead of a generic
    * warning. Deleting never blocks — all FKs are ON DELETE SET NULL.
    */
-  usage?: { enrollmentPhaseCount: number; scheduleCount: number };
+  usage?: {
+    enrollmentPhaseCount: number;
+    scheduleCount: number;
+    studentEnrollmentCount: number;
+    supervisorCount: number;
+    activityInstanceCount: number;
+  };
   /**
    * Enables the "Verknüpfte Anmeldephasen" section (edit mode only) so the
    * link can be managed from the period side too. The FK lives on the
@@ -135,6 +141,11 @@ export function CalendarPeriodModal({
         usage.enrollmentPhaseCount,
         usage.scheduleCount,
         " und ",
+        {
+          studentEnrollmentCount: usage.studentEnrollmentCount,
+          supervisorCount: usage.supervisorCount,
+          activityInstanceCount: usage.activityInstanceCount,
+        },
       )
     : "";
   const deleteWarning = usageText

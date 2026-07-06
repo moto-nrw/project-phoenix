@@ -2,6 +2,7 @@ package enrollment
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -114,7 +115,10 @@ func (s *phaseService) validateCalendarPeriodLink(ctx context.Context, phase *en
 		return nil
 	}
 	if _, err := s.calendarPeriods.GetPeriodByID(ctx, *phase.CalendarPeriodID); err != nil {
-		return fmt.Errorf("%w: calendar period %d not found", ErrInvalidPhase, *phase.CalendarPeriodID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("%w: calendar period %d not found", ErrInvalidPhase, *phase.CalendarPeriodID)
+		}
+		return fmt.Errorf("validate calendar period link: %w", err)
 	}
 	return nil
 }
@@ -145,6 +149,9 @@ func (s *phaseService) Create(ctx context.Context, phase *enrollmentModels.Phase
 	if phase == nil {
 		return nil, fmt.Errorf("%w: phase is required", ErrInvalidPhase)
 	}
+	if err := phase.Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidPhase, err)
+	}
 	if err := s.validateCalendarPeriodLink(ctx, phase); err != nil {
 		return nil, err
 	}
@@ -161,6 +168,9 @@ func (s *phaseService) Create(ctx context.Context, phase *enrollmentModels.Phase
 func (s *phaseService) Update(ctx context.Context, phase *enrollmentModels.Phase) error {
 	if phase == nil || phase.ID <= 0 {
 		return fmt.Errorf("%w: phase with valid id is required", ErrInvalidPhase)
+	}
+	if err := phase.Validate(); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidPhase, err)
 	}
 	if err := s.validateCalendarPeriodLink(ctx, phase); err != nil {
 		return err

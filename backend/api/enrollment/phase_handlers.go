@@ -2,6 +2,7 @@ package enrollment
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -111,9 +112,26 @@ type PhaseRequest struct {
 	CareOverflowMode          string  `json:"care_overflow_mode"`
 	CareOfferingSelectionMode string  `json:"care_offering_selection_mode"`
 	IsActive                  bool    `json:"is_active"`
+
+	calendarPeriodIDPresent bool
 }
 
 func (req *PhaseRequest) Bind(_ *http.Request) error { return nil }
+
+func (req *PhaseRequest) UnmarshalJSON(data []byte) error {
+	type phaseRequestAlias PhaseRequest
+	var alias phaseRequestAlias
+	if err := json.Unmarshal(data, &alias); err != nil {
+		return err
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*req = PhaseRequest(alias)
+	_, req.calendarPeriodIDPresent = raw["calendar_period_id"]
+	return nil
+}
 
 // toModel maps the wire shape onto a Phase model. Date parsing
 // failures bubble back as 400 from the handler — kept here so the
@@ -245,7 +263,11 @@ func (rs *Resource) createPhase(w http.ResponseWriter, r *http.Request) {
 		return e
 	})
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		if errors.Is(err, enrollmentService.ErrInvalidPhase) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 	common.Respond(w, r, http.StatusCreated, toPhaseResponse(created), "Phase created")
@@ -273,10 +295,25 @@ func (rs *Resource) updatePhase(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+		if !req.calendarPeriodIDPresent {
+			existing, getErr := rs.PhaseService.GetByID(ctx, id)
+			if getErr != nil {
+				return getErr
+			}
+			model.CalendarPeriodID = existing.CalendarPeriodID
+		}
 		return rs.PhaseService.Update(ctx, model)
 	})
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		if errors.Is(err, enrollmentService.ErrPhaseNotFound) {
+			common.RenderError(w, r, common.ErrorNotFound(err))
+			return
+		}
+		if errors.Is(err, enrollmentService.ErrInvalidPhase) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 

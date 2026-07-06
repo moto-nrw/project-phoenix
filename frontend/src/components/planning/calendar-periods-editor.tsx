@@ -114,11 +114,6 @@ export function CalendarPeriodsEditor() {
         [...periodData].sort((a, b) => a.startDate.localeCompare(b.startDate)),
       );
       setPhases(phaseData);
-      // Keep the currently edited period fresh so the modal's usage-based
-      // delete warning reflects just-toggled phase links.
-      setEditing((prev) =>
-        prev ? (periodData.find((p) => p.id === prev.id) ?? prev) : prev,
-      );
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unbekannter Fehler";
       logger.error("calendar_periods_load_failed", { error: message });
@@ -179,6 +174,29 @@ export function CalendarPeriodsEditor() {
     setModalOpen(true);
   }, []);
 
+  const editingUsage = useMemo(() => {
+    if (!editing) return undefined;
+    const usageSource =
+      periods.find((period) => period.id === editing.id) ?? editing;
+    return {
+      enrollmentPhaseCount: usageSource.enrollmentPhaseCount ?? 0,
+      scheduleCount: usageSource.scheduleCount ?? 0,
+      studentEnrollmentCount: usageSource.studentEnrollmentCount ?? 0,
+      supervisorCount: usageSource.supervisorCount ?? 0,
+      activityInstanceCount: usageSource.activityInstanceCount ?? 0,
+    };
+  }, [editing, periods]);
+
+  const usageTotal = useCallback(
+    (period: CalendarPeriod) =>
+      (period.enrollmentPhaseCount ?? 0) +
+      (period.scheduleCount ?? 0) +
+      (period.studentEnrollmentCount ?? 0) +
+      (period.supervisorCount ?? 0) +
+      (period.activityInstanceCount ?? 0),
+    [],
+  );
+
   const columns = useMemo<DataTableColumn<CalendarPeriod>[]>(
     () => [
       {
@@ -224,12 +242,17 @@ export function CalendarPeriodsEditor() {
       {
         key: "usage",
         header: "Verwendung",
-        sortValue: (period) =>
-          (period.enrollmentPhaseCount ?? 0) + (period.scheduleCount ?? 0),
+        sortValue: usageTotal,
         render: (period) => {
           const usage = formatPeriodUsage(
             period.enrollmentPhaseCount ?? 0,
             period.scheduleCount ?? 0,
+            " · ",
+            {
+              studentEnrollmentCount: period.studentEnrollmentCount ?? 0,
+              supervisorCount: period.supervisorCount ?? 0,
+              activityInstanceCount: period.activityInstanceCount ?? 0,
+            },
           );
           return usage ? (
             <span className="text-sm whitespace-nowrap text-gray-600">
@@ -261,7 +284,7 @@ export function CalendarPeriodsEditor() {
         ),
       },
     ],
-    [beginEdit],
+    [beginEdit, usageTotal],
   );
 
   if (loading) {
@@ -345,18 +368,11 @@ export function CalendarPeriodsEditor() {
       <CalendarPeriodModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        onSaved={() => void load()}
+        onSaved={() => void load({ silent: true })}
         onDeleted={() => void load()}
         initial={editing}
         createDefaults={createDefaults}
-        usage={
-          editing
-            ? {
-                enrollmentPhaseCount: editing.enrollmentPhaseCount ?? 0,
-                scheduleCount: editing.scheduleCount ?? 0,
-              }
-            : undefined
-        }
+        usage={editingUsage}
         phaseLink={{ phases, onToggle: handlePhaseLinkToggle }}
       />
     </div>

@@ -32,8 +32,8 @@ type CalendarPeriodService interface {
 	// period is inactive — only active/active collisions are advisory-worthy.
 	FindActiveOverlaps(ctx context.Context, period *schedule.CalendarPeriod) ([]*schedule.CalendarPeriod, error)
 
-	// GetUsageCounts reports how many enrollment phases and activity
-	// schedules reference each calendar period of the current tenant.
+	// GetUsageCounts reports how many rows reference each calendar period of
+	// the current tenant through nullable calendar_period_id FKs.
 	// Advisory only (list display and delete warnings) — all FKs are
 	// ON DELETE SET NULL, so usage never blocks deletion.
 	GetUsageCounts(ctx context.Context) (map[int64]schedule.CalendarPeriodUsage, error)

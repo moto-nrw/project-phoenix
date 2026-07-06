@@ -406,7 +406,13 @@ func TestListPeriods_UsageCounts(t *testing.T) {
 		mock := &mockCalendarPeriodService{
 			periods: []*schedule.CalendarPeriod{p1},
 			usage: map[int64]schedule.CalendarPeriodUsage{
-				p1.ID: {EnrollmentPhases: 2, Schedules: 3},
+				p1.ID: {
+					EnrollmentPhases:   2,
+					Schedules:          3,
+					StudentEnrollments: 4,
+					Supervisors:        5,
+					ActivityInstances:  6,
+				},
 			},
 		}
 		res := NewResource(Dependencies{CalendarPeriodService: mock})
@@ -417,6 +423,9 @@ func TestListPeriods_UsageCounts(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Contains(t, w.Body.String(), `"enrollment_phase_count":2`)
 		assert.Contains(t, w.Body.String(), `"schedule_count":3`)
+		assert.Contains(t, w.Body.String(), `"student_enrollment_count":4`)
+		assert.Contains(t, w.Body.String(), `"supervisor_count":5`)
+		assert.Contains(t, w.Body.String(), `"activity_instance_count":6`)
 	})
 
 	t.Run("usage count failure does not break the list", func(t *testing.T) {

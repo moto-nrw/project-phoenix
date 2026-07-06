@@ -244,7 +244,13 @@ describe("CalendarPeriodModal", () => {
         onSaved={vi.fn()}
         onDeleted={vi.fn()}
         initial={period}
-        usage={{ enrollmentPhaseCount: 1, scheduleCount: 3 }}
+        usage={{
+          enrollmentPhaseCount: 1,
+          scheduleCount: 3,
+          studentEnrollmentCount: 0,
+          supervisorCount: 0,
+          activityInstanceCount: 0,
+        }}
       />,
     );
 

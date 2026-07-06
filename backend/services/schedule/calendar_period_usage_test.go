@@ -71,7 +71,10 @@ func TestCalendarPeriodService_GetUsageCounts(t *testing.T) {
 	defer testpkg.CleanupTableRecords(t, db, "enrollment.phases", phase.ID)
 
 	group := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Usage-Group-%d", suffix))
-	defer testpkg.CleanupActivityFixtures(t, db, group.ID)
+	student := testpkg.CreateTestStudent(t, db, "Usage", fmt.Sprintf("Student-%d", suffix), "1a")
+	staff := testpkg.CreateTestStaff(t, db, "Usage", fmt.Sprintf("Staff-%d", suffix))
+	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Usage-Room-%d", suffix))
+	defer testpkg.CleanupActivityFixtures(t, db, group.ID, student.ID, staff.ID, room.ID)
 
 	sched := &activitiesModels.Schedule{
 		Weekday:          activitiesModels.WeekdayMonday,
@@ -88,13 +91,58 @@ func TestCalendarPeriodService_GetUsageCounts(t *testing.T) {
 	require.NoError(t, err, "Failed to create test schedule")
 	defer testpkg.CleanupTableRecords(t, db, "activities.schedules", sched.ID)
 
+	enrollment := &activitiesModels.StudentEnrollment{
+		StudentID:        student.ID,
+		ActivityGroupID:  group.ID,
+		ValidFrom:        timezone.NewDate(2026, 8, 1),
+		CalendarPeriodID: &used.ID,
+	}
+	enrollment.SetTenantID(1)
+	_, err = db.NewInsert().
+		Model(enrollment).
+		ModelTableExpr("activities.student_enrollments").
+		Returning("id").
+		Exec(bg)
+	require.NoError(t, err, "Failed to create test student enrollment")
+
+	supervisor := &activitiesModels.SupervisorPlanned{
+		StaffID:          staff.ID,
+		GroupID:          group.ID,
+		ValidFrom:        timezone.NewDate(2026, 8, 1),
+		CalendarPeriodID: &used.ID,
+	}
+	supervisor.SetTenantID(1)
+	_, err = db.NewInsert().
+		Model(supervisor).
+		ModelTableExpr("activities.supervisors").
+		Returning("id").
+		Exec(bg)
+	require.NoError(t, err, "Failed to create test supervisor")
+
+	instance := testpkg.CreateTestActivityInstance(t, db,
+		timezone.NewDate(2026, 8, 3),
+		room.ID,
+		testpkg.ActivityInstanceOpts{ActivityGroupID: &group.ID},
+	)
+	_, err = db.NewUpdate().
+		Model(instance).
+		ModelTableExpr("schedule.activity_instances").
+		Set("calendar_period_id = ?", used.ID).
+		Where("id = ?", instance.ID).
+		Exec(bg)
+	require.NoError(t, err, "Failed to link test activity instance to calendar period")
+	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", instance.ID)
+
 	usage, err := svc.GetUsageCounts(ctx)
 	require.NoError(t, err)
 
 	assert.Equal(t, scheduleModels.CalendarPeriodUsage{
-		EnrollmentPhases: 1,
-		Schedules:        1,
-	}, usage[used.ID], "used period must report one phase and one schedule")
+		EnrollmentPhases:   1,
+		Schedules:          1,
+		StudentEnrollments: 1,
+		Supervisors:        1,
+		ActivityInstances:  1,
+	}, usage[used.ID], "used period must report every calendar-period reference")
 
 	_, ok := usage[unused.ID]
 	assert.False(t, ok, "period without references must be omitted from the map")

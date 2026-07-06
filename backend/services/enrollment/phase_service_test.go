@@ -483,3 +483,65 @@ func TestPhaseService_Update_RejectsUnknownCalendarPeriod(t *testing.T) {
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentService.ErrInvalidPhase))
 }
+
+func TestPhaseService_Create_PropagatesCalendarPeriodLookupFailure(t *testing.T) {
+	lookupErr := errors.New("synthetic database failure")
+	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
+		CalendarPeriods: failingCalendarPeriodService{err: lookupErr},
+		Logger:          slog.Default(),
+	})
+	ctx := testpkg.TenantContext(1)
+
+	phase := minimalPhase(t.Name())
+	periodID := int64(42)
+	phase.CalendarPeriodID = &periodID
+
+	_, err := svc.Create(ctx, phase)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, lookupErr)
+	assert.False(t, errors.Is(err, enrollmentService.ErrInvalidPhase))
+}
+
+type failingCalendarPeriodService struct {
+	err error
+}
+
+func (s failingCalendarPeriodService) GetAllPeriods(context.Context) ([]*scheduleModels.CalendarPeriod, error) {
+	return nil, s.err
+}
+
+func (s failingCalendarPeriodService) GetActivePeriods(context.Context) ([]*scheduleModels.CalendarPeriod, error) {
+	return nil, s.err
+}
+
+func (s failingCalendarPeriodService) GetPeriodByID(context.Context, int64) (*scheduleModels.CalendarPeriod, error) {
+	return nil, s.err
+}
+
+func (s failingCalendarPeriodService) CreatePeriod(context.Context, *scheduleModels.CalendarPeriod) error {
+	return s.err
+}
+
+func (s failingCalendarPeriodService) UpdatePeriod(context.Context, *scheduleModels.CalendarPeriod) error {
+	return s.err
+}
+
+func (s failingCalendarPeriodService) DeletePeriod(context.Context, int64) error {
+	return s.err
+}
+
+func (s failingCalendarPeriodService) EnsureDefaultSchoolYear(context.Context) ([]*scheduleModels.CalendarPeriod, bool, error) {
+	return nil, false, s.err
+}
+
+func (s failingCalendarPeriodService) FindActiveOverlaps(context.Context, *scheduleModels.CalendarPeriod) ([]*scheduleModels.CalendarPeriod, error) {
+	return nil, s.err
+}
+
+func (s failingCalendarPeriodService) GetUsageCounts(context.Context) (map[int64]scheduleModels.CalendarPeriodUsage, error) {
+	return nil, s.err
+}
+
+func (failingCalendarPeriodService) ShouldMaterialize(int, timezone.Date, *scheduleModels.CalendarPeriod) bool {
+	return false
+}

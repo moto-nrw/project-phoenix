@@ -46,6 +46,15 @@ func phaseCalendarPeriodUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed adding calendar_period_id to enrollment.phases: %w", err)
 	}
 
+	_, err = db.NewRaw(`
+		CREATE INDEX IF NOT EXISTS idx_enrollment_phases_tenant_calendar_period
+			ON enrollment.phases (tenant_id, calendar_period_id)
+			WHERE calendar_period_id IS NOT NULL;
+	`).Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed creating enrollment.phases calendar_period_id index: %w", err)
+	}
+
 	fmt.Println("Migration 1.15.167: Completed successfully")
 	return nil
 }
@@ -54,6 +63,8 @@ func phaseCalendarPeriodDown(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Rolling back migration 1.15.167: Dropping calendar_period_id from enrollment.phases...")
 
 	_, err := db.NewRaw(`
+		DROP INDEX IF EXISTS enrollment.idx_enrollment_phases_tenant_calendar_period;
+
 		ALTER TABLE enrollment.phases
 			DROP COLUMN IF EXISTS calendar_period_id;
 	`).Exec(ctx)

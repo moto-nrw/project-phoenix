@@ -314,11 +314,18 @@ func TestCreatePhaseHandler_BadFormSchemaIDReturns400(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestCreatePhaseHandler_ServiceErrorReturns400(t *testing.T) {
-	mock := &mockPhaseService{createErr: errors.New("synthetic boom")}
+func TestCreatePhaseHandler_InvalidPhaseReturns400(t *testing.T) {
+	mock := &mockPhaseService{createErr: enrollmentService.ErrInvalidPhase}
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodPost, "/enrollment/phases", validPhaseBody("X"))
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestCreatePhaseHandler_ServiceErrorReturns500(t *testing.T) {
+	mock := &mockPhaseService{createErr: errors.New("synthetic boom")}
+	router := buildPhaseRouter(mock)
+	w := executePhaseJSON(t, router, http.MethodPost, "/enrollment/phases", validPhaseBody("X"))
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 // --- updatePhase ------------------------------------------------------
@@ -345,6 +352,34 @@ func TestUpdatePhaseHandler_HappyPathRefetchesAfterUpdate(t *testing.T) {
 	assert.Equal(t, int64(1234), mock.getByIDID, "refetch must call GetByID after the update")
 }
 
+func TestUpdatePhaseHandler_OmittedCalendarPeriodIDPreservesExistingLink(t *testing.T) {
+	existing := makePhaseModel(1234, "Existing")
+	periodID := int64(42)
+	existing.CalendarPeriodID = &periodID
+	mock := &mockPhaseService{getByIDResult: existing}
+	router := buildPhaseRouter(mock)
+
+	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", validPhaseBody("Updated"))
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.NotNil(t, mock.updateInput)
+	require.NotNil(t, mock.updateInput.CalendarPeriodID)
+	assert.Equal(t, periodID, *mock.updateInput.CalendarPeriodID)
+}
+
+func TestUpdatePhaseHandler_NullCalendarPeriodIDUnlinks(t *testing.T) {
+	mock := &mockPhaseService{getByIDResult: makePhaseModel(1234, "Updated")}
+	router := buildPhaseRouter(mock)
+	body := validPhaseBody("Updated")
+	body["calendar_period_id"] = nil
+
+	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", body)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.NotNil(t, mock.updateInput)
+	assert.Nil(t, mock.updateInput.CalendarPeriodID)
+}
+
 func TestUpdatePhaseHandler_BadDateReturns400(t *testing.T) {
 	router := buildPhaseRouter(&mockPhaseService{})
 	body := validPhaseBody("X")
@@ -353,17 +388,32 @@ func TestUpdatePhaseHandler_BadDateReturns400(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestUpdatePhaseHandler_UpdateErrorReturns400(t *testing.T) {
-	mock := &mockPhaseService{updateErr: errors.New("synthetic boom")}
+func TestUpdatePhaseHandler_InvalidPhaseReturns400(t *testing.T) {
+	mock := &mockPhaseService{
+		getByIDResult: makePhaseModel(1234, "Updated"),
+		updateErr:     enrollmentService.ErrInvalidPhase,
+	}
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", validPhaseBody("X"))
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestUpdatePhaseHandler_UpdateErrorReturns500(t *testing.T) {
+	mock := &mockPhaseService{
+		getByIDResult: makePhaseModel(1234, "Updated"),
+		updateErr:     errors.New("synthetic boom"),
+	}
+	router := buildPhaseRouter(mock)
+	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", validPhaseBody("X"))
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
 func TestUpdatePhaseHandler_RefetchErrorReturns500(t *testing.T) {
 	mock := &mockPhaseService{getByIDErr: errors.New("synthetic refetch boom")}
 	router := buildPhaseRouter(mock)
-	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", validPhaseBody("X"))
+	body := validPhaseBody("X")
+	body["calendar_period_id"] = "42"
+	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", body)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 

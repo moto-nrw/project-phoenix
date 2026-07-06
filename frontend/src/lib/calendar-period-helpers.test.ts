@@ -50,6 +50,18 @@ describe("calendar-period-helpers", () => {
         "1 Anmeldephase und 2 Regeltermine",
       );
     });
+
+    it("formats every calendar-period reference category", () => {
+      expect(
+        formatPeriodUsage(0, 0, " · ", {
+          studentEnrollmentCount: 1,
+          supervisorCount: 2,
+          activityInstanceCount: 3,
+        }),
+      ).toBe(
+        "1 Schülerzuordnung · 2 Mitarbeitenden-Zuordnungen · 3 Termininstanzen",
+      );
+    });
   });
 
   describe("findPeriodForDate", () => {
