@@ -465,14 +465,19 @@ func (s *rolloverService) rollOneRequest(
 		}
 
 		// Concrete class (issue #1833): only carry it forward when the
-		// grade stays the same (half-year rollover). When the grade
-		// bumps, last year's class letter (e.g. "2a") is stale for the
-		// new grade, so drop it and let the parent/admin re-pick in the
-		// new phase. Either way no data is lost: on approval the decision
+		// grade stays the same (half-year rollover) AND the row is not
+		// heading into admin review. When the grade bumps, last year's
+		// class letter (e.g. "2a") is stale for the new grade. Review
+		// rows are exactly the ones whose target grade is uncertain
+		// (no grade on file, or above the cap) — pinning a concrete
+		// class there would let a stale letter win on approval even
+		// after the admin overrides the grade in the review queue. In
+		// both cases drop it and let the parent/admin re-pick in the new
+		// phase. Either way no data is lost: on approval the decision
 		// service preserves the student's existing class instead of
 		// clobbering it.
 		var carriedClass *string
-		if !newPhase.RolloverBumpsGrade {
+		if !newPhase.RolloverBumpsGrade && reviewReason == "" {
 			carriedClass = source.TargetSchoolClass
 		}
 
