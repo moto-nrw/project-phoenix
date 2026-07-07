@@ -22,6 +22,10 @@ const DEFAULT_NEW_COLOR = LOCATION_COLORS.GROUP_ROOM;
 interface ShiftTypeManageModalProps {
   readonly isOpen: boolean;
   readonly shiftTypes: readonly ShiftType[];
+  /** True while shift types are still being fetched (no data yet). */
+  readonly isLoading: boolean;
+  /** True when the shift-type fetch failed. */
+  readonly loadError: boolean;
   readonly onClose: () => void;
   /** Called after any create/update/delete so the caller can refetch. */
   readonly onChanged: () => void;
@@ -34,6 +38,8 @@ type View = "list" | "form";
 export function ShiftTypeManageModal({
   isOpen,
   shiftTypes,
+  isLoading,
+  loadError,
   onClose,
   onChanged,
 }: ShiftTypeManageModalProps) {
@@ -216,7 +222,16 @@ export function ShiftTypeManageModal({
               sie im Wochenplan sofort unterscheidbar.
             </p>
 
-            {shiftTypes.length === 0 ? (
+            {loadError ? (
+              <Alert
+                type="error"
+                message="Die Schichtarten konnten nicht geladen werden. Bitte schließe den Dialog und lade die Seite neu."
+              />
+            ) : isLoading ? (
+              <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">
+                Schichtarten werden geladen…
+              </div>
+            ) : shiftTypes.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center">
                 <p className="text-sm text-gray-600">
                   Noch keine Schichtarten angelegt.

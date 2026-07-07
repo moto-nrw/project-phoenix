@@ -290,6 +290,8 @@ function DienstplanContent() {
       <ShiftTypeManageModal
         isOpen={manageOpen}
         shiftTypes={shiftTypes ?? []}
+        isLoading={shiftTypesLoading}
+        loadError={Boolean(shiftTypesError)}
         onClose={() => setManageOpen(false)}
         onChanged={() => {
           void mutateShiftTypes();
