@@ -17,17 +17,17 @@ func TestResolvePresenceModeForTenant_NilService(t *testing.T) {
 }
 
 func TestResolvePresenceModeForTenant_OverrideBinary(t *testing.T) {
-	svc := &fakeSettingsService{strVal: configModel.PresenceModeBinary}
+	svc := newFakeSettingsService(fakeSettingsServiceOpts{strVal: configModel.PresenceModeBinary})
 	assert.Equal(t, configModel.PresenceModeBinary, configSvc.ResolvePresenceModeForTenant(context.Background(), svc, 42, nil))
 }
 
 func TestResolvePresenceModeForTenant_EmptyString_FallsBackToDetailed(t *testing.T) {
-	svc := &fakeSettingsService{strVal: ""}
+	svc := newFakeSettingsService(fakeSettingsServiceOpts{strVal: ""})
 	assert.Equal(t, configModel.PresenceModeDetailed, configSvc.ResolvePresenceModeForTenant(context.Background(), svc, 42, nil))
 }
 
 func TestResolvePresenceModeForTenant_ResolveError_FallsBackToDetailed(t *testing.T) {
-	svc := &fakeSettingsService{strErr: errors.New("tenant not found")}
+	svc := newFakeSettingsService(fakeSettingsServiceOpts{strErr: errors.New("tenant not found")})
 	assert.Equal(t, configModel.PresenceModeDetailed, configSvc.ResolvePresenceModeForTenant(context.Background(), svc, 42, nil))
 }
 
@@ -39,7 +39,7 @@ func TestResolvePresenceModeForTenant_ResolveError_FallsBackToDetailed(t *testin
 func TestResolvePresenceModeForTenant_ErrorWithLogger_LogsWarning(t *testing.T) {
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
-	svc := &fakeSettingsService{strErr: errors.New("tenant 42 not found")}
+	svc := newFakeSettingsService(fakeSettingsServiceOpts{strErr: errors.New("tenant 42 not found")})
 
 	mode := configSvc.ResolvePresenceModeForTenant(context.Background(), svc, 42, logger)
 

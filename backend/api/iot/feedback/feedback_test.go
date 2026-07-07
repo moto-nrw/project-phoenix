@@ -21,58 +21,26 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// fakeSettingsService implements configSvc.SettingsService for testing.
-type fakeSettingsService struct {
-	boolValues map[string]bool
-}
-
-func (f *fakeSettingsService) GetSchema(_ context.Context, _ []string) (*configSvc.SettingsSchema, error) {
-	return nil, nil
-}
-func (f *fakeSettingsService) GetSchemaForOperator(_ context.Context, _ []string) (*configSvc.SettingsSchema, error) {
-	return nil, nil
-}
-func (f *fakeSettingsService) Resolve(_ context.Context, _ string) (any, error) { return nil, nil }
-func (f *fakeSettingsService) ResolveString(_ context.Context, _ string) (string, error) {
-	return "", nil
-}
-func (f *fakeSettingsService) ResolveStringForTenant(_ context.Context, _ int64, _ string) (string, error) {
-	return "", nil
-}
-func (f *fakeSettingsService) ResolveBool(_ context.Context, key string) (bool, error) {
-	if val, ok := f.boolValues[key]; ok {
-		return val, nil
+// newFakeSettingsService builds a configtest.Mock reproducing the former
+// hand-rolled fakeSettingsService stub: ResolveBool (and its tenant
+// variant) default to true when the key is not present in boolValues.
+func newFakeSettingsService(boolValues map[string]bool) *configtest.Mock {
+	resolveBool := func(_ context.Context, key string) (bool, error) {
+		if val, ok := boolValues[key]; ok {
+			return val, nil
+		}
+		return true, nil
 	}
-	return true, nil
-}
-func (f *fakeSettingsService) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
-	return f.ResolveBool(context.Background(), key)
-}
-func (f *fakeSettingsService) ResolveInt(_ context.Context, _ string) (int, error) { return 0, nil }
-func (f *fakeSettingsService) ResolveIntForTenant(_ context.Context, _ int64, _ string) (int, error) {
-	return 0, nil
-}
-func (f *fakeSettingsService) HasTenantOverride(_ context.Context, _ string) (bool, error) {
-	return false, nil
-}
-func (f *fakeSettingsService) SetValue(_ context.Context, _ string, _ any, _ *int64, _ []string) error {
-	return nil
-}
-func (f *fakeSettingsService) ResetValue(_ context.Context, _ string, _ *int64, _ []string) error {
-	return nil
-}
-func (f *fakeSettingsService) GetLoginImageURL(_ context.Context, _ int64) (string, error) {
-	return "", nil
-}
-func (f *fakeSettingsService) SetLoginImageURL(_ context.Context, _ int64, _ string) (string, error) {
-	return "", nil
-}
-func (f *fakeSettingsService) ClearLoginImageURL(_ context.Context, _ int64) (string, error) {
-	return "", nil
+	return &configtest.Mock{
+		ResolveBoolFn: resolveBool,
+		ResolveBoolForTenantFn: func(ctx context.Context, _ int64, key string) (bool, error) {
+			return resolveBool(ctx, key)
+		},
+	}
 }
 
 // testContext holds shared test dependencies.
@@ -337,11 +305,9 @@ func TestSubmitFeedback_FeedbackDisabled(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "DisabledStudent", "2a")
 
 	// Create resource with fake SettingsService that returns feedback.enabled = false
-	disabledSettings := &fakeSettingsService{
-		boolValues: map[string]bool{
-			configModel.KeyFeedbackEnabled: false,
-		},
-	}
+	disabledSettings := newFakeSettingsService(map[string]bool{
+		configModel.KeyFeedbackEnabled: false,
+	})
 	resource := feedbackAPI.NewResource(
 		ctx.services.IoT,
 		ctx.services.Users,
@@ -386,11 +352,9 @@ func TestSubmitFeedback_FeedbackEnabled(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "EnabledStudent", "2b")
 
 	// Create resource with fake SettingsService that returns feedback.enabled = true
-	enabledSettings := &fakeSettingsService{
-		boolValues: map[string]bool{
-			configModel.KeyFeedbackEnabled: true,
-		},
-	}
+	enabledSettings := newFakeSettingsService(map[string]bool{
+		configModel.KeyFeedbackEnabled: true,
+	})
 	resource := feedbackAPI.NewResource(
 		ctx.services.IoT,
 		ctx.services.Users,

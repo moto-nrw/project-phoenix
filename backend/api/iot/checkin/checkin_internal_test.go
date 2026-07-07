@@ -26,7 +26,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -153,74 +153,57 @@ func TestGetStudentDailyCheckoutTime_EdgeCases(t *testing.T) {
 // Settings service wiring tests
 // =============================================================================
 
-// mockSettingsService is a minimal mock that supports ResolveString, ResolveBool, and ResolveInt.
-type mockSettingsService struct {
-	values     map[string]string
-	boolValues map[string]bool
-	intValues  map[string]int
-}
-
-func (m *mockSettingsService) GetSchema(_ context.Context, _ []string) (*configSvc.SettingsSchema, error) {
-	return nil, nil
-}
-func (m *mockSettingsService) GetSchemaForOperator(_ context.Context, _ []string) (*configSvc.SettingsSchema, error) {
-	return nil, nil
-}
-func (m *mockSettingsService) Resolve(_ context.Context, key string) (any, error) {
-	if v, ok := m.values[key]; ok {
-		return v, nil
-	}
-	return nil, fmt.Errorf("not found")
-}
-func (m *mockSettingsService) ResolveString(_ context.Context, key string) (string, error) {
-	if v, ok := m.values[key]; ok {
-		return v, nil
-	}
-	return "", fmt.Errorf("not found")
-}
-func (m *mockSettingsService) ResolveStringForTenant(_ context.Context, _ int64, key string) (string, error) {
-	return m.ResolveString(context.Background(), key)
-}
-func (m *mockSettingsService) ResolveBool(_ context.Context, key string) (bool, error) {
-	if m.boolValues != nil {
-		if v, ok := m.boolValues[key]; ok {
+// newMockSettingsService builds a configtest.Mock reproducing the behavior
+// of the former hand-rolled mockSettingsService stub: ResolveString/Resolve
+// return a "not found" error for missing keys, while ResolveBool/ResolveInt
+// return the zero value with no error for missing keys.
+func newMockSettingsService(values map[string]string, boolValues map[string]bool, intValues map[string]int) *configtest.Mock {
+	resolveString := func(_ context.Context, key string) (string, error) {
+		if v, ok := values[key]; ok {
 			return v, nil
 		}
+		return "", fmt.Errorf("not found")
 	}
-	return false, nil
-}
-func (m *mockSettingsService) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
-	return m.ResolveBool(context.Background(), key)
-}
-func (m *mockSettingsService) ResolveInt(_ context.Context, key string) (int, error) {
-	if m.intValues != nil {
-		if v, ok := m.intValues[key]; ok {
-			return v, nil
+	resolveBool := func(_ context.Context, key string) (bool, error) {
+		if boolValues != nil {
+			if v, ok := boolValues[key]; ok {
+				return v, nil
+			}
 		}
+		return false, nil
 	}
-	return 0, nil
-}
-func (m *mockSettingsService) ResolveIntForTenant(_ context.Context, _ int64, key string) (int, error) {
-	return m.ResolveInt(context.Background(), key)
-}
-func (m *mockSettingsService) HasTenantOverride(_ context.Context, key string) (bool, error) {
-	_, exists := m.values[key]
-	return exists, nil
-}
-func (m *mockSettingsService) SetValue(_ context.Context, _ string, _ any, _ *int64, _ []string) error {
-	return nil
-}
-func (m *mockSettingsService) ResetValue(_ context.Context, _ string, _ *int64, _ []string) error {
-	return nil
-}
-func (m *mockSettingsService) GetLoginImageURL(_ context.Context, _ int64) (string, error) {
-	return "", nil
-}
-func (m *mockSettingsService) SetLoginImageURL(_ context.Context, _ int64, _ string) (string, error) {
-	return "", nil
-}
-func (m *mockSettingsService) ClearLoginImageURL(_ context.Context, _ int64) (string, error) {
-	return "", nil
+	resolveInt := func(_ context.Context, key string) (int, error) {
+		if intValues != nil {
+			if v, ok := intValues[key]; ok {
+				return v, nil
+			}
+		}
+		return 0, nil
+	}
+	return &configtest.Mock{
+		ResolveFn: func(_ context.Context, key string) (any, error) {
+			if v, ok := values[key]; ok {
+				return v, nil
+			}
+			return nil, fmt.Errorf("not found")
+		},
+		ResolveStringFn: resolveString,
+		ResolveStringForTenantFn: func(ctx context.Context, _ int64, key string) (string, error) {
+			return resolveString(ctx, key)
+		},
+		ResolveBoolFn: resolveBool,
+		ResolveBoolForTenantFn: func(ctx context.Context, _ int64, key string) (bool, error) {
+			return resolveBool(ctx, key)
+		},
+		ResolveIntFn: resolveInt,
+		ResolveIntForTenantFn: func(ctx context.Context, _ int64, key string) (int, error) {
+			return resolveInt(ctx, key)
+		},
+		HasTenantOverrideFn: func(_ context.Context, key string) (bool, error) {
+			_, exists := values[key]
+			return exists, nil
+		},
+	}
 }
 
 func TestGetStudentDailyCheckoutTime_UsesSettingsService(t *testing.T) {
@@ -228,11 +211,9 @@ func TestGetStudentDailyCheckoutTime_UsesSettingsService(t *testing.T) {
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
 	rs := &Resource{
-		SettingsService: &mockSettingsService{
-			values: map[string]string{
-				"operations.student_daily_checkout_time": "16:45",
-			},
-		},
+		SettingsService: newMockSettingsService(map[string]string{
+			"operations.student_daily_checkout_time": "16:45",
+		}, nil, nil),
 	}
 
 	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
@@ -248,9 +229,7 @@ func TestGetStudentDailyCheckoutTime_SettingsServiceFallsBackToEnv(t *testing.T)
 
 	// Settings service returns empty — should fall back to env var
 	rs := &Resource{
-		SettingsService: &mockSettingsService{
-			values: map[string]string{},
-		},
+		SettingsService: newMockSettingsService(map[string]string{}, nil, nil),
 	}
 
 	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
@@ -280,9 +259,7 @@ func TestGetStudentDailyCheckoutTime_NoConfigAnywhere_ReturnsNil(t *testing.T) {
 
 	// Settings service exists but has no override
 	rs := &Resource{
-		SettingsService: &mockSettingsService{
-			values: map[string]string{},
-		},
+		SettingsService: newMockSettingsService(map[string]string{}, nil, nil),
 	}
 
 	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
@@ -740,7 +717,7 @@ func TestShouldShowDailyCheckoutWithGroup_NilCheckoutTime_AlwaysAvailable(t *tes
 
 	// Education group has no room → daily checkout available from any room
 	rs := &Resource{
-		SettingsService:  &mockSettingsService{values: map[string]string{}},
+		SettingsService:  newMockSettingsService(map[string]string{}, nil, nil),
 		EducationService: &mockEducationService{group: &education.Group{Model: base.Model{ID: 1}}},
 	}
 	groupID := int64(1)
@@ -755,7 +732,7 @@ func TestShouldShowDailyCheckoutWithGroup_NilCheckoutTime_MatchingRoom(t *testin
 
 	roomID := int64(42)
 	rs := &Resource{
-		SettingsService:  &mockSettingsService{values: map[string]string{}},
+		SettingsService:  newMockSettingsService(map[string]string{}, nil, nil),
 		EducationService: &mockEducationService{group: &education.Group{Model: base.Model{ID: 1}, RoomID: &roomID}},
 	}
 	groupID := int64(1)
@@ -770,7 +747,7 @@ func TestShouldShowDailyCheckoutWithGroup_NilCheckoutTime_DifferentRoom(t *testi
 
 	roomID := int64(42)
 	rs := &Resource{
-		SettingsService:  &mockSettingsService{values: map[string]string{}},
+		SettingsService:  newMockSettingsService(map[string]string{}, nil, nil),
 		EducationService: &mockEducationService{group: &education.Group{Model: base.Model{ID: 1}, RoomID: &roomID}},
 	}
 	groupID := int64(1)
@@ -797,7 +774,7 @@ func TestShouldShowDailyCheckoutWithGroup_EducationServiceError(t *testing.T) {
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
 	rs := &Resource{
-		SettingsService:  &mockSettingsService{values: map[string]string{}},
+		SettingsService:  newMockSettingsService(map[string]string{}, nil, nil),
 		EducationService: &mockEducationService{err: fmt.Errorf("db error")},
 	}
 	groupID := int64(1)
@@ -812,7 +789,7 @@ func TestShouldUpgradeToDailyCheckout_CheckedOut_NoTimeGate(t *testing.T) {
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
 	rs := &Resource{
-		SettingsService:  &mockSettingsService{values: map[string]string{}},
+		SettingsService:  newMockSettingsService(map[string]string{}, nil, nil),
 		EducationService: &mockEducationService{group: &education.Group{Model: base.Model{ID: 1}}},
 	}
 	groupID := int64(1)
@@ -1668,20 +1645,22 @@ func (m *mockEducationService) GetGroup(_ context.Context, _ int64) (*education.
 	return m.group, m.err
 }
 
-// mockErrorSettingsService returns errors from HasTenantOverride.
-type mockErrorSettingsService struct {
-	mockSettingsService
-}
-
-func (m *mockErrorSettingsService) HasTenantOverride(_ context.Context, _ string) (bool, error) {
-	return false, fmt.Errorf("db connection failed")
+// newMockErrorSettingsService builds a configtest.Mock reproducing the
+// former mockErrorSettingsService stub: identical to an empty
+// mockSettingsService, except HasTenantOverride always errors.
+func newMockErrorSettingsService() *configtest.Mock {
+	m := newMockSettingsService(nil, nil, nil)
+	m.HasTenantOverrideFn = func(_ context.Context, _ string) (bool, error) {
+		return false, fmt.Errorf("db connection failed")
+	}
+	return m
 }
 
 func TestGetStudentDailyCheckoutTime_HasTenantOverrideError(t *testing.T) {
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
 	rs := &Resource{
-		SettingsService: &mockErrorSettingsService{},
+		SettingsService: newMockErrorSettingsService(),
 	}
 
 	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
@@ -1695,7 +1674,7 @@ func TestGetStudentDailyCheckoutTime_HasTenantOverrideError_FallsBackToEnv(t *te
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
 	rs := &Resource{
-		SettingsService: &mockErrorSettingsService{},
+		SettingsService: newMockErrorSettingsService(),
 	}
 
 	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
@@ -1714,7 +1693,7 @@ func TestIsAfterCheckoutTimeGate_PerStudentDisabled_FallsBackToGlobal(t *testing
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
 	rs := &Resource{
-		SettingsService: &mockSettingsService{values: map[string]string{}},
+		SettingsService: newMockSettingsService(map[string]string{}, nil, nil),
 	}
 	student := &users.Student{Model: base.Model{ID: 1}}
 
@@ -1729,7 +1708,7 @@ func TestIsAfterCheckoutTimeGate_PerStudentDisabled_GlobalTimeInFuture(t *testin
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
 	rs := &Resource{
-		SettingsService: &mockSettingsService{values: map[string]string{}},
+		SettingsService: newMockSettingsService(map[string]string{}, nil, nil),
 	}
 	student := &users.Student{Model: base.Model{ID: 1}}
 
@@ -1752,11 +1731,11 @@ func TestIsAfterCheckoutTimeGate_PerStudentEnabled_BeforeDelta(t *testing.T) {
 	pickupTime := time.Date(2000, 1, 1, fixedNow.Hour()+2, 0, 0, 0, fixedNow.Location())
 
 	rs := &Resource{
-		SettingsService: &mockSettingsService{
-			values:     map[string]string{},
-			boolValues: map[string]bool{"operations.per_student_checkout_enabled": true},
-			intValues:  map[string]int{"operations.per_student_checkout_delta_minutes": 15},
-		},
+		SettingsService: newMockSettingsService(
+			map[string]string{},
+			map[string]bool{"operations.per_student_checkout_enabled": true},
+			map[string]int{"operations.per_student_checkout_delta_minutes": 15},
+		),
 		PickupScheduleService: &mockPickupScheduleService{
 			effectivePickupTime: &scheduleSvc.EffectivePickupTime{PickupTime: &pickupTime},
 		},
@@ -1775,11 +1754,11 @@ func TestIsAfterCheckoutTimeGate_PerStudentEnabled_AfterDelta(t *testing.T) {
 	pickupTime := time.Date(2000, 1, 1, now.Hour(), now.Minute()+5, 0, 0, now.Location())
 
 	rs := &Resource{
-		SettingsService: &mockSettingsService{
-			values:     map[string]string{},
-			boolValues: map[string]bool{"operations.per_student_checkout_enabled": true},
-			intValues:  map[string]int{"operations.per_student_checkout_delta_minutes": 15},
-		},
+		SettingsService: newMockSettingsService(
+			map[string]string{},
+			map[string]bool{"operations.per_student_checkout_enabled": true},
+			map[string]int{"operations.per_student_checkout_delta_minutes": 15},
+		),
 		PickupScheduleService: &mockPickupScheduleService{
 			effectivePickupTime: &scheduleSvc.EffectivePickupTime{PickupTime: &pickupTime},
 		},
@@ -1795,10 +1774,11 @@ func TestIsAfterCheckoutTimeGate_PerStudentEnabled_NoPickupTime_FallsBackToGloba
 
 	// Per-student enabled but student has no pickup time → fall back to global (no global = always available)
 	rs := &Resource{
-		SettingsService: &mockSettingsService{
-			values:     map[string]string{},
-			boolValues: map[string]bool{"operations.per_student_checkout_enabled": true},
-		},
+		SettingsService: newMockSettingsService(
+			map[string]string{},
+			map[string]bool{"operations.per_student_checkout_enabled": true},
+			nil,
+		),
 		PickupScheduleService: &mockPickupScheduleService{
 			effectivePickupTime: &scheduleSvc.EffectivePickupTime{PickupTime: nil},
 		},
@@ -1813,10 +1793,11 @@ func TestIsAfterCheckoutTimeGate_PerStudentEnabled_PickupServiceError_FallsBackT
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
 	rs := &Resource{
-		SettingsService: &mockSettingsService{
-			values:     map[string]string{},
-			boolValues: map[string]bool{"operations.per_student_checkout_enabled": true},
-		},
+		SettingsService: newMockSettingsService(
+			map[string]string{},
+			map[string]bool{"operations.per_student_checkout_enabled": true},
+			nil,
+		),
 		PickupScheduleService: &mockPickupScheduleService{
 			err: fmt.Errorf("db error"),
 		},
@@ -1831,10 +1812,11 @@ func TestIsAfterCheckoutTimeGate_PerStudentEnabled_NilPickupService_FallsBackToG
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
 	rs := &Resource{
-		SettingsService: &mockSettingsService{
-			values:     map[string]string{},
-			boolValues: map[string]bool{"operations.per_student_checkout_enabled": true},
-		},
+		SettingsService: newMockSettingsService(
+			map[string]string{},
+			map[string]bool{"operations.per_student_checkout_enabled": true},
+			nil,
+		),
 		// PickupScheduleService is nil
 	}
 	student := &users.Student{Model: base.Model{ID: 1}}
@@ -1851,11 +1833,11 @@ func TestIsAfterCheckoutTimeGate_PerStudentEnabled_DeltaZero(t *testing.T) {
 	pickupTime := time.Date(2000, 1, 1, now.Hour(), now.Minute()+1, 0, 0, now.Location())
 
 	rs := &Resource{
-		SettingsService: &mockSettingsService{
-			values:     map[string]string{},
-			boolValues: map[string]bool{"operations.per_student_checkout_enabled": true},
-			intValues:  map[string]int{"operations.per_student_checkout_delta_minutes": 0},
-		},
+		SettingsService: newMockSettingsService(
+			map[string]string{},
+			map[string]bool{"operations.per_student_checkout_enabled": true},
+			map[string]int{"operations.per_student_checkout_delta_minutes": 0},
+		),
 		PickupScheduleService: &mockPickupScheduleService{
 			effectivePickupTime: &scheduleSvc.EffectivePickupTime{PickupTime: &pickupTime},
 		},

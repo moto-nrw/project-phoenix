@@ -15,67 +15,27 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// =============================================================================
-// MOCK: SettingsService
-// =============================================================================
-
-type mockSettingsSvc struct {
-	boolValues map[string]bool
-}
-
-func (m *mockSettingsSvc) GetSchema(_ context.Context, _ []string) (*configSvc.SettingsSchema, error) {
-	return nil, nil
-}
-func (m *mockSettingsSvc) GetSchemaForOperator(_ context.Context, _ []string) (*configSvc.SettingsSchema, error) {
-	return nil, nil
-}
-func (m *mockSettingsSvc) Resolve(_ context.Context, key string) (any, error) {
-	if v, ok := m.boolValues[key]; ok {
-		return v, nil
+// mockSettingsSvc builds a configtest.Mock backed by a boolValues map,
+// mirroring the previous hand-rolled stub's ResolveBool/ResolveBoolForTenant
+// behavior: missing keys return an error.
+func mockSettingsSvc(boolValues map[string]bool) *configtest.Mock {
+	resolveBool := func(_ context.Context, key string) (bool, error) {
+		if v, ok := boolValues[key]; ok {
+			return v, nil
+		}
+		return false, fmt.Errorf("not found: %s", key)
 	}
-	return nil, fmt.Errorf("not found: %s", key)
-}
-func (m *mockSettingsSvc) ResolveString(_ context.Context, _ string) (string, error) {
-	return "", nil
-}
-func (m *mockSettingsSvc) ResolveStringForTenant(_ context.Context, _ int64, _ string) (string, error) {
-	return "", nil
-}
-func (m *mockSettingsSvc) ResolveBool(_ context.Context, key string) (bool, error) {
-	if v, ok := m.boolValues[key]; ok {
-		return v, nil
+	return &configtest.Mock{
+		ResolveBoolFn: resolveBool,
+		ResolveBoolForTenantFn: func(ctx context.Context, _ int64, key string) (bool, error) {
+			return resolveBool(ctx, key)
+		},
 	}
-	return false, fmt.Errorf("not found: %s", key)
-}
-func (m *mockSettingsSvc) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
-	return m.ResolveBool(context.Background(), key)
-}
-func (m *mockSettingsSvc) ResolveInt(_ context.Context, _ string) (int, error) { return 0, nil }
-func (m *mockSettingsSvc) ResolveIntForTenant(_ context.Context, _ int64, _ string) (int, error) {
-	return 0, nil
-}
-func (m *mockSettingsSvc) HasTenantOverride(_ context.Context, _ string) (bool, error) {
-	return false, nil
-}
-func (m *mockSettingsSvc) SetValue(_ context.Context, _ string, _ any, _ *int64, _ []string) error {
-	return nil
-}
-func (m *mockSettingsSvc) ResetValue(_ context.Context, _ string, _ *int64, _ []string) error {
-	return nil
-}
-func (m *mockSettingsSvc) GetLoginImageURL(_ context.Context, _ int64) (string, error) {
-	return "", nil
-}
-func (m *mockSettingsSvc) SetLoginImageURL(_ context.Context, _ int64, _ string) (string, error) {
-	return "", nil
-}
-func (m *mockSettingsSvc) ClearLoginImageURL(_ context.Context, _ int64) (string, error) {
-	return "", nil
 }
 
 // =============================================================================
@@ -352,9 +312,9 @@ func TestResolveSupervisions_AdminWithSettingEnabled(t *testing.T) {
 	}
 
 	rs := &Resource{
-		settingsSvc: &mockSettingsSvc{boolValues: map[string]bool{
+		settingsSvc: mockSettingsSvc(map[string]bool{
 			configModel.KeyAdminSupervisionOverview: true,
-		}},
+		}),
 		activeSvc: &mockActiveSvcForSSE{
 			listFunc: func(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
 				return activeGroups, nil
@@ -378,9 +338,9 @@ func TestResolveSupervisions_AdminWithSettingDisabled(t *testing.T) {
 	}
 
 	rs := &Resource{
-		settingsSvc: &mockSettingsSvc{boolValues: map[string]bool{
+		settingsSvc: mockSettingsSvc(map[string]bool{
 			configModel.KeyAdminSupervisionOverview: false,
-		}},
+		}),
 		activeSvc: &mockActiveSvcForSSE{
 			getStaffFunc: func(_ context.Context, staffID int64) ([]*activeModel.GroupSupervisor, error) {
 				assert.Equal(t, int64(42), staffID)
@@ -404,9 +364,9 @@ func TestResolveSupervisions_NonAdmin(t *testing.T) {
 	}
 
 	rs := &Resource{
-		settingsSvc: &mockSettingsSvc{boolValues: map[string]bool{
+		settingsSvc: mockSettingsSvc(map[string]bool{
 			configModel.KeyAdminSupervisionOverview: true, // enabled but user is not admin
-		}},
+		}),
 		activeSvc: &mockActiveSvcForSSE{
 			getStaffFunc: func(_ context.Context, _ int64) ([]*activeModel.GroupSupervisor, error) {
 				return staffSupervisions, nil
@@ -450,7 +410,7 @@ func TestResolveSupervisions_SettingErrorFallsBack(t *testing.T) {
 	}
 
 	rs := &Resource{
-		settingsSvc: &mockSettingsSvc{boolValues: map[string]bool{}}, // key missing → error
+		settingsSvc: mockSettingsSvc(map[string]bool{}), // key missing → error
 		activeSvc: &mockActiveSvcForSSE{
 			getStaffFunc: func(_ context.Context, _ int64) ([]*activeModel.GroupSupervisor, error) {
 				return staffSupervisions, nil
@@ -468,9 +428,9 @@ func TestResolveSupervisions_SettingErrorFallsBack(t *testing.T) {
 
 func TestResolveSupervisions_StaffSupervisionsError(t *testing.T) {
 	rs := &Resource{
-		settingsSvc: &mockSettingsSvc{boolValues: map[string]bool{
+		settingsSvc: mockSettingsSvc(map[string]bool{
 			configModel.KeyAdminSupervisionOverview: false,
-		}},
+		}),
 		activeSvc: &mockActiveSvcForSSE{
 			getStaffFunc: func(_ context.Context, _ int64) ([]*activeModel.GroupSupervisor, error) {
 				return nil, fmt.Errorf("database connection lost")
@@ -488,7 +448,7 @@ func TestResolveSupervisions_StaffSupervisionsError(t *testing.T) {
 
 func TestResolveSupervisions_NonAdminStaffError(t *testing.T) {
 	rs := &Resource{
-		settingsSvc: &mockSettingsSvc{boolValues: map[string]bool{}},
+		settingsSvc: mockSettingsSvc(map[string]bool{}),
 		activeSvc: &mockActiveSvcForSSE{
 			getStaffFunc: func(_ context.Context, _ int64) ([]*activeModel.GroupSupervisor, error) {
 				return nil, fmt.Errorf("timeout")
@@ -506,9 +466,9 @@ func TestResolveSupervisions_NonAdminStaffError(t *testing.T) {
 
 func TestResolveSupervisions_GetAllError(t *testing.T) {
 	rs := &Resource{
-		settingsSvc: &mockSettingsSvc{boolValues: map[string]bool{
+		settingsSvc: mockSettingsSvc(map[string]bool{
 			configModel.KeyAdminSupervisionOverview: true,
-		}},
+		}),
 		activeSvc: &mockActiveSvcForSSE{
 			listFunc: func(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
 				return nil, fmt.Errorf("database error")
@@ -538,9 +498,9 @@ func TestResolveSupervisions_AdminIncludesUnclaimedGroups(t *testing.T) {
 	}
 
 	rs := &Resource{
-		settingsSvc: &mockSettingsSvc{boolValues: map[string]bool{
+		settingsSvc: mockSettingsSvc(map[string]bool{
 			configModel.KeyAdminSupervisionOverview: true,
-		}},
+		}),
 		activeSvc: &mockActiveSvcForSSE{
 			listFunc: func(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
 				return activeGroups, nil

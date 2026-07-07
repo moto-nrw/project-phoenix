@@ -17,67 +17,27 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// =============================================================================
-// MOCK: SettingsService (same pattern as api/iot/config_test.go)
-// =============================================================================
-
-type mockSettingsSvc struct {
-	boolValues map[string]bool
-}
-
-func (m *mockSettingsSvc) GetSchema(_ context.Context, _ []string) (*configSvc.SettingsSchema, error) {
-	return nil, nil
-}
-func (m *mockSettingsSvc) GetSchemaForOperator(_ context.Context, _ []string) (*configSvc.SettingsSchema, error) {
-	return nil, nil
-}
-func (m *mockSettingsSvc) Resolve(_ context.Context, key string) (any, error) {
-	if v, ok := m.boolValues[key]; ok {
-		return v, nil
+// mockSettingsSvc builds a configtest.Mock backed by a boolValues map,
+// mirroring the previous hand-rolled stub's ResolveBool/ResolveBoolForTenant
+// behavior: missing keys return an error.
+func mockSettingsSvc(boolValues map[string]bool) *configtest.Mock {
+	resolveBool := func(_ context.Context, key string) (bool, error) {
+		if v, ok := boolValues[key]; ok {
+			return v, nil
+		}
+		return false, fmt.Errorf("not found: %s", key)
 	}
-	return nil, fmt.Errorf("not found: %s", key)
-}
-func (m *mockSettingsSvc) ResolveString(_ context.Context, _ string) (string, error) {
-	return "", nil
-}
-func (m *mockSettingsSvc) ResolveStringForTenant(_ context.Context, _ int64, _ string) (string, error) {
-	return "", nil
-}
-func (m *mockSettingsSvc) ResolveBool(_ context.Context, key string) (bool, error) {
-	if v, ok := m.boolValues[key]; ok {
-		return v, nil
+	return &configtest.Mock{
+		ResolveBoolFn: resolveBool,
+		ResolveBoolForTenantFn: func(ctx context.Context, _ int64, key string) (bool, error) {
+			return resolveBool(ctx, key)
+		},
 	}
-	return false, fmt.Errorf("not found: %s", key)
-}
-func (m *mockSettingsSvc) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
-	return m.ResolveBool(context.Background(), key)
-}
-func (m *mockSettingsSvc) ResolveInt(_ context.Context, _ string) (int, error) { return 0, nil }
-func (m *mockSettingsSvc) ResolveIntForTenant(_ context.Context, _ int64, _ string) (int, error) {
-	return 0, nil
-}
-func (m *mockSettingsSvc) HasTenantOverride(_ context.Context, _ string) (bool, error) {
-	return false, nil
-}
-func (m *mockSettingsSvc) SetValue(_ context.Context, _ string, _ any, _ *int64, _ []string) error {
-	return nil
-}
-func (m *mockSettingsSvc) ResetValue(_ context.Context, _ string, _ *int64, _ []string) error {
-	return nil
-}
-func (m *mockSettingsSvc) GetLoginImageURL(_ context.Context, _ int64) (string, error) {
-	return "", nil
-}
-func (m *mockSettingsSvc) SetLoginImageURL(_ context.Context, _ int64, _ string) (string, error) {
-	return "", nil
-}
-func (m *mockSettingsSvc) ClearLoginImageURL(_ context.Context, _ int64) (string, error) {
-	return "", nil
 }
 
 // =============================================================================
@@ -356,9 +316,9 @@ func staffClaims() jwt.AppClaims {
 
 func TestIsAdminWithSupervisionOverview_NonAdmin(t *testing.T) {
 	rs := &Resource{
-		SettingsService: &mockSettingsSvc{boolValues: map[string]bool{
+		SettingsService: mockSettingsSvc(map[string]bool{
 			configModel.KeyAdminSupervisionOverview: true,
-		}},
+		}),
 	}
 	r := newRequestWithClaims("GET", "/", staffClaims())
 
@@ -374,9 +334,9 @@ func TestIsAdminWithSupervisionOverview_NilSettings(t *testing.T) {
 
 func TestIsAdminWithSupervisionOverview_SettingDisabled(t *testing.T) {
 	rs := &Resource{
-		SettingsService: &mockSettingsSvc{boolValues: map[string]bool{
+		SettingsService: mockSettingsSvc(map[string]bool{
 			configModel.KeyAdminSupervisionOverview: false,
-		}},
+		}),
 	}
 	r := newRequestWithClaims("GET", "/", adminClaims())
 
@@ -385,9 +345,9 @@ func TestIsAdminWithSupervisionOverview_SettingDisabled(t *testing.T) {
 
 func TestIsAdminWithSupervisionOverview_SettingEnabled(t *testing.T) {
 	rs := &Resource{
-		SettingsService: &mockSettingsSvc{boolValues: map[string]bool{
+		SettingsService: mockSettingsSvc(map[string]bool{
 			configModel.KeyAdminSupervisionOverview: true,
-		}},
+		}),
 	}
 	r := newRequestWithClaims("GET", "/", adminClaims())
 
@@ -397,7 +357,7 @@ func TestIsAdminWithSupervisionOverview_SettingEnabled(t *testing.T) {
 func TestIsAdminWithSupervisionOverview_SettingError(t *testing.T) {
 	// Key not in map → ResolveBool returns error
 	rs := &Resource{
-		SettingsService: &mockSettingsSvc{boolValues: map[string]bool{}},
+		SettingsService: mockSettingsSvc(map[string]bool{}),
 	}
 	r := newRequestWithClaims("GET", "/", adminClaims())
 
@@ -410,9 +370,9 @@ func TestIsAdminWithSupervisionOverview_SettingError(t *testing.T) {
 
 func TestGetAllActiveSupervisions_ForbiddenForNonAdmin(t *testing.T) {
 	rs := &Resource{
-		SettingsService: &mockSettingsSvc{boolValues: map[string]bool{
+		SettingsService: mockSettingsSvc(map[string]bool{
 			configModel.KeyAdminSupervisionOverview: true,
-		}},
+		}),
 	}
 	r := newRequestWithClaims("GET", "/active/supervisors/all", staffClaims())
 	w := httptest.NewRecorder()
@@ -434,9 +394,9 @@ func TestGetAllActiveSupervisions_ForbiddenWhenSettingsNil(t *testing.T) {
 
 func TestGetAllActiveSupervisions_ForbiddenWhenSettingDisabled(t *testing.T) {
 	rs := &Resource{
-		SettingsService: &mockSettingsSvc{boolValues: map[string]bool{
+		SettingsService: mockSettingsSvc(map[string]bool{
 			configModel.KeyAdminSupervisionOverview: false,
-		}},
+		}),
 	}
 	r := newRequestWithClaims("GET", "/active/supervisors/all", adminClaims())
 	w := httptest.NewRecorder()
@@ -449,7 +409,7 @@ func TestGetAllActiveSupervisions_ForbiddenWhenSettingDisabled(t *testing.T) {
 func TestGetAllActiveSupervisions_ForbiddenOnSettingError(t *testing.T) {
 	// Empty boolValues → ResolveBool returns error for the key
 	rs := &Resource{
-		SettingsService: &mockSettingsSvc{boolValues: map[string]bool{}},
+		SettingsService: mockSettingsSvc(map[string]bool{}),
 	}
 	r := newRequestWithClaims("GET", "/active/supervisors/all", adminClaims())
 	w := httptest.NewRecorder()
@@ -461,9 +421,9 @@ func TestGetAllActiveSupervisions_ForbiddenOnSettingError(t *testing.T) {
 
 func TestGetAllActiveSupervisions_SuccessEmptyGroups(t *testing.T) {
 	rs := &Resource{
-		SettingsService: &mockSettingsSvc{boolValues: map[string]bool{
+		SettingsService: mockSettingsSvc(map[string]bool{
 			configModel.KeyAdminSupervisionOverview: true,
-		}},
+		}),
 		ActiveService: &stubActiveService{},
 	}
 	r := newRequestWithClaims("GET", "/active/supervisors/all", adminClaims())
@@ -485,9 +445,9 @@ func TestGetAllActiveSupervisions_SuccessWithActiveGroups(t *testing.T) {
 	endedTime := now.Add(-1 * time.Hour)
 
 	rs := &Resource{
-		SettingsService: &mockSettingsSvc{boolValues: map[string]bool{
+		SettingsService: mockSettingsSvc(map[string]bool{
 			configModel.KeyAdminSupervisionOverview: true,
-		}},
+		}),
 		ActiveService: &stubActiveService{
 			listActiveGroupsFunc: func(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
 				return []*activeModel.Group{
@@ -526,9 +486,9 @@ func TestGetAllActiveSupervisions_SuccessWithActiveGroups(t *testing.T) {
 
 func TestGetAllActiveSupervisions_ServiceError(t *testing.T) {
 	rs := &Resource{
-		SettingsService: &mockSettingsSvc{boolValues: map[string]bool{
+		SettingsService: mockSettingsSvc(map[string]bool{
 			configModel.KeyAdminSupervisionOverview: true,
-		}},
+		}),
 		ActiveService: &stubActiveService{
 			listActiveGroupsFunc: func(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
 				return nil, fmt.Errorf("database error")

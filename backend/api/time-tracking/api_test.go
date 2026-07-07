@@ -19,7 +19,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -394,55 +394,27 @@ func (m *mockStaffAbsenceService) ListPendingRequests(_ context.Context) ([]*act
 	return nil, nil
 }
 
-type mockSettingsService struct {
-	stringVal string
-	stringErr error
-}
-
-func (m *mockSettingsService) GetSchema(context.Context, []string) (*configSvc.SettingsSchema, error) {
-	return nil, nil
-}
-func (m *mockSettingsService) GetSchemaForOperator(context.Context, []string) (*configSvc.SettingsSchema, error) {
-	return nil, nil
-}
-func (m *mockSettingsService) Resolve(context.Context, string) (any, error) {
-	return m.stringVal, m.stringErr
-}
-func (m *mockSettingsService) ResolveString(context.Context, string) (string, error) {
-	return m.stringVal, m.stringErr
-}
-func (m *mockSettingsService) ResolveStringForTenant(context.Context, int64, string) (string, error) {
-	return m.stringVal, m.stringErr
-}
-func (m *mockSettingsService) ResolveBool(context.Context, string) (bool, error) {
-	return false, nil
-}
-func (m *mockSettingsService) ResolveBoolForTenant(context.Context, int64, string) (bool, error) {
-	return false, nil
-}
-func (m *mockSettingsService) ResolveInt(context.Context, string) (int, error) {
-	return 0, nil
-}
-func (m *mockSettingsService) ResolveIntForTenant(context.Context, int64, string) (int, error) {
-	return 0, nil
-}
-func (m *mockSettingsService) HasTenantOverride(context.Context, string) (bool, error) {
-	return m.stringVal != "", nil
-}
-func (m *mockSettingsService) SetValue(context.Context, string, any, *int64, []string) error {
-	return nil
-}
-func (m *mockSettingsService) ResetValue(context.Context, string, *int64, []string) error {
-	return nil
-}
-func (m *mockSettingsService) GetLoginImageURL(context.Context, int64) (string, error) {
-	return "", nil
-}
-func (m *mockSettingsService) SetLoginImageURL(context.Context, int64, string) (string, error) {
-	return "", nil
-}
-func (m *mockSettingsService) ClearLoginImageURL(context.Context, int64) (string, error) {
-	return "", nil
+// newMockSettingsService builds a configtest.Mock reproducing the former
+// hand-rolled mockSettingsService stub: Resolve/ResolveString/
+// ResolveStringForTenant all return the same (stringVal, stringErr) pair,
+// and HasTenantOverride reports true whenever stringVal is non-empty
+// (independent of stringErr).
+func newMockSettingsService(stringVal string, stringErr error) *configtest.Mock {
+	resolveString := func(context.Context, string) (string, error) {
+		return stringVal, stringErr
+	}
+	return &configtest.Mock{
+		ResolveFn: func(context.Context, string) (any, error) {
+			return stringVal, stringErr
+		},
+		ResolveStringFn: resolveString,
+		ResolveStringForTenantFn: func(ctx context.Context, _ int64, key string) (string, error) {
+			return resolveString(ctx, key)
+		},
+		HasTenantOverrideFn: func(context.Context, string) (bool, error) {
+			return stringVal != "", nil
+		},
+	}
 }
 
 // --- Test helpers ---
@@ -532,7 +504,7 @@ func TestCheckInRequest_Bind(t *testing.T) {
 // --- NewResource ---
 
 func TestNewResource(t *testing.T) {
-	rs := NewResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), &mockSettingsService{}, nil, nil)
+	rs := NewResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), newMockSettingsService("", nil), nil, nil)
 	assert.NotNil(t, rs)
 	assert.NotNil(t, rs.WorkSessionService)
 	assert.NotNil(t, rs.StaffAbsenceService)
@@ -906,7 +878,7 @@ func TestGetConfig_EmptyDefault(t *testing.T) {
 
 func TestGetConfig_ReturnsAccountStartDate(t *testing.T) {
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
-	rs.SettingsService = &mockSettingsService{stringVal: "2026-08-01"}
+	rs.SettingsService = newMockSettingsService("2026-08-01", nil)
 
 	r := httptest.NewRequest(http.MethodGet, "/config", nil)
 	r = withClaims(r, validClaims())
@@ -923,7 +895,7 @@ func TestGetConfig_ReturnsAccountStartDate(t *testing.T) {
 
 func TestGetConfig_SettingsError(t *testing.T) {
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
-	rs.SettingsService = &mockSettingsService{stringErr: errors.New("settings unavailable")}
+	rs.SettingsService = newMockSettingsService("", errors.New("settings unavailable"))
 
 	r := httptest.NewRequest(http.MethodGet, "/config", nil)
 	r = withClaims(r, validClaims())
