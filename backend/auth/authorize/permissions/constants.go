@@ -22,6 +22,7 @@ const (
 	ResourceAuth          = "auth"
 	ResourceIOT           = "iot"
 	ResourceSchedules     = "schedules"
+	ResourceDisplay       = "display"
 )
 
 // Admin permissions
@@ -104,6 +105,12 @@ const (
 	IOTRead   = ResourceIOT + ":" + ActionRead
 	IOTUpdate = ResourceIOT + ":" + ActionUpdate
 	IOTManage = ResourceIOT + ":" + ActionManage
+)
+
+// Display permissions (info-point dashboards, issue #1325)
+const (
+	DisplayRead   = ResourceDisplay + ":" + ActionRead
+	DisplayManage = ResourceDisplay + ":" + ActionManage
 )
 
 // Auth permissions
