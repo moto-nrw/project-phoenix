@@ -166,6 +166,17 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 	}
 	shiftType := buildShiftType(req)
 	shiftType.ID = id
+	// A PUT that omits is_active must not silently flip the stored state — e.g.
+	// a client editing only name/color would otherwise reactivate an inactive
+	// shift type via buildShiftType's create default. Preserve the current value.
+	if req.IsActive == nil {
+		existing, err := rs.Service.GetShiftType(r.Context(), id)
+		if err != nil {
+			renderServiceError(w, r, err)
+			return
+		}
+		shiftType.IsActive = existing.IsActive
+	}
 	saved, err := rs.Service.UpdateShiftType(r.Context(), shiftType)
 	if err != nil {
 		renderServiceError(w, r, err)

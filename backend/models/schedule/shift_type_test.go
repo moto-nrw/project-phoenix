@@ -22,6 +22,16 @@ func TestShiftTypeValidate(t *testing.T) {
 			wantColor: "#6B7280",
 		},
 		{
+			name:      "expands shorthand hex to six digits",
+			input:     ShiftType{Name: "Kurz", Color: "#abc"},
+			wantColor: "#AABBCC",
+		},
+		{
+			name:      "expands shorthand hex without hash",
+			input:     ShiftType{Name: "Kurz2", Color: "abc"},
+			wantColor: "#AABBCC",
+		},
+		{
 			name:      "defaults empty color to gray",
 			input:     ShiftType{Name: "Sonstiges", Color: ""},
 			wantColor: DefaultShiftTypeColor,

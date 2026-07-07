@@ -56,8 +56,21 @@ func (t *ShiftType) BeforeAppendModel(query any) error {
 
 func (t *ShiftType) TableName() string { return tableScheduleShiftTypes }
 
+// expandShorthandHex turns a validated 3-digit "#RGB" color into its 6-digit
+// "#RRGGBB" form so stored colors are always the shape the frontend's native
+// <input type="color"> can display and round-trip. The input must already have
+// matched shiftTypeHexColorPattern.
+func expandShorthandHex(color string) string {
+	if len(color) != 4 { // "#" + 3 hex digits
+		return color
+	}
+	r, g, b := color[1], color[2], color[3]
+	return string([]byte{'#', r, r, g, g, b, b})
+}
+
 // Validate normalizes and checks the shift type. It trims the name, defaults an
-// empty color to gray, prepends a missing "#", and enforces a hex color.
+// empty color to gray, prepends a missing "#", enforces a hex color, and
+// expands a 3-digit shorthand to the 6-digit form.
 func (t *ShiftType) Validate() error {
 	t.Name = strings.TrimSpace(t.Name)
 	if t.Name == "" {
@@ -80,7 +93,7 @@ func (t *ShiftType) Validate() error {
 	if !shiftTypeHexColorPattern.MatchString(color) {
 		return errors.New("invalid color format, must be a valid hex color")
 	}
-	t.Color = strings.ToUpper(color)
+	t.Color = strings.ToUpper(expandShorthandHex(color))
 
 	return nil
 }

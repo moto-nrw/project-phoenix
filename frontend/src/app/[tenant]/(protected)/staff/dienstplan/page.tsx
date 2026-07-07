@@ -97,6 +97,7 @@ function DienstplanContent() {
   const {
     data: shiftTypes,
     error: shiftTypesError,
+    isLoading: shiftTypesLoading,
     mutate: mutateShiftTypes,
   } = useSWRAuth<ShiftType[]>("dienstplan-shift-types", () =>
     shiftTypeService.getShiftTypes(),
@@ -261,7 +262,7 @@ function DienstplanContent() {
             weekDays={weekDays}
             todayIso={today}
             typesById={typesById}
-            isLoading={staffLoading || shiftsLoading}
+            isLoading={staffLoading || shiftsLoading || shiftTypesLoading}
             onCellClick={(member, date, shift) =>
               setModal({
                 mode: shift ? "edit" : "create",
