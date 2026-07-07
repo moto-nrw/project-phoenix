@@ -9,7 +9,7 @@ import {
   type ShiftType,
 } from "./shift-type-helpers";
 
-export interface ShiftTypePayload {
+interface ShiftTypePayload {
   name: string;
   /** Hex color, e.g. "#83CD2D" */
   color: string;
