@@ -711,7 +711,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Mit `Einstempeln` beginnen und am Ende `Ausstempeln`.",
           "Wenn die Einrichtung Einstempeln erst ab geplanter Startzeit aktiviert hat, wird ein zu früher Versuch mit Hinweis auf die Startzeit abgewiesen.",
           "Ist im Dienstplan eine Schicht geplant, zeigt die Stempeluhr sie als `Geplant: 08:00–16:00`. Vergessene Ausstempelungen kann die Einrichtung automatisch zum geplanten Dienstende beenden lassen (Einstellung `Automatische Ausstempelung`); solche Einträge sind mit `Auto-Checkout` markiert und lassen sich korrigieren.",
-          "Pausen mit einer geplanten Dauer starten. Die Pause endet automatisch nach Ablauf oder manuell über `Pause beenden`.",
+          "Pausen starten und bei Bedarf eine individuelle Dauer wählen. Nach Ablauf der gewählten Dauer läuft die Arbeitszeit automatisch weiter; über `Pause beenden` kann die Pause früher beendet werden.",
           "Bei langen Arbeitstagen die Pausenhinweise beachten.",
           "Für Krankheit, Fortbildung oder sonstige Abwesenheit `Abwesend` wählen und die Abwesenheit mit Art, Zeitraum und optionaler Notiz speichern.",
         ],
@@ -721,7 +721,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "orange",
         },
         screenshot:
-          "Zeiterfassung mit Einstempeln, Pause, Ausstempeln und Abwesenheit melden.",
+          "Zeiterfassung mit Einstempeln, individueller Pausenlänge, Ausstempeln und Abwesenheit melden.",
         image: "/help/screens/zeiterfassung.webp",
       },
       {
