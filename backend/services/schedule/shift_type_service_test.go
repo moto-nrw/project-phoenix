@@ -149,3 +149,28 @@ func TestShiftTypeService_DeleteNullsReferencingShift(t *testing.T) {
 	err = svc.DeleteShiftType(ctx, 0)
 	require.ErrorIs(t, err, scheduleSvc.ErrShiftTypeNotFound)
 }
+
+// TestShiftTypeService_CreateInactivePersists guards the bun `default:true`
+// gotcha: creating a shift type with IsActive=false must store false, not have
+// the column DEFAULT TRUE silently win. (Regression for #1836 follow-up.)
+func TestShiftTypeService_CreateInactivePersists(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repos := repositories.NewFactory(db)
+	svc := scheduleSvc.NewShiftTypeService(repos.ShiftType, slog.Default())
+	ctx := testpkg.TenantContext(1)
+
+	created, err := svc.CreateShiftType(ctx, &scheduleModels.ShiftType{
+		Name:     uniqueName("Inaktiv"),
+		Color:    "#6B7280",
+		IsActive: false,
+	})
+	require.NoError(t, err)
+	defer func() { _ = svc.DeleteShiftType(ctx, created.ID) }()
+	assert.False(t, created.IsActive, "create must return the inactive flag it was given")
+
+	got, err := svc.GetShiftType(ctx, created.ID)
+	require.NoError(t, err)
+	assert.False(t, got.IsActive, "an inactive shift type must persist as inactive, not fall back to the column default TRUE")
+}

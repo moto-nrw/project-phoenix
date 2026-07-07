@@ -10,7 +10,15 @@ import (
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
+
+// shiftTypeNameUniqueIndex is the case-insensitive unique index from migration
+// 1.15.169 (schedule.shift_types on (tenant_id, LOWER(name))). Two concurrent
+// creates can both pass the nameTaken pre-check and then race on INSERT; the
+// loser hits this index and must surface as ErrShiftTypeNameTaken (409), not a
+// raw 500.
+const shiftTypeNameUniqueIndex = "uniq_shift_types_tenant_name"
 
 var (
 	// ErrShiftTypeNotFound signals that the requested shift type does not exist.
@@ -114,6 +122,23 @@ func (s *shiftTypeService) nameTaken(ctx context.Context, name string, excludeID
 	return false, nil
 }
 
+// isShiftTypeNameConflict reports whether err is a Postgres unique violation
+// (23505) on the per-tenant case-insensitive name index. errors.As traverses
+// the *base.DatabaseError wrapper the repository adds (it implements Unwrap).
+func isShiftTypeNameConflict(err error) bool {
+	if err == nil {
+		return false
+	}
+	var pgErr pgdriver.Error
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+	if pgErr.Field('C') != "23505" {
+		return false
+	}
+	return pgErr.Field('n') == shiftTypeNameUniqueIndex
+}
+
 func (s *shiftTypeService) CreateShiftType(ctx context.Context, shiftType *scheduleModels.ShiftType) (*scheduleModels.ShiftType, error) {
 	if err := shiftType.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrShiftTypeInvalid, err.Error())
@@ -127,6 +152,9 @@ func (s *shiftTypeService) CreateShiftType(ctx context.Context, shiftType *sched
 	}
 	shiftType.SetTenantID(tenant.FromContext(ctx))
 	if err := s.repo.Create(ctx, shiftType); err != nil {
+		if isShiftTypeNameConflict(err) {
+			return nil, ErrShiftTypeNameTaken
+		}
 		return nil, err
 	}
 	s.getLogger().Info("shift type created", "shift_type_id", shiftType.ID)
@@ -159,6 +187,9 @@ func (s *shiftTypeService) UpdateShiftType(ctx context.Context, shiftType *sched
 	}
 	shiftType.TenantID = existing.TenantID
 	if err := s.repo.Update(ctx, shiftType); err != nil {
+		if isShiftTypeNameConflict(err) {
+			return nil, ErrShiftTypeNameTaken
+		}
 		return nil, err
 	}
 	s.getLogger().Info("shift type updated", "shift_type_id", shiftType.ID)

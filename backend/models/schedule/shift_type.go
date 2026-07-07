@@ -33,7 +33,12 @@ type ShiftType struct {
 	Name        string `bun:"name,notnull" json:"name"`
 	Color       string `bun:"color,notnull" json:"color"`
 	Description string `bun:"description" json:"description,omitempty"`
-	IsActive    bool   `bun:"is_active,notnull,default:true" json:"is_active"`
+	// No bun `default:true` tag on purpose: bun writes DEFAULT (not the value)
+	// for any zero-value field that carries a default, so `false` would silently
+	// become the column default TRUE on INSERT and an admin could never create an
+	// inactive shift type. The DB column keeps its own DEFAULT TRUE for raw
+	// inserts; through this model bun always sends the explicit bool.
+	IsActive bool `bun:"is_active,notnull" json:"is_active"`
 }
 
 func (t *ShiftType) BeforeAppendModel(query any) error {
