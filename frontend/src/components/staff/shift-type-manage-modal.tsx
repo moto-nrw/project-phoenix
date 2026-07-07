@@ -308,15 +308,27 @@ export function ShiftTypeManageModal({
                     </li>
                   ))}
                 </ul>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  onClick={openCreate}
-                >
-                  <Plus className="mr-1.5 h-4 w-4" />
-                  Neue Schichtart
-                </Button>
+                <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    isLoading={seeding}
+                    loadingText="Wird angelegt…"
+                    onClick={handleSeedDefaults}
+                  >
+                    Beispiele hinzufügen
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    onClick={openCreate}
+                  >
+                    <Plus className="mr-1.5 h-4 w-4" />
+                    Neue Schichtart
+                  </Button>
+                </div>
               </>
             )}
 
