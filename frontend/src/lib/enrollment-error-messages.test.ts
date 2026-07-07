@@ -62,6 +62,15 @@ describe("enrollment-error-messages", () => {
     ).toContain("vorgegebenen Liste");
   });
 
+  it("maps the late-invite invalid code to a German message", () => {
+    expect(
+      translateEnrollmentErrorMessage(
+        "late invite is invalid",
+        "enrollment.late_invite_invalid",
+      ),
+    ).toContain("Nachzügler-Link");
+  });
+
   it("keeps already-German backend messages", () => {
     expect(
       translateEnrollmentErrorMessage("Bitte prüfe die eingegebenen Daten."),

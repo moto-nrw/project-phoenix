@@ -39,9 +39,11 @@
   "parentNav": {
     "start": "Главная",
     "children": "Мои дети",
+    "mealPlan": "Меню питания",
     "comingSoon": "Скоро в родительском портале",
     "calendar": "Календарь",
     "messages": "Сообщения",
+    "news": "Новости",
     "contactData": "Контактные данные",
     "soon": "Скоро",
     "refresh": "Обновить данные",
@@ -52,6 +54,20 @@
     "role": "Родитель",
     "childProfile": "Профиль ребенка",
     "loading": "Загрузка..."
+  },
+  "parentMealPlan": {
+    "title": "Меню питания",
+    "subtitle": "Что подают в группе продлённого дня.",
+    "thisWeek": "Эта неделя",
+    "nextWeek": "Следующая неделя",
+    "today": "Сегодня",
+    "noMeal": "Блюдо не указано",
+    "empty": "Для вашей школы сейчас нет меню питания.",
+    "loadError": "Не удалось загрузить меню питания.",
+    "emptyWeek": "На эту неделю план питания ещё не внесён.",
+    "weekHeading": "На этой неделе",
+    "school": "Школа",
+    "week": "Неделя"
   },
   "parentDashboard": {
     "eyebrow": "Родительский портал",
@@ -67,6 +83,8 @@
     "newsDescription": "Здесь появляются сообщения от OGS и родительского портала.",
     "noNewsTitle": "Новостей пока нет",
     "noNewsDescription": "Новые уведомления появятся прямо на стартовой странице.",
+    "newsShowAll": "Показать все новости",
+    "noNewsPageDescription": "Как только группа продлённого дня опубликует объявление, оно появится здесь.",
     "loadError": "Не удалось загрузить обзор. Обновите страницу или попробуйте позже.",
     "unknownError": "Неизвестная ошибка",
     "notSet": "Не указано",
@@ -82,7 +100,15 @@
       "rejected": "Отклонено",
       "withdrawn": "Отозвано"
     },
-    "dateRangeConnector": "до"
+    "dateRangeConnector": "до",
+    "newsNew": "Новое",
+    "newsImportant": "Важно",
+    "newsMarkRead": "Отметить как прочитанное",
+    "newsAcknowledge": "Прочитано и подтверждено",
+    "newsAcknowledged": "Подтверждено",
+    "newsRead": "Прочитано",
+    "newsActionError": "Не удалось выполнить действие. Повторите попытку.",
+    "newsStaleError": "Это объявление больше не актуально. Пожалуйста, обновите страницу."
   },
   "parentChildren": {
     "eyebrow": "Мои дети",
@@ -220,15 +246,16 @@
       "pickupLabel": "Забор",
       "regularPickup": "Обычный забор",
       "messagesLabel": "Сообщения",
-      "noMessages": "Нет новых сообщений",
-      "noMessagesSent": "Сообщения не отправлены",
-      "messagesSent": "{count, plural, one {Отправлено # сообщение} few {Отправлено # сообщения} many {Отправлено # сообщений} other {Отправлено # сообщения}}"
+      "noConversations": "Нет переписок",
+      "unreadCount": "{count, plural, one {# непрочитанное сообщение} few {# непрочитанных сообщения} many {# непрочитанных сообщений} other {# непрочитанных сообщения}}",
+      "conversationsCount": "{count, plural, one {# переписка} few {# переписки} many {# переписок} other {# переписки}}"
     },
     "messages": {
       "eyebrow": "Родительский портал",
-      "title": "Сообщения команде",
-      "description": "Короткие сообщения для воспитателей.",
-      "compose": "Написать"
+      "title": "Сообщения с ОГС",
+      "description": "Переписки о вашем ребёнке.",
+      "compose": "Новое сообщение",
+      "empty": "Пока нет переписок. Напишите ОГС первое сообщение."
     }
   },
   "parentChildCare": {
@@ -248,16 +275,6 @@
       "invalidDate": "Выберите корректную дату (дата окончания после даты начала).",
       "saveError": "Не удалось сохранить сообщение об отсутствии.",
       "submit": "Отправить сообщение об отсутствии"
-    },
-    "notes": {
-      "title": "Сообщение команде",
-      "newLabel": "Новое сообщение",
-      "placeholder": "Короткое сообщение воспитателям …",
-      "empty": "Введите сообщение.",
-      "sendError": "Не удалось отправить сообщение.",
-      "send": "Отправить",
-      "lastSent": "Недавно отправленные",
-      "listEmpty": "Сообщений пока нет."
     },
     "summary": {
       "none": "Нет сообщений об отсутствии",
@@ -282,6 +299,43 @@
       "existingHint": "На {date} уже задано изменение. Сохранение перезапишет его.",
       "reset": "Сбросить",
       "submit": "Сохранить"
+    },
+    "actions": {
+      "sick": {
+        "label": "Сообщить об отсутствии",
+        "shortLabel": "Отсутствие",
+        "hint": "Сообщить об отсутствии ребёнка на один или несколько дней"
+      },
+      "pickup": {
+        "label": "Забрать в определённый день",
+        "shortLabel": "Уход",
+        "hint": "Изменить время ухода или прихода на один день"
+      }
+    },
+    "request": {
+      "submit": "Отправить запрос",
+      "sendError": "Не удалось отправить запрос.",
+      "careSchedule": {
+        "title": "Изменить время пребывания",
+        "intro": "Расписание Пн–Пт как запрос в учреждение. Изменяются только заполненные данные, пустые поля остаются как прежде.",
+        "noChange": "Пожалуйста, измените хотя бы один день.",
+        "arrival": "Время прихода",
+        "pickup": "Время ухода",
+        "modeAria": "Способ ухода {day}"
+      },
+      "weekday": {
+        "1": "Понедельник",
+        "2": "Вторник",
+        "3": "Среда",
+        "4": "Четверг",
+        "5": "Пятница"
+      },
+      "careMode": {
+        "unchanged": "Без изменений",
+        "alone": "Уходит самостоятельно",
+        "bus": "Едет на автобусе",
+        "pickup": "Забирают"
+      }
     }
   },
   "parentLogin": {
@@ -295,13 +349,72 @@
     "loading": "Загрузка...",
     "submitting": "Вход...",
     "submit": "Войти",
-    "forgotPassword": "Забыли пароль? Пожалуйста, обратитесь в OGS.",
+    "forgotPassword": "Забыли пароль?",
     "errors": {
       "accountInactive": "Ваш аккаунт деактивирован. Пожалуйста, свяжитесь со школой.",
       "rateLimited": "Слишком много попыток входа. Попробуйте позже.",
       "invalidCredentials": "Вход невозможен. Проверьте данные доступа или используйте школьный вход, если вы сотрудник.",
       "invalid": "Недействительные данные входа",
       "generic": "Ошибка входа. Попробуйте еще раз."
+    }
+  },
+  "parentPasswordResetModal": {
+    "title": "Сброс пароля",
+    "description": "Введите адрес e-mail, и мы отправим вам ссылку для сброса пароля.",
+    "emailLabel": "Адрес e-mail",
+    "cancel": "Отмена",
+    "submit": "Отправить ссылку",
+    "submitting": "Отправка...",
+    "successTitle": "Письмо отправлено!",
+    "successMessage": "Мы отправили вам письмо со ссылкой для сброса пароля.",
+    "successHint": "Проверьте входящие и следуйте инструкциям в письме.",
+    "close": "Закрыть",
+    "errors": {
+      "rateLimited": "Слишком много попыток. Попробуйте снова через {countdown}.",
+      "generic": "Произошла ошибка. Попробуйте еще раз."
+    }
+  },
+  "parentPasswordResetPage": {
+    "backToLogin": "Назад ко входу",
+    "errors": {
+      "missingToken": "Токен сброса недействителен или отсутствует. Запросите новую ссылку.",
+      "invalidToken": "Недействительный токен сброса.",
+      "generic": "Произошла ошибка. Попробуйте еще раз.",
+      "invalidRequest": "Проверьте ссылку и требования к паролю, затем попробуйте еще раз.",
+      "expired": "Срок действия этой ссылки для сброса пароля истек. Запросите новую ссылку.",
+      "notFound": "Мы не смогли найти эту ссылку для сброса пароля. Запросите новую ссылку."
+    },
+    "validation": {
+      "tooShort": "Пароль должен содержать не менее 8 символов.",
+      "missingUppercase": "Пароль должен содержать хотя бы одну заглавную букву.",
+      "missingLowercase": "Пароль должен содержать хотя бы одну строчную букву.",
+      "missingNumber": "Пароль должен содержать хотя бы одну цифру.",
+      "missingSpecial": "Пароль должен содержать хотя бы один специальный символ.",
+      "passwordMismatch": "Пароли не совпадают."
+    },
+    "success": {
+      "eyebrow": "Пароль изменен",
+      "title": "Пароль успешно изменен",
+      "subtitle": "Вы будете автоматически перенаправлены на страницу входа.",
+      "body": "Через минуту вы снова сможете войти."
+    },
+    "form": {
+      "eyebrow": "Сброс пароля",
+      "title": "Задайте новый пароль",
+      "subtitle": "Выберите надежный пароль для своего аккаунта.",
+      "passwordLabel": "Новый пароль",
+      "confirmPasswordLabel": "Подтвердите пароль",
+      "showPassword": "Показать пароль",
+      "hidePassword": "Скрыть пароль",
+      "submitting": "Сохранение...",
+      "submit": "Изменить пароль"
+    },
+    "requirements": {
+      "title": "Требования к паролю:",
+      "minLength": "Не менее 8 символов",
+      "mixedCase": "Заглавные и строчные буквы",
+      "number": "Минимум одна цифра",
+      "special": "Минимум один специальный символ"
     }
   },
   "guardianInvite": {
@@ -655,6 +768,28 @@
     "editLoadError": "Заявку нельзя изменить",
     "editSaveError": "Не удалось сохранить изменения",
     "editSubmit": "Сохранить изменения",
+    "changeRequestTitle": "Запросить изменение",
+    "changeRequestDescription": "Эта заявка уже была рассмотрена. Поэтому ваши изменения будут отправлены в OGS как запрос и вступят в силу только после одобрения.",
+    "changeRequestEyebrow": "Для проверки",
+    "changeRequestReasonLabel": "Примечание к изменению, необязательно",
+    "changeRequestReasonPlaceholder": "Что изменилось?",
+    "changeRequestSubmit": "Отправить запрос на изменение",
+    "changeRequestSaveError": "Не удалось сохранить запрос на изменение",
+    "requestChange": "Запросить изменение",
+    "changeRequestReplySaved": "Ответ отправлен.",
+    "changeRequestsEyebrow": "Изменения",
+    "changeRequestsTitle": "Запросы на изменение",
+    "changeRequestsDescription": "Здесь отображаются запросы на проверке, вопросы от OGS и завершенные решения.",
+    "changeRequestsEmpty": "Запросы на изменение еще не отправлялись.",
+    "changeRequestCreated": "Отправлено {date}",
+    "changeRequestDiffTitle": "Запрошенные изменения",
+    "changeRequestDiffEmpty": "Распознаваемых изменений полей нет.",
+    "changeRequestBefore": "Было",
+    "changeRequestRequested": "Запрошено",
+    "changeRequestDecisionNote": "Решение:",
+    "changeRequestReplyLabel": "Ответ",
+    "changeRequestReplySending": "Отправляется…",
+    "changeRequestReplySubmit": "Отправить ответ",
     "backToStatus": "Назад к статусу",
     "nameLabel": "Имя",
     "emailLabel": "E-mail",
@@ -669,6 +804,7 @@
     "save": "Сохранить",
     "cancel": "Отмена",
     "editLocked": "Изменения возможны только до принятия решения. Для изменений обратитесь в OGS.",
+    "editLockedWithChangeRequest": "Прямое редактирование больше невозможно. Вместо этого можно отправить запрос на изменение в OGS.",
     "manageEyebrow": "Управление записью",
     "withdrawAllTitle": "Отозвать всю запись",
     "withdrawTitle": "Отозвать запись",
@@ -683,6 +819,181 @@
       "pending_renewal": "Требуется подтверждение",
       "auto_renewed": "Предварительно записано",
       "pending_admin_review": "На проверке"
+    },
+    "changeRequestStatus": {
+      "pending_review": "Ожидает проверки",
+      "needs_parent_response": "Открыт вопрос",
+      "approved": "Одобрено",
+      "rejected": "Отклонено",
+      "cancelled": "Отменено"
+    },
+    "changeRequestAuthor": {
+      "parent": "Вы",
+      "staff": "OGS",
+      "system": "Система"
+    },
+    "diff": {
+      "yes": "Да",
+      "no": "Нет",
+      "childEntry": "Ребенок",
+      "additionalGuardianEntry": "Дополнительный представитель",
+      "snapshot": {
+        "additional_guardians": "Дополнительные представители",
+        "children": "Дети",
+        "consent_flags": "Согласия",
+        "custom_data": "Дополнительные данные",
+        "guardian_email": "E-mail",
+        "guardian_first_name": "Имя",
+        "guardian_last_name": "Фамилия",
+        "guardian_phone": "Телефон",
+        "phase_id": "Этап регистрации"
+      },
+      "child": {
+        "custom_data": "Дополнительные данные",
+        "date_of_birth": "Дата рождения",
+        "first_name": "Имя",
+        "last_name": "Фамилия",
+        "offering_days": "Дни ухода",
+        "offering_ids": "Предложения ухода",
+        "target_grade_level": "Целевой класс"
+      },
+      "guardian": {
+        "email": "E-mail",
+        "first_name": "Имя",
+        "last_name": "Фамилия",
+        "phone": "Телефон"
+      },
+      "record": {
+        "automatic_selected_days": "Автоматически",
+        "available_days": "Доступные дни",
+        "days_of_week_mode": "Режим",
+        "email": "E-mail",
+        "first_name": "Имя",
+        "last_name": "Фамилия",
+        "manual_selected_days": "Вручную",
+        "offering_id": "Предложение ухода",
+        "offering_ids": "Предложения ухода",
+        "phone": "Телефон",
+        "selected_days": "Дни"
+      },
+      "weekday": {
+        "mon": "Пн",
+        "tue": "Вт",
+        "wed": "Ср",
+        "thu": "Чт",
+        "fri": "Пт",
+        "sat": "Сб",
+        "sun": "Вс"
+      }
     }
+  },
+  "parentMasterData": {
+    "title": "Stammdaten",
+    "subtitle": "Hier sehen Sie die zu Ihrem Kind gespeicherten Angaben. Die meisten Felder können Sie direkt ändern; einige Änderungen prüft das Team vorab.",
+    "back": "Zurück",
+    "loadError": "Die Stammdaten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
+    "saved": "Gespeichert",
+    "saveError": "Die Änderung konnte nicht gespeichert werden.",
+    "openLink": "Stammdaten ansehen & ändern",
+    "editableHint": "Änderungen werden automatisch gespeichert.",
+    "readonlyHint": "Diese Angaben pflegt die OGS.",
+    "requestHint": "Diese Änderungen prüft das Team, bevor sie übernommen werden.",
+    "requestButton": "Änderung anfragen",
+    "requestSubmitted": "Anfrage gesendet. Das Team prüft Ihre Änderung.",
+    "requestError": "Die Anfrage konnte nicht gesendet werden.",
+    "noChanges": "Es gibt keine Änderungen zum Senden.",
+    "pendingBadge": "In Prüfung",
+    "pendingNotice": "Eine Änderung an diesem Feld wartet auf Bestätigung durch das Team.",
+    "editDisabled": "Das Bearbeiten der Stammdaten ist bei dieser OGS deaktiviert.",
+    "requestDisabled": "Änderungsanfragen sind bei dieser OGS deaktiviert.",
+    "notSet": "Nicht angegeben",
+    "sections": {
+      "child": "Angaben zum Kind",
+      "health": "Gesundheit",
+      "contact": "Ihre Kontaktdaten",
+      "departure": "Dauerhafte Gehzeiten",
+      "careSchedule": "Betreuungszeiten"
+    },
+    "fields": {
+      "firstName": "Vorname",
+      "lastName": "Nachname",
+      "birthday": "Geburtsdatum",
+      "schoolClass": "Klasse",
+      "status": "Status",
+      "carePeriod": "Betreuungszeitraum",
+      "healthInfo": "Gesundheitshinweise / Allergien",
+      "email": "E-Mail-Adresse",
+      "addressStreet": "Straße und Hausnummer",
+      "addressCity": "Ort",
+      "addressPostalCode": "PLZ",
+      "contactMethod": "Bevorzugter Kontaktweg",
+      "language": "Sprache",
+      "phone": "Telefonnummer",
+      "day": "Tag"
+    },
+    "contactMethods": {
+      "email": "E-Mail",
+      "phone": "Telefon",
+      "mobile": "Mobil",
+      "sms": "SMS"
+    },
+    "departureModes": {
+      "pickup": "Wird abgeholt",
+      "bus": "Bus",
+      "alone": "Geht allein",
+      "accompanied": "Geht mit anderem Kind",
+      "none": "Keine Angabe"
+    },
+    "departureDays": {
+      "mon": "Mo",
+      "tue": "Di",
+      "wed": "Mi",
+      "thu": "Do",
+      "fri": "Fr"
+    },
+    "careSchedule": {
+      "hint": "Ihr aktueller Wochenplan. Dauerhafte Änderungen prüft das Team, bevor sie gelten.",
+      "arrival": "Bringzeit",
+      "pickup": "Abholzeit",
+      "modes": "Abholart",
+      "loadError": "Die Betreuungszeiten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
+      "pendingBadge": "In Prüfung",
+      "pendingNotice": "Ihre Anfrage wird vom Team geprüft. Bis zur Bestätigung gilt der bisherige Plan.",
+      "requestedAt": "Angefragt am {date}",
+      "withdraw": "Zurückziehen",
+      "withdrawError": "Die Anfrage konnte nicht zurückgezogen werden.",
+      "withdrawConfirmTitle": "Anfrage zurückziehen?",
+      "withdrawConfirmBody": "Möchten Sie Ihre Änderungsanfrage wirklich zurückziehen? Der bisherige Plan bleibt unverändert."
+    }
+  },
+  "parentOgsMessaging": {
+    "readByStaff": "Прочитано",
+    "requestTypeCareSchedule": "Запрос: изменить регулярное время присмотра",
+    "requestTitleFallback": "Запрос",
+    "statusOpen": "Открыто",
+    "statusDone": "Выполнено",
+    "statusRejected": "Отклонено",
+    "statusWithdrawn": "Отозвано",
+    "eventRequestConfirmed": "Запрос подтверждён",
+    "eventRequestConfirmedCareSchedule": "Запрос подтверждён, время присмотра применено",
+    "eventRequestCreatedCareSchedule": "Отправлен запрос на изменение времени присмотра",
+    "eventRequestCreatedMasterData": "Отправлен запрос на изменение Stammdaten",
+    "eventRequestConfirmedMasterData": "Запрос подтверждён, Stammdaten применены",
+    "eventRequestRejected": "Запрос отклонён",
+    "eventRequestRejectedReason": "Запрос отклонён: {reason}",
+    "eventRequestWithdrawn": "Запрос отозван",
+    "diffHeading": "Ваши запрошенные изменения",
+    "diffCareArrival": "Время прихода",
+    "diffCarePickup": "Время ухода",
+    "diffCareDepartureMode": "Способ ухода",
+    "diffWeekday1": "Понедельник",
+    "diffWeekday2": "Вторник",
+    "diffWeekday3": "Среда",
+    "diffWeekday4": "Четверг",
+    "diffWeekday5": "Пятница",
+    "diffModeAlone": "Уходит самостоятельно",
+    "diffModeBus": "Едет на автобусе",
+    "diffModePickup": "Забирают",
+    "diffModeAccompanied": "С другим ребёнком"
   }
 }

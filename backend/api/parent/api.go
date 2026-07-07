@@ -43,10 +43,9 @@ type Resource struct {
 	authRateLimiter       func(http.Handler) http.Handler
 }
 
-// SetAuthRateLimiter sets the rate limiter middleware for the public parent
-// login endpoint. Mirrors the tenant and operator wiring in api/base.go so
-// brute-force attempts return 429 — which the frontend NextAuth provider
-// translates into the localized "Zu viele Anmeldeversuche" error code.
+// SetAuthRateLimiter sets the rate limiter middleware for public parent auth
+// endpoints. Mirrors the tenant and operator wiring in api/base.go so
+// brute-force attempts return 429.
 func (rs *Resource) SetAuthRateLimiter(mw func(http.Handler) http.Handler) {
 	rs.authRateLimiter = mw
 }
@@ -86,6 +85,8 @@ func (rs *Resource) Router() chi.Router {
 			r.Use(rs.authRateLimiter)
 		}
 		r.Post("/login", rs.login)
+		r.Post("/password-reset", rs.initiatePasswordReset)
+		r.Post("/password-reset/confirm", rs.resetPassword)
 	})
 
 	// Authenticated parent routes — all require scope=parent.
@@ -132,16 +133,52 @@ func (rs *Resource) Router() chi.Router {
 		// the calling account's guardian links inside the service — the
 		// account id always comes from the JWT, never the URL/body.
 		//   - sick-note: report the child sick for one or more dates
-		//   - notes: append / list short messages for the team
 		//   - care-exception: set/clear a one-day pickup & arrival time
 		r.Get("/me/children/{studentId}/features", rs.getChildFeatures)
+		r.Get("/me/children/{studentId}/meal-plan", rs.getChildMealPlan)
 		r.Get("/me/children/{studentId}/sick-note", rs.listSickDays)
 		r.Post("/me/children/{studentId}/sick-note", rs.submitSickNote)
-		r.Get("/me/children/{studentId}/notes", rs.listNotes)
-		r.Post("/me/children/{studentId}/notes", rs.addNote)
+
+		// Parent-OGS messaging — chat model. One continuous conversation per
+		// child with the OGS (no subject). The list aggregates the guardian's
+		// conversations across all their children; the per-child routes read
+		// the conversation (marking it read) and post a message (creating the
+		// conversation on the first message). Gated by operations.parent_notes_enabled.
+		r.Get("/me/messages", rs.listMessageThreads)
+		r.Get("/me/messages/unread-count", rs.unreadMessageCount)
+		r.Get("/me/messages/children/{studentId}/threads", rs.listChildThreads)
+		r.Get("/me/messages/children/{studentId}", rs.getChildConversation)
+		r.Post("/me/messages/children/{studentId}", rs.postChildMessage)
+		// Parent-news feed (#1669) — read-only broadcast announcements the
+		// guardian is targeted by across all their children's (news-enabled)
+		// schools. The guardian can mark one read, or acknowledge one that
+		// requires confirmation. Audience + visibility are enforced server-side
+		// from the JWT account; no tenant or audience selector is trusted from
+		// the client.
+		r.Get("/me/news", rs.listAnnouncements)
+		r.Get("/me/news/unread-count", rs.unreadAnnouncementCount)
+		r.Post("/me/news/{announcementId}/read", rs.markAnnouncementRead)
+		r.Post("/me/news/{announcementId}/acknowledge", rs.acknowledgeAnnouncement)
 		r.Get("/me/children/{studentId}/care-exception", rs.listCareExceptions)
 		r.Post("/me/children/{studentId}/care-exception", rs.submitCareException)
 		r.Delete("/me/children/{studentId}/care-exception", rs.deleteCareException)
+
+		// Permanent weekly care plan (#1803) — read view on the Stammdaten
+		// page plus the change-request lifecycle (create / withdraw). Staff
+		// decide the requests on the central Änderungsanfragen page; the chat
+		// only receives notification pills.
+		r.Get("/me/children/{studentId}/care-schedule", rs.getChildCareSchedule)
+		r.Post("/me/children/{studentId}/care-schedule/requests", rs.createCareScheduleRequest)
+		r.Post("/me/children/{studentId}/care-schedule/requests/{requestId}/withdraw", rs.withdrawCareScheduleRequest)
+
+		// Stammdaten — structured view of the child's master data plus the
+		// calling guardian's own contact data. Track A direct edits apply
+		// immediately and are audited; Track B change requests (name,
+		// birthday, permanent Gehzeit) are added in a later step.
+		r.Get("/me/children/{studentId}/master-data", rs.getMasterData)
+		r.Patch("/me/children/{studentId}/master-data/{target}/{field}", rs.updateMasterDataField)
+		r.Get("/me/children/{studentId}/master-data/requests", rs.listMasterDataRequests)
+		r.Post("/me/children/{studentId}/master-data/requests", rs.submitMasterDataRequest)
 
 		// Related accounts — see who has access to the child, invite a
 		// further guardian by email (gated by guardians.parent_invite_mode),

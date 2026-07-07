@@ -5,13 +5,13 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"os"
 	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	staffshifts "github.com/moto-nrw/project-phoenix/api/staff-shifts"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -20,6 +20,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -34,16 +35,18 @@ type Resource struct {
 	StaffAbsenceService activeSvc.StaffAbsenceService
 	PersonService       usersSvc.PersonService
 	SettingsService     configSvc.SettingsService
+	StaffShiftService   scheduleSvc.StaffShiftService
 	db                  *bun.DB
 }
 
 // NewResource creates a new time-tracking resource
-func NewResource(workSessionService activeSvc.WorkSessionService, staffAbsenceService activeSvc.StaffAbsenceService, personService usersSvc.PersonService, settingsService configSvc.SettingsService, db *bun.DB) *Resource {
+func NewResource(workSessionService activeSvc.WorkSessionService, staffAbsenceService activeSvc.StaffAbsenceService, personService usersSvc.PersonService, settingsService configSvc.SettingsService, staffShiftService scheduleSvc.StaffShiftService, db *bun.DB) *Resource {
 	return &Resource{
 		WorkSessionService:  workSessionService,
 		StaffAbsenceService: staffAbsenceService,
 		PersonService:       personService,
 		SettingsService:     settingsService,
+		StaffShiftService:   staffShiftService,
 		db:                  db,
 	}
 }
@@ -80,6 +83,9 @@ func (rs *Resource) Router() chi.Router {
 		// Export
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/export", rs.exportSessions)
 
+		// Own planned shifts (Dienstplan, #1376/#1798)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/shifts", rs.getOwnShifts)
+
 		// Absence management
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/absences", rs.listAbsences)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/absences", rs.createAbsence)
@@ -104,8 +110,7 @@ type CheckInRequest struct {
 }
 
 type ConfigResponse struct {
-	AccountStartDate    string `json:"account_start_date"`
-	BreakAutoEndEnabled bool   `json:"break_auto_end_enabled"`
+	AccountStartDate string `json:"account_start_date"`
 }
 
 // Bind validates the check-in request
@@ -252,8 +257,7 @@ func (rs *Resource) getConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, ConfigResponse{
-		AccountStartDate:    accountStartDate,
-		BreakAutoEndEnabled: os.Getenv("BREAK_AUTO_END_ENABLED") != "false",
+		AccountStartDate: accountStartDate,
 	}, "Time tracking config retrieved successfully")
 }
 
@@ -696,4 +700,32 @@ func (rs *Resource) getPresenceMap(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, presenceMap, "Presence map retrieved successfully")
+}
+
+// getOwnShifts handles GET /api/time-tracking/shifts — the staff member's
+// own planned shifts (Dienstplan) in a from/to date range.
+func (rs *Resource) getOwnShifts(w http.ResponseWriter, r *http.Request) {
+	userClaims := jwt.ClaimsFromCtx(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+
+	from, to, ok := parseDateRange(w, r)
+	if !ok {
+		return
+	}
+
+	shifts, err := rs.StaffShiftService.ListShiftsForStaff(r.Context(), staffID, from, to)
+	if err != nil {
+		if errors.Is(err, scheduleSvc.ErrShiftInvalid) || errors.Is(err, scheduleSvc.ErrShiftRangeTooLarge) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, staffshifts.ToShiftResponses(shifts), "Shifts retrieved successfully")
 }

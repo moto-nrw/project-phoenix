@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -15,6 +16,7 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
@@ -273,6 +275,10 @@ func (m *mockWorkSessionService) GetTodayPresenceMap(ctx context.Context) (map[i
 	return map[int64]string{}, nil
 }
 func (m *mockWorkSessionService) CleanupOpenSessions(_ context.Context) (int, error) { return 0, nil }
+func (m *mockWorkSessionService) AutoCheckoutDueSessions(_ context.Context, _ time.Duration) (int, error) {
+	return 0, nil
+}
+func (m *mockWorkSessionService) SetStaffShiftRepo(_ scheduleModels.StaffShiftRepository) {}
 func (m *mockWorkSessionService) EnsureCheckedIn(_ context.Context, _ int64, _ string) (*activeModels.WorkSession, error) {
 	return nil, nil
 }
@@ -463,7 +469,7 @@ func defaultPersonSvc() *mockPersonService {
 }
 
 func testResource(wsSvc *mockWorkSessionService, absSvc *mockStaffAbsenceService, pSvc *mockPersonService, db *bun.DB) *Resource {
-	return NewResource(wsSvc, absSvc, pSvc, nil, db)
+	return NewResource(wsSvc, absSvc, pSvc, nil, nil, db)
 }
 
 func withClaims(r *http.Request, claims jwt.AppClaims) *http.Request {
@@ -530,7 +536,7 @@ func TestCheckInRequest_Bind(t *testing.T) {
 // --- NewResource ---
 
 func TestNewResource(t *testing.T) {
-	rs := NewResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), &mockSettingsService{}, nil)
+	rs := NewResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), &mockSettingsService{}, nil, nil)
 	assert.NotNil(t, rs)
 	assert.NotNil(t, rs.WorkSessionService)
 	assert.NotNil(t, rs.StaffAbsenceService)
@@ -734,6 +740,43 @@ func TestCheckIn_ReopenStatusConflict(t *testing.T) {
 	assert.Equal(t, activeModels.WorkSessionStatusHomeOffice, resp.Details["requested_status"])
 }
 
+func TestCheckIn_PlannedStartNotReached(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	wsSvc := &mockWorkSessionService{
+		checkInFn: func(_ context.Context, _ int64, _, _ string) (*activeModels.WorkSession, error) {
+			return nil, &activeSvc.PlannedStartNotReachedError{
+				PlannedStartTime: "09:00",
+				CurrentTime:      "08:45",
+			}
+		},
+	}
+	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
+
+	body := bytes.NewBufferString(`{"status":"present"}`)
+	r := httptest.NewRequest(http.MethodPost, "/check-in", body)
+	r.Header.Set("Content-Type", "application/json")
+	r = withClaims(r, validClaims())
+	w := httptest.NewRecorder()
+
+	rs.checkIn(w, r)
+	require.Equal(t, http.StatusConflict, w.Code)
+
+	var resp struct {
+		Status  string         `json:"status"`
+		Code    string         `json:"code"`
+		Error   string         `json:"error"`
+		Details map[string]any `json:"details"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, "error", resp.Status)
+	assert.Equal(t, "planned_start_not_reached", resp.Code)
+	require.NotNil(t, resp.Details)
+	assert.Equal(t, "09:00", resp.Details["planned_start_time"])
+	assert.Equal(t, "08:45", resp.Details["current_time"])
+}
+
 // --- checkOut handler ---
 
 func TestCheckOut_Success(t *testing.T) {
@@ -863,7 +906,6 @@ func TestGetConfig_EmptyDefault(t *testing.T) {
 	var data ConfigResponse
 	require.NoError(t, json.Unmarshal(resp.Data, &data))
 	assert.Equal(t, "", data.AccountStartDate)
-	assert.True(t, data.BreakAutoEndEnabled)
 }
 
 func TestGetConfig_ReturnsAccountStartDate(t *testing.T) {
@@ -881,27 +923,9 @@ func TestGetConfig_ReturnsAccountStartDate(t *testing.T) {
 	var data ConfigResponse
 	require.NoError(t, json.Unmarshal(resp.Data, &data))
 	assert.Equal(t, "2026-08-01", data.AccountStartDate)
-	assert.True(t, data.BreakAutoEndEnabled)
 }
 
-func TestGetConfig_ReturnsBreakAutoEndDisabled(t *testing.T) {
-	t.Setenv("BREAK_AUTO_END_ENABLED", "false")
-	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
-
-	r := httptest.NewRequest(http.MethodGet, "/config", nil)
-	r = withClaims(r, validClaims())
-	w := httptest.NewRecorder()
-
-	rs.getConfig(w, r)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-	resp := parseAPIResponse(t, w)
-	var data ConfigResponse
-	require.NoError(t, json.Unmarshal(resp.Data, &data))
-	assert.False(t, data.BreakAutoEndEnabled)
-}
-
-func TestGetConfig_SettingsError(t *testing.T) {
+func TestGetConfig_AccountStartDateSettingsError(t *testing.T) {
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 	rs.SettingsService = &mockSettingsService{stringErr: errors.New("settings unavailable")}
 

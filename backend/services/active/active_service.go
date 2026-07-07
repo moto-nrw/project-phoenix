@@ -251,6 +251,12 @@ func NewService(deps ServiceDependencies) Service {
 func (s *service) GetActiveGroup(ctx context.Context, id int64) (*active.Group, error) {
 	group, err := s.groupRepo.FindByID(ctx, id)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, &ActiveError{Op: "GetActiveGroup", Err: ErrActiveGroupNotFound}
+		}
+		return nil, &ActiveError{Op: "GetActiveGroup", Err: ErrDatabaseOperation}
+	}
+	if group == nil {
 		return nil, &ActiveError{Op: "GetActiveGroup", Err: ErrActiveGroupNotFound}
 	}
 

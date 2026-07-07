@@ -251,6 +251,7 @@ func (r *WorkTimeModelRepository) RefreshAssignedStaffSchedules(ctx context.Cont
 				RotationLength: model.RotationLength,
 				DayOfWeek:      entry.DayOfWeek,
 				TargetMinutes:  entry.TargetMinutes,
+				StartTime:      entry.StartTime,
 				ValidFrom:      today,
 				ValidUntil:     nil,
 				CreatedAt:      now,

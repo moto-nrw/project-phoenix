@@ -190,6 +190,7 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"services/platform/outbox_worker_test.go",                // Uses sqlmock + in-memory stubOutboxRepo to drive the worker poll-loop state machine without a real DB
 		"api/enrollment/export_handlers_test.go",                 // Pure unit test for the phase-export builders against an in-memory PhaseExport; int64 literals are sentinel schema/grade values, not DB rows
 		"guardian_related_accounts_errors_test.go",               // Pure mock-injection unit tests for the related-accounts error/best-effort branches; int64 literals are fake IDs in stack-allocated mocks, not DB rows
+		"services/parentmessaging/parentmessaging_test.go",       // Pure unit tests for the messaging core against narrow fakes (no DB); int64 literals are in-memory sentinel IDs (thread/account/ref), not DB rows
 	}
 
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
@@ -329,11 +330,14 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		normalizedPath := filepath.ToSlash(path)
 		skipFiles := []string{
 			"http_middleware_test.go",                           // Uses nil *bun.DB for unit testing middleware
+			"parent_message_hooks_test.go",                      // Uses a connectionless bun.NewDB to drive BeforeAppendModel hooks; no real DB
+			"parent_announcement_model_test.go",                 // Uses a connectionless bun.NewDB to drive BeforeAppendModel hooks; no real DB
 			"role_management_internal_test.go",                  // Uses hand-rolled stub repos injected via repositories.Factory, no real DB
 			"database/repositories/schedule/created_by_test.go", // Shared fixture helper; caller tests own DB setup
 			"test/architecture_ratchet_test.go",                 // Source-scanning ratchet; regex literals look like DB ops but no DB is used
 			"test/handler_layer_ratchet_test.go",                // Source-scanning ratchet (issue #584); same as above, no DB is used
 			"api/timetable/timetable_data_test_helpers_test.go", // Shared fixture helper; caller tests own DB setup (mirrors created_by_test.go)
+			"services/messaging/apply_export_internal_test.go",  // Test-support wrappers exposing unexported apply funcs; the *bun.DB is injected, caller (requests_test.go) owns SetupTestDB
 		}
 		skip := false
 		for _, sf := range skipFiles {

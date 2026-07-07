@@ -165,6 +165,7 @@ describe("mapWorkSessionHistoryResponse", () => {
       rest_period_warning: null,
       breaks: null,
       edit_count: 0,
+      audit_count: 1,
     };
     const result = mapWorkSessionHistoryResponse(backend);
 
@@ -173,6 +174,7 @@ describe("mapWorkSessionHistoryResponse", () => {
     expect(result.isOvertime).toBe(false);
     expect(result.isBreakCompliant).toBe(true);
     expect(result.editCount).toBe(0);
+    expect(result.auditCount).toBe(1);
   });
 
   it("maps nested breaks array", () => {
@@ -205,6 +207,7 @@ describe("mapWorkSessionHistoryResponse", () => {
         },
       ],
       edit_count: 0,
+      audit_count: 0,
     };
     const result = mapWorkSessionHistoryResponse(backend);
 
@@ -223,6 +226,7 @@ describe("mapWorkSessionHistoryResponse", () => {
       rest_period_warning: null,
       breaks: null,
       edit_count: 0,
+      audit_count: 0,
     };
     const result = mapWorkSessionHistoryResponse(backend);
 
@@ -238,10 +242,12 @@ describe("mapWorkSessionHistoryResponse", () => {
       rest_period_warning: null,
       breaks: null,
       edit_count: undefined as unknown as number,
+      audit_count: undefined as unknown as number,
     };
     const result = mapWorkSessionHistoryResponse(backend);
 
     expect(result.editCount).toBe(0);
+    expect(result.auditCount).toBe(0);
   });
 });
 

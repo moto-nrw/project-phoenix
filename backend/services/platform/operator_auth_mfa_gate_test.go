@@ -40,8 +40,16 @@ func randomOperatorGatePassword() string {
 func withJWTSecret(t *testing.T) {
 	t.Helper()
 	old := viper.GetString("auth_jwt_secret")
+	oldExpiry := viper.Get("auth_jwt_expiry")
+	oldRefreshExpiry := viper.Get("auth_jwt_refresh_expiry")
 	viper.Set("auth_jwt_secret", testJWTSecret)
-	t.Cleanup(func() { viper.Set("auth_jwt_secret", old) })
+	viper.Set("auth_jwt_expiry", 15*time.Minute)
+	viper.Set("auth_jwt_refresh_expiry", time.Hour)
+	t.Cleanup(func() {
+		viper.Set("auth_jwt_secret", old)
+		viper.Set("auth_jwt_expiry", oldExpiry)
+		viper.Set("auth_jwt_refresh_expiry", oldRefreshExpiry)
+	})
 }
 
 // stubOperatorMFAService is a minimal OperatorMFAService implementation
@@ -125,10 +133,11 @@ func newOperatorAuthServiceForGate(t *testing.T, mfa *stubOperatorMFAService) (p
 	auditLogRepo := &mockAuditLogRepoShared{}
 
 	svc, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
-		OperatorRepo: operatorRepo,
-		AuditLogRepo: auditLogRepo,
-		DB:           &bun.DB{},
-		Logger:       slog.Default(),
+		OperatorRepo:     operatorRepo,
+		AuditLogRepo:     auditLogRepo,
+		RefreshTokenRepo: &mockOperatorRefreshTokenRepo{},
+		DB:               &bun.DB{},
+		Logger:           slog.Default(),
 	})
 	require.NoError(t, err)
 	if mfa != nil {

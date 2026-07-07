@@ -15,6 +15,7 @@ import type {
   BackendConflictCheckResult,
   BackendCreateTemplateResult,
   BackendAttendanceResponse,
+  BackendEndTemplateResult,
   BackendExceptionConflictsResponse,
   BackendEnrichedInstance,
   BackendGapsResponse,
@@ -34,6 +35,8 @@ import type {
   CreateInstanceBody,
   CreateTemplateBody,
   CreateTemplateResult,
+  EndTemplateBody,
+  EndTemplateResult,
   EnrichedInstance,
   ExceptionConflictsResponse,
   GapsResponse,
@@ -52,6 +55,7 @@ import type {
 import {
   mapConflictCheckResult,
   mapCreateTemplateResult,
+  mapEndTemplateResult,
   mapAttendance,
   mapExceptionConflicts,
   mapGaps,
@@ -244,6 +248,33 @@ class TimetableService {
       instances_created: raw.instances_created,
     });
     return mapSplitTemplateResult(raw);
+  }
+
+  /**
+   * POST /api/timetable/templates/{id}/end — "dieser und alle folgenden
+   * löschen". Ends the template at effective_date and removes still-planned
+   * future instances of that template.
+   */
+  async endTemplate(
+    templateId: string,
+    body: EndTemplateBody,
+  ): Promise<EndTemplateResult> {
+    const response = await fetch(`/api/timetable/templates/${templateId}/end`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify(body),
+    });
+    const raw = await unwrap<BackendEndTemplateResult>(response);
+    logger.info("template_ended", {
+      template_id: raw.template_id,
+      effective_date: raw.effective_date,
+      deleted_instances: raw.deleted_instances,
+    });
+    return mapEndTemplateResult(raw);
   }
 
   /**

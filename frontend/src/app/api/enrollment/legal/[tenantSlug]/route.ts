@@ -19,12 +19,15 @@ export async function GET(_request: NextRequest, context: RouteContext) {
   }
   try {
     const phaseId = _request.nextUrl.searchParams.get("phaseId");
+    const lateInvite = _request.nextUrl.searchParams.get("late_invite")?.trim();
     const backendPath = phaseId
       ? `/api/enrollment/legal/${encodeURIComponent(
           tenantSlug,
         )}/${encodeURIComponent(phaseId)}`
       : `/api/enrollment/legal/${encodeURIComponent(tenantSlug)}`;
-    const response = await fetch(`${getServerApiUrl()}${backendPath}`, {
+    const backendUrl = new URL(`${getServerApiUrl()}${backendPath}`);
+    if (lateInvite) backendUrl.searchParams.set("late_invite", lateInvite);
+    const response = await fetch(backendUrl, {
       cache: "no-store",
     });
     const payload = await response.json().catch(() => ({}));

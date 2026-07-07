@@ -61,6 +61,7 @@ vi.mock("~/contexts/ToastContext", () => ({
 }));
 
 vi.mock("~/lib/time-tracking-api", () => ({
+  PLANNED_START_NOT_REACHED_CODE: "planned_start_not_reached",
   REOPEN_STATUS_CONFLICT_CODE: "reopen_status_conflict",
   timeTrackingService: mockTimeTrackingService,
 }));
@@ -515,7 +516,6 @@ function setupDefaultMocks(overrides?: {
   history?: WorkSessionHistory[];
   absences?: StaffAbsence[];
   historyLoading?: boolean;
-  breakAutoEndEnabled?: boolean;
   configLoading?: boolean;
 }) {
   vi.mocked(useSession).mockReturnValue({
@@ -528,7 +528,6 @@ function setupDefaultMocks(overrides?: {
   const history = overrides?.history ?? [];
   const absences = overrides?.absences ?? [];
   const historyLoading = overrides?.historyLoading ?? false;
-  const breakAutoEndEnabled = overrides?.breakAutoEndEnabled ?? true;
   const configLoading = overrides?.configLoading ?? false;
 
   vi.mocked(useSWRAuth).mockImplementation((key: string | null) => {
@@ -591,9 +590,7 @@ function setupDefaultMocks(overrides?: {
       } as never;
     } else if (key === "time-tracking-config") {
       return {
-        data: configLoading
-          ? undefined
-          : { accountStartDate: "", breakAutoEndEnabled },
+        data: configLoading ? undefined : { accountStartDate: "" },
         isLoading: configLoading,
         mutate: mockMutate,
         isValidating: false,
@@ -1039,63 +1036,6 @@ describe("TimeTrackingPage", () => {
       });
     });
 
-    it("tells staff to resume manually when break auto-end is disabled", async () => {
-      const breakStart = new Date(Date.now() - 60 * 60 * 1000);
-      const plannedEnd = new Date(Date.now() + 30 * 60 * 1000);
-      setupDefaultMocks({
-        currentSession: mockActiveSession,
-        breakAutoEndEnabled: false,
-      });
-      vi.mocked(timeTrackingService.getSessionBreaks).mockResolvedValue([
-        {
-          id: "50",
-          sessionId: "100",
-          startedAt: breakStart.toISOString(),
-          endedAt: null,
-          durationMinutes: 0,
-          plannedEndTime: plannedEnd.toISOString(),
-        },
-      ]);
-      render(<TimeTrackingPage />);
-
-      await waitFor(() => {
-        expect(
-          screen.getByText(/Automatische Fortsetzung ist deaktiviert/),
-        ).toBeInTheDocument();
-      });
-      expect(
-        screen.queryByText(/Automatisch weiter um/),
-      ).not.toBeInTheDocument();
-    });
-
-    it("does not auto-end an expired timed break before config loads", async () => {
-      const breakStart = new Date(Date.now() - 90 * 60 * 1000);
-      const plannedEnd = new Date(Date.now() - 1000);
-      setupDefaultMocks({
-        currentSession: mockActiveSession,
-        configLoading: true,
-      });
-      vi.mocked(timeTrackingService.getSessionBreaks).mockResolvedValue([
-        {
-          id: "50",
-          sessionId: "100",
-          startedAt: breakStart.toISOString(),
-          endedAt: null,
-          durationMinutes: 0,
-          plannedEndTime: plannedEnd.toISOString(),
-        },
-      ]);
-
-      render(<TimeTrackingPage />);
-
-      await waitFor(() => {
-        expect(
-          screen.getByText(/Automatische Fortsetzung ist deaktiviert/),
-        ).toBeInTheDocument();
-      });
-      expect(timeTrackingService.endBreak).not.toHaveBeenCalled();
-    });
-
     it("refreshes history and table data after a timed break auto-ends", async () => {
       const breakStart = new Date(Date.now() - 90 * 60 * 1000);
       const plannedEnd = new Date(Date.now() - 1000);
@@ -1460,6 +1400,25 @@ describe("TimeTrackingPage", () => {
       return err;
     }
 
+    function makePlannedStartError(): Error & {
+      code?: string;
+      status?: number;
+      details?: Record<string, unknown>;
+    } {
+      const err = new Error("planned start not reached") as Error & {
+        code?: string;
+        status?: number;
+        details?: Record<string, unknown>;
+      };
+      err.code = "planned_start_not_reached";
+      err.status = 409;
+      err.details = {
+        planned_start_time: "09:00",
+        current_time: "08:45",
+      };
+      return err;
+    }
+
     it("opens the status-change modal on reopen_status_conflict", async () => {
       // Today: existing checked-out 'present' session in history.
       setupDefaultMocks({ history: [mockHistorySession] });
@@ -1482,6 +1441,34 @@ describe("TimeTrackingPage", () => {
       // Confirm button is disabled until the user enters a reason.
       const confirmBtn = screen.getByText("Auf Homeoffice ändern");
       expect(confirmBtn).toBeDisabled();
+    });
+
+    it("shows planned-start message when check-in is too early", async () => {
+      const mockToast = {
+        success: vi.fn(),
+        error: vi.fn(),
+        info: vi.fn(),
+        warning: vi.fn(),
+        remove: vi.fn(),
+      };
+      vi.mocked(useToast).mockReturnValue(mockToast);
+      setupDefaultMocks();
+      vi.mocked(timeTrackingService.checkIn).mockRejectedValueOnce(
+        makePlannedStartError(),
+      );
+      render(<TimeTrackingPage />);
+
+      fireEvent.click(screen.getByText("In der OGS"));
+
+      await act(async () => {
+        fireEvent.click(screen.getByLabelText("Einstempeln"));
+      });
+
+      await waitFor(() => {
+        expect(mockToast.error).toHaveBeenCalledWith(
+          "Einstempeln ist erst ab 09:00 Uhr möglich.",
+        );
+      });
     });
 
     it("confirm calls checkIn(existingStatus) then updateSession with reason", async () => {

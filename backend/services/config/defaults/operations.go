@@ -228,8 +228,21 @@ func init() {
 		SortOrder:       1,
 	})
 
-	// Break auto-end interval is NOT registered here — it controls a global ticker
-	// (not per-tenant) and is configured via BREAK_AUTO_END_INTERVAL_SECONDS env var only.
+	config.Register(config.Definition{
+		Key:             config.KeyTimeTrackingEnforcePlannedStart,
+		Label:           "Einstempeln erst ab geplanter Startzeit",
+		Description:     "Wenn aktiviert, können Mitarbeitende erst ab der Startzeit einstempeln, die im Arbeitszeitmodell für den jeweiligen Tag hinterlegt ist. Tage ohne Startzeit bleiben unverändert.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "zeiterfassung",
+		SortOrder:       2,
+	})
+
+	// Break auto-end interval is NOT registered here. It controls a global ticker
+	// and is configured via BREAK_AUTO_END_INTERVAL_SECONDS env var only.
 
 	// --- Status flag auto-clear (Krank / Entschuldigt badge lifecycle) ---
 
@@ -468,7 +481,7 @@ func init() {
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
-		WritePermission: "config:update",
+		WritePermission: "config:manage",
 		Tab:             "operations",
 		Category:        "elternportal",
 		SortOrder:       60,
@@ -476,8 +489,8 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyParentNotesEnabled,
-		Label:           "Elternnachrichten über Elternportal",
-		Description:     "Wenn aktiviert, können Eltern dem Team über das Elternportal kurze Nachrichten zu ihrem Kind hinterlassen. Die neuesten Nachrichten erscheinen in der Kinderdetailansicht.",
+		Label:           "Eltern-OGS-Nachrichten",
+		Description:     "Wenn aktiviert, können Eltern dem Team über das Elternportal Nachrichten zu ihrem Kind schreiben und das Team kann direkt antworten. Die Unterhaltungen erscheinen im zentralen Nachrichten-Posteingang und in der Kinderdetailansicht.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
@@ -485,6 +498,32 @@ func init() {
 		Tab:             "operations",
 		Category:        "elternportal",
 		SortOrder:       61,
+	})
+
+	// Whether a guardian sees the individual staff member's name (first name +
+	// last initial, e.g. "Anna M.") on team replies instead of the neutral
+	// "OGS [Schulname]" label. Defaults ON so a messaging-active school attributes
+	// replies to a person by default. Only messages SENT while this is on are
+	// revealed: the per-message visibility is frozen at send time on
+	// users.parent_messages.staff_name_visible, so enabling it never retroactively
+	// exposes older replies written under anonymity. Hidden in the UI unless
+	// messaging (parent_notes_enabled) is on, since it only affects those messages.
+	config.Register(config.Definition{
+		Key:             config.KeyParentMessageStaffNameVisible,
+		Label:           "Name des Teammitglieds in Nachrichten anzeigen",
+		Description:     "Wenn aktiviert, sehen Eltern bei Antworten des Teams den Vornamen und den ersten Buchstaben des Nachnamens der antwortenden Person (z. B. „Anna M.“) statt nur „OGS [Schulname]“. Gilt nur für Nachrichten, die ab der Aktivierung geschrieben werden; ältere Nachrichten bleiben anonym. Bereits mit Namen gesendete Nachrichten bleiben sichtbar, wenn die Funktion später wieder deaktiviert wird.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       62,
+		DependsOn: &config.Dependency{
+			Key:       config.KeyParentNotesEnabled,
+			Condition: "eq",
+			Value:     true,
+		},
 	})
 
 	// Related-accounts management. Whether a parent may invite further
@@ -500,7 +539,7 @@ func init() {
 		WritePermission: "config:manage",
 		Tab:             "operations",
 		Category:        "elternportal",
-		SortOrder:       62,
+		SortOrder:       63,
 		Options: &config.SelectOptions{
 			Static: []config.SelectOption{
 				{Label: "Deaktiviert", Value: config.ParentInviteModeDisabled},
@@ -520,7 +559,7 @@ func init() {
 		WritePermission: "config:manage",
 		Tab:             "operations",
 		Category:        "elternportal",
-		SortOrder:       63,
+		SortOrder:       64,
 		DependsOn: &config.Dependency{
 			Key:       config.KeyGuardianParentInviteMode,
 			Condition: "neq",
@@ -538,7 +577,20 @@ func init() {
 		WritePermission: "config:update",
 		Tab:             "operations",
 		Category:        "elternportal",
-		SortOrder:       64,
+		SortOrder:       65,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyParentMasterDataEditEnabled,
+		Label:           "Stammdaten über Elternportal bearbeiten",
+		Description:     "Wenn aktiviert, können Eltern die von ihnen gepflegten Stammdaten ihres Kindes (Gesundheitsangaben, eigene Kontaktdaten) direkt über das Elternportal ändern. Die Änderungen werden sofort übernommen und protokolliert.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       66,
 	})
 
 	// Defaults ON, like the other parents-portal write features. The
@@ -561,6 +613,55 @@ func init() {
 		WritePermission: "config:manage",
 		Tab:             "operations",
 		Category:        "elternportal",
-		SortOrder:       65,
+		SortOrder:       67,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyParentMasterDataRequestEnabled,
+		Label:           "Stammdaten-Änderungen zur Freigabe einreichen",
+		Description:     "Wenn aktiviert, können Eltern für besonders sensible Angaben (Name, Geburtsdatum, dauerhafte Gehzeiten) über das Elternportal Änderungen vorschlagen. Diese werden dem Team zur Prüfung und Freigabe vorgelegt und erst nach Bestätigung übernommen.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       68,
+	})
+
+	// Essensplan. Unlike the other parents-portal features this one is
+	// opt-out (default ON): every school gets the meal plan out of the box and
+	// can switch it off if it doesn't serve food. When on, staff maintain a
+	// per-day dish + optional note and parents can view the current and next
+	// week in the parents portal.
+	config.Register(config.Definition{
+		Key:             config.KeyMealPlanEnabled,
+		Label:           "Essensplan",
+		Description:     "Wenn aktiviert, kann das Team pro Tag ein Gericht mit optionalem Hinweis hinterlegen. Eltern sehen den Essensplan für die aktuelle und nächste Woche im Elternportal.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       68,
+	})
+
+	// Parent broadcast announcements (#1669). When on, staff with the
+	// communications:announce permission can publish news to guardians, and
+	// guardians see the Neuigkeiten feed in the parents portal. Defaults ON
+	// (opt-out), like the other parents-portal features: schools get it
+	// immediately and can disable per school.
+	config.Register(config.Definition{
+		Key:             config.KeyParentNewsEnabled,
+		Label:           "Elternmitteilungen (Neuigkeiten)",
+		Description:     "Wenn aktiviert, kann das Team über das Elternportal Mitteilungen an ausgewählte Elterngruppen senden (ganze Schule, Klassen, Gruppen, AGs, einzelne Kinder oder offene Anmeldungen). Eltern sehen die Mitteilungen als Neuigkeiten im Elternportal; optional kann eine Lesebestätigung verlangt werden.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       68,
 	})
 }

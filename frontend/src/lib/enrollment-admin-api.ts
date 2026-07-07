@@ -1,5 +1,10 @@
 import { createLogger } from "~/lib/logger";
 import { readEnrollmentError } from "~/lib/enrollment-error-messages";
+import type {
+  PublicEnrollmentBootstrap,
+  SubmitEnrollmentPayload,
+  SubmitEnrollmentResult,
+} from "~/lib/enrollment-submission-api";
 
 const logger = createLogger({ component: "EnrollmentAdminAPI" });
 
@@ -15,12 +20,18 @@ export type ChildStatus =
   | "pending_admin_review";
 
 export type DecisionStatus =
-  | "approved"
-  | "waitlisted"
-  | "rejected"
-  | "under_review";
+  "approved" | "waitlisted" | "rejected" | "under_review";
 
 export type EnrollmentRequestExportFormat = "pdf" | "docx" | "xlsx";
+
+export type AdminEnrollmentChangeRequestStatus =
+  | "pending_review"
+  | "needs_parent_response"
+  | "approved"
+  | "rejected"
+  | "cancelled";
+
+type AdminEnrollmentChangeRequestMessageAuthor = "parent" | "staff" | "system";
 
 export interface AdminRequestChildOffering {
   offering_id: string;
@@ -60,6 +71,32 @@ export interface AdminOfferingAdjustment {
   before: AdminOfferingAdjustmentSnapshot[];
   after: AdminOfferingAdjustmentSnapshot[];
   changed_at: string;
+}
+
+interface AdminEnrollmentChangeRequestMessage {
+  id: string;
+  author_type: AdminEnrollmentChangeRequestMessageAuthor;
+  author_account_id?: number | null;
+  body: string;
+  internal_only: boolean;
+  created_at: string;
+}
+
+export interface AdminEnrollmentChangeRequest {
+  id: string;
+  request_id: string;
+  status: AdminEnrollmentChangeRequestStatus;
+  parent_note?: string | null;
+  admin_decision_note?: string | null;
+  base_snapshot: Record<string, unknown>;
+  proposed_snapshot: Record<string, unknown>;
+  diff: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  reviewed_at?: string | null;
+  reviewed_by_account_id?: number | null;
+  request?: AdminRequestSummary;
+  messages?: AdminEnrollmentChangeRequestMessage[];
 }
 
 export interface UpdateAdminChildOfferingsInput {
@@ -108,7 +145,6 @@ export interface AdminRequestSummary {
   guardian_phone?: string | null;
   submitted_at: string;
   withdrawn_at?: string | null;
-  status_token: string;
   /**
    * Request-level custom field answers (everything where
    * applies_to_child=false). Populated only on the detail endpoint.
@@ -136,6 +172,10 @@ export interface AdminRequestSummary {
   additional_guardians?: AdminRequestGuardian[];
 }
 
+export interface AdminRequestDetail extends AdminRequestSummary {
+  status_token: string;
+}
+
 /** One additional guardian (co-guardian) on a submission. */
 export interface AdminRequestGuardian {
   id: string;
@@ -153,6 +193,8 @@ interface BackendEnvelope<T> {
 }
 
 const BASE = "/api/enrollment/admin/requests";
+const CHANGE_REQUEST_BASE = "/api/enrollment/admin/change-requests";
+const PHASE_BASE = "/api/enrollment/phases";
 
 async function readJSON<T>(response: Response): Promise<T> {
   const raw = (await response.json()) as BackendEnvelope<T>;
@@ -200,16 +242,96 @@ export async function listAdminRequests(
   return Array.isArray(list) ? list : [];
 }
 
-export async function getAdminRequest(
-  id: string,
-): Promise<AdminRequestSummary> {
+export async function getAdminRequest(id: string): Promise<AdminRequestDetail> {
   const response = await fetch(`${BASE}/${encodeURIComponent(id)}`, {
     cache: "no-store",
   });
   if (!response.ok) {
     throw await readError(response, "Anmeldung konnte nicht geladen werden");
   }
-  return readJSON<AdminRequestSummary>(response);
+  return readJSON<AdminRequestDetail>(response);
+}
+
+export interface CreateLateInviteInput {
+  guardian_email: string;
+  reason?: string;
+  expires_at?: string;
+}
+
+export interface CreateLateInviteResult {
+  id: string;
+  phase_id: string;
+  guardian_email: string;
+  guardian_first_name?: string | null;
+  guardian_last_name?: string | null;
+  expires_at: string;
+  created_by: string;
+  reason?: string | null;
+  token: string;
+}
+
+export async function createLateInvite(
+  phaseId: string,
+  input: CreateLateInviteInput,
+): Promise<CreateLateInviteResult> {
+  const response = await fetch(
+    `${PHASE_BASE}/${encodeURIComponent(phaseId)}/late-invites`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Nachzügler-Link konnte nicht erstellt werden",
+    );
+  }
+  return readJSON<CreateLateInviteResult>(response);
+}
+
+export async function fetchManualEnrollmentBootstrap(
+  phaseId: string,
+): Promise<PublicEnrollmentBootstrap> {
+  const response = await fetch(
+    `${PHASE_BASE}/${encodeURIComponent(phaseId)}/manual-bootstrap`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Formularvorlage konnte nicht geladen werden",
+    );
+  }
+  return readJSON<PublicEnrollmentBootstrap>(response);
+}
+
+export interface CreateManualApprovedEnrollmentInput extends SubmitEnrollmentPayload {
+  external_consent_confirmed: boolean;
+  reason: string;
+  send_notification: boolean;
+}
+
+export async function createManualApprovedEnrollment(
+  phaseId: string,
+  input: CreateManualApprovedEnrollmentInput,
+): Promise<SubmitEnrollmentResult> {
+  const response = await fetch(
+    `${PHASE_BASE}/${encodeURIComponent(phaseId)}/manual-approved-enrollments`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Manuelle Anmeldung konnte nicht freigegeben werden",
+    );
+  }
+  return readJSON<SubmitEnrollmentResult>(response);
 }
 
 export async function listStudentEnrollmentRequests(
@@ -328,6 +450,109 @@ export async function listAdminChildOfferingAdjustments(
   }
   const list = await readJSON<AdminOfferingAdjustment[]>(response);
   return Array.isArray(list) ? list : [];
+}
+
+export interface ListAdminEnrollmentChangeRequestsFilters {
+  requestId?: string;
+  status?: AdminEnrollmentChangeRequestStatus;
+}
+
+export async function listAdminEnrollmentChangeRequests(
+  filters: ListAdminEnrollmentChangeRequestsFilters = {},
+): Promise<AdminEnrollmentChangeRequest[]> {
+  const url = new URL(
+    CHANGE_REQUEST_BASE,
+    globalThis.window?.location.origin ?? "http://localhost",
+  );
+  if (filters.requestId) url.searchParams.set("request_id", filters.requestId);
+  if (filters.status) url.searchParams.set("status", filters.status);
+  const response = await fetch(`${url.pathname}${url.search}`, {
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Änderungsanfragen konnten nicht geladen werden",
+    );
+  }
+  const list = await readJSON<AdminEnrollmentChangeRequest[]>(response);
+  return Array.isArray(list) ? list : [];
+}
+
+export async function getAdminEnrollmentChangeRequest(
+  id: string,
+): Promise<AdminEnrollmentChangeRequest> {
+  const response = await fetch(
+    `${CHANGE_REQUEST_BASE}/${encodeURIComponent(id)}`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Änderungsanfrage konnte nicht geladen werden",
+    );
+  }
+  return readJSON<AdminEnrollmentChangeRequest>(response);
+}
+
+export async function askEnrollmentChangeRequestQuestion(
+  id: string,
+  body: string,
+): Promise<AdminEnrollmentChangeRequest> {
+  const response = await fetch(
+    `${CHANGE_REQUEST_BASE}/${encodeURIComponent(id)}/question`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body }),
+    },
+  );
+  if (!response.ok) {
+    throw await readError(response, "Rückfrage konnte nicht gesendet werden");
+  }
+  return readJSON<AdminEnrollmentChangeRequest>(response);
+}
+
+export async function approveEnrollmentChangeRequest(
+  id: string,
+  note: string,
+): Promise<AdminEnrollmentChangeRequest> {
+  const response = await fetch(
+    `${CHANGE_REQUEST_BASE}/${encodeURIComponent(id)}/approve`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ note }),
+    },
+  );
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Änderungsanfrage konnte nicht freigegeben werden",
+    );
+  }
+  return readJSON<AdminEnrollmentChangeRequest>(response);
+}
+
+export async function rejectEnrollmentChangeRequest(
+  id: string,
+  note: string,
+): Promise<AdminEnrollmentChangeRequest> {
+  const response = await fetch(
+    `${CHANGE_REQUEST_BASE}/${encodeURIComponent(id)}/reject`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ note }),
+    },
+  );
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Änderungsanfrage konnte nicht abgelehnt werden",
+    );
+  }
+  return readJSON<AdminEnrollmentChangeRequest>(response);
 }
 
 function filenameFromDisposition(response: Response): string | null {

@@ -1,10 +1,8 @@
 import type { NextRequest } from "next/server";
-import { apiGet, apiPost } from "~/lib/api-helpers.server";
-import {
-  createGetHandler,
-  createPostHandler,
-  isStringParam,
-} from "~/lib/route-wrapper.server";
+import { apiPost } from "~/lib/api-helpers.server";
+import { createPostHandler, isStringParam } from "~/lib/route-wrapper.server";
+import { proxyGet } from "~/lib/route-proxy.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 interface BackendCommentResponse {
   id: number;
@@ -15,30 +13,12 @@ interface BackendCommentResponse {
   created_at: string;
 }
 
-interface BackendListResponse {
-  status: string;
-  data: BackendCommentResponse[];
-}
-
 interface CreateCommentRequest {
   content: string;
 }
 
-export const GET = createGetHandler(
-  async (
-    _request: NextRequest,
-    token: string,
-    params: Record<string, unknown>,
-  ) => {
-    if (!isStringParam(params.id)) {
-      throw new Error("Invalid suggestion ID");
-    }
-    const response = await apiGet<BackendListResponse>(
-      `/api/suggestions/${params.id}/comments`,
-      token,
-    );
-    return response.data;
-  },
+export const GET = proxyGet<BackendCommentResponse[]>(
+  (params) => `/api/suggestions/${requirePathSegmentParam(params)}/comments`,
 );
 
 export const POST = createPostHandler<

@@ -42,17 +42,20 @@ var ErrDepartureCompanionNoteRequired = errors.New("departure_companion_note is 
 type Student struct {
 	base.Model `bun:"schema:users,table:students"`
 	base.TenantModel
-	PersonID        int64   `bun:"person_id,notnull" json:"person_id"`
-	SchoolClass     string  `bun:"school_class,notnull" json:"school_class"`
-	GuardianName    *string `bun:"guardian_name" json:"guardian_name,omitempty"`       // Optional: Legacy field, use guardian_profiles instead
-	GuardianContact *string `bun:"guardian_contact" json:"guardian_contact,omitempty"` // Optional: Legacy field, use guardian_profiles instead
-	GuardianEmail   *string `bun:"guardian_email" json:"guardian_email,omitempty"`
-	GuardianPhone   *string `bun:"guardian_phone" json:"guardian_phone,omitempty"`
-	GroupID         *int64  `bun:"group_id" json:"group_id,omitempty"`
-	ExtraInfo       *string `bun:"extra_info" json:"extra_info,omitempty"`
-	SupervisorNotes *string `bun:"supervisor_notes" json:"supervisor_notes,omitempty"`
-	HealthInfo      *string `bun:"health_info" json:"health_info,omitempty"`
-	PickupStatus    *string `bun:"pickup_status" json:"pickup_status,omitempty"`
+	PersonID          int64   `bun:"person_id,notnull" json:"person_id"`
+	SchoolClass       string  `bun:"school_class,notnull" json:"school_class"`
+	GuardianName      *string `bun:"guardian_name" json:"guardian_name,omitempty"`       // Optional: Legacy field, use guardian_profiles instead
+	GuardianContact   *string `bun:"guardian_contact" json:"guardian_contact,omitempty"` // Optional: Legacy field, use guardian_profiles instead
+	GuardianEmail     *string `bun:"guardian_email" json:"guardian_email,omitempty"`
+	GuardianPhone     *string `bun:"guardian_phone" json:"guardian_phone,omitempty"`
+	GroupID           *int64  `bun:"group_id" json:"group_id,omitempty"`
+	AddressStreet     *string `bun:"address_street" json:"address_street,omitempty"`
+	AddressCity       *string `bun:"address_city" json:"address_city,omitempty"`
+	AddressPostalCode *string `bun:"address_postal_code" json:"address_postal_code,omitempty"`
+	ExtraInfo         *string `bun:"extra_info" json:"extra_info,omitempty"`
+	SupervisorNotes   *string `bun:"supervisor_notes" json:"supervisor_notes,omitempty"`
+	HealthInfo        *string `bun:"health_info" json:"health_info,omitempty"`
+	PickupStatus      *string `bun:"pickup_status" json:"pickup_status,omitempty"`
 	// DepartureDays is the single source of truth for how a child leaves each
 	// weekday (#1610): alone / bus / pickup. It unifies the formerly independent
 	// BusDays (#1582) and PickupDays maps so a day can no longer contradict
@@ -154,6 +157,10 @@ func (s *Student) Validate() error {
 	if err := validatePtrPhone(s.GuardianPhone, "guardian phone"); err != nil {
 		return err
 	}
+
+	trimPtrStringOrNil(&s.AddressStreet)
+	trimPtrStringOrNil(&s.AddressCity)
+	trimPtrStringOrNil(&s.AddressPostalCode)
 
 	if err := s.DepartureDays.Validate(); err != nil {
 		return err

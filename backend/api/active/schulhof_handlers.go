@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 )
@@ -133,6 +134,10 @@ func (rs *SchulhofResource) toggleSchulhofSupervision(w http.ResponseWriter, r *
 		// Check for specific error messages
 		errMsg := err.Error()
 		if errMsg == "user is not currently supervising the Schulhof" {
+			common.RenderError(w, r, common.ErrorConflict(err))
+			return
+		}
+		if errors.Is(err, activeSvc.ErrRoomConflict) {
 			common.RenderError(w, r, common.ErrorConflict(err))
 			return
 		}

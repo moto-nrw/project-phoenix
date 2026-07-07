@@ -93,6 +93,10 @@ func (s *stubOutboxRepo) FindByRelatedEntity(_ context.Context, _ string, _ int6
 	return nil, errors.New("not implemented in stub")
 }
 
+func (s *stubOutboxRepo) CancelPendingByRelatedEntity(_ context.Context, _ string, _ int64, _ string) (int64, error) {
+	return 0, errors.New("not implemented in stub")
+}
+
 // TestTemplateRegistry_LookupRoundTrip — register + lookup + kinds.
 func TestTemplateRegistry_LookupRoundTrip(t *testing.T) {
 	reg := NewTemplateRegistry()

@@ -16,6 +16,7 @@ const {
   mockSubstitute,
   mockPatchAttendance,
   mockDeleteCancelled,
+  mockEndTemplate,
   mockArchiveTemplate,
   mockBootstrap,
   mockEventModalProps,
@@ -36,6 +37,7 @@ const {
   mockSubstitute: vi.fn(),
   mockPatchAttendance: vi.fn(),
   mockDeleteCancelled: vi.fn(),
+  mockEndTemplate: vi.fn(),
   mockArchiveTemplate: vi.fn(),
   mockBootstrap: vi.fn(),
   mockEventModalProps: vi.fn(),
@@ -90,6 +92,7 @@ vi.mock("~/lib/timetable-api", () => ({
     substitute: mockSubstitute,
     patchAttendance: mockPatchAttendance,
     deleteCancelled: mockDeleteCancelled,
+    endTemplate: mockEndTemplate,
     archiveTemplate: mockArchiveTemplate,
   },
 }));
@@ -429,6 +432,7 @@ vi.mock("~/components/timetable/instance-detail-slide-over", () => ({
     onClose,
     onLifecycleAction,
     onDeleteCancelled,
+    onDeleteFollowing,
     onEdit,
     onRepeat,
     onAttendancePatch,
@@ -439,6 +443,11 @@ vi.mock("~/components/timetable/instance-detail-slide-over", () => ({
       action: "start" | "complete" | "cancel",
     ) => Promise<void>;
     onDeleteCancelled: (instance: { id: string }) => Promise<void>;
+    onDeleteFollowing: (instance: {
+      id: string;
+      activityGroupId?: string;
+      date?: string;
+    }) => Promise<void>;
     onEdit: (instance: { id: string }) => void;
     onRepeat: (instance: { id: string }) => void;
     onAttendancePatch: (
@@ -466,6 +475,9 @@ vi.mock("~/components/timetable/instance-detail-slide-over", () => ({
         </button>
         <button type="button" onClick={() => void onDeleteCancelled(instance)}>
           detail-delete
+        </button>
+        <button type="button" onClick={() => void onDeleteFollowing(instance)}>
+          detail-delete-following
         </button>
         <button type="button" onClick={() => onEdit(instance)}>
           detail-edit
@@ -499,6 +511,11 @@ vi.mock("~/components/timetable/timetable-event-modal", () => ({
     defaultStartTime?: string;
     defaultEndTime?: string;
     defaultCalendarPeriodId?: string | null;
+    initialSeries?: { id: string } | null;
+    onDeleteSeries?: (
+      template: { id: string },
+      effectiveDate: string,
+    ) => Promise<void>;
   }) => {
     mockEventModalProps(props);
     return props.isOpen ? (
@@ -526,6 +543,16 @@ vi.mock("~/components/timetable/timetable-event-modal", () => ({
         >
           event-save-series
         </button>
+        {props.initialSeries && props.onDeleteSeries && (
+          <button
+            type="button"
+            onClick={() =>
+              void props.onDeleteSeries?.(props.initialSeries!, "2026-05-06")
+            }
+          >
+            event-delete-series
+          </button>
+        )}
       </div>
     ) : null;
   },
@@ -570,6 +597,7 @@ const instance = {
   isSpontaneous: false,
   isLive: false,
   activityType: "care" as const,
+  activityGroupId: "7",
   roomId: "3",
   roomName: "Mensa",
   staff: [
@@ -718,6 +746,14 @@ describe("TimetablesPage", () => {
     });
     mockPatchAttendance.mockResolvedValue({});
     mockDeleteCancelled.mockResolvedValue({});
+    mockEndTemplate.mockImplementation(
+      (_templateId: string, body: { effective_date: string }) =>
+        Promise.resolve({
+          templateId: "7",
+          effectiveDate: body.effective_date,
+          deletedInstances: 3,
+        }),
+    );
     mockArchiveTemplate.mockResolvedValue({});
     setupSWR();
     window.history.replaceState(null, "", "/acme/timetables");
@@ -795,6 +831,14 @@ describe("TimetablesPage", () => {
 
     fireEvent.click(screen.getByText("detail-delete"));
     await waitFor(() => expect(mockDeleteCancelled).toHaveBeenCalledWith("42"));
+
+    fireEvent.click(screen.getByText("week-grid"));
+    fireEvent.click(screen.getByText("detail-delete-following"));
+    await waitFor(() =>
+      expect(mockEndTemplate).toHaveBeenCalledWith("7", {
+        effective_date: "2026-05-04",
+      }),
+    );
   });
 
   it("handles series, month and year navigation callbacks", async () => {
@@ -808,6 +852,18 @@ describe("TimetablesPage", () => {
 
     fireEvent.click(screen.getByText("edit-template"));
     expect(screen.getByText("event-close")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("event-delete-series"));
+    await waitFor(() =>
+      expect(mockEndTemplate).toHaveBeenCalledWith("7", {
+        effective_date: "2026-05-06",
+      }),
+    );
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      "Regeltermin ab 06.05.2026 gelöscht",
+    );
+    expect(mockTenantMutate).toHaveBeenCalledWith("timetable-templates-5");
+
+    fireEvent.click(screen.getByText("edit-template"));
     fireEvent.click(screen.getByText("event-close"));
 
     fireEvent.click(screen.getByText("apply-template"));

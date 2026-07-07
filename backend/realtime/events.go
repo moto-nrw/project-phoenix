@@ -2,7 +2,10 @@
 // This package stays independent from api and services layers to avoid circular imports.
 package realtime
 
-import "time"
+import (
+	"strconv"
+	"time"
+)
 
 // EventType represents the type of SSE event
 type EventType string
@@ -65,6 +68,20 @@ const (
 	// field carries the setting key so log review (and future selective
 	// invalidation) can distinguish writers without parsing the payload.
 	EventTenantSettingsChanged EventType = "tenant_settings_changed"
+
+	// EventParentMessage signals that a parent sent a new message to the OGS
+	// (or staff replied), so staff inbox / parent thread views refetch their
+	// list and unread badge. Trigger only — clients refetch via the API.
+	EventParentMessage EventType = "parent_message"
+
+	// EventParentMessageRead signals that the COUNTERPART in a parent-OGS thread
+	// has read the conversation, so the other side's open chat refreshes its
+	// "Gelesen" receipts live. Unlike EventParentMessage it adds no message: the
+	// client re-decorates read receipts only and must NOT bump any unread badge (a
+	// counterpart's read never changes the reader's own unread set). It is emitted
+	// ONLY when a read cursor actually advances (parentmessaging.MarkReadToNewest),
+	// so it cannot ping-pong with the receipt refetch it triggers on the far side.
+	EventParentMessageRead EventType = "parent_message_read"
 )
 
 // Event represents a Server-Sent Event that will be broadcast to clients
@@ -109,11 +126,61 @@ type EventData struct {
 	AttendanceSubstatus *string `json:"attendance_substatus,omitempty"`
 	AttendanceNote      *string `json:"attendance_note,omitempty"`
 
+	// Parent-messaging field (parent_message events). With StudentID, it lets an
+	// open chat/conversation skip refetching when the event is about a different
+	// thread/child — instead of every staff member and multi-child guardian
+	// refetching the heavy inbox projection on every message tenant-wide. Trigger
+	// only; the client still refetches the affected thread via the API.
+	//
+	// NOTE: ThreadID, StudentID, and Source (guardian account id) are all cleared
+	// for the staff fan-out by staffSafeParentMessage so an unauthorized staffer
+	// cannot observe which child/guardian — or which specific conversation — a
+	// thread concerns from raw SSE traffic (gdpr.student_data_scope =
+	// group_supervisors_only). ThreadID is opaque, but a staffer who once opened a
+	// thread (or otherwise knows its URL) and later loses access to that child
+	// could still correlate future parent_message events to that conversation, so
+	// it is stripped too. The addressed guardian's own clients still receive the
+	// full event.
+	ThreadID *string `json:"thread_id,omitempty"`
+
 	// Source tracking
 	Source *string `json:"source,omitempty"` // "rfid", "manual", "automated"
 
 	// Reason tracking for generic refresh events.
 	Reason *string `json:"reason,omitempty"`
+}
+
+// staffSafeParentMessage returns a copy of a parent-message event with every
+// conversation-identifying field cleared, for fan-out to staff who may not be
+// authorized to read the thread. The guardian's OWN clients receive the full
+// event (their own data); staff only need a refresh trigger for their
+// access-filtered inbox. ThreadID, StudentID, and Source (the guardian account
+// id) are all removed so an unauthorized staffer cannot observe which
+// child/guardian — or which specific conversation — a thread concerns from raw
+// SSE traffic. ThreadID is opaque, but a staffer who once opened a thread (or
+// otherwise knows its URL) and later loses access to that child could still
+// correlate future parent_message events to that conversation through the
+// per-thread useMessagesActivity filter, even though GET
+// /api/messages/threads/{id} would now be forbidden — so it is stripped too.
+//
+// The receiver is a value copy: reassigning the copy's pointer fields to nil
+// leaves the original event (delivered to the guardian) untouched.
+//
+// Accepted consequence: with ThreadID and StudentID both cleared, neither the
+// per-thread filter on the staff thread page nor the per-student filter on the
+// staff ParentMessagesCard can match, so every mounted staff messaging surface
+// refetches its projection on any tenant-wide parent message (the threadId and
+// studentId props are intentionally INERT for staff — they only narrow the
+// guardian's own clients). This is a deliberate privacy-over-efficiency trade:
+// leaking which child or conversation a thread concerns to an unauthorized
+// staffer is worse than an extra refetch. The 500 ms debounce on the staff side
+// collapses a sick-note rush into far fewer fetches.
+func staffSafeParentMessage(event Event) Event {
+	safe := event
+	safe.Data.ThreadID = nil
+	safe.Data.StudentID = nil
+	safe.Data.Source = nil
+	return safe
 }
 
 // NewEvent creates a new event with current timestamp
@@ -124,4 +191,40 @@ func NewEvent(eventType EventType, activeGroupID string, data EventData) Event {
 		Data:          data,
 		Timestamp:     time.Now(),
 	}
+}
+
+// NewParentMessageEvent builds the EventParentMessage SSE event shared by both
+// portals' messaging services (staff in services/messaging and parents in
+// services/parent). The guardian account is stamped as Source so the guardian's
+// own tabs can skip a redundant refetch; threadID/studentID (when positive) let
+// an open chat refetch only the affected thread. Centralizing the payload shape
+// here means adding a field can never drift between the two emitters.
+func NewParentMessageEvent(guardianAccountID, threadID, studentID int64) Event {
+	return NewEvent(EventParentMessage, "", parentMessageData(guardianAccountID, threadID, studentID))
+}
+
+// NewParentMessageReadEvent builds the EventParentMessageRead SSE event. It
+// carries the SAME envelope as NewParentMessageEvent (guardian Source + the
+// thread/student filter for an open chat), differing only in Type so the client
+// routes it to a receipt-only refresh instead of a new-message refresh + badge
+// bump. Same staffSafeParentMessage sanitization applies to the staff fan-out.
+func NewParentMessageReadEvent(guardianAccountID, threadID, studentID int64) Event {
+	return NewEvent(EventParentMessageRead, "", parentMessageData(guardianAccountID, threadID, studentID))
+}
+
+// parentMessageData builds the shared payload for the parent-messaging events:
+// the guardian account as Source plus the (optional) thread/student filter. One
+// home so the new-message and read events can never drift in shape.
+func parentMessageData(guardianAccountID, threadID, studentID int64) EventData {
+	gid := strconv.FormatInt(guardianAccountID, 10)
+	data := EventData{Source: &gid}
+	if threadID > 0 {
+		tid := strconv.FormatInt(threadID, 10)
+		data.ThreadID = &tid
+	}
+	if studentID > 0 {
+		sid := strconv.FormatInt(studentID, 10)
+		data.StudentID = &sid
+	}
+	return data
 }

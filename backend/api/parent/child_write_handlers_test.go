@@ -58,7 +58,6 @@ func newWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 		ChildRepo:     repos.ParentChild,
 		StatusDayRepo: repos.StudentStatusDay,
 		StudentRepo:   repos.Student,
-		NoteRepo:      repos.StudentParentNote,
 		Settings:      alwaysOnSettings{},
 		DB:            db,
 		Logger:        slog.Default(),
@@ -130,35 +129,12 @@ func TestSickNoteEndpoint_SubmitAndList(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 }
 
-func TestNotesEndpoint_AddAndList(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
-	router := newWriteRouter(t, db)
-	token := parentToken(t, chain.AccountID)
-	sid := strconv.FormatInt(chain.StudentID, 10)
-
-	rr := doRequest(t, router, http.MethodPost, "/me/children/"+sid+"/notes", token,
-		map[string]any{"body": "Bitte um Rückruf"})
-	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
-
-	rr = doRequest(t, router, http.MethodGet, "/me/children/"+sid+"/notes", token, nil)
-	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
-	var env envelope
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))
-	var notes []map[string]any
-	require.NoError(t, json.Unmarshal(env.Data, &notes))
-	require.Len(t, notes, 1)
-	assert.Equal(t, "Bitte um Rückruf", notes[0]["body"])
-}
-
 func TestWriteEndpoints_RejectMissingToken(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 	router := newWriteRouter(t, db)
 
-	rr := doRequest(t, router, http.MethodGet, "/me/children/1/notes", "", nil)
+	rr := doRequest(t, router, http.MethodGet, "/me/children/1/sick-note", "", nil)
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }
 
@@ -197,20 +173,6 @@ func TestSickNoteEndpoint_RejectsEmptyDates(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
 }
 
-func TestNotesEndpoint_RejectsEmptyBody(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
-	router := newWriteRouter(t, db)
-	token := parentToken(t, chain.AccountID)
-	sid := strconv.FormatInt(chain.StudentID, 10)
-
-	rr := doRequest(t, router, http.MethodPost, "/me/children/"+sid+"/notes", token,
-		map[string]any{"body": "   "})
-	assert.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
-}
-
 func TestSickNoteEndpoint_RejectsBadStudentID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -238,7 +200,6 @@ func newDisabledWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 		ChildRepo:     repos.ParentChild,
 		StatusDayRepo: repos.StudentStatusDay,
 		StudentRepo:   repos.Student,
-		NoteRepo:      repos.StudentParentNote,
 		Settings:      disabledSettings{},
 		DB:            db,
 		Logger:        slog.Default(),
@@ -258,10 +219,6 @@ func TestWriteEndpoints_FeatureDisabledForbidden(t *testing.T) {
 	rr := doRequest(t, router, http.MethodPost, "/me/children/"+sid+"/sick-note", token,
 		map[string]any{"dates": []string{nowISO()}})
 	assert.Equal(t, http.StatusForbidden, rr.Code, "sick notes disabled → 403")
-
-	rr = doRequest(t, router, http.MethodPost, "/me/children/"+sid+"/notes", token,
-		map[string]any{"body": "Hallo"})
-	assert.Equal(t, http.StatusForbidden, rr.Code, "notes disabled → 403")
 }
 
 func TestSickNoteEndpoint_RejectsBadDateRange(t *testing.T) {

@@ -1,9 +1,7 @@
 import type { NextRequest } from "next/server";
-import { apiGet, apiPost } from "~/lib/api-helpers.server";
-import {
-  createGetHandler,
-  createPostHandler,
-} from "~/lib/route-wrapper.server";
+import { apiGet } from "~/lib/api-helpers.server";
+import { createGetHandler } from "~/lib/route-wrapper.server";
+import { proxyPost } from "~/lib/route-proxy.server";
 import type {
   BackendSubstitution,
   CreateSubstitutionRequest,
@@ -58,13 +56,7 @@ export const GET = createGetHandler(
  * Handler for POST /api/substitutions
  * Creates a new substitution
  */
-export const POST = createPostHandler(
-  async (req: NextRequest, body: CreateSubstitutionRequest, token: string) => {
-    const endpoint = `/api/substitutions`;
-
-    logger.debug("creating substitution");
-
-    // Create substitution via the API
-    return await apiPost<BackendSubstitution>(endpoint, token, body);
-  },
+export const POST = proxyPost<BackendSubstitution, CreateSubstitutionRequest>(
+  "/api/substitutions",
+  { raw: true },
 );

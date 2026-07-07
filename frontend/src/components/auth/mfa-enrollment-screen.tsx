@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Button, WizardStepper } from "~/components/ui";
+import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
+import { WizardStepper } from "~/components/ui/wizard-stepper";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import {

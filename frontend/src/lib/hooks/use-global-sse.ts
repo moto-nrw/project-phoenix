@@ -264,6 +264,40 @@ export function useGlobalSSE(): SSEHookState {
       });
     }
 
+    // Reminders (issue #1457): the header bell + /reminders page are computed
+    // live from attendance, pickups, activity instances and student data.
+    // Check-ins/outs, activity/instance lifecycle and student edits change
+    // what's due — and student edits also change the name/class each row shows
+    // and which rows fall inside the caller's readable scope — so the reminders
+    // view must revalidate on these events. The 60s poll only catches the
+    // time-based threshold crossings ("in 10 Min" → "überfällig"), not these.
+    // Zero-topic admins (no supervised group / admin_supervision_overview off)
+    // receive check-ins only as the dashboard_counts_changed broadcast, so
+    // include hasPendingDashboardEvent or their bell/list stays stale until poll.
+    //
+    // This hook runs in TenantAuthWrapper, ABOVE TenantProvider, so
+    // useTenantSlugSafe() is null here and it cannot build the real
+    // "{slug}:reminders" SWR key that useReminders() writes under. Rather than
+    // mutate the wrong (unprefixed) key, dispatch a window event and let
+    // useReminders() — which runs under TenantProvider, owns the correctly
+    // tenant-prefixed key, and knows whether the feature is enabled — perform
+    // the revalidation. This mirrors the tenant_settings_changed / parent_message
+    // decoupling above and keeps the idle-poll throttle intact for disabled
+    // tenants (the consumer skips the mutate when the feature is off).
+    if (
+      pendingGroupIds.current.size > 0 ||
+      pendingStudentIds.current.size > 0 ||
+      hasPendingActivityEvent.current ||
+      hasPendingTimetableEvent.current ||
+      hasPendingDashboardEvent.current ||
+      hasPendingDailyCheckoutDashboardEvent.current ||
+      hasPendingStudentUpdateEvent.current
+    ) {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("phoenix:reminders-stale"));
+      }
+    }
+
     // Reset pending state
     pendingGroupIds.current.clear();
     pendingStudentIds.current.clear();
@@ -394,6 +428,35 @@ export function useGlobalSSE(): SSEHookState {
         case "instance_overdue": {
           hasPendingTimetableEvent.current = true;
           scheduleFlush();
+          break;
+        }
+
+        // A counterpart read a conversation. Handled identically to a new
+        // message on the staff side: the sidebar badge must refresh (a staff
+        // member reading in another tab dropped the count) and any open
+        // thread/card refetches to pick up the guardian "Gelesen" receipt. The
+        // backend only emits this when a read cursor actually advanced, so the
+        // refetch it triggers cannot loop back into another read event.
+        case "parent_message_read":
+        case "parent_message": {
+          // A parent sent a message (or staff replied elsewhere). This single
+          // app-wide connection fans the trigger out to the messaging surfaces
+          // via window events, so the inbox/thread/student-card pages do NOT each
+          // open their own EventSource to the same endpoint (mirrors the parents
+          // portal's ParentRealtimeBridge). `messages-unread-refresh` refreshes
+          // the sidebar badge; `messages-activity` carries thread_id/student_id so
+          // an open inbox/thread/card can refetch (or skip) selectively.
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("messages-unread-refresh"));
+            window.dispatchEvent(
+              new CustomEvent("messages-activity", {
+                detail: {
+                  threadId: event.data?.thread_id ?? null,
+                  studentId: event.data?.student_id ?? null,
+                },
+              }),
+            );
+          }
           break;
         }
       }

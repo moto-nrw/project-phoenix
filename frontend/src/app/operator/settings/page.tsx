@@ -3,9 +3,9 @@
 import { Suspense, useState, useEffect, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { Loading } from "~/components/ui/loading";
-import { SimpleAlert } from "~/components/simple/SimpleAlert";
-import { PasswordChangeModal } from "~/components/ui";
-import { PageHeaderWithSearch } from "~/components/ui/page-header";
+import { PasswordChangeModal } from "~/components/ui/password-change-modal";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { useToast } from "~/contexts/ToastContext";
 import { sessionFetch } from "~/lib/session-cache";
 import { TrustedDevicesSection } from "~/components/settings/trusted-devices-section";
 import { PasskeySettingsSection } from "~/components/settings/passkey-settings-section";
@@ -22,12 +22,10 @@ function isEmail(value: string | null | undefined): value is string {
 
 function OperatorSettingsContent() {
   const { data: session, status, update: updateSession } = useSession();
+  const { success: toastSuccess, error: toastError } = useToast();
   const sessionName = session?.user?.name ?? "";
   const sessionEmail = session?.user?.email ?? "";
 
-  const [showAlert, setShowAlert] = useState(false);
-  const [alertMessage, setAlertMessage] = useState("");
-  const [alertType, setAlertType] = useState<"success" | "error">("success");
   const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   const [isEditing, setIsEditing] = useState(false);
@@ -44,10 +42,6 @@ function OperatorSettingsContent() {
   const [emailChangeLoading, setEmailChangeLoading] = useState(false);
   const [emailChangeNewEmail, setEmailChangeNewEmail] = useState("");
   const [emailChangePassword, setEmailChangePassword] = useState("");
-
-  const handleAlertClose = useCallback(() => {
-    setShowAlert(false);
-  }, []);
 
   const handleClosePasswordModal = useCallback(() => {
     setShowPasswordModal(false);
@@ -128,13 +122,9 @@ function OperatorSettingsContent() {
       await updateSession({ name: nextDisplayName, email: nextEmail });
 
       setIsEditing(false);
-      setAlertMessage("Profil erfolgreich aktualisiert");
-      setAlertType("success");
-      setShowAlert(true);
+      toastSuccess("Profil erfolgreich aktualisiert", { duration: 3000 });
     } catch {
-      setAlertMessage("Fehler beim Speichern des Profils");
-      setAlertType("error");
-      setShowAlert(true);
+      toastError("Fehler beim Speichern des Profils", { duration: 3000 });
     } finally {
       setIsSaving(false);
     }
@@ -177,11 +167,10 @@ function OperatorSettingsContent() {
       setShowEmailChangeDialog(false);
       setEmailChangeNewEmail("");
       setEmailChangePassword("");
-      setAlertMessage(
+      toastSuccess(
         `Eine Bestätigungs-E-Mail wird an ${confirmedEmail} gesendet. Bitte überprüfe dein Postfach.`,
+        { duration: 3000 },
       );
-      setAlertType("success");
-      setShowAlert(true);
     } catch {
       setEmailChangeError("Ein Netzwerkfehler ist aufgetreten.");
     } finally {
@@ -342,16 +331,6 @@ function OperatorSettingsContent() {
         <TrustedDevicesSection scope="operator" />
       </div>
 
-      {showAlert && (
-        <SimpleAlert
-          type={alertType}
-          message={alertMessage}
-          onClose={handleAlertClose}
-          autoClose
-          duration={3000}
-        />
-      )}
-
       {showPasswordModal && (
         <PasswordChangeModal
           isOpen={showPasswordModal}
@@ -359,9 +338,7 @@ function OperatorSettingsContent() {
           apiEndpoint="/api/operator/profile/password"
           onSuccess={() => {
             handleClosePasswordModal();
-            setAlertMessage("Passwort erfolgreich geändert");
-            setAlertType("success");
-            setShowAlert(true);
+            toastSuccess("Passwort erfolgreich geändert", { duration: 3000 });
           }}
         />
       )}

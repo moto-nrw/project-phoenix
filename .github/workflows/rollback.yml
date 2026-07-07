@@ -31,6 +31,8 @@ env:
 jobs:
   rollback:
     runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment }}
     permissions:
       contents: read
       packages: read
@@ -42,10 +44,15 @@ jobs:
         id: env
         env:
           ENVIRONMENT: ${{ inputs.environment }}
+          REF_NAME: ${{ github.ref }}
         run: |
+          if [ "$ENVIRONMENT" = "production" ] && [ "$REF_NAME" != "refs/heads/main" ]; then
+            echo "Production rollbacks must run from refs/heads/main, got $REF_NAME"
+            exit 1
+          fi
           case "$ENVIRONMENT" in
-            staging)    echo "dir=staging" >> $GITHUB_OUTPUT ;;
-            production) echo "dir=production" >> $GITHUB_OUTPUT ;;
+            staging)    echo "dir=staging" >> "$GITHUB_OUTPUT" ;;
+            production) echo "dir=production" >> "$GITHUB_OUTPUT" ;;
           esac
 
       - name: Setup SSH
@@ -84,7 +91,7 @@ jobs:
           fi
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}

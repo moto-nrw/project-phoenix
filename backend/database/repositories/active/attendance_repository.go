@@ -259,6 +259,16 @@ func (r *AttendanceRepository) GetTodayByStudentID(ctx context.Context, studentI
 
 // GetTodayByStudentIDs gets today's attendance records for multiple students in a single query
 func (r *AttendanceRepository) GetTodayByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*active.Attendance, error) {
+	return r.getTodayByStudentIDs(ctx, studentIDs, false, false)
+}
+
+// GetOpenTodayByStudentIDsForUpdate gets today's open attendance records for
+// multiple students and locks the matching rows for the current transaction.
+func (r *AttendanceRepository) GetOpenTodayByStudentIDsForUpdate(ctx context.Context, studentIDs []int64) (map[int64]*active.Attendance, error) {
+	return r.getTodayByStudentIDs(ctx, studentIDs, true, true)
+}
+
+func (r *AttendanceRepository) getTodayByStudentIDs(ctx context.Context, studentIDs []int64, openOnly bool, lockRows bool) (map[int64]*active.Attendance, error) {
 	result := make(map[int64]*active.Attendance, len(studentIDs))
 
 	if len(studentIDs) == 0 {
@@ -285,6 +295,12 @@ func (r *AttendanceRepository) GetTodayByStudentIDs(ctx context.Context, student
 		Where(`"attendance".date = ?`, today).
 		OrderExpr(`"attendance".student_id ASC`).
 		OrderExpr(`"attendance".check_in_time DESC`)
+	if openOnly {
+		query = query.Where(`"attendance".check_out_time IS NULL`)
+	}
+	if lockRows {
+		query = query.For("UPDATE")
+	}
 
 	if where, val, ok := base.TenantWhere(ctx, "attendance"); ok {
 		query = query.Where(where, val)

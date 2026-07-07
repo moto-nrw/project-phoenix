@@ -22,6 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/activities"
+	"github.com/moto-nrw/project-phoenix/services/announcement"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/config"
@@ -36,8 +37,12 @@ import (
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/services/mealplan"
+	"github.com/moto-nrw/project-phoenix/services/messaging"
 	"github.com/moto-nrw/project-phoenix/services/parent"
+	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/services/platform"
+	"github.com/moto-nrw/project-phoenix/services/reminders"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/suggestions"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
@@ -62,10 +67,12 @@ type Factory struct {
 	Invitation               auth.InvitationService
 	GuardianInvitation       auth.GuardianInvitationService
 	Feedback                 feedback.Service
+	MealPlan                 mealplan.Service
 	Suggestions              suggestions.Service
 	IoT                      iot.Service
 	Settings                 config.SettingsService
 	Schedule                 schedule.Service
+	StaffShifts              schedule.StaffShiftService
 	PickupSchedule           schedule.PickupScheduleService
 	ArrivalSchedule          schedule.ArrivalScheduleService
 	CalendarPeriod           schedule.CalendarPeriodService
@@ -87,6 +94,7 @@ type Factory struct {
 	StaffImport              *importService.ImportService[importModels.StaffImportRow]   // Staff (Mitarbeiter) import service
 	ListExport               listexport.Service
 	Emergency                emergency.Service
+	Reminders                reminders.Service
 	RealtimeHub              *realtime.Hub // SSE event hub (shared by services and API)
 	Mailer                   email.Mailer
 	DefaultFrom              email.Email
@@ -102,6 +110,8 @@ type Factory struct {
 	Schools              platform.SchoolService
 	WorkTimeModels       config.WorkTimeModelService
 	Students             users.StudentService
+	MasterDataReview     users.MasterDataReviewService
+	CareRequests         schedule.CareScheduleRequestService
 	StudentStatusDays    active.StudentStatusDayService
 	StudentHistory       active.StudentHistoryService
 	TimetableData        schedule.TimetableDataService
@@ -119,17 +129,24 @@ type Factory struct {
 	EmailTemplateRegistry *platform.TemplateRegistry
 
 	// Enrollment domain (parent-enrollment PR 5+).
-	EnrollmentFormSchema   enrollment.FormSchemaService
-	EnrollmentCareOffering enrollment.CareOfferingService
-	EnrollmentCaptcha      enrollment.CaptchaService
-	EnrollmentRequest      enrollment.RequestService
-	EnrollmentPhase        enrollment.PhaseService
-	EnrollmentDecision     enrollment.DecisionService
-	EnrollmentReport       enrollment.ReportService
-	EnrollmentRollover     enrollment.RolloverService
+	EnrollmentFormSchema    enrollment.FormSchemaService
+	EnrollmentCareOffering  enrollment.CareOfferingService
+	EnrollmentCaptcha       enrollment.CaptchaService
+	EnrollmentRequest       enrollment.RequestService
+	EnrollmentPhase         enrollment.PhaseService
+	EnrollmentDecision      enrollment.DecisionService
+	EnrollmentReport        enrollment.ReportService
+	EnrollmentRollover      enrollment.RolloverService
+	EnrollmentChangeRequest enrollment.ChangeRequestService
 
 	// Parent (cross-tenant guardian portal - PR 9)
 	Parent parent.Service
+
+	// Messaging (staff-side parent-OGS inbox / threads)
+	Messaging messaging.Service
+
+	// ParentAnnouncement (staff-side parent broadcast news authoring, #1669)
+	ParentAnnouncement announcement.Service
 
 	// SettingsSideEffects is the per-key handler registry the API binds to
 	// SettingsResource.OnValueSet. Domain packages register handlers here
@@ -280,7 +297,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	guardianProfileLoader := users.NewGuardianProfileLoader(repos.GuardianProfile, db, logger.With("service", "guardian-profile-loader"))
 
 	// Initialize work session service (before active service - needed for NFC auto-check-in)
-	workSessionService := active.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, repos.WorkSessionEdit, repos.StaffAbsence, repos.GroupSupervisor, repos.Staff, repos.StaffWorkSchedule, repos.WorkTimeModel, activeLogger)
+	workSessionService := active.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, repos.WorkSessionEdit, repos.StaffAbsence, repos.GroupSupervisor, repos.Staff, repos.StaffWorkSchedule, repos.WorkTimeModel, settingsService, activeLogger)
+	// Planned-shift lookups for the auto-checkout job (#1798).
+	workSessionService.SetStaffShiftRepo(repos.StaffShift)
 
 	// Initialize staff absence service
 	staffAbsenceService := active.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota, repos.StaffAbsenceAudit)
@@ -328,6 +347,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	feedbackService := feedback.NewService(
 		repos.FeedbackEntry,
 	)
+
+	// Initialize meal plan service
+	mealPlanService := mealplan.NewService(repos.MealPlanEntry)
 
 	// Initialize suggestions service
 	suggestionsNotifyEmail := viper.GetString("suggestion_notify_email")
@@ -398,6 +420,14 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.Dateframe,
 		repos.Timeframe,
 		repos.RecurrenceRule,
+	)
+
+	// Initialize staff shift service (Dienstplan, #1376 core slice)
+	staffShiftService := schedule.NewStaffShiftService(
+		repos.StaffShift,
+		repos.Staff,
+		db,
+		logger.With("service", "staff_shift"),
 	)
 
 	// Initialize pickup schedule service
@@ -550,6 +580,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	if err != nil {
 		return nil, fmt.Errorf("invalid auth service config: %w", err)
 	}
+	authConfig.ParentsURL = parentsURL
 	authConfig.Settings = settingsService
 	authService, err := auth.NewService(repos, authConfig, db, authLogger)
 	if err != nil {
@@ -663,6 +694,12 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		})),
 	)
 	emailTemplateRegistry.Register(
+		platformModels.EmailKindParentAnnouncement,
+		platform.RendererFunc(announcement.NewAnnouncementRenderer(announcement.EmailConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
+	emailTemplateRegistry.Register(
 		platformModels.EmailKindEnrollmentSubmitted,
 		platform.RendererFunc(enrollment.NewEnrollmentSubmittedRenderer(enrollment.EmailRendererConfig{
 			DefaultFrom: defaultFrom,
@@ -692,6 +729,36 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	emailTemplateRegistry.Register(
 		platformModels.EmailKindEnrollmentRejected,
 		platform.RendererFunc(enrollment.NewEnrollmentRejectedRenderer(enrollment.EmailRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindEnrollmentChangeRequestSubmitted,
+		platform.RendererFunc(enrollment.NewEnrollmentChangeRequestSubmittedRenderer(enrollment.EmailRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindEnrollmentChangeRequestQuestion,
+		platform.RendererFunc(enrollment.NewEnrollmentChangeRequestQuestionRenderer(enrollment.EmailRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindEnrollmentChangeRequestParentReply,
+		platform.RendererFunc(enrollment.NewEnrollmentChangeRequestParentReplyRenderer(enrollment.EmailRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindEnrollmentChangeRequestApproved,
+		platform.RendererFunc(enrollment.NewEnrollmentChangeRequestApprovedRenderer(enrollment.EmailRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+	)
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindEnrollmentChangeRequestRejected,
+		platform.RendererFunc(enrollment.NewEnrollmentChangeRequestRejectedRenderer(enrollment.EmailRendererConfig{
 			DefaultFrom: defaultFrom,
 		})),
 	)
@@ -736,6 +803,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		GroupSubstitutionRepo:  repos.GroupSubstitution,
 		ActivitySupervisorRepo: repos.ActivitySupervisor,
 		InstanceStaffRepo:      repos.InstanceStaff,
+		StaffShiftRepo:         repos.StaffShift,
 		StaffAbsenceRepo:       repos.StaffAbsence,
 		AccountTenantRepo:      repos.AccountTenant,
 		RoleRepo:               repos.Role,
@@ -868,6 +936,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		OperatorRepo:         repos.Operator,
 		AuditLogRepo:         repos.OperatorAuditLog,
 		EmailChangeTokenRepo: repos.OperatorEmailChangeToken,
+		RefreshTokenRepo:     repos.OperatorRefreshToken,
 		InvitationTokenRepo:  repos.OperatorInvitationToken,
 		DB:                   db,
 		Logger:               platformLogger,
@@ -966,6 +1035,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		RequestRepo:              repos.Request,
 		RequestChildRepo:         repos.RequestChild,
 		RequestGuardianRepo:      repos.RequestGuardian,
+		LateInviteRepo:           repos.LateInvite,
 		RequestChildOfferingRepo: repos.RequestChildOffering,
 		CareOfferingRepo:         repos.CareOffering,
 		FormSchemaRepo:           repos.FormSchema,
@@ -1001,6 +1071,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		OfferingAdjustmentRepo:   repos.EnrollmentOfferingAdjustment,
 		SchoolRepo:               repos.School,
 		PersonRepo:               repos.Person,
+		StaffRepo:                repos.Staff,
 		StudentRepo:              repos.Student,
 		StudentGuardianRepo:      repos.StudentGuardian,
 		GuardianProfileRepo:      repos.GuardianProfile,
@@ -1025,10 +1096,39 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	enrollmentReportService := enrollment.NewReportService(enrollment.ReportServiceConfig{
 		RequestRepo:              repos.Request,
 		RequestChildRepo:         repos.RequestChild,
+		RequestGuardianRepo:      repos.RequestGuardian,
 		RequestChildOfferingRepo: repos.RequestChildOffering,
 		CareOfferingRepo:         repos.CareOffering,
+		FormSchemaRepo:           repos.FormSchema,
 		PhaseRepo:                repos.Phase,
 		DataAccessLogRepo:        repos.DataAccessLog,
+		StudentRepo:              repos.Student,
+		StudentGuardianRepo:      repos.StudentGuardian,
+		PersonRepo:               repos.Person,
+		EducationGroupRepo:       repos.Group,
+	})
+	enrollmentDecisionApplier, _ := enrollmentDecisionService.(enrollment.ChangeRequestDecisionApplier)
+
+	enrollmentChangeRequestService := enrollment.NewChangeRequestService(enrollment.ChangeRequestServiceConfig{
+		ChangeRequestRepo:        repos.ChangeRequest,
+		MessageRepo:              repos.ChangeRequestMessage,
+		RequestRepo:              repos.Request,
+		RequestChildRepo:         repos.RequestChild,
+		RequestGuardianRepo:      repos.RequestGuardian,
+		RequestChildOfferingRepo: repos.RequestChildOffering,
+		CareOfferingRepo:         repos.CareOffering,
+		FormSchemaRepo:           repos.FormSchema,
+		PhaseRepo:                repos.Phase,
+		SchoolRepo:               repos.School,
+		GuardianProfileRepo:      repos.GuardianProfile,
+		GuardianPhoneRepo:        repos.GuardianPhoneNumber,
+		DecisionService:          enrollmentDecisionApplier,
+		Settings:                 settingsService,
+		OutboxEnqueuer:           platform.NewEnrollmentOutboxAdapter(emailOutboxService),
+		FrontendURL:              frontendURL,
+		ParentsURL:               parentsURL,
+		DB:                       db,
+		Logger:                   logger.With("service", "enrollment-change-request"),
 	})
 
 	// Rollover service depends on DecisionService for the
@@ -1047,18 +1147,69 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:                   logger.With("service", "enrollment-rollover"),
 	})
 
+	studentService := users.NewStudentService(repos.Student, repos.PrivacyConsent)
+
+	// Chat-pill emitter (#1803): posts non-interactive notification events
+	// into parent-OGS threads on behalf of the request/self-service flows.
+	// Best-effort and transactionally detached — see parentmessaging.Emitter.
+	pillEmitter := parentmessaging.NewEmitter(
+		db,
+		repos.ParentMessageThread,
+		repos.ParentMessage,
+		settingsService,
+		realtimeHub,
+		logger.With("service", "parent-events"),
+	)
+
+	// Care-schedule change requests (#1803): the schedule-domain request
+	// lifecycle (create / withdraw / staff decide + apply), decoupled from the
+	// chat.
+	careRequestService := schedule.NewCareScheduleRequestService(
+		repos.CareScheduleChangeRequest,
+		repos.Student,
+		repos.Person,
+		arrivalScheduleService,
+		pickupScheduleService,
+		userContextService,
+		pillEmitter,
+		realtimeHub,
+		logger.With("service", "care-requests"),
+	)
+
+	messagingService := messaging.NewService(messaging.Config{
+		ThreadRepo:  repos.ParentMessageThread,
+		MessageRepo: repos.ParentMessage,
+		ReadRepo:    repos.ParentMessageRead,
+		Persons:     usersService,
+		UserContext: userContextService,
+		Settings:    settingsService,
+		Broadcaster: realtimeHub,
+		DB:          db,
+		Logger:      logger.With("service", "messaging"),
+	})
+
 	parentService := parent.NewService(parent.ServiceConfig{
 		ChildRepo:               repos.ParentChild,
 		EnrollablePhaseRepo:     repos.ParentEnrollablePhase,
 		EnrollmentRequestRepo:   repos.ParentEnrollmentRequest,
 		GuardianProfileRepo:     repos.GuardianProfile,
 		StatusDayRepo:           repos.StudentStatusDay,
+		MealPlanRepo:            repos.MealPlanEntry,
 		StudentRepo:             repos.Student,
-		NoteRepo:                repos.StudentParentNote,
 		PickupExceptionRepo:     repos.StudentPickupException,
 		ArrivalExceptionRepo:    repos.StudentArrivalException,
 		Settings:                settingsService,
 		Broadcaster:             realtimeHub,
+		PersonRepo:              repos.Person,
+		ChangeRequestRepo:       repos.StudentDataChangeRequest,
+		MessageThreadRepo:       repos.ParentMessageThread,
+		MessageRepo:             repos.ParentMessage,
+		MessageReadRepo:         repos.ParentMessageRead,
+		ArrivalSchedules:        arrivalScheduleService,
+		PickupSchedules:         pickupScheduleService,
+		CareRequests:            careRequestService,
+		Emitter:                 pillEmitter,
+		AnnouncementRepo:        repos.ParentAnnouncement,
 		GuardianInvites:         guardianInvitationService,
 		GuardianInviteRepo:      repos.GuardianInvitation,
 		StudentGuardianRepo:     repos.StudentGuardian,
@@ -1066,6 +1217,14 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		GuardianChangeAuditRepo: repos.GuardianChange,
 		DB:                      db,
 		Logger:                  logger.With("service", "parent"),
+	})
+
+	parentAnnouncementService := announcement.NewService(announcement.ServiceConfig{
+		Repo:       repos.ParentAnnouncement,
+		Settings:   settingsService,
+		Outbox:     emailOutboxService,
+		ParentsURL: parentsURL,
+		Logger:     logger.With("service", "announcement"),
 	})
 
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
@@ -1099,6 +1258,18 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ListExport:          listExportService,
 	})
 
+	remindersService := reminders.NewService(reminders.Dependencies{
+		Settings:    settingsService,
+		Attendance:  repos.Attendance,
+		Pickup:      pickupScheduleService,
+		Instance:    repos.ActivityInstance,
+		Student:     repos.Student,
+		Person:      repos.Person,
+		Supervision: activeService,
+		Groups:      userContextService,
+		Logger:      logger.With("service", "reminders"),
+	})
+
 	factory := &Factory{
 		Auth:                     authService,
 		MFA:                      mfaService,
@@ -1114,10 +1285,12 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Schulhof:                 schulhofService,
 		WC:                       wcService,
 		Feedback:                 feedbackService,
+		MealPlan:                 mealPlanService,
 		Suggestions:              suggestionsService,
 		IoT:                      iotService,
 		Settings:                 settingsService,
 		Schedule:                 scheduleService,
+		StaffShifts:              staffShiftService,
 		PickupSchedule:           pickupScheduleService,
 		ArrivalSchedule:          arrivalScheduleService,
 		CalendarPeriod:           calendarPeriodService,
@@ -1139,6 +1312,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StaffImport:              staffImportService,   // Staff (Mitarbeiter) import service
 		ListExport:               listExportService,
 		Emergency:                emergencyService,
+		Reminders:                remindersService,
 		RealtimeHub:              realtimeHub, // Expose SSE hub for API layer
 		Invitation:               invitationService,
 		GuardianInvitation:       guardianInvitationService,
@@ -1159,7 +1333,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Announcement:         announcementService,
 		Schools:              platform.NewSchoolService(repos.School),
 		WorkTimeModels:       config.NewWorkTimeModelService(repos.WorkTimeModel),
-		Students:             users.NewStudentService(repos.Student, repos.PrivacyConsent, repos.StudentParentNote),
+		Students:             studentService,
+		MasterDataReview:     users.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, userContextService, pillEmitter, logger.With("service", "master-data-review"), realtimeHub),
+		CareRequests:         careRequestService,
 		StudentStatusDays:    active.NewStudentStatusDayService(repos.StudentStatusDay),
 		StudentHistory:       active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog),
 		TimetableData: schedule.NewTimetableDataService(schedule.TimetableDataDependencies{
@@ -1193,16 +1369,19 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		EmailOutboxWorker:     emailOutboxWorker,
 		EmailTemplateRegistry: emailTemplateRegistry,
 
-		EnrollmentFormSchema:   enrollmentFormSchemaService,
-		EnrollmentCareOffering: enrollmentCareOfferingService,
-		EnrollmentCaptcha:      enrollmentCaptchaService,
-		EnrollmentRequest:      enrollmentRequestService,
-		EnrollmentPhase:        enrollmentPhaseService,
-		EnrollmentDecision:     enrollmentDecisionService,
-		EnrollmentReport:       enrollmentReportService,
-		EnrollmentRollover:     enrollmentRolloverService,
+		EnrollmentFormSchema:    enrollmentFormSchemaService,
+		EnrollmentCareOffering:  enrollmentCareOfferingService,
+		EnrollmentCaptcha:       enrollmentCaptchaService,
+		EnrollmentRequest:       enrollmentRequestService,
+		EnrollmentPhase:         enrollmentPhaseService,
+		EnrollmentDecision:      enrollmentDecisionService,
+		EnrollmentReport:        enrollmentReportService,
+		EnrollmentRollover:      enrollmentRolloverService,
+		EnrollmentChangeRequest: enrollmentChangeRequestService,
 
-		Parent: parentService,
+		Parent:             parentService,
+		Messaging:          messagingService,
+		ParentAnnouncement: parentAnnouncementService,
 	}
 
 	factory.SettingsSideEffects = sideeffects.NewRegistry()

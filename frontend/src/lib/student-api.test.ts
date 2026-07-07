@@ -2,11 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { suppressConsole } from "~/test/helpers/console";
 import { createAxiosResponse } from "~/test/helpers/axios";
 import { mockSessionData } from "~/test/mocks/next-auth";
-import {
-  buildBackendStudent,
-  buildStudent,
-  buildBackendGroup,
-} from "~/test/fixtures";
+import { buildBackendStudent, buildStudent } from "~/test/fixtures/students";
+import { buildBackendGroup } from "~/test/fixtures/groups";
 
 // Mock dependencies before importing the module
 vi.mock("next-auth/react", () => ({
@@ -161,6 +158,7 @@ describe("student-api", () => {
           school_class: "3a",
           group_id: "10",
           location: "Schule",
+          location_state: "transit",
           page: 1,
           page_size: 20,
         };
@@ -176,6 +174,7 @@ describe("student-api", () => {
         expect(calledUrl).toContain("search=Max");
         expect(calledUrl).toContain("school_class=3a");
         expect(calledUrl).toContain("group_id=10");
+        expect(calledUrl).toContain("location_state=transit");
         expect(calledUrl).toContain("page=1");
         expect(calledUrl).toContain("page_size=20");
       });

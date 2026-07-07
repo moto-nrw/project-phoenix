@@ -112,6 +112,67 @@ func (m *mockAuditLogRepoShared) FindByDateRange(ctx context.Context, start, end
 	return nil, nil
 }
 
+type mockOperatorRefreshTokenRepo struct {
+	createFn                 func(ctx context.Context, token *platform.OperatorRefreshToken) error
+	findByTokenForUpdateFn   func(ctx context.Context, token string) (*platform.OperatorRefreshToken, error)
+	deleteFn                 func(ctx context.Context, id any) error
+	deleteByOperatorIDFn     func(ctx context.Context, operatorID int64) (int, error)
+	deleteByFamilyIDFn       func(ctx context.Context, familyID string) error
+	getLatestTokenInFamilyFn func(ctx context.Context, familyID string) (*platform.OperatorRefreshToken, error)
+	deleteExpiredFn          func(ctx context.Context, now time.Time) (int, error)
+	created                  []*platform.OperatorRefreshToken
+}
+
+func (m *mockOperatorRefreshTokenRepo) Create(ctx context.Context, token *platform.OperatorRefreshToken) error {
+	if m.createFn != nil {
+		return m.createFn(ctx, token)
+	}
+	m.created = append(m.created, token)
+	return nil
+}
+
+func (m *mockOperatorRefreshTokenRepo) FindByTokenForUpdate(ctx context.Context, token string) (*platform.OperatorRefreshToken, error) {
+	if m.findByTokenForUpdateFn != nil {
+		return m.findByTokenForUpdateFn(ctx, token)
+	}
+	return nil, nil
+}
+
+func (m *mockOperatorRefreshTokenRepo) Delete(ctx context.Context, id any) error {
+	if m.deleteFn != nil {
+		return m.deleteFn(ctx, id)
+	}
+	return nil
+}
+
+func (m *mockOperatorRefreshTokenRepo) DeleteByOperatorID(ctx context.Context, operatorID int64) (int, error) {
+	if m.deleteByOperatorIDFn != nil {
+		return m.deleteByOperatorIDFn(ctx, operatorID)
+	}
+	return 0, nil
+}
+
+func (m *mockOperatorRefreshTokenRepo) DeleteByFamilyID(ctx context.Context, familyID string) error {
+	if m.deleteByFamilyIDFn != nil {
+		return m.deleteByFamilyIDFn(ctx, familyID)
+	}
+	return nil
+}
+
+func (m *mockOperatorRefreshTokenRepo) GetLatestTokenInFamily(ctx context.Context, familyID string) (*platform.OperatorRefreshToken, error) {
+	if m.getLatestTokenInFamilyFn != nil {
+		return m.getLatestTokenInFamilyFn(ctx, familyID)
+	}
+	return nil, nil
+}
+
+func (m *mockOperatorRefreshTokenRepo) DeleteExpired(ctx context.Context, now time.Time) (int, error) {
+	if m.deleteExpiredFn != nil {
+		return m.deleteExpiredFn(ctx, now)
+	}
+	return 0, nil
+}
+
 // Shared mock for account tenant repository
 type mockAccountTenantRepo struct {
 	createFn                     func(ctx context.Context, mapping *auth.AccountTenant) error

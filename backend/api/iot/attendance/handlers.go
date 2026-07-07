@@ -106,7 +106,7 @@ func (rs *Resource) toggleAttendance(w http.ResponseWriter, r *http.Request) {
 
 	// Handle "confirm_daily_checkout" action - process the deferred daily checkout
 	if req.Action == "confirm_daily_checkout" {
-		rs.handleDailyCheckout(w, r, normalizedRFID, req)
+		rs.handleDailyCheckout(w, r, normalizedRFID, req, deviceCtx.ID)
 		return
 	}
 
@@ -171,7 +171,7 @@ func (rs *Resource) handleCancelAction(w http.ResponseWriter, r *http.Request) {
 // record when the student confirms "nach Hause". If a visit is still open,
 // CheckOutStudent ends it in the same request transaction (issue #895 — see
 // services/active.performCheckOut).
-func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, normalizedRFID string, req *AttendanceToggleRequest) {
+func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, normalizedRFID string, req *AttendanceToggleRequest, deviceID int64) {
 	// Find person by RFID tag
 	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedRFID)
 	if err != nil || person == nil {
@@ -224,20 +224,16 @@ func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, 
 				slog.Int64("student_id", student.ID),
 			)
 		case "checked_in":
-			staffID := int64(0)
-			if staffCtx := device.StaffFromCtx(r.Context()); staffCtx != nil {
-				staffID = staffCtx.ID
-			}
-
 			// Set attendance to "checked_out" — sets check_out_time on today's record.
-			// skipAuthCheck=true because the IoT device already authenticated this request.
-			_, err := rs.ActiveService.CheckOutStudent(r.Context(), student.ID, staffID, true)
+			// The active service resolves the device's active supervisor as the
+			// auditable checked_out_by principal before writing attendance.
+			_, err := rs.ActiveService.CheckOutStudentFromDevice(r.Context(), student.ID, deviceID)
 			if err != nil {
 				slog.Default().ErrorContext(r.Context(), "failed to update attendance for daily checkout",
 					slog.Int64("student_id", student.ID),
 					slog.String("error", err.Error()),
 				)
-				iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+				iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
 				return
 			}
 

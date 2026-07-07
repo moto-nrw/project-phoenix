@@ -35,6 +35,7 @@ import (
 // selected_days is a non-empty subset of the offering's
 // available_days.
 type SubmitChildRequest struct {
+	ID               *int64                  `json:"id,omitempty,string"`
 	FirstName        string                  `json:"first_name"`
 	LastName         string                  `json:"last_name"`
 	DateOfBirth      string                  `json:"date_of_birth"`
@@ -79,6 +80,7 @@ type SubmitEnrollmentRequest struct {
 	CustomData          map[string]any          `json:"custom_data,omitempty"`
 	Children            []SubmitChildRequest    `json:"children"`
 	CaptchaToken        string                  `json:"captcha_token,omitempty"`
+	LateInviteToken     string                  `json:"late_invite_token,omitempty"`
 }
 
 // Bind defaults nil maps + slices to empty so downstream code doesn't
@@ -127,6 +129,9 @@ func (rs *Resource) submitEnrollment(w http.ResponseWriter, r *http.Request) {
 	if err := render.Bind(r, wireReq); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
+	}
+	if wireReq.LateInviteToken == "" {
+		wireReq.LateInviteToken = lateInviteTokenFromRequest(r)
 	}
 
 	remoteIP := remoteIPFromRequest(r)
@@ -201,6 +206,7 @@ func buildServiceRequest(wireReq *SubmitEnrollmentRequest, tenantID int64, remot
 		GuardianPhone:     wireReq.GuardianPhone,
 		ConsentFlags:      wireReq.ConsentFlags,
 		CustomData:        wireReq.CustomData,
+		LateInviteToken:   wireReq.LateInviteToken,
 	}
 	for _, g := range wireReq.AdditionalGuardians {
 		out.AdditionalGuardians = append(out.AdditionalGuardians, enrollmentService.SubmitGuardian{
@@ -223,6 +229,7 @@ func buildServiceRequest(wireReq *SubmitEnrollmentRequest, tenantID int64, remot
 			})
 		}
 		out.Children = append(out.Children, enrollmentService.SubmitChild{
+			ID:               int64PtrValue(c.ID),
 			FirstName:        c.FirstName,
 			LastName:         c.LastName,
 			DateOfBirth:      dob,
@@ -233,6 +240,13 @@ func buildServiceRequest(wireReq *SubmitEnrollmentRequest, tenantID int64, remot
 		})
 	}
 	return out, nil
+}
+
+func int64PtrValue(v *int64) int64 {
+	if v == nil {
+		return 0
+	}
+	return *v
 }
 
 // Stable error codes returned in the JSON envelope so the frontend can
@@ -247,6 +261,7 @@ const (
 	ErrCodeEnrollmentInvalidPhone                = "enrollment.invalid_phone"
 	ErrCodeEnrollmentInvalidEmail                = "enrollment.invalid_email"
 	ErrCodeEnrollmentPickupTimeNotAllowed        = "enrollment.pickup_time_not_allowed"
+	ErrCodeEnrollmentLateInviteInvalid           = "enrollment.late_invite_invalid"
 )
 
 // mapSubmitError translates service-layer sentinel errors into HTTP
@@ -256,6 +271,8 @@ func mapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, enrollmentService.ErrEnrollmentDisabled),
 		errors.Is(err, enrollmentService.ErrEnrollmentWindowClosed):
 		common.RenderError(w, r, common.ErrorForbidden(err))
+	case errors.Is(err, enrollmentService.ErrLateInviteInvalid):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, ErrCodeEnrollmentLateInviteInvalid))
 	case errors.Is(err, enrollmentService.ErrCareOfferingMissing):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingMissing))
 	case errors.Is(err, enrollmentService.ErrCareOfferingExactlyOneRequired):
@@ -305,6 +322,10 @@ func mapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 	}
 }
 
+func lateInviteTokenFromRequest(r *http.Request) string {
+	return strings.TrimSpace(r.URL.Query().Get("late_invite"))
+}
+
 // remoteIPFromRequest extracts the client IP for captcha verification +
 // future rate limiting. Honors X-Forwarded-For (first hop) when set.
 func remoteIPFromRequest(r *http.Request) string {
@@ -333,6 +354,7 @@ type StatusResponse struct {
 	GuardianPhone     *string               `json:"guardian_phone,omitempty"`
 	SubmittedAt       time.Time             `json:"submitted_at"`
 	WithdrawnAt       *time.Time            `json:"withdrawn_at,omitempty"`
+	EditMode          string                `json:"edit_mode"`
 	Children          []StatusChildResponse `json:"children"`
 	// AdditionalGuardians are the co-guardians the parent added beyond the
 	// primary guardian above. Empty when none were added.
@@ -365,6 +387,7 @@ type EditBootstrapResponse struct {
 	CareRequired              bool                      `json:"care_required"`
 	LegalTexts                PublicLegalTextsResponse  `json:"legal_texts"`
 	Draft                     EditDraftResponse         `json:"draft"`
+	EditMode                  string                    `json:"edit_mode"`
 }
 
 type EditDraftResponse struct {
@@ -425,6 +448,8 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 		req       *enrollmentModels.Request
 		children  []*enrollmentModels.RequestChild
 		guardians []*enrollmentModels.RequestGuardian
+		editMode  string
+		statusErr error
 	)
 	err := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
 		serviceReq, serviceChildren, err := rs.RequestService.GetByStatusToken(adminCtx, token)
@@ -433,6 +458,12 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 		}
 		req = serviceReq
 		children = serviceChildren
+		mode, modeErr := rs.RequestService.EditModeForStatus(adminCtx, req, children)
+		if modeErr != nil {
+			statusErr = fmt.Errorf("status: compute edit mode: %w", modeErr)
+			return statusErr
+		}
+		editMode = mode
 		// Best-effort: a failure here must not hide the request status, but a
 		// silent drop would mask a permission/RLS/DB problem behind a 200 with
 		// missing co-guardians. Log it so the failure is visible.
@@ -445,6 +476,10 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	if err != nil {
+		if statusErr != nil {
+			common.RenderError(w, r, common.ErrorInternalServer(statusErr))
+			return
+		}
 		common.RenderError(w, r, common.ErrorNotFound(err))
 		return
 	}
@@ -457,6 +492,7 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 		GuardianPhone:     req.GuardianPhone,
 		SubmittedAt:       req.SubmittedAt,
 		WithdrawnAt:       req.WithdrawnAt,
+		EditMode:          editMode,
 	}
 	for _, c := range children {
 		resp.Children = append(resp.Children, StatusChildResponse{
@@ -516,7 +552,8 @@ func (rs *Resource) getEditBootstrap(w http.ResponseWriter, r *http.Request) {
 			PhotoEnabled:        draft.LegalTexts.PhotoEnabled,
 			Blocks:              draft.LegalTexts.Blocks,
 		},
-		Draft: toEditDraftResponse(draft),
+		Draft:    toEditDraftResponse(draft),
+		EditMode: draft.EditMode,
 	}, "Enrollment edit bootstrap retrieved")
 }
 

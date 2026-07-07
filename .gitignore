@@ -415,6 +415,7 @@ backend/server.log
 # IDE configurations
 .idea/
 .vscode/
+.serena/
 # Docker compose files should use templates
 docker-compose.yml
 docker-compose.prod.yml
@@ -476,6 +477,9 @@ openspec/
 
 # Node modules (frontend manages its own via frontend/.gitignore)
 node_modules/
+
+# pnpm content-addressable store (machine-generated cache, never commit)
+.pnpm-store/
 
 # Devbox + direnv
 .devbox/

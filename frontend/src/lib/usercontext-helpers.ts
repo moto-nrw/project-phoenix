@@ -1,16 +1,10 @@
 // lib/usercontext-helpers.ts
 
-// Frontend types for UserContext
-export interface EducationalGroup {
-  id: string;
-  name: string;
-  room_id?: string;
-  room?: {
-    id: string;
-    name: string;
-  };
-  viaSubstitution?: boolean; // True if access is through temporary transfer
-}
+import type { EducationalGroup } from "./user-context-types";
+
+// Frontend types for UserContext (EducationalGroup is shared with the
+// user-context BFF route — single definition in user-context-types.ts)
+export type { EducationalGroup };
 
 export interface ActivityGroup {
   id: string;
@@ -133,7 +127,7 @@ export function mapEducationalGroupResponse(
   return {
     id: data.id.toString(),
     name: data.name,
-    room_id: data.room_id?.toString(),
+    roomId: data.room_id?.toString(),
     room: data.room
       ? {
           id: data.room.id.toString(),

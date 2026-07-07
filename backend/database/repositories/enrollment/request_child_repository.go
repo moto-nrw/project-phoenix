@@ -130,6 +130,34 @@ func (r *RequestChildRepository) UpdateStatus(ctx context.Context, id int64, new
 	return nil
 }
 
+// UpdateData updates the parent-supplied child fields without changing
+// status, review metadata, rollover metadata, or created_student_id.
+func (r *RequestChildRepository) UpdateData(ctx context.Context, child *enrollment.RequestChild) error {
+	if child == nil || child.ID <= 0 {
+		return fmt.Errorf("request child id is required")
+	}
+	res, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model(child).
+		ModelTableExpr(requestChildTableExpr).
+		Set("first_name = ?", child.FirstName).
+		Set("last_name = ?", child.LastName).
+		Set("date_of_birth = ?", child.DateOfBirth).
+		Set("target_grade_level = ?", child.TargetGradeLevel).
+		Set("custom_data = ?", child.CustomData).
+		Set("sort_order = ?", child.SortOrder).
+		Set("updated_at = NOW()").
+		Where(`"request_child".id = ?`, child.ID).
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to update request child data: %w", err)
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("request child %d not found", child.ID)
+	}
+	return nil
+}
+
 // LinkCreatedStudent stamps the request_children row with the id of the
 // student created on approval, so the admin UI can navigate from a
 // historical request to the resulting student profile.

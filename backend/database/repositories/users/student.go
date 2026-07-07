@@ -128,6 +128,44 @@ func (r *StudentRepository) FindByIDs(ctx context.Context, ids []int64) (map[int
 	return result, nil
 }
 
+// FindReadScopeByIDs retrieves a lightweight projection of the given students —
+// only id, group_id, person_id, and school_class — in a single primary-key
+// IN-list query. Unlike FindByIDs it does NOT run hydrateBusDaysIfPresent, so it
+// avoids the extra information_schema column probe and jsonb weekday-hydration
+// round-trip. Callers that only gate read access and display a name (e.g. the
+// reminders header, polled per browser every 60s) get just those small rows and
+// nothing they never read. The returned *Student values have ONLY those four
+// fields populated — do not use them where full student data is expected.
+func (r *StudentRepository) FindReadScopeByIDs(ctx context.Context, ids []int64) (map[int64]*users.Student, error) {
+	if len(ids) == 0 {
+		return make(map[int64]*users.Student), nil
+	}
+
+	var students []*users.Student
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&students).
+		ModelTableExpr(`users.students AS "student"`).
+		Column("id", "group_id", "person_id", "school_class").
+		Where(`"student".id IN (?)`, bun.List(ids))
+
+	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find read scope by IDs",
+			Err: err,
+		}
+	}
+
+	result := make(map[int64]*users.Student, len(students))
+	for _, student := range students {
+		result[student.ID] = student
+	}
+	return result, nil
+}
+
 // FindByGroupID retrieves students by their group ID
 func (r *StudentRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*users.Student, error) {
 	var students []*users.Student
@@ -194,7 +232,7 @@ func (r *StudentRepository) FindBySchoolClass(ctx context.Context, schoolClass s
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&students).
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
-		Where("LOWER(school_class) = LOWER(?)", schoolClass)
+		Where("LOWER(TRIM(school_class)) = LOWER(TRIM(?))", schoolClass)
 
 	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
 		query = query.Where(where, val)
@@ -214,6 +252,29 @@ func (r *StudentRepository) FindBySchoolClass(ctx context.Context, schoolClass s
 	}
 
 	return students, nil
+}
+
+// ListSchoolClasses retrieves all distinct non-empty school_class values.
+func (r *StudentRepository) ListSchoolClasses(ctx context.Context) ([]string, error) {
+	var classes []string
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`users.students AS "student"`).
+		ColumnExpr(`DISTINCT TRIM("student".school_class)`).
+		Where(`TRIM("student".school_class) != ''`).
+		OrderExpr(`TRIM("student".school_class) ASC`)
+
+	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx, &classes); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list school classes",
+			Err: err,
+		}
+	}
+
+	return classes, nil
 }
 
 // AssignToGroup assigns a student to a group

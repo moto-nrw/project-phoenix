@@ -68,6 +68,9 @@ describe("PersonalInfoFormModal", () => {
     buskind: false,
     sick: false,
     pickup_status: "Wird abgeholt",
+    address_street: "Musterstraße 12",
+    address_city: "Köln",
+    address_postal_code: "50667",
     health_info: "Keine Allergien",
     supervisor_notes: "Betreuernotiz",
     extra_info: "Elternnotiz",
@@ -174,6 +177,25 @@ describe("PersonalInfoFormModal", () => {
 
       const input = screen.getByLabelText<HTMLInputElement>("Geburtsdatum");
       expect(input.value).toBe("2016-03-20");
+    });
+
+    it("displays address inputs", () => {
+      render(
+        <PersonalInfoFormModal
+          isOpen={true}
+          onClose={mockOnClose}
+          student={createMockStudent()}
+          onSave={mockOnSave}
+        />,
+      );
+
+      expect(
+        screen.getByLabelText<HTMLInputElement>("Straße und Hausnummer").value,
+      ).toBe("Musterstraße 12");
+      expect(screen.getByLabelText<HTMLInputElement>("PLZ").value).toBe(
+        "50667",
+      );
+      expect(screen.getByLabelText<HTMLInputElement>("Ort").value).toBe("Köln");
     });
 
     it("updates first name when changed", () => {

@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import { TenantProvider } from "~/components/tenant/tenant-provider";
+import { TenantProvider } from "~/lib/tenant-context";
 import { TenantGuard } from "~/components/tenant/tenant-guard";
 import { TenantProviders } from "./providers";
 import type { TenantInfo, TenantSettings } from "~/lib/tenant-api";
@@ -20,6 +20,7 @@ interface TenantResolveResponse {
   presence_mode?: string;
   student_photos_enabled?: boolean;
   nfc_enabled?: boolean;
+  parent_messaging_enabled?: boolean;
 }
 
 /**
@@ -53,6 +54,7 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
       presenceMode: normalizePresenceMode(data.presence_mode),
       studentPhotosEnabled: data.student_photos_enabled === true,
       nfcEnabled: data.nfc_enabled === true,
+      messagingEnabled: data.parent_messaging_enabled === true,
     };
   } catch {
     return null;

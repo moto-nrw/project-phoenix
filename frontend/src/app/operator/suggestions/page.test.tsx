@@ -48,7 +48,7 @@ vi.mock("~/lib/operator-url", () => ({
 
 // Mock UI components
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({ title, badge, filters, search }: any) => (
     <div data-testid="page-header">
       <h1>{title}</h1>

@@ -254,14 +254,16 @@ func (rs *Resource) listPublicActiveSchema(w http.ResponseWriter, r *http.Reques
 	}
 
 	var schema *enrollmentModels.FormSchema
+	lateInviteToken := lateInviteTokenFromRequest(r)
 	schoolID, resolveErr := rs.resolvePublicTenantID(r.Context(), slug)
 	if resolveErr == nil {
 		resolveErr = tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(txCtx context.Context, _ bun.Tx) error {
 			if rs.RequestService == nil {
 				return errors.New("request service not configured")
 			}
-			// Shared public phase gate: enabled + active + open window.
-			phase, phaseErr := rs.RequestService.LoadOpenPublicPhase(txCtx, phaseID, time.Now())
+			// Shared public phase gate: enabled + active + open window, or
+			// a valid late-invite exception for this exact phase.
+			phase, phaseErr := rs.RequestService.LoadPublicPhaseWithLateInvite(txCtx, phaseID, time.Now(), lateInviteToken)
 			if phaseErr != nil {
 				return phaseErr
 			}

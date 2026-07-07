@@ -60,6 +60,7 @@ func newOffboardingScenario(t *testing.T) *offboardingScenario {
 		GroupSubstitutionRepo:  repos.GroupSubstitution,
 		ActivitySupervisorRepo: repos.ActivitySupervisor,
 		InstanceStaffRepo:      repos.InstanceStaff,
+		StaffShiftRepo:         repos.StaffShift,
 		StaffAbsenceRepo:       repos.StaffAbsence,
 		AccountTenantRepo:      repos.AccountTenant,
 		RoleRepo:               repos.Role,
@@ -694,6 +695,56 @@ func TestOffboardStaff_RemovesPendingAndFutureAbsences(t *testing.T) {
 		Where(`staff_id = ?`, staff.ID).
 		Scan(context.Background(), &auditedCount))
 	assert.Equal(t, "2", auditedCount, "audit record must count the deleted absences")
+}
+
+func TestOffboardStaff_RemovesUpcomingStaffShifts(t *testing.T) {
+	sc := newOffboardingScenario(t)
+
+	staff := testpkg.CreateTestStaff(t, sc.db, "Shifted", "Offboard")
+	today := timezone.TodayDate()
+
+	makeShift := func(date timezone.Date, startHour int) *scheduleModels.StaffShift {
+		shift := &scheduleModels.StaffShift{
+			StaffID:   staff.ID,
+			Date:      date,
+			StartTime: time.Date(1, 1, 1, startHour, 0, 0, 0, time.UTC),
+			EndTime:   time.Date(1, 1, 1, startHour+4, 0, 0, 0, time.UTC),
+			CreatedBy: staff.ID,
+		}
+		require.NoError(t, sc.repos.StaffShift.Create(sc.ctx, shift))
+		t.Cleanup(func() { testpkg.CleanupTableRecords(t, sc.db, "schedule.staff_shifts", shift.ID) })
+		return shift
+	}
+	past := makeShift(today.AddDays(-1), 8)
+	sameDay := makeShift(today, 8)
+	future := makeShift(today.AddDays(1), 8)
+
+	t.Cleanup(func() {
+		cleanupOffboardedStaffChain(t, sc.db, staff.ID, staff.PersonID, nil)
+	})
+
+	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, "test-admin"))
+
+	countShift := func(id int64) int {
+		var n int
+		require.NoError(t, sc.db.NewSelect().
+			TableExpr(`schedule.staff_shifts`).
+			ColumnExpr(`COUNT(*)`).
+			Where(`id = ?`, id).
+			Scan(context.Background(), &n))
+		return n
+	}
+	assert.Equal(t, 1, countShift(past.ID), "past staff shift must stay as history")
+	assert.Zero(t, countShift(sameDay.ID), "same-day staff shift must be removed")
+	assert.Zero(t, countShift(future.ID), "future staff shift must be removed")
+
+	var auditedCount string
+	require.NoError(t, sc.db.NewSelect().
+		TableExpr(`audit.data_deletions`).
+		ColumnExpr(`metadata->>'staff_shifts'`).
+		Where(`staff_id = ?`, staff.ID).
+		Scan(context.Background(), &auditedCount))
+	assert.Equal(t, "2", auditedCount, "audit record must count the deleted staff shifts")
 }
 
 // TestOffboardStaff_ClearsWorkTimeModelAssignment: the soft-deleted staff row

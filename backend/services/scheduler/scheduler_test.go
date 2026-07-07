@@ -1164,7 +1164,22 @@ func (m *mockActiveService) ListStudentsPresentInRoom(_ context.Context, _ int64
 func (m *mockActiveService) ListStudentsInTransit(_ context.Context) ([]int64, error) {
 	return nil, nil
 }
+func (m *mockActiveService) ListStudentsPresentToday(_ context.Context) ([]int64, error) {
+	return nil, nil
+}
 func (m *mockActiveService) AssignTransitStudentsToActiveGroup(_ context.Context, _ []int64, _ int64) (*activeService.TransitAssignResult, error) {
+	return nil, nil
+}
+func (m *mockActiveService) MoveStudentsToActiveGroup(_ context.Context, _ []int64, _ int64) (*activeService.StudentMoveResult, error) {
+	return nil, nil
+}
+func (m *mockActiveService) MoveStudentsToActiveGroupAuthorized(_ context.Context, _ []int64, _ int64, _ activeService.StudentMoveAuthorization) (*activeService.StudentMoveResult, error) {
+	return nil, nil
+}
+func (m *mockActiveService) MoveStudentsToTransit(_ context.Context, _ []int64) (*activeService.StudentMoveResult, error) {
+	return nil, nil
+}
+func (m *mockActiveService) MoveStudentsToTransitAuthorized(_ context.Context, _ []int64, _ activeService.StudentMoveAuthorization) (*activeService.StudentMoveResult, error) {
 	return nil, nil
 }
 func (m *mockActiveService) GetDashboardAnalytics(_ context.Context) (*activeService.DashboardAnalytics, error) {
@@ -1186,6 +1201,9 @@ func (m *mockActiveService) CheckInStudent(_ context.Context, _, _, _ int64, _ b
 	return nil, nil
 }
 func (m *mockActiveService) CheckOutStudent(_ context.Context, _, _ int64, _ bool) (*activeService.AttendanceResult, error) {
+	return nil, nil
+}
+func (m *mockActiveService) CheckOutStudentFromDevice(_ context.Context, _, _ int64) (*activeService.AttendanceResult, error) {
 	return nil, nil
 }
 func (m *mockActiveService) CheckTeacherStudentAccess(_ context.Context, _, _ int64) (bool, error) {
@@ -2350,20 +2368,26 @@ func TestRunSessionCleanupTask_StopsOnDoneAfterSleep(t *testing.T) {
 	})
 }
 
-type mockBreakAutoEnder struct{}
+type mockBreakAutoEnder struct {
+	calls int
+}
 
 func (m *mockBreakAutoEnder) AutoEndExpiredBreaks(_ context.Context) (int, error) {
+	m.calls++
 	return 0, nil
 }
 
 func TestWaitUntilNextMinute_ShutdownDuringWait(t *testing.T) {
-	s := &Scheduler{done: make(chan struct{}), logger: slog.Default()}
-	go func() {
-		time.Sleep(50 * time.Millisecond)
-		close(s.done)
-	}()
-	result := s.waitUntilNextMinute()
-	assert.False(t, result, "should return false when shutdown signal fires during wait")
+	synctest.Test(t, func(t *testing.T) {
+		s := &Scheduler{done: make(chan struct{}), logger: slog.Default()}
+		go func() {
+			time.Sleep(50 * time.Millisecond)
+			close(s.done)
+		}()
+
+		result := s.waitUntilNextMinute()
+		assert.False(t, result, "should return false when shutdown signal fires during wait")
+	})
 }
 
 func TestScheduleCleanupTask_DisabledByEnv(t *testing.T) {
@@ -2386,18 +2410,6 @@ func TestScheduleSessionEndTask_DisabledByEnv(t *testing.T) {
 	}
 	s.scheduleSessionEndTask()
 	assert.Empty(t, s.tasks, "session end task should not be registered when disabled")
-}
-
-func TestScheduleBreakAutoEndTask_DisabledByEnv(t *testing.T) {
-	t.Setenv("BREAK_AUTO_END_ENABLED", "false")
-	s := &Scheduler{
-		done:           make(chan struct{}),
-		logger:         slog.Default(),
-		tasks:          make(map[string]*ScheduledTask),
-		breakAutoEnder: &mockBreakAutoEnder{},
-	}
-	s.scheduleBreakAutoEndTask()
-	assert.Empty(t, s.tasks, "break auto-end task should not be registered when disabled")
 }
 
 func TestExecuteCleanupForTenant_ReturnsFalseOnError(t *testing.T) {

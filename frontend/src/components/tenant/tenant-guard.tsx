@@ -5,10 +5,19 @@ import { signIn, signOut, useSession } from "next-auth/react";
 import { mutate } from "~/lib/swr";
 import { clearSessionCache } from "~/lib/session-cache";
 import { TenantSwitchError, performTenantSwitch } from "~/lib/tenant-api";
-import { useTenant } from "~/components/tenant/tenant-provider";
+import { useTenant } from "~/lib/tenant-context";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "TenantGuard" });
+
+interface TenantGuardProps {
+  readonly children: React.ReactNode;
+  readonly redirect?: (url: string) => void;
+}
+
+function browserRedirect(url: string): void {
+  window.location.assign(url);
+}
 
 /**
  * Client component that detects when the session's tenant differs from the
@@ -26,7 +35,10 @@ const logger = createLogger({ component: "TenantGuard" });
  *
  * RLS provides defense-in-depth during any brief mismatch window.
  */
-export function TenantGuard({ children }: { children: React.ReactNode }) {
+export function TenantGuard({
+  children,
+  redirect = browserRedirect,
+}: TenantGuardProps) {
   const { data: session, status, update } = useSession();
   const { tenant } = useTenant();
   const switchAttempted = useRef(false);
@@ -73,10 +85,10 @@ export function TenantGuard({ children }: { children: React.ReactNode }) {
           error: err instanceof Error ? err.message : String(err),
         });
       } finally {
-        window.location.assign("/?error=SessionExpired");
+        redirect("/?error=SessionExpired");
       }
     })();
-  }, [status, sessionToken, sessionError]);
+  }, [status, sessionToken, sessionError, redirect]);
 
   // Operator session on tenant subdomain — sign out immediately
   useEffect(() => {
@@ -108,10 +120,18 @@ export function TenantGuard({ children }: { children: React.ReactNode }) {
           error: err instanceof Error ? err.message : String(err),
         });
       } finally {
-        window.location.assign("/");
+        redirect("/");
       }
     })();
-  }, [status, tenant, sessionScope, urlSlug, sessionToken, sessionError]);
+  }, [
+    status,
+    tenant,
+    sessionScope,
+    urlSlug,
+    sessionToken,
+    sessionError,
+    redirect,
+  ]);
 
   useEffect(() => {
     // Only check when authenticated and tenant context is resolved

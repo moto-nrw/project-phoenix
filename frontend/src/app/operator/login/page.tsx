@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { KeyRound } from "lucide-react";
-import { Alert } from "~/components/ui";
+import { Alert } from "~/components/ui/alert";
 import {
   AuthShell,
   OperatorBrand,

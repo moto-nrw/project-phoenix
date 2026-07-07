@@ -51,6 +51,12 @@ type BreakAutoEnder interface {
 	AutoEndExpiredBreaks(ctx context.Context) (int, error)
 }
 
+// AutoCheckouter exposes the method to close open work sessions at their
+// planned shift end (#1798).
+type AutoCheckouter interface {
+	AutoCheckoutDueSessions(ctx context.Context, grace time.Duration) (int, error)
+}
+
 // EmailChangeTokenCleaner exposes the cleanup routine for email change tokens.
 type EmailChangeTokenCleaner interface {
 	CleanupExpiredEmailChangeTokens(ctx context.Context) (int, error)
@@ -86,6 +92,7 @@ type Scheduler struct {
 	invitationCleanup          InvitationCleaner
 	workSessionCleanup         WorkSessionCleaner
 	breakAutoEnder             BreakAutoEnder
+	autoCheckouter             AutoCheckouter
 	feedbackCleaner            FeedbackCleaner
 	unregisteredTagScanCleaner UnregisteredTagScanCleaner
 	materializer               scheduleSvc.MaterializationService
@@ -204,6 +211,11 @@ func (s *Scheduler) SetWorkSessionCleaner(wsc WorkSessionCleaner) {
 // SetBreakAutoEnder sets the break auto-end service (optional).
 func (s *Scheduler) SetBreakAutoEnder(bae BreakAutoEnder) {
 	s.breakAutoEnder = bae
+}
+
+// SetAutoCheckouter sets the auto-checkout service (optional, #1798).
+func (s *Scheduler) SetAutoCheckouter(ac AutoCheckouter) {
+	s.autoCheckouter = ac
 }
 
 // SetFeedbackCleaner sets the feedback cleanup service (optional).
@@ -351,6 +363,9 @@ func (s *Scheduler) Start() {
 
 	// Schedule break auto-end task
 	s.scheduleBreakAutoEndTask()
+
+	// Schedule auto-checkout at planned shift end (#1798)
+	s.scheduleAutoCheckoutTask()
 
 	// Schedule daily sick/excused status-flag clear task
 	s.scheduleStatusFlagClearTask()
@@ -1188,11 +1203,6 @@ func (s *Scheduler) scheduleBreakAutoEndTask() {
 		return
 	}
 
-	if os.Getenv("BREAK_AUTO_END_ENABLED") == "false" {
-		s.getLogger().Info("break auto-end is disabled via env var")
-		return
-	}
-
 	// Resolve interval from env var (global, not per-tenant)
 	s.breakAutoEndIntervalSeconds = 60
 	if val := os.Getenv("BREAK_AUTO_END_INTERVAL_SECONDS"); val != "" {
@@ -1267,8 +1277,7 @@ func (s *Scheduler) checkAndRunBreakAutoEnd(task *ScheduledTask) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Tenant-scoped: auto-end expired breaks
-	breakErr := s.forEachTenant(ctx, "break-auto-end", func(tenantCtx context.Context) error {
+	s.forEachTenantSettings(ctx, "break-auto-end", func(tenantCtx context.Context, _ int64) error {
 		count, err := s.breakAutoEnder.AutoEndExpiredBreaks(tenantCtx)
 		if err != nil {
 			return err
@@ -1280,9 +1289,102 @@ func (s *Scheduler) checkAndRunBreakAutoEnd(task *ScheduledTask) {
 		}
 		return nil
 	})
-	if breakErr != nil {
-		s.getLogger().Error("break auto-end failed", "error", breakErr)
+}
+
+// scheduleAutoCheckoutTask schedules the auto-checkout-at-shift-end task
+// (#1798). Runs on the same fixed 60-second poll as break auto-end; the
+// feature itself is gated per tenant via tracking.auto_checkout_enabled
+// (registry default false — pure opt-in).
+func (s *Scheduler) scheduleAutoCheckoutTask() {
+	if s.autoCheckouter == nil {
+		s.getLogger().Info("auto-checkout not configured (no AutoCheckouter service)")
+		return
 	}
+
+	task := &ScheduledTask{
+		Name:     "auto-checkout",
+		Schedule: "60s-poll",
+	}
+
+	s.mu.Lock()
+	s.tasks[task.Name] = task
+	s.mu.Unlock()
+
+	s.wg.Add(1)
+	go s.runAutoCheckoutTaskPolling(task)
+}
+
+// runAutoCheckoutTaskPolling runs the auto-checkout check every 60 seconds.
+func (s *Scheduler) runAutoCheckoutTaskPolling(task *ScheduledTask) {
+	defer s.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			err := fmt.Errorf("panic in auto-checkout task: %v", r)
+			s.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
+			sentry.CurrentHub().Recover(r)
+			sentry.Flush(2 * time.Second)
+		}
+	}()
+
+	s.getLogger().Info("auto-checkout polling started")
+
+	// Brief delay on startup
+	time.Sleep(10 * time.Second)
+	s.checkAndRunAutoCheckout(task)
+
+	ticker := time.NewTicker(60 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			s.checkAndRunAutoCheckout(task)
+		case <-s.done:
+			return
+		}
+	}
+}
+
+// checkAndRunAutoCheckout closes due sessions for every tenant that has the
+// feature enabled.
+func (s *Scheduler) checkAndRunAutoCheckout(task *ScheduledTask) {
+	task.mu.Lock()
+	if task.Running {
+		task.mu.Unlock()
+		return
+	}
+	task.Running = true
+	task.mu.Unlock()
+
+	defer func() {
+		task.mu.Lock()
+		task.Running = false
+		task.mu.Unlock()
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	s.forEachTenantSettings(ctx, "auto-checkout", func(tenantCtx context.Context, tenantID int64) error {
+		// Opt-in per tenant; no env var fallback (new feature, settings-only).
+		enabled := s.resolveBoolSetting(tenantCtx, configModel.KeyTrackingAutoCheckoutEnabled, "", false)
+		if !enabled {
+			return nil
+		}
+
+		// Zero is valid here: grace 0 means checkout exactly at shift end.
+		graceMinutes := s.resolveNonNegativeIntSetting(tenantCtx, configModel.KeyTrackingAutoCheckoutGraceMinutes, "", 15)
+		count, err := s.autoCheckouter.AutoCheckoutDueSessions(tenantCtx, time.Duration(graceMinutes)*time.Minute)
+		if err != nil {
+			return err
+		}
+		if count > 0 {
+			s.getLogger().Info("auto-checkout completed",
+				slog.Int64("tenant_id", tenantID),
+				slog.Int("sessions_closed", count))
+		}
+		return nil
+	})
 }
 
 // --- Settings-aware helpers ---
@@ -1348,6 +1450,30 @@ func (s *Scheduler) resolveIntSetting(ctx context.Context, key string, envVar st
 	}
 	if val := os.Getenv(envVar); val != "" {
 		if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 {
+			return parsed
+		}
+	}
+	return defaultVal
+}
+
+// resolveNonNegativeIntSetting is resolveIntSetting for settings where zero is
+// a meaningful value (e.g. tracking.auto_checkout_grace_minutes = 0 means
+// checkout exactly at the planned shift end).
+func (s *Scheduler) resolveNonNegativeIntSetting(ctx context.Context, key string, envVar string, defaultVal int) int {
+	if s.settings != nil {
+		if hasOverride, err := s.settings.HasTenantOverride(ctx, key); err != nil {
+			s.getLogger().Warn("settings override check failed, falling back",
+				slog.String("key", key),
+				slog.String("error", err.Error()),
+			)
+		} else if hasOverride {
+			if val, err := s.settings.ResolveInt(ctx, key); err == nil && val >= 0 {
+				return val
+			}
+		}
+	}
+	if val := os.Getenv(envVar); val != "" {
+		if parsed, err := strconv.Atoi(val); err == nil && parsed >= 0 {
 			return parsed
 		}
 	}

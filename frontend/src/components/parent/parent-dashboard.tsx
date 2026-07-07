@@ -9,10 +9,17 @@ import {
   type ChildStatus,
   type EnrollmentChildStatus,
   type EnrollmentRequest,
+  type ParentAnnouncement,
   listMyChildren,
   listMyEnrollments,
+  listAnnouncements,
 } from "~/lib/parent-api";
+import {
+  NewsCard,
+  NewsDetailModal,
+} from "~/components/parent/news/news-components";
 import { createLogger } from "~/lib/logger";
+import { useParentNewsEnabled } from "~/lib/hooks/use-parent-news-enabled";
 
 const logger = createLogger({ component: "ParentDashboard" });
 
@@ -314,8 +321,65 @@ function HeroChildItem({ item }: Readonly<{ item: ChildOverviewItem }>) {
   );
 }
 
+/** Newest announcements as compact cards; the full feed lives at /parents/news. */
+const NEWS_PANEL_LIMIT = 3;
+
 function StartNewsPanel() {
   const t = useTranslations("parentDashboard");
+  // Only render on the dashboard once a linked school broadcasts announcements
+  // (the backend feed excludes disabled tenants). Rendered only in the parents
+  // portal, so `enabled` is always true here. Keeps the panel from showing an
+  // empty "Neuigkeiten" area when the feature is off for every linked school.
+  const newsEnabled = useParentNewsEnabled(true);
+  const [items, setItems] = useState<ParentAnnouncement[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void listAnnouncements()
+      .then((list) => {
+        if (active) setItems(list);
+      })
+      .catch((err: unknown) => {
+        logger.error("parent_news_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      })
+      .finally(() => {
+        if (active) setLoaded(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const applyState = useCallback(
+    (id: string, patch: Partial<ParentAnnouncement>) => {
+      setItems((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+      );
+    },
+    [],
+  );
+
+  // A read/ack was rejected because the announcement is no longer current;
+  // refetch so a retracted item drops out and a corrected one refreshes.
+  const refetchOnStale = useCallback(() => {
+    void listAnnouncements()
+      .then(setItems)
+      .catch((err: unknown) => {
+        logger.error("parent_news_refetch_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+  }, []);
+
+  const visible = items.slice(0, NEWS_PANEL_LIMIT);
+  const openItem = items.find((item) => item.id === openId) ?? null;
+
+  if (!newsEnabled) return null;
+
   return (
     <section
       id="news"
@@ -327,21 +391,52 @@ function StartNewsPanel() {
         description={t("newsDescription")}
       />
 
-      <div className="mt-5 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-6">
-        <div className="flex items-start gap-3">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm ring-1 ring-gray-200">
-            <Newspaper className="h-5 w-5" aria-hidden="true" />
-          </span>
-          <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-gray-900">
-              {t("noNewsTitle")}
-            </h3>
-            <p className="mt-1 text-sm leading-6 text-gray-600">
-              {t("noNewsDescription")}
-            </p>
+      {loaded && items.length === 0 ? (
+        <div className="mt-5 rounded-xl border border-dashed border-gray-300 bg-gray-50 p-6">
+          <div className="flex items-start gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm ring-1 ring-gray-200">
+              <Newspaper className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <h3 className="text-sm font-semibold text-gray-900">
+                {t("noNewsTitle")}
+              </h3>
+              <p className="mt-1 text-sm leading-6 text-gray-600">
+                {t("noNewsDescription")}
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <>
+          <ul className="mt-5 space-y-3">
+            {visible.map((item) => (
+              <li key={item.id}>
+                <NewsCard
+                  item={item}
+                  onOpen={(opened) => setOpenId(opened.id)}
+                />
+              </li>
+            ))}
+          </ul>
+          <Link
+            href="/parents/news"
+            className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-gray-700 underline underline-offset-2 hover:text-gray-900"
+          >
+            {t("newsShowAll")}
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        </>
+      )}
+
+      {openItem && (
+        <NewsDetailModal
+          item={openItem}
+          onClose={() => setOpenId(null)}
+          onUpdated={applyState}
+          onStale={refetchOnStale}
+        />
+      )}
     </section>
   );
 }

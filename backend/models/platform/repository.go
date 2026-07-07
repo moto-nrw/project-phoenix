@@ -120,6 +120,17 @@ type OperatorEmailChangeTokenRepository interface {
 	DeleteStaleTokens(ctx context.Context) (int, error)
 }
 
+// OperatorRefreshTokenRepository persists revocable platform-operator refresh sessions.
+type OperatorRefreshTokenRepository interface {
+	Create(ctx context.Context, token *OperatorRefreshToken) error
+	FindByTokenForUpdate(ctx context.Context, token string) (*OperatorRefreshToken, error)
+	Delete(ctx context.Context, id any) error
+	DeleteByOperatorID(ctx context.Context, operatorID int64) (int, error)
+	DeleteByFamilyID(ctx context.Context, familyID string) error
+	GetLatestTokenInFamily(ctx context.Context, familyID string) (*OperatorRefreshToken, error)
+	DeleteExpired(ctx context.Context, now time.Time) (int, error)
+}
+
 // OperatorInvitationTokenRepository defines operations for operator invitation tokens
 type OperatorInvitationTokenRepository interface {
 	Create(ctx context.Context, token *OperatorInvitationToken) error

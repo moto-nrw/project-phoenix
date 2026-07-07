@@ -9,6 +9,7 @@ interface AlertProps {
 
 export function Alert({ type, message }: Readonly<AlertProps>) {
   if (!message) return null;
+  const isAssertive = type === "error" || type === "warning";
 
   const styles = {
     error: "bg-red-50 text-red-700 border-red-100",
@@ -79,6 +80,7 @@ export function Alert({ type, message }: Readonly<AlertProps>) {
 
   return (
     <div
+      role={isAssertive ? "alert" : "status"}
       className={`flex items-center rounded-lg border p-4 text-sm shadow-sm transition-all duration-200 hover:opacity-95 hover:shadow-md ${styles[type]}`}
     >
       {icons[type]}

@@ -23,9 +23,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// AdminRequestSummary is the wire shape for the admin list page.
+// AdminRequestSummary is the wire shape for admin list-style responses.
 // Carries the request + per-child overview + the phase name so the
-// list can render without a second fetch.
+// list can render without a second fetch. It must not carry status_token:
+// the token authorizes parent-facing status/edit routes.
 //
 // CustomData + ConsentFlags + SchemaFields are populated on the
 // detail endpoint so the decision UI can render every parent-supplied
@@ -41,7 +42,6 @@ type AdminRequestSummary struct {
 	GuardianPhone     *string                   `json:"guardian_phone,omitempty"`
 	SubmittedAt       time.Time                 `json:"submitted_at"`
 	WithdrawnAt       *time.Time                `json:"withdrawn_at,omitempty"`
-	StatusToken       string                    `json:"status_token"`
 	CustomData        map[string]any            `json:"custom_data,omitempty"`
 	ConsentFlags      map[string]any            `json:"consent_flags,omitempty"`
 	SchemaFields      []AdminRequestSchemaField `json:"schema_fields,omitempty"`
@@ -53,6 +53,14 @@ type AdminRequestSummary struct {
 	// AdditionalGuardians are the co-guardians the parent added beyond the
 	// primary guardian above. Empty when none were added.
 	AdditionalGuardians []AdminRequestGuardian `json:"additional_guardians,omitempty"`
+}
+
+// AdminRequestDetail is the manage-only response shape for a single
+// enrollment request. It includes the parent status token because the
+// detail UI exposes a direct link to the parent status page.
+type AdminRequestDetail struct {
+	AdminRequestSummary
+	StatusToken string `json:"status_token"`
 }
 
 // AdminRequestGuardian is one additional guardian (co-guardian) within an
@@ -152,7 +160,6 @@ func toAdminRequestSummary(s *enrollmentService.RequestSummary) AdminRequestSumm
 		GuardianPhone:     s.Request.GuardianPhone,
 		SubmittedAt:       s.Request.SubmittedAt,
 		WithdrawnAt:       s.Request.WithdrawnAt,
-		StatusToken:       s.Request.StatusToken,
 	}
 	if s.Phase != nil {
 		out.PhaseName = s.Phase.Name
@@ -236,7 +243,7 @@ func (rs *Resource) getAdminRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var detail AdminRequestSummary
+	var detail AdminRequestDetail
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {
 		s, e := rs.DecisionService.Get(ctx, id)
 		if e != nil {
@@ -275,7 +282,7 @@ func (rs *Resource) listAdminRequestsByStudent(w http.ResponseWriter, r *http.Re
 		}
 		out = make([]AdminRequestSummary, 0, len(summaries))
 		for _, summary := range summaries {
-			out = append(out, rs.toAdminRequestDetail(ctx, summary))
+			out = append(out, rs.toAdminRequestDetailSummary(ctx, summary))
 		}
 		return nil
 	})
@@ -286,7 +293,18 @@ func (rs *Resource) listAdminRequestsByStudent(w http.ResponseWriter, r *http.Re
 	common.Respond(w, r, http.StatusOK, out, "Student admin requests retrieved")
 }
 
-func (rs *Resource) toAdminRequestDetail(ctx context.Context, summary *enrollmentService.RequestSummary) AdminRequestSummary {
+func (rs *Resource) toAdminRequestDetail(ctx context.Context, summary *enrollmentService.RequestSummary) AdminRequestDetail {
+	detail := AdminRequestDetail{
+		AdminRequestSummary: rs.toAdminRequestDetailSummary(ctx, summary),
+	}
+	if summary == nil || summary.Request == nil {
+		return detail
+	}
+	detail.StatusToken = summary.Request.StatusToken
+	return detail
+}
+
+func (rs *Resource) toAdminRequestDetailSummary(ctx context.Context, summary *enrollmentService.RequestSummary) AdminRequestSummary {
 	detail := toAdminRequestSummary(summary)
 	if summary == nil || summary.Request == nil {
 		return detail

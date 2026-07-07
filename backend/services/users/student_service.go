@@ -19,6 +19,9 @@ type StudentService interface {
 	// CountWithOptions counts students matching the query options.
 	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
 
+	// ListSchoolClasses retrieves all distinct non-empty school classes.
+	ListSchoolClasses(ctx context.Context) ([]string, error)
+
 	// GetByIDForUpdate retrieves a student with SELECT … FOR UPDATE row locking.
 	GetByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error)
 
@@ -42,24 +45,19 @@ type StudentService interface {
 
 	// UpdatePrivacyConsent persists changes to a privacy consent.
 	UpdatePrivacyConsent(ctx context.Context, consent *userModels.PrivacyConsent) error
-
-	// ListParentNotes returns a student's parent notes, newest first.
-	ListParentNotes(ctx context.Context, studentID int64, limit int) ([]*userModels.StudentParentNote, error)
 }
 
 type studentService struct {
 	studentRepo        userModels.StudentRepository
 	privacyConsentRepo userModels.PrivacyConsentRepository
-	parentNoteRepo     userModels.StudentParentNoteRepository
 }
 
 // NewStudentService creates a StudentService backed by the student-domain
 // repositories.
-func NewStudentService(studentRepo userModels.StudentRepository, privacyConsentRepo userModels.PrivacyConsentRepository, parentNoteRepo userModels.StudentParentNoteRepository) StudentService {
+func NewStudentService(studentRepo userModels.StudentRepository, privacyConsentRepo userModels.PrivacyConsentRepository) StudentService {
 	return &studentService{
 		studentRepo:        studentRepo,
 		privacyConsentRepo: privacyConsentRepo,
-		parentNoteRepo:     parentNoteRepo,
 	}
 }
 
@@ -69,6 +67,10 @@ func (s *studentService) ListWithOptions(ctx context.Context, options *base.Quer
 
 func (s *studentService) CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error) {
 	return s.studentRepo.CountWithOptions(ctx, options)
+}
+
+func (s *studentService) ListSchoolClasses(ctx context.Context) ([]string, error) {
+	return s.studentRepo.ListSchoolClasses(ctx)
 }
 
 func (s *studentService) GetByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error) {
@@ -101,8 +103,4 @@ func (s *studentService) CreatePrivacyConsent(ctx context.Context, consent *user
 
 func (s *studentService) UpdatePrivacyConsent(ctx context.Context, consent *userModels.PrivacyConsent) error {
 	return s.privacyConsentRepo.Update(ctx, consent)
-}
-
-func (s *studentService) ListParentNotes(ctx context.Context, studentID int64, limit int) ([]*userModels.StudentParentNote, error) {
-	return s.parentNoteRepo.ListByStudent(ctx, studentID, limit)
 }

@@ -18,10 +18,12 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	mealplanModels "github.com/moto-nrw/project-phoenix/models/mealplan"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	mealplanService "github.com/moto-nrw/project-phoenix/services/mealplan"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -46,6 +48,15 @@ var (
 	// ErrNotesDisabled means operations.parent_notes_enabled is off for
 	// the child's tenant.
 	ErrNotesDisabled = errors.New("parent: parent notes disabled for this school")
+	// ErrMealPlanDisabled means operations.meal_plan_enabled is off for the
+	// child's tenant, so the parents portal must hide the meal plan section.
+	ErrMealPlanDisabled = errors.New("parent: meal plan disabled for this school")
+	// ErrMealPlanWeekOutOfRange means the requested week is outside the window
+	// parents may view (the current and next work week). Staff may plan
+	// arbitrary future weeks on the staff page, but those are drafts; the
+	// parents portal only ever exposes this week and next, so a request for any
+	// other week is refused rather than leaking an unpublished menu.
+	ErrMealPlanWeekOutOfRange = errors.New("parent: meal plan week is outside the viewable range")
 	// ErrNoDates means the sick-note request carried no dates.
 	ErrNoDates = errors.New("parent: at least one date is required")
 	// ErrInvalidStatus means the absence status was neither sick nor excused.
@@ -104,7 +115,10 @@ func (s *service) resolvePermittedChild(ctx context.Context, accountID, studentI
 		}
 		resolved = &parentChild{
 			tenantID:            child.TenantID,
+			guardianProfileID:   child.GuardianProfileID,
 			guardianPermissions: child.GuardianPermissions,
+			studentName:         strings.TrimSpace(child.FirstName + " " + child.LastName),
+			schoolName:          child.SchoolName,
 		}
 		return nil
 	})
@@ -126,7 +140,12 @@ func childHasPermission(child *parentModels.ChildSummary, permission string) boo
 // parentChild is the minimal resolved context a per-child write needs.
 type parentChild struct {
 	tenantID            int64
+	guardianProfileID   int64
 	guardianPermissions map[string]interface{}
+	// studentName / schoolName feed the OGS messaging views (thread counterpart
+	// + child label); resolved once here from the cross-tenant child lookup.
+	studentName string
+	schoolName  string
 }
 
 func (c *parentChild) hasPermission(permission string) bool {
@@ -236,7 +255,10 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 		result = filtered
 
 		capturedTenant := child.tenantID
+		pillBody := sickNoteEventBody(status, dates)
+		pillRefID := firstStatusID(filtered)
 		tenant.RegisterAfterCommit(txCtx, func() {
+			s.emitSelfServicePill(capturedTenant, studentID, accountID, "sick_note", pillBody, "active.student_status_days", pillRefID)
 			s.broadcastStudentUpdated(capturedTenant, studentID)
 		})
 		return nil
@@ -283,13 +305,85 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve remove setting: %w", err)
 	}
+	masterEdit, err := s.settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentMasterDataEditEnabled)
+	if err != nil {
+		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve master-data edit setting: %w", err)
+	}
+	masterRequest, err := s.settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentMasterDataRequestEnabled)
+	if err != nil {
+		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve master-data request setting: %w", err)
+	}
+	mealPlan, err := s.settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyMealPlanEnabled)
+	if err != nil {
+		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve meal-plan setting: %w", err)
+	}
+	news, err := s.settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentNewsEnabled)
+	if err != nil {
+		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve parent-news setting: %w", err)
+	}
+	guardianManagement, err := s.guardianManagementEnabled(ctx, child.tenantID)
+	if err != nil {
+		return ChildFeatureFlags{}, err
+	}
+	canEditMasterData := masterEdit && child.hasPermission(authorize.GuardianPermissionMasterDataEdit)
 	return ChildFeatureFlags{
+		HasOpenChangeRequest:         s.hasOpenChangeRequest(ctx, child.tenantID, studentID),
 		SickNoteEnabled:              sick && child.hasPermission(authorize.GuardianPermissionSickNoteSubmit),
 		NotesEnabled:                 notes && child.hasPermission(authorize.GuardianPermissionNotesWrite),
+		RequestSubmitEnabled:         notes && child.hasPermission(authorize.GuardianPermissionRequestSubmit),
 		PickupChangeEnabled:          pickupChange,
 		RelatedAccountsInviteEnabled: inviteMode != configModels.ParentInviteModeDisabled,
 		RelatedAccountsRemoveEnabled: canRemove && inviteMode != configModels.ParentInviteModeDisabled,
+		MasterDataEditEnabled:        canEditMasterData,
+		MasterDataContactEditEnabled: canEditMasterData && guardianManagement,
+		MasterDataRequestEnabled:     masterRequest && child.hasPermission(authorize.GuardianPermissionMasterDataRequest),
+		MealPlanEnabled:              mealPlan,
+		NewsEnabled:                  news,
 	}, nil
+}
+
+// hasOpenChangeRequest reports whether the child has a pending change request
+// (care schedule OR master data) awaiting an OGS decision, so the parent
+// overview can badge the Stammdaten entry. The lookups hit tenant-scoped/RLS
+// tables, so they must run inside a tenant transaction — ChildFeatures is only
+// parent-authenticated and carries no tenant context otherwise. Best-effort: a
+// query error logs and yields false so a transient failure never shows a
+// phantom badge.
+func (s *service) hasOpenChangeRequest(ctx context.Context, tenantID, studentID int64) bool {
+	open := false
+	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if s.careRequests != nil {
+			if req, _, err := s.careRequests.GetPendingForStudent(txCtx, studentID); err != nil {
+				s.logger.Warn("parent: pending care-request check failed",
+					slog.Int64("student_id", studentID),
+					slog.String("error", err.Error()),
+				)
+			} else if req != nil {
+				open = true
+				return nil
+			}
+		}
+		if s.changeRequestRepo != nil {
+			pending, err := s.changeRequestRepo.ListByStudent(txCtx, studentID, []string{usersModels.DataChangeStatusPending}, 0)
+			if err != nil {
+				s.logger.Warn("parent: pending master-data check failed",
+					slog.Int64("student_id", studentID),
+					slog.String("error", err.Error()),
+				)
+			} else if len(pending) > 0 {
+				open = true
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		s.logger.Warn("parent: open change-request check failed",
+			slog.Int64("student_id", studentID),
+			slog.String("error", err.Error()),
+		)
+		return false
+	}
+	return open
 }
 
 // ListSickDays returns the child's active parent-facing absences in [from, to]:
@@ -332,84 +426,48 @@ func (s *service) ListSickDays(ctx context.Context, accountID, studentID int64, 
 	return out, nil
 }
 
-// AddParentNote appends a note and returns the newest few.
-func (s *service) AddParentNote(ctx context.Context, accountID, studentID int64, body string) ([]*usersModels.StudentParentNote, error) {
-	body = strings.TrimSpace(body)
-	if body == "" {
-		return nil, ErrEmptyNote
-	}
-	// Characters (runes), not bytes — matches the frontend maxLength budget.
-	if utf8.RuneCountInString(body) > maxParentNoteLen {
-		return nil, ErrNoteTooLong
-	}
-
-	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionNotesWrite)
+// MealPlanWeek returns the child's school meal plan for the Monday-Friday week
+// containing weekStart. Unlike ListSickDays this is gated by the
+// operations.meal_plan_enabled toggle: if the school does not run a meal plan
+// the parent must not see one, so a disabled tenant yields ErrMealPlanDisabled.
+func (s *service) MealPlanWeek(ctx context.Context, accountID, studentID int64, weekStart timezone.Date) ([]*mealplanModels.MealPlanEntry, error) {
+	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
 	if err != nil {
 		return nil, err
 	}
 
-	enabled, err := s.settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentNotesEnabled)
+	enabled, err := s.settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyMealPlanEnabled)
 	if err != nil {
-		return nil, fmt.Errorf("parent: resolve notes setting: %w", err)
+		return nil, fmt.Errorf("parent: resolve meal-plan setting: %w", err)
 	}
 	if !enabled {
-		return nil, ErrNotesDisabled
+		return nil, ErrMealPlanDisabled
 	}
 
-	var notes []*usersModels.StudentParentNote
+	monday, friday := mealplanService.WeekRange(weekStart)
+	// Parents may only read the current and next work week. Staff can plan
+	// arbitrary future (and past) weeks on the staff page; those are drafts and
+	// must not be reachable through the parent proxy by supplying a crafted
+	// week_start. Compare on the normalized Monday so any day within an allowed
+	// week resolves the same.
+	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
+	if monday != currentMonday && monday != currentMonday.AddDays(7) {
+		return nil, ErrMealPlanWeekOutOfRange
+	}
+
+	var out []*mealplanModels.MealPlanEntry
 	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		note := &usersModels.StudentParentNote{
-			StudentID:         studentID,
-			GuardianAccountID: accountID,
-			Body:              body,
+		rows, findErr := s.mealPlanRepo.FindByDateRange(txCtx, monday, friday)
+		if findErr != nil {
+			return findErr
 		}
-		note.SetTenantID(child.tenantID)
-		if err := s.noteRepo.Create(txCtx, note); err != nil {
-			return err
-		}
-		list, err := s.noteRepo.ListByStudent(txCtx, studentID, ParentNoteDisplayLimit)
-		if err != nil {
-			return err
-		}
-		notes = list
+		out = rows
 		return nil
 	})
 	if txErr != nil {
-		return nil, fmt.Errorf("parent: add note: %w", txErr)
+		return nil, fmt.Errorf("parent: meal plan week: %w", txErr)
 	}
-
-	s.logger.Info("parent added note",
-		slog.Int64("account_id", accountID),
-		slog.Int64("student_id", studentID),
-		slog.Int64("tenant_id", child.tenantID),
-	)
-	return notes, nil
-}
-
-// ListParentNotes returns the newest notes for the child (authorization
-// only — not gated by the setting).
-func (s *service) ListParentNotes(ctx context.Context, accountID, studentID int64, limit int) ([]*usersModels.StudentParentNote, error) {
-	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
-	if err != nil {
-		return nil, err
-	}
-	if limit <= 0 {
-		limit = ParentNoteDisplayLimit
-	}
-
-	var notes []*usersModels.StudentParentNote
-	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		list, err := s.noteRepo.ListByStudent(txCtx, studentID, limit)
-		if err != nil {
-			return err
-		}
-		notes = list
-		return nil
-	})
-	if txErr != nil {
-		return nil, fmt.Errorf("parent: list notes: %w", txErr)
-	}
-	return notes, nil
+	return out, nil
 }
 
 // SubmitCareException sets the guardian-authored pickup and/or arrival override
@@ -489,7 +547,10 @@ func (s *service) SubmitCareException(ctx context.Context, accountID, studentID 
 		result = merged
 
 		capturedTenant := child.tenantID
+		pillBody := careExceptionEventBody(date, pickupTime, arrivalTime)
+		pillRefTable, pillRefID := s.careExceptionRef(txCtx, studentID, date)
 		tenant.RegisterAfterCommit(txCtx, func() {
+			s.emitSelfServicePill(capturedTenant, studentID, accountID, "care_exception", pillBody, pillRefTable, pillRefID)
 			s.broadcastStudentUpdated(capturedTenant, studentID)
 		})
 		return nil
@@ -716,7 +777,7 @@ func (s *service) DeleteCareException(ctx context.Context, accountID, studentID 
 		return ErrPastCareDate
 	}
 
-	deleted := false
+	pickupDeleted, arrivalDeleted := false, false
 	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		if err := scheduleService.LockCareExceptionDay(txCtx, s.db, studentID, date); err != nil {
 			return err
@@ -730,7 +791,7 @@ func (s *service) DeleteCareException(ctx context.Context, accountID, studentID 
 			if err := s.pickupExceptionRepo.Delete(txCtx, pickup.ID); err != nil {
 				return err
 			}
-			deleted = true
+			pickupDeleted = true
 		}
 		arrival, err := s.arrivalExceptionRepo.FindByStudentIDAndDate(txCtx, studentID, date)
 		if err != nil {
@@ -740,11 +801,23 @@ func (s *service) DeleteCareException(ctx context.Context, accountID, studentID 
 			if err := s.arrivalExceptionRepo.Delete(txCtx, arrival.ID); err != nil {
 				return err
 			}
-			deleted = true
+			arrivalDeleted = true
 		}
-		if deleted {
+		if pickupDeleted || arrivalDeleted {
 			capturedTenant := child.tenantID
+			// Name the leg(s) actually removed: an arrival-only deletion must not
+			// be recorded as a withdrawn pickup. Both legs collapse to a neutral
+			// "Betreuungszeit" label.
+			leg := "Betreuungszeit"
+			switch {
+			case pickupDeleted && !arrivalDeleted:
+				leg = "Abholung"
+			case arrivalDeleted && !pickupDeleted:
+				leg = "Ankunft"
+			}
+			pillBody := "Korrektur: " + leg + " " + date.Format("02.01.") + " zurückgezogen"
 			tenant.RegisterAfterCommit(txCtx, func() {
+				s.emitSelfServicePill(capturedTenant, studentID, accountID, "care_exception_correction", pillBody, "", nil)
 				s.broadcastStudentUpdated(capturedTenant, studentID)
 			})
 		}

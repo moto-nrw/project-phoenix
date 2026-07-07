@@ -1,10 +1,10 @@
 # Database Component Architecture
 
-This directory contains a reusable system for creating database management pages with minimal code duplication.
+This directory contains shared configuration, themes, and service helpers for database management pages.
 
 ## Overview
 
-Instead of writing 300+ lines of boilerplate for each entity page, you can now create a complete CRUD interface with just a configuration object and a single line page component.
+Entity pages use a shared configuration object and service factory, then compose the page-specific list, detail, modal, and layout components they need.
 
 ## Architecture
 
@@ -20,12 +20,12 @@ Each entity has a configuration file that defines:
 
 Example: `configs/students.config.tsx`
 
-### 2. Generic Components
+### 2. Shared Components
 
-- **DatabasePage**: Handles all CRUD operations, state management, and modals
 - **DatabaseForm**: Renders forms based on configuration
-- **DatabaseDetailView**: Displays entity details with configurable sections
-- **DatabaseListPage/Item**: List view components (existing)
+- **DatabaseFormModal**: Wraps configured forms in create/edit modals
+- **DatabasePageLayout**: Provides loading and page shell behavior
+- **DatabaseEmptyState**, **DatabaseCreateAction**, and related helpers: Shared page controls
 
 ### 3. Service Factory
 
@@ -97,21 +97,44 @@ export const roomsConfig = defineEntityConfig<Room>({
 });
 ```
 
-### 2. Create Page Component
+### 2. Use the Configuration in a Page
 
 ```typescript
 // app/database/rooms/page.tsx
 "use client";
 
-import { DatabasePage } from "@/components/ui/database";
-import { roomsConfig } from "@/lib/database";
+import { useMemo, useState } from "react";
+import { DatabasePageLayout } from "~/components/database/database-page-layout";
+import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
+import { RoomsMasterDetail } from "@/components/rooms/rooms-master-detail";
+import { roomsConfig } from "@/components/database/configs/rooms.config";
+import { createCrudService } from "@/lib/database/service-factory";
 
 export default function RoomsPage() {
-  return <DatabasePage config={roomsConfig} />;
+  const service = useMemo(() => createCrudService(roomsConfig), []);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+
+  return (
+    <DatabasePageLayout loading={loading} sessionLoading={sessionLoading}>
+      {/* Fetch with service.getList(), then render the page-specific controls. */}
+      <RoomsMasterDetail {...masterDetailProps} />
+      <DatabaseFormModal<Room>
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        mode="create"
+        config={roomsConfig}
+        onSubmit={handleCreateRoom}
+      />
+    </DatabasePageLayout>
+  );
 }
 ```
 
-That's it! You now have a complete CRUD interface with:
+`DatabaseFormModal` renders the config's `form.sections` inside the shared
+modal; `mode` picks the `createModalTitle` / `editModalTitle` label (the label
+for the used mode is required — the modal fails loudly when it is missing).
+
+The configuration and service factory provide the shared CRUD behavior. Each page still owns its own data loading, selection state, filters, and entity-specific UI:
 - List view with search and filters
 - Create modal with form validation
 - Detail view with edit/delete actions
@@ -133,7 +156,7 @@ That's it! You now have a complete CRUD interface with:
 
 ### Themes
 
-Pre-defined themes in `components/ui/database/themes.tsx`:
+Pre-defined themes in `lib/database/themes.tsx`:
 - `students`: Teal/Blue
 - `teachers`: Purple/Indigo
 - `rooms`: Green/Emerald
@@ -156,9 +179,10 @@ To migrate an existing page:
 
 1. Analyze the existing page structure
 2. Create entity configuration matching the fields and layout
-3. Replace the page component with `<DatabasePage config={config} />`
-4. Test thoroughly
-5. Remove old components once verified
+3. Create a CRUD service with `createCrudService(config)`
+4. Render the page with `DatabasePageLayout` and the entity-specific list, detail, and modal components
+5. Test thoroughly
+6. Remove old components once verified
 
 ## Benefits
 

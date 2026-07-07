@@ -41,6 +41,9 @@ type PersonRepository interface {
 	// FindByID retrieves a person by their ID
 	FindByID(ctx context.Context, id interface{}) (*Person, error)
 
+	// FindByIDForUpdate retrieves and locks a person row for a transaction.
+	FindByIDForUpdate(ctx context.Context, id int64) (*Person, error)
+
 	// FindByIDs retrieves multiple persons by their IDs in a single query
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*Person, error)
 
@@ -93,6 +96,15 @@ type StudentRepository interface {
 	// FindByIDs retrieves multiple students by their IDs in a single query
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*Student, error)
 
+	// FindReadScopeByIDs retrieves a lightweight projection of the given students
+	// — only id, group_id, person_id, and school_class — without the weekday
+	// bus-day / departure hydration FindByIDs performs. It exists for callers that
+	// only need read-access gating and name display (e.g. the frequently-polled
+	// reminders service) and must not pay for schema probing and jsonb hydration
+	// on data they never read. The returned *Student values have ONLY those four
+	// fields populated.
+	FindReadScopeByIDs(ctx context.Context, ids []int64) (map[int64]*Student, error)
+
 	// FindByPersonID retrieves a student by their person ID
 	FindByPersonID(ctx context.Context, personID int64) (*Student, error)
 
@@ -104,6 +116,9 @@ type StudentRepository interface {
 
 	// FindBySchoolClass retrieves students by their school class
 	FindBySchoolClass(ctx context.Context, schoolClass string) ([]*Student, error)
+
+	// ListSchoolClasses retrieves all distinct non-empty school classes.
+	ListSchoolClasses(ctx context.Context) ([]string, error)
 
 	// Update updates an existing student
 	Update(ctx context.Context, student *Student) error
@@ -401,10 +416,12 @@ type PersonGuardianRepository interface {
 // GuardianEmergencyContactRow is one (guardian, phone number) projection row
 // for the emergency contact list; the consumer aggregates rows per student.
 type GuardianEmergencyContactRow struct {
-	StudentID   int64          `bun:"student_id"`
-	FirstName   sql.NullString `bun:"first_name"`
-	LastName    sql.NullString `bun:"last_name"`
-	PhoneNumber sql.NullString `bun:"phone_number"`
+	StudentID         int64          `bun:"student_id"`
+	GuardianProfileID int64          `bun:"guardian_profile_id"`
+	FirstName         sql.NullString `bun:"first_name"`
+	LastName          sql.NullString `bun:"last_name"`
+	Email             sql.NullString `bun:"email"`
+	PhoneNumber       sql.NullString `bun:"phone_number"`
 }
 
 type StudentGuardianRepository interface {

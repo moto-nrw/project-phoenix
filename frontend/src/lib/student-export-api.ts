@@ -3,6 +3,7 @@ export type StudentExportFormat = "pdf" | "docx" | "xlsx";
 export type StudentExportPreset =
   | "ogs_weekly"
   | "ogs_compact"
+  | "class_roster"
   | "daily_planning"
   | "attendance_snapshot"
   | "pickup_list"
@@ -12,6 +13,7 @@ export type StudentExportColumn =
   | "name"
   | "school_class"
   | "group"
+  | "enrollment_summary"
   | "care_days"
   | "weekly_monday"
   | "weekly_tuesday"
@@ -30,6 +32,7 @@ export interface StudentExportFilters {
   group_id?: string;
   room_id?: string;
   year?: string;
+  school_class?: string;
   status?: string;
   bus?: string;
   photo_consent?: string;
@@ -38,6 +41,7 @@ export interface StudentExportFilters {
   pickup_time?: string;
   arrival_time?: string;
   sort?: string;
+  group_by_class?: boolean;
 }
 
 export interface StudentExportRequest {
@@ -81,6 +85,13 @@ export const STUDENT_EXPORT_COLUMNS: StudentExportColumnOption[] = [
     label: "Gruppe",
     group: "base",
     description: "Zugeordnete OGS-Gruppe des Kindes.",
+  },
+  {
+    id: "enrollment_summary",
+    label: "Betreuungs-/Anmeldestatus",
+    group: "base",
+    description:
+      "Aktive Randstunden- oder Ganztagszuordnung; Kinder ohne Anmeldung werden ausdrücklich markiert.",
   },
   {
     id: "care_days",
@@ -171,6 +182,25 @@ export const STUDENT_EXPORT_PRESETS: Array<{
       "care_days",
       "departure",
       "planned_pickup",
+    ],
+  },
+  {
+    id: "class_roster",
+    label: "Klassenliste",
+    description:
+      "Gesamter Klassenverband mit Anmeldestatus, Betreuungstagen und Geh-/Abholweise.",
+    columns: [
+      "name",
+      "school_class",
+      "group",
+      "enrollment_summary",
+      "care_days",
+      "weekly_monday",
+      "weekly_tuesday",
+      "weekly_wednesday",
+      "weekly_thursday",
+      "weekly_friday",
+      "departure",
     ],
   },
   {

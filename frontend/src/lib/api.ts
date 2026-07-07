@@ -19,20 +19,12 @@ import {
   mapSingleGroupResponse,
   mapGroupResponse, // Used internally in getGroup
   prepareGroupForBackend,
-  mapSingleCombinedGroupResponse,
-  prepareCombinedGroupForBackend,
   mapGroupsResponse,
-  mapCombinedGroupsResponse,
 } from "./group-helpers";
 
 // Re-export for external consumers
-export { mapGroupResponse, mapCombinedGroupResponse } from "./group-helpers";
-import type {
-  BackendGroup,
-  BackendCombinedGroup,
-  CombinedGroup as ImportedCombinedGroup,
-  Group as ImportedGroup,
-} from "./group-helpers";
+export { mapGroupResponse } from "./group-helpers";
+import type { BackendGroup, Group as ImportedGroup } from "./group-helpers";
 import {
   mapSingleRoomResponse,
   prepareRoomForBackend,
@@ -167,6 +159,22 @@ function parseStudentsPaginatedResponse(responseData: unknown): StudentsResult {
   return { students: [] };
 }
 
+function parseSchoolClassesResponse(responseData: unknown): string[] {
+  const value =
+    responseData &&
+    typeof responseData === "object" &&
+    "success" in responseData &&
+    "data" in responseData
+      ? (responseData as ApiResponseWrapper<unknown>).data
+      : responseData;
+
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 /**
  * Build query parameters for student API requests
  */
@@ -175,7 +183,8 @@ function buildStudentQueryParams(filters?: {
   inHouse?: boolean;
   groupId?: string;
   roomId?: string;
-  locationState?: "transit";
+  schoolClass?: string;
+  locationState?: "present" | "transit";
   dayStatus?: "comes_today" | "not_coming_today";
   bus?: "yes" | "no";
   photoConsent?: "yes" | "no";
@@ -190,6 +199,7 @@ function buildStudentQueryParams(filters?: {
   if (filters?.inHouse !== undefined)
     params.append("in_house", filters.inHouse.toString());
   if (filters?.groupId) params.append("group_id", filters.groupId);
+  if (filters?.schoolClass) params.append("school_class", filters.schoolClass);
   // room_id narrows the list to students currently checked-in to any
   // active group taking place in this room (#1323). Backend joins via
   // active.visits → active.groups; see api/students/list_helpers.go.
@@ -477,7 +487,6 @@ function parseSingleStudentResponse(
 // Re-export types for external usage
 export type { Student } from "./student-helpers";
 export type Group = ImportedGroup;
-export type CombinedGroup = ImportedCombinedGroup;
 
 // Room-related interfaces
 export interface Room {
@@ -507,7 +516,8 @@ export const studentService = {
     inHouse?: boolean;
     groupId?: string;
     roomId?: string;
-    locationState?: "transit";
+    schoolClass?: string;
+    locationState?: "present" | "transit";
     dayStatus?: "comes_today" | "not_coming_today";
     bus?: "yes" | "no";
     photoConsent?: "yes" | "no";
@@ -557,6 +567,39 @@ export const studentService = {
       };
     } catch (error) {
       throw handleApiError(error, "Error fetching students");
+    }
+  },
+
+  getSchoolClasses: async (filters?: { token?: string }): Promise<string[]> => {
+    const useProxyApi = globalThis.window !== undefined;
+    const url = useProxyApi
+      ? "/api/students/school-classes"
+      : `${env.API_URL}/api/students/school-classes`;
+
+    try {
+      if (useProxyApi) {
+        let authToken = filters?.token;
+        if (!authToken) {
+          const session = await getSession();
+          authToken = session?.user?.token;
+        }
+
+        const { data } = await fetchWithRetry<unknown>(url, authToken, {
+          onAuthFailure: handleAuthFailure,
+          getNewToken: getNewTokenFromSession,
+        });
+
+        if (data === null) {
+          throw new Error("Authentication failed");
+        }
+
+        return parseSchoolClassesResponse(data);
+      }
+
+      const response = await api.get(url);
+      return parseSchoolClassesResponse(response.data);
+    } catch (error) {
+      throw handleApiError(error, "Error fetching school classes");
     }
   },
 
@@ -1253,369 +1296,6 @@ export const groupService = {
       logger.error("failed to set representative for group", {
         representative_id: representativeId,
         group_id: groupId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  },
-};
-
-// Combined Group service for API operations
-export const combinedGroupService = {
-  // Get all combined groups
-  getCombinedGroups: async (): Promise<CombinedGroup[]> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? "/api/groups/combined"
-      : `${env.API_URL}/api/groups/combined`;
-
-    try {
-      if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
-        const response = await fetch(url, {
-          credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error("api error during fetch", {
-            status: response.status,
-            error_text: errorText.substring(0, 200), // Truncate long errors
-          });
-          throw new Error(`API error: ${response.status}`);
-        }
-
-        const responseData = (await response.json()) as BackendCombinedGroup[];
-        return mapCombinedGroupsResponse(responseData);
-      } else {
-        // Server-side: use axios with the API URL directly
-        const response = await api.get(url);
-        return mapCombinedGroupsResponse(
-          response.data as BackendCombinedGroup[],
-        );
-      }
-    } catch (error) {
-      logger.error("failed to fetch combined groups", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  },
-
-  // Get a specific combined group by ID
-  getCombinedGroup: async (id: string): Promise<CombinedGroup> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/groups/combined/${id}`
-      : `${env.API_URL}/api/groups/combined/${id}`;
-
-    try {
-      if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
-        const response = await fetch(url, {
-          credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error("api error during fetch", {
-            status: response.status,
-            error_text: errorText.substring(0, 200), // Truncate long errors
-          });
-          throw new Error(`API error: ${response.status}`);
-        }
-
-        const responseData = (await response.json()) as BackendCombinedGroup;
-        return mapSingleCombinedGroupResponse({ data: responseData });
-      } else {
-        // Server-side: use axios with the API URL directly
-        const response = await api.get(url);
-        return mapSingleCombinedGroupResponse({
-          data: response.data as BackendCombinedGroup,
-        });
-      }
-    } catch (error) {
-      logger.error("failed to fetch combined group", {
-        combined_group_id: id,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  },
-
-  // Create a new combined group
-  createCombinedGroup: async (
-    combinedGroup: Omit<CombinedGroup, "id">,
-  ): Promise<CombinedGroup> => {
-    // Transform from frontend model to backend model
-    const backendCombinedGroup = prepareCombinedGroupForBackend(combinedGroup);
-
-    // Basic validation for combined group creation
-    if (!backendCombinedGroup.name) {
-      throw new Error("Missing required field: name");
-    }
-    if (!backendCombinedGroup.access_policy) {
-      throw new Error("Missing required field: access_policy");
-    }
-
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/groups/combined`
-      : `${env.API_URL}/api/groups/combined`;
-
-    try {
-      if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "POST",
-          credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
-          body: JSON.stringify(backendCombinedGroup),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error("api error during fetch", {
-            status: response.status,
-            error_text: errorText.substring(0, 200), // Truncate long errors
-          });
-          throw new Error(`API error: ${response.status}`);
-        }
-
-        const responseData = (await response.json()) as BackendCombinedGroup;
-        return mapSingleCombinedGroupResponse({ data: responseData });
-      } else {
-        // Server-side: use axios with the API URL directly
-        const response = await api.post(url, backendCombinedGroup);
-        return mapSingleCombinedGroupResponse({
-          data: response.data as BackendCombinedGroup,
-        });
-      }
-    } catch (error) {
-      logger.error("failed to create combined group", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  },
-
-  // Update a combined group
-  updateCombinedGroup: async (
-    id: string,
-    combinedGroup: Partial<CombinedGroup>,
-  ): Promise<CombinedGroup> => {
-    // Transform from frontend model to backend model updates
-    const backendUpdates = prepareCombinedGroupForBackend(combinedGroup);
-
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/groups/combined/${id}`
-      : `${env.API_URL}/api/groups/combined/${id}`;
-
-    try {
-      if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "PUT",
-          credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
-          body: JSON.stringify(backendUpdates),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error("api error during fetch", {
-            status: response.status,
-            error_text: errorText.substring(0, 200), // Truncate long errors
-          });
-          throw new Error(`API error: ${response.status}`);
-        }
-
-        const responseData = (await response.json()) as BackendCombinedGroup;
-        return mapSingleCombinedGroupResponse({ data: responseData });
-      } else {
-        // Server-side: use axios with the API URL directly
-        const response = await api.put(url, backendUpdates);
-        return mapSingleCombinedGroupResponse({
-          data: response.data as BackendCombinedGroup,
-        });
-      }
-    } catch (error) {
-      logger.error("failed to update combined group", {
-        combined_group_id: id,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  },
-
-  // Delete a combined group
-  deleteCombinedGroup: async (id: string): Promise<void> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/groups/combined/${id}`
-      : `${env.API_URL}/api/groups/combined/${id}`;
-
-    try {
-      if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "DELETE",
-          credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error("api error during fetch", {
-            status: response.status,
-            error_text: errorText.substring(0, 200), // Truncate long errors
-          });
-          throw new Error(`API error: ${response.status}`);
-        }
-
-        return;
-      } else {
-        // Server-side: use axios with the API URL directly
-        await api.delete(url);
-        return;
-      }
-    } catch (error) {
-      logger.error("failed to delete combined group", {
-        combined_group_id: id,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  },
-
-  // Add a group to a combined group
-  addGroupToCombined: async (
-    combinedGroupId: string,
-    groupId: string,
-  ): Promise<void> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/groups/combined/${combinedGroupId}/groups`
-      : `${env.API_URL}/api/groups/combined/${combinedGroupId}/groups`;
-
-    try {
-      if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "POST",
-          credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
-          body: JSON.stringify({ group_id: Number.parseInt(groupId, 10) }),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error("api error during fetch", {
-            status: response.status,
-            error_text: errorText.substring(0, 200), // Truncate long errors
-          });
-          throw new Error(`API error: ${response.status}`);
-        }
-
-        return;
-      } else {
-        // Server-side: use axios with the API URL directly
-        await api.post(url, { group_id: Number.parseInt(groupId, 10) });
-        return;
-      }
-    } catch (error) {
-      logger.error("failed to add group to combined group", {
-        group_id: groupId,
-        combined_group_id: combinedGroupId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
-  },
-
-  // Remove a group from a combined group
-  removeGroupFromCombined: async (
-    combinedGroupId: string,
-    groupId: string,
-  ): Promise<void> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const url = useProxyApi
-      ? `/api/groups/combined/${combinedGroupId}/groups/${groupId}`
-      : `${env.API_URL}/api/groups/combined/${combinedGroupId}/groups/${groupId}`;
-
-    try {
-      if (useProxyApi) {
-        // Browser environment: use fetch with our Next.js API route
-        const session = await getSession();
-        const response = await fetch(url, {
-          method: "DELETE",
-          credentials: "include",
-          headers: session?.user?.token
-            ? {
-                Authorization: `Bearer ${session.user.token}`,
-                "Content-Type": "application/json",
-              }
-            : undefined,
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error("api error during fetch", {
-            status: response.status,
-            error_text: errorText.substring(0, 200), // Truncate long errors
-          });
-          throw new Error(`API error: ${response.status}`);
-        }
-
-        return;
-      } else {
-        // Server-side: use axios with the API URL directly
-        await api.delete(url);
-        return;
-      }
-    } catch (error) {
-      logger.error("failed to remove group from combined group", {
-        group_id: groupId,
-        combined_group_id: combinedGroupId,
         error: error instanceof Error ? error.message : String(error),
       });
       throw error;

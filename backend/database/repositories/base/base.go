@@ -3,6 +3,7 @@ package base
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -114,6 +115,24 @@ func (r *Repository[T]) FindByID(ctx context.Context, id any) (T, error) {
 	}
 
 	return entityVal, nil
+}
+
+// FindByIDOrNil behaves like FindByID but returns the zero value and a nil error
+// when no row matches, instead of a wrapped sql.ErrNoRows. Repositories whose
+// service layer treats "not found" as nil (rather than an error) delegate their
+// FindByID override here instead of hand-rolling the query — keeping tenant
+// scoping and table/alias derivation in one place (backend-conventions Rule 2).
+func (r *Repository[T]) FindByIDOrNil(ctx context.Context, id any) (T, error) {
+	entity, err := r.FindByID(ctx, id)
+	if err != nil {
+		var dbErr *modelBase.DatabaseError
+		if errors.As(err, &dbErr) && errors.Is(dbErr.Err, sql.ErrNoRows) {
+			var zero T
+			return zero, nil
+		}
+		return entity, err
+	}
+	return entity, nil
 }
 
 // Update updates an existing entity in the database

@@ -9,6 +9,7 @@ vi.mock("~/lib/logger", () => ({
 
 import {
   exportCareUsageReport,
+  exportPhaseClassRoster,
   getCareUsageReport,
   type CareUsageFilters,
   type CareUsageReport,
@@ -29,6 +30,10 @@ function report(overrides: Partial<CareUsageReport> = {}): CareUsageReport {
     totals: {
       children: 2,
       by_day_count: { "2": 1, "5": 1 },
+      by_weekday_pickup_time: {
+        mon: { "14:30": 1, "16:00": 1 },
+        tue: { "14:30": 1 },
+      },
     },
     by_offering: [
       {
@@ -41,6 +46,7 @@ function report(overrides: Partial<CareUsageReport> = {}): CareUsageReport {
     filter_options: {
       offerings: [{ id: "7", name: "OGS", counts_as_care: true }],
       grade_levels: [1, 2],
+      pickup_times: ["14:30", "16:00"],
     },
     rows: [
       {
@@ -62,6 +68,7 @@ function report(overrides: Partial<CareUsageReport> = {}): CareUsageReport {
         ],
         effective_days: ["monday", "tuesday"],
         day_count: 2,
+        pickup_by_day: { mon: "14:30", tue: "16:00" },
         guardian_first_name: "Grace",
         guardian_last_name: "Hopper",
         guardian_email: "grace@example.test",
@@ -115,6 +122,8 @@ describe("getCareUsageReport", () => {
       care_offering_ids: ["7", "8"],
       day_count: 0,
       grade_level: 1,
+      weekday: "mon",
+      pickup_time: "14:30",
       search: "  Ada  ",
     };
     const actual = await getCareUsageReport(filters);
@@ -122,7 +131,7 @@ describe("getCareUsageReport", () => {
     expect(actual).toStrictEqual(expected);
     expect(seenInit).toEqual({ cache: "no-store" });
     expect(seenURL).toBe(
-      "/api/enrollment/admin/reports/care-usage?phase_id=42&status=approved&care_offering_ids=7&care_offering_ids=8&day_count=0&grade_level=1&search=Ada",
+      "/api/enrollment/admin/reports/care-usage?phase_id=42&status=approved&care_offering_ids=7&care_offering_ids=8&day_count=0&grade_level=1&weekday=mon&pickup_time=14%3A30&search=Ada",
     );
   });
 
@@ -375,5 +384,95 @@ describe("exportCareUsageReport", () => {
     });
     expect(anchor.click).not.toHaveBeenCalled();
     expect(URL.createObjectURL).not.toHaveBeenCalled();
+  });
+});
+
+describe("exportPhaseClassRoster", () => {
+  let anchor: {
+    href: string;
+    download: string;
+    click: ReturnType<typeof vi.fn>;
+    remove: ReturnType<typeof vi.fn>;
+  };
+
+  beforeEach(() => {
+    globalThis.fetch = originalFetch;
+    anchor = {
+      href: "",
+      download: "",
+      click: vi.fn(),
+      remove: vi.fn(),
+    };
+    vi.spyOn(document, "createElement").mockReturnValue(
+      anchor as unknown as HTMLAnchorElement,
+    );
+    vi.spyOn(document.body, "append").mockImplementation(() => undefined);
+    URL.createObjectURL = vi.fn(() => "blob:class-roster");
+    URL.revokeObjectURL = vi.fn();
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    URL.createObjectURL = originalCreateObjectURL;
+    URL.revokeObjectURL = originalRevokeObjectURL;
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("posts phase and class filters, then downloads the roster", async () => {
+    const fetchFn = mockFetch(
+      async () =>
+        ({
+          ok: true,
+          headers: new Headers(),
+          blob: async () => new Blob(["PDF"]),
+        }) as unknown as Response,
+    );
+
+    await exportPhaseClassRoster("42", "1a", "pdf");
+
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchFn.mock.calls[0]!;
+    expect(url).toBe("/api/enrollment/admin/reports/class-roster/export");
+    expect(init).toMatchObject({
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+      format: "pdf",
+      filters: {
+        phase_id: "42",
+        school_class: "1a",
+      },
+    });
+    expect(anchor.href).toBe("blob:class-roster");
+    expect(anchor.download).toBe("klassenliste.pdf");
+    expect(anchor.click).toHaveBeenCalledTimes(1);
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:class-roster");
+  });
+
+  it("posts all_classes when no class is selected", async () => {
+    const fetchFn = mockFetch(
+      async () =>
+        ({
+          ok: true,
+          headers: new Headers(),
+          blob: async () => new Blob(["PDF"]),
+        }) as unknown as Response,
+    );
+
+    await exportPhaseClassRoster("42", null, "pdf");
+
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    const [, init] = fetchFn.mock.calls[0]!;
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+      format: "pdf",
+      filters: {
+        phase_id: "42",
+        all_classes: true,
+      },
+    });
+    expect(anchor.download).toBe("klassenlisten.pdf");
+    expect(anchor.click).toHaveBeenCalledTimes(1);
   });
 });

@@ -90,7 +90,7 @@ vi.mock("~/lib/format-utils", () => ({
   getRelativeTime: (dateStr: string) => `relative(${dateStr})`,
 }));
 
-vi.mock("~/components/ui/page-header", () => ({
+vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({ title, tabs, actionButton }: any) => (
     <div data-testid="page-header">
       <h1>{title}</h1>
@@ -144,7 +144,7 @@ import OperatorDevicesPage from "./page";
 import {
   mockSchool,
   setupSWR,
-} from "../provisioning/provisioning-test-helpers";
+} from "~/test/helpers/operator-provisioning/provisioning-test-helpers";
 
 // Matches the old provisioning/page.test.tsx Devices Tab fixture.
 const mockDevice = {

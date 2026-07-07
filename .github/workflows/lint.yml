@@ -23,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Setup Go with cache
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: backend/go.mod
           cache: true
@@ -65,57 +65,18 @@ jobs:
           # mistaken for findings.
           DEADCODE_OUTPUT=$(go tool deadcode -test ./... 2>&1 | grep -v '^go: ' || true)
 
-          # Define exclusion patterns (false positives or planned-but-unwired code)
-          # cmd/root.go:Execute is the Cobra CLI entry point called by main()
-          # Multi-tenancy Phase 1 foundation primitives — wired in Phases 2-3
-          EXCLUSIONS=(
-            "cmd/root.go:.*Execute"
-            "tenant/context.go:.*IsOrgScope"
-            "tenant/context.go:.*NewContext"
-            "tenant/tx.go:.*WithAdminTx"
-            "database/repositories/base/helpers.go:.*AssertRowsAffected"
-            "database/repositories/base/tenant_db.go:.*GetDB"
-            "models/base/tenant.go:.*TenantModel"
-            "models/platform/organization.go:.*Organization"
-            "models/platform/school.go:.*School"
-            "models/auth/account_tenant.go:.*AccountTenant"
-            "test/fixtures.go:.*CreateTestOrganization"
-            "test/fixtures.go:.*CreateTestSchool"
-            "test/fixtures.go:.*CreateTestSchoolForOrg"
-            "test/fixtures.go:.*CreateTestAccountTenant"
-            "test/fixtures.go:.*CleanupTenantFixtures"
-          )
-
-          # Build grep exclusion pattern
-          EXCLUDE_PATTERN=""
-          for pattern in "${EXCLUSIONS[@]}"; do
-            if [[ -n "$EXCLUDE_PATTERN" ]]; then
-              EXCLUDE_PATTERN="$EXCLUDE_PATTERN|$pattern"
-            else
-              EXCLUDE_PATTERN="$pattern"
-            fi
-          done
-
-          # Filter out exclusions
-          if [[ -n "$EXCLUDE_PATTERN" ]]; then
-            FILTERED_OUTPUT=$(echo "$DEADCODE_OUTPUT" | grep -vE "$EXCLUDE_PATTERN" || true)
-          else
-            FILTERED_OUTPUT="$DEADCODE_OUTPUT"
-          fi
-
           # Check if any dead code remains
-          if [[ -n "$FILTERED_OUTPUT" ]]; then
+          if [[ -n "$DEADCODE_OUTPUT" ]]; then
             echo ""
             echo "❌ Dead code detected:"
             echo ""
-            echo "$FILTERED_OUTPUT" | while IFS= read -r line; do
+            echo "$DEADCODE_OUTPUT" | while IFS= read -r line; do
               if [[ -n "$line" ]]; then
                 echo "  $line"
               fi
             done
             echo ""
             echo "Please remove dead code or document why it should be kept."
-            echo "To add an exclusion, edit .github/workflows/lint.yml"
             exit 1
           else
             echo "No dead code detected"
@@ -148,13 +109,13 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Setup Go with cache
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: backend/go.mod
           cache: true
           cache-dependency-path: backend/go.sum
       - name: golang ci lint
-        uses: golangci/golangci-lint-action@82606bf257cbaff209d206a39f5134f0cfbfd2ee # v6
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v6
         with:
           version: latest
           args: --timeout 10m
@@ -192,6 +153,10 @@ jobs:
       - name: Run typecheck
         working-directory: frontend
         run: pnpm run typecheck
+
+      - name: Check frontend dependency graph
+        working-directory: frontend
+        run: pnpm depcruise
 
       - name: Check for unused code
         working-directory: frontend
@@ -242,3 +207,7 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: pnpm run build
+
+      - name: Build Storybook
+        working-directory: frontend
+        run: pnpm run build-storybook

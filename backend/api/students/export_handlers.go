@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -35,6 +36,7 @@ type studentExportFilters struct {
 	GroupID      string `json:"group_id"`
 	RoomID       string `json:"room_id"`
 	Year         string `json:"year"`
+	SchoolClass  string `json:"school_class"`
 	Status       string `json:"status"`
 	Bus          string `json:"bus"`
 	PhotoConsent string `json:"photo_consent"`
@@ -43,6 +45,7 @@ type studentExportFilters struct {
 	PickupTime   string `json:"pickup_time"`
 	ArrivalTime  string `json:"arrival_time"`
 	Sort         string `json:"sort"`
+	GroupByClass bool   `json:"group_by_class"`
 }
 
 type weeklySchedule struct {
@@ -99,20 +102,35 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 
 	responses = applyExportFilters(responses, req.Filters)
 	sortExportResponses(responses, req.Filters.Sort)
+	if req.Filters.GroupByClass {
+		groupExportResponsesByClass(responses)
+	}
 
 	weekly, err := rs.loadWeeklySchedules(r, collectResponseIDs(responses))
 	if err != nil {
 		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
+	columns := listexport.ResolveColumns(req.Columns, req.Preset)
+	enrollmentSummaries, err := rs.loadActiveEnrollmentSummaries(r, collectResponseIDs(responses), timezone.DateFromTime(today), columns)
+	if err != nil {
+		renderError(w, r, ErrorInternalServer(err))
+		return
+	}
 
+	var rows []listexport.Row
+	if req.Filters.GroupByClass {
+		rows = buildGroupedExportRows(responses, weekly, enrollmentSummaries)
+	} else {
+		rows = buildExportRows(responses, weekly, enrollmentSummaries)
+	}
 	doc := listexport.Document{
 		Title:       exportTitle(req),
 		Subtitle:    rs.exportSubtitle(r, len(responses)),
 		GeneratedAt: time.Now(),
 		Filters:     exportFilterLabels(req.Filters),
-		Columns:     listexport.ResolveColumns(req.Columns, req.Preset),
-		Rows:        buildExportRows(responses, weekly),
+		Columns:     columns,
+		Rows:        rows,
 	}
 
 	file, err := rs.ListExportService.Render(doc, req.Format, doc.Title)
@@ -155,6 +173,7 @@ func exportRequestToListParams(req studentExportRequest) *studentListParams {
 		includePickupTimes:  true,
 		includeArrivalTimes: true,
 		dayStatus:           parseDayStatusParam(req.Filters.DayStatus),
+		schoolClass:         strings.TrimSpace(req.Filters.SchoolClass),
 	}
 	if req.Filters.GroupID != "" {
 		if groupID, err := strconv.ParseInt(req.Filters.GroupID, 10, 64); err == nil {
@@ -238,10 +257,7 @@ func sortExportResponses(students []StudentResponse, sortMode string) {
 		if sortMode == "arrival" {
 			return timeValue(a.ArrivalTime) < timeValue(b.ArrivalTime)
 		}
-		if strings.EqualFold(a.LastName, b.LastName) {
-			return strings.ToLower(a.FirstName) < strings.ToLower(b.FirstName)
-		}
-		return strings.ToLower(a.LastName) < strings.ToLower(b.LastName)
+		return collation.CompareGermanNames(a.LastName, a.FirstName, b.LastName, b.FirstName) < 0
 	})
 }
 
@@ -282,29 +298,110 @@ func (rs *Resource) loadWeeklySchedules(r *http.Request, studentIDs []int64) (ma
 	return result, nil
 }
 
-func buildExportRows(students []StudentResponse, weekly map[int64]weeklySchedule) []listexport.Row {
+func (rs *Resource) loadActiveEnrollmentSummaries(r *http.Request, studentIDs []int64, onDate timezone.Date, columns []listexport.Column) (map[int64]string, error) {
+	if !columnsContain(columns, listexport.ColumnEnrollmentSummary) {
+		return map[int64]string{}, nil
+	}
+	if rs.ActivityService == nil {
+		return nil, errors.New("activity service is not configured")
+	}
+	groupsByStudent, err := rs.ActivityService.GetActiveStudentEnrollmentsByStudentIDs(r.Context(), studentIDs, onDate)
+	if err != nil {
+		return nil, err
+	}
+	summaries := make(map[int64]string, len(studentIDs))
+	for _, studentID := range studentIDs {
+		groups := groupsByStudent[studentID]
+		if len(groups) == 0 {
+			summaries[studentID] = "Keine Anmeldung"
+			continue
+		}
+		names := make([]string, 0, len(groups))
+		seen := make(map[string]bool, len(groups))
+		for _, group := range groups {
+			if group == nil {
+				continue
+			}
+			name := strings.TrimSpace(group.Name)
+			if name == "" {
+				name = "Gruppe #" + strconv.FormatInt(group.ID, 10)
+			}
+			if seen[name] {
+				continue
+			}
+			seen[name] = true
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		if len(names) == 0 {
+			summaries[studentID] = "Keine Anmeldung"
+			continue
+		}
+		summaries[studentID] = "Angemeldet: " + strings.Join(names, ", ")
+	}
+	return summaries, nil
+}
+
+func columnsContain(columns []listexport.Column, id listexport.ColumnID) bool {
+	for _, column := range columns {
+		if column.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+// groupExportResponsesByClass stably re-sorts by class only, preserving the
+// prior within-class ordering (name collation or pickup/arrival sort mode).
+func groupExportResponsesByClass(students []StudentResponse) {
+	sort.SliceStable(students, func(i, j int) bool {
+		return collation.CompareSchoolClasses(students[i].SchoolClass, students[j].SchoolClass) < 0
+	})
+}
+
+func buildGroupedExportRows(students []StudentResponse, weekly map[int64]weeklySchedule, enrollmentSummaries map[int64]string) []listexport.Row {
 	rows := make([]listexport.Row, 0, len(students))
-	for _, student := range students {
-		plan := weekly[student.ID]
-		rows = append(rows, listexport.Row{Values: map[listexport.ColumnID]string{
-			listexport.ColumnName:            strings.TrimSpace(student.FirstName + " " + student.LastName),
-			listexport.ColumnSchoolClass:     student.SchoolClass,
-			listexport.ColumnGroup:           student.GroupName,
-			listexport.ColumnCareDays:        careDays(plan),
-			listexport.ColumnWeeklyMonday:    weeklyCell(plan, schedule.WeekdayMonday),
-			listexport.ColumnWeeklyTuesday:   weeklyCell(plan, schedule.WeekdayTuesday),
-			listexport.ColumnWeeklyWednesday: weeklyCell(plan, schedule.WeekdayWednesday),
-			listexport.ColumnWeeklyThursday:  weeklyCell(plan, schedule.WeekdayThursday),
-			listexport.ColumnWeeklyFriday:    weeklyCell(plan, schedule.WeekdayFriday),
-			listexport.ColumnDailyStatus:     dailyStatusExportCell(student),
-			listexport.ColumnPlannedArrival:  ptrValue(student.ArrivalTime),
-			listexport.ColumnPlannedPickup:   ptrValue(student.PickupTime),
-			listexport.ColumnDeparture:       departureExportCell(student),
-			listexport.ColumnDailyNotes:      dailyNotes(student),
-			listexport.ColumnCurrentLocation: student.Location,
-		}})
+	currentClass := ""
+	for i, student := range students {
+		// Boundary detection must use the sort comparator's equivalence:
+		// label variants like "1a"/"1A"/"1 a" are one logical class and
+		// must share a single heading (first-seen label).
+		if class := strings.TrimSpace(student.SchoolClass); i == 0 || collation.CompareSchoolClasses(class, currentClass) != 0 {
+			currentClass = class
+			rows = append(rows, listexport.Row{GroupTitle: listexport.ClassGroupTitle(class)})
+		}
+		rows = append(rows, buildExportRow(student, weekly[student.ID], enrollmentSummaries))
 	}
 	return rows
+}
+
+func buildExportRows(students []StudentResponse, weekly map[int64]weeklySchedule, enrollmentSummaries map[int64]string) []listexport.Row {
+	rows := make([]listexport.Row, 0, len(students))
+	for _, student := range students {
+		rows = append(rows, buildExportRow(student, weekly[student.ID], enrollmentSummaries))
+	}
+	return rows
+}
+
+func buildExportRow(student StudentResponse, plan weeklySchedule, enrollmentSummaries map[int64]string) listexport.Row {
+	return listexport.Row{Values: map[listexport.ColumnID]string{
+		listexport.ColumnName:              strings.TrimSpace(student.FirstName + " " + student.LastName),
+		listexport.ColumnSchoolClass:       student.SchoolClass,
+		listexport.ColumnGroup:             student.GroupName,
+		listexport.ColumnEnrollmentSummary: enrollmentSummaries[student.ID],
+		listexport.ColumnCareDays:          careDays(plan),
+		listexport.ColumnWeeklyMonday:      weeklyCell(plan, schedule.WeekdayMonday),
+		listexport.ColumnWeeklyTuesday:     weeklyCell(plan, schedule.WeekdayTuesday),
+		listexport.ColumnWeeklyWednesday:   weeklyCell(plan, schedule.WeekdayWednesday),
+		listexport.ColumnWeeklyThursday:    weeklyCell(plan, schedule.WeekdayThursday),
+		listexport.ColumnWeeklyFriday:      weeklyCell(plan, schedule.WeekdayFriday),
+		listexport.ColumnDailyStatus:       dailyStatusExportCell(student),
+		listexport.ColumnPlannedArrival:    ptrValue(student.ArrivalTime),
+		listexport.ColumnPlannedPickup:     ptrValue(student.PickupTime),
+		listexport.ColumnDeparture:         departureExportCell(student),
+		listexport.ColumnDailyNotes:        dailyNotes(student),
+		listexport.ColumnCurrentLocation:   student.Location,
+	}}
 }
 
 func dailyStatusExportCell(student StudentResponse) string {
@@ -484,6 +581,8 @@ func exportTitle(req studentExportRequest) string {
 	switch req.Preset {
 	case listexport.PresetOGSCompact:
 		return "OGS Kompaktliste"
+	case listexport.PresetClassRoster:
+		return "Klassenliste"
 	case listexport.PresetDailyPlanning:
 		return "Tagesliste"
 	case listexport.PresetAttendanceSnapshot:
@@ -508,6 +607,9 @@ func exportFilterLabels(filters studentExportFilters) []string {
 	if filters.Year != "" && filters.Year != "all" {
 		labels = append(labels, "Stufe: "+filters.Year)
 	}
+	if strings.TrimSpace(filters.SchoolClass) != "" {
+		labels = append(labels, "Klasse: "+strings.TrimSpace(filters.SchoolClass))
+	}
 	if filters.Status != "" && filters.Status != "all" {
 		labels = append(labels, "Momentaufnahme: "+exportStatusLabel(filters.Status))
 	}
@@ -530,6 +632,9 @@ func exportFilterLabels(filters studentExportFilters) []string {
 	}
 	if filters.DayStatus != "" && filters.DayStatus != DayPlanningStatusAll {
 		labels = append(labels, "Tagesplanung: "+dayStatusExportLabel(filters.DayStatus))
+	}
+	if filters.GroupByClass {
+		labels = append(labels, "Nach Klassen getrennt")
 	}
 	return labels
 }

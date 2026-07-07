@@ -27,6 +27,7 @@ vi.mock("~/lib/auth-utils", () => {
       if (role === "user") return !isAdminFn();
       return false;
     }),
+    hasPermission: vi.fn(() => false),
   };
 });
 
@@ -90,7 +91,9 @@ import { useShellAuth } from "~/lib/shell-auth-context";
 import {
   useNFCEnabled,
   usePresenceMode,
-} from "~/components/tenant/tenant-provider";
+  useTenantRoutingModeSafe,
+  useTenantSlugSafe,
+} from "~/lib/tenant-context";
 
 const mockUsePathname = vi.mocked(usePathname);
 const mockUseSearchParams = vi.mocked(useSearchParams);
@@ -100,6 +103,8 @@ const mockIsAdmin = vi.mocked(isAdmin);
 const mockUseShellAuth = vi.mocked(useShellAuth);
 const mockUseNFCEnabled = vi.mocked(useNFCEnabled);
 const mockUsePresenceMode = vi.mocked(usePresenceMode);
+const mockUseTenantRoutingModeSafe = vi.mocked(useTenantRoutingModeSafe);
+const mockUseTenantSlugSafe = vi.mocked(useTenantSlugSafe);
 
 // Helper to create mock search params - use unknown cast for test flexibility
 function createMockSearchParams(
@@ -171,6 +176,12 @@ describe("MobileBottomNav", () => {
     mockIsAdmin.mockReturnValue(false);
     mockUseNFCEnabled.mockReturnValue(true);
     mockUsePresenceMode.mockReturnValue("detailed");
+    // Re-establish tenant defaults each test so per-test subdomain/slug
+    // overrides (below) don't leak — vi.clearAllMocks() keeps the setup.ts
+    // implementations but individual mockReturnValue calls would otherwise
+    // persist across tests.
+    mockUseTenantRoutingModeSafe.mockReturnValue("path");
+    mockUseTenantSlugSafe.mockReturnValue("test-tenant");
   });
 
   describe("rendering", () => {
@@ -182,6 +193,20 @@ describe("MobileBottomNav", () => {
       const hrefs = links.map((link) => link.getAttribute("href"));
       expect(hrefs).toContain("/ogs-groups");
       expect(hrefs).toContain("/active-supervisions");
+    });
+
+    it("names icon-only staff nav controls for assistive technology", () => {
+      render(<MobileBottomNav />);
+
+      expect(screen.getByRole("link", { name: "Gruppe" })).toHaveAttribute(
+        "href",
+        "/ogs-groups",
+      );
+      expect(screen.getByRole("link", { name: "Aufsicht" })).toHaveAttribute(
+        "href",
+        "/active-supervisions",
+      );
+      expect(screen.getByRole("button", { name: "Mehr" })).toBeInTheDocument();
     });
 
     it("renders navigation bar for admin users", () => {
@@ -252,8 +277,45 @@ describe("MobileBottomNav", () => {
       expect(mockGet).toHaveBeenCalledWith("from");
     });
 
-    it("highlights correct item when path starts with href", () => {
-      mockUsePathname.mockReturnValue("/activities/123");
+    it("highlights the Eltern group when a child page was reached via one of its activePaths", () => {
+      // A grouped item (Eltern) owns several routes through activePaths. A
+      // child page opened with ?from=/messages must still light up the "Mehr"
+      // entry that hosts Eltern — the referrer check compares `from` against
+      // both the item href and its activePaths.
+      mockUsePathname.mockReturnValue("/students/123");
+      mockUseSearchParams.mockReturnValue(
+        createMockSearchParams(() => "/messages"),
+      );
+
+      render(<MobileBottomNav />);
+
+      expect(screen.getByRole("button", { name: "Mehr" })).toHaveClass(
+        "bg-gray-900",
+      );
+    });
+
+    it("does not strip a slug-shaped path segment in subdomain routing", () => {
+      // A tenant whose slug collides with a real route (e.g. "messages") on
+      // messages.<domain>/messages: usePathname() is already unprefixed in
+      // subdomain mode, so the tenant-prefix normalization must be a no-op.
+      // Otherwise "/messages" would be mistaken for the bare tenant root and
+      // stripped to "/", mis-highlighting Home instead of the Eltern group.
+      mockUseTenantRoutingModeSafe.mockReturnValue("subdomain");
+      mockUseTenantSlugSafe.mockReturnValue("messages");
+      mockUsePathname.mockReturnValue("/messages");
+
+      render(<MobileBottomNav />);
+
+      // Home must NOT be active (its label only renders when active)…
+      expect(screen.queryByText("Home")).not.toBeInTheDocument();
+      // …and the Eltern group ("Mehr") is active via its /messages activePath.
+      expect(screen.getByRole("button", { name: "Mehr" })).toHaveClass(
+        "bg-gray-900",
+      );
+    });
+
+    it("highlights the canonical activities route", () => {
+      mockUsePathname.mockReturnValue("/activities");
 
       render(<MobileBottomNav />);
 
@@ -291,8 +353,27 @@ describe("MobileBottomNav", () => {
       fireEvent.click(moreButton!);
 
       // Admin-only items should be visible in the drawer
+      expect(screen.getByText("Dienstplan")).toBeInTheDocument();
       expect(screen.getByText("Vertretungen")).toBeInTheDocument();
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
+    });
+
+    it("highlights Dienstplan without also highlighting Mitarbeiter in the overflow menu", () => {
+      mockUsePathname.mockReturnValue("/staff/dienstplan");
+
+      render(<MobileBottomNav />);
+
+      const navButtons = screen.getAllByRole("button");
+      const moreButton = navButtons.find(
+        (btn) => !btn.hasAttribute("data-testid"),
+      );
+      expect(moreButton).toBeDefined();
+      fireEvent.click(moreButton!);
+
+      const dienstplanLink = screen.getByText("Dienstplan").closest("a");
+      const staffLink = screen.getByText("Mitarbeiter").closest("a");
+      expect(dienstplanLink).toHaveClass("bg-gray-900");
+      expect(staffLink).not.toHaveClass("bg-gray-900");
     });
   });
 
@@ -450,6 +531,10 @@ describe("MobileBottomNav", () => {
     };
 
     it("displays coming soon badge for upcoming features", () => {
+      // "Berichte" is the remaining coming soon item and is admin-only.
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+
       render(<MobileBottomNav />);
 
       // Open overflow menu

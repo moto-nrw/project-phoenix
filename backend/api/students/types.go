@@ -73,6 +73,9 @@ type StudentResponse struct {
 	GuardianPhone      string           `json:"guardian_phone,omitempty"`
 	GroupID            int64            `json:"group_id,omitempty"`
 	GroupName          string           `json:"group_name,omitempty"`
+	AddressStreet      string           `json:"address_street,omitempty"`
+	AddressCity        string           `json:"address_city,omitempty"`
+	AddressPostalCode  string           `json:"address_postal_code,omitempty"`
 	ExtraInfo          string           `json:"extra_info,omitempty"`
 	HealthInfo         string           `json:"health_info,omitempty"`
 	SupervisorNotes    string           `json:"supervisor_notes,omitempty"`
@@ -205,10 +208,13 @@ type StudentRequest struct {
 	GuardianPhone   string `json:"guardian_phone,omitempty"`
 
 	// Optional fields
-	GroupID         *int64  `json:"group_id,omitempty"`
-	ExtraInfo       *string `json:"extra_info,omitempty"`       // Extra information visible to supervisors
-	HealthInfo      *string `json:"health_info,omitempty"`      // Static health and medical information
-	SupervisorNotes *string `json:"supervisor_notes,omitempty"` // Notes from supervisors
+	GroupID           *int64  `json:"group_id,omitempty"`
+	AddressStreet     string  `json:"address_street,omitempty"`
+	AddressCity       string  `json:"address_city,omitempty"`
+	AddressPostalCode string  `json:"address_postal_code,omitempty"`
+	ExtraInfo         *string `json:"extra_info,omitempty"`       // Extra information visible to supervisors
+	HealthInfo        *string `json:"health_info,omitempty"`      // Static health and medical information
+	SupervisorNotes   *string `json:"supervisor_notes,omitempty"` // Notes from supervisors
 	// DepartureDays is the authoritative per-weekday departure mode
 	// (alone/bus/pickup). When provided it supersedes the legacy PickupStatus /
 	// PickupDays / Bus / BusDays inputs below, which remain accepted for clients
@@ -287,15 +293,18 @@ type UpdateStudentRequest struct {
 	TagID     *string `json:"tag_id,omitempty"`
 
 	// Student-specific details (optional for update)
-	SchoolClass     *string `json:"school_class,omitempty"`
-	GuardianName    *string `json:"guardian_name,omitempty"`
-	GuardianContact *string `json:"guardian_contact,omitempty"`
-	GuardianEmail   *string `json:"guardian_email,omitempty"`
-	GuardianPhone   *string `json:"guardian_phone,omitempty"`
-	GroupID         *int64  `json:"group_id,omitempty"`
-	HealthInfo      *string `json:"health_info,omitempty"`      // Static health and medical information
-	SupervisorNotes *string `json:"supervisor_notes,omitempty"` // Notes from supervisors
-	ExtraInfo       *string `json:"extra_info,omitempty"`       // Extra information visible to supervisors
+	SchoolClass       *string `json:"school_class,omitempty"`
+	GuardianName      *string `json:"guardian_name,omitempty"`
+	GuardianContact   *string `json:"guardian_contact,omitempty"`
+	GuardianEmail     *string `json:"guardian_email,omitempty"`
+	GuardianPhone     *string `json:"guardian_phone,omitempty"`
+	GroupID           *int64  `json:"group_id,omitempty"`
+	AddressStreet     *string `json:"address_street,omitempty"`
+	AddressCity       *string `json:"address_city,omitempty"`
+	AddressPostalCode *string `json:"address_postal_code,omitempty"`
+	HealthInfo        *string `json:"health_info,omitempty"`      // Static health and medical information
+	SupervisorNotes   *string `json:"supervisor_notes,omitempty"` // Notes from supervisors
+	ExtraInfo         *string `json:"extra_info,omitempty"`       // Extra information visible to supervisors
 	// AllowedDepartureModes supersedes the legacy exclusive departure/pickup/bus
 	// inputs below when provided.
 	AllowedDepartureModes *users.AllowedDepartureModes `json:"allowed_departure_modes,omitempty"`

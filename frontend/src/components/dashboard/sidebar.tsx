@@ -6,21 +6,29 @@ import Link from "next/link";
 import useSWR from "swr";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
   useNFCEnabled,
   usePresenceMode,
   useTenantSlugSafe,
-} from "~/components/tenant/tenant-provider";
+} from "~/lib/tenant-context";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { hasRole, isCaregiver } from "~/lib/auth-utils";
+import { hasPermission, hasRole, isCaregiver } from "~/lib/auth-utils";
 import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useSuggestionsUnread } from "~/lib/hooks/use-suggestions-unread";
+import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
+import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
+import { useParentMessagesUnread } from "~/lib/hooks/use-parent-messages-unread";
+import { useParentNewsUnread } from "~/lib/hooks/use-parent-news-unread";
+import { useParentNewsEnabled } from "~/lib/hooks/use-parent-news-enabled";
+import { useParentMealPlanEnabled } from "~/lib/hooks/use-parent-meal-plan-enabled";
 import { useOperatorSuggestionsUnread } from "~/lib/hooks/use-operator-suggestions-unread";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
+import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { SidebarAccordionSection } from "~/components/dashboard/sidebar-accordion-section";
 import { SidebarSubItem } from "~/components/dashboard/sidebar-sub-item";
 import { navigationIcons } from "~/lib/navigation-icons";
@@ -35,6 +43,10 @@ interface NavItem {
   label: string;
   icon: string;
   requiresAdmin?: boolean;
+  // Show when the caller holds this tenant permission (admins always pass). Use
+  // instead of requiresAdmin for items open to more than admins, e.g. the
+  // Änderungsanfragen queue (users:update, scoped per child in the backend).
+  requiresPermission?: string;
   alwaysShow?: boolean;
   hideForAdmin?: boolean;
   comingSoon?: boolean;
@@ -95,10 +107,10 @@ const NAV_ITEMS: NavItem[] = [
     requiresAdmin: true,
   },
   {
-    href: "/admin/guardian-approvals",
-    label: "Konto-Anfragen",
-    icon: "M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z",
-    activeColor: "text-[#83CD2D]",
+    href: "/staff/dienstplan",
+    label: "Dienstplan",
+    icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z",
+    activeColor: "text-[#F78C10]",
     requiresAdmin: true,
   },
   {
@@ -107,30 +119,6 @@ const NAV_ITEMS: NavItem[] = [
     icon: "M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0Z",
     activeColor: "text-sky-500",
     alwaysShow: true,
-  },
-  // Coming soon features - shown to all users
-  {
-    href: "#",
-    label: "Nachrichten",
-    icon: "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z",
-    alwaysShow: true,
-    comingSoon: true,
-  },
-  {
-    href: "#",
-    label: "Mittagessen",
-    icon: "M8.5 3v18M7 3v3.5M10 3v3.5M7 10h3M15.5 3v3c0 1-2 2-2 2v13",
-    alwaysShow: true,
-    comingSoon: true,
-  },
-  // Coming soon features - caregivers only
-  {
-    href: "#",
-    label: "Erinnerungen",
-    icon: "M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9",
-    alwaysShow: true,
-    hideForAdmin: true,
-    comingSoon: true,
   },
   {
     href: "#",
@@ -291,6 +279,7 @@ const NFC_ONLY_HREFS = new Set<string>([
 // Static sub-pages for Anmeldungen accordion (admin only).
 const ENROLLMENTS_SUB_PAGES = [
   { href: "/admin/enrollments", label: "Überblick" },
+  { href: "/admin/enrollments/change-requests", label: "Änderungsanfragen" },
   { href: "/enrollment-phases", label: "Anmeldephasen" },
   { href: "/care-offerings", label: "Betreuungsangebote" },
   { href: "/enrollment-form", label: "Anmeldeformulare" },
@@ -308,6 +297,58 @@ function getActiveEnrollmentSubPageHref(pathname: string): string | null {
   );
 }
 
+// Sub-pages for the "Eltern" accordion. `feature` selects the visibility rule
+// applied in the component — Nachrichten (and the overview hub) show for all
+// staff; the rest are gated per permission / feature flag exactly as the old
+// flat NAV_ITEMS were. Keep the path list in sync with ELTERN_PATH_PREFIXES in
+// use-sidebar-accordion.ts and the cards on /eltern.
+type ParentSubPageFeature =
+  | "overview"
+  | "messages"
+  | "approvals"
+  | "changeRequests"
+  | "announcements"
+  | "mealPlan";
+
+const PARENT_SUB_PAGES: readonly {
+  readonly href: string;
+  readonly label: string;
+  readonly feature: ParentSubPageFeature;
+}[] = [
+  // "Übersicht" (not "Überblick") so it does not collide with the Anmeldungen
+  // accordion's "Überblick" hub — both would otherwise render simultaneously.
+  { href: "/eltern", label: "Übersicht", feature: "overview" },
+  { href: "/messages", label: "Nachrichten", feature: "messages" },
+  {
+    href: "/admin/guardian-approvals",
+    label: "Konto-Anfragen",
+    feature: "approvals",
+  },
+  {
+    href: "/admin/change-requests",
+    label: "Änderungsanfragen",
+    feature: "changeRequests",
+  },
+  {
+    href: "/parent-announcements",
+    label: "Elternmitteilungen",
+    feature: "announcements",
+  },
+  { href: "/meal-plan", label: "Essensplan", feature: "mealPlan" },
+];
+
+function matchesParentSubPage(pathname: string, href: string): boolean {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function getActiveParentSubPageHref(pathname: string): string | null {
+  return (
+    PARENT_SUB_PAGES.filter((page) =>
+      matchesParentSubPage(pathname, page.href),
+    ).sort((a, b) => b.href.length - a.href.length)[0]?.href ?? null
+  );
+}
+
 // `tKey` is the parentNav catalog key; the German `label` is the fallback used
 // only when the preview list is rendered outside an intl context. Mapping on a
 // stable key (not the German label) keeps the translation correct even if the
@@ -318,13 +359,6 @@ const PARENT_PREVIEW_ITEMS: readonly (NavItem & { tKey: string })[] = [
     label: "Kalender",
     tKey: "calendar",
     icon: navigationIcons.calendar,
-    comingSoon: true,
-  },
-  {
-    href: "#",
-    label: "Nachrichten",
-    tKey: "messages",
-    icon: navigationIcons.chat,
     comingSoon: true,
   },
   {
@@ -374,6 +408,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const tenantSlug = useTenantSlugSafe();
   const searchParams = useSearchParams();
   const router = useTenantRouter();
+  // Prefixes tenant-scoped hrefs with the slug in path-routing mode (no-op in
+  // subdomain/operator mode). Used for the Eltern hub sub-item link below.
+  const tenantPath = useTenantAwarePath();
   const { data: session } = useSession();
   const { mode } = useShellAuth();
   const parentPreviewItems = useMemo(
@@ -409,6 +446,29 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const { unreadCount: suggestionsUnreadCount } = useSuggestionsUnread();
   // Get unread suggestions count for badge (operator mode)
   const { unreadCount: operatorUnreadCount } = useOperatorSuggestionsUnread();
+  // Unread parent-OGS messages badge (staff/teacher mode)
+  const { unreadCount: messagesUnreadCount } = useMessagesUnread();
+  // Pending parent change-requests badge (Änderungsanfragen; users:update,
+  // scoped per child in the backend so the count reflects the caller's own
+  // group's requests)
+  const { unreadCount: changeRequestsPendingCount } =
+    useChangeRequestsPending();
+  // Unread OGS messages badge (parents portal) — only fetches in parent mode.
+  const { unreadCount: parentMessagesUnread } = useParentMessagesUnread(
+    mode === "parent",
+  );
+  // Unread announcements badge for the parents-portal Neuigkeiten item (#1669).
+  const { unreadCount: parentNewsUnread } = useParentNewsUnread(
+    mode === "parent",
+  );
+  // Only advertise Essensplan in the parents portal once a linked school runs
+  // a meal plan; otherwise the link leads to an empty/unavailable page.
+  const parentMealPlanEnabled = useParentMealPlanEnabled(mode === "parent");
+  // Only advertise Neuigkeiten in the parents portal once a linked school
+  // broadcasts announcements; otherwise the feed is empty (the backend excludes
+  // disabled tenants) and the link dead-ends. Distinct from the staff-side
+  // parentNewsEnabled below, which reads the tenant settings schema.
+  const parentPortalNewsEnabled = useParentNewsEnabled(mode === "parent");
 
   // Accordion state passes `from` param so child pages (e.g. student detail)
   // keep the originating accordion section open
@@ -417,25 +477,54 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
   const userIsAdmin = hasRole(session, "admin");
   const userIsCaregiver = isCaregiver(session);
+  // Elternmitteilungen (#1669) authoring is ADMIN-ONLY in v1: every
+  // /api/parent-announcements route is guarded by the admin:* wildcard
+  // (backend api/announcement/api.go), because the service does no per-caller
+  // audience scoping. Mirror that exact permission so a non-admin never sees a
+  // nav entry whose every list/create/publish call would 403. A future
+  // delegated-announcer role must relax the backend route first.
+  const canAnnounce = hasPermission(session, "admin:*");
   const presenceMode = usePresenceMode();
   const isBinaryMode = presenceMode === "binary";
   const nfcEnabled = useNFCEnabled();
   const { counts: groupAttendanceCounts } = useGroupAttendanceCounts();
   const canShowGroupAttendanceCounts = pathname.startsWith("/ogs-groups");
+  // Fetch the settings schema for anyone the backend lets read config, not just
+  // admins. The meal-plan GET route is guarded by config:read, so a non-admin
+  // config reader (custom config-manager) must also see the feature flags;
+  // gating the fetch on userIsAdmin alone hid the Essensplan entry from them.
+  // Admins stay in (their other flag, timetable.enabled, depends on this too).
+  // Announcers are admin:* holders (see canAnnounce), who satisfy config:read
+  // via the wildcard, so they are already covered here.
+  const canReadConfig = userIsAdmin || hasPermission(session, "config:read");
   const { data: settingsSchema } = useSWR(
-    userIsAdmin ? SETTINGS_SCHEMA_SWR_KEY : null,
+    canReadConfig ? SETTINGS_SCHEMA_SWR_KEY : null,
     fetchSettingsSchema,
     {
       revalidateOnFocus: false,
       revalidateOnReconnect: false,
+      shouldRetryOnError: false,
     },
   );
 
+  const settingsItems = settingsSchema?.tabs
+    .flatMap((tab) => tab.categories)
+    .flatMap((category) => category.items);
+
   const timetableEnabled =
+    settingsItems?.find((item) => item.key === "timetable.enabled")?.value ===
+    true;
+
+  const parentNewsEnabled =
+    settingsItems?.find((item) => item.key === "operations.parent_news_enabled")
+      ?.value === true;
+
+  const mealPlanEnabled =
     settingsSchema?.tabs
       .flatMap((tab) => tab.categories)
       .flatMap((category) => category.items)
-      .find((item) => item.key === "timetable.enabled")?.value === true;
+      .find((item) => item.key === "operations.meal_plan_enabled")?.value ===
+    true;
 
   const formatGroupAttendanceCount = (groupId: string | number) => {
     if (!canShowGroupAttendanceCounts) return undefined;
@@ -450,6 +539,41 @@ function SidebarContent({ className = "" }: SidebarProps) {
       ),
     [nfcEnabled],
   );
+
+  // Visible "Eltern" accordion sub-pages. Same per-item gating the flat
+  // NAV_ITEMS carried before consolidation: overview + Nachrichten for all
+  // staff, the rest per permission / feature flag.
+  const parentSubPages = useMemo(
+    () =>
+      PARENT_SUB_PAGES.filter((page) => {
+        switch (page.feature) {
+          case "overview":
+          case "messages":
+            return true;
+          case "approvals":
+            return userIsAdmin;
+          case "changeRequests":
+            return userIsAdmin || hasPermission(session, "users:update");
+          case "announcements":
+            return canAnnounce && parentNewsEnabled;
+          case "mealPlan":
+            return (
+              mealPlanEnabled === true &&
+              (userIsAdmin || hasPermission(session, "config:read"))
+            );
+        }
+      }),
+    [userIsAdmin, session, canAnnounce, parentNewsEnabled, mealPlanEnabled],
+  );
+
+  // Aggregate red badge on the collapsed "Eltern" header: unread messages plus
+  // pending change requests (only when that sub-page is actually visible).
+  const parentShowsChangeRequests = parentSubPages.some(
+    (page) => page.feature === "changeRequests",
+  );
+  const parentSectionBadgeCount =
+    messagesUnreadCount +
+    (parentShowsChangeRequests ? changeRequestsPendingCount : 0);
 
   // Nav items hidden in binary-mode tenants. Rooms and Activities are room/visit
   // concepts with no operational meaning when the tenant only tracks
@@ -466,6 +590,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
       return false;
     }
     if (item.alwaysShow) return true;
+    // Permission-gated items (e.g. Änderungsanfragen on users:update): show for
+    // admins or anyone holding the permission, matching the backend route gate.
+    if (
+      item.requiresPermission &&
+      !userIsAdmin &&
+      !hasPermission(session, item.requiresPermission)
+    )
+      return false;
     if (item.requiresAdmin && !userIsAdmin) return false;
     return true;
   });
@@ -522,6 +654,22 @@ function SidebarContent({ className = "" }: SidebarProps) {
     }
     if (href === "/dashboard") return pathname === "/dashboard";
     if (href === "/parents") return pathname === "/parents" || pathname === "/";
+    // /staff/dienstplan has its own sidebar entry — don't also light up "Mitarbeiter"
+    if (href === "/staff") {
+      return (
+        pathname.startsWith("/staff") &&
+        !pathname.startsWith("/staff/dienstplan")
+      );
+    }
+    if (href.startsWith("/parents/")) {
+      // On the parents host the proxy rewrites /parents/* internally while the
+      // browser (and usePathname) shows the external path without the prefix —
+      // /parents/news is visited as /news. Match both spellings.
+      return (
+        pathname.startsWith(href) ||
+        pathname.startsWith(href.slice("/parents".length))
+      );
+    }
     return pathname.startsWith(href);
   };
 
@@ -620,10 +768,8 @@ function SidebarContent({ className = "" }: SidebarProps) {
           </svg>
           <span className="flex flex-1 items-center justify-between">
             {item.label}
-            {item.href === "/suggestions" && suggestionsUnreadCount > 0 && (
-              <span className="ml-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-semibold text-white">
-                {suggestionsUnreadCount > 99 ? "99+" : suggestionsUnreadCount}
-              </span>
+            {item.href === "/suggestions" && (
+              <UnreadBadge count={suggestionsUnreadCount} className="ml-2" />
             )}
           </span>
         </Link>
@@ -777,6 +923,23 @@ function SidebarContent({ className = "" }: SidebarProps) {
     }
   }, [toggle, pathname, router]);
 
+  const activeParentSubPageHref = getActiveParentSubPageHref(pathname);
+  const isOnParentPage = activeParentSubPageHref !== null;
+
+  const handleParentToggle = useCallback(() => {
+    // Hub = the /eltern overview. Mirrors the other accordions'
+    // navigate-on-expand behavior so the section label lands on a real page.
+    const onSection = getActiveParentSubPageHref(pathname) !== null;
+    if (!onSection) {
+      toggle("eltern");
+      router.push("/eltern");
+    } else if (pathname === "/eltern") {
+      toggle("eltern");
+    } else {
+      router.push("/eltern");
+    }
+  }, [toggle, pathname, router]);
+
   // Caregiver accordions are driven by the explicit caregiver role.
   // Show staff accordions for caregivers (user/teacher role) and for admins
   // only when the admin_supervision_overview setting is confirmed enabled
@@ -825,10 +988,8 @@ function SidebarContent({ className = "" }: SidebarProps) {
         </svg>
         <span className="flex flex-1 items-center justify-between">
           {item.label}
-          {item.href === operatorSuggestionsHref && operatorUnreadCount > 0 && (
-            <span className="ml-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-semibold text-white">
-              {operatorUnreadCount > 99 ? "99+" : operatorUnreadCount}
-            </span>
+          {item.href === operatorSuggestionsHref && (
+            <UnreadBadge count={operatorUnreadCount} className="ml-2" />
           )}
         </span>
       </Link>
@@ -901,6 +1062,69 @@ function SidebarContent({ className = "" }: SidebarProps) {
               </svg>
               <span>{tParentNav("children")}</span>
             </Link>
+            <Link
+              href="/parents/messages"
+              className={getLinkClasses("/parents/messages")}
+            >
+              <svg
+                className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d={navigationIcons.chat}
+                />
+              </svg>
+              <span>{tParentNav("messages")}</span>
+              <UnreadBadge count={parentMessagesUnread} className="ml-auto" />
+            </Link>
+            {parentPortalNewsEnabled && (
+              <Link
+                href="/parents/news"
+                className={getLinkClasses("/parents/news")}
+              >
+                <svg
+                  className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d={navigationIcons.newspaper}
+                  />
+                </svg>
+                <span>{tParentNav("news")}</span>
+                <UnreadBadge count={parentNewsUnread} className="ml-auto" />
+              </Link>
+            )}
+            {parentMealPlanEnabled && (
+              <Link
+                href="/parents/meal-plan"
+                className={getLinkClasses("/parents/meal-plan")}
+              >
+                <svg
+                  className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d={navigationIcons.utensils}
+                  />
+                </svg>
+                <span>{tParentNav("mealPlan")}</span>
+              </Link>
+            )}
             <div className="mt-5">
               <p className="mb-1.5 px-3 text-[10px] font-semibold tracking-wider text-gray-400 uppercase lg:px-4 xl:px-3">
                 {tParentNav("comingSoon")}
@@ -1060,6 +1284,45 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
           {/* Vertretungen (admin, flat) */}
           {substitutionsItem && renderNavItem(substitutionsItem)}
+
+          {/* Eltern accordion — bundles the parent-communication surfaces
+              (Nachrichten, Anfragen, Mitteilungen, Essensplan) behind an
+              overview hub. Shown to all staff; sub-items are gated per item. */}
+          <SidebarAccordionSection
+            icon={navigationIcons.parents}
+            label="Eltern"
+            activeColor="text-[#5080D8]"
+            isExpanded={expanded === "eltern"}
+            onToggle={handleParentToggle}
+            isActive={isOnParentPage}
+            isIconActive={isOnParentPage}
+            hasChildren={parentSubPages.length > 0}
+            badgeCount={parentSectionBadgeCount}
+          >
+            {parentSubPages.map((page) => (
+              <SidebarSubItem
+                key={page.href}
+                // Every Eltern sub-page is a tenant-scoped [tenant]/… route
+                // (/eltern, /messages, /admin/guardian-approvals, /meal-plan,
+                // …). In path-routing mode a bare href is either captured as
+                // the tenant slug ("/eltern") or leaves the current tenant path
+                // entirely ("/messages" → wrong slug / missing route), so
+                // prefix all of them via tenantPath — matching the accordion
+                // header's tenant-aware router.push and the /eltern page's
+                // card links. No-op in subdomain mode.
+                href={tenantPath(page.href)}
+                label={page.label}
+                isActive={activeParentSubPageHref === page.href}
+                badgeCount={
+                  page.feature === "messages"
+                    ? messagesUnreadCount
+                    : page.feature === "changeRequests"
+                      ? changeRequestsPendingCount
+                      : 0
+                }
+              />
+            ))}
+          </SidebarAccordionSection>
 
           {/* Datenverwaltung accordion (admin only) */}
           {userIsAdmin && (

@@ -121,6 +121,15 @@ func hasPermission(required string, permissions []string) bool {
 	return false
 }
 
+// HasAdminWildcard reports whether the permission set carries a system-wide
+// admin scope (admin:* or *:*). Handlers use this to decide admin-vs-scoped
+// behavior consistently with the rest of the authorization layer instead of
+// relying on the literal "admin" role name (claims.IsAdmin), which misses
+// custom roles and service accounts granted the wildcard.
+func HasAdminWildcard(permissions []string) bool {
+	return hasAdminWildcard(permissions)
+}
+
 // hasAdminWildcard checks if permissions list contains admin wildcard
 func hasAdminWildcard(permissions []string) bool {
 	for _, perm := range permissions {

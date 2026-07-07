@@ -32,10 +32,13 @@ import (
 	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
 	importAPI "github.com/moto-nrw/project-phoenix/api/import"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
+	mealplanAPI "github.com/moto-nrw/project-phoenix/api/mealplan"
+	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
 	roomsAPI "github.com/moto-nrw/project-phoenix/api/rooms"
 	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
 	sseAPI "github.com/moto-nrw/project-phoenix/api/sse"
 	staffAPI "github.com/moto-nrw/project-phoenix/api/staff"
+	staffshiftsAPI "github.com/moto-nrw/project-phoenix/api/staff-shifts"
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
 	substitutionsAPI "github.com/moto-nrw/project-phoenix/api/substitutions"
 	suggestionsAPI "github.com/moto-nrw/project-phoenix/api/suggestions"
@@ -45,6 +48,8 @@ import (
 	usersAPI "github.com/moto-nrw/project-phoenix/api/users"
 	worktimemodelsAPI "github.com/moto-nrw/project-phoenix/api/work-time-models"
 
+	announcementAPI "github.com/moto-nrw/project-phoenix/api/announcement"
+	messagingAPI "github.com/moto-nrw/project-phoenix/api/messaging"
 	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
 	parentAPI "github.com/moto-nrw/project-phoenix/api/parent"
 	platformAPI "github.com/moto-nrw/project-phoenix/api/platform"
@@ -76,7 +81,9 @@ type API struct {
 	Activities       *activitiesAPI.Resource
 	Staff            *staffAPI.Resource
 	WorkTimeModels   *worktimemodelsAPI.Resource
+	StaffShifts      *staffshiftsAPI.Resource
 	Feedback         *feedbackAPI.Resource
+	MealPlan         *mealplanAPI.Resource
 	Suggestions      *suggestionsAPI.Resource
 	Enrollment       *enrollmentAPI.Resource
 	Schedules        *schedulesAPI.Resource
@@ -92,6 +99,9 @@ type API struct {
 	TimeTracking     *timeTrackingAPI.Resource
 	Timetable        *timetableAPI.Resource
 	Emergency        *emergencyAPI.Resource
+	Messaging        *messagingAPI.Resource
+	Announcements    *announcementAPI.Resource
+	Reminders        *remindersAPI.Resource
 
 	// Operator Dashboard (platform domain)
 	Operator *operatorAPI.Resource
@@ -380,8 +390,11 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		InstanceService:         api.Services.Instance,
 		SchoolService:           api.Services.Schools,
 		SettingsService:         api.Services.Settings,
+		MasterDataReviewService: api.Services.MasterDataReview,
+		CareRequestService:      api.Services.CareRequests,
 		StudentStatusDayService: api.Services.StudentStatusDays,
 		StudentHistoryService:   api.Services.StudentHistory,
+		ActivityService:         api.Services.Activities,
 		EnrollmentDecision:      api.Services.EnrollmentDecision,
 		EnrollmentFormSchema:    api.Services.EnrollmentFormSchema,
 		Broadcaster:             api.Services.RealtimeHub,
@@ -390,13 +403,17 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		Logger:                  logger.With("handler", "students"),
 		DB:                      db,
 	})
+	api.Messaging = messagingAPI.NewResource(api.Services.Messaging, db)
+	api.Announcements = announcementAPI.NewResource(api.Services.ParentAnnouncement, db)
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, db)
 	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.GuardianInvitation, api.Services.Users, api.Services.Education, api.Services.UserContext, db)
 	api.Import = importAPI.NewResource(api.Services.Import, api.Services.StaffImport, api.Services.Users, db)
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
 	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.StaffOffboarding, api.Services.Education, api.Services.Auth, api.Services.WorkSession, api.Services.StaffAbsence, db, logger.With("handler", "staff"))
 	api.WorkTimeModels = worktimemodelsAPI.NewResource(api.Services.WorkTimeModels, db, logger.With("handler", "work-time-models"))
+	api.StaffShifts = staffshiftsAPI.NewResource(api.Services.StaffShifts, api.Services.Users, db, logger.With("handler", "staff-shifts"))
 	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback, api.Services.Settings, db)
+	api.MealPlan = mealplanAPI.NewResource(api.Services.MealPlan, api.Services.Settings, db)
 	api.Enrollment = enrollmentAPI.NewResource(
 		api.Services.EnrollmentFormSchema,
 		api.Services.EnrollmentCareOffering,
@@ -406,6 +423,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		api.Services.EnrollmentDecision,
 		api.Services.EnrollmentReport,
 		api.Services.EnrollmentRollover,
+		api.Services.EnrollmentChangeRequest,
 		api.Services.GuardianInvitation,
 		api.Services.GuardianProfileLoader,
 		api.Services.Schools,
@@ -441,7 +459,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education, db)
 	api.Database = databaseAPI.NewResource(api.Services.Database, db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
-	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users, api.Services.Settings, db)
+	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users, api.Services.Settings, api.Services.StaffShifts, db)
 	api.Timetable = timetableAPI.NewResource(timetableAPI.Dependencies{
 		CalendarPeriodService:  api.Services.CalendarPeriod,
 		MaterializationService: api.Services.Materialization,
@@ -457,6 +475,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		DB:                     db,
 	})
 	api.Emergency = emergencyAPI.NewResource(api.Services.Emergency, db)
+	api.Reminders = remindersAPI.NewResource(api.Services.Reminders, api.Services.UserContext, db)
 
 	// Initialize operator dashboard resources
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
@@ -578,6 +597,8 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 		// Mount student resources
 		r.Mount("/students", a.Students.Router())
+		r.Mount("/messages", a.Messaging.Router())
+		r.Mount("/parent-announcements", a.Announcements.Router())
 
 		// Mount guardian resources
 		r.Mount("/guardians", a.Guardians.Router())
@@ -591,9 +612,13 @@ func (a *API) registerRoutesWithRateLimiting() {
 		// Mount staff resources
 		r.Mount("/staff", a.Staff.Router())
 		r.Mount("/work-time-models", a.WorkTimeModels.Router())
+		r.Mount("/staff-shifts", a.StaffShifts.Router())
 
 		// Mount feedback resources
 		r.Mount("/feedback", a.Feedback.Router())
+
+		// Mount meal plan resources
+		r.Mount("/meal-plan", a.MealPlan.Router())
 
 		// Mount enrollment resources (parent-enrollment PR 5+)
 		r.Mount("/enrollment", a.Enrollment.Router())
@@ -640,6 +665,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 		// Mount emergency snapshot resources
 		r.Mount("/emergency", a.Emergency.Router())
 
+		// Mount reminders resources (visual-only staff reminders, issue #1457)
+		r.Mount("/reminders", a.Reminders.Router())
+
 		// Mount admin resources
 		r.Mount("/admin/grade-transitions", a.GradeTransitions.Router())
 
@@ -671,4 +699,10 @@ func (a *API) registerRoutesWithRateLimiting() {
 		a.Parent.SetAuthRateLimiter(authRateLimiter.Middleware())
 	}
 	a.Router.Mount("/parent", a.Parent.Router())
+
+	// Parent-portal SSE stream. Mounted at root (not under /parent, which is a
+	// catch-all mount) and authenticated with ParentMiddleware. Delivers only
+	// whitelisted triggers (parent_message) for the tenants of the guardian's
+	// children.
+	a.Router.Mount("/parent-sse", a.SSE.ParentRouter())
 }

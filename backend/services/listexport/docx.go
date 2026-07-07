@@ -66,7 +66,15 @@ func documentXML(doc Document) string {
 	for _, filter := range doc.Filters {
 		writeParagraph(&b, filter, false)
 	}
-	writeTable(&b, doc)
+	for segmentIdx, segment := range groupedRowSegments(doc.Rows) {
+		if segment.title != "" {
+			if segmentIdx > 0 {
+				writeBlankParagraph(&b)
+			}
+			writeGroupHeading(&b, segment.title)
+		}
+		writeTable(&b, doc.Columns, segment.rows)
+	}
 	writeParagraph(&b, "moto", false)
 	b.WriteString(`<w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/><w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720" w:header="450" w:footer="450" w:gutter="0"/></w:sectPr>`)
 	b.WriteString(`</w:body></w:document>`)
@@ -184,16 +192,39 @@ func writeParagraph(b *bytes.Buffer, text string, bold bool) {
 	b.WriteString(`</w:t></w:r></w:p>`)
 }
 
-func writeTable(b *bytes.Buffer, doc Document) {
+// rowSegment is a run of consecutive rows sharing one group heading; an
+// ungrouped document yields a single segment with an empty title.
+type rowSegment struct {
+	title string
+	rows  []Row
+}
+
+func groupedRowSegments(rows []Row) []rowSegment {
+	segments := []rowSegment{{}}
+	for _, row := range rows {
+		if row.GroupTitle != "" {
+			if len(segments) == 1 && segments[0].title == "" && len(segments[0].rows) == 0 {
+				segments[0].title = row.GroupTitle
+				continue
+			}
+			segments = append(segments, rowSegment{title: row.GroupTitle})
+			continue
+		}
+		segments[len(segments)-1].rows = append(segments[len(segments)-1].rows, row)
+	}
+	return segments
+}
+
+func writeTable(b *bytes.Buffer, columns []Column, rows []Row) {
 	b.WriteString(`<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblBorders><w:top w:val="single" w:sz="4" w:color="D1D5DB"/><w:left w:val="single" w:sz="4" w:color="D1D5DB"/><w:bottom w:val="single" w:sz="4" w:color="D1D5DB"/><w:right w:val="single" w:sz="4" w:color="D1D5DB"/><w:insideH w:val="single" w:sz="4" w:color="D1D5DB"/><w:insideV w:val="single" w:sz="4" w:color="D1D5DB"/></w:tblBorders></w:tblPr>`)
 	b.WriteString(`<w:tr>`)
-	for _, column := range doc.Columns {
+	for _, column := range columns {
 		writeCell(b, column.Label, true)
 	}
 	b.WriteString(`</w:tr>`)
-	for _, row := range doc.Rows {
+	for _, row := range rows {
 		b.WriteString(`<w:tr>`)
-		for _, column := range doc.Columns {
+		for _, column := range columns {
 			writeCell(b, row.Values[column.ID], false)
 		}
 		b.WriteString(`</w:tr>`)

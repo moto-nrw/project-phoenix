@@ -84,12 +84,6 @@ vi.mock("./auth-failure", () => ({
     mockHandleAuthFailure(...args) as unknown,
 }));
 
-const mockRefreshSessionTokensOnServer = vi.fn();
-vi.mock("~/server/auth/token-refresh", () => ({
-  refreshSessionTokensOnServer: (...args: unknown[]) =>
-    mockRefreshSessionTokensOnServer(...args) as unknown,
-}));
-
 vi.mock("./api-helpers", () => ({
   fetchWithRetry: vi.fn(),
   convertToBackendRoom: vi.fn(<T>(data: T): T => data),
@@ -106,11 +100,7 @@ vi.mock("./group-helpers", () => ({
   mapSingleGroupResponse: vi.fn(<T>(data: T): T => data),
   mapGroupResponse: vi.fn(<T>(data: T): T => data),
   prepareGroupForBackend: vi.fn(<T>(data: T): T => data),
-  mapSingleCombinedGroupResponse: vi.fn(<T>(data: T): T => data),
-  prepareCombinedGroupForBackend: vi.fn(<T>(data: T): T => data),
   mapGroupsResponse: vi.fn(<T>(data: T): T => data),
-  mapCombinedGroupsResponse: vi.fn(<T>(data: T): T => data),
-  mapCombinedGroupResponse: vi.fn(<T>(data: T): T => data),
 }));
 
 vi.mock("./room-helpers", () => ({
@@ -286,7 +276,7 @@ describe("response interceptor token refresh queue", () => {
     await expect(requestInterceptorRejected(error)).rejects.toBe(error);
   });
 
-  it("server context rejects 401 retries without importing server refresh", async () => {
+  it("server context rejects 401 retries", async () => {
     const original = globalThis.window;
     Object.defineProperty(globalThis, "window", {
       value: undefined,
@@ -302,64 +292,7 @@ describe("response interceptor token refresh queue", () => {
       });
 
       await expect(responseInterceptorRejected(error)).rejects.toBe(error);
-      expect(mockRefreshSessionTokensOnServer).not.toHaveBeenCalled();
       expect(headers.Authorization).toBeUndefined();
-    } finally {
-      Object.defineProperty(globalThis, "window", {
-        value: original,
-        writable: true,
-        configurable: true,
-      });
-    }
-  });
-
-  it("server-side refresh throws original error when no access token is returned", async () => {
-    const original = globalThis.window;
-    Object.defineProperty(globalThis, "window", {
-      value: undefined,
-      writable: true,
-      configurable: true,
-    });
-    try {
-      mockRefreshSessionTokensOnServer.mockResolvedValue({
-        refreshToken: "server-refresh",
-      });
-      const error = make401Error({
-        url: "/api/server",
-        method: "get",
-        headers: {},
-      });
-
-      await expect(responseInterceptorRejected(error)).rejects.toBe(error);
-      expect(mockAxiosInstance).not.toHaveBeenCalled();
-    } finally {
-      Object.defineProperty(globalThis, "window", {
-        value: original,
-        writable: true,
-        configurable: true,
-      });
-    }
-  });
-
-  it("server-side refresh throws original error when refresh throws", async () => {
-    const original = globalThis.window;
-    Object.defineProperty(globalThis, "window", {
-      value: undefined,
-      writable: true,
-      configurable: true,
-    });
-    try {
-      mockRefreshSessionTokensOnServer.mockRejectedValue(
-        new Error("server refresh failed"),
-      );
-      const error = make401Error({
-        url: "/api/server",
-        method: "get",
-        headers: {},
-      });
-
-      await expect(responseInterceptorRejected(error)).rejects.toBe(error);
-      expect(mockAxiosInstance).not.toHaveBeenCalled();
     } finally {
       Object.defineProperty(globalThis, "window", {
         value: original,

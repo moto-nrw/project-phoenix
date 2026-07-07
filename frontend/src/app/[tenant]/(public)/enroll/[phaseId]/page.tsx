@@ -2,7 +2,7 @@
 
 import { use, useEffect, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- public page; tenant-router not needed
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { CalendarDays, Check, Mail, ShieldCheck } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import {
@@ -17,7 +17,7 @@ import {
   PublicEnrollmentSteps,
   PublicInfoCard,
 } from "~/components/enrollment/public-enrollment-shell";
-import { useTenant } from "~/components/tenant/tenant-provider";
+import { useTenant } from "~/lib/tenant-context";
 import {
   fetchPublicEnrollmentBootstrap,
   type PublicEnrollmentBootstrap,
@@ -42,6 +42,8 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
   const locale = useLocale();
   const { phaseId } = use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const lateInviteToken = searchParams.get("late_invite")?.trim();
   const { tenantSlug, tenant } = useTenant();
   const [bootstrap, setBootstrap] = useState<PublicEnrollmentBootstrap | null>(
     null,
@@ -53,7 +55,9 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    void fetchPublicEnrollmentBootstrap(tenantSlug, phaseId)
+    void fetchPublicEnrollmentBootstrap(tenantSlug, phaseId, {
+      lateInviteToken,
+    })
       .then((result) => {
         if (!cancelled) setBootstrap(result);
       })
@@ -68,7 +72,7 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
     return () => {
       cancelled = true;
     };
-  }, [phaseId, tenantSlug, t]);
+  }, [lateInviteToken, phaseId, tenantSlug, t]);
 
   const phase = bootstrap?.phase ?? null;
   const prefetchedData = useMemo<
@@ -135,6 +139,7 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
               gradeLevelMax={4}
               onSubmitted={handleSubmitted}
               prefetchedData={prefetchedData}
+              lateInviteToken={lateInviteToken ?? undefined}
               localizedCopy
             />
           )}

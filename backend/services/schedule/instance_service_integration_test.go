@@ -66,6 +66,10 @@ func (b *recordingInstanceBroadcaster) BroadcastToAll(event realtime.Event) erro
 	return nil
 }
 
+func (b *recordingInstanceBroadcaster) BroadcastParentMessage(_, _ int64, _ realtime.Event) error {
+	return nil
+}
+
 func (b *recordingInstanceBroadcaster) BroadcastToTenant(tenantID int64, event realtime.Event) error {
 	b.tenantID = tenantID
 	b.tenantEvents = append(b.tenantEvents, event)
@@ -882,9 +886,8 @@ func TestInstance_UpdatePlanned_RejectsNonPlanned(t *testing.T) {
 	}
 }
 
-func TestInstance_DeleteCancelled_OnlyCancelled(t *testing.T) {
+func TestInstance_DeleteCancelled_PlannedOrCancelled(t *testing.T) {
 	for _, status := range []string{
-		scheduleModels.InstanceStatusPlanned,
 		scheduleModels.InstanceStatusActive,
 		scheduleModels.InstanceStatusCompleted,
 	} {
@@ -900,23 +903,67 @@ func TestInstance_DeleteCancelled_OnlyCancelled(t *testing.T) {
 		})
 	}
 
-	t.Run("deletes cancelled", func(t *testing.T) {
+	t.Run("deletes planned template occurrence and writes cancellation exception", func(t *testing.T) {
+		s := buildLifecycle(t)
+		ai := seedInstance(t, s, false, false)
+
+		require.NoError(t, s.svc.DeleteCancelled(s.ctx, ai.ID))
+		assert.False(t, instanceExists(t, s, ai.ID))
+
+		exceptions := loadLifecycleExceptions(t, s)
+		require.Len(t, exceptions, 1)
+		assert.Equal(t, s.tmplID, exceptions[0].ActivityGroupID)
+		assert.Equal(t, ai.Date, exceptions[0].ExceptionDate)
+		assert.Equal(t, scheduleModels.ActivityExceptionCancelled, exceptions[0].ExceptionType)
+	})
+
+	t.Run("deletes cancelled template occurrence", func(t *testing.T) {
 		s := buildLifecycle(t)
 		ai := seedInstance(t, s, false, false)
 		forceSetInstanceStatus(t, s, ai.ID, scheduleModels.InstanceStatusCancelled)
 
 		require.NoError(t, s.svc.DeleteCancelled(s.ctx, ai.ID))
 		assert.False(t, instanceExists(t, s, ai.ID))
+		assert.Len(t, loadLifecycleExceptions(t, s), 1)
+	})
+
+	t.Run("deletes spontaneous planned occurrence without exception", func(t *testing.T) {
+		s := buildLifecycle(t)
+		id := insertInstance(t, s, timezone.NewDate(2026, 4, 20), scheduleModels.InstanceStatusPlanned, true)
+
+		require.NoError(t, s.svc.DeleteCancelled(s.ctx, id))
+		assert.False(t, instanceExists(t, s, id))
+		assert.Empty(t, loadLifecycleExceptions(t, s))
+	})
+
+	t.Run("rejects single delete when template has multiple same-day slots", func(t *testing.T) {
+		s := buildLifecycle(t)
+		date := timezone.NewDate(2026, 4, 20)
+		firstID := insertInstanceAt(t, s, date, scheduleModels.InstanceStatusPlanned, false, 14)
+		secondID := insertInstanceAt(t, s, date, scheduleModels.InstanceStatusPlanned, false, 15)
+
+		err := s.svc.DeleteCancelled(s.ctx, firstID)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, scheduleSvc.ErrAmbiguousTemplateInstanceDelete)
+		assert.True(t, instanceExists(t, s, firstID))
+		assert.True(t, instanceExists(t, s, secondID))
+		assert.Empty(t, loadLifecycleExceptions(t, s))
 	})
 }
 
 func insertInstance(t *testing.T, s *lifecycleSetup, date timezone.Date, status string, spontaneous bool) int64 {
 	t.Helper()
+	return insertInstanceAt(t, s, date, status, spontaneous, 14)
+}
+
+func insertInstanceAt(t *testing.T, s *lifecycleSetup, date timezone.Date, status string, spontaneous bool, startHour int) int64 {
+	t.Helper()
+	endHour := startHour + 1
 	row := &scheduleModels.ActivityInstance{
 		Date:          date,
 		Title:         fmt.Sprintf("Row-%s-%d", status, time.Now().UnixNano()),
-		StartTime:     time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
-		EndTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
+		StartTime:     time.Date(1, 1, 1, startHour, 0, 0, 0, time.UTC),
+		EndTime:       time.Date(1, 1, 1, endHour, 0, 0, 0, time.UTC),
 		RoomID:        s.roomID,
 		Status:        status,
 		IsSpontaneous: spontaneous,
@@ -927,6 +974,9 @@ func insertInstance(t *testing.T, s *lifecycleSetup, date timezone.Date, status 
 	row.SetTenantID(1)
 	_, err := s.db.NewInsert().Model(row).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", row.ID)
+	})
 	return row.ID
 }
 
@@ -954,6 +1004,25 @@ func instanceExists(t *testing.T, s *lifecycleSetup, id int64) bool {
 		Scan(s.ctx, &count)
 	require.NoError(t, err)
 	return count > 0
+}
+
+func loadLifecycleExceptions(t *testing.T, s *lifecycleSetup) []*scheduleModels.ActivityException {
+	t.Helper()
+	var rows []*scheduleModels.ActivityException
+	err := s.db.NewSelect().
+		Model(&rows).
+		ModelTableExpr(`schedule.activity_exceptions AS "activity_exception"`).
+		Where(`"activity_exception".tenant_id = ?`, 1).
+		Order("exception_date ASC").
+		Scan(s.ctx)
+	require.NoError(t, err)
+	for _, row := range rows {
+		id := row.ID
+		t.Cleanup(func() {
+			testpkg.CleanupTableRecords(t, s.db, "schedule.activity_exceptions", id)
+		})
+	}
+	return rows
 }
 
 // --- B10 follow-up: Complete marks remaining expected as absent -------------

@@ -26,6 +26,13 @@ interface MultiCheckboxSelectProps {
   readonly disabled?: boolean;
   readonly className?: string;
   readonly menuClassName?: string;
+  /**
+   * Adds a filter input and a "Alle auswählen / Aufheben" row to the menu —
+   * for long option lists (e.g. all AGs of a big school). Select-all and
+   * clear act on the currently FILTERED options only.
+   */
+  readonly searchable?: boolean;
+  readonly searchPlaceholder?: string;
 }
 
 const TRIGGER_CLASS =
@@ -45,12 +52,15 @@ export function MultiCheckboxSelect({
   disabled = false,
   className = "",
   menuClassName = "",
+  searchable = false,
+  searchPlaceholder = "Suchen...",
 }: MultiCheckboxSelectProps) {
   const generatedId = useId();
   const triggerId = id ?? generatedId;
   const menuId = `${triggerId}-menu`;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const selectedValues = new Set(value);
   const selectedOptions = options.filter((option) =>
     selectedValues.has(option.value),
@@ -65,7 +75,14 @@ export function MultiCheckboxSelect({
           ? selectedOptions[0]?.label
           : multipleLabel(selectedOptions.length);
 
-  useClickOutside(containerRef, () => setOpen(false), open);
+  useClickOutside(
+    containerRef,
+    () => {
+      setOpen(false);
+      setSearchTerm("");
+    },
+    open,
+  );
 
   const toggleValue = useCallback(
     (optionValue: string) => {
@@ -80,6 +97,37 @@ export function MultiCheckboxSelect({
     [onChange, value],
   );
 
+  const normalizedTerm = searchTerm.trim().toLowerCase();
+  const visibleOptions =
+    searchable && normalizedTerm
+      ? options.filter((option) =>
+          option.label.toLowerCase().includes(normalizedTerm),
+        )
+      : options;
+
+  const selectableVisible = visibleOptions.filter((o) => !o.disabled);
+  const allVisibleSelected =
+    selectableVisible.length > 0 &&
+    selectableVisible.every((o) => selectedValues.has(o.value));
+
+  const selectAllVisible = useCallback(() => {
+    const next = new Set(value);
+    for (const option of selectableVisible) next.add(option.value);
+    onChange(Array.from(next));
+  }, [onChange, value, selectableVisible]);
+
+  const clearVisible = useCallback(() => {
+    const visible = new Set(selectableVisible.map((o) => o.value));
+    onChange(value.filter((v) => !visible.has(v)));
+  }, [onChange, value, selectableVisible]);
+
+  const toggleOpen = useCallback(() => {
+    setOpen((current) => {
+      if (current) setSearchTerm("");
+      return !current;
+    });
+  }, []);
+
   return (
     <div ref={containerRef} className="relative">
       <button
@@ -90,7 +138,7 @@ export function MultiCheckboxSelect({
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
         disabled={isDisabled}
-        onClick={() => setOpen((current) => !current)}
+        onClick={toggleOpen}
         className={cn(TRIGGER_CLASS, className)}
       >
         <span
@@ -120,7 +168,37 @@ export function MultiCheckboxSelect({
             menuClassName,
           )}
         >
-          {options.map((option) => (
+          {searchable && (
+            <div className="sticky top-0 z-10 space-y-1.5 border-b border-gray-100 bg-white px-3 py-2">
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder={searchPlaceholder}
+                aria-label={searchPlaceholder}
+                className="block w-full rounded-lg border-0 bg-white px-3 py-1.5 text-sm text-gray-900 ring-1 ring-gray-200 transition-all ring-inset placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
+              />
+              {selectableVisible.length > 0 && (
+                <button
+                  type="button"
+                  onClick={allVisibleSelected ? clearVisible : selectAllVisible}
+                  className="text-xs font-medium text-gray-600 underline underline-offset-2 hover:text-gray-900"
+                >
+                  {allVisibleSelected
+                    ? normalizedTerm
+                      ? "Treffer abwählen"
+                      : "Auswahl aufheben"
+                    : normalizedTerm
+                      ? "Alle Treffer auswählen"
+                      : "Alle auswählen"}
+                </button>
+              )}
+            </div>
+          )}
+          {searchable && visibleOptions.length === 0 && (
+            <p className="px-4 py-2.5 text-sm text-gray-500">Keine Treffer.</p>
+          )}
+          {visibleOptions.map((option) => (
             <label
               key={option.value}
               role="menuitemcheckbox"

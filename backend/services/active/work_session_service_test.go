@@ -29,10 +29,12 @@ type wsMockWorkSessionRepository struct {
 	listFunc                func(ctx context.Context, options *base.QueryOptions) ([]*activeModels.WorkSession, error)
 	getByStaffAndDateFunc   func(ctx context.Context, staffID int64, date timezone.Date) (*activeModels.WorkSession, error)
 	getCurrentByStaffIDFunc func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	getCurrentForUpdateFunc func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	lockOpenByIDFunc        func(ctx context.Context, id int64) (*activeModels.WorkSession, error)
 	getHistoryByStaffIDFunc func(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error)
 	getOpenSessionsFunc     func(ctx context.Context, beforeDate timezone.Date) ([]*activeModels.WorkSession, error)
 	getTodayPresenceMapFunc func(ctx context.Context) (map[int64]string, error)
-	closeSessionFunc        func(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) error
+	closeSessionFunc        func(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) (bool, error)
 	updateBreakMinutesFunc  func(ctx context.Context, id int64, breakMinutes int) error
 }
 
@@ -85,6 +87,30 @@ func (m *wsMockWorkSessionRepository) GetCurrentByStaffID(ctx context.Context, s
 	return nil, sql.ErrNoRows
 }
 
+func (m *wsMockWorkSessionRepository) GetCurrentByStaffIDForUpdate(ctx context.Context, staffID int64) (*activeModels.WorkSession, error) {
+	if m.getCurrentForUpdateFunc != nil {
+		return m.getCurrentForUpdateFunc(ctx, staffID)
+	}
+	return m.GetCurrentByStaffID(ctx, staffID)
+}
+
+func (m *wsMockWorkSessionRepository) LockOpenByIDForUpdate(ctx context.Context, id int64) (*activeModels.WorkSession, error) {
+	if m.lockOpenByIDFunc != nil {
+		return m.lockOpenByIDFunc(ctx, id)
+	}
+	if m.findByIDFunc != nil {
+		session, err := m.findByIDFunc(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if session.CheckOutTime != nil {
+			return nil, sql.ErrNoRows
+		}
+		return session, nil
+	}
+	return nil, sql.ErrNoRows
+}
+
 func (m *wsMockWorkSessionRepository) GetHistoryByStaffID(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error) {
 	if m.getHistoryByStaffIDFunc != nil {
 		return m.getHistoryByStaffIDFunc(ctx, staffID, from, to)
@@ -106,11 +132,11 @@ func (m *wsMockWorkSessionRepository) GetTodayPresenceMap(ctx context.Context) (
 	return nil, nil
 }
 
-func (m *wsMockWorkSessionRepository) CloseSession(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) error {
+func (m *wsMockWorkSessionRepository) CloseSession(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) (bool, error) {
 	if m.closeSessionFunc != nil {
 		return m.closeSessionFunc(ctx, id, checkOutTime, autoCheckedOut)
 	}
-	return nil
+	return true, nil
 }
 
 func (m *wsMockWorkSessionRepository) UpdateBreakMinutes(ctx context.Context, id int64, breakMinutes int) error {
@@ -217,6 +243,17 @@ func (m *wsMockStaffRepository) ClearWorkTimeModel(context.Context, int64) error
 
 func (m *wsMockStaffRepository) UpdateNotes(ctx context.Context, id int64, notes string) error {
 	return nil
+}
+
+type wsMockSettingsResolver struct {
+	resolveBoolFunc func(ctx context.Context, key string) (bool, error)
+}
+
+func (m *wsMockSettingsResolver) ResolveBool(ctx context.Context, key string) (bool, error) {
+	if m.resolveBoolFunc != nil {
+		return m.resolveBoolFunc(ctx, key)
+	}
+	return false, nil
 }
 
 func (m *wsMockStaffRepository) FindWithPerson(ctx context.Context, id int64) (*userModels.Staff, error) {
@@ -327,10 +364,11 @@ func (m *wsMockWorkSessionBreakRepository) GetExpiredBreaks(ctx context.Context,
 // ============================================================================
 
 type wsMockWorkSessionEditRepository struct {
-	createBatchFunc       func(ctx context.Context, edits []*auditModels.WorkSessionEdit) error
-	getBySessionIDFunc    func(ctx context.Context, sessionID int64) ([]*auditModels.WorkSessionEdit, error)
-	countBySessionIDFunc  func(ctx context.Context, sessionID int64) (int, error)
-	countBySessionIDsFunc func(ctx context.Context, sessionIDs []int64) (map[int64]int, error)
+	createBatchFunc             func(ctx context.Context, edits []*auditModels.WorkSessionEdit) error
+	getBySessionIDFunc          func(ctx context.Context, sessionID int64) ([]*auditModels.WorkSessionEdit, error)
+	countBySessionIDFunc        func(ctx context.Context, sessionID int64) (int, error)
+	countBySessionIDsFunc       func(ctx context.Context, sessionIDs []int64) (map[int64]int, error)
+	countManualBySessionIDsFunc func(ctx context.Context, sessionIDs []int64) (map[int64]int, error)
 }
 
 func (m *wsMockWorkSessionEditRepository) CreateBatch(ctx context.Context, edits []*auditModels.WorkSessionEdit) error {
@@ -359,6 +397,15 @@ func (m *wsMockWorkSessionEditRepository) CountBySessionIDs(ctx context.Context,
 		return m.countBySessionIDsFunc(ctx, sessionIDs)
 	}
 	return map[int64]int{}, nil
+}
+
+func (m *wsMockWorkSessionEditRepository) CountManualBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64]int, error) {
+	if m.countManualBySessionIDsFunc != nil {
+		return m.countManualBySessionIDsFunc(ctx, sessionIDs)
+	}
+	// Existing tests stub countBySessionIDsFunc to mean "edits by a person";
+	// fall back so their semantics are unchanged.
+	return m.CountBySessionIDs(ctx, sessionIDs)
 }
 
 // ============================================================================
@@ -619,6 +666,169 @@ func TestWSCheckIn_Success(t *testing.T) {
 	assert.Nil(t, session.CheckOutTime)
 }
 
+func TestWSCheckIn_PlannedStartEnforcement(t *testing.T) {
+	startAt := func(t *testing.T, hhmm string) *time.Time {
+		t.Helper()
+		parsed, err := time.Parse("15:04", hhmm)
+		require.NoError(t, err)
+		wallClock := timezone.WallClock(parsed)
+		return &wallClock
+	}
+
+	tests := []struct {
+		name          string
+		now           time.Time
+		rows          []*configModels.StaffWorkSchedule
+		wantErr       bool
+		wantCreate    bool
+		wantPlannedAt string
+	}{
+		{
+			name: "before planned start rejects",
+			now:  time.Date(2026, time.July, 6, 8, 59, 0, 0, timezone.Berlin),
+			rows: []*configModels.StaffWorkSchedule{{
+				WeekIndex:      0,
+				RotationLength: 1,
+				DayOfWeek:      configModels.DayMonday,
+				TargetMinutes:  480,
+				StartTime:      startAt(t, "09:00"),
+				ValidFrom:      timezone.DateFromTime(time.Date(2026, time.July, 6, 0, 0, 0, 0, timezone.Berlin)),
+			}},
+			wantErr:       true,
+			wantPlannedAt: "09:00",
+		},
+		{
+			name: "exact planned start allows",
+			now:  time.Date(2026, time.July, 6, 9, 0, 0, 0, timezone.Berlin),
+			rows: []*configModels.StaffWorkSchedule{{
+				WeekIndex:      0,
+				RotationLength: 1,
+				DayOfWeek:      configModels.DayMonday,
+				TargetMinutes:  480,
+				StartTime:      startAt(t, "09:00"),
+				ValidFrom:      timezone.DateFromTime(time.Date(2026, time.July, 6, 0, 0, 0, 0, timezone.Berlin)),
+			}},
+			wantCreate: true,
+		},
+		{
+			name: "after planned start allows",
+			now:  time.Date(2026, time.July, 6, 9, 1, 0, 0, timezone.Berlin),
+			rows: []*configModels.StaffWorkSchedule{{
+				WeekIndex:      0,
+				RotationLength: 1,
+				DayOfWeek:      configModels.DayMonday,
+				TargetMinutes:  480,
+				StartTime:      startAt(t, "09:00"),
+				ValidFrom:      timezone.DateFromTime(time.Date(2026, time.July, 6, 0, 0, 0, 0, timezone.Berlin)),
+			}},
+			wantCreate: true,
+		},
+		{
+			name:       "no schedule keeps existing behavior",
+			now:        time.Date(2026, time.July, 6, 8, 30, 0, 0, timezone.Berlin),
+			rows:       nil,
+			wantCreate: true,
+		},
+		{
+			name: "schedule without start time keeps existing behavior",
+			now:  time.Date(2026, time.July, 6, 8, 30, 0, 0, timezone.Berlin),
+			rows: []*configModels.StaffWorkSchedule{{
+				WeekIndex:      0,
+				RotationLength: 1,
+				DayOfWeek:      configModels.DayMonday,
+				TargetMinutes:  480,
+				ValidFrom:      timezone.DateFromTime(time.Date(2026, time.July, 6, 0, 0, 0, 0, timezone.Berlin)),
+			}},
+			wantCreate: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc, sessionRepo, _, _, _ := wsCreateTestService()
+			svc.nowFunc = func() time.Time { return tt.now }
+			svc.settings = &wsMockSettingsResolver{resolveBoolFunc: func(_ context.Context, key string) (bool, error) {
+				assert.Equal(t, configModels.KeyTimeTrackingEnforcePlannedStart, key)
+				return true, nil
+			}}
+			svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
+				getByStaffIDAndDateFunc: func(_ context.Context, _ int64, _ timezone.Date) ([]*configModels.StaffWorkSchedule, error) {
+					return tt.rows, nil
+				},
+			}
+
+			sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) (*activeModels.WorkSession, error) {
+				return nil, sql.ErrNoRows
+			}
+			created := false
+			sessionRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
+				created = true
+				entity.ID = 10
+				return nil
+			}
+
+			session, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, session)
+				var plannedErr *PlannedStartNotReachedError
+				require.ErrorAs(t, err, &plannedErr)
+				assert.Equal(t, tt.wantPlannedAt, plannedErr.PlannedStartTime)
+				assert.False(t, created, "early check-in must not create a work session")
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, session)
+			assert.Equal(t, tt.wantCreate, created)
+		})
+	}
+}
+
+func TestWSCreateSessionAsAdmin_IgnoresPlannedStartEnforcement(t *testing.T) {
+	svc, sessionRepo, _, auditRepo, _ := wsCreateTestService()
+	ctx := context.Background()
+	editorStaffID := int64(10)
+	targetStaffID := int64(100)
+	checkIn := time.Date(2026, time.July, 6, 8, 0, 0, 0, timezone.Berlin)
+	checkOut := time.Date(2026, time.July, 6, 10, 0, 0, 0, timezone.Berlin)
+
+	svc.settings = &wsMockSettingsResolver{resolveBoolFunc: func(context.Context, string) (bool, error) {
+		t.Fatal("admin-created sessions must not resolve planned-start enforcement")
+		return true, nil
+	}}
+
+	var created *activeModels.WorkSession
+	sessionRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
+		entity.ID = 55
+		created = entity
+		return nil
+	}
+
+	var capturedEdits []*auditModels.WorkSessionEdit
+	auditRepo.createBatchFunc = func(_ context.Context, edits []*auditModels.WorkSessionEdit) error {
+		capturedEdits = edits
+		return nil
+	}
+
+	session, err := svc.CreateSessionAsAdmin(ctx, editorStaffID, targetStaffID, AdminCreateSessionRequest{
+		Date:         checkIn,
+		CheckInTime:  checkIn,
+		CheckOutTime: checkOut,
+		Status:       activeModels.WorkSessionStatusPresent,
+		Notes:        "Früherer Start durch Admin genehmigt",
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, session)
+	require.NotNil(t, created)
+	assert.Equal(t, checkIn, created.CheckInTime)
+	require.NotNil(t, created.CheckOutTime)
+	assert.Equal(t, checkOut, *created.CheckOutTime)
+	assert.Equal(t, editorStaffID, created.CreatedBy)
+	require.NotEmpty(t, capturedEdits, "admin-created sessions must keep audit trail")
+}
+
 func TestWSCheckIn_RejectsEmptyStatus(t *testing.T) {
 	// Issue #1368: staff must explicitly choose Vor Ort vs Homeoffice; the
 	// service no longer silently defaults an empty status to "present".
@@ -655,13 +865,14 @@ func TestWSCheckIn_AlreadyCheckedIn(t *testing.T) {
 
 func TestWSCheckIn_ReopenCheckedOutSession(t *testing.T) {
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	checkIn := time.Now().Add(-4 * time.Hour)
 	checkOut := time.Now().Add(-1 * time.Hour)
 
 	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) (*activeModels.WorkSession, error) {
 		return &activeModels.WorkSession{
 			Model:          base.Model{ID: 1},
 			StaffID:        100,
-			CheckInTime:    time.Now().Add(-4 * time.Hour),
+			CheckInTime:    checkIn,
 			CheckOutTime:   &checkOut,
 			AutoCheckedOut: true,
 			Status:         activeModels.WorkSessionStatusPresent,
@@ -673,6 +884,9 @@ func TestWSCheckIn_ReopenCheckedOutSession(t *testing.T) {
 	sessionRepo.updateFunc = func(_ context.Context, entity *activeModels.WorkSession) error {
 		assert.Nil(t, entity.CheckOutTime)
 		assert.False(t, entity.AutoCheckedOut)
+		assert.Equal(t, checkIn, entity.CheckInTime)
+		require.NotNil(t, entity.ReopenedAt)
+		assert.True(t, entity.ReopenedAt.After(checkOut))
 		return nil
 	}
 
@@ -680,6 +894,8 @@ func TestWSCheckIn_ReopenCheckedOutSession(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, session)
 	assert.Nil(t, session.CheckOutTime)
+	assert.Equal(t, checkIn, session.CheckInTime)
+	require.NotNil(t, session.ReopenedAt)
 }
 
 // TestWSCheckIn_ReopenPreservesOriginalSourceAndStatus locks in the
@@ -943,9 +1159,9 @@ func TestWSCheckOut_Success(t *testing.T) {
 		return nil, nil
 	}
 
-	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, autoCheckedOut bool) error {
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, autoCheckedOut bool) (bool, error) {
 		assert.False(t, autoCheckedOut)
-		return nil
+		return true, nil
 	}
 
 	supervisorRepo.endAllActiveByStaffIDFunc = func(_ context.Context, _ int64) (int, error) {
@@ -1026,8 +1242,8 @@ func TestWSCheckOut_WithActiveBreak(t *testing.T) {
 		return nil
 	}
 
-	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) error {
-		return nil
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, _ bool) (bool, error) {
+		return true, nil
 	}
 
 	supervisorRepo.endAllActiveByStaffIDFunc = func(_ context.Context, _ int64) (int, error) {
@@ -1081,12 +1297,44 @@ func TestWSStartBreak_Success(t *testing.T) {
 	assert.Equal(t, int64(50), brk.SessionID)
 }
 
+func TestWSStartBreak_LocksCurrentSessionBeforeCreate(t *testing.T) {
+	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
+	staffID := int64(100)
+
+	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
+		t.Fatal("StartBreak must lock the active session before creating a break")
+		return nil, nil
+	}
+	locked := false
+	sessionRepo.getCurrentForUpdateFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
+		locked = true
+		return &activeModels.WorkSession{
+			Model:       base.Model{ID: 50},
+			StaffID:     staffID,
+			CheckInTime: time.Now().Add(-2 * time.Hour),
+		}, nil
+	}
+	breakRepo.getActiveBySessionIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSessionBreak, error) {
+		return nil, nil
+	}
+	breakRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSessionBreak) error {
+		require.True(t, locked, "session lock must happen before break insert")
+		entity.ID = 10
+		return nil
+	}
+
+	brk, err := svc.StartBreak(context.Background(), staffID, nil)
+	require.NoError(t, err)
+	require.NotNil(t, brk)
+	assert.Equal(t, int64(50), brk.SessionID)
+}
+
 func TestWSStartBreak_CustomDurationSetsPlannedEnd(t *testing.T) {
 	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
 	staffID := int64(100)
 	durationMinutes := 90
 
-	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
+	sessionRepo.getCurrentForUpdateFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
 		return &activeModels.WorkSession{
 			Model:       base.Model{ID: 50},
 			StaffID:     staffID,
@@ -1117,7 +1365,7 @@ func TestWSStartBreak_RejectsCustomDurationAboveLimit(t *testing.T) {
 	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
 	durationMinutes := 241
 
-	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
+	sessionRepo.getCurrentForUpdateFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
 		return &activeModels.WorkSession{
 			Model:       base.Model{ID: 50},
 			StaffID:     100,
@@ -1360,6 +1608,9 @@ func TestWSGetHistory_Success(t *testing.T) {
 		}, nil
 	}
 
+	auditRepo.countManualBySessionIDsFunc = func(_ context.Context, _ []int64) (map[int64]int, error) {
+		return map[int64]int{1: 1}, nil
+	}
 	auditRepo.countBySessionIDsFunc = func(_ context.Context, _ []int64) (map[int64]int, error) {
 		return map[int64]int{1: 2}, nil
 	}
@@ -1371,7 +1622,8 @@ func TestWSGetHistory_Success(t *testing.T) {
 	historyResp, err := svc.GetHistory(context.Background(), staffID, from, to)
 	require.NoError(t, err)
 	require.Len(t, historyResp.Sessions, 1)
-	assert.Equal(t, 2, historyResp.Sessions[0].EditCount)
+	assert.Equal(t, 1, historyResp.Sessions[0].EditCount)
+	assert.Equal(t, 2, historyResp.Sessions[0].AuditCount)
 	require.Len(t, historyResp.WeeklySummaries, 1)
 }
 
@@ -1725,9 +1977,9 @@ func TestWSCleanupOpenSessions_Success(t *testing.T) {
 		}, nil
 	}
 
-	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, autoCheckedOut bool) error {
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, _ time.Time, autoCheckedOut bool) (bool, error) {
 		assert.True(t, autoCheckedOut)
-		return nil
+		return true, nil
 	}
 
 	count, err := svc.CleanupOpenSessions(context.Background())
@@ -1760,9 +2012,9 @@ func TestWSCleanupOpenSessions_CheckOutTimeIsBerlinEndOfDay(t *testing.T) {
 	}
 
 	var capturedCheckOutTime time.Time
-	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, checkOutTime time.Time, _ bool) error {
+	sessionRepo.closeSessionFunc = func(_ context.Context, _ int64, checkOutTime time.Time, _ bool) (bool, error) {
 		capturedCheckOutTime = checkOutTime
-		return nil
+		return true, nil
 	}
 
 	count, err := svc.CleanupOpenSessions(context.Background())

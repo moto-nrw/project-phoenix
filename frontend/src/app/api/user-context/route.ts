@@ -4,6 +4,11 @@
 import type { NextRequest } from "next/server";
 import { apiGet } from "~/lib/api-helpers.server";
 import { createGetHandler } from "~/lib/route-wrapper.server";
+import type {
+  EducationalGroup,
+  SupervisedGroup,
+  UserContextResponse,
+} from "~/lib/user-context-types";
 
 // Backend response types
 interface BackendEducationalGroup {
@@ -32,50 +37,6 @@ interface BackendStaff {
   person_id: number;
   phone?: string;
   email?: string;
-}
-
-// Frontend response types (string IDs for React keys)
-interface EducationalGroup {
-  id: string;
-  name: string;
-  roomId?: string;
-  room?: {
-    id: string;
-    name: string;
-  };
-  viaSubstitution?: boolean;
-}
-
-interface SupervisedGroup {
-  id: string;
-  name: string;
-  roomId?: string;
-  room?: {
-    id: string;
-    name: string;
-  };
-}
-
-interface Staff {
-  id: string;
-  personId: string;
-}
-
-// Combined user context response type
-export interface UserContextResponse {
-  // Educational groups (OGS groups user is assigned to)
-  educationalGroups: EducationalGroup[];
-
-  // Supervised groups (active sessions user is supervising)
-  supervisedGroups: SupervisedGroup[];
-
-  // Current staff info (null if not linked to staff)
-  currentStaff: Staff | null;
-
-  // Derived data for convenience (pre-computed for components)
-  educationalGroupIds: string[];
-  educationalGroupRoomNames: string[];
-  supervisedRoomNames: string[];
 }
 
 /**

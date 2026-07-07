@@ -2,13 +2,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   confirmRenewal,
+  createEnrollmentChangeRequest,
   fetchMyEnrollmentProfile,
   fetchEnrollmentEditBootstrap,
   fetchPublicCareOfferings,
   fetchPublicEnrollmentBootstrap,
   fetchPublicPhases,
   fetchStatus,
+  listEnrollmentChangeRequests,
   patchStatus,
+  replyEnrollmentChangeRequest,
   submitEnrollment,
   updateEnrollmentRequest,
   withdrawStatus,
@@ -236,6 +239,20 @@ describe("enrollment-submission-api", () => {
     });
   });
 
+  it("throws the submission fallback when the backend sends an unreadable error", async () => {
+    mockFetch.mockResolvedValueOnce(new Response("no json", { status: 500 }));
+
+    await expect(
+      submitEnrollment("tenant", {
+        phase_id: 5,
+        guardian_first_name: "Mara",
+        guardian_last_name: "Muster",
+        guardian_email: "mara@example.test",
+        children: [],
+      }),
+    ).rejects.toThrow("Anmeldung konnte nicht übermittelt werden");
+  });
+
   it("loads status, patches it, and withdraws whole requests or child rows", async () => {
     mockFetch.mockResolvedValueOnce(
       jsonResponse({
@@ -367,6 +384,99 @@ describe("enrollment-submission-api", () => {
         body: JSON.stringify(payload),
       },
     );
+  });
+
+  it("creates, lists, and replies to enrollment change requests", async () => {
+    const payload: SubmitEnrollmentPayload = {
+      phase_id: 5,
+      guardian_first_name: "Mara",
+      guardian_last_name: "Muster",
+      guardian_email: "mara@example.test",
+      children: [
+        {
+          first_name: "Lina",
+          last_name: "Muster",
+          date_of_birth: "2018-04-15",
+          target_grade_level: 2,
+        },
+      ],
+    };
+    const changeRequest = {
+      id: "cr-1",
+      request_id: "99",
+      status: "pending_review",
+      parent_note: "Bitte prüfen",
+      base_snapshot: {},
+      proposed_snapshot: {},
+      diff: {},
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    };
+
+    mockFetch.mockResolvedValueOnce(jsonResponse({ data: changeRequest }));
+    await expect(
+      createEnrollmentChangeRequest("tok/en", payload, "Bitte prüfen"),
+    ).resolves.toMatchObject({ id: "cr-1", parent_note: "Bitte prüfen" });
+    expect(mockFetch).toHaveBeenLastCalledWith(
+      "/api/enrollment/requests/tok%2Fen/change-requests",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...payload, parent_note: "Bitte prüfen" }),
+      },
+    );
+
+    mockFetch.mockResolvedValueOnce(jsonResponse({ data: [changeRequest] }));
+    await expect(listEnrollmentChangeRequests("tok/en")).resolves.toEqual([
+      changeRequest,
+    ]);
+    expect(mockFetch).toHaveBeenLastCalledWith(
+      "/api/enrollment/requests/tok%2Fen/change-requests",
+      { cache: "no-store" },
+    );
+
+    mockFetch.mockResolvedValueOnce(jsonResponse({ data: { nope: true } }));
+    await expect(listEnrollmentChangeRequests("tok/en")).resolves.toEqual([]);
+
+    mockFetch.mockResolvedValueOnce(jsonResponse(changeRequest));
+    await expect(
+      replyEnrollmentChangeRequest("tok/en", "cr/1", "Danke"),
+    ).resolves.toMatchObject({ id: "cr-1" });
+    expect(mockFetch).toHaveBeenLastCalledWith(
+      "/api/enrollment/requests/tok%2Fen/change-requests/cr%2F1/messages",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: "Danke" }),
+      },
+    );
+  });
+
+  it("surfaces change-request errors with the endpoint fallback", async () => {
+    mockFetch.mockResolvedValueOnce(new Response("no json", { status: 500 }));
+    await expect(
+      createEnrollmentChangeRequest(
+        "tok",
+        {
+          phase_id: 5,
+          guardian_first_name: "Mara",
+          guardian_last_name: "Muster",
+          guardian_email: "mara@example.test",
+          children: [],
+        },
+        "",
+      ),
+    ).rejects.toThrow("Änderungsanfrage konnte nicht gespeichert werden");
+
+    mockFetch.mockResolvedValueOnce(new Response("no json", { status: 500 }));
+    await expect(listEnrollmentChangeRequests("tok")).rejects.toThrow(
+      "Änderungsanfragen konnten nicht geladen werden",
+    );
+
+    mockFetch.mockResolvedValueOnce(new Response("no json", { status: 500 }));
+    await expect(
+      replyEnrollmentChangeRequest("tok", "cr-1", "Danke"),
+    ).rejects.toThrow("Antwort konnte nicht gesendet werden");
   });
 
   it("confirms renewals and defaults missing counters to zero", async () => {

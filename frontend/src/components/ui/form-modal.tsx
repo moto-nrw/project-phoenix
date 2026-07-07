@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useCallback, useState, useRef } from "react";
+import { useEffect, useCallback, useState, useRef, useId } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { FocusScope } from "@radix-ui/react-focus-scope";
 import { useModal } from "../dashboard/modal-context";
-import { useScrollLock } from "~/hooks/useScrollLock";
-import { dialogAriaProps } from "./modal-utils";
+import { useScrollLock } from "~/components/ui/hooks/useScrollLock";
+import { dialogAriaProps } from "./modal";
 
 interface FormModalProps {
   readonly isOpen: boolean;
@@ -31,6 +31,7 @@ export function FormModal({
 }: FormModalProps) {
   const [isAnimating, setIsAnimating] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
+  const titleId = useId();
   const { openModal, closeModal } = useModal();
 
   // Store functions in refs to avoid effect re-runs
@@ -153,6 +154,7 @@ export function FormModal({
             return "translate-y-8 scale-75 -rotate-1 opacity-0";
           })()}`}
           {...dialogAriaProps}
+          aria-labelledby={title ? titleId : undefined}
           style={{
             background:
               "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.98) 100%)",
@@ -165,7 +167,10 @@ export function FormModal({
           {/* Header with close button */}
           <div className="flex items-center justify-between border-b border-gray-100 p-4 md:p-6">
             {title && (
-              <h3 className="pr-4 text-lg font-semibold text-gray-900 md:text-xl">
+              <h3
+                id={titleId}
+                className="pr-4 text-lg font-semibold text-gray-900 md:text-xl"
+              >
                 {title}
               </h3>
             )}

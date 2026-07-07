@@ -470,6 +470,9 @@ func (m *mockAuthService) GetAccountsWithRolesAndPermissions(context.Context, ma
 func (m *mockAuthService) InitiatePasswordReset(context.Context, string) (*authModels.PasswordResetToken, error) {
 	return nil, nil
 }
+func (m *mockAuthService) InitiateParentPasswordReset(context.Context, string) (*authModels.PasswordResetToken, error) {
+	return nil, nil
+}
 func (m *mockAuthService) ResetPassword(context.Context, string, string) error { return nil }
 func (m *mockAuthService) CleanupExpiredRateLimits(context.Context) (int, error) {
 	return 0, nil
@@ -523,6 +526,9 @@ func (m *mockPersonRepo) Create(ctx context.Context, person *userModels.Person) 
 	return nil
 }
 func (m *mockPersonRepo) FindByID(context.Context, interface{}) (*userModels.Person, error) {
+	return nil, nil
+}
+func (m *mockPersonRepo) FindByIDForUpdate(context.Context, int64) (*userModels.Person, error) {
 	return nil, nil
 }
 func (m *mockPersonRepo) FindByIDs(context.Context, []int64) (map[int64]*userModels.Person, error) {

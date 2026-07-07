@@ -13,10 +13,12 @@ import {
   Clock3,
   ExternalLink,
   FileText,
+  Link2,
   MoreVertical,
   Pencil,
   Power,
   Trash2,
+  UserCheck,
 } from "lucide-react";
 import {
   type Phase,
@@ -40,7 +42,7 @@ import {
 } from "~/lib/enrollment-form-schema-api";
 import { createLogger } from "~/lib/logger";
 import { RolloverForm } from "./rollover-form";
-import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
+import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { useToast } from "~/contexts/ToastContext";
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -51,6 +53,10 @@ import {
   type DataTableColumn,
 } from "~/components/ui/data-table";
 import { CustomSelect } from "~/components/ui/custom-select";
+import {
+  LateInviteModal,
+  ManualApprovedEnrollmentModal,
+} from "~/components/enrollment/phase-enrollment-actions";
 
 const logger = createLogger({ component: "PhasesEditor" });
 
@@ -823,7 +829,7 @@ interface PhaseActionsMenuPosition {
   alignRight: boolean;
 }
 
-const PHASE_ACTIONS_MENU_HEIGHT = 220;
+const PHASE_ACTIONS_MENU_HEIGHT = 292;
 
 function PhaseActions({
   phase,
@@ -840,6 +846,8 @@ function PhaseActions({
   onDelete,
 }: PhaseActionsProps) {
   const [open, setOpen] = useState(false);
+  const [lateInviteOpen, setLateInviteOpen] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [position, setPosition] = useState<PhaseActionsMenuPosition>({
     top: 0,
@@ -955,6 +963,34 @@ function PhaseActions({
         Formular ansehen
       </a>
 
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => {
+          setOpen(false);
+          setLateInviteOpen(true);
+        }}
+        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+        disabled={saving}
+      >
+        <Link2 className="h-4 w-4 text-gray-500" aria-hidden />
+        Nachzügler-Link erstellen
+      </button>
+
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => {
+          setOpen(false);
+          setManualOpen(true);
+        }}
+        className="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+        disabled={saving}
+      >
+        <UserCheck className="h-4 w-4 text-gray-500" aria-hidden />
+        Manuelle Anmeldung
+      </button>
+
       <Link
         href={enrollmentsHref}
         role="menuitem"
@@ -1040,32 +1076,45 @@ function PhaseActions({
   );
 
   return (
-    <div className="flex justify-end gap-1.5">
-      {phaseUrl ? (
-        <PublicLinkCopyButton
-          url={phaseUrl}
-          componentId={`PhaseActions:${phase.id}`}
-        />
-      ) : null}
-      <div>
-        <button
-          ref={buttonRef}
-          type="button"
-          onClick={() => setOpen((prev) => !prev)}
-          aria-label={`Aktionen für ${phase.name}`}
-          aria-haspopup="menu"
-          aria-expanded={open}
-          className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-white text-gray-500 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-            highlight
-              ? "border-[#83CD2D] bg-[#83CD2D]/10 text-[#5F9F20] shadow-[0_0_0_4px_rgba(131,205,45,0.18)]"
-              : "border-gray-200"
-          }`}
-        >
-          <MoreVertical className="h-4 w-4" aria-hidden="true" />
-        </button>
-        {mounted ? createPortal(menu, document.body) : null}
+    <>
+      <div className="flex justify-end gap-1.5">
+        {phaseUrl ? (
+          <PublicLinkCopyButton
+            url={phaseUrl}
+            componentId={`PhaseActions:${phase.id}`}
+          />
+        ) : null}
+        <div>
+          <button
+            ref={buttonRef}
+            type="button"
+            onClick={() => setOpen((prev) => !prev)}
+            aria-label={`Aktionen für ${phase.name}`}
+            aria-haspopup="menu"
+            aria-expanded={open}
+            className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-white text-gray-500 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+              highlight
+                ? "border-[#83CD2D] bg-[#83CD2D]/10 text-[#5F9F20] shadow-[0_0_0_4px_rgba(131,205,45,0.18)]"
+                : "border-gray-200"
+            }`}
+          >
+            <MoreVertical className="h-4 w-4" aria-hidden="true" />
+          </button>
+          {mounted ? createPortal(menu, document.body) : null}
+        </div>
       </div>
-    </div>
+      <LateInviteModal
+        isOpen={lateInviteOpen}
+        onClose={() => setLateInviteOpen(false)}
+        phase={phase}
+        phaseUrl={phaseUrl}
+      />
+      <ManualApprovedEnrollmentModal
+        isOpen={manualOpen}
+        onClose={() => setManualOpen(false)}
+        phase={phase}
+      />
+    </>
   );
 }
 

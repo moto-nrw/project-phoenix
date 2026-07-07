@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 )
@@ -171,9 +170,19 @@ func parseSickDayRange(r *http.Request) (timezone.Date, timezone.Date, error) {
 type ChildFeaturesResponse struct {
 	SickNoteEnabled              bool `json:"sick_note_enabled"`
 	NotesEnabled                 bool `json:"notes_enabled"`
+	RequestSubmitEnabled         bool `json:"request_submit_enabled"`
 	PickupChangeEnabled          bool `json:"pickup_change_enabled"`
 	RelatedAccountsInviteEnabled bool `json:"related_accounts_invite_enabled"`
 	RelatedAccountsRemoveEnabled bool `json:"related_accounts_remove_enabled"`
+	MasterDataEditEnabled        bool `json:"master_data_edit_enabled"`
+	MasterDataContactEditEnabled bool `json:"master_data_contact_edit_enabled"`
+	MasterDataRequestEnabled     bool `json:"master_data_request_enabled"`
+	MealPlanEnabled              bool `json:"meal_plan_enabled"`
+	// HasOpenChangeRequest is STATE (not a capability): the child has a pending
+	// change request awaiting an OGS decision, so the overview can badge the
+	// Stammdaten entry.
+	HasOpenChangeRequest bool `json:"has_open_change_request"`
+	NewsEnabled          bool `json:"parent_news_enabled"`
 }
 
 // getChildFeatures returns the resolved parent-portal feature flags for the
@@ -196,47 +205,33 @@ func (rs *Resource) getChildFeatures(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, ChildFeaturesResponse{
 		SickNoteEnabled:              flags.SickNoteEnabled,
 		NotesEnabled:                 flags.NotesEnabled,
+		RequestSubmitEnabled:         flags.RequestSubmitEnabled,
 		PickupChangeEnabled:          flags.PickupChangeEnabled,
 		RelatedAccountsInviteEnabled: flags.RelatedAccountsInviteEnabled,
 		RelatedAccountsRemoveEnabled: flags.RelatedAccountsRemoveEnabled,
+		MasterDataEditEnabled:        flags.MasterDataEditEnabled,
+		MasterDataContactEditEnabled: flags.MasterDataContactEditEnabled,
+		MasterDataRequestEnabled:     flags.MasterDataRequestEnabled,
+		MealPlanEnabled:              flags.MealPlanEnabled,
+		HasOpenChangeRequest:         flags.HasOpenChangeRequest,
+		NewsEnabled:                  flags.NewsEnabled,
 	}, "Child features retrieved")
 }
 
-// --- Parent notes ---
+// --- Meal plan (Essensplan) ---
 
-// AddNoteRequest is the wire shape for POST
-// /parent/me/children/{studentId}/notes.
-type AddNoteRequest struct {
-	Body string `json:"body"`
+// MealPlanEntryResponse is one dish of the read-only meal plan shown to parents.
+type MealPlanEntryResponse struct {
+	Date     string  `json:"date"` // YYYY-MM-DD
+	Position int     `json:"position"`
+	Dish     string  `json:"dish"`
+	Note     *string `json:"note,omitempty"`
 }
 
-// ParentNoteResponse is one note row, newest-first in lists.
-type ParentNoteResponse struct {
-	ID        string    `json:"id"`
-	StudentID string    `json:"student_id"`
-	Body      string    `json:"body"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
-func toParentNoteResponse(n *usersModels.StudentParentNote) ParentNoteResponse {
-	return ParentNoteResponse{
-		ID:        strconv.FormatInt(n.ID, 10),
-		StudentID: strconv.FormatInt(n.StudentID, 10),
-		Body:      n.Body,
-		CreatedAt: n.CreatedAt,
-	}
-}
-
-func toParentNoteResponses(notes []*usersModels.StudentParentNote) []ParentNoteResponse {
-	out := make([]ParentNoteResponse, 0, len(notes))
-	for _, n := range notes {
-		out = append(out, toParentNoteResponse(n))
-	}
-	return out
-}
-
-// listNotes returns the newest notes for the child.
-func (rs *Resource) listNotes(w http.ResponseWriter, r *http.Request) {
+// getChildMealPlan returns the Monday-Friday meal plan for the child's school
+// for the week containing week_start. Gated by operations.meal_plan_enabled for
+// that tenant (404-like "disabled" is mapped to 403 meal_plan_disabled).
+func (rs *Resource) getChildMealPlan(w http.ResponseWriter, r *http.Request) {
 	accountID, ok := rs.parentAccountID(w, r)
 	if !ok {
 		return
@@ -246,37 +241,28 @@ func (rs *Resource) listNotes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	notes, err := rs.ParentService.ListParentNotes(r.Context(), accountID, studentID, parentService.ParentNoteDisplayLimit)
+	weekStart, err := timezone.ParseDate(r.URL.Query().Get("week_start"))
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("week_start must be in YYYY-MM-DD format")))
+		return
+	}
+
+	rows, err := rs.ParentService.MealPlanWeek(r.Context(), accountID, studentID, weekStart)
 	if err != nil {
 		renderParentWriteError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toParentNoteResponses(notes), "Notes retrieved")
-}
 
-// addNote appends a free-text note and returns the newest few.
-func (rs *Resource) addNote(w http.ResponseWriter, r *http.Request) {
-	accountID, ok := rs.parentAccountID(w, r)
-	if !ok {
-		return
+	out := make([]MealPlanEntryResponse, 0, len(rows))
+	for _, entry := range rows {
+		out = append(out, MealPlanEntryResponse{
+			Date:     entry.Date.String(),
+			Position: entry.Position,
+			Dish:     entry.Dish,
+			Note:     entry.Note,
+		})
 	}
-	studentID, ok := parsePathStudentID(w, r)
-	if !ok {
-		return
-	}
-
-	var req AddNoteRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
-		return
-	}
-
-	notes, err := rs.ParentService.AddParentNote(r.Context(), accountID, studentID, req.Body)
-	if err != nil {
-		renderParentWriteError(w, r, err)
-		return
-	}
-	common.Respond(w, r, http.StatusCreated, toParentNoteResponses(notes), "Note added")
+	common.Respond(w, r, http.StatusOK, out, "Meal plan retrieved")
 }
 
 // --- shared helpers ---
@@ -337,12 +323,36 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "sick_note_disabled"))
 	case errors.Is(err, parentService.ErrNotesDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "notes_disabled"))
+	case errors.Is(err, parentService.ErrMealPlanDisabled):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "meal_plan_disabled"))
+	case errors.Is(err, parentService.ErrMealPlanWeekOutOfRange):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "meal_plan_week_out_of_range"))
 	case errors.Is(err, parentService.ErrPickupChangeDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "pickup_change_disabled"))
+	case errors.Is(err, parentService.ErrMasterDataEditDisabled):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "master_data_edit_disabled"))
+	case errors.Is(err, parentService.ErrMasterDataRequestDisabled):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "master_data_request_disabled"))
+	case errors.Is(err, parentService.ErrMasterDataFieldNotEditable):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "master_data_field_not_editable"))
+	case errors.Is(err, parentService.ErrMasterDataInvalidValue):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "master_data_invalid_value"))
+	case errors.Is(err, parentService.ErrMasterDataDuplicatePending):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "master_data_duplicate_pending"))
+	case errors.Is(err, parentService.ErrMasterDataNoChanges):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "master_data_no_changes"))
 	case errors.Is(err, parentService.ErrCareExceptionConflict):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "care_exception_conflict"))
 	case errors.Is(err, parentService.ErrCareExceptionRaced):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "care_exception_raced"))
+	case errors.Is(err, parentService.ErrCareRequestNotPending):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "request_not_open"))
+	case errors.Is(err, parentService.ErrCareRequestNotFound):
+		common.RenderError(w, r, common.ErrorNotFound(err))
+	case errors.Is(err, parentService.ErrCareRequestAlreadyPending):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "care_request_already_pending"))
+	case errors.Is(err, parentService.ErrInvalidCareRequestPayload):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "invalid_request_payload"))
 	case errors.Is(err, parentService.ErrNoCareException):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "care_exception_no_time"))
 	case errors.Is(err, parentService.ErrPastCareDate):
@@ -379,6 +389,12 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "guardian_contact_invalid"))
 	case errors.Is(err, parentService.ErrGuardianRelationshipInvalid):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "guardian_relationship_invalid"))
+	case errors.Is(err, parentService.ErrAnnouncementNotFound):
+		common.RenderError(w, r, common.ErrorNotFound(err))
+	case errors.Is(err, parentService.ErrAnnouncementAckNotRequired):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "announcement_ack_not_required"))
+	case errors.Is(err, parentService.ErrAnnouncementStale):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "announcement_stale"))
 	case errors.Is(err, parentService.ErrNoDates),
 		errors.Is(err, parentService.ErrInvalidStatus),
 		errors.Is(err, parentService.ErrEmptyNote),

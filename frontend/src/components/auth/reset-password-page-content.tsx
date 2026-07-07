@@ -8,6 +8,7 @@ import {
   AuthShell,
   authInputClassName,
   authPrimaryButtonClassName,
+  type AuthTestimonialPanelCopy,
 } from "~/components/auth/auth-shell";
 import { Loading } from "~/components/ui/loading";
 import Link from "next/link";
@@ -15,10 +16,100 @@ import { CheckIcon, SpinnerIcon } from "~/components/ui/icons";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { confirmPasswordReset, type ApiError } from "~/lib/auth-api";
 import { createLogger } from "~/lib/logger";
-import { useTenantSafe } from "~/components/tenant/tenant-provider";
+import { useTenantSafe } from "~/lib/tenant-context";
 import { loginImageSrc } from "~/lib/tenant-api";
 
 const logger = createLogger({ component: "ResetPasswordPage" });
+
+type ConfirmPasswordReset = (
+  token: string,
+  password: string,
+  confirmPassword: string,
+) => Promise<{ message: string }>;
+
+interface ResetPasswordPageContentProps {
+  readonly confirmReset?: ConfirmPasswordReset;
+  readonly successRedirectPath?: string;
+  readonly backHref?: string;
+  readonly backLabel?: string;
+  readonly copy?: ResetPasswordPageCopy;
+  // Localized testimonial-panel copy. The parents portal passes its
+  // translated copy here so the reset page doesn't fall back to the
+  // German staff/moto testimonials next to a localized form.
+  readonly testimonialPanelCopy?: AuthTestimonialPanelCopy;
+}
+
+export interface ResetPasswordPageCopy {
+  readonly missingToken: string;
+  readonly invalidToken: string;
+  readonly passwordTooShort: string;
+  readonly passwordMissingUppercase: string;
+  readonly passwordMissingLowercase: string;
+  readonly passwordMissingNumber: string;
+  readonly passwordMissingSpecial: string;
+  readonly passwordMismatch: string;
+  readonly genericError: string;
+  readonly invalidRequest: string;
+  readonly expiredLink: string;
+  readonly notFoundLink: string;
+  readonly successEyebrow: string;
+  readonly successTitle: string;
+  readonly successSubtitle: string;
+  readonly successBody: string;
+  readonly formEyebrow: string;
+  readonly formTitle: string;
+  readonly formSubtitle: string;
+  readonly passwordLabel: string;
+  readonly confirmPasswordLabel: string;
+  readonly showPassword: string;
+  readonly hidePassword: string;
+  readonly requirementsTitle: string;
+  readonly requirements: readonly string[];
+  readonly submitting: string;
+  readonly submit: string;
+}
+
+const DEFAULT_RESET_PASSWORD_PAGE_COPY: ResetPasswordPageCopy = {
+  missingToken:
+    "Ungültiger oder fehlender Reset-Token. Bitte fordern Sie einen neuen Link an.",
+  invalidToken: "Ungültiger Reset-Token.",
+  passwordTooShort: "Das Passwort muss mindestens 8 Zeichen lang sein.",
+  passwordMissingUppercase:
+    "Das Passwort muss mindestens einen Großbuchstaben enthalten.",
+  passwordMissingLowercase:
+    "Das Passwort muss mindestens einen Kleinbuchstaben enthalten.",
+  passwordMissingNumber: "Das Passwort muss mindestens eine Zahl enthalten.",
+  passwordMissingSpecial:
+    "Das Passwort muss mindestens ein Sonderzeichen enthalten.",
+  passwordMismatch: "Die Passwörter stimmen nicht überein.",
+  genericError: "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
+  invalidRequest:
+    "Bitte prüfen Sie den Link und die Passwort-Anforderungen und versuchen Sie es erneut.",
+  expiredLink:
+    "Dieser Passwort-Reset-Link ist abgelaufen. Bitte fordere einen neuen Link an.",
+  notFoundLink:
+    "Wir konnten diesen Passwort-Reset-Link nicht finden. Bitte fordere einen neuen Link an.",
+  successEyebrow: "Passwort geändert",
+  successTitle: "Passwort erfolgreich geändert",
+  successSubtitle: "Sie werden automatisch zur Anmeldeseite weitergeleitet.",
+  successBody: "Die Anmeldung ist gleich wieder möglich.",
+  formEyebrow: "Passwort zurücksetzen",
+  formTitle: "Neues Passwort festlegen",
+  formSubtitle: "Wählen Sie ein starkes Passwort für Ihr Konto.",
+  passwordLabel: "Neues Passwort",
+  confirmPasswordLabel: "Passwort bestätigen",
+  showPassword: "Passwort anzeigen",
+  hidePassword: "Passwort verbergen",
+  requirementsTitle: "Passwort-Anforderungen:",
+  requirements: [
+    "Mindestens 8 Zeichen lang",
+    "Groß- und Kleinbuchstaben",
+    "Mindestens eine Zahl",
+    "Mindestens ein Sonderzeichen",
+  ],
+  submitting: "Wird gespeichert...",
+  submit: "Passwort ändern",
+};
 
 interface PasswordFieldProps {
   readonly id: string;
@@ -28,6 +119,8 @@ interface PasswordFieldProps {
   readonly visible: boolean;
   readonly onToggleVisible: () => void;
   readonly disabled: boolean;
+  readonly showPasswordLabel: string;
+  readonly hidePasswordLabel: string;
 }
 
 function PasswordField({
@@ -38,6 +131,8 @@ function PasswordField({
   visible,
   onToggleVisible,
   disabled,
+  showPasswordLabel,
+  hidePasswordLabel,
 }: PasswordFieldProps) {
   return (
     <div className="text-left">
@@ -62,13 +157,22 @@ function PasswordField({
         <PasswordToggleButton
           showPassword={visible}
           onToggle={onToggleVisible}
+          showLabel={showPasswordLabel}
+          hideLabel={hidePasswordLabel}
         />
       </div>
     </div>
   );
 }
 
-export function ResetPasswordPageContent() {
+export function ResetPasswordPageContent({
+  confirmReset = confirmPasswordReset,
+  successRedirectPath = "/",
+  backHref = "/",
+  backLabel = "Zurück zur Anmeldung",
+  copy = DEFAULT_RESET_PASSWORD_PAGE_COPY,
+  testimonialPanelCopy,
+}: ResetPasswordPageContentProps = {}) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -98,27 +202,25 @@ export function ResetPasswordPageContent() {
     if (tokenParam) {
       setToken(tokenParam);
     } else {
-      setError(
-        "Ungültiger oder fehlender Reset-Token. Bitte fordern Sie einen neuen Link an.",
-      );
+      setError(copy.missingToken);
     }
-  }, [searchParams]);
+  }, [copy.missingToken, searchParams]);
 
   const validatePassword = (pwd: string): string | null => {
     if (pwd.length < 8) {
-      return "Das Passwort muss mindestens 8 Zeichen lang sein.";
+      return copy.passwordTooShort;
     }
     if (!/[A-Z]/.test(pwd)) {
-      return "Das Passwort muss mindestens einen Großbuchstaben enthalten.";
+      return copy.passwordMissingUppercase;
     }
     if (!/[a-z]/.test(pwd)) {
-      return "Das Passwort muss mindestens einen Kleinbuchstaben enthalten.";
+      return copy.passwordMissingLowercase;
     }
     if (!/\d/.test(pwd)) {
-      return "Das Passwort muss mindestens eine Zahl enthalten.";
+      return copy.passwordMissingNumber;
     }
     if (!/[^A-Za-z0-9]/.test(pwd)) {
-      return "Das Passwort muss mindestens ein Sonderzeichen enthalten.";
+      return copy.passwordMissingSpecial;
     }
     return null;
   };
@@ -128,7 +230,7 @@ export function ResetPasswordPageContent() {
     setError("");
 
     if (!token) {
-      setError("Ungültiger Reset-Token.");
+      setError(copy.invalidToken);
       return;
     }
 
@@ -139,18 +241,18 @@ export function ResetPasswordPageContent() {
     }
 
     if (password !== confirmPassword) {
-      setError("Die Passwörter stimmen nicht überein.");
+      setError(copy.passwordMismatch);
       return;
     }
 
     setIsLoading(true);
 
     try {
-      await confirmPasswordReset(token, password, confirmPassword);
+      await confirmReset(token, password, confirmPassword);
       setIsSuccess(true);
 
       setTimeout(() => {
-        router.push("/");
+        router.push(successRedirectPath);
       }, 3000);
     } catch (err) {
       const apiError = err as ApiError | undefined;
@@ -165,18 +267,14 @@ export function ResetPasswordPageContent() {
           error: err instanceof Error ? err.message : String(err),
         });
       }
-      let message =
-        apiError?.message ??
-        "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.";
+      let message = copy.genericError;
 
       if (apiError?.status === 410) {
-        message =
-          "Dieser Passwort-Reset-Link ist abgelaufen. Bitte fordere einen neuen Link an.";
+        message = copy.expiredLink;
       } else if (apiError?.status === 404) {
-        message =
-          "Wir konnten diesen Passwort-Reset-Link nicht finden. Bitte fordere einen neuen Link an.";
-      } else if (apiError?.status === 400 && apiError.message) {
-        message = apiError.message;
+        message = copy.notFoundLink;
+      } else if (apiError?.status === 400) {
+        message = copy.invalidRequest;
       }
 
       setError(message);
@@ -188,21 +286,20 @@ export function ResetPasswordPageContent() {
   if (isSuccess) {
     return (
       <AuthShell
-        eyebrow="Passwort geändert"
+        eyebrow={copy.successEyebrow}
         eyebrowClassName="text-[#83CD2D]"
-        title="Passwort erfolgreich geändert"
-        subtitle="Sie werden automatisch zur Anmeldeseite weitergeleitet."
+        title={copy.successTitle}
+        subtitle={copy.successSubtitle}
         variant="reset"
         brand={brand}
+        testimonialPanelCopy={testimonialPanelCopy}
       >
         <div className="text-center">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#EAF6D8]">
             <CheckIcon className="h-10 w-10 text-[#4E7D1B]" />
           </div>
 
-          <p className="mb-6 text-sm text-gray-600">
-            Die Anmeldung ist gleich wieder möglich.
-          </p>
+          <p className="mb-6 text-sm text-gray-600">{copy.successBody}</p>
 
           <Loading fullPage={false} />
         </div>
@@ -212,12 +309,13 @@ export function ResetPasswordPageContent() {
 
   return (
     <AuthShell
-      eyebrow="Passwort zurücksetzen"
+      eyebrow={copy.formEyebrow}
       eyebrowClassName="text-[#83CD2D]"
-      title="Neues Passwort festlegen"
-      subtitle="Wählen Sie ein starkes Passwort für Ihr Konto."
+      title={copy.formTitle}
+      subtitle={copy.formSubtitle}
       variant="reset"
       brand={brand}
+      testimonialPanelCopy={testimonialPanelCopy}
     >
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
         {error && (
@@ -244,33 +342,36 @@ export function ResetPasswordPageContent() {
         <div className="space-y-4">
           <PasswordField
             id="password"
-            label="Neues Passwort"
+            label={copy.passwordLabel}
             value={password}
             onChange={setPassword}
             visible={showPassword}
             onToggleVisible={() => setShowPassword(!showPassword)}
             disabled={isLoading || !token}
+            showPasswordLabel={copy.showPassword}
+            hidePasswordLabel={copy.hidePassword}
           />
           <PasswordField
             id="confirmPassword"
-            label="Passwort bestätigen"
+            label={copy.confirmPasswordLabel}
             value={confirmPassword}
             onChange={setConfirmPassword}
             visible={showConfirmPassword}
             onToggleVisible={() => setShowConfirmPassword(!showConfirmPassword)}
             disabled={isLoading || !token}
+            showPasswordLabel={copy.showPassword}
+            hidePasswordLabel={copy.hidePassword}
           />
         </div>
 
         <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-left">
           <p className="mb-1.5 text-xs font-medium text-gray-700">
-            Passwort-Anforderungen:
+            {copy.requirementsTitle}
           </p>
           <ul className="space-y-0.5 text-xs text-gray-600">
-            <li>Mindestens 8 Zeichen lang</li>
-            <li>Groß- und Kleinbuchstaben</li>
-            <li>Mindestens eine Zahl</li>
-            <li>Mindestens ein Sonderzeichen</li>
+            {copy.requirements.map((requirement) => (
+              <li key={requirement}>{requirement}</li>
+            ))}
           </ul>
         </div>
 
@@ -282,19 +383,19 @@ export function ResetPasswordPageContent() {
           {isLoading ? (
             <>
               <SpinnerIcon className="mr-2 -ml-1 h-4 w-4 text-white" />
-              <span>Wird gespeichert...</span>
+              <span>{copy.submitting}</span>
             </>
           ) : (
-            <span>Passwort ändern</span>
+            <span>{copy.submit}</span>
           )}
         </button>
 
         <div className="pt-2 text-center">
           <Link
-            href="/"
+            href={backHref}
             className="text-sm text-gray-600 transition-colors hover:text-gray-800 hover:underline"
           >
-            Zurück zur Anmeldung
+            {backLabel}
           </Link>
         </div>
       </form>

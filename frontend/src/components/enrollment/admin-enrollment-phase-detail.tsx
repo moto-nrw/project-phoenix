@@ -43,6 +43,7 @@ import {
   type EnrollmentReportFormat,
   type EnrollmentReportStatus,
   exportCareUsageReport,
+  exportPhaseClassRoster,
   getCareUsageReport,
 } from "~/lib/enrollment-report-api";
 import {
@@ -52,13 +53,15 @@ import {
 } from "~/components/ui/data-table";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
-import { useTenantSlugSafe } from "~/components/tenant/tenant-provider";
+import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { useToast } from "~/contexts/ToastContext";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { useClickOutside } from "~/lib/hooks/use-click-outside";
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
 import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
 import { createLogger } from "~/lib/logger";
+import { studentService } from "~/lib/api";
+import { useSWRAuth } from "~/lib/swr";
 
 const logger = createLogger({ component: "AdminEnrollmentPhaseDetail" });
 
@@ -152,7 +155,7 @@ const TERMINAL_STATUSES = new Set<ChildStatus>([
   "withdrawn",
 ]);
 
-const EXPORT_FORMAT_LABELS: Record<EnrollmentExportFormat, string> = {
+const EXPORT_MENU_LABELS: Record<EnrollmentExportFormat, string> = {
   pdf: "Als PDF exportieren",
   docx: "Als Word-Dokument exportieren",
   xlsx: "Als Excel-Datei exportieren",
@@ -164,12 +167,6 @@ const REPORT_EXPORT_LABELS: Record<EnrollmentReportFormat, string> = {
   xlsx: "Excel",
 };
 
-const REPORT_EXPORT_MENU_LABELS: Record<EnrollmentReportFormat, string> = {
-  docx: "Als Word-Dokument exportieren",
-  pdf: "Als PDF exportieren",
-  xlsx: "Als Excel-Datei exportieren",
-};
-
 const DAY_LABELS: Record<string, string> = {
   mon: "Mo",
   tue: "Di",
@@ -179,6 +176,8 @@ const DAY_LABELS: Record<string, string> = {
   sat: "Sa",
   sun: "So",
 };
+
+const CARE_USAGE_WEEKDAYS = ["mon", "tue", "wed", "thu", "fri"] as const;
 
 export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   const tenantSlug = useTenantSlugSafe();
@@ -193,6 +192,10 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   >(null);
   const [dayCount, setDayCount] = useState<string>(ALL_VALUE);
   const [gradeLevel, setGradeLevel] = useState<string>(ALL_VALUE);
+  const [weekday, setWeekday] = useState<string>(ALL_VALUE);
+  const [pickupTime, setPickupTime] = useState<string>(ALL_VALUE);
+  const [classRosterSchoolClass, setClassRosterSchoolClass] =
+    useState<string>(ALL_VALUE);
   const [search, setSearch] = useState("");
   const [report, setReport] = useState<CareUsageReport | null>(null);
   const [loading, setLoading] = useState(true);
@@ -204,8 +207,20 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     useState<EnrollmentExportFormat | null>(null);
   const [exportingReportFormat, setExportingReportFormat] =
     useState<EnrollmentReportFormat | null>(null);
+  const [exportingClassRosterFormat, setExportingClassRosterFormat] =
+    useState<EnrollmentReportFormat | null>(null);
   const phaseUrl = useEnrollmentPublicUrl({ tenantSlug, phaseId });
   useSetBreadcrumb({ pageTitle: phase?.name ?? "Anmeldephase" });
+
+  const { data: schoolClassOptionsData } = useSWRAuth<unknown>(
+    "enrollment-phase-school-classes",
+    async () => studentService.getSchoolClasses(),
+    { revalidateOnFocus: false },
+  );
+  const schoolClassOptions = useMemo(
+    () => coerceSchoolClassOptions(schoolClassOptionsData),
+    [schoolClassOptionsData],
+  );
 
   const handleExport = useCallback(
     async (format: EnrollmentExportFormat) => {
@@ -242,6 +257,12 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     if (gradeLevel !== ALL_VALUE) {
       filters.grade_level = Number(gradeLevel);
     }
+    if (weekday !== ALL_VALUE) {
+      filters.weekday = weekday;
+    }
+    if (pickupTime !== ALL_VALUE) {
+      filters.pickup_time = pickupTime;
+    }
     const trimmedSearch = search.trim();
     if (trimmedSearch !== "") {
       filters.search = trimmedSearch;
@@ -252,8 +273,10 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     explicitOfferingIds,
     gradeLevel,
     phaseId,
+    pickupTime,
     search,
     statusFilter,
+    weekday,
   ]);
 
   const handleReportOfferingsChange = useCallback((ids: string[]) => {
@@ -321,6 +344,33 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       }
     },
     [phaseId, reportFilters, toast],
+  );
+
+  const handleClassRosterExport = useCallback(
+    async (format: EnrollmentReportFormat) => {
+      setExportingClassRosterFormat(format);
+      try {
+        await exportPhaseClassRoster(
+          phaseId,
+          classRosterSchoolClass === ALL_VALUE ? null : classRosterSchoolClass,
+          format,
+        );
+        toast.success("Klassenliste wurde erstellt.");
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Export fehlgeschlagen";
+        logger.error("phase_class_roster_export_failed", {
+          error: message,
+          format,
+          phase_id: phaseId,
+          school_class: classRosterSchoolClass,
+        });
+        toast.error(message);
+      } finally {
+        setExportingClassRosterFormat(null);
+      }
+    },
+    [classRosterSchoolClass, phaseId, toast],
   );
 
   const overviewHref = tenantSlug
@@ -471,6 +521,16 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         sortValue: (row) => row.day_count,
       },
       {
+        key: "pickup_by_day",
+        header: "Gehzeiten",
+        render: (row) => (
+          <p className="max-w-48 text-sm text-gray-700">
+            {formatPickupByDay(row.pickup_by_day ?? {}) || "-"}
+          </p>
+        ),
+        sortValue: (row) => formatPickupByDay(row.pickup_by_day ?? {}),
+      },
+      {
         key: "actions",
         header: "Aktionen",
         align: "right",
@@ -550,7 +610,10 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <ExportMenu
+            <ExportMenuButton
+              label="Anmeldungen exportieren"
+              menuAriaLabel="Exportformat auswählen"
+              formats={["pdf", "docx", "xlsx"]}
               exportingFormat={exportingFormat}
               onExport={(format) => void handleExport(format)}
             />
@@ -558,7 +621,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
               href={`/enroll/${encodeURIComponent(phase.id)}`}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
             >
               Elternansicht öffnen
               <ExternalLink className="h-4 w-4" aria-hidden="true" />
@@ -601,7 +664,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
               Filter.
             </p>
           </div>
-          <div className="grid gap-3 lg:grid-cols-[repeat(4,minmax(9rem,1fr))]">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[repeat(6,minmax(9rem,1fr))]">
             <SelectField label="Status" id="enrollment-status-filter">
               <CustomSelect
                 id="enrollment-status-filter"
@@ -675,6 +738,42 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
                 ]}
               />
             </SelectField>
+            <SelectField label="Wochentag" id="enrollment-weekday-filter">
+              <CustomSelect
+                id="enrollment-weekday-filter"
+                value={weekday}
+                onChange={setWeekday}
+                options={[
+                  { value: ALL_VALUE, label: "Alle Tage" },
+                  ...CARE_USAGE_WEEKDAYS.map((day) => ({
+                    value: day,
+                    label: DAY_LABELS[day] ?? day,
+                  })),
+                ]}
+              />
+            </SelectField>
+            <SelectField label="Gehzeit" id="enrollment-pickup-time-filter">
+              <CustomSelect
+                id="enrollment-pickup-time-filter"
+                value={pickupTime}
+                onChange={setPickupTime}
+                options={[
+                  { value: ALL_VALUE, label: "Alle Gehzeiten" },
+                  ...(report?.filter_options.pickup_times ?? []).map(
+                    (time) => ({
+                      value: time,
+                      label: `${time} Uhr`,
+                    }),
+                  ),
+                  ...(pickupTime !== ALL_VALUE &&
+                  !(report?.filter_options.pickup_times ?? []).includes(
+                    pickupTime,
+                  )
+                    ? [{ value: pickupTime, label: `${pickupTime} Uhr` }]
+                    : []),
+                ]}
+              />
+            </SelectField>
           </div>
           <label
             htmlFor="enrollment-search-filter"
@@ -691,6 +790,14 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
           </label>
         </div>
       </section>
+
+      <ClassRosterExportPanel
+        schoolClassOptions={schoolClassOptions}
+        selectedSchoolClass={classRosterSchoolClass}
+        onSelectedSchoolClassChange={setClassRosterSchoolClass}
+        exportingFormat={exportingClassRosterFormat}
+        onExport={(format) => void handleClassRosterExport(format)}
+      />
 
       {reportError ? (
         <div className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4 text-sm text-[#CC2626]">
@@ -751,6 +858,61 @@ function SelectField({
   );
 }
 
+function ClassRosterExportPanel({
+  schoolClassOptions,
+  selectedSchoolClass,
+  onSelectedSchoolClassChange,
+  exportingFormat,
+  onExport,
+}: Readonly<{
+  schoolClassOptions: string[];
+  selectedSchoolClass: string;
+  onSelectedSchoolClassChange: (value: string) => void;
+  exportingFormat: EnrollmentReportFormat | null;
+  onExport: (format: EnrollmentReportFormat) => void;
+}>) {
+  return (
+    <section className="moto-content-surface relative z-10 rounded-2xl border p-4 shadow-sm backdrop-blur-md">
+      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div className="min-w-0 md:w-72">
+          <SelectField
+            label="Klasse für Klassenliste"
+            id="phase-class-roster-class"
+          >
+            <CustomSelect
+              id="phase-class-roster-class"
+              value={selectedSchoolClass}
+              onChange={onSelectedSchoolClassChange}
+              options={[
+                {
+                  value: ALL_VALUE,
+                  label:
+                    schoolClassOptions.length === 0
+                      ? "Keine Klassen"
+                      : "Alle Klassen",
+                },
+                ...schoolClassOptions.map((schoolClass) => ({
+                  value: schoolClass,
+                  label: schoolClass,
+                })),
+              ]}
+            />
+          </SelectField>
+        </div>
+
+        <ExportMenuButton
+          label="Klassenliste exportieren"
+          menuAriaLabel="Klassenliste exportieren"
+          formats={["pdf", "docx", "xlsx"]}
+          exportingFormat={exportingFormat}
+          disabled={schoolClassOptions.length === 0}
+          onExport={onExport}
+        />
+      </div>
+    </section>
+  );
+}
+
 function ReportStats({
   report,
   loading,
@@ -764,22 +926,82 @@ function ReportStats({
 }>) {
   const totals = report?.totals;
   return (
-    <section className="relative z-10 grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-[repeat(7,minmax(0,1fr))_minmax(15rem,1.2fr)]">
-      <ReportStatCard
-        label="Kinder"
-        value={loading ? "..." : String(totals?.children ?? 0)}
-      />
-      {DAY_COUNT_OPTIONS.map((count) => (
+    <section className="relative z-10 space-y-2">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-[repeat(7,minmax(0,1fr))_minmax(15rem,1.2fr)]">
         <ReportStatCard
-          key={count}
-          label={formatDayCountLabel(count)}
-          value={
-            loading ? "..." : String(totals?.by_day_count[String(count)] ?? 0)
-          }
+          label="Kinder"
+          value={loading ? "..." : String(totals?.children ?? 0)}
         />
-      ))}
-      <ReportExportCard exportingFormat={exportingFormat} onExport={onExport} />
+        {DAY_COUNT_OPTIONS.map((count) => (
+          <ReportStatCard
+            key={count}
+            label={formatDayCountLabel(count)}
+            value={
+              loading ? "..." : String(totals?.by_day_count[String(count)] ?? 0)
+            }
+          />
+        ))}
+        <ReportExportCard
+          exportingFormat={exportingFormat}
+          onExport={onExport}
+        />
+      </div>
+      <DeploymentPlanningStats report={report} loading={loading} />
     </section>
+  );
+}
+
+function DeploymentPlanningStats({
+  report,
+  loading,
+}: Readonly<{
+  report: CareUsageReport | null;
+  loading: boolean;
+}>) {
+  const pickupTimes = useMemo(() => pickupTimesForReport(report), [report]);
+  if (!loading && pickupTimes.length === 0) return null;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+          Einsatzplanung
+        </p>
+        <p className="text-sm font-medium text-gray-900">
+          {loading ? "..." : `${report?.totals.children ?? 0} Kinder`}
+        </p>
+      </div>
+      <div className="mt-3 grid gap-2 md:grid-cols-5">
+        {CARE_USAGE_WEEKDAYS.map((day) => (
+          <div
+            key={day}
+            className="moto-content-surface rounded-xl border px-3 py-2 shadow-sm backdrop-blur-md"
+          >
+            <p className="text-xs font-semibold text-gray-500">
+              {DAY_LABELS[day]}
+            </p>
+            <div className="mt-2 flex flex-col gap-1">
+              {loading ? (
+                <p className="text-sm font-semibold text-gray-900">...</p>
+              ) : (
+                pickupTimes.map((time) => (
+                  <div
+                    key={`${day}-${time}`}
+                    className="flex items-center justify-between gap-2 text-sm"
+                  >
+                    <span className="text-gray-600">{time}</span>
+                    <span className="font-semibold text-gray-900">
+                      {report?.totals.by_weekday_pickup_time?.[day]?.[time] ??
+                        0}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -846,28 +1068,13 @@ function ReportExportCard({
           aria-label="Auswertung exportieren"
           className="absolute right-0 z-40 mt-2 min-w-64 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg"
         >
-          {formats.map((format) => {
-            const Icon = format === "xlsx" ? FileSpreadsheet : FileText;
-            return (
-              <button
-                key={format}
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setOpen(false);
-                  onExport(format);
-                }}
-                className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 active:bg-gray-100"
-              >
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-gray-100 text-gray-600">
-                  <Icon className="h-4 w-4" aria-hidden="true" />
-                </span>
-                <span className="flex-1">
-                  {REPORT_EXPORT_MENU_LABELS[format]}
-                </span>
-              </button>
-            );
-          })}
+          <ExportMenuItems
+            formats={formats}
+            onSelect={(format) => {
+              setOpen(false);
+              onExport(format);
+            }}
+          />
         </div>
       ) : null}
     </div>
@@ -896,6 +1103,27 @@ function formatDays(days: string[]): string {
   return days.map((day) => DAY_LABELS[day] ?? day).join(", ");
 }
 
+function formatPickupByDay(pickupByDay: Record<string, string>): string {
+  return CARE_USAGE_WEEKDAYS.map((day) => {
+    const time = pickupByDay[day];
+    return time ? `${DAY_LABELS[day]} ${time}` : "";
+  })
+    .filter(Boolean)
+    .join("; ");
+}
+
+function pickupTimesForReport(report: CareUsageReport | null): string[] {
+  const seen = new Set<string>(report?.filter_options.pickup_times ?? []);
+  for (const byPickupTime of Object.values(
+    report?.totals.by_weekday_pickup_time ?? {},
+  )) {
+    for (const pickupTime of Object.keys(byPickupTime)) {
+      seen.add(pickupTime);
+    }
+  }
+  return Array.from(seen).sort((a, b) => a.localeCompare(b));
+}
+
 function formatOfferingDaySource(
   offering: CareUsageRow["offerings"][number],
 ): string {
@@ -922,36 +1150,64 @@ function formatDayCountLabel(count: number): string {
   return count === 1 ? "1 Tag" : `${count} Tage`;
 }
 
-function ExportMenu({
+function ExportMenuItems({
+  formats,
+  onSelect,
+}: {
+  readonly formats: readonly EnrollmentExportFormat[];
+  readonly onSelect: (format: EnrollmentExportFormat) => void;
+}) {
+  return (
+    <>
+      {formats.map((format) => (
+        <button
+          key={format}
+          type="button"
+          role="menuitem"
+          onClick={() => onSelect(format)}
+          className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 active:bg-gray-100"
+        >
+          <ExportFormatIcon format={format} />
+          <span className="flex-1">{EXPORT_MENU_LABELS[format]}</span>
+        </button>
+      ))}
+    </>
+  );
+}
+
+function ExportMenuButton({
+  label,
+  menuAriaLabel,
+  formats,
   exportingFormat,
+  disabled = false,
   onExport,
 }: {
+  readonly label: string;
+  readonly menuAriaLabel: string;
+  readonly formats: readonly EnrollmentExportFormat[];
   readonly exportingFormat: EnrollmentExportFormat | null;
+  readonly disabled?: boolean;
   readonly onExport: (format: EnrollmentExportFormat) => void;
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   useClickOutside(containerRef, () => setOpen(false), open);
 
-  const disabled = exportingFormat !== null;
-  const formats: readonly EnrollmentExportFormat[] = ["pdf", "docx", "xlsx"];
-  const triggerLabel =
-    exportingFormat === null
-      ? "Anmeldungen exportieren"
-      : `Exportiere ${exportingFormat.toUpperCase()}...`;
-
   return (
     <div className="relative" ref={containerRef}>
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        disabled={disabled}
+        disabled={disabled || exportingFormat !== null}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
       >
         <Download className="h-4 w-4" aria-hidden="true" />
-        {triggerLabel}
+        {exportingFormat === null
+          ? label
+          : `Exportiere ${REPORT_EXPORT_LABELS[exportingFormat]}...`}
         <ChevronDown
           className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`}
           aria-hidden="true"
@@ -961,24 +1217,16 @@ function ExportMenu({
       {open ? (
         <div
           role="menu"
-          aria-label="Exportformat auswählen"
+          aria-label={menuAriaLabel}
           className="absolute right-0 z-30 mt-2 min-w-64 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg"
         >
-          {formats.map((format) => (
-            <button
-              key={format}
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setOpen(false);
-                onExport(format);
-              }}
-              className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 active:bg-gray-100"
-            >
-              <ExportFormatIcon format={format} />
-              <span className="flex-1">{EXPORT_FORMAT_LABELS[format]}</span>
-            </button>
-          ))}
+          <ExportMenuItems
+            formats={formats}
+            onSelect={(format) => {
+              setOpen(false);
+              onExport(format);
+            }}
+          />
         </div>
       ) : null}
     </div>
@@ -996,6 +1244,17 @@ function ExportFormatIcon({
       <Icon className="h-4 w-4" aria-hidden="true" />
     </span>
   );
+}
+
+function coerceSchoolClassOptions(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .sort((a, b) =>
+      a.localeCompare(b, "de", { numeric: true, sensitivity: "base" }),
+    );
 }
 
 function calculateRequestStats(

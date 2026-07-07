@@ -928,8 +928,9 @@ func (noopAccountRoleRepository) FindAccountRolesWithDetails(context.Context, ma
 type stubAccountRoleRepository struct {
 	noopAccountRoleRepository
 
-	mu          sync.Mutex
-	assignments []*authModel.AccountRole
+	mu              sync.Mutex
+	assignments     []*authModel.AccountRole
+	findByTenantErr error
 }
 
 func newStubAccountRoleRepository() *stubAccountRoleRepository {
@@ -954,6 +955,21 @@ func (r *stubAccountRoleRepository) FindByAccountAndRole(_ context.Context, acco
 	return nil, sql.ErrNoRows
 }
 
+func (r *stubAccountRoleRepository) FindByAccountIDForTenant(_ context.Context, accountID, tenantID int64) ([]*authModel.AccountRole, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.findByTenantErr != nil {
+		return nil, r.findByTenantErr
+	}
+	var roles []*authModel.AccountRole
+	for _, assignment := range r.assignments {
+		if assignment.AccountID == accountID && assignment.TenantID == tenantID {
+			roles = append(roles, assignment)
+		}
+	}
+	return roles, nil
+}
+
 func (r *stubAccountRoleRepository) Assignments() []*authModel.AccountRole {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -971,6 +987,10 @@ func (noopPersonRepository) Create(context.Context, *userModel.Person) error {
 
 func (noopPersonRepository) FindByID(context.Context, interface{}) (*userModel.Person, error) {
 	panic("FindByID not implemented")
+}
+
+func (noopPersonRepository) FindByIDForUpdate(context.Context, int64) (*userModel.Person, error) {
+	panic("FindByIDForUpdate not implemented")
 }
 
 func (noopPersonRepository) FindByTagID(context.Context, string) (*userModel.Person, error) {

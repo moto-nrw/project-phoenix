@@ -3,11 +3,11 @@
 import { use, useCallback } from "react";
 import Link from "next/link";
 // eslint-disable-next-line no-restricted-imports -- parent portal uses bare paths, no tenant-router
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { ArrowLeft } from "lucide-react";
 import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
-import { TenantProvider } from "~/components/tenant/tenant-provider";
+import { TenantProvider } from "~/lib/tenant-context";
 import {
   fetchParentEnrollmentProfile,
   submitParentEnrollment,
@@ -31,6 +31,8 @@ export default function ParentEnrollFormPage({ params }: PageProps) {
   const t = useTranslations("enrollmentPublic");
   const { tenantSlug, phaseId } = use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const lateInviteToken = searchParams.get("late_invite")?.trim();
 
   const handleSubmitted = (statusURL: string) => {
     try {
@@ -76,6 +78,7 @@ export default function ParentEnrollFormPage({ params }: PageProps) {
           onSubmitted={handleSubmitted}
           profileFetcher={profileFetcher}
           submitter={submitter}
+          lateInviteToken={lateInviteToken ?? undefined}
           skipCaptcha
           localizedCopy
         />

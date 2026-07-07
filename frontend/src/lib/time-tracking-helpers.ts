@@ -35,6 +35,7 @@ export interface BackendWorkSessionHistory extends BackendWorkSession {
   rest_period_warning: string | null;
   breaks: BackendWorkSessionBreak[] | null;
   edit_count: number;
+  audit_count?: number;
 }
 
 interface BackendWeeklySummary {
@@ -186,6 +187,7 @@ export interface WorkSessionHistory extends WorkSession {
   restPeriodWarning: string | null;
   breaks: WorkSessionBreak[];
   editCount: number;
+  auditCount?: number;
 }
 
 export interface WeeklySummary {
@@ -267,6 +269,7 @@ export function mapWorkSessionHistoryResponse(
     restPeriodWarning: data.rest_period_warning ?? null,
     breaks: (data.breaks ?? []).map(mapWorkSessionBreakResponse),
     editCount: data.edit_count ?? 0,
+    auditCount: data.audit_count ?? 0,
   };
 }
 

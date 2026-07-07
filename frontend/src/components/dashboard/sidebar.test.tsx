@@ -34,6 +34,12 @@ vi.mock("~/lib/auth-utils", () => {
       if (role === "user") return !isAdminFn();
       return false;
     }),
+    // Elternmitteilungen (#1669) gates on this; admins hold it via admin:*.
+    // The nav item additionally requires operations.parent_news_enabled (off
+    // in these tests' settings schema), so it stays hidden regardless.
+    hasPermission: vi.fn((_session: unknown, _permission: string) =>
+      isAdminFn(),
+    ),
   };
 });
 
@@ -60,10 +66,7 @@ import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { isAdmin } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import {
-  useNFCEnabled,
-  usePresenceMode,
-} from "~/components/tenant/tenant-provider";
+import { useNFCEnabled, usePresenceMode } from "~/lib/tenant-context";
 
 const mockUsePathname = vi.mocked(usePathname);
 const mockUseSearchParams = vi.mocked(useSearchParams);
@@ -298,13 +301,26 @@ describe("Sidebar", () => {
       expect(dashboardLink).toHaveClass("text-gray-900");
     });
 
-    it("highlights link when path starts with href", () => {
-      mockUsePathname.mockReturnValue("/activities/123");
+    it("highlights the canonical activities link", () => {
+      mockUsePathname.mockReturnValue("/activities");
 
       render(<Sidebar />);
 
       const activitiesLink = screen.getByText("Aktivitäten").closest("a");
       expect(activitiesLink).toHaveClass("bg-gray-100");
+    });
+
+    it("highlights Dienstplan without also highlighting Mitarbeiter", () => {
+      mockUsePathname.mockReturnValue("/staff/dienstplan");
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+
+      render(<Sidebar />);
+
+      const dienstplanLink = screen.getByText("Dienstplan").closest("a");
+      const staffLink = screen.getByText("Mitarbeiter").closest("a");
+      expect(dienstplanLink).toHaveClass("bg-gray-100");
+      expect(staffLink).not.toHaveClass("bg-gray-100");
     });
 
     it("does not highlight dashboard for non-dashboard paths", () => {
@@ -413,28 +429,36 @@ describe("Sidebar", () => {
 
   describe("coming soon items", () => {
     it("displays coming soon items with badge", () => {
+      // "Berichte" is the remaining coming soon item and is admin-only.
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+
       render(<Sidebar />);
 
       // Coming soon items should have "Bald" badge
-      expect(screen.getByText("Zeiterfassung")).toBeInTheDocument();
-      expect(screen.getByText("Nachrichten")).toBeInTheDocument();
-      expect(screen.getByText("Mittagessen")).toBeInTheDocument();
+      expect(screen.getByText("Berichte")).toBeInTheDocument();
       expect(screen.getAllByText("Bald").length).toBeGreaterThan(0);
     });
 
     it("coming soon items are not clickable", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+
       render(<Sidebar />);
 
-      // Nachrichten is still a coming soon feature
-      const nachrichtenElement = screen.getByText("Nachrichten");
-      expect(nachrichtenElement.closest("a")).toBeNull();
+      // Berichte is still a coming soon feature
+      const comingSoonElement = screen.getByText("Berichte");
+      expect(comingSoonElement.closest("a")).toBeNull();
     });
 
     it("coming soon items have disabled styling", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+
       render(<Sidebar />);
 
-      const nachrichtenElement = screen.getByText("Nachrichten");
-      const container = nachrichtenElement.closest("div");
+      const comingSoonElement = screen.getByText("Berichte");
+      const container = comingSoonElement.closest("div");
       expect(container).toHaveClass("text-gray-400");
       expect(container).toHaveClass("cursor-not-allowed");
     });
@@ -446,6 +470,18 @@ describe("Sidebar", () => {
       const link = zeiterfassungElement.closest("a");
       expect(link).not.toBeNull();
       expect(link).toHaveAttribute("href", "/time-tracking");
+    });
+
+    it("Nachrichten is an active navigation link", () => {
+      render(<Sidebar />);
+
+      const nachrichtenElement = screen.getByText("Nachrichten");
+      const link = nachrichtenElement.closest("a");
+      expect(link).not.toBeNull();
+      // Eltern sub-page links are tenant-aware: in path-routing mode (the test
+      // setup mocks tenantSlug="test-tenant", routingMode="path") the href is
+      // prefixed with the tenant segment, matching the /eltern hub card links.
+      expect(link).toHaveAttribute("href", "/test-tenant/messages");
     });
 
     it("does not show the old Dienstpläne placeholder for admins", () => {
@@ -766,23 +802,6 @@ describe("Sidebar", () => {
       const activitiesLink = screen.getByText("Aktivitäten").closest("a");
       const svg = activitiesLink?.querySelector("svg");
       expect(svg?.getAttribute("class")).toContain("text-[#FF3130]");
-    });
-  });
-
-  describe("hideForAdmin items", () => {
-    it("shows Erinnerungen for non-admin users", () => {
-      mockIsAdmin.mockReturnValue(false);
-      render(<Sidebar />);
-
-      expect(screen.getByText("Erinnerungen")).toBeInTheDocument();
-    });
-
-    it("hides Erinnerungen for admin users", () => {
-      mockIsAdmin.mockReturnValue(true);
-      mockUseSession.mockReturnValue(createMockSession(true));
-      render(<Sidebar />);
-
-      expect(screen.queryByText("Erinnerungen")).not.toBeInTheDocument();
     });
   });
 

@@ -10,6 +10,8 @@
 
 import { createLogger } from "~/lib/logger";
 import type { AppLocale } from "~/i18n/locales";
+import type { ChatMessage, RequestDiffEntry } from "~/lib/messaging-status";
+import { readEnrollmentError } from "~/lib/enrollment-error-messages";
 import type {
   MeProfileResponse,
   SubmitEnrollmentPayload,
@@ -87,21 +89,39 @@ export interface StatusDay {
   readonly note?: string;
 }
 
-// One parent note. Mirrors api/parent.ParentNoteResponse, newest-first.
-export interface ParentNote {
-  readonly id: string;
-  readonly student_id: string;
-  readonly body: string;
-  readonly created_at: string; // ISO timestamp
-}
-
 // Resolved per-tenant parent-portal feature toggles for a child.
 export interface ChildFeatures {
   readonly sick_note_enabled: boolean;
   readonly notes_enabled: boolean;
+  // Whether the guardian may submit structured change-requests (care schedule /
+  // master data). Separate from notes_enabled (chat) so the UI hides the request
+  // actions for a chat-only guardian instead of dead-ending on a backend 403.
+  readonly request_submit_enabled: boolean;
   readonly pickup_change_enabled: boolean;
   readonly related_accounts_invite_enabled: boolean;
   readonly related_accounts_remove_enabled: boolean;
+  readonly master_data_edit_enabled: boolean;
+  readonly master_data_contact_edit_enabled: boolean;
+  readonly master_data_request_enabled: boolean;
+  readonly meal_plan_enabled: boolean;
+  // STATE, not a capability: the child has a pending change request (master data
+  // or care schedule) awaiting an OGS decision. Lets the overview badge the
+  // Stammdaten entry without fetching the full request payloads.
+  readonly has_open_change_request: boolean;
+  // Whether the school broadcasts parent announcements
+  // (operations.parent_news_enabled). When every linked school has it off the
+  // Neuigkeiten feed is empty, so the parents-portal nav/panel entries gate on
+  // this to avoid dead-ending on an empty page.
+  readonly parent_news_enabled: boolean;
+}
+
+// One dish of the read-only meal plan (Essensplan) for a child's school.
+// Mirrors api/parent.MealPlanEntryResponse. A day can carry several dishes.
+export interface MealPlanEntry {
+  readonly date: string; // YYYY-MM-DD
+  readonly position: number;
+  readonly dish: string;
+  readonly note?: string | null;
 }
 
 // One day's pickup/arrival override. Mirrors api/parent.CareExceptionResponse.
@@ -282,6 +302,16 @@ async function deleteJson<T>(url: string): Promise<T> {
   return unwrapEnvelope((await response.json()) as ApiEnvelope<T>);
 }
 
+async function patchJson<T>(url: string, body: unknown): Promise<T> {
+  const response = await fetch(url, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) await throwResponseError(url, response);
+  return unwrapEnvelope((await response.json()) as ApiEnvelope<T>);
+}
+
 async function putJson<T>(url: string, body: unknown): Promise<T> {
   const response = await fetch(url, {
     method: "PUT",
@@ -384,19 +414,12 @@ export async function submitParentEnrollment(
     },
   );
   if (!response.ok) {
-    let message = "Anmeldung konnte nicht übermittelt werden";
-    try {
-      const body = (await response.json()) as { error?: string };
-      if (body.error) message = body.error;
-    } catch {
-      // Body was not JSON, keep the generic message.
-    }
-    logger.error("parent_submit_failed", {
-      tenant_slug: tenantSlug,
-      status: response.status,
-      message,
-    });
-    throw new Error(message);
+    throw await readEnrollmentError(
+      response,
+      "Anmeldung konnte nicht übermittelt werden",
+      logger,
+      "parent_submit_failed",
+    );
   }
   const json = (await response.json()) as {
     data?: SubmitEnrollmentResult;
@@ -444,6 +467,22 @@ export async function getChildFeatures(
 }
 
 /**
+ * Fetches the Monday-Friday meal plan for the child's school for the week
+ * containing weekStart (YYYY-MM-DD). Returns 403 (meal_plan_disabled) when the
+ * school does not run a meal plan; callers gate on meal_plan_enabled first.
+ */
+export async function getChildMealPlan(
+  studentId: string,
+  weekStart: string,
+): Promise<MealPlanEntry[]> {
+  return getJson<MealPlanEntry[]>(
+    `/api/parent/me/children/${encodeURIComponent(
+      studentId,
+    )}/meal-plan?week_start=${encodeURIComponent(weekStart)}`,
+  );
+}
+
+/**
  * Fetches the child's active sick days (today .. +2 months by default).
  * Used to show already-reported days on the child page.
  */
@@ -453,20 +492,173 @@ export async function listSickDays(studentId: string): Promise<StatusDay[]> {
   );
 }
 
-/** Fetches the newest notes the parent left for the team (newest first). */
-export async function listChildNotes(studentId: string): Promise<ParentNote[]> {
-  return getJson<ParentNote[]>(
-    `/api/parent/me/children/${encodeURIComponent(studentId)}/notes`,
+// --- Parent <-> OGS messaging (chat model) ---
+//
+// One continuous conversation per child between the guardian and the OGS (no
+// subject). The guardian always talks to "the OGS [Schulname]", never an
+// individual staff member — the backend masks staff names accordingly.
+
+// One message in a conversation. `sender_kind` is "guardian" for the parent's
+// own messages, "staff" for replies from the OGS. For staff messages
+// `sender_name` is the "OGS [Schulname]" label.
+// The wire message shape is shared with the staff client; see ChatMessage.
+export type ParentMessage = ChatMessage;
+
+// One row on the messages landing page: a child's conversation, with the
+// guardian's unread (staff-sent) count and last-activity metadata.
+export interface ThreadSummary {
+  readonly thread_id: string;
+  readonly student_id: string;
+  readonly student_name: string;
+  readonly school_name: string;
+  readonly counterpart_name: string; // "OGS [Schulname]"
+  readonly last_message_at?: string; // ISO timestamp
+  readonly last_sender_kind?: "guardian" | "staff";
+  readonly last_message_body?: string;
+  // Structured fields of the last message so the localized portal previews a
+  // request title / decision / withdrawal from fields instead of the German
+  // last_message_body (see parentThreadPreviewI18nDescriptor). Empty for plain
+  // messages, where last_message_body is the language-neutral written text.
+  readonly last_message_kind?: "message" | "event" | "request";
+  readonly last_event_type?: string;
+  readonly last_request_type?: string;
+  readonly last_request_status?: string;
+  readonly unread: number;
+}
+
+// One parent-news feed entry (#1669). read/acknowledged are THIS guardian's
+// state; requires_acknowledgement tells the app whether to offer the
+// "gelesen und bestätigt" action.
+export interface ParentAnnouncement {
+  readonly id: string;
+  readonly title: string;
+  readonly body: string;
+  readonly priority: "info" | "important";
+  readonly link_url?: string;
+  readonly requires_acknowledgement: boolean;
+  readonly school_name: string;
+  readonly published_at?: string; // ISO timestamp
+  readonly expires_at?: string; // ISO timestamp
+  readonly read: boolean;
+  readonly acknowledged: boolean;
+}
+
+// A child's full conversation (messages oldest-first). `thread_id` is empty
+// when the guardian has not written about this child yet.
+export interface ThreadView {
+  readonly thread_id: string;
+  readonly student_id: string;
+  readonly student_name: string;
+  readonly school_name: string;
+  readonly counterpart_name: string; // "OGS [Schulname]"
+  readonly messages: ParentMessage[];
+}
+
+/** Lists the guardian's conversations (one per child written about). */
+export async function listMessageThreads(): Promise<ThreadSummary[]> {
+  return getJson<ThreadSummary[]>("/api/parent/me/messages");
+}
+
+/**
+ * Lists the guardian's conversation(s) about ONE child (at most one per the chat
+ * model). The child detail page uses this instead of fetching the whole
+ * cross-tenant inbox and filtering client-side. Reading it does NOT mark the
+ * thread read.
+ */
+export async function listChildThreads(
+  studentId: string,
+): Promise<ThreadSummary[]> {
+  return getJson<ThreadSummary[]>(
+    `/api/parent/me/messages/children/${encodeURIComponent(studentId)}/threads`,
   );
 }
 
-/** Appends a note and returns the newest few (newest first). */
-export async function addChildNote(
+/**
+ * Total number of conversations with unread staff-side activity, across all the
+ * guardian's children's schools — the sidebar badge. A light COUNT endpoint, so
+ * the badge does not fetch every thread's full projection just to sum unreads.
+ */
+export async function fetchMessagesUnreadCount(): Promise<number> {
+  const result = await getJson<{ unread_count: number }>(
+    "/api/parent/me/messages/unread-count",
+  );
+  return result.unread_count ?? 0;
+}
+
+/**
+ * The guardian's parent-news feed across all their (news-enabled) children's
+ * schools, newest-published first. Visibility + audience are enforced
+ * server-side from the JWT account.
+ */
+export async function listAnnouncements(): Promise<ParentAnnouncement[]> {
+  return getJson<ParentAnnouncement[]>("/api/parent/me/news");
+}
+
+/**
+ * Unread parent-news count for the parents-portal Neuigkeiten badge. A light
+ * COUNT endpoint, mirroring the messages badge.
+ */
+export async function fetchAnnouncementsUnreadCount(): Promise<number> {
+  const result = await getJson<{ unread_count: number }>(
+    "/api/parent/me/news/unread-count",
+  );
+  return result.unread_count ?? 0;
+}
+
+/**
+ * Marks an announcement read for this guardian (idempotent). `publishedAt` is
+ * the version the client loaded; the backend rejects the request (409) if the
+ * announcement has since been corrected/republished, so a stale tab cannot
+ * record a read for wording the guardian never saw.
+ */
+export async function markAnnouncementRead(
+  announcementId: string,
+  publishedAt: string,
+): Promise<void> {
+  await postJson<{ read: boolean }>(
+    `/api/parent/me/news/${encodeURIComponent(announcementId)}/read`,
+    { published_at: publishedAt },
+  );
+}
+
+/**
+ * Records an explicit "gelesen und bestätigt" for an announcement. `publishedAt`
+ * is verified against the live announcement (see markAnnouncementRead) so a
+ * confirmation is never counted against since-corrected wording.
+ */
+export async function acknowledgeAnnouncement(
+  announcementId: string,
+  publishedAt: string,
+): Promise<void> {
+  await postJson<{ acknowledged: boolean }>(
+    `/api/parent/me/news/${encodeURIComponent(announcementId)}/acknowledge`,
+    { published_at: publishedAt },
+  );
+}
+
+/**
+ * Fetches the guardian's conversation about one child (oldest-first), creating
+ * nothing — an empty conversation comes back with an empty `thread_id`. Reading
+ * marks it read server-side.
+ */
+export async function getChildConversation(
+  studentId: string,
+): Promise<ThreadView> {
+  return getJson<ThreadView>(
+    `/api/parent/me/messages/children/${encodeURIComponent(studentId)}`,
+  );
+}
+
+/**
+ * Appends a guardian message to the child's conversation (created on the first
+ * message) and returns the full updated conversation.
+ */
+export async function postChildMessage(
   studentId: string,
   body: string,
-): Promise<ParentNote[]> {
-  return postJson<ParentNote[]>(
-    `/api/parent/me/children/${encodeURIComponent(studentId)}/notes`,
+): Promise<ThreadView> {
+  return postJson<ThreadView>(
+    `/api/parent/me/messages/children/${encodeURIComponent(studentId)}`,
     { body },
   );
 }
@@ -580,6 +772,164 @@ export async function deleteCareException(
 ): Promise<void> {
   await deleteJson<null>(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/care-exception?date=${encodeURIComponent(date)}`,
+  );
+}
+
+// --- Care schedule (standard weekly plan + permanent change requests, #1803) ---
+
+// One weekday of the child's standard weekly care plan. Mirrors
+// api/parent.CareScheduleWeekdayResponse. `weekday` is ISO (Monday=1 .. Friday=5).
+// `arrival`/`pickup` are "HH:MM" wall-clock strings, absent/empty when unset.
+// `modes` are the allowed departure-mode keys for the day (e.g. ["bus","pickup"]).
+interface CareScheduleWeekday {
+  readonly weekday: number;
+  readonly arrival?: string;
+  readonly pickup?: string;
+  readonly modes: string[];
+}
+
+// The guardian's still-open permanent change request for the care schedule.
+// Mirrors api/parent.PendingCareRequestResponse. `diff` reuses the shared
+// RequestDiffEntry wire shape (label/old/new + structured discriminators), so
+// the localized parents portal can render each row in the guardian's language.
+// `submitted_by_self` is true only for the calling guardian's own request —
+// withdraw is offered only then.
+interface PendingCareRequest {
+  readonly id: string;
+  readonly created_at: string; // ISO timestamp
+  readonly diff: RequestDiffEntry[];
+  readonly submitted_by_self: boolean;
+}
+
+// The read view of a child's care schedule. Mirrors api/parent.CareScheduleResponse.
+export interface ChildCareSchedule {
+  readonly weekdays: CareScheduleWeekday[];
+  readonly pending_request?: PendingCareRequest;
+  readonly can_request: boolean;
+}
+
+/**
+ * Fetches the child's standard weekly care plan (Mon-Fr), the guardian's own
+ * still-open change request (if any), and whether a new request may be
+ * submitted. Powers the care-schedule section on the Stammdaten page.
+ */
+export async function getChildCareSchedule(
+  studentId: string,
+): Promise<ChildCareSchedule> {
+  return getJson<ChildCareSchedule>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-schedule`,
+  );
+}
+
+/**
+ * Submits a permanent weekly-plan change request. `payload` carries only the
+ * aspects that differ from the current plan (empty string = unchanged); it is
+ * wrapped in the backend's `{ payload }` envelope. Returns the refreshed view
+ * (now carrying the pending request).
+ */
+export async function submitCareScheduleRequest(
+  studentId: string,
+  payload: Record<string, unknown>,
+): Promise<ChildCareSchedule> {
+  return postJson<ChildCareSchedule>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-schedule/requests`,
+    { payload },
+  );
+}
+
+/**
+ * Withdraws the guardian's own still-open change request and returns the
+ * refreshed view (pending request cleared).
+ */
+export async function withdrawCareScheduleRequest(
+  studentId: string,
+  requestId: string,
+): Promise<ChildCareSchedule> {
+  return postJson<ChildCareSchedule>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-schedule/requests/${encodeURIComponent(requestId)}/withdraw`,
+    {},
+  );
+}
+
+// --- Stammdaten (master data view + change flow) ---
+
+// One change-request row in the parent view. Mirrors
+// api/parent.MasterDataChangeResponse. old/new values are JSON (string for the
+// fields shipped today; object for departure modes).
+export interface MasterDataChange {
+  readonly id: string;
+  readonly target: string;
+  readonly field_key: string;
+  readonly old_value?: unknown;
+  readonly new_value: unknown;
+  readonly status: "auto_applied" | "pending" | "approved" | "rejected";
+  readonly created_at: string;
+}
+
+// The structured Stammdaten view. Mirrors api/parent.MasterDataResponse.
+export interface ChildMasterData {
+  readonly student_id: string;
+  readonly first_name: string;
+  readonly last_name: string;
+  readonly birthday?: string;
+  readonly school_class: string;
+  readonly status: string;
+  readonly enrolled_from?: string;
+  readonly enrolled_until?: string;
+  readonly health_info?: string;
+  readonly guardian_profile_id: string;
+  readonly email?: string;
+  readonly address_street?: string;
+  readonly address_city?: string;
+  readonly address_postal_code?: string;
+  readonly preferred_contact_method: string;
+  readonly language_preference: string;
+  readonly primary_phone?: string;
+  readonly departure_days?: Record<string, string>;
+  readonly allowed_departure_modes?: Record<string, string[]>;
+  readonly pending_changes: MasterDataChange[];
+}
+
+/** Fetches the child's structured Stammdaten view (guardian's own data included). */
+export async function getChildMasterData(
+  studentId: string,
+): Promise<ChildMasterData> {
+  return getJson<ChildMasterData>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/master-data`,
+  );
+}
+
+/**
+ * Applies a Track A direct edit to a single field and returns the refreshed
+ * view. `value` is JSON (a string for every Track A field today).
+ */
+export async function updateMasterDataField(
+  studentId: string,
+  target: string,
+  field: string,
+  value: unknown,
+): Promise<ChildMasterData> {
+  return patchJson<ChildMasterData>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/master-data/${encodeURIComponent(target)}/${encodeURIComponent(field)}`,
+    { value },
+  );
+}
+
+/** One proposed Track B change. value is JSON (string or departure-modes object). */
+export interface MasterDataChangeInput {
+  readonly target: string;
+  readonly field_key: string;
+  readonly value: unknown;
+}
+
+/** Submits Track B change requests (name, birthday, permanent Gehzeit) for approval. */
+export async function submitMasterDataRequest(
+  studentId: string,
+  changes: MasterDataChangeInput[],
+): Promise<MasterDataChange[]> {
+  return postJson<MasterDataChange[]>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/master-data/requests`,
+    { changes },
   );
 }
 

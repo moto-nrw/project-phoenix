@@ -1,6 +1,8 @@
 import type { NextRequest } from "next/server";
-import { apiGet, apiPut } from "~/lib/api-helpers.server";
-import { createGetHandler, createPutHandler } from "~/lib/route-wrapper.server";
+import { apiGet } from "~/lib/api-helpers.server";
+import { createGetHandler } from "~/lib/route-wrapper.server";
+import { proxyPut } from "~/lib/route-proxy.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 export const GET = createGetHandler(
   async (
@@ -19,25 +21,6 @@ export const GET = createGetHandler(
   },
 );
 
-interface QuotaBody {
-  year?: number;
-  entitled_days: number;
-  carryover_days?: number;
-}
-
-export const PUT = createPutHandler<unknown, QuotaBody>(
-  async (
-    _request: NextRequest,
-    body: QuotaBody,
-    token: string,
-    params: Record<string, unknown>,
-  ) => {
-    const id = params.id as string;
-    const response = await apiPut<{ data: unknown }>(
-      `/api/staff/${id}/vacation/quota`,
-      token,
-      body,
-    );
-    return response.data;
-  },
+export const PUT = proxyPut(
+  (p) => `/api/staff/${requirePathSegmentParam(p)}/vacation/quota`,
 );

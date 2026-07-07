@@ -560,8 +560,10 @@ func (r *StudentGuardianRepository) ListEmergencyContactRows(ctx context.Context
 	query := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(`users.students_guardians AS "student_guardian"`).
 		ColumnExpr(`"student_guardian".student_id`).
+		ColumnExpr(`"guardian".id AS guardian_profile_id`).
 		ColumnExpr(`"guardian".first_name`).
 		ColumnExpr(`"guardian".last_name`).
+		ColumnExpr(`"guardian".email`).
 		ColumnExpr(`"phone".phone_number`).
 		Join(`JOIN users.guardian_profiles AS "guardian" ON "guardian".id = "student_guardian".guardian_profile_id`).
 		Join(`LEFT JOIN users.guardian_phone_numbers AS "phone" ON "phone".guardian_profile_id = "guardian".id`).

@@ -34,6 +34,13 @@ const ROTATION_OPTIONS = [
 const WEEK_BADGE_LETTERS = ["A", "B", "C", "D"] as const;
 const PREVIEW_WEEKS = 4;
 
+type EditableScheduleEntry = {
+  weekIndex: number;
+  dayOfWeek: number;
+  targetMinutes: number;
+  startTime?: string;
+};
+
 // Arbeitszeitmodell tab. Shows the staff member's contractual Soll-Stunden,
 // which can either come from a tenant-level template (mode=template) or
 // from per-staff custom entries (mode=custom). Both paths support 1-4 week
@@ -136,6 +143,11 @@ export function ArbeitszeitmodellTab({
                       >
                         {minutes > 0 ? formatDuration(minutes) : "-"}
                       </div>
+                      {minutes > 0 && entry?.startTime && (
+                        <div className="text-[10px] text-gray-400 tabular-nums">
+                          ab {entry.startTime}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -267,9 +279,9 @@ function EditArbeitszeitmodellModal({
   const [rotationLength, setRotationLength] = useState<number>(
     schedule.rotationLength,
   );
-  const [customEntries, setCustomEntries] = useState<
-    Array<{ weekIndex: number; dayOfWeek: number; targetMinutes: number }>
-  >(initialiseCustomEntries(schedule));
+  const [customEntries, setCustomEntries] = useState<EditableScheduleEntry[]>(
+    initialiseCustomEntries(schedule),
+  );
   const [activeWeekTab, setActiveWeekTab] = useState(0);
   const [saveAsTemplateName, setSaveAsTemplateName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -306,6 +318,7 @@ function EditArbeitszeitmodellModal({
             weekIndex: w,
             dayOfWeek: d,
             targetMinutes: existing?.targetMinutes ?? 0,
+            startTime: existing?.startTime,
           });
         }
       }
@@ -362,7 +375,14 @@ function EditArbeitszeitmodellModal({
           : {
               mode: "custom",
               rotationLength,
-              entries: customEntries.filter((e) => e.targetMinutes > 0),
+              entries: customEntries
+                .filter((e) => e.targetMinutes > 0)
+                .map((e) => ({
+                  weekIndex: e.weekIndex,
+                  dayOfWeek: e.dayOfWeek,
+                  targetMinutes: e.targetMinutes,
+                  ...(e.startTime ? { startTime: e.startTime } : {}),
+                })),
               ...(saveAsTemplateName.trim()
                 ? { saveAsTemplate: saveAsTemplateName.trim() }
                 : {}),
@@ -393,6 +413,20 @@ function EditArbeitszeitmodellModal({
       prev.map((e) =>
         e.weekIndex === weekIndex && e.dayOfWeek === dayOfWeek
           ? { ...e, targetMinutes: clamped }
+          : e,
+      ),
+    );
+  };
+
+  const updateEntryStartTime = (
+    weekIndex: number,
+    dayOfWeek: number,
+    startTime: string,
+  ) => {
+    setCustomEntries((prev) =>
+      prev.map((e) =>
+        e.weekIndex === weekIndex && e.dayOfWeek === dayOfWeek
+          ? { ...e, startTime: startTime || undefined }
           : e,
       ),
     );
@@ -450,6 +484,7 @@ function EditArbeitszeitmodellModal({
             onActiveWeekTabChange={setActiveWeekTab}
             entries={customEntries}
             onEntryChange={updateEntry}
+            onStartTimeChange={updateEntryStartTime}
             totalForWeek={totalForWeek}
             saveAsTemplateName={saveAsTemplateName}
             onSaveAsTemplateNameChange={setSaveAsTemplateName}
@@ -596,7 +631,7 @@ function TemplatePreviewBlock({ model }: { readonly model: WorkTimeModel }) {
                     <span key={d} className="tabular-nums">
                       {dayLabels[d]}{" "}
                       {entry && entry.targetMinutes > 0
-                        ? formatDuration(entry.targetMinutes)
+                        ? `${entry.startTime ? `ab ${entry.startTime} · ` : ""}${formatDuration(entry.targetMinutes)}`
                         : "-"}
                     </span>
                   );
@@ -620,6 +655,7 @@ function CustomEditor({
   onActiveWeekTabChange,
   entries,
   onEntryChange,
+  onStartTimeChange,
   totalForWeek,
   saveAsTemplateName,
   onSaveAsTemplateNameChange,
@@ -632,11 +668,17 @@ function CustomEditor({
     weekIndex: number;
     dayOfWeek: number;
     targetMinutes: number;
+    startTime?: string;
   }>;
   readonly onEntryChange: (
     weekIndex: number,
     dayOfWeek: number,
     minutes: number,
+  ) => void;
+  readonly onStartTimeChange: (
+    weekIndex: number,
+    dayOfWeek: number,
+    startTime: string,
   ) => void;
   readonly totalForWeek: (weekIndex: number) => number;
   readonly saveAsTemplateName: string;
@@ -695,6 +737,7 @@ function CustomEditor({
             (e) => e.weekIndex === activeWeekTab && e.dayOfWeek === d,
           );
           const minutes = entry?.targetMinutes ?? 0;
+          const startTime = entry?.startTime ?? "";
           const hours = Math.floor(minutes / 60);
           const mins = minutes % 60;
           return (
@@ -754,6 +797,18 @@ function CustomEditor({
                 <DropdownChevron />
               </div>
               <span className="text-xs text-gray-400">min</span>
+              <label className="flex items-center gap-1 text-xs text-gray-500">
+                <span>Start</span>
+                <input
+                  type="time"
+                  value={startTime}
+                  disabled={minutes <= 0}
+                  onChange={(e) =>
+                    onStartTimeChange(activeWeekTab, d, e.target.value)
+                  }
+                  className="w-24 rounded-lg border border-gray-200 px-2 py-1.5 text-sm text-gray-700 tabular-nums focus:border-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+                />
+              </label>
               <span className="ml-auto text-xs text-gray-500 tabular-nums">
                 {formatDuration(minutes)}
               </span>
@@ -796,13 +851,9 @@ function CustomEditor({
 
 function initialiseCustomEntries(
   schedule: StaffSchedule,
-): Array<{ weekIndex: number; dayOfWeek: number; targetMinutes: number }> {
+): EditableScheduleEntry[] {
   const length = Math.max(1, schedule.rotationLength);
-  const out: Array<{
-    weekIndex: number;
-    dayOfWeek: number;
-    targetMinutes: number;
-  }> = [];
+  const out: EditableScheduleEntry[] = [];
   for (let w = 0; w < length; w++) {
     for (const d of WORK_DAYS) {
       const entry = schedule.entries.find(
@@ -812,6 +863,7 @@ function initialiseCustomEntries(
         weekIndex: w,
         dayOfWeek: d,
         targetMinutes: entry?.targetMinutes ?? 0,
+        startTime: entry?.startTime,
       });
     }
   }

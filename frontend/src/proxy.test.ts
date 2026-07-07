@@ -303,6 +303,35 @@ describe("proxy", () => {
         "/parents/login",
       );
     });
+
+    it("rewrites clean parent password reset links to the parents app", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${PARENTS_HOSTNAME}/reset-password?token=abc`,
+          PARENTS_HOSTNAME,
+        ),
+      );
+
+      expect(res.headers.get("location")).toBeNull();
+      const rewrite = res.headers.get("x-middleware-rewrite");
+      expect(rewrite).toContain("/parents/reset-password");
+      expect(rewrite).toContain("token=abc");
+      expect(getForwardedRequestHeader(res, LOCALE_SCOPE_HEADER)).toBe("1");
+    });
+
+    it("rewrites the clean /meal-plan path to the parents app", () => {
+      const res = proxy(
+        makeRequest(`http://${PARENTS_HOSTNAME}/meal-plan`, PARENTS_HOSTNAME),
+      );
+
+      // Without /meal-plan in the parents allowlist this path falls through to
+      // the "redirect to root" branch and the meal plan becomes unreachable
+      // from the desktop sidebar (which links to the clean /meal-plan).
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/parents/meal-plan",
+      );
+    });
   });
 
   describe("tenant subdomain", () => {

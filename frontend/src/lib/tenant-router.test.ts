@@ -28,7 +28,7 @@ const {
   mockPrefetch: vi.fn(),
 }));
 
-vi.mock("~/components/tenant/tenant-provider", () => ({
+vi.mock("~/lib/tenant-context", () => ({
   useTenantSlugSafe: mockUseTenantSlugSafe,
   useTenantRoutingModeSafe: mockUseTenantRoutingModeSafe,
   useNFCEnabled: vi.fn(() => true),

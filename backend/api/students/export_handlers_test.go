@@ -15,15 +15,17 @@ import (
 func TestExportRequestToListParamsPreservesRoomFilter(t *testing.T) {
 	params := exportRequestToListParams(studentExportRequest{
 		Filters: studentExportFilters{
-			Search:  "  mila  ",
-			GroupID: "17",
-			RoomID:  "42",
+			Search:      "  mila  ",
+			GroupID:     "17",
+			RoomID:      "42",
+			SchoolClass: "3a",
 		},
 	})
 
 	assert.Equal(t, "mila", params.search)
 	assert.Equal(t, int64(17), params.groupID)
 	assert.Equal(t, int64(42), params.roomID)
+	assert.Equal(t, "3a", params.schoolClass)
 	assert.Equal(t, studentExportPageSize, params.pageSize)
 	assert.True(t, params.includePickupTimes)
 	assert.True(t, params.includeArrivalTimes)
@@ -247,8 +249,10 @@ func TestExportFilterLabelsCombinesDayStatusAndAdministrative(t *testing.T) {
 		PickupStatus: "self",
 		Status:       "klassenfahrt",
 		DayStatus:    DayPlanningStatusNotComingToday,
+		SchoolClass:  "3a",
 	})
 
+	assert.Contains(t, labels, "Klasse: 3a")
 	assert.Contains(t, labels, "Buskind")
 	assert.Contains(t, labels, "Keine Fotoerlaubnis")
 	assert.Contains(t, labels, "Abholregelung: Geht alleine nach Hause")
@@ -346,9 +350,12 @@ func TestBuildExportRowsIncludesDailyStatus(t *testing.T) {
 		},
 	}
 
-	rows := buildExportRows(students, map[int64]weeklySchedule{})
+	rows := buildExportRows(students, map[int64]weeklySchedule{}, map[int64]string{
+		101: "Angemeldet: OGS",
+	})
 
 	require.Len(t, rows, len(students))
+	assert.Equal(t, "Angemeldet: OGS", rows[0].Values[listexport.ColumnEnrollmentSummary])
 	assert.Equal(t, "Kommt heute", rows[0].Values[listexport.ColumnDailyStatus])
 	assert.Equal(t, "Krank", rows[1].Values[listexport.ColumnDailyStatus])
 	assert.Equal(t, "Entschuldigt", rows[2].Values[listexport.ColumnDailyStatus])
@@ -435,4 +442,52 @@ func TestDepartureSummary(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSortExportResponsesGermanNameOrder(t *testing.T) {
+	responses := []StudentResponse{
+		{FirstName: "Jan", LastName: "Zimmermann"},
+		{FirstName: "Emre", LastName: "Özdemir"},
+		{FirstName: "Lena", LastName: "Ärmel"},
+		{FirstName: "Ben", LastName: "Müller"},
+		{FirstName: "Anna", LastName: "Müller"},
+		{FirstName: "Tim", LastName: "Mueller"},
+		{FirstName: "Ida", LastName: "von Berg"},
+		{FirstName: "Ali", LastName: "anders"},
+	}
+
+	sortExportResponses(responses, "")
+
+	got := make([]string, 0, len(responses))
+	for _, r := range responses {
+		got = append(got, r.LastName+", "+r.FirstName)
+	}
+	want := []string{
+		"anders, Ali",
+		"Ärmel, Lena",
+		"Mueller, Tim",
+		"Müller, Anna",
+		"Müller, Ben",
+		"Özdemir, Emre",
+		"von Berg, Ida",
+		"Zimmermann, Jan",
+	}
+	assert.Equal(t, want, got)
+}
+
+func TestSortExportResponsesPickupStaysTimeOnly(t *testing.T) {
+	early := "12:00"
+	late := "16:00"
+	responses := []StudentResponse{
+		{FirstName: "Jan", LastName: "Zimmermann", PickupTime: &late},
+		{FirstName: "Lena", LastName: "Ärmel", PickupTime: &late},
+		{FirstName: "Anna", LastName: "Müller", PickupTime: &early},
+	}
+
+	sortExportResponses(responses, "pickup")
+
+	// Times decide; equal times keep incoming order (stable sort, no name tiebreak).
+	assert.Equal(t, "Müller", responses[0].LastName)
+	assert.Equal(t, "Zimmermann", responses[1].LastName)
+	assert.Equal(t, "Ärmel", responses[2].LastName)
 }

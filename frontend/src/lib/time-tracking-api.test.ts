@@ -66,6 +66,7 @@ const backendHistory = {
   rest_period_warning: null,
   breaks: [backendBreak],
   edit_count: 0,
+  audit_count: 0,
 };
 
 const backendEdit = {
@@ -245,7 +246,6 @@ describe("TimeTrackingService", () => {
         message: "",
         data: {
           account_start_date: "2026-06-01",
-          break_auto_end_enabled: true,
         },
       });
 
@@ -256,7 +256,6 @@ describe("TimeTrackingService", () => {
         expect.objectContaining({ method: "GET" }),
       );
       expect(result.accountStartDate).toBe("2026-06-01");
-      expect(result.breakAutoEndEnabled).toBe(true);
     });
 
     it("returns an empty account start date when backend config is unset", async () => {
@@ -269,22 +268,6 @@ describe("TimeTrackingService", () => {
       const result = await timeTrackingService.getConfig();
 
       expect(result.accountStartDate).toBe("");
-      expect(result.breakAutoEndEnabled).toBe(false);
-    });
-
-    it("maps disabled break auto-end config", async () => {
-      global.fetch = mockFetchResponse({
-        success: true,
-        message: "",
-        data: {
-          account_start_date: "2026-06-01",
-          break_auto_end_enabled: false,
-        },
-      });
-
-      const result = await timeTrackingService.getConfig();
-
-      expect(result.breakAutoEndEnabled).toBe(false);
     });
   });
 

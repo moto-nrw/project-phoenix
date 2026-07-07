@@ -148,7 +148,7 @@ vi.mock("~/components/ui/skeleton", () => ({
   ),
 }));
 
-vi.mock("~/components/teachers", () => ({
+vi.mock("~/components/teachers/caregiver-capability-modal", () => ({
   CaregiverCapabilityModal: () => null,
 }));
 

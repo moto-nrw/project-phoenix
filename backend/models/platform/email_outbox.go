@@ -22,13 +22,19 @@ const (
 // without a schema change. These constants exist so the in-tree call sites
 // stay typo-safe.
 const (
-	EmailKindGuardianInvitation       = "guardian_invitation"
-	EmailKindEnrollmentSubmitted      = "enrollment_submitted"
-	EmailKindEnrollmentAdminNotify    = "enrollment_admin_notification"
-	EmailKindEnrollmentDecisionDigest = "enrollment_decision_digest"
-	EmailKindEnrollmentApproved       = "enrollment_approved"
-	EmailKindEnrollmentWaitlisted     = "enrollment_waitlisted"
-	EmailKindEnrollmentRejected       = "enrollment_rejected"
+	EmailKindGuardianInvitation                 = "guardian_invitation"
+	EmailKindParentAnnouncement                 = "parent_announcement"
+	EmailKindEnrollmentSubmitted                = "enrollment_submitted"
+	EmailKindEnrollmentAdminNotify              = "enrollment_admin_notification"
+	EmailKindEnrollmentDecisionDigest           = "enrollment_decision_digest"
+	EmailKindEnrollmentApproved                 = "enrollment_approved"
+	EmailKindEnrollmentWaitlisted               = "enrollment_waitlisted"
+	EmailKindEnrollmentRejected                 = "enrollment_rejected"
+	EmailKindEnrollmentChangeRequestSubmitted   = "enrollment_change_request_submitted"
+	EmailKindEnrollmentChangeRequestQuestion    = "enrollment_change_request_question"
+	EmailKindEnrollmentChangeRequestParentReply = "enrollment_change_request_parent_reply"
+	EmailKindEnrollmentChangeRequestApproved    = "enrollment_change_request_approved"
+	EmailKindEnrollmentChangeRequestRejected    = "enrollment_change_request_rejected"
 
 	// Rollover (phase renewal) email kinds. The renderers are
 	// minimal-text placeholders in slice 1; proper branded templates
@@ -119,4 +125,12 @@ type EmailOutboxRepository interface {
 	// FindByRelatedEntity returns all rows for a feature's related entity
 	// (e.g., "all email rows for enrollment_request 42"). Tenant-scoped.
 	FindByRelatedEntity(ctx context.Context, relatedType string, relatedID int64) ([]*EmailOutbox, error)
+
+	// CancelPendingByRelatedEntity marks every still-pending row for a related
+	// entity as 'failed' with the given reason, so the worker (which only claims
+	// 'pending' rows) never sends them. Used when the triggering entity is
+	// retracted before its async send. Rows already claimed ('sending') or
+	// terminal ('sent'/'failed') are left untouched. Tenant-scoped. Returns the
+	// number of rows cancelled.
+	CancelPendingByRelatedEntity(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error)
 }
