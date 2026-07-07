@@ -113,8 +113,13 @@ export function DienstplanWeekGrid({
                               style={{
                                 borderLeftColor:
                                   type?.color ?? UNTYPED_SHIFT_COLOR,
+                                // Light tint of the shift-type color as the slot
+                                // background (~10% opacity via 8-digit hex).
+                                backgroundColor: type
+                                  ? `${type.color}1A`
+                                  : undefined,
                               }}
-                              className="w-full rounded-md border border-l-2 border-gray-200 bg-white px-2 py-1 text-left transition-colors hover:bg-gray-50"
+                              className="w-full rounded-md border border-l-2 border-gray-200 bg-white px-2 py-1 text-left transition-shadow hover:shadow-sm"
                             >
                               <span className="font-semibold tabular-nums">
                                 {formatShiftLabel(shift)}
