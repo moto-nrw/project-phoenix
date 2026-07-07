@@ -16,40 +16,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
-
-// stubSettings implements only the bool resolution the write service uses;
-// every other SettingsService method is inherited from the embedded nil
-// interface and would panic if (unexpectedly) called.
-type stubSettings struct {
-	configService.SettingsService
-	sickEnabled  bool
-	notesEnabled bool
-}
-
-func (s stubSettings) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
-	switch key {
-	case configModels.KeyParentSickNoteEnabled:
-		return s.sickEnabled, nil
-	case configModels.KeyParentNotesEnabled:
-		return s.notesEnabled, nil
-	default:
-		return false, nil
-	}
-}
-
-// ResolveStringForTenant answers the related-accounts invite-mode lookup that
-// ChildFeatures now performs. Defaults to "disabled" so the existing feature
-// tests are unaffected (they predate the invite/remove capability flags).
-func (s stubSettings) ResolveStringForTenant(_ context.Context, _ int64, key string) (string, error) {
-	if key == configModels.KeyGuardianParentInviteMode {
-		return configModels.ParentInviteModeDisabled, nil
-	}
-	return "", nil
-}
 
 // tenantBroadcastIDs extracts the tenant IDs from every BroadcastToTenant call
 // recorded by bc, in call order — the shared RecordingBroadcaster equivalent of
@@ -73,10 +42,18 @@ func buildWriteService(t *testing.T, sickEnabled, notesEnabled bool) (parentServ
 		ChildRepo:     repos.ParentChild,
 		StatusDayRepo: repos.StudentStatusDay,
 		StudentRepo:   repos.Student,
-		Settings:      stubSettings{sickEnabled: sickEnabled, notesEnabled: notesEnabled},
-		Broadcaster:   bc,
-		DB:            db,
-		Logger:        slog.Default(),
+		Settings: parentSettingsStub{
+			boolValues: map[string]bool{
+				configModels.KeyParentSickNoteEnabled: sickEnabled,
+				configModels.KeyParentNotesEnabled:    notesEnabled,
+			},
+			stringValues: map[string]string{
+				configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
+			},
+		},
+		Broadcaster: bc,
+		DB:          db,
+		Logger:      slog.Default(),
 	})
 	return svc, bc, db
 }
@@ -93,13 +70,21 @@ func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool) (p
 		StudentRepo:          repos.Student,
 		PickupExceptionRepo:  repos.StudentPickupException,
 		ArrivalExceptionRepo: repos.StudentArrivalException,
-		Settings:             stubSettings{sickEnabled: sickEnabled, notesEnabled: notesEnabled},
-		Broadcaster:          bc,
-		MessageThreadRepo:    repos.ParentMessageThread,
-		MessageRepo:          repos.ParentMessage,
-		MessageReadRepo:      repos.ParentMessageRead,
-		DB:                   db,
-		Logger:               slog.Default(),
+		Settings: parentSettingsStub{
+			boolValues: map[string]bool{
+				configModels.KeyParentSickNoteEnabled: sickEnabled,
+				configModels.KeyParentNotesEnabled:    notesEnabled,
+			},
+			stringValues: map[string]string{
+				configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
+			},
+		},
+		Broadcaster:       bc,
+		MessageThreadRepo: repos.ParentMessageThread,
+		MessageRepo:       repos.ParentMessage,
+		MessageReadRepo:   repos.ParentMessageRead,
+		DB:                db,
+		Logger:            slog.Default(),
 	})
 	return svc, bc, db, repos
 }

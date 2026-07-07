@@ -16,38 +16,25 @@ import (
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// masterDataStubSettings answers the parent-write feature flags used by the
-// master-data services.
-type masterDataStubSettings struct {
-	configService.SettingsService
-	editEnabled               bool
-	requestEnabled            bool
-	guardianManagementEnabled bool
-}
-
-func (s masterDataStubSettings) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
-	switch key {
-	case configModels.KeyParentMasterDataEditEnabled:
-		return s.editEnabled, nil
-	case configModels.KeyParentMasterDataRequestEnabled:
-		return s.requestEnabled, nil
-	case configModels.KeyParentGuardianManagementEnabled:
-		return s.guardianManagementEnabled, nil
-	default:
-		return false, nil
+// masterDataSettings builds a parentSettingsStub with the master-data feature
+// flags used by the master-data services, plus the related-accounts invite
+// mode defaulted to disabled — matching masterDataStubSettings' prior
+// per-key behavior.
+func masterDataSettings(editEnabled, requestEnabled, guardianManagementEnabled bool) parentSettingsStub {
+	return parentSettingsStub{
+		boolValues: map[string]bool{
+			configModels.KeyParentMasterDataEditEnabled:     editEnabled,
+			configModels.KeyParentMasterDataRequestEnabled:  requestEnabled,
+			configModels.KeyParentGuardianManagementEnabled: guardianManagementEnabled,
+		},
+		stringValues: map[string]string{
+			configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
+		},
 	}
-}
-
-func (s masterDataStubSettings) ResolveStringForTenant(_ context.Context, _ int64, key string) (string, error) {
-	if key == configModels.KeyGuardianParentInviteMode {
-		return configModels.ParentInviteModeDisabled, nil
-	}
-	return "", nil
 }
 
 func buildMasterDataService(t *testing.T, editEnabled bool) (parentService.Service, *bun.DB) {
@@ -62,7 +49,7 @@ func buildMasterDataService(t *testing.T, editEnabled bool) (parentService.Servi
 		PersonRepo:          repos.Person,
 		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
 		ChangeRequestRepo:   repos.StudentDataChangeRequest,
-		Settings:            masterDataStubSettings{editEnabled: editEnabled, guardianManagementEnabled: true},
+		Settings:            masterDataSettings(editEnabled, false, true),
 		Broadcaster:         testpkg.NewRecordingBroadcaster(),
 		DB:                  db,
 		Logger:              slog.Default(),
@@ -81,7 +68,7 @@ func TestUpdateMasterDataField_GuardianManagementDisabledRejectsContactEdits(t *
 		PersonRepo:          repos.Person,
 		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
 		ChangeRequestRepo:   repos.StudentDataChangeRequest,
-		Settings:            masterDataStubSettings{editEnabled: true, guardianManagementEnabled: false},
+		Settings:            masterDataSettings(true, false, false),
 		Broadcaster:         testpkg.NewRecordingBroadcaster(),
 		DB:                  db,
 		Logger:              slog.Default(),
@@ -112,7 +99,7 @@ func TestChildFeatures_SplitsMasterDataContactCapability(t *testing.T) {
 	repos := repositories.NewFactory(db)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo: repos.ParentChild,
-		Settings:  masterDataStubSettings{editEnabled: true, requestEnabled: true, guardianManagementEnabled: false},
+		Settings:  masterDataSettings(true, true, false),
 		DB:        db,
 		Logger:    slog.Default(),
 	})

@@ -17,6 +17,7 @@ import (
 	"github.com/uptrace/bun"
 
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
@@ -38,13 +39,21 @@ func buildReadService(t *testing.T, enabled bool) (parentService.Service, *testp
 		StatusDayRepo:       repos.StudentStatusDay,
 		StudentRepo:         repos.Student,
 		GuardianProfileRepo: repos.GuardianProfile,
-		Settings:            stubSettings{sickEnabled: true, notesEnabled: enabled},
-		Broadcaster:         bc,
-		MessageThreadRepo:   repos.ParentMessageThread,
-		MessageRepo:         repos.ParentMessage,
-		MessageReadRepo:     repos.ParentMessageRead,
-		DB:                  db,
-		Logger:              slog.Default(),
+		Settings: parentSettingsStub{
+			boolValues: map[string]bool{
+				configModels.KeyParentSickNoteEnabled: true,
+				configModels.KeyParentNotesEnabled:    enabled,
+			},
+			stringValues: map[string]string{
+				configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
+			},
+		},
+		Broadcaster:       bc,
+		MessageThreadRepo: repos.ParentMessageThread,
+		MessageRepo:       repos.ParentMessage,
+		MessageReadRepo:   repos.ParentMessageRead,
+		DB:                db,
+		Logger:            slog.Default(),
 	})
 	return svc, bc, db, repos
 }

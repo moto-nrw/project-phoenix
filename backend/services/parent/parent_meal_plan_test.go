@@ -14,36 +14,25 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	mealplanModels "github.com/moto-nrw/project-phoenix/models/mealplan"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	mealplanService "github.com/moto-nrw/project-phoenix/services/mealplan"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// mealSettings answers only the meal-plan toggle; every other feature setting
-// resolves to a benign default so ChildFeatures does not panic on the embedded
-// nil SettingsService.
-type mealSettings struct {
-	configService.SettingsService
-	mealPlanEnabled bool
-	resolveErr      error
-}
-
-func (m mealSettings) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
-	if key == configModels.KeyMealPlanEnabled {
-		return m.mealPlanEnabled, m.resolveErr
+// mealPlanSettings answers only the meal-plan toggle (and its resolve error, if
+// any); the related-accounts invite mode defaults to disabled, matching the
+// prior mealSettings behavior.
+func mealPlanSettings(enabled bool, resolveErr error) parentSettingsStub {
+	return parentSettingsStub{
+		boolValues: map[string]bool{configModels.KeyMealPlanEnabled: enabled},
+		boolErr:    resolveErr,
+		stringValues: map[string]string{
+			configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
+		},
 	}
-	return false, nil
 }
 
-func (m mealSettings) ResolveStringForTenant(_ context.Context, _ int64, key string) (string, error) {
-	if key == configModels.KeyGuardianParentInviteMode {
-		return configModels.ParentInviteModeDisabled, nil
-	}
-	return "", nil
-}
-
-func buildMealPlanService(t *testing.T, db *bun.DB, settings mealSettings) parentService.Service {
+func buildMealPlanService(t *testing.T, db *bun.DB, settings parentSettingsStub) parentService.Service {
 	t.Helper()
 	repos := repositories.NewFactory(db)
 	return parentService.NewService(parentService.ServiceConfig{
@@ -79,7 +68,7 @@ func TestMealPlanWeek_ReturnsCurrentWeekEntries(t *testing.T) {
 	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
 	seedMealPlanWeek(t, db, currentMonday)
 
-	svc := buildMealPlanService(t, db, mealSettings{mealPlanEnabled: true})
+	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
 	rows, err := svc.MealPlanWeek(context.Background(), chain.AccountID, chain.StudentID, currentMonday)
 	require.NoError(t, err)
 	require.Len(t, rows, 2)
@@ -97,7 +86,7 @@ func TestMealPlanWeek_AllowsNextWeek(t *testing.T) {
 	nextMonday := currentMonday.AddDays(7)
 	seedMealPlanWeek(t, db, nextMonday)
 
-	svc := buildMealPlanService(t, db, mealSettings{mealPlanEnabled: true})
+	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
 	rows, err := svc.MealPlanWeek(context.Background(), chain.AccountID, chain.StudentID, nextMonday)
 	require.NoError(t, err)
 	require.Len(t, rows, 2)
@@ -110,7 +99,7 @@ func TestMealPlanWeek_DisabledReturnsSentinel(t *testing.T) {
 	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 
 	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
-	svc := buildMealPlanService(t, db, mealSettings{mealPlanEnabled: false})
+	svc := buildMealPlanService(t, db, mealPlanSettings(false, nil))
 	_, err := svc.MealPlanWeek(context.Background(), chain.AccountID, chain.StudentID, currentMonday)
 	require.ErrorIs(t, err, parentService.ErrMealPlanDisabled)
 }
@@ -125,7 +114,7 @@ func TestMealPlanWeek_PastWeekOutOfRange(t *testing.T) {
 
 	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
 	lastWeek := currentMonday.AddDays(-7)
-	svc := buildMealPlanService(t, db, mealSettings{mealPlanEnabled: true})
+	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
 	_, err := svc.MealPlanWeek(context.Background(), chain.AccountID, chain.StudentID, lastWeek)
 	require.ErrorIs(t, err, parentService.ErrMealPlanWeekOutOfRange)
 }
@@ -138,7 +127,7 @@ func TestMealPlanWeek_FarFutureWeekOutOfRange(t *testing.T) {
 
 	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
 	weekAfterNext := currentMonday.AddDays(14)
-	svc := buildMealPlanService(t, db, mealSettings{mealPlanEnabled: true})
+	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
 	_, err := svc.MealPlanWeek(context.Background(), chain.AccountID, chain.StudentID, weekAfterNext)
 	require.ErrorIs(t, err, parentService.ErrMealPlanWeekOutOfRange)
 }
@@ -152,7 +141,7 @@ func TestMealPlanWeek_NotOwnedChildRejected(t *testing.T) {
 	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, db, other.ID) })
 
 	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
-	svc := buildMealPlanService(t, db, mealSettings{mealPlanEnabled: true})
+	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
 	_, err := svc.MealPlanWeek(context.Background(), chain.AccountID, other.ID, currentMonday)
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, parentService.ErrMealPlanDisabled)
@@ -165,7 +154,7 @@ func TestMealPlanWeek_SettingErrorPropagates(t *testing.T) {
 	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 
 	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
-	svc := buildMealPlanService(t, db, mealSettings{resolveErr: errors.New("settings down")})
+	svc := buildMealPlanService(t, db, mealPlanSettings(false, errors.New("settings down")))
 	_, err := svc.MealPlanWeek(context.Background(), chain.AccountID, chain.StudentID, currentMonday)
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, parentService.ErrMealPlanDisabled)
@@ -179,12 +168,12 @@ func TestChildFeatures_ReflectsMealPlanSetting(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 
-	svcOn := buildMealPlanService(t, db, mealSettings{mealPlanEnabled: true})
+	svcOn := buildMealPlanService(t, db, mealPlanSettings(true, nil))
 	flags, err := svcOn.ChildFeatures(context.Background(), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	assert.True(t, flags.MealPlanEnabled)
 
-	svcOff := buildMealPlanService(t, db, mealSettings{mealPlanEnabled: false})
+	svcOff := buildMealPlanService(t, db, mealPlanSettings(false, nil))
 	flags, err = svcOff.ChildFeatures(context.Background(), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	assert.False(t, flags.MealPlanEnabled)

@@ -272,6 +272,26 @@ Business rules drift constantly. "Offline after 5 minutes" becomes "10 minutes f
 
 ---
 
+## 13. Shared Test Doubles — No Per-Package Mock Copies
+
+**RULE: Before hand-rolling a mock, fake, stub, or fixture in a `_test.go` file, check the shared homes.** Full-interface mocks copy-pasted across packages were ~2,000 lines of the 2026-07 audit's test-side findings (slice B14); the shared implementations now exist and new copies are review failures.
+
+| Double | Shared home |
+|---|---|
+| DB fixtures (`CreateTest*` / `Cleanup*`) | `test/fixtures*.go` (the mandated catalog) |
+| Pointer helpers (`StrPtr`, `IntPtr`, `Int64Ptr`, `TimePtr`) | `test/helpers.go` |
+| `email.Mailer` capture | `test.CapturingMailer` (`test/mailers.go`) |
+| `realtime.Broadcaster` recording fake | `test.RecordingBroadcaster` (`test/broadcaster.go`) |
+| Repo mocks for `models/*` interfaces (School, Staff, suggestions) | `test/repo_mocks.go`, `test/suggestions_mocks.go` |
+| `config.SettingsService` | `configtest.Mock` (`services/config/configtest`) |
+| `auth.MFAService` / `auth.InvitationService` | `services/auth/authtest` |
+| `users.PersonService` | `services/users/userstest` |
+| API request/bootstrap helpers | `api/testutil` (`SetupAPITest`, `ExecuteWithAuth`, `ExecuteWithAuthPermissions`, `MintTestJWT`) |
+
+Placement rules: mocks for `models/*` interfaces go in `test/` (imports models only — safe for internal test packages); mocks for a service interface go in a leaf `<domain>test` package next to the interface (usable everywhere EXCEPT that package's own internal tests — import cycle). New shared mocks follow the func-field convention (`XxxFn` fields, nil = zero-value default). Behaviorally divergent doubles (error-injection hooks, deliberate panics, channel-based capture) may stay package-local — divergence is the documented exception, copy-paste is not.
+
+---
+
 ## Code Review Checklist
 
 - [ ] No repository imports/fields/getter-calls in `api/` (CI: `TestHandlerLayerRatchet`)
@@ -286,6 +306,7 @@ Business rules drift constantly. "Offline after 5 minutes" becomes "10 minutes f
 - [ ] No query construction in `services/` (CI: `TestServiceRepositoryRatchet`)
 - [ ] Models hold data, not decisions — no `Mark*/End*/Activate*` mutations, no RBAC, no magic thresholds
 - [ ] Searched for existing helpers before writing a new one (`rg` before `func`)
+- [ ] No new hand-rolled mock/fixture where a shared test double exists (Rule 13 table)
 
 ## Detection commands (one-shot health check)
 

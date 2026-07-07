@@ -95,10 +95,12 @@ func buildCareServiceWithRepos(t *testing.T, w careRepoWrap) (parentService.Serv
 		StudentRepo:          repos.Student,
 		PickupExceptionRepo:  pickup,
 		ArrivalExceptionRepo: arrival,
-		Settings:             careStubSettings{pickupChangeEnabled: true},
-		Broadcaster:          testpkg.NewRecordingBroadcaster(),
-		DB:                   db,
-		Logger:               slog.Default(),
+		Settings: parentSettingsStub{
+			boolValues: map[string]bool{configModels.KeyParentPickupChangeEnabled: true},
+		},
+		Broadcaster: testpkg.NewRecordingBroadcaster(),
+		DB:          db,
+		Logger:      slog.Default(),
 	})
 	return svc, db
 }
@@ -107,20 +109,6 @@ func buildCareServiceWithRepos(t *testing.T, w careRepoWrap) (parentService.Serv
 // repository, used to inject read failures.
 func buildCareServiceWithPickupRepo(t *testing.T, wrap func(scheduleModels.StudentPickupExceptionRepository) scheduleModels.StudentPickupExceptionRepository) (parentService.Service, *bun.DB) {
 	return buildCareServiceWithRepos(t, careRepoWrap{pickup: wrap})
-}
-
-// careStubSettings resolves only the pickup-change toggle the care-exception
-// path reads; all other keys default to false.
-type careStubSettings struct {
-	stubSettings
-	pickupChangeEnabled bool
-}
-
-func (s careStubSettings) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
-	if key == configModels.KeyParentPickupChangeEnabled {
-		return s.pickupChangeEnabled, nil
-	}
-	return false, nil
 }
 
 func buildCareService(t *testing.T, pickupChangeEnabled bool) (parentService.Service, *testpkg.RecordingBroadcaster, *bun.DB) {
@@ -135,10 +123,12 @@ func buildCareService(t *testing.T, pickupChangeEnabled bool) (parentService.Ser
 		StudentRepo:          repos.Student,
 		PickupExceptionRepo:  repos.StudentPickupException,
 		ArrivalExceptionRepo: repos.StudentArrivalException,
-		Settings:             careStubSettings{pickupChangeEnabled: pickupChangeEnabled},
-		Broadcaster:          bc,
-		DB:                   db,
-		Logger:               slog.Default(),
+		Settings: parentSettingsStub{
+			boolValues: map[string]bool{configModels.KeyParentPickupChangeEnabled: pickupChangeEnabled},
+		},
+		Broadcaster: bc,
+		DB:          db,
+		Logger:      slog.Default(),
 	})
 	return svc, bc, db
 }
@@ -766,10 +756,12 @@ func TestDeleteCareException_ArrivalFindErrorSurfaces(t *testing.T) {
 		StudentRepo:          repos.Student,
 		PickupExceptionRepo:  repos.StudentPickupException,
 		ArrivalExceptionRepo: stubArrivalRepo{StudentArrivalExceptionRepository: repos.StudentArrivalException, findErr: errBoom},
-		Settings:             careStubSettings{pickupChangeEnabled: true},
-		Broadcaster:          testpkg.NewRecordingBroadcaster(),
-		DB:                   db,
-		Logger:               slog.Default(),
+		Settings: parentSettingsStub{
+			boolValues: map[string]bool{configModels.KeyParentPickupChangeEnabled: true},
+		},
+		Broadcaster: testpkg.NewRecordingBroadcaster(),
+		DB:          db,
+		Logger:      slog.Default(),
 	})
 
 	err = svc.DeleteCareException(ctx, chain.AccountID, chain.StudentID, date)
