@@ -652,13 +652,32 @@ export const appChapters: readonly GuideChapter[] = [
     tone: "orange",
     steps: [
       {
+        id: "kalenderzeitraeume",
+        title: "Kalenderzeiträume",
+        icon: CalendarDays,
+        summary:
+          "Legt Halbjahre, Ferien und Sonderzeiträume als gemeinsame Basis für Anmeldung und Betreuungsplan an (nur für Admins).",
+        steps: [
+          "`Planung` -> `Kalenderzeiträume` öffnen.",
+          "`Halbjahr anlegen` klicken: Name, Art und Start-/Enddatum des nächsten Halbjahres sind bereits vorausgefüllt und lassen sich anpassen.",
+          "Für Ferien oder Sonderzeiträume `Zeitraum anlegen` nutzen und die Art entsprechend wählen.",
+          "Nur aktive Zeiträume legen Termine aus Regelterminen des Betreuungsplans an.",
+          "Beim Anlegen einer `Anmeldephase` kann der Zeitraum ausgewählt werden; Beginn und Ende der Phase werden daraus übernommen.",
+          "Die Verknüpfung geht auch andersherum: Beim Bearbeiten eines Zeitraums lassen sich unter `Verknüpfte Anmeldephasen` Phasen direkt an- und abwählen.",
+          "Die Spalte `Verwendung` zeigt, welche Anmeldephasen und Regeltermine auf einen Zeitraum verweisen.",
+        ],
+        screenshot:
+          "Kalenderzeiträume-Liste mit angelegtem Halbjahr und Schnellaktion Halbjahr anlegen.",
+        image: "/help/screens/kalenderzeitraeume.webp",
+      },
+      {
         id: "stundenplan",
         title: "Betreuungsplan",
         icon: CalendarDays,
         summary:
           "Plant Termine, Regeltermine, Räume, Personal und erwartete Kinder im Voraus (nur für Admins).",
         steps: [
-          "`Betreuungsplan` öffnen.",
+          "`Planung` -> `Betreuungsplan` öffnen.",
           "In der Wochenansicht eine freie Zelle am gewünschten Tag und zur gewünschten Uhrzeit anklicken (beim Überfahren erscheint `+ Termin`).",
           "`Titel` eintragen und `Raum` wählen. `Datum`, `Start` und `Ende` sind aus der Zelle übernommen und lassen sich anpassen.",
           "Unter `Wiederholt sich` festlegen, wie oft das Angebot stattfindet: `Einmalig`, wöchentlich am gewählten Wochentag, `Jeden Wochentag (Mo–Fr)` oder `Benutzerdefiniert …` für eigene Rhythmen.",
@@ -683,7 +702,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Plant konkrete Schichten (Beginn, Ende, Pause) pro Mitarbeiter und Tag (nur für Admins).",
         steps: [
-          "`Dienstplan` in der Seitenleiste oder im mobilen `Mehr`-Menü öffnen.",
+          "`Planung` -> `Dienstplan` in der Seitenleiste oder im mobilen `Mehr`-Menü öffnen.",
           "Mit den Pfeilen zwischen den Wochen wechseln, `Diese Woche` springt zurück zur aktuellen Woche.",
           "In der Zeile eines Mitarbeiters auf eine leere Zelle klicken, um eine Schicht anzulegen: `Beginn`, `Ende` und `Pause (Minuten)` eintragen und speichern.",
           "Eine vorhandene Schicht anklicken, um sie zu bearbeiten oder über `Schicht löschen` zu entfernen.",

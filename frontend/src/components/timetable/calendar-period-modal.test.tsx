@@ -107,7 +107,7 @@ describe("CalendarPeriodModal", () => {
       }),
     );
     expect(mockToastSuccess).toHaveBeenCalledWith(
-      'Planungszeitraum "Schuljahr 2026/2027" angelegt',
+      'Kalenderzeitraum "Schuljahr 2026/2027" angelegt',
     );
     expect(onSaved).toHaveBeenCalledWith(period);
     expect(onClose).toHaveBeenCalledOnce();
@@ -149,14 +149,120 @@ describe("CalendarPeriodModal", () => {
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Löschen" }));
-    expect(screen.getByText(/Löschen klappt nur/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Beim Löschen werden bestehende Verknüpfungen/),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Löschen abbrechen" }));
-    expect(screen.queryByText(/Löschen klappt nur/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Beim Löschen werden bestehende Verknüpfungen/),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Löschen" }));
     fireEvent.click(screen.getByRole("button", { name: "Löschen bestätigen" }));
     await waitFor(() => expect(mockDelete).toHaveBeenCalledWith("5"));
     expect(onDeleted).toHaveBeenCalledWith(period);
+  });
+
+  it("manages phase links from the period side via the phaseLink prop", async () => {
+    const onToggle = vi.fn().mockResolvedValue(undefined);
+    render(
+      <CalendarPeriodModal
+        isOpen
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+        initial={period}
+        phaseLink={{
+          phases: [
+            {
+              id: "7",
+              name: "Demo Anmeldung",
+              calendar_period_id: period.id,
+              is_active: true,
+            },
+            {
+              id: "8",
+              name: "Ferienbetreuung",
+              calendar_period_id: "99",
+              is_active: false,
+            },
+          ],
+          onToggle,
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Verknüpfte Anmeldephasen")).toBeInTheDocument();
+    expect(
+      screen.getByText("Mit anderem Zeitraum verknüpft"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Inaktiv")).toBeInTheDocument();
+
+    const checkboxes = screen.getAllByRole("checkbox");
+    // [0] = "Zeitraum im Plan verwenden", [1] = linked phase, [2] = other
+    expect(checkboxes[1]).toBeChecked();
+    expect(checkboxes[2]).not.toBeChecked();
+
+    fireEvent.click(checkboxes[1]!);
+    await waitFor(() =>
+      expect(onToggle).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "7" }),
+        false,
+      ),
+    );
+  });
+
+  it("hides the phase link section in create mode", () => {
+    render(
+      <CalendarPeriodModal
+        isOpen
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+        phaseLink={{
+          phases: [
+            {
+              id: "7",
+              name: "Demo Anmeldung",
+              calendar_period_id: null,
+              is_active: true,
+            },
+          ],
+          onToggle: vi.fn(),
+        }}
+      />,
+    );
+
+    expect(
+      screen.queryByText("Verknüpfte Anmeldephasen"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("names the concrete usage in the delete warning when usage is provided", () => {
+    render(
+      <CalendarPeriodModal
+        isOpen
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+        onDeleted={vi.fn()}
+        initial={period}
+        usage={{
+          enrollmentPhaseCount: 1,
+          scheduleCount: 3,
+          studentEnrollmentCount: 0,
+          supervisorCount: 0,
+          activityInstanceCount: 0,
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Löschen" }));
+    expect(
+      screen.getByText(
+        /Dieser Zeitraum wird von 1 Anmeldephase und 3 Regelterminen? verwendet/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/verweigert der Server das Löschen/),
+    ).toBeInTheDocument();
   });
 
   it("keeps the modal open and lists warnings when the save overlaps active periods", async () => {
@@ -197,7 +303,7 @@ describe("CalendarPeriodModal", () => {
     ).toBeInTheDocument();
     expect(onSaved).toHaveBeenCalledWith(period);
     expect(mockToastSuccess).toHaveBeenCalledWith(
-      'Planungszeitraum "Schuljahr 2026/2027" angelegt',
+      'Kalenderzeitraum "Schuljahr 2026/2027" angelegt',
     );
     expect(onClose).not.toHaveBeenCalled();
     expect(

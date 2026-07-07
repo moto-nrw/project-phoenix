@@ -6,6 +6,7 @@ import type {
 } from "./calendar-period-helpers";
 import {
   findPeriodForDate,
+  formatPeriodUsage,
   mapPeriodsForDates,
   mapPeriodWarnings,
   mapPeriodWithWarnings,
@@ -35,6 +36,34 @@ function period(
 }
 
 describe("calendar-period-helpers", () => {
+  describe("formatPeriodUsage", () => {
+    it("formats singular and plural counts", () => {
+      expect(formatPeriodUsage(1, 1)).toBe("1 Anmeldephase · 1 Regeltermin");
+      expect(formatPeriodUsage(2, 3)).toBe("2 Anmeldephasen · 3 Regeltermine");
+    });
+
+    it("omits zero counts and supports a custom separator", () => {
+      expect(formatPeriodUsage(1, 0)).toBe("1 Anmeldephase");
+      expect(formatPeriodUsage(0, 2)).toBe("2 Regeltermine");
+      expect(formatPeriodUsage(0, 0)).toBe("");
+      expect(formatPeriodUsage(1, 2, " und ")).toBe(
+        "1 Anmeldephase und 2 Regeltermine",
+      );
+    });
+
+    it("formats every calendar-period reference category", () => {
+      expect(
+        formatPeriodUsage(0, 0, " · ", {
+          studentEnrollmentCount: 1,
+          supervisorCount: 2,
+          activityInstanceCount: 3,
+        }),
+      ).toBe(
+        "1 Schülerzuordnung · 2 Mitarbeitenden-Zuordnungen · 3 Termininstanzen",
+      );
+    });
+  });
+
   describe("findPeriodForDate", () => {
     it("returns the active period covering the date", () => {
       const periods = [
