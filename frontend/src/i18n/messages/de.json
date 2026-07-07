@@ -989,6 +989,8 @@
     "eventRequestCreatedCareSchedule": "Anfrage zu Betreuungszeiten gestellt",
     "eventRequestCreatedMasterData": "Anfrage zu Stammdaten gestellt",
     "eventRequestConfirmedMasterData": "Anfrage bestätigt, Stammdaten übernommen",
+    "eventRequestCreatedExcusedAbsence": "Anfrage zur entschuldigten Abmeldung gestellt",
+    "eventRequestConfirmedExcusedAbsence": "Anfrage bestätigt, Abmeldung übernommen",
     "eventRequestRejected": "Anfrage abgelehnt",
     "eventRequestRejectedReason": "Anfrage abgelehnt: {reason}",
     "eventRequestWithdrawn": "Anfrage zurückgezogen",

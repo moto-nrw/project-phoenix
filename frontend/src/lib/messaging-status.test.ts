@@ -180,6 +180,25 @@ describe("parentEventI18nDescriptor", () => {
         request_type: "master_data",
       }),
     ).toEqual({ key: "eventRequestCreatedMasterData" });
+    expect(
+      parentEventI18nDescriptor({
+        kind: "event",
+        event_type: "request_created",
+        request_status: "offen",
+        request_type: "excused_absence",
+      }),
+    ).toEqual({ key: "eventRequestCreatedExcusedAbsence" });
+  });
+
+  it("maps a confirmed excused-absence request to its own localized key (#1845)", () => {
+    expect(
+      parentEventI18nDescriptor({
+        kind: "event",
+        event_type: "request_status",
+        request_status: "erledigt",
+        request_type: "excused_absence",
+      }),
+    ).toEqual({ key: "eventRequestConfirmedExcusedAbsence" });
   });
 
   it("returns null for sick_note / care_exception pills so the raw German body renders (#1803)", () => {

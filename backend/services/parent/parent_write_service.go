@@ -387,9 +387,16 @@ func (s *service) ListExcusedRequests(ctx context.Context, accountID, studentID 
 }
 
 // WithdrawExcusedRequest withdraws the caller's own pending excused-absence
-// request (#1845).
+// request (#1845). Gated ONLY on portal access, not parent_portal.sick_note.submit:
+// a guardian must be able to wind down their OWN outstanding request even after
+// the school revokes their submit permission — ListExcusedRequests still
+// surfaces the pending request and the UI still offers withdrawal, so the write
+// gate must match that read gate. Ownership (submitted_by) and the
+// pending-status check are enforced inside excusedRequests.WithdrawRequest,
+// which binds the request to this accountID and studentID. Mirrors
+// WithdrawCareScheduleRequest.
 func (s *service) WithdrawExcusedRequest(ctx context.Context, accountID, studentID, requestID int64) (*activeModels.ExcusedAbsenceRequest, error) {
-	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionSickNoteSubmit)
+	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
 	if err != nil {
 		return nil, err
 	}

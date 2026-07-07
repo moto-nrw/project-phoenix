@@ -989,6 +989,8 @@
     "eventRequestCreatedCareSchedule": "Care times change requested",
     "eventRequestCreatedMasterData": "Master data change requested",
     "eventRequestConfirmedMasterData": "Request confirmed, master data applied",
+    "eventRequestCreatedExcusedAbsence": "Excused absence requested",
+    "eventRequestConfirmedExcusedAbsence": "Request confirmed, absence recorded",
     "eventRequestRejected": "Request rejected",
     "eventRequestRejectedReason": "Request rejected: {reason}",
     "eventRequestWithdrawn": "Request withdrawn",

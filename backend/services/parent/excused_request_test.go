@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -215,4 +216,81 @@ func TestExcusedRequest_RejectWritesNoStatusDay(t *testing.T) {
 	absences, err := svc.ListSickDays(context.Background(), chain.AccountID, chain.StudentID, from, to)
 	require.NoError(t, err)
 	assert.Empty(t, absences, "a rejected request must not write a status day")
+}
+
+// TestListExcusedRequests_ShowsRecentlyRejectedLongPending verifies a request
+// that sat pending far longer than the 14-day recent window and was only just
+// rejected still surfaces in the parent's outcome view. The recent filter keys
+// on the DECISION time, not created_at; filtering on created_at would drop the
+// row the instant it left the pending set, hiding the rejection from the parent
+// (#1845 review).
+func TestListExcusedRequests_ShowsRecentlyRejectedLongPending(t *testing.T) {
+	svc, excused, _, db := buildExcusedServices(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	day := timezone.TodayDate().AddDays(3)
+	res, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+		[]timezone.Date{day}, "Familienfeier", activeModels.StudentStatusDayExcused)
+	require.NoError(t, err)
+	requestID := res.PendingRequest.ID
+
+	// Backdate creation (and updated_at) well past the recent window while the
+	// request is still pending, as if it had languished unreviewed for a month.
+	old := time.Now().AddDate(0, 0, -30)
+	_, err = db.NewUpdate().
+		Table("active.excused_absence_requests").
+		Set("created_at = ?", old).
+		Set("updated_at = ?", old).
+		Where("id = ?", requestID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	// Staff reject it today — reviewed_at is stamped now, inside the window.
+	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, derr := excused.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{
+			RequestID: requestID,
+			Approve:   false,
+			Reason:    "Bitte telefonisch klären",
+		})
+		return derr
+	})
+	require.NoError(t, err)
+
+	reqs, err := svc.ListExcusedRequests(context.Background(), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	require.Len(t, reqs, 1, "a long-pending request rejected today must stay visible so the parent learns the outcome")
+	assert.Equal(t, activeModels.ExcusedRequestStatusRejected, reqs[0].Status)
+	assert.Equal(t, requestID, reqs[0].ID)
+}
+
+// TestWithdrawExcused_AllowedAfterSubmitPermissionRevoked verifies a guardian
+// can still withdraw their OWN pending request after the school revokes their
+// sick_note.submit permission. The read view keeps offering withdrawal, so the
+// write gate must match it (portal access only) and rely on the request service
+// to enforce submitter ownership (#1845 review).
+func TestWithdrawExcused_AllowedAfterSubmitPermissionRevoked(t *testing.T) {
+	svc, _, _, db := buildExcusedServices(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	day := timezone.TodayDate().AddDays(3)
+	res, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+		[]timezone.Date{day}, "Familienfeier", activeModels.StudentStatusDayExcused)
+	require.NoError(t, err)
+	requestID := res.PendingRequest.ID
+
+	// Revoke sick_note.submit while keeping portal access (as an admin might via
+	// the guardian permissions UI after the request was already filed).
+	_, err = db.NewUpdate().
+		Table("users.students_guardians").
+		Set("permissions = ?", `{"parent_portal.access": true}`).
+		Where("student_id = ? AND guardian_profile_id = ?", chain.StudentID, chain.GuardianProfileID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	out, err := svc.WithdrawExcusedRequest(context.Background(), chain.AccountID, chain.StudentID, requestID)
+	require.NoError(t, err, "portal access alone must permit withdrawing one's own pending request")
+	require.NotNil(t, out)
+	assert.Equal(t, activeModels.ExcusedRequestStatusWithdrawn, out.Status)
 }

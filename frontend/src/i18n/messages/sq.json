@@ -989,6 +989,8 @@
     "eventRequestCreatedCareSchedule": "Kërkesë për ndryshim të orareve të kujdesit u dërgua",
     "eventRequestCreatedMasterData": "Kërkesë për ndryshim të Stammdaten u dërgua",
     "eventRequestConfirmedMasterData": "Kërkesa u konfirmua, Stammdaten u zbatuan",
+    "eventRequestCreatedExcusedAbsence": "Kërkesë për mungesë të arsyetuar u dërgua",
+    "eventRequestConfirmedExcusedAbsence": "Kërkesa u konfirmua, mungesa u regjistrua",
     "eventRequestRejected": "Kërkesa u refuzua",
     "eventRequestRejectedReason": "Kërkesa u refuzua: {reason}",
     "eventRequestWithdrawn": "Kërkesa u tërhoq",

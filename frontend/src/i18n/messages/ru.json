@@ -989,6 +989,8 @@
     "eventRequestCreatedCareSchedule": "Отправлен запрос на изменение времени присмотра",
     "eventRequestCreatedMasterData": "Отправлен запрос на изменение Stammdaten",
     "eventRequestConfirmedMasterData": "Запрос подтверждён, Stammdaten применены",
+    "eventRequestCreatedExcusedAbsence": "Отправлен запрос на освобождение от посещения",
+    "eventRequestConfirmedExcusedAbsence": "Запрос подтверждён, отсутствие зафиксировано",
     "eventRequestRejected": "Запрос отклонён",
     "eventRequestRejectedReason": "Запрос отклонён: {reason}",
     "eventRequestWithdrawn": "Запрос отозван",

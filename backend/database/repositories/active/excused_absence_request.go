@@ -60,15 +60,26 @@ func (r *ExcusedAbsenceRequestRepository) ListPendingForStudent(ctx context.Cont
 	return rows, nil
 }
 
-// ListRecentForStudent returns the student's requests created on or after
-// `since`, newest-first, regardless of status.
+// ListRecentForStudent returns the student's requests decided (or, for still
+// -pending rows, last touched) on or after `since`, newest-first, regardless of
+// status.
+//
+// The window filters on the DECISION time, not created_at: a request can sit
+// pending for longer than the recent window and only then be rejected or
+// withdrawn. Filtering on created_at would drop it from the parent's outcome
+// view the instant it leaves the pending list, so a parent would never learn a
+// long-pending request was declined. reviewed_at is stamped for staff decisions
+// (approve/reject); withdrawals carry no reviewer, so COALESCE falls through to
+// updated_at (stamped on every Decide) to cover them. Pending rows keep
+// updated_at ≈ created_at and, when older than the window, are still surfaced by
+// ListPendingForStudent.
 func (r *ExcusedAbsenceRequestRepository) ListRecentForStudent(ctx context.Context, studentID int64, since time.Time) ([]*activeModels.ExcusedAbsenceRequest, error) {
 	var rows []*activeModels.ExcusedAbsenceRequest
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(&rows).
 		ModelTableExpr(tableExprExcusedAbsenceRequestsAsReq).
 		Where(`"excused_absence_request".student_id = ?`, studentID).
-		Where(`"excused_absence_request".created_at >= ?`, since)
+		Where(`COALESCE("excused_absence_request".reviewed_at, "excused_absence_request".updated_at) >= ?`, since)
 
 	if where, val, ok := base.TenantWhere(ctx, "excused_absence_request"); ok {
 		query = query.Where(where, val)

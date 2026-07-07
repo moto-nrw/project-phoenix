@@ -94,9 +94,12 @@ type ExcusedAbsenceRequestRepository interface {
 	// (there can be several — no one-pending-per-student constraint).
 	ListPendingForStudent(ctx context.Context, studentID int64) ([]*ExcusedAbsenceRequest, error)
 
-	// ListRecentForStudent returns the student's requests created on or after
-	// `since`, newest-first, regardless of status — used to surface a
-	// recently-rejected request to the parent alongside their pending ones.
+	// ListRecentForStudent returns the student's requests decided (approved,
+	// rejected or withdrawn) on or after `since` — filtered by decision time, not
+	// created_at — newest-first, regardless of status. Filtering on the decision
+	// time is what surfaces a request that sat pending past the window and was
+	// only just rejected; created_at would drop it the moment it left the pending
+	// list. See the repository implementation for the COALESCE detail.
 	ListRecentForStudent(ctx context.Context, studentID int64, since time.Time) ([]*ExcusedAbsenceRequest, error)
 
 	// ListPendingForTenant returns every pending request for the current tenant,
