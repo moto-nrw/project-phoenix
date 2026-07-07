@@ -8,6 +8,7 @@ import Image from "next/image";
 import { KeyRound } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { refreshToken } from "~/lib/auth-api";
+import { trackEvent } from "~/lib/analytics";
 import { SmartRedirect } from "~/components/auth/smart-redirect";
 import {
   AuthShell,
@@ -221,8 +222,10 @@ function LoginForm() {
     if (result?.error) {
       setError("Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.");
       logger.error("session_seed_failed", { error: result.error });
+      trackEvent("login_failed", { reason: "error" });
       return;
     }
+    trackEvent("login_success");
     setAwaitingRedirect(true);
     router.refresh();
   };
@@ -272,8 +275,10 @@ function LoginForm() {
     } catch (err) {
       if (err instanceof MFAApiError && err.status === 401) {
         setError("Ungültige E-Mail oder Passwort");
+        trackEvent("login_failed", { reason: "invalid_credentials" });
       } else {
         setError(germanMFAErrorMessage(err));
+        trackEvent("login_failed", { reason: "error" });
       }
       logger.error("login failed", {
         error: err instanceof Error ? err.message : String(err),

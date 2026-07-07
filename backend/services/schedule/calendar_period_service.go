@@ -32,6 +32,12 @@ type CalendarPeriodService interface {
 	// period is inactive — only active/active collisions are advisory-worthy.
 	FindActiveOverlaps(ctx context.Context, period *schedule.CalendarPeriod) ([]*schedule.CalendarPeriod, error)
 
+	// GetUsageCounts reports how many rows reference each calendar period of
+	// the current tenant through nullable calendar_period_id FKs.
+	// Advisory only (list display and delete warnings) — all FKs are
+	// ON DELETE SET NULL, so usage never blocks deletion.
+	GetUsageCounts(ctx context.Context) (map[int64]schedule.CalendarPeriodUsage, error)
+
 	// A/B week resolution — weekPattern: 0=every, 1=week A, 2=week B
 	ShouldMaterialize(weekPattern int, instanceDate timezone.Date, period *schedule.CalendarPeriod) bool
 }
@@ -136,6 +142,17 @@ func (s *calendarPeriodService) UpdatePeriod(ctx context.Context, period *schedu
 	}
 
 	return nil
+}
+
+// GetUsageCounts reports per-period reference counts for the current tenant.
+// Thin by design: the repository is the data-access boundary for the
+// cross-schema counting query (analog PhaseService.DeleteImpact).
+func (s *calendarPeriodService) GetUsageCounts(ctx context.Context) (map[int64]schedule.CalendarPeriodUsage, error) {
+	usage, err := s.repo.UsageCounts(ctx)
+	if err != nil {
+		return nil, &ScheduleError{Op: "get calendar period usage counts", Err: err}
+	}
+	return usage, nil
 }
 
 // DeletePeriod deletes a calendar period by ID

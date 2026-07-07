@@ -1,3 +1,5 @@
+import { trackEvent } from "~/lib/analytics";
+
 export type EmergencySnapshotExportMode = "download" | "print";
 
 export async function exportEmergencySnapshot(
@@ -10,6 +12,8 @@ export async function exportEmergencySnapshot(
   if (!response.ok) {
     throw new Error(await response.text());
   }
+
+  trackEvent("data_exported", { export_type: "emergency", format: "pdf" });
 
   const blob = await response.blob();
   const url = URL.createObjectURL(blob);

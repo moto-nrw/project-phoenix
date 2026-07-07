@@ -165,10 +165,9 @@ function DienstplanContent() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">
-          Dienstplan
-        </h1>
+      {/* No in-page h1: the header breadcrumb already shows "Dienstplan"
+          (breadcrumb-utils exactPageTitles), matching the app-wide pattern. */}
+      <div className="flex justify-end">
         <Button
           type="button"
           variant="primary"

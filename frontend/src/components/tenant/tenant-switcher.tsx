@@ -10,6 +10,7 @@ import {
 } from "~/lib/tenant-api";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { createLogger } from "~/lib/logger";
+import { trackEvent } from "~/lib/analytics";
 import { env } from "~/env";
 
 const logger = createLogger({ component: "TenantSwitcher" });
@@ -70,10 +71,12 @@ export function TenantSwitcher() {
       try {
         await performTenantSwitch(targetTenant.slug, signIn, mutate);
 
-        logger.info("tenant_switched", {
+        const switchPayload = {
           from_slug: currentSlug ?? "unknown",
           to_slug: targetTenant.slug,
-        });
+        };
+        logger.info("tenant_switched", switchPayload);
+        trackEvent("tenant_switched", switchPayload);
 
         // 5. Hard-navigate to the new tenant subdomain.
         // Always use subdomain routing — the proxy rewrites subdomains

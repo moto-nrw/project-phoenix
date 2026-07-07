@@ -41,13 +41,6 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   ),
 }));
 
-// Mock Loading component
-vi.mock("~/components/ui/loading", () => ({
-  Loading: ({ fullPage }: { fullPage?: boolean }) => (
-    <div data-testid={fullPage ? "loading-full" : "loading"}>Loading...</div>
-  ),
-}));
-
 // Mock Alert component
 vi.mock("~/components/ui/alert", () => ({
   Alert: ({ message, type }: { message: string; type: string }) => (
@@ -1144,7 +1137,9 @@ describe("StudentSearchPage", () => {
 
       render(<StudentSearchPage />);
 
-      expect(screen.getByTestId("loading")).toBeInTheDocument();
+      expect(
+        screen.getByTestId("students-search-skeleton"),
+      ).toBeInTheDocument();
     });
 
     it("shows loading state while fetching students", async () => {
@@ -1161,7 +1156,9 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("loading")).toBeInTheDocument();
+        expect(
+          screen.getByTestId("student-card-grid-skeleton"),
+        ).toBeInTheDocument();
       });
     });
   });
@@ -1602,7 +1599,9 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       // Should show loading, NOT empty state
-      expect(screen.getByTestId("loading")).toBeInTheDocument();
+      expect(
+        screen.getByTestId("students-search-skeleton"),
+      ).toBeInTheDocument();
       expect(
         screen.queryByText("Keine Kinder gefunden"),
       ).not.toBeInTheDocument();
@@ -1664,9 +1663,11 @@ describe("StudentSearchPage", () => {
         render(<StudentSearchPage />);
       });
 
-      // P2 FIX: Should show loading spinner, NOT "Keine Kinder gefunden"
+      // P2 FIX: Should show the grid skeleton, NOT "Keine Kinder gefunden"
       // because we're in initialization phase (groupsLoaded = false)
-      expect(screen.getByTestId("loading")).toBeInTheDocument();
+      expect(
+        screen.getByTestId("student-card-grid-skeleton"),
+      ).toBeInTheDocument();
       expect(
         screen.queryByText("Keine Kinder gefunden"),
       ).not.toBeInTheDocument();

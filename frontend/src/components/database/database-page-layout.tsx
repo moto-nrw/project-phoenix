@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Loading } from "~/components/ui/loading";
+import { MasterDetailSkeleton } from "./master-detail-skeleton";
 import { MobileBackButton } from "~/components/ui/mobile-back-button";
 
 interface DatabasePageLayoutProps {
@@ -28,7 +28,7 @@ export function DatabasePageLayout({
   className = "w-full",
 }: Readonly<DatabasePageLayoutProps>) {
   if (sessionLoading || loading) {
-    return <Loading fullPage={false} />;
+    return <MasterDetailSkeleton />;
   }
 
   return (

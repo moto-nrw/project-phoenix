@@ -146,6 +146,13 @@ function runSearch(fuse: HelpFuse, rawQuery: string): HelpSearchHit[] {
         boost += 400; // title prefix
       else if (titleFold.includes(fullFold)) boost += 200; // phrase in title
       if (entry.tokenHits === matchTokens.length) boost += 100; // all words matched
+      // Word-aligned title hits beat substring-in-word hits: "raum" as a
+      // prefix of the title word "raume" outranks "raum" buried inside
+      // "kalenderzeitraume".
+      const titleWords = titleFold.split(/\s+/);
+      for (const token of matchTokens) {
+        if (titleWords.some((word) => word.startsWith(token))) boost += 50;
+      }
       return { ...entry, boost };
     })
     .sort(
