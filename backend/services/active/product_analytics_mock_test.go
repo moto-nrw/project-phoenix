@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -49,6 +50,26 @@ func TestTrackProductEventSkipsWithoutTenant(t *testing.T) {
 	svc.trackProductEvent(context.Background(), "student_checked_in", nil)
 
 	assert.Zero(t, rec.calls)
+}
+
+func TestTrackProductEventCreatesPropsWhenNil(t *testing.T) {
+	rec := &recordingTracker{}
+	svc := &service{tracker: rec}
+	ctx := tenant.WithTenantID(context.Background(), 7)
+
+	svc.trackProductEvent(ctx, "room_transfer", nil)
+
+	require.Equal(t, 1, rec.calls)
+	assert.Equal(t, "school:7", rec.distinctID)
+	assert.Equal(t, int64(7), rec.props["school_id"])
+	assert.Equal(t, map[string]any{"school": "7"}, rec.props["$groups"])
+}
+
+func TestAttendanceMethod(t *testing.T) {
+	assert.Equal(t, "manual", attendanceMethod(context.Background()))
+
+	iotCtx := context.WithValue(context.Background(), device.CtxIsIoTDevice, true)
+	assert.Equal(t, "rfid", attendanceMethod(iotCtx))
 }
 
 func TestTrackProductEventNilTrackerIsSafe(t *testing.T) {

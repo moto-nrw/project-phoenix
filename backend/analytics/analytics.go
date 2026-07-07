@@ -1,18 +1,30 @@
-// Package analytics provides a thin product-analytics tracker backed by
-// PostHog. Capture is fire-and-forget: errors are logged and swallowed so
-// analytics can never affect business logic. Events must not contain
-// student PII — no student IDs, only tenant-level properties (GDPR).
+// Package analytics provides a thin product-analytics tracker that posts
+// events to PostHog's /batch/ HTTP endpoint. Capture is fire-and-forget:
+// errors are logged and swallowed so analytics can never affect business
+// logic. Events must not contain student PII — no student IDs, only
+// tenant-level properties (GDPR).
+//
+// The tracker deliberately speaks the HTTP API directly instead of using
+// the official posthog-go SDK: the SDK depends on MPL-2.0-licensed code
+// (hashicorp/golang-lru), which the license policy for this
+// source-available project disallows.
 package analytics
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
-
-	"github.com/posthog/posthog-go"
+	"net/http"
+	"net/url"
+	"strings"
+	"sync"
+	"time"
 )
 
 // Tracker captures product analytics events. Services depend on this
-// interface, never on the PostHog client directly.
+// interface, never on the HTTP client directly.
 type Tracker interface {
 	Capture(distinctID, event string, props map[string]any)
 	Close() error
@@ -29,9 +41,13 @@ type noopTracker struct{}
 func (noopTracker) Capture(string, string, map[string]any) {}
 func (noopTracker) Close() error                           { return nil }
 
+// captureTimeout bounds each fire-and-forget send so a PostHog outage can
+// never pile up goroutines indefinitely.
+const captureTimeout = 5 * time.Second
+
 // New returns a PostHog-backed Tracker when apiKey is set, or a no-op
-// Tracker when it is empty. A set apiKey with an empty host is a
-// configuration error (no silent default host).
+// Tracker when it is empty. A set apiKey with an empty or invalid host is
+// a configuration error (no silent default host).
 func New(apiKey, host string, logger *slog.Logger) (Tracker, error) {
 	if apiKey == "" {
 		return NewNoop(), nil
@@ -39,43 +55,100 @@ func New(apiKey, host string, logger *slog.Logger) (Tracker, error) {
 	if host == "" {
 		return nil, fmt.Errorf("POSTHOG_HOST is required when POSTHOG_API_KEY is set")
 	}
-
-	client, err := posthog.NewWithConfig(apiKey, posthog.Config{Endpoint: host})
-	if err != nil {
-		return nil, fmt.Errorf("initializing posthog client: %w", err)
+	parsed, err := url.Parse(host)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return nil, fmt.Errorf("POSTHOG_HOST %q is not a valid URL", host)
 	}
 
-	return &posthogTracker{client: client, logger: logger}, nil
+	return &httpTracker{
+		endpoint: strings.TrimRight(host, "/") + "/batch/",
+		apiKey:   apiKey,
+		client:   &http.Client{Timeout: captureTimeout},
+		logger:   logger,
+	}, nil
 }
 
-type posthogTracker struct {
-	client posthog.Client
-	logger *slog.Logger
+type httpTracker struct {
+	endpoint string
+	apiKey   string
+	client   *http.Client
+	logger   *slog.Logger
+	wg       sync.WaitGroup
 }
 
-func (t *posthogTracker) Capture(distinctID, event string, props map[string]any) {
-	// Enqueue normally just writes to a buffered channel, but it blocks when
-	// the buffer is full (e.g. during a PostHog outage). Run it in a goroutine
-	// so analytics backpressure can never stall the calling request.
-	go func() {
-		if err := t.client.Enqueue(posthog.Capture{
-			DistinctId: distinctID,
+// batchPayload mirrors the wire format of PostHog's /batch/ endpoint (the
+// same one posthog-go uses).
+type batchPayload struct {
+	APIKey string         `json:"api_key"`
+	Batch  []batchMessage `json:"batch"`
+}
+
+type batchMessage struct {
+	Event      string         `json:"event"`
+	DistinctID string         `json:"distinct_id"`
+	Timestamp  time.Time      `json:"timestamp"`
+	Properties map[string]any `json:"properties"`
+}
+
+func (t *httpTracker) Capture(distinctID, event string, props map[string]any) {
+	// Copy props so the caller's map is never mutated or read concurrently.
+	properties := make(map[string]any, len(props)+1)
+	for k, v := range props {
+		properties[k] = v
+	}
+	properties["$lib"] = "phoenix-backend"
+
+	body, err := json.Marshal(batchPayload{
+		APIKey: t.apiKey,
+		Batch: []batchMessage{{
 			Event:      event,
-			Properties: posthog.Properties(props),
-		}); err != nil {
-			t.getLogger().Warn("posthog capture failed",
-				slog.String("event", event),
-				slog.String("error", err.Error()),
-			)
-		}
+			DistinctID: distinctID,
+			Timestamp:  time.Now().UTC(),
+			Properties: properties,
+		}},
+	})
+	if err != nil {
+		t.warnCaptureFailed(event, err)
+		return
+	}
+
+	// Send in a goroutine so analytics latency or backpressure can never
+	// stall the calling request. The client timeout bounds each send.
+	t.wg.Add(1)
+	go func() {
+		defer t.wg.Done()
+		t.send(event, body)
 	}()
 }
 
-func (t *posthogTracker) Close() error {
-	return t.client.Close()
+func (t *httpTracker) send(event string, body []byte) {
+	resp, err := t.client.Post(t.endpoint, "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.warnCaptureFailed(event, err)
+		return
+	}
+	defer func() { _ = resp.Body.Close() }()
+	_, _ = io.Copy(io.Discard, resp.Body)
+	if resp.StatusCode >= http.StatusMultipleChoices {
+		t.warnCaptureFailed(event, fmt.Errorf("posthog returned status %d", resp.StatusCode))
+	}
 }
 
-func (t *posthogTracker) getLogger() *slog.Logger {
+// Close waits for all in-flight captures to finish (each bounded by the
+// client timeout).
+func (t *httpTracker) Close() error {
+	t.wg.Wait()
+	return nil
+}
+
+func (t *httpTracker) warnCaptureFailed(event string, err error) {
+	t.getLogger().Warn("posthog capture failed",
+		slog.String("event", event),
+		slog.String("error", err.Error()),
+	)
+}
+
+func (t *httpTracker) getLogger() *slog.Logger {
 	if t.logger != nil {
 		return t.logger
 	}
