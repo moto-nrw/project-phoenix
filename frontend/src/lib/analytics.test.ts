@@ -45,4 +45,22 @@ describe("trackEvent", () => {
 
     expect(() => trackEvent("login_success")).not.toThrow();
   });
+
+  it("logs a warning when capture throws", () => {
+    mockEnv.NEXT_PUBLIC_POSTHOG_KEY = "phc_test_key_123";
+    mockCapture.mockImplementation(() => {
+      throw new Error("boom");
+    });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {
+      // suppress test output
+    });
+
+    trackEvent("login_success");
+
+    expect(warnSpy).toHaveBeenCalledWith("analytics_capture_failed", {
+      event: "login_success",
+      error: "boom",
+    });
+    warnSpy.mockRestore();
+  });
 });

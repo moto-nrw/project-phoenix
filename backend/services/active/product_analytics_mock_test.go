@@ -65,6 +65,24 @@ func TestTrackProductEventCreatesPropsWhenNil(t *testing.T) {
 	assert.Equal(t, map[string]any{"school": "7"}, rec.props["$groups"])
 }
 
+func TestTrackProductEventDefersUntilAfterCommit(t *testing.T) {
+	rec := &recordingTracker{}
+	svc := &service{tracker: rec}
+	ctx := tenant.WithTenantID(context.Background(), 42)
+	ctx, drain := tenant.WithAfterCommitHooksForTest(ctx)
+
+	svc.trackProductEvent(ctx, "student_checked_in", map[string]any{"method": "rfid"})
+
+	// Inside a tenant tx the capture must NOT fire before commit.
+	assert.Zero(t, rec.calls)
+
+	drain()
+
+	require.Equal(t, 1, rec.calls)
+	assert.Equal(t, "school:42", rec.distinctID)
+	assert.Equal(t, "student_checked_in", rec.event)
+}
+
 func TestAttendanceMethod(t *testing.T) {
 	assert.Equal(t, "manual", attendanceMethod(context.Background()))
 

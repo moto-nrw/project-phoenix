@@ -8,6 +8,13 @@
 // the official posthog-go SDK: the SDK depends on MPL-2.0-licensed code
 // (hashicorp/golang-lru), which the license policy for this
 // source-available project disallows.
+//
+// Concurrency shape: each Capture spawns one goroutine, bounded per send by
+// the client timeout but not small in aggregate — during a PostHog outage a
+// check-in burst can hold up to rate×timeout goroutines at once. Acceptable
+// at this product's scale; if it ever matters, the sturdier shape is a
+// single background worker draining a bounded channel that drops events on
+// overflow.
 package analytics
 
 import (
@@ -135,7 +142,9 @@ func (t *httpTracker) send(event string, body []byte) {
 }
 
 // Close waits for all in-flight captures to finish (each bounded by the
-// client timeout).
+// client timeout). Contract: Capture must not be called concurrently with
+// or after Close — wg.Add racing wg.Wait is WaitGroup misuse. Today this
+// holds because Close runs only after the HTTP server has stopped.
 func (t *httpTracker) Close() error {
 	t.wg.Wait()
 	return nil

@@ -150,7 +150,7 @@ func (s *service) ToggleStudentAttendance(ctx context.Context, studentID, staffI
 		return s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today)
 	}
 
-	return s.performCheckOut(ctx, studentID, authorizedStaffID, now)
+	return s.performCheckOut(ctx, studentID, authorizedStaffID, now, checkoutTypeToggle)
 }
 
 // CheckInStudent applies "in" unconditionally. Concurrency-safe: the
@@ -182,7 +182,7 @@ func (s *service) CheckOutStudent(ctx context.Context, studentID, staffID int64,
 	if err != nil {
 		return nil, err
 	}
-	return s.performCheckOut(ctx, studentID, authorizedStaffID, time.Now())
+	return s.performCheckOut(ctx, studentID, authorizedStaffID, time.Now(), checkoutTypeWeb)
 }
 
 // CheckOutStudentFromDevice applies "out" for an IoT device after resolving
@@ -192,7 +192,7 @@ func (s *service) CheckOutStudentFromDevice(ctx context.Context, studentID, devi
 	if err != nil {
 		return nil, err
 	}
-	return s.performCheckOut(ctx, studentID, authorizedStaffID, time.Now())
+	return s.performCheckOut(ctx, studentID, authorizedStaffID, time.Now(), checkoutTypeDaily)
 }
 
 // authorizeAttendanceToggle handles authorization and returns the staff ID to use
@@ -370,7 +370,7 @@ func (s *service) endOpenVisitForStudent(ctx context.Context, studentID int64) e
 //  3. Any open room visit is ended in the same request transaction (issue
 //     #895) — including on the idempotent no-open-row path, so a checkout of
 //     any kind heals an orphaned visit left behind by older code.
-func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64, now time.Time) (*AttendanceResult, error) {
+func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64, now time.Time, checkoutType string) (*AttendanceResult, error) {
 	closed, err := s.attendanceRepo.CloseOpenForToday(ctx, studentID, now, staffID)
 	if err != nil {
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("database error during state-checked checkout: %w", err)}
@@ -393,7 +393,7 @@ func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64,
 
 	s.trackProductEvent(ctx, "student_checked_out", map[string]any{
 		"method":        attendanceMethod(ctx),
-		"checkout_type": "daily",
+		"checkout_type": checkoutType,
 	})
 
 	return &AttendanceResult{

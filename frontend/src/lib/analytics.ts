@@ -8,6 +8,9 @@
 
 import posthog from "posthog-js";
 import { env } from "~/env";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "Analytics" });
 
 export type AnalyticsEvent =
   | "login_success"
@@ -29,7 +32,12 @@ export function trackEvent(
   }
   try {
     posthog.capture(event, props);
-  } catch {
-    // Analytics must never break the calling flow.
+  } catch (err) {
+    // Analytics must never break the calling flow — but a broken SDK
+    // should not go dark silently either.
+    logger.warn("analytics_capture_failed", {
+      event,
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 }

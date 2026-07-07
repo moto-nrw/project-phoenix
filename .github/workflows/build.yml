@@ -314,6 +314,11 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64
+          # NEXT_PUBLIC_* values below are build-time-inlined into the client
+          # bundle — THIS is the authoritative source for deployed builds. The
+          # same-named keys in environments/*.sops.env are inert for the
+          # client (kept only for env-check key sync + server-side env
+          # validation); editing them there does NOT change the shipped host.
           build-args: |
             API_URL=http://server:8080
             NEXT_PUBLIC_API_URL=${{ steps.api_url.outputs.url }}

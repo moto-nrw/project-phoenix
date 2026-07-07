@@ -226,6 +226,11 @@ func (s *service) getLogger() *slog.Logger {
 // trackProductEvent captures a product analytics event scoped to the tenant
 // from context. Fire-and-forget and nil-safe. GDPR: props must never contain
 // student IDs or any student PII — only tenant-level properties.
+//
+// The capture is deferred via tenant.RegisterAfterCommit so events fire only
+// after the surrounding tenant transaction commits — a rolled-back check-in
+// must not appear in analytics. Outside a tenant tx the capture runs
+// immediately.
 func (s *service) trackProductEvent(ctx context.Context, event string, props map[string]any) {
 	if s.tracker == nil {
 		return
@@ -240,8 +245,18 @@ func (s *service) trackProductEvent(ctx context.Context, event string, props map
 	school := strconv.FormatInt(tenantID, 10)
 	props["school_id"] = tenantID
 	props["$groups"] = map[string]any{"school": school}
-	s.tracker.Capture("school:"+school, event, props)
+	tenant.RegisterAfterCommit(ctx, func() {
+		s.tracker.Capture("school:"+school, event, props)
+	})
 }
+
+// checkout_type values for the student_checked_out analytics event — which
+// flow ended the attendance, orthogonal to method (rfid vs manual).
+const (
+	checkoutTypeDaily  = "daily"  // daily-checkout kiosk flow (CheckOutStudentFromDevice)
+	checkoutTypeToggle = "toggle" // kiosk toggle-out (ToggleStudentAttendance)
+	checkoutTypeWeb    = "web"    // web/staff-UI checkout (CheckOutStudent)
+)
 
 // attendanceMethod derives how an attendance change was triggered: RFID/kiosk
 // requests carry device auth in context, everything else is web/manual.
