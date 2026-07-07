@@ -192,7 +192,10 @@ func (s *phaseService) GetByID(ctx context.Context, id int64) (*enrollmentModels
 	}
 	phase, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		return nil, ErrPhaseNotFound
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrPhaseNotFound
+		}
+		return nil, fmt.Errorf("get phase %d: %w", id, err)
 	}
 	return phase, nil
 }
@@ -248,7 +251,10 @@ func (s *phaseService) DeleteImpact(ctx context.Context, id int64) (*PhaseDelete
 		return nil, ErrPhaseNotFound
 	}
 	if _, err := s.repo.FindByID(ctx, id); err != nil {
-		return nil, ErrPhaseNotFound
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrPhaseNotFound
+		}
+		return nil, fmt.Errorf("phase delete impact: find phase: %w", err)
 	}
 
 	impact := &PhaseDeleteImpact{}
@@ -293,7 +299,10 @@ func (s *phaseService) Delete(ctx context.Context, id int64) error {
 		return fmt.Errorf("%w: id must be positive", ErrInvalidPhase)
 	}
 	if _, err := s.repo.FindByID(ctx, id); err != nil {
-		return ErrPhaseNotFound
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrPhaseNotFound
+		}
+		return fmt.Errorf("phase delete: find phase: %w", err)
 	}
 
 	deletedRequests := 0

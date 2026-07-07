@@ -134,8 +134,9 @@ export function CalendarPeriodModal({
 
   const isEdit = Boolean(initial);
 
-  // Deletion never blocks (all FKs are ON DELETE SET NULL) — the warning
-  // names what gets unlinked so the admin knows the blast radius.
+  // Most period links are nullable and get unlinked on delete. Roster rows can
+  // still make the delete fail when unlinking would create duplicate active
+  // unscoped assignments, so the warning must not promise success.
   const usageText = usage
     ? formatPeriodUsage(
         usage.enrollmentPhaseCount,
@@ -151,6 +152,8 @@ export function CalendarPeriodModal({
   const deleteWarning = usageText
     ? `Dieser Zeitraum wird von ${usageText} verwendet. Beim Löschen werden diese Verknüpfungen entfernt, die Anmeldephasen und Termine selbst bleiben erhalten.`
     : "Beim Löschen werden bestehende Verknüpfungen zu Anmeldephasen und Regelterminen entfernt.";
+  const deleteConflictHint =
+    "Falls dadurch doppelte aktive Kinder- oder Personalzuordnungen ohne Zeitraum entstehen würden, verweigert der Server das Löschen.";
 
   useEffect(() => {
     if (!isOpen) return;
@@ -311,7 +314,9 @@ export function CalendarPeriodModal({
                   {deleteConfirm ? "Löschen bestätigen" : "Löschen"}
                 </Button>
                 {deleteConfirm && !deleting && (
-                  <p className="text-xs text-[#CC2626]">{deleteWarning}</p>
+                  <p className="text-xs text-[#CC2626]">
+                    {deleteWarning} {deleteConflictHint}
+                  </p>
                 )}
               </div>
             )}

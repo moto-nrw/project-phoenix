@@ -417,6 +417,28 @@ func TestPhaseService_GetByID_NotFoundSentinel(t *testing.T) {
 	assert.True(t, errors.Is(err, enrollmentService.ErrPhaseNotFound))
 }
 
+func TestPhaseService_GetByID_PreservesRepositoryFailure(t *testing.T) {
+	repoErr := errors.New("database unavailable")
+	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
+		Repo: findByIDErrorPhaseRepo{err: repoErr},
+	})
+
+	_, err := svc.GetByID(context.Background(), 123)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, repoErr)
+	assert.False(t, errors.Is(err, enrollmentService.ErrPhaseNotFound))
+}
+
+type findByIDErrorPhaseRepo struct {
+	enrollmentModels.PhaseRepository
+	err error
+}
+
+func (r findByIDErrorPhaseRepo) FindByID(context.Context, int64) (*enrollmentModels.Phase, error) {
+	return nil, r.err
+}
+
 // phaseServiceWithCalendarPeriods wires the optional CalendarPeriods dep
 // on top of the standard setup so the link validation actually runs.
 func phaseServiceWithCalendarPeriods(t *testing.T) (enrollmentService.PhaseService, *repositories.Factory, *bun.DB, func()) {

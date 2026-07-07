@@ -260,6 +260,9 @@ describe("CalendarPeriodModal", () => {
         /Dieser Zeitraum wird von 1 Anmeldephase und 3 Regelterminen? verwendet/,
       ),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(/verweigert der Server das Löschen/),
+    ).toBeInTheDocument();
   });
 
   it("keeps the modal open and lists warnings when the save overlaps active periods", async () => {

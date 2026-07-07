@@ -133,8 +133,9 @@ func (p *CalendarPeriod) ContainsDate(date time.Time) bool {
 }
 
 // CalendarPeriodUsage aggregates how many planning objects reference a
-// calendar period. All FKs are ON DELETE SET NULL, so the counts are
-// advisory (shown in the admin UI and delete warnings), never blockers.
+// calendar period. Most FKs are nullable and get cleared on delete, but roster
+// rows can still make deletion fail when clearing calendar_period_id would
+// collide with an existing unscoped active assignment.
 type CalendarPeriodUsage struct {
 	EnrollmentPhases   int
 	Schedules          int

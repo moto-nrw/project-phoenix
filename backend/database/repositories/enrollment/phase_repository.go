@@ -51,7 +51,7 @@ func (r *PhaseRepository) FindByID(ctx context.Context, id int64) (*enrollment.P
 		Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("phase %d not found", id)
+			return nil, fmt.Errorf("phase %d not found: %w", id, sql.ErrNoRows)
 		}
 		return nil, fmt.Errorf("failed to find phase: %w", err)
 	}

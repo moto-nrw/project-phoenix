@@ -1229,6 +1229,22 @@ func TestDeletePeriod(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
+	t.Run("returns 409 when roster links cannot be unscoped", func(t *testing.T) {
+		mock := &mockCalendarPeriodService{
+			period: newTestPeriod(),
+			deleteErr: errors.New(
+				`delete calendar period: duplicate key value violates unique constraint "idx_student_enrollments_active"`,
+			),
+		}
+		res := NewResource(Dependencies{CalendarPeriodService: mock})
+		router := setupTestRouter(res.deletePeriod, http.MethodDelete, true)
+
+		w := executeRequest(router, http.MethodDelete, "/42", nil)
+
+		assert.Equal(t, http.StatusConflict, w.Code)
+		assert.Contains(t, w.Body.String(), "doppelte aktive Kinder- oder Personalzuordnungen")
+	})
+
 	t.Run("returns 500 on service error", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{
 			period:    newTestPeriod(),
