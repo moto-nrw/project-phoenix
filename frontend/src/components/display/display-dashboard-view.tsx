@@ -101,19 +101,7 @@ export function DisplayDashboardView({ token }: DisplayDashboardViewProps) {
   }
 
   if (state.kind === "invalid" || state.kind === "inactive") {
-    return (
-      <DisplayShell>
-        <div className="text-center">
-          <p className="text-5xl font-bold text-gray-700">
-            Display deaktiviert
-          </p>
-          <p className="mt-6 text-2xl text-gray-500">
-            Dieses Info-Display wurde deaktiviert oder der Link ist nicht mehr
-            gültig. Bitte wende dich an die OGS-Leitung.
-          </p>
-        </div>
-      </DisplayShell>
-    );
+    return <DisplayInvalidScreen />;
   }
 
   const { payload } = state;
@@ -164,5 +152,23 @@ function DisplayShell({ children }: { readonly children: React.ReactNode }) {
     <div className="flex min-h-screen items-center justify-center bg-gray-50 p-10">
       {children}
     </div>
+  );
+}
+
+/**
+ * Full-screen "deactivated / invalid link" state. Also rendered by the display
+ * page itself when the URL carries no token fragment.
+ */
+export function DisplayInvalidScreen() {
+  return (
+    <DisplayShell>
+      <div className="text-center">
+        <p className="text-5xl font-bold text-gray-700">Display deaktiviert</p>
+        <p className="mt-6 text-2xl text-gray-500">
+          Dieses Info-Display wurde deaktiviert oder der Link ist nicht mehr
+          gültig. Bitte wende dich an die OGS-Leitung.
+        </p>
+      </div>
+    </DisplayShell>
   );
 }

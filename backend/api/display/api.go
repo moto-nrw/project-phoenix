@@ -34,17 +34,19 @@ func NewResource(svc displayService.Service, db *bun.DB) *Resource {
 }
 
 // Router returns a chi router scoped to /display. The dashboard route is
-// public (token-only auth, mirrors api/enrollment's status-token routes);
-// everything else requires a staff JWT + display permissions.
+// public (token-only auth via the X-Display-Token header); everything else
+// requires a staff JWT + display permissions.
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// Public route: the token is the only auth signal. Sits outside the
-	// auth group below so the JWT middleware doesn't reject the TV browser.
-	// Tenant scoping happens inside the service (WithAdminTx token lookup →
-	// WithTenantTx aggregation) — no tenant tx middleware here.
-	r.Get("/{token}/dashboard", rs.getDashboard)
+	// Public route: the token is the only auth signal, carried in the
+	// X-Display-Token header — never in the URL, so it cannot leak into
+	// request-path logs (backend, Next.js proxy, reverse proxy). Sits outside
+	// the auth group below so the JWT middleware doesn't reject the TV
+	// browser. Tenant scoping happens inside the service (WithAdminTx token
+	// lookup → WithTenantTx aggregation) — no tenant tx middleware here.
+	r.Get("/dashboard", rs.getDashboard)
 
 	// Authenticated admin endpoints.
 	tokenAuth := jwt.MustNewTokenAuth()
@@ -54,7 +56,10 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(jwt.TenantMiddleware)
 		withTx := tenant.TenantTxMiddleware(rs.db)
 
-		r.With(authorize.RequiresPermission(permissions.DisplayRead), withTx).Get("/", rs.listDisplays)
+		// Listing is readable with either permission: display:read enables
+		// view-only roles, display:manage must not lock its holders out of
+		// the very list their mutations operate on.
+		r.With(authorize.RequiresAnyPermission(permissions.DisplayRead, permissions.DisplayManage), withTx).Get("/", rs.listDisplays)
 		r.With(authorize.RequiresPermission(permissions.DisplayManage), withTx).Post("/", rs.createDisplay)
 		r.Route("/{id}", func(r chi.Router) {
 			r.With(authorize.RequiresPermission(permissions.DisplayManage), withTx).Patch("/", rs.updateDisplay)
@@ -66,21 +71,31 @@ func (rs *Resource) Router() chi.Router {
 	return r
 }
 
-// getDashboard serves the public dashboard aggregate for a display token.
+// getDashboard serves the public dashboard aggregate for a display token,
+// read from the X-Display-Token header.
 func (rs *Resource) getDashboard(w http.ResponseWriter, r *http.Request) {
-	token := chi.URLParam(r, "token")
+	token := r.Header.Get("X-Display-Token")
+	if token == "" {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("missing display token")))
+		return
+	}
 
 	payload, err := rs.Service.Dashboard(r.Context(), token)
 	if err != nil {
-		if errors.Is(err, displayModels.ErrInactive) {
+		switch {
+		case errors.Is(err, displayModels.ErrInactive):
 			// A known-but-deactivated display is a valid screen state, not
 			// an error: the TV renders "Display deaktiviert" from this.
 			render.JSON(w, r, map[string]string{"status": "inactive"})
-			return
+		case errors.Is(err, displayModels.ErrNotFound):
+			// Only a genuinely unknown/revoked token 404s — the TV replaces
+			// its dashboard with the deactivated-link screen on 404.
+			common.RenderError(w, r, common.ErrorNotFound(errors.New("display not found")))
+		default:
+			// Infrastructure failures surface as 500 so the TV keeps its
+			// last good data and retries instead of going dark.
+			common.RenderError(w, r, common.ErrorInternalServerWrap("failed to load display dashboard", err))
 		}
-		// Unknown token and internal errors both surface as 404 so the
-		// endpoint doesn't leak whether a token exists.
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("display not found")))
 		return
 	}
 
@@ -114,7 +129,7 @@ func (rs *Resource) createDisplay(w http.ResponseWriter, r *http.Request) {
 
 	d, rawToken, err := rs.Service.Create(r.Context(), *req.Name)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		renderDisplayError(w, r, err)
 		return
 	}
 
@@ -186,9 +201,12 @@ func parseDisplayID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 }
 
 func renderDisplayError(w http.ResponseWriter, r *http.Request, err error) {
-	if errors.Is(err, displayModels.ErrNotFound) {
+	switch {
+	case errors.Is(err, displayModels.ErrNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
-		return
+	case errors.Is(err, displayModels.ErrInvalidInput):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	default:
+		common.RenderError(w, r, common.ErrorInternalServerWrap("display operation failed", err))
 	}
-	common.RenderError(w, r, common.ErrorInvalidRequest(err))
 }

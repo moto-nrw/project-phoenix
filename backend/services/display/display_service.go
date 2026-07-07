@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -79,12 +81,20 @@ func displayTokenHash(token string) string {
 func validateDisplayName(name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return "", fmt.Errorf("display name is required")
+		return "", fmt.Errorf("%w: display name is required", displayModels.ErrInvalidInput)
 	}
 	if len(name) > maxDisplayNameLength {
-		return "", fmt.Errorf("display name cannot exceed %d characters", maxDisplayNameLength)
+		return "", fmt.Errorf("%w: display name cannot exceed %d characters", displayModels.ErrInvalidInput, maxDisplayNameLength)
 	}
 	return name, nil
+}
+
+// isNotFound reports whether err means "no such display" — either the repo's
+// own sentinel (FindByTokenHash) or a bare sql.ErrNoRows wrapped by the
+// generic base repository (FindByID). Anything else is an infrastructure
+// failure and must NOT be presented as a 404.
+func isNotFound(err error) bool {
+	return errors.Is(err, displayModels.ErrNotFound) || errors.Is(err, sql.ErrNoRows)
 }
 
 func (s *service) List(ctx context.Context) ([]*displayModels.Display, error) {
@@ -122,7 +132,10 @@ func (s *service) Create(ctx context.Context, name string) (*displayModels.Displ
 func (s *service) Update(ctx context.Context, id int64, name *string, isActive *bool) (*displayModels.Display, error) {
 	d, err := s.DisplayRepo.FindByID(ctx, id)
 	if err != nil {
-		return nil, displayModels.ErrNotFound
+		if isNotFound(err) {
+			return nil, displayModels.ErrNotFound
+		}
+		return nil, fmt.Errorf("failed to load display: %w", err)
 	}
 
 	columns := make([]string, 0, 2)
@@ -142,8 +155,13 @@ func (s *service) Update(ctx context.Context, id int64, name *string, isActive *
 		return d, nil
 	}
 
-	if _, err := s.DisplayRepo.UpdateColumns(ctx, d, columns...); err != nil {
+	updated, err := s.DisplayRepo.UpdateColumns(ctx, d, columns...)
+	if err != nil {
 		return nil, fmt.Errorf("failed to update display: %w", err)
+	}
+	if updated == 0 {
+		// Row vanished between FindByID and the update (concurrent delete).
+		return nil, displayModels.ErrNotFound
 	}
 
 	s.getLogger().Info("display updated",
@@ -157,7 +175,10 @@ func (s *service) Update(ctx context.Context, id int64, name *string, isActive *
 func (s *service) Regenerate(ctx context.Context, id int64) (string, error) {
 	d, err := s.DisplayRepo.FindByID(ctx, id)
 	if err != nil {
-		return "", displayModels.ErrNotFound
+		if isNotFound(err) {
+			return "", displayModels.ErrNotFound
+		}
+		return "", fmt.Errorf("failed to load display: %w", err)
 	}
 
 	rawToken, err := newDisplayToken()
@@ -166,8 +187,14 @@ func (s *service) Regenerate(ctx context.Context, id int64) (string, error) {
 	}
 	d.TokenHash = displayTokenHash(rawToken)
 
-	if _, err := s.DisplayRepo.UpdateColumns(ctx, d, "token_hash"); err != nil {
+	updated, err := s.DisplayRepo.UpdateColumns(ctx, d, "token_hash")
+	if err != nil {
 		return "", fmt.Errorf("failed to regenerate display token: %w", err)
+	}
+	if updated == 0 {
+		// Never hand out a token that was not persisted: the display was
+		// deleted between FindByID and the update.
+		return "", displayModels.ErrNotFound
 	}
 
 	s.getLogger().Info("display token regenerated",
@@ -180,7 +207,10 @@ func (s *service) Regenerate(ctx context.Context, id int64) (string, error) {
 func (s *service) Delete(ctx context.Context, id int64) error {
 	d, err := s.DisplayRepo.FindByID(ctx, id)
 	if err != nil {
-		return displayModels.ErrNotFound
+		if isNotFound(err) {
+			return displayModels.ErrNotFound
+		}
+		return fmt.Errorf("failed to load display: %w", err)
 	}
 	if err := s.DisplayRepo.Delete(ctx, d.ID); err != nil {
 		return fmt.Errorf("failed to delete display: %w", err)
@@ -209,7 +239,10 @@ func (s *service) Dashboard(ctx context.Context, rawToken string) (*DashboardPay
 		return err
 	})
 	if err != nil {
-		return nil, displayModels.ErrNotFound
+		if isNotFound(err) {
+			return nil, displayModels.ErrNotFound
+		}
+		return nil, fmt.Errorf("failed to resolve display token: %w", err)
 	}
 	if !d.IsActive {
 		return nil, displayModels.ErrInactive

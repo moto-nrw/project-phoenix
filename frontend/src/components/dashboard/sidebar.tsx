@@ -46,7 +46,9 @@ interface NavItem {
   // Show when the caller holds this tenant permission (admins always pass). Use
   // instead of requiresAdmin for items open to more than admins, e.g. the
   // Änderungsanfragen queue (users:update, scoped per child in the backend).
-  requiresPermission?: string;
+  // An array shows the item when ANY listed permission is held (matching
+  // backend RequiresAnyPermission routes).
+  requiresPermission?: string | readonly string[];
   alwaysShow?: boolean;
   hideForAdmin?: boolean;
   comingSoon?: boolean;
@@ -118,7 +120,7 @@ const NAV_ITEMS: NavItem[] = [
     label: "Info-Displays",
     icon: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
     activeColor: "text-[#5080D8]",
-    requiresPermission: "display:manage",
+    requiresPermission: ["display:read", "display:manage"],
   },
   {
     href: "/time-tracking",
@@ -598,13 +600,15 @@ function SidebarContent({ className = "" }: SidebarProps) {
     }
     if (item.alwaysShow) return true;
     // Permission-gated items (e.g. Änderungsanfragen on users:update): show for
-    // admins or anyone holding the permission, matching the backend route gate.
-    if (
-      item.requiresPermission &&
-      !userIsAdmin &&
-      !hasPermission(session, item.requiresPermission)
-    )
-      return false;
+    // admins or anyone holding the permission (any of them, for arrays),
+    // matching the backend route gate.
+    if (item.requiresPermission && !userIsAdmin) {
+      const required =
+        typeof item.requiresPermission === "string"
+          ? [item.requiresPermission]
+          : item.requiresPermission;
+      if (!required.some((p) => hasPermission(session, p))) return false;
+    }
     if (item.requiresAdmin && !userIsAdmin) return false;
     return true;
   });

@@ -5,25 +5,22 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "DisplayDashboardRoute" });
 
-interface RouteContext {
-  params: Promise<{ token: string }>;
-}
-
 /**
  * Public proxy for the info-point display dashboard. No session — the opaque
- * display token in the path is the only auth signal; the backend resolves
- * tenant scope from it (mirrors the enrollment status-token route).
+ * display token in the X-Display-Token header is the only auth signal; the
+ * backend resolves tenant scope from it. The token travels as a header (never
+ * in the URL) so it cannot leak into request-path logs at any hop.
  */
-export async function GET(_request: NextRequest, context: RouteContext) {
-  const { token } = await context.params;
+export async function GET(request: NextRequest) {
+  const token = request.headers.get("x-display-token");
   if (!token) {
     return NextResponse.json({ error: "token required" }, { status: 400 });
   }
   try {
-    const response = await fetch(
-      `${getServerApiUrl()}/api/display/${encodeURIComponent(token)}/dashboard`,
-      { cache: "no-store" },
-    );
+    const response = await fetch(`${getServerApiUrl()}/api/display/dashboard`, {
+      cache: "no-store",
+      headers: { "X-Display-Token": token },
+    });
     const payload = (await response.json().catch(() => ({}))) as unknown;
     return NextResponse.json(payload, { status: response.status });
   } catch (error) {

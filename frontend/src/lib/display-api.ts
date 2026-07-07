@@ -68,17 +68,19 @@ export class DisplayDashboardError extends Error {
 
 /**
  * Fetches the public dashboard aggregate. No session required — the token
- * authenticates. Throws DisplayDashboardError on non-OK responses (404 =
- * unknown/revoked token).
+ * authenticates via the X-Display-Token header (never the URL, so it stays
+ * out of request-path logs). Throws DisplayDashboardError on non-OK
+ * responses (404 = unknown/revoked token).
  */
 export async function fetchDisplayDashboard(
   token: string,
   signal?: AbortSignal,
 ): Promise<DashboardPayload> {
-  const response = await fetch(
-    `/api/display/${encodeURIComponent(token)}/dashboard`,
-    { cache: "no-store", signal },
-  );
+  const response = await fetch("/api/display/dashboard", {
+    cache: "no-store",
+    signal,
+    headers: { "X-Display-Token": token },
+  });
   if (!response.ok) {
     throw new DisplayDashboardError(response.status);
   }

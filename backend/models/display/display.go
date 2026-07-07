@@ -16,6 +16,8 @@ var (
 	ErrNotFound = errors.New("display not found")
 	// ErrInactive: the display exists but has been deactivated.
 	ErrInactive = errors.New("display inactive")
+	// ErrInvalidInput: the request payload failed validation (e.g. name rules).
+	ErrInvalidInput = errors.New("invalid display input")
 )
 
 // Display is a registered info-point screen. The raw access token is never

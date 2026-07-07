@@ -31,15 +31,17 @@ export function mapDisplayResponse(data: BackendDisplay): InfoDisplay {
 }
 
 /**
- * Builds the public dashboard URL for a raw display token. Handles both
- * subdomain mode ({slug}.domain/display/...) and path mode
- * (domain/{slug}/display/...) — same detection as the enrollment link panel.
+ * Builds the public dashboard URL for a raw display token. The token lives in
+ * the URL fragment (#<token>), which browsers never send to any server — so
+ * it cannot leak into backend, proxy, or access logs. Handles both subdomain
+ * mode ({slug}.domain/display#...) and path mode (domain/{slug}/display#...)
+ * — same detection as the enrollment link panel.
  */
 export function buildDisplayUrl(rawToken: string, tenantSlug: string): string {
   const encoded = encodeURIComponent(rawToken);
   const inSubdomainMode = window.location.hostname.startsWith(`${tenantSlug}.`);
   if (inSubdomainMode) {
-    return `${window.location.origin}/display/${encoded}`;
+    return `${window.location.origin}/display#${encoded}`;
   }
-  return `${window.location.origin}/${tenantSlug}/display/${encoded}`;
+  return `${window.location.origin}/${tenantSlug}/display#${encoded}`;
 }

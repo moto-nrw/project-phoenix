@@ -30,17 +30,17 @@ describe("buildDisplayUrl", () => {
     } as unknown as Window & typeof globalThis);
   }
 
-  it("omits the tenant path segment in subdomain mode", () => {
+  it("puts the token in the URL fragment in subdomain mode", () => {
     stubLocation("schule.moto-app.de", "https://schule.moto-app.de");
     expect(buildDisplayUrl("tok en", "schule")).toBe(
-      "https://schule.moto-app.de/display/tok%20en",
+      "https://schule.moto-app.de/display#tok%20en",
     );
   });
 
   it("includes the tenant path segment in path mode", () => {
     stubLocation("localhost", "http://localhost:3000");
     expect(buildDisplayUrl("abc", "schule")).toBe(
-      "http://localhost:3000/schule/display/abc",
+      "http://localhost:3000/schule/display#abc",
     );
   });
 });

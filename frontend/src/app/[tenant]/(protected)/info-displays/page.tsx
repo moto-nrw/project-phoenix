@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
 import { QRCodeSVG } from "qrcode.react";
 import { MonitorPlay, Copy, Check } from "lucide-react";
 
@@ -15,6 +16,7 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Alert } from "~/components/ui/alert";
 import { Loading } from "~/components/ui/loading";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
+import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { useSWRAuth } from "~/lib/swr";
 import { useTenant } from "~/lib/tenant-context";
 import { formatDate } from "~/lib/date-helpers";
@@ -37,15 +39,27 @@ interface TokenModalState {
 }
 
 export default function InfoDisplaysPage() {
-  const { isReady, isLoading: permissionLoading } =
-    useRequirePermission("display:manage");
+  // Viewing needs display:read OR display:manage (matching the backend list
+  // route); mutating actions are additionally gated on display:manage below.
+  const { isReady, isLoading: permissionLoading } = useRequirePermission([
+    "display:read",
+    "display:manage",
+  ]);
+  const { data: session } = useSession();
+  const canManage =
+    isAdmin(session) || hasPermission(session, "display:manage");
   const { tenantSlug } = useTenant();
 
   const {
     data: displays,
+    error: displaysError,
     isLoading,
     mutate,
   } = useSWRAuth<InfoDisplay[]>("info-displays", listDisplays);
+
+  const loadError = displaysError
+    ? "Fehler beim Laden der Info-Displays. Bitte versuche es später erneut."
+    : "";
 
   const [searchQuery, setSearchQuery] = useState("");
   const [error, setError] = useState("");
@@ -152,40 +166,45 @@ export default function InfoDisplaysPage() {
       ),
       sortValue: (row) => row.createdAt,
     },
-    {
-      key: "actions",
-      header: "",
-      align: "right",
-      render: (row) => (
-        <OverflowMenu
-          items={[
-            {
-              label: "Umbenennen",
-              onClick: () => {
-                setNameInput(row.name);
-                setRenameTarget(row);
-              },
-            },
-            {
-              label: "Neuen Link erstellen",
-              onClick: () => void handleRegenerate(row),
-            },
-            {
-              label: row.isActive ? "Deaktivieren" : "Aktivieren",
-              onClick: () => void handleToggleActive(row),
-            },
-            {
-              label: "Löschen",
-              destructive: true,
-              onClick: () => {
-                setDeleteError("");
-                setDeleteTarget(row);
-              },
-            },
-          ]}
-        />
-      ),
-    },
+    // Mutating actions require display:manage; read-only viewers get no menu.
+    ...(canManage
+      ? [
+          {
+            key: "actions",
+            header: "",
+            align: "right",
+            render: (row) => (
+              <OverflowMenu
+                items={[
+                  {
+                    label: "Umbenennen",
+                    onClick: () => {
+                      setNameInput(row.name);
+                      setRenameTarget(row);
+                    },
+                  },
+                  {
+                    label: "Neuen Link erstellen",
+                    onClick: () => void handleRegenerate(row),
+                  },
+                  {
+                    label: row.isActive ? "Deaktivieren" : "Aktivieren",
+                    onClick: () => void handleToggleActive(row),
+                  },
+                  {
+                    label: "Löschen",
+                    destructive: true,
+                    onClick: () => {
+                      setDeleteError("");
+                      setDeleteTarget(row);
+                    },
+                  },
+                ]}
+              />
+            ),
+          } satisfies DataTableColumn<InfoDisplay>,
+        ]
+      : []),
   ];
 
   if (permissionLoading || !isReady) {
@@ -206,20 +225,24 @@ export default function InfoDisplaysPage() {
           placeholder: "Display suchen …",
         }}
         actionButton={
-          <Button
-            type="button"
-            size="md"
-            onClick={() => {
-              setNameInput("");
-              setCreateOpen(true);
-            }}
-          >
-            Neues Display
-          </Button>
+          canManage ? (
+            <Button
+              type="button"
+              size="md"
+              onClick={() => {
+                setNameInput("");
+                setCreateOpen(true);
+              }}
+            >
+              Neues Display
+            </Button>
+          ) : undefined
         }
       />
 
-      {error && <Alert type="error" message={error} />}
+      {(error || loadError) && (
+        <Alert type="error" message={error || loadError} />
+      )}
 
       <DataTable
         columns={columns}
@@ -228,13 +251,25 @@ export default function InfoDisplaysPage() {
         isLoading={isLoading}
         defaultSortKey="name"
         emptyState={
-          <div className="py-12 text-center text-gray-500">
-            <p className="font-medium">Noch keine Info-Displays</p>
-            <p className="mt-1 text-sm">
-              Erstelle ein Display und öffne den Link im Browser des Fernsehers
-              oder Smartboards.
-            </p>
-          </div>
+          loadError ? (
+            // A failed load must never masquerade as "no displays yet".
+            <div className="py-12 text-center text-gray-500">
+              <p className="font-medium">
+                Displays konnten nicht geladen werden
+              </p>
+              <p className="mt-1 text-sm">
+                Bitte lade die Seite neu oder versuche es später erneut.
+              </p>
+            </div>
+          ) : (
+            <div className="py-12 text-center text-gray-500">
+              <p className="font-medium">Noch keine Info-Displays</p>
+              <p className="mt-1 text-sm">
+                Erstelle ein Display und öffne den Link im Browser des
+                Fernsehers oder Smartboards.
+              </p>
+            </div>
+          )
         }
       />
 

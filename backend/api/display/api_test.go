@@ -93,6 +93,19 @@ func doDisplayRequest(t *testing.T, router http.Handler, method, path, jwtToken 
 	return rec
 }
 
+// doDashboardRequest fetches the public dashboard with the display token in
+// the X-Display-Token header — the token never travels in the URL.
+func doDashboardRequest(t *testing.T, router http.Handler, token string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, "/dashboard", nil)
+	if token != "" {
+		req.Header.Set("X-Display-Token", token)
+	}
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	return rec
+}
+
 // createDisplayViaAPI creates a display through the admin endpoint and
 // returns its ID and one-time raw token.
 func createDisplayViaAPI(t *testing.T, router http.Handler, adminJWT, name string) (string, string) {
@@ -142,6 +155,16 @@ func TestDisplayAdminCRUD(t *testing.T) {
 		assert.Equal(t, http.StatusForbidden, rec.Code)
 	})
 
+	t.Run("list accepts display:read OR display:manage", func(t *testing.T) {
+		readOnlyJWT := displayTestJWT(t, account.ID, tenantID, []string{"display:read"})
+		rec := doDisplayRequest(t, router, http.MethodGet, "/", readOnlyJWT, nil)
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		manageOnlyJWT := displayTestJWT(t, account.ID, tenantID, []string{"display:manage"})
+		rec = doDisplayRequest(t, router, http.MethodGet, "/", manageOnlyJWT, nil)
+		assert.Equal(t, http.StatusOK, rec.Code)
+	})
+
 	t.Run("create returns raw token exactly once and never the hash", func(t *testing.T) {
 		rec := doDisplayRequest(t, router, http.MethodPost, "/", adminJWT, map[string]any{"name": "Eingangsbereich"})
 		require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
@@ -165,7 +188,7 @@ func TestDisplayAdminCRUD(t *testing.T) {
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 		assert.Contains(t, rec.Body.String(), "Flur OG")
 
-		dashRec := doDisplayRequest(t, router, http.MethodGet, "/"+rawToken+"/dashboard", "", nil)
+		dashRec := doDashboardRequest(t, router, rawToken)
 		require.Equal(t, http.StatusOK, dashRec.Code)
 		assert.Contains(t, dashRec.Body.String(), `"status":"inactive"`)
 	})
@@ -182,9 +205,9 @@ func TestDisplayAdminCRUD(t *testing.T) {
 		require.NotEmpty(t, regen.Token)
 		require.NotEqual(t, oldToken, regen.Token)
 
-		oldRec := doDisplayRequest(t, router, http.MethodGet, "/"+oldToken+"/dashboard", "", nil)
+		oldRec := doDashboardRequest(t, router, oldToken)
 		assert.Equal(t, http.StatusNotFound, oldRec.Code)
-		newRec := doDisplayRequest(t, router, http.MethodGet, "/"+regen.Token+"/dashboard", "", nil)
+		newRec := doDashboardRequest(t, router, regen.Token)
 		assert.Equal(t, http.StatusOK, newRec.Code)
 	})
 
@@ -194,7 +217,7 @@ func TestDisplayAdminCRUD(t *testing.T) {
 		rec := doDisplayRequest(t, router, http.MethodDelete, "/"+id, adminJWT, nil)
 		require.Equal(t, http.StatusNoContent, rec.Code)
 
-		dashRec := doDisplayRequest(t, router, http.MethodGet, "/"+rawToken+"/dashboard", "", nil)
+		dashRec := doDashboardRequest(t, router, rawToken)
 		assert.Equal(t, http.StatusNotFound, dashRec.Code)
 	})
 }
@@ -219,12 +242,17 @@ func TestDisplayDashboardPublic(t *testing.T) {
 	_, rawToken := createDisplayViaAPI(t, router, adminJWT, "Eingang")
 
 	t.Run("unknown token yields 404", func(t *testing.T) {
-		rec := doDisplayRequest(t, router, http.MethodGet, "/definitely-not-a-token/dashboard", "", nil)
+		rec := doDashboardRequest(t, router, "definitely-not-a-token")
 		assert.Equal(t, http.StatusNotFound, rec.Code)
 	})
 
+	t.Run("missing token header yields 400", func(t *testing.T) {
+		rec := doDashboardRequest(t, router, "")
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+	})
+
 	t.Run("dashboard aggregates without exposing student data", func(t *testing.T) {
-		rec := doDisplayRequest(t, router, http.MethodGet, "/"+rawToken+"/dashboard", "", nil)
+		rec := doDashboardRequest(t, router, rawToken)
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 		var payload displayService.DashboardPayload
@@ -261,9 +289,15 @@ func TestDisplayDashboardPublic(t *testing.T) {
 	})
 
 	t.Run("upcoming activities list planned instances after now", func(t *testing.T) {
+		// The upcoming filter compares wall clocks only, so offsets that
+		// cross midnight wrap to the other end of the day and flip the
+		// expectation. Small offsets + a narrow guard keep this hermetic.
+		if clock := timezone.Now().In(timezone.Berlin).Format("15:04"); clock < "00:05" || clock > "23:54" {
+			t.Skip("too close to midnight for stable wall-clock offsets")
+		}
 		ctx := testpkg.TenantContext(tenantID)
-		future := timezone.Now().Add(2 * time.Hour)
-		past := timezone.Now().Add(-2 * time.Hour)
+		future := timezone.Now().Add(3 * time.Minute)
+		past := timezone.Now().Add(-3 * time.Minute)
 		instances := []*scheduleModels.ActivityInstance{
 			buildInstance(tenantID, "Hausaufgaben", room.ID, future),
 			buildInstance(tenantID, "Frühsport", room.ID, past),
@@ -276,7 +310,7 @@ func TestDisplayDashboardPublic(t *testing.T) {
 			_, _ = db.NewDelete().TableExpr("schedule.activity_instances").Where("tenant_id = ?", tenantID).Exec(context.Background())
 		}()
 
-		rec := doDisplayRequest(t, router, http.MethodGet, "/"+rawToken+"/dashboard", "", nil)
+		rec := doDashboardRequest(t, router, rawToken)
 		require.Equal(t, http.StatusOK, rec.Code)
 
 		var payload displayService.DashboardPayload
@@ -322,7 +356,7 @@ func TestDisplayDashboardCrossTenantIsolation(t *testing.T) {
 	createDisplayViaAPI(t, router, jwtB, "Display B")
 
 	t.Run("dashboard of tenant A never shows tenant B rooms", func(t *testing.T) {
-		rec := doDisplayRequest(t, router, http.MethodGet, "/"+tokenA+"/dashboard", "", nil)
+		rec := doDashboardRequest(t, router, tokenA)
 		require.Equal(t, http.StatusOK, rec.Code)
 		assert.NotContains(t, rec.Body.String(), "Geheimraum B")
 		assert.Equal(t, fmt.Sprintf("Test School %d", tenantA), gjsonSchoolName(t, rec.Body.Bytes()))
@@ -389,7 +423,7 @@ func TestDisplayDashboardPickupBuckets(t *testing.T) {
 	}
 
 	_, rawToken := createDisplayViaAPI(t, router, adminJWT, "Pickup Display")
-	rec := doDisplayRequest(t, router, http.MethodGet, "/"+rawToken+"/dashboard", "", nil)
+	rec := doDashboardRequest(t, router, rawToken)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	var payload displayService.DashboardPayload
