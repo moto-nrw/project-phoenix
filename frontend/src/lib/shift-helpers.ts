@@ -9,6 +9,7 @@ export interface BackendStaffShift {
   start_time: string;
   end_time: string;
   break_minutes: number;
+  shift_type_id?: number | null;
   notes?: string;
 }
 
@@ -22,6 +23,8 @@ export interface StaffShift {
   /** Wall-clock "HH:MM" */
   endTime: string;
   breakMinutes: number;
+  /** Id of the linked shift type (Schichtart), or null if untyped */
+  shiftTypeId: string | null;
   notes: string;
 }
 
@@ -33,6 +36,8 @@ export function mapStaffShift(data: BackendStaffShift): StaffShift {
     startTime: data.start_time.slice(0, 5),
     endTime: data.end_time.slice(0, 5),
     breakMinutes: data.break_minutes,
+    shiftTypeId:
+      data.shift_type_id != null ? data.shift_type_id.toString() : null,
     notes: data.notes ?? "",
   };
 }
