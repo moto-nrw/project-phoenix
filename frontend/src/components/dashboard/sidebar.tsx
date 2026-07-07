@@ -114,6 +114,13 @@ const NAV_ITEMS: NavItem[] = [
     requiresAdmin: true,
   },
   {
+    href: "/info-displays",
+    label: "Info-Displays",
+    icon: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
+    activeColor: "text-[#5080D8]",
+    requiresPermission: "display:manage",
+  },
+  {
     href: "/time-tracking",
     label: "Zeiterfassung",
     icon: "M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0Z",
