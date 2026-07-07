@@ -6,6 +6,7 @@ package staffshifts
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -58,12 +59,37 @@ func (rs *Resource) Router() chi.Router {
 // strings, the date is "YYYY-MM-DD". StaffID is ignored on update (the shift
 // stays with its staff member).
 type ShiftRequest struct {
-	StaffID      int64   `json:"staff_id"`
-	Date         string  `json:"date"`
-	StartTime    string  `json:"start_time"`
-	EndTime      string  `json:"end_time"`
-	BreakMinutes int     `json:"break_minutes"`
-	Notes        *string `json:"notes"`
+	StaffID      int64      `json:"staff_id"`
+	Date         string     `json:"date"`
+	StartTime    string     `json:"start_time"`
+	EndTime      string     `json:"end_time"`
+	BreakMinutes int        `json:"break_minutes"`
+	ShiftTypeID  optionalID `json:"shift_type_id"`
+	Notes        *string    `json:"notes"`
+}
+
+// optionalID captures whether a nullable ID field was present in the JSON
+// payload, so an omitted shift_type_id (preserve the existing value on update)
+// is distinguishable from an explicit null (clear the type). encoding/json only
+// invokes UnmarshalJSON when the key is present, so Present stays false when the
+// field is absent — the case a stale client or third-party consumer produces.
+type optionalID struct {
+	Present bool
+	Value   *int64
+}
+
+func (o *optionalID) UnmarshalJSON(data []byte) error {
+	o.Present = true
+	if string(data) == "null" {
+		o.Value = nil
+		return nil
+	}
+	var v int64
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	o.Value = &v
+	return nil
 }
 
 // ShiftResponse is the wire format returned to clients.
@@ -74,6 +100,7 @@ type ShiftResponse struct {
 	StartTime    string `json:"start_time"`
 	EndTime      string `json:"end_time"`
 	BreakMinutes int    `json:"break_minutes"`
+	ShiftTypeID  *int64 `json:"shift_type_id,omitempty"`
 	Notes        string `json:"notes,omitempty"`
 }
 
@@ -87,6 +114,7 @@ func ToShiftResponse(s *scheduleModels.StaffShift) ShiftResponse {
 		StartTime:    timezone.WallClock(s.StartTime).Format("15:04"),
 		EndTime:      timezone.WallClock(s.EndTime).Format("15:04"),
 		BreakMinutes: s.BreakMinutes,
+		ShiftTypeID:  s.ShiftTypeID,
 		Notes:        s.Notes,
 	}
 }
@@ -132,6 +160,7 @@ func (rs *Resource) buildShift(req ShiftRequest) (*scheduleModels.StaffShift, er
 		StartTime:    start,
 		EndTime:      end,
 		BreakMinutes: req.BreakMinutes,
+		ShiftTypeID:  req.ShiftTypeID.Value,
 		Notes:        notes,
 	}, nil
 }
@@ -160,6 +189,8 @@ func renderServiceError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, scheduleSvc.ErrShiftNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, scheduleSvc.ErrShiftRangeTooLarge), errors.Is(err, scheduleSvc.ErrShiftInvalid):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	case errors.Is(err, scheduleSvc.ErrShiftTypeNotFound), errors.Is(err, scheduleSvc.ErrShiftTypeInactive):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -251,7 +282,8 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 	shift.UpdatedBy = &editorID
 
 	saved, err := rs.Service.UpdateShiftWithOptions(r.Context(), shift, scheduleSvc.StaffShiftUpdateOptions{
-		PreserveExistingNotes: req.Notes == nil,
+		PreserveExistingNotes:     req.Notes == nil,
+		PreserveExistingShiftType: !req.ShiftTypeID.Present,
 	})
 	if err != nil {
 		renderServiceError(w, r, err)

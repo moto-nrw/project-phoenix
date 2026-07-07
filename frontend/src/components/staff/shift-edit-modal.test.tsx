@@ -29,6 +29,7 @@ const oneHourShift: StaffShift = {
   startTime: "08:00",
   endTime: "09:00",
   breakMinutes: 30,
+  shiftTypeId: null,
   notes: "",
 };
 
@@ -42,6 +43,7 @@ describe("ShiftEditModal", () => {
         staffName="Ada Lovelace"
         date="2026-07-06"
         shift={oneHourShift}
+        shiftTypes={[]}
         onClose={vi.fn()}
         onSaved={vi.fn()}
       />,

@@ -28,6 +28,9 @@ var (
 	ErrShiftNotFound = errors.New("shift not found")
 	// ErrShiftInvalid wraps model/input validation failures (maps to 400).
 	ErrShiftInvalid = errors.New("invalid shift")
+	// ErrShiftTypeInactive signals an attempt to assign a deactivated shift type
+	// to a shift (maps to 400). Existing shifts keep their already-attached type.
+	ErrShiftTypeInactive = errors.New("shift type is inactive")
 )
 
 // StaffShiftService manages planned per-date staff shifts (Dienstplan).
@@ -48,19 +51,27 @@ type StaffShiftService interface {
 
 type StaffShiftUpdateOptions struct {
 	PreserveExistingNotes bool
+	// PreserveExistingShiftType keeps the stored shift type when the update
+	// request omitted shift_type_id entirely (stale client / third-party
+	// consumer), so an unrelated edit does not silently clear the label. An
+	// explicit null in the payload still clears it.
+	PreserveExistingShiftType bool
 }
 
 type staffShiftService struct {
-	repo      scheduleModels.StaffShiftRepository
-	staffRepo usersModels.StaffRepository
-	db        *bun.DB
-	logger    *slog.Logger
+	repo       scheduleModels.StaffShiftRepository
+	staffRepo  usersModels.StaffRepository
+	shiftTypes ShiftTypeService
+	db         *bun.DB
+	logger     *slog.Logger
 }
 
 // NewStaffShiftService creates a new staff shift service. db is used for the
 // per-staff advisory lock that makes the overlap check safe under concurrency.
-func NewStaffShiftService(repo scheduleModels.StaffShiftRepository, staffRepo usersModels.StaffRepository, db *bun.DB, logger *slog.Logger) StaffShiftService {
-	return &staffShiftService{repo: repo, staffRepo: staffRepo, db: db, logger: logger}
+// shiftTypes resolves the active flag when a shift is assigned a type; it may be
+// nil in unit tests that never attach a shift type.
+func NewStaffShiftService(repo scheduleModels.StaffShiftRepository, staffRepo usersModels.StaffRepository, shiftTypes ShiftTypeService, db *bun.DB, logger *slog.Logger) StaffShiftService {
+	return &staffShiftService{repo: repo, staffRepo: staffRepo, shiftTypes: shiftTypes, db: db, logger: logger}
 }
 
 // lockShiftWrites takes the per-staff advisory lock before the overlap
@@ -76,6 +87,36 @@ func (s *staffShiftService) lockShiftWrites(ctx context.Context, staffID int64) 
 
 func (s *staffShiftService) getLogger() *slog.Logger {
 	return cmp.Or(s.logger, slog.Default())
+}
+
+// ensureShiftTypeActive rejects assigning a shift type that does not exist in
+// the tenant (ErrShiftTypeNotFound -> 400) or has been deactivated
+// (ErrShiftTypeInactive -> 400). A nil id is an untyped shift and always valid.
+// Deactivation must block *new* assignments even for a stale client or a direct
+// API caller that still sends the id; callers skip this check when an update
+// keeps the shift's already-attached (possibly inactive) type. A nil
+// shiftTypes dependency (unit tests without a shift type) skips the lookup.
+func (s *staffShiftService) ensureShiftTypeActive(ctx context.Context, id *int64) error {
+	if id == nil || s.shiftTypes == nil {
+		return nil
+	}
+	shiftType, err := s.shiftTypes.GetShiftType(ctx, *id)
+	if err != nil {
+		return err
+	}
+	if !shiftType.IsActive {
+		return ErrShiftTypeInactive
+	}
+	return nil
+}
+
+// sameShiftTypeID reports whether two nullable shift-type ids refer to the same
+// type (both nil counts as equal).
+func sameShiftTypeID(a, b *int64) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
 }
 
 func validateShiftRange(start, end timezone.Date) error {
@@ -140,6 +181,10 @@ func (s *staffShiftService) CreateShift(ctx context.Context, shift *scheduleMode
 	if staff == nil {
 		return nil, fmt.Errorf("%w: staff member not found", ErrShiftInvalid)
 	}
+	// A create always assigns the type fresh, so it must be active.
+	if err := s.ensureShiftTypeActive(ctx, shift.ShiftTypeID); err != nil {
+		return nil, err
+	}
 	if err := s.lockShiftWrites(ctx, shift.StaffID); err != nil {
 		return nil, err
 	}
@@ -182,11 +227,21 @@ func (s *staffShiftService) UpdateShiftWithOptions(ctx context.Context, shift *s
 	if opts.PreserveExistingNotes {
 		shift.Notes = existing.Notes
 	}
+	if opts.PreserveExistingShiftType {
+		shift.ShiftTypeID = existing.ShiftTypeID
+	}
 	// The request model has a zero CreatedAt; the whole-model update would
 	// otherwise write created_at = DEFAULT and reset it to now().
 	shift.CreatedAt = existing.CreatedAt
 	if err := shift.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrShiftInvalid, err.Error())
+	}
+	// A newly assigned type must be active; keeping the shift's already-attached
+	// (possibly deactivated) type stays allowed.
+	if !sameShiftTypeID(shift.ShiftTypeID, existing.ShiftTypeID) {
+		if err := s.ensureShiftTypeActive(ctx, shift.ShiftTypeID); err != nil {
+			return nil, err
+		}
 	}
 	if err := s.lockShiftWrites(ctx, shift.StaffID); err != nil {
 		return nil, err
