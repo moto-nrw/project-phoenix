@@ -616,6 +616,7 @@ func (rs *Resource) deletePeriod(w http.ResponseWriter, r *http.Request) {
 
 	if err := rs.calendarPeriodService.DeletePeriod(r.Context(), id); err != nil {
 		if isCalendarPeriodRosterDeleteConflict(err) {
+			tenant.MarkRollback(r.Context())
 			common.RenderError(w, r, common.ErrorConflictMessage(calendarPeriodRosterDeleteConflictMessage))
 			return
 		}

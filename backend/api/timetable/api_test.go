@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -13,8 +14,12 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,6 +34,7 @@ type mockCalendarPeriodService struct {
 	err               error // default error for all methods
 	updateErr         error // if set, UpdatePeriod returns this instead of err
 	deleteErr         error // if set, DeletePeriod returns this instead of err
+	deleteHook        func(context.Context, int64) error
 	lastCreated       *schedule.CalendarPeriod
 	lastUpdated       *schedule.CalendarPeriod
 	lastDeletedID     int64
@@ -73,8 +79,11 @@ func (m *mockCalendarPeriodService) UpdatePeriod(_ context.Context, p *schedule.
 	return m.err
 }
 
-func (m *mockCalendarPeriodService) DeletePeriod(_ context.Context, id int64) error {
+func (m *mockCalendarPeriodService) DeletePeriod(ctx context.Context, id int64) error {
 	m.lastDeletedID = id
+	if m.deleteHook != nil {
+		return m.deleteHook(ctx, id)
+	}
 	if m.deleteErr != nil {
 		return m.deleteErr
 	}
@@ -1257,4 +1266,50 @@ func TestDeletePeriod(t *testing.T) {
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 	})
+}
+
+func TestDeletePeriod_RosterConflictMarksTenantRollback(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).GuardianProfile
+	email := fmt.Sprintf("period-delete-rollback-%d@test.local", time.Now().UnixNano())
+	profile := &users.GuardianProfile{
+		FirstName:              "Period",
+		LastName:               "Rollback",
+		Email:                  &email,
+		PreferredContactMethod: "email",
+		LanguagePreference:     "de",
+	}
+
+	mock := &mockCalendarPeriodService{
+		period: newTestPeriod(),
+		deleteHook: func(ctx context.Context, id int64) error {
+			require.Equal(t, int64(42), id)
+			require.NoError(t, repo.Create(ctx, profile))
+			require.Greater(t, profile.ID, int64(0), "probe insert must happen inside the tenant tx")
+			return errors.New(
+				`delete calendar period: duplicate key value violates unique constraint "idx_student_enrollments_active"`,
+			)
+		},
+	}
+	res := NewResource(Dependencies{CalendarPeriodService: mock})
+
+	router := chi.NewRouter()
+	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			next.ServeHTTP(w, req.WithContext(tenant.WithTenantID(req.Context(), 1)))
+		})
+	})
+	router.Use(tenant.TenantTxMiddleware(db))
+	router.Delete("/{id}", res.deletePeriod)
+
+	w := executeRequest(router, http.MethodDelete, "/42", nil)
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.Contains(t, w.Body.String(), "doppelte aktive Kinder- oder Personalzuordnungen")
+	_, err := repo.FindByID(testpkg.TenantContext(1), profile.ID)
+	assert.ErrorIs(t, err, users.ErrGuardianProfileNotFound,
+		"calendar period delete conflicts must roll back writes despite returning 409")
 }
