@@ -245,7 +245,9 @@ function RoomsPageContent() {
   } = useSWRAuth<Room[]>(
     "rooms-list",
     async () => {
-      const response = await fetch("/api/rooms");
+      // include_system: this page is the live occupancy view — system rooms
+      // (Schulhof, WC) must stay visible here and in the Wer-ist-wo export.
+      const response = await fetch("/api/rooms?include_system=true");
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }

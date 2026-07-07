@@ -1956,3 +1956,62 @@ func TestIsAfterCheckoutTimeGate_NilSettingsService(t *testing.T) {
 	result := rs.isAfterCheckoutTimeGate(context.Background(), student)
 	assert.True(t, result, "should return true when SettingsService is nil and no global time")
 }
+
+// =============================================================================
+// IS_SYSTEM FLAG TESTS: auto-provisioned infrastructure is flagged (issue #923)
+// =============================================================================
+
+// TestWcProvisioning_SetsIsSystemFlag verifies that auto-created WC
+// infrastructure (room, category, activity group) carries is_system = true
+// so it stays hidden from staff-facing list endpoints.
+func TestWcProvisioning_SetsIsSystemFlag(t *testing.T) {
+	tc := setupInternalTestResource(t)
+	defer func() { _ = tc.db.Close() }()
+
+	cleanupWCTestArtifacts(t, tc)
+	defer cleanupWCTestArtifacts(t, tc)
+
+	ctx := tenant.WithTenantID(context.Background(), 1)
+
+	room, err := tc.rs.ensureWCRoom(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, room)
+	assert.True(t, room.IsSystem, "auto-created WC room must be flagged is_system")
+
+	group, err := tc.rs.wcActivityGroup(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, group)
+	assert.True(t, group.IsSystem, "auto-created WC activity group must be flagged is_system")
+
+	category, err := tc.rs.ensureWCCategory(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, category)
+	assert.True(t, category.IsSystem, "auto-created WC category must be flagged is_system")
+}
+
+// TestSchulhofProvisioning_SetsIsSystemFlag verifies that auto-created
+// Schulhof infrastructure carries is_system = true.
+func TestSchulhofProvisioning_SetsIsSystemFlag(t *testing.T) {
+	tc := setupInternalTestResource(t)
+	defer func() { _ = tc.db.Close() }()
+
+	cleanupSchulhofTestArtifacts(t, tc)
+	defer cleanupSchulhofTestArtifacts(t, tc)
+
+	ctx := tenant.WithTenantID(context.Background(), 1)
+
+	room, err := tc.rs.ensureSchulhofRoom(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, room)
+	assert.True(t, room.IsSystem, "auto-created Schulhof room must be flagged is_system")
+
+	group, err := tc.rs.schulhofActivityGroup(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, group)
+	assert.True(t, group.IsSystem, "auto-created Schulhof activity group must be flagged is_system")
+
+	category, err := tc.rs.ensureSchulhofCategory(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, category)
+	assert.True(t, category.IsSystem, "auto-created Schulhof category must be flagged is_system")
+}

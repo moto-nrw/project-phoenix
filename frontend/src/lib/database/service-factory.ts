@@ -251,6 +251,11 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
       try {
         // Build query string
         const params = new URLSearchParams();
+        if (apiConfig.listParams) {
+          Object.entries(apiConfig.listParams).forEach(([key, value]) => {
+            params.append(key, value);
+          });
+        }
         if (filters) {
           Object.entries(filters).forEach(([key, value]) => {
             if (value !== undefined && value !== null) {
