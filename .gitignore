@@ -478,6 +478,9 @@ openspec/
 # Node modules (frontend manages its own via frontend/.gitignore)
 node_modules/
 
+# pnpm content-addressable store (machine-generated cache, never commit)
+.pnpm-store/
+
 # Devbox + direnv
 .devbox/
 .direnv/

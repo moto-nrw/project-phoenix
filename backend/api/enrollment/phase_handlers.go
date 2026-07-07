@@ -2,6 +2,7 @@ package enrollment
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -28,6 +29,7 @@ type PhaseResponse struct {
 	EnrollmentOpenAt          *string `json:"enrollment_open_at,omitempty"`
 	EnrollmentCloseAt         *string `json:"enrollment_close_at,omitempty"`
 	FormSchemaID              *string `json:"form_schema_id,omitempty"`
+	CalendarPeriodID          *string `json:"calendar_period_id,omitempty"`
 	ShowStatusReasonToParent  bool    `json:"show_status_reason_to_parent"`
 	CareOverflowMode          string  `json:"care_overflow_mode"`
 	CareOfferingSelectionMode string  `json:"care_offering_selection_mode"`
@@ -70,6 +72,10 @@ func toPhaseResponse(p *enrollmentModels.Phase) PhaseResponse {
 		s := strconv.FormatInt(*p.FormSchemaID, 10)
 		resp.FormSchemaID = &s
 	}
+	if p.CalendarPeriodID != nil {
+		s := strconv.FormatInt(*p.CalendarPeriodID, 10)
+		resp.CalendarPeriodID = &s
+	}
 	if p.RolloverSourcePhaseID != nil {
 		s := strconv.FormatInt(*p.RolloverSourcePhaseID, 10)
 		resp.RolloverSourcePhaseID = &s
@@ -100,13 +106,31 @@ type PhaseRequest struct {
 	EnrollmentOpenAt          *string `json:"enrollment_open_at,omitempty"`
 	EnrollmentCloseAt         *string `json:"enrollment_close_at,omitempty"`
 	FormSchemaID              *string `json:"form_schema_id,omitempty"`
+	CalendarPeriodID          *string `json:"calendar_period_id,omitempty"`
 	ShowStatusReasonToParent  bool    `json:"show_status_reason_to_parent"`
 	CareOverflowMode          string  `json:"care_overflow_mode"`
 	CareOfferingSelectionMode string  `json:"care_offering_selection_mode"`
 	IsActive                  bool    `json:"is_active"`
+
+	calendarPeriodIDPresent bool
 }
 
 func (req *PhaseRequest) Bind(_ *http.Request) error { return nil }
+
+func (req *PhaseRequest) UnmarshalJSON(data []byte) error {
+	type phaseRequestAlias PhaseRequest
+	var alias phaseRequestAlias
+	if err := json.Unmarshal(data, &alias); err != nil {
+		return err
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*req = PhaseRequest(alias)
+	_, req.calendarPeriodIDPresent = raw["calendar_period_id"]
+	return nil
+}
 
 // toModel maps the wire shape onto a Phase model. Date parsing
 // failures bubble back as 400 from the handler — kept here so the
@@ -151,6 +175,13 @@ func (req *PhaseRequest) toModel(existingID int64) (*enrollmentModels.Phase, err
 			return nil, errors.New("form_schema_id must be a positive integer string")
 		}
 		p.FormSchemaID = &id
+	}
+	if req.CalendarPeriodID != nil && *req.CalendarPeriodID != "" {
+		id, parseErr := strconv.ParseInt(*req.CalendarPeriodID, 10, 64)
+		if parseErr != nil || id <= 0 {
+			return nil, errors.New("calendar_period_id must be a positive integer string")
+		}
+		p.CalendarPeriodID = &id
 	}
 	p.ID = existingID
 	return p, nil
@@ -230,7 +261,7 @@ func (rs *Resource) createPhase(w http.ResponseWriter, r *http.Request) {
 		return e
 	})
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, phaseWriteErrorRenderer(err))
 		return
 	}
 	common.Respond(w, r, http.StatusCreated, toPhaseResponse(created), "Phase created")
@@ -238,13 +269,16 @@ func (rs *Resource) createPhase(w http.ResponseWriter, r *http.Request) {
 
 // updateWithRefetch is the shared decode -> update -> refetch -> respond body
 // of updatePhase and updateCareOffering. decode binds the request and maps it
-// to the update model; both bind and mapping failures render as 400.
+// to the update model; both bind and mapping failures render as 400. updateErr
+// maps an update() failure to its HTTP error (sentinel-based status dispatch
+// lives at the call site).
 func updateWithRefetch[M, E any](rs *Resource, w http.ResponseWriter, r *http.Request,
 	serviceMissing bool, missingMsg string,
 	decode func(r *http.Request, id int64) (M, error),
 	update func(ctx context.Context, model M) error,
 	refetch func(ctx context.Context, id int64) (E, error),
 	toResponse func(E) any, successMsg string,
+	updateErr func(error) render.Renderer,
 ) {
 	if serviceMissing {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New(missingMsg)))
@@ -264,7 +298,7 @@ func updateWithRefetch[M, E any](rs *Resource, w http.ResponseWriter, r *http.Re
 		return update(ctx, model)
 	})
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, updateErr(err))
 		return
 	}
 
@@ -282,23 +316,50 @@ func updateWithRefetch[M, E any](rs *Resource, w http.ResponseWriter, r *http.Re
 	common.Respond(w, r, http.StatusOK, toResponse(refreshed), successMsg)
 }
 
+// phaseWriteErrorRenderer maps phase create/update failures onto their HTTP
+// status: duplicate name -> 409, missing phase -> 404, validation -> 400,
+// everything else -> 500.
+func phaseWriteErrorRenderer(err error) render.Renderer {
+	switch {
+	case errors.Is(err, enrollmentService.ErrPhaseDuplicateName):
+		return common.ErrorConflict(err)
+	case errors.Is(err, enrollmentService.ErrPhaseNotFound):
+		return common.ErrorNotFound(err)
+	case errors.Is(err, enrollmentService.ErrInvalidPhase):
+		return common.ErrorInvalidRequest(err)
+	default:
+		return common.ErrorInternalServer(err)
+	}
+}
+
 func (rs *Resource) updatePhase(w http.ResponseWriter, r *http.Request) {
+	req := &PhaseRequest{}
 	updateWithRefetch(rs, w, r, rs.PhaseService == nil, "phase service not configured",
 		func(r *http.Request, id int64) (*enrollmentModels.Phase, error) {
-			req := &PhaseRequest{}
 			if err := render.Bind(r, req); err != nil {
 				return nil, err
 			}
 			return req.toModel(id)
 		},
 		func(ctx context.Context, model *enrollmentModels.Phase) error {
+			// A PUT without calendar_period_id keeps the stored link; only an
+			// explicit null (or value) changes it. The fetch also surfaces
+			// ErrPhaseNotFound before the update runs.
+			existing, getErr := rs.PhaseService.GetByID(ctx, model.ID)
+			if getErr != nil {
+				return getErr
+			}
+			if !req.calendarPeriodIDPresent {
+				model.CalendarPeriodID = existing.CalendarPeriodID
+			}
 			return rs.PhaseService.Update(ctx, model)
 		},
 		func(ctx context.Context, id int64) (*enrollmentModels.Phase, error) {
 			return rs.PhaseService.GetByID(ctx, id)
 		},
 		func(p *enrollmentModels.Phase) any { return toPhaseResponse(p) },
-		"Phase updated")
+		"Phase updated",
+		phaseWriteErrorRenderer)
 }
 
 func (rs *Resource) deletePhase(w http.ResponseWriter, r *http.Request) {

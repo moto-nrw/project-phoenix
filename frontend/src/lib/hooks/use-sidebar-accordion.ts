@@ -7,6 +7,8 @@ type AccordionSection =
   | "supervisions"
   | "database"
   | "enrollments"
+  | "planning"
+  | "eltern"
   | null;
 
 // Paths that belong to the enrollments accordion. Centralized so the
@@ -20,6 +22,33 @@ const ENROLLMENT_PATH_PREFIXES = [
 
 function isEnrollmentPath(p: string): boolean {
   return ENROLLMENT_PATH_PREFIXES.some((prefix) => p.startsWith(prefix));
+}
+
+// Paths that belong to the "Planung" accordion. Keep in sync with
+// PLANNING_SUB_PAGES in sidebar.tsx.
+const PLANNING_PATH_PREFIXES = [
+  "/calendar-periods",
+  "/timetables",
+  "/staff/dienstplan",
+];
+
+function isPlanningPath(p: string): boolean {
+  return PLANNING_PATH_PREFIXES.some((prefix) => p.startsWith(prefix));
+}
+
+// Paths that belong to the "Eltern" accordion (overview hub + the parent
+// communication sub-pages). Keep in sync with PARENT_SUB_PAGES in sidebar.tsx.
+const ELTERN_PATH_PREFIXES = [
+  "/eltern",
+  "/messages",
+  "/admin/guardian-approvals",
+  "/admin/change-requests",
+  "/parent-announcements",
+  "/meal-plan",
+];
+
+function isElternPath(p: string): boolean {
+  return ELTERN_PATH_PREFIXES.some((prefix) => p.startsWith(prefix));
 }
 
 const STORAGE_KEY = "sidebar-accordion-expanded";
@@ -37,6 +66,8 @@ function sectionFromPathname(
   if (pathname.startsWith("/active-supervisions")) return "supervisions";
   if (pathname.startsWith("/database")) return "database";
   if (isEnrollmentPath(pathname)) return "enrollments";
+  if (isPlanningPath(pathname)) return "planning";
+  if (isElternPath(pathname)) return "eltern";
 
   // Child pages: keep the originating accordion section open
   if (fromParam) {
@@ -44,6 +75,8 @@ function sectionFromPathname(
     if (fromParam.startsWith("/active-supervisions")) return "supervisions";
     if (fromParam.startsWith("/database")) return "database";
     if (isEnrollmentPath(fromParam)) return "enrollments";
+    if (isPlanningPath(fromParam)) return "planning";
+    if (isElternPath(fromParam)) return "eltern";
   }
 
   return null;
@@ -76,7 +109,9 @@ export function useSidebarAccordion(
       stored === "groups" ||
       stored === "supervisions" ||
       stored === "database" ||
-      stored === "enrollments"
+      stored === "enrollments" ||
+      stored === "planning" ||
+      stored === "eltern"
     ) {
       setExpanded(stored);
     }

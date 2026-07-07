@@ -478,7 +478,10 @@ describe("Sidebar", () => {
       const nachrichtenElement = screen.getByText("Nachrichten");
       const link = nachrichtenElement.closest("a");
       expect(link).not.toBeNull();
-      expect(link).toHaveAttribute("href", "/messages");
+      // Eltern sub-page links are tenant-aware: in path-routing mode (the test
+      // setup mocks tenantSlug="test-tenant", routingMode="path") the href is
+      // prefixed with the tenant segment, matching the /eltern hub card links.
+      expect(link).toHaveAttribute("href", "/test-tenant/messages");
     });
 
     it("does not show the old Dienstpläne placeholder for admins", () => {

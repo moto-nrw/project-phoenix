@@ -100,6 +100,12 @@ type Phase struct {
 	EnrollmentOpenAt  *time.Time    `bun:"enrollment_open_at" json:"enrollment_open_at,omitempty"`
 	EnrollmentCloseAt *time.Time    `bun:"enrollment_close_at" json:"enrollment_close_at,omitempty"`
 	FormSchemaID      *int64        `bun:"form_schema_id" json:"form_schema_id,omitempty"`
+	// CalendarPeriodID links the phase to a shared planning period
+	// (schedule.calendar_periods, migration 1.15.167). NULL for phases
+	// that predate the planning calendar or don't map to one. The
+	// service period dates above stay authoritative for enrollment
+	// semantics; the link is the planning-side reference.
+	CalendarPeriodID *int64 `bun:"calendar_period_id" json:"calendar_period_id,omitempty"`
 	// Note: bool fields below intentionally omit the bun `default:`
 	// directive. With `default:`, bun skips zero values on INSERT,
 	// which means setting IsActive=false in Go would silently roundtrip

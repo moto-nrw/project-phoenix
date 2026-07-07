@@ -197,6 +197,80 @@ func (r *CalendarPeriodRepository) FindActiveOverlapping(ctx context.Context, st
 	return periods, nil
 }
 
+// UsageCounts returns, per calendar period of the current tenant, how many
+// rows reference it through nullable calendar_period_id FKs. Correlated
+// subqueries (pattern: facilities/room.go occupancyColumns) keep this a
+// single round-trip; explicit tenant predicates avoid cross-tenant counts
+// even when the caller is a superuser test connection. Periods without
+// references are omitted from the map.
+func (r *CalendarPeriodRepository) UsageCounts(ctx context.Context) (map[int64]schedule.CalendarPeriodUsage, error) {
+	var rows []struct {
+		ID                     int64 `bun:"id"`
+		PhaseCount             int   `bun:"phase_count"`
+		ScheduleCount          int   `bun:"schedule_count"`
+		StudentEnrollmentCount int   `bun:"student_enrollment_count"`
+		SupervisorCount        int   `bun:"supervisor_count"`
+		ActivityInstanceCount  int   `bun:"activity_instance_count"`
+	}
+
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`schedule.calendar_periods AS "calendar_period"`).
+		ColumnExpr(`"calendar_period".id AS id`).
+		ColumnExpr(`(
+			SELECT COUNT(*) FROM enrollment.phases p
+			WHERE p.calendar_period_id = "calendar_period".id
+			  AND p.tenant_id = "calendar_period".tenant_id
+		)::int AS phase_count`).
+		ColumnExpr(`(
+			SELECT COUNT(*) FROM activities.schedules s
+			WHERE s.calendar_period_id = "calendar_period".id
+			  AND s.tenant_id = "calendar_period".tenant_id
+		)::int AS schedule_count`).
+		ColumnExpr(`(
+			SELECT COUNT(*) FROM activities.student_enrollments se
+			WHERE se.calendar_period_id = "calendar_period".id
+			  AND se.tenant_id = "calendar_period".tenant_id
+		)::int AS student_enrollment_count`).
+		ColumnExpr(`(
+			SELECT COUNT(*) FROM activities.supervisors sp
+			WHERE sp.calendar_period_id = "calendar_period".id
+			  AND sp.tenant_id = "calendar_period".tenant_id
+		)::int AS supervisor_count`).
+		ColumnExpr(`(
+			SELECT COUNT(*) FROM schedule.activity_instances ai
+			WHERE ai.calendar_period_id = "calendar_period".id
+			  AND ai.tenant_id = "calendar_period".tenant_id
+		)::int AS activity_instance_count`)
+
+	query = base.WithTenantFilter(ctx, query, "calendar_period")
+
+	if err := query.Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "usage counts",
+			Err: err,
+		}
+	}
+
+	usage := make(map[int64]schedule.CalendarPeriodUsage, len(rows))
+	for _, row := range rows {
+		if row.PhaseCount == 0 &&
+			row.ScheduleCount == 0 &&
+			row.StudentEnrollmentCount == 0 &&
+			row.SupervisorCount == 0 &&
+			row.ActivityInstanceCount == 0 {
+			continue
+		}
+		usage[row.ID] = schedule.CalendarPeriodUsage{
+			EnrollmentPhases:   row.PhaseCount,
+			Schedules:          row.ScheduleCount,
+			StudentEnrollments: row.StudentEnrollmentCount,
+			Supervisors:        row.SupervisorCount,
+			ActivityInstances:  row.ActivityInstanceCount,
+		}
+	}
+	return usage, nil
+}
+
 // List retrieves calendar periods matching the provided query options
 func (r *CalendarPeriodRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.CalendarPeriod, error) {
 	return r.ListWithOptions(ctx, options)

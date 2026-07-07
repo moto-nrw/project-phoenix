@@ -60,4 +60,8 @@ export const navigationIcons = {
   // Newspaper, used for the parents-portal Neuigkeiten feed (#1669)
   newspaper:
     "M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 01-2.25 2.25M16.5 7.5V18a2.25 2.25 0 002.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 002.25 2.25h13.5M6 7.5h3v3H6v-3z",
+  // Two-person icon for the "Eltern" communication hub (distinct from the
+  // three-person `group` icon used for Meine Gruppen / Gruppen)
+  parents:
+    "M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z",
 } as const;

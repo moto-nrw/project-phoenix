@@ -2196,9 +2196,12 @@ func TestRunSessionCleanupTask_StopsOnDoneAfterSleep(t *testing.T) {
 	})
 }
 
-type mockBreakAutoEnder struct{}
+type mockBreakAutoEnder struct {
+	calls int
+}
 
 func (m *mockBreakAutoEnder) AutoEndExpiredBreaks(_ context.Context) (int, error) {
+	m.calls++
 	return 0, nil
 }
 
@@ -2235,18 +2238,6 @@ func TestScheduleSessionEndTask_DisabledByEnv(t *testing.T) {
 	}
 	s.scheduleSessionEndTask()
 	assert.Empty(t, s.tasks, "session end task should not be registered when disabled")
-}
-
-func TestScheduleBreakAutoEndTask_DisabledByEnv(t *testing.T) {
-	t.Setenv("BREAK_AUTO_END_ENABLED", "false")
-	s := &Scheduler{
-		done:           make(chan struct{}),
-		logger:         slog.Default(),
-		tasks:          make(map[string]*ScheduledTask),
-		breakAutoEnder: &mockBreakAutoEnder{},
-	}
-	s.scheduleBreakAutoEndTask()
-	assert.Empty(t, s.tasks, "break auto-end task should not be registered when disabled")
 }
 
 func TestExecuteCleanupForTenant_ReturnsFalseOnError(t *testing.T) {

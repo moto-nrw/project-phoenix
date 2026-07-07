@@ -270,7 +270,8 @@ func (rs *Resource) updateCareOffering(w http.ResponseWriter, r *http.Request) {
 			return rs.CareOfferingService.GetByID(ctx, id)
 		},
 		func(o *enrollmentModels.CareOffering) any { return toCareOfferingResponse(o) },
-		"Care offering updated")
+		"Care offering updated",
+		func(err error) render.Renderer { return common.ErrorInvalidRequest(err) })
 }
 
 func (rs *Resource) deleteCareOffering(w http.ResponseWriter, r *http.Request) {

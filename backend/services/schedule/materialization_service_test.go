@@ -583,6 +583,10 @@ func (materializationAllowCalendarService) FindActiveOverlaps(context.Context, *
 	panic("unused")
 }
 
+func (materializationAllowCalendarService) GetUsageCounts(context.Context) (map[int64]schedule.CalendarPeriodUsage, error) {
+	panic("unused")
+}
+
 func (materializationAllowCalendarService) ShouldMaterialize(int, timezone.Date, *schedule.CalendarPeriod) bool {
 	return true
 }

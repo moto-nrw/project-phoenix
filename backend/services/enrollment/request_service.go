@@ -2840,13 +2840,13 @@ func (s *requestService) enforceRateLimitBuckets(ctx context.Context, req Submit
 	return nil
 }
 
-var errParentChoiceOfferingMissingDays = fmt.Errorf("offering requires the parent to pick at least one day")
+var errParentChoiceOfferingMissingDays = fmt.Errorf("%w: offering requires the parent to pick at least one day", ErrInvalidSubmission)
 
 func resolveManualSelectedDays(offering *enrollmentModels.CareOffering, picks []string) ([]string, error) {
 	switch offering.DaysOfWeekMode {
 	case enrollmentModels.DaysOfWeekModeFixed:
 		if len(picks) > 0 {
-			return nil, fmt.Errorf("offering does not allow parent day selection (days_of_week_mode=fixed)")
+			return nil, fmt.Errorf("%w: offering does not allow parent day selection (days_of_week_mode=fixed)", ErrInvalidSubmission)
 		}
 		return nil, nil
 	case enrollmentModels.DaysOfWeekModeParentChoice:
@@ -2858,7 +2858,7 @@ func resolveManualSelectedDays(offering *enrollmentModels.CareOffering, picks []
 		dedup := make([]string, 0, len(picks))
 		for _, d := range picks {
 			if !allowed[d] {
-				return nil, fmt.Errorf("day %q is not in the offering's available_days", d)
+				return nil, fmt.Errorf("%w: day %q is not in the offering's available_days", ErrInvalidSubmission, d)
 			}
 			if seen[d] {
 				continue

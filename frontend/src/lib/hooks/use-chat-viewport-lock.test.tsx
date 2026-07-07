@@ -10,6 +10,23 @@ function ChatWrapper({ ready }: { ready: boolean }) {
   return React.createElement("div", { ref, "data-testid": "chat" });
 }
 
+// Wrapper that nests the chat element inside a <main> with a padding-bottom,
+// so el.closest("main") resolves and the bottom-reserve branch runs.
+function MainWrapper({
+  ready,
+  paddingBottom,
+}: {
+  ready: boolean;
+  paddingBottom: string;
+}) {
+  const ref = useChatViewportLock<HTMLDivElement>(ready);
+  return React.createElement(
+    "main",
+    { style: { paddingBottom } },
+    React.createElement("div", { ref, "data-testid": "chat" }),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Setup: reset overflow styles between tests
 // ---------------------------------------------------------------------------
@@ -177,5 +194,102 @@ describe("useChatViewportLock — visualViewport", () => {
     expect(removedNames).toContain("scroll");
 
     vvSpy.mockRestore();
+  });
+
+  it("falls back to window.innerHeight when visualViewport is unavailable", () => {
+    const original = window.visualViewport;
+    // Older browsers / jsdom expose no visualViewport; the fit effect must
+    // still size the element from window.innerHeight and not throw.
+    Object.defineProperty(window, "visualViewport", {
+      value: undefined,
+      configurable: true,
+    });
+    window.innerHeight = 700;
+
+    expect(() =>
+      render(React.createElement(ChatWrapper, { ready: true })),
+    ).not.toThrow();
+
+    Object.defineProperty(window, "visualViewport", {
+      value: original,
+      configurable: true,
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Fit effect — iOS scroll-offset snap
+// ---------------------------------------------------------------------------
+
+describe("useChatViewportLock — scroll snap", () => {
+  afterEach(() => {
+    Object.defineProperty(window, "scrollY", {
+      value: 0,
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  it("snaps the document back to the top when a stray scroll offset exists", () => {
+    // iOS Safari can leave the layout viewport scrolled after the keyboard
+    // dismisses even though overflow is hidden; fit() must snap it back.
+    const scrollToSpy = vi
+      .spyOn(window, "scrollTo")
+      .mockImplementation(() => undefined);
+    Object.defineProperty(window, "scrollY", {
+      value: 150,
+      configurable: true,
+      writable: true,
+    });
+
+    render(React.createElement(ChatWrapper, { ready: true }));
+
+    expect(scrollToSpy).toHaveBeenCalledWith(0, 0);
+    scrollToSpy.mockRestore();
+  });
+
+  it("does not scroll when the document is already at the top", () => {
+    const scrollToSpy = vi
+      .spyOn(window, "scrollTo")
+      .mockImplementation(() => undefined);
+    Object.defineProperty(window, "scrollY", {
+      value: 0,
+      configurable: true,
+      writable: true,
+    });
+
+    render(React.createElement(ChatWrapper, { ready: true }));
+
+    expect(scrollToSpy).not.toHaveBeenCalled();
+    scrollToSpy.mockRestore();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Fit effect — mobile bottom-nav reserve (el.closest("main") padding-bottom)
+// ---------------------------------------------------------------------------
+
+describe("useChatViewportLock — bottom-nav reserve", () => {
+  it("reserves the surrounding <main> padding-bottom in the fitted height", () => {
+    render(
+      React.createElement(MainWrapper, { ready: true, paddingBottom: "112px" }),
+    );
+
+    const el = document.querySelector<HTMLDivElement>('[data-testid="chat"]');
+    // The fit effect sets an explicit pixel height (never left unset once the
+    // element and its <main> ancestor resolve).
+    expect(el?.style.height).toMatch(/px$/);
+  });
+
+  it("handles a <main> with no numeric padding-bottom without throwing", () => {
+    // parseFloat of an empty/auto padding is NaN, which must fall back to 0.
+    expect(() =>
+      render(
+        React.createElement(MainWrapper, { ready: true, paddingBottom: "" }),
+      ),
+    ).not.toThrow();
+
+    const el = document.querySelector<HTMLDivElement>('[data-testid="chat"]');
+    expect(el?.style.height).toMatch(/px$/);
   });
 });
