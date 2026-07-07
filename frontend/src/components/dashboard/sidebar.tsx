@@ -1394,7 +1394,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
               {planningSubPages.map((page) => (
                 <SidebarSubItem
                   key={page.href}
-                  href={page.href}
+                  href={tenantPath(page.href)}
                   label={page.label}
                   isActive={activePlanningSubPageHref === page.href}
                 />
