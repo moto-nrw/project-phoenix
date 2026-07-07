@@ -228,7 +228,8 @@ type StaffRepository interface {
 
 	// FindReachableCalendarStaffIDs returns the subset of the given staff IDs
 	// (or all staff when ids is empty) that can use the calendar for the current
-	// tenant (active linked account + active tenant mapping + calendar:own).
+	// tenant, i.e. staff with an active linked account (never-onboarded or
+	// deactivated staff are excluded so they aren't invited as recipients).
 	FindReachableCalendarStaffIDs(ctx context.Context, ids []int64) (map[int64]bool, error)
 
 	// UpdateNotes updates staff notes
