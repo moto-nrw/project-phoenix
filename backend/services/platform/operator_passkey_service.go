@@ -329,11 +329,11 @@ func (s *operatorPasskeyService) FinishLogin(ctx context.Context, req OperatorPa
 	if err := s.repos.OperatorPasskeyCredential.UpdateAfterUse(ctx, matchedCredentialID, credentialJSON, time.Now()); err != nil {
 		return nil, err
 	}
-	passkeyUser, ok := user.(*operatorPasskeyUser)
+	passkeyUser, ok := user.(*authService.WebAuthnUser)
 	if !ok {
 		return nil, &InvalidCredentialsError{}
 	}
-	accessToken, refreshToken, err := s.authService.IssueTokensForAuthenticatedOperator(ctx, passkeyUser.operatorID, req.IPAddress, req.UserAgent)
+	accessToken, refreshToken, err := s.authService.IssueTokensForAuthenticatedOperator(ctx, passkeyUser.ID, req.IPAddress, req.UserAgent)
 	if err != nil {
 		return nil, err
 	}
@@ -359,7 +359,7 @@ func (s *operatorPasskeyService) RevokeCredential(ctx context.Context, operatorI
 	return nil
 }
 
-func (s *operatorPasskeyService) passkeyUserForOperator(ctx context.Context, operator *platform.Operator, sessionUserHandle ...[]byte) (*operatorPasskeyUser, error) {
+func (s *operatorPasskeyService) passkeyUserForOperator(ctx context.Context, operator *platform.Operator, sessionUserHandle ...[]byte) (*authService.WebAuthnUser, error) {
 	rows, err := s.repos.OperatorPasskeyCredential.FindActiveByOperatorID(ctx, operator.ID)
 	if err != nil {
 		return nil, err
@@ -386,12 +386,12 @@ func (s *operatorPasskeyService) passkeyUserForOperator(ctx context.Context, ope
 			}
 		}
 	}
-	return &operatorPasskeyUser{
-		operatorID:  operator.ID,
-		userHandle:  userHandle,
-		name:        operator.Email,
-		displayName: operator.DisplayName,
-		credentials: credentials,
+	return &authService.WebAuthnUser{
+		ID:          operator.ID,
+		UserHandle:  userHandle,
+		Name:        operator.Email,
+		DisplayName: operator.DisplayName,
+		Credentials: credentials,
 	}, nil
 }
 
@@ -400,23 +400,7 @@ func (s *operatorPasskeyService) webAuthnForOrigin(origin string) (*webauthn.Web
 	if err != nil {
 		return nil, err
 	}
-	return webauthn.New(&webauthn.Config{
-		RPID:          rpID,
-		RPDisplayName: s.rpName,
-		RPOrigins:     []string{origin},
-		Timeouts: webauthn.TimeoutsConfig{
-			Login: webauthn.TimeoutConfig{
-				Enforce:    true,
-				Timeout:    authService.PasskeyCeremonyTimeout,
-				TimeoutUVD: authService.PasskeyCeremonyTimeout,
-			},
-			Registration: webauthn.TimeoutConfig{
-				Enforce:    true,
-				Timeout:    authService.PasskeyCeremonyTimeout,
-				TimeoutUVD: authService.PasskeyCeremonyTimeout,
-			},
-		},
-	})
+	return authService.NewWebAuthnForOrigin(rpID, s.rpName, origin)
 }
 
 func (s *operatorPasskeyService) rpIDForOrigin(origin string) (string, error) {
@@ -433,19 +417,6 @@ func (s *operatorPasskeyService) validateOperatorOrigin(origin string) error {
 	}
 	return nil
 }
-
-type operatorPasskeyUser struct {
-	operatorID  int64
-	userHandle  []byte
-	name        string
-	displayName string
-	credentials []webauthn.Credential
-}
-
-func (u *operatorPasskeyUser) WebAuthnID() []byte                         { return u.userHandle }
-func (u *operatorPasskeyUser) WebAuthnName() string                       { return u.name }
-func (u *operatorPasskeyUser) WebAuthnDisplayName() string                { return u.displayName }
-func (u *operatorPasskeyUser) WebAuthnCredentials() []webauthn.Credential { return u.credentials }
 
 func summarizeOperatorPasskeyCredential(row *platform.OperatorPasskeyCredential) *authService.PasskeyCredentialSummary {
 	return &authService.PasskeyCredentialSummary{

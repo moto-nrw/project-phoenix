@@ -82,10 +82,10 @@ func TestOperatorPasskeySummaryAndUser(t *testing.T) {
 	assert.Equal(t, now, summary.CreatedAt)
 	assert.Equal(t, &lastUsedAt, summary.LastUsedAt)
 
-	user := &operatorPasskeyUser{
-		userHandle:  []byte("handle"),
-		name:        "operator@example.test",
-		displayName: "Operator",
+	user := &authService.WebAuthnUser{
+		UserHandle:  []byte("handle"),
+		Name:        "operator@example.test",
+		DisplayName: "Operator",
 	}
 	assert.Equal(t, []byte("handle"), user.WebAuthnID())
 	assert.Equal(t, "operator@example.test", user.WebAuthnName())

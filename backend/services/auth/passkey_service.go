@@ -381,12 +381,12 @@ func (s *passkeyService) FinishLogin(ctx context.Context, req PasskeyLoginFinish
 		return nil, &AuthError{Op: "finish passkey login", Err: ErrInvalidCredentials}
 	}
 
-	passkeyUser, ok := user.(*tenantPasskeyUser)
+	passkeyUser, ok := user.(*WebAuthnUser)
 	if !ok {
 		return nil, &AuthError{Op: "finish passkey login", Err: ErrInvalidCredentials}
 	}
 	tenantID := *sessionRow.TenantID
-	hasAccess, err := s.authService.VerifyAccountTenantMembership(ctx, passkeyUser.accountID, tenantID)
+	hasAccess, err := s.authService.VerifyAccountTenantMembership(ctx, passkeyUser.ID, tenantID)
 	if err != nil {
 		return nil, &AuthError{Op: "verify passkey tenant access", Err: ErrTenantAccessDenied}
 	}
@@ -400,7 +400,7 @@ func (s *passkeyService) FinishLogin(ctx context.Context, req PasskeyLoginFinish
 	if err := s.repos.PasskeyCredential.UpdateAfterUse(ctx, matchedCredentialID, credentialJSON, time.Now()); err != nil {
 		return nil, &AuthError{Op: "update passkey after login", Err: err}
 	}
-	accessToken, refreshToken, err := s.authService.IssueTokensForAuthenticatedAccount(ctx, passkeyUser.accountID, tenantID, req.IPAddress, req.UserAgent)
+	accessToken, refreshToken, err := s.authService.IssueTokensForAuthenticatedAccount(ctx, passkeyUser.ID, tenantID, req.IPAddress, req.UserAgent)
 	if err != nil {
 		return nil, err
 	}
@@ -426,7 +426,7 @@ func (s *passkeyService) RevokeCredential(ctx context.Context, accountID, creden
 	return nil
 }
 
-func (s *passkeyService) passkeyUserForAccount(ctx context.Context, account *authModel.Account, sessionUserHandle ...[]byte) (*tenantPasskeyUser, error) {
+func (s *passkeyService) passkeyUserForAccount(ctx context.Context, account *authModel.Account, sessionUserHandle ...[]byte) (*WebAuthnUser, error) {
 	rows, err := s.repos.PasskeyCredential.FindActiveByAccountID(ctx, account.ID)
 	if err != nil {
 		return nil, err
@@ -453,12 +453,12 @@ func (s *passkeyService) passkeyUserForAccount(ctx context.Context, account *aut
 			}
 		}
 	}
-	return &tenantPasskeyUser{
-		accountID:   account.ID,
-		userHandle:  userHandle,
-		name:        account.Email,
-		displayName: account.Email,
-		credentials: credentials,
+	return &WebAuthnUser{
+		ID:          account.ID,
+		UserHandle:  userHandle,
+		Name:        account.Email,
+		DisplayName: account.Email,
+		Credentials: credentials,
 	}, nil
 }
 
@@ -467,9 +467,15 @@ func (s *passkeyService) webAuthnForOrigin(origin string) (*webauthn.WebAuthn, e
 	if err != nil {
 		return nil, err
 	}
+	return NewWebAuthnForOrigin(rpID, s.rpName, origin)
+}
+
+// NewWebAuthnForOrigin builds a *webauthn.WebAuthn scoped to a single origin
+// with the ceremony timeouts shared by the tenant and operator passkey flows.
+func NewWebAuthnForOrigin(rpID, rpName, origin string) (*webauthn.WebAuthn, error) {
 	return webauthn.New(&webauthn.Config{
 		RPID:          rpID,
-		RPDisplayName: s.rpName,
+		RPDisplayName: rpName,
 		RPOrigins:     []string{origin},
 		Timeouts: webauthn.TimeoutsConfig{
 			Login: webauthn.TimeoutConfig{
@@ -512,18 +518,21 @@ func (s *passkeyService) validateTenantOrigin(origin, subdomain string) error {
 	return nil
 }
 
-type tenantPasskeyUser struct {
-	accountID   int64
-	userHandle  []byte
-	name        string
-	displayName string
-	credentials []webauthn.Credential
+// WebAuthnUser adapts an account or operator to the go-webauthn user
+// interface. ID is the account/operator PK, read by callers outside the
+// webauthn.User method set. Shared by the tenant and operator passkey flows.
+type WebAuthnUser struct {
+	ID          int64
+	UserHandle  []byte
+	Name        string
+	DisplayName string
+	Credentials []webauthn.Credential
 }
 
-func (u *tenantPasskeyUser) WebAuthnID() []byte                         { return u.userHandle }
-func (u *tenantPasskeyUser) WebAuthnName() string                       { return u.name }
-func (u *tenantPasskeyUser) WebAuthnDisplayName() string                { return u.displayName }
-func (u *tenantPasskeyUser) WebAuthnCredentials() []webauthn.Credential { return u.credentials }
+func (u *WebAuthnUser) WebAuthnID() []byte                         { return u.UserHandle }
+func (u *WebAuthnUser) WebAuthnName() string                       { return u.Name }
+func (u *WebAuthnUser) WebAuthnDisplayName() string                { return u.DisplayName }
+func (u *WebAuthnUser) WebAuthnCredentials() []webauthn.Credential { return u.Credentials }
 
 func PasskeyResponseRequest(ctx context.Context, raw json.RawMessage) (*http.Request, error) {
 	if len(raw) == 0 || !json.Valid(raw) {

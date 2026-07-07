@@ -173,7 +173,7 @@ func (s *operatorAuthService) LoginWithMFAGate(
 	email, password, ipAddress, userAgent, trustedDeviceCookie string,
 ) (*OperatorLoginResult, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
-	clientIP := parseClientIPForOperator(ipAddress)
+	clientIP := authSvc.ParseClientIP(ipAddress)
 
 	// Step 1: credential check (same as Login).
 	operator, err := s.OperatorRepo.FindByEmail(ctx, email)
@@ -337,16 +337,7 @@ func (s *operatorAuthService) IssueTokensForAuthenticatedOperator(
 	if !operator.Active {
 		return "", "", &OperatorInactiveError{OperatorID: operatorID}
 	}
-	return s.issueOperatorTokenPair(ctx, operator, parseClientIPForOperator(ipAddress))
-}
-
-// parseClientIPForOperator wraps net.ParseIP with the empty-string guard
-// so audit rows don't get malformed inet values.
-func parseClientIPForOperator(ipAddress string) net.IP {
-	if ipAddress == "" {
-		return nil
-	}
-	return net.ParseIP(ipAddress)
+	return s.issueOperatorTokenPair(ctx, operator, authSvc.ParseClientIP(ipAddress))
 }
 
 func (s *operatorAuthService) operatorAccessClaims(operator *platform.Operator) jwt.AppClaims {

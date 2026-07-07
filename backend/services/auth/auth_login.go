@@ -206,7 +206,7 @@ func (s *Service) LoginWithMFAGate(
 	// no valid trusted-device cookie. Anything else falls through to the
 	// existing token-pair pipeline.
 	if mfaRequired && enrolled && !trustedDeviceVerified {
-		challenge, chErr := s.mfaService.StartChallenge(ctx, account.ID, metadata.tenantID, jwt.MFAChallengeScopeTenant, parseClientIPString(ipAddress))
+		challenge, chErr := s.mfaService.StartChallenge(ctx, account.ID, metadata.tenantID, jwt.MFAChallengeScopeTenant, ParseClientIP(ipAddress))
 		if chErr != nil {
 			return nil, &AuthError{Op: "start mfa challenge", Err: chErr}
 		}
@@ -254,9 +254,10 @@ func MaskEmailForUX(email string) string {
 	return string(local[0]) + "***" + domain
 }
 
-// parseClientIPString wraps net.ParseIP with the empty-string guard so the
-// MFA service can pass it through to the audit row without nil-dereferencing.
-func parseClientIPString(ipAddress string) net.IP {
+// ParseClientIP wraps net.ParseIP with the empty-string guard so audit rows
+// don't get malformed inet values. Shared with the operator login flow in
+// services/platform.
+func ParseClientIP(ipAddress string) net.IP {
 	if ipAddress == "" {
 		return nil
 	}

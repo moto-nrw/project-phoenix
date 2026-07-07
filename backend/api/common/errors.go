@@ -324,3 +324,15 @@ func IsConstraintViolation(err error) bool {
 func ErrorGone(err error) render.Renderer {
 	return newErrResponse(http.StatusGone, err)
 }
+
+// RequireDependency writes a 503 response built from unavailableErr when ok
+// is false and returns ok unchanged. Handlers use it to guard optional
+// service dependencies:
+//
+//	if !common.RequireDependency(w, r, rs.MFAService != nil, errMFAServiceUnavailable) { return }
+func RequireDependency(w http.ResponseWriter, r *http.Request, ok bool, unavailableErr error) bool {
+	if !ok {
+		RenderError(w, r, newErrResponse(http.StatusServiceUnavailable, unavailableErr))
+	}
+	return ok
+}

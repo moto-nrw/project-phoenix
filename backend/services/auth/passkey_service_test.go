@@ -145,10 +145,10 @@ func TestPasskeySummaryAndUser(t *testing.T) {
 	assert.Equal(t, now, summary.CreatedAt)
 	assert.Equal(t, &lastUsedAt, summary.LastUsedAt)
 
-	user := &tenantPasskeyUser{
-		userHandle:  []byte("handle"),
-		name:        "teacher@example.test",
-		displayName: "Teacher",
+	user := &WebAuthnUser{
+		UserHandle:  []byte("handle"),
+		Name:        "teacher@example.test",
+		DisplayName: "Teacher",
 	}
 	assert.Equal(t, []byte("handle"), user.WebAuthnID())
 	assert.Equal(t, "teacher@example.test", user.WebAuthnName())
