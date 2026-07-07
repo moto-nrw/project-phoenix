@@ -264,6 +264,7 @@
     "sick": {
       "title": "Abmelden",
       "intro": "Melden Sie Ihr Kind für einen oder mehrere Tage ab. Wählen Sie, ob es krank ist oder aus einem anderen Grund entschuldigt fehlt. Die Betreuung sieht die Meldung sofort.",
+      "introApproval": "Melden Sie Ihr Kind für einen oder mehrere Tage ab. Wählen Sie, ob es krank ist oder aus einem anderen Grund entschuldigt fehlt. Eine Krankmeldung sieht die Betreuung sofort; eine entschuldigte Abmeldung muss vom Team bestätigt werden.",
       "kindLabel": "Art der Abmeldung",
       "kindSick": "Krank",
       "kindExcused": "Entschuldigt",
@@ -274,12 +275,21 @@
       "reasonPlaceholder": "z. B. Fieber, Zahnarzttermin",
       "invalidDate": "Bitte ein gültiges Datum wählen (Bis-Datum nach Von-Datum).",
       "saveError": "Die Abmeldung konnte nicht gespeichert werden.",
-      "submit": "Abmeldung senden"
+      "submit": "Abmeldung senden",
+      "reasonLabelRequired": "Notiz (Pflichtfeld)",
+      "reasonRequiredError": "Bitte geben Sie eine Notiz an, warum Ihr Kind entschuldigt fehlt.",
+      "approvalHint": "Diese Abmeldung muss vom Team bestätigt werden."
     },
     "summary": {
       "none": "Keine Abmeldung",
       "oneDay": "Abgemeldet am {date}",
-      "range": "Abgemeldet {from} – {to}"
+      "range": "Abgemeldet {from} – {to}",
+      "sickLabel": "Krank",
+      "excusedLabel": "Entschuldigt",
+      "pendingLabel": "Freigabe ausstehend",
+      "rejectedLabel": "Abgelehnt",
+      "withdraw": "Zurückziehen",
+      "reasonPrefix": "Grund"
     },
     "pickup": {
       "title": "Ankunfts- und Abholzeit ändern",

@@ -89,10 +89,47 @@ export interface StatusDay {
   readonly note?: string;
 }
 
+// The lifecycle of an "excused" absence request when the school requires an OGS
+// confirmation (operations.parent_excused_requires_approval). Mirrors the
+// backend excused-request status constants.
+export type ExcusedRequestStatus =
+  "pending" | "approved" | "rejected" | "withdrawn";
+
+// One "entschuldigt" absence request awaiting (or having received) an OGS
+// decision. Only created when the school gates excused absences behind an
+// approval; otherwise an excused submission becomes a StatusDay immediately.
+// Mirrors api/parent.ExcusedRequestResponse. `dates` are YYYY-MM-DD.
+export interface ExcusedRequest {
+  readonly id: string;
+  readonly student_id: string;
+  readonly status: ExcusedRequestStatus;
+  readonly dates: string[]; // YYYY-MM-DD
+  readonly note: string;
+  readonly decision_reason?: string;
+  readonly created_at: string; // ISO timestamp
+  readonly reviewed_at?: string; // ISO timestamp
+}
+
+// Response envelope of POST .../sick-note. For a "sick" absence, or an "excused"
+// absence at a school without the approval gate, `status_days` carries the
+// just-recorded days and `pending_request` is absent. When the school gates
+// excused absences, an "excused" submission instead returns an empty
+// `status_days` and a populated `pending_request` (the child stays expected
+// until the OGS confirms). Mirrors api/parent.SickNoteSubmitResponse.
+export interface SickNoteSubmitResult {
+  readonly status_days: StatusDay[];
+  readonly pending_request?: ExcusedRequest;
+}
+
 // Resolved per-tenant parent-portal feature toggles for a child.
 export interface ChildFeatures {
   readonly sick_note_enabled: boolean;
   readonly notes_enabled: boolean;
+  // Whether an "excused" absence submission must be confirmed by the OGS before
+  // it takes effect (operations.parent_excused_requires_approval). When true the
+  // child stays "expected" until an office/admin approves the request; "sick"
+  // absences stay immediate regardless.
+  readonly excused_requires_approval: boolean;
   // Whether the guardian may submit structured change-requests (care schedule /
   // master data). Separate from notes_enabled (chat) so the UI hides the request
   // actions for a chat-only guardian instead of dead-ending on a backend 403.
@@ -445,10 +482,38 @@ export async function submitSickNote(
   dates: string[],
   reason = "",
   status: StudentStatusKind = "sick",
-): Promise<StatusDay[]> {
-  return postJson<StatusDay[]>(
+): Promise<SickNoteSubmitResult> {
+  return postJson<SickNoteSubmitResult>(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/sick-note`,
     { dates, reason, status },
+  );
+}
+
+/**
+ * Lists the child's "entschuldigt" absence requests that went through the OGS
+ * approval gate (pending + recently-decided), newest first. Empty for schools
+ * that don't gate excused absences. Powers the pending/rejected lines in the
+ * absence summary.
+ */
+export async function listExcusedRequests(
+  studentId: string,
+): Promise<ExcusedRequest[]> {
+  return getJson<ExcusedRequest[]>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/excused-requests`,
+  );
+}
+
+/**
+ * Withdraws the guardian's own still-pending excused request. Returns the
+ * updated request (now `withdrawn`). The backend rejects a withdraw once the
+ * OGS has decided the request.
+ */
+export async function withdrawExcusedRequest(
+  studentId: string,
+  requestId: string,
+): Promise<ExcusedRequest> {
+  return deleteJson<ExcusedRequest>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/excused-requests/${encodeURIComponent(requestId)}`,
   );
 }
 

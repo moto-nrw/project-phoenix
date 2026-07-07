@@ -53,6 +53,7 @@ import {
   PickupTimeRow,
   ArrivalTimeRow,
   StudentAbsenceRow,
+  StudentPendingExcusedRow,
 } from "~/components/students/student-card";
 import {
   StudentCardGridSkeleton,
@@ -133,6 +134,9 @@ interface BackendStudentFromBFF {
   day_planning_status?: "comes_today" | "not_coming_today";
   day_planning_reason?: string;
   day_planning_label?: string;
+  // Parent's note for a still-pending "entschuldigt" request covering today.
+  // Informational only — the child stays "expected".
+  pending_excused_note?: string;
   actual_arrival_time?: string;
   actual_pickup_time?: string;
   // Authenticated photo URL (already rewritten by the backend response
@@ -206,6 +210,7 @@ function mapStudentForOgsPage(
       day_planning_status: student.day_planning_status,
       day_planning_reason: student.day_planning_reason,
       day_planning_label: student.day_planning_label,
+      pending_excused_note: student.pending_excused_note,
       actual_arrival_time: student.actual_arrival_time,
       actual_pickup_time: student.actual_pickup_time,
       // Photo URL is forwarded as-is. Backend has already rewritten it
@@ -1375,6 +1380,11 @@ function OGSGroupPageContent() {
                   }
                   extraContent={
                     <>
+                      {student.pending_excused_note !== undefined && (
+                        <StudentPendingExcusedRow
+                          note={student.pending_excused_note}
+                        />
+                      )}
                       {studentAbsence && !student.actual_pickup_time ? (
                         <StudentAbsenceRow label={studentAbsence.label} />
                       ) : (

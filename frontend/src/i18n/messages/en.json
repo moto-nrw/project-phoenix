@@ -264,6 +264,7 @@
     "sick": {
       "title": "Report absence",
       "intro": "Report your child absent for one or more days. Choose whether they are sick or excused for another reason. The care team sees the report immediately.",
+      "introApproval": "Report your child absent for one or more days. Choose whether they are sick or excused for another reason. A sick report is seen by the care team immediately; an excused absence must be confirmed by the team.",
       "kindLabel": "Type of absence",
       "kindSick": "Sick",
       "kindExcused": "Excused",
@@ -274,12 +275,21 @@
       "reasonPlaceholder": "e.g. fever, dentist appointment",
       "invalidDate": "Please choose a valid date (end date after start date).",
       "saveError": "The absence could not be saved.",
-      "submit": "Send absence"
+      "submit": "Send absence",
+      "reasonLabelRequired": "Note (required)",
+      "reasonRequiredError": "Please add a note explaining why your child is excused.",
+      "approvalHint": "This absence must be confirmed by the team."
     },
     "summary": {
       "none": "No absence",
       "oneDay": "Absent on {date}",
-      "range": "Absent {from} – {to}"
+      "range": "Absent {from} – {to}",
+      "sickLabel": "Sick",
+      "excusedLabel": "Excused",
+      "pendingLabel": "Approval pending",
+      "rejectedLabel": "Rejected",
+      "withdraw": "Withdraw",
+      "reasonPrefix": "Reason"
     },
     "pickup": {
       "title": "Change arrival & pickup time",

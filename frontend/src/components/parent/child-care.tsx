@@ -14,15 +14,18 @@ import { Button } from "~/components/ui/button";
 import {
   type CareException,
   type ChildFeatures,
+  type ExcusedRequest,
   ParentApiError,
   type StatusDay,
   type StudentStatusKind,
   deleteCareException,
   getChildFeatures,
   listCareExceptions,
+  listExcusedRequests,
   listSickDays,
   submitCareException,
   submitSickNote,
+  withdrawExcusedRequest,
 } from "~/lib/parent-api";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { createLogger } from "~/lib/logger";
@@ -32,6 +35,11 @@ const logger = createLogger({ component: "ChildCare" });
 
 const MAX_SICK_DAYS = 60;
 const MAX_NOTE_LEN = 2000;
+
+// Stable empty default for SickStatusSummary's optional excusedRequests prop —
+// a fresh [] literal per render would break referential equality (oxlint
+// react/no-object-type-as-default-prop).
+const EMPTY_EXCUSED_REQUESTS: readonly ExcusedRequest[] = [];
 
 // --- date helpers (native <input type=date> already yields YYYY-MM-DD) ---
 
@@ -75,6 +83,11 @@ function formatLocaleDate(iso: string, locale: string): string {
 // error beats showing one the backend might reject with 403.
 const DEFAULT_FEATURES: ChildFeatures = {
   sick_note_enabled: true,
+  // Default false on fetch failure: without a confirmed override we treat excused
+  // absences as immediate (the pre-feature behavior), so a transient hiccup never
+  // makes the UI claim an OGS confirmation is pending when it isn't. The backend
+  // enforces the real gate regardless.
+  excused_requires_approval: false,
   // Default false on fetch failure (least privilege), consistent with the other
   // consequential flags below: the features fetch .catch returns DEFAULT_FEATURES,
   // and a school with messaging turned OFF would otherwise show an enabled
@@ -106,6 +119,9 @@ const DEFAULT_FEATURES: ChildFeatures = {
 
 export interface ChildCare {
   readonly sickDays: StatusDay[];
+  // Excused-absence requests that went through the OGS approval gate (pending +
+  // recently-decided). Empty for schools that don't gate excused absences.
+  readonly excusedRequests: ExcusedRequest[];
   readonly careExceptions: CareException[];
   // Whether the care-exception list actually loaded. A failed fetch leaves
   // careExceptions empty, which is indistinguishable from "no overrides exist"
@@ -120,6 +136,7 @@ export interface ChildCare {
     reason: string,
     status: StudentStatusKind,
   ): Promise<void>;
+  withdrawExcused(requestId: string): Promise<void>;
   saveCareException(params: {
     date: string;
     pickupTime?: string;
@@ -130,6 +147,7 @@ export interface ChildCare {
 
 export function useChildCare(studentId: string): ChildCare {
   const [sickDays, setSickDays] = useState<StatusDay[]>([]);
+  const [excusedRequests, setExcusedRequests] = useState<ExcusedRequest[]>([]);
   const [careExceptions, setCareExceptions] = useState<CareException[]>([]);
   const [careExceptionsLoaded, setCareExceptionsLoaded] = useState(false);
   const [features, setFeatures] = useState<ChildFeatures>(DEFAULT_FEATURES);
@@ -157,8 +175,12 @@ export function useChildCare(studentId: string): ChildCare {
     // clear a leg it never prefilled (see careExceptionsLoaded above).
     let exceptionsOk = true;
     try {
-      const [days, exceptions, flags] = await Promise.all([
+      const [days, requests, exceptions, flags] = await Promise.all([
         listSickDays(studentId).catch(() => [] as StatusDay[]),
+        // Always fetch: it's a cheap call and the response is empty for schools
+        // without the approval gate, so gating it on the (separately fetched)
+        // feature flag would only add an ordering dependency for no real saving.
+        listExcusedRequests(studentId).catch(() => [] as ExcusedRequest[]),
         listCareExceptions(studentId).catch(() => {
           exceptionsOk = false;
           return [] as CareException[];
@@ -167,6 +189,7 @@ export function useChildCare(studentId: string): ChildCare {
       ]);
       if (!mountedRef.current || seq !== loadSeqRef.current) return;
       setSickDays(days);
+      setExcusedRequests(requests);
       setCareExceptions(exceptions);
       setCareExceptionsLoaded(exceptionsOk);
       setFeatures(flags);
@@ -188,17 +211,43 @@ export function useChildCare(studentId: string): ChildCare {
 
   const reportSick = useCallback(
     async (dates: string[], reason: string, status: StudentStatusKind) => {
-      const updated = await submitSickNote(studentId, dates, reason, status);
-      // The POST only returns the just-submitted dates. Merge them into the
-      // already-loaded list (replacing any same-date entries) so previously
-      // reported absences don't disappear after a non-overlapping submit.
-      setSickDays((prev) => {
-        const submittedDates = new Set(updated.map((d) => d.date));
-        return [
-          ...prev.filter((d) => !submittedDates.has(d.date)),
-          ...updated,
-        ].sort((a, b) => a.date.localeCompare(b.date));
-      });
+      const { status_days, pending_request } = await submitSickNote(
+        studentId,
+        dates,
+        reason,
+        status,
+      );
+      // An excused submission behind the OGS approval gate returns no status
+      // days and a pending request instead — the child stays expected until the
+      // OGS confirms. Prepend it so the summary shows it as "Freigabe ausstehend".
+      if (pending_request) {
+        setExcusedRequests((prev) => [pending_request, ...prev]);
+      }
+      // The POST returns only the just-recorded days (empty for a gated excused
+      // submission). Merge them into the already-loaded list (replacing any
+      // same-date entries) so previously reported absences don't disappear after
+      // a non-overlapping submit.
+      if (status_days.length > 0) {
+        setSickDays((prev) => {
+          const submittedDates = new Set(status_days.map((d) => d.date));
+          return [
+            ...prev.filter((d) => !submittedDates.has(d.date)),
+            ...status_days,
+          ].sort((a, b) => a.date.localeCompare(b.date));
+        });
+      }
+    },
+    [studentId],
+  );
+
+  const withdrawExcused = useCallback(
+    async (requestId: string) => {
+      const updated = await withdrawExcusedRequest(studentId, requestId);
+      // Replace the request in place with its withdrawn form; the summary then
+      // stops offering the withdraw action and drops it from the pending list.
+      setExcusedRequests((prev) =>
+        prev.map((r) => (r.id === updated.id ? updated : r)),
+      );
     },
     [studentId],
   );
@@ -230,11 +279,13 @@ export function useChildCare(studentId: string): ChildCare {
 
   return {
     sickDays,
+    excusedRequests,
     careExceptions,
     careExceptionsLoaded,
     features,
     loading,
     reportSick,
+    withdrawExcused,
     saveCareException,
     removeCareException,
   };
@@ -245,6 +296,7 @@ export function useChildCare(studentId: string): ChildCare {
 export function SickNoteModal({
   onClose,
   onSubmit,
+  excusedRequiresApproval = false,
 }: Readonly<{
   onClose: () => void;
   onSubmit: (
@@ -252,6 +304,10 @@ export function SickNoteModal({
     reason: string,
     status: StudentStatusKind,
   ) => Promise<void>;
+  // When true AND the parent picks "Entschuldigt", the absence must be confirmed
+  // by the OGS before it takes effect — the modal shows a hint saying so. Mirrors
+  // the backend operations.parent_excused_requires_approval gate.
+  excusedRequiresApproval?: boolean;
 }>) {
   const t = useTranslations("parentChildCare");
   const initial = todayISO();
@@ -263,10 +319,18 @@ export function SickNoteModal({
   const [error, setError] = useState<string | null>(null);
 
   const dates = useMemo(() => enumerateDates(from, to), [from, to]);
+  // For an excused absence the note is mandatory (the OGS needs the reason); a
+  // sick note keeps it optional.
+  const noteRequired = status === "excused";
+  const noteMissing = noteRequired && reason.trim() === "";
 
   const handleSubmit = async () => {
     if (dates.length === 0) {
       setError(t("sick.invalidDate"));
+      return;
+    }
+    if (noteMissing) {
+      setError(t("sick.reasonRequiredError"));
       return;
     }
     setSubmitting(true);
@@ -289,7 +353,9 @@ export function SickNoteModal({
       closeLabel={t("close")}
     >
       <div className="space-y-4">
-        <p className="text-sm leading-6 text-gray-600">{t("sick.intro")}</p>
+        <p className="text-sm leading-6 text-gray-600">
+          {excusedRequiresApproval ? t("sick.introApproval") : t("sick.intro")}
+        </p>
         <label className="block">
           <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
             {t("sick.kindLabel")}
@@ -336,9 +402,16 @@ export function SickNoteModal({
         <p className="text-xs text-gray-500">
           {t("sick.daysCount", { count: dates.length })}
         </p>
+        {noteRequired && excusedRequiresApproval && (
+          <p className="rounded-lg border border-[#EAB308]/30 bg-[#EAB308]/10 px-3 py-2 text-sm text-[#92710b]">
+            {t("sick.approvalHint")}
+          </p>
+        )}
         <label className="block">
           <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            {t("sick.reasonLabel")}
+            {noteRequired
+              ? t("sick.reasonLabelRequired")
+              : t("sick.reasonLabel")}
           </span>
           <textarea
             value={reason}
@@ -363,7 +436,7 @@ export function SickNoteModal({
             size="md"
             className="gap-2"
             onClick={() => void handleSubmit()}
-            disabled={submitting}
+            disabled={submitting || noteMissing}
           >
             {submitting && (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -622,23 +695,114 @@ export function PickupTimeModal({
 
 export function SickStatusSummary({
   sickDays,
-}: Readonly<{ sickDays: StatusDay[] }>) {
+  excusedRequests = EMPTY_EXCUSED_REQUESTS,
+  onWithdraw,
+}: Readonly<{
+  sickDays: StatusDay[];
+  // Excused requests behind the OGS approval gate. Pending ones show as
+  // "Freigabe ausstehend" with a withdraw action; rejected ones show the
+  // decision reason. Confirmed (approved) requests arrive as StatusDays instead.
+  excusedRequests?: readonly ExcusedRequest[];
+  onWithdraw?: (requestId: string) => Promise<void>;
+}>) {
   const t = useTranslations("parentChildCare");
   const locale = useLocale();
-  if (sickDays.length === 0) {
+  const [withdrawingId, setWithdrawingId] = useState<string | null>(null);
+
+  const rangeLabel = (dates: readonly string[]): string => {
+    const sorted = [...dates].sort((a, b) => a.localeCompare(b));
+    const first = sorted.at(0);
+    const last = sorted.at(-1);
+    if (!first || !last) return "";
+    return first === last
+      ? formatLocaleDate(first, locale)
+      : `${formatLocaleDate(first, locale)} – ${formatLocaleDate(last, locale)}`;
+  };
+
+  const handleWithdraw = async (requestId: string) => {
+    if (!onWithdraw) return;
+    setWithdrawingId(requestId);
+    try {
+      await onWithdraw(requestId);
+    } catch (err) {
+      logger.warn("excused_request_withdraw_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        request_id: requestId,
+      });
+    } finally {
+      setWithdrawingId(null);
+    }
+  };
+
+  const sickDates = sickDays
+    .filter((d) => d.status === "sick")
+    .map((d) => d.date);
+  const excusedConfirmedDates = sickDays
+    .filter((d) => d.status === "excused")
+    .map((d) => d.date);
+  const pending = excusedRequests.filter((r) => r.status === "pending");
+  const rejected = excusedRequests.filter((r) => r.status === "rejected");
+
+  const hasAny =
+    sickDates.length > 0 ||
+    excusedConfirmedDates.length > 0 ||
+    pending.length > 0 ||
+    rejected.length > 0;
+  if (!hasAny) {
     return <span className="text-sm text-gray-600">{t("summary.none")}</span>;
   }
-  const sorted = [...sickDays].sort((a, b) => a.date.localeCompare(b.date));
-  const first = sorted.at(0)!;
-  const last = sorted.at(-1)!;
-  const label =
-    sorted.length === 1
-      ? t("summary.oneDay", { date: formatLocaleDate(first.date, locale) })
-      : t("summary.range", {
-          from: formatLocaleDate(first.date, locale),
-          to: formatLocaleDate(last.date, locale),
-        });
-  return <span className="text-sm font-semibold text-gray-900">{label}</span>;
+
+  return (
+    <div className="space-y-1.5">
+      {sickDates.length > 0 && (
+        <p className="text-sm font-semibold text-gray-900">
+          {t("summary.sickLabel")}: {rangeLabel(sickDates)}
+        </p>
+      )}
+      {excusedConfirmedDates.length > 0 && (
+        <p className="text-sm font-semibold text-gray-900">
+          {t("summary.excusedLabel")}: {rangeLabel(excusedConfirmedDates)}
+        </p>
+      )}
+      {pending.map((r) => (
+        <div key={r.id} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <p className="text-sm font-semibold text-gray-900">
+            {t("summary.excusedLabel")}: {rangeLabel(r.dates)}
+          </p>
+          <span className="inline-flex items-center rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-medium text-[#92710b]">
+            {t("summary.pendingLabel")}
+          </span>
+          {onWithdraw && (
+            <button
+              type="button"
+              disabled={withdrawingId === r.id}
+              onClick={() => void handleWithdraw(r.id)}
+              className="text-xs font-medium text-gray-500 underline underline-offset-2 transition-colors hover:text-gray-700 disabled:opacity-50"
+            >
+              {t("summary.withdraw")}
+            </button>
+          )}
+        </div>
+      ))}
+      {rejected.map((r) => (
+        <div key={r.id} className="space-y-0.5">
+          <div className="flex flex-wrap items-center gap-x-2">
+            <p className="text-sm font-semibold text-gray-900">
+              {t("summary.excusedLabel")}: {rangeLabel(r.dates)}
+            </p>
+            <span className="inline-flex items-center rounded-full bg-[#FF3130]/10 px-2 py-0.5 text-xs font-medium text-[#CC2626]">
+              {t("summary.rejectedLabel")}
+            </span>
+          </div>
+          {r.decision_reason && (
+            <p className="text-xs text-gray-500">
+              {t("summary.reasonPrefix")}: {r.decision_reason}
+            </p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 // --- OGS quick actions (parent self-service, immediate) --------------------

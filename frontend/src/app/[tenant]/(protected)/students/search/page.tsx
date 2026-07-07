@@ -45,6 +45,7 @@ import {
   PickupTimeRow,
   ArrivalTimeRow,
   StudentAbsenceRow,
+  StudentPendingExcusedRow,
 } from "~/components/students/student-card";
 import { StudentExportModal } from "~/components/students/student-export-modal";
 import {
@@ -2129,6 +2130,12 @@ function SearchPageContent() {
                         Gruppe: {student.group_name}
                       </StudentInfoRow>
                     )}
+                    {student.has_full_access !== false &&
+                      student.pending_excused_note !== undefined && (
+                        <StudentPendingExcusedRow
+                          note={student.pending_excused_note}
+                        />
+                      )}
                     {student.has_full_access !== false &&
                       (() => {
                         const absence = getStudentAbsence({

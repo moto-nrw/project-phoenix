@@ -41,6 +41,8 @@ interface BackendStudent {
   day_planning_status?: "comes_today" | "not_coming_today";
   day_planning_reason?: string;
   day_planning_label?: string;
+  // Parent's note for a still-pending "entschuldigt" request covering today.
+  pending_excused_note?: string;
   actual_arrival_time?: string;
   actual_pickup_time?: string;
 }
