@@ -54,10 +54,7 @@ import {
   ArrivalTimeRow,
   StudentAbsenceRow,
 } from "~/components/students/student-card";
-import {
-  StudentCardGridSkeleton,
-  StudentCardPageSkeleton,
-} from "~/components/students/student-card-skeleton";
+import { StudentCardGridSkeleton } from "~/components/students/student-card-skeleton";
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
 import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
 import {
@@ -84,18 +81,9 @@ import {
 } from "~/lib/day-planning-helper";
 
 import { createLogger } from "~/lib/logger";
+import { OgsGroupsPageSkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "OgsGroupsPage" });
-
-// Page-shell skeleton for the OGS-groups gate/Suspense states.
-function OgsGroupsPageSkeleton() {
-  return (
-    <StudentCardPageSkeleton
-      label="Gruppe wird geladen"
-      testId="ogs-groups-skeleton"
-    />
-  );
-}
 
 // Backend pickup time response (from BFF)
 interface BackendPickupTime {

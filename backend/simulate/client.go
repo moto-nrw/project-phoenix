@@ -66,6 +66,16 @@ func (c *Client) DevicePost(path string, body any, apiKey, pin string) ([]byte, 
 	return c.doRequest("POST", path, body, apiKey, pin)
 }
 
+// DeviceGet makes a device-authenticated GET request (API key + PIN).
+func (c *Client) DeviceGet(path string, apiKey, pin string) ([]byte, error) {
+	return c.doRequest("GET", path, nil, apiKey, pin)
+}
+
+// DevicePut makes a device-authenticated PUT request (API key + PIN).
+func (c *Client) DevicePut(path string, body any, apiKey, pin string) ([]byte, error) {
+	return c.doRequest("PUT", path, body, apiKey, pin)
+}
+
 func (c *Client) doJWTRequest(method, path string, body any) ([]byte, error) {
 	if c.jwtToken == "" {
 		return nil, fmt.Errorf("not logged in (no JWT token)")

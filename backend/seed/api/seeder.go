@@ -469,7 +469,6 @@ func (s *Seeder) printSuccessSummary(email, adminPassword string, result *SeedRe
 
 	fmt.Println("OUTPUT FILES:")
 	fmt.Printf("  %s   (seed state with credentials & IDs)\n", DefaultSeedStatePath)
-	fmt.Println("  simulator.yaml  (simulator configuration)")
 	fmt.Println()
 }
 

@@ -47,10 +47,7 @@ import {
   StudentAbsenceRow,
 } from "~/components/students/student-card";
 import { StudentExportModal } from "~/components/students/student-export-modal";
-import {
-  StudentCardGridSkeleton,
-  StudentCardPageSkeleton,
-} from "~/components/students/student-card-skeleton";
+import { StudentCardGridSkeleton } from "~/components/students/student-card-skeleton";
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
 import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
 import {
@@ -81,19 +78,10 @@ import {
   trackingFilterChipLabel,
   type TrackingFilter,
 } from "./tracking-filter";
+import { StudentSearchPageSkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "StudentSearchPage" });
 const EMPTY_STRING_ARRAY: string[] = [];
-
-// Page-shell skeleton for the student-search gate/Suspense states.
-function StudentSearchPageSkeleton() {
-  return (
-    <StudentCardPageSkeleton
-      label="Kindersuche wird geladen"
-      testId="students-search-skeleton"
-    />
-  );
-}
 
 type StatusFilter =
   | "all"
