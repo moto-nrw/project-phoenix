@@ -98,12 +98,31 @@ function ActivitiesPageContent() {
   // session (data stays undefined, isLoading stays false). Require a session
   // here so a direct visit after logout/expiry redirects instead of showing
   // the skeleton forever.
-  const { status } = useSession({
+  const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
       router.push("/");
     },
   });
+
+  // The session callback can keep status "authenticated" while clearing the
+  // token and setting session.error (expired refresh token). useSWRAuth never
+  // starts without a token, so redirect instead of showing the skeleton
+  // forever — same pattern as the dashboard.
+  useEffect(() => {
+    if (status === "authenticated" && session) {
+      if (session.error === "RefreshTokenExpired") {
+        logger.info("session refresh token expired, redirecting to login");
+        router.push("/");
+        return;
+      }
+
+      if (!session.user?.token) {
+        logger.info("no valid token in session, redirecting to login");
+        router.push("/");
+      }
+    }
+  }, [status, session, router]);
 
   // Fetch activities, categories, and current staff with SWR
   const {
@@ -303,8 +322,9 @@ function ActivitiesPageContent() {
   // Session loading is gated explicitly via status; the data clause covers
   // the render tick between "authenticated" and SWR starting its first fetch
   // (isLoading is still false there but no data exists yet). Unauthenticated
-  // visits redirect via the required-session guard above, so this cannot
-  // show the skeleton indefinitely.
+  // visits redirect via the required-session guard, and expired/tokenless
+  // sessions redirect via the effect above, so this cannot show the skeleton
+  // indefinitely.
   if (
     status === "loading" ||
     isLoading ||

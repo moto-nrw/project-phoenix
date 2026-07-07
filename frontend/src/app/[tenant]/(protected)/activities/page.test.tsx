@@ -8,8 +8,9 @@ import {
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import ActivitiesPage from "./page";
 
-const { mockToastSuccess } = vi.hoisted(() => ({
+const { mockToastSuccess, mockPush } = vi.hoisted(() => ({
   mockToastSuccess: vi.fn(),
+  mockPush: vi.fn(),
 }));
 
 vi.mock("~/lib/swr", () => ({
@@ -28,7 +29,7 @@ vi.mock("next-auth/react", () => ({
 }));
 
 vi.mock("~/lib/tenant-router", () => ({
-  useTenantRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useTenantRouter: () => ({ push: mockPush, replace: vi.fn() }),
 }));
 
 vi.mock("~/contexts/ToastContext", () => ({
@@ -139,6 +140,13 @@ vi.mock("~/components/activities/quick-create-modal", () => ({
 }));
 
 import { useSWRAuth } from "~/lib/swr";
+import { useSession } from "next-auth/react";
+
+const authenticatedSession = {
+  data: { user: { token: "test-token" } },
+  status: "authenticated",
+  update: vi.fn(),
+} as never;
 
 const mockActivities = [
   {
@@ -206,6 +214,7 @@ describe("ActivitiesPage", () => {
     vi.clearAllMocks();
     mockMutate.mockClear();
     mockToastSuccess.mockClear();
+    vi.mocked(useSession).mockReturnValue(authenticatedSession);
     vi.mocked(useSWRAuth).mockReturnValue({
       data: {
         activities: mockActivities,
@@ -382,6 +391,46 @@ describe("ActivitiesPage", () => {
     expect(screen.getByText("Schach")).toBeInTheDocument();
     expect(screen.getByText("Anna Meyer")).toBeInTheDocument();
   });
+
+  it("redirects when session error is RefreshTokenExpired", async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: { user: { token: "test-token" }, error: "RefreshTokenExpired" },
+      status: "authenticated",
+      update: vi.fn(),
+    } as never);
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+    } as never);
+
+    render(<ActivitiesPage />);
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith("/");
+    });
+  });
+
+  it("redirects when authenticated session has no token", async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: { user: {} },
+      status: "authenticated",
+      update: vi.fn(),
+    } as never);
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+    } as never);
+
+    render(<ActivitiesPage />);
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith("/");
+    });
+  });
 });
 
 describe("ActivitiesPage modal interactions", () => {
@@ -390,6 +439,7 @@ describe("ActivitiesPage modal interactions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockMutate.mockClear();
+    vi.mocked(useSession).mockReturnValue(authenticatedSession);
     vi.mocked(useSWRAuth).mockReturnValue({
       data: {
         activities: mockActivities,
