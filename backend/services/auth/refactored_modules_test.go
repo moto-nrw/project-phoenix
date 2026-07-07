@@ -40,7 +40,7 @@ func TestAuthService_DeleteRole_Extended(t *testing.T) {
 	t.Run("deletes role with all associations successfully", func(t *testing.T) {
 		// ARRANGE - create role with permission assignment
 		roleName := fmt.Sprintf("delete-full-role-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, roleName, "Role to delete with associations", strPtr("user"))
+		role, err := service.CreateRole(ctx, roleName, "Role to delete with associations", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		// Create permission and assign to role
@@ -178,7 +178,7 @@ func TestAuthService_AssignRoleToAccount_Extended(t *testing.T) {
 	t.Run("returns error for non-existent account", func(t *testing.T) {
 		// ARRANGE
 		roleName := fmt.Sprintf("assign-role-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, roleName, "Test role", strPtr("user"))
+		role, err := service.CreateRole(ctx, roleName, "Test role", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		// ACT
@@ -214,7 +214,7 @@ func TestAuthService_AssignRoleToAccount_Extended(t *testing.T) {
 		require.NoError(t, err)
 
 		roleName := fmt.Sprintf("idempotent-role-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, roleName, "Test role", strPtr("user"))
+		role, err := service.CreateRole(ctx, roleName, "Test role", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		// First assignment
@@ -257,7 +257,7 @@ func TestAuthService_RemoveRoleFromAccount_Extended(t *testing.T) {
 		require.NoError(t, err)
 
 		roleName := fmt.Sprintf("remove-role-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, roleName, "Test role", strPtr("user"))
+		role, err := service.CreateRole(ctx, roleName, "Test role", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		err = service.AssignRoleToAccount(ctx, int(account.ID), int(role.ID))
@@ -330,7 +330,7 @@ func TestAuthService_DeletePermission_Extended(t *testing.T) {
 
 		// Create role and assign permission
 		roleName := fmt.Sprintf("perm-role-%s", uniqueID)
-		role, err := service.CreateRole(ctx, roleName, "Test role", strPtr("user"))
+		role, err := service.CreateRole(ctx, roleName, "Test role", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		err = service.AssignPermissionToRole(ctx, int(role.ID), int(perm.ID))
@@ -460,7 +460,7 @@ func TestAuthService_AssignPermissionToRole_Extended(t *testing.T) {
 	t.Run("returns error for non-existent permission", func(t *testing.T) {
 		// ARRANGE
 		roleName := fmt.Sprintf("assign-perm-role-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, roleName, "Test role", strPtr("user"))
+		role, err := service.CreateRole(ctx, roleName, "Test role", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		// ACT
@@ -482,7 +482,7 @@ func TestAuthService_RemovePermissionFromRole_Extended(t *testing.T) {
 		// ARRANGE
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		roleName := fmt.Sprintf("remove-perm-role-%s", uniqueID)
-		role, err := service.CreateRole(ctx, roleName, "Test role", strPtr("user"))
+		role, err := service.CreateRole(ctx, roleName, "Test role", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		permName := fmt.Sprintf("remove-from-role-%s", uniqueID)
@@ -518,7 +518,7 @@ func TestAuthService_GetRolePermissions_Extended(t *testing.T) {
 	t.Run("returns empty list for role with no permissions", func(t *testing.T) {
 		// ARRANGE
 		roleName := fmt.Sprintf("empty-perm-role-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, roleName, "Test role", strPtr("user"))
+		role, err := service.CreateRole(ctx, roleName, "Test role", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		// ACT
@@ -533,7 +533,7 @@ func TestAuthService_GetRolePermissions_Extended(t *testing.T) {
 		// ARRANGE
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		roleName := fmt.Sprintf("has-perm-role-%s", uniqueID)
-		role, err := service.CreateRole(ctx, roleName, "Test role", strPtr("user"))
+		role, err := service.CreateRole(ctx, roleName, "Test role", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		permName := fmt.Sprintf("role-perm-%s", uniqueID)
@@ -751,7 +751,7 @@ func TestAuthService_GetAccountsByRole_Extended(t *testing.T) {
 		// ARRANGE
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		roleName := fmt.Sprintf("specific-role-%s", uniqueID)
-		role, err := service.CreateRole(ctx, roleName, "Specific role for testing", strPtr("user"))
+		role, err := service.CreateRole(ctx, roleName, "Specific role for testing", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		email := fmt.Sprintf("role-specific-%s@test.local", uniqueID)

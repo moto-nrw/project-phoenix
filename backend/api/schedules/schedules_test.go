@@ -8,7 +8,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -19,7 +18,6 @@ import (
 
 	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services"
 )
@@ -56,15 +54,6 @@ func setupTestContext(t *testing.T) *testContext {
 		resource: resource,
 		router:   resource.Router(),
 	}
-}
-
-// executeWithAuth signs a JWT for the given claims and executes the request
-// through the production router. The claims carry the permissions and tenant
-// ID the middleware chain reads.
-func executeWithAuth(t *testing.T, router chi.Router, req *http.Request, claims jwt.AppClaims) *httptest.ResponseRecorder {
-	t.Helper()
-	req.Header.Set("Authorization", "Bearer "+testutil.MintTestJWT(t, claims))
-	return testutil.ExecuteRequest(router, req)
 }
 
 // cleanupDateframe cleans up a dateframe by ID
@@ -125,7 +114,7 @@ func TestGetCurrentDateframe_Success(t *testing.T) {
 
 	req := testutil.NewRequest("GET", "/current-dateframe", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
@@ -152,7 +141,7 @@ func TestGetCurrentDateframe_NotFound(t *testing.T) {
 
 	req := testutil.NewRequest("GET", "/current-dateframe", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	// When no current dateframe exists, should return 404
 	testutil.AssertNotFound(t, rr)
@@ -186,7 +175,7 @@ func TestCreateDateframe_InvalidDateFormat(t *testing.T) {
 
 			req := testutil.NewAuthenticatedRequest(t, "POST", "/dateframes", body)
 
-			rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+			rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 			testutil.AssertBadRequest(t, rr)
 		})
@@ -205,7 +194,7 @@ func TestCreateDateframe_EndBeforeStart(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/dateframes", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	// Should fail validation - end date before start date
 	// Note: API currently returns 500 for service-level validation errors
@@ -237,7 +226,7 @@ func TestCreateTimeframe_InvalidTimeFormat(t *testing.T) {
 
 			req := testutil.NewAuthenticatedRequest(t, "POST", "/timeframes", body)
 
-			rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+			rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 			testutil.AssertBadRequest(t, rr)
 		})
@@ -257,7 +246,7 @@ func TestCreateTimeframe_EndBeforeStart(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/timeframes", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	// Should fail validation - end time before start time
 	// Note: API currently returns 500 for service-level validation errors
@@ -286,7 +275,7 @@ func TestListDateframes_Success(t *testing.T) {
 
 	req := testutil.NewRequest("GET", "/dateframes", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
@@ -301,7 +290,7 @@ func TestListDateframes_WithNameFilter(t *testing.T) {
 
 	req := testutil.NewRequest("GET", "/dateframes?name=test", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -316,7 +305,7 @@ func TestGetDateframe_NotFound(t *testing.T) {
 
 	req := testutil.NewRequest("GET", "/dateframes/99999", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertNotFound(t, rr)
 }
@@ -327,7 +316,7 @@ func TestGetDateframe_InvalidID(t *testing.T) {
 
 	req := testutil.NewRequest("GET", "/dateframes/invalid", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -349,7 +338,7 @@ func TestCreateDateframe_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/dateframes", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
@@ -375,7 +364,7 @@ func TestCreateDateframe_BadRequest_MissingStartDate(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/dateframes", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -391,7 +380,7 @@ func TestCreateDateframe_BadRequest_MissingEndDate(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/dateframes", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -407,7 +396,7 @@ func TestCreateDateframe_BadRequest_InvalidStartDate(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/dateframes", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -427,7 +416,7 @@ func TestUpdateDateframe_NotFound(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/dateframes/99999", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertNotFound(t, rr)
 }
@@ -443,7 +432,7 @@ func TestUpdateDateframe_InvalidID(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/dateframes/invalid", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -458,7 +447,7 @@ func TestDeleteDateframe_InvalidID(t *testing.T) {
 
 	req := testutil.NewRequest("DELETE", "/dateframes/invalid", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -473,7 +462,7 @@ func TestGetDateframesByDate_Success(t *testing.T) {
 
 	req := testutil.NewRequest("GET", "/dateframes/by-date?date=2026-01-15", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -484,7 +473,7 @@ func TestGetDateframesByDate_BadRequest_MissingDate(t *testing.T) {
 
 	req := testutil.NewRequest("GET", "/dateframes/by-date", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -495,7 +484,7 @@ func TestGetOverlappingDateframes_Success(t *testing.T) {
 
 	req := testutil.NewRequest("GET", "/dateframes/overlapping?start_date=2026-01-01&end_date=2026-12-31", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -506,7 +495,7 @@ func TestGetOverlappingDateframes_BadRequest_MissingParams(t *testing.T) {
 
 	req := testutil.NewRequest("GET", "/dateframes/overlapping", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -521,7 +510,7 @@ func TestListTimeframes_Success(t *testing.T) {
 
 	req := testutil.NewRequest("GET", "/timeframes", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
@@ -540,7 +529,7 @@ func TestGetTimeframe_NotFound(t *testing.T) {
 
 	req := testutil.NewRequest("GET", "/timeframes/99999", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertNotFound(t, rr)
 }
@@ -551,7 +540,7 @@ func TestGetTimeframe_InvalidID(t *testing.T) {
 
 	req := testutil.NewRequest("GET", "/timeframes/invalid", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -574,7 +563,7 @@ func TestCreateTimeframe_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/timeframes", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
@@ -599,7 +588,7 @@ func TestCreateTimeframe_BadRequest_MissingStartTime(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/timeframes", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -614,7 +603,7 @@ func TestCreateTimeframe_BadRequest_InvalidStartTime(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/timeframes", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -633,7 +622,7 @@ func TestUpdateTimeframe_NotFound(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/timeframes/99999", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertNotFound(t, rr)
 }
@@ -648,7 +637,7 @@ func TestUpdateTimeframe_InvalidID(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/timeframes/invalid", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -663,7 +652,7 @@ func TestDeleteTimeframe_InvalidID(t *testing.T) {
 
 	req := testutil.NewRequest("DELETE", "/timeframes/invalid", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -678,7 +667,7 @@ func TestGetActiveTimeframes_Success(t *testing.T) {
 
 	req := testutil.NewRequest("GET", "/timeframes/active", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -689,7 +678,7 @@ func TestGetTimeframesByRange_Success(t *testing.T) {
 
 	req := testutil.NewRequest("GET", "/timeframes/by-range?start_time=2026-01-01T00:00:00Z&end_time=2026-12-31T23:59:59Z", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -700,7 +689,7 @@ func TestGetTimeframesByRange_BadRequest_MissingParams(t *testing.T) {
 
 	req := testutil.NewRequest("GET", "/timeframes/by-range", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -715,7 +704,7 @@ func TestListRecurrenceRules_Success(t *testing.T) {
 
 	req := testutil.NewRequest("GET", "/recurrence-rules", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
@@ -730,7 +719,7 @@ func TestListRecurrenceRules_WithFrequencyFilter(t *testing.T) {
 
 	req := testutil.NewRequest("GET", "/recurrence-rules?frequency=weekly", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -745,7 +734,7 @@ func TestGetRecurrenceRule_NotFound(t *testing.T) {
 
 	req := testutil.NewRequest("GET", "/recurrence-rules/99999", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertNotFound(t, rr)
 }
@@ -756,7 +745,7 @@ func TestGetRecurrenceRule_InvalidID(t *testing.T) {
 
 	req := testutil.NewRequest("GET", "/recurrence-rules/invalid", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -777,7 +766,7 @@ func TestCreateRecurrenceRule_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/recurrence-rules", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
@@ -802,7 +791,7 @@ func TestCreateRecurrenceRule_BadRequest_MissingFrequency(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/recurrence-rules", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -818,7 +807,7 @@ func TestCreateRecurrenceRule_BadRequest_InvalidFrequency(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/recurrence-rules", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -838,7 +827,7 @@ func TestUpdateRecurrenceRule_NotFound(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/recurrence-rules/99999", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertNotFound(t, rr)
 }
@@ -854,7 +843,7 @@ func TestUpdateRecurrenceRule_InvalidID(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/recurrence-rules/invalid", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -869,7 +858,7 @@ func TestDeleteRecurrenceRule_InvalidID(t *testing.T) {
 
 	req := testutil.NewRequest("DELETE", "/recurrence-rules/invalid", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -884,7 +873,7 @@ func TestGetRecurrenceRulesByFrequency_Success(t *testing.T) {
 
 	req := testutil.NewRequest("GET", "/recurrence-rules/by-frequency?frequency=weekly", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -895,7 +884,7 @@ func TestGetRecurrenceRulesByFrequency_BadRequest_MissingFrequency(t *testing.T)
 
 	req := testutil.NewRequest("GET", "/recurrence-rules/by-frequency", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -906,7 +895,7 @@ func TestGetRecurrenceRulesByWeekday_Success(t *testing.T) {
 
 	req := testutil.NewRequest("GET", "/recurrence-rules/by-weekday?weekday=MO", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -917,7 +906,7 @@ func TestGetRecurrenceRulesByWeekday_BadRequest_MissingWeekday(t *testing.T) {
 
 	req := testutil.NewRequest("GET", "/recurrence-rules/by-weekday", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -937,7 +926,7 @@ func TestGenerateEvents_InvalidID(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/recurrence-rules/invalid/generate-events", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -950,7 +939,7 @@ func TestGenerateEvents_BadRequest_MissingDates(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/recurrence-rules/1/generate-events", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -970,7 +959,7 @@ func TestCheckConflict_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/check-conflict", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
@@ -989,7 +978,7 @@ func TestCheckConflict_BadRequest_MissingTimes(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/check-conflict", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -1005,7 +994,7 @@ func TestCheckConflict_BadRequest_InvalidTime(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/check-conflict", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -1026,7 +1015,7 @@ func TestFindAvailableSlots_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/find-available-slots", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
@@ -1048,7 +1037,7 @@ func TestFindAvailableSlots_BadRequest_MissingDuration(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/find-available-slots", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -1065,7 +1054,7 @@ func TestFindAvailableSlots_BadRequest_InvalidDuration(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/find-available-slots", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.AdminTestClaims(1))
 
 	testutil.AssertBadRequest(t, rr)
 }

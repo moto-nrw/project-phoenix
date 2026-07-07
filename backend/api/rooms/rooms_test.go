@@ -18,7 +18,6 @@ import (
 	roomsAPI "github.com/moto-nrw/project-phoenix/api/rooms"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -47,11 +46,7 @@ type testContext struct {
 func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
-	db := testpkg.SetupTestDB(t)
-
-	repoFactory := repositories.NewFactory(db)
-	svc, err := services.NewFactory(repoFactory, db, slog.Default())
-	require.NoError(t, err, "Failed to create service factory")
+	db, svc := testutil.SetupAPITest(t)
 
 	resource := roomsAPI.NewResource(roomsAPI.ResourceConfig{
 		FacilityService:    svc.Facilities,
@@ -75,15 +70,6 @@ func setupTestContext(t *testing.T) *testContext {
 	}
 }
 
-// executeWithAuth signs a JWT for the given claims and executes the request
-// through the production router. The claims carry the permissions and tenant
-// ID the middleware chain reads.
-func executeWithAuth(t *testing.T, router chi.Router, req *http.Request, claims jwt.AppClaims) *httptest.ResponseRecorder {
-	t.Helper()
-	req.Header.Set("Authorization", "Bearer "+testutil.MintTestJWT(t, claims))
-	return testutil.ExecuteRequest(router, req)
-}
-
 // =============================================================================
 // List Rooms Tests
 // =============================================================================
@@ -99,7 +85,7 @@ func TestListRooms(t *testing.T) {
 	t.Run("success_lists_all_rooms", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/", nil)
 
-		rr := executeWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 	})
@@ -107,7 +93,7 @@ func TestListRooms(t *testing.T) {
 	t.Run("success_with_pagination", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/?page=1&page_size=10", nil)
 
-		rr := executeWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 	})
@@ -115,7 +101,7 @@ func TestListRooms(t *testing.T) {
 	t.Run("success_with_building_filter", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/?building=Main", nil)
 
-		rr := executeWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 	})
@@ -135,7 +121,7 @@ func TestGetRoom(t *testing.T) {
 	t.Run("success_gets_room", func(t *testing.T) {
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", room.ID), nil)
 
-		rr := executeWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "Get Room Test", "Response should contain room name")
@@ -144,7 +130,7 @@ func TestGetRoom(t *testing.T) {
 	t.Run("not_found_for_nonexistent_room", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/999999", nil)
 
-		rr := executeWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 
 		testutil.AssertNotFound(t, rr)
 	})
@@ -152,7 +138,7 @@ func TestGetRoom(t *testing.T) {
 	t.Run("bad_request_for_invalid_id", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/invalid", nil)
 
-		rr := executeWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -174,7 +160,7 @@ func TestCreateRoom(t *testing.T) {
 		}
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
 
-		rr := executeWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 
 		assert.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), uniqueName, "Response should contain room name")
@@ -204,7 +190,7 @@ func TestCreateRoom(t *testing.T) {
 		}
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
 
-		rr := executeWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 
 		assert.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
 
@@ -230,7 +216,7 @@ func TestCreateRoom(t *testing.T) {
 		}
 		req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
 
-		rr := executeWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -255,7 +241,7 @@ func TestUpdateRoom(t *testing.T) {
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", room.ID), body)
 
-		rr := executeWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "Updated Room", "Response should contain updated name")
@@ -267,7 +253,7 @@ func TestUpdateRoom(t *testing.T) {
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", "/999999", body)
 
-		rr := executeWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 
 		testutil.AssertNotFound(t, rr)
 	})
@@ -278,7 +264,7 @@ func TestUpdateRoom(t *testing.T) {
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", room.ID), body)
 
-		rr := executeWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -297,7 +283,7 @@ func TestDeleteRoom(t *testing.T) {
 
 		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d", room.ID), nil)
 
-		rr := executeWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Expected 204 No Content. Body: %s", rr.Body.String())
 	})
@@ -305,7 +291,7 @@ func TestDeleteRoom(t *testing.T) {
 	t.Run("error_for_nonexistent_room", func(t *testing.T) {
 		req := testutil.NewRequest("DELETE", "/999999", nil)
 
-		rr := executeWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 
 		// Service returns not found when room doesn't exist (ErrorRenderer maps ErrRoomNotFound → 404)
 		testutil.AssertErrorResponse(t, rr, http.StatusNotFound)
@@ -319,7 +305,7 @@ func TestDeleteRoom(t *testing.T) {
 
 		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d", room.ID), nil)
 
-		rr := executeWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 
 		testutil.AssertErrorResponse(t, rr, http.StatusConflict)
 	})
@@ -327,7 +313,7 @@ func TestDeleteRoom(t *testing.T) {
 	t.Run("bad_request_for_invalid_id", func(t *testing.T) {
 		req := testutil.NewRequest("DELETE", "/invalid", nil)
 
-		rr := executeWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -343,7 +329,7 @@ func TestGetRoomsByCategory(t *testing.T) {
 	t.Run("success_gets_rooms_by_category", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/by-category?category=classroom", nil)
 
-		rr := executeWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 	})
@@ -351,7 +337,7 @@ func TestGetRoomsByCategory(t *testing.T) {
 	t.Run("bad_request_missing_category", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/by-category", nil)
 
-		rr := executeWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -367,7 +353,7 @@ func TestGetBuildingList(t *testing.T) {
 	t.Run("success_gets_building_list", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/buildings", nil)
 
-		rr := executeWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "buildings", "Response should contain buildings")
@@ -380,7 +366,7 @@ func TestGetCategoryList(t *testing.T) {
 	t.Run("success_gets_category_list", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/categories", nil)
 
-		rr := executeWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "categories", "Response should contain categories")
@@ -397,7 +383,7 @@ func TestGetAvailableRooms(t *testing.T) {
 	t.Run("success_gets_available_rooms", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/available", nil)
 
-		rr := executeWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 	})
@@ -405,7 +391,7 @@ func TestGetAvailableRooms(t *testing.T) {
 	t.Run("success_with_capacity_filter", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/available?capacity=20", nil)
 
-		rr := executeWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 	})
@@ -435,7 +421,7 @@ func TestGetRoomHistory(t *testing.T) {
 	t.Run("success_gets_room_history", func(t *testing.T) {
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/history", room.ID), nil)
 
-		rr := executeWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 	})
@@ -451,7 +437,7 @@ func TestGetRoomHistory(t *testing.T) {
 		q.Set("end", end)
 		req.URL.RawQuery = q.Encode()
 
-		rr := executeWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 	})
@@ -459,7 +445,7 @@ func TestGetRoomHistory(t *testing.T) {
 	t.Run("bad_request_invalid_date_format", func(t *testing.T) {
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/history?start=invalid", room.ID), nil)
 
-		rr := executeWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -469,7 +455,7 @@ func TestGetRoomHistory(t *testing.T) {
 		end := time.Now().AddDate(0, 0, -7).Format(time.RFC3339)
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/history?start=%s&end=%s", room.ID, start, end), nil)
 
-		rr := executeWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -495,7 +481,7 @@ func TestGetRoomHistory_FeatureDisabled(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/history", room.ID), nil)
-	rr := executeWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 
 	require.Equal(t, http.StatusForbidden, rr.Code, "Expected 403 when feature is disabled. Body: %s", rr.Body.String())
 
@@ -566,7 +552,7 @@ func TestGetRoomHistory_ScopeGroupSupervisorsOnly(t *testing.T) {
 	t.Run("supervisor_sees_own_session", func(t *testing.T) {
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/history", room.ID), nil)
 
-		rr := executeWithAuth(t, tc.router, req, teacherClaims(supervisorAcc.ID))
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, teacherClaims(supervisorAcc.ID))
 
 		require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 		data := decodeData(t, rr)
@@ -577,7 +563,7 @@ func TestGetRoomHistory_ScopeGroupSupervisorsOnly(t *testing.T) {
 	t.Run("bystander_sees_empty", func(t *testing.T) {
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/history", room.ID), nil)
 
-		rr := executeWithAuth(t, tc.router, req, teacherClaims(bystanderAcc.ID))
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, teacherClaims(bystanderAcc.ID))
 
 		require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 		data := decodeData(t, rr)
@@ -587,7 +573,7 @@ func TestGetRoomHistory_ScopeGroupSupervisorsOnly(t *testing.T) {
 	t.Run("admin_bypasses_scope_filter", func(t *testing.T) {
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/history", room.ID), nil)
 
-		rr := executeWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 
 		require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 		data := decodeData(t, rr)
@@ -614,7 +600,7 @@ func TestGetRoomHistory_ScopeGroupSupervisorsOnly(t *testing.T) {
 
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/history", room.ID), nil)
 
-		rr := executeWithAuth(t, tc.router, req, teacherClaims(nonStaffAcc.ID))
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, teacherClaims(nonStaffAcc.ID))
 
 		assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "not_group_supervisor")
@@ -663,7 +649,7 @@ func TestGetRoomHistory_ScopeAllStaff(t *testing.T) {
 	}
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/history", room.ID), nil)
-	rr := executeWithAuth(t, tc.router, req, bystanderClaims)
+	rr := testutil.ExecuteWithAuth(t, tc.router, req, bystanderClaims)
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
@@ -692,7 +678,7 @@ func TestGetRoomHistory_ScopeAllStaff(t *testing.T) {
 		}
 
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/history", room.ID), nil)
-		rr := executeWithAuth(t, tc.router, req, nonStaffClaims)
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, nonStaffClaims)
 
 		assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "not_group_supervisor")
@@ -751,7 +737,7 @@ func TestGetRoomHistory_RangeCapClamped(t *testing.T) {
 	q.Set("end", end)
 	req.URL.RawQuery = q.Encode()
 
-	rr := executeWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
 	var body struct {
@@ -797,7 +783,7 @@ func TestGetRoomHistory_DurationMinutesPopulated(t *testing.T) {
 	require.NoError(t, err)
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/history", room.ID), nil)
-	rr := executeWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
+	rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 

@@ -340,3 +340,9 @@ func Int16Ptr(i int16) *int16 { return &i }
 
 // StrPtr returns a pointer to the given string value.
 func StrPtr(s string) *string { return &s }
+
+// Int64Ptr returns a pointer to the given int64 value.
+func Int64Ptr(i int64) *int64 { return &i }
+
+// TimePtr returns a pointer to the given time value.
+func TimePtr(t time.Time) *time.Time { return &t }

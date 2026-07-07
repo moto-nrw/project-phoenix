@@ -33,11 +33,6 @@ func init() {
 	viper.Set("auth_jwt_refresh_expiry", "24h") // Refresh token expiry
 }
 
-// strPtr returns a pointer to the given string (helper for optional fields)
-func strPtr(s string) *string {
-	return &s
-}
-
 // testPassword is a valid password for integration tests that meets strength requirements.
 // This is NOT a real secret - it's only used in test code with test databases.
 const testPassword = "Test1234%" //nolint:gosec // pragma: allowlist secret
@@ -768,7 +763,7 @@ func TestAuthService_CreateRole(t *testing.T) {
 		name := fmt.Sprintf("test-role-%d", time.Now().UnixNano())
 
 		// ACT
-		role, err := service.CreateRole(ctx, name, "Test role description", strPtr("user"))
+		role, err := service.CreateRole(ctx, name, "Test role description", testpkg.StrPtr("user"))
 
 		// ASSERT
 		require.NoError(t, err)
@@ -779,7 +774,7 @@ func TestAuthService_CreateRole(t *testing.T) {
 
 	t.Run("returns error for empty name", func(t *testing.T) {
 		// ACT
-		role, err := service.CreateRole(ctx, "", "description", strPtr("user"))
+		role, err := service.CreateRole(ctx, "", "description", testpkg.StrPtr("user"))
 
 		// ASSERT
 		require.Error(t, err)
@@ -797,7 +792,7 @@ func TestAuthService_GetRoleByID(t *testing.T) {
 	t.Run("returns role when found", func(t *testing.T) {
 		// ARRANGE
 		name := fmt.Sprintf("get-role-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, name, "description", strPtr("user"))
+		role, err := service.CreateRole(ctx, name, "description", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		// ACT
@@ -829,7 +824,7 @@ func TestAuthService_UpdateRole(t *testing.T) {
 	t.Run("updates role successfully", func(t *testing.T) {
 		// ARRANGE
 		name := fmt.Sprintf("update-role-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, name, "original description", strPtr("user"))
+		role, err := service.CreateRole(ctx, name, "original description", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		role.Description = "updated description"
@@ -857,7 +852,7 @@ func TestAuthService_DeleteRole(t *testing.T) {
 	t.Run("deletes role successfully", func(t *testing.T) {
 		// ARRANGE
 		name := fmt.Sprintf("delete-role-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, name, "to delete", strPtr("user"))
+		role, err := service.CreateRole(ctx, name, "to delete", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		// ACT
@@ -882,7 +877,7 @@ func TestAuthService_ListRoles(t *testing.T) {
 	t.Run("returns roles", func(t *testing.T) {
 		// ARRANGE
 		name := fmt.Sprintf("list-role-%d", time.Now().UnixNano())
-		_, err := service.CreateRole(ctx, name, "for listing", strPtr("user"))
+		_, err := service.CreateRole(ctx, name, "for listing", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		// ACT
@@ -909,7 +904,7 @@ func TestAuthService_AssignRoleToAccount(t *testing.T) {
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		roleName := fmt.Sprintf("assign-role-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, roleName, "for assignment", strPtr("user"))
+		role, err := service.CreateRole(ctx, roleName, "for assignment", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		// ACT
@@ -940,7 +935,7 @@ func TestAuthService_AssignRoleToAccount(t *testing.T) {
 		t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.tokens", token.ID) })
 
 		roleName := fmt.Sprintf("assign-role-tx-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, roleName, "transaction rollback verification", strPtr("user"))
+		role, err := service.CreateRole(ctx, roleName, "transaction rollback verification", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 		t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID) })
 
@@ -976,7 +971,7 @@ func TestAuthService_AssignRoleToAccount(t *testing.T) {
 		require.NoError(t, err)
 
 		roleName := fmt.Sprintf("assign-role-refresh-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, roleName, "refresh propagation verification", strPtr("user"))
+		role, err := service.CreateRole(ctx, roleName, "refresh propagation verification", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 		t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID) })
 
@@ -1005,7 +1000,7 @@ func TestAuthService_RemoveRoleFromAccount(t *testing.T) {
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		roleName := fmt.Sprintf("remove-role-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, roleName, "for removal", strPtr("user"))
+		role, err := service.CreateRole(ctx, roleName, "for removal", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		err = service.AssignRoleToAccount(ctx, int(account.ID), int(role.ID))
@@ -1033,7 +1028,7 @@ func TestAuthService_RemoveRoleFromAccount(t *testing.T) {
 		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
 
 		roleName := fmt.Sprintf("remove-role-refresh-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, roleName, "refresh propagation verification", strPtr("user"))
+		role, err := service.CreateRole(ctx, roleName, "refresh propagation verification", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 		t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.roles", role.ID) })
 
@@ -1459,7 +1454,7 @@ func TestAuthService_AssignPermissionToRole(t *testing.T) {
 		// ARRANGE
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		roleName := fmt.Sprintf("role-%s", uniqueID)
-		role, err := service.CreateRole(ctx, roleName, "Test role", strPtr("user"))
+		role, err := service.CreateRole(ctx, roleName, "Test role", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		permName := fmt.Sprintf("roleperm-%s", uniqueID)
@@ -1486,7 +1481,7 @@ func TestAuthService_RemovePermissionFromRole(t *testing.T) {
 		// ARRANGE
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		roleName := fmt.Sprintf("role-remove-%s", uniqueID)
-		role, err := service.CreateRole(ctx, roleName, "Test role", strPtr("user"))
+		role, err := service.CreateRole(ctx, roleName, "Test role", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		permName := fmt.Sprintf("rolerem-%s", uniqueID)
@@ -1516,7 +1511,7 @@ func TestAuthService_GetRolePermissions(t *testing.T) {
 		// ARRANGE
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		roleName := fmt.Sprintf("role-get-%s", uniqueID)
-		role, err := service.CreateRole(ctx, roleName, "Test role", strPtr("user"))
+		role, err := service.CreateRole(ctx, roleName, "Test role", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		permName := fmt.Sprintf("roleget-%s", uniqueID)
@@ -1751,8 +1746,8 @@ func TestInvitationService_CreateInvitation(t *testing.T) {
 			Email:     inviteeEmail,
 			RoleID:    role.ID,
 			CreatedBy: creator.ID,
-			FirstName: strPtr("Test"),
-			LastName:  strPtr("User"),
+			FirstName: testpkg.StrPtr("Test"),
+			LastName:  testpkg.StrPtr("User"),
 		})
 
 		// Cleanup must be registered before assertions to ensure it runs even if assertions fail
@@ -2611,8 +2606,8 @@ func TestAcceptInvitation_WithTenantID_CreatesAccountTenant(t *testing.T) {
 		Email:     email,
 		RoleID:    role.ID,
 		CreatedBy: 1,
-		FirstName: strPtr("Test"),
-		LastName:  strPtr("User"),
+		FirstName: testpkg.StrPtr("Test"),
+		LastName:  testpkg.StrPtr("User"),
 	})
 	require.NoError(t, err)
 	require.NotNil(t, invitation)

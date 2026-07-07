@@ -87,62 +87,6 @@ func (r *testRateLimitRepo) RetryAt() time.Time {
 	return r.windowStart.Add(time.Hour)
 }
 
-// capturingMailer records messages sent during tests.
-type capturingMailer struct {
-	mu       sync.Mutex
-	messages []email.Message
-	ch       chan struct{}
-}
-
-func newCapturingMailer() *capturingMailer {
-	return &capturingMailer{
-		ch: make(chan struct{}, 16),
-	}
-}
-
-func (m *capturingMailer) Send(msg email.Message) error {
-	m.mu.Lock()
-	m.messages = append(m.messages, msg)
-	m.mu.Unlock()
-
-	select {
-	case m.ch <- struct{}{}:
-	default:
-	}
-	return nil
-}
-
-func (m *capturingMailer) Messages() []email.Message {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	out := make([]email.Message, len(m.messages))
-	copy(out, m.messages)
-	return out
-}
-
-func (m *capturingMailer) WaitForMessages(count int, timeout time.Duration) bool {
-	if count <= 0 {
-		return true
-	}
-
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-
-	for {
-		if len(m.Messages()) >= count {
-			return true
-		}
-		select {
-		case <-m.ch:
-			if len(m.Messages()) >= count {
-				return true
-			}
-		case <-timer.C:
-			return len(m.Messages()) >= count
-		}
-	}
-}
-
 // flakyMailer fails a configurable number of initial attempts before succeeding.
 type flakyMailer struct {
 	mu        sync.Mutex

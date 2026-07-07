@@ -12,6 +12,8 @@ import (
 	"time"
 	"unsafe"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -1126,11 +1128,11 @@ func TestMaskAPIKey(t *testing.T) {
 		want string
 	}{
 		{"nil pointer", nil, ""},
-		{"empty string", strPtr(""), ""},
-		{"short key (5 chars)", strPtr("abcde"), "abcde"},
-		{"exactly 10 chars", strPtr("1234567890"), "1234567890"},
-		{"longer than 10 chars", strPtr("1234567890abcdef"), "1234567890..."},
-		{"11 chars", strPtr("12345678901"), "1234567890..."},
+		{"empty string", testpkg.StrPtr(""), ""},
+		{"short key (5 chars)", testpkg.StrPtr("abcde"), "abcde"},
+		{"exactly 10 chars", testpkg.StrPtr("1234567890"), "1234567890"},
+		{"longer than 10 chars", testpkg.StrPtr("1234567890abcdef"), "1234567890..."},
+		{"11 chars", testpkg.StrPtr("12345678901"), "1234567890..."},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1138,8 +1140,6 @@ func TestMaskAPIKey(t *testing.T) {
 		})
 	}
 }
-
-func strPtr(s string) *string { return &s }
 
 // ---------------------------------------------------------------------------
 // enrichDeviceInfo
@@ -1249,7 +1249,7 @@ func TestQueryDevices_WithWhereClause(t *testing.T) {
 	}))
 
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB)}, txHandler: modelBase.NewTxHandler(bunDB)}
-	result, err := svc.queryDevices(context.Background(), platformModels.OperatorDeviceFilter{SchoolID: int64Ptr(42)})
+	result, err := svc.queryDevices(context.Background(), platformModels.OperatorDeviceFilter{SchoolID: testpkg.Int64Ptr(42)})
 	require.NoError(t, err)
 	assert.Empty(t, result)
 }
@@ -2415,5 +2415,3 @@ func TestGenerateRandomSuffix(t *testing.T) {
 		assert.NotEqual(t, a, b, "two random suffixes should differ")
 	})
 }
-
-func int64Ptr(v int64) *int64 { return &v }

@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -31,7 +33,7 @@ func TestRefactoringPreservesRepositoryAccess(t *testing.T) {
 		Model:        modelBase.Model{ID: 1},
 		Email:        "test@example.com",
 		Active:       true,
-		PasswordHash: stringPtr("$argon2id$v=19$m=65536,t=3,p=2$somesalt$somehash"),
+		PasswordHash: testpkg.StrPtr("$argon2id$v=19$m=65536,t=3,p=2$somesalt$somehash"),
 	})
 	tokenRepo := newStubTokenRepository()
 	roleRepo := newStubRoleRepository()
@@ -45,7 +47,7 @@ func TestRefactoringPreservesRepositoryAccess(t *testing.T) {
 
 	// Create service config with validation
 	config, err := NewServiceConfig(
-		email.NewDispatcher(newCapturingMailer(), slog.Default()),
+		email.NewDispatcher(testpkg.NewCapturingMailer(), slog.Default()),
 		newDefaultFromEmail(),
 		"http://localhost:3000",
 		30*time.Minute,
@@ -75,8 +77,4 @@ func TestRefactoringPreservesRepositoryAccess(t *testing.T) {
 
 	t.Log("✅ Service successfully accesses repositories through factory")
 	t.Log("✅ GetAccountByID verified to work after refactoring")
-}
-
-func stringPtr(s string) *string {
-	return &s
 }

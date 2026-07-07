@@ -279,7 +279,7 @@ func TestGradeTransitionResource_GetByID(t *testing.T) {
 	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
 	transition := testpkg.CreateTestGradeTransition(t, tc.db, "2025-2026", account.ID)
-	testpkg.CreateTestGradeTransitionMapping(t, tc.db, transition.ID, "1a", strPtr("2a"))
+	testpkg.CreateTestGradeTransitionMapping(t, tc.db, transition.ID, "1a", testpkg.StrPtr("2a"))
 	defer testpkg.CleanupGradeTransitionFixtures(t, tc.db, transition.ID)
 
 	router := tc.resource.Router()
@@ -531,7 +531,7 @@ func TestGradeTransitionResource_Apply(t *testing.T) {
 
 	t.Run("apply requires permission", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, tc.db, "2025-2026", account.ID)
-		testpkg.CreateTestGradeTransitionMapping(t, tc.db, transition.ID, "9x", strPtr("10x"))
+		testpkg.CreateTestGradeTransitionMapping(t, tc.db, transition.ID, "9x", testpkg.StrPtr("10x"))
 		defer testpkg.CleanupGradeTransitionFixtures(t, tc.db, transition.ID)
 
 		url := fmt.Sprintf("/%d/apply", transition.ID)
@@ -605,7 +605,7 @@ func TestGradeTransitionResource_Revert(t *testing.T) {
 
 	t.Run("revert draft transition fails", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, tc.db, "2025-2026", account.ID)
-		testpkg.CreateTestGradeTransitionMapping(t, tc.db, transition.ID, "8x", strPtr("9x"))
+		testpkg.CreateTestGradeTransitionMapping(t, tc.db, transition.ID, "8x", testpkg.StrPtr("9x"))
 		defer testpkg.CleanupGradeTransitionFixtures(t, tc.db, transition.ID)
 
 		url := fmt.Sprintf("/%d/revert", transition.ID)
@@ -866,7 +866,7 @@ func TestToTransitionResponse(t *testing.T) {
 
 	t.Run("response includes mappings with action", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, tc.db, "2025-2026", account.ID)
-		testpkg.CreateTestGradeTransitionMapping(t, tc.db, transition.ID, "1g", strPtr("2g"))
+		testpkg.CreateTestGradeTransitionMapping(t, tc.db, transition.ID, "1g", testpkg.StrPtr("2g"))
 		testpkg.CreateTestGradeTransitionMapping(t, tc.db, transition.ID, "4g", nil) // Graduate
 		defer testpkg.CleanupGradeTransitionFixtures(t, tc.db, transition.ID)
 
@@ -903,7 +903,7 @@ func TestToTransitionResponse(t *testing.T) {
 
 	t.Run("response includes can_modify, can_apply, can_revert", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, tc.db, "2025-2026", account.ID)
-		testpkg.CreateTestGradeTransitionMapping(t, tc.db, transition.ID, "1h", strPtr("2h"))
+		testpkg.CreateTestGradeTransitionMapping(t, tc.db, transition.ID, "1h", testpkg.StrPtr("2h"))
 		defer testpkg.CleanupGradeTransitionFixtures(t, tc.db, transition.ID)
 
 		getURL := fmt.Sprintf("/%d", transition.ID)
@@ -927,8 +927,3 @@ func TestToTransitionResponse(t *testing.T) {
 // ============================================================================
 // Helper Functions
 // ============================================================================
-
-// strPtr returns a pointer to a string
-func strPtr(s string) *string {
-	return &s
-}

@@ -31,11 +31,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// intPtr returns a pointer to an int value.
-func intPtr(i int) *int {
-	return &i
-}
-
 // testContext holds shared test dependencies.
 type testContext struct {
 	db       *bun.DB
@@ -1585,7 +1580,7 @@ func TestDeviceCheckin_RoomCapacityExceeded(t *testing.T) {
 	capacityRoom := &facilities.Room{
 		Name:     fmt.Sprintf("Tiny Room-%d", time.Now().UnixNano()),
 		Building: "Test Building",
-		Capacity: intPtr(1),
+		Capacity: testpkg.IntPtr(1),
 	}
 	capacityRoom.SetTenantID(1)
 	err := ctx.db.NewInsert().

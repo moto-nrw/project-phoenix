@@ -31,7 +31,7 @@ func TestCombinedGroups_Integration(t *testing.T) {
 
 	t.Run("list combined groups", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/combined", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
@@ -41,7 +41,7 @@ func TestCombinedGroups_Integration(t *testing.T) {
 
 	t.Run("get active combined groups", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/combined/active", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
@@ -58,7 +58,7 @@ func TestCombinedGroups_Integration(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/active/combined", body)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsCreate})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsCreate})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 	})
@@ -69,7 +69,7 @@ func TestCombinedGroups_Integration(t *testing.T) {
 		defer cleanupCombinedGroup(t, tc.db, combinedGroup.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/combined/%d", combinedGroup.ID), nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
@@ -80,7 +80,7 @@ func TestCombinedGroups_Integration(t *testing.T) {
 
 	t.Run("get combined group not found", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/combined/999999", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertNotFound(t, rr)
 	})
@@ -98,7 +98,7 @@ func TestCombinedGroups_Integration(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/active/combined/%d", combinedGroup.ID), body)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
@@ -108,7 +108,7 @@ func TestCombinedGroups_Integration(t *testing.T) {
 		defer cleanupCombinedGroup(t, tc.db, combinedGroup.ID)
 
 		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/active/combined/%d/end", combinedGroup.ID), nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
@@ -118,7 +118,7 @@ func TestCombinedGroups_Integration(t *testing.T) {
 		// No need to defer cleanup - we're deleting it
 
 		req := testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/active/combined/%d", combinedGroup.ID), nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsDelete})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsDelete})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
@@ -128,21 +128,21 @@ func TestCombinedGroups_Integration(t *testing.T) {
 		defer cleanupCombinedGroup(t, tc.db, combinedGroup.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/combined/%d/groups", combinedGroup.ID), nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("get combined group groups invalid id", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/combined/invalid/groups", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertBadRequest(t, rr)
 	})
 
 	t.Run("get combined group groups not found", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/combined/999999/groups", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertNotFound(t, rr)
 	})
@@ -164,7 +164,7 @@ func TestGroupMappings_Integration(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/mappings/group/%d", activeGroup.ID), nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
@@ -174,7 +174,7 @@ func TestGroupMappings_Integration(t *testing.T) {
 		defer cleanupCombinedGroup(t, tc.db, combinedGroup.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/mappings/combined/%d", combinedGroup.ID), nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
@@ -194,7 +194,7 @@ func TestGroupMappings_Integration(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/active/mappings/add", body)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
@@ -216,7 +216,7 @@ func TestGroupMappings_Integration(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/active/mappings/remove", body)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
@@ -232,7 +232,7 @@ func TestUnclaimedGroups_Integration(t *testing.T) {
 
 	t.Run("list unclaimed groups", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/groups/unclaimed", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
@@ -263,7 +263,7 @@ func TestUnclaimedGroups_Integration(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/active/groups/%d/claim", activeGroup.ID), nil)
-		rr := executeWithAuth(t, router, req, staffClaims, []string{permissions.GroupsUpdate})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, staffClaims, []string{permissions.GroupsUpdate})
 
 		// This may fail without full staff context, but exercises the code path
 		// The important thing is we get past the permission check
@@ -290,7 +290,7 @@ func TestSupervisorsByGroup_Integration(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID, staff.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/supervisors/group/%d", activeGroup.ID), nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
@@ -307,14 +307,14 @@ func TestSupervisorsByGroup_Integration(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/supervisors/group/%d", activeGroup.ID), nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("get supervisors by group - invalid id", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/supervisors/group/invalid", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -338,7 +338,7 @@ func TestVisitsByGroup_Integration(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID, student.ID, visit.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/visits/group/%d", activeGroup.ID), nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
@@ -354,14 +354,14 @@ func TestVisitsByGroup_Integration(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/visits/group/%d", activeGroup.ID), nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("get visits by group - invalid id", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/visits/group/invalid", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -377,7 +377,7 @@ func TestAnalytics_Integration(t *testing.T) {
 
 	t.Run("get dashboard analytics", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/analytics/dashboard", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
@@ -393,7 +393,7 @@ func TestActiveGroups_Integration(t *testing.T) {
 
 	t.Run("list active groups", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/groups", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
@@ -403,21 +403,21 @@ func TestActiveGroups_Integration(t *testing.T) {
 
 	t.Run("list active groups with active filter", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/groups?active=true", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("list active groups with inactive filter", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/groups?active=false", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("list active groups with is_active filter and relations", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/groups?is_active=true", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
@@ -429,7 +429,7 @@ func TestActiveGroups_Integration(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/groups/%d", activeGroup.ID), nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
@@ -440,14 +440,14 @@ func TestActiveGroups_Integration(t *testing.T) {
 
 	t.Run("get active group not found", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/groups/999999", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertNotFound(t, rr)
 	})
 
 	t.Run("get active group invalid id", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/groups/invalid", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -459,14 +459,14 @@ func TestActiveGroups_Integration(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/groups/room/%d", room.ID), nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("get active groups by room invalid id", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/groups/room/invalid", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -478,14 +478,14 @@ func TestActiveGroups_Integration(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/groups/group/%d", activityGroup.ID), nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("get active groups by group invalid id", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/groups/group/invalid", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -497,14 +497,14 @@ func TestActiveGroups_Integration(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/groups/%d/visits", activeGroup.ID), nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("get active group visits invalid id", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/groups/invalid/visits", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -516,14 +516,14 @@ func TestActiveGroups_Integration(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/groups/%d/supervisors", activeGroup.ID), nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("get active group supervisors invalid id", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/groups/invalid/supervisors", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -547,7 +547,7 @@ func TestActiveGroups_Integration(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/groups/%d/visits/display", activeGroup.ID), nil)
-		rr := executeWithAuth(t, router, req, staffClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, staffClaims, []string{permissions.GroupsRead})
 
 		// May succeed or fail based on staff context, but exercises the code path
 		assert.True(t, rr.Code == http.StatusOK || rr.Code == http.StatusUnauthorized || rr.Code == http.StatusForbidden,
@@ -556,7 +556,7 @@ func TestActiveGroups_Integration(t *testing.T) {
 
 	t.Run("get active group visits with display - invalid id", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/groups/invalid/visits/display", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -573,14 +573,14 @@ func TestActiveGroups_Integration(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/active/groups", body)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsCreate})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsCreate})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 	})
 
 	t.Run("create active group invalid request", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "POST", "/active/groups", map[string]interface{}{})
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsCreate})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsCreate})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -598,14 +598,14 @@ func TestActiveGroups_Integration(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/active/groups/%d", activeGroup.ID), body)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("update active group invalid id", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "PUT", "/active/groups/invalid", map[string]interface{}{})
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -617,7 +617,7 @@ func TestActiveGroups_Integration(t *testing.T) {
 			"start_time": time.Now().Format(time.RFC3339),
 		}
 		req := testutil.NewJSONRequest(t, "PUT", "/active/groups/999999", body)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
 
 		testutil.AssertNotFound(t, rr)
 	})
@@ -629,14 +629,14 @@ func TestActiveGroups_Integration(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID)
 
 		req := testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/active/groups/%d", activeGroup.ID), nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsDelete})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsDelete})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("delete active group invalid id", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "DELETE", "/active/groups/invalid", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsDelete})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsDelete})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -648,14 +648,14 @@ func TestActiveGroups_Integration(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID)
 
 		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/active/groups/%d/end", activeGroup.ID), nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("end active group invalid id", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "POST", "/active/groups/invalid/end", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -671,7 +671,7 @@ func TestVisits_Integration(t *testing.T) {
 
 	t.Run("list visits", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/visits", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
@@ -681,14 +681,14 @@ func TestVisits_Integration(t *testing.T) {
 
 	t.Run("list visits with active filter", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/visits?active=true", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("list visits with inactive filter", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/visits?active=false", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
@@ -702,7 +702,7 @@ func TestVisits_Integration(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID, student.ID, visit.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/visits/%d", visit.ID), nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
@@ -713,14 +713,14 @@ func TestVisits_Integration(t *testing.T) {
 
 	t.Run("get visit not found", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/visits/999999", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertNotFound(t, rr)
 	})
 
 	t.Run("get visit invalid id", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/visits/invalid", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -734,14 +734,14 @@ func TestVisits_Integration(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID, student.ID, visit.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/visits/student/%d", student.ID), nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("get student visits invalid id", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/visits/student/invalid", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -751,7 +751,7 @@ func TestVisits_Integration(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/visits/student/%d/current", student.ID), nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		// Either success with null data or not found is acceptable
 		assert.True(t, rr.Code == http.StatusOK || rr.Code == http.StatusNotFound,
@@ -767,14 +767,14 @@ func TestVisits_Integration(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID, student.ID, visit.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/visits/student/%d/current", student.ID), nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("get student current visit invalid id", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/visits/student/invalid/current", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -794,14 +794,14 @@ func TestVisits_Integration(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/active/visits/%d", visit.ID), body)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("update visit invalid id", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "PUT", "/active/visits/invalid", map[string]interface{}{})
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -813,7 +813,7 @@ func TestVisits_Integration(t *testing.T) {
 			"check_in_time":   time.Now().Format(time.RFC3339),
 		}
 		req := testutil.NewJSONRequest(t, "PUT", "/active/visits/999999", body)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
 
 		testutil.AssertNotFound(t, rr)
 	})
@@ -827,14 +827,14 @@ func TestVisits_Integration(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID, student.ID)
 
 		req := testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/active/visits/%d", visit.ID), nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsDelete})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsDelete})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("delete visit invalid id", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "DELETE", "/active/visits/invalid", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsDelete})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsDelete})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -848,14 +848,14 @@ func TestVisits_Integration(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID, student.ID, visit.ID)
 
 		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/active/visits/%d/end", visit.ID), nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("end visit invalid id", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "POST", "/active/visits/invalid/end", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -871,7 +871,7 @@ func TestSupervisors_Integration(t *testing.T) {
 
 	t.Run("list supervisors", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/supervisors", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
@@ -883,7 +883,7 @@ func TestSupervisors_Integration(t *testing.T) {
 		// Note: The active filter uses is_active column which may not exist
 		// This test verifies the code path is exercised
 		req := testutil.NewJSONRequest(t, "GET", "/active/supervisors?active=1", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		// Accept either success or error (filter column may not exist in schema)
 		assert.True(t, rr.Code == http.StatusOK || rr.Code == http.StatusInternalServerError,
@@ -899,21 +899,21 @@ func TestSupervisors_Integration(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID, staff.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/supervisors/%d", supervisor.ID), nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("get supervisor not found", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/supervisors/999999", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertNotFound(t, rr)
 	})
 
 	t.Run("get supervisor invalid id", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/supervisors/invalid", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -927,14 +927,14 @@ func TestSupervisors_Integration(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID, staff.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/supervisors/staff/%d", staff.ID), nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("get staff supervisions invalid id", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/supervisors/staff/invalid", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -948,14 +948,14 @@ func TestSupervisors_Integration(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID, staff.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/supervisors/staff/%d/active", staff.ID), nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("get staff active supervisions invalid id", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/active/supervisors/staff/invalid/active", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -974,14 +974,14 @@ func TestSupervisors_Integration(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/active/supervisors", body)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsAssign})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsAssign})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 	})
 
 	t.Run("create supervisor invalid request", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "POST", "/active/supervisors", map[string]interface{}{})
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsAssign})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsAssign})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -1001,14 +1001,14 @@ func TestSupervisors_Integration(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/active/supervisors/%d", supervisor.ID), body)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsAssign})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsAssign})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("update supervisor invalid id", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "PUT", "/active/supervisors/invalid", map[string]interface{}{})
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsAssign})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsAssign})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -1020,7 +1020,7 @@ func TestSupervisors_Integration(t *testing.T) {
 			"start_time":      time.Now().Format(time.RFC3339),
 		}
 		req := testutil.NewJSONRequest(t, "PUT", "/active/supervisors/999999", body)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsAssign})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsAssign})
 
 		testutil.AssertNotFound(t, rr)
 	})
@@ -1034,14 +1034,14 @@ func TestSupervisors_Integration(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID, staff.ID)
 
 		req := testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/active/supervisors/%d", supervisor.ID), nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsAssign})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsAssign})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("delete supervisor invalid id", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "DELETE", "/active/supervisors/invalid", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsAssign})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsAssign})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -1055,14 +1055,14 @@ func TestSupervisors_Integration(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID, staff.ID)
 
 		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/active/supervisors/%d/end", supervisor.ID), nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 	})
 
 	t.Run("end supervision invalid id", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "POST", "/active/supervisors/invalid/end", nil)
-		rr := executeWithAuth(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
 
 		testutil.AssertBadRequest(t, rr)
 	})

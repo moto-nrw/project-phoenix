@@ -7,7 +7,6 @@ package groups_test
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"testing"
 	"time"
@@ -20,7 +19,6 @@ import (
 	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -54,7 +52,6 @@ func newReq(t *testing.T, method, target string, body interface{}, claims jwt.Ap
 type testContext struct {
 	db       *bun.DB
 	services *services.Factory
-	repos    *repositories.Factory
 	resource *groupsAPI.Resource
 }
 
@@ -62,11 +59,7 @@ type testContext struct {
 func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
-	db := testpkg.SetupTestDB(t)
-
-	repoFactory := repositories.NewFactory(db)
-	svc, err := services.NewFactory(repoFactory, db, slog.Default())
-	require.NoError(t, err, "Failed to create service factory")
+	db, svc := testutil.SetupAPITest(t)
 
 	// Groups resource requires multiple services and repositories
 	resource := groupsAPI.NewResource(
@@ -86,7 +79,6 @@ func setupTestContext(t *testing.T) *testContext {
 	return &testContext{
 		db:       db,
 		services: svc,
-		repos:    repoFactory,
 		resource: resource,
 	}
 }

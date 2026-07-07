@@ -54,7 +54,7 @@ func TestValidateAttendancePatch_CrossFieldRule(t *testing.T) {
 			name:    "expected + new substatus without status change → reject",
 			current: &schedule.InstanceStudent{Status: schedule.AttendanceStatusExpected},
 			patch: schedule.AttendanceFieldPatch{
-				Substatus: strPtr(schedule.AttendanceSubstatusLate),
+				Substatus: testpkg.StrPtr(schedule.AttendanceSubstatusLate),
 			},
 			wantErrField: "substatus",
 		},
@@ -62,8 +62,8 @@ func TestValidateAttendancePatch_CrossFieldRule(t *testing.T) {
 			name:    "expected → present + substatus → ok",
 			current: &schedule.InstanceStudent{Status: schedule.AttendanceStatusExpected},
 			patch: schedule.AttendanceFieldPatch{
-				Status:    strPtr(schedule.AttendanceStatusPresent),
-				Substatus: strPtr(schedule.AttendanceSubstatusLate),
+				Status:    testpkg.StrPtr(schedule.AttendanceStatusPresent),
+				Substatus: testpkg.StrPtr(schedule.AttendanceSubstatusLate),
 			},
 			wantOK: true,
 		},
@@ -71,8 +71,8 @@ func TestValidateAttendancePatch_CrossFieldRule(t *testing.T) {
 			name:    "expected → absent + substatus → ok",
 			current: &schedule.InstanceStudent{Status: schedule.AttendanceStatusExpected},
 			patch: schedule.AttendanceFieldPatch{
-				Status:    strPtr(schedule.AttendanceStatusAbsent),
-				Substatus: strPtr(schedule.AttendanceSubstatusSick),
+				Status:    testpkg.StrPtr(schedule.AttendanceStatusAbsent),
+				Substatus: testpkg.StrPtr(schedule.AttendanceSubstatusSick),
 			},
 			wantOK: true,
 		},
@@ -80,7 +80,7 @@ func TestValidateAttendancePatch_CrossFieldRule(t *testing.T) {
 			name:    "present + substatus → ok (status unchanged)",
 			current: &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent},
 			patch: schedule.AttendanceFieldPatch{
-				Substatus: strPtr(schedule.AttendanceSubstatusLate),
+				Substatus: testpkg.StrPtr(schedule.AttendanceSubstatusLate),
 			},
 			wantOK: true,
 		},
@@ -88,7 +88,7 @@ func TestValidateAttendancePatch_CrossFieldRule(t *testing.T) {
 			name:    "present → expected with substatus still set → reject",
 			current: &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent, Substatus: &excused},
 			patch: schedule.AttendanceFieldPatch{
-				Status: strPtr(schedule.AttendanceStatusExpected),
+				Status: testpkg.StrPtr(schedule.AttendanceStatusExpected),
 			},
 			wantErrField: "substatus",
 		},
@@ -96,7 +96,7 @@ func TestValidateAttendancePatch_CrossFieldRule(t *testing.T) {
 			name:    "present → expected clearing substatus → ok",
 			current: &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent, Substatus: &excused},
 			patch: schedule.AttendanceFieldPatch{
-				Status:         strPtr(schedule.AttendanceStatusExpected),
+				Status:         testpkg.StrPtr(schedule.AttendanceStatusExpected),
 				SubstatusClear: true,
 			},
 			wantOK: true,
@@ -127,13 +127,13 @@ func TestValidateAttendancePatch_PerFieldErrors(t *testing.T) {
 	cur := &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent}
 
 	t.Run("invalid status", func(t *testing.T) {
-		errs := validateAttendancePatch(schedule.AttendanceFieldPatch{Status: strPtr("ghost")}, cur)
+		errs := validateAttendancePatch(schedule.AttendanceFieldPatch{Status: testpkg.StrPtr("ghost")}, cur)
 		require.Len(t, errs, 1)
 		assert.Equal(t, "status", errs[0].Field)
 	})
 
 	t.Run("invalid substatus", func(t *testing.T) {
-		errs := validateAttendancePatch(schedule.AttendanceFieldPatch{Substatus: strPtr("banana")}, cur)
+		errs := validateAttendancePatch(schedule.AttendanceFieldPatch{Substatus: testpkg.StrPtr("banana")}, cur)
 		require.Len(t, errs, 1)
 		assert.Equal(t, "substatus", errs[0].Field)
 	})
@@ -148,7 +148,7 @@ func TestValidateAttendancePatch_PerFieldErrors(t *testing.T) {
 	t.Run("two per-field errors returned together", func(t *testing.T) {
 		tooLong := strings.Repeat("y", schedule.InstanceStudentNoteMaxLength+1)
 		errs := validateAttendancePatch(schedule.AttendanceFieldPatch{
-			Status: strPtr("ghost"),
+			Status: testpkg.StrPtr("ghost"),
 			Note:   &tooLong,
 		}, cur)
 		require.Len(t, errs, 2)
@@ -390,7 +390,7 @@ func TestPatchInstanceStudent_400_SubstatusOnExpected(t *testing.T) {
 	s := buildPatchSetup(t)
 	// Move the row into expected so the cross-field rule fires.
 	require.NoError(t, scheduleRepo.NewInstanceStudentRepository(s.db).UpdateAttendanceFields(s.ctx, s.row.ID, schedule.AttendanceFieldPatch{
-		Status: strPtr(schedule.AttendanceStatusExpected),
+		Status: testpkg.StrPtr(schedule.AttendanceStatusExpected),
 	}))
 	router := patchRouter(testpkg.TenantContext(1), s.res)
 
@@ -421,6 +421,3 @@ func TestPatchInstanceStudent_404_TenantIsolation(t *testing.T) {
 	})
 	assert.Equal(t, http.StatusNotFound, w.Code, "wrong tenant must be 404, not 403")
 }
-
-// strPtr is a tiny helper so test tables stay compact.
-func strPtr(s string) *string { return &s }

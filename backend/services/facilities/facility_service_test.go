@@ -232,7 +232,7 @@ func TestFacilitiesService_CreateRoom(t *testing.T) {
 		room := &facilities.Room{
 			Name:     "CreateRoom-Success-" + time.Now().Format("20060102150405.000"),
 			Building: "Building A",
-			Floor:    intPtr(1),
+			Floor:    testpkg.IntPtr(1),
 			Capacity: &capacity,
 			Category: &category,
 		}
@@ -1057,9 +1057,4 @@ func TestFacilitiesService_GetRoomHistory(t *testing.T) {
 		assert.Equal(t, "HistoryGroup", entry.ActivityName)
 		assert.Equal(t, 1, entry.StudentCount, "distinct student count must only include visits overlapping the requested window")
 	})
-}
-
-// Helper function to create int pointer
-func intPtr(i int) *int {
-	return &i
 }

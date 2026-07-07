@@ -36,7 +36,7 @@ func TestRolePermissionRepository_Create(t *testing.T) {
 	t.Run("creates role permission mapping", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "test_rp_create_role")
 		permission := testpkg.CreateTestPermission(t, db, "TestRPCreate", "rp_create", "read")
-		defer cleanupRoleRecords(t, db, role.ID)
+		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 		defer cleanupPermissionByID(t, db, permission.ID)
 
 		rp := &auth.RolePermission{
@@ -72,7 +72,7 @@ func TestRolePermissionRepository_Create(t *testing.T) {
 
 	t.Run("rejects invalid role permission - missing permission ID", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "test_rp_noperm_role")
-		defer cleanupRoleRecords(t, db, role.ID)
+		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 
 		rp := &auth.RolePermission{
 			RoleID:       role.ID,
@@ -95,7 +95,7 @@ func TestRolePermissionRepository_FindByRoleID(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "test_rp_find_by_role")
 		permission1 := testpkg.CreateTestPermission(t, db, "RPFindRole1", "rp_findrole1", "read")
 		permission2 := testpkg.CreateTestPermission(t, db, "RPFindRole2", "rp_findrole2", "write")
-		defer cleanupRoleRecords(t, db, role.ID)
+		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 		defer cleanupPermissionByID(t, db, permission1.ID)
 		defer cleanupPermissionByID(t, db, permission2.ID)
 
@@ -113,7 +113,7 @@ func TestRolePermissionRepository_FindByRoleID(t *testing.T) {
 
 	t.Run("returns empty slice for role with no permissions", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "test_rp_empty_role")
-		defer cleanupRoleRecords(t, db, role.ID)
+		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 
 		perms, err := repo.FindByRoleID(ctx, role.ID)
 		require.NoError(t, err)
@@ -132,7 +132,7 @@ func TestRolePermissionRepository_Update(t *testing.T) {
 		role1 := testpkg.CreateTestRole(t, db, "test_rp_update_role1")
 		role2 := testpkg.CreateTestRole(t, db, "test_rp_update_role2")
 		permission := testpkg.CreateTestPermission(t, db, "RPUpdate", "rp_update", "write")
-		defer cleanupRoleRecords(t, db, role1.ID, role2.ID)
+		defer testpkg.CleanupRoleRecords(t, db, role1.ID, role2.ID)
 		defer cleanupPermissionByID(t, db, permission.ID)
 
 		// Create initial mapping
@@ -179,7 +179,7 @@ func TestRolePermissionRepository_DeleteByRoleID(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "test_rp_delete_by_role")
 		permission1 := testpkg.CreateTestPermission(t, db, "RPDeleteByRole1", "rp_deletebyrole1", "read")
 		permission2 := testpkg.CreateTestPermission(t, db, "RPDeleteByRole2", "rp_deletebyrole2", "write")
-		defer cleanupRoleRecords(t, db, role.ID)
+		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 		defer cleanupPermissionByID(t, db, permission1.ID)
 		defer cleanupPermissionByID(t, db, permission2.ID)
 
@@ -206,7 +206,7 @@ func TestRolePermissionRepository_DeleteByRoleID(t *testing.T) {
 
 	t.Run("does not error when role has no permissions", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "test_rp_delete_empty_role")
-		defer cleanupRoleRecords(t, db, role.ID)
+		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 
 		err := repo.DeleteByRoleID(ctx, role.ID)
 		require.NoError(t, err)
@@ -224,7 +224,7 @@ func TestRolePermissionRepository_DeleteByPermissionID(t *testing.T) {
 		role1 := testpkg.CreateTestRole(t, db, "test_rp_delete_by_perm1")
 		role2 := testpkg.CreateTestRole(t, db, "test_rp_delete_by_perm2")
 		permission := testpkg.CreateTestPermission(t, db, "RPDeleteByPerm", "rp_deletebyperm", "admin")
-		defer cleanupRoleRecords(t, db, role1.ID, role2.ID)
+		defer testpkg.CleanupRoleRecords(t, db, role1.ID, role2.ID)
 		defer cleanupPermissionByID(t, db, permission.ID)
 
 		// Create mappings
@@ -267,7 +267,7 @@ func TestRolePermissionRepository_List(t *testing.T) {
 	t.Run("lists all role permissions", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "test_rp_list")
 		permission := testpkg.CreateTestPermission(t, db, "RPList", "rp_list", "read")
-		defer cleanupRoleRecords(t, db, role.ID)
+		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 		defer cleanupPermissionByID(t, db, permission.ID)
 
 		rp := &auth.RolePermission{RoleID: role.ID, PermissionID: permission.ID}
@@ -281,7 +281,7 @@ func TestRolePermissionRepository_List(t *testing.T) {
 	t.Run("filters by role_id", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "test_rp_list_by_role")
 		permission := testpkg.CreateTestPermission(t, db, "RPListByRole", "rp_listbyrole", "write")
-		defer cleanupRoleRecords(t, db, role.ID)
+		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 		defer cleanupPermissionByID(t, db, permission.ID)
 
 		rp := &auth.RolePermission{RoleID: role.ID, PermissionID: permission.ID}
@@ -300,7 +300,7 @@ func TestRolePermissionRepository_List(t *testing.T) {
 	t.Run("filters by permission_id", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, db, "test_rp_list_by_perm")
 		permission := testpkg.CreateTestPermission(t, db, "RPListByPerm", "rp_listbyperm", "execute")
-		defer cleanupRoleRecords(t, db, role.ID)
+		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 		defer cleanupPermissionByID(t, db, permission.ID)
 
 		rp := &auth.RolePermission{RoleID: role.ID, PermissionID: permission.ID}

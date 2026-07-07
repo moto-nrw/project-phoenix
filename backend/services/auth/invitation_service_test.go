@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -25,7 +27,7 @@ import (
 // This is NOT a real secret - it's only used with mocked services in tests.
 const testStrongCredential = "Str0ngP@ssword!" //nolint:gosec // Test-only constant, not a real credential
 
-func newInvitationTestEnv(t *testing.T) (InvitationService, *stubInvitationTokenRepository, *stubAccountRepository, *stubRoleRepository, *stubAccountRoleRepository, *stubPersonRepository, *capturingMailer, sqlmock.Sqlmock, func()) {
+func newInvitationTestEnv(t *testing.T) (InvitationService, *stubInvitationTokenRepository, *stubAccountRepository, *stubRoleRepository, *stubAccountRoleRepository, *stubPersonRepository, *testpkg.CapturingMailer, sqlmock.Sqlmock, func()) {
 	service, invitations, accounts, roles, accountRoles, persons, _, mock, cleanup := newInvitationTestEnvWithMailer(t, nil)
 	return service, invitations, accounts, roles, accountRoles, persons, nil, mock, cleanup
 }
@@ -77,10 +79,6 @@ func newInvitationTestEnvWithMailer(t *testing.T, mailer email.Mailer) (Invitati
 	return service, invitationRepo, accountRepo, roleRepo, accountRoleRepo, personRepo, mailer, mock, cleanup
 }
 
-func strPtr(s string) *string {
-	return &s
-}
-
 func expectAdminTx(mock sqlmock.Sqlmock) {
 	mock.ExpectBegin()
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
@@ -94,9 +92,9 @@ func expectAdminTxRollback(mock sqlmock.Sqlmock) {
 }
 
 func TestCreateInvitationSuccess(t *testing.T) {
-	service, invitations, _, _, _, _, rawMailer, mock, cleanup := newInvitationTestEnvWithMailer(t, newCapturingMailer())
+	service, invitations, _, _, _, _, rawMailer, mock, cleanup := newInvitationTestEnvWithMailer(t, testpkg.NewCapturingMailer())
 	t.Cleanup(cleanup)
-	mailer, ok := rawMailer.(*capturingMailer)
+	mailer, ok := rawMailer.(*testpkg.CapturingMailer)
 	require.True(t, ok)
 
 	ctx := context.Background()
@@ -104,8 +102,8 @@ func TestCreateInvitationSuccess(t *testing.T) {
 		Email:     "NewUser@example.com ",
 		RoleID:    2,
 		CreatedBy: 42,
-		FirstName: strPtr("Ada"),
-		LastName:  strPtr("Lovelace"),
+		FirstName: testpkg.StrPtr("Ada"),
+		LastName:  testpkg.StrPtr("Lovelace"),
 	}
 
 	expectAdminTx(mock)
@@ -260,8 +258,8 @@ func TestValidateInvitationReturnsDetails(t *testing.T) {
 		RoleID:    2,
 		CreatedBy: nullableCreatedBy(1),
 		ExpiresAt: time.Now().Add(12 * time.Hour),
-		FirstName: strPtr("Grace"),
-		LastName:  strPtr("Hopper"),
+		FirstName: testpkg.StrPtr("Grace"),
+		LastName:  testpkg.StrPtr("Hopper"),
 	}
 	require.NoError(t, invitations.Create(ctx, token))
 
@@ -410,9 +408,9 @@ func TestAcceptInvitationWeakPassword(t *testing.T) {
 }
 
 func TestResendInvitationSendsEmail(t *testing.T) {
-	service, invitations, _, _, _, _, rawMailer, mock, cleanup := newInvitationTestEnvWithMailer(t, newCapturingMailer())
+	service, invitations, _, _, _, _, rawMailer, mock, cleanup := newInvitationTestEnvWithMailer(t, testpkg.NewCapturingMailer())
 	t.Cleanup(cleanup)
-	mailer, ok := rawMailer.(*capturingMailer)
+	mailer, ok := rawMailer.(*testpkg.CapturingMailer)
 	require.True(t, ok)
 
 	ctx := context.Background()
@@ -936,8 +934,8 @@ func TestAcceptInvitationUsesInvitationNameFallback(t *testing.T) {
 		Email:     "fallback@example.com",
 		Token:     "fallback-name-token",
 		RoleID:    2,
-		FirstName: strPtr("Invite"),
-		LastName:  strPtr("Name"),
+		FirstName: testpkg.StrPtr("Invite"),
+		LastName:  testpkg.StrPtr("Name"),
 		ExpiresAt: time.Now().Add(10 * time.Hour),
 	}
 	token.SetTenantID(5)
@@ -1183,9 +1181,9 @@ func TestInvitationHelpersCoverFallbacks(t *testing.T) {
 	invitation := svc.buildInvitationToken("name@example.com", InvitationRequest{
 		Email:     "name@example.com",
 		RoleID:    1,
-		FirstName: strPtr(" Ada "),
-		LastName:  strPtr(" Lovelace "),
-		Position:  strPtr(" Leitung "),
+		FirstName: testpkg.StrPtr(" Ada "),
+		LastName:  testpkg.StrPtr(" Lovelace "),
+		Position:  testpkg.StrPtr(" Leitung "),
 	})
 	require.Equal(t, "Ada", *invitation.FirstName)
 	require.Equal(t, "Lovelace", *invitation.LastName)

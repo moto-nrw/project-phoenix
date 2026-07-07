@@ -15,17 +15,14 @@ import (
 
 	sseAPI "github.com/moto-nrw/project-phoenix/api/sse"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // testContext holds shared test dependencies.
 type testContext struct {
 	db       *bun.DB
 	services *services.Factory
-	repos    *repositories.Factory
 	hub      *realtime.Hub
 	resource *sseAPI.Resource
 }
@@ -34,12 +31,7 @@ type testContext struct {
 func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
-	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
-	svc, err := services.NewFactory(repos, db, slog.Default())
-	if err != nil {
-		t.Fatalf("Failed to create services factory: %v", err)
-	}
+	db, svc := testutil.SetupAPITest(t)
 
 	// Create realtime hub
 	hub := realtime.NewHub(slog.Default())
@@ -58,7 +50,6 @@ func setupTestContext(t *testing.T) *testContext {
 	return &testContext{
 		db:       db,
 		services: svc,
-		repos:    repos,
 		hub:      hub,
 		resource: resource,
 	}

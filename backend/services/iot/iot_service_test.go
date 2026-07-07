@@ -42,7 +42,7 @@ func TestIoTService_CreateDevice(t *testing.T) {
 		device := &iotModels.Device{
 			DeviceID:   fmt.Sprintf("test-device-%d", time.Now().UnixNano()),
 			DeviceType: "terminal",
-			Name:       stringPtr("Test Device"),
+			Name:       testpkg.StrPtr("Test Device"),
 		}
 
 		// ACT
@@ -1036,7 +1036,7 @@ func TestIoTService_WebManualDeviceProtection(t *testing.T) {
 		device := &iotModels.Device{
 			DeviceID:   fmt.Sprintf("tenant-virtual-%s-%d", suffix, time.Now().UnixNano()),
 			DeviceType: iotModels.DeviceTypeVirtual,
-			Name:       stringPtr("Tenant Virtual Device"),
+			Name:       testpkg.StrPtr("Tenant Virtual Device"),
 		}
 
 		err := service.CreateDevice(ctx, device)
@@ -1056,7 +1056,7 @@ func TestIoTService_WebManualDeviceProtection(t *testing.T) {
 	})
 
 	t.Run("UpdateDevice rejects reserved web manual device", func(t *testing.T) {
-		webManualDevice.Name = stringPtr("Hacked Name")
+		webManualDevice.Name = testpkg.StrPtr("Hacked Name")
 
 		err := service.UpdateDevice(ctx, webManualDevice)
 
@@ -1073,7 +1073,7 @@ func TestIoTService_WebManualDeviceProtection(t *testing.T) {
 
 	t.Run("UpdateDevice allows tenant-managed virtual devices", func(t *testing.T) {
 		virtualDevice := createTenantVirtualDevice(t, "update")
-		virtualDevice.Name = stringPtr("Updated Tenant Virtual Device")
+		virtualDevice.Name = testpkg.StrPtr("Updated Tenant Virtual Device")
 
 		err := service.UpdateDevice(ctx, virtualDevice)
 		require.NoError(t, err)
@@ -1169,9 +1169,4 @@ func TestIoTService_WebManualDeviceProtection(t *testing.T) {
 		_, hasExclude := filters["exclude_device_id"]
 		assert.False(t, hasExclude, "caller's filter map should not be mutated")
 	})
-}
-
-// Helper function for string pointers
-func stringPtr(s string) *string {
-	return &s
 }

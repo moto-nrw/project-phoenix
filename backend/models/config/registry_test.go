@@ -3,6 +3,8 @@ package config_test
 import (
 	"testing"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -221,7 +223,7 @@ func TestValidate_InvalidPattern(t *testing.T) {
 		Type:       config.FieldPassword,
 		Tab:        "security",
 		Category:   "auth",
-		Validation: &config.ValidationRules{Pattern: strPtr("[invalid(regex")},
+		Validation: &config.ValidationRules{Pattern: testpkg.StrPtr("[invalid(regex")},
 	}
 	err := def.Validate()
 	require.Error(t, err)
@@ -234,7 +236,7 @@ func TestValidate_ValidPattern(t *testing.T) {
 		Type:       config.FieldPassword,
 		Tab:        "security",
 		Category:   "auth",
-		Validation: &config.ValidationRules{Pattern: strPtr(`^\d{4}$`)},
+		Validation: &config.ValidationRules{Pattern: testpkg.StrPtr(`^\d{4}$`)},
 	}
 	err := def.Validate()
 	require.NoError(t, err)
@@ -296,5 +298,3 @@ func TestAllDefinitions_DeepCopy(t *testing.T) {
 	orig := config.GetDefinition("test.copy")
 	assert.Equal(t, "Test Setting", orig.Label)
 }
-
-func strPtr(s string) *string { return &s }

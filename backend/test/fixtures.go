@@ -179,7 +179,7 @@ func CreateTestRoom(tb testing.TB, db *bun.DB, name string) *facilities.Room {
 	room := &facilities.Room{
 		Name:     uniqueName,
 		Building: "Test Building",
-		Capacity: intPtr(30),
+		Capacity: IntPtr(30),
 	}
 	room.SetTenantID(1)
 
@@ -205,9 +205,9 @@ func CreateTestDevice(tb testing.TB, db *bun.DB, deviceID string) *iot.Device {
 	device := &iot.Device{
 		DeviceID:   uniqueDeviceID,
 		DeviceType: "terminal",
-		Name:       stringPtr("Test Device"),
+		Name:       StrPtr("Test Device"),
 		Status:     iot.DeviceStatusActive,
-		APIKey:     stringPtr("test-api-key-" + uniqueDeviceID),
+		APIKey:     StrPtr("test-api-key-" + uniqueDeviceID),
 	}
 	device.SetTenantID(1)
 
@@ -232,7 +232,7 @@ func EnsureWebManualDevice(tb testing.TB, db *bun.DB) *iot.Device {
 	device := &iot.Device{
 		DeviceID:   iot.WebManualDeviceID,
 		DeviceType: iot.DeviceTypeVirtual,
-		Name:       stringPtr("Web-Portal (Manuell)"),
+		Name:       StrPtr("Web-Portal (Manuell)"),
 		Status:     iot.DeviceStatusActive,
 	}
 	device.SetTenantID(1)
@@ -930,15 +930,6 @@ func CreateTestGroupSupervisor(tb testing.TB, db *bun.DB, staffID, activeGroupID
 	return supervisor
 }
 
-// Helper functions for pointer creation
-func stringPtr(s string) *string {
-	return &s
-}
-
-func intPtr(i int) *int {
-	return &i
-}
-
 // CleanupPerson removes a person from the database by ID.
 func CleanupPerson(tb testing.TB, db *bun.DB, personID int64) {
 	tb.Helper()
@@ -954,6 +945,64 @@ func CleanupAccount(tb testing.TB, db *bun.DB, accountID int64) {
 	tb.Helper()
 
 	CleanupAuthFixtures(tb, db, accountID)
+}
+
+// CleanupRoleRecords removes roles and their role-permission/account-role associations.
+// Deliberately separate from CleanupAccount, which never deletes by role ID.
+func CleanupRoleRecords(tb testing.TB, db *bun.DB, roleIDs ...int64) {
+	tb.Helper()
+	if len(roleIDs) == 0 {
+		return
+	}
+
+	ctx := TenantContext(1)
+
+	_, _ = db.NewDelete().
+		TableExpr("auth.role_permissions").
+		Where("role_id IN (?)", bun.List(roleIDs)).
+		Exec(ctx)
+
+	_, _ = db.NewDelete().
+		TableExpr("auth.account_roles").
+		Where("role_id IN (?)", bun.List(roleIDs)).
+		Exec(ctx)
+
+	_, err := db.NewDelete().
+		TableExpr("auth.roles").
+		Where("id IN (?)", bun.List(roleIDs)).
+		Exec(ctx)
+	if err != nil {
+		tb.Logf("Warning: failed to cleanup roles: %v", err)
+	}
+}
+
+// CleanupPermissionRecords removes permissions and their role/account associations.
+// Deliberately separate from CleanupAccount, which never deletes by permission ID.
+func CleanupPermissionRecords(tb testing.TB, db *bun.DB, permissionIDs ...int64) {
+	tb.Helper()
+	if len(permissionIDs) == 0 {
+		return
+	}
+
+	ctx := TenantContext(1)
+
+	_, _ = db.NewDelete().
+		TableExpr("auth.role_permissions").
+		Where("permission_id IN (?)", bun.List(permissionIDs)).
+		Exec(ctx)
+
+	_, _ = db.NewDelete().
+		TableExpr("auth.account_permissions").
+		Where("permission_id IN (?)", bun.List(permissionIDs)).
+		Exec(ctx)
+
+	_, err := db.NewDelete().
+		TableExpr("auth.permissions").
+		Where("id IN (?)", bun.List(permissionIDs)).
+		Exec(ctx)
+	if err != nil {
+		tb.Logf("Warning: failed to cleanup permissions: %v", err)
+	}
 }
 
 // CleanupStaffFixtures removes staff fixtures from the database.
@@ -2114,7 +2163,7 @@ func CreateTestRoomForTenant(tb testing.TB, db *bun.DB, tenantID int64, name str
 	room := &facilities.Room{
 		Name:     uniqueName,
 		Building: "Test Building",
-		Capacity: intPtr(30),
+		Capacity: IntPtr(30),
 	}
 	room.SetTenantID(tenantID)
 
@@ -2192,9 +2241,9 @@ func CreateTestDeviceForTenant(tb testing.TB, db *bun.DB, tenantID int64, device
 	device := &iot.Device{
 		DeviceID:   uniqueDeviceID,
 		DeviceType: "terminal",
-		Name:       stringPtr("Test Device " + uniqueDeviceID),
+		Name:       StrPtr("Test Device " + uniqueDeviceID),
 		Status:     iot.DeviceStatusActive,
-		APIKey:     stringPtr("test-api-key-" + uniqueDeviceID),
+		APIKey:     StrPtr("test-api-key-" + uniqueDeviceID),
 	}
 	device.SetTenantID(tenantID)
 

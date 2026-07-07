@@ -18,11 +18,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// strPtr returns a pointer to the given string
-func strPtr(s string) *string {
-	return &s
-}
-
 // setupPickupScheduleService creates a PickupScheduleService with real database connection
 func setupPickupScheduleService(t *testing.T, db *bun.DB) schedule.PickupScheduleService {
 	repoFactory := repositories.NewFactory(db)
@@ -331,7 +326,7 @@ func TestPickupScheduleService_CreateStudentPickupException(t *testing.T) {
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
 			ExceptionDate: timezone.NewDate(2024, 3, 15),
-			Reason:        strPtr("Doctor appointment"),
+			Reason:        testpkg.StrPtr("Doctor appointment"),
 			CreatedBy:     createPickupServiceTestStaffID(t, db),
 		}
 
@@ -352,7 +347,7 @@ func TestPickupScheduleService_CreateStudentPickupException(t *testing.T) {
 			StudentID:     student.ID,
 			ExceptionDate: exceptionDate,
 			PickupTime:    &firstPickupTime,
-			Reason:        strPtr("First exception"),
+			Reason:        testpkg.StrPtr("First exception"),
 			CreatedBy:     createPickupServiceTestStaffID(t, db),
 		}
 		err := service.CreateStudentPickupException(ctx, exception1)
@@ -364,7 +359,7 @@ func TestPickupScheduleService_CreateStudentPickupException(t *testing.T) {
 			StudentID:     student.ID,
 			ExceptionDate: exceptionDate,
 			PickupTime:    &secondPickupTime,
-			Reason:        strPtr("Changed pickup"),
+			Reason:        testpkg.StrPtr("Changed pickup"),
 			CreatedBy:     createPickupServiceTestStaffID(t, db),
 		}
 
@@ -380,7 +375,7 @@ func TestPickupScheduleService_CreateStudentPickupException(t *testing.T) {
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     0,
 			ExceptionDate: timezone.NewDate(2024, 3, 15),
-			Reason:        strPtr("Test"),
+			Reason:        testpkg.StrPtr("Test"),
 			CreatedBy:     createPickupServiceTestStaffID(t, db),
 		}
 
@@ -407,7 +402,7 @@ func TestPickupScheduleService_GetStudentPickupExceptions(t *testing.T) {
 			exception := &scheduleModels.StudentPickupException{
 				StudentID:     student.ID,
 				ExceptionDate: baseDate.AddDays(i),
-				Reason:        strPtr("Exception"),
+				Reason:        testpkg.StrPtr("Exception"),
 				CreatedBy:     createPickupServiceTestStaffID(t, db),
 			}
 			err := service.CreateStudentPickupException(ctx, exception)
@@ -439,7 +434,7 @@ func TestPickupScheduleService_GetUpcomingStudentPickupExceptions(t *testing.T) 
 			exception := &scheduleModels.StudentPickupException{
 				StudentID:     student.ID,
 				ExceptionDate: baseDate.AddDays(i),
-				Reason:        strPtr("Past"),
+				Reason:        testpkg.StrPtr("Past"),
 				CreatedBy:     createPickupServiceTestStaffID(t, db),
 			}
 			err := service.CreateStudentPickupException(ctx, exception)
@@ -450,7 +445,7 @@ func TestPickupScheduleService_GetUpcomingStudentPickupExceptions(t *testing.T) 
 			exception := &scheduleModels.StudentPickupException{
 				StudentID:     student.ID,
 				ExceptionDate: baseDate.AddDays(i),
-				Reason:        strPtr("Future"),
+				Reason:        testpkg.StrPtr("Future"),
 				CreatedBy:     createPickupServiceTestStaffID(t, db),
 			}
 			err := service.CreateStudentPickupException(ctx, exception)
@@ -481,13 +476,13 @@ func TestPickupScheduleService_UpdateStudentPickupException(t *testing.T) {
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
 			ExceptionDate: timezone.NewDate(2024, 4, 1),
-			Reason:        strPtr("Original reason"),
+			Reason:        testpkg.StrPtr("Original reason"),
 			CreatedBy:     createPickupServiceTestStaffID(t, db),
 		}
 		err := service.CreateStudentPickupException(ctx, exception)
 		require.NoError(t, err)
 
-		exception.Reason = strPtr("Updated reason")
+		exception.Reason = testpkg.StrPtr("Updated reason")
 
 		err = service.UpdateStudentPickupException(ctx, exception)
 
@@ -514,7 +509,7 @@ func TestPickupScheduleService_DeleteStudentPickupException(t *testing.T) {
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
 			ExceptionDate: timezone.NewDate(2024, 5, 1),
-			Reason:        strPtr("Test"),
+			Reason:        testpkg.StrPtr("Test"),
 			CreatedBy:     createPickupServiceTestStaffID(t, db),
 		}
 		err := service.CreateStudentPickupException(ctx, exception)
@@ -547,7 +542,7 @@ func TestPickupScheduleService_DeleteAllStudentPickupExceptions(t *testing.T) {
 			exception := &scheduleModels.StudentPickupException{
 				StudentID:     student.ID,
 				ExceptionDate: baseDate.AddDays(i),
-				Reason:        strPtr("Exception"),
+				Reason:        testpkg.StrPtr("Exception"),
 				CreatedBy:     createPickupServiceTestStaffID(t, db),
 			}
 			err := service.CreateStudentPickupException(ctx, exception)
@@ -591,7 +586,7 @@ func TestPickupScheduleService_GetStudentPickupData(t *testing.T) {
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
 			ExceptionDate: timezone.TodayDate().AddDays(5),
-			Reason:        strPtr("Future exception"),
+			Reason:        testpkg.StrPtr("Future exception"),
 			CreatedBy:     createPickupServiceTestStaffID(t, db),
 		}
 		err = service.CreateStudentPickupException(ctx, exception)
@@ -636,7 +631,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 			StudentID:     student.ID,
 			ExceptionDate: testDate,
 			PickupTime:    &earlyTime,
-			Reason:        strPtr("Early pickup"),
+			Reason:        testpkg.StrPtr("Early pickup"),
 			CreatedBy:     createPickupServiceTestStaffID(t, db),
 		}
 		err = service.CreateStudentPickupException(ctx, exception)
@@ -814,7 +809,7 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 			StudentID:     student2.ID,
 			ExceptionDate: testDate,
 			PickupTime:    &earlyTime,
-			Reason:        strPtr("Doctor appointment"),
+			Reason:        testpkg.StrPtr("Doctor appointment"),
 			CreatedBy:     createPickupServiceTestStaffID(t, db),
 		}
 		err = service.CreateStudentPickupException(ctx, exception2)
@@ -824,7 +819,7 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 			StudentID:     student3.ID,
 			ExceptionDate: testDate,
 			PickupTime:    nil,
-			Reason:        strPtr("Sick"),
+			Reason:        testpkg.StrPtr("Sick"),
 			CreatedBy:     createPickupServiceTestStaffID(t, db),
 		}
 		err = service.CreateStudentPickupException(ctx, exception3)

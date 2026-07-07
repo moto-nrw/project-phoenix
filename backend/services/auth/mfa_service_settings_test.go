@@ -102,61 +102,6 @@ func (m *mfaTestAuditRepo) Create(_ context.Context, _ *configModel.SettingAudit
 
 // --- capturing mailer reused across this file ---
 
-type mfaCapturingMailer struct {
-	mu       sync.Mutex
-	messages []email.Message
-	ch       chan struct{}
-}
-
-func newMFACapturingMailer() *mfaCapturingMailer {
-	return &mfaCapturingMailer{ch: make(chan struct{}, 32)}
-}
-
-func (m *mfaCapturingMailer) Send(msg email.Message) error {
-	m.mu.Lock()
-	m.messages = append(m.messages, msg)
-	m.mu.Unlock()
-	select {
-	case m.ch <- struct{}{}:
-	default:
-	}
-	return nil
-}
-
-func (m *mfaCapturingMailer) WaitFor(count int, timeout time.Duration) bool {
-	if count <= 0 {
-		return true
-	}
-	deadline := time.NewTimer(timeout)
-	defer deadline.Stop()
-	for {
-		m.mu.Lock()
-		got := len(m.messages)
-		m.mu.Unlock()
-		if got >= count {
-			return true
-		}
-		select {
-		case <-m.ch:
-		case <-deadline.C:
-			m.mu.Lock()
-			got := len(m.messages)
-			m.mu.Unlock()
-			return got >= count
-		}
-	}
-}
-
-func (m *mfaCapturingMailer) Templates() []string {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	out := make([]string, len(m.messages))
-	for i, msg := range m.messages {
-		out[i] = msg.Template
-	}
-	return out
-}
-
 // --- shared helpers for this file ---
 
 const settingsJWTSecret = "test-secret-must-be-at-least-32-chars-long-for-real"
@@ -166,7 +111,7 @@ type wiredMFAFixture struct {
 	repos      *repositories.Factory
 	tenantID   int64
 	valueRepo  *mfaTestValueRepo
-	mailer     *mfaCapturingMailer
+	mailer     *testpkg.CapturingMailer
 	dispatcher *email.Dispatcher
 	settings   configSvc.SettingsService
 }
@@ -186,7 +131,7 @@ func newWiredMFAFixture(t *testing.T) *wiredMFAFixture {
 	valueRepo := newMFATestValueRepo()
 	settings := configSvc.NewSettingsService(valueRepo, &mfaTestAuditRepo{}, nil, db, slog.Default())
 
-	mailer := newMFACapturingMailer()
+	mailer := testpkg.NewCapturingMailer()
 	dispatcher := email.NewDispatcher(mailer, slog.Default())
 	dispatcher.SetDefaults(1, []time.Duration{time.Millisecond}) // no retries, instant
 
@@ -366,7 +311,7 @@ func TestMFAService_StartChallenge_DispatchesEmail(t *testing.T) {
 
 	// The dispatcher fires asynchronously, so wait briefly for the mailer to
 	// observe the message.
-	if !fix.mailer.WaitFor(1, 3*time.Second) {
+	if !fix.mailer.WaitForMessages(1, 3*time.Second) {
 		t.Fatal("expected an MFA email to be dispatched")
 	}
 
@@ -393,7 +338,7 @@ func TestMFAService_IssueTrustedDevice_DispatchesAddedEmail(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, cookie)
 
-	if !fix.mailer.WaitFor(1, 3*time.Second) {
+	if !fix.mailer.WaitForMessages(1, 3*time.Second) {
 		t.Fatal("expected a trusted-device-added email to be dispatched")
 	}
 	templates := fix.mailer.Templates()

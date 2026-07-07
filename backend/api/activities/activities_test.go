@@ -9,7 +9,6 @@ package activities_test
 import (
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -20,7 +19,6 @@ import (
 
 	activitiesAPI "github.com/moto-nrw/project-phoenix/api/activities"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -66,15 +64,6 @@ func setupTestContext(t *testing.T) *testContext {
 		resource: resource,
 		router:   router,
 	}
-}
-
-// executeWithAuth signs a JWT for the given claims and executes the request
-// through the production router. The claims carry the permissions and tenant
-// ID the middleware chain reads.
-func executeWithAuth(t *testing.T, router chi.Router, req *http.Request, claims jwt.AppClaims) *httptest.ResponseRecorder {
-	t.Helper()
-	req.Header.Set("Authorization", "Bearer "+testutil.MintTestJWT(t, claims))
-	return testutil.ExecuteRequest(router, req)
 }
 
 // cleanupActivity cleans up an activity and its related records
@@ -140,7 +129,7 @@ func TestListActivities_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
@@ -160,7 +149,7 @@ func TestListActivities_WithCategoryFilter(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities?category_id=%d", activity.CategoryID), nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -175,7 +164,7 @@ func TestGetActivity_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities/%d", activity.ID), nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
@@ -191,7 +180,7 @@ func TestGetActivity_NotFound(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/99999", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertNotFound(t, rr)
 }
@@ -202,7 +191,7 @@ func TestGetActivity_InvalidID(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/invalid", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -227,7 +216,7 @@ func TestCreateActivity_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/activities", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.TeacherTestClaims(int(account.ID)))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.TeacherTestClaims(int(account.ID)))
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
@@ -257,7 +246,7 @@ func TestCreateActivity_BadRequest_MissingName(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/activities", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -274,7 +263,7 @@ func TestCreateActivity_BadRequest_MissingCategoryID(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/activities", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -295,7 +284,7 @@ func TestCreateActivity_BadRequest_ZeroParticipants(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/activities", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -320,7 +309,7 @@ func TestUpdateActivity_Success(t *testing.T) {
 	// Admin claims carry admin:* which has full access and bypasses ownership checks
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/activities/%d", activity.ID), body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -345,7 +334,7 @@ func TestUpdateActivity_NotFound(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/activities/99999", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.TeacherTestClaims(int(account.ID)))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.TeacherTestClaims(int(account.ID)))
 
 	testutil.AssertNotFound(t, rr)
 }
@@ -363,7 +352,7 @@ func TestDeleteActivity_Success(t *testing.T) {
 	// Admin claims carry admin:* which has full access and bypasses ownership checks
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/activities/%d", activity.ID), nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -378,7 +367,7 @@ func TestDeleteActivity_NonExistent_ReturnsSuccess(t *testing.T) {
 	// Use admin claims
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/activities/99999", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	// With admin permissions, delete is idempotent - returns success even for non-existent
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
@@ -390,7 +379,7 @@ func TestDeleteActivity_InvalidID(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/activities/invalid", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -408,7 +397,7 @@ func TestListCategories_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/categories", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
@@ -424,7 +413,7 @@ func TestGetTimespans_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/timespans", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
@@ -447,7 +436,7 @@ func TestGetActivitySchedules_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities/%d/schedules", activity.ID), nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -466,7 +455,7 @@ func TestCreateActivitySchedule_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/activities/%d/schedules", activity.ID), body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 }
@@ -485,7 +474,7 @@ func TestCreateActivitySchedule_BadRequest_InvalidWeekday(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/activities/%d/schedules", activity.ID), body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -496,7 +485,7 @@ func TestGetAvailableTimeSlots_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/schedules/available", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -507,7 +496,7 @@ func TestGetAvailableTimeSlots_BadRequest_InvalidWeekday(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/schedules/available?weekday=invalid", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -526,7 +515,7 @@ func TestGetActivitySupervisors_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities/%d/supervisors", activity.ID), nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -549,7 +538,7 @@ func TestAssignSupervisor_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/activities/%d/supervisors", activity.ID), body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 }
@@ -568,7 +557,7 @@ func TestAssignSupervisor_BadRequest_MissingStaffID(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/activities/%d/supervisors", activity.ID), body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -582,7 +571,7 @@ func TestGetAvailableSupervisors_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/supervisors/available", nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
@@ -605,7 +594,7 @@ func TestGetActivityStudents_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities/%d/students", activity.ID), nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -623,7 +612,7 @@ func TestEnrollStudent_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/activities/%d/students/%d", activity.ID, student.ID), nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -641,12 +630,12 @@ func TestEnrollStudent_Conflict_AlreadyEnrolled(t *testing.T) {
 
 	// First enrollment
 	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/activities/%d/students/%d", activity.ID, student.ID), nil)
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "First enrollment failed: %s", rr.Body.String())
 
 	// Second enrollment - should conflict
 	req = testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/activities/%d/students/%d", activity.ID, student.ID), nil)
-	rr = executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr = testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	assert.Equal(t, http.StatusConflict, rr.Code, "Expected conflict for duplicate enrollment. Body: %s", rr.Body.String())
 }
@@ -660,7 +649,7 @@ func TestGetStudentEnrollments_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities/students/%d", student.ID), nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -674,7 +663,7 @@ func TestGetAvailableActivities_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities/students/%d/available", student.ID), nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -692,13 +681,13 @@ func TestUnenrollStudent_Success(t *testing.T) {
 
 	// First enroll the student
 	enrollReq := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/activities/%d/students/%d", activity.ID, student.ID), nil)
-	enrollRr := executeWithAuth(t, ctx.router, enrollReq, testutil.DefaultTestClaims())
+	enrollRr := testutil.ExecuteWithAuth(t, ctx.router, enrollReq, testutil.DefaultTestClaims())
 	require.Equal(t, http.StatusOK, enrollRr.Code, "Enrollment failed: %s", enrollRr.Body.String())
 
 	// Now unenroll
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/activities/%d/students/%d", activity.ID, student.ID), nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -716,7 +705,7 @@ func TestUnenrollStudent_NotFound(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/activities/%d/students/%d", activity.ID, student.ID), nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertNotFound(t, rr)
 }
@@ -739,7 +728,7 @@ func TestBatchEnrollment_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/activities/%d/students", activity.ID), body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -756,7 +745,7 @@ func TestBatchEnrollment_BadRequest_MissingStudentIDs(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/activities/%d/students", activity.ID), body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -784,7 +773,7 @@ func TestQuickCreateActivity_Success(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/activities/quick-create", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.TeacherTestClaims(int(account.ID)))
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.TeacherTestClaims(int(account.ID)))
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
@@ -813,7 +802,7 @@ func TestQuickCreateActivity_BadRequest_MissingName(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/activities/quick-create", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -829,7 +818,7 @@ func TestQuickCreateActivity_BadRequest_MissingCategoryID(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/activities/quick-create", body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertBadRequest(t, rr)
 }
@@ -859,7 +848,7 @@ func TestGetActivitySchedule_Success(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "GET",
 		fmt.Sprintf("/activities/%d/schedules/%d", activity.ID, schedule.ID), nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -875,7 +864,7 @@ func TestGetActivitySchedule_NotFound(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "GET",
 		fmt.Sprintf("/activities/%d/schedules/999999", activity.ID), nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertNotFound(t, rr)
 }
@@ -904,7 +893,7 @@ func TestUpdateActivitySchedule_Success(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "PUT",
 		fmt.Sprintf("/activities/%d/schedules/%d", activity.ID, schedule.ID), body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -924,7 +913,7 @@ func TestUpdateActivitySchedule_NotFound(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "PUT",
 		fmt.Sprintf("/activities/%d/schedules/999999", activity.ID), body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertNotFound(t, rr)
 }
@@ -949,7 +938,7 @@ func TestDeleteActivitySchedule_Success(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "DELETE",
 		fmt.Sprintf("/activities/%d/schedules/%d", activity.ID, schedule.ID), nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	// Should succeed with 200 or 204
 	assert.True(t, rr.Code == http.StatusOK || rr.Code == http.StatusNoContent,
@@ -967,7 +956,7 @@ func TestDeleteActivitySchedule_NotFound(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "DELETE",
 		fmt.Sprintf("/activities/%d/schedules/999999", activity.ID), nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertNotFound(t, rr)
 }
@@ -999,7 +988,7 @@ func TestUpdateSupervisorRole_Success(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "PUT",
 		fmt.Sprintf("/activities/%d/supervisors/%d", activity.ID, supervisor.ID), body) // Use supervisor.ID
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
@@ -1019,7 +1008,7 @@ func TestUpdateSupervisorRole_NotFound(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "PUT",
 		fmt.Sprintf("/activities/%d/supervisors/999999", activity.ID), body)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertNotFound(t, rr)
 }
@@ -1043,7 +1032,7 @@ func TestRemoveSupervisor_Success(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "DELETE",
 		fmt.Sprintf("/activities/%d/supervisors/%d", activity.ID, supervisor.ID), nil) // Use supervisor.ID
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	// Should succeed with 200 or 204
 	assert.True(t, rr.Code == http.StatusOK || rr.Code == http.StatusNoContent,
@@ -1061,7 +1050,7 @@ func TestRemoveSupervisor_NotFound(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "DELETE",
 		fmt.Sprintf("/activities/%d/supervisors/999999", activity.ID), nil)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	testutil.AssertNotFound(t, rr)
 }
@@ -1093,7 +1082,7 @@ func TestRemoveSupervisor_WithReplacement_ReplacesSupervisorAtomically(t *testin
 		nil,
 	)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
 	supervisors, err := ctx.services.Activities.GetGroupSupervisors(testutil.TenantContext(1), activity.ID)
@@ -1144,7 +1133,7 @@ func TestRemoveSupervisor_WithExistingPrimaryReplacement_PreservesPrimaryLead(t 
 		nil,
 	)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
 	supervisors, err := ctx.services.Activities.GetGroupSupervisors(testutil.TenantContext(1), activity.ID)
@@ -1183,7 +1172,7 @@ func TestRemoveSupervisor_OnlySupervisorRequiresReplacement(t *testing.T) {
 		nil,
 	)
 
-	rr := executeWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 
 	assert.Equal(t, http.StatusConflict, rr.Code)
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
