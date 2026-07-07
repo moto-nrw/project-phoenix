@@ -314,6 +314,11 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64
+          # NEXT_PUBLIC_* values below are build-time-inlined into the client
+          # bundle — THIS is the authoritative source for deployed builds. The
+          # same-named keys in environments/*.sops.env are inert for the
+          # client (kept only for env-check key sync + server-side env
+          # validation); editing them there does NOT change the shipped host.
           build-args: |
             API_URL=http://server:8080
             NEXT_PUBLIC_API_URL=${{ steps.api_url.outputs.url }}
@@ -323,6 +328,8 @@ jobs:
             NEXT_PUBLIC_TENANT_DOMAIN=${{ steps.tenant_domain.outputs.domain }}
             NEXT_PUBLIC_SENTRY_DSN=${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
             NEXT_PUBLIC_SENTRY_ENVIRONMENT=${{ needs.check-environment.outputs.is_staging == 'true' && 'staging' || 'production' }}
+            NEXT_PUBLIC_POSTHOG_KEY=${{ secrets.NEXT_PUBLIC_POSTHOG_KEY }}
+            NEXT_PUBLIC_POSTHOG_HOST=https://eu.i.posthog.com
           # Layer cache is mounted automatically via Blacksmith sticky disks (per repo + Dockerfile)
           provenance: false
 
