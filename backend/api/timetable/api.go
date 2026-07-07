@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -24,9 +25,13 @@ import (
 	userSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 const dateLayout = "2006-01-02"
+
+const calendarPeriodRosterDeleteConflictMessage = "Kalenderzeitraum kann nicht gelöscht werden: " +
+	"Durch das Entfernen der Verknüpfungen würden doppelte aktive Kinder- oder Personalzuordnungen entstehen."
 
 // Resource defines the timetable API resource.
 //
@@ -304,6 +309,15 @@ type CalendarPeriodResponse struct {
 	CreatedAt       string          `json:"created_at"`
 	UpdatedAt       string          `json:"updated_at"`
 	Warnings        []PeriodWarning `json:"warnings,omitempty"`
+
+	// Advisory reference counts (list/detail only). All FKs are
+	// ON DELETE SET NULL, so these never block deletion — the frontend
+	// uses them for the "Verwendung" column and the delete warning.
+	EnrollmentPhaseCount   int `json:"enrollment_phase_count"`
+	ScheduleCount          int `json:"schedule_count"`
+	StudentEnrollmentCount int `json:"student_enrollment_count"`
+	SupervisorCount        int `json:"supervisor_count"`
+	ActivityInstanceCount  int `json:"activity_instance_count"`
 }
 
 func mapPeriodToResponse(p *schedule.CalendarPeriod) CalendarPeriodResponse {
@@ -398,6 +412,30 @@ func (rs *Resource) attachOverlapWarnings(ctx context.Context, period *schedule.
 
 // Handlers
 
+// periodUsageCounts loads the advisory reference counts for the tenant's
+// periods. Count failures must never break the period endpoints: errors are
+// logged at Warn and an empty map is returned (pattern: attachOverlapWarnings).
+func (rs *Resource) periodUsageCounts(ctx context.Context) map[int64]schedule.CalendarPeriodUsage {
+	usage, err := rs.calendarPeriodService.GetUsageCounts(ctx)
+	if err != nil {
+		rs.getLogger().Warn("calendar period usage count failed, omitting counts",
+			slog.String("error", err.Error()),
+		)
+		return nil
+	}
+	return usage
+}
+
+func applyPeriodUsage(resp *CalendarPeriodResponse, usage map[int64]schedule.CalendarPeriodUsage) {
+	if u, ok := usage[resp.ID]; ok {
+		resp.EnrollmentPhaseCount = u.EnrollmentPhases
+		resp.ScheduleCount = u.Schedules
+		resp.StudentEnrollmentCount = u.StudentEnrollments
+		resp.SupervisorCount = u.Supervisors
+		resp.ActivityInstanceCount = u.ActivityInstances
+	}
+}
+
 func (rs *Resource) listPeriods(w http.ResponseWriter, r *http.Request) {
 	periods, err := rs.calendarPeriodService.GetAllPeriods(r.Context())
 	if err != nil {
@@ -405,9 +443,11 @@ func (rs *Resource) listPeriods(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	usage := rs.periodUsageCounts(r.Context())
 	responses := make([]CalendarPeriodResponse, len(periods))
 	for i, p := range periods {
 		responses[i] = mapPeriodToResponse(p)
+		applyPeriodUsage(&responses[i], usage)
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Calendar periods retrieved successfully")
@@ -430,7 +470,9 @@ func (rs *Resource) getPeriod(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, mapPeriodToResponse(period), "Calendar period retrieved successfully")
+	resp := mapPeriodToResponse(period)
+	applyPeriodUsage(&resp, rs.periodUsageCounts(r.Context()))
+	common.Respond(w, r, http.StatusOK, resp, "Calendar period retrieved successfully")
 }
 
 func (rs *Resource) createPeriod(w http.ResponseWriter, r *http.Request) {
@@ -573,9 +615,32 @@ func (rs *Resource) deletePeriod(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rs.calendarPeriodService.DeletePeriod(r.Context(), id); err != nil {
+		if isCalendarPeriodRosterDeleteConflict(err) {
+			tenant.MarkRollback(r.Context())
+			common.RenderError(w, r, common.ErrorConflictMessage(calendarPeriodRosterDeleteConflictMessage))
+			return
+		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Calendar period deleted successfully")
+}
+
+func isCalendarPeriodRosterDeleteConflict(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var pgErr pgdriver.Error
+	if errors.As(err, &pgErr) && pgErr.Field('C') == "23505" {
+		switch pgErr.Field('n') {
+		case "idx_student_enrollments_active", "idx_supervisors_active":
+			return true
+		}
+	}
+
+	msg := err.Error()
+	return strings.Contains(msg, "duplicate key value violates unique constraint \"idx_student_enrollments_active\"") ||
+		strings.Contains(msg, "duplicate key value violates unique constraint \"idx_supervisors_active\"")
 }

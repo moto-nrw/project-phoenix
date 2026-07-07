@@ -1055,6 +1055,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		RequestRepo:      repos.Request,
 		RequestChildRepo: repos.RequestChild,
 		CareOfferingRepo: repos.CareOffering,
+		FormSchemaRepo:   repos.FormSchema,
+		CalendarPeriods:  calendarPeriodService,
 		DB:               db,
 		Logger:           logger.With("service", "enrollment-phase"),
 	})

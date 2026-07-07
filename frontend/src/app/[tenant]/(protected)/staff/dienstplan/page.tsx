@@ -144,9 +144,8 @@ function DienstplanContent() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">
-        Dienstplan
-      </h1>
+      {/* No in-page h1: the header breadcrumb already shows "Dienstplan"
+          (breadcrumb-utils exactPageTitles), matching the app-wide pattern. */}
       <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
         <div className="mb-4 flex flex-col gap-3 sm:grid sm:grid-cols-3 sm:items-center">
           <p className="hidden text-xs text-gray-500 sm:block">
