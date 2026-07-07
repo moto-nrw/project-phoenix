@@ -181,6 +181,34 @@ describe("staffShiftService requests", () => {
     );
   });
 
+  it("serializes a linked shift type id to a number", async () => {
+    mockSessionFetch.mockResolvedValueOnce(
+      Response.json({ data: { ...backendShift, shift_type_id: 5 } }),
+    );
+
+    await staffShiftService.createShift({
+      staffId: "7",
+      date: "2026-07-06",
+      startTime: "08:00",
+      endTime: "16:00",
+      breakMinutes: 30,
+      shiftTypeId: "5",
+    });
+
+    expect(mockSessionFetch).toHaveBeenCalledWith("/api/staff/shifts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        staff_id: 7,
+        date: "2026-07-06",
+        start_time: "08:00",
+        end_time: "16:00",
+        break_minutes: 30,
+        shift_type_id: 5,
+      }),
+    });
+  });
+
   it("returns cleanly after successful deletes", async () => {
     mockSessionFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
 

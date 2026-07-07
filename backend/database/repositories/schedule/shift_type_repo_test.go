@@ -192,3 +192,48 @@ func TestShiftTypeRepository_TenantIsolation(t *testing.T) {
 	}
 	assert.True(t, found, "tenant 1 must see its own shift type")
 }
+
+func TestShiftTypeRepository_GuardBranches(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ShiftType
+	ctx := testpkg.TenantContext(1)
+
+	// nil entity is rejected before any DB access.
+	require.Error(t, repo.Create(ctx, nil), "Create(nil) must error")
+	_, err := repo.CreateIfAbsent(ctx, nil)
+	require.Error(t, err, "CreateIfAbsent(nil) must error")
+	require.Error(t, repo.Update(ctx, nil), "Update(nil) must error")
+
+	// Invalid model (bad color) fails validation before the insert/update.
+	bad := &scheduleModels.ShiftType{Name: "Bad-" + testUnique(), Color: "not-a-color"}
+	require.Error(t, repo.Create(ctx, bad), "Create with invalid color must error")
+	_, err = repo.CreateIfAbsent(ctx, bad)
+	require.Error(t, err, "CreateIfAbsent with invalid color must error")
+	bad.ID = 1
+	require.Error(t, repo.Update(ctx, bad), "Update with invalid color must error")
+}
+
+func TestShiftTypeRepository_ListWithOptions(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ShiftType
+	ctx := testpkg.TenantContext(1)
+
+	st := newShiftType("ListOpts-"+testUnique(), "#83CD2D")
+	require.NoError(t, repo.Create(ctx, st))
+	defer cleanupShiftTypes(t, repo, ctx, st.ID)
+
+	// nil options exercises the base List override without extra clauses.
+	rows, err := repo.List(ctx, nil)
+	require.NoError(t, err)
+	found := false
+	for _, row := range rows {
+		if row.ID == st.ID {
+			found = true
+		}
+	}
+	assert.True(t, found, "List must return the tenant's shift type")
+}
