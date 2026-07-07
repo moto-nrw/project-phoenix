@@ -94,9 +94,13 @@ function DienstplanContent() {
     staffShiftService.getShifts(weekFrom, weekTo),
   );
 
-  const { data: shiftTypes, mutate: mutateShiftTypes } = useSWRAuth<
-    ShiftType[]
-  >("dienstplan-shift-types", () => shiftTypeService.getShiftTypes());
+  const {
+    data: shiftTypes,
+    error: shiftTypesError,
+    mutate: mutateShiftTypes,
+  } = useSWRAuth<ShiftType[]>("dienstplan-shift-types", () =>
+    shiftTypeService.getShiftTypes(),
+  );
 
   const typesById = useMemo(
     () => indexShiftTypes(shiftTypes ?? []),
@@ -144,9 +148,9 @@ function DienstplanContent() {
     });
   };
 
-  const loadError = staffError ?? shiftsError;
+  const loadError = staffError ?? shiftsError ?? shiftTypesError;
   const retryLoad = () => {
-    void Promise.all([mutateStaff(), mutateShifts()]);
+    void Promise.all([mutateStaff(), mutateShifts(), mutateShiftTypes()]);
   };
 
   if (sessionStatus === "loading") {

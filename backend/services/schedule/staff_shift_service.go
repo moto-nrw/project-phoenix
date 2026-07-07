@@ -47,6 +47,11 @@ type StaffShiftService interface {
 
 type StaffShiftUpdateOptions struct {
 	PreserveExistingNotes bool
+	// PreserveExistingShiftType keeps the stored shift type when the update
+	// request omitted shift_type_id entirely (stale client / third-party
+	// consumer), so an unrelated edit does not silently clear the label. An
+	// explicit null in the payload still clears it.
+	PreserveExistingShiftType bool
 }
 
 type staffShiftService struct {
@@ -183,6 +188,9 @@ func (s *staffShiftService) UpdateShiftWithOptions(ctx context.Context, shift *s
 	shift.TenantID = existing.TenantID
 	if opts.PreserveExistingNotes {
 		shift.Notes = existing.Notes
+	}
+	if opts.PreserveExistingShiftType {
+		shift.ShiftTypeID = existing.ShiftTypeID
 	}
 	// The request model has a zero CreatedAt; the whole-model update would
 	// otherwise write created_at = DEFAULT and reset it to now().

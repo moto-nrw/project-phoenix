@@ -6,6 +6,7 @@ package staffshifts
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -28,15 +29,16 @@ import (
 
 // Resource bundles the dependencies for the staff-shift HTTP handlers.
 type Resource struct {
-	Service       scheduleSvc.StaffShiftService
-	PersonService usersSvc.PersonService
-	db            *bun.DB
-	logger        *slog.Logger
+	Service          scheduleSvc.StaffShiftService
+	ShiftTypeService scheduleSvc.ShiftTypeService
+	PersonService    usersSvc.PersonService
+	db               *bun.DB
+	logger           *slog.Logger
 }
 
 // NewResource wires the dependencies.
-func NewResource(service scheduleSvc.StaffShiftService, personService usersSvc.PersonService, db *bun.DB, logger *slog.Logger) *Resource {
-	return &Resource{Service: service, PersonService: personService, db: db, logger: logger}
+func NewResource(service scheduleSvc.StaffShiftService, shiftTypeService scheduleSvc.ShiftTypeService, personService usersSvc.PersonService, db *bun.DB, logger *slog.Logger) *Resource {
+	return &Resource{Service: service, ShiftTypeService: shiftTypeService, PersonService: personService, db: db, logger: logger}
 }
 
 // Router returns the chi sub-router for /api/staff-shifts.
@@ -65,13 +67,37 @@ func (rs *Resource) Router() chi.Router {
 // strings, the date is "YYYY-MM-DD". StaffID is ignored on update (the shift
 // stays with its staff member).
 type ShiftRequest struct {
-	StaffID      int64   `json:"staff_id"`
-	Date         string  `json:"date"`
-	StartTime    string  `json:"start_time"`
-	EndTime      string  `json:"end_time"`
-	BreakMinutes int     `json:"break_minutes"`
-	ShiftTypeID  *int64  `json:"shift_type_id"`
-	Notes        *string `json:"notes"`
+	StaffID      int64      `json:"staff_id"`
+	Date         string     `json:"date"`
+	StartTime    string     `json:"start_time"`
+	EndTime      string     `json:"end_time"`
+	BreakMinutes int        `json:"break_minutes"`
+	ShiftTypeID  optionalID `json:"shift_type_id"`
+	Notes        *string    `json:"notes"`
+}
+
+// optionalID captures whether a nullable ID field was present in the JSON
+// payload, so an omitted shift_type_id (preserve the existing value on update)
+// is distinguishable from an explicit null (clear the type). encoding/json only
+// invokes UnmarshalJSON when the key is present, so Present stays false when the
+// field is absent — the case a stale client or third-party consumer produces.
+type optionalID struct {
+	Present bool
+	Value   *int64
+}
+
+func (o *optionalID) UnmarshalJSON(data []byte) error {
+	o.Present = true
+	if string(data) == "null" {
+		o.Value = nil
+		return nil
+	}
+	var v int64
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	o.Value = &v
+	return nil
 }
 
 // ShiftResponse is the wire format returned to clients.
@@ -142,9 +168,23 @@ func (rs *Resource) buildShift(req ShiftRequest) (*scheduleModels.StaffShift, er
 		StartTime:    start,
 		EndTime:      end,
 		BreakMinutes: req.BreakMinutes,
-		ShiftTypeID:  req.ShiftTypeID,
+		ShiftTypeID:  req.ShiftTypeID.Value,
 		Notes:        notes,
 	}, nil
+}
+
+// validateShiftType rejects a shift referencing a shift type that does not exist
+// in the current tenant (deleted mid-edit, never existed, or belonging to
+// another tenant). A nil id is an untyped shift and always valid. The tenant
+// transaction + RLS scope the lookup, so a foreign-tenant id resolves to
+// ErrShiftTypeNotFound (mapped to 400) instead of surfacing later as a database
+// FK violation (500).
+func (rs *Resource) validateShiftType(ctx context.Context, id *int64) error {
+	if id == nil {
+		return nil
+	}
+	_, err := rs.ShiftTypeService.GetShiftType(ctx, *id)
+	return err
 }
 
 // editorStaffID resolves the acting admin's staff record from the JWT claims.
@@ -171,6 +211,8 @@ func renderServiceError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, scheduleSvc.ErrShiftNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, scheduleSvc.ErrShiftRangeTooLarge), errors.Is(err, scheduleSvc.ErrShiftInvalid):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	case errors.Is(err, scheduleSvc.ErrShiftTypeNotFound):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -222,6 +264,10 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
+	if err := rs.validateShiftType(r.Context(), shift.ShiftTypeID); err != nil {
+		renderServiceError(w, r, err)
+		return
+	}
 	editorID, err := rs.editorStaffID(r.Context())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorUnauthorized(err))
@@ -253,6 +299,10 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
+	if err := rs.validateShiftType(r.Context(), shift.ShiftTypeID); err != nil {
+		renderServiceError(w, r, err)
+		return
+	}
 	editorID, err := rs.editorStaffID(r.Context())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorUnauthorized(err))
@@ -262,7 +312,8 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 	shift.UpdatedBy = &editorID
 
 	saved, err := rs.Service.UpdateShiftWithOptions(r.Context(), shift, scheduleSvc.StaffShiftUpdateOptions{
-		PreserveExistingNotes: req.Notes == nil,
+		PreserveExistingNotes:     req.Notes == nil,
+		PreserveExistingShiftType: !req.ShiftTypeID.Present,
 	})
 	if err != nil {
 		renderServiceError(w, r, err)
