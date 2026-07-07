@@ -24,6 +24,7 @@ type Category struct {
 	Name        string `bun:"name,notnull" json:"name"`
 	Description string `bun:"description" json:"description,omitempty"`
 	Color       string `bun:"color" json:"color,omitempty"`
+	IsSystem    bool   `bun:"is_system,notnull,default:false" json:"is_system"`
 }
 
 func (c *Category) BeforeAppendModel(query any) error {
