@@ -25,8 +25,10 @@ vi.mock("~/lib/auth-utils", () => ({
   },
 }));
 
-vi.mock("~/components/ui/loading", () => ({
-  Loading: () => <div data-testid="loading">Loading...</div>,
+vi.mock("~/components/database/master-detail-skeleton", () => ({
+  MasterDetailSkeleton: () => (
+    <div data-testid="master-detail-skeleton">Loading...</div>
+  ),
 }));
 
 describe("DatabaseLayout", () => {
@@ -82,6 +84,6 @@ describe("DatabaseLayout", () => {
       </DatabaseLayout>,
     );
 
-    expect(screen.getByTestId("loading")).toBeInTheDocument();
+    expect(screen.getByTestId("master-detail-skeleton")).toBeInTheDocument();
   });
 });

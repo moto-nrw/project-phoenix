@@ -32,7 +32,6 @@ import {
   Footprints,
 } from "lucide-react";
 
-import { Loading } from "~/components/ui/loading";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { RoomDetailModal } from "~/components/rooms/room-detail-modal";
 import { TRANSIT_ROOM_ID } from "~/components/rooms/room-detail-modal";
@@ -553,11 +552,12 @@ function RoomsPageContent() {
     [exportTargetCount, handleExport, isExporting, loading],
   );
 
-  // Auth-loading: nothing to render until NextAuth resolves the session
-  // (the `useSession({ required: true })` callback redirects on
-  // unauthenticated). Keep the existing loader for this branch.
+  // Auth-loading: show the same skeleton as the Suspense fallback and the
+  // data-loading branch, so the cold-load sequence stays skeleton -> content
+  // without a spinner flash in between. The `useSession({ required: true })`
+  // callback redirects on unauthenticated.
   if (status === "loading") {
-    return <Loading fullPage={false} />;
+    return <RoomsGridSkeleton />;
   }
 
   return (
@@ -845,7 +845,7 @@ function RoomsPageContent() {
 export default function RoomsPage() {
   return (
     <BinaryModeGuard>
-      <Suspense fallback={<Loading fullPage={false} />}>
+      <Suspense fallback={<RoomsGridSkeleton />}>
         <RoomsPageContent />
       </Suspense>
     </BinaryModeGuard>
