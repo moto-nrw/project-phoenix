@@ -115,16 +115,29 @@ export function phaseToInput(p: Phase): PhaseInput {
 
 /**
  * Links or unlinks a phase to a calendar period (periodId null = unlink).
- * Sends the full phase payload because the PUT endpoint replaces the row.
+ * Refetches the phase first and builds the PUT body from that fresh state:
+ * the endpoint replaces the whole row, so writing from a possibly stale
+ * list snapshot would silently revert concurrent edits to the phase.
  */
 export async function setPhaseCalendarPeriod(
   phase: Phase,
   periodId: string | null,
 ): Promise<Phase> {
+  const fresh = await getPhase(phase.id);
   return updatePhase(phase.id, {
-    ...phaseToInput(phase),
+    ...phaseToInput(fresh),
     calendar_period_id: periodId,
   });
+}
+
+async function getPhase(id: string): Promise<Phase> {
+  const response = await fetch(`${BASE}/${encodeURIComponent(id)}`, {
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw await readError(response, "Phase konnte nicht geladen werden");
+  }
+  return readJSON<Phase>(response);
 }
 
 export async function listPhases(): Promise<Phase[]> {

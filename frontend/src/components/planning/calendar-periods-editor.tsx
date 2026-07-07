@@ -15,6 +15,7 @@ import {
   CalendarPeriodModal,
   type LinkablePhase,
 } from "~/components/timetable/calendar-period-modal";
+import { Button } from "~/components/ui/button";
 import {
   DataTable,
   DataTableStatusBadge,
@@ -274,13 +275,14 @@ export function CalendarPeriodsEditor() {
         header: "",
         align: "right",
         render: (period) => (
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="compact"
             onClick={() => beginEdit(period)}
-            className="inline-flex h-8 items-center justify-center rounded-md px-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
           >
             Bearbeiten
-          </button>
+          </Button>
         ),
       },
     ],
@@ -314,22 +316,26 @@ export function CalendarPeriodsEditor() {
             Anmeldung und Betreuungsplan.
           </p>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <button
+            <Button
               type="button"
+              variant="primary"
+              size="md"
               onClick={beginCreateSemester}
-              className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              className="shrink-0 gap-2"
             >
               <CalendarPlus className="h-4 w-4" aria-hidden="true" />
               Halbjahr anlegen
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="outline"
+              size="md"
               onClick={beginCreate}
-              className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              className="shrink-0 gap-2"
             >
               <Plus className="h-4 w-4" aria-hidden="true" />
               Zeitraum anlegen
-            </button>
+            </Button>
           </div>
         </div>
       </section>
@@ -346,14 +352,16 @@ export function CalendarPeriodsEditor() {
             Lege das nächste Halbjahr an, damit Anmeldephasen und Betreuungsplan
             darauf verweisen können.
           </p>
-          <button
+          <Button
             type="button"
+            variant="primary"
+            size="md"
             onClick={beginCreateSemester}
-            className="mt-5 inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            className="mt-5 gap-2"
           >
             <CalendarPlus className="h-4 w-4" aria-hidden="true" />
             Halbjahr anlegen
-          </button>
+          </Button>
         </section>
       ) : (
         <DataTable

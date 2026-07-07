@@ -166,23 +166,35 @@ describe("phase calendar period helpers", () => {
     });
   });
 
-  it("links a phase to a calendar period through the full PUT endpoint", async () => {
-    const phase = mkPhase("phase/1", "Schuljahr");
-    let seenURL = "";
-    let seenBody: PhaseInput | undefined;
+  it("links a phase via refetch-then-PUT, writing from the fresh server state", async () => {
+    // The caller holds a stale snapshot; the server has a newer name. The
+    // PUT body must come from the refetched state, not the stale argument.
+    const stale = mkPhase("phase/1", "Alter Name");
+    const fresh = mkPhase("phase/1", "Neuer Name");
+    const calls: { url: string; method: string; body?: PhaseInput }[] = [];
     mockFetch(async (input, init) => {
-      seenURL = typeof input === "string" ? input : input.toString();
-      seenBody = JSON.parse((init?.body as string) ?? "{}") as PhaseInput;
+      const url = typeof input === "string" ? input : input.toString();
+      const method = init?.method ?? "GET";
+      calls.push({
+        url,
+        method,
+        body: init?.body
+          ? (JSON.parse(init.body as string) as PhaseInput)
+          : undefined,
+      });
+      if (method === "GET") return jsonResponse({ data: fresh });
       return jsonResponse({
-        data: { ...phase, calendar_period_id: "period/2" },
+        data: { ...fresh, calendar_period_id: "period/2" },
       });
     });
 
-    const out = await setPhaseCalendarPeriod(phase, "period/2");
+    const out = await setPhaseCalendarPeriod(stale, "period/2");
 
-    expect(seenURL).toContain("/phase%2F1");
-    expect(seenBody).toEqual({
-      ...phaseToInput(phase),
+    expect(calls.map((c) => c.method)).toEqual(["GET", "PUT"]);
+    expect(calls[0]!.url).toContain("/phase%2F1");
+    expect(calls[1]!.url).toContain("/phase%2F1");
+    expect(calls[1]!.body).toEqual({
+      ...phaseToInput(fresh),
       calendar_period_id: "period/2",
     });
     expect(out.calendar_period_id).toBe("period/2");
@@ -195,6 +207,9 @@ describe("phase calendar period helpers", () => {
     };
     let seenBody: PhaseInput | undefined;
     mockFetch(async (_, init) => {
+      if (!init?.method || init.method === "GET") {
+        return jsonResponse({ data: phase });
+      }
       seenBody = JSON.parse((init?.body as string) ?? "{}") as PhaseInput;
       return jsonResponse({ data: { ...phase, calendar_period_id: null } });
     });
@@ -203,6 +218,19 @@ describe("phase calendar period helpers", () => {
 
     expect(seenBody?.calendar_period_id).toBeNull();
     expect(out.calendar_period_id).toBeNull();
+  });
+
+  it("does not PUT when the refetch fails", async () => {
+    const methods: string[] = [];
+    mockFetch(async (_, init) => {
+      methods.push(init?.method ?? "GET");
+      return jsonResponse({ error: "boom" }, { status: 500 });
+    });
+
+    await expect(
+      setPhaseCalendarPeriod(mkPhase("1", "X"), "2"),
+    ).rejects.toThrow();
+    expect(methods).toEqual(["GET"]);
   });
 });
 
