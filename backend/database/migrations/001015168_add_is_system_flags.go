@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	addIsSystemFlagsVersion     = "1.15.167"
+	addIsSystemFlagsVersion     = "1.15.168"
 	addIsSystemFlagsDescription = "Add is_system flag to facilities.rooms, activities.groups and activities.categories so auto-provisioned Schulhof/WC infrastructure can be excluded from staff-facing lists (issue #923)."
 )
 
@@ -17,13 +17,13 @@ func init() {
 		Version:     addIsSystemFlagsVersion,
 		Description: addIsSystemFlagsDescription,
 		DependsOn: []string{
-			formSchemasMigrateLegacyDepartureVersion,
+			phaseCalendarPeriodVersion,
 		},
 	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.167: Adding is_system flags to rooms, activity groups and categories...")
+			fmt.Println("Migration 1.15.168: Adding is_system flags to rooms, activity groups and categories...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE facilities.rooms
 				ADD COLUMN IF NOT EXISTS is_system BOOLEAN NOT NULL DEFAULT FALSE;
@@ -74,7 +74,7 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.167...")
+			fmt.Println("Rolling back migration 1.15.168...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE activities.categories
 				DROP COLUMN IF EXISTS is_system;
