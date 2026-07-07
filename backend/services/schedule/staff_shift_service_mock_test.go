@@ -125,6 +125,38 @@ func (m *shiftMockStaffRepo) ListStaffByRoles(context.Context, []string) ([]*use
 	return nil, nil
 }
 
+// stubShiftTypeService resolves shift types from an in-memory map so the shift
+// service's active-flag enforcement can be exercised without a database. An
+// unknown id maps to ErrShiftTypeNotFound, mirroring the real GetShiftType.
+type stubShiftTypeService struct {
+	types map[int64]*scheduleModels.ShiftType
+}
+
+func (s *stubShiftTypeService) GetShiftType(_ context.Context, id int64) (*scheduleModels.ShiftType, error) {
+	if t, ok := s.types[id]; ok {
+		return t, nil
+	}
+	return nil, ErrShiftTypeNotFound
+}
+
+func (s *stubShiftTypeService) ListShiftTypes(context.Context) ([]*scheduleModels.ShiftType, error) {
+	return nil, nil
+}
+
+func (s *stubShiftTypeService) CreateShiftType(_ context.Context, t *scheduleModels.ShiftType) (*scheduleModels.ShiftType, error) {
+	return t, nil
+}
+
+func (s *stubShiftTypeService) UpdateShiftType(_ context.Context, t *scheduleModels.ShiftType) (*scheduleModels.ShiftType, error) {
+	return t, nil
+}
+
+func (s *stubShiftTypeService) DeleteShiftType(context.Context, int64) error { return nil }
+
+func (s *stubShiftTypeService) CreateDefaultShiftTypes(context.Context) ([]*scheduleModels.ShiftType, error) {
+	return nil, nil
+}
+
 // ============================================================================
 // Helpers
 // ============================================================================
@@ -132,8 +164,19 @@ func (m *shiftMockStaffRepo) ListStaffByRoles(context.Context, []string) ([]*use
 func shiftServiceFixture() (StaffShiftService, *shiftMockRepo, *shiftMockStaffRepo) {
 	repo := &shiftMockRepo{}
 	staffRepo := &shiftMockStaffRepo{}
-	return NewStaffShiftService(repo, staffRepo, nil, nil), repo, staffRepo
+	return NewStaffShiftService(repo, staffRepo, nil, nil, nil), repo, staffRepo
 }
+
+// shiftServiceWithTypes wires a stub ShiftTypeService so tests can exercise the
+// active-flag enforcement on assigned shift types.
+func shiftServiceWithTypes(types map[int64]*scheduleModels.ShiftType) (StaffShiftService, *shiftMockRepo, *shiftMockStaffRepo) {
+	repo := &shiftMockRepo{}
+	staffRepo := &shiftMockStaffRepo{}
+	svc := NewStaffShiftService(repo, staffRepo, &stubShiftTypeService{types: types}, nil, nil)
+	return svc, repo, staffRepo
+}
+
+func int64Ptr(v int64) *int64 { return &v }
 
 func wall(hour, minute int) time.Time {
 	return time.Date(1, 1, 1, hour, minute, 0, 0, time.UTC)
@@ -216,7 +259,7 @@ func TestShiftService_CreateRejectsNilStaff(t *testing.T) {
 func TestShiftService_CreatePropagatesLockError(t *testing.T) {
 	repo := &shiftMockRepo{}
 	staffRepo := &shiftMockStaffRepo{}
-	svc := NewStaffShiftService(repo, staffRepo, &bun.DB{}, nil)
+	svc := NewStaffShiftService(repo, staffRepo, nil, &bun.DB{}, nil)
 
 	_, err := svc.CreateShift(context.Background(), validShift(7))
 	require.Error(t, err)
@@ -496,7 +539,7 @@ func TestShiftService_UpdatePropagatesOverlap(t *testing.T) {
 func TestShiftService_UpdatePropagatesLockError(t *testing.T) {
 	repo := &shiftMockRepo{}
 	staffRepo := &shiftMockStaffRepo{}
-	svc := NewStaffShiftService(repo, staffRepo, &bun.DB{}, nil)
+	svc := NewStaffShiftService(repo, staffRepo, nil, &bun.DB{}, nil)
 	existing := validShift(7)
 	existing.ID = 5
 	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
@@ -675,12 +718,124 @@ func TestShiftService_ListShiftsForStaffRejectsInvalidRange(t *testing.T) {
 func TestStaffShiftServiceDefaultsLogger(t *testing.T) {
 	repo := &shiftMockRepo{}
 	staffRepo := &shiftMockStaffRepo{}
-	svc := NewStaffShiftService(repo, staffRepo, nil, nil).(*staffShiftService)
+	svc := NewStaffShiftService(repo, staffRepo, nil, nil, nil).(*staffShiftService)
 	assert.Same(t, slog.Default(), svc.getLogger())
 }
 
 func TestStaffShiftServiceUsesInjectedLogger(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
-	svc := NewStaffShiftService(&shiftMockRepo{}, &shiftMockStaffRepo{}, nil, logger).(*staffShiftService)
+	svc := NewStaffShiftService(&shiftMockRepo{}, &shiftMockStaffRepo{}, nil, nil, logger).(*staffShiftService)
 	assert.Same(t, logger, svc.getLogger())
+}
+
+// ============================================================================
+// Shift-type active-flag enforcement (#1836)
+// ============================================================================
+
+func TestShiftService_CreateRejectsInactiveShiftType(t *testing.T) {
+	svc, _, _ := shiftServiceWithTypes(map[int64]*scheduleModels.ShiftType{
+		4: {IsActive: false},
+	})
+
+	shift := validShift(7)
+	shift.ShiftTypeID = int64Ptr(4)
+
+	_, err := svc.CreateShift(context.Background(), shift)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrShiftTypeInactive)
+}
+
+func TestShiftService_CreateAllowsActiveShiftType(t *testing.T) {
+	svc, _, _ := shiftServiceWithTypes(map[int64]*scheduleModels.ShiftType{
+		4: {IsActive: true},
+	})
+
+	shift := validShift(7)
+	shift.ShiftTypeID = int64Ptr(4)
+
+	_, err := svc.CreateShift(context.Background(), shift)
+	require.NoError(t, err)
+}
+
+func TestShiftService_CreateRejectsUnknownShiftType(t *testing.T) {
+	svc, _, _ := shiftServiceWithTypes(map[int64]*scheduleModels.ShiftType{})
+
+	shift := validShift(7)
+	shift.ShiftTypeID = int64Ptr(4)
+
+	_, err := svc.CreateShift(context.Background(), shift)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrShiftTypeNotFound)
+}
+
+// An untyped shift never touches the shift-type service, so a nil dependency is
+// fine and the create succeeds.
+func TestShiftService_CreateWithoutTypeSkipsActiveCheck(t *testing.T) {
+	svc, _, _ := shiftServiceFixture()
+
+	_, err := svc.CreateShift(context.Background(), validShift(7))
+	require.NoError(t, err)
+}
+
+func TestShiftService_UpdateKeepsAlreadyAttachedInactiveType(t *testing.T) {
+	svc, repo, _ := shiftServiceWithTypes(map[int64]*scheduleModels.ShiftType{
+		4: {IsActive: false},
+	})
+
+	existing := validShift(7)
+	existing.ID = 5
+	existing.ShiftTypeID = int64Ptr(4)
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return existing, nil
+	}
+
+	update := validShift(7)
+	update.ID = 5
+	update.ShiftTypeID = int64Ptr(4) // re-sends the same, now-inactive type
+
+	_, err := svc.UpdateShift(context.Background(), update)
+	require.NoError(t, err, "keeping a shift's already-attached inactive type must stay allowed")
+}
+
+func TestShiftService_UpdateRejectsSwitchToDifferentInactiveType(t *testing.T) {
+	svc, repo, _ := shiftServiceWithTypes(map[int64]*scheduleModels.ShiftType{
+		4: {IsActive: false},
+		9: {IsActive: false},
+	})
+
+	existing := validShift(7)
+	existing.ID = 5
+	existing.ShiftTypeID = int64Ptr(4)
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return existing, nil
+	}
+
+	update := validShift(7)
+	update.ID = 5
+	update.ShiftTypeID = int64Ptr(9) // switches to a *different* inactive type
+
+	_, err := svc.UpdateShift(context.Background(), update)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrShiftTypeInactive)
+}
+
+func TestShiftService_UpdateAllowsSwitchToActiveType(t *testing.T) {
+	svc, repo, _ := shiftServiceWithTypes(map[int64]*scheduleModels.ShiftType{
+		4: {IsActive: false},
+		9: {IsActive: true},
+	})
+
+	existing := validShift(7)
+	existing.ID = 5
+	existing.ShiftTypeID = int64Ptr(4)
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return existing, nil
+	}
+
+	update := validShift(7)
+	update.ID = 5
+	update.ShiftTypeID = int64Ptr(9)
+
+	_, err := svc.UpdateShift(context.Background(), update)
+	require.NoError(t, err)
 }

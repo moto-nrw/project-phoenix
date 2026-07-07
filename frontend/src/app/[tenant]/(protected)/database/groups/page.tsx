@@ -23,6 +23,7 @@ import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
+import { trackEvent } from "~/lib/analytics";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 
 const logger = createLogger({ component: "DatabaseGroupsPage" });
@@ -155,6 +156,7 @@ export default function GroupsPage() {
           ? groupsConfig.form.transformBeforeSubmit(data)
           : data;
         const created = await service.create(payload);
+        trackEvent("group_created");
         toastSuccess(
           getDbOperationMessage(
             "create",
@@ -185,6 +187,7 @@ export default function GroupsPage() {
           ? groupsConfig.form.transformBeforeSubmit(data)
           : data;
         await service.update(selectedGroup.id, payload);
+        trackEvent("group_updated");
         toastSuccess(
           getDbOperationMessage(
             "update",

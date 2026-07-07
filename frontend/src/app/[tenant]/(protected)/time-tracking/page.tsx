@@ -12,6 +12,14 @@ import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { Loading } from "~/components/ui/loading";
+import { Button } from "~/components/ui/button";
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from "~/components/ui/drawer";
 import {
   type ChartConfig,
   ChartContainer,
@@ -211,7 +219,10 @@ function formatTimeFromDate(date: Date): string {
   return `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
 }
 
-const BREAK_OPTIONS = [15, 30, 45, 60] as const;
+const DEFAULT_BREAK_MINUTES = 30;
+const BREAK_STEP_MINUTES = 15;
+const MIN_BREAK_MINUTES = 15;
+const MAX_BREAK_MINUTES = 240;
 
 // Session status type (only present or home_office - no absent for active sessions)
 type SessionStatus = "present" | "home_office";
@@ -417,6 +428,7 @@ function renderTimerContent(
   isOnBreak: boolean,
   countdownRemainingSecs: number | null,
   plannedBreakDurationMins: number | null,
+  plannedBreakEndsAt: string | null,
   activeBreakElapsedSecs: number,
   displayMinutes: number,
   breakWarning: string | null,
@@ -434,6 +446,11 @@ function renderTimerContent(
         </span>
         <span className="mt-0.5 text-xs font-medium text-amber-500">
           Pause ({plannedBreakDurationMins} Min)
+        </span>
+        <span className="mt-0.5 text-center text-xs font-medium text-amber-600">
+          {plannedBreakEndsAt
+            ? `Automatisch weiter um ${formatTime(plannedBreakEndsAt)}`
+            : "Automatisch weiter nach der Pause"}
         </span>
       </>
     );
@@ -499,6 +516,10 @@ function ClockInCard({
   const [plannedBreakMinutes, setPlannedBreakMinutes] = useState<number | null>(
     null,
   );
+  const [individualBreakMinutes, setIndividualBreakMinutes] = useState(
+    DEFAULT_BREAK_MINUTES,
+  );
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
   // Mutex to prevent race condition in auto-end break effect
   const autoEndInFlightRef = useRef(false);
 
@@ -585,6 +606,15 @@ function ClockInCard({
     }
   }, [isOnBreak]);
 
+  useEffect(() => {
+    const updateViewport = () => {
+      setIsMobileViewport(window.innerWidth < 640);
+    };
+    updateViewport();
+    window.addEventListener("resize", updateViewport);
+    return () => window.removeEventListener("resize", updateViewport);
+  }, []);
+
   // Break compliance warning (only shown when checked in)
   const breakWarning = getBreakWarningIfActive(
     isCheckedIn,
@@ -635,6 +665,15 @@ function ClockInCard({
     }
   };
 
+  const handleBreakStepperChange = (direction: 1 | -1) => {
+    setIndividualBreakMinutes((current) =>
+      Math.min(
+        MAX_BREAK_MINUTES,
+        Math.max(MIN_BREAK_MINUTES, current + direction * BREAK_STEP_MINUTES),
+      ),
+    );
+  };
+
   const handleEndBreakEarly = async () => {
     setActionLoading(true);
     try {
@@ -644,6 +683,90 @@ function ClockInCard({
       setActionLoading(false);
     }
   };
+
+  const showBreakDurationPicker = breakMenuOpen && !isOnBreak;
+  const breakDurationStepper = (
+    <div className="mx-auto grid w-full max-w-xs grid-cols-[4.5rem_1fr_4.5rem] items-center gap-1 sm:flex sm:max-w-sm sm:justify-center sm:gap-5">
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        aria-label="Pausendauer verringern"
+        disabled={actionLoading || individualBreakMinutes <= MIN_BREAK_MINUTES}
+        onClick={() => handleBreakStepperChange(-1)}
+        className="h-[4.5rem] w-[4.5rem] !rounded-[1.75rem] border border-gray-200 shadow-none sm:h-12 sm:w-12 sm:!rounded-xl"
+      >
+        <svg
+          className="h-9 w-9 sm:h-7 sm:w-7"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3"
+          strokeLinecap="round"
+          aria-hidden="true"
+        >
+          <path d="M5 12h14" />
+        </svg>
+      </Button>
+      <div className="flex h-20 min-w-32 items-center justify-center px-3 sm:h-14 sm:min-w-24">
+        <span className="text-5xl font-semibold text-gray-900 tabular-nums sm:text-3xl">
+          {individualBreakMinutes}
+        </span>
+        <span className="ml-2 text-lg font-medium text-gray-500 sm:text-sm">
+          min
+        </span>
+      </div>
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        aria-label="Pausendauer erhöhen"
+        disabled={actionLoading || individualBreakMinutes >= MAX_BREAK_MINUTES}
+        onClick={() => handleBreakStepperChange(1)}
+        className="h-[4.5rem] w-[4.5rem] !rounded-[1.75rem] border border-gray-200 shadow-none sm:h-12 sm:w-12 sm:!rounded-xl"
+      >
+        <svg
+          className="h-9 w-9 sm:h-7 sm:w-7"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3"
+          strokeLinecap="round"
+          aria-hidden="true"
+        >
+          <path d="M12 5v14" />
+          <path d="M5 12h14" />
+        </svg>
+      </Button>
+    </div>
+  );
+  const breakStartButton = (
+    <Button
+      type="button"
+      size="md"
+      variant="primary"
+      disabled={actionLoading}
+      onClick={() => void handleSelectBreakDuration(individualBreakMinutes)}
+      className="mx-auto w-full max-w-sm text-sm shadow-none"
+    >
+      Starten
+    </Button>
+  );
+  const breakDurationControls = (
+    <>
+      {breakDurationStepper}
+      <Button
+        type="button"
+        size="md"
+        variant="primary"
+        disabled={actionLoading}
+        onClick={() => void handleSelectBreakDuration(individualBreakMinutes)}
+        className="mx-auto mt-6 w-full max-w-sm text-sm shadow-none"
+      >
+        Starten
+      </Button>
+    </>
+  );
 
   return (
     <div className="relative overflow-hidden rounded-3xl border border-gray-100/50 bg-white/90 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
@@ -792,7 +915,7 @@ function ClockInCard({
                 )}
 
                 {/* Break duration menu */}
-                {breakMenuOpen && !isOnBreak && (
+                {showBreakDurationPicker && !isMobileViewport && (
                   <>
                     {/* Backdrop to close menu */}
                     <button
@@ -805,21 +928,57 @@ function ClockInCard({
                           setBreakMenuOpen(false);
                       }}
                     />
-                    <div className="absolute top-full left-0 z-20 mt-2 flex gap-1.5 rounded-xl border border-gray-200 bg-white p-2 shadow-lg">
-                      {BREAK_OPTIONS.map((mins) => (
-                        <button
-                          key={mins}
-                          onClick={() => handleSelectBreakDuration(mins)}
-                          disabled={actionLoading}
-                          className="rounded-lg bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-700 transition-all hover:bg-amber-100 active:scale-95 disabled:opacity-50"
-                        >
-                          {mins}m
-                        </button>
-                      ))}
+                    <div className="absolute top-full left-0 z-20 mt-2 w-[calc(100vw-2rem)] max-w-72 rounded-xl border border-gray-200 bg-white p-3 shadow-lg sm:w-72">
+                      {breakDurationControls}
                     </div>
                   </>
                 )}
               </div>
+
+              {showBreakDurationPicker && isMobileViewport && (
+                <Drawer
+                  open
+                  onOpenChange={(next) => {
+                    if (!next) setBreakMenuOpen(false);
+                  }}
+                  direction="bottom"
+                  shouldScaleBackground
+                >
+                  <DrawerContent
+                    aria-label="Pause stempeln"
+                    aria-describedby={undefined}
+                    className="max-h-[calc(100vh-7rem)] min-h-[22rem] overflow-visible px-5 pb-[calc(env(safe-area-inset-bottom)+1rem)]"
+                  >
+                    <DrawerHeader className="flex items-center justify-between px-0 pt-4 pb-4 text-left">
+                      <DrawerTitle>Pause stempeln</DrawerTitle>
+                      <DrawerClose
+                        type="button"
+                        aria-label="Pausendauer schließen"
+                        className="flex h-10 w-10 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                      >
+                        <svg
+                          className="h-5 w-5"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          aria-hidden="true"
+                        >
+                          <path d="M6 6l12 12" />
+                          <path d="M18 6L6 18" />
+                        </svg>
+                      </DrawerClose>
+                    </DrawerHeader>
+                    <div className="flex min-h-56 flex-1 flex-col pt-2 pb-1">
+                      <div className="flex flex-1 items-start pt-8">
+                        {breakDurationStepper}
+                      </div>
+                      {breakStartButton}
+                    </div>
+                  </DrawerContent>
+                </Drawer>
+              )}
 
               {/* Timer display */}
               <div className="flex flex-col items-center">
@@ -827,6 +986,7 @@ function ClockInCard({
                   isOnBreak,
                   countdownRemainingSecs,
                   plannedBreakDurationMins,
+                  activeBreak?.plannedEndTime ?? null,
                   activeBreakElapsedSecs,
                   displayMinutes,
                   breakWarning,
@@ -3177,14 +3337,25 @@ function TimeTrackingContent() {
   const handleEndBreak = useCallback(async () => {
     try {
       await timeTrackingService.endBreak();
-      await Promise.all([mutateCurrentSession(), fetchBreaks()]);
+      await Promise.all([
+        mutateCurrentSession(),
+        mutateHistory(),
+        refreshTableData(),
+        fetchBreaks(),
+      ]);
     } catch (err) {
       logger.error("end_break_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
       toast.error(friendlyError(err, "Fehler beim Beenden der Pause"));
     }
-  }, [mutateCurrentSession, fetchBreaks, toast]);
+  }, [
+    mutateCurrentSession,
+    mutateHistory,
+    refreshTableData,
+    fetchBreaks,
+    toast,
+  ]);
 
   const handleEditSave = useCallback(
     async (

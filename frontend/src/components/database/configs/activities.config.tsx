@@ -102,6 +102,9 @@ export const activitiesConfig = defineEntityConfig<Activity>({
 
   api: {
     basePath: "/api/activities",
+    // Admin view keeps showing system activities (Schulhof Freispiel, WC) —
+    // they are rendered greyed-out via isSystemActivity instead of hidden.
+    listParams: { include_system: "true" },
   },
 
   form: {

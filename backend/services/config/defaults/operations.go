@@ -241,8 +241,8 @@ func init() {
 		SortOrder:       2,
 	})
 
-	// Break auto-end interval is NOT registered here — it controls a global ticker
-	// (not per-tenant) and is configured via BREAK_AUTO_END_INTERVAL_SECONDS env var only.
+	// Break auto-end interval is NOT registered here. It controls a global ticker
+	// and is configured via BREAK_AUTO_END_INTERVAL_SECONDS env var only.
 
 	// --- Status flag auto-clear (Krank / Entschuldigt badge lifecycle) ---
 

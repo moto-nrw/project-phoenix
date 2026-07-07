@@ -3,11 +3,9 @@ import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { DatabasePageLayout } from "./database-page-layout";
 
-vi.mock("~/components/ui/loading", () => ({
-  Loading: ({ fullPage }: { fullPage?: boolean }) => (
-    <div data-testid="loading" data-full-page={String(fullPage)}>
-      Loading...
-    </div>
+vi.mock("./master-detail-skeleton", () => ({
+  MasterDetailSkeleton: () => (
+    <div data-testid="master-detail-skeleton">Loading...</div>
   ),
 }));
 
@@ -23,7 +21,7 @@ describe("DatabasePageLayout", () => {
       </DatabasePageLayout>,
     );
 
-    expect(screen.getByTestId("loading")).toBeInTheDocument();
+    expect(screen.getByTestId("master-detail-skeleton")).toBeInTheDocument();
     expect(screen.queryByText("Content")).not.toBeInTheDocument();
   });
 
@@ -34,7 +32,7 @@ describe("DatabasePageLayout", () => {
       </DatabasePageLayout>,
     );
 
-    expect(screen.getByTestId("loading")).toBeInTheDocument();
+    expect(screen.getByTestId("master-detail-skeleton")).toBeInTheDocument();
   });
 
   it("renders children and mobile back button when not loading", () => {
@@ -44,7 +42,9 @@ describe("DatabasePageLayout", () => {
       </DatabasePageLayout>,
     );
 
-    expect(screen.queryByTestId("loading")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("master-detail-skeleton"),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("Content")).toBeInTheDocument();
     expect(screen.getByTestId("mobile-back")).toBeInTheDocument();
   });

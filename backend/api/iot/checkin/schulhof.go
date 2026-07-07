@@ -34,6 +34,7 @@ func (rs *Resource) ensureSchulhofRoom(ctx context.Context) (*facilities.Room, e
 		Capacity: &capacity,
 		Category: &category,
 		Color:    &color,
+		IsSystem: true,
 	}
 
 	if err := rs.FacilityService.CreateRoom(ctx, newRoom); err != nil {
@@ -75,6 +76,7 @@ func (rs *Resource) ensureSchulhofCategory(ctx context.Context) (*activities.Cat
 		Name:        constants.SchulhofCategoryName,
 		Description: constants.SchulhofCategoryDescription,
 		Color:       constants.SchulhofColor,
+		IsSystem:    true,
 	}
 
 	createdCategory, err := rs.ActivitiesService.CreateCategory(ctx, newCategory)
@@ -144,6 +146,7 @@ func (rs *Resource) schulhofActivityGroup(ctx context.Context) (*activities.Grou
 		IsOpen:          true, // Open activity - anyone can join
 		CategoryID:      category.ID,
 		PlannedRoomID:   &room.ID,
+		IsSystem:        true,
 	}
 
 	// CreateGroup requires supervisorIDs and schedules - pass empty slices for auto-created activity

@@ -98,6 +98,7 @@ type Factory struct {
 	StudentArrivalNote        scheduleModels.StudentArrivalNoteRepository
 	CareScheduleChangeRequest scheduleModels.CareScheduleChangeRequestRepository
 	StaffShift                scheduleModels.StaffShiftRepository
+	ShiftType                 scheduleModels.ShiftTypeRepository
 	CalendarPeriod            scheduleModels.CalendarPeriodRepository
 	ActivityInstance          scheduleModels.ActivityInstanceRepository
 	InstanceStaff             scheduleModels.InstanceStaffRepository
@@ -274,6 +275,7 @@ func NewFactory(db *bun.DB) *Factory {
 		StudentArrivalNote:        schedule.NewStudentArrivalNoteRepository(db),
 		CareScheduleChangeRequest: schedule.NewCareScheduleChangeRequestRepository(db),
 		StaffShift:                schedule.NewStaffShiftRepository(db),
+		ShiftType:                 schedule.NewShiftTypeRepository(db),
 		CalendarPeriod:            schedule.NewCalendarPeriodRepository(db),
 		ActivityInstance:          schedule.NewActivityInstanceRepository(db),
 		InstanceStaff:             schedule.NewInstanceStaffRepository(db),

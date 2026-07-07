@@ -93,7 +93,11 @@ func (r *GroupRepository) FindOpenGroups(ctx context.Context) ([]*activities.Gro
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&groups).
 		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
-		Where("is_open = ?", true)
+		Where("is_open = ?", true).
+		// System activities (Schulhof Freispiel, WC) are created with
+		// is_open = true for the IoT flows but are never openly enrollable
+		// through the staff UI (issue #923).
+		Where("is_system = ?", false)
 
 	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
 		query = query.Where(where, val)

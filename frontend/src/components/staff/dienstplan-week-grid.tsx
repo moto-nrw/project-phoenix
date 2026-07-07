@@ -5,6 +5,10 @@ import { Plus } from "lucide-react";
 import { Skeleton } from "~/components/ui/skeleton";
 import type { Staff } from "~/lib/staff-api";
 import { formatShiftLabel, type StaffShift } from "~/lib/shift-helpers";
+import type { ShiftType } from "~/lib/shift-type-helpers";
+
+// Neutral left-border color for shifts without a shift type (Schichtart).
+const UNTYPED_SHIFT_COLOR = "#D1D5DB";
 
 // Week matrix: one row per staff member, one column per weekday (Mo–Fr).
 // A matrix layout doesn't fit the shared DataTable (row-per-record) shape,
@@ -19,6 +23,8 @@ interface DienstplanWeekGridProps {
   readonly weekDays: readonly string[];
   /** Today as "YYYY-MM-DD" for the column tint */
   readonly todayIso: string;
+  /** Shift type lookup (id -> type) for per-shift color + label */
+  readonly typesById: Map<string, ShiftType>;
   readonly isLoading: boolean;
   readonly onCellClick: (
     staff: Staff,
@@ -39,6 +45,7 @@ export function DienstplanWeekGrid({
   shiftsByStaff,
   weekDays,
   todayIso,
+  typesById,
   isLoading,
   onCellClick,
 }: DienstplanWeekGridProps) {
@@ -94,23 +101,42 @@ export function DienstplanWeekGrid({
                       className={`group px-3 py-2 align-top ${date === todayIso ? "bg-amber-50/40" : ""}`}
                     >
                       <div className="flex min-h-9 flex-col gap-1">
-                        {shifts.map((shift) => (
-                          <button
-                            key={shift.id}
-                            type="button"
-                            onClick={() => onCellClick(member, date, shift)}
-                            className="w-full rounded-md border border-l-2 border-gray-200 border-l-[#83CD2D] bg-white px-2 py-1 text-left transition-colors hover:bg-gray-50"
-                          >
-                            <span className="font-semibold tabular-nums">
-                              {formatShiftLabel(shift)}
-                            </span>
-                            {shift.breakMinutes > 0 && (
-                              <span className="block text-xs text-gray-500">
-                                Pause {shift.breakMinutes} min
+                        {shifts.map((shift) => {
+                          const type = shift.shiftTypeId
+                            ? typesById.get(shift.shiftTypeId)
+                            : undefined;
+                          return (
+                            <button
+                              key={shift.id}
+                              type="button"
+                              onClick={() => onCellClick(member, date, shift)}
+                              style={{
+                                borderLeftColor:
+                                  type?.color ?? UNTYPED_SHIFT_COLOR,
+                                // Light tint of the shift-type color as the slot
+                                // background (~10% opacity via 8-digit hex).
+                                backgroundColor: type
+                                  ? `${type.color}1A`
+                                  : undefined,
+                              }}
+                              className="w-full rounded-md border border-l-2 border-gray-200 bg-white px-2 py-1 text-left transition-shadow hover:shadow-sm"
+                            >
+                              <span className="font-semibold tabular-nums">
+                                {formatShiftLabel(shift)}
                               </span>
-                            )}
-                          </button>
-                        ))}
+                              {type && (
+                                <span className="block truncate text-xs text-gray-600">
+                                  {type.name}
+                                </span>
+                              )}
+                              {shift.breakMinutes > 0 && (
+                                <span className="block text-xs text-gray-500">
+                                  Pause {shift.breakMinutes} min
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
                         <button
                           type="button"
                           onClick={() => onCellClick(member, date, null)}

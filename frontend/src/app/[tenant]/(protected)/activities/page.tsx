@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
   FilterConfig,
@@ -18,13 +19,43 @@ import { QuickCreateActivityModal } from "~/components/activities/quick-create-m
 import { userContextService } from "~/lib/usercontext-api";
 import type { Staff } from "~/lib/usercontext-helpers";
 import { useToast } from "~/contexts/ToastContext";
-import { Loading } from "~/components/ui/loading";
+import { Skeleton } from "~/components/ui/skeleton";
 import { useSWRAuth } from "~/lib/swr";
 import { createLogger } from "~/lib/logger";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
+import { useTenantRouter } from "~/lib/tenant-router";
 import { NfcModeGuard } from "~/components/tenant/nfc-mode-guard";
 
 const logger = createLogger({ component: "ActivitiesPage" });
+
+// Content-shaped placeholder mirroring the activity row cards, so there is no
+// layout shift once the list loads.
+function ActivitiesSkeleton() {
+  return (
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label="Aktivitäten werden geladen"
+      data-testid="activities-skeleton"
+      className="w-full space-y-3"
+    >
+      {[0, 1, 2, 3].map((item) => (
+        <div
+          key={item}
+          className="moto-content-surface rounded-2xl border border-gray-200 p-5"
+        >
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 flex-1 space-y-2">
+              <Skeleton className="h-5 w-2/5 rounded-full" />
+              <Skeleton className="h-3.5 w-1/3 rounded-full" />
+            </div>
+            <Skeleton className="ml-4 h-10 w-10 flex-shrink-0 rounded-full" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // SWR cache key for activities page data
 const ACTIVITIES_PAGE_KEY = "activities-page";
@@ -61,6 +92,37 @@ function ActivitiesPageContent() {
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
   const { success: toastSuccess } = useToast();
   const [isMobile, setIsMobile] = useState(false);
+  const router = useTenantRouter();
+
+  // useSWRAuth silently disables the fetch when there is no authenticated
+  // session (data stays undefined, isLoading stays false). Require a session
+  // here so a direct visit after logout/expiry redirects instead of showing
+  // the skeleton forever.
+  const { data: session, status } = useSession({
+    required: true,
+    onUnauthenticated() {
+      router.push("/");
+    },
+  });
+
+  // The session callback can keep status "authenticated" while clearing the
+  // token and setting session.error (expired refresh token). useSWRAuth never
+  // starts without a token, so redirect instead of showing the skeleton
+  // forever — same pattern as the dashboard.
+  useEffect(() => {
+    if (status === "authenticated" && session) {
+      if (session.error === "RefreshTokenExpired") {
+        logger.info("session refresh token expired, redirecting to login");
+        router.push("/");
+        return;
+      }
+
+      if (!session.user?.token) {
+        logger.info("no valid token in session, redirecting to login");
+        router.push("/");
+      }
+    }
+  }, [status, session, router]);
 
   // Fetch activities, categories, and current staff with SWR
   const {
@@ -257,8 +319,18 @@ function ActivitiesPageContent() {
     return filters;
   }, [searchTerm, categoryFilter, myActivitiesFilter, categories]);
 
-  if (isLoading) {
-    return <Loading fullPage={false} />;
+  // Session loading is gated explicitly via status; the data clause covers
+  // the render tick between "authenticated" and SWR starting its first fetch
+  // (isLoading is still false there but no data exists yet). Unauthenticated
+  // visits redirect via the required-session guard, and expired/tokenless
+  // sessions redirect via the effect above, so this cannot show the skeleton
+  // indefinitely.
+  if (
+    status === "loading" ||
+    isLoading ||
+    (pageData === undefined && !fetchError)
+  ) {
+    return <ActivitiesSkeleton />;
   }
 
   return (
