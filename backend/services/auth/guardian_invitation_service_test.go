@@ -32,11 +32,8 @@ type guardianTestEnv struct {
 	cleanup func()
 }
 
-// stubOutboxEnqueuer satisfies authService.OutboxEnqueuer for tests that
-// exercise the production (outbox) email path instead of the legacy
-// dispatcher path. The legacy path spawns a goroutine whose delivery
-// callback writes email_sent_at back to the invitation row, racing any
-// assertion on those columns.
+// stubOutboxEnqueuer satisfies authService.OutboxEnqueuer so tests can
+// capture what the service enqueues without wiring the full outbox stack.
 type stubOutboxEnqueuer struct {
 	requests []platformModels.OutboxEnqueueRequest
 }
@@ -53,7 +50,6 @@ func setupGuardianInvitationTest(t *testing.T, mutate ...func(*authService.Guard
 
 	repoFactory := repositories.NewFactory(db)
 	mailer := email.NewMockMailer()
-	dispatcher := email.NewDispatcher(mailer, slog.Default())
 
 	cfg := authService.GuardianInvitationServiceConfig{
 		InvitationRepo:      repoFactory.GuardianInvitation,
@@ -66,10 +62,8 @@ func setupGuardianInvitationTest(t *testing.T, mutate ...func(*authService.Guard
 		StudentGuardianRepo: repoFactory.StudentGuardian,
 		StudentRepo:         repoFactory.Student,
 		SchoolRepo:          repoFactory.School,
-		Mailer:              mailer,
-		Dispatcher:          dispatcher,
+		OutboxEnqueuer:      &stubOutboxEnqueuer{},
 		FrontendURL:         "http://localhost:3000",
-		DefaultFrom:         email.NewEmail("Test", "no-reply@moto.local"),
 		FallbackExpiry:      48 * time.Hour,
 		DB:                  db,
 		Logger:              slog.Default(),
@@ -590,7 +584,6 @@ func setupGuardianInviteWithBackfiller(t *testing.T, backfiller authService.Enro
 
 	repoFactory := repositories.NewFactory(db)
 	mailer := email.NewMockMailer()
-	dispatcher := email.NewDispatcher(mailer, slog.Default())
 
 	service := authService.NewGuardianInvitationService(authService.GuardianInvitationServiceConfig{
 		InvitationRepo:       repoFactory.GuardianInvitation,
@@ -602,10 +595,8 @@ func setupGuardianInviteWithBackfiller(t *testing.T, backfiller authService.Enro
 		GuardianProfileRepo:  repoFactory.GuardianProfile,
 		SchoolRepo:           repoFactory.School,
 		EnrollmentBackfiller: backfiller,
-		Mailer:               mailer,
-		Dispatcher:           dispatcher,
+		OutboxEnqueuer:       &stubOutboxEnqueuer{},
 		FrontendURL:          "http://localhost:3000",
-		DefaultFrom:          email.NewEmail("Test", "no-reply@moto.local"),
 		FallbackExpiry:       48 * time.Hour,
 		DB:                   db,
 		Logger:               slog.Default(),

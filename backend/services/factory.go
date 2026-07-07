@@ -669,13 +669,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StudentGuardianRepo:  repos.StudentGuardian,
 		StudentRepo:          repos.Student,
 		SchoolRepo:           repos.School,
-		Mailer:               mailer,
-		Dispatcher:           dispatcher,
 		OutboxEnqueuer:       emailOutboxService,
 		EnrollmentBackfiller: repos.ParentEnrollmentRequest,
 		SettingsResolver:     settingsService,
 		FrontendURL:          parentsURL, // accept link goes to the parents portal, not the staff frontend
-		DefaultFrom:          defaultFrom,
 		FallbackExpiry:       invitationTokenExpiry,
 		DB:                   db,
 		Logger:               authLogger.With("flow", "guardian_invitation"),

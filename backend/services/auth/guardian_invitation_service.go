@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/email"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -54,14 +53,13 @@ const schoolLogoURLKey = "logoUrl"
 const schoolLoginImageURLKey = "loginImageUrl"
 
 // GuardianInvitationServiceConfig is the dependency injection bundle for
-// NewGuardianInvitationService. All fields except SettingsResolver,
-// Dispatcher, and OutboxEnqueuer are required.
+// NewGuardianInvitationService. All fields except SettingsResolver are
+// required.
 //
-// OutboxEnqueuer (PR 5+) replaces the legacy Dispatcher path. When set,
-// invitation emails are written to platform.email_outbox and the worker
-// dispatches them. When nil, falls back to direct dispatch via
-// Dispatcher (kept for tests that don't wire the full outbox stack).
-// Production wiring always sets the enqueuer.
+// OutboxEnqueuer is the send path: invitation emails are written to
+// platform.email_outbox and the worker dispatches them. When nil (a
+// misconfiguration — production wiring always sets it), enqueueEmail
+// logs a warning and skips the send.
 type GuardianInvitationServiceConfig struct {
 	InvitationRepo      authModels.GuardianInvitationRepository
 	AccountRepo         authModels.AccountRepository
@@ -73,8 +71,6 @@ type GuardianInvitationServiceConfig struct {
 	StudentGuardianRepo userModels.StudentGuardianRepository
 	StudentRepo         userModels.StudentRepository
 	SchoolRepo          platformModels.SchoolRepository
-	Mailer              email.Mailer
-	Dispatcher          *email.Dispatcher
 	OutboxEnqueuer      platformModels.OutboxEnqueuer
 	// EnrollmentBackfiller stamps guardian_account_id onto every
 	// pre-account enrollment.requests row matching the guardian's
@@ -84,7 +80,6 @@ type GuardianInvitationServiceConfig struct {
 	EnrollmentBackfiller EnrollmentBackfiller
 	SettingsResolver     GuardianSettingsResolver
 	FrontendURL          string
-	DefaultFrom          email.Email
 	FallbackExpiry       time.Duration
 	DB                   *bun.DB
 	Logger               *slog.Logger
@@ -103,15 +98,11 @@ type guardianInvitationService struct {
 	txHandler *modelBase.TxHandler
 }
 
-// NewGuardianInvitationService builds a guardian invitation service. The
-// dispatcher is auto-derived from the mailer when not provided. A nil logger
-// falls back to slog.Default().
+// NewGuardianInvitationService builds a guardian invitation service. A nil
+// logger falls back to slog.Default().
 func NewGuardianInvitationService(cfg GuardianInvitationServiceConfig) GuardianInvitationService {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
-	}
-	if cfg.Dispatcher == nil && cfg.Mailer != nil {
-		cfg.Dispatcher = email.NewDispatcher(cfg.Mailer, cfg.Logger.With("component", "email"))
 	}
 	if cfg.FallbackExpiry <= 0 {
 		cfg.FallbackExpiry = guardianTokenExpiryFallback
@@ -501,30 +492,20 @@ func (s *guardianInvitationService) lookupSchoolName(ctx context.Context, tenant
 	return school.Name
 }
 
-var guardianInvitationEmailBackoff = []time.Duration{
-	time.Second,
-	5 * time.Second,
-	15 * time.Second,
-}
-
-// enqueueEmail is the unified send path. When an outbox enqueuer is
-// wired (production via factory.go since PR 5), the email is written
-// to platform.email_outbox and the worker dispatches asynchronously.
-// When the enqueuer is nil (older tests, mock setups), falls back to
-// the legacy direct-dispatch path through email.Dispatcher.
-//
-// The legacy path keeps email_sent_at / email_error / email_retry_count
-// up to date on auth.guardian_invitations via persistDeliveryResult.
-// The outbox path leaves those columns NULL and surfaces delivery
-// status from platform.email_outbox instead. Admin UIs that want
-// per-invitation delivery state should query the outbox by
+// enqueueEmail writes the invitation email to platform.email_outbox;
+// the worker dispatches asynchronously. The email_sent_at / email_error /
+// email_retry_count columns on auth.guardian_invitations stay NULL —
+// delivery status lives in platform.email_outbox instead. Admin UIs that
+// want per-invitation delivery state should query the outbox by
 // (related_entity_type='guardian_invitation', related_entity_id=invitationID).
 func (s *guardianInvitationService) enqueueEmail(ctx context.Context, invitation *authModels.GuardianInvitation, profile *userModels.GuardianProfile, schoolName string) {
-	if s.OutboxEnqueuer != nil {
-		s.enqueueViaOutbox(ctx, invitation, profile, schoolName)
+	if s.OutboxEnqueuer == nil {
+		s.getLogger().Warn("guardian invitation: outbox enqueuer not configured, email skipped",
+			slog.Int64("invitation_id", invitation.ID),
+		)
 		return
 	}
-	s.dispatchEmail(invitation, profile, schoolName)
+	s.enqueueViaOutbox(ctx, invitation, profile, schoolName)
 }
 
 // enqueueViaOutbox writes a guardian_invitation row to the platform
@@ -572,116 +553,6 @@ func (s *guardianInvitationService) enqueueViaOutbox(ctx context.Context, invita
 		s.getLogger().Error("guardian invitation: outbox enqueue failed",
 			slog.Int64("invitation_id", invitation.ID),
 			slog.String("error", err.Error()))
-	}
-}
-
-func (s *guardianInvitationService) dispatchEmail(invitation *authModels.GuardianInvitation, profile *userModels.GuardianProfile, schoolName string) {
-	if s.Dispatcher == nil {
-		s.getLogger().Warn("guardian invitation: email dispatcher unavailable",
-			slog.Int64("invitation_id", invitation.ID),
-		)
-		return
-	}
-
-	frontend := s.FrontendURL
-	if frontend == "" {
-		frontend = "http://localhost:3000"
-	}
-	invitationURL := fmt.Sprintf("%s/accept-guardian-invite/%s", frontend, invitation.Token)
-	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", frontend)
-	expiryHours := int(time.Until(invitation.ExpiresAt) / time.Hour)
-	if expiryHours < 1 {
-		expiryHours = 1
-	}
-
-	subject := "Einladung zum Eltern-Portal"
-	if schoolName != "" {
-		subject = fmt.Sprintf("Einladung zum Eltern-Portal: %s", schoolName)
-	}
-
-	recipientEmail := ""
-	if profile != nil && profile.Email != nil {
-		recipientEmail = strings.TrimSpace(*profile.Email)
-	}
-
-	var firstName, lastName string
-	if profile != nil {
-		firstName = strings.TrimSpace(profile.FirstName)
-		lastName = strings.TrimSpace(profile.LastName)
-	}
-
-	message := email.Message{
-		From:     s.DefaultFrom,
-		To:       email.NewEmail("", recipientEmail),
-		Subject:  subject,
-		Template: "guardian-invitation.html",
-		Content: map[string]any{
-			"InvitationURL": invitationURL,
-			"FirstName":     firstName,
-			"LastName":      lastName,
-			"ExpiryHours":   expiryHours,
-			"LogoURL":       logoURL,
-			"SchoolName":    schoolName,
-		},
-	}
-
-	meta := email.DeliveryMetadata{
-		Type:        "guardian_invitation",
-		ReferenceID: invitation.ID,
-		Token:       invitation.Token,
-		Recipient:   recipientEmail,
-	}
-
-	baseRetry := invitation.EmailRetryCount
-
-	s.Dispatcher.Dispatch(context.Background(), email.DeliveryRequest{
-		Message:       message,
-		Metadata:      meta,
-		BackoffPolicy: guardianInvitationEmailBackoff,
-		MaxAttempts:   3,
-		Callback: func(cbCtx context.Context, result email.DeliveryResult) {
-			s.persistDeliveryResult(cbCtx, meta, baseRetry, result)
-		},
-	})
-}
-
-func (s *guardianInvitationService) persistDeliveryResult(ctx context.Context, meta email.DeliveryMetadata, baseRetry int, result email.DeliveryResult) {
-	retryCount := baseRetry + result.Attempt
-	var sentAt *time.Time
-	var errText *string
-
-	if result.Status == email.DeliveryStatusSent {
-		sentTime := result.SentAt
-		sentAt = &sentTime
-	} else if result.Err != nil {
-		msg := strings.TrimSpace(result.Err.Error())
-		errText = &msg
-	}
-
-	updateCtx := ctx
-	if s.DB != nil {
-		// Persist via admin tx, the dispatcher's callback runs detached from
-		// the request context, so it has no tenant transaction available.
-		err := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
-			return s.InvitationRepo.UpdateEmailStatus(adminCtx, meta.ReferenceID, sentAt, errText, retryCount)
-		})
-		if err != nil {
-			s.getLogger().Error("guardian invitation: persist delivery failed",
-				slog.Int64("invitation_id", meta.ReferenceID),
-				slog.String("error", err.Error()),
-			)
-			return
-		}
-	} else {
-		_ = updateCtx
-	}
-
-	if result.Final && result.Status == email.DeliveryStatusFailed {
-		s.getLogger().Error("guardian invitation email permanently failed",
-			slog.Int64("invitation_id", meta.ReferenceID),
-			slog.String("recipient", meta.Recipient),
-			slog.Any("error", result.Err),
-		)
 	}
 }
 
