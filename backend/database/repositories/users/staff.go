@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
@@ -227,6 +229,50 @@ func (r *StaffRepository) ListAllWithPerson(ctx context.Context) ([]*users.Staff
 	}
 
 	return staffMembers, nil
+}
+
+// FindReachableCalendarStaffIDs returns the subset of the given staff IDs (or
+// all staff for the current tenant when ids is empty) that can actually use the
+// calendar: a linked, active account with an active tenant mapping and the
+// calendar:own permission. Staff who cannot use the calendar would leave RSVP
+// appointments permanently pending and skew attendee counts, so they must not
+// become recipients. Join shape mirrors ListStaffByRoles.
+//
+// auth.permissions / auth.role_permissions are global (no RLS) and readable by
+// phoenix_tenant via the schema-wide grant; account_tenants / account_roles are
+// tenant-scoped and filtered by RLS to the current tenant.
+func (r *StaffRepository) FindReachableCalendarStaffIDs(ctx context.Context, ids []int64) (map[int64]bool, error) {
+	var staffIDs []int64
+	query := base.GetDB(ctx, r.db).NewSelect().
+		ModelTableExpr(`users.staff AS "staff"`).
+		ColumnExpr(`DISTINCT "staff".id`).
+		Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id AND "person".deleted_at IS NULL`).
+		Join(`INNER JOIN auth.accounts AS "account" ON "account".id = "person".account_id`).
+		Join(`INNER JOIN auth.account_tenants AS "account_tenant" ON "account_tenant".account_id = "account".id`).
+		Join(`INNER JOIN auth.account_roles AS "account_role" ON "account_role".account_id = "account".id AND "account_role".tenant_id = "account_tenant".tenant_id`).
+		Join(`INNER JOIN auth.role_permissions AS "role_permission" ON "role_permission".role_id = "account_role".role_id`).
+		Join(`INNER JOIN auth.permissions AS "permission" ON "permission".id = "role_permission".permission_id`).
+		Where(`"staff".deleted_at IS NULL`).
+		Where(`"account".active = ?`, true).
+		Where(`"account_tenant".status = ?`, authModels.AccountTenantStatusActive).
+		Where(`"permission".name = ?`, permissions.CalendarOwn)
+
+	if len(ids) > 0 {
+		query = query.Where(`"staff".id IN (?)`, bun.List(ids))
+	}
+	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx, &staffIDs); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find reachable calendar staff", Err: err}
+	}
+
+	result := make(map[int64]bool, len(staffIDs))
+	for _, id := range staffIDs {
+		result[id] = true
+	}
+	return result, nil
 }
 
 // FindWithPerson retrieves a staff member with their associated person data

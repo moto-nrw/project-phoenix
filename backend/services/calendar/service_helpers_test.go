@@ -124,6 +124,27 @@ func TestAppointmentEventCanRespond(t *testing.T) {
 	assert.False(t, nonRecipient.CanRespond)
 }
 
+func TestMatchesRuleWeeklyIntervalAnchorsToCalendarWeeks(t *testing.T) {
+	// Wednesday start, biweekly, on Mondays and Wednesdays. Intervals must be
+	// counted in calendar weeks (Mon–Sun), not 7-day blocks from the Wed start.
+	start := timezone.NewDate(2026, 1, 7) // Wednesday (Jan 5 is the Monday)
+	rule := &calModels.RecurrenceRule{
+		Frequency:     calModels.RecurrenceFrequencyWeekly,
+		IntervalCount: 2,
+		Weekdays:      []string{"monday", "wednesday"},
+	}
+
+	// Week 0 (the start week): the Wednesday start is included.
+	assert.True(t, matchesRule(start, timezone.NewDate(2026, 1, 7), rule))
+	// Week 1 (odd) is skipped entirely — including the Monday only 5 days after
+	// the start, which the old day-count logic wrongly treated as "week 0".
+	assert.False(t, matchesRule(start, timezone.NewDate(2026, 1, 12), rule))
+	assert.False(t, matchesRule(start, timezone.NewDate(2026, 1, 14), rule))
+	// Week 2 (even) includes both weekdays — the Monday the old logic dropped.
+	assert.True(t, matchesRule(start, timezone.NewDate(2026, 1, 19), rule))
+	assert.True(t, matchesRule(start, timezone.NewDate(2026, 1, 21), rule))
+}
+
 func TestCalendarRecipientStatusHelpers(t *testing.T) {
 	staffID := int64(10)
 	guardianID := int64(20)

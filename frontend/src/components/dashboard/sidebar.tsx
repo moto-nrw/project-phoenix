@@ -97,7 +97,9 @@ const NAV_ITEMS: NavItem[] = [
     label: "Kalender",
     icon: navigationIcons.calendar,
     activeColor: "text-[#5080D8]",
-    alwaysShow: true,
+    // Backend gates GET /api/calendar/my on calendar:own; match it so
+    // restricted/custom roles without the permission don't land on a 403 page.
+    requiresPermission: "calendar:own",
   },
   {
     href: "/substitutions",

@@ -337,10 +337,14 @@ export default function StaffCalendarPage() {
   };
 
   const handleShowOverview = async (appointmentId: string) => {
+    // Clear any previous appointment's attendees so a failed/slow request
+    // can't leave the old overview visible under a different appointment.
+    setOverview(null);
     setOverviewLoading(true);
     try {
       setOverview(await getStaffAppointmentOverview(appointmentId));
     } catch (err) {
+      setOverview(null);
       toast.error(
         errorMessage(err, "Teilnehmerübersicht konnte nicht geladen werden."),
       );
@@ -426,7 +430,9 @@ export default function StaffCalendarPage() {
       <PersonalCalendar
         title="Mein Kalender"
         subtitle="Deine Termine, Einladungen und zugewiesenen Betreuungsangebote."
-        events={data?.events ?? []}
+        // On a load error SWR may still hold the previous range's data; don't
+        // render stale appointments under the new date label.
+        events={calendarError ? [] : (data?.events ?? [])}
         referenceDate={referenceDate}
         viewMode={viewMode}
         loading={isLoading}

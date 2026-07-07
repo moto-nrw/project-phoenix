@@ -226,6 +226,11 @@ type StaffRepository interface {
 	// ListAllWithPerson retrieves all staff members with their associated person data in a single query
 	ListAllWithPerson(ctx context.Context) ([]*Staff, error)
 
+	// FindReachableCalendarStaffIDs returns the subset of the given staff IDs
+	// (or all staff when ids is empty) that can use the calendar for the current
+	// tenant (active linked account + active tenant mapping + calendar:own).
+	FindReachableCalendarStaffIDs(ctx context.Context, ids []int64) (map[int64]bool, error)
+
 	// UpdateNotes updates staff notes
 	UpdateNotes(ctx context.Context, id int64, notes string) error
 

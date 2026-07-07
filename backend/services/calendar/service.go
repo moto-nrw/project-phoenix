@@ -925,22 +925,25 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 		})
 		switch target.Type {
 		case calModels.TargetTypeAllStaff:
-			staffRows, err := s.cfg.StaffRepo.ListAllWithPerson(ctx)
+			// Only invite staff who can actually use the calendar (active
+			// account + calendar:own); unreachable staff would leave RSVP
+			// appointments permanently pending and skew attendee counts.
+			reachable, err := s.cfg.StaffRepo.FindReachableCalendarStaffIDs(ctx, nil)
 			if err != nil {
 				return nil, nil, nil, err
 			}
-			for _, staff := range staffRows {
-				staffIDs[staff.ID] = struct{}{}
+			for staffID := range reachable {
+				staffIDs[staffID] = struct{}{}
 			}
 		case calModels.TargetTypeStaff:
 			if target.ID == nil || *target.ID <= 0 {
 				return nil, nil, nil, fmt.Errorf("%w: staff target requires id", ErrInvalidRequest)
 			}
-			staffRows, err := s.cfg.StaffRepo.FindByIDs(ctx, []int64{*target.ID})
+			reachable, err := s.cfg.StaffRepo.FindReachableCalendarStaffIDs(ctx, []int64{*target.ID})
 			if err != nil {
 				return nil, nil, nil, err
 			}
-			if _, ok := staffRows[*target.ID]; !ok {
+			if !reachable[*target.ID] {
 				return nil, nil, nil, fmt.Errorf("%w: staff target is not available", ErrInvalidRequest)
 			}
 			staffIDs[*target.ID] = struct{}{}
@@ -1392,6 +1395,15 @@ func occurrenceDatesForAppointments(appointments []*calModels.Appointment, recur
 	return dates
 }
 
+// weekStartMonday returns the Monday of the calendar week containing d. Used to
+// anchor weekly-recurrence intervals to calendar weeks rather than to 7-day
+// blocks measured from the appointment's start weekday.
+func weekStartMonday(d timezone.Date) timezone.Date {
+	// time.Weekday: Sunday=0 … Saturday=6; days since Monday = (weekday+6)%7.
+	offset := (int(d.Weekday()) + 6) % 7
+	return d.AddDays(-offset)
+}
+
 func matchesRule(start, candidate timezone.Date, rule *calModels.RecurrenceRule) bool {
 	if candidate.Before(start) {
 		return false
@@ -1400,7 +1412,12 @@ func matchesRule(start, candidate timezone.Date, rule *calModels.RecurrenceRule)
 	case calModels.RecurrenceFrequencyDaily:
 		return start.DaysUntil(candidate)%rule.IntervalCount == 0
 	case calModels.RecurrenceFrequencyWeekly:
-		weeks := start.DaysUntil(candidate) / 7
+		// Anchor the interval to calendar weeks (Mon–Sun), not to 7-day blocks
+		// counted from the start weekday. Counting from the start day splits the
+		// week on that weekday, so e.g. a biweekly Wed start with Mon+Wed would
+		// wrongly include the Monday five days later (still "week 0") and skip
+		// the Monday in the next valid calendar week.
+		weeks := weekStartMonday(start).DaysUntil(weekStartMonday(candidate)) / 7
 		if weeks%rule.IntervalCount != 0 {
 			return false
 		}

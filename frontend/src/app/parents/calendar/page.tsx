@@ -84,6 +84,10 @@ export default function ParentCalendarPage() {
         setError(null);
       } catch (err) {
         if (requestId !== latestRequestRef.current) return;
+        // A visible (range-change) load failed: drop the previous range's data
+        // so old appointments aren't shown under the newly selected range.
+        // Silent refreshes (e.g. after an RSVP) keep the current data.
+        if (!silent) setData(null);
         setError(
           messageFromError(err, "Kalender konnte nicht geladen werden."),
         );
@@ -121,10 +125,14 @@ export default function ParentCalendarPage() {
   };
 
   const handleShowOverview = async (appointmentId: string) => {
+    // Clear any previous appointment's attendees so a failed/slow request
+    // can't reopen the modal with stale attendees from a different appointment.
+    setOverview(null);
     setOverviewLoading(true);
     try {
       setOverview(await getParentAppointmentOverview(appointmentId));
     } catch (err) {
+      setOverview(null);
       toast.error(
         messageFromError(
           err,
