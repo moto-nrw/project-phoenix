@@ -15,33 +15,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// createTestPost creates a suggestion post directly in the database for testing.
-func createTestPost(t *testing.T, db *bun.DB, accountID int64, title, description string) *suggestions.Post {
-	t.Helper()
-
-	post := &suggestions.Post{
-		Title:       title,
-		Description: description,
-		AuthorID:    accountID,
-		Status:      suggestions.StatusOpen,
-		Score:       0,
-	}
-
-	post.SetTenantID(1)
-
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
-	defer cancel()
-
-	_, err := db.NewInsert().
-		Model(post).
-		ModelTableExpr("suggestions.posts").
-		Returning("*").
-		Exec(ctx)
-	require.NoError(t, err, "Failed to create test post")
-
-	return post
-}
-
 // createTestVote creates a vote directly in the database for testing.
 func createTestVote(t *testing.T, db *bun.DB, postID, voterID int64, direction string) *suggestions.Vote {
 	t.Helper()
@@ -146,7 +119,7 @@ func TestPostRepository_FindByID(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "suggestions-findbyid")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
-	post := createTestPost(t, db, account.ID, fmt.Sprintf("FindByID %d", time.Now().UnixNano()), "Find test")
+	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("FindByID %d", time.Now().UnixNano()), "Find test")
 	defer cleanupPosts(t, db, post.ID)
 
 	t.Run("finds existing post", func(t *testing.T) {
@@ -174,7 +147,7 @@ func TestPostRepository_Update(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "suggestions-update")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
-	post := createTestPost(t, db, account.ID, fmt.Sprintf("Update %d", time.Now().UnixNano()), "Original desc")
+	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Update %d", time.Now().UnixNano()), "Original desc")
 	defer cleanupPosts(t, db, post.ID)
 
 	t.Run("updates post successfully", func(t *testing.T) {
@@ -233,7 +206,7 @@ func TestPostRepository_UpdateStatus(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "suggestions-update-status")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
-	post := createTestPost(t, db, account.ID, fmt.Sprintf("UpdateStatus %d", time.Now().UnixNano()), "Original desc")
+	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("UpdateStatus %d", time.Now().UnixNano()), "Original desc")
 	defer cleanupPosts(t, db, post.ID)
 
 	err := repo.UpdateStatus(ctx, post.ID, suggestions.StatusDone)
@@ -255,7 +228,7 @@ func TestPostRepository_UpdateHidden(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "suggestions-update-hidden")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
-	post := createTestPost(t, db, account.ID, fmt.Sprintf("UpdateHidden %d", time.Now().UnixNano()), "Original desc")
+	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("UpdateHidden %d", time.Now().UnixNano()), "Original desc")
 	defer cleanupPosts(t, db, post.ID)
 
 	err := repo.UpdateHidden(ctx, post.ID, true)
@@ -277,7 +250,7 @@ func TestPostRepository_Delete(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "suggestions-delete")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
-	post := createTestPost(t, db, account.ID, fmt.Sprintf("Delete %d", time.Now().UnixNano()), "To be deleted")
+	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Delete %d", time.Now().UnixNano()), "To be deleted")
 	// No defer cleanup needed since we're testing deletion
 
 	t.Run("deletes post successfully", func(t *testing.T) {
@@ -313,8 +286,8 @@ func TestPostRepository_List(t *testing.T) {
 	require.NoError(t, err)
 
 	ts := time.Now().UnixNano()
-	post1 := createTestPost(t, db, account.ID, fmt.Sprintf("List A %d", ts), "Description A")
-	post2 := createTestPost(t, db, account.ID, fmt.Sprintf("List B %d", ts), "Description B")
+	post1 := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("List A %d", ts), "Description A")
+	post2 := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("List B %d", ts), "Description B")
 	defer cleanupPosts(t, db, post1.ID, post2.ID)
 
 	t.Run("lists posts sorted by score", func(t *testing.T) {
@@ -362,7 +335,7 @@ func TestPostRepository_FindByIDWithVote(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "suggestions-findwithvote")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
-	post := createTestPost(t, db, account.ID, fmt.Sprintf("WithVote %d", time.Now().UnixNano()), "Desc")
+	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("WithVote %d", time.Now().UnixNano()), "Desc")
 	defer cleanupPosts(t, db, post.ID)
 
 	t.Run("returns nil user_vote when no vote exists", func(t *testing.T) {
@@ -407,7 +380,7 @@ func TestPostRepository_RecalculateScore(t *testing.T) {
 	account3 := testpkg.CreateTestAccount(t, db, "suggestions-score3")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account1.ID, account2.ID, account3.ID)
 
-	post := createTestPost(t, db, account1.ID, fmt.Sprintf("Score %d", time.Now().UnixNano()), "Desc")
+	post := testpkg.CreateTestPost(t, db, account1.ID, fmt.Sprintf("Score %d", time.Now().UnixNano()), "Desc")
 	defer cleanupPosts(t, db, post.ID)
 
 	t.Run("score is 0 with no votes", func(t *testing.T) {

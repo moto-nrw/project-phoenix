@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -56,8 +58,7 @@ func TestOperatorMFAService_RecordAudit_PanicInGoroutineRecovers(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	op := createTestOperatorForMFAService(t, db, "audit-panic-recover")
-	t.Cleanup(func() { cleanupTestOperatorForMFAService(t, db, op.ID) })
+	op := testpkg.CreateTestOperator(t, db)
 	require.NoError(t, svc.Enroll(ctx, op.ID))
 
 	// Issuing a trusted device triggers a recordAudit call with
