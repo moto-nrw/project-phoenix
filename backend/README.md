@@ -47,7 +47,7 @@ go run main.go cleanup visits       # Delete expired visit records (GDPR)
 go run main.go cleanup preview      # Dry-run cleanup
 go run main.go cleanup stats        # Data retention statistics
 go run main.go gendoc               # Generate route docs and OpenAPI spec
-go run main.go simulate             # Run IoT device simulator
+go run main.go simulate live        # Continuous random-event simulation (see also full-day, status)
 ```
 
 ## Setup
