@@ -16,32 +16,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-type captureMirrorBroadcaster struct {
-	called   bool
-	tenantID int64
-	event    realtime.Event
-}
-
-func (b *captureMirrorBroadcaster) BroadcastToGroup(_ int64, _ string, _ realtime.Event) error {
-	return nil
-}
-
-func (b *captureMirrorBroadcaster) BroadcastParentMessage(_, _ int64, _ realtime.Event) error {
-	return nil
-}
-
-func (b *captureMirrorBroadcaster) BroadcastToTenant(tenantID int64, event realtime.Event) error {
-	b.called = true
-	b.tenantID = tenantID
-	b.event = event
-	return nil
-}
-
-func (b *captureMirrorBroadcaster) BroadcastToAll(_ realtime.Event) error { return nil }
 
 type mirrorInstanceRepoStub struct {
 	scheduleModel.ActivityInstanceRepository
@@ -87,7 +65,7 @@ func (s *mirrorActivitiesServiceStub) GetGroup(context.Context, int64) (*activit
 }
 
 func TestBroadcastMirroredInstanceFiresAfterCommit(t *testing.T) {
-	bc := &captureMirrorBroadcaster{}
+	bc := testpkg.NewRecordingBroadcaster()
 	rs := &Resource{Broadcaster: bc}
 	ctx, drain := tenant.WithAfterCommitHooksForTest(tenant.WithTenantID(context.Background(), 42))
 	activeGroupID := int64(321)
@@ -100,15 +78,16 @@ func TestBroadcastMirroredInstanceFiresAfterCommit(t *testing.T) {
 
 	rs.broadcastMirroredInstance(ctx, realtime.EventInstanceStarted, inst, &active.Group{RoomID: 77})
 
-	assert.False(t, bc.called, "mirrored timetable SSE must wait for commit")
+	assert.Empty(t, bc.CallsByMethod("tenant"), "mirrored timetable SSE must wait for commit")
 
 	drain()
 
-	assert.True(t, bc.called)
-	assert.Equal(t, int64(42), bc.tenantID)
-	assert.Equal(t, realtime.EventInstanceStarted, bc.event.Type)
-	assert.Equal(t, "321", bc.event.ActiveGroupID)
-	requireData := bc.event.Data
+	calls := bc.CallsByMethod("tenant")
+	require.Len(t, calls, 1)
+	assert.Equal(t, int64(42), calls[0].TenantID)
+	assert.Equal(t, realtime.EventInstanceStarted, calls[0].Event.Type)
+	assert.Equal(t, "321", calls[0].Event.ActiveGroupID)
+	requireData := calls[0].Event.Data
 	assert.NotNil(t, requireData.InstanceID)
 	assert.Equal(t, "123", *requireData.InstanceID)
 }
@@ -130,7 +109,7 @@ func TestMirrorSessionToTimetableCreatesInstanceStaffAndBroadcasts(t *testing.T)
 		},
 	}
 	staffRepo := &mirrorInstanceStaffRepoStub{}
-	bc := &captureMirrorBroadcaster{}
+	bc := testpkg.NewRecordingBroadcaster()
 	rs := &Resource{
 		TimetableData:     scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{ActivityInstanceRepo: instanceRepo, InstanceStaffRepo: staffRepo}),
 		Broadcaster:       bc,
@@ -155,12 +134,13 @@ func TestMirrorSessionToTimetableCreatesInstanceStaffAndBroadcasts(t *testing.T)
 	require.Len(t, staffRepo.created, 2)
 	assert.Equal(t, int64(101), staffRepo.created[0].StaffID)
 	assert.Equal(t, int64(202), staffRepo.created[1].StaffID)
-	assert.False(t, bc.called)
+	assert.Empty(t, bc.CallsByMethod("tenant"))
 
 	drain()
 
-	assert.True(t, bc.called)
-	assert.Equal(t, realtime.EventInstanceStarted, bc.event.Type)
+	calls := bc.CallsByMethod("tenant")
+	require.Len(t, calls, 1)
+	assert.Equal(t, realtime.EventInstanceStarted, calls[0].Event.Type)
 }
 
 func TestCompleteMirroredTimetableInstanceMarksCompletedAndBroadcasts(t *testing.T) {
@@ -183,7 +163,7 @@ func TestCompleteMirroredTimetableInstanceMarksCompletedAndBroadcasts(t *testing
 			return nil
 		},
 	}
-	bc := &captureMirrorBroadcaster{}
+	bc := testpkg.NewRecordingBroadcaster()
 	rs := &Resource{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{ActivityInstanceRepo: instanceRepo}), Broadcaster: bc}
 
 	rs.completeMirroredTimetableInstance(ctx, activeGroupID)
@@ -191,12 +171,13 @@ func TestCompleteMirroredTimetableInstanceMarksCompletedAndBroadcasts(t *testing
 	assert.Equal(t, int64(77), completedID)
 	assert.Equal(t, scheduleModel.InstanceStatusCompleted, inst.Status)
 	require.NotNil(t, inst.CompletedAt)
-	assert.False(t, bc.called)
+	assert.Empty(t, bc.CallsByMethod("tenant"))
 
 	drain()
 
-	assert.True(t, bc.called)
-	assert.Equal(t, realtime.EventInstanceCompleted, bc.event.Type)
+	calls := bc.CallsByMethod("tenant")
+	require.Len(t, calls, 1)
+	assert.Equal(t, realtime.EventInstanceCompleted, calls[0].Event.Type)
 }
 
 func TestMirrorHelperFallbacks(t *testing.T) {
@@ -350,7 +331,7 @@ func TestCompleteMirroredTimetableInstanceStopsWhenMarkCompletedFails(t *testing
 	activeGroupID := int64(66)
 	inst := &scheduleModel.ActivityInstance{ActiveGroupID: &activeGroupID}
 	inst.ID = 77
-	bc := &captureMirrorBroadcaster{}
+	bc := testpkg.NewRecordingBroadcaster()
 	rs := &Resource{
 		TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{
 			ActivityInstanceRepo: &mirrorInstanceRepoStub{
@@ -367,7 +348,7 @@ func TestCompleteMirroredTimetableInstanceStopsWhenMarkCompletedFails(t *testing
 
 	rs.completeMirroredTimetableInstance(context.Background(), activeGroupID)
 
-	assert.False(t, bc.called)
+	assert.Empty(t, bc.CallsByMethod("tenant"))
 }
 
 func TestResourceRouterIsWired(t *testing.T) {
@@ -379,7 +360,7 @@ func TestResourceRouterIsWired(t *testing.T) {
 
 func TestConfigureTimetableMirrorStoresDependencies(t *testing.T) {
 	timetableData := scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{})
-	bc := &captureMirrorBroadcaster{}
+	bc := testpkg.NewRecordingBroadcaster()
 	rs := &Resource{}
 
 	rs.ConfigureTimetableMirror(timetableData, bc)

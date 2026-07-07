@@ -8,14 +8,12 @@ import (
 
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 
-	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -26,40 +24,16 @@ type testContext struct {
 	db          *bun.DB
 	services    *services.Factory
 	resource    *studentsAPI.Resource
-	broadcaster *recordingBroadcaster
-}
-
-type recordingBroadcaster struct {
-	events []realtime.Event
-}
-
-func (b *recordingBroadcaster) BroadcastToGroup(_ int64, _ string, event realtime.Event) error {
-	b.events = append(b.events, event)
-	return nil
-}
-
-func (b *recordingBroadcaster) BroadcastParentMessage(_, _ int64, _ realtime.Event) error { return nil }
-
-func (b *recordingBroadcaster) BroadcastToTenant(_ int64, event realtime.Event) error {
-	b.events = append(b.events, event)
-	return nil
-}
-
-func (b *recordingBroadcaster) BroadcastToAll(event realtime.Event) error {
-	b.events = append(b.events, event)
-	return nil
+	broadcaster *testpkg.RecordingBroadcaster
 }
 
 // setupTestContext initializes the test environment.
 func setupTestContext(t *testing.T) *testContext {
 	t.Helper()
 
-	db := testpkg.SetupTestDB(t)
-
+	db, svc := testutil.SetupAPITest(t)
 	repoFactory := repositories.NewFactory(db)
-	svc, err := services.NewFactory(repoFactory, db, slog.Default())
-	require.NoError(t, err, "Failed to create service factory")
-	broadcaster := &recordingBroadcaster{}
+	broadcaster := testpkg.NewRecordingBroadcaster()
 
 	studentPhotos := userService.NewStudentPhotoService(userService.StudentPhotoServiceDependencies{
 		StudentRepo: repoFactory.Student,

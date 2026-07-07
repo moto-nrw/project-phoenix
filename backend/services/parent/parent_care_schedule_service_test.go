@@ -10,7 +10,8 @@ package parent_test
 //   - creating needs messaging enabled, but withdraw stays available after the
 //     school disables it so outstanding requests can be wound down.
 //
-// Reuses stubSettings / captureBroadcaster from parent_write_service_test.go.
+// Reuses stubSettings from parent_write_service_test.go and the shared
+// testpkg.RecordingBroadcaster.
 
 import (
 	"context"
@@ -52,7 +53,7 @@ func careScheduleServiceOn(t *testing.T, db *bun.DB, repos *repositories.Factory
 		GuardianProfileRepo: repos.GuardianProfile,
 		PersonRepo:          repos.Person,
 		Settings:            stubSettings{sickEnabled: true, notesEnabled: notesEnabled},
-		Broadcaster:         &captureBroadcaster{},
+		Broadcaster:         testpkg.NewRecordingBroadcaster(),
 		ArrivalSchedules:    sf.ArrivalSchedule,
 		PickupSchedules:     sf.PickupSchedule,
 		CareRequests:        sf.CareRequests,

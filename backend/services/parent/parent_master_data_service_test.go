@@ -63,7 +63,7 @@ func buildMasterDataService(t *testing.T, editEnabled bool) (parentService.Servi
 		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
 		ChangeRequestRepo:   repos.StudentDataChangeRequest,
 		Settings:            masterDataStubSettings{editEnabled: editEnabled, guardianManagementEnabled: true},
-		Broadcaster:         &captureBroadcaster{},
+		Broadcaster:         testpkg.NewRecordingBroadcaster(),
 		DB:                  db,
 		Logger:              slog.Default(),
 	})
@@ -82,7 +82,7 @@ func TestUpdateMasterDataField_GuardianManagementDisabledRejectsContactEdits(t *
 		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
 		ChangeRequestRepo:   repos.StudentDataChangeRequest,
 		Settings:            masterDataStubSettings{editEnabled: true, guardianManagementEnabled: false},
-		Broadcaster:         &captureBroadcaster{},
+		Broadcaster:         testpkg.NewRecordingBroadcaster(),
 		DB:                  db,
 		Logger:              slog.Default(),
 	})

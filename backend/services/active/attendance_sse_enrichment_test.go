@@ -17,7 +17,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"sync"
 	"testing"
 	"time"
 
@@ -35,57 +34,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// recordingBroadcaster captures both BroadcastToGroup and BroadcastToAll
-// so the enrichment assertion can inspect the Event payload, not just the
-// event type. The existing mockBroadcaster in broadcast_test.go ignores
-// BroadcastToGroup, which is exactly where student_checkin goes.
-type recordingBroadcaster struct {
-	mu         sync.Mutex
-	groupCalls []realtime.Event
-	allCalls   []realtime.Event
-}
-
-func (r *recordingBroadcaster) BroadcastToGroup(_ int64, _ string, event realtime.Event) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.groupCalls = append(r.groupCalls, event)
-	return nil
-}
-
-func (r *recordingBroadcaster) BroadcastToAll(event realtime.Event) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.allCalls = append(r.allCalls, event)
-	return nil
-}
-
-func (r *recordingBroadcaster) BroadcastParentMessage(_, _ int64, _ realtime.Event) error { return nil }
-
-func (r *recordingBroadcaster) BroadcastToTenant(_ int64, event realtime.Event) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.allCalls = append(r.allCalls, event)
-	return nil
-}
-
-// firstOfType returns the first event of the given type seen across either
-// broadcast channel, or nil if none matches.
-func (r *recordingBroadcaster) firstOfType(t realtime.EventType) *realtime.Event {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	for i := range r.groupCalls {
-		if r.groupCalls[i].Type == t {
-			e := r.groupCalls[i]
-			return &e
-		}
+// firstOfType returns the first event of the given type seen across every
+// recorded broadcast call, in call order, or nil if none matches.
+func firstOfType(b *testpkg.RecordingBroadcaster, t realtime.EventType) *realtime.Event {
+	events := b.EventsOfType(t)
+	if len(events) == 0 {
+		return nil
 	}
-	for i := range r.allCalls {
-		if r.allCalls[i].Type == t {
-			e := r.allCalls[i]
-			return &e
-		}
-	}
-	return nil
+	return &events[0]
 }
 
 func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
@@ -102,7 +58,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 		repos.InstanceStudent,
 		slog.Default(),
 	)
-	broadcaster := &recordingBroadcaster{}
+	broadcaster := testpkg.NewRecordingBroadcaster()
 
 	svc := active.NewService(active.ServiceDependencies{
 		GroupRepo:          repos.ActiveGroup,
@@ -181,7 +137,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	// ASSERT: student_checkin event carries attendance_status=present.
 	// This is the load-bearing assertion — it's what protects against
 	// someone silently removing applyAttendanceSnapshot from visit_helpers.go.
-	ev := broadcaster.firstOfType(realtime.EventStudentCheckIn)
+	ev := firstOfType(broadcaster, realtime.EventStudentCheckIn)
 	require.NotNil(t, ev, "expected student_checkin event to be broadcast")
 	require.NotNil(t, ev.Data.AttendanceStatus,
 		"attendance_status must be populated when the visit bridges to an instance_students row")
@@ -214,7 +170,7 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 		repos.InstanceStudent,
 		slog.Default(),
 	)
-	broadcaster := &recordingBroadcaster{}
+	broadcaster := testpkg.NewRecordingBroadcaster()
 
 	svc := active.NewService(active.ServiceDependencies{
 		GroupRepo:          repos.ActiveGroup,
@@ -262,7 +218,7 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 	require.NoError(t, svc.CreateVisit(deviceCtx, visit))
 	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, db, visit.ID) })
 
-	ev := broadcaster.firstOfType(realtime.EventStudentCheckIn)
+	ev := firstOfType(broadcaster, realtime.EventStudentCheckIn)
 	require.NotNil(t, ev, "expected student_checkin event to be broadcast")
 	assert.Nil(t, ev.Data.AttendanceStatus, "walk-in must not stamp attendance_status")
 	assert.Nil(t, ev.Data.AttendanceSubstatus)

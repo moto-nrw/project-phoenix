@@ -52,7 +52,7 @@ func buildMealPlanService(t *testing.T, db *bun.DB, settings mealSettings) paren
 		StudentRepo:   repos.Student,
 		MealPlanRepo:  repos.MealPlanEntry,
 		Settings:      settings,
-		Broadcaster:   &captureBroadcaster{},
+		Broadcaster:   testpkg.NewRecordingBroadcaster(),
 		DB:            db,
 		Logger:        slog.Default(),
 	})

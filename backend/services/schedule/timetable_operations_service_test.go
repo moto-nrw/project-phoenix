@@ -19,6 +19,7 @@ import (
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -498,9 +499,9 @@ func TestTimetableOperationsPatchAttendanceUpdatesRowAndBroadcasts(t *testing.T)
 	require.Len(t, deps.studentRepo.updates, 1)
 	assert.Equal(t, rowID, deps.studentRepo.updates[0].rowID)
 	assert.Equal(t, &note, deps.studentRepo.updates[0].patch.Note)
-	require.Len(t, deps.broadcaster.events, 1)
-	assert.Equal(t, int64(721), deps.broadcaster.events[0].tenantID)
-	assert.Equal(t, realtime.EventActiveSupervisionChanged, deps.broadcaster.events[0].event.Type)
+	require.Len(t, deps.broadcaster.Calls(), 1)
+	assert.Equal(t, int64(721), deps.broadcaster.Calls()[0].TenantID)
+	assert.Equal(t, realtime.EventActiveSupervisionChanged, deps.broadcaster.Calls()[0].Event.Type)
 }
 
 func TestTimetableOperationsCompleteDelegatesAfterPermissionCheck(t *testing.T) {
@@ -841,17 +842,17 @@ func TestTimetableOperationsBroadcastBranches(t *testing.T) {
 
 		deps.service.(*timetableOperationsService).broadcastAttendanceChanged(ctx, 414, 560)
 
-		assert.Empty(t, deps.broadcaster.events)
+		assert.Empty(t, deps.broadcaster.Calls())
 	})
 
 	t.Run("logs and continues when broadcast fails", func(t *testing.T) {
 		deps := newTimetableOpsDeps()
-		deps.broadcaster.err = errors.New("send failed")
+		deps.broadcaster.Err = errors.New("send failed")
 		deps.instanceRepo.byID[414] = activeInstance(414, 300)
 
 		deps.service.(*timetableOperationsService).broadcastAttendanceChanged(ctx, 414, 560)
 
-		require.Len(t, deps.broadcaster.events, 1)
+		require.Len(t, deps.broadcaster.Calls(), 1)
 	})
 
 	t.Run("logs and skips when instance lookup fails", func(t *testing.T) {
@@ -860,7 +861,7 @@ func TestTimetableOperationsBroadcastBranches(t *testing.T) {
 
 		deps.service.(*timetableOperationsService).broadcastAttendanceChanged(ctx, 414, 560)
 
-		assert.Empty(t, deps.broadcaster.events)
+		assert.Empty(t, deps.broadcaster.Calls())
 	})
 }
 
@@ -1005,7 +1006,7 @@ type timetableOpsTestDeps struct {
 	rooms           *fakeOpsRoomRepo
 	personService   *fakeOpsPersonService
 	settings        *fakeOpsSettings
-	broadcaster     *fakeOpsBroadcaster
+	broadcaster     *testpkg.RecordingBroadcaster
 }
 
 func newTimetableOpsDeps() *timetableOpsTestDeps {
@@ -1025,7 +1026,7 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		rooms:           &fakeOpsRoomRepo{rooms: []*facilitiesModel.Room{{Model: modelBase.Model{ID: 810}, Name: "Lernraum"}}},
 		personService:   &fakeOpsPersonService{people: map[int64]*usersModel.Person{}, staffByPersonID: map[int64]*usersModel.Staff{}},
 		settings:        &fakeOpsSettings{},
-		broadcaster:     &fakeOpsBroadcaster{},
+		broadcaster:     testpkg.NewRecordingBroadcaster(),
 	}
 	deps.service = NewTimetableOperationsService(TimetableOperationsDependencies{
 		InstanceRepo:       deps.instanceRepo,
@@ -1338,34 +1339,4 @@ type fakeOpsSettings struct {
 
 func (s *fakeOpsSettings) ResolveBool(_ context.Context, _ string) (bool, error) {
 	return s.enabled, s.err
-}
-
-type fakeOpsBroadcaster struct {
-	err    error
-	events []struct {
-		tenantID int64
-		event    realtime.Event
-	}
-}
-
-func (b *fakeOpsBroadcaster) BroadcastParentMessage(_, _ int64, _ realtime.Event) error { return nil }
-
-func (b *fakeOpsBroadcaster) BroadcastToTenant(tenantID int64, event realtime.Event) error {
-	b.events = append(b.events, struct {
-		tenantID int64
-		event    realtime.Event
-	}{tenantID: tenantID, event: event})
-	return b.err
-}
-
-func (b *fakeOpsBroadcaster) BroadcastToGroup(tenantID int64, _ string, event realtime.Event) error {
-	return b.BroadcastToTenant(tenantID, event)
-}
-
-func (b *fakeOpsBroadcaster) BroadcastToAll(event realtime.Event) error {
-	b.events = append(b.events, struct {
-		tenantID int64
-		event    realtime.Event
-	}{event: event})
-	return nil
 }

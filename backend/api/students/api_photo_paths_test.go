@@ -15,7 +15,7 @@
 //
 // All tests here go through tc.resource.Router() via authExec so they
 // reuse the same hermetic plumbing as students_test.go (real DB, real
-// service factory, recordingBroadcaster).
+// service factory, testpkg.RecordingBroadcaster).
 package students_test
 
 import (
@@ -143,7 +143,7 @@ func TestUpdateStudent_PhotoConsentWithdrawal_DeletesFile(t *testing.T) {
 
 	_, onDisk := seedPhotoFile(t, tc, student.ID)
 
-	eventCount := len(tc.broadcaster.events)
+	eventCount := len(tc.broadcaster.Events())
 
 	body := map[string]interface{}{"photo_consent_given": false}
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
@@ -167,7 +167,7 @@ func TestUpdateStudent_PhotoConsentWithdrawal_DeletesFile(t *testing.T) {
 		"after-commit unlink must remove the file from disk; err=%v", err)
 
 	// Tenant-scoped broadcast must fire so other tabs refetch.
-	require.GreaterOrEqual(t, len(tc.broadcaster.events), eventCount+1,
+	require.GreaterOrEqual(t, len(tc.broadcaster.Events()), eventCount+1,
 		"consent withdrawal must emit at least one broadcast event")
 }
 

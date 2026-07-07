@@ -96,7 +96,7 @@ func buildCareServiceWithRepos(t *testing.T, w careRepoWrap) (parentService.Serv
 		PickupExceptionRepo:  pickup,
 		ArrivalExceptionRepo: arrival,
 		Settings:             careStubSettings{pickupChangeEnabled: true},
-		Broadcaster:          &captureBroadcaster{},
+		Broadcaster:          testpkg.NewRecordingBroadcaster(),
 		DB:                   db,
 		Logger:               slog.Default(),
 	})
@@ -123,12 +123,12 @@ func (s careStubSettings) ResolveBoolForTenant(_ context.Context, _ int64, key s
 	return false, nil
 }
 
-func buildCareService(t *testing.T, pickupChangeEnabled bool) (parentService.Service, *captureBroadcaster, *bun.DB) {
+func buildCareService(t *testing.T, pickupChangeEnabled bool) (parentService.Service, *testpkg.RecordingBroadcaster, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
-	bc := &captureBroadcaster{}
+	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:            repos.ParentChild,
 		StatusDayRepo:        repos.StudentStatusDay,
@@ -164,7 +164,7 @@ func TestSubmitCareException_PersistsGuardianRowWithNullCreatedBy(t *testing.T) 
 	assert.Equal(t, "14:30", result.PickupTime.Format("15:04"))
 	assert.Equal(t, "08:15", result.ArrivalTime.Format("15:04"))
 	assert.Equal(t, scheduleModels.ExceptionSourceGuardian, result.Source)
-	assert.Contains(t, bc.tenantEvents, chain.TenantID, "SSE broadcast must fire")
+	assert.Contains(t, tenantBroadcastIDs(bc), chain.TenantID, "SSE broadcast must fire")
 
 	// The load-bearing assertion: a guardian row stores created_by as NULL
 	// (nullzero) and references the account via created_by_guardian. NULL is
@@ -627,7 +627,7 @@ func TestDeleteCareException_RemovesBothLegs(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, svc.DeleteCareException(ctx, chain.AccountID, chain.StudentID, date))
-	assert.Contains(t, bc.tenantEvents, chain.TenantID, "deleting guardian rows must broadcast a student update")
+	assert.Contains(t, tenantBroadcastIDs(bc), chain.TenantID, "deleting guardian rows must broadcast a student update")
 
 	for _, table := range []string{"schedule.student_pickup_exceptions", "schedule.student_arrival_exceptions"} {
 		var count int
@@ -767,7 +767,7 @@ func TestDeleteCareException_ArrivalFindErrorSurfaces(t *testing.T) {
 		PickupExceptionRepo:  repos.StudentPickupException,
 		ArrivalExceptionRepo: stubArrivalRepo{StudentArrivalExceptionRepository: repos.StudentArrivalException, findErr: errBoom},
 		Settings:             careStubSettings{pickupChangeEnabled: true},
-		Broadcaster:          &captureBroadcaster{},
+		Broadcaster:          testpkg.NewRecordingBroadcaster(),
 		DB:                   db,
 		Logger:               slog.Default(),
 	})

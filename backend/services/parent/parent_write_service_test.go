@@ -16,7 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/realtime"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -52,29 +51,24 @@ func (s stubSettings) ResolveStringForTenant(_ context.Context, _ int64, key str
 	return "", nil
 }
 
-// captureBroadcaster records tenant broadcasts so tests can assert the SSE
-// fan-out fired after a sick note.
-type captureBroadcaster struct {
-	tenantEvents []int64
+// tenantBroadcastIDs extracts the tenant IDs from every BroadcastToTenant call
+// recorded by bc, in call order — the shared RecordingBroadcaster equivalent of
+// the old captureBroadcaster.tenantEvents slice.
+func tenantBroadcastIDs(bc *testpkg.RecordingBroadcaster) []int64 {
+	calls := bc.CallsByMethod("tenant")
+	ids := make([]int64, len(calls))
+	for i, c := range calls {
+		ids[i] = c.TenantID
+	}
+	return ids
 }
 
-func (c *captureBroadcaster) BroadcastToGroup(_ int64, _ string, _ realtime.Event) error {
-	return nil
-}
-func (c *captureBroadcaster) BroadcastParentMessage(_, _ int64, _ realtime.Event) error { return nil }
-
-func (c *captureBroadcaster) BroadcastToTenant(tenantID int64, _ realtime.Event) error {
-	c.tenantEvents = append(c.tenantEvents, tenantID)
-	return nil
-}
-func (c *captureBroadcaster) BroadcastToAll(_ realtime.Event) error { return nil }
-
-func buildWriteService(t *testing.T, sickEnabled, notesEnabled bool) (parentService.Service, *captureBroadcaster, *bun.DB) {
+func buildWriteService(t *testing.T, sickEnabled, notesEnabled bool) (parentService.Service, *testpkg.RecordingBroadcaster, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
-	bc := &captureBroadcaster{}
+	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:     repos.ParentChild,
 		StatusDayRepo: repos.StudentStatusDay,
@@ -87,12 +81,12 @@ func buildWriteService(t *testing.T, sickEnabled, notesEnabled bool) (parentServ
 	return svc, bc, db
 }
 
-func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool) (parentService.Service, *captureBroadcaster, *bun.DB, *repositories.Factory) {
+func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool) (parentService.Service, *testpkg.RecordingBroadcaster, *bun.DB, *repositories.Factory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
-	bc := &captureBroadcaster{}
+	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:            repos.ParentChild,
 		StatusDayRepo:        repos.StudentStatusDay,
@@ -131,7 +125,7 @@ func TestSubmitSickNote_TodayFlipsLiveFlagAndStoresReason(t *testing.T) {
 		Where("id = ?", chain.StudentID).Scan(context.Background(), &sick))
 	assert.True(t, sick, "today's sick note must flip the live sick flag")
 
-	assert.Contains(t, bc.tenantEvents, chain.TenantID, "SSE broadcast must fire for the tenant")
+	assert.Contains(t, tenantBroadcastIDs(bc), chain.TenantID, "SSE broadcast must fire for the tenant")
 }
 
 // TestChildMessaging_RequiresNotesWritePermission is the regression guard for the
@@ -481,7 +475,7 @@ func TestSubmitSickNote_ExcusedTodayStoresExcusedWithoutLiveFlag(t *testing.T) {
 	assert.False(t, sick, "an excused absence must not set the live sick flag")
 	assert.False(t, excused, "an excused absence must not set a live excused flag (issue #1735)")
 
-	assert.Contains(t, bc.tenantEvents, chain.TenantID, "SSE broadcast must fire for the tenant")
+	assert.Contains(t, tenantBroadcastIDs(bc), chain.TenantID, "SSE broadcast must fire for the tenant")
 }
 
 func TestSubmitSickNote_ExcusedTodayClearsStaleLiveSickFlag(t *testing.T) {

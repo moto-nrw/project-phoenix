@@ -27,12 +27,12 @@ import (
 // buildReadService wires the full parent messaging stack including the guardian
 // profile repo (so resolveGuardianName resolves a real name) and returns the
 // service, broadcaster, db, and repo factory.
-func buildReadService(t *testing.T, enabled bool) (parentService.Service, *captureBroadcaster, *bun.DB, *repositories.Factory) {
+func buildReadService(t *testing.T, enabled bool) (parentService.Service, *testpkg.RecordingBroadcaster, *bun.DB, *repositories.Factory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
-	bc := &captureBroadcaster{}
+	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
 		StatusDayRepo:       repos.StudentStatusDay,
@@ -106,7 +106,7 @@ func TestGetChildConversation_ReturnsHistoryMarksReadAndBroadcasts(t *testing.T)
 	require.NoError(t, err)
 	assert.Equal(t, 1, before)
 
-	bc.tenantEvents = nil
+	bc.Reset()
 	view, err := svc.GetChildConversation(context.Background(), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	require.Len(t, view.Messages, 1)

@@ -931,7 +931,7 @@ func TestUpdateStudent_WithExcusedStatus(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Excused", "Status", "ES1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		eventCount := len(tc.broadcaster.events)
+		eventCount := len(tc.broadcaster.Events())
 
 		body := map[string]interface{}{"excused": true}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
@@ -940,8 +940,9 @@ func TestUpdateStudent_WithExcusedStatus(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rr.Code)
 		assert.Contains(t, rr.Body.String(), `"excused":true`)
 		assert.Contains(t, rr.Body.String(), `"excused_since"`)
-		require.Len(t, tc.broadcaster.events, eventCount+1)
-		assert.Equal(t, "student_updated", string(tc.broadcaster.events[eventCount].Type))
+		events := tc.broadcaster.Events()
+		require.Len(t, events, eventCount+1)
+		assert.Equal(t, "student_updated", string(events[eventCount].Type))
 	})
 
 	t.Run("clear_excused_clears_excused_since", func(t *testing.T) {

@@ -33,7 +33,7 @@ func buildRequestService(t *testing.T) (parentService.Service, *bun.DB) {
 		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
 		ChangeRequestRepo:   repos.StudentDataChangeRequest,
 		Settings:            masterDataStubSettings{requestEnabled: true},
-		Broadcaster:         &captureBroadcaster{},
+		Broadcaster:         testpkg.NewRecordingBroadcaster(),
 		DB:                  db,
 		Logger:              slog.Default(),
 	})
@@ -260,7 +260,7 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
 		ChangeRequestRepo:   repos.StudentDataChangeRequest,
 		Settings:            settings,
-		Broadcaster:         &captureBroadcaster{},
+		Broadcaster:         testpkg.NewRecordingBroadcaster(),
 		Emitter:             emitter,
 		DB:                  db,
 		Logger:              slog.Default(),

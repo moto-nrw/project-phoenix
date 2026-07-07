@@ -28,7 +28,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
@@ -698,23 +697,6 @@ func TestListPending_ReturnsEnrichedItemWithDiff(t *testing.T) {
 	assert.True(t, news["16:00"], "requested pickup should appear in the diff")
 }
 
-// captureCareBroadcaster records the tenant-wide and global cache-invalidation
-// events the approve path fires so the test can assert both went out.
-type captureCareBroadcaster struct {
-	tenantEvents int
-	allEvents    int
-}
-
-func (b *captureCareBroadcaster) BroadcastToGroup(int64, string, realtime.Event) error { return nil }
-func (b *captureCareBroadcaster) BroadcastToTenant(int64, realtime.Event) error {
-	b.tenantEvents++
-	return nil
-}
-func (b *captureCareBroadcaster) BroadcastToAll(realtime.Event) error { b.allEvents++; return nil }
-func (b *captureCareBroadcaster) BroadcastParentMessage(int64, int64, realtime.Event) error {
-	return nil
-}
-
 // TestDecide_ApproveBroadcastsCacheInvalidation proves that applying a care
 // request fans out the cache-invalidation events (student_updated tenant-wide,
 // arrival_schedule_changed globally) so every open kiosk/dashboard refetches the
@@ -726,7 +708,7 @@ func TestDecide_ApproveBroadcastsCacheInvalidation(t *testing.T) {
 		map[string]any{"weekday": 1, "arrival": "08:00", "pickup": "16:00"},
 	))
 
-	bc := &captureCareBroadcaster{}
+	bc := testpkg.NewRecordingBroadcaster()
 	svc := schedule.NewCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest, f.repos.Student, f.repos.Person,
 		f.sf.ArrivalSchedule, f.sf.PickupSchedule, f.sf.UserContext,
@@ -738,8 +720,8 @@ func TestDecide_ApproveBroadcastsCacheInvalidation(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.Positive(t, bc.tenantEvents, "approve must broadcast student_updated to the tenant")
-	assert.Positive(t, bc.allEvents, "approve must broadcast arrival_schedule_changed globally")
+	assert.Positive(t, len(bc.CallsByMethod("tenant")), "approve must broadcast student_updated to the tenant")
+	assert.Positive(t, len(bc.CallsByMethod("all")), "approve must broadcast arrival_schedule_changed globally")
 }
 
 // TestWithdrawRequest_BogusIDNotFound covers the repository's no-rows lock

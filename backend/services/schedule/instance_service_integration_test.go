@@ -51,31 +51,6 @@ type lifecycleSetup struct {
 	tmplID   int64
 }
 
-type recordingInstanceBroadcaster struct {
-	groupEvents  []realtime.Event
-	tenantID     int64
-	tenantEvents []realtime.Event
-}
-
-func (b *recordingInstanceBroadcaster) BroadcastToGroup(_ int64, _ string, event realtime.Event) error {
-	b.groupEvents = append(b.groupEvents, event)
-	return nil
-}
-
-func (b *recordingInstanceBroadcaster) BroadcastToAll(event realtime.Event) error {
-	return nil
-}
-
-func (b *recordingInstanceBroadcaster) BroadcastParentMessage(_, _ int64, _ realtime.Event) error {
-	return nil
-}
-
-func (b *recordingInstanceBroadcaster) BroadcastToTenant(tenantID int64, event realtime.Event) error {
-	b.tenantID = tenantID
-	b.tenantEvents = append(b.tenantEvents, event)
-	return nil
-}
-
 // buildLifecycle prepares the minimum scaffold for instance-lifecycle tests:
 // one tenant tx, one room, one staff, two students, one template (is_template).
 // Returns the setup + a runnable cleanup that removes everything we created.
@@ -240,7 +215,7 @@ func TestInstance_Start_HappyPath(t *testing.T) {
 
 func TestInstance_Start_BroadcastsActiveSupervisionChanged(t *testing.T) {
 	s := buildLifecycle(t)
-	broadcaster := &recordingInstanceBroadcaster{}
+	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := instanceServiceWithBroadcaster(s, broadcaster)
 
 	ai := seedInstance(t, s, true, true)
@@ -250,9 +225,10 @@ func TestInstance_Start_BroadcastsActiveSupervisionChanged(t *testing.T) {
 	require.NotNil(t, result)
 	require.NotNil(t, result.Instance.ActiveGroupID)
 
+	tenantEvents := broadcaster.CallsByMethod("tenant")
 	var instanceStarted, activeSupervisionChanged *realtime.Event
-	for i := range broadcaster.tenantEvents {
-		event := &broadcaster.tenantEvents[i]
+	for i := range tenantEvents {
+		event := &tenantEvents[i].Event
 		switch event.Type {
 		case realtime.EventInstanceStarted:
 			instanceStarted = event
@@ -282,7 +258,7 @@ func TestInstance_Start_BroadcastsActiveSupervisionChanged(t *testing.T) {
 
 func TestInstance_Start_BroadcastsGroupAndTenantTimetableEvent(t *testing.T) {
 	s := buildLifecycle(t)
-	broadcaster := &recordingInstanceBroadcaster{}
+	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := instanceServiceWithBroadcaster(s, broadcaster)
 
 	ai := seedInstance(t, s, true, false)
@@ -298,14 +274,16 @@ func TestInstance_Start_BroadcastsGroupAndTenantTimetableEvent(t *testing.T) {
 		testpkg.CleanupTableRecords(t, s.db, "active.groups", result.ActiveGroupID)
 	})
 
-	require.Len(t, broadcaster.groupEvents, 1)
-	require.Len(t, broadcaster.tenantEvents, 2)
-	assert.Equal(t, tenant.FromContext(s.ctx), broadcaster.tenantID)
-	assert.Equal(t, realtime.EventInstanceStarted, broadcaster.groupEvents[0].Type)
-	assert.Equal(t, realtime.EventInstanceStarted, broadcaster.tenantEvents[0].Type)
-	assert.Equal(t, realtime.EventActiveSupervisionChanged, broadcaster.tenantEvents[1].Type)
-	assert.Equal(t, broadcaster.groupEvents[0].ActiveGroupID, broadcaster.tenantEvents[0].ActiveGroupID)
-	assert.Equal(t, broadcaster.groupEvents[0].ActiveGroupID, broadcaster.tenantEvents[1].ActiveGroupID)
+	groupCalls := broadcaster.CallsByMethod("group")
+	tenantCalls := broadcaster.CallsByMethod("tenant")
+	require.Len(t, groupCalls, 1)
+	require.Len(t, tenantCalls, 2)
+	assert.Equal(t, tenant.FromContext(s.ctx), tenantCalls[0].TenantID)
+	assert.Equal(t, realtime.EventInstanceStarted, groupCalls[0].Event.Type)
+	assert.Equal(t, realtime.EventInstanceStarted, tenantCalls[0].Event.Type)
+	assert.Equal(t, realtime.EventActiveSupervisionChanged, tenantCalls[1].Event.Type)
+	assert.Equal(t, groupCalls[0].Event.ActiveGroupID, tenantCalls[0].Event.ActiveGroupID)
+	assert.Equal(t, groupCalls[0].Event.ActiveGroupID, tenantCalls[1].Event.ActiveGroupID)
 }
 
 func TestInstance_Complete_HappyPath(t *testing.T) {

@@ -53,7 +53,7 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 	repos := repositories.NewFactory(db)
 
 	emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
-		notesResolver{}, &captureBroadcaster{}, slog.Default())
+		notesResolver{}, testpkg.NewRecordingBroadcaster(), slog.Default())
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:            repos.ParentChild,
 		StatusDayRepo:        repos.StudentStatusDay,
@@ -61,7 +61,7 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 		PickupExceptionRepo:  repos.StudentPickupException,
 		ArrivalExceptionRepo: repos.StudentArrivalException,
 		Settings:             careExcSettings{},
-		Broadcaster:          &captureBroadcaster{},
+		Broadcaster:          testpkg.NewRecordingBroadcaster(),
 		MessageThreadRepo:    repos.ParentMessageThread,
 		MessageRepo:          repos.ParentMessage,
 		MessageReadRepo:      repos.ParentMessageRead,
