@@ -152,6 +152,16 @@ func TestMapSubmitError_EnrollmentWindowClosed403(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, w.Code)
 }
 
+func TestMapSubmitError_LateInviteInvalid403WithCode(t *testing.T) {
+	// The stable code is read by the parents-portal EnrollmentForm to
+	// render the localized late-invite message. Keep this assertion strict.
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/x", nil)
+	MapSubmitError(w, r, enrollmentService.ErrLateInviteInvalid)
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentLateInviteInvalid)
+}
+
 func TestMapSubmitError_CareOfferingMissing400WithCode(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
@@ -166,6 +176,17 @@ func TestMapSubmitError_InvalidGuardianPhone400WithCode(t *testing.T) {
 	MapSubmitError(w, r, enrollmentService.ErrInvalidGuardianPhone)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentInvalidPhone)
+}
+
+func TestMapSubmitError_InvalidGuardianEmail400WithCode(t *testing.T) {
+	// ErrInvalidGuardianEmail wraps ErrInvalidSubmission, so its case must
+	// win over the generic branch to attach the stable code the parent form
+	// reads to localize the invalid-email message.
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/x", nil)
+	MapSubmitError(w, r, enrollmentService.ErrInvalidGuardianEmail)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentInvalidEmail)
 }
 
 func TestMapSubmitError_PickupTimeNotAllowed400WithCode(t *testing.T) {

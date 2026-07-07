@@ -87,7 +87,9 @@ func (r *GuardianInvitationRepository) FindByID(ctx context.Context, id int64) (
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.New(errMsgInvitationNotFound)
+			// Wrap sql.ErrNoRows so service-layer not-found checks
+			// (errors.Is / isNotFoundError) can map this to a 404.
+			return nil, fmt.Errorf("%s: %w", errMsgInvitationNotFound, sql.ErrNoRows)
 		}
 		return nil, fmt.Errorf("failed to find guardian invitation: %w", err)
 	}
@@ -107,7 +109,9 @@ func (r *GuardianInvitationRepository) FindByToken(ctx context.Context, token st
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.New(errMsgInvitationNotFound)
+			// Wrap sql.ErrNoRows so service-layer not-found checks
+			// (errors.Is / isNotFoundError) can map this to a 404.
+			return nil, fmt.Errorf("%s: %w", errMsgInvitationNotFound, sql.ErrNoRows)
 		}
 		return nil, fmt.Errorf("failed to find guardian invitation by token: %w", err)
 	}
