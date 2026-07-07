@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	shiftTypesVersion     = "1.15.169"
+	shiftTypesVersion     = "1.15.170"
 	shiftTypesDescription = "Create schedule.shift_types (Schichtarten) and link staff_shifts via shift_type_id (#1836)"
 )
 
@@ -32,7 +32,7 @@ func init() {
 }
 
 func shiftTypesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.169: Creating schedule.shift_types + staff_shifts.shift_type_id...")
+	fmt.Println("Migration 1.15.170: Creating schedule.shift_types + staff_shifts.shift_type_id...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -111,7 +111,7 @@ func shiftTypesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func shiftTypesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.169: Dropping schedule.shift_types + staff_shifts.shift_type_id...")
+	fmt.Println("Rolling back migration 1.15.170: Dropping schedule.shift_types + staff_shifts.shift_type_id...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {

@@ -14,7 +14,7 @@ import (
 )
 
 // shiftTypeNameUniqueIndex is the case-insensitive unique index from migration
-// 1.15.169 (schedule.shift_types on (tenant_id, LOWER(name))). Two concurrent
+// 1.15.170 (schedule.shift_types on (tenant_id, LOWER(name))). Two concurrent
 // creates can both pass the nameTaken pre-check and then race on INSERT; the
 // loser hits this index and must surface as ErrShiftTypeNameTaken (409), not a
 // raw 500.

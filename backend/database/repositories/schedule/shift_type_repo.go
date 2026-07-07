@@ -80,7 +80,7 @@ func (r *ShiftTypeRepository) Create(ctx context.Context, shiftType *schedule.Sh
 
 // CreateIfAbsent inserts the shift type unless one with the same
 // (tenant_id, LOWER(name)) already exists (uniq_shift_types_tenant_name,
-// migration 1.15.169). It returns true when a new row was inserted and false
+// migration 1.15.170). It returns true when a new row was inserted and false
 // when a shift type with that name was already present.
 //
 // Why a custom method instead of the generic Create: default seeding
