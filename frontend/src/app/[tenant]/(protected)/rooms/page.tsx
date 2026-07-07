@@ -843,7 +843,7 @@ function RoomsPageContent() {
 export default function RoomsPage() {
   return (
     <BinaryModeGuard>
-      <Suspense fallback={<Loading fullPage={false} />}>
+      <Suspense fallback={<RoomsGridSkeleton />}>
         <RoomsPageContent />
       </Suspense>
     </BinaryModeGuard>

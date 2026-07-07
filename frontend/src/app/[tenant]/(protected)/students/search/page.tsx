@@ -24,7 +24,7 @@ import { DetailIcons } from "~/components/ui/detail-modal-components";
 import { studentService, groupService, roomService } from "~/lib/api";
 import type { Student, Group, Room } from "~/lib/api";
 import { useUserContext } from "~/lib/hooks/use-user-context";
-import { Loading } from "~/components/ui/loading";
+import { Skeleton } from "~/components/ui/skeleton";
 import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import {
   LOCATION_STATUSES,
@@ -48,6 +48,7 @@ import {
   StudentAbsenceRow,
 } from "~/components/students/student-card";
 import { StudentExportModal } from "~/components/students/student-export-modal";
+import { StudentCardGridSkeleton } from "~/components/students/student-card-skeleton";
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
 import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
 import {
@@ -81,6 +82,30 @@ import {
 
 const logger = createLogger({ component: "StudentSearchPage" });
 const EMPTY_STRING_ARRAY: string[] = [];
+
+/**
+ * Page-shell skeleton for the student-search gate/Suspense states: a
+ * PageHeaderWithSearch placeholder followed by the student-card grid, so
+ * swapping in the real content causes no layout shift.
+ */
+function StudentSearchPageSkeleton() {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      aria-label="Kindersuche wird geladen"
+      data-testid="students-search-skeleton"
+      className="-mt-1.5 w-full"
+    >
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <Skeleton className="h-10 w-full max-w-md rounded-lg" />
+        <Skeleton className="h-10 w-32 flex-shrink-0 rounded-lg" />
+      </div>
+      <StudentCardGridSkeleton />
+    </div>
+  );
+}
 
 type StatusFilter =
   | "all"
@@ -1882,7 +1907,7 @@ function SearchPageContent() {
   // Fix P2: Show loading during initialization (prevents empty state flash)
   // Note: With required: true, unauthenticated users are auto-redirected to login
   if (isInitializing || isAuthError) {
-    return <Loading />;
+    return <StudentSearchPageSkeleton />;
   }
 
   return (
@@ -1977,7 +2002,7 @@ function SearchPageContent() {
         {(() => {
           // Fix P2: Show loading while first fetch is in progress (not yet hasFetchedOnce)
           if (isSearching && !hasFetchedOnce) {
-            return <Loading fullPage={false} />;
+            return <StudentCardGridSkeleton />;
           }
           if (errorMessage) {
             return (
@@ -2241,7 +2266,7 @@ function SearchPageContent() {
 // Main component with Suspense wrapper
 export default function StudentSearchPage() {
   return (
-    <Suspense fallback={<Loading fullPage={false} />}>
+    <Suspense fallback={<StudentSearchPageSkeleton />}>
       <SearchPageContent />
     </Suspense>
   );

@@ -273,7 +273,7 @@ describe("ActivitiesPage", () => {
 
     render(<ActivitiesPage />);
 
-    expect(screen.getByLabelText("Lädt...")).toBeInTheDocument();
+    expect(screen.getByTestId("activities-skeleton")).toBeInTheDocument();
   });
 
   it("shows error state when fetch fails", () => {

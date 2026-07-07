@@ -46,7 +46,7 @@ import { useSWRAuth } from "~/lib/swr";
 import { useUserContext } from "~/lib/hooks/use-user-context";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 
-import { Loading } from "~/components/ui/loading";
+import { Skeleton } from "~/components/ui/skeleton";
 import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import { EmptyStudentResults } from "~/components/ui/empty-student-results";
 import {
@@ -55,6 +55,7 @@ import {
   ArrivalTimeRow,
   StudentAbsenceRow,
 } from "~/components/students/student-card";
+import { StudentCardGridSkeleton } from "~/components/students/student-card-skeleton";
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
 import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
 import {
@@ -83,6 +84,30 @@ import {
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "OgsGroupsPage" });
+
+/**
+ * Page-shell skeleton for the OGS-groups gate/Suspense states: a
+ * PageHeaderWithSearch placeholder followed by the student-card grid, so
+ * swapping in the real content causes no layout shift.
+ */
+function OgsGroupsPageSkeleton() {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      aria-label="Gruppe wird geladen"
+      data-testid="ogs-groups-skeleton"
+      className="-mt-1.5 w-full"
+    >
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <Skeleton className="h-10 w-full max-w-md rounded-lg" />
+        <Skeleton className="h-10 w-32 flex-shrink-0 rounded-lg" />
+      </div>
+      <StudentCardGridSkeleton />
+    </div>
+  );
+}
 
 // Backend pickup time response (from BFF)
 interface BackendPickupTime {
@@ -1168,7 +1193,7 @@ function OGSGroupPageContent() {
   }, [sortMode, searchTerm, attendanceFilter]);
 
   if (status === "loading" || isLoading || hasAccess === null) {
-    return <Loading fullPage={false} />;
+    return <OgsGroupsPageSkeleton />;
   }
 
   // If user doesn't have access, show empty state
@@ -1272,7 +1297,7 @@ function OGSGroupPageContent() {
   // Render helper for student grid content
   const renderStudentContent = () => {
     if (isLoading) {
-      return <Loading fullPage={false} />;
+      return <StudentCardGridSkeleton />;
     }
     if (students.length === 0) {
       return (
@@ -1613,8 +1638,8 @@ function OGSGroupPageContent() {
 // Main component with Suspense wrapper
 export default function OGSGroupPage() {
   return (
-    <RoleGuard variant="staffOnly">
-      <Suspense fallback={<Loading fullPage={false} />}>
+    <RoleGuard variant="staffOnly" fallback={<OgsGroupsPageSkeleton />}>
+      <Suspense fallback={<OgsGroupsPageSkeleton />}>
         <SSEErrorBoundary>
           <OGSGroupPageContent />
         </SSEErrorBoundary>
