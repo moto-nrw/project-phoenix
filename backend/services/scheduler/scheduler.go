@@ -1277,7 +1277,7 @@ func (s *Scheduler) checkAndRunBreakAutoEnd(task *ScheduledTask) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	s.forEachTenantSettings(ctx, "break-auto-end", func(tenantCtx context.Context, _ int64) error {
+	breakErr := s.forEachTenant(ctx, "break-auto-end", func(tenantCtx context.Context) error {
 		count, err := s.breakAutoEnder.AutoEndExpiredBreaks(tenantCtx)
 		if err != nil {
 			return err
@@ -1289,6 +1289,9 @@ func (s *Scheduler) checkAndRunBreakAutoEnd(task *ScheduledTask) {
 		}
 		return nil
 	})
+	if breakErr != nil {
+		s.getLogger().Error("break auto-end failed", "error", breakErr)
+	}
 }
 
 // scheduleAutoCheckoutTask schedules the auto-checkout-at-shift-end task
