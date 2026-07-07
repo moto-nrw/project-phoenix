@@ -29,16 +29,15 @@ import (
 
 // Resource bundles the dependencies for the staff-shift HTTP handlers.
 type Resource struct {
-	Service          scheduleSvc.StaffShiftService
-	ShiftTypeService scheduleSvc.ShiftTypeService
-	PersonService    usersSvc.PersonService
-	db               *bun.DB
-	logger           *slog.Logger
+	Service       scheduleSvc.StaffShiftService
+	PersonService usersSvc.PersonService
+	db            *bun.DB
+	logger        *slog.Logger
 }
 
 // NewResource wires the dependencies.
-func NewResource(service scheduleSvc.StaffShiftService, shiftTypeService scheduleSvc.ShiftTypeService, personService usersSvc.PersonService, db *bun.DB, logger *slog.Logger) *Resource {
-	return &Resource{Service: service, ShiftTypeService: shiftTypeService, PersonService: personService, db: db, logger: logger}
+func NewResource(service scheduleSvc.StaffShiftService, personService usersSvc.PersonService, db *bun.DB, logger *slog.Logger) *Resource {
+	return &Resource{Service: service, PersonService: personService, db: db, logger: logger}
 }
 
 // Router returns the chi sub-router for /api/staff-shifts.
@@ -173,20 +172,6 @@ func (rs *Resource) buildShift(req ShiftRequest) (*scheduleModels.StaffShift, er
 	}, nil
 }
 
-// validateShiftType rejects a shift referencing a shift type that does not exist
-// in the current tenant (deleted mid-edit, never existed, or belonging to
-// another tenant). A nil id is an untyped shift and always valid. The tenant
-// transaction + RLS scope the lookup, so a foreign-tenant id resolves to
-// ErrShiftTypeNotFound (mapped to 400) instead of surfacing later as a database
-// FK violation (500).
-func (rs *Resource) validateShiftType(ctx context.Context, id *int64) error {
-	if id == nil {
-		return nil
-	}
-	_, err := rs.ShiftTypeService.GetShiftType(ctx, *id)
-	return err
-}
-
 // editorStaffID resolves the acting admin's staff record from the JWT claims.
 func (rs *Resource) editorStaffID(ctx context.Context) (int64, error) {
 	claims := jwt.ClaimsFromCtx(ctx)
@@ -212,7 +197,7 @@ func renderServiceError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, scheduleSvc.ErrShiftRangeTooLarge), errors.Is(err, scheduleSvc.ErrShiftInvalid):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case errors.Is(err, scheduleSvc.ErrShiftTypeNotFound):
+	case errors.Is(err, scheduleSvc.ErrShiftTypeNotFound), errors.Is(err, scheduleSvc.ErrShiftTypeInactive):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -264,10 +249,6 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	if err := rs.validateShiftType(r.Context(), shift.ShiftTypeID); err != nil {
-		renderServiceError(w, r, err)
-		return
-	}
 	editorID, err := rs.editorStaffID(r.Context())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorUnauthorized(err))
@@ -297,10 +278,6 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 	shift, err := rs.buildShift(req)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
-	}
-	if err := rs.validateShiftType(r.Context(), shift.ShiftTypeID); err != nil {
-		renderServiceError(w, r, err)
 		return
 	}
 	editorID, err := rs.editorStaffID(r.Context())

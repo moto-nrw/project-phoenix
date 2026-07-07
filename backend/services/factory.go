@@ -423,18 +423,19 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.RecurrenceRule,
 	)
 
-	// Initialize staff shift service (Dienstplan, #1376 core slice)
-	staffShiftService := schedule.NewStaffShiftService(
-		repos.StaffShift,
-		repos.Staff,
-		db,
-		logger.With("service", "staff_shift"),
-	)
-
 	// Initialize shift type service (Schichtarten, #1836)
 	shiftTypeService := schedule.NewShiftTypeService(
 		repos.ShiftType,
 		logger.With("service", "shift_type"),
+	)
+
+	// Initialize staff shift service (Dienstplan, #1376 core slice)
+	staffShiftService := schedule.NewStaffShiftService(
+		repos.StaffShift,
+		repos.Staff,
+		shiftTypeService,
+		db,
+		logger.With("service", "staff_shift"),
 	)
 
 	// Initialize pickup schedule service

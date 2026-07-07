@@ -242,6 +242,12 @@ func (s *shiftTypeService) CreateDefaultShiftTypes(ctx context.Context) ([]*sche
 		}
 		shiftType.SetTenantID(tenantID)
 		if err := s.repo.Create(ctx, shiftType); err != nil {
+			// A concurrent seed for the same tenant created this default between
+			// our ListAll snapshot and this insert. Seeding is idempotent, so
+			// skip the now-existing default instead of failing the whole request.
+			if isShiftTypeNameConflict(err) {
+				continue
+			}
 			return nil, err
 		}
 	}
