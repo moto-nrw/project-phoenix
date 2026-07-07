@@ -194,6 +194,13 @@ func (rs *Resource) listRooms(w http.ResponseWriter, r *http.Request) {
 		queryOptions.Filter.Equal("category", category)
 	}
 
+	// Hide auto-provisioned system rooms (Schulhof, WC) unless the caller
+	// explicitly opts in — they are IoT infrastructure, not bookable rooms
+	// (issue #923).
+	if r.URL.Query().Get("include_system") != "true" {
+		queryOptions.Filter.Equal("is_system", false)
+	}
+
 	// Add pagination if provided
 	page, pageSize := common.ParsePagination(r)
 	queryOptions.WithPagination(page, pageSize)
@@ -417,10 +424,19 @@ func (rs *Resource) getAvailableRooms(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Hide auto-provisioned system rooms (Schulhof, WC) unless the caller
+	// explicitly opts in. Filtered here rather than in GetAvailableRooms
+	// because the IoT kiosk endpoint shares that service method and must
+	// keep seeing system rooms (issue #923).
+	includeSystem := r.URL.Query().Get("include_system") == "true"
+
 	// Convert to response
-	roomResponses := make([]RoomResponse, len(rooms))
-	for i, room := range rooms {
-		roomResponses[i] = newRoomResponseSimple(room)
+	roomResponses := make([]RoomResponse, 0, len(rooms))
+	for _, room := range rooms {
+		if room.IsSystem && !includeSystem {
+			continue
+		}
+		roomResponses = append(roomResponses, newRoomResponseSimple(room))
 	}
 
 	// Return response

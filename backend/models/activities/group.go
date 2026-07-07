@@ -28,6 +28,7 @@ type Group struct {
 	Type             string     `bun:"type,notnull,default:'activity'" json:"type"`
 	EducationGroupID *int64     `bun:"education_group_id" json:"education_group_id,omitempty"`
 	IsTemplate       bool       `bun:"is_template,notnull,default:false" json:"is_template"`
+	IsSystem         bool       `bun:"is_system,notnull,default:false" json:"is_system"`
 	ArchivedAt       *time.Time `bun:"archived_at" json:"archived_at,omitempty"`
 
 	// Relations - populated when using the ORM's relations

@@ -62,6 +62,7 @@ func (rs *Resource) ensureSystemRoom(ctx context.Context, sp systemSpace) (*faci
 		Capacity: &capacity,
 		Category: &category,
 		Color:    &color,
+		IsSystem: true,
 	}
 
 	if err := rs.FacilityService.CreateRoom(ctx, newRoom); err != nil {
@@ -101,6 +102,7 @@ func (rs *Resource) ensureSystemCategory(ctx context.Context, sp systemSpace) (*
 		Name:        sp.categoryName,
 		Description: sp.categoryDesc,
 		Color:       sp.color,
+		IsSystem:    true,
 	}
 
 	createdCategory, err := rs.ActivitiesService.CreateCategory(ctx, newCategory)
@@ -165,6 +167,7 @@ func (rs *Resource) systemActivityGroup(ctx context.Context, sp systemSpace) (*a
 		IsOpen:          true, // Open activity - anyone can join
 		CategoryID:      category.ID,
 		PlannedRoomID:   &room.ID,
+		IsSystem:        true,
 	}
 
 	// CreateGroup requires supervisorIDs and schedules - pass empty slices for auto-created activity

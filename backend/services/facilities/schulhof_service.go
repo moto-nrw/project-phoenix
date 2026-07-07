@@ -275,6 +275,7 @@ func (s *schulhofService) EnsureInfrastructure(ctx context.Context, createdBy in
 		IsOpen:          true, // Open activity - anyone can join
 		CategoryID:      category.ID,
 		PlannedRoomID:   &room.ID,
+		IsSystem:        true,
 	}
 	// createdBy == 0 means system-created (nil) — avoids FK violation on users.staff
 	if createdBy > 0 {
@@ -450,6 +451,7 @@ func (s *schulhofService) ensureSchulhofRoom(ctx context.Context) (*facilities.R
 		Capacity: &capacity,
 		Category: &category,
 		Color:    &color,
+		IsSystem: true,
 	}
 
 	if err := s.facilityService.CreateRoom(ctx, newRoom); err != nil {
@@ -487,6 +489,7 @@ func (s *schulhofService) ensureSchulhofCategory(ctx context.Context) (*activity
 		Name:        constants.SchulhofCategoryName,
 		Description: constants.SchulhofCategoryDescription,
 		Color:       constants.SchulhofColor,
+		IsSystem:    true,
 	}
 
 	createdCategory, err := s.activityService.CreateCategory(ctx, newCategory)

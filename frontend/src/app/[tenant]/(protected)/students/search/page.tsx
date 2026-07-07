@@ -24,7 +24,6 @@ import { DetailIcons } from "~/components/ui/detail-modal-components";
 import { studentService, groupService, roomService } from "~/lib/api";
 import type { Student, Group, Room } from "~/lib/api";
 import { useUserContext } from "~/lib/hooks/use-user-context";
-import { Loading } from "~/components/ui/loading";
 import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import {
   LOCATION_STATUSES,
@@ -48,6 +47,10 @@ import {
   StudentAbsenceRow,
 } from "~/components/students/student-card";
 import { StudentExportModal } from "~/components/students/student-export-modal";
+import {
+  StudentCardGridSkeleton,
+  StudentCardPageSkeleton,
+} from "~/components/students/student-card-skeleton";
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
 import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
 import {
@@ -81,6 +84,16 @@ import {
 
 const logger = createLogger({ component: "StudentSearchPage" });
 const EMPTY_STRING_ARRAY: string[] = [];
+
+// Page-shell skeleton for the student-search gate/Suspense states.
+function StudentSearchPageSkeleton() {
+  return (
+    <StudentCardPageSkeleton
+      label="Kindersuche wird geladen"
+      testId="students-search-skeleton"
+    />
+  );
+}
 
 type StatusFilter =
   | "all"
@@ -1882,7 +1895,7 @@ function SearchPageContent() {
   // Fix P2: Show loading during initialization (prevents empty state flash)
   // Note: With required: true, unauthenticated users are auto-redirected to login
   if (isInitializing || isAuthError) {
-    return <Loading />;
+    return <StudentSearchPageSkeleton />;
   }
 
   return (
@@ -1977,7 +1990,7 @@ function SearchPageContent() {
         {(() => {
           // Fix P2: Show loading while first fetch is in progress (not yet hasFetchedOnce)
           if (isSearching && !hasFetchedOnce) {
-            return <Loading fullPage={false} />;
+            return <StudentCardGridSkeleton />;
           }
           if (errorMessage) {
             return (
@@ -2241,7 +2254,7 @@ function SearchPageContent() {
 // Main component with Suspense wrapper
 export default function StudentSearchPage() {
   return (
-    <Suspense fallback={<Loading fullPage={false} />}>
+    <Suspense fallback={<StudentSearchPageSkeleton />}>
       <SearchPageContent />
     </Suspense>
   );
