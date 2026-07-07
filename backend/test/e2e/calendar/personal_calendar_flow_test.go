@@ -93,8 +93,8 @@ func TestPersonalCalendarHTTPFlow_StaffInvitationRSVP(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 	_, router := setupCalendarE2ERouter(t, db)
 
-	organizer, organizerAccount := testpkg.CreateTestStaffWithAccount(t, db, "E2E", "Organizer")
-	invitee, inviteeAccount := testpkg.CreateTestStaffWithAccount(t, db, "E2E", "Invitee")
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "Organizer")
+	invitee, inviteeAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "Invitee")
 	t.Cleanup(func() {
 		testpkg.CleanupStaffFixtures(t, db, invitee.ID, organizer.ID)
 		testpkg.CleanupAuthFixtures(t, db, inviteeAccount.ID, organizerAccount.ID)

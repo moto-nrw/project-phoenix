@@ -542,8 +542,19 @@ func (s *service) RecipientOptions(ctx context.Context, query string, limit int)
 	if err != nil {
 		return nil, err
 	}
+	// Only offer staff that target resolution would actually accept
+	// (FindReachableCalendarStaffIDs), so the picker never presents a choice
+	// that CreateStaffAppointment later rejects with "staff target is not
+	// available".
+	reachableStaff, err := s.cfg.StaffRepo.FindReachableCalendarStaffIDs(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
 	staffOptions := make([]StaffOption, 0, min(limit, len(staffRows)))
 	for _, row := range staffRows {
+		if !reachableStaff[row.ID] {
+			continue
+		}
 		name := staffName(row)
 		if query == "" || strings.Contains(strings.ToLower(name), query) {
 			staffOptions = append(staffOptions, StaffOption{ID: formatID(row.ID), Name: name})

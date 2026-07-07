@@ -126,8 +126,8 @@ func TestCalendarServiceIntegration_CreateRecurringAppointmentAndResponses(t *te
 	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
-	organizer, organizerAccount := testpkg.CreateTestStaffWithAccount(t, db, "Calendar", "Organizer")
-	invitedStaff, invitedAccount := testpkg.CreateTestStaffWithAccount(t, db, "Calendar", "Invitee")
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Calendar", "Organizer")
+	invitedStaff, invitedAccount := testpkg.CreateTestCalendarStaff(t, db, "Calendar", "Invitee")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	t.Cleanup(func() {
@@ -220,8 +220,8 @@ func TestCalendarServiceIntegration_InformationalAppointmentCannotBeAnswered(t *
 	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
-	organizer, organizerAccount := testpkg.CreateTestStaffWithAccount(t, db, "Info", "Organizer")
-	invitedStaff, invitedAccount := testpkg.CreateTestStaffWithAccount(t, db, "Info", "Invitee")
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Info", "Organizer")
+	invitedStaff, invitedAccount := testpkg.CreateTestCalendarStaff(t, db, "Info", "Invitee")
 	t.Cleanup(func() {
 		testpkg.CleanupStaffFixtures(t, db, invitedStaff.ID, organizer.ID)
 		testpkg.CleanupAuthFixtures(t, db, invitedAccount.ID, organizerAccount.ID)
@@ -252,8 +252,8 @@ func TestCalendarServiceIntegration_AttendeeOverviewVisibility(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
-	organizer, organizerAccount := testpkg.CreateTestStaffWithAccount(t, db, "Overview", "Organizer")
-	invitedStaff, invitedAccount := testpkg.CreateTestStaffWithAccount(t, db, "Overview", "Teacher")
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Overview", "Organizer")
+	invitedStaff, invitedAccount := testpkg.CreateTestCalendarStaff(t, db, "Overview", "Teacher")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	t.Cleanup(func() {
@@ -315,9 +315,9 @@ func TestCalendarServiceIntegration_AttendeeOverviewAccessRules(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
-	organizer, organizerAccount := testpkg.CreateTestStaffWithAccount(t, db, "Private", "Organizer")
-	invitedStaff, invitedAccount := testpkg.CreateTestStaffWithAccount(t, db, "Private", "Invitee")
-	outsider, outsiderAccount := testpkg.CreateTestStaffWithAccount(t, db, "Private", "Outsider")
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Private", "Organizer")
+	invitedStaff, invitedAccount := testpkg.CreateTestCalendarStaff(t, db, "Private", "Invitee")
+	outsider, outsiderAccount := testpkg.CreateTestCalendarStaff(t, db, "Private", "Outsider")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	t.Cleanup(func() {
@@ -369,8 +369,8 @@ func TestCalendarServiceIntegration_RecipientOptionsAndGroupedTargets(t *testing
 	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
-	organizer, organizerAccount := testpkg.CreateTestStaffWithAccount(t, db, "Target", "Organizer")
-	invitedStaff, invitedAccount := testpkg.CreateTestStaffWithAccount(t, db, "Target", "Invitee")
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Target", "Organizer")
+	invitedStaff, invitedAccount := testpkg.CreateTestCalendarStaff(t, db, "Target", "Invitee")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 	inactiveParentChain := testpkg.CreateTestParentGuardianChain(t, db)
 	_, err := db.ExecContext(
@@ -503,7 +503,7 @@ func TestCalendarServiceIntegration_InvalidCreateTargets(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
-	organizer, organizerAccount := testpkg.CreateTestStaffWithAccount(t, db, "Invalid", "Targets")
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Invalid", "Targets")
 	const foreignTenantID int64 = 2
 	testpkg.EnsureTestTenant(t, db, foreignTenantID)
 	otherTenantStaff := testpkg.CreateTestStaffForTenant(t, db, foreignTenantID, "Other", "Tenant")
@@ -566,8 +566,8 @@ func TestCalendarServiceIntegration_InvalidRecurrenceDoesNotPersistAppointment(t
 	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
-	organizer, organizerAccount := testpkg.CreateTestStaffWithAccount(t, db, "Invalid", "Recurrence")
-	invitedStaff, invitedAccount := testpkg.CreateTestStaffWithAccount(t, db, "Invalid", "RecurrenceInvitee")
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Invalid", "Recurrence")
+	invitedStaff, invitedAccount := testpkg.CreateTestCalendarStaff(t, db, "Invalid", "RecurrenceInvitee")
 	t.Cleanup(func() {
 		testpkg.CleanupStaffFixtures(t, db, invitedStaff.ID, organizer.ID)
 		testpkg.CleanupAuthFixtures(t, db, invitedAccount.ID, organizerAccount.ID)
@@ -604,7 +604,7 @@ func TestCalendarServiceIntegration_MultiDayRecurrenceVisibleOnFinalOverlapDay(t
 
 	service := setupCalendarService(t, db)
 	repos := repositories.NewFactory(db)
-	organizer, organizerAccount := testpkg.CreateTestStaffWithAccount(t, db, "MultiDay", "Organizer")
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "MultiDay", "Organizer")
 	t.Cleanup(func() {
 		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
 		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
@@ -658,8 +658,8 @@ func TestCalendarServiceIntegration_ResponseAndOverviewErrors(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
-	organizer, organizerAccount := testpkg.CreateTestStaffWithAccount(t, db, "Errors", "Organizer")
-	invitedStaff, invitedAccount := testpkg.CreateTestStaffWithAccount(t, db, "Errors", "Invitee")
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Errors", "Organizer")
+	invitedStaff, invitedAccount := testpkg.CreateTestCalendarStaff(t, db, "Errors", "Invitee")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	t.Cleanup(func() {
@@ -749,8 +749,8 @@ func TestCalendarServiceIntegration_RepositoryReadAndReplacePaths(t *testing.T) 
 
 	service := setupCalendarService(t, db)
 	repos := repositories.NewFactory(db)
-	organizer, organizerAccount := testpkg.CreateTestStaffWithAccount(t, db, "Repo", "Organizer")
-	invitedStaff, invitedAccount := testpkg.CreateTestStaffWithAccount(t, db, "Repo", "Invitee")
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Repo", "Organizer")
+	invitedStaff, invitedAccount := testpkg.CreateTestCalendarStaff(t, db, "Repo", "Invitee")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	t.Cleanup(func() {
@@ -845,7 +845,7 @@ func TestCalendarServiceIntegration_StaffCalendarIncludesAssignedTimetable(t *te
 	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupCalendarService(t, db)
-	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Timetable", "Staff")
+	staff, account := testpkg.CreateTestCalendarStaff(t, db, "Timetable", "Staff")
 	room := testpkg.CreateTestRoom(t, db, "Calendar Timetable Room")
 	instance := testpkg.CreateTestActivityInstance(t, db, timezone.NewDate(2026, 3, 3), room.ID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "14:15",

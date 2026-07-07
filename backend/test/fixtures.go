@@ -1288,6 +1288,48 @@ func CreateTestStaffWithAccount(tb testing.TB, db *bun.DB, firstName, lastName s
 	return staff, account
 }
 
+// CreateTestCalendarStaff creates a staff member that is reachable for calendar
+// invitations. On top of CreateTestStaffWithAccount it adds an active
+// account_tenants mapping for tenant 1 and the base "user" role (which carries
+// calendar:own via migration 1.15.171), mirroring a real onboarded staff
+// account so FindReachableCalendarStaffIDs treats them as invitable. Use this in
+// calendar tests wherever staff must be selectable recipients. Cleanup: the
+// added rows are removed by CleanupAuthFixtures (account_tenants + account_roles
+// by account_id), which calendar tests already call for the account.
+func CreateTestCalendarStaff(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Staff, *auth.Account) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	staff, account := CreateTestStaffWithAccount(tb, db, firstName, lastName)
+
+	now := time.Now()
+	mapping := &auth.AccountTenant{
+		AccountID:   account.ID,
+		TenantID:    1,
+		Status:      auth.AccountTenantStatusActive,
+		ActivatedAt: &now,
+	}
+	_, err := db.NewInsert().Model(mapping).ModelTableExpr(`auth.account_tenants`).Exec(ctx)
+	require.NoError(tb, err, "Failed to create staff account_tenants mapping")
+
+	var userRoleID int64
+	err = db.NewSelect().
+		ColumnExpr("id").
+		TableExpr("auth.roles").
+		Where("name = ?", auth.BaseRoleUser).
+		Scan(ctx, &userRoleID)
+	require.NoError(tb, err, "Failed to find seeded user role")
+
+	roleAssignment := &auth.AccountRole{AccountID: account.ID, RoleID: userRoleID}
+	roleAssignment.SetTenantID(1)
+	_, err = db.NewInsert().Model(roleAssignment).ModelTableExpr(`auth.account_roles`).Exec(ctx)
+	require.NoError(tb, err, "Failed to assign user role to staff account")
+
+	return staff, account
+}
+
 // CreateTestTeacherWithAccount creates a teacher with full chain: Account → Person → Staff → Teacher.
 // Returns the teacher and account for auth context testing.
 func CreateTestTeacherWithAccount(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Teacher, *auth.Account) {
