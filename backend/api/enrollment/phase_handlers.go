@@ -107,19 +107,26 @@ func toPhaseResponse(p *enrollmentModels.Phase) PhaseResponse {
 // row, or omitted/empty for "no custom fields" (the parent form
 // renders core fields only).
 type PhaseRequest struct {
-	Name                      string   `json:"name"`
-	Kind                      string   `json:"kind"`
-	ServiceStartDate          string   `json:"service_start_date"`
-	ServiceEndDate            string   `json:"service_end_date"`
-	EnrollmentOpenAt          *string  `json:"enrollment_open_at,omitempty"`
-	EnrollmentCloseAt         *string  `json:"enrollment_close_at,omitempty"`
-	FormSchemaID              *string  `json:"form_schema_id,omitempty"`
-	ShowStatusReasonToParent  bool     `json:"show_status_reason_to_parent"`
-	CareOverflowMode          string   `json:"care_overflow_mode"`
-	CareOfferingSelectionMode string   `json:"care_offering_selection_mode"`
-	IsActive                  bool     `json:"is_active"`
-	AvailableSchoolClasses    []string `json:"available_school_classes,omitempty"`
-	RequireSchoolClass        bool     `json:"require_school_class"`
+	Name                      string  `json:"name"`
+	Kind                      string  `json:"kind"`
+	ServiceStartDate          string  `json:"service_start_date"`
+	ServiceEndDate            string  `json:"service_end_date"`
+	EnrollmentOpenAt          *string `json:"enrollment_open_at,omitempty"`
+	EnrollmentCloseAt         *string `json:"enrollment_close_at,omitempty"`
+	FormSchemaID              *string `json:"form_schema_id,omitempty"`
+	ShowStatusReasonToParent  bool    `json:"show_status_reason_to_parent"`
+	CareOverflowMode          string  `json:"care_overflow_mode"`
+	CareOfferingSelectionMode string  `json:"care_offering_selection_mode"`
+	IsActive                  bool    `json:"is_active"`
+	// Concrete-class config (issue #1833) is optional on the wire so a
+	// stale client that predates the feature omits it rather than sending
+	// zero values. Pointers distinguish "field omitted" (nil -> preserve
+	// existing on update / default on create) from "explicitly cleared"
+	// ([] / false). A non-pointer would make every omission look like an
+	// explicit wipe, silently deleting an admin's class list. See
+	// createPhase / updatePhase for how each side resolves nil.
+	AvailableSchoolClasses *[]string `json:"available_school_classes,omitempty"`
+	RequireSchoolClass     *bool     `json:"require_school_class,omitempty"`
 }
 
 func (req *PhaseRequest) Bind(_ *http.Request) error { return nil }
@@ -146,8 +153,19 @@ func (req *PhaseRequest) toModel(existingID int64) (*enrollmentModels.Phase, err
 		CareOverflowMode:          req.CareOverflowMode,
 		CareOfferingSelectionMode: req.CareOfferingSelectionMode,
 		IsActive:                  req.IsActive,
-		AvailableSchoolClasses:    normalizeSchoolClasses(req.AvailableSchoolClasses),
-		RequireSchoolClass:        req.RequireSchoolClass,
+	}
+	// Class config: a provided value (even []/false) is applied verbatim;
+	// an omitted value (nil pointer) leaves the zero value here. On create
+	// that means an empty list / not-required (matching a fresh phase); on
+	// update the handler re-hydrates the omitted field from the stored
+	// phase so a partial update never wipes it. See updatePhase.
+	if req.AvailableSchoolClasses != nil {
+		p.AvailableSchoolClasses = normalizeSchoolClasses(*req.AvailableSchoolClasses)
+	} else {
+		p.AvailableSchoolClasses = []string{}
+	}
+	if req.RequireSchoolClass != nil {
+		p.RequireSchoolClass = *req.RequireSchoolClass
 	}
 	if req.EnrollmentOpenAt != nil && *req.EnrollmentOpenAt != "" {
 		t, parseErr := time.Parse(time.RFC3339, *req.EnrollmentOpenAt)
@@ -294,6 +312,34 @@ func (rs *Resource) updatePhase(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
+	}
+
+	// A stale client (pre-#1833) omits the concrete-class fields entirely.
+	// Update replaces the whole row, so without this a partial update would
+	// silently wipe the admin's class pick list / mandatory toggle. Re-hydrate
+	// any omitted field from the stored phase before persisting.
+	if req.AvailableSchoolClasses == nil || req.RequireSchoolClass == nil {
+		var existing *enrollmentModels.Phase
+		if fetchErr := rs.runInTenantTx(r, func(ctx context.Context) error {
+			p, e := rs.PhaseService.GetByID(ctx, id)
+			existing = p
+			return e
+		}); fetchErr != nil {
+			if errors.Is(fetchErr, enrollmentService.ErrPhaseNotFound) {
+				common.RenderError(w, r, common.ErrorNotFound(fetchErr))
+				return
+			}
+			common.RenderError(w, r, common.ErrorInternalServer(fetchErr))
+			return
+		}
+		if existing != nil {
+			if req.AvailableSchoolClasses == nil {
+				model.AvailableSchoolClasses = existing.AvailableSchoolClasses
+			}
+			if req.RequireSchoolClass == nil {
+				model.RequireSchoolClass = existing.RequireSchoolClass
+			}
+		}
 	}
 
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {

@@ -332,6 +332,9 @@ export function EnrollmentForm({
       setSchema(prefetchedData.schema);
       setOfferings(prefetchedData.offerings);
       setCareOfferingSelectionMode(prefetchedData.careOfferingSelectionMode);
+      setSchoolClassConfig(
+        prefetchedData.schoolClass ?? EMPTY_SCHOOL_CLASS_CONFIG,
+      );
       setCaptchaConfig(prefetchedData.captchaConfig);
       setLegalTexts(prefetchedData.legalTexts);
       setProfile(prefetchedData.profile ?? null);
