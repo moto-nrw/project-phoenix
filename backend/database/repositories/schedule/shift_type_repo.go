@@ -78,6 +78,46 @@ func (r *ShiftTypeRepository) Create(ctx context.Context, shiftType *schedule.Sh
 	return r.Repository.Create(ctx, shiftType)
 }
 
+// CreateIfAbsent inserts the shift type unless one with the same
+// (tenant_id, LOWER(name)) already exists (uniq_shift_types_tenant_name,
+// migration 1.15.169). It returns true when a new row was inserted and false
+// when a shift type with that name was already present.
+//
+// Why a custom method instead of the generic Create: default seeding
+// (CreateDefaultShiftTypes) must be idempotent under concurrent requests. A
+// read-then-insert sequence can race (two parallel seeds both snapshot "no
+// such default" and both insert — one fails with a unique violation that,
+// because the seed runs inside the request's TenantTxMiddleware transaction,
+// aborts the whole transaction and makes every later statement fail with
+// "current transaction is aborted"). ON CONFLICT DO NOTHING is the only
+// race-free shape: exactly one insert wins, the loser is a clean no-op, and
+// the transaction stays usable. Mirrors base.Create's validate +
+// tenant-autoset + ModelTableExpr insert, adding only the conflict clause.
+func (r *ShiftTypeRepository) CreateIfAbsent(ctx context.Context, shiftType *schedule.ShiftType) (bool, error) {
+	if shiftType == nil {
+		return false, fmt.Errorf("shift type cannot be nil")
+	}
+	if err := shiftType.Validate(); err != nil {
+		return false, err
+	}
+	base.EnsureTenantID(ctx, shiftType)
+
+	res, err := base.GetDB(ctx, r.db).NewInsert().
+		Model(shiftType).
+		ModelTableExpr(tableScheduleShiftTypes).
+		On("CONFLICT (tenant_id, LOWER(name)) DO NOTHING").
+		Exec(ctx)
+	if err != nil {
+		return false, &modelBase.DatabaseError{Op: "create shift type if absent", Err: err}
+	}
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return false, &modelBase.DatabaseError{Op: "create shift type if absent (rows affected)", Err: err}
+	}
+	return affected == 1, nil
+}
+
 // Update validates and persists changes, tenant-scoped.
 func (r *ShiftTypeRepository) Update(ctx context.Context, shiftType *schedule.ShiftType) error {
 	if shiftType == nil {

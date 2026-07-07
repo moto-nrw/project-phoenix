@@ -71,6 +71,13 @@ type ShiftTypeRepository interface {
 
 	// ListAll returns all shift types for the current tenant, ordered by name.
 	ListAll(ctx context.Context) ([]*ShiftType, error)
+
+	// CreateIfAbsent inserts a shift type unless one with the same
+	// (tenant_id, LOWER(name)) already exists (uniq_shift_types_tenant_name).
+	// It returns true when a new row was inserted. Used by idempotent default
+	// seeding so a concurrent seed cannot raise a unique violation that aborts
+	// the request's tenant transaction.
+	CreateIfAbsent(ctx context.Context, shiftType *ShiftType) (bool, error)
 }
 
 // RecurrenceRuleRepository defines operations for managing recurrence rules
