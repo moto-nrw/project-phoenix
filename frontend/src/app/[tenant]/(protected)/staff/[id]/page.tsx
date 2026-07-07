@@ -32,7 +32,6 @@ function StaffDetailSkeleton() {
   return (
     <div
       role="status"
-      aria-live="polite"
       aria-busy="true"
       aria-label="Mitarbeiter wird geladen"
       data-testid="staff-detail-skeleton"
@@ -77,7 +76,6 @@ function StaffDetailSkeleton() {
           </div>
         ))}
       </div>
-      <span className="sr-only">Mitarbeiter wird geladen</span>
     </div>
   );
 }

@@ -6,7 +6,6 @@ import { MessageCircle } from "lucide-react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
-import { Loading } from "~/components/ui/loading";
 import { Skeleton } from "~/components/ui/skeleton";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { useTenant, useTenantSlugSafe } from "~/lib/tenant-context";
@@ -29,7 +28,6 @@ function MessagesSkeleton() {
   return (
     <div
       role="status"
-      aria-live="polite"
       aria-busy="true"
       aria-label="Nachrichten werden geladen"
       data-testid="messages-skeleton"
@@ -262,7 +260,7 @@ function MessagesInboxContent() {
 
 export default function MessagesPage() {
   return (
-    <Suspense fallback={<Loading fullPage={false} />}>
+    <Suspense fallback={<MessagesSkeleton />}>
       <MessagesInboxContent />
     </Suspense>
   );

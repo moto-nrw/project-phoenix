@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
   FilterConfig,
@@ -22,6 +23,7 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { useSWRAuth } from "~/lib/swr";
 import { createLogger } from "~/lib/logger";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
+import { useTenantRouter } from "~/lib/tenant-router";
 import { NfcModeGuard } from "~/components/tenant/nfc-mode-guard";
 
 const logger = createLogger({ component: "ActivitiesPage" });
@@ -32,7 +34,6 @@ function ActivitiesSkeleton() {
   return (
     <div
       role="status"
-      aria-live="polite"
       aria-busy="true"
       aria-label="Aktivitäten werden geladen"
       data-testid="activities-skeleton"
@@ -91,6 +92,18 @@ function ActivitiesPageContent() {
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
   const { success: toastSuccess } = useToast();
   const [isMobile, setIsMobile] = useState(false);
+  const router = useTenantRouter();
+
+  // useSWRAuth silently disables the fetch when there is no authenticated
+  // session (data stays undefined, isLoading stays false). Require a session
+  // here so a direct visit after logout/expiry redirects instead of showing
+  // the skeleton forever.
+  const { status } = useSession({
+    required: true,
+    onUnauthenticated() {
+      router.push("/");
+    },
+  });
 
   // Fetch activities, categories, and current staff with SWR
   const {
@@ -287,10 +300,16 @@ function ActivitiesPageContent() {
     return filters;
   }, [searchTerm, categoryFilter, myActivitiesFilter, categories]);
 
-  // Also cover the session-loading phase, where useSWRAuth has not started
-  // fetching yet (isLoading is false but no data exists) — otherwise the
-  // empty state flashes before the first fetch begins.
-  if (isLoading || (pageData === undefined && !fetchError)) {
+  // Session loading is gated explicitly via status; the data clause covers
+  // the render tick between "authenticated" and SWR starting its first fetch
+  // (isLoading is still false there but no data exists yet). Unauthenticated
+  // visits redirect via the required-session guard above, so this cannot
+  // show the skeleton indefinitely.
+  if (
+    status === "loading" ||
+    isLoading ||
+    (pageData === undefined && !fetchError)
+  ) {
     return <ActivitiesSkeleton />;
   }
 

@@ -28,7 +28,6 @@ function DashboardSkeleton() {
   return (
     <div
       role="status"
-      aria-live="polite"
       aria-busy="true"
       aria-label="Übersicht wird geladen"
       data-testid="dashboard-skeleton"

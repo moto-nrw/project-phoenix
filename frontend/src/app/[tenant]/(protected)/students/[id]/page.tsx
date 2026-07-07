@@ -250,7 +250,6 @@ function StudentDetailSkeleton() {
   return (
     <div
       role="status"
-      aria-live="polite"
       aria-busy="true"
       aria-label="Kind wird geladen"
       data-testid="student-detail-skeleton"
@@ -298,7 +297,6 @@ function StudentDetailSkeleton() {
           </dl>
         </div>
       </div>
-      <span className="sr-only">Kind wird geladen</span>
     </div>
   );
 }

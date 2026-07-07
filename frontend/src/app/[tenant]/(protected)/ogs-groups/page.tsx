@@ -46,7 +46,6 @@ import { useSWRAuth } from "~/lib/swr";
 import { useUserContext } from "~/lib/hooks/use-user-context";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 
-import { Skeleton } from "~/components/ui/skeleton";
 import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import { EmptyStudentResults } from "~/components/ui/empty-student-results";
 import {
@@ -55,7 +54,10 @@ import {
   ArrivalTimeRow,
   StudentAbsenceRow,
 } from "~/components/students/student-card";
-import { StudentCardGridSkeleton } from "~/components/students/student-card-skeleton";
+import {
+  StudentCardGridSkeleton,
+  StudentCardPageSkeleton,
+} from "~/components/students/student-card-skeleton";
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
 import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
 import {
@@ -85,27 +87,13 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "OgsGroupsPage" });
 
-/**
- * Page-shell skeleton for the OGS-groups gate/Suspense states: a
- * PageHeaderWithSearch placeholder followed by the student-card grid, so
- * swapping in the real content causes no layout shift.
- */
+// Page-shell skeleton for the OGS-groups gate/Suspense states.
 function OgsGroupsPageSkeleton() {
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      aria-busy="true"
-      aria-label="Gruppe wird geladen"
-      data-testid="ogs-groups-skeleton"
-      className="-mt-1.5 w-full"
-    >
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <Skeleton className="h-10 w-full max-w-md rounded-lg" />
-        <Skeleton className="h-10 w-32 flex-shrink-0 rounded-lg" />
-      </div>
-      <StudentCardGridSkeleton />
-    </div>
+    <StudentCardPageSkeleton
+      label="Gruppe wird geladen"
+      testId="ogs-groups-skeleton"
+    />
   );
 }
 

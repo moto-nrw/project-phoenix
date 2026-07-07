@@ -24,7 +24,6 @@ import { DetailIcons } from "~/components/ui/detail-modal-components";
 import { studentService, groupService, roomService } from "~/lib/api";
 import type { Student, Group, Room } from "~/lib/api";
 import { useUserContext } from "~/lib/hooks/use-user-context";
-import { Skeleton } from "~/components/ui/skeleton";
 import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import {
   LOCATION_STATUSES,
@@ -48,7 +47,10 @@ import {
   StudentAbsenceRow,
 } from "~/components/students/student-card";
 import { StudentExportModal } from "~/components/students/student-export-modal";
-import { StudentCardGridSkeleton } from "~/components/students/student-card-skeleton";
+import {
+  StudentCardGridSkeleton,
+  StudentCardPageSkeleton,
+} from "~/components/students/student-card-skeleton";
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
 import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
 import {
@@ -83,27 +85,13 @@ import {
 const logger = createLogger({ component: "StudentSearchPage" });
 const EMPTY_STRING_ARRAY: string[] = [];
 
-/**
- * Page-shell skeleton for the student-search gate/Suspense states: a
- * PageHeaderWithSearch placeholder followed by the student-card grid, so
- * swapping in the real content causes no layout shift.
- */
+// Page-shell skeleton for the student-search gate/Suspense states.
 function StudentSearchPageSkeleton() {
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      aria-busy="true"
-      aria-label="Kindersuche wird geladen"
-      data-testid="students-search-skeleton"
-      className="-mt-1.5 w-full"
-    >
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <Skeleton className="h-10 w-full max-w-md rounded-lg" />
-        <Skeleton className="h-10 w-32 flex-shrink-0 rounded-lg" />
-      </div>
-      <StudentCardGridSkeleton />
-    </div>
+    <StudentCardPageSkeleton
+      label="Kindersuche wird geladen"
+      testId="students-search-skeleton"
+    />
   );
 }
 

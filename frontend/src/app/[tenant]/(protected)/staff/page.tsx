@@ -52,7 +52,6 @@ function StaffPageSkeleton() {
   return (
     <div
       role="status"
-      aria-live="polite"
       aria-busy="true"
       aria-label="Mitarbeitende werden geladen"
       data-testid="staff-page-skeleton"
@@ -76,7 +75,6 @@ function StaffPageSkeleton() {
           <StaffCardSkeleton key={i} />
         ))}
       </div>
-      <span className="sr-only">Mitarbeitende werden geladen</span>
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { MasterDetailLayout } from "./master-detail-layout";
 import { Skeleton } from "~/components/ui/skeleton";
+import { PageHeaderSkeleton } from "~/components/ui/page-header/PageHeaderSkeleton";
 
 function ListRowSkeleton() {
   // Mirrors DatabaseListItem: title + subtitle lines, chevron slot.
@@ -31,17 +32,12 @@ export function MasterDetailSkeleton({
   return (
     <div
       role="status"
-      aria-live="polite"
       aria-busy="true"
       aria-label={label}
       data-testid="master-detail-skeleton"
       className="-mt-1.5 flex w-full flex-col"
     >
-      {/* PageHeaderWithSearch placeholder: search field + action button row */}
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <Skeleton className="h-10 w-full max-w-md rounded-lg" />
-        <Skeleton className="h-10 w-32 flex-shrink-0 rounded-lg" />
-      </div>
+      <PageHeaderSkeleton />
       <div className="min-h-0 flex-1 pb-4">
         <MasterDetailLayout
           selectedId={null}
@@ -57,7 +53,6 @@ export function MasterDetailSkeleton({
           detail={null}
         />
       </div>
-      <span className="sr-only">{label}</span>
     </div>
   );
 }

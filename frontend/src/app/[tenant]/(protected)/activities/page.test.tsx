@@ -17,6 +17,20 @@ vi.mock("~/lib/swr", () => ({
   useTenantMutate: vi.fn(() => vi.fn()),
 }));
 
+// The page requires a session and redirects unauthenticated visitors; the
+// tests exercise the authenticated state.
+vi.mock("next-auth/react", () => ({
+  useSession: vi.fn(() => ({
+    data: { user: { token: "test-token" } },
+    status: "authenticated",
+    update: vi.fn(),
+  })),
+}));
+
+vi.mock("~/lib/tenant-router", () => ({
+  useTenantRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+}));
+
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => ({
     success: mockToastSuccess,
