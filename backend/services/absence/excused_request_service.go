@@ -1,0 +1,525 @@
+// Excused-absence approval requests (#1845): when a school turns the approval
+// gate (operations.parent_excused_requires_approval) on, a guardian's
+// "entschuldigte Abmeldung" becomes a PENDING request here instead of being
+// written straight to the child's status days. Staff review and decide it on
+// the central "Änderungsanfragen" page. On approval the request is applied as
+// excused active.student_status_days rows exactly like the direct parent path;
+// a rejected/withdrawn request never touches the status days, so the child
+// stays "expected" until a decision is made. The chat receives non-interactive
+// notification pills (created / decided / withdrawn) via parentmessaging.Emitter.
+package absence
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"strings"
+	"time"
+	"unicode/utf8"
+
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
+	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
+	"github.com/moto-nrw/project-phoenix/tenant"
+)
+
+// excusedRequestMaxReasonLen bounds the staff reject reason (in runes).
+const excusedRequestMaxReasonLen = 2000
+
+// German pill texts. The staff portal renders these directly; the parents
+// portal localizes from the structured event fields instead.
+const (
+	excusedRequestCreatedBody   = "Anfrage: Entschuldigte Abmeldung"
+	excusedRequestConfirmedBody = "Abmeldung bestätigt"
+	excusedRequestWithdrawnBody = "Abmeldung zurückgezogen"
+)
+
+var (
+	// ErrExcusedRequestForbidden means the caller may not decide requests for
+	// this child (no staff identity, or no write access to the student).
+	ErrExcusedRequestForbidden = errors.New("active: excused request forbidden")
+	// ErrExcusedRequestNoDates means the request carried no dates.
+	ErrExcusedRequestNoDates = errors.New("active: excused request requires at least one date")
+	// ErrExcusedRequestEmptyNote means the mandatory note was blank.
+	ErrExcusedRequestEmptyNote = errors.New("active: excused request note must not be empty")
+	// ErrExcusedRequestNoteTooLong means the note exceeded the bound.
+	ErrExcusedRequestNoteTooLong = errors.New("active: excused request note too long")
+	// ErrExcusedRequestRejectReasonRequired means staff rejected without a reason.
+	ErrExcusedRequestRejectReasonRequired = errors.New("active: reject reason is required")
+	// ErrExcusedRequestRejectReasonTooLong means the reason exceeded the bound.
+	ErrExcusedRequestRejectReasonTooLong = errors.New("active: reject reason too long")
+)
+
+// ExcusedRequestReviewItem is one request enriched with the child's name for
+// the staff review queue.
+type ExcusedRequestReviewItem struct {
+	Request   *activeModels.ExcusedAbsenceRequest
+	FirstName string
+	LastName  string
+}
+
+// ExcusedRequestDecideInput carries a staff decision on one pending request.
+type ExcusedRequestDecideInput struct {
+	RequestID int64
+	Approve   bool
+	Reason    string
+	// ReviewedBy is the acting staff ACCOUNT id (auth.accounts).
+	ReviewedBy int64
+}
+
+// ExcusedAbsenceRequestService owns the excused-absence request lifecycle. All
+// methods run inside an ambient tenant transaction: the staff paths under the
+// request's TenantTxMiddleware, the parent paths inside the tenant.WithTenantTx
+// the parent service opens after resolving the child.
+type ExcusedAbsenceRequestService interface {
+	// CreateRequest stores a guardian's pending request, then (after commit)
+	// posts the "Anfrage erstellt" pill. The caller has already authorized the
+	// guardian for this child; note is required and length-bounded here.
+	CreateRequest(ctx context.Context, studentID, guardianAccountID int64, dates []timezone.Date, note string) (*activeModels.ExcusedAbsenceRequest, error)
+	// WithdrawRequest moves the submitter's own pending request to withdrawn and
+	// (after commit) posts the withdrawal pill.
+	WithdrawRequest(ctx context.Context, requestID, studentID, guardianAccountID int64) (*activeModels.ExcusedAbsenceRequest, error)
+	// ListForStudent returns the child's pending requests plus any decided since
+	// `recentSince`, newest-first — the parent read view.
+	ListForStudent(ctx context.Context, studentID int64, recentSince time.Time) ([]*activeModels.ExcusedAbsenceRequest, error)
+	// ListPending returns every pending request for the current tenant,
+	// newest-first, enriched with child names — the staff review queue.
+	ListPending(ctx context.Context) ([]*ExcusedRequestReviewItem, error)
+	// PendingByStudentForDate returns, per student, the newest pending request
+	// whose dates cover the given calendar day — for the inline planning badge.
+	// A student with no pending request for the day is absent from the map.
+	PendingByStudentForDate(ctx context.Context, date timezone.Date) (map[int64]*activeModels.ExcusedAbsenceRequest, error)
+	// Decide approves (writes the excused status days, then stamps) or rejects
+	// (reason required) one pending request and returns the refreshed row.
+	Decide(ctx context.Context, input ExcusedRequestDecideInput) (*ExcusedRequestReviewItem, error)
+}
+
+type excusedAbsenceRequestService struct {
+	requestRepo   activeModels.ExcusedAbsenceRequestRepository
+	statusDayRepo activeModels.StudentStatusDayRepository
+	studentRepo   usersModels.StudentRepository
+	personRepo    usersModels.PersonRepository
+	userContext   userContextService.UserContextService
+	emitter       *parentmessaging.Emitter
+	broadcaster   realtime.Broadcaster
+	logger        *slog.Logger
+}
+
+// NewExcusedAbsenceRequestService wires the excused-request service.
+func NewExcusedAbsenceRequestService(
+	requestRepo activeModels.ExcusedAbsenceRequestRepository,
+	statusDayRepo activeModels.StudentStatusDayRepository,
+	studentRepo usersModels.StudentRepository,
+	personRepo usersModels.PersonRepository,
+	userContext userContextService.UserContextService,
+	emitter *parentmessaging.Emitter,
+	broadcaster realtime.Broadcaster,
+	logger *slog.Logger,
+) ExcusedAbsenceRequestService {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return &excusedAbsenceRequestService{
+		requestRepo:   requestRepo,
+		statusDayRepo: statusDayRepo,
+		studentRepo:   studentRepo,
+		personRepo:    personRepo,
+		userContext:   userContext,
+		emitter:       emitter,
+		broadcaster:   broadcaster,
+		logger:        logger,
+	}
+}
+
+func (s *excusedAbsenceRequestService) CreateRequest(ctx context.Context, studentID, guardianAccountID int64, dates []timezone.Date, note string) (*activeModels.ExcusedAbsenceRequest, error) {
+	if len(dates) == 0 {
+		return nil, ErrExcusedRequestNoDates
+	}
+	trimmed := strings.TrimSpace(note)
+	if trimmed == "" {
+		return nil, ErrExcusedRequestEmptyNote
+	}
+	if utf8.RuneCountInString(trimmed) > excusedRequestMaxReasonLen {
+		return nil, ErrExcusedRequestNoteTooLong
+	}
+
+	req := &activeModels.ExcusedAbsenceRequest{
+		StudentID:   studentID,
+		SubmittedBy: guardianAccountID,
+		Dates:       dedupeSortedDates(dates),
+		Note:        trimmed,
+		Status:      activeModels.ExcusedRequestStatusPending,
+	}
+	if err := s.requestRepo.Create(ctx, req); err != nil {
+		return nil, fmt.Errorf("active: create excused request: %w", err)
+	}
+	s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
+		EventType:      usersModels.ParentMessageEventRequestCreated,
+		ActorKind:      usersModels.ParentMessageSenderGuardian,
+		ActorAccountID: guardianAccountID,
+		Body:           excusedRequestCreatedBody,
+		RequestType:    usersModels.ParentMessageRequestExcusedAbsence,
+		RequestStatus:  usersModels.ParentMessageRequestStatusOpen,
+	})
+	return req, nil
+}
+
+func (s *excusedAbsenceRequestService) WithdrawRequest(ctx context.Context, requestID, studentID, guardianAccountID int64) (*activeModels.ExcusedAbsenceRequest, error) {
+	// Lock the row regardless of status so ownership is checked BEFORE the
+	// pending-status distinction — a foreign child's decided request id must
+	// surface as not-found, not not-pending.
+	req, err := s.requestRepo.FindByIDForUpdate(ctx, requestID)
+	if err != nil {
+		return nil, err
+	}
+	if req.SubmittedBy != guardianAccountID || req.StudentID != studentID {
+		return nil, activeModels.ErrExcusedRequestNotFound
+	}
+	if req.Status != activeModels.ExcusedRequestStatusPending {
+		return nil, activeModels.ErrExcusedRequestNotPending
+	}
+	if err := s.requestRepo.Decide(ctx, req.ID, activeModels.ExcusedRequestStatusWithdrawn, nil, nil, false); err != nil {
+		return nil, err
+	}
+	req.Status = activeModels.ExcusedRequestStatusWithdrawn
+	s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
+		EventType:      usersModels.ParentMessageEventRequestStatus,
+		ActorKind:      usersModels.ParentMessageSenderGuardian,
+		ActorAccountID: guardianAccountID,
+		Body:           excusedRequestWithdrawnBody,
+		RequestType:    usersModels.ParentMessageRequestExcusedAbsence,
+		RequestStatus:  usersModels.ParentMessageRequestStatusWithdrawn,
+	})
+	return req, nil
+}
+
+func (s *excusedAbsenceRequestService) ListForStudent(ctx context.Context, studentID int64, recentSince time.Time) ([]*activeModels.ExcusedAbsenceRequest, error) {
+	// Pending first (any age) then recently-decided, deduped by id. The parent
+	// view shows pending requests indefinitely and rejected ones for a short
+	// window so a parent learns their request was declined.
+	pending, err := s.requestRepo.ListPendingForStudent(ctx, studentID)
+	if err != nil {
+		return nil, err
+	}
+	recent, err := s.requestRepo.ListRecentForStudent(ctx, studentID, recentSince)
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[int64]struct{}, len(pending)+len(recent))
+	out := make([]*activeModels.ExcusedAbsenceRequest, 0, len(pending)+len(recent))
+	for _, r := range pending {
+		if _, ok := seen[r.ID]; ok {
+			continue
+		}
+		seen[r.ID] = struct{}{}
+		out = append(out, r)
+	}
+	for _, r := range recent {
+		if _, ok := seen[r.ID]; ok {
+			continue
+		}
+		// Approved requests already surface as excused status days; don't
+		// double-show them in the parent absence list.
+		if r.Status == activeModels.ExcusedRequestStatusApproved {
+			continue
+		}
+		seen[r.ID] = struct{}{}
+		out = append(out, r)
+	}
+	return out, nil
+}
+
+func (s *excusedAbsenceRequestService) ListPending(ctx context.Context) ([]*ExcusedRequestReviewItem, error) {
+	rows, err := s.requestRepo.ListPendingForTenant(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("active: list pending excused requests: %w", err)
+	}
+	if len(rows) == 0 {
+		return []*ExcusedRequestReviewItem{}, nil
+	}
+
+	studentIDs := make([]int64, 0, len(rows))
+	seen := make(map[int64]struct{}, len(rows))
+	for _, r := range rows {
+		if _, ok := seen[r.StudentID]; !ok {
+			seen[r.StudentID] = struct{}{}
+			studentIDs = append(studentIDs, r.StudentID)
+		}
+	}
+	students, err := s.studentRepo.FindByIDs(ctx, studentIDs)
+	if err != nil {
+		return nil, fmt.Errorf("active: load students for excused requests: %w", err)
+	}
+	personIDs := make([]int64, 0, len(students))
+	for _, st := range students {
+		personIDs = append(personIDs, st.PersonID)
+	}
+	persons, err := s.personRepo.FindByIDs(ctx, personIDs)
+	if err != nil {
+		return nil, fmt.Errorf("active: load persons for excused requests: %w", err)
+	}
+
+	// Scope the queue to children the caller may WRITE (admin, or the child's
+	// group supervisor) — the same gate as Decide, so a staffer only ever sees
+	// requests they can act on. This also scopes the sidebar badge.
+	writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userContext)
+
+	items := make([]*ExcusedRequestReviewItem, 0, len(rows))
+	for _, r := range rows {
+		if !writable(students[r.StudentID]) {
+			continue
+		}
+		item := &ExcusedRequestReviewItem{Request: r}
+		if st, ok := students[r.StudentID]; ok {
+			if p, ok := persons[st.PersonID]; ok {
+				item.FirstName = p.FirstName
+				item.LastName = p.LastName
+			}
+		}
+		items = append(items, item)
+	}
+	return items, nil
+}
+
+func (s *excusedAbsenceRequestService) PendingByStudentForDate(ctx context.Context, date timezone.Date) (map[int64]*activeModels.ExcusedAbsenceRequest, error) {
+	rows, err := s.requestRepo.ListPendingForTenant(ctx)
+	if err != nil {
+		return nil, err
+	}
+	// rows are newest-first; keep the first (newest) pending request per student
+	// that covers the date.
+	out := make(map[int64]*activeModels.ExcusedAbsenceRequest, len(rows))
+	for _, r := range rows {
+		if _, ok := out[r.StudentID]; ok {
+			continue
+		}
+		if containsDate(r.Dates, date) {
+			out[r.StudentID] = r
+		}
+	}
+	return out, nil
+}
+
+func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input ExcusedRequestDecideInput) (*ExcusedRequestReviewItem, error) {
+	if input.RequestID <= 0 {
+		return nil, activeModels.ErrExcusedRequestNotFound
+	}
+	reason := strings.TrimSpace(input.Reason)
+	if !input.Approve {
+		if reason == "" {
+			return nil, ErrExcusedRequestRejectReasonRequired
+		}
+		if utf8.RuneCountInString(reason) > excusedRequestMaxReasonLen {
+			return nil, ErrExcusedRequestRejectReasonTooLong
+		}
+	}
+
+	// Lock the row and re-verify it is still pending so two staff deciding the
+	// same request (or a decide racing the guardian's withdrawal) serialize.
+	req, err := s.requestRepo.FindPendingByIDForUpdate(ctx, input.RequestID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Per-child write authorization: the caller may decide only if they could
+	// edit the child directly — admin, or the child's group supervisor.
+	student, err := s.studentRepo.FindByID(ctx, req.StudentID)
+	if err != nil {
+		return nil, fmt.Errorf("active: load student for excused request decision: %w", err)
+	}
+	if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.userContext); !ok {
+		return nil, ErrExcusedRequestForbidden
+	}
+
+	if input.Approve {
+		// Apply, status update and after-commit hooks all run in the ambient
+		// tenant transaction. A mid-apply failure propagates as a plain error
+		// (→ 500) so the WHOLE transaction rolls back rather than committing a
+		// half-applied absence.
+		if err := s.applyExcusedRequest(ctx, req); err != nil {
+			return nil, err
+		}
+	}
+
+	newStatus := activeModels.ExcusedRequestStatusApproved
+	pillStatus := usersModels.ParentMessageRequestStatusDone
+	pillBody := excusedRequestConfirmedBody
+	var reasonPtr *string
+	if !input.Approve {
+		newStatus = activeModels.ExcusedRequestStatusRejected
+		pillStatus = usersModels.ParentMessageRequestStatusRejected
+		pillBody = "Abmeldung abgelehnt: " + reason
+		reasonPtr = &reason
+	}
+	reviewedBy := input.ReviewedBy
+	if err := s.requestRepo.Decide(ctx, req.ID, newStatus, reasonPtr, &reviewedBy, input.Approve); err != nil {
+		return nil, err
+	}
+
+	if input.Approve {
+		tenant.RegisterAfterCommit(ctx, func() {
+			s.logger.Info("excused request approved",
+				slog.Int64("request_id", req.ID),
+				slog.Int64("student_id", req.StudentID),
+				slog.Int64("tenant_id", req.TenantID),
+				slog.Int64("reviewed_by", input.ReviewedBy),
+				slog.Int("days", len(req.Dates)),
+			)
+		})
+		s.broadcastStudentUpdated(ctx, req.TenantID, req.StudentID)
+	} else {
+		tenant.RegisterAfterCommit(ctx, func() {
+			s.logger.Info("excused request rejected",
+				slog.Int64("request_id", req.ID),
+				slog.Int64("student_id", req.StudentID),
+				slog.Int64("tenant_id", req.TenantID),
+				slog.Int64("reviewed_by", input.ReviewedBy),
+			)
+		})
+	}
+	s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
+		EventType:      usersModels.ParentMessageEventRequestStatus,
+		ActorKind:      usersModels.ParentMessageSenderStaff,
+		ActorAccountID: input.ReviewedBy,
+		Body:           pillBody,
+		RequestType:    usersModels.ParentMessageRequestExcusedAbsence,
+		RequestStatus:  pillStatus,
+		DecisionReason: reason,
+	})
+
+	row, err := s.requestRepo.FindByID(ctx, req.ID)
+	if err != nil {
+		return nil, fmt.Errorf("active: reload decided excused request: %w", err)
+	}
+	item := &ExcusedRequestReviewItem{Request: row}
+	if student != nil {
+		if person, perr := s.personRepo.FindByID(ctx, student.PersonID); perr == nil && person != nil {
+			item.FirstName = person.FirstName
+			item.LastName = person.LastName
+		}
+	}
+	return item, nil
+}
+
+// applyExcusedRequest writes the approved request's dates as excused status
+// days, mirroring the direct parent path: clear any opposite status for those
+// dates, upsert one excused row per date carrying the request note, and — when
+// today is included — clear a stale live sick flag (excused sets no live flag,
+// per issue #1735). Runs in the ambient tenant transaction.
+func (s *excusedAbsenceRequestService) applyExcusedRequest(ctx context.Context, req *activeModels.ExcusedAbsenceRequest) error {
+	if len(req.Dates) == 0 {
+		return ErrExcusedRequestNoDates
+	}
+	now := time.Now()
+	note := req.Note
+	notePtr := &note
+
+	for _, other := range activeModels.StudentStatusDayStatusesExcept(activeModels.StudentStatusDayExcused) {
+		if err := s.statusDayRepo.MarkClearedForDates(ctx, req.StudentID, other, req.Dates, now, activeModels.StudentStatusSourceParent); err != nil {
+			return err
+		}
+	}
+	for _, d := range req.Dates {
+		if err := s.statusDayRepo.UpsertReported(ctx, &activeModels.StudentStatusDay{
+			StudentID:  req.StudentID,
+			Date:       d,
+			Status:     activeModels.StudentStatusDayExcused,
+			ReportedAt: now,
+			Source:     activeModels.StudentStatusSourceParent,
+			Note:       notePtr,
+		}); err != nil {
+			return err
+		}
+	}
+
+	if containsDate(req.Dates, timezone.TodayDate()) {
+		fresh, err := s.studentRepo.FindByIDForUpdate(ctx, req.StudentID)
+		if err != nil {
+			return err
+		}
+		falseVal := false
+		fresh.Sick = &falseVal
+		fresh.SickSince = nil
+		if err := s.studentRepo.Update(ctx, fresh); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// emitRequestPillAfterCommit schedules the notification pill for after the
+// ambient transaction commits. The emitter is best-effort and opens its own
+// tenant transaction; ref fields always point at the request row.
+func (s *excusedAbsenceRequestService) emitRequestPillAfterCommit(ctx context.Context, req *activeModels.ExcusedAbsenceRequest, ev parentmessaging.ChildEvent) {
+	if s.emitter == nil {
+		return
+	}
+	tenantID := req.TenantID
+	if tenantID <= 0 {
+		tenantID = tenant.FromContext(ctx)
+	}
+	refID := req.ID
+	ev.RefTable = "active.excused_absence_requests"
+	ev.RefID = &refID
+	studentID := req.StudentID
+	guardianAccountID := req.SubmittedBy
+	tenant.RegisterAfterCommit(ctx, func() {
+		s.emitter.EmitChildEvent(tenantID, studentID, guardianAccountID, ev)
+	})
+}
+
+// broadcastStudentUpdated wakes staff tabs after an approved excused request
+// writes the child's status days, so the planning views drop the pending
+// badge and show the confirmed absence. Fire-and-forget.
+func (s *excusedAbsenceRequestService) broadcastStudentUpdated(ctx context.Context, tenantID, studentID int64) {
+	if s.broadcaster == nil {
+		return
+	}
+	tenant.RegisterAfterCommit(ctx, func() {
+		source := "excused_request"
+		event := realtime.NewEvent(realtime.EventStudentUpdated, "", realtime.EventData{Source: &source})
+		if err := s.broadcaster.BroadcastToTenant(tenantID, event); err != nil {
+			s.logger.Warn("active: broadcast student_updated after excused request decision failed",
+				slog.Int64("tenant_id", tenantID),
+				slog.Int64("student_id", studentID),
+				slog.String("error", err.Error()),
+			)
+		}
+	})
+}
+
+// dedupeSortedDates removes duplicate dates and returns them ascending, so the
+// stored payload is canonical regardless of client ordering.
+func dedupeSortedDates(dates []timezone.Date) []timezone.Date {
+	seen := make(map[timezone.Date]struct{}, len(dates))
+	out := make([]timezone.Date, 0, len(dates))
+	for _, d := range dates {
+		if _, ok := seen[d]; ok {
+			continue
+		}
+		seen[d] = struct{}{}
+		out = append(out, d)
+	}
+	for i := 1; i < len(out); i++ {
+		for j := i; j > 0 && out[j].Before(out[j-1]); j-- {
+			out[j], out[j-1] = out[j-1], out[j]
+		}
+	}
+	return out
+}
+
+// containsDate reports whether needle is in dates.
+func containsDate(dates []timezone.Date, needle timezone.Date) bool {
+	for _, d := range dates {
+		if d == needle {
+			return true
+		}
+	}
+	return false
+}

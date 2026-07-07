@@ -69,10 +69,16 @@ func (f *fakeParentService) ListEnrollableForAccount(context.Context, int64) ([]
 func (f *fakeParentService) ListEnrollmentsForAccount(context.Context, int64) ([]*parentModels.EnrollmentRequestSummary, error) {
 	return nil, nil
 }
-func (f *fakeParentService) SubmitSickNote(context.Context, int64, int64, []timezone.Date, string, string) ([]*activeModels.StudentStatusDay, error) {
-	return nil, nil
+func (f *fakeParentService) SubmitSickNote(context.Context, int64, int64, []timezone.Date, string, string) (*parentService.SickNoteResult, error) {
+	return &parentService.SickNoteResult{}, nil
 }
 func (f *fakeParentService) ListSickDays(context.Context, int64, int64, timezone.Date, timezone.Date) ([]*activeModels.StudentStatusDay, error) {
+	return nil, nil
+}
+func (f *fakeParentService) ListExcusedRequests(context.Context, int64, int64) ([]*activeModels.ExcusedAbsenceRequest, error) {
+	return nil, nil
+}
+func (f *fakeParentService) WithdrawExcusedRequest(context.Context, int64, int64, int64) (*activeModels.ExcusedAbsenceRequest, error) {
 	return nil, nil
 }
 func (f *fakeParentService) ChildFeatures(context.Context, int64, int64) (parentService.ChildFeatureFlags, error) {

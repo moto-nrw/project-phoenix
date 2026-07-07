@@ -130,6 +130,7 @@ const (
 	KeyGroupMode                       = "operations.group_mode"
 	KeyCareConcept                     = "operations.care_concept"
 	KeyParentSickNoteEnabled           = "operations.parent_sick_note_enabled"
+	KeyParentExcusedRequiresApproval   = "operations.parent_excused_requires_approval"
 	KeyParentNotesEnabled              = "operations.parent_notes_enabled"
 	KeyParentMessageStaffNameVisible   = "operations.parent_message_staff_name_visible"
 	KeyParentPickupChangeEnabled       = "operations.parent_pickup_change_enabled"

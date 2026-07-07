@@ -19,17 +19,33 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/parent"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// alwaysOnSettings enables both parent-portal features for the handler
-// E2E tests; only ResolveBoolForTenant is exercised.
+// alwaysOnSettings enables the parent-portal features for the handler E2E
+// tests; only ResolveBoolForTenant is exercised. The excused-approval gate
+// (#1845) is deliberately kept OFF here so the existing excused tests keep
+// exercising the direct status-day write they were written for (issue #1735);
+// the approval path has its own test that flips it on explicitly.
 type alwaysOnSettings struct{ configService.SettingsService }
 
-func (alwaysOnSettings) ResolveBoolForTenant(_ context.Context, _ int64, _ string) (bool, error) {
+func (alwaysOnSettings) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
+	if key == configModels.KeyParentExcusedRequiresApproval {
+		return false, nil
+	}
+	return true, nil
+}
+
+// excusedApprovalOnSettings is alwaysOnSettings with the excused-approval gate
+// turned ON, for the handler-level approval-path test.
+type excusedApprovalOnSettings struct{ configService.SettingsService }
+
+func (excusedApprovalOnSettings) ResolveBoolForTenant(_ context.Context, _ int64, _ string) (bool, error) {
 	return true, nil
 }
 
@@ -47,6 +63,10 @@ func init() {
 }
 
 func newWriteRouter(t *testing.T, db *bun.DB) http.Handler {
+	return newWriteRouterWithSettings(t, db, alwaysOnSettings{})
+}
+
+func newWriteRouterWithSettings(t *testing.T, db *bun.DB, settings configService.SettingsService) http.Handler {
 	t.Helper()
 	// Align the Router's MustNewTokenAuth with the secret testpkg signs
 	// with, and give minted tokens a real (non-zero) lifetime so the real
@@ -54,13 +74,22 @@ func newWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 	viper.Set("auth_jwt_secret", testJWTSecret)
 	viper.Set("auth_jwt_expiry", time.Hour)
 	repos := repositories.NewFactory(db)
+	excused := absenceSvc.NewExcusedAbsenceRequestService(
+		repos.ExcusedAbsenceRequest,
+		repos.StudentStatusDay,
+		repos.Student,
+		repos.Person,
+		nil, nil, nil,
+		slog.Default(),
+	)
 	svc := parentService.NewService(parentService.ServiceConfig{
-		ChildRepo:     repos.ParentChild,
-		StatusDayRepo: repos.StudentStatusDay,
-		StudentRepo:   repos.Student,
-		Settings:      alwaysOnSettings{},
-		DB:            db,
-		Logger:        slog.Default(),
+		ChildRepo:       repos.ParentChild,
+		StatusDayRepo:   repos.StudentStatusDay,
+		StudentRepo:     repos.Student,
+		Settings:        settings,
+		ExcusedRequests: excused,
+		DB:              db,
+		Logger:          slog.Default(),
 	})
 	rs := parent.NewResource(nil, svc, nil, nil, nil, db)
 	return rs.Router()
@@ -120,8 +149,12 @@ func TestSickNoteEndpoint_SubmitAndList(t *testing.T) {
 	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
 	var env envelope
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))
-	var days []map[string]any
-	require.NoError(t, json.Unmarshal(env.Data, &days))
+	var submitResp struct {
+		StatusDays     []map[string]any `json:"status_days"`
+		PendingRequest map[string]any   `json:"pending_request"`
+	}
+	require.NoError(t, json.Unmarshal(env.Data, &submitResp))
+	days := submitResp.StatusDays
 	assert.Len(t, days, 2)
 
 	// List.
@@ -269,11 +302,68 @@ func TestSickNoteEndpoint_SubmitExcused(t *testing.T) {
 
 	var env envelope
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))
-	var days []map[string]any
-	require.NoError(t, json.Unmarshal(env.Data, &days))
+	var submitResp struct {
+		StatusDays     []map[string]any `json:"status_days"`
+		PendingRequest map[string]any   `json:"pending_request"`
+	}
+	require.NoError(t, json.Unmarshal(env.Data, &submitResp))
+	days := submitResp.StatusDays
 	require.Len(t, days, 1)
 	assert.Equal(t, "excused", days[0]["status"], "an excused submission must store an excused status day")
 	assert.Equal(t, "Zahnarzttermin", days[0]["note"])
+}
+
+// TestSickNoteEndpoint_ExcusedApprovalPending covers the #1845 approval gate at
+// the HTTP boundary: with the setting on, an excused submission returns a
+// pending_request (not a status day) and the child stays expected.
+func TestSickNoteEndpoint_ExcusedApprovalPending(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	router := newWriteRouterWithSettings(t, db, excusedApprovalOnSettings{})
+	token := parentToken(t, chain.AccountID)
+	sid := strconv.FormatInt(chain.StudentID, 10)
+
+	rr := doRequest(t, router, http.MethodPost, "/me/children/"+sid+"/sick-note", token,
+		map[string]any{"dates": []string{futureISO(3)}, "reason": "Familienfeier", "status": "excused"})
+	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+
+	var env envelope
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))
+	var submitResp struct {
+		StatusDays     []map[string]any `json:"status_days"`
+		PendingRequest map[string]any   `json:"pending_request"`
+	}
+	require.NoError(t, json.Unmarshal(env.Data, &submitResp))
+	assert.Empty(t, submitResp.StatusDays, "no status day while pending")
+	require.NotNil(t, submitResp.PendingRequest, "an excused submission must return a pending request when approval is on")
+	assert.Equal(t, "pending", submitResp.PendingRequest["status"])
+
+	// The child's excused-requests endpoint lists the pending request.
+	rr = doRequest(t, router, http.MethodGet, "/me/children/"+sid+"/excused-requests", token, nil)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))
+	var reqs []map[string]any
+	require.NoError(t, json.Unmarshal(env.Data, &reqs))
+	require.Len(t, reqs, 1)
+	assert.Equal(t, "pending", reqs[0]["status"])
+}
+
+// TestSickNoteEndpoint_ExcusedRequiresNote covers AC2 at the HTTP boundary: an
+// excused submission with a blank note is rejected.
+func TestSickNoteEndpoint_ExcusedRequiresNote(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	router := newWriteRouter(t, db)
+	token := parentToken(t, chain.AccountID)
+	sid := strconv.FormatInt(chain.StudentID, 10)
+
+	rr := doRequest(t, router, http.MethodPost, "/me/children/"+sid+"/sick-note", token,
+		map[string]any{"dates": []string{futureISO(3)}, "reason": "", "status": "excused"})
+	assert.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
 }
 
 // TestSickNoteEndpoint_DefaultsToSickWhenStatusOmitted pins the backward-compat
@@ -293,8 +383,12 @@ func TestSickNoteEndpoint_DefaultsToSickWhenStatusOmitted(t *testing.T) {
 
 	var env envelope
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))
-	var days []map[string]any
-	require.NoError(t, json.Unmarshal(env.Data, &days))
+	var submitResp struct {
+		StatusDays     []map[string]any `json:"status_days"`
+		PendingRequest map[string]any   `json:"pending_request"`
+	}
+	require.NoError(t, json.Unmarshal(env.Data, &submitResp))
+	days := submitResp.StatusDays
 	require.Len(t, days, 1)
 	assert.Equal(t, "sick", days[0]["status"], "an omitted status must default to a Krankmeldung")
 }

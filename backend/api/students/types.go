@@ -108,6 +108,12 @@ type StudentResponse struct {
 	DayPlanningStatus      string        `json:"day_planning_status,omitempty"`
 	DayPlanningReason      string        `json:"day_planning_reason,omitempty"`
 	DayPlanningLabel       string        `json:"day_planning_label,omitempty"`
+	// PendingExcusedNote is set (#1845) when the child has a parent excused-absence
+	// request awaiting office approval that covers the planning day. The child
+	// stays "expected" (this does NOT change DayPlanningStatus); the planning
+	// views render it as an informational "entschuldigt – Freigabe ausstehend"
+	// badge carrying the parent's note so staff can decide it in context.
+	PendingExcusedNote *string `json:"pending_excused_note,omitempty"`
 
 	// Photo (gated by operations.student_photos_enabled). PhotoURL is empty
 	// when no photo is set OR when the feature is off — the frontend's Avatar

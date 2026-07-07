@@ -110,18 +110,19 @@ type Factory struct {
 	StudentEnrollment  activitiesModels.StudentEnrollmentRepository
 
 	// Active domain
-	ActiveGroup        activeModels.GroupRepository
-	ActiveVisit        activeModels.VisitRepository
-	GroupSupervisor    activeModels.GroupSupervisorRepository
-	CombinedGroup      activeModels.CombinedGroupRepository
-	GroupMapping       activeModels.GroupMappingRepository
-	Attendance         activeModels.AttendanceRepository
-	StudentStatusDay   activeModels.StudentStatusDayRepository
-	WorkSession        activeModels.WorkSessionRepository
-	WorkSessionBreak   activeModels.WorkSessionBreakRepository
-	StaffAbsence       activeModels.StaffAbsenceRepository
-	StaffAbsenceAudit  activeModels.StaffAbsenceAuditRepository
-	StaffVacationQuota activeModels.StaffVacationQuotaRepository
+	ActiveGroup           activeModels.GroupRepository
+	ActiveVisit           activeModels.VisitRepository
+	GroupSupervisor       activeModels.GroupSupervisorRepository
+	CombinedGroup         activeModels.CombinedGroupRepository
+	GroupMapping          activeModels.GroupMappingRepository
+	Attendance            activeModels.AttendanceRepository
+	StudentStatusDay      activeModels.StudentStatusDayRepository
+	ExcusedAbsenceRequest activeModels.ExcusedAbsenceRequestRepository
+	WorkSession           activeModels.WorkSessionRepository
+	WorkSessionBreak      activeModels.WorkSessionBreakRepository
+	StaffAbsence          activeModels.StaffAbsenceRepository
+	StaffAbsenceAudit     activeModels.StaffAbsenceAuditRepository
+	StaffVacationQuota    activeModels.StaffVacationQuotaRepository
 
 	// Meal plan domain
 	MealPlanEntry mealplanModels.MealPlanEntryRepository
@@ -278,18 +279,19 @@ func NewFactory(db *bun.DB) *Factory {
 		StudentEnrollment:  activities.NewStudentEnrollmentRepository(db),
 
 		// Active repositories
-		ActiveGroup:        active.NewGroupRepository(db),
-		ActiveVisit:        active.NewVisitRepository(db),
-		GroupSupervisor:    active.NewGroupSupervisorRepository(db),
-		CombinedGroup:      active.NewCombinedGroupRepository(db),
-		GroupMapping:       active.NewGroupMappingRepository(db),
-		Attendance:         active.NewAttendanceRepository(db),
-		StudentStatusDay:   active.NewStudentStatusDayRepository(db),
-		WorkSession:        active.NewWorkSessionRepository(db),
-		WorkSessionBreak:   active.NewWorkSessionBreakRepository(db),
-		StaffAbsence:       active.NewStaffAbsenceRepository(db),
-		StaffAbsenceAudit:  active.NewStaffAbsenceAuditRepository(db),
-		StaffVacationQuota: active.NewStaffVacationQuotaRepository(db),
+		ActiveGroup:           active.NewGroupRepository(db),
+		ActiveVisit:           active.NewVisitRepository(db),
+		GroupSupervisor:       active.NewGroupSupervisorRepository(db),
+		CombinedGroup:         active.NewCombinedGroupRepository(db),
+		GroupMapping:          active.NewGroupMappingRepository(db),
+		Attendance:            active.NewAttendanceRepository(db),
+		StudentStatusDay:      active.NewStudentStatusDayRepository(db),
+		ExcusedAbsenceRequest: active.NewExcusedAbsenceRequestRepository(db),
+		WorkSession:           active.NewWorkSessionRepository(db),
+		WorkSessionBreak:      active.NewWorkSessionBreakRepository(db),
+		StaffAbsence:          active.NewStaffAbsenceRepository(db),
+		StaffAbsenceAudit:     active.NewStaffAbsenceAuditRepository(db),
+		StaffVacationQuota:    active.NewStaffVacationQuotaRepository(db),
 
 		// Meal plan repositories
 		MealPlanEntry: mealplanRepo.NewMealPlanEntryRepository(db),

@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
@@ -61,6 +62,18 @@ func (rs *Resource) enrichWithDayPlanning(ctx context.Context, responses []Stude
 		}
 	}
 
+	// Pending parent excused-absence requests covering today (#1845): shown as an
+	// informational badge with the parent's note, without changing the planning
+	// status — the child stays "expected" until staff decide the request.
+	pendingExcused := map[int64]*activeModels.ExcusedAbsenceRequest{}
+	if rs.ExcusedRequestService != nil {
+		var err error
+		pendingExcused, err = rs.ExcusedRequestService.PendingByStudentForDate(ctx, timezone.DateFromTime(now))
+		if err != nil {
+			return err
+		}
+	}
+
 	for i := range responses {
 		if !responses[i].HasFullAccess {
 			continue
@@ -69,6 +82,10 @@ func (rs *Resource) enrichWithDayPlanning(ctx context.Context, responses []Stude
 		responses[i].DayPlanningStatus = status
 		responses[i].DayPlanningReason = reason
 		responses[i].DayPlanningLabel = label
+		if req, ok := pendingExcused[responses[i].ID]; ok {
+			note := req.Note
+			responses[i].PendingExcusedNote = &note
+		}
 	}
 
 	return nil

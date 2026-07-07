@@ -113,6 +113,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"enrollment.grade_level_max",
 		// Parents-portal write features.
 		"operations.parent_sick_note_enabled",
+		"operations.parent_excused_requires_approval",
 		"operations.parent_notes_enabled",
 		"operations.parent_message_staff_name_visible",
 		"operations.parent_pickup_change_enabled",
@@ -477,6 +478,7 @@ func TestOperationsSettings_Types(t *testing.T) {
 		{"operations.sick_clear_mode", config.FieldSelect},
 		{"operations.excused_clear_mode", config.FieldSelect},
 		{"operations.parent_sick_note_enabled", config.FieldBoolean},
+		{"operations.parent_excused_requires_approval", config.FieldBoolean},
 		{"operations.parent_notes_enabled", config.FieldBoolean},
 		{"operations.parent_pickup_change_enabled", config.FieldBoolean},
 		{"operations.parent_guardian_management_enabled", config.FieldBoolean},
@@ -503,6 +505,23 @@ func TestParentPortalSettings_DefaultOn(t *testing.T) {
 		assert.Equalf(t, true, def.Default, "setting %q should default to true (opt-out)", key)
 		assert.Equalf(t, "operations", def.Tab, "setting %q should be on the operations tab", key)
 	}
+}
+
+// TestParentExcusedRequiresApprovalSetting guards the opt-in excused-approval
+// gate (#1845): unlike the other parents-portal toggles it defaults OFF (so
+// existing schools keep the immediate-write behavior) and is hidden while the
+// sick-note feature it extends is disabled.
+func TestParentExcusedRequiresApprovalSetting(t *testing.T) {
+	def := config.GetDefinition("operations.parent_excused_requires_approval")
+	require.NotNil(t, def, "operations.parent_excused_requires_approval should exist")
+	assert.Equal(t, config.FieldBoolean, def.Type, "excused-approval toggle should be boolean")
+	assert.Equal(t, false, def.Default, "excused-approval toggle must default OFF (opt-in)")
+	assert.Equal(t, "operations", def.Tab, "excused-approval toggle should be on the operations tab")
+	assert.Equal(t, "config:manage", def.WritePermission, "changes the absence-approval workflow -> manage")
+	require.NotNil(t, def.DependsOn, "should be hidden when the sick-note feature is off")
+	assert.Equal(t, config.KeyParentSickNoteEnabled, def.DependsOn.Key)
+	assert.Equal(t, "eq", def.DependsOn.Condition)
+	assert.Equal(t, true, def.DependsOn.Value)
 }
 
 // TestParentPickupChangeSetting_DefaultOn guards that the pickup-change toggle

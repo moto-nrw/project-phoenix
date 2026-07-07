@@ -487,6 +487,28 @@ func init() {
 		SortOrder:       60,
 	})
 
+	// Optional office/OGS approval gate for parent-submitted EXCUSED absences
+	// ("entschuldigt"), issue #1845. Default OFF (opt-in): with it off, an
+	// excused absence is written straight to the child's status days exactly like
+	// a Krankmeldung (only a note is now mandatory). With it ON, an excused
+	// absence becomes a PENDING request in the change-request queue that staff
+	// must confirm before it takes effect; Krankmeldungen stay direct regardless.
+	// Only meaningful while the sick-note feature above is enabled; DependsOn
+	// hides it otherwise.
+	config.Register(config.Definition{
+		Key:             config.KeyParentExcusedRequiresApproval,
+		Label:           "Entschuldigte Abmeldung muss bestätigt werden",
+		Description:     "Wenn aktiviert, wird eine entschuldigte Abmeldung über das Elternportal zunächst eine Anfrage, die das Team auf der Seite „Änderungsanfragen“ bestätigen oder ablehnen muss. Bis zur Bestätigung gilt das Kind als erwartet. Krankmeldungen werden weiterhin sofort eingetragen.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       62,
+		DependsOn:       &config.Dependency{Key: config.KeyParentSickNoteEnabled, Condition: "eq", Value: true},
+	})
+
 	config.Register(config.Definition{
 		Key:             config.KeyParentNotesEnabled,
 		Label:           "Eltern-OGS-Nachrichten",

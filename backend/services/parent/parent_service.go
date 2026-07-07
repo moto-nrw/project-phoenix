@@ -27,6 +27,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
@@ -58,15 +59,32 @@ type Service interface {
 
 	UpdatePortalLocale(ctx context.Context, accountID int64, locale string) (*Profile, error)
 
-	// SubmitSickNote reports the parent's child sick for one or more
-	// dates. Authorization: the account must be a guardian of the
-	// student. The write mirrors the staff status-day path — it clears any
-	// opposing status days for the date, upserts a status-day per date with
-	// source=parent, and (for a sick status) flips the live sick flag when
-	// today is included. An excused status sets no live flag (issue #1735).
-	// The status must be StudentStatusDaySick or StudentStatusDayExcused.
-	// Gated by operations.parent_sick_note_enabled for the child's tenant.
-	SubmitSickNote(ctx context.Context, accountID, studentID int64, dates []timezone.Date, reason, status string) ([]*activeModels.StudentStatusDay, error)
+	// SubmitSickNote reports the parent's child sick or excused for one or more
+	// dates. Authorization: the account must be a guardian of the student. The
+	// status must be StudentStatusDaySick or StudentStatusDayExcused. Gated by
+	// operations.parent_sick_note_enabled for the child's tenant.
+	//
+	// A "sick" report (and, by default, an "excused" report) is written straight
+	// to the status days — it clears any opposing status days for the date,
+	// upserts a status-day per date with source=parent, and (for sick) flips the
+	// live sick flag when today is included; excused sets no live flag (#1735).
+	// A note is mandatory for excused, optional for sick.
+	//
+	// When the school turned operations.parent_excused_requires_approval on, an
+	// "excused" report instead becomes a PENDING request (#1845): no status day
+	// is written until staff approve it, so the result carries PendingRequest
+	// and an empty StatusDays. Sick reports are always direct.
+	SubmitSickNote(ctx context.Context, accountID, studentID int64, dates []timezone.Date, reason, status string) (*SickNoteResult, error)
+
+	// ListExcusedRequests returns the child's pending excused-absence approval
+	// requests plus any decided in the recent window (so a parent sees a
+	// declined request), newest-first. Empty when the approval gate is off.
+	// Authorization only.
+	ListExcusedRequests(ctx context.Context, accountID, studentID int64) ([]*activeModels.ExcusedAbsenceRequest, error)
+
+	// WithdrawExcusedRequest withdraws the caller's own pending excused-absence
+	// request. Authorization: the account must be the submitting guardian.
+	WithdrawExcusedRequest(ctx context.Context, accountID, studentID, requestID int64) (*activeModels.ExcusedAbsenceRequest, error)
 
 	// ListSickDays returns the child's currently-active parent-facing
 	// absences (sick and excused) in the given date range; class-trip days
@@ -225,7 +243,13 @@ type Service interface {
 // toggles for a single child.
 type ChildFeatureFlags struct {
 	SickNoteEnabled bool
-	NotesEnabled    bool
+	// ExcusedRequiresApproval is true when an "excused" report must be confirmed
+	// by the office before it takes effect (operations.parent_excused_requires_approval,
+	// #1845). The parent UI uses it to explain that the absence will be pending
+	// and to keep the mandatory-note requirement visible. Only meaningful while
+	// SickNoteEnabled is true.
+	ExcusedRequiresApproval bool
+	NotesEnabled            bool
 	// RequestSubmitEnabled is true when messaging is on AND the guardian holds
 	// parent_portal.request.submit for this child — gates the change-request
 	// quick actions (care schedule / master data) in the parent UI.
@@ -309,6 +333,10 @@ type ServiceConfig struct {
 	ArrivalSchedules scheduleSvc.ArrivalScheduleService
 	PickupSchedules  scheduleSvc.PickupScheduleService
 	CareRequests     scheduleSvc.CareScheduleRequestService
+	// ExcusedRequests backs the optional office-approval gate for parent
+	// excused absences (#1845). When the school setting is on, an excused
+	// submission becomes a pending request here instead of a direct status day.
+	ExcusedRequests absenceSvc.ExcusedAbsenceRequestService
 
 	// Emitter posts notification pills into the child's parent-OGS thread for
 	// self-service actions (sick note, one-day pickup change) and master-data
@@ -363,6 +391,7 @@ type service struct {
 	arrivalSchedules scheduleSvc.ArrivalScheduleService
 	pickupSchedules  scheduleSvc.PickupScheduleService
 	careRequests     scheduleSvc.CareScheduleRequestService
+	excusedRequests  absenceSvc.ExcusedAbsenceRequestService
 	emitter          *parentmessaging.Emitter
 
 	mealPlanRepo mealplanModels.MealPlanEntryRepository
@@ -407,6 +436,7 @@ func NewService(cfg ServiceConfig) Service {
 		arrivalSchedules:        cfg.ArrivalSchedules,
 		pickupSchedules:         cfg.PickupSchedules,
 		careRequests:            cfg.CareRequests,
+		excusedRequests:         cfg.ExcusedRequests,
 		emitter:                 cfg.Emitter,
 		personRepo:              cfg.PersonRepo,
 		changeRequestRepo:       cfg.ChangeRequestRepo,

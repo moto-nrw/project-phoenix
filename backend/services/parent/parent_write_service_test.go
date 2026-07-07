@@ -117,14 +117,14 @@ func TestSubmitSickNote_TodayFlipsLiveFlagAndStoresReason(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
-	rows, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+	sickResult, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
 		[]timezone.Date{timezone.TodayDate()}, "Fieber, beim Arzt", activeModels.StudentStatusDaySick)
 	require.NoError(t, err)
-	require.Len(t, rows, 1)
-	assert.Equal(t, activeModels.StudentStatusDaySick, rows[0].Status)
-	assert.Equal(t, activeModels.StudentStatusSourceParent, rows[0].Source)
-	require.NotNil(t, rows[0].Note)
-	assert.Equal(t, "Fieber, beim Arzt", *rows[0].Note)
+	require.Len(t, sickResult.StatusDays, 1)
+	assert.Equal(t, activeModels.StudentStatusDaySick, sickResult.StatusDays[0].Status)
+	assert.Equal(t, activeModels.StudentStatusSourceParent, sickResult.StatusDays[0].Source)
+	require.NotNil(t, sickResult.StatusDays[0].Note)
+	assert.Equal(t, "Fieber, beim Arzt", *sickResult.StatusDays[0].Note)
 
 	var sick bool
 	require.NoError(t, db.NewSelect().ColumnExpr("COALESCE(sick,false)").TableExpr("users.students").
@@ -273,11 +273,11 @@ func TestSubmitSickNote_FutureDateDoesNotFlipLiveFlag(t *testing.T) {
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	future := timezone.TodayDate().AddDays(7)
-	rows, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+	sickResult, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
 		[]timezone.Date{future}, "", activeModels.StudentStatusDaySick)
 	require.NoError(t, err)
-	require.Len(t, rows, 1)
-	assert.Nil(t, rows[0].Note, "no reason supplied → note stays nil")
+	require.Len(t, sickResult.StatusDays, 1)
+	assert.Nil(t, sickResult.StatusDays[0].Note, "no reason supplied → note stays nil")
 
 	var sick bool
 	require.NoError(t, db.NewSelect().ColumnExpr("COALESCE(sick,false)").TableExpr("users.students").
@@ -360,10 +360,10 @@ func TestSubmitSickNote_ClearsClassTripForSubmittedDate(t *testing.T) {
 		Source:     activeModels.StudentStatusSourcePlanned,
 	}))
 
-	rows, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID, []timezone.Date{date}, "", activeModels.StudentStatusDaySick)
+	sickResult, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID, []timezone.Date{date}, "", activeModels.StudentStatusDaySick)
 	require.NoError(t, err)
-	require.Len(t, rows, 1)
-	assert.Equal(t, activeModels.StudentStatusDaySick, rows[0].Status)
+	require.Len(t, sickResult.StatusDays, 1)
+	assert.Equal(t, activeModels.StudentStatusDaySick, sickResult.StatusDays[0].Status)
 
 	activeRows, err := statusRepo.FindActiveByStudentAndDateRange(ctx, chain.StudentID, date, date)
 	require.NoError(t, err)
@@ -447,11 +447,11 @@ func TestSubmitSickNote_NonContiguousExcludesUnrelatedRows(t *testing.T) {
 		Source:     activeModels.StudentStatusSourceManual,
 	}))
 
-	rows, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+	sickResult, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
 		[]timezone.Date{mon, wed}, "", activeModels.StudentStatusDaySick)
 	require.NoError(t, err)
-	require.Len(t, rows, 2, "only the two submitted sick days, not the Tuesday excused row")
-	for _, r := range rows {
+	require.Len(t, sickResult.StatusDays, 2, "only the two submitted sick days, not the Tuesday excused row")
+	for _, r := range sickResult.StatusDays {
 		assert.Equal(t, activeModels.StudentStatusDaySick, r.Status)
 		assert.NotEqual(t, tue, r.Date, "Tuesday excused row must be excluded")
 	}
@@ -464,14 +464,14 @@ func TestSubmitSickNote_ExcusedTodayStoresExcusedWithoutLiveFlag(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
-	rows, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+	sickResult, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
 		[]timezone.Date{timezone.TodayDate()}, "Zahnarzttermin", activeModels.StudentStatusDayExcused)
 	require.NoError(t, err)
-	require.Len(t, rows, 1)
-	assert.Equal(t, activeModels.StudentStatusDayExcused, rows[0].Status)
-	assert.Equal(t, activeModels.StudentStatusSourceParent, rows[0].Source)
-	require.NotNil(t, rows[0].Note)
-	assert.Equal(t, "Zahnarzttermin", *rows[0].Note)
+	require.Len(t, sickResult.StatusDays, 1)
+	assert.Equal(t, activeModels.StudentStatusDayExcused, sickResult.StatusDays[0].Status)
+	assert.Equal(t, activeModels.StudentStatusSourceParent, sickResult.StatusDays[0].Source)
+	require.NotNil(t, sickResult.StatusDays[0].Note)
+	assert.Equal(t, "Zahnarzttermin", *sickResult.StatusDays[0].Note)
 
 	var sick, excused bool
 	require.NoError(t, db.NewSelect().
@@ -496,11 +496,11 @@ func TestSubmitSickNote_ExcusedTodayClearsStaleLiveSickFlag(t *testing.T) {
 		[]timezone.Date{timezone.TodayDate()}, "", activeModels.StudentStatusDaySick)
 	require.NoError(t, err)
 
-	rows, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
-		[]timezone.Date{timezone.TodayDate()}, "", activeModels.StudentStatusDayExcused)
+	sickResult, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+		[]timezone.Date{timezone.TodayDate()}, "Termin", activeModels.StudentStatusDayExcused)
 	require.NoError(t, err)
-	require.Len(t, rows, 1)
-	assert.Equal(t, activeModels.StudentStatusDayExcused, rows[0].Status)
+	require.Len(t, sickResult.StatusDays, 1)
+	assert.Equal(t, activeModels.StudentStatusDayExcused, sickResult.StatusDays[0].Status)
 
 	var sick bool
 	require.NoError(t, db.NewSelect().ColumnExpr("COALESCE(sick,false)").TableExpr("users.students").
@@ -529,7 +529,7 @@ func TestListSickDays_ReturnsSickAndExcused(t *testing.T) {
 		[]timezone.Date{sickDay}, "", activeModels.StudentStatusDaySick)
 	require.NoError(t, err)
 	_, err = svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
-		[]timezone.Date{excusedDay}, "", activeModels.StudentStatusDayExcused)
+		[]timezone.Date{excusedDay}, "Termin", activeModels.StudentStatusDayExcused)
 	require.NoError(t, err)
 
 	from := timezone.TodayDate()
@@ -573,7 +573,7 @@ func TestListSickDays_ExcludesStaffCreatedExcused(t *testing.T) {
 
 	// Parent's own excused report on a different date.
 	_, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
-		[]timezone.Date{parentExcusedDay}, "", activeModels.StudentStatusDayExcused)
+		[]timezone.Date{parentExcusedDay}, "Termin", activeModels.StudentStatusDayExcused)
 	require.NoError(t, err)
 
 	from := timezone.TodayDate()

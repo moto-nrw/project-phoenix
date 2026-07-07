@@ -1,0 +1,195 @@
+package active
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/uptrace/bun"
+)
+
+const tableExprExcusedAbsenceRequestsAsReq = `active.excused_absence_requests AS "excused_absence_request"`
+
+// ErrExcusedRequestNotPending is returned when no pending row matched the id
+// under the current tenant — it was already decided (lost race) or does not
+// exist. Services map this to a 409/404.
+var ErrExcusedRequestNotPending = activeModels.ErrExcusedRequestNotPending
+
+// ErrExcusedRequestNotFound is returned when no request row exists under the
+// current tenant.
+var ErrExcusedRequestNotFound = activeModels.ErrExcusedRequestNotFound
+
+// ExcusedAbsenceRequestRepository is the tenant-scoped data-access layer for
+// parent excused-absence requests. It embeds the generic base.Repository for
+// Create/FindByID and adds the listing + decision helpers the parent and staff
+// review flows need.
+type ExcusedAbsenceRequestRepository struct {
+	*base.Repository[*activeModels.ExcusedAbsenceRequest]
+}
+
+// NewExcusedAbsenceRequestRepository wires a fresh repository.
+func NewExcusedAbsenceRequestRepository(db *bun.DB) activeModels.ExcusedAbsenceRequestRepository {
+	repo := base.NewRepository[*activeModels.ExcusedAbsenceRequest](db, "active.excused_absence_requests", "ExcusedAbsenceRequest")
+	repo.TenantScoped = true
+	return &ExcusedAbsenceRequestRepository{Repository: repo}
+}
+
+// ListPendingForStudent returns the student's open requests, newest-first.
+func (r *ExcusedAbsenceRequestRepository) ListPendingForStudent(ctx context.Context, studentID int64) ([]*activeModels.ExcusedAbsenceRequest, error) {
+	var rows []*activeModels.ExcusedAbsenceRequest
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(&rows).
+		ModelTableExpr(tableExprExcusedAbsenceRequestsAsReq).
+		Where(`"excused_absence_request".student_id = ?`, studentID).
+		Where(`"excused_absence_request".status = ?`, activeModels.ExcusedRequestStatusPending)
+
+	if where, val, ok := base.TenantWhere(ctx, "excused_absence_request"); ok {
+		query = query.Where(where, val)
+	}
+	query = query.
+		OrderExpr(`"excused_absence_request".created_at DESC`).
+		OrderExpr(`"excused_absence_request".id DESC`)
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list pending excused absence requests for student", Err: err}
+	}
+	return rows, nil
+}
+
+// ListRecentForStudent returns the student's requests created on or after
+// `since`, newest-first, regardless of status.
+func (r *ExcusedAbsenceRequestRepository) ListRecentForStudent(ctx context.Context, studentID int64, since time.Time) ([]*activeModels.ExcusedAbsenceRequest, error) {
+	var rows []*activeModels.ExcusedAbsenceRequest
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(&rows).
+		ModelTableExpr(tableExprExcusedAbsenceRequestsAsReq).
+		Where(`"excused_absence_request".student_id = ?`, studentID).
+		Where(`"excused_absence_request".created_at >= ?`, since)
+
+	if where, val, ok := base.TenantWhere(ctx, "excused_absence_request"); ok {
+		query = query.Where(where, val)
+	}
+	query = query.
+		OrderExpr(`"excused_absence_request".created_at DESC`).
+		OrderExpr(`"excused_absence_request".id DESC`)
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list recent excused absence requests for student", Err: err}
+	}
+	return rows, nil
+}
+
+// ListPendingForTenant returns every pending request for the current tenant
+// (resolved via RLS / the tenant filter), newest-first.
+func (r *ExcusedAbsenceRequestRepository) ListPendingForTenant(ctx context.Context) ([]*activeModels.ExcusedAbsenceRequest, error) {
+	var rows []*activeModels.ExcusedAbsenceRequest
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(&rows).
+		ModelTableExpr(tableExprExcusedAbsenceRequestsAsReq).
+		Where(`"excused_absence_request".status = ?`, activeModels.ExcusedRequestStatusPending)
+
+	if where, val, ok := base.TenantWhere(ctx, "excused_absence_request"); ok {
+		query = query.Where(where, val)
+	}
+	query = query.
+		OrderExpr(`"excused_absence_request".created_at DESC`).
+		OrderExpr(`"excused_absence_request".id DESC`)
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list pending excused absence requests", Err: err}
+	}
+	return rows, nil
+}
+
+// FindPendingByIDForUpdate locks a request row for the current tenant and
+// verifies it is still pending. The lock closes the decision race where two
+// reviewers (or a decide racing the guardian's withdrawal) could both act.
+func (r *ExcusedAbsenceRequestRepository) FindPendingByIDForUpdate(ctx context.Context, id int64) (*activeModels.ExcusedAbsenceRequest, error) {
+	row := new(activeModels.ExcusedAbsenceRequest)
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(row).
+		ModelTableExpr(tableExprExcusedAbsenceRequestsAsReq).
+		Where(`"excused_absence_request".id = ?`, id).
+		For("UPDATE")
+
+	if where, val, ok := base.TenantWhere(ctx, "excused_absence_request"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrExcusedRequestNotFound
+		}
+		return nil, &modelBase.DatabaseError{Op: "find pending excused absence request for update", Err: err}
+	}
+	if row.Status != activeModels.ExcusedRequestStatusPending {
+		return nil, ErrExcusedRequestNotPending
+	}
+	return row, nil
+}
+
+// FindByIDForUpdate locks a request row by id for the current tenant regardless
+// of status, returning ErrExcusedRequestNotFound when it is absent. Unlike
+// FindPendingByIDForUpdate it does NOT collapse a terminal status into
+// ErrExcusedRequestNotPending, so the guardian withdraw path can verify
+// ownership on the locked row first — a foreign request's id stays reported as
+// not-found.
+func (r *ExcusedAbsenceRequestRepository) FindByIDForUpdate(ctx context.Context, id int64) (*activeModels.ExcusedAbsenceRequest, error) {
+	row := new(activeModels.ExcusedAbsenceRequest)
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(row).
+		ModelTableExpr(tableExprExcusedAbsenceRequestsAsReq).
+		Where(`"excused_absence_request".id = ?`, id).
+		For("UPDATE")
+
+	if where, val, ok := base.TenantWhere(ctx, "excused_absence_request"); ok {
+		query = query.Where(where, val)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrExcusedRequestNotFound
+		}
+		return nil, &modelBase.DatabaseError{Op: "find excused absence request for update", Err: err}
+	}
+	return row, nil
+}
+
+// Decide transitions a pending row to its final state. reviewed_at is stamped
+// for staff decisions; applied_at only when the excused status days were
+// actually written (approvals). Guardian withdrawals pass reviewedBy = nil.
+func (r *ExcusedAbsenceRequestRepository) Decide(ctx context.Context, id int64, newStatus string, reason *string, reviewedBy *int64, applied bool) error {
+	now := time.Now()
+	q := base.GetDB(ctx, r.DB).NewUpdate().
+		Model((*activeModels.ExcusedAbsenceRequest)(nil)).
+		ModelTableExpr(tableExprExcusedAbsenceRequestsAsReq).
+		Set("status = ?", newStatus).
+		Set("decision_reason = ?", reason).
+		Set("updated_at = ?", now).
+		Where(`"excused_absence_request".id = ?`, id).
+		Where(`"excused_absence_request".status = ?`, activeModels.ExcusedRequestStatusPending)
+
+	if reviewedBy != nil && *reviewedBy > 0 {
+		q = q.Set("reviewed_by = ?", *reviewedBy).Set("reviewed_at = ?", now)
+	}
+	if applied {
+		q = q.Set("applied_at = ?", now)
+	}
+	if where, val, ok := base.TenantWhere(ctx, "excused_absence_request"); ok {
+		q = q.Where(where, val)
+	}
+
+	res, err := q.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "decide excused absence request", Err: err}
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return ErrExcusedRequestNotPending
+	}
+	return nil
+}
