@@ -22,6 +22,7 @@ import (
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/services/auth/authtest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,86 +34,6 @@ import (
 // ---------------------------------------------------------------------------
 // Stubs
 // ---------------------------------------------------------------------------
-
-type internalSchoolRepoStub struct {
-	createFn                 func(context.Context, *platformModels.School) error
-	findByIDFn               func(context.Context, int64) (*platformModels.School, error)
-	findByOrgAndSlugFn       func(context.Context, int64, string) (*platformModels.School, error)
-	findBySubdomainFn        func(context.Context, string) (*platformModels.School, error)
-	softDeleteFn             func(context.Context, int64) error
-	restoreFn                func(context.Context, int64) error
-	countNonDeletedByOrgIDFn func(context.Context, int64) (int, error)
-}
-
-func (s *internalSchoolRepoStub) Create(ctx context.Context, school *platformModels.School) error {
-	if s.createFn != nil {
-		return s.createFn(ctx, school)
-	}
-	return nil
-}
-func (s *internalSchoolRepoStub) FindByID(ctx context.Context, id int64) (*platformModels.School, error) {
-	if s.findByIDFn != nil {
-		return s.findByIDFn(ctx, id)
-	}
-	return nil, nil
-}
-func (s *internalSchoolRepoStub) FindByIDForShare(ctx context.Context, id int64) (*platformModels.School, error) {
-	return s.FindByID(ctx, id)
-}
-func (s *internalSchoolRepoStub) FindByIDForUpdate(ctx context.Context, id int64) (*platformModels.School, error) {
-	return s.FindByID(ctx, id)
-}
-func (s *internalSchoolRepoStub) FindBySlug(context.Context, string) (*platformModels.School, error) {
-	return nil, nil
-}
-func (s *internalSchoolRepoStub) FindByOrganizationAndSlug(ctx context.Context, organizationID int64, slug string) (*platformModels.School, error) {
-	if s.findByOrgAndSlugFn != nil {
-		return s.findByOrgAndSlugFn(ctx, organizationID, slug)
-	}
-	return nil, nil
-}
-func (s *internalSchoolRepoStub) FindBySubdomain(ctx context.Context, subdomain string) (*platformModels.School, error) {
-	if s.findBySubdomainFn != nil {
-		return s.findBySubdomainFn(ctx, subdomain)
-	}
-	return nil, nil
-}
-func (s *internalSchoolRepoStub) List(context.Context) ([]*platformModels.School, error) {
-	return nil, nil
-}
-func (s *internalSchoolRepoStub) ListActive(context.Context) ([]platformModels.School, error) {
-	return nil, nil
-}
-func (s *internalSchoolRepoStub) ListPublic(context.Context) ([]platformModels.School, error) {
-	return nil, nil
-}
-func (s *internalSchoolRepoStub) FindActiveByAccountID(context.Context, int64) ([]platformModels.School, error) {
-	return nil, nil
-}
-func (s *internalSchoolRepoStub) Update(context.Context, *platformModels.School) error {
-	return nil
-}
-func (s *internalSchoolRepoStub) CountByIDs(context.Context, []int64) (int, error) {
-	return 0, nil
-}
-func (s *internalSchoolRepoStub) SoftDelete(ctx context.Context, id int64) error {
-	if s.softDeleteFn != nil {
-		return s.softDeleteFn(ctx, id)
-	}
-	return nil
-}
-func (s *internalSchoolRepoStub) Restore(ctx context.Context, id int64) error {
-	if s.restoreFn != nil {
-		return s.restoreFn(ctx, id)
-	}
-	return nil
-}
-func (s *internalSchoolRepoStub) CountNonDeletedByOrganizationID(ctx context.Context, orgID int64) (int, error) {
-	if s.countNonDeletedByOrgIDFn != nil {
-		return s.countNonDeletedByOrgIDFn(ctx, orgID)
-	}
-	return 0, nil
-}
 
 type internalOrgRepoStub struct {
 	findByIDFn   func(context.Context, int64) (*platformModels.Organization, error)
@@ -360,15 +281,15 @@ func TestIsSchoolLookupNotFound(t *testing.T) {
 }
 
 func TestMapSchoolCreateConflict_NilSchool(t *testing.T) {
-	err := mapSchoolCreateConflict(context.Background(), &internalSchoolRepoStub{}, nil)
+	err := mapSchoolCreateConflict(context.Background(), &testpkg.SchoolRepoMock{}, nil)
 	require.Error(t, err)
 	var conflictErr *ConflictError
 	require.ErrorAs(t, err, &conflictErr)
 }
 
 func TestMapSchoolCreateConflict_SlugConflict(t *testing.T) {
-	err := mapSchoolCreateConflict(context.Background(), &internalSchoolRepoStub{
-		findByOrgAndSlugFn: func(context.Context, int64, string) (*platformModels.School, error) {
+	err := mapSchoolCreateConflict(context.Background(), &testpkg.SchoolRepoMock{
+		FindByOrganizationAndSlugFn: func(context.Context, int64, string) (*platformModels.School, error) {
 			return &platformModels.School{Model: modelBase.Model{ID: 1}, Name: "Existing"}, nil
 		},
 	}, &platformModels.School{
@@ -384,8 +305,8 @@ func TestMapSchoolCreateConflict_SlugConflict(t *testing.T) {
 }
 
 func TestMapSchoolCreateConflict_SubdomainConflict(t *testing.T) {
-	err := mapSchoolCreateConflict(context.Background(), &internalSchoolRepoStub{
-		findBySubdomainFn: func(context.Context, string) (*platformModels.School, error) {
+	err := mapSchoolCreateConflict(context.Background(), &testpkg.SchoolRepoMock{
+		FindBySubdomainFn: func(context.Context, string) (*platformModels.School, error) {
 			return &platformModels.School{Model: modelBase.Model{ID: 2}, Name: "Existing"}, nil
 		},
 	}, &platformModels.School{
@@ -697,7 +618,7 @@ func TestLogAction_WithChanges(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestMapSchoolCreateConflict_GenericFallthrough(t *testing.T) {
-	err := mapSchoolCreateConflict(context.Background(), &internalSchoolRepoStub{}, &platformModels.School{
+	err := mapSchoolCreateConflict(context.Background(), &testpkg.SchoolRepoMock{}, &platformModels.School{
 		OrganizationID: 2,
 		Name:           "School",
 		Slug:           "school",
@@ -714,8 +635,8 @@ func TestMapSchoolCreateConflict_GenericFallthrough(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestLoadActiveSchool_SqlErrNoRows(t *testing.T) {
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &internalSchoolRepoStub{
-		findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &testpkg.SchoolRepoMock{
+		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return nil, sql.ErrNoRows
 		},
 	}},
@@ -727,8 +648,8 @@ func TestLoadActiveSchool_SqlErrNoRows(t *testing.T) {
 }
 
 func TestLoadActiveSchool_DatabaseError(t *testing.T) {
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &internalSchoolRepoStub{
-		findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &testpkg.SchoolRepoMock{
+		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return nil, &modelBase.DatabaseError{Op: "find", Err: sql.ErrNoRows}
 		},
 	}},
@@ -740,8 +661,8 @@ func TestLoadActiveSchool_DatabaseError(t *testing.T) {
 }
 
 func TestLoadActiveSchool_GenericError(t *testing.T) {
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &internalSchoolRepoStub{
-		findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &testpkg.SchoolRepoMock{
+		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return nil, assert.AnError
 		},
 	}},
@@ -853,7 +774,7 @@ func TestCreateSchool_OrgFindByIDError(t *testing.T) {
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return nil, assert.AnError
 		},
-	}, SchoolRepo: &internalSchoolRepoStub{}},
+	}, SchoolRepo: &testpkg.SchoolRepoMock{}},
 	}
 	school, err := svc.CreateSchool(context.Background(), &platformModels.School{
 		OrganizationID: 1,
@@ -871,8 +792,8 @@ func TestCreateSchool_UniqueViolationOnCreate(t *testing.T) {
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return &platformModels.Organization{Model: modelBase.Model{ID: 1}, Name: "Org", Slug: "org", Active: true}, nil
 		},
-	}, SchoolRepo: &internalSchoolRepoStub{
-		createFn: func(context.Context, *platformModels.School) error {
+	}, SchoolRepo: &testpkg.SchoolRepoMock{
+		CreateFn: func(context.Context, *platformModels.School) error {
 			return newPgError("23505")
 		},
 	}},
@@ -894,8 +815,8 @@ func TestCreateSchool_DeviceCreateError(t *testing.T) {
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return &platformModels.Organization{Model: modelBase.Model{ID: 1}, Name: "Org", Slug: "org", Active: true}, nil
 		},
-	}, SchoolRepo: &internalSchoolRepoStub{
-		createFn: func(_ context.Context, school *platformModels.School) error {
+	}, SchoolRepo: &testpkg.SchoolRepoMock{
+		CreateFn: func(_ context.Context, school *platformModels.School) error {
 			school.ID = 55
 			return nil
 		},
@@ -923,8 +844,8 @@ func TestCreateSchool_WithDeviceSuccess(t *testing.T) {
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return &platformModels.Organization{Model: modelBase.Model{ID: 1}, Name: "Org", Slug: "org", Active: true}, nil
 		},
-	}, SchoolRepo: &internalSchoolRepoStub{
-		createFn: func(_ context.Context, school *platformModels.School) error {
+	}, SchoolRepo: &testpkg.SchoolRepoMock{
+		CreateFn: func(_ context.Context, school *platformModels.School) error {
 			school.ID = 55
 			return nil
 		},
@@ -953,8 +874,8 @@ func TestCreateSchool_WithDeviceSuccess(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestInviteSchoolAdmin_RoleRepoError(t *testing.T) {
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &internalSchoolRepoStub{
-		findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &testpkg.SchoolRepoMock{
+		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return &platformModels.School{
 				Model:          modelBase.Model{ID: 9},
 				OrganizationID: 3,
@@ -978,8 +899,8 @@ func TestInviteSchoolAdmin_RoleRepoError(t *testing.T) {
 }
 
 func TestInviteSchoolAdmin_InvitationCreateError(t *testing.T) {
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &internalSchoolRepoStub{
-		findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &testpkg.SchoolRepoMock{
+		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return &platformModels.School{
 				Model:          modelBase.Model{ID: 9},
 				OrganizationID: 3,
@@ -995,7 +916,11 @@ func TestInviteSchoolAdmin_InvitationCreateError(t *testing.T) {
 				{Model: modelBase.Model{ID: 4}, Name: "admin", IsSystem: true},
 			}, nil
 		},
-	}, InvitationService: &failingInvitationServiceStub{}},
+	}, InvitationService: &authtest.InvitationServiceMock{
+		CreateInvitationFn: func(context.Context, authSvc.InvitationRequest) (*authModels.InvitationToken, error) {
+			return nil, assert.AnError
+		},
+	}},
 	}
 	invitation, err := svc.InviteSchoolAdmin(context.Background(), 9, 11, net.IPv4(127, 0, 0, 1), authSvc.InvitationRequest{
 		Email: "test@example.com",
@@ -1005,22 +930,12 @@ func TestInviteSchoolAdmin_InvitationCreateError(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Minimal invitation service stub that always fails
-// ---------------------------------------------------------------------------
-
-type failingInvitationServiceStub struct{}
-
-func (f *failingInvitationServiceStub) GetTenantSlugForToken(_ context.Context, _ string) string { //nolint:unused
-	return ""
-}
-
-// ---------------------------------------------------------------------------
 // ensureSchoolSlugAvailable / ensureSchoolSubdomainAvailable — repo errors
 // ---------------------------------------------------------------------------
 
 func TestEnsureSchoolSlugAvailable_RepoError(t *testing.T) {
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &internalSchoolRepoStub{
-		findByOrgAndSlugFn: func(context.Context, int64, string) (*platformModels.School, error) {
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &testpkg.SchoolRepoMock{
+		FindByOrganizationAndSlugFn: func(context.Context, int64, string) (*platformModels.School, error) {
 			return nil, assert.AnError
 		},
 	}},
@@ -1030,8 +945,8 @@ func TestEnsureSchoolSlugAvailable_RepoError(t *testing.T) {
 }
 
 func TestEnsureSchoolSubdomainAvailable_RepoError(t *testing.T) {
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &internalSchoolRepoStub{
-		findBySubdomainFn: func(context.Context, string) (*platformModels.School, error) {
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &testpkg.SchoolRepoMock{
+		FindBySubdomainFn: func(context.Context, string) (*platformModels.School, error) {
 			return nil, assert.AnError
 		},
 	}},
@@ -1049,8 +964,8 @@ func TestCreateSchool_CreateNonUniqueError(t *testing.T) {
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return &platformModels.Organization{Model: modelBase.Model{ID: 1}, Name: "Org", Slug: "org", Active: true}, nil
 		},
-	}, SchoolRepo: &internalSchoolRepoStub{
-		createFn: func(context.Context, *platformModels.School) error {
+	}, SchoolRepo: &testpkg.SchoolRepoMock{
+		CreateFn: func(context.Context, *platformModels.School) error {
 			return assert.AnError
 		},
 	}},
@@ -1091,30 +1006,6 @@ func TestWithAdminTx_ExistingTxInContext(t *testing.T) {
 func TestIsSchoolLookupNotFound_DatabaseErrorNonNoRows(t *testing.T) {
 	err := &modelBase.DatabaseError{Op: "find", Err: assert.AnError}
 	assert.False(t, isSchoolLookupNotFound(err))
-}
-func (f *failingInvitationServiceStub) CreateInvitation(context.Context, authSvc.InvitationRequest) (*authModels.InvitationToken, error) {
-	return nil, assert.AnError
-}
-func (f *failingInvitationServiceStub) ValidateInvitation(context.Context, string) (*authSvc.InvitationValidationResult, error) {
-	return nil, nil
-}
-func (f *failingInvitationServiceStub) AcceptInvitation(context.Context, string, authSvc.UserRegistrationData) (*authModels.Account, error) {
-	return nil, nil
-}
-func (f *failingInvitationServiceStub) ResendInvitation(context.Context, int64, int64) error {
-	return nil
-}
-func (f *failingInvitationServiceStub) ListPendingInvitations(context.Context) ([]*authModels.InvitationToken, error) {
-	return nil, nil
-}
-func (f *failingInvitationServiceStub) RevokeInvitation(context.Context, int64, int64) error {
-	return nil
-}
-func (f *failingInvitationServiceStub) InvalidatePendingInvitationsByTenantID(context.Context, int64) (int, error) {
-	return 0, nil
-}
-func (f *failingInvitationServiceStub) CleanupExpiredInvitations(context.Context) (int, error) {
-	return 0, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -1356,8 +1247,8 @@ func TestListSchoolDevices_Success(t *testing.T) {
 	}))
 	mock.ExpectCommit()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB), SchoolRepo: &internalSchoolRepoStub{
-		findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB), SchoolRepo: &testpkg.SchoolRepoMock{
+		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return &platformModels.School{
 				Model:          modelBase.Model{ID: 42},
 				OrganizationID: 1,
@@ -1491,8 +1382,8 @@ func TestCreateDevice_InvalidInput(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestCreateDevice_SchoolNotFound(t *testing.T) {
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &internalSchoolRepoStub{
-		findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &testpkg.SchoolRepoMock{
+		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return nil, nil // nil school, no error
 		},
 	}},
@@ -1505,8 +1396,8 @@ func TestCreateDevice_SchoolNotFound(t *testing.T) {
 }
 
 func TestCreateDevice_SchoolNotFound_SqlErrNoRows(t *testing.T) {
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &internalSchoolRepoStub{
-		findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &testpkg.SchoolRepoMock{
+		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return nil, sql.ErrNoRows
 		},
 	}},
@@ -1548,8 +1439,8 @@ func TestCreateDevice_Success_AutoKey(t *testing.T) {
 	))
 	mock.ExpectCommit()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB), SchoolRepo: &internalSchoolRepoStub{
-		findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB), SchoolRepo: &testpkg.SchoolRepoMock{
+		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return &platformModels.School{
 				Model:          modelBase.Model{ID: 42},
 				OrganizationID: 1,
@@ -1614,8 +1505,8 @@ func TestCreateDevice_Success_ManualKey(t *testing.T) {
 	))
 	mock.ExpectCommit()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB), SchoolRepo: &internalSchoolRepoStub{
-		findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB), SchoolRepo: &testpkg.SchoolRepoMock{
+		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return &platformModels.School{
 				Model:          modelBase.Model{ID: 42},
 				OrganizationID: 1,
@@ -1648,8 +1539,8 @@ func TestCreateDevice_Success_ManualKey(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestCreateDevice_DuplicateDeviceID(t *testing.T) {
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &internalSchoolRepoStub{
-		findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &testpkg.SchoolRepoMock{
+		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return &platformModels.School{
 				Model:          modelBase.Model{ID: 42},
 				OrganizationID: 1,
@@ -1702,8 +1593,8 @@ func TestCreateDevice_AutoKeyCollisionRetry(t *testing.T) {
 	))
 	mock.ExpectCommit()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB), SchoolRepo: &internalSchoolRepoStub{
-		findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB), SchoolRepo: &testpkg.SchoolRepoMock{
+		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return &platformModels.School{
 				Model:          modelBase.Model{ID: 42},
 				OrganizationID: 1,
@@ -1739,8 +1630,8 @@ func TestCreateDevice_AutoKeyCollisionRetry(t *testing.T) {
 
 func TestCreateDevice_ManualKeyConflict(t *testing.T) {
 	manualKey := "my-conflicting-key"
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &internalSchoolRepoStub{
-		findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &testpkg.SchoolRepoMock{
+		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return &platformModels.School{
 				Model:          modelBase.Model{ID: 42},
 				OrganizationID: 1,
@@ -1875,8 +1766,8 @@ func TestSetDeviceAPIKey_Success_AutoKey(t *testing.T) {
 			updatedDevice = device
 			return nil
 		},
-	}, SchoolRepo: &internalSchoolRepoStub{
-		findByIDFn: func(_ context.Context, _ int64) (*platformModels.School, error) {
+	}, SchoolRepo: &testpkg.SchoolRepoMock{
+		FindByIDFn: func(_ context.Context, _ int64) (*platformModels.School, error) {
 			return &platformModels.School{Active: true}, nil
 		},
 	}, AuditLogRepo: &internalAuditLogRepoStub{}, SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB), Logger: slog.Default()}, txHandler: modelBase.NewTxHandler(bunDB),
@@ -1936,8 +1827,8 @@ func TestSetDeviceAPIKey_Success_ManualKey(t *testing.T) {
 			updatedDevice = device
 			return nil
 		},
-	}, SchoolRepo: &internalSchoolRepoStub{
-		findByIDFn: func(_ context.Context, _ int64) (*platformModels.School, error) {
+	}, SchoolRepo: &testpkg.SchoolRepoMock{
+		FindByIDFn: func(_ context.Context, _ int64) (*platformModels.School, error) {
 			return &platformModels.School{Active: true}, nil
 		},
 	}, AuditLogRepo: &internalAuditLogRepoStub{}, Logger: slog.Default()}, txHandler: modelBase.NewTxHandler(bunDB),
@@ -1970,8 +1861,8 @@ func TestSetDeviceAPIKey_ManualKeyConflict(t *testing.T) {
 		updateFn: func(context.Context, *iotModels.Device) error {
 			return newPgErrorWithConstraint("23505", "devices_api_key_key")
 		},
-	}, SchoolRepo: &internalSchoolRepoStub{
-		findByIDFn: func(_ context.Context, _ int64) (*platformModels.School, error) {
+	}, SchoolRepo: &testpkg.SchoolRepoMock{
+		FindByIDFn: func(_ context.Context, _ int64) (*platformModels.School, error) {
 			return &platformModels.School{Active: true}, nil
 		},
 	}},
@@ -2193,8 +2084,8 @@ func TestDeleteDevice_Success(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestSoftDeleteSchool_FindByIDError(t *testing.T) {
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &internalSchoolRepoStub{
-		findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &testpkg.SchoolRepoMock{
+		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return nil, assert.AnError
 		},
 	}},
@@ -2205,8 +2096,8 @@ func TestSoftDeleteSchool_FindByIDError(t *testing.T) {
 }
 
 func TestSoftDeleteSchool_RowsAffectedMismatch(t *testing.T) {
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &internalSchoolRepoStub{
-		findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &testpkg.SchoolRepoMock{
+		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return &platformModels.School{
 				Model:          modelBase.Model{ID: 42},
 				OrganizationID: 1,
@@ -2216,7 +2107,7 @@ func TestSoftDeleteSchool_RowsAffectedMismatch(t *testing.T) {
 				Active:         true,
 			}, nil
 		},
-		softDeleteFn: func(context.Context, int64) error {
+		SoftDeleteFn: func(context.Context, int64) error {
 			return &modelBase.DatabaseError{
 				Op:  "soft delete school",
 				Err: errors.New("expected 1 rows affected, got 0"),
@@ -2231,8 +2122,8 @@ func TestSoftDeleteSchool_RowsAffectedMismatch(t *testing.T) {
 }
 
 func TestRestoreSchool_FindByIDError(t *testing.T) {
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &internalSchoolRepoStub{
-		findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &testpkg.SchoolRepoMock{
+		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return nil, assert.AnError
 		},
 	}},
@@ -2244,8 +2135,8 @@ func TestRestoreSchool_FindByIDError(t *testing.T) {
 
 func TestRestoreSchool_ConcurrentRestoreMapsToNotDeleted(t *testing.T) {
 	deletedAt := time.Now()
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &internalSchoolRepoStub{
-		findByIDFn: func(context.Context, int64) (*platformModels.School, error) {
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SchoolRepo: &testpkg.SchoolRepoMock{
+		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return &platformModels.School{
 				Model:          modelBase.Model{ID: 42},
 				OrganizationID: 1,
@@ -2256,7 +2147,7 @@ func TestRestoreSchool_ConcurrentRestoreMapsToNotDeleted(t *testing.T) {
 				DeletedAt:      &deletedAt,
 			}, nil
 		},
-		restoreFn: func(context.Context, int64) error {
+		RestoreFn: func(context.Context, int64) error {
 			return &modelBase.DatabaseError{
 				Op:  "restore school",
 				Err: errors.New("expected 1 rows affected, got 0"),
@@ -2288,7 +2179,7 @@ func TestSoftDeleteOrganization_FindByIDError(t *testing.T) {
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return nil, assert.AnError
 		},
-	}, SchoolRepo: &internalSchoolRepoStub{}},
+	}, SchoolRepo: &testpkg.SchoolRepoMock{}},
 	}
 
 	err := svc.SoftDeleteOrganization(context.Background(), 42, 7, net.IPv4(127, 0, 0, 1))
@@ -2311,8 +2202,8 @@ func TestSoftDeleteOrganization_RowsAffectedMismatch(t *testing.T) {
 				Err: errors.New("expected 1 rows affected, got 0"),
 			}
 		},
-	}, SchoolRepo: &internalSchoolRepoStub{
-		countNonDeletedByOrgIDFn: func(context.Context, int64) (int, error) {
+	}, SchoolRepo: &testpkg.SchoolRepoMock{
+		CountNonDeletedByOrganizationIDFn: func(context.Context, int64) (int, error) {
 			return 0, nil
 		},
 	}},
@@ -2328,7 +2219,7 @@ func TestRestoreOrganization_FindByIDError(t *testing.T) {
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return nil, assert.AnError
 		},
-	}, SchoolRepo: &internalSchoolRepoStub{}},
+	}, SchoolRepo: &testpkg.SchoolRepoMock{}},
 	}
 
 	err := svc.RestoreOrganization(context.Background(), 42, 7, net.IPv4(127, 0, 0, 1))
@@ -2353,7 +2244,7 @@ func TestRestoreOrganization_ConcurrentRestoreMapsToNotDeleted(t *testing.T) {
 				Err: errors.New("expected 1 rows affected, got 0"),
 			}
 		},
-	}, SchoolRepo: &internalSchoolRepoStub{}},
+	}, SchoolRepo: &testpkg.SchoolRepoMock{}},
 	}
 
 	err := svc.RestoreOrganization(context.Background(), 42, 7, net.IPv4(127, 0, 0, 1))

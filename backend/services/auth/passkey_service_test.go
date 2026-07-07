@@ -159,7 +159,7 @@ func TestPasskeySummaryAndUser(t *testing.T) {
 func TestNewPasskeyServiceValidation(t *testing.T) {
 	baseCfg := PasskeyServiceConfig{
 		Repos:        &repositories.Factory{},
-		MFAService:   &passkeyMFAServiceStub{},
+		MFAService:   &MFAStub{},
 		AuthService:  &Service{},
 		DB:           &bun.DB{},
 		RPID:         "localhost:3000",
@@ -203,7 +203,7 @@ func TestNewPasskeyServiceValidation(t *testing.T) {
 
 func TestPasskeyEnrollmentChallenge(t *testing.T) {
 	account := &authModel.Account{Model: base.Model{ID: 11}, Email: "teacher@example.test", Active: true}
-	mfa := &passkeyMFAServiceStub{challengeToken: "challenge-token"}
+	mfa := &MFAStub{ChallengeToken: "challenge-token"}
 	svc := &passkeyService{
 		repos:      &repositories.Factory{Account: newStubAccountRepository(account)},
 		mfaService: mfa,
@@ -213,9 +213,9 @@ func TestPasskeyEnrollmentChallenge(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "challenge-token", challenge.ChallengeToken)
 	assert.Contains(t, challenge.MaskedEmail, "@")
-	assert.Equal(t, account.ID, mfa.startedAccountID)
-	assert.Equal(t, int64(42), mfa.startedTenantID)
-	assert.Equal(t, authjwt.MFAChallengeScopeTenant, mfa.startedScope)
+	assert.Equal(t, account.ID, mfa.StartedAccountID)
+	assert.Equal(t, int64(42), mfa.StartedTenantID)
+	assert.Equal(t, authjwt.MFAChallengeScopeTenant, mfa.StartedScope)
 }
 
 func TestPasskeyEnrollmentChallengeErrors(t *testing.T) {
@@ -225,17 +225,17 @@ func TestPasskeyEnrollmentChallengeErrors(t *testing.T) {
 	tests := []struct {
 		name  string
 		repos *repositories.Factory
-		mfa   *passkeyMFAServiceStub
+		mfa   *MFAStub
 	}{
 		{
 			name:  "unknown account",
 			repos: &repositories.Factory{Account: newStubAccountRepository()},
-			mfa:   &passkeyMFAServiceStub{},
+			mfa:   &MFAStub{},
 		},
 		{
 			name:  "mfa start fails",
 			repos: &repositories.Factory{Account: newStubAccountRepository(account)},
-			mfa:   &passkeyMFAServiceStub{startErr: wantErr},
+			mfa:   &MFAStub{StartErr: wantErr},
 		},
 	}
 
@@ -251,7 +251,7 @@ func TestPasskeyEnrollmentChallengeErrors(t *testing.T) {
 func TestPasskeyBeginRegistrationStoresSession(t *testing.T) {
 	account := &authModel.Account{Model: base.Model{ID: 21}, Email: "teacher@example.test", Active: true}
 	sessions := &passkeySessionRepoStub{}
-	mfa := &passkeyMFAServiceStub{}
+	mfa := &MFAStub{}
 	svc := &passkeyService{
 		repos: &repositories.Factory{
 			Account:           newStubAccountRepository(account),
@@ -285,8 +285,8 @@ func TestPasskeyBeginRegistrationStoresSession(t *testing.T) {
 	assert.Equal(t, "http://school.localhost:3000", sessions.created.ExpectedOrigin)
 	assert.False(t, sessions.created.ExpiresAt.IsZero())
 	assert.True(t, json.Valid(sessions.created.SessionJSON))
-	assert.Equal(t, account.ID, mfa.verifiedAccountID)
-	assert.Equal(t, "123456", mfa.verifiedCode)
+	assert.Equal(t, account.ID, mfa.VerifiedAccountID)
+	assert.Equal(t, "123456", mfa.VerifiedCode)
 }
 
 func TestPasskeyBeginRegistrationErrors(t *testing.T) {
@@ -298,7 +298,7 @@ func TestPasskeyBeginRegistrationErrors(t *testing.T) {
 		name    string
 		req     PasskeyRegistrationStartRequest
 		repos   *repositories.Factory
-		mfa     *passkeyMFAServiceStub
+		mfa     *MFAStub
 		wantErr error
 	}{
 		{
@@ -308,7 +308,7 @@ func TestPasskeyBeginRegistrationErrors(t *testing.T) {
 				ExpectedOrigin: "http://other.localhost:3000",
 			},
 			repos:   &repositories.Factory{Account: newStubAccountRepository(account)},
-			mfa:     &passkeyMFAServiceStub{},
+			mfa:     &MFAStub{},
 			wantErr: ErrPasskeyOriginInvalid,
 		},
 		{
@@ -319,7 +319,7 @@ func TestPasskeyBeginRegistrationErrors(t *testing.T) {
 				Code:           "000000",
 			},
 			repos: &repositories.Factory{Account: newStubAccountRepository(account)},
-			mfa:   &passkeyMFAServiceStub{verifyErr: wantErr},
+			mfa:   &MFAStub{VerifyErr: wantErr},
 		},
 		{
 			name: "unknown account",
@@ -328,7 +328,7 @@ func TestPasskeyBeginRegistrationErrors(t *testing.T) {
 				ExpectedOrigin: "http://localhost:3000",
 			},
 			repos:   &repositories.Factory{Account: newStubAccountRepository()},
-			mfa:     &passkeyMFAServiceStub{},
+			mfa:     &MFAStub{},
 			wantErr: ErrAccountNotFound,
 		},
 		{
@@ -338,7 +338,7 @@ func TestPasskeyBeginRegistrationErrors(t *testing.T) {
 				ExpectedOrigin: "http://localhost:3000",
 			},
 			repos:   &repositories.Factory{Account: newStubAccountRepository(inactive)},
-			mfa:     &passkeyMFAServiceStub{},
+			mfa:     &MFAStub{},
 			wantErr: ErrAccountInactive,
 		},
 		{
@@ -351,7 +351,7 @@ func TestPasskeyBeginRegistrationErrors(t *testing.T) {
 				Account:           newStubAccountRepository(account),
 				PasskeyCredential: &passkeyCredentialRepoStub{err: wantErr},
 			},
-			mfa: &passkeyMFAServiceStub{},
+			mfa: &MFAStub{},
 		},
 		{
 			name: "session create fails",
@@ -364,7 +364,7 @@ func TestPasskeyBeginRegistrationErrors(t *testing.T) {
 				PasskeyCredential: &passkeyCredentialRepoStub{},
 				PasskeySession:    &passkeySessionRepoStub{createErr: wantErr},
 			},
-			mfa: &passkeyMFAServiceStub{},
+			mfa: &MFAStub{},
 		},
 	}
 
@@ -732,120 +732,7 @@ func (r *passkeySessionRepoStub) DeleteExpired(context.Context, time.Time) (int,
 	return 0, nil
 }
 
-type passkeyMFAServiceStub struct {
-	challengeToken string
-	startErr       error
-	verifyErr      error
-
-	startedAccountID  int64
-	startedTenantID   int64
-	startedScope      string
-	verifiedAccountID int64
-	verifiedCode      string
-}
-
-func (s *passkeyMFAServiceStub) IsRequired(context.Context, *authModel.Account, int64) (bool, error) {
-	return false, nil
-}
-
-func (s *passkeyMFAServiceStub) HasEnrollment(context.Context, int64) (bool, error) {
-	return false, nil
-}
-
-func (s *passkeyMFAServiceStub) AccountBelongsToTenant(context.Context, int64, int64) (bool, error) {
-	return true, nil
-}
-
-func (s *passkeyMFAServiceStub) StartChallenge(_ context.Context, accountID, tenantID int64, scope string, _ net.IP) (string, error) {
-	s.startedAccountID = accountID
-	s.startedTenantID = tenantID
-	s.startedScope = scope
-	if s.startErr != nil {
-		return "", s.startErr
-	}
-	if s.challengeToken != "" {
-		return s.challengeToken, nil
-	}
-	return "challenge-token", nil
-}
-
-func (s *passkeyMFAServiceStub) VerifyChallenge(context.Context, string, string) (*VerifiedChallenge, error) {
-	return nil, nil
-}
-
-func (s *passkeyMFAServiceStub) ResendChallenge(context.Context, string, net.IP) (string, error) {
-	return "challenge-token", nil
-}
-
-func (s *passkeyMFAServiceStub) VerifyCodeForAccount(_ context.Context, accountID int64, code string) error {
-	s.verifiedAccountID = accountID
-	s.verifiedCode = code
-	return s.verifyErr
-}
-
-func (s *passkeyMFAServiceStub) Enroll(context.Context, int64) error {
-	return nil
-}
-
-func (s *passkeyMFAServiceStub) Disable(context.Context, int64) error {
-	return nil
-}
-
-func (s *passkeyMFAServiceStub) IssueTrustedDevice(context.Context, int64, int64, string, net.IP) (string, time.Time, error) {
-	return "", time.Time{}, nil
-}
-
-func (s *passkeyMFAServiceStub) VerifyTrustedDevice(context.Context, int64, int64, string) (bool, error) {
-	return false, nil
-}
-
-func (s *passkeyMFAServiceStub) ListTrustedDevices(context.Context, int64, int64) ([]*authModel.MFATrustedDevice, error) {
-	return nil, nil
-}
-
-func (s *passkeyMFAServiceStub) RevokeTrustedDevice(context.Context, int64, int64, int64) error {
-	return nil
-}
-
-func (s *passkeyMFAServiceStub) IsTrustedDeviceEnabled(context.Context, int64) bool {
-	return false
-}
-
-func (s *passkeyMFAServiceStub) TrustedDeviceDays(context.Context, int64) int {
-	return 0
-}
-
-func (s *passkeyMFAServiceStub) AdminDisable(context.Context, int64, int64, int64, string, []string) error {
-	return nil
-}
-
-func (s *passkeyMFAServiceStub) SetMFAOverride(context.Context, int64, int64, int64, string, string, []string) error {
-	return nil
-}
-
-func (s *passkeyMFAServiceStub) GetTenantMFAOverride(context.Context, int64, int64) (string, error) {
-	return "none", nil
-}
-
-func (s *passkeyMFAServiceStub) GetGlobalMFAOverride(context.Context, int64) (string, error) {
-	return "none", nil
-}
-
-func (s *passkeyMFAServiceStub) OperatorAdminDisable(context.Context, int64, int64, int64, string) error {
-	return nil
-}
-
-func (s *passkeyMFAServiceStub) OperatorSetMFAOverride(context.Context, int64, int64, int64, string, string) error {
-	return nil
-}
-
-func (s *passkeyMFAServiceStub) OperatorSetGlobalMFAOverride(context.Context, int64, int64, string, string) error {
-	return nil
-}
-
-func (s *passkeyMFAServiceStub) GetAdminState(context.Context, int64, int64, int64, []string) (MFAAdminState, error) {
-	return MFAAdminState{}, nil
-}
+// MFAStub is defined in mfa_stub_test.go (shared with auth_login_mfa_infra_test.go).
 
 func TestPasskeyRepositories(t *testing.T) {
 	db := testpkg.SetupTestDB(t)

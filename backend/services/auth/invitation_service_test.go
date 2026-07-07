@@ -45,7 +45,7 @@ func newInvitationTestEnvWithMailer(t *testing.T, mailer email.Mailer) (Invitati
 	)
 	accountRoleRepo := newStubAccountRoleRepository()
 	personRepo := newStubPersonRepository()
-	staffRepo := newStubStaffRepository()
+	staffRepo, _ := newStubStaffRepository()
 	teacherRepo := newStubTeacherRepository()
 
 	dispatcher := email.NewDispatcher(mailer, slog.Default())
@@ -60,7 +60,7 @@ func newInvitationTestEnvWithMailer(t *testing.T, mailer email.Mailer) (Invitati
 		PersonRepo:        personRepo,
 		StaffRepo:         staffRepo,
 		TeacherRepo:       teacherRepo,
-		SchoolRepo:        &stubSchoolRepository{},
+		SchoolRepo:        newStubSchoolRepository(nil),
 		Mailer:            mailer,
 		Dispatcher:        dispatcher,
 		FrontendURL:       "http://localhost:3000",
@@ -540,7 +540,7 @@ func TestAcceptInvitation_AdminCaregiverEnabledCreatesUserRoleAndTeacherProfile(
 	)
 	accountRoles := newStubAccountRoleRepository()
 	persons := newStubPersonRepository()
-	staff := newStubStaffRepository()
+	staff, staffAll := newStubStaffRepository()
 	teachers := newStubTeacherRepository()
 
 	service := NewInvitationService(InvitationServiceConfig{
@@ -552,7 +552,7 @@ func TestAcceptInvitation_AdminCaregiverEnabledCreatesUserRoleAndTeacherProfile(
 		PersonRepo:        persons,
 		StaffRepo:         staff,
 		TeacherRepo:       teachers,
-		SchoolRepo:        &stubSchoolRepository{},
+		SchoolRepo:        newStubSchoolRepository(nil),
 		FrontendURL:       "http://localhost:3000",
 		DefaultFrom:       newDefaultFromEmail(),
 		InvitationExpiry:  48 * time.Hour,
@@ -591,7 +591,7 @@ func TestAcceptInvitation_AdminCaregiverEnabledCreatesUserRoleAndTeacherProfile(
 	require.Equal(t, tenantID, assignments[0].TenantID)
 	require.Equal(t, tenantID, assignments[1].TenantID)
 
-	createdStaff := staff.All()
+	createdStaff := staffAll()
 	require.Len(t, createdStaff, 1)
 	require.Equal(t, tenantID, createdStaff[0].TenantID)
 
@@ -684,7 +684,8 @@ func TestAcceptInvitationDeletedSchoolRejectsAcceptance(t *testing.T) {
 	bunDB := bun.NewDB(sqlDB, pgdialect.New())
 
 	invitationRepo := newStubInvitationTokenRepository()
-	schoolRepo := &stubSchoolRepository{deletedTenantIDs: map[int64]bool{42: true}}
+	schoolRepo := newStubSchoolRepository(map[int64]bool{42: true})
+	staffRepo, _ := newStubStaffRepository()
 
 	service := NewInvitationService(InvitationServiceConfig{
 		InvitationRepo:    invitationRepo,
@@ -695,7 +696,7 @@ func TestAcceptInvitationDeletedSchoolRejectsAcceptance(t *testing.T) {
 		),
 		AccountRoleRepo:  newStubAccountRoleRepository(),
 		PersonRepo:       newStubPersonRepository(),
-		StaffRepo:        newStubStaffRepository(),
+		StaffRepo:        staffRepo,
 		TeacherRepo:      newStubTeacherRepository(),
 		SchoolRepo:       schoolRepo,
 		FrontendURL:      "http://localhost:3000",
@@ -906,9 +907,9 @@ func TestCreateInvitationRejectsExistingTenantAccess(t *testing.T) {
 		RoleRepo:          newStubRoleRepository(&authModel.Role{Model: baseModel.Model{ID: 1}, Name: "Admin"}),
 		AccountRoleRepo:   newStubAccountRoleRepository(),
 		PersonRepo:        newStubPersonRepository(),
-		StaffRepo:         newStubStaffRepository(),
+		StaffRepo:         staffRepoOnly(),
 		TeacherRepo:       newStubTeacherRepository(),
-		SchoolRepo:        &stubSchoolRepository{},
+		SchoolRepo:        newStubSchoolRepository(nil),
 		FrontendURL:       "http://localhost:3000",
 		DefaultFrom:       newDefaultFromEmail(),
 		InvitationExpiry:  48 * time.Hour,
@@ -1369,7 +1370,7 @@ func TestCreateAccountWithRoleStopsOnPartialFailures(t *testing.T) {
 					Name:     "admin",
 					IsSystem: true,
 				})
-				svc.staffRepo = failingStaffRepository{stubStaffRepository: newStubStaffRepository()}
+				svc.staffRepo = failingStaffRepository{StaffRepoMock: staffRepoOnly()}
 			},
 			wantErr: "staff failed",
 		},
@@ -1502,7 +1503,7 @@ func (failingAccountRoleRepository) Create(context.Context, *authModel.AccountRo
 }
 
 type failingStaffRepository struct {
-	*stubStaffRepository
+	*testpkg.StaffRepoMock
 }
 
 func (failingStaffRepository) Create(context.Context, *userModel.Staff) error {
