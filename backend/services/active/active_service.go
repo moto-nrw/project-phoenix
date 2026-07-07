@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/analytics"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -111,6 +112,9 @@ type ServiceDependencies struct {
 	DB          *bun.DB
 	Broadcaster Broadcaster // SSE event broadcaster (optional - can be nil for testing)
 
+	// Optional: Product analytics tracker (nil-safe, no student PII)
+	Tracker analytics.Tracker
+
 	// Optional: Work session service for NFC auto-check-in
 	WorkSessionService WorkSessionService
 
@@ -158,6 +162,9 @@ type service struct {
 
 	// SSE real-time event broadcasting (optional - can be nil for testing)
 	broadcaster Broadcaster
+
+	// Product analytics tracker (optional - can be nil for testing)
+	tracker analytics.Tracker
 
 	// Optional: Work session service for NFC auto-check-in
 	workSessionService WorkSessionService
@@ -216,6 +223,35 @@ func (s *service) getLogger() *slog.Logger {
 	return slog.Default()
 }
 
+// trackProductEvent captures a product analytics event scoped to the tenant
+// from context. Fire-and-forget and nil-safe. GDPR: props must never contain
+// student IDs or any student PII — only tenant-level properties.
+func (s *service) trackProductEvent(ctx context.Context, event string, props map[string]any) {
+	if s.tracker == nil {
+		return
+	}
+	tenantID := tenant.FromContext(ctx)
+	if tenantID == 0 {
+		return
+	}
+	if props == nil {
+		props = map[string]any{}
+	}
+	school := strconv.FormatInt(tenantID, 10)
+	props["school_id"] = tenantID
+	props["$groups"] = map[string]any{"school": school}
+	s.tracker.Capture("school:"+school, event, props)
+}
+
+// attendanceMethod derives how an attendance change was triggered: RFID/kiosk
+// requests carry device auth in context, everything else is web/manual.
+func attendanceMethod(ctx context.Context) string {
+	if device.IsIoTDeviceRequest(ctx) {
+		return "rfid"
+	}
+	return "manual"
+}
+
 // NewService creates a new active service instance
 func NewService(deps ServiceDependencies) Service {
 	return &service{
@@ -240,6 +276,7 @@ func NewService(deps ServiceDependencies) Service {
 		staffRepo:                deps.StaffRepo,
 		db:                       deps.DB,
 		broadcaster:              deps.Broadcaster,
+		tracker:                  deps.Tracker,
 		workSessionService:       deps.WorkSessionService,
 		attendanceSyncer:         deps.AttendanceSyncer,
 		timetableBridgeCompleter: deps.TimetableBridgeCompleter,
@@ -657,6 +694,7 @@ func (s *service) UpdateVisit(ctx context.Context, visit *active.Visit) error {
 
 	if isActiveGroupMove {
 		s.broadcastVisitMoved(ctx, existing, visit)
+		s.trackProductEvent(ctx, "room_transfer", nil)
 	}
 
 	return nil

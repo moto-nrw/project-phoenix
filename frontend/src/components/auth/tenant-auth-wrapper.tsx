@@ -36,6 +36,10 @@ function TeacherSpecificHooks() {
       posthog.identify(session.user.id, {
         email: session.user.email,
       });
+      if (session.user.tenantId != null) {
+        posthog.group("school", String(session.user.tenantId));
+        posthog.register({ school_id: session.user.tenantId });
+      }
     } else if (status === "unauthenticated") {
       posthog.reset();
     }

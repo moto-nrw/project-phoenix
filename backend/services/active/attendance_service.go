@@ -323,6 +323,10 @@ func (s *service) performCheckIn(ctx context.Context, studentID, staffID, device
 	s.autoClearStudentExcused(ctx, studentID)
 	s.autoClearPlannedStudentStatuses(ctx, studentID)
 
+	s.trackProductEvent(ctx, "student_checked_in", map[string]any{
+		"method": attendanceMethod(ctx),
+	})
+
 	return &AttendanceResult{
 		Action:       "checked_in",
 		AttendanceID: attendance.ID,
@@ -386,6 +390,11 @@ func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64,
 			Timestamp: now,
 		}, nil
 	}
+
+	s.trackProductEvent(ctx, "student_checked_out", map[string]any{
+		"method":        attendanceMethod(ctx),
+		"checkout_type": "daily",
+	})
 
 	return &AttendanceResult{
 		Action:       "checked_out",

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/analytics"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
 	"github.com/spf13/viper"
@@ -19,6 +20,7 @@ type Server struct {
 	*http.Server
 	scheduler      *scheduler.Scheduler
 	capacityLogger *observability.CapacityLogger
+	tracker        analytics.Tracker
 }
 
 // NewServer creates and configures a new API server
@@ -52,6 +54,7 @@ func NewServer(logger *slog.Logger) (*Server, error) {
 		},
 		scheduler:      nil, // Will be initialized if cleanup is enabled
 		capacityLogger: observability.NewCapacityLogger(api.db.DB, api.Services.RealtimeHub, api.Metrics, logger.With("component", "capacity")),
+		tracker:        api.Services.Tracker,
 	}
 
 	// Initialize scheduler if cleanup is enabled
@@ -172,6 +175,13 @@ func (srv *Server) Start() {
 	if err := srv.Shutdown(ctx); err != nil {
 		slog.Error("Server forced to shutdown", slog.String("error", err.Error()))
 		os.Exit(1)
+	}
+
+	// Flush buffered analytics events before exit
+	if srv.tracker != nil {
+		if err := srv.tracker.Close(); err != nil {
+			slog.Warn("analytics tracker close failed", slog.String("error", err.Error()))
+		}
 	}
 
 	slog.Info("Server gracefully stopped")
