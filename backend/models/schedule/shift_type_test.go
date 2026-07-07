@@ -1,0 +1,62 @@
+package schedule
+
+import "testing"
+
+func TestShiftTypeValidate(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     ShiftType
+		wantErr   bool
+		wantName  string
+		wantColor string
+	}{
+		{
+			name:      "trims name and uppercases hex color",
+			input:     ShiftType{Name: "  Betreuung  ", Color: "#83cd2d"},
+			wantName:  "Betreuung",
+			wantColor: "#83CD2D",
+		},
+		{
+			name:      "prepends missing hash",
+			input:     ShiftType{Name: "Pause", Color: "6B7280"},
+			wantColor: "#6B7280",
+		},
+		{
+			name:      "defaults empty color to gray",
+			input:     ShiftType{Name: "Sonstiges", Color: ""},
+			wantColor: DefaultShiftTypeColor,
+		},
+		{
+			name:    "rejects empty name",
+			input:   ShiftType{Name: "   ", Color: "#83CD2D"},
+			wantErr: true,
+		},
+		{
+			name:    "rejects invalid color",
+			input:   ShiftType{Name: "Vertretung", Color: "not-a-color"},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			st := tt.input
+			err := st.Validate()
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.wantName != "" && st.Name != tt.wantName {
+				t.Errorf("name = %q, want %q", st.Name, tt.wantName)
+			}
+			if tt.wantColor != "" && st.Color != tt.wantColor {
+				t.Errorf("color = %q, want %q", st.Color, tt.wantColor)
+			}
+		})
+	}
+}

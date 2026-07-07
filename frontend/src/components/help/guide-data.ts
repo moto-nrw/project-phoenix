@@ -681,13 +681,14 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Dienstplan",
         icon: CalendarRange,
         summary:
-          "Plant konkrete Schichten (Beginn, Ende, Pause) pro Mitarbeiter und Tag (nur für Admins).",
+          "Plant konkrete Schichten (Beginn, Ende, Pause) pro Mitarbeiter und Tag, mit farbigen Schichtarten (nur für Admins).",
         steps: [
           "`Dienstplan` in der Seitenleiste oder im mobilen `Mehr`-Menü öffnen.",
           "Mit den Pfeilen zwischen den Wochen wechseln, `Diese Woche` springt zurück zur aktuellen Woche.",
-          "In der Zeile eines Mitarbeiters auf eine leere Zelle klicken, um eine Schicht anzulegen: `Beginn`, `Ende` und `Pause (Minuten)` eintragen und speichern.",
+          "Über `Schichtarten verwalten` (oben rechts) eigene Schichtarten pflegen: Name, Farbe, optionale Beschreibung und Aktiv-Status. `Beispiele hinzufügen` legt typische Schichtarten wie Betreuung, Vorbereitung, Vertretungsunterricht und Pause an, die anschließend frei anpassbar oder löschbar sind.",
+          "In der Zeile eines Mitarbeiters auf eine leere Zelle klicken, um eine Schicht anzulegen: `Beginn`, `Ende` und `Pause (Minuten)` eintragen, optional eine `Schichtart` auswählen und speichern.",
           "Eine vorhandene Schicht anklicken, um sie zu bearbeiten oder über `Schicht löschen` zu entfernen.",
-          "Mehrere Schichten pro Tag sind möglich (z. B. Frühdienst und Nachmittagsbetreuung), solange sie sich nicht überschneiden.",
+          "Mehrere Schichten pro Tag sind möglich (z. B. Vertretungsunterricht, Pause und Ganztagsbetreuung), solange sie sich nicht überschneiden; die Farbe der Schichtart macht die Aufgaben im Wochenplan sofort unterscheidbar.",
           "Mitarbeitende sehen ihre eigene geplante Schicht in der Zeiterfassung als Zeile `Geplant: 08:00–16:00` in der Stempeluhr.",
         ],
         callout: {

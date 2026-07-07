@@ -4,12 +4,16 @@ import { Suspense, useMemo, useState } from "react";
 import { redirect } from "next/navigation";
 import { useSession } from "next-auth/react";
 
+import { Settings2 } from "lucide-react";
+
 import { DienstplanWeekGrid } from "~/components/staff/dienstplan-week-grid";
 import {
   ShiftEditModal,
   type ShiftEditMode,
 } from "~/components/staff/shift-edit-modal";
+import { ShiftTypeManageModal } from "~/components/staff/shift-type-manage-modal";
 import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import { Loading } from "~/components/ui/loading";
 import { isAdmin } from "~/lib/auth-utils";
 import { parseISODate, toISODate } from "~/lib/date-helpers";
@@ -19,6 +23,8 @@ import {
   groupShiftsByStaffAndDate,
   type StaffShift,
 } from "~/lib/shift-helpers";
+import { shiftTypeService } from "~/lib/shift-type-api";
+import { indexShiftTypes, type ShiftType } from "~/lib/shift-type-helpers";
 import { staffService, type Staff } from "~/lib/staff-api";
 import { useSWRAuth } from "~/lib/swr";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -59,6 +65,7 @@ function DienstplanContent() {
     startOfWeek(parseISODate(today)),
   );
   const [modal, setModal] = useState<ModalState | null>(null);
+  const [manageOpen, setManageOpen] = useState(false);
 
   const weekDays = useMemo(() => {
     return Array.from({ length: 5 }, (_, i) => {
@@ -85,6 +92,15 @@ function DienstplanContent() {
     mutate: mutateShifts,
   } = useSWRAuth<StaffShift[]>(`dienstplan-shifts-${weekFrom}-${weekTo}`, () =>
     staffShiftService.getShifts(weekFrom, weekTo),
+  );
+
+  const { data: shiftTypes, mutate: mutateShiftTypes } = useSWRAuth<
+    ShiftType[]
+  >("dienstplan-shift-types", () => shiftTypeService.getShiftTypes());
+
+  const typesById = useMemo(
+    () => indexShiftTypes(shiftTypes ?? []),
+    [shiftTypes],
   );
 
   const sortedStaff = useMemo(() => {
@@ -144,9 +160,20 @@ function DienstplanContent() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">
-        Dienstplan
-      </h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">
+          Dienstplan
+        </h1>
+        <Button
+          type="button"
+          variant="primary"
+          size="md"
+          onClick={() => setManageOpen(true)}
+        >
+          <Settings2 className="mr-1.5 h-4 w-4" />
+          Schichtarten verwalten
+        </Button>
+      </div>
       <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
         <div className="mb-4 flex flex-col gap-3 sm:grid sm:grid-cols-3 sm:items-center">
           <p className="hidden text-xs text-gray-500 sm:block">
@@ -229,6 +256,7 @@ function DienstplanContent() {
             shiftsByStaff={shiftsByStaff}
             weekDays={weekDays}
             todayIso={today}
+            typesById={typesById}
             isLoading={staffLoading || shiftsLoading}
             onCellClick={(member, date, shift) =>
               setModal({
@@ -249,10 +277,20 @@ function DienstplanContent() {
           staffName={`${modal.staff.firstName} ${modal.staff.lastName}`}
           date={modal.date}
           shift={modal.shift}
+          shiftTypes={shiftTypes ?? []}
           onClose={() => setModal(null)}
           onSaved={() => void mutateShifts()}
         />
       )}
+      <ShiftTypeManageModal
+        isOpen={manageOpen}
+        shiftTypes={shiftTypes ?? []}
+        onClose={() => setManageOpen(false)}
+        onChanged={() => {
+          void mutateShiftTypes();
+          void mutateShifts();
+        }}
+      />
     </div>
   );
 }

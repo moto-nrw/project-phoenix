@@ -62,6 +62,17 @@ type StaffShiftRepository interface {
 	DeleteUpcomingByStaffID(ctx context.Context, staffID int64, from timezone.Date) (int64, error)
 }
 
+// ShiftTypeRepository is the data-access boundary for tenant-defined shift
+// types (Schichtarten, #1836). CRUD comes from the generic repository; ListAll
+// returns every type for the current tenant (active and inactive), ordered by
+// name, for the management UI. The Dienstplan shift picker filters to active.
+type ShiftTypeRepository interface {
+	base.Repository[*ShiftType]
+
+	// ListAll returns all shift types for the current tenant, ordered by name.
+	ListAll(ctx context.Context) ([]*ShiftType, error)
+}
+
 // RecurrenceRuleRepository defines operations for managing recurrence rules
 type RecurrenceRuleRepository interface {
 	base.Repository[*RecurrenceRule]

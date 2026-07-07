@@ -70,6 +70,7 @@ type ShiftRequest struct {
 	StartTime    string  `json:"start_time"`
 	EndTime      string  `json:"end_time"`
 	BreakMinutes int     `json:"break_minutes"`
+	ShiftTypeID  *int64  `json:"shift_type_id"`
 	Notes        *string `json:"notes"`
 }
 
@@ -81,6 +82,7 @@ type ShiftResponse struct {
 	StartTime    string `json:"start_time"`
 	EndTime      string `json:"end_time"`
 	BreakMinutes int    `json:"break_minutes"`
+	ShiftTypeID  *int64 `json:"shift_type_id,omitempty"`
 	Notes        string `json:"notes,omitempty"`
 }
 
@@ -94,6 +96,7 @@ func ToShiftResponse(s *scheduleModels.StaffShift) ShiftResponse {
 		StartTime:    timezone.WallClock(s.StartTime).Format("15:04"),
 		EndTime:      timezone.WallClock(s.EndTime).Format("15:04"),
 		BreakMinutes: s.BreakMinutes,
+		ShiftTypeID:  s.ShiftTypeID,
 		Notes:        s.Notes,
 	}
 }
@@ -139,6 +142,7 @@ func (rs *Resource) buildShift(req ShiftRequest) (*scheduleModels.StaffShift, er
 		StartTime:    start,
 		EndTime:      end,
 		BreakMinutes: req.BreakMinutes,
+		ShiftTypeID:  req.ShiftTypeID,
 		Notes:        notes,
 	}, nil
 }

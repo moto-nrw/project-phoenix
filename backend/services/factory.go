@@ -73,6 +73,7 @@ type Factory struct {
 	Settings                 config.SettingsService
 	Schedule                 schedule.Service
 	StaffShifts              schedule.StaffShiftService
+	ShiftTypes               schedule.ShiftTypeService
 	PickupSchedule           schedule.PickupScheduleService
 	ArrivalSchedule          schedule.ArrivalScheduleService
 	CalendarPeriod           schedule.CalendarPeriodService
@@ -428,6 +429,12 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.Staff,
 		db,
 		logger.With("service", "staff_shift"),
+	)
+
+	// Initialize shift type service (Schichtarten, #1836)
+	shiftTypeService := schedule.NewShiftTypeService(
+		repos.ShiftType,
+		logger.With("service", "shift_type"),
 	)
 
 	// Initialize pickup schedule service
@@ -1291,6 +1298,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Settings:                 settingsService,
 		Schedule:                 scheduleService,
 		StaffShifts:              staffShiftService,
+		ShiftTypes:               shiftTypeService,
 		PickupSchedule:           pickupScheduleService,
 		ArrivalSchedule:          arrivalScheduleService,
 		CalendarPeriod:           calendarPeriodService,

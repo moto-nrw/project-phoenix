@@ -37,6 +37,7 @@ describe("staffShiftService errors", () => {
         startTime: "08:00",
         endTime: "16:00",
         breakMinutes: 30,
+        shiftTypeId: null,
       }),
     ).rejects.toMatchObject({
       status: 409,
@@ -86,6 +87,7 @@ describe("staffShiftService errors", () => {
         startTime: "08:00",
         endTime: "16:00",
         breakMinutes: 30,
+        shiftTypeId: null,
       }),
     ).rejects.toMatchObject({
       status: 422,
@@ -124,6 +126,7 @@ describe("staffShiftService requests", () => {
         startTime: "08:00",
         endTime: "16:00",
         breakMinutes: 30,
+        shiftTypeId: null,
         notes: "",
       },
     ]);
@@ -139,6 +142,7 @@ describe("staffShiftService requests", () => {
       startTime: "08:00",
       endTime: "16:00",
       breakMinutes: 30,
+      shiftTypeId: null,
     };
     mockSessionFetch
       .mockResolvedValueOnce(Response.json({ data: backendShift }))
@@ -156,6 +160,7 @@ describe("staffShiftService requests", () => {
         start_time: "08:00",
         end_time: "16:00",
         break_minutes: 30,
+        shift_type_id: null,
       }),
     });
     expect(mockSessionFetch).toHaveBeenNthCalledWith(
@@ -170,6 +175,7 @@ describe("staffShiftService requests", () => {
           start_time: "08:00",
           end_time: "16:00",
           break_minutes: 30,
+          shift_type_id: null,
         }),
       },
     );
