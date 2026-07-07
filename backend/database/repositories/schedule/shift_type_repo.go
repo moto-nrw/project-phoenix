@@ -143,3 +143,27 @@ func (r *ShiftTypeRepository) Update(ctx context.Context, shiftType *schedule.Sh
 	}
 	return base.AssertRowsAffected(result, 1, "update shift type")
 }
+
+// Delete removes the shift type by ID, tenant-scoped. Overrides the generic
+// base delete on purpose: the base builds alias-qualified predicates
+// (`"shift_type".id`, `"shift_type".tenant_id`), but ShiftType.BeforeAppendModel
+// forces the DELETE table expression to the unaliased schedule.shift_types, so
+// those predicates would reference a missing correlation and the delete would
+// fail at runtime. This unaliased delete matches the hook and the Create/Update
+// overrides above. Shifts referencing the type keep their row; the FK's
+// ON DELETE SET NULL (shift_type_id) clears only the reference.
+func (r *ShiftTypeRepository) Delete(ctx context.Context, id any) error {
+	query := base.GetDB(ctx, r.db).NewDelete().
+		Model((*schedule.ShiftType)(nil)).
+		ModelTableExpr(tableScheduleShiftTypes).
+		Where("id = ?", id)
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	if _, err := query.Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: "delete shift type", Err: err}
+	}
+	return nil
+}
