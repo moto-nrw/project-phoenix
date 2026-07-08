@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	excusedAbsenceRequestsVersion     = "1.15.170"
+	excusedAbsenceRequestsVersion     = "1.15.177"
 	excusedAbsenceRequestsDescription = "Create active.excused_absence_requests - optional office approval gate for parent-submitted excused absences (#1845)"
 )
 
@@ -52,7 +52,7 @@ func init() {
 // schedule.care_schedule_change_requests): a parent may legitimately have
 // several open excused requests for different day ranges at once.
 func excusedAbsenceRequestsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.170: Creating active.excused_absence_requests...")
+	fmt.Println("Migration 1.15.177: Creating active.excused_absence_requests...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -115,7 +115,7 @@ func excusedAbsenceRequestsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func excusedAbsenceRequestsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.170: Dropping active.excused_absence_requests...")
+	fmt.Println("Rolling back migration 1.15.177: Dropping active.excused_absence_requests...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
