@@ -92,8 +92,7 @@ export interface StatusDay {
 // The lifecycle of an "excused" absence request when the school requires an OGS
 // confirmation (operations.parent_excused_requires_approval). Mirrors the
 // backend excused-request status constants.
-export type ExcusedRequestStatus =
-  "pending" | "approved" | "rejected" | "withdrawn";
+type ExcusedRequestStatus = "pending" | "approved" | "rejected" | "withdrawn";
 
 // One "entschuldigt" absence request awaiting (or having received) an OGS
 // decision. Only created when the school gates excused absences behind an
