@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	personalCalendarVersion     = "1.15.171"
+	personalCalendarVersion     = "1.15.173"
 	personalCalendarDescription = "Create tenant-scoped personal calendar appointments, recipients, recurrence, and permissions"
 )
 
@@ -39,7 +39,7 @@ func init() {
 }
 
 func personalCalendarUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.171: Creating personal calendar tables...")
+	fmt.Println("Migration 1.15.173: Creating personal calendar tables...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -364,12 +364,12 @@ func personalCalendarUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error inserting calendar permissions: %w", err)
 	}
 
-	fmt.Println("Migration 1.15.171: Successfully created personal calendar tables")
+	fmt.Println("Migration 1.15.173: Successfully created personal calendar tables")
 	return tx.Commit()
 }
 
 func personalCalendarDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.171: Dropping personal calendar tables...")
+	fmt.Println("Rolling back migration 1.15.173: Dropping personal calendar tables...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
