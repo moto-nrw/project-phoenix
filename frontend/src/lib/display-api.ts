@@ -110,7 +110,9 @@ async function parseEnvelope<T>(response: Response): Promise<T> {
 export async function listDisplays(): Promise<InfoDisplay[]> {
   const response = await fetch("/api/displays", { cache: "no-store" });
   const displays = await parseEnvelope<BackendDisplay[]>(response);
-  return (displays ?? []).map(mapDisplayResponse);
+  // parseEnvelope falls back to the envelope object when `data` is absent
+  // (empty list responses) — only a real array may be mapped.
+  return (Array.isArray(displays) ? displays : []).map(mapDisplayResponse);
 }
 
 export interface DisplayWithToken {
