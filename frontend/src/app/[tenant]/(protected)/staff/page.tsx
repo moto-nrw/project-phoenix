@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
@@ -406,11 +406,6 @@ function StaffPageContent() {
   );
 }
 
-// Main component with Suspense wrapper
 export default function StaffPage() {
-  return (
-    <Suspense fallback={<StaffPageSkeleton />}>
-      <StaffPageContent />
-    </Suspense>
-  );
+  return <StaffPageContent />;
 }

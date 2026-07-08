@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { redirect } from "next/navigation";
 import { useSession } from "next-auth/react";
 
@@ -14,7 +14,6 @@ import {
 import { ShiftTypeManageModal } from "~/components/staff/shift-type-manage-modal";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
-import { Loading } from "~/components/ui/loading";
 import { isAdmin } from "~/lib/auth-utils";
 import { parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
@@ -29,6 +28,8 @@ import { staffService, type Staff } from "~/lib/staff-api";
 import { useSWRAuth } from "~/lib/swr";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { getWeekNumber } from "~/lib/time-tracking-helpers";
+
+import { DienstplanPageSkeleton } from "./page-skeleton";
 
 // Admin week view for planned staff shifts (Dienstplan, #1376 core slice).
 // One row per staff member, Mo–Fr columns, click-to-edit per cell. The
@@ -155,12 +156,12 @@ function DienstplanContent() {
   };
 
   if (sessionStatus === "loading") {
-    return <Loading fullPage={false} />;
+    return <DienstplanPageSkeleton />;
   }
 
   if (!canEdit) {
     router.replace("/staff");
-    return <Loading fullPage={false} />;
+    return <DienstplanPageSkeleton />;
   }
 
   return (
@@ -302,9 +303,5 @@ function DienstplanContent() {
 }
 
 export default function DienstplanPage() {
-  return (
-    <Suspense fallback={<Loading fullPage={false} />}>
-      <DienstplanContent />
-    </Suspense>
-  );
+  return <DienstplanContent />;
 }

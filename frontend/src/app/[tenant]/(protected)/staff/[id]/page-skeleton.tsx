@@ -1,13 +1,14 @@
 "use client";
 
 import { Skeleton } from "~/components/ui/skeleton";
+import { UebersichtTabSkeleton } from "~/components/staff/uebersicht-tab-skeleton";
 
-// ─── Loading skeleton ────────────────────────────────────────────────────────
+// ─── Route-level loading skeleton ────────────────────────────────────────────
 
 export function StaffDetailSkeleton() {
   // Mirrors StaffHeader (avatar + name block + status badge) and the
-  // TabsList line, then two DataGrid-shaped field sections for the
-  // Übersicht tab body, so the loaded page swaps in without layout shift.
+  // TabsList line, then the Übersicht tab body, so the loaded page swaps in
+  // without layout shift.
   return (
     <div
       role="status"
@@ -37,24 +38,7 @@ export function StaffDetailSkeleton() {
         ))}
       </div>
 
-      <div className="space-y-6">
-        {Array.from({ length: 2 }, (_, section) => (
-          <div
-            key={section}
-            className="rounded-3xl border border-gray-100/50 bg-white/90 p-6 shadow-sm"
-          >
-            <Skeleton className="mb-4 h-5 w-40 rounded" />
-            <dl className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
-              {Array.from({ length: 4 }, (_, field) => (
-                <div key={field} className="space-y-1.5">
-                  <Skeleton className="h-3 w-20 rounded" />
-                  <Skeleton className="h-4 w-32 rounded" />
-                </div>
-              ))}
-            </dl>
-          </div>
-        ))}
-      </div>
+      <UebersichtTabSkeleton />
     </div>
   );
 }
