@@ -24,7 +24,6 @@ import { DetailIcons } from "~/components/ui/detail-modal-components";
 import { studentService, groupService, roomService } from "~/lib/api";
 import type { Student, Group, Room } from "~/lib/api";
 import { useUserContext } from "~/lib/hooks/use-user-context";
-import { Loading } from "~/components/ui/loading";
 import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import {
   LOCATION_STATUSES,
@@ -48,6 +47,7 @@ import {
   StudentAbsenceRow,
 } from "~/components/students/student-card";
 import { StudentExportModal } from "~/components/students/student-export-modal";
+import { StudentCardGridSkeleton } from "~/components/students/student-card-skeleton";
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
 import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
 import {
@@ -78,6 +78,7 @@ import {
   trackingFilterChipLabel,
   type TrackingFilter,
 } from "./tracking-filter";
+import { StudentSearchPageSkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "StudentSearchPage" });
 const EMPTY_STRING_ARRAY: string[] = [];
@@ -1882,7 +1883,7 @@ function SearchPageContent() {
   // Fix P2: Show loading during initialization (prevents empty state flash)
   // Note: With required: true, unauthenticated users are auto-redirected to login
   if (isInitializing || isAuthError) {
-    return <Loading />;
+    return <StudentSearchPageSkeleton />;
   }
 
   return (
@@ -1977,7 +1978,7 @@ function SearchPageContent() {
         {(() => {
           // Fix P2: Show loading while first fetch is in progress (not yet hasFetchedOnce)
           if (isSearching && !hasFetchedOnce) {
-            return <Loading fullPage={false} />;
+            return <StudentCardGridSkeleton />;
           }
           if (errorMessage) {
             return (
@@ -2241,7 +2242,7 @@ function SearchPageContent() {
 // Main component with Suspense wrapper
 export default function StudentSearchPage() {
   return (
-    <Suspense fallback={<Loading fullPage={false} />}>
+    <Suspense fallback={<StudentSearchPageSkeleton />}>
       <SearchPageContent />
     </Suspense>
   );

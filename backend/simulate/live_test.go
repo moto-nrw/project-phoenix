@@ -413,6 +413,217 @@ func TestLiveToggleSick_ServerError(t *testing.T) {
 }
 
 // =============================================================================
+// liveSchulhofRotate Tests
+// =============================================================================
+
+func TestLiveSchulhofRotate_FullCycle(t *testing.T) {
+	srv := liveAPIMock(t)
+	defer srv.Close()
+
+	client := NewClient(srv.URL, false)
+	client.jwtToken = "jwt"
+
+	state := minimalLiveState(srv.URL)
+	ls := &liveState{
+		checkedIn:      map[int64]bool{1: true},
+		unterwegs:      make(map[int64]bool),
+		sick:           make(map[int64]bool),
+		rfidTags:       map[int64]string{1: "DE000001"},
+		roomIDs:        []int64{10, 20},
+		rotation:       map[int64]*rotationState{1: {phase: phaseHeimatraum, agHopTarget: 1}},
+		schulhofRoomID: 99,
+	}
+
+	// Heimatraum → AG
+	err := liveSchulhofRotate(client, ls, state, state.Devices["d1"], "12:00:00")
+	assert.NoError(t, err)
+	rot := ls.rotation[1]
+	assert.Equal(t, phaseAG, rot.phase)
+	assert.Equal(t, 1, rot.agHops)
+	assert.True(t, rot.cooldownUntil.After(time.Now()))
+
+	// AG (target reached) → Schulhof
+	rot.cooldownUntil = time.Time{}
+	err = liveSchulhofRotate(client, ls, state, state.Devices["d1"], "12:00:01")
+	assert.NoError(t, err)
+	assert.Equal(t, phaseSchulhof, rot.phase)
+
+	// Schulhof → Heimatraum, hop counters reset
+	rot.cooldownUntil = time.Time{}
+	err = liveSchulhofRotate(client, ls, state, state.Devices["d1"], "12:00:02")
+	assert.NoError(t, err)
+	assert.Equal(t, phaseHeimatraum, rot.phase)
+	assert.Equal(t, 0, rot.agHops)
+	assert.GreaterOrEqual(t, rot.agHopTarget, 1)
+	assert.LessOrEqual(t, rot.agHopTarget, 2)
+	assert.True(t, ls.checkedIn[1])
+}
+
+func TestLiveSchulhofRotate_CooldownSkips(t *testing.T) {
+	client := NewClient("http://localhost:1", false)
+	state := minimalLiveState("http://localhost:1")
+	ls := &liveState{
+		checkedIn: map[int64]bool{1: true},
+		rfidTags:  map[int64]string{1: "DE000001"},
+		roomIDs:   []int64{10},
+		rotation: map[int64]*rotationState{
+			1: {phase: phaseAG, cooldownUntil: time.Now().Add(time.Minute)},
+		},
+	}
+
+	err := liveSchulhofRotate(client, ls, state, seedapi.SeedDevice{}, "12:00:00")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "no rotation-eligible students")
+}
+
+func TestLiveSchulhofRotate_ServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	client := NewClient(srv.URL, false)
+	state := minimalLiveState(srv.URL)
+	ls := &liveState{
+		checkedIn: map[int64]bool{1: true},
+		unterwegs: make(map[int64]bool),
+		rfidTags:  map[int64]string{1: "DE000001"},
+		roomIDs:   []int64{10},
+	}
+
+	err := liveSchulhofRotate(client, ls, state, state.Devices["d1"], "12:00:00")
+	assert.Error(t, err)
+	// Failed checkout still stamps the cooldown
+	assert.True(t, ls.rotation[1].cooldownUntil.After(time.Now()))
+}
+
+// =============================================================================
+// liveAttendanceToggle Tests
+// =============================================================================
+
+func TestLiveAttendanceToggle_Success(t *testing.T) {
+	srv := liveAPIMock(t)
+	defer srv.Close()
+
+	client := NewClient(srv.URL, false)
+	client.jwtToken = "jwt"
+
+	state := minimalLiveState(srv.URL)
+	ls := &liveState{
+		rfidTags: map[int64]string{1: "DE000001"},
+		interval: 10 * time.Second,
+	}
+
+	err := liveAttendanceToggle(client, ls, state, state.Devices["d1"], "12:00:00")
+	assert.NoError(t, err)
+	assert.False(t, ls.lastAttendance[1].IsZero())
+}
+
+func TestLiveAttendanceToggle_CooldownSkips(t *testing.T) {
+	client := NewClient("http://localhost:1", false)
+	state := minimalLiveState("http://localhost:1")
+	ls := &liveState{
+		rfidTags:       map[int64]string{1: "DE000001"},
+		lastAttendance: map[int64]time.Time{1: time.Now()},
+		interval:       10 * time.Second,
+	}
+
+	err := liveAttendanceToggle(client, ls, state, seedapi.SeedDevice{}, "12:00:00")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "no attendance-eligible students")
+}
+
+func TestLiveAttendanceToggle_ServerError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	client := NewClient(srv.URL, false)
+	state := minimalLiveState(srv.URL)
+	ls := &liveState{
+		rfidTags: map[int64]string{1: "DE000001"},
+		interval: 10 * time.Second,
+	}
+
+	err := liveAttendanceToggle(client, ls, state, state.Devices["d1"], "12:00:00")
+	assert.Error(t, err)
+	// Failed toggle still stamps the cooldown so the student is not retried immediately
+	assert.False(t, ls.lastAttendance[1].IsZero())
+}
+
+// =============================================================================
+// liveSupervisorSwap Tests
+// =============================================================================
+
+func TestLiveSupervisorSwap_Success(t *testing.T) {
+	srv := liveAPIMock(t)
+	defer srv.Close()
+
+	client := NewClient(srv.URL, false)
+	client.jwtToken = "jwt"
+
+	state := minimalLiveState(srv.URL)
+	ls := &liveState{staffIDs: []int64{7}}
+
+	err := liveSupervisorSwap(client, ls, state, state.Devices["d1"], "12:00:00")
+	assert.NoError(t, err)
+	assert.EqualValues(t, 5, ls.sessionID)
+}
+
+func TestLiveSupervisorSwap_NoStaff(t *testing.T) {
+	client := NewClient("http://localhost:1", false)
+	state := minimalLiveState("http://localhost:1")
+	ls := &liveState{}
+
+	err := liveSupervisorSwap(client, ls, state, seedapi.SeedDevice{}, "12:00:00")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "no staff IDs")
+}
+
+func TestLiveSupervisorSwap_NoActiveSession(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{"is_active": false},
+		})
+	}))
+	defer srv.Close()
+
+	client := NewClient(srv.URL, false)
+	state := minimalLiveState(srv.URL)
+	ls := &liveState{staffIDs: []int64{7}}
+
+	err := liveSupervisorSwap(client, ls, state, state.Devices["d1"], "12:00:00")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "no active session")
+	assert.Equal(t, int64(0), ls.sessionID)
+}
+
+func TestLiveSupervisorSwap_PutErrorResetsSession(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == "PUT" {
+			w.WriteHeader(http.StatusConflict)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"data": map[string]any{"active_group_id": 5, "is_active": true},
+		})
+	}))
+	defer srv.Close()
+
+	client := NewClient(srv.URL, false)
+	state := minimalLiveState(srv.URL)
+	ls := &liveState{staffIDs: []int64{7}, sessionID: 5}
+
+	err := liveSupervisorSwap(client, ls, state, state.Devices["d1"], "12:00:00")
+	assert.Error(t, err)
+	// Session may have ended — the next attempt must re-discover it
+	assert.Equal(t, int64(0), ls.sessionID)
+}
+
+// =============================================================================
 // runLiveTick Tests
 // =============================================================================
 
@@ -755,6 +966,10 @@ func liveAPIMock(t *testing.T) *httptest.Server {
 		case "/api/active/visits":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"data": []map[string]any{{"student_id": 1}},
+			})
+		case "/api/iot/session/current":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": map[string]any{"active_group_id": 5, "is_active": true},
 			})
 		default:
 			w.WriteHeader(http.StatusOK)

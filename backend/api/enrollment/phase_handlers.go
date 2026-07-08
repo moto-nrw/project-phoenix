@@ -2,6 +2,7 @@ package enrollment
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -30,6 +31,7 @@ type PhaseResponse struct {
 	EnrollmentOpenAt          *string `json:"enrollment_open_at,omitempty"`
 	EnrollmentCloseAt         *string `json:"enrollment_close_at,omitempty"`
 	FormSchemaID              *string `json:"form_schema_id,omitempty"`
+	CalendarPeriodID          *string `json:"calendar_period_id,omitempty"`
 	ShowStatusReasonToParent  bool    `json:"show_status_reason_to_parent"`
 	CareOverflowMode          string  `json:"care_overflow_mode"`
 	CareOfferingSelectionMode string  `json:"care_offering_selection_mode"`
@@ -78,6 +80,10 @@ func toPhaseResponse(p *enrollmentModels.Phase) PhaseResponse {
 		s := strconv.FormatInt(*p.FormSchemaID, 10)
 		resp.FormSchemaID = &s
 	}
+	if p.CalendarPeriodID != nil {
+		s := strconv.FormatInt(*p.CalendarPeriodID, 10)
+		resp.CalendarPeriodID = &s
+	}
 	if p.RolloverSourcePhaseID != nil {
 		s := strconv.FormatInt(*p.RolloverSourcePhaseID, 10)
 		resp.RolloverSourcePhaseID = &s
@@ -114,6 +120,7 @@ type PhaseRequest struct {
 	EnrollmentOpenAt          *string `json:"enrollment_open_at,omitempty"`
 	EnrollmentCloseAt         *string `json:"enrollment_close_at,omitempty"`
 	FormSchemaID              *string `json:"form_schema_id,omitempty"`
+	CalendarPeriodID          *string `json:"calendar_period_id,omitempty"`
 	ShowStatusReasonToParent  bool    `json:"show_status_reason_to_parent"`
 	CareOverflowMode          string  `json:"care_overflow_mode"`
 	CareOfferingSelectionMode string  `json:"care_offering_selection_mode"`
@@ -127,9 +134,26 @@ type PhaseRequest struct {
 	// createPhase / updatePhase for how each side resolves nil.
 	AvailableSchoolClasses *[]string `json:"available_school_classes,omitempty"`
 	RequireSchoolClass     *bool     `json:"require_school_class,omitempty"`
+
+	calendarPeriodIDPresent bool
 }
 
 func (req *PhaseRequest) Bind(_ *http.Request) error { return nil }
+
+func (req *PhaseRequest) UnmarshalJSON(data []byte) error {
+	type phaseRequestAlias PhaseRequest
+	var alias phaseRequestAlias
+	if err := json.Unmarshal(data, &alias); err != nil {
+		return err
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*req = PhaseRequest(alias)
+	_, req.calendarPeriodIDPresent = raw["calendar_period_id"]
+	return nil
+}
 
 // toModel maps the wire shape onto a Phase model. Date parsing
 // failures bubble back as 400 from the handler — kept here so the
@@ -187,6 +211,13 @@ func (req *PhaseRequest) toModel(existingID int64) (*enrollmentModels.Phase, err
 			return nil, errors.New("form_schema_id must be a positive integer string")
 		}
 		p.FormSchemaID = &id
+	}
+	if req.CalendarPeriodID != nil && *req.CalendarPeriodID != "" {
+		id, parseErr := strconv.ParseInt(*req.CalendarPeriodID, 10, 64)
+		if parseErr != nil || id <= 0 {
+			return nil, errors.New("calendar_period_id must be a positive integer string")
+		}
+		p.CalendarPeriodID = &id
 	}
 	p.ID = existingID
 	return p, nil
@@ -287,7 +318,15 @@ func (rs *Resource) createPhase(w http.ResponseWriter, r *http.Request) {
 		return e
 	})
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		if errors.Is(err, enrollmentService.ErrPhaseDuplicateName) {
+			common.RenderError(w, r, common.ErrorConflict(err))
+			return
+		}
+		if errors.Is(err, enrollmentService.ErrInvalidPhase) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 	common.Respond(w, r, http.StatusCreated, toPhaseResponse(created), "Phase created")
@@ -343,10 +382,29 @@ func (rs *Resource) updatePhase(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+		existing, getErr := rs.PhaseService.GetByID(ctx, id)
+		if getErr != nil {
+			return getErr
+		}
+		if !req.calendarPeriodIDPresent {
+			model.CalendarPeriodID = existing.CalendarPeriodID
+		}
 		return rs.PhaseService.Update(ctx, model)
 	})
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		if errors.Is(err, enrollmentService.ErrPhaseDuplicateName) {
+			common.RenderError(w, r, common.ErrorConflict(err))
+			return
+		}
+		if errors.Is(err, enrollmentService.ErrPhaseNotFound) {
+			common.RenderError(w, r, common.ErrorNotFound(err))
+			return
+		}
+		if errors.Is(err, enrollmentService.ErrInvalidPhase) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 

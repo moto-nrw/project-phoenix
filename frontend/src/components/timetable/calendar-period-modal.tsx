@@ -25,6 +25,7 @@ import {
   PERIOD_TYPES,
   PERIOD_TYPE_LABELS,
   type PeriodType,
+  formatPeriodUsage,
 } from "~/lib/calendar-period-helpers";
 import { createLogger } from "~/lib/logger";
 import { timetableRequiredMark, timetableSelectClass } from "./timetable-style";
@@ -41,6 +42,41 @@ interface CalendarPeriodModalProps {
   initial?: CalendarPeriod | null;
   /** Optional defaults used when creating from a visible planner week. */
   createDefaults?: Partial<FormState>;
+  /**
+   * Advisory reference counts for the edited period. When provided, the
+   * delete confirmation names the concrete usage instead of a generic
+   * warning. Deleting never blocks — all FKs are ON DELETE SET NULL.
+   */
+  usage?: {
+    enrollmentPhaseCount: number;
+    scheduleCount: number;
+    studentEnrollmentCount: number;
+    supervisorCount: number;
+    activityInstanceCount: number;
+  };
+  /**
+   * Enables the "Verknüpfte Anmeldephasen" section (edit mode only) so the
+   * link can be managed from the period side too. The FK lives on the
+   * phase, so toggling writes through the phase API — onToggle persists
+   * immediately, independent of the period form's save button. Kept as a
+   * prop so the timetable page (which shares this modal) stays unchanged.
+   */
+  phaseLink?: {
+    phases: LinkablePhase[];
+    onToggle: (phase: LinkablePhase, link: boolean) => Promise<void>;
+  };
+}
+
+/**
+ * Structural subset of an enrollment phase — deliberately not imported
+ * from the enrollment lib to keep this shared timetable component
+ * decoupled from that domain.
+ */
+export interface LinkablePhase {
+  id: string;
+  name: string;
+  calendar_period_id?: string | null;
+  is_active: boolean;
 }
 
 interface FormState {
@@ -84,16 +120,40 @@ export function CalendarPeriodModal({
   onDeleted,
   initial,
   createDefaults,
+  usage,
+  phaseLink,
 }: CalendarPeriodModalProps) {
   const { success: toastSuccess, error: toastError } = useToast();
   const [form, setForm] = useState<FormState>(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [togglingPhaseId, setTogglingPhaseId] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [saveWarnings, setSaveWarnings] = useState<CalendarPeriodWarning[]>([]);
 
   const isEdit = Boolean(initial);
+
+  // Most period links are nullable and get unlinked on delete. Roster rows can
+  // still make the delete fail when unlinking would create duplicate active
+  // unscoped assignments, so the warning must not promise success.
+  const usageText = usage
+    ? formatPeriodUsage(
+        usage.enrollmentPhaseCount,
+        usage.scheduleCount,
+        " und ",
+        {
+          studentEnrollmentCount: usage.studentEnrollmentCount,
+          supervisorCount: usage.supervisorCount,
+          activityInstanceCount: usage.activityInstanceCount,
+        },
+      )
+    : "";
+  const deleteWarning = usageText
+    ? `Dieser Zeitraum wird von ${usageText} verwendet. Beim Löschen werden diese Verknüpfungen entfernt, die Anmeldephasen und Termine selbst bleiben erhalten.`
+    : "Beim Löschen werden bestehende Verknüpfungen zu Anmeldephasen und Regelterminen entfernt.";
+  const deleteConflictHint =
+    "Falls dadurch doppelte aktive Kinder- oder Personalzuordnungen ohne Zeitraum entstehen würden, verweigert der Server das Löschen.";
 
   useEffect(() => {
     if (!isOpen) return;
@@ -162,8 +222,8 @@ export function CalendarPeriodModal({
 
       toastSuccess(
         isEdit
-          ? `Planungszeitraum "${period.name}" aktualisiert`
-          : `Planungszeitraum "${period.name}" angelegt`,
+          ? `Kalenderzeitraum "${period.name}" aktualisiert`
+          : `Kalenderzeitraum "${period.name}" angelegt`,
       );
       onSaved(period);
       if (warnings.length === 0) {
@@ -181,11 +241,23 @@ export function CalendarPeriodModal({
       const msg =
         err instanceof Error
           ? err.message
-          : "Planungszeitraum konnte nicht gespeichert werden";
+          : "Kalenderzeitraum konnte nicht gespeichert werden";
       setValidationError(msg);
       toastError(msg);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handlePhaseToggle = async (phase: LinkablePhase, link: boolean) => {
+    if (!phaseLink) return;
+    setTogglingPhaseId(phase.id);
+    try {
+      // Error handling (toast + reload) lives in the caller — the modal
+      // only tracks the busy state so checkboxes can't race each other.
+      await phaseLink.onToggle(phase, link);
+    } finally {
+      setTogglingPhaseId(null);
     }
   };
 
@@ -198,7 +270,7 @@ export function CalendarPeriodModal({
     setDeleting(true);
     try {
       await calendarPeriodService.delete(initial.id);
-      toastSuccess(`Planungszeitraum "${initial.name}" gelöscht`);
+      toastSuccess(`Kalenderzeitraum "${initial.name}" gelöscht`);
       onDeleted?.(initial);
       onClose();
     } catch (err) {
@@ -209,7 +281,7 @@ export function CalendarPeriodModal({
       const msg =
         err instanceof Error
           ? err.message
-          : "Planungszeitraum konnte nicht gelöscht werden";
+          : "Kalenderzeitraum konnte nicht gelöscht werden";
       setValidationError(msg);
       toastError(msg);
     } finally {
@@ -223,7 +295,7 @@ export function CalendarPeriodModal({
       onClose={onClose}
       size="md"
       title={
-        isEdit ? "Planungszeitraum bearbeiten" : "Planungszeitraum anlegen"
+        isEdit ? "Kalenderzeitraum bearbeiten" : "Kalenderzeitraum anlegen"
       }
       footer={
         <div className="flex w-full items-center justify-between gap-2">
@@ -243,8 +315,7 @@ export function CalendarPeriodModal({
                 </Button>
                 {deleteConfirm && !deleting && (
                   <p className="text-xs text-[#CC2626]">
-                    Löschen klappt nur, wenn dieser Zeitraum nicht mehr von
-                    Regelterminen oder einzelnen Terminen verwendet wird.
+                    {deleteWarning} {deleteConflictHint}
                   </p>
                 )}
               </div>
@@ -401,6 +472,47 @@ export function CalendarPeriodModal({
             Nur aktive Zeiträume legen Termine aus Regelterminen an
           </span>
         </label>
+
+        {isEdit && initial && phaseLink && phaseLink.phases.length > 0 && (
+          <fieldset className="rounded-xl border border-gray-200 p-3">
+            <legend className="px-1 text-xs font-semibold text-gray-700">
+              Verknüpfte Anmeldephasen
+            </legend>
+            <div className="flex flex-col">
+              {phaseLink.phases.map((phase) => {
+                const linked = phase.calendar_period_id === initial.id;
+                const linkedElsewhere = !linked && !!phase.calendar_period_id;
+                return (
+                  <label
+                    key={phase.id}
+                    className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-gray-50"
+                  >
+                    <Checkbox
+                      checked={linked}
+                      disabled={togglingPhaseId !== null}
+                      onChange={(e) =>
+                        void handlePhaseToggle(phase, e.target.checked)
+                      }
+                    />
+                    <span className="min-w-0 flex-1 truncate text-gray-800">
+                      {phase.name}
+                    </span>
+                    {linkedElsewhere && (
+                      <span className="shrink-0 text-xs text-[#F78C10]">
+                        Mit anderem Zeitraum verknüpft
+                      </span>
+                    )}
+                    {!phase.is_active && (
+                      <span className="shrink-0 text-xs text-gray-400">
+                        Inaktiv
+                      </span>
+                    )}
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+        )}
 
         {saveWarnings.map((warning, index) => (
           <Alert

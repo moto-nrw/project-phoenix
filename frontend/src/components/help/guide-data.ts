@@ -652,13 +652,32 @@ export const appChapters: readonly GuideChapter[] = [
     tone: "orange",
     steps: [
       {
+        id: "kalenderzeitraeume",
+        title: "Kalenderzeiträume",
+        icon: CalendarDays,
+        summary:
+          "Legt Halbjahre, Ferien und Sonderzeiträume als gemeinsame Basis für Anmeldung und Betreuungsplan an (nur für Admins).",
+        steps: [
+          "`Planung` -> `Kalenderzeiträume` öffnen.",
+          "`Halbjahr anlegen` klicken: Name, Art und Start-/Enddatum des nächsten Halbjahres sind bereits vorausgefüllt und lassen sich anpassen.",
+          "Für Ferien oder Sonderzeiträume `Zeitraum anlegen` nutzen und die Art entsprechend wählen.",
+          "Nur aktive Zeiträume legen Termine aus Regelterminen des Betreuungsplans an.",
+          "Beim Anlegen einer `Anmeldephase` kann der Zeitraum ausgewählt werden; Beginn und Ende der Phase werden daraus übernommen.",
+          "Die Verknüpfung geht auch andersherum: Beim Bearbeiten eines Zeitraums lassen sich unter `Verknüpfte Anmeldephasen` Phasen direkt an- und abwählen.",
+          "Die Spalte `Verwendung` zeigt, welche Anmeldephasen und Regeltermine auf einen Zeitraum verweisen.",
+        ],
+        screenshot:
+          "Kalenderzeiträume-Liste mit angelegtem Halbjahr und Schnellaktion Halbjahr anlegen.",
+        image: "/help/screens/kalenderzeitraeume.webp",
+      },
+      {
         id: "stundenplan",
         title: "Betreuungsplan",
         icon: CalendarDays,
         summary:
           "Plant Termine, Regeltermine, Räume, Personal und erwartete Kinder im Voraus (nur für Admins).",
         steps: [
-          "`Betreuungsplan` öffnen.",
+          "`Planung` -> `Betreuungsplan` öffnen.",
           "In der Wochenansicht eine freie Zelle am gewünschten Tag und zur gewünschten Uhrzeit anklicken (beim Überfahren erscheint `+ Termin`).",
           "`Titel` eintragen und `Raum` wählen. `Datum`, `Start` und `Ende` sind aus der Zelle übernommen und lassen sich anpassen.",
           "Unter `Wiederholt sich` festlegen, wie oft das Angebot stattfindet: `Einmalig`, wöchentlich am gewählten Wochentag, `Jeden Wochentag (Mo–Fr)` oder `Benutzerdefiniert …` für eigene Rhythmen.",
@@ -681,13 +700,14 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Dienstplan",
         icon: CalendarRange,
         summary:
-          "Plant konkrete Schichten (Beginn, Ende, Pause) pro Mitarbeiter und Tag (nur für Admins).",
+          "Plant konkrete Schichten (Beginn, Ende, Pause) pro Mitarbeiter und Tag, mit farbigen Schichtarten (nur für Admins).",
         steps: [
-          "`Dienstplan` in der Seitenleiste oder im mobilen `Mehr`-Menü öffnen.",
+          "`Planung` -> `Dienstplan` in der Seitenleiste oder im mobilen `Mehr`-Menü öffnen.",
           "Mit den Pfeilen zwischen den Wochen wechseln, `Diese Woche` springt zurück zur aktuellen Woche.",
-          "In der Zeile eines Mitarbeiters auf eine leere Zelle klicken, um eine Schicht anzulegen: `Beginn`, `Ende` und `Pause (Minuten)` eintragen und speichern.",
+          "Über `Schichtarten verwalten` (oben rechts) eigene Schichtarten pflegen: Name, Farbe, optionale Beschreibung und Aktiv-Status. `Beispiele hinzufügen` legt typische Schichtarten wie Betreuung, Vorbereitung, Vertretungsunterricht und Pause an, die anschließend frei anpassbar oder löschbar sind.",
+          "In der Zeile eines Mitarbeiters auf eine leere Zelle klicken, um eine Schicht anzulegen: `Beginn`, `Ende` und `Pause (Minuten)` eintragen, optional eine `Schichtart` auswählen und speichern.",
           "Eine vorhandene Schicht anklicken, um sie zu bearbeiten oder über `Schicht löschen` zu entfernen.",
-          "Mehrere Schichten pro Tag sind möglich (z. B. Frühdienst und Nachmittagsbetreuung), solange sie sich nicht überschneiden.",
+          "Mehrere Schichten pro Tag sind möglich (z. B. Vertretungsunterricht, Pause und Ganztagsbetreuung), solange sie sich nicht überschneiden; die Farbe der Schichtart macht die Aufgaben im Wochenplan sofort unterscheidbar.",
           "Mitarbeitende sehen ihre eigene geplante Schicht in der Zeiterfassung als Zeile `Geplant: 08:00–16:00` in der Stempeluhr.",
         ],
         callout: {
@@ -711,7 +731,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Mit `Einstempeln` beginnen und am Ende `Ausstempeln`.",
           "Wenn die Einrichtung Einstempeln erst ab geplanter Startzeit aktiviert hat, wird ein zu früher Versuch mit Hinweis auf die Startzeit abgewiesen.",
           "Ist im Dienstplan eine Schicht geplant, zeigt die Stempeluhr sie als `Geplant: 08:00–16:00`. Vergessene Ausstempelungen kann die Einrichtung automatisch zum geplanten Dienstende beenden lassen (Einstellung `Automatische Ausstempelung`); solche Einträge sind mit `Auto-Checkout` markiert und lassen sich korrigieren.",
-          "Pausen mit einer geplanten Dauer starten. Die Pause endet automatisch nach Ablauf oder manuell über `Pause beenden`.",
+          "Pausen starten und bei Bedarf eine individuelle Dauer wählen. Nach Ablauf der gewählten Dauer läuft die Arbeitszeit automatisch weiter; über `Pause beenden` kann die Pause früher beendet werden.",
           "Bei langen Arbeitstagen die Pausenhinweise beachten.",
           "Für Krankheit, Fortbildung oder sonstige Abwesenheit `Abwesend` wählen und die Abwesenheit mit Art, Zeitraum und optionaler Notiz speichern.",
         ],
@@ -721,7 +741,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "orange",
         },
         screenshot:
-          "Zeiterfassung mit Einstempeln, Pause, Ausstempeln und Abwesenheit melden.",
+          "Zeiterfassung mit Einstempeln, individueller Pausenlänge, Ausstempeln und Abwesenheit melden.",
         image: "/help/screens/zeiterfassung.webp",
       },
       {

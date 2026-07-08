@@ -39,6 +39,7 @@ func (rs *Resource) ensureWCRoom(ctx context.Context) (*facilities.Room, error) 
 		Capacity: &capacity,
 		Category: &category,
 		Color:    &color,
+		IsSystem: true,
 	}
 
 	if err := rs.FacilityService.CreateRoom(ctx, newRoom); err != nil {
@@ -79,6 +80,7 @@ func (rs *Resource) ensureWCCategory(ctx context.Context) (*activities.Category,
 		Name:        constants.WCCategoryName,
 		Description: constants.WCCategoryDescription,
 		Color:       constants.WCColor,
+		IsSystem:    true,
 	}
 
 	createdCategory, err := rs.ActivitiesService.CreateCategory(ctx, newCategory)
@@ -147,6 +149,7 @@ func (rs *Resource) wcActivityGroup(ctx context.Context) (*activities.Group, err
 		IsOpen:          true, // Open activity - anyone can join
 		CategoryID:      category.ID,
 		PlannedRoomID:   &room.ID,
+		IsSystem:        true,
 	}
 
 	// CreateGroup requires supervisorIDs and schedules - pass empty slices for auto-created activity

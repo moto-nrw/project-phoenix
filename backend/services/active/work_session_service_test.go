@@ -1329,6 +1329,60 @@ func TestWSStartBreak_LocksCurrentSessionBeforeCreate(t *testing.T) {
 	assert.Equal(t, int64(50), brk.SessionID)
 }
 
+func TestWSStartBreak_CustomDurationSetsPlannedEnd(t *testing.T) {
+	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
+	staffID := int64(100)
+	durationMinutes := 90
+
+	sessionRepo.getCurrentForUpdateFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
+		return &activeModels.WorkSession{
+			Model:       base.Model{ID: 50},
+			StaffID:     staffID,
+			CheckInTime: time.Now().Add(-2 * time.Hour),
+		}, nil
+	}
+
+	breakRepo.getActiveBySessionIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSessionBreak, error) {
+		return nil, nil
+	}
+
+	breakRepo.createFunc = func(_ context.Context, entity *activeModels.WorkSessionBreak) error {
+		require.NotNil(t, entity.PlannedEndTime)
+		plannedDuration := entity.PlannedEndTime.Sub(entity.StartedAt)
+		assert.InDelta(t, durationMinutes, plannedDuration.Minutes(), 0.1)
+		entity.ID = 10
+		return nil
+	}
+
+	brk, err := svc.StartBreak(context.Background(), staffID, &durationMinutes)
+	require.NoError(t, err)
+	require.NotNil(t, brk)
+	assert.Equal(t, int64(50), brk.SessionID)
+	assert.NotNil(t, brk.PlannedEndTime)
+}
+
+func TestWSStartBreak_RejectsCustomDurationAboveLimit(t *testing.T) {
+	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
+	durationMinutes := 241
+
+	sessionRepo.getCurrentForUpdateFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
+		return &activeModels.WorkSession{
+			Model:       base.Model{ID: 50},
+			StaffID:     100,
+			CheckInTime: time.Now().Add(-2 * time.Hour),
+		}, nil
+	}
+
+	breakRepo.getActiveBySessionIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSessionBreak, error) {
+		return nil, nil
+	}
+
+	brk, err := svc.StartBreak(context.Background(), 100, &durationMinutes)
+	require.Error(t, err)
+	assert.Nil(t, brk)
+	assert.Contains(t, err.Error(), "planned_duration_minutes must be between 1 and 240")
+}
+
 func TestWSStartBreak_NoActiveSession(t *testing.T) {
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 
@@ -1365,6 +1419,53 @@ func TestWSStartBreak_AlreadyOnBreak(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, brk)
 	assert.Contains(t, err.Error(), "break already active")
+}
+
+func TestWSAutoEndExpiredBreaks_UsesPlannedEndAndRecalculatesBreakMinutes(t *testing.T) {
+	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
+	startedAt := time.Now().Add(-2 * time.Hour)
+	plannedEnd := startedAt.Add(90 * time.Minute)
+	sessionID := int64(50)
+	breakID := int64(10)
+	endedBreak := &activeModels.WorkSessionBreak{
+		Model:           base.Model{ID: breakID},
+		SessionID:       sessionID,
+		StartedAt:       startedAt,
+		EndedAt:         &plannedEnd,
+		DurationMinutes: 90,
+	}
+
+	breakRepo.getExpiredBreaksFunc = func(_ context.Context, before time.Time) ([]*activeModels.WorkSessionBreak, error) {
+		assert.True(t, before.After(plannedEnd) || before.Equal(plannedEnd))
+		return []*activeModels.WorkSessionBreak{
+			{
+				Model:          base.Model{ID: breakID},
+				SessionID:      sessionID,
+				StartedAt:      startedAt,
+				PlannedEndTime: &plannedEnd,
+			},
+		}, nil
+	}
+	breakRepo.endBreakFunc = func(_ context.Context, id int64, endedAt time.Time, durationMinutes int) error {
+		assert.Equal(t, breakID, id)
+		assert.True(t, plannedEnd.Equal(endedAt))
+		assert.Equal(t, 90, durationMinutes)
+		return nil
+	}
+	breakRepo.getBySessionIDFunc = func(_ context.Context, id int64) ([]*activeModels.WorkSessionBreak, error) {
+		assert.Equal(t, sessionID, id)
+		return []*activeModels.WorkSessionBreak{endedBreak}, nil
+	}
+	sessionRepo.updateBreakMinutesFunc = func(_ context.Context, id int64, breakMinutes int) error {
+		assert.Equal(t, sessionID, id)
+		assert.Equal(t, 90, breakMinutes)
+		return nil
+	}
+
+	count, err := svc.AutoEndExpiredBreaks(context.Background())
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
 }
 
 // ============================================================================

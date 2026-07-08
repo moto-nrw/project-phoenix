@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/analytics"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/policies"
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -73,6 +74,7 @@ type Factory struct {
 	Settings                 config.SettingsService
 	Schedule                 schedule.Service
 	StaffShifts              schedule.StaffShiftService
+	ShiftTypes               schedule.ShiftTypeService
 	PickupSchedule           schedule.PickupScheduleService
 	ArrivalSchedule          schedule.ArrivalScheduleService
 	CalendarPeriod           schedule.CalendarPeriodService
@@ -95,7 +97,8 @@ type Factory struct {
 	ListExport               listexport.Service
 	Emergency                emergency.Service
 	Reminders                reminders.Service
-	RealtimeHub              *realtime.Hub // SSE event hub (shared by services and API)
+	RealtimeHub              *realtime.Hub     // SSE event hub (shared by services and API)
+	Tracker                  analytics.Tracker // Product analytics (PostHog; no-op without POSTHOG_API_KEY)
 	Mailer                   email.Mailer
 	DefaultFrom              email.Email
 	FrontendURL              string
@@ -228,6 +231,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// Create realtime hub for SSE broadcasting (single shared instance)
 	realtimeHub := realtime.NewHub(logger.With("component", "sse-hub"))
 
+	// Product analytics (PostHog) — no-op when POSTHOG_API_KEY is unset
+	tracker, err := analytics.New(
+		viper.GetString("posthog_api_key"),
+		viper.GetString("posthog_host"),
+		logger.With("component", "analytics"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	// Initialize education service first (needed for active service)
 	educationService := education.NewService(
 		repos.Group,
@@ -337,6 +350,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		UsersService:             usersService,
 		DB:                       db,
 		Broadcaster:              realtimeHub,           // Pass SSE broadcaster
+		Tracker:                  tracker,               // Product analytics (PostHog)
 		WorkSessionService:       workSessionService,    // NFC auto-check-in
 		AttendanceSyncer:         attendanceSyncService, // WP-B10 mirror + SSE enrichment
 		TimetableBridgeCompleter: repos.ActivityInstance,
@@ -422,10 +436,17 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.RecurrenceRule,
 	)
 
+	// Initialize shift type service (Schichtarten, #1836)
+	shiftTypeService := schedule.NewShiftTypeService(
+		repos.ShiftType,
+		logger.With("service", "shift_type"),
+	)
+
 	// Initialize staff shift service (Dienstplan, #1376 core slice)
 	staffShiftService := schedule.NewStaffShiftService(
 		repos.StaffShift,
 		repos.Staff,
+		shiftTypeService,
 		db,
 		logger.With("service", "staff_shift"),
 	)
@@ -1055,6 +1076,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		RequestRepo:      repos.Request,
 		RequestChildRepo: repos.RequestChild,
 		CareOfferingRepo: repos.CareOffering,
+		FormSchemaRepo:   repos.FormSchema,
+		CalendarPeriods:  calendarPeriodService,
 		DB:               db,
 		Logger:           logger.With("service", "enrollment-phase"),
 	})
@@ -1291,6 +1314,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Settings:                 settingsService,
 		Schedule:                 scheduleService,
 		StaffShifts:              staffShiftService,
+		ShiftTypes:               shiftTypeService,
 		PickupSchedule:           pickupScheduleService,
 		ArrivalSchedule:          arrivalScheduleService,
 		CalendarPeriod:           calendarPeriodService,
@@ -1314,6 +1338,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Emergency:                emergencyService,
 		Reminders:                remindersService,
 		RealtimeHub:              realtimeHub, // Expose SSE hub for API layer
+		Tracker:                  tracker,     // Product analytics (PostHog)
 		Invitation:               invitationService,
 		GuardianInvitation:       guardianInvitationService,
 		Mailer:                   mailer,

@@ -198,7 +198,9 @@ describe("RoomsPage", () => {
 
     render(<RoomsPage />);
 
-    expect(screen.getByLabelText("Lädt...")).toBeInTheDocument();
+    // Session loading now shows the same grid skeleton as the data-loading
+    // branch instead of the generic spinner.
+    expect(screen.getByTestId("rooms-grid-skeleton")).toBeInTheDocument();
   });
 
   it("filters rooms by search, building, and occupancy", async () => {

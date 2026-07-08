@@ -58,12 +58,6 @@ vi.mock("~/lib/usercontext-context", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/loading", () => ({
-  Loading: ({ fullPage }: { fullPage?: boolean }) => (
-    <div data-testid="loading" data-fullpage={fullPage} aria-label="Lädt..." />
-  ),
-}));
-
 const mockDashboardData = {
   studentsPresent: 150,
   studentsInRooms: 120,
@@ -193,7 +187,9 @@ describe("DashboardPage", () => {
 
     render(<DashboardPage />);
 
-    expect(screen.getByTestId("loading")).toBeInTheDocument();
+    // RoleGuard intercepts session-loading and renders the page's skeleton
+    // via its fallback prop.
+    expect(screen.getByTestId("dashboard-skeleton")).toBeInTheDocument();
   });
 
   it("displays dashboard data after loading", async () => {

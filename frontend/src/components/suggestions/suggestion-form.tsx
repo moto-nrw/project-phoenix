@@ -6,6 +6,7 @@ import { useToast } from "~/contexts/ToastContext";
 import { createSuggestion, updateSuggestion } from "~/lib/suggestions-api";
 import type { Suggestion } from "~/lib/suggestions-helpers";
 import { createLogger } from "~/lib/logger";
+import { trackEvent } from "~/lib/analytics";
 
 const logger = createLogger({ component: "SuggestionForm" });
 
@@ -78,6 +79,7 @@ export function SuggestionForm({
           title: trimmedTitle,
           description: trimmedDescription,
         });
+        trackEvent("suggestion_created");
         toastSuccess("Beitrag wurde eingereicht.");
       }
       onSuccess();

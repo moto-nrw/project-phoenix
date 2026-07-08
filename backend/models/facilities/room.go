@@ -20,6 +20,7 @@ type Room struct {
 	Capacity *int    `bun:"capacity" json:"capacity,omitempty"`
 	Category *string `bun:"category" json:"category,omitempty"`
 	Color    *string `bun:"color" json:"color,omitempty"`
+	IsSystem bool    `bun:"is_system,notnull,default:false" json:"is_system"`
 }
 
 // TableName returns the database table name

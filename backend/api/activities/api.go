@@ -824,6 +824,13 @@ func (rs *Resource) listActivities(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Hide auto-provisioned system activities (Schulhof Freispiel, WC)
+	// unless the caller explicitly opts in — they are IoT infrastructure,
+	// not joinable activities (issue #923).
+	if r.URL.Query().Get("include_system") != "true" {
+		filter.Equal("is_system", false)
+	}
+
 	// Set the filter to query options
 	queryOptions.Filter = filter
 
@@ -1178,9 +1185,18 @@ func (rs *Resource) listCategories(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Hide auto-provisioned system categories (Schulhof, WC) unless the
+	// caller explicitly opts in. Filtered here rather than in
+	// ListCategories because the IoT provisioning flows share that service
+	// method and must keep seeing system categories (issue #923).
+	includeSystem := r.URL.Query().Get("include_system") == "true"
+
 	// Build response
 	responses := make([]CategoryResponse, 0, len(categories))
 	for _, category := range categories {
+		if category.IsSystem && !includeSystem {
+			continue
+		}
 		responses = append(responses, newCategoryResponse(category))
 	}
 
