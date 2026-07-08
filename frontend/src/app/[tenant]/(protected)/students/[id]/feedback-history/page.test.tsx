@@ -147,7 +147,7 @@ describe("StudentFeedbackHistoryPage", () => {
   it("renders loading state initially", () => {
     render(<StudentFeedbackHistoryPage />);
 
-    expect(screen.getByTestId("loading")).toBeInTheDocument();
+    expect(screen.getByTestId("feedback-history-skeleton")).toBeInTheDocument();
   });
 
   it("renders student name as page heading", async () => {

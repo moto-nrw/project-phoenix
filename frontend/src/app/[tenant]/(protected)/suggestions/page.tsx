@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, Suspense } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
@@ -327,15 +327,5 @@ function EmptyState({
 }
 
 export default function SuggestionsPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="-mt-1.5 w-full">
-          <SuggestionSkeletons />
-        </div>
-      }
-    >
-      <SuggestionsPageContent />
-    </Suspense>
-  );
+  return <SuggestionsPageContent />;
 }

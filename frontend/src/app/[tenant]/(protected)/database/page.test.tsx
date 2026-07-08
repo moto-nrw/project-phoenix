@@ -35,12 +35,6 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/loading", () => ({
-  Loading: ({ fullPage }: { fullPage?: boolean }) => (
-    <div data-testid="loading" data-fullpage={fullPage} aria-label="Lädt..." />
-  ),
-}));
-
 vi.mock("~/components/ui/hooks/useIsMobile", () => ({
   useIsMobile: vi.fn(() => false),
 }));
@@ -102,18 +96,6 @@ describe("DatabasePage", () => {
     await waitFor(() => {
       expect(screen.getByText("Kinder")).toBeInTheDocument();
     });
-  });
-
-  it("displays loading state initially", () => {
-    vi.mocked(useSession).mockReturnValue({
-      data: null,
-      status: "loading",
-      update: vi.fn(),
-    });
-
-    render(<DatabasePage />);
-
-    expect(screen.getByTestId("loading")).toBeInTheDocument();
   });
 
   it("displays data sections with counts after loading", async () => {

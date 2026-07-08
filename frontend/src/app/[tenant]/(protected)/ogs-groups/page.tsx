@@ -232,7 +232,7 @@ function GroupAbsenceOverview({
 function OGSGroupPageContent() {
   const router = useTenantRouter();
   const searchParams = useSearchParams();
-  const { data: session, status } = useSession({
+  const { data: session } = useSession({
     required: true,
     onUnauthenticated() {
       router.push("/");
@@ -1168,7 +1168,7 @@ function OGSGroupPageContent() {
     return filters;
   }, [sortMode, searchTerm, attendanceFilter]);
 
-  if (status === "loading" || isLoading || hasAccess === null) {
+  if (isLoading || hasAccess === null) {
     return <OgsGroupsPageSkeleton />;
   }
 

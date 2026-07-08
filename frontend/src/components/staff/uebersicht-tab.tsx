@@ -28,7 +28,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "~/components/ui/chart";
-import { Loading } from "~/components/ui/loading";
+import { UebersichtTabSkeleton } from "~/components/staff/uebersicht-tab-skeleton";
 import {
   staffAbsenceService,
   staffHistoryService,
@@ -244,7 +244,7 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
     (accountSessions?.length ?? 0) + (accountAbsences?.length ?? 0) > 0;
 
   if (scheduleLoading || sessionsLoading || absencesLoading) {
-    return <Loading fullPage={false} />;
+    return <UebersichtTabSkeleton />;
   }
 
   const yearStartLabel = metrics.accountStart.toLocaleDateString("de-DE", {
@@ -339,8 +339,7 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
                       indicator="line"
                       labelFormatter={(_l, payload) => {
                         const p = payload?.[0]?.payload as
-                          | { fullLabel?: string }
-                          | undefined;
+                          { fullLabel?: string } | undefined;
                         return p?.fullLabel ?? "";
                       }}
                       formatter={(value) => formatSignedDuration(Number(value))}

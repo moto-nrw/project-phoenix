@@ -17,6 +17,7 @@ import type { ActiveFilter } from "~/components/ui/page-header/types";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { CaregiverCapabilityModal } from "@/components/teachers/caregiver-capability-modal";
+import { RoleManagementModal } from "@/components/teachers/role-management-modal";
 import { StaffMasterDetail } from "@/components/teachers/staff-master-detail";
 import { TeacherEditModal } from "@/components/teachers/teacher-edit-modal";
 import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-modal";
@@ -83,6 +84,7 @@ export default function TeachersPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [caregiverModalOpen, setCaregiverModalOpen] = useState(false);
   const [mfaModalOpen, setMfaModalOpen] = useState(false);
+  const [roleModalOpen, setRoleModalOpen] = useState(false);
   const [savingTeacher, setSavingTeacher] = useState(false);
 
   const {
@@ -215,6 +217,7 @@ export default function TeachersPage() {
     [],
   );
   const handleManageMFAClick = useCallback(() => setMfaModalOpen(true), []);
+  const handleManageRoleClick = useCallback(() => setRoleModalOpen(true), []);
 
   const handleEditTeacher = useCallback(
     async (data: Partial<Teacher> & { password?: string }) => {
@@ -373,6 +376,9 @@ export default function TeachersPage() {
             onManageMFA={
               selectedTeacher?.account_id ? handleManageMFAClick : undefined
             }
+            onManageRole={
+              selectedTeacher?.account_id ? handleManageRoleClick : undefined
+            }
           />
         </div>
       ) : !loading ? (
@@ -471,6 +477,18 @@ export default function TeachersPage() {
           bearerToken={accessToken}
           accountId={selectedTeacher.account_id.toString()}
           accountLabel={`${selectedTeacher.first_name} ${selectedTeacher.last_name}`}
+        />
+      )}
+
+      {selectedTeacher?.account_id && (
+        <RoleManagementModal
+          isOpen={roleModalOpen}
+          onClose={() => setRoleModalOpen(false)}
+          accountId={selectedTeacher.account_id.toString()}
+          accountLabel={`${selectedTeacher.first_name} ${selectedTeacher.last_name}`}
+          onUpdated={async () => {
+            await tenantMutate("database-teachers-list");
+          }}
         />
       )}
     </DatabasePageLayout>

@@ -298,10 +298,6 @@ function DashboardContent() {
     }
   }, [status, session, router]);
 
-  if (status === "loading") {
-    return <DashboardSkeleton />;
-  }
-
   const firstName = session?.user?.name?.split(" ")[0] ?? "User";
   const greeting = getTimeBasedGreeting();
 
