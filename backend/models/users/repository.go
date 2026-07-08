@@ -229,8 +229,9 @@ type StaffRepository interface {
 	// FindReachableCalendarStaffIDs returns the subset of the given staff IDs
 	// (or all staff when ids is empty) that can use the calendar for the current
 	// tenant: an active linked account with an active account_tenants mapping for
-	// this tenant and the calendar:own permission (mirrors the tenant login +
-	// calendar route gates), so unreachable staff aren't invited as recipients.
+	// this tenant and an effective calendar:own permission — resolved like auth
+	// (role + direct account_permissions grants, wildcard-aware) so unreachable
+	// staff aren't invited as recipients.
 	FindReachableCalendarStaffIDs(ctx context.Context, ids []int64) (map[int64]bool, error)
 
 	// UpdateNotes updates staff notes

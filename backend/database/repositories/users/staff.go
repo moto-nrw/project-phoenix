@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
@@ -236,44 +237,82 @@ func (r *StaffRepository) ListAllWithPerson(ctx context.Context) ([]*users.Staff
 // calendar. Reachability mirrors the tenant login + calendar route gates: the
 // staff's linked account must be active, have an ACTIVE auth.account_tenants
 // mapping for THIS tenant (an account active only in another tenant is not
-// reachable here), and hold the calendar:own permission that gates
-// GET /api/calendar/my. Staff who fail any of these can never open the calendar
-// or answer an invitation, so inviting them would leave RSVP appointments
-// permanently pending and skew attendee counts.
+// reachable here), and hold an effective calendar:own permission for
+// GET /api/calendar/my.
 //
-// auth.permissions / auth.role_permissions are global (no RLS) and readable by
-// phoenix_tenant via the schema-wide grant; account_tenants / account_roles are
-// tenant-scoped, keyed here to staff.tenant_id (the current tenant).
+// Effective permissions are resolved exactly like auth does
+// (PermissionRepository.FindByAccountIDForTenant): role-granted UNION
+// directly-granted (auth.account_permissions), tenant-scoped. The final
+// calendar:own decision is made in Go with authorize.HasPermission so it honors
+// the same wildcard grants the route allows (calendar:*, admin:*, *:*, and
+// direct grants) instead of only exact role-based rows.
 func (r *StaffRepository) FindReachableCalendarStaffIDs(ctx context.Context, ids []int64) (map[int64]bool, error) {
-	var staffIDs []int64
-	query := base.GetDB(ctx, r.db).NewSelect().
-		ModelTableExpr(`users.staff AS "staff"`).
-		ColumnExpr(`DISTINCT "staff".id`).
-		Join(`INNER JOIN users.persons AS "person" ON "person".id = "staff".person_id AND "person".deleted_at IS NULL`).
-		Join(`INNER JOIN auth.accounts AS "account" ON "account".id = "person".account_id`).
-		Join(`INNER JOIN auth.account_tenants AS "account_tenant" ON "account_tenant".account_id = "account".id AND "account_tenant".tenant_id = "staff".tenant_id`).
-		Join(`INNER JOIN auth.account_roles AS "account_role" ON "account_role".account_id = "account".id AND "account_role".tenant_id = "staff".tenant_id`).
-		Join(`INNER JOIN auth.role_permissions AS "role_permission" ON "role_permission".role_id = "account_role".role_id`).
-		Join(`INNER JOIN auth.permissions AS "permission" ON "permission".id = "role_permission".permission_id`).
+	tenantWhere, tenantID, hasTenant := base.TenantWhere(ctx, "staff")
+
+	db := base.GetDB(ctx, r.db)
+
+	// Effective permission ids per account = role-granted UNION directly-granted,
+	// scoped to the current tenant — the same union auth uses. The explicit
+	// tenant filter also scopes it under the superuser (test) connection where
+	// RLS is bypassed.
+	effective := db.NewSelect().
+		ColumnExpr(`"account_role".account_id AS account_id`).
+		ColumnExpr(`"role_permission".permission_id AS permission_id`).
+		TableExpr(`auth.account_roles AS "account_role"`).
+		Join(`JOIN auth.role_permissions AS "role_permission" ON "role_permission".role_id = "account_role".role_id`).
+		Where(`"account_role".tenant_id = ?`, tenantID).
+		UnionAll(
+			db.NewSelect().
+				ColumnExpr(`"account_permission".account_id AS account_id`).
+				ColumnExpr(`"account_permission".permission_id AS permission_id`).
+				TableExpr(`auth.account_permissions AS "account_permission"`).
+				Where(`"account_permission".granted = ?`, true).
+				Where(`"account_permission".tenant_id = ?`, tenantID),
+		)
+
+	type staffPermissionRow struct {
+		StaffID        int64  `bun:"staff_id"`
+		PermissionName string `bun:"permission_name"`
+	}
+	var rows []staffPermissionRow
+
+	query := db.NewSelect().
+		With("effective_permissions", effective).
+		ColumnExpr(`DISTINCT "staff".id AS staff_id`).
+		// resource:action, matching Permission.GetFullName so authorize.HasPermission parses it.
+		ColumnExpr(`("permission".resource || ':' || "permission".action) AS permission_name`).
+		TableExpr(`users.staff AS "staff"`).
+		Join(`JOIN users.persons AS "person" ON "person".id = "staff".person_id AND "person".deleted_at IS NULL`).
+		Join(`JOIN auth.accounts AS "account" ON "account".id = "person".account_id`).
+		Join(`JOIN auth.account_tenants AS "account_tenant" ON "account_tenant".account_id = "account".id AND "account_tenant".tenant_id = "staff".tenant_id`).
+		Join(`JOIN effective_permissions AS "effective_permission" ON "effective_permission".account_id = "account".id`).
+		Join(`JOIN auth.permissions AS "permission" ON "permission".id = "effective_permission".permission_id`).
 		Where(`"staff".deleted_at IS NULL`).
 		Where(`"account".active = ?`, true).
-		Where(`"account_tenant".status = ?`, authModels.AccountTenantStatusActive).
-		Where(`"permission".name = ?`, permissions.CalendarOwn)
+		Where(`"account_tenant".status = ?`, authModels.AccountTenantStatusActive)
 
 	if len(ids) > 0 {
 		query = query.Where(`"staff".id IN (?)`, bun.List(ids))
 	}
-	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
-		query = query.Where(where, val)
+	if hasTenant {
+		query = query.Where(tenantWhere, tenantID)
 	}
 
-	if err := query.Scan(ctx, &staffIDs); err != nil {
+	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find reachable calendar staff", Err: err}
 	}
 
-	result := make(map[int64]bool, len(staffIDs))
-	for _, id := range staffIDs {
-		result[id] = true
+	// Group each staff's effective permission names and apply the same
+	// wildcard-aware matcher the route authorization uses.
+	permissionsByStaff := make(map[int64][]string)
+	for _, row := range rows {
+		permissionsByStaff[row.StaffID] = append(permissionsByStaff[row.StaffID], row.PermissionName)
+	}
+	result := make(map[int64]bool, len(permissionsByStaff))
+	for staffID, names := range permissionsByStaff {
+		if authorize.HasPermission(permissions.CalendarOwn, names) {
+			result[staffID] = true
+		}
 	}
 	return result, nil
 }
