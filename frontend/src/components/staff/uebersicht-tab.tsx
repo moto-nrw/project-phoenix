@@ -28,7 +28,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "~/components/ui/chart";
-import { UebersichtTabSkeleton } from "~/app/[tenant]/(protected)/staff/[id]/page-skeleton";
+import { UebersichtTabSkeleton } from "~/components/staff/uebersicht-tab-skeleton";
 import {
   staffAbsenceService,
   staffHistoryService,
