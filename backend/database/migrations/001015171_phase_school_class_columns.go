@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	phaseSchoolClassColumnsVersion     = "1.15.167"
+	phaseSchoolClassColumnsVersion     = "1.15.171"
 	phaseSchoolClassColumnsDescription = "Add per-phase concrete-class config to enrollment.phases (available_school_classes + require_school_class) for issue #1833"
 )
 
@@ -32,7 +32,7 @@ func init() {
 }
 
 func phaseSchoolClassColumnsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.167: Adding concrete-class config columns to enrollment.phases...")
+	fmt.Println("Migration 1.15.171: Adding concrete-class config columns to enrollment.phases...")
 
 	_, err := db.NewRaw(`
 		ALTER TABLE enrollment.phases
@@ -50,7 +50,7 @@ func phaseSchoolClassColumnsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func phaseSchoolClassColumnsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.167: Removing concrete-class config columns from enrollment.phases...")
+	fmt.Println("Rolling back migration 1.15.171: Removing concrete-class config columns from enrollment.phases...")
 
 	_, err := db.NewRaw(`
 		ALTER TABLE enrollment.phases

@@ -60,7 +60,7 @@ type RequestChild struct {
 	DateOfBirth      timezone.Date `bun:"date_of_birth,notnull,type:date" json:"date_of_birth"`
 	TargetGradeLevel *int16        `bun:"target_grade_level" json:"target_grade_level,omitempty"`
 	// TargetSchoolClass is the concrete future class (e.g. "2a") chosen at
-	// enrollment (migration 1.15.168, issue #1833). NULL/empty means
+	// enrollment (migration 1.15.172, issue #1833). NULL/empty means
 	// grade-only ("Klasse offen"); on approval a non-empty value lands
 	// verbatim in users.students.school_class, otherwise the grade-derived
 	// fallback is used. Only collected for grade >= 2 when the tenant

@@ -44,7 +44,7 @@ type PhaseResponse struct {
 	RolloverAutoApprove   bool    `json:"rollover_auto_approve"`
 	RolloverDeadline      *string `json:"rollover_deadline,omitempty"`
 	RolloverBumpsGrade    bool    `json:"rollover_bumps_grade"`
-	// Concrete-class config (migration 1.15.167, issue #1833). The pick
+	// Concrete-class config (migration 1.15.171, issue #1833). The pick
 	// list the public form offers for grade >= 2, and whether choosing is
 	// mandatory. Only meaningful when the tenant setting
 	// enrollment.collect_school_class is on.

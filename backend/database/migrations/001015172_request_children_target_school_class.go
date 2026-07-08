@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	requestChildrenTargetSchoolClassVersion     = "1.15.168"
+	requestChildrenTargetSchoolClassVersion     = "1.15.172"
 	requestChildrenTargetSchoolClassDescription = "Add target_school_class to enrollment.request_children (concrete future class, nullable = 'Klasse offen') for issue #1833"
 )
 
@@ -32,7 +32,7 @@ func init() {
 }
 
 func requestChildrenTargetSchoolClassUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.168: Adding target_school_class to enrollment.request_children...")
+	fmt.Println("Migration 1.15.172: Adding target_school_class to enrollment.request_children...")
 
 	_, err := db.NewRaw(`
 		ALTER TABLE enrollment.request_children
@@ -48,7 +48,7 @@ func requestChildrenTargetSchoolClassUp(ctx context.Context, db *bun.DB) error {
 }
 
 func requestChildrenTargetSchoolClassDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.168: Removing target_school_class from enrollment.request_children...")
+	fmt.Println("Rolling back migration 1.15.172: Removing target_school_class from enrollment.request_children...")
 
 	_, err := db.NewRaw(`
 		ALTER TABLE enrollment.request_children
