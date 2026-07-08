@@ -147,18 +147,19 @@ func (m *SchoolRepoMock) CountNonDeletedByOrganizationID(ctx context.Context, or
 
 // StaffRepoMock is a func-field test double for users.StaffRepository.
 type StaffRepoMock struct {
-	CreateFn              func(ctx context.Context, entity *users.Staff) error
-	FindByIDFn            func(ctx context.Context, id any) (*users.Staff, error)
-	UpdateFn              func(ctx context.Context, entity *users.Staff) error
-	DeleteFn              func(ctx context.Context, id any) error
-	ListFn                func(ctx context.Context, filters map[string]any) ([]*users.Staff, error)
-	FindByPersonIDFn      func(ctx context.Context, personID int64) (*users.Staff, error)
-	ListAllWithPersonFn   func(ctx context.Context) ([]*users.Staff, error)
-	ClearWorkTimeModelFn  func(ctx context.Context, id int64) error
-	FindWithPersonFn      func(ctx context.Context, id int64) (*users.Staff, error)
-	FindByIDsFn           func(ctx context.Context, ids []int64) (map[int64]*users.Staff, error)
-	FindWithPersonByIDsFn func(ctx context.Context, ids []int64) (map[int64]*users.Staff, error)
-	ListStaffByRolesFn    func(ctx context.Context, roles []string) ([]*users.StaffWithRoleInfo, error)
+	CreateFn                        func(ctx context.Context, entity *users.Staff) error
+	FindByIDFn                      func(ctx context.Context, id any) (*users.Staff, error)
+	UpdateFn                        func(ctx context.Context, entity *users.Staff) error
+	DeleteFn                        func(ctx context.Context, id any) error
+	ListFn                          func(ctx context.Context, filters map[string]any) ([]*users.Staff, error)
+	FindByPersonIDFn                func(ctx context.Context, personID int64) (*users.Staff, error)
+	ListAllWithPersonFn             func(ctx context.Context) ([]*users.Staff, error)
+	ClearWorkTimeModelFn            func(ctx context.Context, id int64) error
+	FindWithPersonFn                func(ctx context.Context, id int64) (*users.Staff, error)
+	FindByIDsFn                     func(ctx context.Context, ids []int64) (map[int64]*users.Staff, error)
+	FindWithPersonByIDsFn           func(ctx context.Context, ids []int64) (map[int64]*users.Staff, error)
+	ListStaffByRolesFn              func(ctx context.Context, roles []string) ([]*users.StaffWithRoleInfo, error)
+	FindReachableCalendarStaffIDsFn func(ctx context.Context, ids []int64) (map[int64]bool, error)
 }
 
 var _ users.StaffRepository = (*StaffRepoMock)(nil)
@@ -245,4 +246,11 @@ func (m *StaffRepoMock) ListStaffByRoles(ctx context.Context, roles []string) ([
 		return m.ListStaffByRolesFn(ctx, roles)
 	}
 	return nil, nil
+}
+
+func (m *StaffRepoMock) FindReachableCalendarStaffIDs(ctx context.Context, ids []int64) (map[int64]bool, error) {
+	if m.FindReachableCalendarStaffIDsFn != nil {
+		return m.FindReachableCalendarStaffIDsFn(ctx, ids)
+	}
+	return map[int64]bool{}, nil
 }

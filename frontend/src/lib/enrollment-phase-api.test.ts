@@ -144,6 +144,8 @@ describe("phase calendar period helpers", () => {
       care_overflow_mode: "reject",
       care_offering_selection_mode: "exactly_one",
       is_active: false,
+      available_school_classes: [],
+      require_school_class: false,
     });
   });
 

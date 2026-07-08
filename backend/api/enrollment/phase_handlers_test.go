@@ -448,6 +448,79 @@ func TestUpdatePhaseHandler_UpdateErrorReturns500(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
+// A pre-#1833 client omits the concrete-class fields entirely. Because
+// Update replaces the whole row, the handler must re-hydrate the omitted
+// fields from the stored phase so a partial update never wipes an admin's
+// class pick list / mandatory toggle.
+func TestUpdatePhaseHandler_OmittedClassConfigPreservesExisting(t *testing.T) {
+	existing := makePhaseModel(1234, "Updated")
+	existing.AvailableSchoolClasses = []string{"2a", "2b"}
+	existing.RequireSchoolClass = true
+	mock := &mockPhaseService{getByIDResult: existing}
+	router := buildPhaseRouter(mock)
+
+	// validPhaseBody carries no available_school_classes / require_school_class.
+	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", validPhaseBody("Updated"))
+	require.Equal(t, http.StatusOK, w.Code)
+	require.NotNil(t, mock.updateInput)
+	assert.Equal(t, []string{"2a", "2b"}, mock.updateInput.AvailableSchoolClasses,
+		"omitted class list must be preserved from the stored phase")
+	assert.True(t, mock.updateInput.RequireSchoolClass,
+		"omitted require flag must be preserved from the stored phase")
+}
+
+// An up-to-date client that explicitly sends the class config must have it
+// applied verbatim — including clearing the list / turning the flag off.
+func TestUpdatePhaseHandler_ExplicitClassConfigApplied(t *testing.T) {
+	existing := makePhaseModel(1234, "Updated")
+	existing.AvailableSchoolClasses = []string{"2a", "2b"}
+	existing.RequireSchoolClass = true
+	mock := &mockPhaseService{getByIDResult: existing}
+	router := buildPhaseRouter(mock)
+
+	body := validPhaseBody("Updated")
+	body["available_school_classes"] = []string{"3a"}
+	body["require_school_class"] = false
+	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", body)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.NotNil(t, mock.updateInput)
+	assert.Equal(t, []string{"3a"}, mock.updateInput.AvailableSchoolClasses,
+		"provided class list must overwrite the stored one")
+	assert.False(t, mock.updateInput.RequireSchoolClass,
+		"provided require=false must overwrite the stored true")
+}
+
+// An explicit empty list is a deliberate clear, not an omission, and must be
+// applied rather than re-hydrated from the stored phase.
+func TestUpdatePhaseHandler_ExplicitEmptyClassListClears(t *testing.T) {
+	existing := makePhaseModel(1234, "Updated")
+	existing.AvailableSchoolClasses = []string{"2a", "2b"}
+	mock := &mockPhaseService{getByIDResult: existing}
+	router := buildPhaseRouter(mock)
+
+	body := validPhaseBody("Updated")
+	body["available_school_classes"] = []string{}
+	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", body)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.NotNil(t, mock.updateInput)
+	assert.Empty(t, mock.updateInput.AvailableSchoolClasses,
+		"an explicit empty list must clear the stored classes")
+}
+
+func TestCreatePhaseHandler_ClassConfigApplied(t *testing.T) {
+	mock := &mockPhaseService{createResult: makePhaseModel(1234, "Schuljahr 2026")}
+	router := buildPhaseRouter(mock)
+	body := validPhaseBody("Schuljahr 2026")
+	body["available_school_classes"] = []string{"2a", " 2a ", "2b", ""}
+	body["require_school_class"] = true
+	w := executePhaseJSON(t, router, http.MethodPost, "/enrollment/phases", body)
+	require.Equal(t, http.StatusCreated, w.Code)
+	require.NotNil(t, mock.createInput)
+	assert.Equal(t, []string{"2a", "2b"}, mock.createInput.AvailableSchoolClasses,
+		"class list must be trimmed, de-duped, and emptied of blanks")
+	assert.True(t, mock.createInput.RequireSchoolClass)
+}
+
 func TestUpdatePhaseHandler_RefetchErrorReturns500(t *testing.T) {
 	mock := &mockPhaseService{
 		getByIDResults: []*enrollmentModels.Phase{makePhaseModel(1234, "Updated")},

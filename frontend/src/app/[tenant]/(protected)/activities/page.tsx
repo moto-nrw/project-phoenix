@@ -19,43 +19,14 @@ import { QuickCreateActivityModal } from "~/components/activities/quick-create-m
 import { userContextService } from "~/lib/usercontext-api";
 import type { Staff } from "~/lib/usercontext-helpers";
 import { useToast } from "~/contexts/ToastContext";
-import { Skeleton } from "~/components/ui/skeleton";
 import { useSWRAuth } from "~/lib/swr";
 import { createLogger } from "~/lib/logger";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { NfcModeGuard } from "~/components/tenant/nfc-mode-guard";
+import { ActivitiesSkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "ActivitiesPage" });
-
-// Content-shaped placeholder mirroring the activity row cards, so there is no
-// layout shift once the list loads.
-function ActivitiesSkeleton() {
-  return (
-    <div
-      role="status"
-      aria-busy="true"
-      aria-label="Aktivitäten werden geladen"
-      data-testid="activities-skeleton"
-      className="w-full space-y-3"
-    >
-      {[0, 1, 2, 3].map((item) => (
-        <div
-          key={item}
-          className="moto-content-surface rounded-2xl border border-gray-200 p-5"
-        >
-          <div className="flex items-center justify-between">
-            <div className="min-w-0 flex-1 space-y-2">
-              <Skeleton className="h-5 w-2/5 rounded-full" />
-              <Skeleton className="h-3.5 w-1/3 rounded-full" />
-            </div>
-            <Skeleton className="ml-4 h-10 w-10 flex-shrink-0 rounded-full" />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 // SWR cache key for activities page data
 const ACTIVITIES_PAGE_KEY = "activities-page";

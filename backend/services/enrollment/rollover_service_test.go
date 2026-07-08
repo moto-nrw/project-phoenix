@@ -549,6 +549,40 @@ func TestRolloverService_DecideReview_DropWithdraws(t *testing.T) {
 	assert.Equal(t, enrollmentModels.ChildStatusWithdrawn, updated.Status)
 }
 
+// TestRolloverService_CreatePhaseFromSource_DropsClassForReviewRow proves a
+// row heading into admin review never carries the source's concrete class.
+// The carried letter (e.g. "5a") would otherwise win on approval even after
+// the admin overrides the target grade in the review queue. Issue #1833.
+func TestRolloverService_CreatePhaseFromSource_DropsClassForReviewRow(t *testing.T) {
+	env, cleanup := setupRolloverTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	// Seed at a valid grade, then push the source above the grade cap
+	// (max = 4) and pin a concrete class directly. A non-bumping rollover of
+	// an above-cap child is exactly the review case that used to carry the
+	// stale class forward.
+	source := seedApprovedChild(t, env, env.sourcePhase.ID, "Anna", "Cap", "cap-review@example.com", "Lina", "Cap", int16(4))
+	_, err := env.db.NewUpdate().
+		TableExpr("enrollment.request_children").
+		Set("target_grade_level = ?", int16(5)).
+		Set("target_school_class = ?", "5a").
+		Where("id = ?", source.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	result, err := env.rolloverSvc.CreatePhaseFromSource(ctx, validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, false))
+	require.NoError(t, err)
+	require.Equal(t, 1, result.ReviewCount, "above-cap child must land in admin review")
+
+	queue, err := env.rolloverSvc.ListReviewQueue(ctx, result.Phase.ID)
+	require.NoError(t, err)
+	require.Len(t, queue, 1)
+	assert.Nil(t, queue[0].Child.TargetSchoolClass, "review row must not carry the stale concrete class")
+	require.NotNil(t, queue[0].Child.TargetGradeLevel)
+	assert.Equal(t, int16(5), *queue[0].Child.TargetGradeLevel, "target grade is still carried for admin context")
+}
+
 func TestRolloverService_DecideReview_RejectsUnknownDecision(t *testing.T) {
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()

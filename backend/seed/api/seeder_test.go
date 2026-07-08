@@ -337,9 +337,6 @@ func TestSeeder_Seed_FullWorkflow(t *testing.T) {
 	require.NoError(t, os.Chdir(tmpDir))
 	defer func() { _ = os.Chdir(origDir) }()
 
-	// Create simulator/iot/ directory for the simulator config
-	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "simulator", "iot"), 0o755))
-
 	s := NewSeeder(srv.URL, false, SeedOptions{})
 	result, err := s.Seed(context.Background(), "admin@test.de", "pass", "1234")
 	require.NoError(t, err)
@@ -351,10 +348,6 @@ func TestSeeder_Seed_FullWorkflow(t *testing.T) {
 
 	// Verify state file was written
 	_, err = os.Stat(filepath.Join(tmpDir, DefaultSeedStatePath))
-	assert.NoError(t, err)
-
-	// Verify simulator config was written
-	_, err = os.Stat(filepath.Join(tmpDir, "simulator", "iot", "simulator.yaml"))
 	assert.NoError(t, err)
 }
 

@@ -234,10 +234,11 @@ func (rs *Resource) getManualEnrollmentBootstrap(w http.ResponseWriter, r *http.
 	}
 
 	var (
-		phase     *enrollmentModels.Phase
-		schema    *enrollmentModels.FormSchema
-		offerings []*enrollmentModels.CareOffering
-		texts     enrollmentService.LegalTexts
+		phase              *enrollmentModels.Phase
+		schema             *enrollmentModels.FormSchema
+		offerings          []*enrollmentModels.CareOffering
+		texts              enrollmentService.LegalTexts
+		collectSchoolClass bool
 	)
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		loadedPhase, phaseErr := rs.RequestService.LoadManualEnrollmentPhase(ctx, phaseID)
@@ -245,6 +246,11 @@ func (rs *Resource) getManualEnrollmentBootstrap(w http.ResponseWriter, r *http.
 			return phaseErr
 		}
 		phase = loadedPhase
+		collect, collectErr := rs.RequestService.CollectsSchoolClass(ctx)
+		if collectErr != nil {
+			return collectErr
+		}
+		collectSchoolClass = collect
 		if phase.FormSchemaID != nil {
 			loadedSchema, schemaErr := rs.FormSchemaService.GetByID(ctx, *phase.FormSchemaID)
 			if schemaErr != nil {
@@ -288,6 +294,7 @@ func (rs *Resource) getManualEnrollmentBootstrap(w http.ResponseWriter, r *http.
 		Offerings:                 items,
 		CareOfferingSelectionMode: phase.CareOfferingSelectionMode,
 		CareRequired:              phase.CareOfferingSelectionMode != enrollmentModels.PhaseCareOfferingSelectionOptional,
+		SchoolClass:               toPublicSchoolClassConfig(phase, collectSchoolClass),
 		CaptchaConfig:             PublicCaptchaConfigResponse{},
 		LegalTexts: PublicLegalTextsResponse{
 			AGB:                 texts.AGB,

@@ -336,6 +336,45 @@ func TestClient_Get_NilBody(t *testing.T) {
 	assert.Contains(t, string(resp), "ok")
 }
 
+func TestClient_DeviceGet_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "GET", r.Method)
+		assert.Equal(t, "/api/iot/session/current", r.URL.Path)
+		assert.Equal(t, "Bearer device-key-123", r.Header.Get("Authorization"))
+		assert.Equal(t, "1234", r.Header.Get("X-Staff-PIN"))
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprint(w, `{"status":"success","data":{"is_active":true}}`)
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv.URL, false)
+
+	resp, err := c.DeviceGet("/api/iot/session/current", "device-key-123", "1234")
+	require.NoError(t, err)
+	assert.Contains(t, string(resp), "is_active")
+}
+
+func TestClient_DevicePut_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "PUT", r.Method)
+		assert.Equal(t, "/api/iot/session/5/supervisors", r.URL.Path)
+		assert.Equal(t, "Bearer device-key-123", r.Header.Get("Authorization"))
+		assert.Equal(t, "1234", r.Header.Get("X-Staff-PIN"))
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprint(w, `{"status":"success","data":{"active_group_id":5}}`)
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv.URL, false)
+
+	body := map[string]any{"supervisor_ids": []int64{7}}
+	resp, err := c.DevicePut("/api/iot/session/5/supervisors", body, "device-key-123", "1234")
+	require.NoError(t, err)
+	assert.Contains(t, string(resp), "active_group_id")
+}
+
 func TestClient_Verbose_Logging(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)

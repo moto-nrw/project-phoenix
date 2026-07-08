@@ -86,6 +86,7 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
       captchaConfig: bootstrap.captcha_config,
       legalTexts: bootstrap.legal_texts,
       profile: bootstrap.profile ?? null,
+      schoolClass: bootstrap.school_class,
     };
   }, [bootstrap]);
 

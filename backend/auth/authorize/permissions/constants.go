@@ -22,6 +22,8 @@ const (
 	ResourceAuth          = "auth"
 	ResourceIOT           = "iot"
 	ResourceSchedules     = "schedules"
+	ResourceCalendar      = "calendar"
+	ResourceDisplay       = "display"
 )
 
 // Admin permissions
@@ -97,6 +99,12 @@ const (
 	IOTManage = ResourceIOT + ":" + ActionManage
 )
 
+// Display permissions (info-point dashboards, issue #1325)
+const (
+	DisplayRead   = ResourceDisplay + ":" + ActionRead
+	DisplayManage = ResourceDisplay + ":" + ActionManage
+)
+
 // Auth permissions
 const (
 	AuthManage = ResourceAuth + ":" + ActionManage
@@ -109,6 +117,12 @@ const (
 	SchedulesDelete = ResourceSchedules + ":" + ActionDelete
 	SchedulesList   = ResourceSchedules + ":" + ActionList
 	SchedulesManage = ResourceSchedules + ":" + ActionManage
+)
+
+// Calendar permissions
+const (
+	CalendarOwn    = ResourceCalendar + ":own"    // Personal calendar access and own invitation responses
+	CalendarManage = ResourceCalendar + ":manage" // Create and manage appointments/invitations
 )
 
 // Substitution permissions

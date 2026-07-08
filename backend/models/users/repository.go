@@ -175,6 +175,14 @@ type StaffRepository interface {
 	// ListAllWithPerson retrieves all staff members with their associated person data in a single query
 	ListAllWithPerson(ctx context.Context) ([]*Staff, error)
 
+	// FindReachableCalendarStaffIDs returns the subset of the given staff IDs
+	// (or all staff when ids is empty) that can use the calendar for the current
+	// tenant: an active linked account with an active account_tenants mapping for
+	// this tenant and an effective calendar:own permission — resolved like auth
+	// (role + direct account_permissions grants, wildcard-aware) so unreachable
+	// staff aren't invited as recipients.
+	FindReachableCalendarStaffIDs(ctx context.Context, ids []int64) (map[int64]bool, error)
+
 	// ClearWorkTimeModel sets work_time_model_id to NULL. Used by staff
 	// offboarding: soft-deleted staff must not keep the reference, or the
 	// RESTRICT FK blocks work-time-model deletion while the live-staff
@@ -383,6 +391,10 @@ type GuardianProfileRepository interface {
 	// FindByIDs retrieves guardian profiles for the given ids in a single query,
 	// keyed by id. Missing ids are simply absent from the map.
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*GuardianProfile, error)
+
+	// FindActivePortalProfilesByIDs retrieves guardian profiles with a linked
+	// account and active account_tenants membership for the current tenant.
+	FindActivePortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*GuardianProfile, error)
 
 	// Update updates an existing guardian profile
 	Update(ctx context.Context, profile *GuardianProfile) error

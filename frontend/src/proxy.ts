@@ -246,6 +246,7 @@ const PARENTS_PUBLIC_PATHS = [
   "/messages",
   "/news",
   "/meal-plan",
+  "/calendar",
   "/enroll",
   "/accept-guardian-invite",
 ];

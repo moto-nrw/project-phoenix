@@ -52,6 +52,7 @@ export const DEFAULT_ENROLLMENT_CHANGE_REQUEST_DIFF_COPY: EnrollmentChangeReques
       offering_days: "Betreuungstage",
       offering_ids: "Betreuungsangebote",
       target_grade_level: "Zielklasse",
+      target_school_class: "Klasse",
     },
     guardianSnapshotLabels: {
       email: "E-Mail",

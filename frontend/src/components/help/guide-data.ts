@@ -15,6 +15,7 @@ import {
   LayoutDashboard,
   Megaphone,
   MessageSquare,
+  MonitorPlay,
   Nfc,
   PlayCircle,
   PlugZap,
@@ -696,6 +697,31 @@ export const appChapters: readonly GuideChapter[] = [
         image: "/help/screens/stundenplan.webp",
       },
       {
+        id: "mein-kalender",
+        title: "Mein Kalender",
+        icon: CalendarRange,
+        summary:
+          "Zeigt persönliche Termine, Einladungen und zugewiesene Betreuungsangebote. Mitarbeitende mit Verwaltungsrecht erstellen Termine für Team, Eltern oder ganze Gruppen.",
+        steps: [
+          "`Mein Kalender` öffnen.",
+          "Oben zwischen `Tag`, `Woche` und `Monat` wechseln und mit den Pfeilen oder `Heute` zum passenden Zeitraum springen.",
+          "Mit `Neuer Termin` den Dialog öffnen. Diese Schaltfläche sehen nur Personen mit dem Recht, Kalendertermine zu verwalten.",
+          "`Titel`, Datum, Uhrzeit, Ort und Beschreibung eintragen. Bei ganztägigen Terminen `Ganztägig` aktivieren.",
+          "Unter `Antwortregel` wählen, ob Eingeladene zusagen/absagen müssen oder nur informiert werden.",
+          "Unter `Teilnehmerübersicht` festlegen, wer die Liste der Eingeladenen und ihren Status sehen darf: nur du, Mitarbeitende mit Termin oder alle Eingeladenen.",
+          "In `Empfänger auswählen` mehrere Zielgruppen kombinieren, zum Beispiel `Alle Mitarbeitenden`, einzelne Mitarbeitende, Eltern nach Klasse, Gruppe oder Kind sowie einzelne Eltern. Bereits durch eine Gruppe abgedeckte Personen werden markiert und nicht doppelt ausgewählt.",
+          "Optional eine `Wiederholung` mit Intervall, Wochentagen und Enddatum setzen.",
+          "Mit `Termin speichern` anlegen. Termine mit Antwortregel zeigen im Kalender `Zusagen` und `Absagen`; über `Teilnehmer` öffnest du die Übersicht.",
+        ],
+        callout: {
+          title: "Eltern nur mit Portalzugang einladen",
+          body: "Einzelne Eltern lassen sich nur auswählen, wenn sie für mindestens ein Kind Zugriff auf das Elternportal haben. So landen keine Einladungen bei Kontakten, die den Termin später nicht sehen oder beantworten können.",
+          tone: "blue",
+        },
+        screenshot:
+          "Mein Kalender mit Umschaltung Tag/Woche/Monat, Schaltfläche Neuer Termin, Termin-Dialog und Teilnehmerübersicht.",
+      },
+      {
         id: "dienstplan",
         title: "Dienstplan",
         icon: CalendarRange,
@@ -877,6 +903,7 @@ export const appChapters: readonly GuideChapter[] = [
           "`Anmeldefenster` mit `Öffnung` und `Schließung` setzen. Bleiben beide leer, ist die Anmeldung jederzeit offen.",
           "Unter `Formular` das `Basisformular` lassen oder eine eigene Vorlage wählen.",
           "`Verhalten bei voller Betreuung` festlegen und mit `Aktiv` die Phase für Eltern sichtbar machen.",
+          "Unter `Konkrete Klassen` die auswählbaren Klassen (zum Beispiel 2a, 2b, 3a) pflegen und festlegen, ob die Angabe ab der 2. Klasse verpflichtend ist. Für die 1. Klasse wird weiterhin nur die Klassenstufe abgefragt. Wirksam nur, wenn `Konkrete Klasse abfragen` in den `Einstellungen` unter `Anmeldung` aktiviert ist.",
         ],
         callout: {
           title: "Das Anmeldefenster steuert die öffentliche Anmeldung",
@@ -1042,6 +1069,52 @@ export const appChapters: readonly GuideChapter[] = [
         screenshot:
           "Feedback-Übersicht mit Suche, Neuer Beitrag und Statusfilter.",
         image: "/help/screens/feedback.webp",
+      },
+    ],
+  },
+  {
+    id: "info-displays",
+    title: "Info-Displays",
+    description:
+      "Ein Info-Display ist ein Dashboard für große Bildschirme im Eingangsbereich: Es zeigt live die Raumbelegung, laufende und kommende Aktivitäten sowie die nächsten Abholzeiten (nur als Anzahl, ohne Kindernamen). Es läuft in jedem Browser, ein Login am Fernseher ist nicht nötig.",
+    icon: MonitorPlay,
+    tone: "blue",
+    steps: [
+      {
+        id: "info-displays-erstellen",
+        title: "Display erstellen und am Fernseher einrichten",
+        icon: MonitorPlay,
+        summary:
+          "Admins erstellen pro Bildschirm ein Display und erhalten dafür einen geheimen Link. Der Link wird einmal am Fernseher oder Smartboard geöffnet, danach aktualisiert sich das Dashboard von selbst.",
+        steps: [
+          "In der Seitenleiste `Info-Displays` öffnen und `Neues Display` klicken.",
+          "Einen Namen vergeben, der den Standort beschreibt, z. B. `Eingangsbereich`.",
+          "Nach dem Erstellen erscheint der Link genau einmal: jetzt kopieren oder den QR-Code direkt mit dem Zielgerät scannen.",
+          "Den Link im Browser des Fernsehers oder Smartboards öffnen. Fertig — das Dashboard lädt seine Daten automatisch alle paar Sekunden neu.",
+        ],
+        callout: {
+          title: "Link geheim halten",
+          body: "Wer den Link kennt, sieht das Dashboard. Es zeigt bewusst keine Kindernamen, sondern nur Zahlen und Raum- bzw. Aktivitätsnamen. Trotzdem gilt: den Link nur auf Geräten der OGS öffnen und bei Verdacht auf Weitergabe einfach einen neuen Link erstellen.",
+          tone: "blue",
+        },
+        screenshot:
+          "Seite Info-Displays mit der Display-Liste und dem Button Neues Display.",
+        image: "/help/screens/info-displays.webp",
+      },
+      {
+        id: "info-displays-verwalten",
+        title: "Link erneuern, Display deaktivieren oder löschen",
+        icon: KeyRound,
+        summary:
+          "Jedes Display lässt sich jederzeit umbenennen, vorübergehend deaktivieren oder ganz entfernen. Der alte Link wird dabei sofort ungültig.",
+        steps: [
+          "In der Zeile des Displays das Menü (⋮) öffnen.",
+          "`Neuen Link erstellen` wählen, wenn der alte Link verloren ging oder in falsche Hände geraten sein könnte. Der neue Link wird wieder genau einmal angezeigt, der alte funktioniert sofort nicht mehr.",
+          "`Deaktivieren` blendet das Dashboard aus, ohne das Display zu löschen — der Bildschirm zeigt dann nur noch einen Hinweis. `Aktivieren` schaltet es wieder ein.",
+          "`Löschen` entfernt das Display dauerhaft; am Fernseher muss danach ein neuer Link eines anderen Displays geöffnet werden.",
+        ],
+        screenshot:
+          "Zeilenmenü eines Displays mit den Aktionen Umbenennen, Neuen Link erstellen, Deaktivieren und Löschen.",
       },
     ],
   },

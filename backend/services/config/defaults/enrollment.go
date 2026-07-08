@@ -71,6 +71,31 @@ func registerEnrollmentForm() {
 		DependsOn:       dependsOnEnabled,
 	})
 
+	// Concrete-class collection (issue #1833). When on, the public form
+	// asks for the concrete future class (e.g. "2a") in addition to the
+	// grade level, but only from grade 2 upwards - grade 1 stays
+	// grade-level only. The pick list and whether it is mandatory are
+	// configured per phase (enrollment.phases.available_school_classes /
+	// require_school_class), not here. Nested under the grade-level
+	// toggle because the flow keys off the chosen grade.
+	config.Register(config.Definition{
+		Key:             config.KeyEnrollmentCollectSchoolClass,
+		Label:           "Konkrete Klasse abfragen (ab Klasse 2)",
+		Description:     "Zusätzlich zur Klassenstufe wird ab der 2. Klasse die konkrete Klasse (z.B. 2a) abgefragt. Die auswählbaren Klassen und ob die Angabe verpflichtend ist, werden je Anmeldephase festgelegt. Für die 1. Klasse wird weiterhin nur die Klassenstufe erfasst.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "enrollment",
+		Category:        "formular",
+		SortOrder:       21,
+		DependsOn: &config.Dependency{
+			Key:       config.KeyEnrollmentCollectGradeLevel,
+			Condition: "eq",
+			Value:     true,
+		},
+	})
+
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentAllowSubmissionEdit,
 		Label:           "Bearbeitung durch Eltern erlauben",

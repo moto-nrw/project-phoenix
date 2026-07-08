@@ -26,6 +26,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
@@ -36,6 +37,7 @@ import (
 type Resource struct {
 	AuthService           authService.AuthService
 	ParentService         parentService.Service
+	CalendarService       calendarService.Service
 	RequestService        enrollmentService.RequestService
 	GuardianProfileLoader *usersService.GuardianProfileLoader
 	SchoolService         platformSvc.SchoolService
@@ -48,6 +50,10 @@ type Resource struct {
 // brute-force attempts return 429.
 func (rs *Resource) SetAuthRateLimiter(mw func(http.Handler) http.Handler) {
 	rs.authRateLimiter = mw
+}
+
+func (rs *Resource) SetCalendarService(service calendarService.Service) {
+	rs.CalendarService = service
 }
 
 // NewResource builds the parent-portal resource.
@@ -115,6 +121,9 @@ func (rs *Resource) Router() chi.Router {
 		// Powers the "Anmeldungen in Bearbeitung" section on the
 		// dashboard.
 		r.Get("/me/enrollments", rs.listMyEnrollments)
+		r.Get("/me/calendar", rs.listMyCalendar)
+		r.Get("/me/calendar/appointments/{appointmentId}/overview", rs.calendarAppointmentOverview)
+		r.Post("/me/calendar/recipients/{recipientId}/response", rs.respondToCalendarInvitation)
 
 		// Per-school autofill payload for the embedded enrollment
 		// form. Tenant resolved from the {tenantSlug} path segment;

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/render"
@@ -42,8 +43,14 @@ type PhaseResponse struct {
 	RolloverAutoApprove   bool    `json:"rollover_auto_approve"`
 	RolloverDeadline      *string `json:"rollover_deadline,omitempty"`
 	RolloverBumpsGrade    bool    `json:"rollover_bumps_grade"`
-	CreatedAt             string  `json:"created_at"`
-	UpdatedAt             string  `json:"updated_at"`
+	// Concrete-class config (migration 1.15.171, issue #1833). The pick
+	// list the public form offers for grade >= 2, and whether choosing is
+	// mandatory. Only meaningful when the tenant setting
+	// enrollment.collect_school_class is on.
+	AvailableSchoolClasses []string `json:"available_school_classes"`
+	RequireSchoolClass     bool     `json:"require_school_class"`
+	CreatedAt              string   `json:"created_at"`
+	UpdatedAt              string   `json:"updated_at"`
 }
 
 func toPhaseResponse(p *enrollmentModels.Phase) PhaseResponse {
@@ -90,6 +97,12 @@ func toPhaseResponse(p *enrollmentModels.Phase) PhaseResponse {
 		resp.RolloverDeadline = &s
 	}
 	resp.RolloverBumpsGrade = p.RolloverBumpsGrade
+	resp.AvailableSchoolClasses = p.AvailableSchoolClasses
+	if resp.AvailableSchoolClasses == nil {
+		// Emit [] rather than null so the frontend list binding is stable.
+		resp.AvailableSchoolClasses = []string{}
+	}
+	resp.RequireSchoolClass = p.RequireSchoolClass
 	return resp
 }
 
@@ -111,6 +124,15 @@ type PhaseRequest struct {
 	CareOverflowMode          string  `json:"care_overflow_mode"`
 	CareOfferingSelectionMode string  `json:"care_offering_selection_mode"`
 	IsActive                  bool    `json:"is_active"`
+	// Concrete-class config (issue #1833) is optional on the wire so a
+	// stale client that predates the feature omits it rather than sending
+	// zero values. Pointers distinguish "field omitted" (nil -> preserve
+	// existing on update / default on create) from "explicitly cleared"
+	// ([] / false). A non-pointer would make every omission look like an
+	// explicit wipe, silently deleting an admin's class list. See
+	// createPhase / updatePhase for how each side resolves nil.
+	AvailableSchoolClasses *[]string `json:"available_school_classes,omitempty"`
+	RequireSchoolClass     *bool     `json:"require_school_class,omitempty"`
 
 	calendarPeriodIDPresent bool
 }
@@ -155,6 +177,19 @@ func (req *PhaseRequest) toModel(existingID int64) (*enrollmentModels.Phase, err
 		CareOfferingSelectionMode: req.CareOfferingSelectionMode,
 		IsActive:                  req.IsActive,
 	}
+	// Class config: a provided value (even []/false) is applied verbatim;
+	// an omitted value (nil pointer) leaves the zero value here. On create
+	// that means an empty list / not-required (matching a fresh phase); on
+	// update the handler re-hydrates the omitted field from the stored
+	// phase so a partial update never wipes it. See updatePhase.
+	if req.AvailableSchoolClasses != nil {
+		p.AvailableSchoolClasses = normalizeSchoolClasses(*req.AvailableSchoolClasses)
+	} else {
+		p.AvailableSchoolClasses = []string{}
+	}
+	if req.RequireSchoolClass != nil {
+		p.RequireSchoolClass = *req.RequireSchoolClass
+	}
 	if req.EnrollmentOpenAt != nil && *req.EnrollmentOpenAt != "" {
 		t, parseErr := time.Parse(time.RFC3339, *req.EnrollmentOpenAt)
 		if parseErr != nil {
@@ -185,6 +220,26 @@ func (req *PhaseRequest) toModel(existingID int64) (*enrollmentModels.Phase, err
 	}
 	p.ID = existingID
 	return p, nil
+}
+
+// normalizeSchoolClasses trims each entry, drops empties, and dedups
+// case-sensitively while preserving admin-entered order. Returns a
+// non-nil empty slice so the jsonb column stores '[]' rather than null.
+func normalizeSchoolClasses(in []string) []string {
+	out := make([]string, 0, len(in))
+	seen := make(map[string]struct{}, len(in))
+	for _, c := range in {
+		t := strings.TrimSpace(c)
+		if t == "" {
+			continue
+		}
+		if _, ok := seen[t]; ok {
+			continue
+		}
+		seen[t] = struct{}{}
+		out = append(out, t)
+	}
+	return out
 }
 
 func (rs *Resource) listPhases(w http.ResponseWriter, r *http.Request) {
@@ -351,6 +406,17 @@ func (rs *Resource) updatePhase(w http.ResponseWriter, r *http.Request) {
 			}
 			if !req.calendarPeriodIDPresent {
 				model.CalendarPeriodID = existing.CalendarPeriodID
+			}
+			// A stale client (pre-#1833) omits the concrete-class fields
+			// entirely. Update replaces the whole row, so without this a
+			// partial update would silently wipe the admin's class pick
+			// list / mandatory toggle. Re-hydrate any omitted field from
+			// the stored phase before persisting.
+			if req.AvailableSchoolClasses == nil {
+				model.AvailableSchoolClasses = existing.AvailableSchoolClasses
+			}
+			if req.RequireSchoolClass == nil {
+				model.RequireSchoolClass = existing.RequireSchoolClass
 			}
 			return rs.PhaseService.Update(ctx, model)
 		},

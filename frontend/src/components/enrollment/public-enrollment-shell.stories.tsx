@@ -22,6 +22,7 @@ const fakeTenant: TenantInfo = {
   studentPhotosEnabled: false,
   nfcEnabled: true,
   messagingEnabled: false,
+  displayEnabled: false,
 };
 
 const meta = {

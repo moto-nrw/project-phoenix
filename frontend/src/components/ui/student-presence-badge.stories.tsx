@@ -39,6 +39,7 @@ const binaryTenant: TenantInfo = {
   studentPhotosEnabled: true,
   nfcEnabled: true,
   messagingEnabled: true,
+  displayEnabled: false,
 };
 
 export const Binary: Story = {

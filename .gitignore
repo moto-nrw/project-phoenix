@@ -459,7 +459,6 @@ docker-compose.sonar.yml
 
 .cursor/*
 
-backend/simulator/iot/simulator.yaml
 backend/.seed-state.json
 .cache_ggshield
 gitleaks-report.json

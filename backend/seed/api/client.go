@@ -116,6 +116,16 @@ func (c *Client) DevicePost(path string, body any, apiKey, pin string) ([]byte, 
 	return c.PostWithAuth(phoenixapi.DeviceAuth(apiKey, pin, apiKey), path, body)
 }
 
+// DeviceGet makes a device-authenticated GET request (API key + PIN).
+func (c *Client) DeviceGet(path string, apiKey, pin string) ([]byte, error) {
+	return c.GetWithAuth(phoenixapi.DeviceAuth(apiKey, pin, apiKey), path)
+}
+
+// DevicePut makes a device-authenticated PUT request (API key + PIN).
+func (c *Client) DevicePut(path string, body any, apiKey, pin string) ([]byte, error) {
+	return c.PutWithAuth(phoenixapi.DeviceAuth(apiKey, pin, apiKey), path, body)
+}
+
 // Get makes an authenticated GET request
 func (c *Client) Get(path string) ([]byte, error) {
 	return c.doRequestWithHeaders("GET", path, nil, true, nil)

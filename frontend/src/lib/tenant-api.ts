@@ -61,6 +61,12 @@ export interface TenantInfo {
    * off, instead of composing into a backend 403.
    */
   messagingEnabled: boolean;
+  /**
+   * Whether the Info-Point Dashboard (display.enabled) is enabled for this
+   * tenant. The feature is opt-in and defaults off, so the sidebar entry and
+   * admin page must stay hidden until a school explicitly enables it.
+   */
+  displayEnabled: boolean;
 }
 
 interface TenantResolveResponse {
@@ -76,6 +82,7 @@ interface TenantResolveResponse {
   student_photos_enabled?: boolean;
   nfc_enabled?: boolean;
   parent_messaging_enabled?: boolean;
+  display_enabled?: boolean;
 }
 
 /**
@@ -119,6 +126,7 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       studentPhotosEnabled: data.student_photos_enabled === true,
       nfcEnabled: data.nfc_enabled === true,
       messagingEnabled: data.parent_messaging_enabled === true,
+      displayEnabled: data.display_enabled === true,
     };
   } catch {
     return null;
@@ -185,6 +193,7 @@ export async function listAllTenants(
           studentPhotosEnabled: false,
           nfcEnabled: false,
           messagingEnabled: false,
+          displayEnabled: false,
         })),
         status: "ok",
       };
@@ -241,6 +250,7 @@ export async function listAvailableTenants(): Promise<TenantInfo[]> {
     studentPhotosEnabled: false,
     nfcEnabled: false,
     messagingEnabled: false,
+    displayEnabled: false,
   }));
 }
 

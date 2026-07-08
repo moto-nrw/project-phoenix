@@ -32,6 +32,16 @@ func (m *StringIDModel) GetID() any              { return m.ID }
 func (m *StringIDModel) GetCreatedAt() time.Time { return m.CreatedAt }
 func (m *StringIDModel) GetUpdatedAt() time.Time { return m.UpdatedAt }
 
+// Activatable represents models that can be activated or deactivated
+type Activatable struct {
+	IsActive bool `bun:"is_active,notnull,default:true" json:"is_active"`
+}
+
+// Nameable represents models with a name field
+type Nameable struct {
+	Name string `bun:"name,notnull" json:"name"`
+}
+
 // Pointer helper functions for creating pointers to primitive values in tests.
 // These are placed here to avoid import cycles when used in model package tests.
 

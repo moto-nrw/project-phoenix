@@ -101,6 +101,7 @@ type careUsageRowResponse struct {
 	ChildLastName     string                         `json:"child_last_name"`
 	DateOfBirth       string                         `json:"date_of_birth"`
 	TargetGradeLevel  *int16                         `json:"target_grade_level,omitempty"`
+	TargetSchoolClass *string                        `json:"target_school_class,omitempty"`
 	Status            string                         `json:"status"`
 	Offerings         []careUsageRowOfferingResponse `json:"offerings"`
 	EffectiveDays     []string                       `json:"effective_days"`
@@ -492,6 +493,7 @@ func toCareUsageReportResponse(report *enrollmentService.CareUsageReport) *careU
 			ChildLastName:     row.ChildLastName,
 			DateOfBirth:       row.DateOfBirth,
 			TargetGradeLevel:  row.TargetGradeLevel,
+			TargetSchoolClass: row.TargetSchoolClass,
 			Status:            row.Status,
 			EffectiveDays:     nonNilStringSlice(row.EffectiveDays),
 			DayCount:          row.DayCount,
@@ -751,7 +753,7 @@ func buildCareUsageTableDocument(report *enrollmentService.CareUsageReport) list
 		rows = append(rows, listexport.Row{Values: map[listexport.ColumnID]string{
 			"child_last_name":  row.ChildLastName,
 			"child_first_name": row.ChildFirstName,
-			"child_grade":      gradeLabel(row.TargetGradeLevel),
+			"child_grade":      schoolClassLabel(row.TargetSchoolClass, row.TargetGradeLevel),
 			"child_status":     statusLabelDE(row.Status),
 			"offerings":        careUsageOfferingNames(row.Offerings),
 			"offering_days":    careUsageOfferingDayDetails(row.Offerings),
@@ -788,7 +790,7 @@ func buildCareUsageRecordDocument(report *enrollmentService.CareUsageReport) lis
 		records = append(records, listexport.Record{
 			Title: strings.TrimSpace(row.ChildFirstName + " " + row.ChildLastName),
 			Fields: []listexport.Field{
-				{Label: "Zielklasse", Value: gradeLabel(row.TargetGradeLevel)},
+				{Label: "Zielklasse", Value: schoolClassLabel(row.TargetSchoolClass, row.TargetGradeLevel)},
 				{Label: "Status", Value: statusLabelDE(row.Status)},
 				{Label: "Betreuungsangebote", Value: careUsageOfferingDayDetails(row.Offerings)},
 				{Label: "Effektive Betreuungstage", Value: formatDayCodes(row.EffectiveDays)},
