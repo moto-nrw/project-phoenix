@@ -143,6 +143,7 @@ func (r *RequestChildRepository) UpdateData(ctx context.Context, child *enrollme
 		Set("last_name = ?", child.LastName).
 		Set("date_of_birth = ?", child.DateOfBirth).
 		Set("target_grade_level = ?", child.TargetGradeLevel).
+		Set("target_school_class = ?", child.TargetSchoolClass).
 		Set("custom_data = ?", child.CustomData).
 		Set("sort_order = ?", child.SortOrder).
 		Set("updated_at = NOW()").

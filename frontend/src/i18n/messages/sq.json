@@ -544,6 +544,9 @@
       "emailPlain": "E-mail",
       "dateOfBirth": "Data e lindjes *",
       "gradeLevel": "Klasa *",
+      "schoolClass": "Klasa konkrete",
+      "schoolClassRequired": "Klasa konkrete *",
+      "schoolClassOpen": "Klasa ende e pacaktuar",
       "choose": "Ju lutemi zgjidhni",
       "grade": "Klasa {grade}"
     },
@@ -580,6 +583,7 @@
       "validPhone": "Ju lutemi jepni një numër telefoni të vlefshëm.",
       "dob": "Ju lutemi jepni datën e lindjes.",
       "grade": "Ju lutemi zgjidhni klasën.",
+      "schoolClass": "Ju lutemi zgjidhni një klasë konkrete.",
       "agb": "Ju lutemi pranoni kushtet.",
       "data": "Ju lutemi jepni pëlqimin për përpunimin e të dhënave.",
       "emailContact": "Ju lutemi jepni pëlqimin për kontakt me e-mail.",
@@ -855,7 +859,8 @@
         "last_name": "Mbiemri",
         "offering_days": "Ditët e kujdesit",
         "offering_ids": "Ofertat e kujdesit",
-        "target_grade_level": "Klasa e synuar"
+        "target_grade_level": "Klasa e synuar",
+        "target_school_class": "Klasa"
       },
       "guardian": {
         "email": "E-mail",

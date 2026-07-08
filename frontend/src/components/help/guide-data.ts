@@ -697,6 +697,31 @@ export const appChapters: readonly GuideChapter[] = [
         image: "/help/screens/stundenplan.webp",
       },
       {
+        id: "mein-kalender",
+        title: "Mein Kalender",
+        icon: CalendarRange,
+        summary:
+          "Zeigt persönliche Termine, Einladungen und zugewiesene Betreuungsangebote. Mitarbeitende mit Verwaltungsrecht erstellen Termine für Team, Eltern oder ganze Gruppen.",
+        steps: [
+          "`Mein Kalender` öffnen.",
+          "Oben zwischen `Tag`, `Woche` und `Monat` wechseln und mit den Pfeilen oder `Heute` zum passenden Zeitraum springen.",
+          "Mit `Neuer Termin` den Dialog öffnen. Diese Schaltfläche sehen nur Personen mit dem Recht, Kalendertermine zu verwalten.",
+          "`Titel`, Datum, Uhrzeit, Ort und Beschreibung eintragen. Bei ganztägigen Terminen `Ganztägig` aktivieren.",
+          "Unter `Antwortregel` wählen, ob Eingeladene zusagen/absagen müssen oder nur informiert werden.",
+          "Unter `Teilnehmerübersicht` festlegen, wer die Liste der Eingeladenen und ihren Status sehen darf: nur du, Mitarbeitende mit Termin oder alle Eingeladenen.",
+          "In `Empfänger auswählen` mehrere Zielgruppen kombinieren, zum Beispiel `Alle Mitarbeitenden`, einzelne Mitarbeitende, Eltern nach Klasse, Gruppe oder Kind sowie einzelne Eltern. Bereits durch eine Gruppe abgedeckte Personen werden markiert und nicht doppelt ausgewählt.",
+          "Optional eine `Wiederholung` mit Intervall, Wochentagen und Enddatum setzen.",
+          "Mit `Termin speichern` anlegen. Termine mit Antwortregel zeigen im Kalender `Zusagen` und `Absagen`; über `Teilnehmer` öffnest du die Übersicht.",
+        ],
+        callout: {
+          title: "Eltern nur mit Portalzugang einladen",
+          body: "Einzelne Eltern lassen sich nur auswählen, wenn sie für mindestens ein Kind Zugriff auf das Elternportal haben. So landen keine Einladungen bei Kontakten, die den Termin später nicht sehen oder beantworten können.",
+          tone: "blue",
+        },
+        screenshot:
+          "Mein Kalender mit Umschaltung Tag/Woche/Monat, Schaltfläche Neuer Termin, Termin-Dialog und Teilnehmerübersicht.",
+      },
+      {
         id: "dienstplan",
         title: "Dienstplan",
         icon: CalendarRange,
@@ -878,6 +903,7 @@ export const appChapters: readonly GuideChapter[] = [
           "`Anmeldefenster` mit `Öffnung` und `Schließung` setzen. Bleiben beide leer, ist die Anmeldung jederzeit offen.",
           "Unter `Formular` das `Basisformular` lassen oder eine eigene Vorlage wählen.",
           "`Verhalten bei voller Betreuung` festlegen und mit `Aktiv` die Phase für Eltern sichtbar machen.",
+          "Unter `Konkrete Klassen` die auswählbaren Klassen (zum Beispiel 2a, 2b, 3a) pflegen und festlegen, ob die Angabe ab der 2. Klasse verpflichtend ist. Für die 1. Klasse wird weiterhin nur die Klassenstufe abgefragt. Wirksam nur, wenn `Konkrete Klasse abfragen` in den `Einstellungen` unter `Anmeldung` aktiviert ist.",
         ],
         callout: {
           title: "Das Anmeldefenster steuert die öffentliche Anmeldung",

@@ -94,6 +94,7 @@ type CareUsageRow struct {
 	ChildLastName     string                 `json:"child_last_name"`
 	DateOfBirth       string                 `json:"date_of_birth"`
 	TargetGradeLevel  *int16                 `json:"target_grade_level,omitempty"`
+	TargetSchoolClass *string                `json:"target_school_class,omitempty"`
 	Status            string                 `json:"status"`
 	Offerings         []CareUsageRowOffering `json:"offerings"`
 	EffectiveDays     []string               `json:"effective_days"`
@@ -713,6 +714,7 @@ func careUsageRow(req *enrollmentModels.Request, child *enrollmentModels.Request
 		ChildLastName:     child.LastName,
 		DateOfBirth:       child.DateOfBirth.Format("2006-01-02"),
 		TargetGradeLevel:  child.TargetGradeLevel,
+		TargetSchoolClass: child.TargetSchoolClass,
 		Status:            child.Status,
 		Offerings:         rowOfferings,
 		EffectiveDays:     effectiveDays,

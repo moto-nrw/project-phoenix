@@ -26,6 +26,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/announcement"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/auth"
+	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
 	"github.com/moto-nrw/project-phoenix/services/config/sideeffects"
@@ -151,6 +152,9 @@ type Factory struct {
 
 	// Messaging (staff-side parent-OGS inbox / threads)
 	Messaging messaging.Service
+
+	// Calendar (staff and parent personal calendars)
+	Calendar calendarService.Service
 
 	// ParentAnnouncement (staff-side parent broadcast news authoring, #1669)
 	ParentAnnouncement announcement.Service
@@ -1231,6 +1235,26 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:      logger.With("service", "messaging"),
 	})
 
+	calendarSvc := calendarService.NewService(calendarService.Config{
+		AppointmentRepo:      repos.CalendarAppointment,
+		RecurrenceRepo:       repos.CalendarRecurrenceRule,
+		RecipientRepo:        repos.CalendarAppointmentRecipient,
+		RecipientStudentRepo: repos.CalendarAppointmentRecipientChild,
+		TargetRepo:           repos.CalendarAppointmentTarget,
+		OverrideRepo:         repos.CalendarOccurrenceOverride,
+		StaffRepo:            repos.Staff,
+		StudentRepo:          repos.Student,
+		GuardianProfileRepo:  repos.GuardianProfile,
+		StudentGuardianRepo:  repos.StudentGuardian,
+		ChildRepo:            repos.ParentChild,
+		GroupRepo:            repos.Group,
+		InstanceStaffRepo:    repos.InstanceStaff,
+		InstanceStudentRepo:  repos.InstanceStudent,
+		ActivityInstanceRepo: repos.ActivityInstance,
+		UserContext:          userContextService,
+		DB:                   db,
+	})
+
 	parentService := parent.NewService(parent.ServiceConfig{
 		ChildRepo:               repos.ParentChild,
 		EnrollablePhaseRepo:     repos.ParentEnrollablePhase,
@@ -1427,6 +1451,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 		Parent:             parentService,
 		Messaging:          messagingService,
+		Calendar:           calendarSvc,
 		ParentAnnouncement: parentAnnouncementService,
 	}
 

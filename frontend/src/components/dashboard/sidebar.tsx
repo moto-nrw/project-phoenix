@@ -95,6 +95,15 @@ const NAV_ITEMS: NavItem[] = [
     alwaysShow: true,
   },
   {
+    href: "/calendar",
+    label: "Kalender",
+    icon: navigationIcons.calendar,
+    activeColor: "text-[#5080D8]",
+    // Backend gates GET /api/calendar/my on calendar:own; match it so
+    // restricted/custom roles without the permission don't land on a 403 page.
+    requiresPermission: "calendar:own",
+  },
+  {
     href: "/substitutions",
     label: "Vertretungen",
     icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15",
@@ -367,13 +376,6 @@ function getActiveParentSubPageHref(pathname: string): string | null {
 // stable key (not the German label) keeps the translation correct even if the
 // fallback wording changes.
 const PARENT_PREVIEW_ITEMS: readonly (NavItem & { tKey: string })[] = [
-  {
-    href: "#",
-    label: "Kalender",
-    tKey: "calendar",
-    icon: navigationIcons.calendar,
-    comingSoon: true,
-  },
   {
     href: "#",
     label: "Kontaktdaten",
@@ -1120,6 +1122,25 @@ function SidebarContent({ className = "" }: SidebarProps) {
               </svg>
               <span>{tParentNav("messages")}</span>
               <UnreadBadge count={parentMessagesUnread} className="ml-auto" />
+            </Link>
+            <Link
+              href="/parents/calendar"
+              className={getLinkClasses("/parents/calendar")}
+            >
+              <svg
+                className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d={navigationIcons.calendar}
+                />
+              </svg>
+              <span>{tParentNav("calendar")}</span>
             </Link>
             {parentPortalNewsEnabled && (
               <Link
