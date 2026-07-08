@@ -21,6 +21,7 @@ interface TenantResolveResponse {
   student_photos_enabled?: boolean;
   nfc_enabled?: boolean;
   parent_messaging_enabled?: boolean;
+  display_enabled?: boolean;
 }
 
 /**
@@ -55,6 +56,7 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
       studentPhotosEnabled: data.student_photos_enabled === true,
       nfcEnabled: data.nfc_enabled === true,
       messagingEnabled: data.parent_messaging_enabled === true,
+      displayEnabled: data.display_enabled === true,
     };
   } catch {
     return null;

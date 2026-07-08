@@ -15,6 +15,7 @@ import { FormModal } from "~/components/ui/form-modal";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Alert } from "~/components/ui/alert";
 import { Loading } from "~/components/ui/loading";
+import { DisplayModeGuard } from "~/components/tenant/display-mode-guard";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { useSWRAuth } from "~/lib/swr";
@@ -38,7 +39,18 @@ interface TokenModalState {
   url: string;
 }
 
+// display.enabled is opt-in (default off, issue #1325 follow-up). Navigation
+// already hides the sidebar entry; DisplayModeGuard 404s a direct URL visit
+// on a tenant that hasn't enabled the feature.
 export default function InfoDisplaysPage() {
+  return (
+    <DisplayModeGuard>
+      <InfoDisplaysPageContent />
+    </DisplayModeGuard>
+  );
+}
+
+function InfoDisplaysPageContent() {
   // Viewing needs display:read OR display:manage (matching the backend list
   // route); mutating actions are additionally gated on display:manage below.
   const { isReady, isLoading: permissionLoading } = useRequirePermission([

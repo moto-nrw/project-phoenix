@@ -478,6 +478,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		InstanceRepo:      repos.ActivityInstance,
 		AttendanceRepo:    repos.Attendance,
 		PickupSchedule:    pickupScheduleService,
+		SettingsService:   settingsService,
 		DB:                db,
 		Logger:            logger.With("service", "display"),
 	})

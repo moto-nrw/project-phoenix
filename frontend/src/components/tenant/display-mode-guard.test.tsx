@@ -6,7 +6,7 @@ import { describe, it, expect, vi } from "vitest";
 vi.unmock("~/lib/tenant-context");
 
 import { TenantProvider } from "~/lib/tenant-context";
-import { NfcModeGuard } from "./nfc-mode-guard";
+import { DisplayModeGuard } from "./display-mode-guard";
 import type { TenantInfo } from "~/lib/tenant-api";
 
 vi.mock("next/navigation", () => ({
@@ -15,7 +15,7 @@ vi.mock("next/navigation", () => ({
   },
 }));
 
-function makeTenant(nfcEnabled: boolean): TenantInfo {
+function makeTenant(displayEnabled: boolean): TenantInfo {
   return {
     tenantId: 1,
     slug: "demo",
@@ -26,33 +26,33 @@ function makeTenant(nfcEnabled: boolean): TenantInfo {
     settings: {},
     presenceMode: "detailed",
     studentPhotosEnabled: false,
-    nfcEnabled,
+    nfcEnabled: false,
     messagingEnabled: false,
-    displayEnabled: false,
+    displayEnabled,
   };
 }
 
-describe("NfcModeGuard", () => {
-  it("renders children when NFC is enabled", () => {
+describe("DisplayModeGuard", () => {
+  it("renders children when the Info-Point Dashboard is enabled", () => {
     render(
       <TenantProvider tenantSlug="demo" tenant={makeTenant(true)}>
-        <NfcModeGuard>
-          <div>nfc-content</div>
-        </NfcModeGuard>
+        <DisplayModeGuard>
+          <div>display-content</div>
+        </DisplayModeGuard>
       </TenantProvider>,
     );
-    expect(screen.getByText("nfc-content")).toBeInTheDocument();
+    expect(screen.getByText("display-content")).toBeInTheDocument();
   });
 
-  it("triggers notFound() when NFC is disabled", () => {
+  it("triggers notFound() when the Info-Point Dashboard is disabled", () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     expect(() =>
       render(
         <TenantProvider tenantSlug="demo" tenant={makeTenant(false)}>
-          <NfcModeGuard>
-            <div>nfc-content</div>
-          </NfcModeGuard>
+          <DisplayModeGuard>
+            <div>display-content</div>
+          </DisplayModeGuard>
         </TenantProvider>,
       ),
     ).toThrow("NEXT_NOT_FOUND");

@@ -8,6 +8,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
+  useDisplayEnabled,
   useNFCEnabled,
   usePresenceMode,
   useTenantSlugSafe,
@@ -502,6 +503,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const presenceMode = usePresenceMode();
   const isBinaryMode = presenceMode === "binary";
   const nfcEnabled = useNFCEnabled();
+  const displayEnabled = useDisplayEnabled();
   const { counts: groupAttendanceCounts } = useGroupAttendanceCounts();
   const canShowGroupAttendanceCounts = pathname.startsWith("/ogs-groups");
   // Fetch the settings schema for anyone the backend lets read config, not just
@@ -611,6 +613,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) return false;
     if (!nfcEnabled && NFC_ONLY_HREFS.has(item.href)) return false;
     if (isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) return false;
+    // Info-Point Dashboard is opt-in (display.enabled, default off) — hide
+    // the admin entry until a school explicitly turns the feature on.
+    if (!displayEnabled && item.href === "/info-displays") return false;
     if (item.alwaysShow) return true;
     // Permission-gated items (e.g. Änderungsanfragen on users:update): show for
     // admins or anyone holding the permission (any of them, for arrays),

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -22,10 +23,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	displayService "github.com/moto-nrw/project-phoenix/services/display"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -46,12 +50,27 @@ func newDisplayTestTenant(t *testing.T, db *bun.DB) int64 {
 	t.Helper()
 	tenantID := atomic.AddInt64(&displayTenantCounter, 1)
 	testpkg.EnsureTestTenant(t, db, tenantID)
+	enableDisplayFeature(t, db, tenantID)
 	return tenantID
+}
+
+// enableDisplayFeature turns on the opt-in display.enabled setting (issue
+// #1325 follow-up: the feature defaults off) for a test tenant. These
+// hermetic tests exercise the CRUD/dashboard behavior itself, not the
+// opt-in gate, so every test tenant starts with the feature already on;
+// TestDisplayFeatureGate below covers the off-by-default behavior directly.
+func enableDisplayFeature(t *testing.T, db *bun.DB, tenantID int64) {
+	t.Helper()
+	repos := repositories.NewFactory(db)
+	settingsService := configSvc.NewSettingsService(repos.SettingValue, repos.SettingAudit, repos.School, db, slog.Default())
+	ctx := tenant.WithTenantID(context.Background(), tenantID)
+	require.NoError(t, settingsService.SetValue(ctx, configModel.KeyDisplayEnabled, true, nil, nil))
 }
 
 func newDisplayRouter(t *testing.T, db *bun.DB) http.Handler {
 	t.Helper()
 	repos := repositories.NewFactory(db)
+	settingsService := configSvc.NewSettingsService(repos.SettingValue, repos.SettingAudit, repos.School, db, slog.Default())
 	svc := displayService.NewService(displayService.Dependencies{
 		DisplayRepo:       repos.Display,
 		SchoolRepo:        repos.School,
@@ -62,9 +81,10 @@ func newDisplayRouter(t *testing.T, db *bun.DB) http.Handler {
 		InstanceRepo:      repos.ActivityInstance,
 		AttendanceRepo:    repos.Attendance,
 		PickupSchedule:    schedule.NewPickupScheduleService(repos.StudentPickupSchedule, repos.StudentPickupException, repos.StudentPickupNote),
+		SettingsService:   settingsService,
 		DB:                db,
 	})
-	return displayAPI.NewResource(svc, db).Router()
+	return displayAPI.NewResource(svc, settingsService, db).Router()
 }
 
 func displayTestJWT(t *testing.T, accountID, tenantID int64, permissions []string) string {
@@ -606,4 +626,51 @@ func TestDashboardPayloadHasNoIdentityFields(t *testing.T) {
 	for _, forbidden := range []string{"first_name", "last_name", "student_id", "photo"} {
 		assert.NotContains(t, lower, forbidden)
 	}
+}
+
+// TestDisplayFeatureGate covers the opt-in gate itself (issue #1325
+// follow-up): display.enabled defaults off, so both the admin CRUD routes
+// and the public dashboard must reject a tenant that never turned it on,
+// and must resume working once the tenant enables it.
+func TestDisplayFeatureGate(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	// Deliberately NOT using newDisplayTestTenant here — it enables the
+	// feature by default for the rest of this package's tests. This test
+	// needs a tenant that starts with display.enabled at its registry
+	// default (false).
+	tenantID := atomic.AddInt64(&displayTenantCounter, 1)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	defer cleanupDisplays(t, db, tenantID)
+
+	router := newDisplayRouter(t, db)
+	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("display-gate-%d@test.local", tenantID))
+	adminJWT := displayTestJWT(t, account.ID, tenantID, []string{"display:read", "display:manage"})
+
+	t.Run("list is forbidden while the feature is off", func(t *testing.T) {
+		rec := doDisplayRequest(t, router, http.MethodGet, "/", adminJWT, nil)
+		assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+	})
+
+	t.Run("create is forbidden while the feature is off", func(t *testing.T) {
+		rec := doDisplayRequest(t, router, http.MethodPost, "/", adminJWT, map[string]any{"name": "Gate Test"})
+		assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+	})
+
+	t.Run("a token minted before opt-out still 404s like an unknown token", func(t *testing.T) {
+		enableDisplayFeature(t, db, tenantID)
+		_, rawToken := createDisplayViaAPI(t, router, adminJWT, "Gate Dashboard")
+
+		rec := doDashboardRequest(t, router, rawToken)
+		require.Equal(t, http.StatusOK, rec.Code, "dashboard must work once the feature is on: %s", rec.Body.String())
+
+		ctx := tenant.WithTenantID(context.Background(), tenantID)
+		repos := repositories.NewFactory(db)
+		settingsService := configSvc.NewSettingsService(repos.SettingValue, repos.SettingAudit, repos.School, db, slog.Default())
+		require.NoError(t, settingsService.ResetValue(ctx, configModel.KeyDisplayEnabled, nil, nil))
+
+		rec = doDashboardRequest(t, router, rawToken)
+		assert.Equal(t, http.StatusNotFound, rec.Code, "an opted-out tenant's token must 404 like an unknown token: %s", rec.Body.String())
+	})
 }

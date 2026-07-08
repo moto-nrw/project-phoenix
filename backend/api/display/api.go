@@ -17,20 +17,23 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	displayModels "github.com/moto-nrw/project-phoenix/models/display"
+	configService "github.com/moto-nrw/project-phoenix/services/config"
 	displayService "github.com/moto-nrw/project-phoenix/services/display"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Resource bundles the display handlers and their dependencies.
 type Resource struct {
-	Service displayService.Service
-	db      *bun.DB
+	Service         displayService.Service
+	SettingsService configService.SettingsService
+	db              *bun.DB
 }
 
 // NewResource constructs the display API resource.
-func NewResource(svc displayService.Service, db *bun.DB) *Resource {
-	return &Resource{Service: svc, db: db}
+func NewResource(svc displayService.Service, settingsService configService.SettingsService, db *bun.DB) *Resource {
+	return &Resource{Service: svc, SettingsService: settingsService, db: db}
 }
 
 // Router returns a chi router scoped to /display. The dashboard route is
@@ -102,7 +105,32 @@ func (rs *Resource) getDashboard(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, r, payload)
 }
 
+// featureEnabled reports whether the info-point dashboard is enabled for the
+// current tenant, rendering a 403 and returning false when it is not. The
+// feature is opt-in (defaults off), unlike the meal plan's opt-out pattern.
+//
+// Fails CLOSED on a settings lookup error: a transient/RLS/config-table
+// failure while reading the override must NOT silently open admin routes for
+// a tenant that never enabled the feature, so the error is rendered (500)
+// rather than defaulted to disabled-but-passthrough. Routes run inside
+// TenantTxMiddleware, so ResolveBool resolves against the current tenant.
+func (rs *Resource) featureEnabled(w http.ResponseWriter, r *http.Request) bool {
+	enabled, err := rs.SettingsService.ResolveBool(r.Context(), configModel.KeyDisplayEnabled)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to resolve display setting", err))
+		return false
+	}
+	if enabled {
+		return true
+	}
+	common.RenderError(w, r, common.ErrorForbidden(errors.New("feature_disabled")))
+	return false
+}
+
 func (rs *Resource) listDisplays(w http.ResponseWriter, r *http.Request) {
+	if !rs.featureEnabled(w, r) {
+		return
+	}
 	displays, err := rs.Service.List(r.Context())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to list displays", err))
@@ -117,6 +145,9 @@ type displayWriteRequest struct {
 }
 
 func (rs *Resource) createDisplay(w http.ResponseWriter, r *http.Request) {
+	if !rs.featureEnabled(w, r) {
+		return
+	}
 	var req displayWriteRequest
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
@@ -140,6 +171,9 @@ func (rs *Resource) createDisplay(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) updateDisplay(w http.ResponseWriter, r *http.Request) {
+	if !rs.featureEnabled(w, r) {
+		return
+	}
 	id, ok := parseDisplayID(w, r)
 	if !ok {
 		return
@@ -164,6 +198,9 @@ func (rs *Resource) updateDisplay(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) regenerateToken(w http.ResponseWriter, r *http.Request) {
+	if !rs.featureEnabled(w, r) {
+		return
+	}
 	id, ok := parseDisplayID(w, r)
 	if !ok {
 		return
@@ -179,6 +216,9 @@ func (rs *Resource) regenerateToken(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) deleteDisplay(w http.ResponseWriter, r *http.Request) {
+	if !rs.featureEnabled(w, r) {
+		return
+	}
 	id, ok := parseDisplayID(w, r)
 	if !ok {
 		return

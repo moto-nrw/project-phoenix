@@ -30,6 +30,7 @@ vi.mock("~/lib/tenant-api", async (importOriginal) => {
 
 import {
   TenantProvider,
+  useDisplayEnabled,
   useNFCEnabled,
   usePresenceMode,
   useTenant,
@@ -54,6 +55,7 @@ const mockTenant: TenantInfo = {
   studentPhotosEnabled: false,
   nfcEnabled: false,
   messagingEnabled: false,
+  displayEnabled: false,
 };
 
 // ============================================================================
@@ -491,6 +493,35 @@ describe("useNFCEnabled", () => {
       </TenantProvider>
     );
     const { result } = renderHook(() => useNFCEnabled(), { wrapper });
+    expect(result.current).toBe(false);
+  });
+});
+
+describe("useDisplayEnabled", () => {
+  const displayTenant: TenantInfo = { ...mockTenant, displayEnabled: true };
+
+  it("returns true when the Info-Point Dashboard is enabled for the tenant", () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <TenantProvider tenantSlug="demo" tenant={displayTenant}>
+        {children}
+      </TenantProvider>
+    );
+    const { result } = renderHook(() => useDisplayEnabled(), { wrapper });
+    expect(result.current).toBe(true);
+  });
+
+  it("returns false outside any TenantProvider", () => {
+    const { result } = renderHook(() => useDisplayEnabled());
+    expect(result.current).toBe(false);
+  });
+
+  it("returns false when tenant hasn't resolved yet", () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <TenantProvider tenantSlug="demo" tenant={null}>
+        {children}
+      </TenantProvider>
+    );
+    const { result } = renderHook(() => useDisplayEnabled(), { wrapper });
     expect(result.current).toBe(false);
   });
 });

@@ -19,9 +19,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	displayModels "github.com/moto-nrw/project-phoenix/models/display"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -41,8 +43,12 @@ type Dependencies struct {
 	InstanceRepo      scheduleModels.ActivityInstanceRepository
 	AttendanceRepo    activeModels.AttendanceRepository
 	PickupSchedule    schedule.PickupScheduleService
-	DB                *bun.DB
-	Logger            *slog.Logger
+	// SettingsService resolves the display.enabled opt-in toggle. The feature
+	// defaults off; a school must explicitly enable it before the public
+	// dashboard endpoint serves data (issue #1325 opt-in follow-up).
+	SettingsService configSvc.SettingsService
+	DB              *bun.DB
+	Logger          *slog.Logger
 }
 
 type service struct {
@@ -251,6 +257,17 @@ func (s *service) Dashboard(ctx context.Context, rawToken string) (*DashboardPay
 	// to already-open displays. 404 (not "inactive") — the link is dead and
 	// the response must not reveal the school's state.
 	if school.IsDeleted() || !school.Active {
+		return nil, displayModels.ErrNotFound
+	}
+	// The feature is opt-in and defaults off. A token for a school that never
+	// enabled (or has since disabled) display.enabled must behave exactly
+	// like an unknown token — 404, not a distinct error that would reveal
+	// the feature exists but is off.
+	enabled, err := s.SettingsService.ResolveBoolForTenant(ctx, d.TenantID, configModel.KeyDisplayEnabled)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve display.enabled: %w", err)
+	}
+	if !enabled {
 		return nil, displayModels.ErrNotFound
 	}
 	if !d.IsActive {
