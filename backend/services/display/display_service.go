@@ -154,6 +154,8 @@ func (s *service) Update(ctx context.Context, id int64, name *string, isActive *
 	if len(columns) == 0 {
 		return d, nil
 	}
+	d.UpdatedAt = time.Now()
+	columns = append(columns, "updated_at")
 
 	updated, err := s.DisplayRepo.UpdateColumns(ctx, d, columns...)
 	if err != nil {
@@ -186,8 +188,9 @@ func (s *service) Regenerate(ctx context.Context, id int64) (string, error) {
 		return "", err
 	}
 	d.TokenHash = displayTokenHash(rawToken)
+	d.UpdatedAt = time.Now()
 
-	updated, err := s.DisplayRepo.UpdateColumns(ctx, d, "token_hash")
+	updated, err := s.DisplayRepo.UpdateColumns(ctx, d, "token_hash", "updated_at")
 	if err != nil {
 		return "", fmt.Errorf("failed to regenerate display token: %w", err)
 	}
@@ -243,6 +246,12 @@ func (s *service) Dashboard(ctx context.Context, rawToken string) (*DashboardPay
 			return nil, displayModels.ErrNotFound
 		}
 		return nil, fmt.Errorf("failed to resolve display token: %w", err)
+	}
+	// A disabled or offboarded school must not keep serving live tenant data
+	// to already-open displays. 404 (not "inactive") — the link is dead and
+	// the response must not reveal the school's state.
+	if school.IsDeleted() || !school.Active {
+		return nil, displayModels.ErrNotFound
 	}
 	if !d.IsActive {
 		return nil, displayModels.ErrInactive

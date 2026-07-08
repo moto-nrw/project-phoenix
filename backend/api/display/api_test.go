@@ -476,6 +476,111 @@ func createPickupScheduleForTenant(t *testing.T, db *bun.DB, tenantID, studentID
 	require.NoError(t, err, "failed to create pickup schedule")
 }
 
+// TestDisplayDashboardSchoolLifecycle ensures a display token stops serving
+// live tenant data once its school is disabled or offboarded: the dashboard
+// must 404 (dead link), not keep aggregating.
+func TestDisplayDashboardSchoolLifecycle(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	router := newDisplayRouter(t, db)
+
+	setupDashboard := func(t *testing.T, label string) (int64, string) {
+		t.Helper()
+		tenantID := newDisplayTestTenant(t, db)
+		t.Cleanup(func() { cleanupDisplays(t, db, tenantID) })
+		account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("display-%s-%d@test.local", label, tenantID))
+		adminJWT := displayTestJWT(t, account.ID, tenantID, []string{"display:manage"})
+		_, rawToken := createDisplayViaAPI(t, router, adminJWT, "Lifecycle "+label)
+
+		rec := doDashboardRequest(t, router, rawToken)
+		require.Equal(t, http.StatusOK, rec.Code, "dashboard must work before the school changes: %s", rec.Body.String())
+		return tenantID, rawToken
+	}
+
+	t.Run("deactivated school yields 404", func(t *testing.T) {
+		tenantID, rawToken := setupDashboard(t, "inactive")
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, err := db.NewUpdate().
+			TableExpr("platform.schools").
+			Set("active = ?", false).
+			Where("id = ?", tenantID).
+			Exec(ctx)
+		require.NoError(t, err)
+
+		rec := doDashboardRequest(t, router, rawToken)
+		assert.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+	})
+
+	t.Run("soft-deleted school yields 404", func(t *testing.T) {
+		tenantID, rawToken := setupDashboard(t, "deleted")
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, err := db.NewUpdate().
+			TableExpr("platform.schools").
+			Set("deleted_at = ?", timezone.Now()).
+			Where("id = ?", tenantID).
+			Exec(ctx)
+		require.NoError(t, err)
+
+		rec := doDashboardRequest(t, router, rawToken)
+		assert.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+	})
+}
+
+// TestDisplayMutationsTouchUpdatedAt ensures rename/deactivate and token
+// regeneration move the row's updated_at (the API otherwise keeps returning
+// the creation timestamp forever).
+func TestDisplayMutationsTouchUpdatedAt(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	tenantID := newDisplayTestTenant(t, db)
+	defer cleanupDisplays(t, db, tenantID)
+	router := newDisplayRouter(t, db)
+	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("display-touch-%d@test.local", tenantID))
+	adminJWT := displayTestJWT(t, account.ID, tenantID, []string{"display:manage"})
+
+	fetchUpdatedAt := func(t *testing.T, id string) time.Time {
+		t.Helper()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		var updatedAt time.Time
+		err := db.NewSelect().
+			TableExpr("display.displays").
+			Column("updated_at").
+			Where("id = ?", id).
+			Scan(ctx, &updatedAt)
+		require.NoError(t, err)
+		return updatedAt
+	}
+
+	t.Run("rename moves updated_at", func(t *testing.T) {
+		id, _ := createDisplayViaAPI(t, router, adminJWT, "Touch Rename")
+		before := fetchUpdatedAt(t, id)
+
+		time.Sleep(50 * time.Millisecond)
+		rec := doDisplayRequest(t, router, http.MethodPatch, "/"+id, adminJWT, map[string]any{"name": "Touch Renamed"})
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+		assert.True(t, fetchUpdatedAt(t, id).After(before), "updated_at must move on rename")
+	})
+
+	t.Run("regenerate moves updated_at", func(t *testing.T) {
+		id, _ := createDisplayViaAPI(t, router, adminJWT, "Touch Regenerate")
+		before := fetchUpdatedAt(t, id)
+
+		time.Sleep(50 * time.Millisecond)
+		rec := doDisplayRequest(t, router, http.MethodPost, "/"+id+"/regenerate", adminJWT, nil)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+		assert.True(t, fetchUpdatedAt(t, id).After(before), "updated_at must move on token regeneration")
+	})
+}
+
 // Guard against accidental reintroduction of identity fields in the payload
 // structs themselves (compile-time-ish check via JSON round trip).
 func TestDashboardPayloadHasNoIdentityFields(t *testing.T) {
