@@ -105,6 +105,31 @@ func TestFindActiveOverlaps_FastPaths(t *testing.T) {
 	})
 }
 
+func TestGetUsageCounts_WrapsRepositoryError(t *testing.T) {
+	repoErr := errors.New("usage query failed")
+	svc := &calendarPeriodService{
+		repo: usageCountsErrorRepo{
+			err: repoErr,
+		},
+	}
+
+	usage, err := svc.GetUsageCounts(context.Background())
+
+	require.Error(t, err)
+	assert.Nil(t, usage)
+	assert.ErrorIs(t, err, repoErr)
+	assert.Contains(t, err.Error(), "get calendar period usage counts")
+}
+
+type usageCountsErrorRepo struct {
+	schedule.CalendarPeriodRepository
+	err error
+}
+
+func (r usageCountsErrorRepo) UsageCounts(context.Context) (map[int64]schedule.CalendarPeriodUsage, error) {
+	return nil, r.err
+}
+
 func TestShouldMaterialize(t *testing.T) {
 	svc := &calendarPeriodService{}
 

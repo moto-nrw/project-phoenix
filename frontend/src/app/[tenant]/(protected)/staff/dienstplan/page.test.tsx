@@ -72,6 +72,7 @@ describe("DienstplanPage", () => {
   it("shows a blocking load error instead of the editable grid", () => {
     const mutateStaff = vi.fn();
     const mutateShifts = vi.fn();
+    const mutateShiftTypes = vi.fn();
     mocks.useSWRAuth.mockImplementation((key: string) => {
       if (key === "dienstplan-staff") {
         return {
@@ -79,6 +80,14 @@ describe("DienstplanPage", () => {
           error: undefined,
           isLoading: false,
           mutate: mutateStaff,
+        };
+      }
+      if (key === "dienstplan-shift-types") {
+        return {
+          data: [],
+          error: undefined,
+          isLoading: false,
+          mutate: mutateShiftTypes,
         };
       }
       return {
@@ -98,9 +107,12 @@ describe("DienstplanPage", () => {
     ).toBeInTheDocument();
     expect(screen.queryByTestId("dienstplan-grid")).not.toBeInTheDocument();
 
+    // Retrying reloads every data source the grid depends on: staff, shifts,
+    // and the shift types (#1836).
     fireEvent.click(screen.getByRole("button", { name: "Erneut laden" }));
     expect(mutateStaff).toHaveBeenCalledTimes(1);
     expect(mutateShifts).toHaveBeenCalledTimes(1);
+    expect(mutateShiftTypes).toHaveBeenCalledTimes(1);
   });
 
   it("anchors the current week and today marker to the Berlin calendar date", () => {

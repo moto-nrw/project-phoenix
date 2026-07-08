@@ -119,23 +119,6 @@ func (s buildStateStep) Run(_ context.Context, rt *Runtime) error {
 	return nil
 }
 
-type writeSimulatorConfigStep struct{}
-
-func (writeSimulatorConfigStep) Name() string { return "Generating simulator config" }
-
-func (writeSimulatorConfigStep) Run(_ context.Context, rt *Runtime) error {
-	if rt.State == nil {
-		return fmt.Errorf("seed state not available")
-	}
-	simPath := "simulator/iot/simulator.yaml"
-	if err := WriteSimulatorConfig(rt.State, simPath); err != nil {
-		return err
-	}
-	fmt.Printf("Simulator config written to %s\n", simPath)
-	fmt.Println()
-	return nil
-}
-
 type printSummaryStep struct {
 	seeder *Seeder
 }
@@ -168,7 +151,6 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			seedTimeTrackingHistoryStep{},
 			parentEnrollmentSeedStep{seeder: seeder},
 			buildStateStep{seeder: seeder},
-			writeSimulatorConfigStep{},
 			printSummaryStep{seeder: seeder},
 		},
 	}

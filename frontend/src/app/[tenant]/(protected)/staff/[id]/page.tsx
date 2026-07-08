@@ -16,12 +16,12 @@ import { getInitials } from "~/lib/format-utils";
 import { useSWRAuth } from "~/lib/swr";
 import { isAdmin } from "~/lib/auth-utils";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import { Loading } from "~/components/ui/loading";
 import { AbwesenheitenTab } from "~/components/staff/abwesenheiten-tab";
 import { ArbeitszeitmodellTab } from "~/components/staff/arbeitszeitmodell-tab";
 import { UebersichtTab } from "~/components/staff/uebersicht-tab";
 import { ZeiterfassungTab } from "~/components/staff/zeiterfassung-tab";
 import { staffAbsenceService } from "~/lib/staff-api";
+import { StaffDetailSkeleton } from "./page-skeleton";
 
 // ─── Labels & constants ──────────────────────────────────────────────────────
 
@@ -276,12 +276,12 @@ function StaffDetailContent() {
   }, [menuOpen]);
 
   if (sessionStatus === "loading" || isLoading) {
-    return <Loading fullPage={false} />;
+    return <StaffDetailSkeleton />;
   }
 
   if (!canEdit) {
     router.replace("/staff");
-    return <Loading fullPage={false} />;
+    return <StaffDetailSkeleton />;
   }
 
   if (error || !staff) {
@@ -394,7 +394,7 @@ function StaffDetailContent() {
 
 export default function StaffDetailPage() {
   return (
-    <Suspense fallback={<Loading fullPage={false} />}>
+    <Suspense fallback={<StaffDetailSkeleton />}>
       <StaffDetailContent />
     </Suspense>
   );

@@ -37,6 +37,7 @@ import (
 	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
 	roomsAPI "github.com/moto-nrw/project-phoenix/api/rooms"
 	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
+	shifttypesAPI "github.com/moto-nrw/project-phoenix/api/shift-types"
 	sseAPI "github.com/moto-nrw/project-phoenix/api/sse"
 	staffAPI "github.com/moto-nrw/project-phoenix/api/staff"
 	staffshiftsAPI "github.com/moto-nrw/project-phoenix/api/staff-shifts"
@@ -83,6 +84,7 @@ type API struct {
 	Staff            *staffAPI.Resource
 	WorkTimeModels   *worktimemodelsAPI.Resource
 	StaffShifts      *staffshiftsAPI.Resource
+	ShiftTypes       *shifttypesAPI.Resource
 	Feedback         *feedbackAPI.Resource
 	MealPlan         *mealplanAPI.Resource
 	Suggestions      *suggestionsAPI.Resource
@@ -414,6 +416,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.StaffOffboarding, api.Services.Education, api.Services.Auth, api.Services.WorkSession, api.Services.StaffAbsence, db, logger.With("handler", "staff"))
 	api.WorkTimeModels = worktimemodelsAPI.NewResource(api.Services.WorkTimeModels, db, logger.With("handler", "work-time-models"))
 	api.StaffShifts = staffshiftsAPI.NewResource(api.Services.StaffShifts, api.Services.Users, db, logger.With("handler", "staff-shifts"))
+	api.ShiftTypes = shifttypesAPI.NewResource(api.Services.ShiftTypes, db, logger.With("handler", "shift-types"))
 	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback, api.Services.Settings, db)
 	api.MealPlan = mealplanAPI.NewResource(api.Services.MealPlan, api.Services.Settings, db)
 	api.Enrollment = enrollmentAPI.NewResource(
@@ -616,6 +619,7 @@ func (a *API) registerRoutesWithRateLimiting() {
 		r.Mount("/staff", a.Staff.Router())
 		r.Mount("/work-time-models", a.WorkTimeModels.Router())
 		r.Mount("/staff-shifts", a.StaffShifts.Router())
+		r.Mount("/shift-types", a.ShiftTypes.Router())
 
 		// Mount feedback resources
 		r.Mount("/feedback", a.Feedback.Router())

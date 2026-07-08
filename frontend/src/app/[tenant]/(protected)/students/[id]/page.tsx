@@ -14,7 +14,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
 import { useToast } from "~/contexts/ToastContext";
-import { Loading } from "~/components/ui/loading";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { BackButton } from "~/components/ui/back-button";
 import { studentService } from "~/lib/api";
@@ -71,6 +70,7 @@ import {
   type StudentStatusDay,
   type StudentStatusKind,
 } from "~/lib/student-status-days-api";
+import { StudentDetailSkeleton } from "./page-skeleton";
 
 type TodayArrival = {
   time?: string;
@@ -540,7 +540,7 @@ export default function StudentDetailPage() {
 
   // Show loading state
   if (loading) {
-    return <Loading message="Laden..." fullPage={false} />;
+    return <StudentDetailSkeleton />;
   }
 
   // Show error state

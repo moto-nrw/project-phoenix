@@ -57,6 +57,16 @@ export interface BackendCalendarPeriod {
   updated_at: string;
   /** Only present on create/update responses. */
   warnings?: BackendCalendarPeriodWarning[] | null;
+  /**
+   * Advisory reference counts (list/detail responses). All FKs are
+   * ON DELETE SET NULL, so these never block deletion — they feed the
+   * "Verwendung" column and the delete warning.
+   */
+  enrollment_phase_count?: number;
+  schedule_count?: number;
+  student_enrollment_count?: number;
+  supervisor_count?: number;
+  activity_instance_count?: number;
 }
 
 /** Frontend shape (camelCase, string IDs). */
@@ -72,6 +82,19 @@ export interface CalendarPeriod {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  /**
+   * How many Anmeldephasen reference this period (advisory). Optional so
+   * fixtures and older callers stay valid; mapPeriod always sets it.
+   */
+  enrollmentPhaseCount?: number;
+  /** How many Regeltermine (activities.schedules) reference this period (advisory). */
+  scheduleCount?: number;
+  /** How many student roster rows reference this period (advisory). */
+  studentEnrollmentCount?: number;
+  /** How many staff roster rows reference this period (advisory). */
+  supervisorCount?: number;
+  /** How many materialized appointments reference this period (advisory). */
+  activityInstanceCount?: number;
 }
 
 /** POST/PUT body — backend expects YYYY-MM-DD strings, not Date objects. */
@@ -98,6 +121,11 @@ export function mapPeriod(raw: BackendCalendarPeriod): CalendarPeriod {
     isActive: raw.is_active,
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
+    enrollmentPhaseCount: raw.enrollment_phase_count ?? 0,
+    scheduleCount: raw.schedule_count ?? 0,
+    studentEnrollmentCount: raw.student_enrollment_count ?? 0,
+    supervisorCount: raw.supervisor_count ?? 0,
+    activityInstanceCount: raw.activity_instance_count ?? 0,
   };
 }
 
@@ -168,6 +196,61 @@ export function uniqueAssignedPeriods(
     }
   }
   return [...byID.values()].sort((a, b) => Number(a.id) - Number(b.id));
+}
+
+/**
+ * Formats "1 Anmeldephase · 3 Regeltermine" from the advisory reference
+ * counts. Returns an empty string when nothing references the period —
+ * callers render their own "Nicht verwendet" fallback.
+ */
+export function formatPeriodUsage(
+  enrollmentPhaseCount: number,
+  scheduleCount: number,
+  separator = " · ",
+  extra?: {
+    studentEnrollmentCount?: number;
+    supervisorCount?: number;
+    activityInstanceCount?: number;
+  },
+): string {
+  const parts: string[] = [];
+  if (enrollmentPhaseCount > 0) {
+    parts.push(
+      enrollmentPhaseCount === 1
+        ? "1 Anmeldephase"
+        : `${enrollmentPhaseCount} Anmeldephasen`,
+    );
+  }
+  if (scheduleCount > 0) {
+    parts.push(
+      scheduleCount === 1 ? "1 Regeltermin" : `${scheduleCount} Regeltermine`,
+    );
+  }
+  const studentEnrollmentCount = extra?.studentEnrollmentCount ?? 0;
+  if (studentEnrollmentCount > 0) {
+    parts.push(
+      studentEnrollmentCount === 1
+        ? "1 Schülerzuordnung"
+        : `${studentEnrollmentCount} Schülerzuordnungen`,
+    );
+  }
+  const supervisorCount = extra?.supervisorCount ?? 0;
+  if (supervisorCount > 0) {
+    parts.push(
+      supervisorCount === 1
+        ? "1 Mitarbeitenden-Zuordnung"
+        : `${supervisorCount} Mitarbeitenden-Zuordnungen`,
+    );
+  }
+  const activityInstanceCount = extra?.activityInstanceCount ?? 0;
+  if (activityInstanceCount > 0) {
+    parts.push(
+      activityInstanceCount === 1
+        ? "1 Termininstanz"
+        : `${activityInstanceCount} Termininstanzen`,
+    );
+  }
+  return parts.join(separator);
 }
 
 /**

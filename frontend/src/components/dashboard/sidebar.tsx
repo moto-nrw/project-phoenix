@@ -102,20 +102,6 @@ const NAV_ITEMS: NavItem[] = [
     requiresAdmin: true,
   },
   {
-    href: "/timetables",
-    label: "Betreuungsplan",
-    icon: navigationIcons.calendar,
-    activeColor: "text-[#5080D8]",
-    requiresAdmin: true,
-  },
-  {
-    href: "/staff/dienstplan",
-    label: "Dienstplan",
-    icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z",
-    activeColor: "text-[#F78C10]",
-    requiresAdmin: true,
-  },
-  {
     href: "/info-displays",
     label: "Info-Displays",
     icon: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
@@ -284,6 +270,24 @@ const NFC_ONLY_HREFS = new Set<string>([
   "/database/activities",
   "/database/devices",
 ]);
+
+// Static sub-pages for the Planung accordion (admin only). Calendar
+// periods are the shared planning basis; Betreuungsplan and Dienstplan
+// hang off them. Keep in sync with PLANNING_PATH_PREFIXES in
+// use-sidebar-accordion.ts.
+const PLANNING_SUB_PAGES = [
+  { href: "/calendar-periods", label: "Kalenderzeiträume" },
+  { href: "/timetables", label: "Betreuungsplan" },
+  { href: "/staff/dienstplan", label: "Dienstplan" },
+];
+
+function getActivePlanningSubPageHref(pathname: string): string | null {
+  return (
+    PLANNING_SUB_PAGES.filter(
+      (page) => pathname === page.href || pathname.startsWith(`${page.href}/`),
+    ).sort((a, b) => b.href.length - a.href.length)[0]?.href ?? null
+  );
+}
 
 // Static sub-pages for Anmeldungen accordion (admin only).
 const ENROLLMENTS_SUB_PAGES = [
@@ -549,6 +553,16 @@ function SidebarContent({ className = "" }: SidebarProps) {
     [nfcEnabled],
   );
 
+  // Visible Planung sub-pages: Betreuungsplan only when the timetable
+  // feature is enabled for the tenant (same gate the flat nav item had).
+  const planningSubPages = useMemo(
+    () =>
+      PLANNING_SUB_PAGES.filter(
+        (page) => page.href !== "/timetables" || timetableEnabled,
+      ),
+    [timetableEnabled],
+  );
+
   // Visible "Eltern" accordion sub-pages. Same per-item gating the flat
   // NAV_ITEMS carried before consolidation: overview + Nachrichten for all
   // staff, the rest per permission / feature flag.
@@ -595,9 +609,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) return false;
     if (!nfcEnabled && NFC_ONLY_HREFS.has(item.href)) return false;
     if (isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) return false;
-    if (item.href === "/timetables" && !timetableEnabled) {
-      return false;
-    }
     if (item.alwaysShow) return true;
     // Permission-gated items (e.g. Änderungsanfragen on users:update): show for
     // admins or anyone holding the permission (any of them, for arrays),
@@ -931,6 +942,23 @@ function SidebarContent({ className = "" }: SidebarProps) {
       toggle("enrollments");
     } else {
       router.push("/admin/enrollments");
+    }
+  }, [toggle, pathname, router]);
+
+  const activePlanningSubPageHref = getActivePlanningSubPageHref(pathname);
+  const isOnPlanningPage = activePlanningSubPageHref !== null;
+
+  const handlePlanningToggle = useCallback(() => {
+    // Hub = the calendar-periods page. Mirrors the other accordions'
+    // navigate-on-expand behavior so the section label lands on a real page.
+    const onSection = getActivePlanningSubPageHref(pathname) !== null;
+    if (!onSection) {
+      toggle("planning");
+      router.push("/calendar-periods");
+    } else if (pathname === "/calendar-periods") {
+      toggle("planning");
+    } else {
+      router.push("/calendar-periods");
     }
   }, [toggle, pathname, router]);
 
@@ -1356,6 +1384,30 @@ function SidebarContent({ className = "" }: SidebarProps) {
                   href={page.href}
                   label={page.label}
                   isActive={pathname === page.href}
+                />
+              ))}
+            </SidebarAccordionSection>
+          )}
+
+          {/* Planung accordion (admin only). Bundles calendar periods,
+              Betreuungsplan and Dienstplan behind the shared planning basis. */}
+          {userIsAdmin && (
+            <SidebarAccordionSection
+              icon="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+              label="Planung"
+              activeColor="text-[#5080D8]"
+              isExpanded={expanded === "planning"}
+              onToggle={handlePlanningToggle}
+              isActive={isOnPlanningPage}
+              isIconActive={isOnPlanningPage}
+              hasChildren={planningSubPages.length > 0}
+            >
+              {planningSubPages.map((page) => (
+                <SidebarSubItem
+                  key={page.href}
+                  href={tenantPath(page.href)}
+                  label={page.label}
+                  isActive={activePlanningSubPageHref === page.href}
                 />
               ))}
             </SidebarAccordionSection>
