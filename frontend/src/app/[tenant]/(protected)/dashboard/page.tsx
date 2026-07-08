@@ -16,8 +16,7 @@ import {
 import { useSWRAuth } from "~/lib/swr/hooks";
 import { RoleGuard } from "~/components/auth/role-guard";
 import { useNFCEnabled, usePresenceMode } from "~/lib/tenant-context";
-
-import { Loading } from "~/components/ui/loading";
+import { DashboardSkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "DashboardPage" });
 
@@ -298,10 +297,6 @@ function DashboardContent() {
       }
     }
   }, [status, session, router]);
-
-  if (status === "loading") {
-    return <Loading fullPage={false} />;
-  }
 
   const firstName = session?.user?.name?.split(" ")[0] ?? "User";
   const greeting = getTimeBasedGreeting();
@@ -652,7 +647,7 @@ function DashboardContent() {
 // Main Dashboard Page Component
 export default function DashboardPage() {
   return (
-    <RoleGuard variant="adminOnly">
+    <RoleGuard variant="adminOnly" fallback={<DashboardSkeleton />}>
       <UserContextProvider>
         <DashboardContent />
       </UserContextProvider>

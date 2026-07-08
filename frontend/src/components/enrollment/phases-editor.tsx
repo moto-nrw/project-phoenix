@@ -19,6 +19,7 @@ import {
   Power,
   Trash2,
   UserCheck,
+  X,
 } from "lucide-react";
 import {
   type Phase,
@@ -32,9 +33,15 @@ import {
   deletePhase,
   getPhaseDeleteImpact,
   listPhases,
+  phaseToInput,
   updatePhase,
 } from "~/lib/enrollment-phase-api";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import { calendarPeriodService } from "~/lib/calendar-period-api";
+import {
+  type CalendarPeriod,
+  formatPeriodRange,
+} from "~/lib/calendar-period-helpers";
 import {
   latestSchemasByName,
   listSchemas,
@@ -96,26 +103,13 @@ function blankInput(): PhaseInput {
     enrollment_open_at: null,
     enrollment_close_at: null,
     form_schema_id: null,
+    calendar_period_id: null,
     show_status_reason_to_parent: false,
     care_overflow_mode: "waitlist",
     care_offering_selection_mode: "optional",
     is_active: true,
-  };
-}
-
-function phaseToInput(p: Phase): PhaseInput {
-  return {
-    name: p.name,
-    kind: p.kind,
-    service_start_date: p.service_start_date,
-    service_end_date: p.service_end_date,
-    enrollment_open_at: p.enrollment_open_at ?? null,
-    enrollment_close_at: p.enrollment_close_at ?? null,
-    form_schema_id: p.form_schema_id ?? null,
-    show_status_reason_to_parent: p.show_status_reason_to_parent,
-    care_overflow_mode: p.care_overflow_mode,
-    care_offering_selection_mode: p.care_offering_selection_mode ?? "optional",
-    is_active: p.is_active,
+    available_school_classes: [],
+    require_school_class: false,
   };
 }
 
@@ -159,6 +153,7 @@ export function PhasesEditor() {
   const searchParams = useSearchParams();
   const [phases, setPhases] = useState<Phase[]>([]);
   const [schemas, setSchemas] = useState<FormSchema[]>([]);
+  const [periods, setPeriods] = useState<CalendarPeriod[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -207,12 +202,16 @@ export function PhasesEditor() {
     setLoading(true);
     setError(null);
     try {
-      const [phasesData, schemasData] = await Promise.all([
+      const [phasesData, schemasData, periodsData] = await Promise.all([
         listPhases(),
         listSchemas().catch(() => [] as FormSchema[]),
+        // Calendar periods are optional context for the phase form —
+        // a load failure must not block phase management.
+        calendarPeriodService.list().catch(() => [] as CalendarPeriod[]),
       ]);
       setPhases(phasesData);
       setSchemas(schemasData);
+      setPeriods(periodsData);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unbekannter Fehler";
       logger.error("phases_load_failed", { error: message });
@@ -454,6 +453,10 @@ export function PhasesEditor() {
   );
 
   const activePhaseCount = phases.filter((phase) => phase.is_active).length;
+  const periodNameById = useMemo(
+    () => new Map(periods.map((period) => [period.id, period.name])),
+    [periods],
+  );
   const columns = useMemo<DataTableColumn<Phase>[]>(
     () => [
       {
@@ -473,12 +476,24 @@ export function PhasesEditor() {
         key: "service_period",
         header: "Betreuungszeitraum",
         sortValue: (phase) => phase.service_start_date,
-        render: (phase) => (
-          <span className="text-sm text-gray-700">
-            {formatDate(phase.service_start_date)} bis{" "}
-            {formatDate(phase.service_end_date)}
-          </span>
-        ),
+        render: (phase) => {
+          const periodName = phase.calendar_period_id
+            ? periodNameById.get(phase.calendar_period_id)
+            : undefined;
+          return (
+            <div className="min-w-0">
+              <span className="text-sm text-gray-700">
+                {formatDate(phase.service_start_date)} bis{" "}
+                {formatDate(phase.service_end_date)}
+              </span>
+              <p
+                className={`mt-0.5 truncate text-xs ${periodName ? "text-gray-500" : "text-gray-400"}`}
+              >
+                {periodName ?? "Kein Kalenderzeitraum"}
+              </p>
+            </div>
+          );
+        },
       },
       {
         key: "enrollment_window",
@@ -541,6 +556,7 @@ export function PhasesEditor() {
       requestDelete,
       handleToggleActive,
       highlightActions,
+      periodNameById,
       rolloverSource,
       saving,
       schemaNameById,
@@ -612,6 +628,7 @@ export function PhasesEditor() {
         <PhaseForm
           draft={draft}
           setDraft={setDraft}
+          periods={periods}
           schemas={latestSchemas}
           schemaSource={schemaSource}
           setSchemaSource={setSchemaSource}
@@ -706,6 +723,7 @@ export function PhasesEditor() {
 interface PhaseFormProps {
   readonly draft: PhaseInput;
   readonly setDraft: React.Dispatch<React.SetStateAction<PhaseInput | null>>;
+  readonly periods: CalendarPeriod[];
   readonly schemas: FormSchema[];
   readonly schemaSource: SchemaSource;
   readonly setSchemaSource: React.Dispatch<React.SetStateAction<SchemaSource>>;
@@ -1122,6 +1140,7 @@ function PhaseForm(props: PhaseFormProps) {
   const {
     draft,
     setDraft,
+    periods,
     schemas,
     schemaSource,
     setSchemaSource,
@@ -1135,6 +1154,20 @@ function PhaseForm(props: PhaseFormProps) {
 
   const update = (patch: Partial<PhaseInput>) =>
     setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
+
+  const hasSchoolClasses = (draft.available_school_classes ?? []).length > 0;
+  // The linked period whose dates no longer match the phase's own service
+  // dates. Linking only prefills once, so the two can drift apart; the form
+  // surfaces the drift with a one-click "Daten übernehmen" re-sync.
+  const linkedPeriod = draft.calendar_period_id
+    ? periods.find((period) => period.id === draft.calendar_period_id)
+    : undefined;
+  const linkedPeriodDrift =
+    linkedPeriod &&
+    (draft.service_start_date !== linkedPeriod.startDate ||
+      draft.service_end_date !== linkedPeriod.endDate)
+      ? linkedPeriod
+      : undefined;
 
   useEffect(() => {
     if (!highlightFormSection) return;
@@ -1188,6 +1221,71 @@ function PhaseForm(props: PhaseFormProps) {
         <legend className="px-1 text-xs font-medium text-gray-700">
           Betreuungszeitraum
         </legend>
+        {periods.length > 0 && (
+          <label className="mb-3 block" htmlFor="phase-calendar-period">
+            <span className="text-xs text-gray-600">
+              Kalenderzeitraum (optional)
+            </span>
+            <CustomSelect
+              id="phase-calendar-period"
+              value={draft.calendar_period_id ?? ""}
+              onChange={(value) => {
+                if (!value) {
+                  update({ calendar_period_id: null });
+                  return;
+                }
+                const period = periods.find((p) => p.id === value);
+                update({
+                  calendar_period_id: value,
+                  // Prefill the service dates from the linked period —
+                  // the admin can still adjust them afterwards.
+                  ...(period
+                    ? {
+                        service_start_date: period.startDate,
+                        service_end_date: period.endDate,
+                      }
+                    : {}),
+                });
+              }}
+              className="mt-1"
+              options={[
+                { value: "", label: "Kein Kalenderzeitraum" },
+                ...periods.map((period) => ({
+                  value: period.id,
+                  label: `${period.name} (${formatPeriodRange(period)})`,
+                })),
+              ]}
+            />
+            <span className="mt-1 block text-xs text-gray-500">
+              Verknüpft die Anmeldephase mit einem Zeitraum aus der Planung und
+              übernimmt dessen Beginn und Ende.
+            </span>
+            {!draft.calendar_period_id && (
+              <span className="mt-1 block text-xs text-[#F78C10]">
+                Ohne Verknüpfung können Betreuungsplan und Dienstplan später
+                nicht auf diese Phase aufbauen.
+              </span>
+            )}
+            {linkedPeriodDrift && (
+              <span className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[#F78C10]">
+                Beginn und Ende weichen vom Kalenderzeitraum ab (
+                {formatPeriodRange(linkedPeriodDrift)}).
+                <button
+                  type="button"
+                  onClick={() =>
+                    update({
+                      service_start_date: linkedPeriodDrift.startDate,
+                      service_end_date: linkedPeriodDrift.endDate,
+                    })
+                  }
+                  className="font-medium text-gray-700 underline underline-offset-2 hover:text-gray-900"
+                >
+                  Daten übernehmen
+                </button>
+              </span>
+            )}
+          </label>
+        )}
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block">
             <span className="text-xs text-gray-600">Beginn</span>
@@ -1440,6 +1538,45 @@ function PhaseForm(props: PhaseFormProps) {
         </div>
       </div>
 
+      <fieldset className="rounded-xl border border-gray-200 p-4">
+        <legend className="px-1 text-xs font-medium text-gray-700">
+          Konkrete Klassen
+        </legend>
+        <p className="text-xs leading-5 text-gray-500">
+          Ab der 2. Klasse können Eltern die konkrete Klasse (z. B. 2a) aus
+          dieser Liste wählen. Für die 1. Klasse wird weiterhin nur die
+          Klassenstufe erfasst. Nur wirksam, wenn „Konkrete Klasse abfragen“ in
+          den Einstellungen aktiviert ist.
+        </p>
+        <SchoolClassListEditor
+          value={draft.available_school_classes ?? []}
+          onChange={(list) =>
+            // Clearing the list must also clear "verpflichtend": a mandatory
+            // phase with no offered classes is impossible - grade >= 2 parents
+            // would be required to pick a class from an empty dropdown and the
+            // backend would reject every submission (#1833).
+            update(
+              list.length === 0
+                ? {
+                    available_school_classes: list,
+                    require_school_class: false,
+                  }
+                : { available_school_classes: list },
+            )
+          }
+        />
+        <div className="mt-3">
+          <PhaseCheckbox
+            // Only meaningful once at least one class is offered.
+            checked={hasSchoolClasses && (draft.require_school_class ?? false)}
+            onChange={(checked) => update({ require_school_class: checked })}
+            disabled={!hasSchoolClasses}
+            label="Konkrete Klasse verpflichtend (ab Klasse 2)"
+            hint="(Eltern müssen ab der 2. Klasse eine Klasse wählen)"
+          />
+        </div>
+      </fieldset>
+
       <div className="flex justify-end gap-2">
         <button
           type="button"
@@ -1461,28 +1598,104 @@ function PhaseForm(props: PhaseFormProps) {
   );
 }
 
+// SchoolClassListEditor edits the phase's admin-managed list of concrete
+// classes offered to parents from grade 2 (#1833). A text input adds an
+// entry (Enter or the button); entries render as removable chips. Trims,
+// drops empties, and dedups case-sensitively.
+function SchoolClassListEditor({
+  value,
+  onChange,
+}: Readonly<{ value: string[]; onChange: (next: string[]) => void }>) {
+  const [entry, setEntry] = useState("");
+  const add = () => {
+    const trimmed = entry.trim();
+    if (!trimmed || value.includes(trimmed)) {
+      setEntry("");
+      return;
+    }
+    onChange([...value, trimmed]);
+    setEntry("");
+  };
+  return (
+    <div className="mt-2">
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={entry}
+          onChange={(e) => setEntry(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              add();
+            }
+          }}
+          placeholder="z. B. 2a"
+          aria-label="Klasse hinzufügen"
+          className="h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        />
+        <button
+          type="button"
+          onClick={add}
+          className="inline-flex h-10 shrink-0 items-center rounded-lg border border-gray-200 px-3 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        >
+          Hinzufügen
+        </button>
+      </div>
+      {value.length > 0 ? (
+        <ul className="mt-2 flex flex-wrap gap-2">
+          {value.map((cls) => (
+            <li
+              key={cls}
+              className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 py-1 pr-1 pl-3 text-sm font-medium text-gray-700"
+            >
+              {cls}
+              <button
+                type="button"
+                onClick={() => onChange(value.filter((c) => c !== cls))}
+                aria-label={`Klasse ${cls} entfernen`}
+                className="flex h-5 w-5 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              >
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-xs text-gray-400">
+          Noch keine Klassen hinterlegt.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function PhaseCheckbox({
   checked,
   onChange,
   label,
   hint,
+  disabled = false,
 }: Readonly<{
   checked: boolean;
   onChange: (checked: boolean) => void;
   label: string;
   hint: string;
+  disabled?: boolean;
 }>) {
   return (
     <label
-      className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-2xl border px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors focus-within:ring-2 focus-within:ring-gray-300 ${
-        checked
-          ? "border-gray-300 bg-gray-50"
-          : "border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50"
+      className={`flex min-h-11 items-center gap-3 rounded-2xl border px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors focus-within:ring-2 focus-within:ring-gray-300 ${
+        disabled
+          ? "cursor-not-allowed border-gray-100 bg-gray-50 opacity-60"
+          : checked
+            ? "cursor-pointer border-gray-300 bg-gray-50"
+            : "cursor-pointer border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50"
       }`}
     >
       <input
         type="checkbox"
         checked={checked}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.checked)}
         className="sr-only"
       />

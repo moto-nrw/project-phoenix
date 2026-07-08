@@ -713,7 +713,7 @@ func childFields(ch enrollmentService.ExportChildRow, childCustoms []enrollmentM
 	c := ch.Child
 	fields := []listexport.Field{
 		{Label: "Geburtsdatum", Value: c.DateOfBirth.Format("02.01.2006")},
-		{Label: "Zielklasse", Value: gradeLabel(c.TargetGradeLevel)},
+		{Label: "Zielklasse", Value: schoolClassLabel(c.TargetSchoolClass, c.TargetGradeLevel)},
 		{Label: "Status", Value: statusLabelDE(c.Status)},
 	}
 	if c.StatusReason != nil && strings.TrimSpace(*c.StatusReason) != "" {
@@ -863,7 +863,7 @@ func childRowValues(guardianValues map[listexport.ColumnID]string, ch enrollment
 	values["child_first_name"] = c.FirstName
 	values["child_last_name"] = c.LastName
 	values["child_dob"] = c.DateOfBirth.Format("02.01.2006")
-	values["child_grade"] = gradeLabel(c.TargetGradeLevel)
+	values["child_grade"] = schoolClassLabel(c.TargetSchoolClass, c.TargetGradeLevel)
 	values["child_status"] = statusLabelDE(c.Status)
 	values["child_status_reason"] = strOrEmpty(c.StatusReason)
 	values["child_activation"] = activationSummary(c)

@@ -25,6 +25,7 @@ function makeTenant(
     studentPhotosEnabled: false,
     nfcEnabled: false,
     messagingEnabled: false,
+    displayEnabled: false,
   };
 }
 

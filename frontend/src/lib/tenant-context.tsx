@@ -211,3 +211,16 @@ export function useNFCEnabled(): boolean {
   const ctx = useContext(TenantContext);
   return ctx?.tenant?.nfcEnabled === true;
 }
+
+/**
+ * Returns whether the Info-Point Dashboard feature is enabled for the
+ * current tenant (display.enabled).
+ *
+ * Defaults to false when tenant metadata is unavailable — the feature is
+ * opt-in, so the sidebar entry and admin page must stay hidden until a
+ * school explicitly turns it on.
+ */
+export function useDisplayEnabled(): boolean {
+  const ctx = useContext(TenantContext);
+  return ctx?.tenant?.displayEnabled === true;
+}

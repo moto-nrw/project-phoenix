@@ -19,6 +19,8 @@ interface ShiftPayload {
   /** "HH:MM" */
   endTime: string;
   breakMinutes: number;
+  /** Id of the linked shift type (Schichtart), or null if untyped */
+  shiftTypeId: string | null;
 }
 
 export class ShiftApiError extends Error {
@@ -40,6 +42,10 @@ function toBackendBody(payload: ShiftPayload) {
     start_time: payload.startTime,
     end_time: payload.endTime,
     break_minutes: payload.breakMinutes,
+    shift_type_id:
+      payload.shiftTypeId != null
+        ? Number.parseInt(payload.shiftTypeId, 10)
+        : null,
   };
 }
 

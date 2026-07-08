@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"net/mail"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -153,14 +154,15 @@ type SubmitGuardian struct {
 // NULL on the resulting request_child_offerings row. The service
 // validates subset/non-empty before inserting.
 type SubmitChild struct {
-	ID               int64
-	FirstName        string
-	LastName         string
-	DateOfBirth      timezone.Date
-	TargetGradeLevel *int16
-	CustomData       map[string]any
-	OfferingIDs      []int64
-	OfferingDays     []SubmitOfferingDays
+	ID                int64
+	FirstName         string
+	LastName          string
+	DateOfBirth       timezone.Date
+	TargetGradeLevel  *int16
+	TargetSchoolClass *string
+	CustomData        map[string]any
+	OfferingIDs       []int64
+	OfferingDays      []SubmitOfferingDays
 }
 
 // SubmitOfferingDays is one row of SubmitChild.OfferingDays.
@@ -211,6 +213,11 @@ type EditDraft struct {
 	OpenOfferings    []*enrollmentModels.CareOffering
 	LegalTexts       LegalTexts
 	EditMode         string
+	// CollectSchoolClass mirrors the tenant's enrollment.collect_school_class
+	// setting (#1833) so the reopened form knows whether to show the
+	// concrete-class field. Combined with the phase's AvailableSchoolClasses
+	// / RequireSchoolClass it forms the public concrete-class config.
+	CollectSchoolClass bool
 }
 
 const (
@@ -261,6 +268,14 @@ type RequestService interface {
 	// already be inside a tenant-tx so the settings repo can read the
 	// per-tenant override.
 	IsEnrollmentEnabled(ctx context.Context) bool
+
+	// CollectsSchoolClass reports whether the tenant collects the
+	// concrete future class (e.g. "2a") in addition to the grade level
+	// (enrollment.collect_school_class setting, issue #1833). Public
+	// form-load endpoints call this to decide whether to surface the
+	// class field. Caller must already be inside a tenant-tx. A settings
+	// resolution failure is returned, not swallowed as "disabled".
+	CollectsSchoolClass(ctx context.Context) (bool, error)
 
 	// LegalTexts returns the tenant's configured legal texts and derived
 	// public blocks for the enrollment form. Empty strings mean the admin
@@ -513,6 +528,12 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	if err := s.validateSubmission(ctx, req, legalBlocks); err != nil {
 		return nil, err
 	}
+	// Concrete-class rules need the phase (pick list + require flag) and
+	// the tenant setting, so they run here rather than in validateSubmission.
+	// Mutates req.Children[i].TargetSchoolClass to the persisted value.
+	if err := s.validateAndNormalizeSchoolClasses(ctx, phase, req.Children); err != nil {
+		return nil, err
+	}
 	// consent_flags is legally meaningful data: persist only keys the
 	// resolved legal-block contract declares so a stale or manipulated
 	// client cannot smuggle arbitrary consent entries into the request.
@@ -675,15 +696,16 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 				status = override
 			}
 			row := &enrollmentModels.RequestChild{
-				RequestID:        request.ID,
-				FirstName:        strings.TrimSpace(child.FirstName),
-				LastName:         strings.TrimSpace(child.LastName),
-				DateOfBirth:      child.DateOfBirth,
-				TargetGradeLevel: child.TargetGradeLevel,
-				CustomData:       child.CustomData,
-				Status:           status,
-				ActivationMode:   enrollmentModels.ChildActivationScheduled,
-				SortOrder:        i,
+				RequestID:         request.ID,
+				FirstName:         strings.TrimSpace(child.FirstName),
+				LastName:          strings.TrimSpace(child.LastName),
+				DateOfBirth:       child.DateOfBirth,
+				TargetGradeLevel:  child.TargetGradeLevel,
+				TargetSchoolClass: child.TargetSchoolClass,
+				CustomData:        child.CustomData,
+				Status:            status,
+				ActivationMode:    enrollmentModels.ChildActivationScheduled,
+				SortOrder:         i,
 			}
 			if err := s.requestChildRepo.Create(txCtx, row); err != nil {
 				return fmt.Errorf("submit: create request child %d: %w", i, err)
@@ -1533,13 +1555,19 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 	}
 
 	var (
-		phase         *enrollmentModels.Phase
-		schema        *enrollmentModels.FormSchema
-		openOfferings []*enrollmentModels.CareOffering
-		legalTexts    LegalTexts
-		editMode      string
+		phase              *enrollmentModels.Phase
+		schema             *enrollmentModels.FormSchema
+		openOfferings      []*enrollmentModels.CareOffering
+		legalTexts         LegalTexts
+		editMode           string
+		collectSchoolClass bool
 	)
 	if err := tenant.WithTenantTx(ctx, s.db, req.GetTenantID(), func(txCtx context.Context, _ bun.Tx) error {
+		collect, collectErr := s.collectSchoolClass(txCtx)
+		if collectErr != nil {
+			return fmt.Errorf("edit draft: resolve collect_school_class: %w", collectErr)
+		}
+		collectSchoolClass = collect
 		editMode = editModeForChildren(children)
 		if editMode == EditModeDirectEdit {
 			if err := s.ensureRequestEditable(txCtx, req, children); err != nil {
@@ -1614,16 +1642,17 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 	}
 
 	return &EditDraft{
-		Request:          req,
-		Children:         children,
-		Guardians:        guardians,
-		OfferingsByChild: linksByChild,
-		Phase:            phase,
-		School:           school,
-		Schema:           schema,
-		OpenOfferings:    openOfferings,
-		LegalTexts:       legalTexts,
-		EditMode:         editMode,
+		Request:            req,
+		Children:           children,
+		Guardians:          guardians,
+		OfferingsByChild:   linksByChild,
+		Phase:              phase,
+		School:             school,
+		Schema:             schema,
+		OpenOfferings:      openOfferings,
+		LegalTexts:         legalTexts,
+		EditMode:           editMode,
+		CollectSchoolClass: collectSchoolClass,
 	}, nil
 }
 
@@ -1715,6 +1744,9 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 			return err
 		}
 		if err := s.validateSubmission(txCtx, editReq, legalBlocks); err != nil {
+			return err
+		}
+		if err := s.validateAndNormalizeSchoolClasses(txCtx, phase, editReq.Children); err != nil {
 			return err
 		}
 		editReq.ConsentFlags = filterConsentFlags(editReq.ConsentFlags, legalBlocks)
@@ -1841,15 +1873,16 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 				status = override
 			}
 			row := &enrollmentModels.RequestChild{
-				RequestID:        req.ID,
-				FirstName:        strings.TrimSpace(child.FirstName),
-				LastName:         strings.TrimSpace(child.LastName),
-				DateOfBirth:      child.DateOfBirth,
-				TargetGradeLevel: child.TargetGradeLevel,
-				CustomData:       child.CustomData,
-				Status:           status,
-				ActivationMode:   enrollmentModels.ChildActivationScheduled,
-				SortOrder:        i,
+				RequestID:         req.ID,
+				FirstName:         strings.TrimSpace(child.FirstName),
+				LastName:          strings.TrimSpace(child.LastName),
+				DateOfBirth:       child.DateOfBirth,
+				TargetGradeLevel:  child.TargetGradeLevel,
+				TargetSchoolClass: child.TargetSchoolClass,
+				CustomData:        child.CustomData,
+				Status:            status,
+				ActivationMode:    enrollmentModels.ChildActivationScheduled,
+				SortOrder:         i,
 			}
 			if i < len(children) {
 				row.ActivationMode = children[i].ActivationMode
@@ -2702,6 +2735,131 @@ func filterConsentFlags(flags map[string]any, blocks []LegalBlock) map[string]an
 	return out
 }
 
+// CollectsSchoolClass is the exported form of collectSchoolClass for the
+// RequestService interface (public form-load endpoints).
+func (s *requestService) CollectsSchoolClass(ctx context.Context) (bool, error) {
+	return s.collectSchoolClass(ctx)
+}
+
+// collectSchoolClass reports whether the tenant collects the concrete
+// future class (e.g. "2a") in addition to the grade level. Brand-new
+// setting with no env-var backward-compat, so ResolveBool alone (which
+// returns the registry default when there's no tenant override) is
+// sufficient; default is false.
+//
+// A resolution error is returned rather than swallowed as "disabled": a
+// corrupt setting value or repository failure must not silently hide the
+// class field on form bootstrap or strip a submitted, possibly-required
+// class in validateAndNormalizeSchoolClasses (issue #1833).
+func (s *requestService) collectSchoolClass(ctx context.Context) (bool, error) {
+	if s.settings == nil {
+		return false, nil
+	}
+	return s.settings.ResolveBool(ctx, configModel.KeyEnrollmentCollectSchoolClass)
+}
+
+// validateAndNormalizeSchoolClasses enforces the concrete-class rules
+// (issue #1833) and mutates each child's TargetSchoolClass in place to
+// the value that should be persisted:
+//
+//   - setting off: the concrete class is never collected -> force nil.
+//   - grade < 2: grade 1 (and grade-less rows) stay grade-level only ->
+//     force nil regardless of what the client sent.
+//   - grade >= 2, value provided: must be one of the phase's
+//     AvailableSchoolClasses (exact, trimmed) -> else reject.
+//   - grade >= 2, value empty: allowed as "Klasse offen" unless the
+//     phase's RequireSchoolClass makes it mandatory -> then reject.
+//
+// Trims and collapses empty strings to nil so "" never reaches the DB.
+func (s *requestService) validateAndNormalizeSchoolClasses(ctx context.Context, phase *enrollmentModels.Phase, children []SubmitChild) error {
+	collect, err := s.collectSchoolClass(ctx)
+	if err != nil {
+		return fmt.Errorf("resolve collect_school_class: %w", err)
+	}
+	allowed := make(map[string]struct{}, len(phase.AvailableSchoolClasses))
+	for _, c := range phase.AvailableSchoolClasses {
+		if t := strings.TrimSpace(c); t != "" {
+			allowed[t] = struct{}{}
+		}
+	}
+	for i := range children {
+		// Trim + collapse to nil first so downstream only sees a real value.
+		var chosen string
+		if children[i].TargetSchoolClass != nil {
+			chosen = strings.TrimSpace(*children[i].TargetSchoolClass)
+		}
+		grade := 0
+		if children[i].TargetGradeLevel != nil {
+			grade = int(*children[i].TargetGradeLevel)
+		}
+		if !collect || grade < 2 {
+			children[i].TargetSchoolClass = nil
+			continue
+		}
+		if chosen == "" {
+			// Only force a pick when this grade actually has a class to
+			// pick. A phase may require classes yet only offer them for some
+			// grades (e.g. ["3a"] while grade 2 is still selectable). For a
+			// grade with no matching offered class the required pick is
+			// unsatisfiable — the grade-prefix check below would reject every
+			// offered class — so "Klasse offen" is the only valid outcome
+			// rather than a submission that can never succeed. Issue #1833.
+			if phase.RequireSchoolClass && gradeHasSelectableClass(allowed, grade) {
+				return fmt.Errorf("%w: child %d missing target_school_class", ErrInvalidSubmission, i)
+			}
+			children[i].TargetSchoolClass = nil
+			continue
+		}
+		if _, ok := allowed[chosen]; !ok {
+			return fmt.Errorf("%w: child %d target_school_class %q not offered by this phase", ErrInvalidSubmission, i, chosen)
+		}
+		// The phase's pick list mixes classes from every grade
+		// ("2a", "2b", "3a"), and the client sends the whole list for
+		// every grade, so "in the list" is not enough: a grade-2 child
+		// must not be able to pick "3a". Concrete classes follow the
+		// grade-number convention gradeToClass produces, so the class's
+		// leading digits are the grade it belongs to. Reject when they
+		// disagree; classes without a numeric prefix carry no derivable
+		// grade and are left to the plain list check above.
+		if prefix := schoolClassGradePrefix(chosen); prefix != "" && prefix != strconv.Itoa(grade) {
+			return fmt.Errorf("%w: child %d target_school_class %q does not match target grade %d", ErrInvalidSubmission, i, chosen, grade)
+		}
+		children[i].TargetSchoolClass = &chosen
+	}
+	return nil
+}
+
+// gradeHasSelectableClass reports whether at least one offered class can be
+// picked by a child in the given grade. A class matches when its numeric
+// prefix equals the grade ("2a" for grade 2); a class without a numeric
+// prefix ("Bienen") carries no derivable grade and is offered to every
+// grade. Used to decide whether RequireSchoolClass can be enforced for a
+// grade at all — a required pick with no matching class is unsatisfiable.
+// Issue #1833.
+func gradeHasSelectableClass(allowed map[string]struct{}, grade int) bool {
+	want := strconv.Itoa(grade)
+	for class := range allowed {
+		if prefix := schoolClassGradePrefix(class); prefix == "" || prefix == want {
+			return true
+		}
+	}
+	return false
+}
+
+// schoolClassGradePrefix returns the leading run of digits in a school
+// class name ("2a" -> "2", "12b" -> "12"), or "" when the name has no
+// numeric prefix. Concrete class names follow the grade-number
+// convention gradeToClass produces, so the prefix is the grade the class
+// belongs to. Issue #1833.
+func schoolClassGradePrefix(class string) string {
+	class = strings.TrimSpace(class)
+	end := 0
+	for end < len(class) && class[end] >= '0' && class[end] <= '9' {
+		end++
+	}
+	return class[:end]
+}
+
 // resolveGradeMax reads the tenant setting and falls back to the current
 // registry default when unset or unreadable.
 func (s *requestService) resolveGradeMax(ctx context.Context) int {
@@ -2981,13 +3139,13 @@ func resolveSelectedDays(offering *enrollmentModels.CareOffering, picks []string
 	return days, nil
 }
 
-var errParentChoiceOfferingMissingDays = fmt.Errorf("offering requires the parent to pick at least one day")
+var errParentChoiceOfferingMissingDays = fmt.Errorf("%w: offering requires the parent to pick at least one day", ErrInvalidSubmission)
 
 func resolveManualSelectedDays(offering *enrollmentModels.CareOffering, picks []string) ([]string, error) {
 	switch offering.DaysOfWeekMode {
 	case enrollmentModels.DaysOfWeekModeFixed:
 		if len(picks) > 0 {
-			return nil, fmt.Errorf("offering does not allow parent day selection (days_of_week_mode=fixed)")
+			return nil, fmt.Errorf("%w: offering does not allow parent day selection (days_of_week_mode=fixed)", ErrInvalidSubmission)
 		}
 		return nil, nil
 	case enrollmentModels.DaysOfWeekModeParentChoice:
@@ -2999,7 +3157,7 @@ func resolveManualSelectedDays(offering *enrollmentModels.CareOffering, picks []
 		dedup := make([]string, 0, len(picks))
 		for _, d := range picks {
 			if !allowed[d] {
-				return nil, fmt.Errorf("day %q is not in the offering's available_days", d)
+				return nil, fmt.Errorf("%w: day %q is not in the offering's available_days", ErrInvalidSubmission, d)
 			}
 			if seen[d] {
 				continue

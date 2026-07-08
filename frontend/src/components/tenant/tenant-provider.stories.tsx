@@ -14,6 +14,7 @@ const fakeTenant: TenantInfo = {
   studentPhotosEnabled: true,
   nfcEnabled: false,
   messagingEnabled: false,
+  displayEnabled: false,
 };
 
 function TenantSummary() {

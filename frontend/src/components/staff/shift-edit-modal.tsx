@@ -2,12 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { Modal } from "~/components/ui/modal";
 import { getApiErrorMessage } from "~/lib/api-error-message";
 import { createLogger } from "~/lib/logger";
 import { ShiftApiError, staffShiftService } from "~/lib/shift-api";
 import type { StaffShift } from "~/lib/shift-helpers";
+import type { ShiftType } from "~/lib/shift-type-helpers";
 
 const logger = createLogger({ component: "ShiftEditModal" });
 const STAFF_SHIFT_MAX_BREAK_MINUTES = 300;
@@ -56,6 +59,9 @@ interface ShiftEditModalProps {
   /** Calendar day as "YYYY-MM-DD" */
   readonly date: string;
   readonly shift: StaffShift | null;
+  /** All shift types (Schichtarten); the picker offers active ones plus the
+   *  one currently attached to this shift (even if inactive). */
+  readonly shiftTypes: readonly ShiftType[];
   readonly onClose: () => void;
   readonly onSaved: () => void;
 }
@@ -67,6 +73,7 @@ export function ShiftEditModal({
   staffName,
   date,
   shift,
+  shiftTypes,
   onClose,
   onSaved,
 }: ShiftEditModalProps) {
@@ -76,13 +83,22 @@ export function ShiftEditModal({
         startTime: shift.startTime,
         endTime: shift.endTime,
         breakMinutes: shift.breakMinutes,
+        shiftTypeId: shift.shiftTypeId ?? "",
       };
     }
-    return { startTime: "08:00", endTime: "16:00", breakMinutes: 30 };
+    return {
+      startTime: "08:00",
+      endTime: "16:00",
+      breakMinutes: 30,
+      shiftTypeId: "",
+    };
   }, [shift]);
 
   const [startTime, setStartTime] = useState(initial.startTime);
   const [endTime, setEndTime] = useState(initial.endTime);
+  // "" = no shift type. An inactive type still attached to this shift is kept
+  // as an option so editing a shift doesn't silently drop it.
+  const [shiftTypeId, setShiftTypeId] = useState(initial.shiftTypeId);
   // Raw string so the field can be cleared while typing; parsed on submit
   // (same rationale as AdminSessionEditModal).
   const [breakMinutesStr, setBreakMinutesStr] = useState(
@@ -98,6 +114,7 @@ export function ShiftEditModal({
     setStartTime(initial.startTime);
     setEndTime(initial.endTime);
     setBreakMinutesStr(String(initial.breakMinutes));
+    setShiftTypeId(initial.shiftTypeId);
     setError(null);
     setConfirmDeleteOpen(false);
   }, [isOpen, initial]);
@@ -112,6 +129,21 @@ export function ShiftEditModal({
     : STAFF_SHIFT_MAX_BREAK_MINUTES;
   const breakMinutes = parseBreakMinutes(breakMinutesStr, breakMaxMinutes);
   const breakValid = breakMinutes !== null;
+
+  const typeOptions = useMemo(() => {
+    const opts: { value: string; label: string }[] = [
+      { value: "", label: "Keine Schichtart" },
+    ];
+    for (const type of shiftTypes) {
+      if (type.isActive || type.id === shift?.shiftTypeId) {
+        opts.push({
+          value: type.id,
+          label: type.isActive ? type.name : `${type.name} (inaktiv)`,
+        });
+      }
+    }
+    return opts;
+  }, [shiftTypes, shift]);
 
   const handleSubmit = async () => {
     setError(null);
@@ -128,7 +160,14 @@ export function ShiftEditModal({
 
     setIsSaving(true);
     try {
-      const payload = { staffId, date, startTime, endTime, breakMinutes };
+      const payload = {
+        staffId,
+        date,
+        startTime,
+        endTime,
+        breakMinutes,
+        shiftTypeId: shiftTypeId === "" ? null : shiftTypeId,
+      };
       if (mode === "edit" && shift) {
         await staffShiftService.updateShift(shift.id, payload);
       } else {
@@ -177,35 +216,37 @@ export function ShiftEditModal({
   const footer = (
     <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:items-center">
       {mode === "edit" && shift && (
-        <button
+        <Button
           type="button"
+          variant="outline_danger"
+          size="md"
+          className="sm:mr-auto"
           onClick={() => setConfirmDeleteOpen(true)}
           disabled={isSaving || isDeleting}
-          className="rounded-md border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50 sm:mr-auto"
         >
           Schicht löschen
-        </button>
+        </Button>
       )}
-      <button
+      <Button
         type="button"
+        variant="outline"
+        size="md"
         onClick={onClose}
         disabled={isSaving || isDeleting}
-        className="rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
       >
         Abbrechen
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
+        variant="primary"
+        size="md"
         onClick={handleSubmit}
+        isLoading={isSaving}
+        loadingText="Speichern…"
         disabled={isSaving || isDeleting || !timesValid || !breakValid}
-        className="rounded-md bg-[#83CD2D] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#70b525] disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {isSaving
-          ? "Speichern…"
-          : mode === "edit"
-            ? "Änderungen speichern"
-            : "Schicht anlegen"}
-      </button>
+        {mode === "edit" ? "Änderungen speichern" : "Schicht anlegen"}
+      </Button>
     </div>
   );
 
@@ -253,6 +294,17 @@ export function ShiftEditModal({
               />
             </Field>
           </div>
+          {typeOptions.length > 1 && (
+            <Field label="Schichtart">
+              <CustomSelect
+                value={shiftTypeId}
+                options={typeOptions}
+                onChange={setShiftTypeId}
+                ariaLabel="Schichtart"
+                placeholder="Keine Schichtart"
+              />
+            </Field>
+          )}
           {error && (
             <p className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
               {error}

@@ -1203,11 +1203,6 @@ func (s *Scheduler) scheduleBreakAutoEndTask() {
 		return
 	}
 
-	if os.Getenv("BREAK_AUTO_END_ENABLED") == "false" {
-		s.getLogger().Info("break auto-end is disabled via env var")
-		return
-	}
-
 	// Resolve interval from env var (global, not per-tenant)
 	s.breakAutoEndIntervalSeconds = 60
 	if val := os.Getenv("BREAK_AUTO_END_INTERVAL_SECONDS"); val != "" {
@@ -1282,7 +1277,6 @@ func (s *Scheduler) checkAndRunBreakAutoEnd(task *ScheduledTask) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Tenant-scoped: auto-end expired breaks
 	breakErr := s.forEachTenant(ctx, "break-auto-end", func(tenantCtx context.Context) error {
 		count, err := s.breakAutoEnder.AutoEndExpiredBreaks(tenantCtx)
 		if err != nil {

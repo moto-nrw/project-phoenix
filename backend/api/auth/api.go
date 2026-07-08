@@ -358,6 +358,11 @@ type TenantResolveResponse struct {
 	// the school has parent-OGS messaging turned off, instead of composing into a
 	// 403 dead-end. Defaults to false when the setting is missing/unresolvable.
 	ParentMessagingEnabled bool `json:"parent_messaging_enabled"`
+	// DisplayEnabled is the tenant's resolved display.enabled setting. The
+	// Info-Point Dashboard is opt-in and defaults off, so the frontend needs
+	// this to hide the sidebar entry / admin page for schools that haven't
+	// turned it on. Defaults to false when the setting is missing/unresolvable.
+	DisplayEnabled bool `json:"display_enabled"`
 }
 
 // resolveTenant handles GET /auth/tenant/resolve?slug={slug}
@@ -407,6 +412,7 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 	studentPhotosEnabled := false
 	nfcEnabled := false
 	parentMessagingEnabled := false
+	displayEnabled := false
 	if rs.SettingsService != nil {
 		val, err := rs.SettingsService.ResolveStringForTenant(r.Context(), school.ID, configModel.KeyStudentPhotosEnabled)
 		if err == nil {
@@ -414,6 +420,9 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		}
 		if val, err := rs.SettingsService.ResolveBoolForTenant(r.Context(), school.ID, configModel.KeyAttendanceNFCEnabled); err == nil {
 			nfcEnabled = val
+		}
+		if val, err := rs.SettingsService.ResolveBoolForTenant(r.Context(), school.ID, configModel.KeyDisplayEnabled); err == nil {
+			displayEnabled = val
 		}
 		// Messaging compose visibility fails OPEN (counts a resolve error as
 		// enabled), UNLIKE the photos/NFC flags above. It must agree with the unread
@@ -438,6 +447,7 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		StudentPhotosEnabled:   studentPhotosEnabled,
 		NFCEnabled:             nfcEnabled,
 		ParentMessagingEnabled: parentMessagingEnabled,
+		DisplayEnabled:         displayEnabled,
 	}
 
 	common.Respond(w, r, http.StatusOK, resp, "Tenant resolved successfully")

@@ -200,6 +200,7 @@ const (
 const (
 	KeyEnrollmentEnabled                                = "enrollment.enabled"
 	KeyEnrollmentCollectGradeLevel                      = "enrollment.collect_grade_level"
+	KeyEnrollmentCollectSchoolClass                     = "enrollment.collect_school_class"
 	KeyEnrollmentCareOfferingsEnabled                   = "enrollment.care_offerings_enabled"
 	KeyEnrollmentDefaultActivationMode                  = "enrollment.default_activation_mode"
 	KeyEnrollmentNotificationEmails                     = "enrollment.notification_emails"
@@ -270,6 +271,13 @@ const (
 	// and scrolls if events fall outside.
 	KeyTimetableDayStartTime = "timetable.day_start_time"
 	KeyTimetableDayEndTime   = "timetable.day_end_time"
+)
+
+// Info-point display settings (issue #1325). The whole feature is opt-in:
+// a school must explicitly enable it before the admin UI and public
+// dashboard endpoint become reachable. Definitions live in defaults/display.go.
+const (
+	KeyDisplayEnabled = "display.enabled"
 )
 
 // Reminder settings (issue #1457). Visual-only (no sound) reminders surfaced

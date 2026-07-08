@@ -586,6 +586,10 @@ func (m *mockStaffRepo) Delete(context.Context, interface{}) error       { retur
 func (m *mockStaffRepo) List(context.Context, map[string]interface{}) ([]*userModels.Staff, error) {
 	return nil, nil
 }
+func (*mockStaffRepo) FindReachableCalendarStaffIDs(context.Context, []int64) (map[int64]bool, error) {
+	return map[int64]bool{}, nil
+}
+
 func (m *mockStaffRepo) ListAllWithPerson(context.Context) ([]*userModels.Staff, error) {
 	return nil, nil
 }

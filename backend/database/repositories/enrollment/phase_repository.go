@@ -51,7 +51,7 @@ func (r *PhaseRepository) FindByID(ctx context.Context, id int64) (*enrollment.P
 		Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("phase %d not found", id)
+			return nil, fmt.Errorf("phase %d not found: %w", id, sql.ErrNoRows)
 		}
 		return nil, fmt.Errorf("failed to find phase: %w", err)
 	}
@@ -76,10 +76,13 @@ func (r *PhaseRepository) Update(ctx context.Context, phase *enrollment.Phase) e
 		Set("enrollment_open_at = ?", phase.EnrollmentOpenAt).
 		Set("enrollment_close_at = ?", phase.EnrollmentCloseAt).
 		Set("form_schema_id = ?", phase.FormSchemaID).
+		Set("calendar_period_id = ?", phase.CalendarPeriodID).
 		Set("show_status_reason_to_parent = ?", phase.ShowStatusReasonToParent).
 		Set("care_overflow_mode = ?", phase.CareOverflowMode).
 		Set("care_offering_selection_mode = ?", phase.CareOfferingSelectionMode).
 		Set("is_active = ?", phase.IsActive).
+		Set("available_school_classes = ?", phase.AvailableSchoolClasses).
+		Set("require_school_class = ?", phase.RequireSchoolClass).
 		Set("updated_at = NOW()").
 		Where(`"phase".id = ?`, phase.ID).
 		Exec(ctx)
@@ -88,7 +91,7 @@ func (r *PhaseRepository) Update(ctx context.Context, phase *enrollment.Phase) e
 	}
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
-		return fmt.Errorf("phase %d not found", phase.ID)
+		return fmt.Errorf("phase %d not found: %w", phase.ID, sql.ErrNoRows)
 	}
 	return nil
 }

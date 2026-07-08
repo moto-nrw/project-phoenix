@@ -516,6 +516,14 @@ func (s *changeRequestService) prepareProposed(
 	if err := rs.validateSubmission(ctx, editReq, legalBlocks); err != nil {
 		return editReq, nil, nil, nil, err
 	}
+	// Concrete-class rules (#1833) hang off the tenant setting + phase, so
+	// they run here rather than in validateSubmission - mirroring Submit and
+	// ReplaceEditable. Without this a status-linked parent could propose an
+	// unoffered target_school_class (or omit a required one for grade >= 2)
+	// and staff approval would persist the invalid value.
+	if err := rs.validateAndNormalizeSchoolClasses(ctx, phase, editReq.Children); err != nil {
+		return editReq, nil, nil, nil, err
+	}
 	if err := s.validateAccountLinkedGuardianEdits(ctx, req, editReq); err != nil {
 		return editReq, nil, nil, nil, err
 	}
@@ -796,6 +804,7 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 		existing.LastName = strings.TrimSpace(next.LastName)
 		existing.DateOfBirth = next.DateOfBirth
 		existing.TargetGradeLevel = next.TargetGradeLevel
+		existing.TargetSchoolClass = next.TargetSchoolClass
 		existing.CustomData = next.CustomData
 		existing.SortOrder = i
 		if err := s.requestChildRepo.UpdateData(ctx, existing); err != nil {
@@ -1275,6 +1284,18 @@ func submitSnapshot(req SubmitRequest) map[string]any {
 			"offering_ids":       offeringIDs,
 			"offering_days":      offeringDays,
 		}
+		// Only emit target_school_class when a concrete class is actually
+		// set. Snapshots persisted before #1833 have no such key at all, so
+		// currentSnapshot() must omit it too when unset — otherwise
+		// applyApprovedChange() compares a recomputed snapshot carrying
+		// "target_school_class": null against a stored base snapshot missing
+		// the key, and jsonEqual treats missing != null, wrongly reporting a
+		// conflict that blocks approval of every pre-existing pending change
+		// request. Round-trips cleanly: snapshotToSubmitRequest reads a
+		// missing key back as nil.
+		if class := trimmedOptionalString(child.TargetSchoolClass); class != "" {
+			row["target_school_class"] = class
+		}
 		if child.ID > 0 {
 			row["id"] = strconv.FormatInt(child.ID, 10)
 		}
@@ -1328,11 +1349,12 @@ func persistedSnapshot(
 	}
 	for _, child := range children {
 		next := SubmitChild{
-			FirstName:        child.FirstName,
-			LastName:         child.LastName,
-			DateOfBirth:      child.DateOfBirth,
-			TargetGradeLevel: child.TargetGradeLevel,
-			CustomData:       child.CustomData,
+			FirstName:         child.FirstName,
+			LastName:          child.LastName,
+			DateOfBirth:       child.DateOfBirth,
+			TargetGradeLevel:  child.TargetGradeLevel,
+			TargetSchoolClass: child.TargetSchoolClass,
+			CustomData:        child.CustomData,
 		}
 		for _, link := range linksByChild[child.ID] {
 			next.OfferingIDs = append(next.OfferingIDs, link.CareOfferingID)
@@ -1419,12 +1441,13 @@ func snapshotToSubmitRequest(snapshot map[string]any) (SubmitRequest, error) {
 			return out, fmt.Errorf("%w: child %d date_of_birth", ErrChangeRequestInvalidData, i)
 		}
 		child := SubmitChild{
-			ID:               int64FromAny(row["id"]),
-			FirstName:        stringFromAny(row["first_name"]),
-			LastName:         stringFromAny(row["last_name"]),
-			DateOfBirth:      dob,
-			TargetGradeLevel: int16PtrFromAny(row["target_grade_level"]),
-			CustomData:       mapFromAny(row["custom_data"]),
+			ID:                int64FromAny(row["id"]),
+			FirstName:         stringFromAny(row["first_name"]),
+			LastName:          stringFromAny(row["last_name"]),
+			DateOfBirth:       dob,
+			TargetGradeLevel:  int16PtrFromAny(row["target_grade_level"]),
+			TargetSchoolClass: optionalStringFromAny(row["target_school_class"]),
+			CustomData:        mapFromAny(row["custom_data"]),
 		}
 		for _, rawID := range sliceFromAny(row["offering_ids"]) {
 			if id := int64FromAny(rawID); id > 0 {

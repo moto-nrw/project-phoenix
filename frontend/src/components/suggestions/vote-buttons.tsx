@@ -5,6 +5,7 @@ import { ThumbsUp, ThumbsDown } from "lucide-react";
 import type { Suggestion } from "~/lib/suggestions-helpers";
 import { voteSuggestion, removeVote } from "~/lib/suggestions-api";
 import { createLogger } from "~/lib/logger";
+import { trackEvent } from "~/lib/analytics";
 
 const logger = createLogger({ component: "VoteButtons" });
 
@@ -79,6 +80,7 @@ export function VoteButtons({ suggestion, onVoteChange }: VoteButtonsProps) {
 
       try {
         const updated = await voteSuggestion(suggestion.id, direction);
+        trackEvent("suggestion_voted", { direction });
         setOptimistic(null);
         onVoteChange(updated);
       } catch (err) {

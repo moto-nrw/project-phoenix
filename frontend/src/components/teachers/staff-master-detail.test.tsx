@@ -175,6 +175,39 @@ describe("StaffMasterDetail", () => {
     expect(onManageCaregiver).toHaveBeenCalled();
   });
 
+  it("shows the manage role button only when the callback is provided", () => {
+    const onManageRole = vi.fn();
+    const { rerender } = render(
+      <StaffMasterDetail
+        groupDefinitions={flatGroup([baseTeacher])}
+        selectedId="1"
+        selectedTeacher={baseTeacher}
+        onSelect={onSelect}
+        onEditClick={onEditClick}
+        onDeleteClick={onDeleteClick}
+        onUpdateNotes={onUpdateNotes}
+      />,
+    );
+
+    expect(screen.queryByText("Rolle verwalten")).not.toBeInTheDocument();
+
+    rerender(
+      <StaffMasterDetail
+        groupDefinitions={flatGroup([baseTeacher])}
+        selectedId="1"
+        selectedTeacher={baseTeacher}
+        onSelect={onSelect}
+        onEditClick={onEditClick}
+        onDeleteClick={onDeleteClick}
+        onUpdateNotes={onUpdateNotes}
+        onManageRole={onManageRole}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Rolle verwalten"));
+    expect(onManageRole).toHaveBeenCalled();
+  });
+
   it("hides the email and qualifications sections when fields are missing", () => {
     render(
       <StaffMasterDetail

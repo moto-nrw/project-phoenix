@@ -158,6 +158,9 @@ interface AdditionalNavItem {
   label: string;
   iconKey: keyof typeof navigationIcons;
   requiresAdmin?: boolean;
+  // Show for admins or anyone holding this tenant permission (matches the
+  // backend route gate). Use instead of alwaysShow for permission-gated pages.
+  requiresPermission?: string;
   requiresSupervision?: boolean;
   requiresActiveSupervision?: boolean;
   alwaysShow?: boolean;
@@ -225,12 +228,11 @@ const PARENT_MAIN_ITEMS: readonly (NavItem & { tKey: string })[] = [
     alwaysShow: true,
   },
   {
-    href: "#",
+    href: "/parents/calendar",
     label: "Kalender",
     tKey: "calendar",
     iconKey: "calendar",
     alwaysShow: true,
-    comingSoon: true,
   },
 ];
 
@@ -278,6 +280,13 @@ const additionalNavItems: AdditionalNavItem[] = [
     alwaysShow: true,
   },
   { href: "/staff", label: "Mitarbeiter", iconKey: "staff", alwaysShow: true },
+  {
+    href: "/calendar",
+    label: "Kalender",
+    iconKey: "calendar",
+    // Match the backend calendar:own gate on GET /api/calendar/my.
+    requiresPermission: "calendar:own",
+  },
   {
     href: "/staff/dienstplan",
     label: "Dienstplan",
@@ -601,6 +610,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       return false;
     }
     if (item.requiresAdmin) return userIsAdmin;
+    if (item.requiresPermission) {
+      return userIsAdmin || hasPermission(session, item.requiresPermission);
+    }
     if (item.requiresSupervision && !userIsAdmin) {
       return hasGroupSupervision || hasRoomSupervision;
     }

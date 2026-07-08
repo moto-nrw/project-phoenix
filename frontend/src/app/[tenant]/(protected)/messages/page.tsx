@@ -1,12 +1,11 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import useSWR from "swr";
 import { MessageCircle } from "lucide-react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
-import { Loading } from "~/components/ui/loading";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { useTenant, useTenantSlugSafe } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -19,6 +18,7 @@ import { NewMessageModal } from "~/components/messaging/new-message-modal";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { createLogger } from "~/lib/logger";
 import { formatChatDateTime } from "~/lib/date-helpers";
+import { MessagesSkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "MessagesInboxPage" });
 
@@ -84,7 +84,7 @@ function MessagesInboxContent() {
 
   // Skeleton only on the very first load (no cached data yet).
   if (isLoading && !threads) {
-    return <Loading fullPage={false} />;
+    return <MessagesSkeleton />;
   }
 
   return (
@@ -226,9 +226,5 @@ function MessagesInboxContent() {
 }
 
 export default function MessagesPage() {
-  return (
-    <Suspense fallback={<Loading fullPage={false} />}>
-      <MessagesInboxContent />
-    </Suspense>
-  );
+  return <MessagesInboxContent />;
 }

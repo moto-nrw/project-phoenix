@@ -463,9 +463,11 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
               {row.child_first_name} {row.child_last_name}
             </p>
             <p className="text-xs text-gray-500">
-              {row.target_grade_level
-                ? `${row.target_grade_level}. Klasse`
-                : "Keine Klassenstufe"}
+              {row.target_school_class
+                ? row.target_school_class
+                : row.target_grade_level
+                  ? `${row.target_grade_level}. Klasse`
+                  : "Keine Klassenstufe"}
             </p>
           </div>
         ),

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
@@ -20,8 +20,8 @@ import {
 import { useSWRAuth } from "~/lib/swr";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { isAdmin } from "~/lib/auth-utils";
+import { StaffPageSkeleton } from "./page-skeleton";
 
-import { Loading } from "~/components/ui/loading";
 function StaffPageContent() {
   const { data: session, status } = useSession({
     required: true,
@@ -198,7 +198,7 @@ function StaffPageContent() {
   }, [searchTerm, locationFilter]);
 
   if (status === "loading" || isLoading) {
-    return <Loading fullPage={false} />;
+    return <StaffPageSkeleton />;
   }
 
   return (
@@ -406,11 +406,6 @@ function StaffPageContent() {
   );
 }
 
-// Main component with Suspense wrapper
 export default function StaffPage() {
-  return (
-    <Suspense fallback={<Loading fullPage={false} />}>
-      <StaffPageContent />
-    </Suspense>
-  );
+  return <StaffPageContent />;
 }

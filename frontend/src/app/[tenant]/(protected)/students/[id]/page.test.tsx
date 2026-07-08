@@ -43,13 +43,6 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   ),
 }));
 
-// Mock Loading component
-vi.mock("~/components/ui/loading", () => ({
-  Loading: ({ message }: { message?: string }) => (
-    <div data-testid="loading">{message ?? "Loading..."}</div>
-  ),
-}));
-
 // Mock Alert component
 vi.mock("~/components/ui/alert", () => ({
   Alert: ({ message, type }: { message: string; type: string }) => (
@@ -566,8 +559,8 @@ describe("StudentDetailPage", () => {
 
       render(<StudentDetailPage />);
 
-      expect(screen.getByTestId("loading")).toBeInTheDocument();
-      expect(screen.getByText("Laden...")).toBeInTheDocument();
+      expect(screen.getByTestId("student-detail-skeleton")).toBeInTheDocument();
+      expect(screen.getByLabelText("Kind wird geladen")).toBeInTheDocument();
     });
   });
 
@@ -1825,7 +1818,7 @@ describe("StudentDetailPage", () => {
       });
 
       const { rerender } = render(<StudentDetailPage />);
-      expect(screen.getByTestId("loading")).toBeInTheDocument();
+      expect(screen.getByTestId("student-detail-skeleton")).toBeInTheDocument();
 
       // Same component instance now finishes loading with full access.
       mockUseStudentData.mockReturnValue({

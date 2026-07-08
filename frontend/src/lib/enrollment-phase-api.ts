@@ -6,9 +6,7 @@ const logger = createLogger({ component: "EnrollmentPhaseAPI" });
 export type PhaseKind = "school_year" | "holiday" | "custom";
 export type PhaseCareOverflowMode = "waitlist" | "reject" | "allow";
 export type PhaseCareOfferingSelectionMode =
-  | "optional"
-  | "at_least_one"
-  | "exactly_one";
+  "optional" | "at_least_one" | "exactly_one";
 
 export interface Phase {
   id: string;
@@ -19,6 +17,7 @@ export interface Phase {
   enrollment_open_at?: string | null; // RFC3339
   enrollment_close_at?: string | null; // RFC3339
   form_schema_id?: string | null;
+  calendar_period_id?: string | null;
   show_status_reason_to_parent: boolean;
   care_overflow_mode: PhaseCareOverflowMode;
   care_offering_selection_mode: PhaseCareOfferingSelectionMode;
@@ -30,6 +29,12 @@ export interface Phase {
   rollover_auto_approve?: boolean;
   rollover_deadline?: string | null;
   rollover_bumps_grade?: boolean;
+  // Concrete-class config (#1833). available_school_classes is the pick
+  // list the public form offers from grade 2; require_school_class makes
+  // choosing mandatory. Only meaningful when enrollment.collect_school_class
+  // is on.
+  available_school_classes?: string[];
+  require_school_class?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -53,10 +58,13 @@ export interface PhaseInput {
   enrollment_open_at?: string | null;
   enrollment_close_at?: string | null;
   form_schema_id?: string | null;
+  calendar_period_id?: string | null;
   show_status_reason_to_parent: boolean;
   care_overflow_mode: PhaseCareOverflowMode;
   care_offering_selection_mode: PhaseCareOfferingSelectionMode;
   is_active: boolean;
+  available_school_classes?: string[];
+  require_school_class?: boolean;
 }
 
 interface BackendEnvelope<T> {
@@ -89,6 +97,57 @@ async function readError(response: Response, fallback: string): Promise<Error> {
     logger,
     "phase_request_failed",
   );
+}
+
+/**
+ * Maps a Phase back to the full PUT body. The backend rebuilds the whole
+ * phase from the request, so partial updates would blank fields — every
+ * caller that wants to change one field must send the complete input.
+ */
+export function phaseToInput(p: Phase): PhaseInput {
+  return {
+    name: p.name,
+    kind: p.kind,
+    service_start_date: p.service_start_date,
+    service_end_date: p.service_end_date,
+    enrollment_open_at: p.enrollment_open_at ?? null,
+    enrollment_close_at: p.enrollment_close_at ?? null,
+    form_schema_id: p.form_schema_id ?? null,
+    calendar_period_id: p.calendar_period_id ?? null,
+    show_status_reason_to_parent: p.show_status_reason_to_parent,
+    care_overflow_mode: p.care_overflow_mode,
+    care_offering_selection_mode: p.care_offering_selection_mode ?? "optional",
+    is_active: p.is_active,
+    available_school_classes: p.available_school_classes ?? [],
+    require_school_class: p.require_school_class ?? false,
+  };
+}
+
+/**
+ * Links or unlinks a phase to a calendar period (periodId null = unlink).
+ * Refetches the phase first and builds the PUT body from that fresh state:
+ * the endpoint replaces the whole row, so writing from a possibly stale
+ * list snapshot would silently revert concurrent edits to the phase.
+ */
+export async function setPhaseCalendarPeriod(
+  phase: Phase,
+  periodId: string | null,
+): Promise<Phase> {
+  const fresh = await getPhase(phase.id);
+  return updatePhase(phase.id, {
+    ...phaseToInput(fresh),
+    calendar_period_id: periodId,
+  });
+}
+
+async function getPhase(id: string): Promise<Phase> {
+  const response = await fetch(`${BASE}/${encodeURIComponent(id)}`, {
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw await readError(response, "Phase konnte nicht geladen werden");
+  }
+  return readJSON<Phase>(response);
 }
 
 export async function listPhases(): Promise<Phase[]> {

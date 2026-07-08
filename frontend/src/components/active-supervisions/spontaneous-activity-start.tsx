@@ -14,7 +14,6 @@ import { activityService } from "~/lib/activity-service";
 import type { Activity } from "~/lib/activity-helpers";
 import { createLogger } from "~/lib/logger";
 import { staffService, type Staff } from "~/lib/staff-api";
-import { SCHULHOF_ROOM_NAME } from "./view-model";
 
 const logger = createLogger({ component: "SpontaneousActivityStart" });
 const EMPTY_OCCUPIED_ROOM_IDS: readonly string[] = [];
@@ -102,7 +101,6 @@ export function SpontaneousActivityStart({
   const [isLoadingRefs, setIsLoadingRefs] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [rooms, setRooms] = useState<RoomOption[]>([]);
-  const [hasSchulhofRoom, setHasSchulhofRoom] = useState(false);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [activityInput, setActivityInput] = useState("");
   const [roomId, setRoomId] = useState(defaultRoomId ?? "");
@@ -146,14 +144,13 @@ export function SpontaneousActivityStart({
       }),
     ])
       .then(([activityData, roomData, staffData]) => {
-        const spontaneousRooms = roomData.filter(
-          (room) => room.name !== SCHULHOF_ROOM_NAME,
-        );
+        // System rooms (Schulhof, WC) are excluded by the backend list
+        // endpoint by default — no client-side filtering needed.
+        const spontaneousRooms = roomData;
         setActivities(
           [...activityData].sort((a, b) => a.name.localeCompare(b.name, "de")),
         );
         setRooms(spontaneousRooms);
-        setHasSchulhofRoom(spontaneousRooms.length !== roomData.length);
         setStaff(
           staffData
             .filter((item) => item.id !== currentStaffId)
@@ -514,11 +511,6 @@ export function SpontaneousActivityStart({
             {isSelectedRoomOccupied ? (
               <span className="mt-1 block text-xs text-[#A32020]">
                 Dieser Raum ist bereits belegt.
-              </span>
-            ) : null}
-            {hasSchulhofRoom ? (
-              <span className="mt-1 block text-xs text-gray-500">
-                Für den Schulhof bitte die Schulhof-Aufsicht verwenden.
               </span>
             ) : null}
           </div>

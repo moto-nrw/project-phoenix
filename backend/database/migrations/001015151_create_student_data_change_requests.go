@@ -95,10 +95,22 @@ func createStudentDataChangeRequestsUp(ctx context.Context, db *bun.DB) error {
 	if _, err := db.NewRaw(`
 		ALTER TABLE users.student_data_change_requests ENABLE ROW LEVEL SECURITY;
 		ALTER TABLE users.student_data_change_requests FORCE ROW LEVEL SECURITY;
-		CREATE POLICY tenant_isolation_student_data_change_requests ON users.student_data_change_requests
-			FOR ALL
-			USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint)
-			WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint);
+
+		DO $$
+		BEGIN
+			IF NOT EXISTS (
+				SELECT 1 FROM pg_policies
+				WHERE schemaname = 'users'
+					AND tablename = 'student_data_change_requests'
+					AND policyname = 'tenant_isolation_student_data_change_requests'
+			) THEN
+				CREATE POLICY tenant_isolation_student_data_change_requests
+					ON users.student_data_change_requests
+					FOR ALL
+					USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint)
+					WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint);
+			END IF;
+		END $$;
 	`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed enabling RLS on users.student_data_change_requests: %w", err)
 	}

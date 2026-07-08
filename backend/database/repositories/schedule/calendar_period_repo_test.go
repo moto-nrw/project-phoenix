@@ -571,6 +571,19 @@ func TestCalendarPeriodRepository_FindActiveOverlapping(t *testing.T) {
 	})
 }
 
+func TestCalendarPeriodRepository_UsageCounts_ReturnsDatabaseError(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	repo := scheduleRepo.NewCalendarPeriodRepository(db)
+	ctx := testpkg.TenantContext(1)
+	require.NoError(t, db.Close())
+
+	usage, err := repo.UsageCounts(ctx)
+
+	require.Error(t, err)
+	assert.Nil(t, usage)
+	assert.Contains(t, err.Error(), "usage counts")
+}
+
 func TestCalendarPeriodRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

@@ -13,23 +13,28 @@ interface UseRequirePermissionReturn {
 }
 
 /**
- * Gate a client page on a single tenant permission (admins always pass via the
+ * Gate a client page on a tenant permission (admins always pass via the
  * `admin:*` / `*:*` wildcard). Callers lacking it are redirected to /dashboard;
  * unauthenticated users are redirected to "/" by NextAuth's `required: true`.
  * The permission mirror of useRequireAdmin — use it where a page is open to more
  * than admins (e.g. the Änderungsanfragen queue, gated on users:update and
- * scoped per child in the backend).
+ * scoped per child in the backend). An array grants access when ANY of the
+ * listed permissions is held (matching backend RequiresAnyPermission routes).
  *
  * Usage:
  *   const { isReady } = useRequirePermission("users:update");
+ *   const { isReady } = useRequirePermission(["display:read", "display:manage"]);
  *   if (!isReady) return <Loading fullPage={false} />;
  */
 export function useRequirePermission(
-  permission: string,
+  permission: string | readonly string[],
 ): UseRequirePermissionReturn {
   const { data: session, status } = useSession({ required: true });
   const router = useTenantRouter();
-  const allowed = isAdmin(session) || hasPermission(session, permission);
+  const permissions =
+    typeof permission === "string" ? [permission] : permission;
+  const allowed =
+    isAdmin(session) || permissions.some((p) => hasPermission(session, p));
 
   useEffect(() => {
     if (status !== "authenticated") return;

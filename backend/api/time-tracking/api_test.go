@@ -51,6 +51,10 @@ func (m *mockStaffRepo) Delete(_ context.Context, _ any) error               { r
 func (m *mockStaffRepo) List(_ context.Context, _ map[string]any) ([]*userModels.Staff, error) {
 	return nil, nil
 }
+func (*mockStaffRepo) FindReachableCalendarStaffIDs(context.Context, []int64) (map[int64]bool, error) {
+	return map[int64]bool{}, nil
+}
+
 func (m *mockStaffRepo) ListAllWithPerson(_ context.Context) ([]*userModels.Staff, error) {
 	return nil, nil
 }
@@ -925,7 +929,7 @@ func TestGetConfig_ReturnsAccountStartDate(t *testing.T) {
 	assert.Equal(t, "2026-08-01", data.AccountStartDate)
 }
 
-func TestGetConfig_SettingsError(t *testing.T) {
+func TestGetConfig_AccountStartDateSettingsError(t *testing.T) {
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
 	rs.SettingsService = &mockSettingsService{stringErr: errors.New("settings unavailable")}
 
@@ -1131,6 +1135,31 @@ func TestStartBreak_Success(t *testing.T) {
 	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
 
 	r := httptest.NewRequest(http.MethodPost, "/break/start", nil)
+	r = withClaims(r, validClaims())
+	w := httptest.NewRecorder()
+
+	rs.startBreak(w, r)
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestStartBreak_WithPlannedDuration(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	wsSvc := &mockWorkSessionService{
+		startBreakFn: func(_ context.Context, staffID int64, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error) {
+			assert.Equal(t, int64(100), staffID)
+			require.NotNil(t, plannedDurationMinutes)
+			assert.Equal(t, 90, *plannedDurationMinutes)
+			return &activeModels.WorkSessionBreak{}, nil
+		},
+	}
+	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
+
+	durationMinutes := 90
+	body, err := json.Marshal(StartBreakRequest{PlannedDurationMinutes: &durationMinutes})
+	require.NoError(t, err)
+	r := httptest.NewRequest(http.MethodPost, "/break/start", bytes.NewReader(body))
 	r = withClaims(r, validClaims())
 	w := httptest.NewRecorder()
 

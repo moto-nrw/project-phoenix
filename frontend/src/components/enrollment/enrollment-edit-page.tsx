@@ -168,6 +168,7 @@ export function EnrollmentEditPage({ params }: Props) {
             captchaConfig: null,
             legalTexts: bootstrap.legal_texts,
             profile: null,
+            schoolClass: bootstrap.school_class,
           }}
           initialDraft={bootstrap.draft}
           submitter={submitter}

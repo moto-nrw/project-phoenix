@@ -87,11 +87,6 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   ),
 }));
 
-// Mock Loading component
-vi.mock("~/components/ui/loading", () => ({
-  Loading: () => <div data-testid="loading">Loading...</div>,
-}));
-
 // Mock PageHeaderWithSearch — renders filters, activeFilters, and the
 // overflow-menu items so the existing "Gruppe übergeben" assertions keep
 // working. The real OverflowMenu requires a click to expose its items, but
@@ -476,8 +471,8 @@ describe("OGSGroupPage", () => {
   it("shows loading state initially", async () => {
     render(<OGSGroupPage />);
 
-    // Initial loading state should show loading component
-    expect(screen.getByTestId("loading")).toBeInTheDocument();
+    // Initial loading state should show the page-shell skeleton
+    expect(screen.getByTestId("ogs-groups-skeleton")).toBeInTheDocument();
   });
 
   it("renders with SSE error boundary wrapper", () => {
@@ -549,8 +544,8 @@ describe("OGSGroupPage", () => {
 
     render(<OGSGroupPage />);
 
-    // Should show loading state while SWR is loading
-    expect(screen.getByTestId("loading")).toBeInTheDocument();
+    // Should show the page-shell skeleton while SWR is loading
+    expect(screen.getByTestId("ogs-groups-skeleton")).toBeInTheDocument();
   });
 
   it("displays group data when available", async () => {

@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/analytics"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/policies"
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -25,10 +26,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/announcement"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/auth"
+	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
 	"github.com/moto-nrw/project-phoenix/services/config/sideeffects"
 	"github.com/moto-nrw/project-phoenix/services/database"
+	"github.com/moto-nrw/project-phoenix/services/display"
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/emergency"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -73,6 +76,7 @@ type Factory struct {
 	Settings                 config.SettingsService
 	Schedule                 schedule.Service
 	StaffShifts              schedule.StaffShiftService
+	ShiftTypes               schedule.ShiftTypeService
 	PickupSchedule           schedule.PickupScheduleService
 	ArrivalSchedule          schedule.ArrivalScheduleService
 	CalendarPeriod           schedule.CalendarPeriodService
@@ -95,7 +99,8 @@ type Factory struct {
 	ListExport               listexport.Service
 	Emergency                emergency.Service
 	Reminders                reminders.Service
-	RealtimeHub              *realtime.Hub // SSE event hub (shared by services and API)
+	RealtimeHub              *realtime.Hub     // SSE event hub (shared by services and API)
+	Tracker                  analytics.Tracker // Product analytics (PostHog; no-op without POSTHOG_API_KEY)
 	Mailer                   email.Mailer
 	DefaultFrom              email.Email
 	FrontendURL              string
@@ -128,6 +133,9 @@ type Factory struct {
 	EmailOutboxWorker     *platform.OutboxWorker
 	EmailTemplateRegistry *platform.TemplateRegistry
 
+	// Display domain (info-point dashboards, issue #1325)
+	Display display.Service
+
 	// Enrollment domain (parent-enrollment PR 5+).
 	EnrollmentFormSchema    enrollment.FormSchemaService
 	EnrollmentCareOffering  enrollment.CareOfferingService
@@ -144,6 +152,9 @@ type Factory struct {
 
 	// Messaging (staff-side parent-OGS inbox / threads)
 	Messaging messaging.Service
+
+	// Calendar (staff and parent personal calendars)
+	Calendar calendarService.Service
 
 	// ParentAnnouncement (staff-side parent broadcast news authoring, #1669)
 	ParentAnnouncement announcement.Service
@@ -227,6 +238,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	// Create realtime hub for SSE broadcasting (single shared instance)
 	realtimeHub := realtime.NewHub(logger.With("component", "sse-hub"))
+
+	// Product analytics (PostHog) — no-op when POSTHOG_API_KEY is unset
+	tracker, err := analytics.New(
+		viper.GetString("posthog_api_key"),
+		viper.GetString("posthog_host"),
+		logger.With("component", "analytics"),
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	// Initialize education service first (needed for active service)
 	educationService := education.NewService(
@@ -337,6 +358,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		UsersService:             usersService,
 		DB:                       db,
 		Broadcaster:              realtimeHub,           // Pass SSE broadcaster
+		Tracker:                  tracker,               // Product analytics (PostHog)
 		WorkSessionService:       workSessionService,    // NFC auto-check-in
 		AttendanceSyncer:         attendanceSyncService, // WP-B10 mirror + SSE enrichment
 		TimetableBridgeCompleter: repos.ActivityInstance,
@@ -422,10 +444,17 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.RecurrenceRule,
 	)
 
+	// Initialize shift type service (Schichtarten, #1836)
+	shiftTypeService := schedule.NewShiftTypeService(
+		repos.ShiftType,
+		logger.With("service", "shift_type"),
+	)
+
 	// Initialize staff shift service (Dienstplan, #1376 core slice)
 	staffShiftService := schedule.NewStaffShiftService(
 		repos.StaffShift,
 		repos.Staff,
+		shiftTypeService,
 		db,
 		logger.With("service", "staff_shift"),
 	)
@@ -436,6 +465,23 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.StudentPickupException,
 		repos.StudentPickupNote,
 	)
+
+	// Initialize display service (info-point dashboards, issue #1325).
+	// Aggregates existing data sources; owns no queries beyond its own repo.
+	displayService := display.NewService(display.Dependencies{
+		DisplayRepo:       repos.Display,
+		SchoolRepo:        repos.School,
+		Facilities:        facilitiesService,
+		ActiveGroupRepo:   repos.ActiveGroup,
+		VisitRepo:         repos.ActiveVisit,
+		ActivityGroupRepo: repos.ActivityGroup,
+		InstanceRepo:      repos.ActivityInstance,
+		AttendanceRepo:    repos.Attendance,
+		PickupSchedule:    pickupScheduleService,
+		SettingsService:   settingsService,
+		DB:                db,
+		Logger:            logger.With("service", "display"),
+	})
 
 	// Initialize calendar period service
 	calendarPeriodService := schedule.NewCalendarPeriodService(
@@ -1055,6 +1101,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		RequestRepo:      repos.Request,
 		RequestChildRepo: repos.RequestChild,
 		CareOfferingRepo: repos.CareOffering,
+		FormSchemaRepo:   repos.FormSchema,
+		CalendarPeriods:  calendarPeriodService,
 		DB:               db,
 		Logger:           logger.With("service", "enrollment-phase"),
 	})
@@ -1188,6 +1236,26 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:      logger.With("service", "messaging"),
 	})
 
+	calendarSvc := calendarService.NewService(calendarService.Config{
+		AppointmentRepo:      repos.CalendarAppointment,
+		RecurrenceRepo:       repos.CalendarRecurrenceRule,
+		RecipientRepo:        repos.CalendarAppointmentRecipient,
+		RecipientStudentRepo: repos.CalendarAppointmentRecipientChild,
+		TargetRepo:           repos.CalendarAppointmentTarget,
+		OverrideRepo:         repos.CalendarOccurrenceOverride,
+		StaffRepo:            repos.Staff,
+		StudentRepo:          repos.Student,
+		GuardianProfileRepo:  repos.GuardianProfile,
+		StudentGuardianRepo:  repos.StudentGuardian,
+		ChildRepo:            repos.ParentChild,
+		GroupRepo:            repos.Group,
+		InstanceStaffRepo:    repos.InstanceStaff,
+		InstanceStudentRepo:  repos.InstanceStudent,
+		ActivityInstanceRepo: repos.ActivityInstance,
+		UserContext:          userContextService,
+		DB:                   db,
+	})
+
 	parentService := parent.NewService(parent.ServiceConfig{
 		ChildRepo:               repos.ParentChild,
 		EnrollablePhaseRepo:     repos.ParentEnrollablePhase,
@@ -1291,7 +1359,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Settings:                 settingsService,
 		Schedule:                 scheduleService,
 		StaffShifts:              staffShiftService,
+		ShiftTypes:               shiftTypeService,
 		PickupSchedule:           pickupScheduleService,
+		Display:                  displayService,
 		ArrivalSchedule:          arrivalScheduleService,
 		CalendarPeriod:           calendarPeriodService,
 		Materialization:          materializationService,
@@ -1314,6 +1384,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Emergency:                emergencyService,
 		Reminders:                remindersService,
 		RealtimeHub:              realtimeHub, // Expose SSE hub for API layer
+		Tracker:                  tracker,     // Product analytics (PostHog)
 		Invitation:               invitationService,
 		GuardianInvitation:       guardianInvitationService,
 		Mailer:                   mailer,
@@ -1381,6 +1452,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 		Parent:             parentService,
 		Messaging:          messagingService,
+		Calendar:           calendarSvc,
 		ParentAnnouncement: parentAnnouncementService,
 	}
 

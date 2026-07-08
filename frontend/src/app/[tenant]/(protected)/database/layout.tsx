@@ -1,6 +1,7 @@
 "use client";
 
 import { RoleGuard } from "~/components/auth/role-guard";
+import { DatabaseSectionSkeleton } from "./section-skeleton";
 
 export default function DatabaseLayout({
   children,
@@ -11,6 +12,7 @@ export default function DatabaseLayout({
     <RoleGuard
       variant="adminOnly"
       message="Du verfügst nicht über die notwendigen Berechtigungen, um die Datenverwaltung aufzurufen."
+      fallback={<DatabaseSectionSkeleton />}
     >
       {children}
     </RoleGuard>

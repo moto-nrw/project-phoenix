@@ -22,9 +22,11 @@ import (
 	activitiesAPI "github.com/moto-nrw/project-phoenix/api/activities"
 	adminAPI "github.com/moto-nrw/project-phoenix/api/admin"
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
+	calendarAPI "github.com/moto-nrw/project-phoenix/api/calendar"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	databaseAPI "github.com/moto-nrw/project-phoenix/api/database"
+	displayAPI "github.com/moto-nrw/project-phoenix/api/display"
 	emergencyAPI "github.com/moto-nrw/project-phoenix/api/emergency"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	feedbackAPI "github.com/moto-nrw/project-phoenix/api/feedback"
@@ -36,6 +38,7 @@ import (
 	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
 	roomsAPI "github.com/moto-nrw/project-phoenix/api/rooms"
 	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
+	shifttypesAPI "github.com/moto-nrw/project-phoenix/api/shift-types"
 	sseAPI "github.com/moto-nrw/project-phoenix/api/sse"
 	staffAPI "github.com/moto-nrw/project-phoenix/api/staff"
 	staffshiftsAPI "github.com/moto-nrw/project-phoenix/api/staff-shifts"
@@ -82,10 +85,12 @@ type API struct {
 	Staff            *staffAPI.Resource
 	WorkTimeModels   *worktimemodelsAPI.Resource
 	StaffShifts      *staffshiftsAPI.Resource
+	ShiftTypes       *shifttypesAPI.Resource
 	Feedback         *feedbackAPI.Resource
 	MealPlan         *mealplanAPI.Resource
 	Suggestions      *suggestionsAPI.Resource
 	Enrollment       *enrollmentAPI.Resource
+	Display          *displayAPI.Resource
 	Schedules        *schedulesAPI.Resource
 	Settings         *configAPI.SettingsResource
 	Active           *activeAPI.Resource
@@ -100,6 +105,7 @@ type API struct {
 	Timetable        *timetableAPI.Resource
 	Emergency        *emergencyAPI.Resource
 	Messaging        *messagingAPI.Resource
+	Calendar         *calendarAPI.Resource
 	Announcements    *announcementAPI.Resource
 	Reminders        *remindersAPI.Resource
 
@@ -404,6 +410,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		DB:                      db,
 	})
 	api.Messaging = messagingAPI.NewResource(api.Services.Messaging, db)
+	api.Calendar = calendarAPI.NewResource(api.Services.Calendar, db, logger.With("handler", "calendar"))
 	api.Announcements = announcementAPI.NewResource(api.Services.ParentAnnouncement, db)
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, db)
 	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.GuardianInvitation, api.Services.Users, api.Services.Education, api.Services.UserContext, db)
@@ -412,6 +419,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.StaffOffboarding, api.Services.Education, api.Services.Auth, api.Services.WorkSession, api.Services.StaffAbsence, db, logger.With("handler", "staff"))
 	api.WorkTimeModels = worktimemodelsAPI.NewResource(api.Services.WorkTimeModels, db, logger.With("handler", "work-time-models"))
 	api.StaffShifts = staffshiftsAPI.NewResource(api.Services.StaffShifts, api.Services.Users, db, logger.With("handler", "staff-shifts"))
+	api.ShiftTypes = shifttypesAPI.NewResource(api.Services.ShiftTypes, db, logger.With("handler", "shift-types"))
 	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback, api.Services.Settings, db)
 	api.MealPlan = mealplanAPI.NewResource(api.Services.MealPlan, api.Services.Settings, db)
 	api.Enrollment = enrollmentAPI.NewResource(
@@ -431,6 +439,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		repoFactory.FormSchema,
 	)
 	api.Enrollment.ListExportService = api.Services.ListExport
+	api.Display = displayAPI.NewResource(api.Services.Display, api.Services.Settings, db)
 	api.Suggestions = suggestionsAPI.NewResource(api.Services.Suggestions, db)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule, db)
 	api.Settings = configAPI.NewSettingsResource(api.Services.Settings, db, api.Services.RealtimeHub, repoFactory.FormSchema)
@@ -508,6 +517,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		api.Services.Schools,
 		db,
 	)
+	api.Parent.SetCalendarService(api.Services.Calendar)
 	api.Platform = platformAPI.NewResource(platformAPI.ResourceConfig{
 		AnnouncementsService: api.Services.Announcement,
 		TokenAuth:            nil, // Uses tenant auth middleware
@@ -613,6 +623,10 @@ func (a *API) registerRoutesWithRateLimiting() {
 		r.Mount("/staff", a.Staff.Router())
 		r.Mount("/work-time-models", a.WorkTimeModels.Router())
 		r.Mount("/staff-shifts", a.StaffShifts.Router())
+		r.Mount("/shift-types", a.ShiftTypes.Router())
+
+		// Mount personal calendar resources
+		r.Mount("/calendar", a.Calendar.Router())
 
 		// Mount feedback resources
 		r.Mount("/feedback", a.Feedback.Router())
@@ -622,6 +636,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 		// Mount enrollment resources (parent-enrollment PR 5+)
 		r.Mount("/enrollment", a.Enrollment.Router())
+
+		// Mount info-point display resources (issue #1325)
+		r.Mount("/display", a.Display.Router())
 
 		// Mount suggestions resources
 		r.Mount("/suggestions", a.Suggestions.Router())

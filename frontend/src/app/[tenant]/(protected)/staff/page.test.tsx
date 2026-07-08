@@ -112,7 +112,9 @@ describe("StaffPage", () => {
 
     render(<StaffPage />);
 
-    expect(screen.getByLabelText("Lädt...")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Mitarbeitende werden geladen"),
+    ).toBeInTheDocument();
   });
 
   it("filters staff by search and location", async () => {
@@ -240,7 +242,9 @@ describe("StaffPage", () => {
 
     render(<StaffPage />);
 
-    expect(screen.getByLabelText("Lädt...")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Mitarbeitende werden geladen"),
+    ).toBeInTheDocument();
   });
 });
 

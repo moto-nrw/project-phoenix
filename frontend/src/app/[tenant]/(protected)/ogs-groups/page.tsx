@@ -46,7 +46,6 @@ import { useSWRAuth } from "~/lib/swr";
 import { useUserContext } from "~/lib/hooks/use-user-context";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 
-import { Loading } from "~/components/ui/loading";
 import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import { EmptyStudentResults } from "~/components/ui/empty-student-results";
 import {
@@ -55,6 +54,7 @@ import {
   ArrivalTimeRow,
   StudentAbsenceRow,
 } from "~/components/students/student-card";
+import { StudentCardGridSkeleton } from "~/components/students/student-card-skeleton";
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
 import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
 import {
@@ -81,6 +81,7 @@ import {
 } from "~/lib/day-planning-helper";
 
 import { createLogger } from "~/lib/logger";
+import { OgsGroupsPageSkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "OgsGroupsPage" });
 
@@ -231,7 +232,7 @@ function GroupAbsenceOverview({
 function OGSGroupPageContent() {
   const router = useTenantRouter();
   const searchParams = useSearchParams();
-  const { data: session, status } = useSession({
+  const { data: session } = useSession({
     required: true,
     onUnauthenticated() {
       router.push("/");
@@ -1167,8 +1168,8 @@ function OGSGroupPageContent() {
     return filters;
   }, [sortMode, searchTerm, attendanceFilter]);
 
-  if (status === "loading" || isLoading || hasAccess === null) {
-    return <Loading fullPage={false} />;
+  if (isLoading || hasAccess === null) {
+    return <OgsGroupsPageSkeleton />;
   }
 
   // If user doesn't have access, show empty state
@@ -1272,7 +1273,7 @@ function OGSGroupPageContent() {
   // Render helper for student grid content
   const renderStudentContent = () => {
     if (isLoading) {
-      return <Loading fullPage={false} />;
+      return <StudentCardGridSkeleton />;
     }
     if (students.length === 0) {
       return (
@@ -1613,8 +1614,8 @@ function OGSGroupPageContent() {
 // Main component with Suspense wrapper
 export default function OGSGroupPage() {
   return (
-    <RoleGuard variant="staffOnly">
-      <Suspense fallback={<Loading fullPage={false} />}>
+    <RoleGuard variant="staffOnly" fallback={<OgsGroupsPageSkeleton />}>
+      <Suspense fallback={<OgsGroupsPageSkeleton />}>
         <SSEErrorBoundary>
           <OGSGroupPageContent />
         </SSEErrorBoundary>

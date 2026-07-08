@@ -9,7 +9,7 @@ import { getStartDateForTimeRange, toISODate } from "~/lib/date-helpers";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { BackButton } from "~/components/ui/back-button";
-import { Loading } from "~/components/ui/loading";
+import { FeedbackHistorySkeleton } from "./page-skeleton";
 import { createLogger } from "~/lib/logger";
 import { fetchStudent } from "~/lib/student-api";
 import type { Student } from "~/lib/student-helpers";
@@ -200,7 +200,7 @@ export default function StudentFeedbackHistoryPage() {
   };
 
   if (loading) {
-    return <Loading fullPage={false} />;
+    return <FeedbackHistorySkeleton />;
   }
 
   if (error || !student) {
